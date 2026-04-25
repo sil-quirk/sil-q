@@ -70,7 +70,7 @@ def calculate_config(width, height):
             break
     
     if scale == 0:
-        print(f"SKIP: {width}×{height} - too small for minimum terminal!")
+        print(f"SKIP: {width}x{height} - too small for minimum terminal!")
         return None
     
     # 2. Calculate main terminal minimum size in pixels
@@ -135,7 +135,7 @@ def get_resolution_name(width, height):
         (5120, 2880): "5K",
         (7680, 4320): "8K UHD",
     }
-    return names.get((width, height), f"{width}×{height}")
+    return names.get((width, height), f"{width}x{height}")
 
 def generate_c_code(configs):
     """Generate C code for resolution profiles."""
@@ -197,7 +197,7 @@ if __name__ == '__main__':
             if cfg['has_bottom_pane']:
                 panes_info.append(f"B{cfg['bottom_rows']}")
             panes_str = "+".join(panes_info) if panes_info else "No panes"
-            print(f"{width:4}×{height:4} {name:20} → Scale {cfg['scale']}, Font {cfg['aux_font_size']:2}, {panes_str}")
+            print(f"{width:4}x{height:4} {name:20} -> Scale {cfg['scale']}, Font {cfg['aux_font_size']:2}, {panes_str}")
     
     print("\n" + "=" * 80)
     print(f"\nTotal configurations: {len(configs)}")

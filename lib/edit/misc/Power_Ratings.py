@@ -15,7 +15,7 @@ ANSI_BRIGHT_YELLOW = '\033[93m'
 # FREE ability is now integrated as a unique trait score (1.5 points)
 UNIQUE_SCORES = {
     'SMT_FEANOR': 2,        # Uses only 1 forge cast for custom artifacts
-    'WIL_FIN': 2,           # Majesty ability gets twice more base will
+    'WIL_FIN': 1.5,         # Majesty ability gets 1.5x more base will
     'MEL_MAEDHROS': 1.5,    # One handed
     'SNG_FIN': 1.5,         # Song of Staying is twice as effective
     'SNG_THINGOL': 2,       # Song of Mastery is twice as effective
@@ -42,7 +42,7 @@ ABILITY_MULTIPLIER = 0.2  # Multiplier for ability level requirements
 # Characters with Total >= P4_THRESHOLD get P:4, Characters with Total >= P3_THRESHOLD get P:3, >= P2_THRESHOLD get P:2, >= P1_THRESHOLD get P:1
 P4_THRESHOLD = 19
 P3_THRESHOLD = 15
-P2_THRESHOLD = 11.5
+P2_THRESHOLD = 12
 P1_THRESHOLD = 9
 
 # Stat and skill weighting (change here to tune scoring)

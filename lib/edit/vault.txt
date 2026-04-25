@@ -157,7 +157,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 ### The Gates of Angband (type 10) -- maximum size 66x44 ??? ###
 ### This must be the first vault record
@@ -2930,17 +2930,20 @@ X:8:1:10
 M:Cold water and ancient stone keep an austere memory here, and the deep places seem to remember both grief and endurance; in pondering that silence, you gain 500 experience.
 F:SURFACE
 F:LIGHT
-D:#########
-D:####,0###
-D:###,,,,##
-D:##.77777#
-D:#..77777#
-D:$...7u77#
-D:#..77777#
-D:##.77777#
-D:###,,,,##
-D:####,0###
-D:#########
+S:57:1
+D:           
+D: ######### 
+D: ####,0### 
+D: ###,,,,## 
+D: ##.77777# 
+D: #..77777# 
+D:$...7u77#  
+D: #..77777# 
+D: ##.77777# 
+D: ###,,,,## 
+D: ####,0### 
+D: ######### 
+D:           
 
 
 #Type7 more
@@ -3569,7 +3572,7 @@ D:##################
 #D:$$$$$$$$$$$$$$$$$$$$$
 #
 ## Vault: The Iron Council (Greater Vault)
-## Lore: A fortified council hall where Morgoth's captains plot war — outer yards, an inner shrine, and a guarded treasury.
+## Lore: A fortified council hall where Morgoth's captains plot war - outer yards, an inner shrine, and a guarded treasury.
 #N:490:The Iron Council
 #X:8:16:3
 #D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$

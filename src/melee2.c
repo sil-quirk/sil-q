@@ -5664,7 +5664,7 @@ void calc_morale(monster_type* m_ptr)
 
     // reduce morale for the Majesty ability
     difference = MAX(p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
-    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_FIN) difference = MAX(2*p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_FIN) difference = MAX((3 * p_ptr->skill_use[S_WIL]) / 2 - monster_skill(m_ptr, S_WIL), 0);
     if (p_ptr->active_ability[S_WIL][WIL_MAJESTY])
         morale -= difference / 2 * 10;
 
@@ -5675,8 +5675,10 @@ void calc_morale(monster_type* m_ptr)
     // reduce morale for artifact-granted bane
     morale -= artifact_bane_bonus(m_ptr) * 10;
 
-    // increase morale for the Elf-Bane ability
+    // increase morale for monster racial bane abilities
     morale += elf_bane_bonus(m_ptr) * 10;
+    morale += dwarf_bane_bonus(m_ptr) * 10;
+    morale += edain_bane_bonus(m_ptr) * 10;
 
     // add temporary morale modifiers
     morale += m_ptr->tmp_morale;
@@ -6163,8 +6165,10 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
             // deal with artifact-granted bane
             m_perception -= artifact_bane_bonus(m_ptr);
 
-            // increase morale for the Elf-Bane ability
+            // increase perception for monster racial bane abilities
             m_perception += elf_bane_bonus(m_ptr);
+            m_perception += dwarf_bane_bonus(m_ptr);
+            m_perception += edain_bane_bonus(m_ptr);
 
             // monsters are looking more carefully during the escape
             if (p_ptr->on_the_run)

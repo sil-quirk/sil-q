@@ -2016,6 +2016,7 @@ void describe_floor_object(void)
     object_type* o_ptr;
     char o_name[80];
     char smith_buf[20];
+    bool disturb_for_underfoot_notice = !p_ptr->resting;
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
@@ -2064,8 +2065,9 @@ void describe_floor_object(void)
         else
             msg_format("Your feet strike against %s.", o_name);
 
-        /* Disturb */
-        disturb(0, 0);
+        /* Underfoot reminders should not cancel an active rest. */
+        if (disturb_for_underfoot_notice)
+            disturb(0, 0);
     }
 
     // other things just show description
@@ -2076,8 +2078,9 @@ void describe_floor_object(void)
         else
             msg_format("Your feet strike against %s.", o_name);
 
-        /* Disturb */
-        disturb(0, 0);
+        /* Underfoot reminders should not cancel an active rest. */
+        if (disturb_for_underfoot_notice)
+            disturb(0, 0);
     }
 
     // special explanation the first time you step over the crown
@@ -2819,7 +2822,7 @@ bool place_monster_one(
     {
         n_ptr->maxhp = r_ptr->hdice * (1 + r_ptr->hside) / 2;
 
-        /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
+        /* Apply unique-HP curses/blessings: +20% curse, -10% blessing per stack */
         {
             int stacks = curse_flag_delta_cur(CUR_U_MON_HP);
             if (stacks > 0) {
@@ -2836,7 +2839,7 @@ bool place_monster_one(
     {
         n_ptr->maxhp = damroll(r_ptr->hdice, r_ptr->hside);
 
-        /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
+        /* Apply normal-HP curses/blessings: +20% curse, -10% blessing per stack */
         {
             int stacks = curse_flag_delta_cur(CUR_MON_HP);
             if (stacks > 0) {

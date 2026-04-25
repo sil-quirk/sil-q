@@ -150,77 +150,77 @@ cptr option_text[OPT_MAX] = {
     "hjkl_movement", /* OPT_hjkl_movement */
     "quick_messages", /* OPT_quick_messages */
     "angband_keyset", /* OPT_angband_keyset */
-    NULL, /* xxx carry_query */
+    NULL, /* reserved legacy slot: carry_query */
     "stop_singing_on_rest", /* OPT_stop_singing_on_rest */
-    NULL, /* xxx always_pickup */
+    NULL, /* reserved legacy slot: always_pickup */
     "forgo_attacking_unwary", /* OPT_forgo_attacking_unwary */
-    NULL, /* xxx depth_in_feet */
-    NULL, /* xxx stack_force_notes */
-    NULL, /* xxx stack_force_costs */
-    NULL, /* xxx show_labels */
-    NULL, /* xxx show_weights */
-    NULL, /* xxx show_choices */
-    NULL, /* xxx show_details */
+    NULL, /* reserved legacy slot: depth_in_feet */
+    NULL, /* reserved legacy slot: stack_force_notes */
+    NULL, /* reserved legacy slot: stack_force_costs */
+    NULL, /* reserved legacy slot: show_labels */
+    NULL, /* reserved legacy slot: show_weights */
+    NULL, /* reserved legacy slot: show_choices */
+    NULL, /* reserved legacy slot: show_details */
     "beep", /* OPT_system_beep */
-    NULL, /* xxx flavors */
-    NULL, /* xxx run_ignore_stairs */
-    NULL, /* xxx run_ignore_doors */
-    NULL, /* xxx run_cut_corners */
-    NULL, /* xxx run_use_corners */
-    NULL, /* xxx disturb_move */
-    NULL, /* xxx disturb_near */
-    NULL, /* xxx disturb_panel */
-    NULL, /* xxx disturb_state */
-    NULL, /* xxx disturb_minor */
-    NULL, /* xxx disturb_wakeup */
-    NULL, /* xxx alert_hitpoint */
-    NULL, /* xxx alert_failure */
-    NULL, /* xxx verify_destroy */
-    NULL, /* xxx verify_special */
-    NULL, /* xxx allow_quantity */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot: flavors */
+    NULL, /* reserved legacy slot: run_ignore_stairs */
+    NULL, /* reserved legacy slot: run_ignore_doors */
+    NULL, /* reserved legacy slot: run_cut_corners */
+    NULL, /* reserved legacy slot: run_use_corners */
+    NULL, /* reserved legacy slot: disturb_move */
+    NULL, /* reserved legacy slot: disturb_near */
+    NULL, /* reserved legacy slot: disturb_panel */
+    NULL, /* reserved legacy slot: disturb_state */
+    NULL, /* reserved legacy slot: disturb_minor */
+    NULL, /* reserved legacy slot: disturb_wakeup */
+    NULL, /* reserved legacy slot: alert_hitpoint */
+    NULL, /* reserved legacy slot: alert_failure */
+    NULL, /* reserved legacy slot: verify_destroy */
+    NULL, /* reserved legacy slot: verify_special */
+    NULL, /* reserved legacy slot: allow_quantity */
+    NULL, /* reserved legacy slot */
     "valorous_oath_auto_attack_safety", /* OPT_valorous_oath_auto_attack_safety */
     "visual_recognition", /* OPT_visual_recognition */
     "stealth_vision", /* OPT_stealth_vision */
     "sleep_icon", /* OPT_sleep_icon */
     "assassination_over_charge", /* OPT_assassination_over_charge */
-    NULL, /* xxx expand_list */
-    NULL, /* xxx view_perma_grids */
-    NULL, /* xxx view_torch_grids */
-    NULL, /* xxx dungeon_align */
-    NULL, /* xxx dungeon_stair */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx track_follow */
-    NULL, /* xxx track_target */
-    NULL, /* xxx track_target */
-    NULL, /* xxx smart_cheat */
-    NULL, /* xxx view_reduce_lite */
-    NULL, /* xxx hidden_player */
-    NULL, /* xxx avoid_abort */
-    NULL, /* xxx avoid_other */
-    NULL, /* xxx flush_failure */
-    NULL, /* xxx flush_disturb */
-    NULL, /* xxx flush_command */
-    NULL, /* xxx fresh_before */
-    NULL, /* xxx fresh_after */
-    NULL, /* xxx fresh_message */
-    NULL, /* xxx compress_savefile */
+    "pacifist_attack_warning", /* OPT_pacifist_attack_warning */
+    NULL, /* reserved legacy slot: view_perma_grids */
+    NULL, /* reserved legacy slot: view_torch_grids */
+    NULL, /* reserved legacy slot: dungeon_align */
+    NULL, /* reserved legacy slot: dungeon_stair */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: track_follow */
+    NULL, /* reserved legacy slot: track_target */
+    NULL, /* reserved legacy slot: track_target */
+    NULL, /* reserved legacy slot: smart_cheat */
+    NULL, /* reserved legacy slot: view_reduce_lite */
+    NULL, /* reserved legacy slot: hidden_player */
+    NULL, /* reserved legacy slot: avoid_abort */
+    NULL, /* reserved legacy slot: avoid_other */
+    NULL, /* reserved legacy slot: flush_failure */
+    NULL, /* reserved legacy slot: flush_disturb */
+    NULL, /* reserved legacy slot: flush_command */
+    NULL, /* reserved legacy slot: fresh_before */
+    NULL, /* reserved legacy slot: fresh_after */
+    NULL, /* reserved legacy slot: fresh_message */
+    NULL, /* reserved legacy slot: compress_savefile */
     "hilite_player", /* OPT_hilite_player */
     "hilite_target", /* OPT_hilite_target */
     "hilite_unwary", /* OPT_hilite_unwary */
     "solid_walls", /* OPT_solid_walls */
     "hybrid_walls", /* OPT_hybrid_walls */
-    NULL, /* xxx easy_open */
-    NULL, /* xxx easy_alter */
-    NULL, /* xxx easy_floor */
+    NULL, /* reserved legacy slot: easy_open */
+    NULL, /* reserved legacy slot: easy_alter */
+    NULL, /* reserved legacy slot: easy_floor */
     "instant_run", /* OPT_instant_run */
     "center_player", /* OPT_center_player */
     "run_avoid_center", /* OPT_run_avoid_center */
-    NULL, /* xxx scroll_target */
+    NULL, /* reserved legacy slot: scroll_target */
     "auto_more", /* OPT_auto_more */
     "know_monster_info", /* OPT_know_monster_info */
-    "always_show_list", /* OPT_auto_display_lists */
+    NULL, /* reserved legacy slot: auto_display_lists */
     "artifact_unique_color", /* OPT_artifact_unique_color */
     "easy_main_menu", /* OPT_easy_main_menu */
     "story_lists", /* OPT_story_lists */
@@ -242,7 +242,7 @@ cptr option_text[OPT_MAX] = {
     "vault_drop_frequency", /* OPT_vault_drop_frequency */
     "show_smithing_difficulty", /* OPT_show_smithing_difficulty */
     "show_smithing_difficulty_look", /* OPT_show_smithing_difficulty_look */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot */
     "partition_narrative_mode", /* OPT_show_partition_narrative */
     "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
     NULL, /* OPT_hide_left_panel */
@@ -251,65 +251,66 @@ cptr option_text[OPT_MAX] = {
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
     "look_objects_sort_by_difficulty", /* OPT_look_objects_sort_by_difficulty */
     "look_nearby_filter_default", /* OPT_look_nearby_filter_default */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx birth_point_based */
-    NULL, /* xxx birth_auto_roller */
-    NULL, /* xxx birth_maximize */
+    "show_elemental_item_rolls", /* OPT_show_elemental_item_rolls */
+    NULL, /* OPT_hidden_left_panel_mode */
+    "top_status_line", /* OPT_top_status_line */
+    "hide_supporting_panes_fullscreen", /* OPT_hide_supporting_panes_fullscreen */
+    "narrative_banner_turns", /* OPT_narrative_banner_turns */
+    "min_depth_timer_mode", /* OPT_min_depth_timer_mode */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: birth_point_based */
+    NULL, /* reserved legacy slot: birth_auto_roller */
+    NULL, /* reserved legacy slot: birth_maximize */
     "birth_discon_stair", /* OPT_birth_discon_stair */
     "birth_ironman", /* OPT_birth_ironman */
     NULL, "birth_no_artefacts", /* OPT_birth_no_artefacts */
     "birth_fixed_exp", /* OPT_birth_fixed_exp */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx birth_force_small_lev */
-    NULL, /* xxx birth_retain_squelch */
-    NULL, /* xxx birth_no_quests*/
-    NULL, /* xxx birth_no_player ghosts*/
-    NULL, /* xxx birth_no_store_services*/
-    NULL, /* xxx birth_no_xtra_artefacts*/
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: birth_force_small_lev */
+    NULL, /* reserved legacy slot: birth_retain_squelch */
+    NULL, /* reserved legacy slot: birth_no_quests */
+    NULL, /* reserved legacy slot: birth_no_player ghosts */
+    NULL, /* reserved legacy slot: birth_no_store_services */
+    NULL, /* reserved legacy slot: birth_no_xtra_artefacts */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
     "cheat_peek", /* OPT_cheat_peek */
     "cheat_hear", /* OPT_cheat_hear */
     "cheat_room", /* OPT_cheat_room */
@@ -322,67 +323,68 @@ cptr option_text[OPT_MAX] = {
     "cheat_light", /* OPT_cheat_light */
     "cheat_skill_rolls", /* OPT_cheat_skill_rolls */
     "cheat_timestop", /* OPT_cheat_timestop */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx adult_point_based */
-    NULL, /* xxx adult_auto_roller */
-    NULL, /* xxx adult_maximize */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: adult_point_based */
+    NULL, /* reserved legacy slot: adult_auto_roller */
+    NULL, /* reserved legacy slot: adult_maximize */
     "adult_discon_stair", /* OPT_adult_discon_stair */
     "adult_ironman", /* OPT_adult_ironman */
-    NULL, /* xxx adult_no_stores */
+    NULL, /* reserved legacy slot: adult_no_stores */
     "adult_no_artefacts", /* OPT_adult_no_artefacts */
-    NULL, /* xxx adult_rand_artefacts */
-    NULL, /* xxx adult_no_stacking */
-    NULL, /* xxx adult_auto_notes */
-    NULL, /* xxx adult_force_small_lev*/
-    NULL, /* xxx adult_retain_squelch */
-    NULL, /* xxx adult_no_quests*/
-    NULL, /* xxx adult_no_player ghosts*/
-    NULL, /* xxx adult_no_store_services*/
-    NULL, /* xxx adult_no_xtra_artefacts*/
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot: adult_rand_artefacts */
+    NULL, /* reserved legacy slot: adult_no_stacking */
+    NULL, /* reserved legacy slot: adult_auto_notes */
+    NULL, /* reserved legacy slot: adult_force_small_lev */
+    NULL, /* reserved legacy slot: adult_retain_squelch */
+    NULL, /* reserved legacy slot: adult_no_quests */
+    NULL, /* reserved legacy slot: adult_no_player ghosts */
+    NULL, /* reserved legacy slot: adult_no_store_services */
+    NULL, /* reserved legacy slot: adult_no_xtra_artefacts */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
     "score_peek", /* OPT_score_peek */
     "score_hear", /* OPT_score_hear */
     "score_room", /* OPT_score_room */
     "score_xtra", /* OPT_score_xtra */
     "score_know", /* OPT_score_know */
     "score_live", /* OPT_score_live */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL /* xxx */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL /* reserved legacy slot */
 };
 
 /*
@@ -392,77 +394,77 @@ cptr option_desc[OPT_MAX] = {
     "Move with hjkl etc. (use ^ for underlying keys)", /* OPT_hjkl_movement */
     "Dismiss '-more-' and 'y/n' prompts with any key", /* OPT_quick_messages */
     "Use a keyset more closely based on Angband", /* OPT_angband_keyset */
-    NULL, /* xxx carry_query */
+    NULL, /* reserved legacy slot: carry_query */
     "Stop singing when you use the rest command", /* OPT_stop_singing_on_rest */
-    NULL, /* xxx always_pickup */
+    NULL, /* reserved legacy slot: always_pickup */
     "Forgo bonus attacks on non-alert enemies", /* OPT_forgo_attacking_unwary */
-    NULL, /* xxx depth_in_feet */
-    NULL, /* xxx stack_force_notes */
-    NULL, /* xxx stack_force_costs */
-    NULL, /* xxx show_labels */
-    NULL, /* xxx show_weights */
-    NULL, /* xxx show_choices */
-    NULL, /* xxx show_details */
+    NULL, /* reserved legacy slot: depth_in_feet */
+    NULL, /* reserved legacy slot: stack_force_notes */
+    NULL, /* reserved legacy slot: stack_force_costs */
+    NULL, /* reserved legacy slot: show_labels */
+    NULL, /* reserved legacy slot: show_weights */
+    NULL, /* reserved legacy slot: show_choices */
+    NULL, /* reserved legacy slot: show_details */
     "Audible beep (on errors/warnings)", /* OPT_system_beep */
-    NULL, /* xxx show_flacors */
-    NULL, /* xxx run_ignore_stairs */
-    NULL, /* xxx run_ignore_doors */
-    NULL, /* xxx run_cut_corners */
-    NULL, /* xxx run_use_corners */
-    NULL, /* xxx disturb_move */
-    NULL, /* xxx disturb_near */
-    NULL, /* xxx disturb_panel */
-    NULL, /* xxx disturb_state */
-    NULL, /* xxx disturb_minor */
-    NULL, /* xxx disturb_wakeup */
-    NULL, /* xxx alert_hitpoint */
-    NULL, /* xxx alert_failure */
-    NULL, /* xxx verify_destroy */
-    NULL, /* xxx verify_special */
-    NULL, /* xxx allow_quantity */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot: show_flavors */
+    NULL, /* reserved legacy slot: run_ignore_stairs */
+    NULL, /* reserved legacy slot: run_ignore_doors */
+    NULL, /* reserved legacy slot: run_cut_corners */
+    NULL, /* reserved legacy slot: run_use_corners */
+    NULL, /* reserved legacy slot: disturb_move */
+    NULL, /* reserved legacy slot: disturb_near */
+    NULL, /* reserved legacy slot: disturb_panel */
+    NULL, /* reserved legacy slot: disturb_state */
+    NULL, /* reserved legacy slot: disturb_minor */
+    NULL, /* reserved legacy slot: disturb_wakeup */
+    NULL, /* reserved legacy slot: alert_hitpoint */
+    NULL, /* reserved legacy slot: alert_failure */
+    NULL, /* reserved legacy slot: verify_destroy */
+    NULL, /* reserved legacy slot: verify_special */
+    NULL, /* reserved legacy slot: allow_quantity */
+    NULL, /* reserved legacy slot */
     "Disable automatic attacks of fleeing enemies under Oath of Valor", /* OPT_valorous_oath_auto_attack_safety */
     "Smart monsters need light to visually recognize you", /* OPT_visual_recognition */
     "Stealth vision mode: show when monsters can see you", /* OPT_stealth_vision */
     "Show an overlay icon on sleeping monsters", /* OPT_sleep_icon */
     "On unaware targets, use Assassination instead of Charge bonuses", /* OPT_assassination_over_charge */
-    NULL, /* xxx expand_list */
-    NULL, /* xxx view_perma_grids */
-    NULL, /* xxx view_torch_grids */
-    NULL, /* xxx dungeon_align */
-    NULL, /* xxx dungeon_stair */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx track_follow */
-    NULL, /* xxx track_target */
-    NULL, /* xxx track_target */
-    NULL, /* xxx smart_cheat */
-    NULL, /* xxx view_reduce_lite */
-    NULL, /* xxx hidden_player */
-    NULL, /* xxx avoid_abort */
-    NULL, /* xxx avoid_other */
-    NULL, /* xxx flush_failure */
-    NULL, /* xxx flush_disturb */
-    NULL, /* xxx */
-    NULL, /* xxx fresh_before */
-    NULL, /* xxx fresh_after */
-    NULL, /* xxx */
-    NULL, /* xxx compress_savefile */
+    "Warn before making direct attacks (useful for pacifist runs)", /* OPT_pacifist_attack_warning */
+    NULL, /* reserved legacy slot: view_perma_grids */
+    NULL, /* reserved legacy slot: view_torch_grids */
+    NULL, /* reserved legacy slot: dungeon_align */
+    NULL, /* reserved legacy slot: dungeon_stair */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: track_follow */
+    NULL, /* reserved legacy slot: track_target */
+    NULL, /* reserved legacy slot: track_target */
+    NULL, /* reserved legacy slot: smart_cheat */
+    NULL, /* reserved legacy slot: view_reduce_lite */
+    NULL, /* reserved legacy slot: hidden_player */
+    NULL, /* reserved legacy slot: avoid_abort */
+    NULL, /* reserved legacy slot: avoid_other */
+    NULL, /* reserved legacy slot: flush_failure */
+    NULL, /* reserved legacy slot: flush_disturb */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: fresh_before */
+    NULL, /* reserved legacy slot: fresh_after */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: compress_savefile */
     "Highlight the player with the cursor", /* OPT_hilite_player */
     "Highlight the target with the cursor", /* OPT_hilite_target */
     "Highlight sleeping and unwary creatures", /* OPT_hilite_unwary */
     "Display walls as solid blocks", /* OPT_solid_walls */
     "Display walls as semi-solid", /* OPT_hybrid_walls */
-    NULL, /* xxx easy_open */
-    NULL, /* xxx easy_alter */
-    NULL, /* xxx easy_floor */
+    NULL, /* reserved legacy slot: easy_open */
+    NULL, /* reserved legacy slot: easy_alter */
+    NULL, /* reserved legacy slot: easy_floor */
     "Faster display while running", /* OPT_instant_run */
     "Center map continuously (very slow)", /* OPT_center_player */
     "Avoid centering while running", /* OPT_run_avoid_center */
-    NULL, /* xxx scroll_target */
+    NULL, /* reserved legacy slot: scroll_target */
     "Automatically dismiss '-more-' messages", /* OPT_auto_more */
     "Know all monster info", /* OPT_know_monster_info */
-    "Automatically display drop-down lists", /* OPT_auto_display_lists */
+    NULL, /* reserved legacy slot: auto_display_lists */
     "Display artifacts in unique yellow color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     "Render look/target lists with the story font", /* OPT_story_lists */
@@ -493,65 +495,66 @@ cptr option_desc[OPT_MAX] = {
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
     "Start look (l) with the nearby-only sidebar filter enabled", /* OPT_look_nearby_filter_default */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx birth_point_based */
-    NULL, /* xxx birth_auto_roller */
-    NULL, /* xxx birth_maximize */
+    "Debug: Show elemental item break rolls and target probabilities", /* OPT_show_elemental_item_rolls */
+    NULL, /* OPT_hidden_left_panel_mode */
+    "Move the bottom status line to the top and hide the main message line", /* OPT_top_status_line */
+    "Hide supporting panes on full-screen menus when that frees space", /* OPT_hide_supporting_panes_fullscreen */
+    "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
+    "Minimum depth pace (0=normal, 1=relaxed [+30000], 2=harsh [-30000])", /* OPT_min_depth_timer_mode */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: birth_point_based */
+    NULL, /* reserved legacy slot: birth_auto_roller */
+    NULL, /* reserved legacy slot: birth_maximize */
     "Disconnected stairs", /* OPT_birth_discon_stair */
     "Straight down (no up stairs until endgame)", /* OPT_birth_ironman */
     NULL, "No artefacts", /* OPT_birth_no_artefacts */
     "Fixed XP - gain 50K at start and nothing after", /* OPT_birth_fixed_exp */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx birth_take_notes */
-    NULL, /* xxx birth_force_small_lev */
-    NULL, /* xxx birth_retain_squelch*/
-    NULL, /* xxx birth_no_quests*/
-    NULL, /* xxx birth_no_player ghosts*/
-    NULL, /* xxx birth_no_store_services*/
-    NULL, /* xxx birth_no_xtra_artefacts*/
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: birth_take_notes */
+    NULL, /* reserved legacy slot: birth_force_small_lev */
+    NULL, /* reserved legacy slot: birth_retain_squelch */
+    NULL, /* reserved legacy slot: birth_no_quests */
+    NULL, /* reserved legacy slot: birth_no_player ghosts */
+    NULL, /* reserved legacy slot: birth_no_store_services */
+    NULL, /* reserved legacy slot: birth_no_xtra_artefacts */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
     "Debug: Peek into object creation", /* OPT_cheat_peek */
     "Debug: Peek into monster creation", /* OPT_cheat_hear */
     "Debug: Peek into dungeon creation", /* OPT_cheat_room */
@@ -564,84 +567,85 @@ cptr option_desc[OPT_MAX] = {
     "Debug: Continually display light levels", /* OPT_cheat_light */
     "Debug: Show all skill rolls", /* OPT_cheat_skill_rolls */
     "Debug: Don't allow monsters to move", /* OPT_timestop */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx adult_point_based */
-    NULL, /* xxx adult_auto_roller */
-    NULL, /* xxx adult_maximize */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot: adult_point_based */
+    NULL, /* reserved legacy slot: adult_auto_roller */
+    NULL, /* reserved legacy slot: adult_maximize */
     "Disconnected stairs", /* OPT_adult_discon_stair */
     "Straight down (no up stairs until endgame)", /* OPT_adult_ironman */
-    NULL, /* xxx adult_no_stores */
+    NULL, /* reserved legacy slot: adult_no_stores */
     "No artefacts", /* OPT_adult_no_artefacts */
-    NULL, /* xxx adult_rand_artefacts */
-    NULL, /* xxx adult_adult_no_stacking */
-    NULL, /* xxx adult_take_notes */
-    NULL, /* xxx adult_force_small_lev */
-    NULL, /* xxx adult_retain_squelch*/
-    NULL, /* xxx adult_no_quests*/
-    NULL, /* xxx adult_no_player ghosts*/
-    NULL, /* xxx adult_no_store_services*/
-    NULL, /* xxx adult_no_xtra_artefacts*/
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
+    NULL, /* reserved legacy slot: adult_rand_artefacts */
+    NULL, /* reserved legacy slot: adult_no_stacking */
+    NULL, /* reserved legacy slot: adult_take_notes */
+    NULL, /* reserved legacy slot: adult_force_small_lev */
+    NULL, /* reserved legacy slot: adult_retain_squelch */
+    NULL, /* reserved legacy slot: adult_no_quests */
+    NULL, /* reserved legacy slot: adult_no_player ghosts */
+    NULL, /* reserved legacy slot: adult_no_store_services */
+    NULL, /* reserved legacy slot: adult_no_xtra_artefacts */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
     "Score: Peek into object creation", /* OPT_score_peek */
     "Score: Peek into monster creation", /* OPT_score_hear */
     "Score: Peek into dungeon creation", /* OPT_score_room */
     "Score: Peek into something else", /* OPT_score_xtra */
     "Score: Know complete monster info", /* OPT_score_know */
     "Score: Allow player to avoid death", /* OPT_score_live */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
-    NULL /* xxx */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL, /* reserved legacy slot */
+    NULL /* reserved legacy slot */
 };
 
 /*
@@ -651,77 +655,77 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_hjkl_movement */
     true, /* OPT_quick_messages */
     false, /* OPT_angband_keyset */
-    false, /* xxx carry_query */
+    false, /* reserved legacy slot: carry_query */
     true, /* OPT_stop_singing_on_rest */
-    false, /* xxx always_pickup */
+    false, /* reserved legacy slot: always_pickup */
     true, /* OPT_forgo_attacking_unwary */
-    false, /* xxx depth_in_feet */
-    false, /* xxx stack_force_notes */
-    false, /* xxx stack_force_costs */
-    false, /* xxx show_labels */
-    false, /* xxx show_weights */
-    false, /* xxx show_choices */
-    false, /* xxx show_details */
+    false, /* reserved legacy slot: depth_in_feet */
+    false, /* reserved legacy slot: stack_force_notes */
+    false, /* reserved legacy slot: stack_force_costs */
+    false, /* reserved legacy slot: show_labels */
+    false, /* reserved legacy slot: show_weights */
+    false, /* reserved legacy slot: show_choices */
+    false, /* reserved legacy slot: show_details */
     true, /* OPT_system_beep */
-    false, /* xxx show_flavors */
-    false, /* xxx run_ignore_stairs */
-    false, /* xxx run_ignore_doors */
-    false, /* xxx run_cut_corners */
-    false, /* xxx run_use_corners */
-    false, /* xxx disturb_move */
-    false, /* xxx disturb_near */
-    false, /* xxx disturb_panel */
-    false, /* xxx disturb_state */
-    false, /* xxx disturb_minor */
-    false, /* xxx disturb_wakeup */
-    false, /* xxx alert_hitpoint */
-    false, /* xxx alert_failure */
-    false, /* xxx verify_destroy */
-    false, /* xxx verify_special */
-    false, /* xxx allow_quantity */
-    false, /* xxx */
+    false, /* reserved legacy slot: show_flavors */
+    false, /* reserved legacy slot: run_ignore_stairs */
+    false, /* reserved legacy slot: run_ignore_doors */
+    false, /* reserved legacy slot: run_cut_corners */
+    false, /* reserved legacy slot: run_use_corners */
+    false, /* reserved legacy slot: disturb_move */
+    false, /* reserved legacy slot: disturb_near */
+    false, /* reserved legacy slot: disturb_panel */
+    false, /* reserved legacy slot: disturb_state */
+    false, /* reserved legacy slot: disturb_minor */
+    false, /* reserved legacy slot: disturb_wakeup */
+    false, /* reserved legacy slot: alert_hitpoint */
+    false, /* reserved legacy slot: alert_failure */
+    false, /* reserved legacy slot: verify_destroy */
+    false, /* reserved legacy slot: verify_special */
+    false, /* reserved legacy slot: allow_quantity */
+    false, /* reserved legacy slot */
     true, /* OPT_valorous_oath_auto_attack_safety */
     true, /* OPT_visual_recognition */
     true, /* OPT_stealth_vision */
     true, /* OPT_sleep_icon */
     false, /* OPT_assassination_over_charge */
-    false, /* xxx expand_list */
-    false, /* xxx view_perma_grids */
-    false, /* xxx view_torch_grids */
-    false, /* xxx dungeon_align */
-    false, /* xxx dungeon_stair */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx track_follow */
-    false, /* xxx track_target */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx view_reduce_lite */
-    false, /* xxx hidden_player */
-    false, /* xxx avoid_abort */
-    false, /* xxx avoid_other */
-    false, /* xxx flush_failure */
-    false, /* xxx flush_disturb */
-    false, /* xxx */
-    false, /* xxx fresh_before */
-    false, /* xxx fresh_after */
-    false, /* xxx */
-    false, /* xxx compress_savefile */
+    false, /* OPT_pacifist_attack_warning */
+    false, /* reserved legacy slot: view_perma_grids */
+    false, /* reserved legacy slot: view_torch_grids */
+    false, /* reserved legacy slot: dungeon_align */
+    false, /* reserved legacy slot: dungeon_stair */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: track_follow */
+    false, /* reserved legacy slot: track_target */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: view_reduce_lite */
+    false, /* reserved legacy slot: hidden_player */
+    false, /* reserved legacy slot: avoid_abort */
+    false, /* reserved legacy slot: avoid_other */
+    false, /* reserved legacy slot: flush_failure */
+    false, /* reserved legacy slot: flush_disturb */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: fresh_before */
+    false, /* reserved legacy slot: fresh_after */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: compress_savefile */
     false, /* OPT_hilite_player */
     true, /* OPT_hilite_target */
     true, /* OPT_hilite_unwary */
     true, /* OPT_solid_walls */
     false, /* OPT_hybrid_walls */
-    false, /* xxx easy_open */
-    false, /* xxx easy_alter */
-    false, /* xxx easy_floor */
+    false, /* reserved legacy slot: easy_open */
+    false, /* reserved legacy slot: easy_alter */
+    false, /* reserved legacy slot: easy_floor */
     false, /* OPT_instant_run */
     false, /* OPT_center_player */
     false, /* OPT_run_avoid_center */
-    false, /* xxx scroll_target */
+    false, /* reserved legacy slot: scroll_target */
     false, /* OPT_auto_more */
     false, /* OPT_know_monster_info */
-    true, /* OPT_auto_display_lists */
+    false, /* reserved legacy slot: auto_display_lists */
     true, /* OPT_artifact_unique_color */
     true, /* OPT_easy_main_menu */
     false, /* OPT_story_lists */
@@ -743,10 +747,10 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_vault_drop_frequency (default 0 via byte field) */
     false, /* OPT_show_smithing_difficulty */
     false, /* OPT_show_smithing_difficulty_look */
-    false, /* xxx */
+    false, /* reserved legacy slot */
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     false, /* OPT_banner_message_stairs */
 #else
     true, /* OPT_banner_message_stairs */
@@ -755,68 +759,68 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_unlock_blitz_mode */
     false, /* OPT_look_objects_sort_by_difficulty */
     false, /* OPT_look_nearby_filter_default */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx birth_point_based */
-    false, /* xxx birth_auto_roller */
-    false, /* xxx birth_maximize */
+    false, /* OPT_show_elemental_item_rolls */
+    false, /* OPT_hidden_left_panel_mode */
+    false, /* OPT_top_status_line */
+    true, /* OPT_hide_supporting_panes_fullscreen */
+    false, /* OPT_narrative_banner_turns (default via byte field) */
+    false, /* OPT_min_depth_timer_mode (default 0 via byte field) */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: birth_point_based */
+    false, /* reserved legacy slot: birth_auto_roller */
+    false, /* reserved legacy slot: birth_maximize */
     false, /* OPT_birth_discon_stair */
     false, /* OPT_birth_ironman */
-    false, /* xxx */
+    false, /* reserved legacy slot */
     false, /* OPT_birth_no_artefacts */
     false, /* OPT_birth_fixed_exp */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx birth_force_small_lev */
-    false, /* xxx birth_retain_squelch */
-    false, /* xxx OPT_birth_no_quests*/
-    false, /* xxx birth_no_player ghosts*/
-    false, /* xxx birth_no_store_services*/
-    false, /* xxx birth_no_xtra_artefacts*/
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: birth_force_small_lev */
+    false, /* reserved legacy slot: birth_retain_squelch */
+    false, /* reserved legacy slot: OPT_birth_no_quests */
+    false, /* reserved legacy slot: birth_no_player ghosts */
+    false, /* reserved legacy slot: birth_no_store_services */
+    false, /* reserved legacy slot: birth_no_xtra_artefacts */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
     false, /* OPT_cheat_peek */
     false, /* OPT_cheat_hear */
     false, /* OPT_cheat_room */
@@ -829,85 +833,86 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_cheat_light */
     false, /* OPT_cheat_skill_rolls */
     false, /* OPT_cheat_timestop */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx adult_point_based */
-    false, /* xxx adult_auto_roller */
-    false, /* xxx adult_maximize */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot: adult_point_based */
+    false, /* reserved legacy slot: adult_auto_roller */
+    false, /* reserved legacy slot: adult_maximize */
     false, /* OPT_adult_discon_stair */
     false, /* OPT_adult_ironman */
-    false, /* xxx adult_no_stores */
+    false, /* reserved legacy slot: adult_no_stores */
     false, /* OPT_adult_no_artefacts */
-    false, /* xxx adult_rand_artefacts */
-    false, /* xxx adult_no_stacking */
-    false, /* xxx adult_take_notes */
-    false, /* xxx adult_force_small_lev*/
-    false, /* xxx adult_retain_squelch */
-    false, /* xxx OPT_adult_no_quests */
-    false, /* xxx adult_no_player ghosts */
-    false, /* xxx adult_no_store_services */
-    false, /* xxx adult_no_xtra_artefacts */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
+    false, /* reserved legacy slot: adult_rand_artefacts */
+    false, /* reserved legacy slot: adult_no_stacking */
+    false, /* reserved legacy slot: adult_take_notes */
+    false, /* reserved legacy slot: adult_force_small_lev */
+    false, /* reserved legacy slot: adult_retain_squelch */
+    false, /* reserved legacy slot: OPT_adult_no_quests */
+    false, /* reserved legacy slot: adult_no_player ghosts */
+    false, /* reserved legacy slot: adult_no_store_services */
+    false, /* reserved legacy slot: adult_no_xtra_artefacts */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
     false, /* OPT_score_peek */
     false, /* OPT_score_hear */
     false, /* OPT_score_room */
     false, /* OPT_score_xtra */
     false, /* OPT_score_know */
     false, /* OPT_score_live */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
-    false /* xxx */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    false, /* reserved legacy slot */
+    /* OPT_MAX sentinel uses zero-initialization */
 };
 
 /*
@@ -916,11 +921,15 @@ const bool option_norm[OPT_MAX] = {
 const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
-    { OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
-        OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
+    { OPT_quick_messages, OPT_auto_more,
         OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
-        OPT_hide_left_panel, OPT_hitpoint_warning, OPT_show_level_generation_debug,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_hide_left_panel, OPT_hidden_left_panel_mode, OPT_top_status_line,
+        OPT_hitpoint_warning,
+        OPT_easy_main_menu, OPT_hjkl_movement, OPT_angband_keyset,
+        OPT_space_acts_as_comma,
+        OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
+        OPT_system_beep, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 
@@ -932,29 +941,31 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Game-Play ***/
 
-    { OPT_valorous_oath_auto_attack_safety, OPT_forgo_attacking_unwary,
-        OPT_assassination_over_charge, OPT_stop_singing_on_rest,
-        OPT_know_monster_info, OPT_visual_recognition,
+    { OPT_valorous_oath_auto_attack_safety, OPT_pacifist_attack_warning,
+        OPT_forgo_attacking_unwary, OPT_assassination_over_charge,
+        OPT_stop_singing_on_rest, OPT_visual_recognition, OPT_know_monster_info,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
-        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode, OPT_unlock_blitz_mode,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
+        OPT_min_depth_timer_mode, OPT_unlock_blitz_mode,
+        OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
 
     { OPT_delay_factor, OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE },
 
     /*** Display ***/
 
-    { OPT_auto_display_lists, OPT_main_combat_rolls, OPT_ability_desc_mode,
-        OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
-        OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls, OPT_unidentified_items_slate,
-        OPT_stealth_vision, OPT_sleep_icon,
-        OPT_show_level_entry_banner, OPT_show_partition_narrative, OPT_intro_style,
-        OPT_banner_message_stairs, OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
+    { OPT_main_combat_rolls, OPT_ability_desc_mode, OPT_stealth_vision,
+        OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
+        OPT_show_level_entry_banner, OPT_show_partition_narrative,
+        OPT_narrative_banner_turns, OPT_intro_style, OPT_banner_message_stairs,
+        OPT_solid_walls, OPT_hybrid_walls,
+        OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
+        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
         OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
@@ -969,8 +980,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_cheat_peek, OPT_cheat_hear, OPT_cheat_room, OPT_cheat_xtra,
         OPT_cheat_know, OPT_cheat_monsters, OPT_cheat_noise,
         OPT_cheat_scent, OPT_cheat_light, OPT_cheat_skill_rolls,
-        OPT_cheat_live,
-        OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_cheat_live, OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Sound ***/

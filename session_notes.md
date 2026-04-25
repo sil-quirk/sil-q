@@ -1,5 +1,477 @@
 # Session notes
 
+## 2026-04-22: Supplies/knowledge menus switch to active-pane layout only when split view does not fit
+- `src/cmd4.c`
+  - Replaced the fixed `Term->wid <= 50` cutoff with fit-based checks for grouped knowledge browsers and the supplies menu.
+  - Knowledge pages now decide split vs active-pane mode from the actual rendered name width for the current group/page, instead of rough terminal-width guesses.
+  - Monster/object/artefact list column-width calculations were aligned with their actual optional columns so pages that genuinely fit no longer collapse to single-pane unnecessarily.
+  - Knowledge pages with group/list navigation now render only the active pane full-width when the split group/list layout is too cramped for that page:
+    - left/group pane shows the group list,
+    - right/list pane shows only the selected group's entries.
+  - Applied the same active-pane behavior to the supplies menu, based on the current group's actual rendered row width rather than a hard cutoff.
+  - Reworked supply rows into bounded columns so text no longer overruns the right-side data:
+    - names no longer include the duplicated count,
+    - food rows now show weight in a separate `Wt` column,
+    - light rows now show separate `Wt` and `Turns` columns.
+  - Added adaptive supply-summary formatting so the top supply/light/oil detail line shrinks through shorter variants until it fits the terminal width.
+  - Fixed `display_supply_group_list()` to index from `grp_top` when paging the group list.
+  - Fixed the supplies frame redraw path so switching back from single-pane to split-pane redraws the vertical divider and refreshed headers correctly.
+  - Kept the supplies group-total numbers anchored to the split-view column even while the group pane is shown as a single full-width pane, so values like `Gems 5` no longer jump horizontally.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-22: Binding menus now expose the full highlighted binding list on narrow screens
+- `src/cmd4.c`
+  - Reworked compact binding menus into a list/detail layout instead of showing the same binding information inline and again in the footer.
+  - Keybind Configuration now shows short per-row binding counts on compact screens (`1 key`, `2 keys`, `none`) and keeps the selected command's full key list in the footer.
+  - Controller Settings now shows short per-row action summaries on compact screens (`1 bind`, `3 binds`, `none`) and uses the footer for the selected action's compact physical-binding list.
+  - Wide screens keep the original inline binding table and no longer reserve footer space for duplicate binding detail.
+  - The keybind save prompt now uses the active footer/instruction row instead of writing through the detail pane.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-22: Steam Deck shoulder-button race no longer misfires Ctrl+R1 as Abilities
+- `src/main-sdl.c`
+  - Fixed a timing race between the Steam Deck shoulder-combo pending window and modifier activation.
+  - If `R1` or `L1` is waiting in the shoulder pending queue and a modifier becomes active during that window, the pending shoulder press now resolves against the modifier combo immediately instead of later flushing the base shoulder binding through the live modifier state.
+  - This prevents `R2 + R1` from occasionally degrading into a delayed `Ctrl+i` (`Tab` / Abilities) when `R1` arrives just before `R2` is registered as Ctrl.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-22: Harden story-font inventory rendering for macOS pickup overlay
+- `src/ui/story_font.c`
+  - Added term bounds checks in `story_print_text_internal()` so story-font UI helpers return early instead of drawing through a stale cursor when a row/column falls outside the current term.
+  - Clamped story-font wrap width to the visible term width.
+- `src/main-sdl.c`
+  - Switched grid-aligned story-font rendering from `TTF_RenderText_Blended()` on one-character strings to `TTF_RenderGlyph_Blended()`.
+  - Rationale: the pickup-replacement inventory overlay was crashing on macOS immediately after story-font inventory rows rendered; the last log lines were in the grid-rendered weight/label path, and glyph rendering is the safer API for per-cell story text.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Android uses cutout-only; iPhone uses safeAreaInsets
+- `src/main-sdl.c`
+  - Split the mobile policy by platform instead of using one fallback for both.
+  - On Android, the app now queries `WindowInsets.getDisplayCutout()` through SDL's Android JNI hooks and uses the cutout safe insets directly instead of guessing from the aggregate safe area.
+  - On iPhone/iOS, the layout now uses SDL's safe-area rect directly, which maps to UIKit `safeAreaInsets`.
+  - The `Use Unsafe Area` override still exists; when enabled, layout uses the full window.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Safe-area mobile layouts now anchor to the safe edge instead of centering
+- `src/main-sdl.c`
+  - When mobile layout is respecting SDL safe areas, pane contents now top-align within the available rect instead of vertically centering.
+  - The touch-pane button grid now also anchors to the safe top edge in that mode.
+  - Rationale: the previous centering wasted clearly usable top space and made the “safe area” issue look worse than it was on phones like Pixel in landscape.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: SDL safe-area layout can now be disabled per device
+- `src/main-sdl.c`, `src/sdl-config.c`, `src/sdl-config.h`, `src/cmd4.c`, `src/externs.h`
+  - Added a persisted SDL setting `Use Unsafe Area`, exposed in `SDL Pane Settings`.
+  - When enabled, layout uses the full window instead of SDL's safe-area rect; when disabled, layout continues to avoid cutout/notch/system-bar areas.
+  - Default is off on Android/iPhone builds, matching the request to keep the safe-area behavior unless the player opts into using the cutout zone.
+  - Added config save/load and startup logging for the new setting.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: SDL mobile layout now respects window safe areas
+- `src/main-sdl.c`
+  - Added SDL safe-area tracking based on `SDL_GetWindowSafeArea()`, with conversion from window units to drawable-pixel coordinates so iOS high-DPI layouts stay aligned with the renderer.
+  - Main pane layout, mobile first-start pane defaults, fullscreen relayout, config apply, and supporting-pane refresh now all use the safe-area rect instead of the raw window bounds.
+  - Added relayout handling for `SDL_EVENT_WINDOW_SAFE_AREA_CHANGED`.
+  - Touch reset confirmation overlay now anchors inside the effective layout rect, so it avoids cutouts/system bars along with the rest of the UI.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Steam Deck defaults now include explicit modifier combos and additive action binds
+- `src/sdl-config.c`, `src/main-sdl.c`, `src/externs.h`, `src/cmd4.c`, `src/files.c`
+  - Added explicit default combos for Shift/Ctrl + face/shoulder buttons, including rest, second-quiver, stealth, examine, exchange, fletch, smithing, map, horn, activate, and supplies.
+  - Added `R2 + Back -> Abilities (Tab)` to the default combo map and help page.
+  - Switched `Inv/Equip Same-Button Cycle` on by default.
+  - Controller Settings now adds bindings to an action instead of replacing that action's other assignments, and reset-selected restores every default assignment for the chosen action.
+  - Help page combo notes were expanded to match the new defaults.
+  - Added load-time migration for legacy default-like `sil_sdl.json` gamepad configs so existing installs pick up the new combo defaults and cycle toggle automatically.
+
+## 2026-04-21: SDL touch swipes now map to 4-way directional input
+- `src/main-sdl.c`
+  - Added touch-swipe tracking for fingers that start outside the touch pane.
+  - Horizontal and vertical swipes now resolve to `4`, `6`, `8`, or `2` once movement clears a threshold derived from the current main-view cell size.
+  - Existing touch-pane taps and long-press behavior are unchanged, and swipe state is canceled on finger cancel, touch reset, and gamepad disable.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Touch settings now own swipe on/off and swipe mapping
+- `src/cmd4.c`, `src/main-sdl.c`, `src/sdl-config.c`, `src/sdl-config.h`, `src/externs.h`
+  - Added global swipe rows to the existing `Touch Settings` editor: one on/off toggle plus separate bindings for swipe up/down/left/right.
+  - Swipe bindings now persist in the SDL config under the existing `touchPane` object and feed the runtime swipe handler directly.
+  - The earlier pane-settings shortcut for touch mapping was removed so touch/swipe configuration stays in one place.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Android first-start pane defaults now derive from available space
+- `src/main-sdl.c`
+  - Added a mobile first-start default-layout helper that runs after SDL window creation, when the real window pixel size and display scale are known.
+  - New default algorithm:
+    - keeps the mobile minimum terminal size in compact mode,
+    - enables the touch pane only when no controller is detected,
+    - chooses the maximum main view scale that still fits the compact main terminal plus the touch pane when present,
+    - adds bottom panes only if they fit at that scale,
+    - uses a wide split `ROLLS` + `LOG` bottom layout only when the bottom width can give rolls `65` cols and log `50` cols,
+    - otherwise stacks narrow bottom layouts up to `7` rows total,
+    - enables right panes one-by-one (`INVENTORY`, then `WORN`) only if they still fit after the chosen bottom layout.
+  - `INFO` stays off in the new mobile defaults; it remains available in pane settings.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Welcome presentation restore + pane-owned border pass
+- `src/init2.c`
+  - Restored the `develop`-style intro flush inside `display_introduction_with_layout()`.
+  - Rationale: keep the intro visible immediately during loading without reintroducing the extra `initial_menu()` redraw that made the welcome screen worse.
+- `src/main-sdl.c`
+  - Switched the visible pane-border pass back from `SDL_RenderRect()` to explicit pane-owned edge drawing with 1-pixel filled rects.
+  - Rationale: the remaining right/bottom junction artifact matches SDL stroke/endpoint behavior more than pane placement, and the explicit edge pass gives deterministic ownership of the shared separator pixels.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Clamp pane-group overflow to stop side/bottom overlap
+- `src/pane.c`
+  - Added a final `remaining_px` clamp in both `layout_bottom_group()` and `layout_side_group()`.
+  - Rationale: current logs showed a right-side pane extending 10 px into the bottom-pane strip, which matches the visible “crossed” border shape. Even if upstream size math over-allocates by a few pixels because of rounding/margins, the final pane rects should never overlap the remaining layout area.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remove unconditional startup "Please wait..." screen
+- `src/dungeon.c`
+  - Removed the unconditional `Term_clear()` + `prt("Please wait...")` + `Term_fresh()` handoff after story/statistics and before the first real gameplay initialization work.
+  - Rationale: on fast machines this only produced a blink, and on slower Android hardware it could remain visible long enough to feel like a separate transient screen. The cleaner behavior is to keep the previous startup screen visible until gameplay is actually ready to draw.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Delayed "Loading..." overlay on story-statistics autoload
+- `src/dungeon.c`
+  - The story-statistics startup screen now stays live through the immediate autoload attempt instead of being blanked first.
+  - If autoload does not transition into gameplay, the old cleanup path still clears pending buffers/messages before character creation continues.
+- `src/load.c`, `src/externs.h`
+  - Added a one-shot startup loading overlay hook for the save loader.
+  - On the autoload path, the loader now shows a generic `Loading...` label over the existing story-statistics screen after a short `150 ms` delay, instead of flashing a separate cleared `Please wait...` screen or the old detailed save-loading note.
+  - Rationale: fast machines should show nothing, while slower Android first-loads get feedback without a full-screen transition.
+- Follow-up:
+  - `load_player()` no longer does an unconditional `Term_clear()` while that startup overlay is armed.
+  - Rationale: the old clear erased the statistics screen before the delayed overlay had any chance to appear, which made the first implementation effectively invisible.
+- Follow-up:
+  - The delayed overlay check now also runs inside `rd_dungeon()` during the expensive restore loops, not just at sparse loader `note()` boundaries.
+  - Rationale: on the successful path, the delay can expire while the loader is already deep inside dungeon restore, with no further `note()` call to trigger the overlay.
+- Follow-up:
+  - On Android/iOS, the overlay delay is now `0` instead of `150 ms`.
+  - Rationale: the desktop delay avoided a blink, but on slower mobile startup the user explicitly wants visible feedback and the delayed version still missed the perceived wait window.
+- Follow-up:
+  - Removed the `150 ms` delay entirely; the startup `Loading...` overlay is now immediate on all platforms.
+  - Rationale: the delayed version was not useful in practice once the goal became guaranteed visible feedback rather than blink suppression.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Re-layout after pruning unusable panes at scale 4
+- `src/main-sdl.c`
+  - `sdl_prune_unusable_panes()` now disables panes in the active layout set and the pane layout is recomputed until it stabilizes.
+  - Rationale: at SDL scale `4`, the runtime config could overcommit the right-column height (`INVENTORY` + `WORN` + `INFO` fixed rows). The old path pruned the pane that no longer fit, but left the original column geometry in place, which produced the broken white separator shape.
+- `src/pane.c`
+  - The last enabled pane in a side/bottom group now absorbs any leftover pixels in that group.
+  - Rationale: once a later pane is pruned, the remaining visible pane stack should fill the reserved group extent rather than leaving a dead gap that breaks the separators.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Hidden-pane flash and border root-cause fix
+- `src/main-sdl.c`
+  - Changed `sdl_refresh_supporting_panes_layout()` so every hidden-pane visibility switch skips redrawing the old main-term contents during the intermediate resize.
+  - Rationale: both hide and show transitions were still resizing the SDL layout immediately, and the resize path redraws the current main term unless explicitly suppressed. That was the stale-frame source behind welcome/game/story flashes during scene handoff.
+  - The intermediate layout refresh still rebuilds the supporting panes, but it no longer presents the outgoing main scene before the destination screen redraw or `screen_load()` restore happens.
+- Pane borders:
+  - Replaced the per-pane full-rectangle outline pass with selective edge drawing.
+  - New rule: draw top/left edges for each visible non-touch pane, and only draw right/bottom edges when that pane actually reaches the window edge.
+  - Rationale: full inside-rect outlines created double/shared-edge artifacts at the right/bottom junctions and could leave the bottom outer border effectively missing.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remaining startup flash + clipped outer pane edges
+- `src/files.c`
+  - Removed the internal `screen_save()` / `screen_load()` pair from `print_story()`.
+  - Rationale: every real caller either already wraps it in an outer save/load or uses it as a true scene transition. The internal restore was therefore redundant at best and a stale-screen flash source at worst.
+- `src/metarun.c`
+  - `print_metarun_stats()` now only uses `screen_save()` / `screen_load()` in the true in-game overlay case.
+  - Rationale: keep normal in-game overlay behavior, but avoid restoring stale welcome/gameplay buffers during the startup story-stats handoff into character creation/difficulty/blessing/history screens.
+- `src/main-sdl.c`
+  - Pane borders are now split into:
+    - internal separators drawn once from pane rects,
+    - one explicit full-window outer frame drawn last.
+  - Rationale: the top/right outer edges were not reliable when inferred indirectly from individual pane rects, while a dedicated final window frame guarantees those borders stay visible.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Scene-boundary blanking + clip-reset border pass
+- `src/util.c`, `src/externs.h`
+  - Added `screen_clear_all_terms_no_fresh()`.
+  - Rationale: if a stale `Term_fresh()` still happens during a scene handoff, it should present blank terms rather than the previous welcome/game screen.
+- `src/main.c`
+  - Clears all term buffers without presenting:
+    - immediately after leaving the welcome screen to start/load a run,
+    - immediately after `play_game()` returns to the outer loop (except hard quit).
+  - Rationale: this targets the exact welcome <-> gameplay scene boundaries rather than trying to infer every indirect redraw path.
+- `src/main-sdl.c`
+  - Reverted the doubled outer frame.
+  - `sdl_present_if_needed()` now resets the renderer clip rect before the screen pass and draws a single explicit outer window frame.
+  - Rationale: the previous doubled frame was the wrong fix; the more plausible issue is a stale clip state suppressing the outer top/right edges.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Direct startup present cleanup + single-pass pane edges
+- `src/dungeon.c`
+  - `play_game()` now clears the main term before presenting the temporary `Please wait...` screen.
+  - Rationale: that `Term_fresh()` happens before the first real gameplay redraw, so if the previous full-screen scene was still in the term buffer it could be presented directly.
+- `src/main-sdl.c`
+  - Removed the explicit outer-window frame pass again.
+  - Pane borders now come only from the pane pass:
+    - left/top edges for every visible non-touch pane,
+    - right/bottom edges only for panes that actually touch the window edge.
+  - Rationale: the doubled/global frame experiment was the wrong direction; this keeps border ownership local to panes while still drawing the missing outer top/right segments.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Remove Halls restore + blank startup handoff after story stats
+- `src/score/score_ui.c`
+  - Removed the outer `screen_save()` / `screen_load()` wrapper from `show_scores()`.
+  - Rationale: every caller either redraws its own next screen or exits immediately, so restoring the previous screen at Halls-of-Mandos exit was just a flash source.
+- `src/dungeon.c`
+  - Added `screen_clear_all_terms_no_fresh()` immediately after startup `print_story_intro()` / `print_metarun_stats()` and after startup `print_story()`.
+  - Rationale: the following startup screens own the redraw; blanking the term buffers prevents any incidental `Term_fresh()` from briefly showing the just-closed story/statistics scene.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Discard pending startup messages + pixel-rect pane borders
+- `src/util.c`, `src/externs.h`
+  - Added `message_discard_pending()`.
+  - Rationale: queued top-line messages can survive a full-screen screen exit and then appear on the first unrelated refresh as a brief white-text flash.
+- `src/dungeon.c`
+  - After startup `print_story_intro()` / `print_metarun_stats()` and after startup `print_story()`, the code now:
+    - clears all term buffers without presenting,
+    - discards any pending message-line state.
+  - Rationale: the next startup screen owns the redraw; nothing from the previous scene should remain eligible for display.
+- `src/main-sdl.c`
+  - Changed pane-edge rendering from `SDL_RenderLine()` to 1-pixel `SDL_RenderFillRect()` strips.
+  - Rationale: the remaining right/bottom crossover looked like rasterization/endpoint behavior at line intersections rather than layout math.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Suppress load-note screen output + corner-owned pane edges
+- `src/load.c`
+  - Loader `note()` messages now log but do not render/flush to the screen unless `arg_fiddle` is enabled.
+  - The final generic load error message is also log-only unless screen load notes are explicitly enabled.
+  - Rationale: startup/autoload load probes were visibly presenting `"Loading a X.Y.Z savefile..."`, which matches the recorded flash evidence.
+- `src/main-sdl.c`
+  - Vertical pane edges now start one pixel below their own top edge when that top edge is also drawn.
+  - Rationale: the remaining right/bottom crossover looked like both edges claiming the same junction pixel.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Restore develop-style welcome flow + symmetric pane corner ownership
+- `src/init2.c`
+  - Restored the `develop` welcome flow:
+    - `display_introduction()` is again called during `init_angband()` and `re_init_some_things()`,
+    - `initial_menu()` no longer redraws its own introduction block and instead just draws the footer/prompt over the already-present intro.
+  - Rationale: this brings back the old startup feel where the welcome text is visible immediately during loading, with the footer appearing afterward.
+- `src/main-sdl.c`
+  - Vertical pane edges now also yield the bottom corner pixel when the pane draws its own bottom edge.
+  - Rationale: this matches the earlier top-corner ownership rule and should remove the remaining right/bottom junction crossover.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: Compare-to-develop pass for lingering init note + pane junction
+- `src/init2.c`
+  - `initial_menu()` now redraws the intro block again before drawing the footer.
+  - Rationale: with the hidden-pane startup path, the old init note could survive from an earlier terminal extent; redrawing the intro block is the safest way to clear it while keeping the intro visible during loading.
+- `src/main-sdl.c`
+  - Reverted the pane-border pass to the `develop` model: `SDL_RenderRect()` per visible non-touch pane.
+  - Rationale: the custom edge-ownership pass had become a source of junction artifacts; `develop`’s simpler rectangle outlines are the correct comparison baseline.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed.
+
+## 2026-04-21: SDL supporting-pane hiding for full-screen screens
+- Goal: hide right/bottom supporting panes on full-screen style screens, but keep them on overlay-style UIs (in-game main menu, inventory, equipment, unified look, etc.), with touch treated separately.
+- Core detection model:
+  - Generic full-screen detection now tracks `screen_save()` + `Term_clear()` on the main term and treats that as a full-screen screen that may hide panes.
+  - Explicit hide scopes were added for screens that should hide panes even without relying on the generic path.
+  - If there are no non-touch supporting panes active to reclaim, the hide mode is skipped and the old normal refresh/layout path is used.
+
+### Main implementation points
+- `src/util.c`
+  - Added tracking for saved full-screen screens via `screen_cleared_mask`.
+  - Added explicit hide-depth helpers:
+    - `screen_push_supporting_panes_hidden()`
+    - `screen_pop_supporting_panes_hidden()`
+    - `screen_supporting_panes_hidden_active()`
+  - Added startup hide helpers:
+    - `screen_set_startup_supporting_panes_hidden()`
+    - `screen_startup_supporting_panes_hidden_active()`
+  - Layout refresh is now requested from pane-hide state changes and from the generic full-screen path.
+- `src/z-term.c`, `src/z-term.h`
+  - Added `g_term_clear_hook`.
+  - `Term_clear()` now calls the hook after the clear has been applied, so generic full-screen screens can switch layout using the cleared term dimensions rather than stretching the old canvas.
+- `src/main-sdl.c`
+  - Added `sdl_should_show_supporting_panes()`.
+  - Added `sdl_hide_supporting_panes_mode_effective()` to short-circuit the feature when no non-touch supporting panes are active.
+  - Added `sdl_compute_display_panes()` for temporary hidden-pane layout calculation.
+  - `resize()` now builds either:
+    - normal main + supporting panes layout, or
+    - temporary main + touch-only layout when panes are hidden.
+  - Added `sdl_refresh_supporting_panes_layout()` to rebuild term layout immediately when pane visibility mode changes.
+  - Added `g_suppress_layout_refresh_present` so those internal layout switches do not immediately `Term_redraw()` and flash stale screens.
+  - Touch hit-testing/rendering and cursor visibility now use the temporary layout when panes are hidden.
+- `src/main.c`
+  - Startup hide flag is enabled before SDL module init so the welcome screen does not first appear with panes and then drop them.
+- `src/init2.c`
+  - `initial_menu()` (welcome screen) explicitly hides panes and also clears the startup hide flag when it takes over.
+
+### Explicit full-screen hide scopes added
+- Welcome screen:
+  - `src/init2.c: initial_menu()`
+- Character sheet:
+  - `src/cmd4.c: do_cmd_character_sheet()`
+- Story intro:
+  - `src/dungeon.c: print_story_intro()`
+- Story pages:
+  - `src/files.c: print_story()`
+- Help:
+  - `src/files.c: do_cmd_help()`
+- Message log:
+  - `src/cmd4.c: do_cmd_messages()`
+- Options root menu:
+  - `src/cmd4.c: do_cmd_options()`
+- Knowledge browser:
+  - `src/cmd4.c: do_cmd_knowledge_browser_page()`
+
+### Efficiency option added
+- New option: `OPT_hide_supporting_panes_fullscreen`
+- Location: Efficiency Options page
+- Default: `true`
+- App-persistent
+- Files:
+  - `src/defines.h`
+  - `src/tables.c`
+  - `src/sdl-config.c`
+  - `src/cmd4.c`
+
+### Important behavior decisions from this session
+- Overlay-style screens should keep panes:
+  - in-game main menu
+  - inventory
+  - equipment
+  - unified look
+- Full-screen style screens should hide panes:
+  - welcome screen
+  - story intro / story pages
+  - character sheet
+  - help
+  - knowledge
+  - options
+  - log/messages
+- Touch pane is not treated as a supporting pane for the "no-op" optimization. If only touch is enabled, hidden-pane mode should do nothing and stay on the normal route.
+
+### Current known risks / follow-up areas
+- Android behavior was the main active issue in this session.
+- The latest direction was:
+  - stop stretching old canvases,
+  - rebuild the actual SDL term layout when pane-hide mode changes,
+  - suppress intermediate redraws during those internal layout switches,
+  - explicitly wrap the screens that measure terminal size too early.
+- Build is passing, but on-device verification is still needed for:
+  - Android full-screen screens using reclaimed height correctly
+  - no residual flashes when changing pages / returning to game
+  - touch-pane visibility when right panes are disabled
+- If another agent continues this work, they should first verify current Android behavior on:
+  - welcome screen
+  - help
+  - message log
+  - knowledge browser page changes
+  - options menu
+  - story stats / metarun stats
+
+### Validation performed
+- Repeated `./build-incremental.ps1` runs after each SDL/pane pass.
+- Final build status in this session: passing.
+
+## 2026-04-21: SDL supporting-pane hiding cleanup pass
+- Root issue: the hidden-pane path was suppressing redraws during layout rebuilds, while `resize()` was still destroying/recreating pane canvases. That could leave side panes black or stale after returning from full-screen screens.
+- `src/main-sdl.c`
+  - Changed the layout-refresh suppression to block `SDL_RenderPresent()` only, not `Term_redraw()`.
+  - `sdl_view_link_term()` now redraws resized terms into their offscreen canvases even during hidden-pane transitions.
+  - Result: pane canvases are repopulated before the final present, which should remove the black/garbled pane return path.
+- Screen-scope cleanup:
+  - Standardized explicit hidden-pane scopes on the affected full-screen style screens so they save first, then hide panes, and restore panes before loading the saved screen back.
+  - Touched entry points:
+    - `src/cmd4.c`: character sheet, hint messages
+    - `src/files.c`: story-so-far pages
+    - `src/cave.c`: world map
+    - `src/melee1.c`: combat history
+    - `src/xtra2.c`: quest status
+    - `src/score/score_ui.c`: Halls of Mandos scores, run history
+    - `src/metarun.c`: current story statistics
+- `src/score/score_ui.c`
+  - Reworked run history to keep one outer `screen_save()` / `screen_load()` for the whole browser instead of restoring the underlying game screen between page turns.
+  - This should remove page-change flashes and keep hidden-pane mode stable while browsing.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after the cleanup.
+  - Runtime/UI verification is still needed for the specific regressions reported by the user (welcome/main-screen flashes, story stats transitions, character-sheet return path).
+
+## 2026-04-21: Welcome/menu transition cleanup
+- `src/init2.c`
+  - `initial_menu()` now redraws the full welcome intro block each time it runs instead of assuming the old intro background is still on the main term.
+  - This is intended to remove the flash of the previous gameplay/story-stats screen when returning to the welcome screen.
+  - Starting a new run now re-enables the startup hidden-pane flag before leaving the welcome screen so the handoff into story intro / story stats stays in no-pane mode.
+- `src/dungeon.c`
+  - The startup hidden-pane flag is now cleared immediately before the first real gameplay redraw (`do_cmd_redraw()`), so the normal pane layout returns only when entering the actual game view.
+- `src/main-sdl.c`
+  - `sdl_present_if_needed()` no longer presents a temporary stretched main-term canvas while the requested pane-visibility state and the actual SDL layout are out of sync.
+  - Pane borders are now drawn in a second pass after all pane textures, so shared edges are less likely to disappear behind later pane renders.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
+## 2026-04-21: Hidden-pane transition frame suppression
+- `src/main-sdl.c`
+  - When switching from normal layout into hidden-pane mode, SDL now resizes the term layout without redrawing the old main-term contents into the new expanded main pane first.
+  - The automatic pending present from that resize is also dropped on hide-transitions, so SDL waits for the destination screen to actually draw before presenting.
+  - Intended effect:
+    - remove the brief "game screen shifted up/left" frame before full-screen menus,
+    - reduce welcome/story-stats flashes caused by presenting a transitional canvas,
+    - make all full-screen screens that use the shared layout-switch path behave consistently.
+- Pane borders:
+  - Replaced the pane-border pass in `sdl_present_if_needed()` with an explicit inside-the-rect outline instead of relying on `SDL_RenderRect()` edge behavior.
+  - Intended effect: avoid missing/cut separator lines on pane edges.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
+## 2026-04-21: Re-alignment with develop transition model
+- Compared the current SDL/full-screen transition path against `develop`.
+- `src/util.c`
+  - Removed the generic `screen_save()` + `Term_clear()` full-screen detector (`g_term_clear_hook` / `screen_cleared_mask`) from the hidden-pane system.
+  - Rationale: this was the only path that resized the SDL layout from inside `Term_clear()`, which does not exist on `develop` and was a likely source of transition flashes / shifted intermediate frames.
+- `src/init2.c`
+  - Removed the extra `Term_fresh()` that had been added to `display_introduction()`.
+  - Rationale: `develop` did not present the intro immediately there; the extra early present likely caused the “welcome first appears left, then recenters” behavior.
+- `src/main-sdl.c`
+  - Kept the hide-transition suppression that skips redrawing the old main-game canvas into the newly expanded hidden-pane layout.
+  - Kept suppression of the automatic intermediate present on hide-transitions.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
+## 2026-04-21: Welcome-first-draw removal and inside-edge pane borders
+- `src/init2.c`
+  - Removed the early `display_introduction()` call from `init_angband()`.
+  - Rationale: the welcome screen was still being drawn again by `initial_menu()`, so the startup path could visibly show an earlier differently-positioned intro render before the real menu draw.
+- `src/main-sdl.c`
+  - Restored the explicit inside-the-rect pane-outline helper for the main present pass.
+  - Rationale: drawing pane borders directly on the outermost pixel edge can hide the top/left lines at screen edge 0, which matches the reported “bottom visible, top/left missing” symptom.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\\build-incremental.ps1` passed after this pass.
+
 ## 2026-03-18: Deterministic guaranteed artefact monster drops
 - Updated `src/drop_system.c`, `src/object2.c`, and `src/externs.h` so the guaranteed artefact path now selects from eligible artefact catalog entries directly instead of repeatedly sampling the general drop pool and hoping one roll lands on an artefact.
 - Root issue: `make_guaranteed_artefact()` only retried normal weighted generation up to 1024 times, so `RF3_DROP_ARTEFACT` monsters could still fail to produce an artefact when the artefact share of the candidate pool was too small.
@@ -8475,3 +8947,14 @@ The script now fully matches the game's drop generation logic for all item types
 - Added `DROP_1D3` using the spare RF3 placeholder bit (`RF3_RF3XXX4` kept as a compatibility alias).
 - Wired parser support in `src/init1.c`, drop rolls in `src/xtra2.c`, and max-drop/lore heuristics in `src/monster1.c` and `src/melee2.c`.
 - Validation: `C:\\msys64\\mingw64\\bin\\cmake.exe --build build-standard --parallel` succeeded after seeding `C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin` onto `PATH`.
+
+## 2026-04-22: SDL oversized font startup recovery
+- `src/main-sdl.c`: clamp saved `mainViewScale` on startup, fullscreen changes, and resize/display-scale events so the main term stays at or above the configured minimum terminal size.
+- `src/main-sdl.c`: ensure initial windowed launches are at least large enough for the minimum terminal at scale 1 before creating the SDL window.
+- Local recovery: reset the current SDL user configs (`Saved Games` standard config and portable `lib/user/sil_sdl.json`) from `mainViewScale=4` fullscreen to safer windowed defaults so the game can launch back into settings.
+
+## 2026-04-22: SDL startup fallback + config-file access
+- `src/main-sdl.c`: startup recovery now prefers switching from normal to compact minimum-terminal mode when the current window cannot satisfy `80x24`, and only clamps `mainViewScale` if compact still does not fit.
+- `src/main-sdl.c`: startup records SDL config read/parse/validation recovery and, after the first safe resize, offers a message-box prompt to reset the SDL config to display defaults instead of trapping the user in a bad config.
+- `src/sdl-config.{h,c}`: `sdl_config_load()` now returns a load status so startup can distinguish parse/read failures from a clean load.
+- `src/cmd4.c`: SDL Pane Settings now includes an `Open SDL Config File` action and `o` shortcut that opens `sil_sdl.json` via the system handler.

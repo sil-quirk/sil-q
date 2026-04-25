@@ -26,6 +26,10 @@
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 static char g_active_partition_banner_text[1024] = "";
+static bool g_active_partition_banner_consumes_input = false;
+/* Banners shown while resolving a command should survive until the next
+ * command prompt rather than being consumed by the arrival action itself. */
+static bool g_active_partition_banner_skip_next_decay = false;
 
 /* Morgoth vault tracking variables - file scope for cross-function access */
 static int last_player_y = 0;
@@ -71,7 +75,10 @@ static void snapshot_run_history(const char* reason)
 static void reset_level_entry_tracking(void)
 {
     g_labyrinth_view_active = false;
+    g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_consumes_input = false;
+    g_active_partition_banner_skip_next_decay = false;
     greater_vault_xp_name[0] = '\0';
     greater_vault_xp_awarded = false;
     last_partition_pi = -1;
@@ -82,7 +89,7 @@ static void reset_level_entry_tracking(void)
 
 static bool banner_messages_use_stairs(void)
 {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     const bool default_value = false;
 #else
     const bool default_value = true;
@@ -92,6 +99,151 @@ static bool banner_messages_use_stairs(void)
         return default_value;
 
     return op_ptr->opt[OPT_banner_message_stairs];
+}
+
+static byte narrative_banner_turn_setting(void)
+{
+    if (!op_ptr)
+        return DEFAULT_NARRATIVE_BANNER_TURNS;
+
+    if (op_ptr->narrative_banner_turns > NARRATIVE_BANNER_TURNS_MAX)
+        return DEFAULT_NARRATIVE_BANNER_TURNS;
+
+    return op_ptr->narrative_banner_turns;
+}
+
+static int narrative_banner_rows_for_text(cptr text)
+{
+    int wid, h;
+    const char* p = text;
+    int printed_lines = 0;
+    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+    bool stair_layout = banner_messages_use_stairs();
+
+    if (!text || !text[0])
+        return 0;
+    if (!Term || !angband_term[0] || (Term != angband_term[0]))
+        return 0;
+
+    Term_get_size(&wid, &h);
+    if (h <= 1)
+        return 0;
+
+    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
+    {
+        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
+        int avail;
+        int linelen = 0;
+
+        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
+            indent++;
+        if (indent >= wid - 1)
+            break;
+
+        avail = wid - indent - 1;
+        if (avail < 8)
+            avail = 8;
+
+        while (*p && (unsigned char)*p <= ' ')
+        {
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+            p++;
+        }
+
+        while (*p)
+        {
+            const char* w = p;
+            int wlen;
+            int need;
+
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+
+            while (*p && *p != '\n' && !isspace((unsigned char)*p))
+                p++;
+            wlen = (int)(p - w);
+
+            if ((wlen > avail) && (linelen == 0))
+            {
+                int take = (wlen > avail) ? avail : wlen;
+                if (take > MAX_LEN2)
+                    take = MAX_LEN2;
+                p = w + take;
+                linelen = take;
+                break;
+            }
+
+            need = (linelen ? 1 : 0) + wlen;
+            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
+            {
+                linelen += need;
+            }
+            else
+            {
+                p = w;
+                break;
+            }
+
+            while (*p && isspace((unsigned char)*p))
+            {
+                if (*p == '\n')
+                    break;
+                p++;
+            }
+            if (*p == '\n')
+            {
+                p++;
+                break;
+            }
+        }
+
+        if (linelen == 0)
+            break;
+
+        printed_lines++;
+    }
+
+    return printed_lines;
+}
+
+int active_narrative_banner_rows(void)
+{
+    if (!g_active_partition_banner_text[0]
+        || (g_banner_force_redraw_remaining <= 0))
+        return 0;
+
+    return narrative_banner_rows_for_text(g_active_partition_banner_text);
+}
+
+static void keep_player_visible_for_narrative_banner(cptr text)
+{
+    int banner_rows;
+
+    if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
+        return;
+
+    banner_rows = narrative_banner_rows_for_text(text);
+    if (banner_rows <= 0)
+        return;
+
+    if (p_ptr->py >= p_ptr->wy + banner_rows)
+        return;
+
+    if (modify_panel(p_ptr->py - banner_rows, p_ptr->wx))
+    {
+        if (p_ptr->redraw)
+            redraw_stuff();
+        if (p_ptr->window)
+            window_stuff();
+        Term_fresh();
+    }
 }
 
 static void queue_active_partition_banner(void)
@@ -218,10 +370,19 @@ static void narrative_banner_pre_fresh_hook(void)
     queue_active_partition_banner();
 }
 
+bool active_narrative_banner_consumes_input(void)
+{
+    return g_active_partition_banner_consumes_input
+        && g_active_partition_banner_text[0]
+        && (g_banner_force_redraw_remaining > 0);
+}
+
 void clear_active_narrative_banner(void)
 {
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_consumes_input = false;
+    g_active_partition_banner_skip_next_decay = false;
 }
 
 /*
@@ -349,12 +510,20 @@ static void display_narrative_text(cptr text, int narrative_mode,
     if (narrative_mode != PARTITION_NARRATIVE_BANNER)
         return;
 
+    keep_player_visible_for_narrative_banner(text);
+
     g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
     g_active_partition_banner_text[0] = '\0';
     print_fade_centered_at_row(text, 1, false, line_delay);
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
-    g_banner_force_redraw_remaining = 3;
+    g_active_partition_banner_consumes_input =
+        (narrative_banner_turn_setting() == 0);
+    g_active_partition_banner_skip_next_decay =
+        (p_ptr && (p_ptr->command_cmd != 0));
+    g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
+        ? 1
+        : narrative_banner_turn_setting();
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,
@@ -618,6 +787,21 @@ static cptr vault_entry_message_for_name(cptr vault_name)
     return NULL;
 }
 
+static void queue_message_recall_only(cptr text)
+{
+    if (!text || !text[0])
+        return;
+
+    if (character_generated && p_ptr && !p_ptr->is_dead)
+        message_add(text, MSG_GENERIC);
+
+    if (!p_ptr)
+        return;
+
+    p_ptr->window |= PW_MESSAGE;
+    window_stuff();
+}
+
 static void describe_greater_vault_entry(cptr vault_name)
 {
     int narrative_mode = op_ptr ? op_ptr->partition_narrative_mode
@@ -627,12 +811,17 @@ static void describe_greater_vault_entry(cptr vault_name)
     if (!text)
         return;
 
-    /* Great vault entries should always land in the message log too, even
-     * when the current setting also shows them as banners. */
-    msg_print(text);
-
     if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+    {
+        /* Banner mode already shows the text on the main term, so push it
+         * directly into recall and refresh message windows immediately. */
+        queue_message_recall_only(text);
         display_narrative_text(text, PARTITION_NARRATIVE_BANNER, false);
+        return;
+    }
+
+    /* Great vault entries should always land in the message log too. */
+    msg_print(text);
 }
 
 static void handle_partition_entry(bool force_message, int narrative_mode)
@@ -1386,7 +1575,9 @@ static void process_world(void)
     if (o_ptr->tval == TV_LIGHT)
     {
         /* Hack -- Use some fuel */
-        if (o_ptr->timeout > 0)
+        if (player_light_has_fuel(o_ptr)
+            && !((o_ptr->sval == SV_LIGHT_LANTERN)
+                && (object_ego_prefix(o_ptr) == EGO_BROKEN_BRASS_LANTERN)))
         {
             /* Decrease life-span */
             int fuel = 1;
@@ -1406,13 +1597,12 @@ static void process_world(void)
                 }
             }
 
-            o_ptr->timeout -= fuel;
-            if (o_ptr->timeout < 0)
-                o_ptr->timeout = 0;
+            player_light_add_fuel(o_ptr, -fuel);
             p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
-            if ((o_ptr->timeout < 100) || (!(o_ptr->timeout % 100)))
+            if ((player_light_fuel(o_ptr) <= player_light_sputter_threshold(o_ptr))
+                || (!(player_light_fuel(o_ptr) % 100)))
             {
                 /* Window stuff */
                 p_ptr->window |= (PW_EQUIP);
@@ -1422,23 +1612,25 @@ static void process_world(void)
             if (p_ptr->blind)
             {
                 /* Hack -- save some light for later */
-                if (o_ptr->timeout == 0)
-                    o_ptr->timeout++;
+                if (player_light_fuel(o_ptr) == 0)
+                    player_light_set_fuel(o_ptr, 1);
             }
 
             /* The light is now out */
-            else if (o_ptr->timeout == 0)
+            else if (player_light_fuel(o_ptr) == 0)
             {
                 disturb(0, 0);
                 msg_print("Your light has gone out!");
             }
 
             /* The light is getting dim */
-            else if ((o_ptr->timeout <= 100) && (!(o_ptr->timeout % 20))
-                && o_ptr->sval != SV_LIGHT_MALLORN)
+            else if ((player_light_fuel(o_ptr)
+                    <= player_light_sputter_threshold(o_ptr))
+                && (!(player_light_fuel(o_ptr)
+                    % MIN(MAX(player_light_sputter_threshold(o_ptr), 1), 20))))
             {
                 // disturb the first time
-                if (o_ptr->timeout == 100)
+                if (player_light_fuel(o_ptr) == player_light_sputter_threshold(o_ptr))
                     disturb(0, 0);
 
                 msg_print("Your light is growing faint.");
@@ -3618,13 +3810,21 @@ static void process_player(void)
 
     playerturn++;
 
-    /* If a banner was recently shown, count down per full player turn and force a full redraw when it expires.
-       This ensures the redraw happens after the third normal action without consuming input. */
+    /* Count down active narrative banners by full player turns.
+       0-turn banners are dismissed in request_command() before any action. */
     if (g_banner_force_redraw_remaining > 0)
     {
-        g_banner_force_redraw_remaining--;
+        if (g_active_partition_banner_skip_next_decay)
+        {
+            g_active_partition_banner_skip_next_decay = false;
+        }
+        else
+        {
+            g_banner_force_redraw_remaining--;
+        }
         if (g_banner_force_redraw_remaining == 0)
         {
+            g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
             do_cmd_redraw();
         }
@@ -4414,6 +4614,7 @@ static bool story_intro_render_paragraph(cptr text, int indent, int wrap_width, 
 static void print_story_intro(void)
 {
     bool story_intro_story_font = true;
+    screen_push_supporting_panes_hidden();
     sdl_story_font_enable();
     sdl_music_play_main_full();
     int wid, h;
@@ -4530,6 +4731,7 @@ static void print_story_intro(void)
     Term_flush();
 
 cleanup_intro:
+    screen_pop_supporting_panes_hidden();
     if (story_intro_story_font)
         sdl_story_font_reset();
     
@@ -4657,8 +4859,8 @@ PlayResult play_game(void)
         const int min_wid = compact_mode ? 50 : 80;
         if ((Term->hgt < min_hgt) || (Term->wid < min_wid))
         {
-#ifdef __ANDROID__
-            log_error("main window too small on Android: %dx%d (need at least %dx%d)",
+#if defined(__ANDROID__) || defined(SIL_IOS)
+            log_error("main window too small on mobile: %dx%d (need at least %dx%d)",
                 Term->wid, Term->hgt, min_wid, min_hgt);
 #else
             log_error("main window too small: %dx%d (need at least %dx%d)",
@@ -4680,11 +4882,24 @@ PlayResult play_game(void)
     run_mode_activate_pending();
     maybe_show_blitz_unlock_screen();
 
+    bool startup_stats_screen = false;
+
     if (!run_mode_is_blitz()) {
         if (metarun_created) /* show only the first time ever */
             print_story_intro();
-        else
+        else {
             print_metarun_stats();
+            startup_stats_screen = true;
+        }
+
+        /* Story-intro handoff still wants the next startup screen to own the
+         * full redraw. Story statistics may keep its frame alive a little
+         * longer so a delayed "Loading..." overlay can reuse it during
+         * autoload instead of flashing a separate screen. */
+        if (!startup_stats_screen) {
+            screen_clear_all_terms_no_fresh();
+            message_discard_pending();
+        }
     }
 
     /* New startup behavior: try to auto-load any alive character
@@ -4692,11 +4907,20 @@ PlayResult play_game(void)
      * selection and proceed directly. */
     character_loaded = false;
     character_loaded_dead = false;
+    if (startup_stats_screen)
+        startup_loading_overlay_arm();
     bool autoloaded = autoload_alive_from_scores();
+    if (startup_stats_screen)
+        startup_loading_overlay_disarm();
     if (autoloaded && character_loaded)
     {
         log_info("Auto-loaded alive character from scores; skipping selection");
         new_game = false;
+    }
+    else if (startup_stats_screen)
+    {
+        screen_clear_all_terms_no_fresh();
+        message_discard_pending();
     }
 
     log_info("Starting new game session");
@@ -4853,6 +5077,8 @@ PlayResult play_game(void)
     {
         sdl_music_play_main_full();
         print_story(15,1);
+        screen_clear_all_terms_no_fresh();
+        message_discard_pending();
     }
 
     log_debug("Game initialization complete, starting main game loop");
@@ -4865,12 +5091,6 @@ PlayResult play_game(void)
 
     /* Validate quest states after load (auto-complete if targets are dead) */
     validate_tulkas_quest_on_load();
-
-    /* Flash a message */
-    prt("Please wait...", 0, 0);
-
-    /* Flush the message */
-    Term_fresh();
 
     /* Hack -- Enter wizard mode */
     if (arg_wizard && enter_wizard_mode())
@@ -4979,6 +5199,7 @@ PlayResult play_game(void)
 
     /* Redraw everything */
     // Sil-y: added to get 'shades' right in extra inventory terms
+    screen_set_startup_supporting_panes_hidden(false);
     do_cmd_redraw();
 
     // update player noise

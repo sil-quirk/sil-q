@@ -15,13 +15,42 @@
 #include "player/killer.h"
 #include "metarun.h"
 
-#define MIN_DEPTH_COUNTER_STEP 180000
+#define MIN_DEPTH_COUNTER_STEP_BASE 150000
+#define MIN_DEPTH_COUNTER_STEP_SETTING_DELTA 30000
 #define MIN_DEPTH_BASE_INCREMENT_START 85
 #define MIN_DEPTH_BASE_INCREMENT_DIVISOR 850
-#define MIN_DEPTH_INCREMENT_PER_BONUS 3
+#define MIN_DEPTH_INCREMENT_PER_BONUS 5
+#define MIN_DEPTH_KILL_BONUS_STEP 500
+#define MIN_DEPTH_KILL_BONUS_AMOUNT 5
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
+
+static int min_depth_counter_step_adjustment(void)
+{
+    if (!op_ptr)
+        return 0;
+
+    switch (op_ptr->min_depth_timer_mode)
+    {
+    case MIN_DEPTH_TIMER_MODE_RELAXED:
+        return MIN_DEPTH_COUNTER_STEP_SETTING_DELTA;
+    case MIN_DEPTH_TIMER_MODE_HARSH:
+        return -MIN_DEPTH_COUNTER_STEP_SETTING_DELTA;
+    default:
+        return 0;
+    }
+}
+
+static int min_depth_counter_step(void)
+{
+    int step = MIN_DEPTH_COUNTER_STEP_BASE + min_depth_counter_step_adjustment();
+
+    if (step < 1)
+        step = 1;
+
+    return step;
+}
 
 static bool min_depth_timer_bonus_slot_active(const object_type* o_ptr)
 {
@@ -31,14 +60,15 @@ static bool min_depth_timer_bonus_slot_active(const object_type* o_ptr)
     return true;
 }
 
-static int min_depth_timer_item_bonus_count(void)
+static int min_depth_timer_item_bonus_units(void)
 {
-    int count = 0;
+    int units = 0;
 
     for (int i = 0; i < INVEN_TOTAL; i++)
     {
         object_type* o_ptr = &inventory[i];
         u32b f1, f2, f3, f4;
+        bool equipped = (i >= INVEN_WIELD);
 
         if (!o_ptr->k_idx)
             continue;
@@ -50,12 +80,35 @@ static int min_depth_timer_item_bonus_count(void)
             continue;
 
         if (f4 & TR4_DEEP_CALL)
-            count++;
+            units += equipped ? MIN_DEPTH_ITEM_BONUS_DEEP_CALL_EQUIPPED
+                              : MIN_DEPTH_ITEM_BONUS_DEEP_CALL_INVENTORY;
+        /* Count the item grant itself, even if the player disables the ability. */
+        if (equipped && object_grants_ability(o_ptr, S_STL, STL_CRUEL_BLOW))
+            units += MIN_DEPTH_ITEM_BONUS_CRUEL_BLOW_EQUIPPED;
         if (f3 & TR3_PERMA_CURSE)
-            count += 3;
+            units += MIN_DEPTH_ITEM_BONUS_PERMA_CURSE;
     }
 
-    return count;
+    return units;
+}
+
+static int min_depth_timer_kill_bonus(void)
+{
+    u32b total_kills = 0;
+
+    if (!l_list || !z_info)
+        return 0;
+
+    for (int i = 1; i < z_info->r_max; i++)
+    {
+        monster_lore* lore = &l_list[i];
+
+        if (lore->pkills > 0)
+            total_kills += (u32b)lore->pkills;
+    }
+
+    return MIN_DEPTH_KILL_BONUS_AMOUNT
+        * (int)(total_kills / MIN_DEPTH_KILL_BONUS_STEP);
 }
 
 static int min_depth_timer_base_increment(void)
@@ -66,9 +119,14 @@ static int min_depth_timer_base_increment(void)
 static int min_depth_timer_additional_increment(void)
 {
     int depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * (p_ptr->depth - min_depth());
-    int item_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * min_depth_timer_item_bonus_count();
+    int item_bonus_units = min_depth_timer_item_bonus_units();
+    /* Use half-depth units so carried Deep Call items can be worth 1.5 depths. */
+    int item_bonus = (MIN_DEPTH_INCREMENT_PER_BONUS * item_bonus_units
+        + (MIN_DEPTH_BONUS_UNITS_PER_DEPTH / 2))
+        / MIN_DEPTH_BONUS_UNITS_PER_DEPTH;
+    int kill_bonus = min_depth_timer_kill_bonus();
 
-    return depth_bonus + item_bonus;
+    return depth_bonus + item_bonus + kill_bonus;
 }
 
 void min_depth_timer_status(int* base_increment, int* additional_increment,
@@ -77,10 +135,11 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
     int base = min_depth_timer_base_increment();
     int additional = min_depth_timer_additional_increment();
     int total = base + additional;
-    int current_progress = min_depth_counter % MIN_DEPTH_COUNTER_STEP;
+    int step = min_depth_counter_step();
+    int current_progress = min_depth_counter % step;
 
     if (current_progress < 0)
-        current_progress += MIN_DEPTH_COUNTER_STEP;
+        current_progress += step;
 
     if (base_increment)
         *base_increment = base;
@@ -91,7 +150,7 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
     if (progress)
         *progress = current_progress;
     if (threshold)
-        *threshold = MIN_DEPTH_COUNTER_STEP;
+        *threshold = step;
 }
 
 /*
@@ -100,7 +159,7 @@ void min_depth_timer_status(int* base_increment, int* additional_increment,
  */
 int min_depth(void)
 {
-    int min_depth_value = min_depth_counter / MIN_DEPTH_COUNTER_STEP + 1;
+    int min_depth_value = min_depth_counter / min_depth_counter_step() + 1;
 
     // bounds on the base
     if (min_depth_value < 1)
@@ -396,7 +455,7 @@ void do_cmd_go_up(void)
             if (crown_art > 0)
             {
                 /* Player has the crown itself - this is a major theft! */
-                /* Crown with 0 silmarils still means you stole his crown → State 3 */
+                /* Crown with 0 silmarils still means you stole his crown -> State 3 */
                 target_state = 3;
                 log_debug("do_cmd_go_up: player has crown (art=%d), target_state=3", crown_art);
                 
@@ -410,7 +469,7 @@ void do_cmd_go_up(void)
             else if (sils > 0)
             {
                 /* Player has prised silmarils (not carrying crown) */
-                target_state = 1 + sils;  /* 1 sil → state 2, 2 sils → state 3, 3 sils → state 4 */
+                target_state = 1 + sils;  /* 1 sil -> state 2, 2 sils -> state 3, 3 sils -> state 4 */
                 log_debug("do_cmd_go_up: player has %d prised silmarils, target_state=%d", sils, target_state);
             }
             
@@ -897,27 +956,29 @@ static chest_alignment_type chest_item_alignment(const object_type* o_ptr)
 }
 
 /*
- * Allocate objects upon opening a chest
+ * Allocate objects upon opening or destroying a chest.
  *
- * Disperse treasures from the given chest, centered at (x,y).
- *
+ * Disperse treasures from the given chest, centered at (x,y).  If
+ * destroy_typ is an elemental attack, any generated contents vulnerable to
+ * that element are destroyed instead of being dropped.
  */
-static void chest_death(int y, int x, s16b o_idx)
+void chest_release_contents(object_type* o_ptr, int y, int x, int destroy_typ)
 {
     int number;
     bool generated_an_item = false;
+    bool dropped_an_item = false;
     chest_alignment_type chest_alignment = CHEST_ALIGNMENT_STANDARD;
+    int destroyed_contents = 0;
+    int old_generation_mode = object_generation_mode;
     bool old_allow_noble = drop_allow_noble;
     bool old_allow_evil = drop_allow_evil;
-
-    object_type* o_ptr;
 
     object_type* i_ptr;
 
     object_type object_type_body;
 
-    /* Get the chest */
-    o_ptr = &o_list[o_idx];
+    if (!o_ptr || o_ptr->tval != TV_CHEST)
+        return;
 
     /* Determine how much to drop (see above) */
     number = (o_ptr->sval >= SV_CHEST_MIN_LARGE) ? 4 : rand_range(2, 3);
@@ -1006,13 +1067,23 @@ static void chest_death(int y, int x, s16b o_idx)
             }
 
             generated_an_item = true;
+
+            if ((destroy_typ >= 0)
+                && elemental_attack_destroys_object(destroy_typ, i_ptr))
+            {
+                destroyed_contents++;
+                accepted = true;
+                continue;
+            }
+
             drop_near(i_ptr, -1, y, x);
+            dropped_an_item = true;
             accepted = true;
         }
     }
 
     /* No longer opening a chest */
-    object_generation_mode = OB_GEN_MODE_NORMAL;
+    object_generation_mode = old_generation_mode;
     drop_allow_noble = old_allow_noble;
     drop_allow_evil = old_allow_evil;
 
@@ -1029,6 +1100,25 @@ static void chest_death(int y, int x, s16b o_idx)
     {
         msg_print("The chest is empty.");
     }
+    else if (!dropped_an_item && destroyed_contents > 0)
+    {
+        msg_print("The chest's contents are ruined.");
+    }
+    else if (destroyed_contents > 0)
+    {
+        msg_print("Some of the chest's contents are ruined.");
+    }
+}
+
+/*
+ * Allocate objects upon opening a chest
+ *
+ * Disperse treasures from the given chest, centered at (x,y).
+ *
+ */
+static void chest_death(int y, int x, s16b o_idx)
+{
+    chest_release_contents(&o_list[o_idx], y, x, -1);
 }
 
 /*
@@ -1294,7 +1384,9 @@ typedef struct hint_message_state {
     hint_message_meta meta[HINT_MESSAGE_MAX];
 } hint_message_state;
 
-static hint_message_state g_hint_message_state = { -1, 0, 0, 0, {0}, {{{0}}}, {{{0}}} };
+static hint_message_state g_hint_message_state = {
+    .level_depth = -1
+};
 
 #define SKELETON_TIP_MAX_DEPTH 7
 #define SKELETON_NOTE_LEVEL_BASE_BLOCKS 9
@@ -1552,7 +1644,7 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
         return 0;
 
     /*
-     * Size buckets for skeleton-note pacing and {SIZEWORD}.
+     * Size buckets for skeleton-note pacing.
      *
      * Bucket against this depth's actual legal size span rather than the
      * absolute MAX_DUNGEON_* ceiling. Otherwise the generator quickly
@@ -1579,6 +1671,65 @@ static int skeleton_note_size_bucket(const level_layout_info* layout)
     if (bucket > 3)
         bucket = 3;
     return bucket;
+}
+
+static int skeleton_note_size_word_bucket(const level_layout_info* layout)
+{
+    int depth = p_ptr ? p_ptr->depth : 0;
+    int side = 0;
+    int total = 0;
+    int lower = 0;
+    int equal = 0;
+
+    if (!layout)
+        return 0;
+
+    side = MAX(layout->map_wid, layout->map_hgt);
+    if (side <= 0)
+        return 0;
+
+    /*
+     * For note text, compare the generated size against the generator's
+     * actual roll distribution rather than evenly slicing the legal span.
+     * cave_gen() deliberately biases upward by taking the max of two rolls,
+     * so width-based buckets overstate how often a level is "huge".
+     */
+    for (int roll1 = 1; roll1 <= SKELETON_NOTE_LEVEL_RANDOM_ROLL1; ++roll1)
+    {
+        for (int roll2 = 1; roll2 <= SKELETON_NOTE_LEVEL_RANDOM_ROLL2; ++roll2)
+        {
+            int generated_side
+                = skeleton_note_generated_side_for_depth_rolls(depth, roll1, roll2);
+
+            ++total;
+            if (generated_side < side)
+                ++lower;
+            else if (generated_side == side)
+                ++equal;
+        }
+    }
+
+    if (total <= 0)
+        return 0;
+
+    /*
+     * Use the midpoint percentile for this exact generated size so the most
+     * common roll cluster reads as a middle descriptor instead of "vast".
+     */
+    if (equal > 0)
+    {
+        s64b numerator = (s64b)(2 * lower + equal) * 4;
+        s64b denominator = (s64b)2 * total;
+        int bucket = (int)(numerator / denominator);
+
+        if (bucket < 0)
+            bucket = 0;
+        if (bucket > 3)
+            bucket = 3;
+        return bucket;
+    }
+
+    return skeleton_note_size_bucket(layout);
 }
 
 static int skeleton_note_cap_from_layout(const level_layout_info* layout)
@@ -1763,7 +1914,7 @@ static const char* size_word_for_bucket(int bucket)
 
 static const char* skeleton_note_pick_size_word(const level_layout_info* layout)
 {
-    int actual = layout ? skeleton_note_size_bucket(layout) : 0;
+    int actual = layout ? skeleton_note_size_word_bucket(layout) : 0;
     if (actual < 0)
         actual = 0;
     if (actual > 3)
@@ -2617,7 +2768,8 @@ static bool skeleton_note_has_unseen_template(
 }
 
 static s16b skeleton_note_pick_entry_internal(
-    byte sval, skeleton_note_role role, skeleton_hint_kind hint, bool allow_seen)
+    byte sval, skeleton_note_role role, skeleton_hint_kind hint, bool allow_seen,
+    s16b exclude_id)
 {
     if (!skeleton_note_info || !z_info)
         return -1;
@@ -2630,6 +2782,8 @@ static s16b skeleton_note_pick_entry_internal(
         if (t->role != role || t->weight == 0 || t->text == 0)
             continue;
         if (t->sval != SV_SKELETON_NOTE_ANY && t->sval != sval)
+            continue;
+        if ((s16b)i == exclude_id)
             continue;
         if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
             continue;
@@ -2649,6 +2803,8 @@ static s16b skeleton_note_pick_entry_internal(
             continue;
         if (t->sval != SV_SKELETON_NOTE_ANY && t->sval != sval)
             continue;
+        if ((s16b)i == exclude_id)
+            continue;
         if (role == SKELETON_NOTE_ROLE_HINT && t->hint != hint)
             continue;
         if (!allow_seen && skeleton_note_seen_id((s16b)i))
@@ -2664,7 +2820,7 @@ static s16b skeleton_note_pick_entry_internal(
 static s16b skeleton_note_pick_entry(
     byte sval, skeleton_note_role role, skeleton_hint_kind hint)
 {
-    return skeleton_note_pick_entry_internal(sval, role, hint, false);
+    return skeleton_note_pick_entry_internal(sval, role, hint, false, -1);
 }
 
 typedef struct skeleton_note_line
@@ -2966,7 +3122,7 @@ static void skeleton_note_expand_template(const char* tpl,
     const char* part_hazard = partition_hazard_label(presence_kind, big_cave_type);
     const char* size_word_text = size_word
         ? size_word
-        : size_word_for_bucket(layout ? skeleton_note_size_bucket(layout) : 0);
+        : size_word_for_bucket(layout ? skeleton_note_size_word_bucket(layout) : 0);
     int width = layout ? layout->map_wid : 0;
     int height = layout ? layout->map_hgt : 0;
     const char* dir_text = dir ? dir : "";
@@ -3904,6 +4060,23 @@ static const char* skeleton_note_stair_site(int feat)
     }
 }
 
+static const char* skeleton_note_stair_title(int feat)
+{
+    switch (feat)
+    {
+    case FEAT_MORE:
+        return "Hint: Down Stairs";
+    case FEAT_MORE_SHAFT:
+        return "Hint: Down Shaft";
+    case FEAT_LESS:
+        return "Hint: Up Stairs";
+    case FEAT_LESS_SHAFT:
+        return "Hint: Up Shaft";
+    default:
+        return "Hint: Stairs";
+    }
+}
+
 static void skeleton_note_partition_meta_for_hint(
     skeleton_hint_kind hint, level_partition_kind* out_kind, big_cave_type_t* out_type)
 {
@@ -4004,7 +4177,7 @@ static void hint_message_meta_add_cue(hint_message_meta* meta, const char* dist,
     strnfmt(meta->cue_dirs[slot], HINT_MESSAGE_CUE_TEXT_MAX, "%s", dir ? dir : "");
 }
 
-static const char* skeleton_hint_title(skeleton_hint_kind hint)
+static const char* skeleton_hint_title(skeleton_hint_kind hint, int stairs_feat)
 {
     switch (hint)
     {
@@ -4013,7 +4186,7 @@ static const char* skeleton_hint_title(skeleton_hint_kind hint)
     case SKEL_HINT_VAULT_ARTIFACT:
         return "Hint: Hidden Artefact";
     case SKEL_HINT_STAIRS:
-        return "Hint: Stairs";
+        return skeleton_note_stair_title(stairs_feat);
     case SKEL_HINT_PARTITION_PRESENCE:
         return "Hint: Layout";
     case SKEL_HINT_FORGE:
@@ -4061,30 +4234,40 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     bool at_cap = (g_skeleton_note_state.notes_shown >= g_skeleton_note_state.note_cap);
 
     skeleton_note_profile profile = skeleton_note_profile_for_sval(sval);
-    if (profile.note_chance <= 0)
-        return;
-
-    if (!percent_chance(profile.note_chance))
-        return;
 
     level_layout_info layout;
     level_layout_info_current(&layout);
 
     bool vault_present = level_has_greater_vault();
     bool artefact_present = level_has_artefact_hint_target();
+    bool tutorial_note_forced = skeleton_hint_available(
+        SKEL_HINT_TIP, &layout, vault_present, artefact_present, sval);
+
+    if (profile.note_chance <= 0 && !tutorial_note_forced)
+        return;
+
+    if (!tutorial_note_forced && !percent_chance(profile.note_chance))
+        return;
 
     u32b base_hint_state = g_skeleton_note_state.hint_used_mask;
 
     skeleton_hint_kind hint1 = SKEL_HINT_NONE;
-    if (at_cap)
+    skeleton_hint_kind hint2 = SKEL_HINT_NONE;
+    if (tutorial_note_forced)
     {
-        /* Tutorial notes should not be limited by the per-level cap. */
-        if (!skeleton_hint_available(
-                SKEL_HINT_TIP, &layout, vault_present, artefact_present, sval))
-        {
-            return;
-        }
         hint1 = SKEL_HINT_TIP;
+
+        if (!at_cap && profile.note_chance > 0 && percent_chance(profile.note_chance))
+        {
+            hint2 = skeleton_note_choose_hint(
+                &profile, &layout, vault_present, artefact_present, sval,
+                base_hint_state, skeleton_hint_bit(SKEL_HINT_TIP));
+        }
+
+    }
+    else if (at_cap)
+    {
+        return;
     }
     else
     {
@@ -4105,8 +4288,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     if (hint1 == SKEL_HINT_NONE)
         return;
 
-    skeleton_hint_kind hint2 = SKEL_HINT_NONE;
-    if (hint1 != SKEL_HINT_TIP)
+    if (hint2 == SKEL_HINT_NONE && hint1 != SKEL_HINT_TIP)
     {
         int size_bucket = skeleton_note_size_bucket(&layout);
         int second_chance = 0;
@@ -4135,6 +4317,13 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         }
     }
 
+    /*
+     * When a tutorial tip drove the note, fill the second slot with another
+     * tip if no regular hint was rolled.
+     */
+    if (hint2 == SKEL_HINT_NONE && hint1 == SKEL_HINT_TIP)
+        hint2 = SKEL_HINT_TIP;
+
     /* Don't mark TIP hints as used - they can repeat. */
     if (hint1 != SKEL_HINT_TIP)
         g_skeleton_note_state.hint_used_mask
@@ -4161,33 +4350,43 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     skeleton_partition_focus focus_part;
     focus_part.kind = LEVEL_PART_NONE;
     focus_part.big_cave_type = BIG_CAVE_NONE;
+    int stairs_feat = -1;
     if (hint1 == SKEL_HINT_PARTITION_PRESENCE
         || hint2 == SKEL_HINT_PARTITION_PRESENCE)
     {
         focus_part = skeleton_pick_partition_presence(&layout);
     }
 
-    s16b opening_id = skeleton_note_pick_entry(
-        sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
-    s16b signoff_id = skeleton_note_pick_entry(
-        sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
-    if (opening_id < 0)
-    {
-        opening_id = skeleton_note_pick_entry_internal(
-            sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE, true);
-    }
-    if (signoff_id < 0)
-    {
-        signoff_id = skeleton_note_pick_entry_internal(
-            sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE, true);
-    }
+    bool note_has_tip = (hint1 == SKEL_HINT_TIP || hint2 == SKEL_HINT_TIP);
+    s16b opening_id = -1;
+    s16b signoff_id = -1;
+    const char* opening = NULL;
+    const char* signoff = NULL;
 
-    const char* opening = opening_id >= 0
-        ? (skeleton_note_text + skeleton_note_info[opening_id].text)
-        : skeleton_note_fallback_opening(sval);
-    const char* signoff = signoff_id >= 0
-        ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
-        : skeleton_note_fallback_signoff(sval);
+    if (!note_has_tip)
+    {
+        opening_id = skeleton_note_pick_entry(
+            sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE);
+        signoff_id = skeleton_note_pick_entry(
+            sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE);
+        if (opening_id < 0)
+        {
+            opening_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_OPENING, SKEL_HINT_NONE, true, -1);
+        }
+        if (signoff_id < 0)
+        {
+            signoff_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_SIGNOFF, SKEL_HINT_NONE, true, -1);
+        }
+
+        opening = opening_id >= 0
+            ? (skeleton_note_text + skeleton_note_info[opening_id].text)
+            : skeleton_note_fallback_opening(sval);
+        signoff = signoff_id >= 0
+            ? (skeleton_note_text + skeleton_note_info[signoff_id].text)
+            : skeleton_note_fallback_signoff(sval);
+    }
 
     skeleton_note_line body_lines[2];
     s16b body_ids[2] = {-1, -1};
@@ -4200,24 +4399,38 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
     char forge_site_buf[64];
     char artefact_kind_buf[2][64];
+    char tutorial_tip_buf[2][256];
     forge_site_buf[0] = '\0';
     artefact_kind_buf[0][0] = '\0';
     artefact_kind_buf[1][0] = '\0';
+    tutorial_tip_buf[0][0] = '\0';
+    tutorial_tip_buf[1][0] = '\0';
 
     for (int i = 0; i < hint_count; ++i)
     {
         skeleton_hint_kind hint = hints[i];
         s16b note_id = skeleton_note_pick_entry(
             sval, SKELETON_NOTE_ROLE_HINT, hint);
+        const char* extra_tpl = NULL;
+
+        if (hint == SKEL_HINT_TIP && body_count > 0 && note_id == body_ids[body_count - 1])
+        {
+            note_id = skeleton_note_pick_entry_internal(
+                sval, SKELETON_NOTE_ROLE_HINT, hint, false, body_ids[body_count - 1]);
+        }
+
         if (note_id < 0)
         {
             note_id = skeleton_note_pick_entry_internal(
-                sval, SKELETON_NOTE_ROLE_HINT, hint, true);
+                sval, SKELETON_NOTE_ROLE_HINT, hint, true,
+                (hint == SKEL_HINT_TIP && body_count > 0) ? body_ids[body_count - 1] : -1);
         }
 
         const char* tpl = (note_id >= 0)
             ? (skeleton_note_text + skeleton_note_info[note_id].text)
             : NULL;
+        if (note_id >= 0 && skeleton_note_info[note_id].extra_text)
+            extra_tpl = skeleton_note_text + skeleton_note_info[note_id].extra_text;
 
         if (!tpl)
         {
@@ -4260,7 +4473,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "A {UNIQUE_TYPE} walks these halls {DIST} {DIR}. Hide or flee.";
                 break;
             case SKEL_HINT_TIP:
-                tpl = "In Angband, silence is life. Shut doors, walk softly, and do not let them hear you.";
+                tpl = "Bones clutch a faded scrap of text.";
                 break;
             case SKEL_HINT_LEVEL_SIZE:
                 tpl = "This place is {SIZEWORD}; do not expect a short road to anywhere.";
@@ -4272,6 +4485,14 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 tpl = "Bones clutch a faded scrap of text.";
                 break;
             }
+        }
+
+        if (hint == SKEL_HINT_TIP && extra_tpl && extra_tpl[0])
+        {
+            strnfmt(tutorial_tip_buf[body_count], sizeof(tutorial_tip_buf[body_count]),
+                "%s %s",
+                tpl, extra_tpl);
+            tpl = tutorial_tip_buf[body_count];
         }
 
         body_lines[body_count].tpl = tpl;
@@ -4300,6 +4521,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             if (skeleton_note_find_nearest_stairs(
                     sval, skel_y, skel_x, &ty, &tx, &feat, &dist))
             {
+                stairs_feat = feat;
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
                 body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
@@ -4428,13 +4650,26 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     char title_buf[100];
     if (hint2 != SKEL_HINT_NONE)
     {
-        strnfmt(title_buf, sizeof(title_buf), "Hint: %s & %s",
-            skeleton_hint_title(hint1) + 6,
-            skeleton_hint_title(hint2) + 6);
+        const char* title1 = skeleton_hint_title(hint1,
+            (hint1 == SKEL_HINT_STAIRS) ? stairs_feat : -1);
+        const char* title2 = skeleton_hint_title(hint2,
+            (hint2 == SKEL_HINT_STAIRS) ? stairs_feat : -1);
+        if (streq(title1, title2))
+        {
+            strnfmt(title_buf, sizeof(title_buf), "%s", title1);
+        }
+        else
+        {
+            strnfmt(title_buf, sizeof(title_buf), "Hint: %s & %s",
+                title1 + 6,
+                title2 + 6);
+        }
     }
     else
     {
-        strnfmt(title_buf, sizeof(title_buf), "%s", skeleton_hint_title(hint1));
+        strnfmt(title_buf, sizeof(title_buf), "%s",
+            skeleton_hint_title(hint1,
+                (hint1 == SKEL_HINT_STAIRS) ? stairs_feat : -1));
     }
 
     for (int i = 14; i >= 0; --i)
@@ -4448,8 +4683,11 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else
             pause_with_text(note_lines, 4, 8, NULL, 0);
     }
-    if (hint1 != SKEL_HINT_TIP)
+    if ((hint1 != SKEL_HINT_NONE && hint1 != SKEL_HINT_TIP)
+        || (hint2 != SKEL_HINT_NONE && hint2 != SKEL_HINT_TIP))
+    {
         g_skeleton_note_state.notes_shown++;
+    }
     skeleton_note_record_seen(opening_id);
     for (int i = 0; i < body_count; ++i)
         skeleton_note_record_seen(body_ids[i]);
@@ -5438,7 +5676,7 @@ static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
 
     if (o_ptr->tval == TV_ARROW)
     {
-        if (o_ptr->name1 || object_has_ego(o_ptr) || o_ptr->att > 0)
+        if (o_ptr->name1 || o_ptr->att >= 3)
             return false;
         return true;
     }
@@ -5460,11 +5698,162 @@ static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
 
     return false;
 }
+
+static object_type fletchery_source_snapshot;
+static bool fletchery_source_snapshot_valid = false;
+static bool fletchery_source_in_pack = false;
+
+static void log_fletchery_object_state(
+    const char* tag, const object_type* o_ptr, int slot)
+{
+    char o_name[160];
+
+    if (!tag)
+        tag = "state";
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        log_debug("fletchery:%s slot=%d empty", tag, slot);
+        return;
+    }
+
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    log_debug(
+        "fletchery:%s slot=%d name='%s' k_idx=%d tval=%d sval=%d num=%d att=%d "
+        "evn=%d dd=%d ds=%d pval=%d prefix=%d suffix=%d ident=0x%08x note=%u "
+        "discount=%d pickup=%d pickup_slot=%d runtime=%ld",
+        tag, slot, o_name, o_ptr->k_idx, o_ptr->tval, o_ptr->sval,
+        o_ptr->number, o_ptr->att, o_ptr->evn, o_ptr->dd, o_ptr->ds,
+        o_ptr->pval, (int)object_ego_prefix(o_ptr), (int)object_ego_suffix(o_ptr),
+        (unsigned int)o_ptr->ident, (unsigned int)o_ptr->obj_note, o_ptr->discount,
+        o_ptr->pickup ? 1 : 0, o_ptr->pickup_slot,
+        (long)object_runtime_state(o_ptr));
+}
+
+static void clear_fletchery_source_snapshot(void)
+{
+    if (fletchery_source_snapshot_valid)
+        log_fletchery_object_state("clear_snapshot", &fletchery_source_snapshot,
+            p_ptr->fletch_item);
+
+    object_wipe(&fletchery_source_snapshot);
+    fletchery_source_snapshot_valid = false;
+    fletchery_source_in_pack = false;
+    p_ptr->fletch_item = -1;
+}
+
+static void remember_fletchery_source_snapshot(const object_type* o_ptr)
+{
+    if (!o_ptr)
+    {
+        clear_fletchery_source_snapshot();
+        return;
+    }
+
+    object_copy(&fletchery_source_snapshot, o_ptr);
+    fletchery_source_snapshot_valid = true;
+    log_fletchery_object_state("remember_snapshot", o_ptr, p_ptr->fletch_item);
+}
+
+static bool fletchery_source_matches(const object_type* o_ptr)
+{
+    const object_type* source = &fletchery_source_snapshot;
+
+    if (!fletchery_source_snapshot_valid || !o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->k_idx != source->k_idx)
+        return false;
+    if (o_ptr->tval != source->tval || o_ptr->sval != source->sval)
+        return false;
+
+    if (o_ptr->att != source->att || o_ptr->evn != source->evn)
+        return false;
+    if (o_ptr->dd != source->dd || o_ptr->ds != source->ds)
+        return false;
+    if (o_ptr->pd != source->pd || o_ptr->ps != source->ps)
+        return false;
+    if (o_ptr->pval != source->pval)
+        return false;
+    if (o_ptr->name1 != source->name1)
+        return false;
+
+    if (object_ego_prefix(o_ptr) != object_ego_prefix(source)
+        || object_ego_suffix(o_ptr) != object_ego_suffix(source))
+    {
+        return false;
+    }
+
+    if (o_ptr->timeout != source->timeout)
+        return false;
+    if (o_ptr->obj_note != source->obj_note)
+        return false;
+    if (o_ptr->discount != source->discount)
+        return false;
+
+    if (((o_ptr->ident ^ source->ident) & (IDENT_CURSED | IDENT_BROKEN)) != 0)
+    {
+        return false;
+    }
+
+    if (memcmp(o_ptr->stat_bonus, source->stat_bonus,
+            sizeof(o_ptr->stat_bonus))
+        != 0)
+    {
+        return false;
+    }
+
+    if (memcmp(o_ptr->skill_bonus, source->skill_bonus,
+            sizeof(o_ptr->skill_bonus))
+        != 0)
+    {
+        return false;
+    }
+
+    if (object_runtime_state(o_ptr) != object_runtime_state(source))
+        return false;
+
+    return true;
+}
+
+static int collect_fletchery_source_slots(int slots[INVEN_TOTAL])
+{
+    int count = 0;
+    int preferred_slot = p_ptr->fletch_item;
+
+    if ((preferred_slot >= 0) && (preferred_slot < INVEN_TOTAL)
+        && fletchery_source_matches(&inventory[preferred_slot]))
+    {
+        slots[count++] = preferred_slot;
+    }
+
+    if (!fletchery_source_in_pack)
+        return count;
+
+    for (int slot = 0; slot < INVEN_PACK; slot++)
+    {
+        if (slot == preferred_slot)
+            continue;
+        if (!fletchery_source_matches(&inventory[slot]))
+            continue;
+
+        slots[count++] = slot;
+    }
+
+    log_debug("fletchery:collect_slots preferred=%d count=%d in_pack=%d",
+        preferred_slot, count, fletchery_source_in_pack ? 1 : 0);
+    for (int i = 0; i < count; i++)
+        log_fletchery_object_state("collect_slot", &inventory[slots[i]], slots[i]);
+
+    return count;
+}
+
 enum fletch_source_type
 {
     FLETCH_SOURCE_INVEN = 0,
     FLETCH_SOURCE_EQUIP = 1,
-    FLETCH_SOURCE_FLOOR = 2
+    FLETCH_SOURCE_FLOOR = 2,
+    FLETCH_SOURCE_SUPPLY = 3
 };
 
 typedef struct fletch_choice_s
@@ -5473,10 +5862,231 @@ typedef struct fletch_choice_s
     int index;
 } fletch_choice_t;
 
+static bool supply_object_is_fletchery_torch(
+    const object_type* o_ptr, int sval)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == sval && item_tester_hook_fletchery_source(o_ptr);
+}
+
+static int count_fletchery_supply_torches(int sval)
+{
+    int total = 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (!supply_object_is_fletchery_torch(o_ptr, sval))
+            continue;
+
+        total += o_ptr->number;
+    }
+
+    return total;
+}
+
+static int find_fletchery_supply_torch(int sval)
+{
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (supply_object_is_fletchery_torch(o_ptr, sval))
+            return i;
+    }
+
+    return -1;
+}
+
+static bool choose_fletchery_supply_torch(int* out_sval)
+{
+    int wooden = count_fletchery_supply_torches(SV_LIGHT_TORCH);
+    int mallorn = count_fletchery_supply_torches(SV_LIGHT_MALLORN);
+    char ch;
+
+    if (!out_sval)
+        return false;
+
+    if (wooden <= 0 && mallorn <= 0)
+    {
+        msg_print("You have no torches in your supplies.");
+        return false;
+    }
+
+    if (wooden > 0 && mallorn <= 0)
+    {
+        *out_sval = SV_LIGHT_TORCH;
+        return true;
+    }
+
+    if (mallorn > 0 && wooden <= 0)
+    {
+        *out_sval = SV_LIGHT_MALLORN;
+        return true;
+    }
+
+    while (true)
+    {
+        if (!get_com("Use [w]ooden or [m]allorn torches from supplies? ", &ch))
+            return false;
+
+        switch (ch)
+        {
+        case 'w':
+        case 'W':
+            *out_sval = SV_LIGHT_TORCH;
+            return true;
+
+        case 'm':
+        case 'M':
+            *out_sval = SV_LIGHT_MALLORN;
+            return true;
+
+        default:
+            bell("Please choose 'w' or 'm'.");
+            break;
+        }
+    }
+}
+
+static bool build_fletchery_supply_source(
+    int sval, object_type* out_obj, int* out_total)
+{
+    int idx;
+    int total;
+    object_type* o_ptr;
+
+    if (!out_obj || !out_total)
+        return false;
+
+    total = count_fletchery_supply_torches(sval);
+    idx = find_fletchery_supply_torch(sval);
+    if (idx < 0 || total <= 0)
+        return false;
+
+    o_ptr = supplies_entry_at(idx);
+    if (!o_ptr)
+        return false;
+
+    object_copy(out_obj, o_ptr);
+    *out_total = total;
+    return true;
+}
+
+static bool consume_fletchery_supply_torches(int sval, int amount)
+{
+    for (int i = 0; amount > 0 && i < supplies_entry_count();)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        int take;
+
+        if (!supply_object_is_fletchery_torch(o_ptr, sval))
+        {
+            i++;
+            continue;
+        }
+
+        take = MIN(amount, o_ptr->number);
+        if (supplies_consume_quantity(i, take))
+        {
+            amount -= take;
+            continue;
+        }
+
+        amount -= take;
+        i++;
+    }
+
+    return amount == 0;
+}
+
+static bool drop_fletchered_arrows_near(object_type* arrows)
+{
+    object_type drop_obj;
+    s16b o_idx;
+
+    if (!arrows || arrows->number <= 0 || arrows->k_idx == 0)
+        return false;
+
+    log_fletchery_object_state("drop_attempt", arrows, -1);
+
+    if ((cave_feat[p_ptr->py][p_ptr->px] == FEAT_FLOOR)
+        || (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT))
+    {
+        object_copy(&drop_obj, arrows);
+        o_idx = floor_carry(p_ptr->py, p_ptr->px, &drop_obj);
+        if (o_idx > 0)
+        {
+            log_debug("fletchery:drop_here_success o_idx=%d y=%d x=%d",
+                o_idx, p_ptr->py, p_ptr->px);
+            log_fletchery_object_state("drop_here_floor", &o_list[o_idx], -1);
+            return true;
+        }
+    }
+
+    for (int d = 0; d < 8; d++)
+    {
+        int yy = p_ptr->py + ddy_ddd[d];
+        int xx = p_ptr->px + ddx_ddd[d];
+
+        if (!in_bounds_fully(yy, xx))
+            continue;
+
+        if (cave_feat[yy][xx] != FEAT_FLOOR
+            && cave_feat[yy][xx] != FEAT_SUNLIGHT)
+        {
+            continue;
+        }
+
+        object_copy(&drop_obj, arrows);
+        o_idx = floor_carry(yy, xx, &drop_obj);
+        if (o_idx > 0)
+        {
+            log_debug("fletchery:drop_adjacent_success o_idx=%d y=%d x=%d",
+                o_idx, yy, xx);
+            log_fletchery_object_state("drop_adjacent_floor", &o_list[o_idx], -1);
+            return true;
+        }
+    }
+
+    /*
+     * Force placement for crafted-arrow overflow so partial fletchery results
+     * do not vanish when the pack is full and nearby floor grids are crowded.
+     */
+    object_copy(&drop_obj, arrows);
+    drop_obj.pickup = true;
+    drop_obj.pickup_slot = -1;
+
+    o_idx = drop_near(&drop_obj, 0, p_ptr->py, p_ptr->px);
+
+    if (!o_idx)
+    {
+        log_warn("drop_fletchered_arrows_near: failed to place %d crafted arrows",
+            arrows->number);
+        return false;
+    }
+
+    /*
+     * These are crafted arrows, not auto-recovering fired ammo. Clear the
+     * temporary force-place flag after the floor object is created/updated.
+     */
+    if (o_idx > 0)
+    {
+        log_debug("fletchery:drop_near_success o_idx=%d", o_idx);
+        log_fletchery_object_state("drop_near_floor_before_clear", &o_list[o_idx], -1);
+        o_list[o_idx].pickup = false;
+        o_list[o_idx].pickup_slot = -1;
+        log_fletchery_object_state("drop_near_floor_after_clear", &o_list[o_idx], -1);
+    }
+
+    return true;
+}
+
 static void distribute_fletchered_arrows(const object_type* arrows)
 {
     if (!arrows || arrows->number <= 0 || arrows->k_idx == 0)
         return;
+
+    log_fletchery_object_state("distribute_input", arrows, -1);
 
     object_type leftover = *arrows;
     bool combined_existing = false;
@@ -5489,10 +6099,16 @@ static void distribute_fletchered_arrows(const object_type* arrows)
             continue;
         if (!object_similar(slot_obj, &leftover))
             continue;
+        log_fletchery_object_state("combine_quiver_before_slot", slot_obj, slot);
+        log_fletchery_object_state("combine_quiver_before_leftover", &leftover, -1);
         int before = leftover.number;
         object_absorb(slot_obj, &leftover);
         if (leftover.number != before)
+        {
             combined_existing = true;
+            log_fletchery_object_state("combine_quiver_after_slot", slot_obj, slot);
+            log_fletchery_object_state("combine_quiver_after_leftover", &leftover, -1);
+        }
     }
 
     /* Then fill stacks in the main pack */
@@ -5503,10 +6119,16 @@ static void distribute_fletchered_arrows(const object_type* arrows)
             continue;
         if (!object_similar(slot_obj, &leftover))
             continue;
+        log_fletchery_object_state("combine_pack_before_slot", slot_obj, slot);
+        log_fletchery_object_state("combine_pack_before_leftover", &leftover, -1);
         int before = leftover.number;
         object_absorb(slot_obj, &leftover);
         if (leftover.number != before)
+        {
             combined_existing = true;
+            log_fletchery_object_state("combine_pack_after_slot", slot_obj, slot);
+            log_fletchery_object_state("combine_pack_after_leftover", &leftover, -1);
+        }
     }
 
     /* Finally, attempt to add to any other equipped stacks */
@@ -5519,10 +6141,16 @@ static void distribute_fletchered_arrows(const object_type* arrows)
             continue;
         if (!object_similar(slot_obj, &leftover))
             continue;
+        log_fletchery_object_state("combine_equip_before_slot", slot_obj, slot);
+        log_fletchery_object_state("combine_equip_before_leftover", &leftover, -1);
         int before = leftover.number;
         object_absorb(slot_obj, &leftover);
         if (leftover.number != before)
+        {
             combined_existing = true;
+            log_fletchery_object_state("combine_equip_after_slot", slot_obj, slot);
+            log_fletchery_object_state("combine_equip_after_leftover", &leftover, -1);
+        }
     }
 
     if (combined_existing)
@@ -5532,10 +6160,16 @@ static void distribute_fletchered_arrows(const object_type* arrows)
     }
 
     if (leftover.number <= 0)
+    {
+        log_debug("fletchery:distribute_fully_absorbed");
         return;
+    }
 
     object_type carry_obj = leftover;
     int carry_slot = inven_carry(&carry_obj, true);
+    log_debug("fletchery:inven_carry_result slot=%d leftover_after=%d",
+        carry_slot, carry_obj.number);
+    log_fletchery_object_state("carry_obj_after_inven_carry", &carry_obj, -1);
 
     if (carry_slot == SUPPLIES_INDEX)
     {
@@ -5549,20 +6183,25 @@ static void distribute_fletchered_arrows(const object_type* arrows)
     else if (carry_slot >= 0)
     {
         object_type* carried = &inventory[carry_slot];
+        log_fletchery_object_state("carry_slot_object", carried, carry_slot);
         char arrow_name[80];
         object_desc(arrow_name, sizeof(arrow_name), carried, true, 3);
         msg_format("You have %s (%c).", arrow_name, index_to_label(carry_slot));
 
         if (carry_obj.number > 0)
         {
-            drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
-            msg_print("Some arrows spill to the ground.");
+            if (drop_fletchered_arrows_near(&carry_obj))
+                msg_print("Some arrows spill to the ground.");
+            else
+                msg_print("You lose track of some of the arrows.");
         }
     }
     else
     {
-        drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
-        msg_print("Your pack is too full; you leave the arrows on the ground.");
+        if (drop_fletchered_arrows_near(&carry_obj))
+            msg_print("Your pack is too full; you leave the arrows on the ground.");
+        else
+            msg_print("Your pack is too full, and you lose track of the arrows.");
     }
 
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
@@ -5616,8 +6255,11 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
 
     if (selection == SUPPLIES_INDEX)
     {
-        msg_print("Supplies cannot be used for fletchery.");
-        return false;
+        if (!choose_fletchery_supply_torch(&out_choice->index))
+            return false;
+
+        out_choice->type = FLETCH_SOURCE_SUPPLY;
+        return true;
     }
 
     if (selection < 0)
@@ -5642,7 +6284,9 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
 void do_cmd_fletchery(void)
 {
     object_type* o_ptr;
+    object_type supply_source;
     fletch_choice_t choice;
+    bool from_supply;
 
     if (!p_ptr->active_ability[S_ARC][ARC_FLETCHERY])
     {
@@ -5654,12 +6298,23 @@ void do_cmd_fletchery(void)
         return;
 
     bool from_floor = (choice.type == FLETCH_SOURCE_FLOOR);
+    from_supply = (choice.type == FLETCH_SOURCE_SUPPLY);
 
     int source_index = choice.index;
     int floor_idx = from_floor ? source_index : 0;
+    int supply_total = 0;
 
     if (from_floor)
         o_ptr = &o_list[floor_idx];
+    else if (from_supply)
+    {
+        if (!build_fletchery_supply_source(source_index, &supply_source, &supply_total))
+        {
+            msg_print("You have nothing suitable for fletchery in your supplies.");
+            return;
+        }
+        o_ptr = &supply_source;
+    }
     else
         o_ptr = &inventory[source_index];
 
@@ -5687,12 +6342,17 @@ void do_cmd_fletchery(void)
 
         p_ptr->fletch_item = source_index;
         p_ptr->fletching = o_ptr->number;
+        fletchery_source_in_pack = (source_index < INVEN_WIELD);
+        log_debug("fletchery:start source_index=%d in_pack=%d turns=%d",
+            source_index, fletchery_source_in_pack ? 1 : 0, p_ptr->fletching);
+        log_fletchery_object_state("start_source", o_ptr, source_index);
+        remember_fletchery_source_snapshot(o_ptr);
         return;
     }
 
     if (is_torch || is_staff)
     {
-        int max_convert = o_ptr->number;
+        int max_convert = from_supply ? supply_total : o_ptr->number;
         if (max_convert <= 0)
         {
             msg_print("You have nothing to work with.");
@@ -5725,6 +6385,14 @@ void do_cmd_fletchery(void)
             floor_item_increase(floor_idx, -amount);
             floor_item_optimize(floor_idx);
         }
+        else if (from_supply)
+        {
+            if (!consume_fletchery_supply_torches(source_index, amount))
+            {
+                msg_print("You no longer have enough torches in your supplies.");
+                return;
+            }
+        }
         else
         {
             inven_item_increase(source_index, -amount);
@@ -5745,14 +6413,97 @@ void do_cmd_fletchery(void)
 }
 void finish_fletching(int turns_left)
 {
-    object_type* o_ptr = &inventory[p_ptr->fletch_item];
-    int count = o_ptr->number - turns_left;
+    object_type source_template;
+    object_type* o_ptr = NULL;
+    int slots[INVEN_TOTAL];
+    int remove_amounts[INVEN_TOTAL];
+    int slot_count = 0;
+    int count = 0;
+
+    memset(remove_amounts, 0, sizeof(remove_amounts));
+    log_debug("fletchery:finish begin turns_left=%d fletch_item=%d active_turns=%d snapshot=%d in_pack=%d",
+        turns_left, p_ptr->fletch_item, p_ptr->fletching,
+        fletchery_source_snapshot_valid ? 1 : 0, fletchery_source_in_pack ? 1 : 0);
+
+    if (fletchery_source_snapshot_valid)
+    {
+        object_copy(&source_template, &fletchery_source_snapshot);
+        count = source_template.number - turns_left;
+        slot_count = collect_fletchery_source_slots(slots);
+        log_fletchery_object_state("finish_snapshot", &source_template, p_ptr->fletch_item);
+    }
+    else if ((p_ptr->fletch_item >= 0) && (p_ptr->fletch_item < INVEN_TOTAL))
+    {
+        o_ptr = &inventory[p_ptr->fletch_item];
+        object_copy(&source_template, o_ptr);
+        count = o_ptr->number - turns_left;
+        if (o_ptr->k_idx)
+            slots[slot_count++] = p_ptr->fletch_item;
+        log_fletchery_object_state("finish_fallback_source", o_ptr, p_ptr->fletch_item);
+    }
+
+    log_debug("fletchery:finish computed count=%d slot_count=%d", count, slot_count);
+
+    if ((slot_count <= 0) || (count <= 0))
+    {
+        if (count <= 0)
+        {
+            msg_print("You did not manage to improve any arrows.");
+        }
+        else
+        {
+            msg_print("You can no longer find the arrows you were working on.");
+            log_warn("finish_fletching: lost track of source arrows for slot %d",
+                p_ptr->fletch_item);
+        }
+
+        clear_fletchery_source_snapshot();
+        return;
+    }
 
     /* Unstack if necessary */
     if (count > 0)
     {
+        int source_total = source_template.number;
+        int available_total = 0;
+        int improved = 0;
+        int remaining_original = 0;
+
+        for (int i = 0; i < slot_count && available_total < source_total; i++)
+        {
+            int slot = slots[i];
+            int available = inventory[slot].number;
+            int used = MIN(source_total - available_total, available);
+
+            if (used <= 0)
+                continue;
+
+            remove_amounts[i] = used;
+            available_total += used;
+            log_debug("fletchery:finish slot=%d available=%d remove=%d running_total=%d source_total=%d",
+                slot, available, used, available_total, source_total);
+        }
+
+        improved = MIN(count, available_total);
+        remaining_original = available_total - improved;
+        log_debug("fletchery:finish improved=%d remaining_original=%d available_total=%d requested=%d",
+            improved, remaining_original, available_total, count);
+
+        if (available_total < count)
+        {
+            log_warn("finish_fletching: only found %d of %d arrows to improve",
+                available_total, count);
+        }
+
+        if (improved <= 0)
+        {
+            msg_print("You can no longer find the arrows you were working on.");
+            clear_fletchery_source_snapshot();
+            return;
+        }
+
         /* Message */
-        msg_format("You improve %d arrows.", count);
+        msg_format("You improve %d arrows.", improved);
 
         object_type* i_ptr;
         object_type object_type_body;
@@ -5761,32 +6512,57 @@ void finish_fletching(int turns_left)
         i_ptr = &object_type_body;
 
         /* Obtain a local object */
-        object_copy(i_ptr, o_ptr);
+        object_copy(i_ptr, &source_template);
 
         /* Modify quantity */
-        i_ptr->number = count;
+        i_ptr->number = improved;
         i_ptr->att = 3;
+        log_fletchery_object_state("finish_improved_proto", i_ptr, -1);
 
-        /* Reduce original pile */
-        inven_item_increase(p_ptr->fletch_item, -count);
-        inven_item_optimize(p_ptr->fletch_item);
+        /* Reduce the original source stacks. Delay optimization so pack slots stay stable. */
+        for (int i = 0; i < slot_count; i++)
+        {
+            if (remove_amounts[i] <= 0)
+                continue;
 
-        /* Add new arrows */
+            log_fletchery_object_state("finish_remove_before", &inventory[slots[i]], slots[i]);
+            inven_item_increase(slots[i], -remove_amounts[i]);
+            log_fletchery_object_state("finish_remove_after", &inventory[slots[i]], slots[i]);
+        }
+
+        for (int i = slot_count - 1; i >= 0; i--)
+        {
+            if (remove_amounts[i] <= 0)
+                continue;
+
+            log_fletchery_object_state("finish_optimize_before", &inventory[slots[i]], slots[i]);
+            inven_item_optimize(slots[i]);
+            log_fletchery_object_state("finish_optimize_after", &inventory[slots[i]], slots[i]);
+        }
+
         distribute_fletchered_arrows(i_ptr);
+
+        if (remaining_original > 0)
+        {
+            object_type remainder = source_template;
+            remainder.number = remaining_original;
+            log_fletchery_object_state("finish_remainder_proto", &remainder, -1);
+            distribute_fletchered_arrows(&remainder);
+        }
     }
     else
     {
         msg_print("You did not manage to improve any arrows.");
     }
 
+    clear_fletchery_source_snapshot();
+
     /* Combine / Reorder the pack (later) */
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    p_ptr->redraw |= (PR_QUIVER | PR_ARC);
 
     /* Window stuff */
-    p_ptr->window |= (PW_INVEN);
-
-    /* Window stuff */
-    p_ptr->window |= (PW_EQUIP);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 }
 
 /*
@@ -7033,7 +7809,8 @@ void do_cmd_alter(void)
                 && object_known_p(o_ptr))
                 chest_trap = true;
         }
-        else if (o_ptr->tval == TV_SKELETON)
+        else if ((o_ptr->tval == TV_SKELETON)
+            && !object_is_searched_skeleton(o_ptr))
         {
             skeleton_present = true;
         }

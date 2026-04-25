@@ -506,11 +506,15 @@ static void drop_apply_spawn_quantities(object_type* o_ptr)
             }
             else if (o_ptr->sval == SV_LIGHT_LANTERN)
             {
-                o_ptr->timeout = one_in_(3) ? rand_range(500, 3000) : 3000;
+                int spawn_fuel = (FUEL_LAMP * 2) / 5;
+                int min_fuel = FUEL_LAMP / 15;
+                o_ptr->timeout = one_in_(3)
+                    ? rand_range(min_fuel, spawn_fuel)
+                    : spawn_fuel;
             }
             else if (o_ptr->sval == SV_LIGHT_MALLORN)
             {
-                o_ptr->timeout = one_in_(3) ? rand_range(20, 50) : 50;
+                o_ptr->timeout = one_in_(3) ? rand_range(30, 100) : 100;
             }
         }
         break;
@@ -2497,6 +2501,7 @@ static drop_supply_group_id supply_group_for_entry(const drop_entry* e)
     case TV_GEM:
         return DROP_SUPPLY_GEM;
     case TV_STAFF:
+    case TV_HORN:
         return DROP_SUPPLY_STAFF;
     case TV_LIGHT:
     case TV_FLASK:
@@ -2749,7 +2754,8 @@ static bool collect_candidate_entries(
             }
             
             artefact_type* a_ptr = &a_info[e.group_id];
-            /* Skip if already created OR already seen by player */
+            /* Skip if the artefact is already present this run, or if the
+             * player has already physically seen it and preserved it. */
             if (a_ptr->cur_num || (a_ptr->seen & ART_SEEN_PHYSICAL)) {
                 filter_artifact++;
                 continue;

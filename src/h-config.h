@@ -14,6 +14,30 @@
  */
 
 /*
+ * iOS detection: must come before other platform checks because iOS also
+ * defines __APPLE__.  TargetConditionals.h is available on all Apple
+ * toolchains and provides TARGET_OS_IPHONE.
+ */
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#ifndef SIL_IOS
+#define SIL_IOS
+#endif
+#endif
+#endif
+
+/*
+ * Convenience: SIL_MOBILE is defined on both Android and iOS so that
+ * code shared across mobile platforms can use a single guard.
+ */
+#if defined(__ANDROID__) || defined(SIL_IOS)
+#ifndef SIL_MOBILE
+#define SIL_MOBILE
+#endif
+#endif
+
+/*
  * OPTION: Compile on a Windows machine
  */
 #ifndef WINDOWS
@@ -56,7 +80,7 @@
  * Basically, SET_UID should *only* be set for "Unix" machines.
  */
 
-#if !defined(WINDOWS) && !defined(__ANDROID__)
+#if !defined(WINDOWS) && !defined(__ANDROID__) && !defined(SIL_IOS)
 #define SET_UID
 #endif
 

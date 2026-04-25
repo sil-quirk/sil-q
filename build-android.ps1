@@ -14,6 +14,47 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-LatestAndroidSdkPackagePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RelativeExecutablePath
+    )
+
+    $roots = @()
+
+    if ($env:LOCALAPPDATA) {
+        $roots += (Join-Path $env:LOCALAPPDATA "Android\Sdk\$PackageName")
+    }
+
+    if ($env:ANDROID_HOME) {
+        $roots += (Join-Path $env:ANDROID_HOME $PackageName)
+    }
+
+    if ($env:ANDROID_SDK_ROOT) {
+        $roots += (Join-Path $env:ANDROID_SDK_ROOT $PackageName)
+    }
+
+    foreach ($root in ($roots | Select-Object -Unique)) {
+        if (-not (Test-Path $root)) { continue }
+
+        $latest = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+
+        if (-not $latest) { continue }
+
+        $candidate = Join-Path $latest.FullName $RelativeExecutablePath
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
 function Get-LatestNdkPath {
     $roots = @()
     if ($env:ANDROID_NDK_HOME) {
@@ -47,6 +88,42 @@ function Get-LatestNdkPath {
     return $null
 }
 
+function Resolve-CMakePath {
+    $command = Get-Command cmake -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $msys2CMake = 'C:\msys64\mingw64\bin\cmake.exe'
+    if (Test-Path $msys2CMake) {
+        return $msys2CMake
+    }
+
+    $sdkCMake = Get-LatestAndroidSdkPackagePath -PackageName 'cmake' -RelativeExecutablePath 'bin\cmake.exe'
+    if ($sdkCMake) {
+        return $sdkCMake
+    }
+
+    return $null
+}
+
+$cmakePath = Resolve-CMakePath
+if (-not $cmakePath) {
+    throw 'CMake not found. Install CMake or the Android SDK CMake package, or add cmake.exe to PATH.'
+}
+
+$cmakeBinDir = Split-Path $cmakePath -Parent
+if ($cmakePath -like 'C:\msys64\mingw64\bin\*') {
+    $msysPaths = @('C:\msys64\mingw64\bin', 'C:\msys64\usr\bin')
+    foreach ($pathEntry in $msysPaths) {
+        if ($env:Path -notlike "*$pathEntry*") {
+            $env:Path = "$pathEntry;$env:Path"
+        }
+    }
+} elseif ($env:Path -notlike "*$cmakeBinDir*") {
+    $env:Path = "$cmakeBinDir;$env:Path"
+}
+
 if (-not $NdkPath) {
     $NdkPath = Get-LatestNdkPath
 }
@@ -62,6 +139,7 @@ if (-not (Test-Path $toolchain)) {
 
 $buildDir = Join-Path $PSScriptRoot "build-android/$Abi"
 
+Write-Host "Using CMake: $cmakePath" -ForegroundColor Cyan
 Write-Host "Using NDK: $NdkPath" -ForegroundColor Cyan
 Write-Host "Using toolchain: $toolchain" -ForegroundColor Cyan
 
@@ -85,12 +163,12 @@ if (Get-Command ninja -ErrorAction SilentlyContinue) {
     Write-Warning 'No explicit generator selected (ninja/mingw32-make not found). CMake default generator will be used.'
 }
 
-& cmake @configureArgs
+& $cmakePath @configureArgs
 if ($LASTEXITCODE -ne 0) {
     throw "CMake configure failed with exit code $LASTEXITCODE"
 }
 
-& cmake --build $buildDir --parallel
+& $cmakePath --build $buildDir --parallel
 if ($LASTEXITCODE -ne 0) {
     throw "CMake build failed with exit code $LASTEXITCODE"
 }

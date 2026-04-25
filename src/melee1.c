@@ -1443,7 +1443,8 @@ bool make_attack_normal(monster_type* m_ptr)
                 msg_print("You are covered in acid!");
 
                 /* Special damage */
-                acid_dam(net_dam, ddesc);
+                acid_dam(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_ACID;
 
@@ -1461,7 +1462,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are struck by electricity!");
 
                 /* Take damage (special) */
-                elec_dam(net_dam, ddesc);
+                elec_dam(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_ELEC;
 
@@ -1509,7 +1511,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are enveloped in flames!");
 
                 /* Take damage (special) */
-                fire_dam_mixed(net_dam, ddesc);
+                fire_dam_mixed(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_FIRE;
 
@@ -1526,7 +1529,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     msg_print("You are covered with frost!");
 
                 /* Take damage (special) */
-                cold_dam_mixed(net_dam, ddesc);
+                cold_dam_mixed(dam, total_damage_dice, total_damage_dice * ds,
+                    net_dam, ddesc);
 
                 dam_type = GF_COLD;
 
@@ -2707,7 +2711,7 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
             msg_format("%^s whispers of an ancient gloom.", m_name);
         }
 
-        if (o_ptr->tval == TV_LIGHT && o_ptr->timeout > 0)
+        if (o_ptr->tval == TV_LIGHT && player_light_has_fuel(o_ptr))
         {
             if (o_ptr->sval == SV_LIGHT_TORCH
                 || o_ptr->sval == SV_LIGHT_MALLORN)
@@ -2716,9 +2720,9 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
                 msg_print("Your lantern sputters.");
             message_flush();
 
-            o_ptr->timeout -= damroll(20, 20);
-            if (o_ptr->timeout < 1)
-                o_ptr->timeout = 1;
+            player_light_add_fuel(o_ptr, -damroll(20, 20));
+            if (player_light_fuel(o_ptr) < 1)
+                player_light_set_fuel(o_ptr, 1);
         }
 
         break;
@@ -3016,7 +3020,7 @@ void update_combat_rolls1(const monster_type* m_ptr1,
                 combat_rolls[0][combat_number].is_attacker_player = false;
                 combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].attacker_attr = TERM_RED;
                 }
@@ -3065,7 +3069,7 @@ void update_combat_rolls1(const monster_type* m_ptr1,
                 combat_rolls[0][combat_number].is_defender_player = false;
                 combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].defender_attr = TERM_RED;
                 }
@@ -3184,7 +3188,7 @@ void update_combat_rolls1b(
                 combat_rolls[0][combat_number].is_attacker_player = false;
                 combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].attacker_attr = TERM_RED;
                 }
@@ -3226,7 +3230,7 @@ void update_combat_rolls1b(
                 combat_rolls[0][combat_number].is_defender_player = false;
                 combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
 
-                if (p_ptr->rage)
+                if (p_ptr->rage && graphics_are_ascii())
                 {
                     combat_rolls[0][combat_number].defender_attr = TERM_RED;
                 }
@@ -3806,11 +3810,12 @@ void do_cmd_combat_history(void)
     /* Start at leftmost edge */
     q = 0;
     
-    /* Get size */
-    Term_get_size(&wid, &hgt);
-    
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get size after any hidden-pane layout change */
+    Term_get_size(&wid, &hgt);
     
     /* Process requests until done */
     while (1) {
@@ -3853,8 +3858,7 @@ void do_cmd_combat_history(void)
             int a_att, a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam;
             
             /* Determine if player attack or monster attack */
-            bool is_player_attack = (roll->attacker_char == r_info[0].d_char) &&
-                                   (roll->attacker_attr == r_info[0].d_attr);
+            bool is_player_attack = roll->is_attacker_player;
             
             if (is_player_attack) {
                 a_att = TERM_L_BLUE;
@@ -4163,6 +4167,7 @@ void do_cmd_combat_history(void)
     }
     
     /* Restore screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 
@@ -4194,8 +4199,7 @@ void display_combat_round_details(combat_history_round* round)
     /* Count player attacks first */
     int total_player_attacks = 0;
     for (i = 0; i < round->num_rolls; i++) {
-        if ((round->rolls[i].attacker_char == r_info[0].d_char) &&
-            (round->rolls[i].attacker_attr == r_info[0].d_attr)) {
+        if (round->rolls[i].is_attacker_player) {
             total_player_attacks++;
         }
     }
@@ -4208,8 +4212,7 @@ void display_combat_round_details(combat_history_round* round)
         if (roll->att_type == COMBAT_ROLL_NONE) continue;
         
         /* Determine line position based on attacker */
-        if ((roll->attacker_char == r_info[0].d_char) &&
-            (roll->attacker_attr == r_info[0].d_attr)) {
+        if (roll->is_attacker_player) {
             /* Player attack */
             player_attacks++;
             line = 1 + player_attacks;

@@ -1335,7 +1335,7 @@ void show_scores(bool longscore)
             ensure_entry_visible(ordered_by_time, &count_time, capacity, highlight_entry, false, &highlight_time);
     }
 
-    screen_save();
+    screen_push_supporting_panes_hidden();
     while (true)
     {
         const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
@@ -1360,8 +1360,7 @@ void show_scores(bool longscore)
         }
         break;
     }
-    screen_load();
-    Term_fresh();
+    screen_pop_supporting_panes_hidden();
 
     forced_highlight_active = false;
     score_last_layout_short = !detailed;
@@ -1697,6 +1696,9 @@ void do_cmd_run_history(void)
     int highlight = 0;
     bool done = false;
 
+    screen_save();
+    screen_push_supporting_panes_hidden();
+
     while (!done) {
         int term_wid = 80;
         int term_hgt = 24;
@@ -1722,7 +1724,6 @@ void do_cmd_run_history(void)
         char sort_label[16] = "";
         int page_label_row = 1;
 
-        screen_save();
         Term_clear();
 
         if (steamdeck) {
@@ -1949,7 +1950,6 @@ void do_cmd_run_history(void)
 
         Term_fresh();
         int ch = inkey();
-        screen_load();
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())
@@ -2049,6 +2049,9 @@ void do_cmd_run_history(void)
             break;
         }
     }
+
+    screen_pop_supporting_panes_hidden();
+    screen_load();
 }
 static bool run_history_prepare_artefact_object(
     const score_run_artefact_v1* entry, object_type* out)

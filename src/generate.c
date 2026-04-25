@@ -3277,6 +3277,9 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate);
 static bool compute_partition_bounds(int pi, int rows, int cols, int *y1, int *y2, int *x1, int *x2);
 static void connect_partition_hubs(void);
 static bool feature_is_any_door(int feat);
+static bool room_prefers_floor_thresholds(int room_idx);
+static bool tunnel_prefers_floor_thresholds(int r1, int r2);
+static void carve_floor_threshold(int y, int x, int r1, int r2, bool mark_escape);
 static bool is_big_partition_mode(quadrant_mode_t mode);
 static bool generation_escape_tunnel_bold(int y, int x);
 
@@ -7386,6 +7389,7 @@ static bool carve_straight_big_partition_connector(
 {
     int dy = (y2 > y1) ? 1 : (y2 < y1) ? -1 : 0;
     int dx = (x2 > x1) ? 1 : (x2 < x1) ? -1 : 0;
+    bool floor_thresholds = tunnel_prefers_floor_thresholds(r1, r2);
 
     /* Must be a straight segment. */
     if (!((dy == 0) ^ (dx == 0)))
@@ -7412,7 +7416,14 @@ static bool carve_straight_big_partition_connector(
 
         if (feat == FEAT_WALL_OUTER)
         {
-            cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            if (floor_thresholds)
+            {
+                carve_floor_threshold(y, x, r1, r2, false);
+            }
+            else
+            {
+                cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            }
             carved = true;
         }
         else if (feat == FEAT_WALL_EXTRA || feat == FEAT_CHASM)
@@ -8154,6 +8165,80 @@ static bool feature_is_any_door(int feat)
         || ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_DOOR_TAIL));
 }
 
+static bool doorway_neighbor_open(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if (cave_impassable_bold(y, x))
+        return false;
+
+    return !feature_is_any_door(cave_feat[y][x]);
+}
+
+static bool doorway_neighbor_blocked(int y, int x)
+{
+    if (!in_bounds_fully(y, x))
+        return true;
+
+    return cave_impassable_bold(y, x);
+}
+
+/* Keep non-vault doors only when they still sit in a real doorway:
+ * open on one axis, blocked on the perpendicular axis. */
+static bool doorway_geometry_ok(int y, int x)
+{
+    bool north_open = doorway_neighbor_open(y - 1, x);
+    bool south_open = doorway_neighbor_open(y + 1, x);
+    bool west_open = doorway_neighbor_open(y, x - 1);
+    bool east_open = doorway_neighbor_open(y, x + 1);
+
+    bool vertical_open = north_open && south_open;
+    bool horizontal_open = west_open && east_open;
+    bool vertical_blocked = doorway_neighbor_blocked(y - 1, x)
+        && doorway_neighbor_blocked(y + 1, x);
+    bool horizontal_blocked = doorway_neighbor_blocked(y, x - 1)
+        && doorway_neighbor_blocked(y, x + 1);
+
+    return (vertical_open && horizontal_blocked)
+        || (horizontal_open && vertical_blocked);
+}
+
+/* Organic cave/blob anchors should meet corridors as open floor, not doors.
+ * Chasm anchors reuse the same kind marker for shaping, so exclude them. */
+static bool room_prefers_floor_thresholds(int room_idx)
+{
+    int cy, cx;
+
+    if (room_idx < 0 || room_idx >= dun->cent_n || room_idx >= CENT_MAX)
+        return false;
+    if (room_anchor_kind[room_idx] != LAYOUT_ANCHOR_CA_BLOB)
+        return false;
+
+    cy = dun->cent[room_idx].y;
+    cx = dun->cent[room_idx].x;
+    if (!in_bounds_fully(cy, cx))
+        return false;
+
+    return ((cave_info[cy][cx] & CAVE_CHASM_AREA) == 0);
+}
+
+static bool tunnel_prefers_floor_thresholds(int r1, int r2)
+{
+    return room_prefers_floor_thresholds(r1)
+        || room_prefers_floor_thresholds(r2);
+}
+
+static void carve_floor_threshold(
+    int y, int x, int r1, int r2, bool mark_escape)
+{
+    cave_set_feat(y, x, FEAT_FLOOR);
+    cave_corridor1[y][x] = r1;
+    cave_corridor2[y][x] = r2;
+    if (mark_escape)
+        mark_generation_escape_tunnel(y, x);
+}
+
 /* Collapse adjacent doors outside vaults to avoid double-door seams */
 static int squash_double_doors(void)
 {
@@ -8185,6 +8270,27 @@ static int squash_double_doors(void)
         }
     }
     log_trace("squash_double_doors: converted %d adjacent doors to floor", removed);
+    return removed;
+}
+
+static int prune_invalid_nonvault_doors(void)
+{
+    int removed = 0;
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; ++y)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+        {
+            if (!feature_is_any_door(cave_feat[y][x])) continue;
+            if (cave_info[y][x] & (CAVE_ICKY)) continue;
+            if (doorway_geometry_ok(y, x)) continue;
+
+            cave_set_feat(y, x, FEAT_FLOOR);
+            removed++;
+        }
+    }
+
+    log_trace("prune_invalid_nonvault_doors: converted %d malformed doors to floor", removed);
     return removed;
 }
 
@@ -8509,7 +8615,7 @@ void place_item_randomly(int tval, int sval, bool close)
         int stacks = curse_flag_count_cur(CUR_FINDCURSE);
         if (stacks && wearable_p(i_ptr))
         {
-            int chance = 20 >> stacks;         /* base 1-in-20 Ã”Ã¥Ã† 1-in-10 Ã”Ã¥Ã† 1-in-5 */
+            int chance = 20 >> stacks;         /* base 1-in-20 -> 1-in-10 -> 1-in-5 */
             if (!chance || one_in_(chance))
                 add_random_curse(i_ptr);
         }
@@ -9481,7 +9587,7 @@ static partition_drop_profile partition_drop_profile_for_mode(quadrant_mode_t mo
     switch (mode)
     {
     case QUAD_MODE_ROOMY:
-        /* Default (ROOMY) a€” 40:30:10:20 */
+        /* Default (ROOMY) -- 40:30:10:20 */
         prof.profile.weight_weapon = 40;
         prof.profile.weight_armor = 30;
         prof.profile.weight_jewelry = 10;
@@ -10829,6 +10935,7 @@ static void build_v_tunnel(
     tunnel_profile local = profile ? *profile : TUNNEL_PROFILE_NORMAL;
     int width = MAX(1, MIN(local.width, 3));
     bool mark_escape = tunnel_should_mark_escape(r1, r2);
+    bool floor_thresholds = tunnel_prefers_floor_thresholds(r1, r2);
     bool short_span = (ABS(y2 - y1) < 4);
     if (short_span)
         local.treatment = TUNNEL_TREAT_NONE;
@@ -10845,8 +10952,15 @@ static void build_v_tunnel(
     {
         if (cave_feat[y][x] == FEAT_WALL_OUTER)
         {
-            /* all doors get randomised later */
-            cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            if (floor_thresholds)
+            {
+                carve_floor_threshold(y, x, r1, r2, mark_escape);
+            }
+            else
+            {
+                /* all doors get randomised later */
+                cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            }
         }
         else if (cave_feat[y][x] == FEAT_WALL_EXTRA)
         {
@@ -10895,6 +11009,7 @@ static void build_h_tunnel(
     tunnel_profile local = profile ? *profile : TUNNEL_PROFILE_NORMAL;
     int width = MAX(1, MIN(local.width, 3));
     bool mark_escape = tunnel_should_mark_escape(r1, r2);
+    bool floor_thresholds = tunnel_prefers_floor_thresholds(r1, r2);
     bool short_span = (ABS(x2 - x1) < 4);
     if (short_span)
         local.treatment = TUNNEL_TREAT_NONE;
@@ -10911,8 +11026,15 @@ static void build_h_tunnel(
     {
         if (cave_feat[y][x] == FEAT_WALL_OUTER)
         {
-            /* all doors get randomised later */
-            cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            if (floor_thresholds)
+            {
+                carve_floor_threshold(y, x, r1, r2, mark_escape);
+            }
+            else
+            {
+                /* all doors get randomised later */
+                cave_set_feat(y, x, FEAT_DOOR_HEAD);
+            }
         }
         else if (cave_feat[y][x] == FEAT_WALL_EXTRA)
         {
@@ -11400,7 +11522,7 @@ static int trap_placement_chance(int y, int x)
     /* extra traps from CUR_TRAPS */
     int bonus_traps = curse_flag_count_cur(CUR_TRAPS);
     if (bonus_traps)
-        chance += 10 * bonus_traps;   /* +10/20/30 Ã”Ã‡aª on top of normal */
+        chance += 10 * bonus_traps;   /* +10/20/30% on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -12893,7 +13015,7 @@ void place_monster_by_letter(
 }
 
 /*
- * Vault drop frequency gating — controls how many items spawn per vault symbol.
+ * Vault drop frequency gating - controls how many items spawn per vault symbol.
  * Driven by op_ptr->vault_drop_frequency (VDF_NORMAL..VDF_PLENTIFUL).
  */
 typedef enum vault_drop_gate_kind {
@@ -16400,7 +16522,11 @@ static int build_partition_population_plans(
 static bool choose_partition_monster_location(
     const partition_population_plan* plan, int* out_y, int* out_x)
 {
-    bool avoid_corridors = partition_mode_avoids_corridor_spawns(plan->mode);
+    /* CAVEY partitions should populate across their full floor footprint.
+     * Reusing the chest-style room-only filter dumps the whole monster quota
+     * into whichever plain room happens to dominate the partition. */
+    bool avoid_corridors = partition_mode_avoids_corridor_spawns(plan->mode)
+        && (plan->mode != QUAD_MODE_CAVEY);
 
     for (int tries = 0; tries < 250; ++tries)
     {
@@ -18288,6 +18414,7 @@ static bool cave_gen(void)
             }
         }
     squash_double_doors();
+    prune_invalid_nonvault_doors();
 
     if (morgoth_level_active)
     {
@@ -18336,6 +18463,8 @@ static bool cave_gen(void)
         gen_log_level_end(false, dun->cent_n, 1);
         return (false);
     }
+
+    prune_invalid_nonvault_doors();
 
     {
         partition_population_plan plans[PARTITION_META_MAX];
@@ -18907,36 +19036,29 @@ static bool cave_gen(void)
             max_dist = min_dist + 2;
 
         /* Prefer spawning within a chase radius scaled by Silmarils. */
-        for (int pass = 0; pass < 2 && !placed; ++pass)
+        for (i = 0; i <= 180; i++)
         {
-            bool require_no_los = (pass == 0);
+            int dy = rand_range(-max_dist, max_dist);
+            int dx = rand_range(-max_dist, max_dist);
+            int dist = ABS(dy) + ABS(dx);
 
-            for (i = 0; i <= 180; i++)
+            if (dist < min_dist || dist > max_dist)
+                continue;
+
+            y = p_ptr->py + dy;
+            x = p_ptr->px + dx;
+
+            if (!in_bounds_fully(y, x))
+                continue;
+            if (!cave_empty_bold(y, x))
+                continue;
+            if (cave_info[y][x] & (CAVE_ICKY))
+                continue;
+
+            if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
             {
-                int dy = rand_range(-max_dist, max_dist);
-                int dx = rand_range(-max_dist, max_dist);
-                int dist = ABS(dy) + ABS(dx);
-
-                if (dist < min_dist || dist > max_dist)
-                    continue;
-
-                y = p_ptr->py + dy;
-                x = p_ptr->px + dx;
-
-                if (!in_bounds_fully(y, x))
-                    continue;
-                if (!cave_empty_bold(y, x))
-                    continue;
-                if (cave_info[y][x] & (CAVE_ICKY))
-                    continue;
-                if (require_no_los && los(p_ptr->py, p_ptr->px, y, x))
-                    continue;
-
-                if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
-                {
-                    placed = true;
-                    break;
-                }
+                placed = true;
+                break;
             }
         }
 

@@ -30,7 +30,11 @@ enum inventory_limit_group
     INV_LIMIT_SOFT_ARMOUR,
     INV_LIMIT_MAIL,
     INV_LIMIT_MELEE_WEAPON,
-    INV_LIMIT_SUPPLY_WEIGHT
+    INV_LIMIT_SUPPLY_WEIGHT,
+    INV_LIMIT_TORCHES,
+    INV_LIMIT_BRASS_LAMPS,
+    INV_LIMIT_LESSER_JEWEL,
+    INV_LIMIT_FEANORIAN_LAMP
 };
 
 static bool carry_limit_last_failed = false;
@@ -468,11 +472,79 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             SDL_strlcpy(carry_limit_last_label, "supply weight",
                       sizeof(carry_limit_last_label));
             break;
+        case INV_LIMIT_TORCHES:
+            SDL_strlcpy(carry_limit_last_label, "torches",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_BRASS_LAMPS:
+            SDL_strlcpy(carry_limit_last_label, "oil container slots",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_LESSER_JEWEL:
+        case INV_LIMIT_FEANORIAN_LAMP:
+            SDL_strlcpy(carry_limit_last_label,
+                "lesser jewels or Feanorian lamps",
+                sizeof(carry_limit_last_label));
+            break;
         default:
             SDL_strlcpy(carry_limit_last_label, "items of this type",
                       sizeof(carry_limit_last_label));
             break;
     }
+}
+
+static void set_inventory_limit_failure(enum inventory_limit_group group,
+                                        int limit,
+                                        const object_type* o_ptr);
+
+static enum inventory_limit_group light_limit_group(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return INV_LIMIT_NONE;
+
+    if (player_oil_container_object(o_ptr))
+        return INV_LIMIT_BRASS_LAMPS;
+
+    if (o_ptr->tval != TV_LIGHT)
+        return INV_LIMIT_NONE;
+
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_TORCH:
+    case SV_LIGHT_MALLORN:
+        return INV_LIMIT_TORCHES;
+    case SV_LIGHT_LESSER_JEWEL:
+    case SV_LIGHT_FEANORIAN:
+        return INV_LIMIT_LESSER_JEWEL;
+    default:
+        return INV_LIMIT_NONE;
+    }
+}
+
+static bool player_light_capacity_okay(const object_type* o_ptr,
+                                       bool record_failure)
+{
+    int cap;
+    enum inventory_limit_group group;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return true;
+
+    cap = player_light_carry_cap(o_ptr);
+    if (cap <= 0)
+        return true;
+
+    if (player_light_available_capacity(o_ptr) >= o_ptr->number)
+        return true;
+
+    if (record_failure)
+    {
+        group = light_limit_group(o_ptr);
+        if (group != INV_LIMIT_NONE)
+            set_inventory_limit_failure(group, cap, o_ptr);
+    }
+
+    return false;
 }
 
 static void set_inventory_limit_failure(enum inventory_limit_group group,
@@ -499,6 +571,22 @@ bool inven_carry_limit_can_replace(const object_type* o_ptr)
 
     if (!o_ptr)
         return false;
+
+    if (carry_limit_last_group == INV_LIMIT_SUPPLY_WEIGHT)
+    {
+        return supplies_weight_counts_to_limit(o_ptr)
+            && (o_ptr->weight > 0) && (MAX(o_ptr->number, 1) > 0);
+    }
+
+    if (o_ptr->k_idx
+        && (o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_FLASK))
+    {
+        group = light_limit_group(o_ptr);
+        if (group == INV_LIMIT_NONE)
+            return false;
+
+        return (group == carry_limit_last_group) && (MAX(o_ptr->number, 1) > 0);
+    }
 
     if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
         return false;
@@ -745,6 +833,9 @@ int object_stack_limit(const object_type* o_ptr)
     if (!o_ptr)
         return MAX_STACK_SIZE - 1;
 
+    if (o_ptr->tval == TV_RING)
+        return 1;
+
     if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER)
         return 7;
 
@@ -758,7 +849,7 @@ int object_stack_limit(const object_type* o_ptr)
         return 48;
 
     if (o_ptr->tval == TV_HORN)
-        return 2;
+        return 1;
 
     return MAX_STACK_SIZE - 1;
 }
@@ -1213,17 +1304,14 @@ void wipe_o_list(void)
         if (!o_ptr->k_idx)
             continue;
 
-        /* Mega-Hack -- preserve artefacts */
-        // Sil-y: no longer preserving artefacts
-        // if (!character_dungeon || (PRESERVE_MODE))
-        //{
-        //	/* Hack -- Preserve unknown artefacts */
-        //	if (artefact_p(o_ptr) && !object_known_p(o_ptr))
-        //	{
-        //		/* Mega-Hack -- Preserve the artefact */
-        //		a_info[o_ptr->name1].cur_num = 0;
-        //	}
-        //}
+        /* Unseen artefacts should be eligible to spawn again on a later level.
+         * Keep cur_num only for artefacts the player actually found or saw. */
+        if (o_ptr->name1)
+        {
+            artefact_type* a_ptr = &a_info[o_ptr->name1];
+            if (!(a_ptr->seen & ART_SEEN_PHYSICAL) && !a_ptr->found_num)
+                a_ptr->cur_num = 0;
+        }
 
         /* Monster */
         if (o_ptr->held_m_idx)
@@ -1582,6 +1670,7 @@ void object_aware(object_type* o_ptr)
 {
     int x, y;
     bool flag = k_info[o_ptr->k_idx].aware;
+    bool quiet_awareness = !character_generated || character_xtra || character_icky;
 
     /* Fully aware of the effects */
     k_info[o_ptr->k_idx].aware = true;
@@ -1589,16 +1678,19 @@ void object_aware(object_type* o_ptr)
     // If newly aware
     if (!flag && !p_ptr->leaving)
     {
-        char o_name[120];
+        if (!quiet_awareness)
+        {
+            char o_name[120];
 
-        // gain experience for identification
-        int new_exp = 75;
-        gain_exp(new_exp);
-        p_ptr->ident_exp += new_exp;
+            // gain experience for identification
+            int new_exp = 75;
+            gain_exp(new_exp);
+            p_ptr->ident_exp += new_exp;
 
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
-        msg_format("The true virtue of %s is unveiled to you, and 75 experience is won.",
-            o_name);
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 0);
+            msg_format("The true virtue of %s is unveiled to you, and 75 experience is won.",
+                o_name);
+        }
 
         // remove any autoinscription
         obliterate_autoinscription(o_ptr->k_idx);
@@ -2179,6 +2271,12 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         /* Probably okay */
         break;
     }
+    }
+
+    /* Runtime-state items carry per-item repair data and must never stack. */
+    if (object_runtime_state(o_ptr) || object_runtime_state(j_ptr))
+    {
+        return (false);
     }
 
     /* Hack -- Require identical "cursed" and "broken" status */
@@ -3188,13 +3286,16 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         /* Hack -- Lanterns -- random fuel */
         else if (o_ptr->sval == SV_LIGHT_LANTERN)
         {
+            int spawn_fuel = (FUEL_LAMP * 2) / 5;
+            int min_fuel = FUEL_LAMP / 15;
+
             if (one_in_(3))
             {
-                o_ptr->timeout = rand_range(500, 3000);
+                o_ptr->timeout = rand_range(min_fuel, spawn_fuel);
             }
             else
             {
-                o_ptr->timeout = 3000;
+                o_ptr->timeout = spawn_fuel;
             }
         }
 
@@ -3203,11 +3304,11 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         {
             if (one_in_(3))
             {
-                o_ptr->timeout = rand_range(20, 50);
+                o_ptr->timeout = rand_range(40, 100);
             }
             else
             {
-                o_ptr->timeout = 50;
+                o_ptr->timeout = 100;
             }
         }
         break;
@@ -3397,6 +3498,195 @@ static void apply_ego_explicit_bonus_ranges(object_type* o_ptr,
         o_ptr->skill_bonus[i] += roll_ego_bonus_range(
             e_ptr->skill_bonus_min[i], e_ptr->skill_bonus[i], smithing);
     }
+}
+
+static bool ego_affix_has_only_flag_effects(const ego_item_type* e_ptr)
+{
+    if (!e_ptr)
+        return false;
+
+    if (e_ptr->abilities != 0 || e_ptr->max_pval != 0 || e_ptr->min_pval != 0
+        || e_ptr->max_att != 0 || e_ptr->to_dd != 0 || e_ptr->to_ds != 0
+        || e_ptr->max_evn != 0 || e_ptr->to_pd != 0 || e_ptr->to_ps != 0)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < A_MAX; i++)
+    {
+        if (e_ptr->stat_bonus_set[i] || e_ptr->stat_bonus_min[i] != 0
+            || e_ptr->stat_bonus[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    for (int i = 0; i < S_MAX; i++)
+    {
+        if (e_ptr->skill_bonus_set[i] || e_ptr->skill_bonus_min[i] != 0
+            || e_ptr->skill_bonus[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool object_is_fire_breakable_weapon(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->tval == TV_HAFTED)
+        return true;
+
+    if (o_ptr->tval == TV_POLEARM)
+        return true;
+
+    return false;
+}
+
+static s32b pack_fire_broken_weapon_payload(s16b att, byte dd, byte ds)
+{
+    u32b payload = (u32b)(u16b)att;
+    payload |= ((u32b)dd << 16);
+    payload |= ((u32b)ds << 24);
+    return (s32b)payload;
+}
+
+static void unpack_fire_broken_weapon_payload(s32b payload, s16b* att, byte* dd,
+    byte* ds)
+{
+    u32b bits = (u32b)payload;
+
+    if (att)
+        *att = (s16b)(bits & 0xFFFFU);
+    if (dd)
+        *dd = (byte)((bits >> 16) & 0xFFU);
+    if (ds)
+        *ds = (byte)((bits >> 24) & 0xFFU);
+}
+
+bool object_is_fire_broken(const object_type* o_ptr)
+{
+    return object_runtime_state(o_ptr) == OBJECT_RUNTIME_STATE_FIRE_BROKEN;
+}
+
+bool object_break_shafted_weapon_by_fire(object_type* o_ptr)
+{
+    if (!object_is_fire_breakable_weapon(o_ptr))
+        return false;
+
+    if (object_is_fire_broken(o_ptr))
+        return true;
+
+    object_set_runtime_payload(
+        o_ptr, pack_fire_broken_weapon_payload(o_ptr->att, o_ptr->dd, o_ptr->ds));
+    object_set_runtime_state(o_ptr, OBJECT_RUNTIME_STATE_FIRE_BROKEN);
+
+    if (o_ptr->att > SHRT_MIN)
+        o_ptr->att--;
+
+    if (o_ptr->ds > 1)
+        o_ptr->ds--;
+    else if (o_ptr->dd > 1)
+        o_ptr->dd--;
+
+    pseudo_id(o_ptr);
+    return true;
+}
+
+bool object_repair_fire_broken_weapon(object_type* o_ptr)
+{
+    s16b att = 0;
+    byte dd = 0;
+    byte ds = 0;
+
+    if (!object_is_fire_broken(o_ptr))
+        return false;
+
+    unpack_fire_broken_weapon_payload(
+        object_runtime_payload(o_ptr), &att, &dd, &ds);
+
+    o_ptr->att = att;
+    o_ptr->dd = dd;
+    o_ptr->ds = ds;
+    object_set_runtime_state(o_ptr, OBJECT_RUNTIME_STATE_NONE);
+    object_set_runtime_payload(o_ptr, 0);
+
+    pseudo_id(o_ptr);
+    return true;
+}
+
+bool object_break_brass_lantern(object_type* o_ptr)
+{
+    byte old_prefix;
+    bool old_prefix_carried_intrinsic_curse = false;
+    bool new_state_is_intrinsically_cursed = false;
+
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_LIGHT
+        || o_ptr->sval != SV_LIGHT_LANTERN)
+    {
+        return false;
+    }
+
+    old_prefix = object_ego_prefix(o_ptr);
+    if (old_prefix == EGO_BROKEN_BRASS_LANTERN)
+    {
+        o_ptr->ident |= IDENT_BROKEN;
+        return true;
+    }
+
+    if (old_prefix)
+    {
+        if (old_prefix >= z_info->e_max)
+            return false;
+
+        if (!ego_affix_has_only_flag_effects(&e_info[old_prefix]))
+        {
+            log_warn(
+                "object_break_brass_lantern: unsupported lantern prefix %d",
+                old_prefix);
+            return false;
+        }
+
+        old_prefix_carried_intrinsic_curse
+            = (e_info[old_prefix].flags3
+                & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+            != 0;
+    }
+
+    object_set_ego_prefix(o_ptr, EGO_BROKEN_BRASS_LANTERN);
+    o_ptr->ident |= IDENT_BROKEN;
+
+    if (o_ptr->name1
+        && (a_info[o_ptr->name1].flags3
+            & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (k_info[o_ptr->k_idx].flags3
+        & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (object_ego_suffix(o_ptr)
+        && (e_info[object_ego_suffix(o_ptr)].flags3
+            & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE)))
+    {
+        new_state_is_intrinsically_cursed = true;
+    }
+
+    if (new_state_is_intrinsically_cursed)
+        o_ptr->ident |= IDENT_CURSED;
+    else if (old_prefix_carried_intrinsic_curse)
+        o_ptr->ident &= ~IDENT_CURSED;
+
+    pseudo_id(o_ptr);
+    return true;
 }
 
 bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing)
@@ -5960,6 +6250,9 @@ bool inven_carry_okay(const object_type* o_ptr)
 
     clear_inventory_limit_failure();
 
+    if (!player_light_capacity_okay(o_ptr, true))
+        return false;
+
     // Check for combining in quiver first
     if (o_ptr->tval == TV_ARROW)
     {
@@ -6067,7 +6360,8 @@ bool inven_carry_okay(const object_type* o_ptr)
             }
             
             /* Can't pick up any, show error */
-            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT, 25, o_ptr);
+            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT,
+                supplies_current_weight_cap() / 10, o_ptr);
             return (false);
         }
 
@@ -6155,6 +6449,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     if (!o_ptr->k_idx)
         return (-1);
 
+    if (!player_light_capacity_okay(o_ptr, true))
+        return (-1);
+
     if (supplies_is_supply_object(o_ptr))
     {
         object_type copy;
@@ -6164,7 +6461,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
             object_wipe(o_ptr);
             return SUPPLIES_INDEX;
         }
-        /* If absorption failed, treat as normal item. */
+        set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT,
+            supplies_current_weight_cap() / 10, o_ptr);
+        return (-1);
     }
 
     int desired_slot = o_ptr->pickup_slot;
@@ -6624,6 +6923,12 @@ int inven_carry_limit_value(void)
     return carry_limit_last_limit;
 }
 
+bool inven_carry_limit_is_supply_weight(void)
+{
+    return carry_limit_last_failed
+        && (carry_limit_last_group == INV_LIMIT_SUPPLY_WEIGHT);
+}
+
 /*
  * Take off (some of) a non-cursed equipment item
  *
@@ -6678,6 +6983,9 @@ s16b inven_takeoff(int item, int amt)
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
+    const bool discard_spent_light = (item == INVEN_LITE)
+        && player_light_destroyed_on_drop(i_ptr);
+
     /* Took off weapon */
     if ((item == INVEN_WIELD)
         || ((item == INVEN_ARM) && (i_ptr->tval != TV_SHIELD)))
@@ -6720,6 +7028,33 @@ s16b inven_takeoff(int item, int amt)
               i_ptr->k_idx, (int)object_ego_prefix(i_ptr), (int)object_ego_suffix(i_ptr), i_ptr->number);
     inven_item_increase(item, -amt);
     inven_item_optimize(item);
+
+    if (discard_spent_light)
+    {
+        msg_format("%s %s; %s too spent to keep.", act, o_name,
+            (i_ptr->number > 1) ? "they are" : "it is");
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return (-1);
+    }
+
+    /*
+     * Light-slot supply items should go back into supplies directly when
+     * removed, even if the pack is full. This avoids swap flows depending on
+     * pack carry checks for an item class that is normally supply-backed.
+     */
+    if ((item == INVEN_LITE) && supplies_is_supply_object(i_ptr))
+    {
+        if (supplies_absorb_object(i_ptr))
+        {
+            char label = supplies_label_char();
+            if (!label)
+                label = 'a';
+            msg_format("%s %s (%c).", act, o_name, label);
+            return SUPPLIES_INDEX;
+        }
+    }
 
     /* Carry the object */
     log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, prefix=%d, suffix=%d", 
@@ -6821,6 +7156,7 @@ void inven_drop(int item, int amt)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
+    int oil_to_drop = 0;
 
     object_type* o_ptr;
 
@@ -6862,14 +7198,54 @@ void inven_drop(int item, int amt)
     /* Modify quantity */
     i_ptr->number = amt;
 
+    if (player_oil_container_object(i_ptr))
+    {
+        if (!player_prepare_oil_container_drop(i_ptr, amt, &oil_to_drop,
+                NULL))
+            return;
+    }
+
     /* Describe local object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
+
+    if (player_light_destroyed_on_drop(i_ptr))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (i_ptr->number > 1) ? "they are" : "it is");
+
+        inven_item_increase(item, -amt);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return;
+    }
 
     /* Message */
     msg_format("You drop %s (%c).", o_name, index_to_label(item));
 
     /* Drop it near the player */
-    drop_near(i_ptr, 0, py, px);
+    if (player_oil_container_object(i_ptr) && oil_to_drop > 0)
+    {
+        int oil_remaining = oil_to_drop;
+        int unit_capacity = player_oil_container_unit_capacity(i_ptr);
+        for (int n = 0; n < amt; n++)
+        {
+            object_type single_drop;
+            object_wipe(&single_drop);
+            object_copy(&single_drop, i_ptr);
+            single_drop.number = 1;
+            player_oil_container_set_fuel(&single_drop,
+                MIN(oil_remaining, unit_capacity));
+            oil_remaining -= MIN(oil_remaining, unit_capacity);
+            drop_near(&single_drop, 0, py, px);
+        }
+    }
+    else
+    {
+        drop_near(i_ptr, 0, py, px);
+    }
 
     /* Modify, Describe, Optimize */
     inven_item_increase(item, -amt);

@@ -1,28 +1,28 @@
 /*
- *  metarun.h – public API for the “meta-run” subsystem
+ *  metarun.h - public API for the "meta-run" subsystem
  *  ---------------------------------------------------
  *  A *meta-run* is a long-term campaign that spans many individual
  *  characters.  It ends either in victory (15 Silmarils recovered) or
  *  defeat (too many deaths).  This header exposes:
  *
- *      • the metarun data-structure and global instance   (meta)
- *      • load / save helpers and high-level book-keeping
- *      • nibble-packed curse-stack accessors
- *      • gameplay / debug helpers that manipulate curses
+ *      - the metarun data-structure and global instance   (meta)
+ *      - load / save helpers and high-level book-keeping
+ *      - nibble-packed curse-stack accessors
+ *      - gameplay / debug helpers that manipulate curses
  *
  *  All helpers are i386-safe and save-file compatible.
  */
 #ifndef METARUN_H
 #define METARUN_H
 
-#include "angband.h"          /* basic types (u32b, byte, errr …)      */
+#include "angband.h"          /* basic types (u32b, byte, errr ...)      */
 
 extern curse_type* cu_info;
 
 /* ------------------------------------------------------------------ */
 /*  Win / lose conditions                                             */
 /* ------------------------------------------------------------------ */
-#define WINCON_SILMARILS 15   /* Recover 15 Silmarils → victory        */
+#define WINCON_SILMARILS 15   /* Recover 15 Silmarils -> victory        */
 #define LOSECON_DEATHS    15   /* Two deaths end the run  (test value)  */
 
 /* ------------------------------------------------------------------ */
@@ -45,7 +45,7 @@ extern curse_type* cu_info;
 /* Version history (tied to game VERSION_* from defines.h):
  *   0.9.0.0 - Initial versioned format (quest support)
  *   0.9.0.1 - Persistent blessing choices added
- *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1→32]
+ *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1->32]
  */
 
 /* Metarun file format always tracks the core game version. Update the release
@@ -101,7 +101,7 @@ typedef struct metarun
     u32b best_run_score;/* best individual run score                  */
 
     int8_t curse_stacks[METAR_CURSE_SLOTS]; /* signed stacks: >0 curses, <0 blessings */
-    u64b curses_seen;      /* bit i == 1  → curse i is known/revealed */
+    u64b curses_seen;      /* bit i == 1  -> curse i is known/revealed */
 
     /* ----- persistent settings ----------------------------------- */
     u32b persistent_options[8];  /* Persistent options across the metarun */
@@ -138,7 +138,7 @@ typedef struct metarun
 
 } metarun;
 
-/* The *current* meta-run – defined once in metarun.c */
+/* The *current* meta-run - defined once in metarun.c */
 extern metarun metar;
 
 int8_t* active_curse_stacks(void);

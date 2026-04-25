@@ -517,9 +517,11 @@ extern const char* styles_get_style_display(int sidx);
 extern const char* styles_get_style_short_desc(int sidx);
 extern const char* styles_get_style_m1(int sidx);
 extern const char* styles_get_style_m2(int sidx);
-/* After showing the per-style banner on level entry, count down user inputs
- * and force a full screen redraw when it reaches zero. */
+/* Narrative banner state. Positive values keep the banner visible across
+ * player turns; a 0-turn banner instead consumes the next command input. */
 extern int g_banner_force_redraw_remaining;
+extern int active_narrative_banner_rows(void);
+extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
@@ -648,6 +650,8 @@ extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
 extern void do_cmd_alter(void);
 extern void do_cmd_spike(void);
+extern void chest_release_contents(struct object_type* o_ptr, int y, int x,
+    int destroy_typ);
 extern bool do_cmd_walk_test(int y, int x);
 extern void do_cmd_walk(void);
 extern void do_cmd_jump(void);
@@ -718,6 +722,8 @@ extern void ability_log_reset(void);
 extern void ability_log_record_gain(int skilltype, int abilitynum);
 extern void ability_log_sync_missing(void);
 extern int elf_bane_bonus(monster_type* m_ptr);
+extern int dwarf_bane_bonus(monster_type* m_ptr);
+extern int edain_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int bane_bonus_for_type(int bane_type_idx);
@@ -921,6 +927,7 @@ extern int p_min(int typ, bool melee);
 extern int p_max(int typ, bool melee);
 extern int get_sides(int attack);
 extern int dodging_bonus(void);
+extern bool blocking_bonus_active(void);
 extern bool make_attack_normal(monster_type* m_ptr);
 extern bool make_attack_ranged(monster_type* m_ptr, int attack);
 extern void mon_cloud(int m_idx, int typ, int dd, int ds, int dif, int rad);
@@ -1054,6 +1061,7 @@ extern s16b wield_slot(const object_type* o_ptr);
 extern cptr describe_empty_slot(int i);
 extern cptr mention_use(int i);
 extern cptr describe_use(int i);
+extern bool object_is_searched_skeleton(const object_type* o_ptr);
 extern bool item_tester_okay(const object_type* o_ptr);
 extern int scan_floor(int* items, int size, int y, int x, int mode);
 extern void display_inven(void);
@@ -1061,7 +1069,8 @@ extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
-extern void inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_include_equip(bool include);
+extern bool inventory_menu_set_expand_supplies(bool enabled);
 extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
@@ -1101,6 +1110,10 @@ extern u32b ego_item_pval_flags1(const ego_item_type* e_ptr);
 extern u32b object_pval_flags1(const object_type* o_ptr);
 extern void object_apply_pval_delta_with_mask(object_type* o_ptr, u32b mask, int delta);
 extern bool object_apply_ego_affix(object_type* o_ptr, int e_idx, bool smithing);
+extern bool object_break_brass_lantern(object_type* o_ptr);
+extern bool object_is_fire_broken(const object_type* o_ptr);
+extern bool object_break_shafted_weapon_by_fire(object_type* o_ptr);
+extern bool object_repair_fire_broken_weapon(object_type* o_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
 extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
@@ -1209,6 +1222,7 @@ extern int player_has_thrall_quest_item(byte quest_item);
 extern bool handle_thrall_interaction(monster_type* m_ptr);
 extern void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 extern bool object_is_damaged_item(const object_type* o_ptr);
+extern bool object_can_repair_damage(const object_type* o_ptr);
 extern int find_broken_item_to_upgrade(void);
 extern bool repair_damaged_item(int slot);
 extern bool is_smithed_by_player(const object_type* o_ptr);
@@ -1251,6 +1265,7 @@ extern bool inven_carry_okay_after_removing(
 extern bool inven_carry_limit_failed(void);
 extern cptr inven_carry_limit_label(void);
 extern int inven_carry_limit_value(void);
+extern bool inven_carry_limit_is_supply_weight(void);
 extern bool inven_carry_limit_can_replace(const object_type* o_ptr);
 extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
@@ -1289,15 +1304,21 @@ extern bool hates_acid(const object_type* o_ptr);
 extern bool hates_elec(const object_type* o_ptr);
 extern bool hates_fire(const object_type* o_ptr);
 extern bool hates_cold(const object_type* o_ptr);
-extern void acid_dam(int dam, cptr kb_str);
-extern void elec_dam(int dam, cptr kb_str);
+extern bool elemental_attack_destroys_object(int attack_type,
+    const object_type* o_ptr);
+extern void acid_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
+extern void elec_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern int resist_fire(void);
 extern int resist_cold(void);
 extern int resist_pois(void);
 extern int resist_dark(void);
-extern void fire_dam_mixed(int dam, cptr kb_str);
+extern void fire_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void cold_dam_mixed(int dam, cptr kb_str);
+extern void cold_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
+    cptr kb_str);
 extern void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
 extern void dark_dam_mixed(int dam, cptr kb_str);
 extern void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
@@ -1464,6 +1485,7 @@ extern void flush_fail(void);
 extern char inkey(void);
 extern void bell(cptr reason);
 extern void sound(int val);
+extern void sound_delayed(int val, unsigned int delay_ms);
 extern s16b quark_add(cptr str);
 extern cptr quark_str(s16b i);
 extern bool parse_u64b_hex(const char* text, u64b* out);
@@ -1486,6 +1508,17 @@ extern void message_format(u16b message_type, s16b extra, cptr fmt, ...);
 extern void message_flush(void);
 extern void screen_save(void);
 extern void screen_load(void);
+extern void screen_clear_all_terms_no_fresh(void);
+extern void message_discard_pending(void);
+extern void startup_loading_overlay_arm(void);
+extern void startup_loading_overlay_disarm(void);
+extern bool screen_saved_fullscreen_active(void);
+extern void screen_push_supporting_panes_hidden(void);
+extern void screen_pop_supporting_panes_hidden(void);
+extern bool screen_supporting_panes_hidden_active(void);
+extern void screen_set_startup_supporting_panes_hidden(bool hidden);
+extern bool screen_startup_supporting_panes_hidden_active(void);
+extern void sdl_refresh_supporting_panes_layout(void);
 extern void c_put_str(byte attr, cptr str, int row, int col);
 extern void put_str(cptr str, int row, int col);
 extern void c_prt(byte attr, cptr str, int row, int col);
@@ -1732,6 +1765,8 @@ extern void dbg_show_active_flags(void);
 #define ENHANCED_ACTION_USE 3
 #define ENHANCED_ACTION_DROP 4
 #define ENHANCED_ACTION_SUPPLIES 5
+/* Must not collide with real floor item indices such as -1. */
+#define ENHANCED_MENU_NO_SELECTION (-2147483647 - 1)
 
 extern int enhanced_menu_action;
 extern int enhanced_inventory_selected_item;
@@ -1757,16 +1792,23 @@ extern bool get_sdl_fullscreen(void);
 extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
 extern void set_sdl_tiles(bool value);
+extern bool get_sdl_use_unsafe_area(void);
+extern void set_sdl_use_unsafe_area(bool value);
 extern int get_pane_config_count(void);
 extern bool get_sdl_enable_right_panes(void);
 extern void set_sdl_enable_right_panes(bool value);
 extern bool get_sdl_enable_bottom_panes(void);
 extern void set_sdl_enable_bottom_panes(bool value);
+extern bool get_sdl_show_pane_borders(void);
+extern void set_sdl_show_pane_borders(bool value);
 extern bool g_hide_left_panel;
 extern byte g_hidden_left_panel_overlay_rows;
 extern byte g_hidden_left_panel_overlay_widths[16];
 extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
+extern int get_sdl_hidden_left_panel_mode(void);
+extern void set_sdl_hidden_left_panel_mode(int value);
+extern void redraw_hidden_left_panel_topline_suffix(void);
 extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
 extern void set_sdl_pane_where(int index, int where);
@@ -1789,6 +1831,7 @@ extern void sdl_config_mark_intro_seen(void);
 extern bool option_is_app_persistent(int opt);
 extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
+extern void sdl_request_redraw(void);
 extern bool steamdeck_controls_active(void);
 extern bool portable_controls_active(void);
 extern bool get_sdl_gamepad_enabled(void);
@@ -1797,6 +1840,8 @@ extern bool get_sdl_gamepad_auto_mode(void);
 extern void set_sdl_gamepad_auto_mode(bool value);
 extern bool get_sdl_steamdeck_mode(void);
 extern void set_sdl_steamdeck_mode(bool value);
+extern bool get_sdl_steamdeck_inv_equip_same_button_cycle(void);
+extern void set_sdl_steamdeck_inv_equip_same_button_cycle(bool value);
 extern bool get_sdl_gamepad_use_dpad(void);
 extern void set_sdl_gamepad_use_dpad(bool value);
 extern bool get_sdl_gamepad_use_left_stick(void);
@@ -1809,12 +1854,15 @@ extern int get_sdl_gamepad_left_stick_binding(int dir);
 extern void set_sdl_gamepad_left_stick_binding(int dir, int binding);
 extern int get_sdl_gamepad_right_stick_binding(int dir);
 extern void set_sdl_gamepad_right_stick_binding(int dir, int binding);
+extern int get_sdl_gamepad_combo_binding(int modifier, int type, int id);
+extern void set_sdl_gamepad_combo_binding(int modifier, int type, int id, int binding);
 extern int get_sdl_gamepad_shoulder_combo_binding(void);
 extern void set_sdl_gamepad_shoulder_combo_binding(int binding);
 extern int get_sdl_gamepad_default_button_binding(int button);
 extern int get_sdl_gamepad_default_trigger_binding(int index);
 extern int get_sdl_gamepad_default_left_stick_binding(int dir);
 extern int get_sdl_gamepad_default_right_stick_binding(int dir);
+extern int get_sdl_gamepad_default_combo_binding(int modifier, int type, int id);
 extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
@@ -1835,6 +1883,12 @@ extern void set_sdl_touch_pane_button_label_for_panel(int panel, int index, cptr
 extern void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 extern void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
+extern bool get_sdl_touch_swipe_enabled(void);
+extern void set_sdl_touch_swipe_enabled(bool value);
+extern int get_sdl_touch_swipe_binding(int dir);
+extern void set_sdl_touch_swipe_binding(int dir, int binding);
+extern bool get_sdl_touch_swipe_default_enabled(void);
+extern int get_sdl_touch_swipe_default_binding(int dir);
 /* Steam Deck UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */
@@ -1846,9 +1900,9 @@ extern int steamdeck_secondary_key(void); /* Y button (NORTH) - for secondary ac
 #define GAMEPAD_CAPTURE_LEFT_STICK 2
 #define GAMEPAD_CAPTURE_RIGHT_STICK 3
 #define GAMEPAD_CAPTURE_SHOULDER_COMBO 4
-extern bool sdl_gamepad_capture_begin(void);
+extern bool sdl_gamepad_capture_begin(bool allow_modifier_combo);
 extern void sdl_gamepad_capture_cancel(void);
-extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id);
+extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id, int* out_modifier);
 
 /* SDL story font control (main-sdl.c) */
 extern void sdl_story_font_enable(void);

@@ -13,6 +13,8 @@
 #include "log/log.h"
 #include "metarun.h"
 
+static void prise_silmaril(void);
+
 /*
  * Helper function to determine the equip sound based on item type
  */
@@ -178,6 +180,42 @@ bool open_supplies_menu_with_context(supply_menu_action default_action, int defa
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
+static bool handle_iron_crown_silmaril_action(object_type* o_ptr, int item)
+{
+    object_type* w_ptr;
+
+    if (!o_ptr)
+        return false;
+
+    if ((o_ptr->name1 < ART_MORGOTH_1) || (o_ptr->name1 > ART_MORGOTH_3))
+        return false;
+
+    if (item >= 0)
+    {
+        msg_print("You would have to put it down first.");
+        return true;
+    }
+
+    w_ptr = &inventory[INVEN_WIELD];
+    if (!w_ptr->k_idx)
+    {
+        msg_print(
+            "To prise a Silmaril from the crown, you would need to wield a "
+            "weapon.");
+        return true;
+    }
+
+    if (!get_check("Will you try to prise a Silmaril from the Iron Crown? "))
+        return true;
+
+    prise_silmaril();
+
+    p_ptr->energy_use = 100;
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    return true;
+}
+
 /*
  * Use an item by index, helper for enhanced menus
  */
@@ -204,6 +242,15 @@ void do_cmd_use_item_by_index(int item)
         o_ptr = &o_list[0 - item];
         log_debug("do_cmd_use_item_by_index: Using item from floor, index=%d, o_list index=%d", item, 0 - item);
     }
+
+    if (o_ptr->name1 == ART_MORGOTH_0)
+    {
+        msg_print("There are no Silmarils left in the Iron Crown.");
+        return;
+    }
+
+    if (handle_iron_crown_silmaril_action(o_ptr, item))
+        return;
 
     // determine the action based on the item type
     switch (o_ptr->tval)
@@ -235,44 +282,12 @@ void do_cmd_use_item_by_index(int item)
             // possibly refuel a light
             if ((o_ptr->tval == TV_FLASK)
                 || ((l_ptr->tval == o_ptr->tval) && (l_ptr->sval == o_ptr->sval)
-                    && ((o_ptr->sval == SV_LIGHT_TORCH)
-                        || (o_ptr->sval == SV_LIGHT_LANTERN)
-                        || (o_ptr->sval == SV_LIGHT_MALLORN))))
+                    && (o_ptr->sval == SV_LIGHT_LANTERN)))
             {
-                if ((l_ptr->sval == SV_LIGHT_TORCH)
-                    && (o_ptr->tval != TV_FLASK))
+                if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
-                        || get_check(
-                            "Refueling from this torch will waste some fuel. "
-                            "Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, false);
-                        try_to_wield = false;
-                    }
-                }
-                else if ((l_ptr->sval == SV_LIGHT_MALLORN)
-                    && (o_ptr->tval != TV_FLASK))
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
-                        || get_check(
-                            "Refueling from this mallorn torch will waste "
-                            "some fuel. Proceed? "))
-                    {
-                        do_cmd_refuel_torch(o_ptr, item, true);
-                        try_to_wield = false;
-                    }
-                }
-                else if (l_ptr->sval == SV_LIGHT_LANTERN)
-                {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_LAMP)
-                        || get_check(
-                            "Refueling from this flask will waste some oil. "
-                            "Proceed? "))
-                    {
-                        do_cmd_refuel_lamp(o_ptr, item);
-                        try_to_wield = false;
-                    }
+                    do_cmd_refuel_lamp(o_ptr, item);
+                    try_to_wield = false;
                 }
             }
 
@@ -695,7 +710,7 @@ void do_cmd_inven(void)
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
-    enhanced_inventory_selected_item = -1;
+    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
 
     /* Save screen */
     screen_save();
@@ -744,7 +759,7 @@ void do_cmd_inven(void)
         else
         {
             log_trace("do_cmd_inven: Using item %d", selected_index);
-            if (selected_index != -1)
+            if (selected_index != ENHANCED_MENU_NO_SELECTION)
                 do_cmd_use_item_by_index(selected_index);
         }
         break;
@@ -800,7 +815,7 @@ void do_cmd_inven(void)
 
     if (action != ENHANCED_ACTION_SWITCH)
         enhanced_menu_action = ENHANCED_ACTION_NONE;
-    enhanced_inventory_selected_item = -1;
+    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
     
     log_debug("do_cmd_inven: Exiting");
 }
@@ -822,7 +837,7 @@ void do_cmd_equip(void)
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
-    enhanced_equipment_selected_item = -1;
+    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
 
     /* Save screen */
     screen_save();
@@ -871,7 +886,7 @@ void do_cmd_equip(void)
         else
         {
             log_trace("do_cmd_equip: Using item %d", selected_index);
-            if (selected_index != -1)
+            if (selected_index != ENHANCED_MENU_NO_SELECTION)
                 do_cmd_use_item_by_index(selected_index);
         }
         break;
@@ -906,7 +921,7 @@ void do_cmd_equip(void)
 
     if (action != ENHANCED_ACTION_SWITCH)
         enhanced_equip_action = ENHANCED_ACTION_NONE;
-    enhanced_equipment_selected_item = -1;
+    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
     
     log_debug("do_cmd_equip: Exiting");
 }
@@ -937,6 +952,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     bool combine = false;
     bool is_throwing = false;
+    int supply_index = supplies_current_action();
+    bool from_supplies = false;
 
     u32b f1, f2, f3, f4;
 
@@ -952,6 +969,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        from_supplies = (item == SUPPLIES_INDEX) && (supply_index >= 0);
         log_debug("do_cmd_wield: Using default item, tval=%d, sval=%d, k_idx=%d", 
             o_ptr->tval, o_ptr->sval, o_ptr->k_idx);
     }
@@ -966,6 +984,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         s = "You have nothing you can wear or wield.";
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
             return;
+
+        if (item == SUPPLIES_INDEX)
+        {
+            open_supplies_menu_with_context(
+                SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_LIGHTS, true, true);
+            return;
+        }
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -1011,6 +1036,32 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         else
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         msg_format("You cannot wear or wield %s.", o_name);
+        return;
+    }
+
+    if ((item < 0) && player_light_carry_cap(o_ptr) > 0)
+    {
+        object_type* equipped_ptr = &inventory[slot];
+        bool replacing_same_group = equipped_ptr->k_idx
+            && player_light_share_carry_group(o_ptr, equipped_ptr);
+
+        if (!replacing_same_group && player_light_available_capacity(o_ptr) <= 0)
+        {
+            if (player_oil_container_object(o_ptr))
+                msg_print("You have no free lamp/flask slots.");
+            else
+                msg_print("You cannot carry any more of those.");
+            return;
+        }
+    }
+
+    if (!from_supplies
+        && o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && o_ptr->timeout > 0
+        && player_lamp_oil_would_overflow_with_bonus(o_ptr->timeout,
+            (item < 0) ? 1 : 0)
+        && !get_check("Taking this lamp will waste some oil. Proceed? "))
+    {
         return;
     }
 
@@ -1532,6 +1583,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Obtain local object */
     object_copy(i_ptr, o_ptr);
 
+    if (!from_supplies && i_ptr->tval == TV_LIGHT
+        && i_ptr->sval == SV_LIGHT_LANTERN)
+    {
+        player_gain_lamp_oil_with_bonus(i_ptr->timeout, true,
+            (item < 0) ? 1 : 0);
+        i_ptr->timeout = 0;
+    }
+
     bool target_is_quiver = (slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2);
 
     // Handle quantity differently for arrows or throwing weapons heading to a quiver
@@ -1558,7 +1617,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     i_ptr->number = quantity;
 
     /* Decrease the item (from the pack) */
-    if (item >= 0)
+    if (from_supplies)
+    {
+        supplies_consume_quantity(supply_index, quantity);
+    }
+    else if (item >= 0)
     {
         log_debug(
             "do_cmd_wield: Before decrease - item=%d, k_idx=%d, ego_pfx=%d, ego_sfx=%d, number=%d",
@@ -1586,11 +1649,26 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        /*
+         * Lights coming from the floor are not counted yet, so reserve them
+         * during the takeoff even when swapping within the same carry group.
+         * Pack/supplies lights are already counted and only need reservation
+         * when the swap crosses carry groups.
+         */
+        if (slot == INVEN_LITE && player_light_carry_cap(i_ptr) > 0)
+        {
+            if ((item < 0) || !player_light_share_carry_group(i_ptr, o_ptr))
+                player_light_reserve_incoming(i_ptr, i_ptr->number);
+            else
+                player_light_clear_incoming_reservation();
+        }
+
         log_debug(
             "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
             slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
+        player_light_clear_incoming_reservation();
         
         /* Refresh pointer after takeoff */
         o_ptr = &inventory[slot];
@@ -2207,7 +2285,7 @@ void shatter_weapon(int silnum)
     }
 }
 
-void prise_silmaril(void)
+static void prise_silmaril(void)
 {
     object_type* o_ptr;
     object_type* w_ptr;
@@ -2601,37 +2679,8 @@ void do_cmd_destroy(void)
 
     // Special case for prising Silmarils from the Iron Crown of Morgoth
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
-    {
-        // Select the melee weapon
-        o_ptr = &inventory[INVEN_WIELD];
-
-        // No weapon
-        if (!o_ptr->k_idx)
-        {
-            msg_print(
-                "To prise a Silmaril from the crown, you would need to wield a "
-                "weapon.");
-        }
-
-        // Wielding a weapon
-        else
-        {
-            if (get_check(
-                    "Will you try to prise a Silmaril from the Iron Crown? "))
-            {
-                prise_silmaril();
-
-                /* Take a turn */
-                p_ptr->energy_use = 100;
-
-                // store the action type
-                p_ptr->previous_action[0] = ACTION_MISC;
-
-                return;
-            }
-        }
-    }
+    if (handle_iron_crown_silmaril_action(o_ptr, -1))
+        return;
 
     /* Get an item */
     q = "Destroy which item? ";
@@ -2651,39 +2700,8 @@ void do_cmd_destroy(void)
         o_ptr = &o_list[0 - item];
     }
 
-    // Special case for Iron Crown of Morgoth, if it has Silmarils left
-    if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
-    {
-        if (item >= 0)
-        {
-            msg_print("You would have to put it down first.");
-        }
-        else
-        {
-            /* No weapon */
-            if (!o_ptr->k_idx)
-            {
-                msg_print("To prise a Silmaril from the crown, you would need "
-                          "to wield a "
-                          "weapon.");
-            }
-            else
-            {
-                msg_print(
-                    "You decide to try to prise out a Silmaril after all.");
-
-                prise_silmaril();
-
-                /* Take a turn */
-                p_ptr->energy_use = 100;
-
-                // store the action type
-                p_ptr->previous_action[0] = ACTION_MISC;
-
-                return;
-            }
-        }
-    }
+    if (handle_iron_crown_silmaril_action(o_ptr, item))
+        return;
 
     /* Get a quantity */
     amt = get_quantity(NULL, o_ptr->number);
@@ -3094,8 +3112,11 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 {
     int item;
 
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
     object_type* j_ptr;
+    int supply_index = supplies_current_action();
+    bool from_supplies = false;
+    int source_oil = 0;
 
     cptr q, s;
 
@@ -3104,6 +3125,7 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        from_supplies = (item == SUPPLIES_INDEX) && (supply_index >= 0);
     }
     /* Get an item */
     else
@@ -3114,11 +3136,32 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Refill with which source of oil? ";
         s = "You have no sources of oil.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
+            SUPPLY_GROUP_LIGHTS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
+                SUPPLY_GROUP_LIGHTS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
-        if (item >= 0)
+        if (item >= SUPPLIES_INDEX)
+        {
+            supply_index = item - SUPPLIES_INDEX;
+            o_ptr = supplies_entry_at(supply_index);
+            from_supplies = true;
+        }
+        else if (item >= 0)
         {
             o_ptr = &inventory[item];
         }
@@ -3130,33 +3173,75 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
         }
     }
 
+    if (!o_ptr)
+        return;
+
+    source_oil = (o_ptr->tval == TV_FLASK) ? o_ptr->pval : o_ptr->timeout;
+
+    if (from_supplies)
+    {
+        if (source_oil > 0)
+        {
+            player_gain_lamp_oil(source_oil, true);
+            player_oil_container_set_fuel(o_ptr, 0);
+            supplies_refresh_entry(supply_index);
+            msg_print("You add the oil to your lamp stores.");
+        }
+        else
+        {
+            msg_print("That oil is already in your lamp stores.");
+        }
+
+        p_ptr->redraw |= (PR_LIGHT);
+        handle_stuff();
+        return;
+    }
+
+    /* Get the lantern */
+    j_ptr = &inventory[INVEN_LITE];
+
+    if ((j_ptr->tval != TV_LIGHT) || (j_ptr->sval != SV_LIGHT_LANTERN))
+    {
+        msg_print("You are not wielding a lantern.");
+        return;
+    }
+
+    if (source_oil <= 0)
+    {
+        msg_print("There is no oil left in that.");
+        return;
+    }
+
+    if (source_oil + player_light_fuel(j_ptr) > player_light_max_fuel(j_ptr)
+        && !get_check("Refueling this lamp will waste some oil. Proceed? "))
+    {
+        return;
+    }
+
     /* Take a turn */
     p_ptr->energy_use = 100;
 
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    /* Get the lantern */
-    j_ptr = &inventory[INVEN_LITE];
-
     /* Refuel from a latern */
     if (o_ptr->sval == SV_LIGHT_LANTERN)
     {
-        j_ptr->timeout += o_ptr->timeout;
+        player_light_add_fuel(j_ptr, source_oil);
     }
     /* Refuel from a flask */
     else
     {
-        j_ptr->timeout += o_ptr->pval;
+        player_light_add_fuel(j_ptr, source_oil);
     }
 
     /* Message */
     msg_print("You fuel your lamp.");
 
     /* Comment */
-    if (j_ptr->timeout >= FUEL_LAMP)
+    if (player_light_fuel(j_ptr) >= player_light_max_fuel(j_ptr))
     {
-        j_ptr->timeout = FUEL_LAMP;
+        player_light_set_fuel(j_ptr, player_light_max_fuel(j_ptr));
         msg_print("Your lamp is full.");
     }
 
@@ -3188,8 +3273,6 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
             if (item >= 0)
             {
                 item = inven_carry(i_ptr, false);
-                if (item == SUPPLIES_INDEX)
-                    item = -1;
                 if (item < 0)
                     drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
             }
@@ -3403,13 +3486,13 @@ void do_cmd_refuel(void)
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_TORCH)
     {
-        do_cmd_refuel_torch(NULL, 0, false);
+        msg_print("You can no longer combine torches.");
     }
 
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_MALLORN)
     {
-        do_cmd_refuel_torch(NULL, 0, true);
+        msg_print("You can no longer combine torches.");
     }
 
     /* No torch to refuel */
@@ -3626,7 +3709,8 @@ static bool unified_look_can_show_marked_object_at(int y, int x)
 {
     int o_idx = cave_o_idx[y][x];
 
-    return (o_idx > 0) && o_list[o_idx].marked && grid_info_is_available(y, x);
+    return (o_idx > 0) && o_list[o_idx].k_idx && o_list[o_idx].marked
+        && grid_info_is_available(y, x);
 }
 
 static bool unified_look_sidebar_in_radius(const unified_look_state* state, int y,
@@ -3669,6 +3753,9 @@ static int unified_look_count_visible_entities(unified_look_state* state)
                 continue;
 
             object_type* o_ptr = &o_list[o_idx];
+
+            if (!o_ptr->k_idx)
+                continue;
 
             /* Only count marked (memorized) objects (matches sidebar display) */
             if (!o_ptr->marked)
@@ -3715,6 +3802,9 @@ static int unified_look_count_visible_objects_for_group(unified_look_state* stat
             continue;
 
         object_type* o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only count marked (memorized) objects (matches sidebar display) */
         if (!o_ptr->marked)
@@ -3847,6 +3937,8 @@ void do_cmd_unified_look(void)
     char query;
     bool done = false;
     bool need_redraw = true;
+    bool overlay_saved = false;
+    bool selection_redraw = false;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -3938,18 +4030,31 @@ void do_cmd_unified_look(void)
     /* Main interaction loop */
     while (!done)
     {
-        bool screen_saved = false;
-        
         if (need_redraw)
         {
-            unified_look_sync_cursor_selection(&state);
+            if (selection_redraw && overlay_saved)
+            {
+                show_unified_sidebar(&state);
+            }
+            else
+            {
+                if (overlay_saved)
+                {
+                    screen_load();
+                    overlay_saved = false;
+                }
 
-            /* Save screen to preserve underlying display */
-            screen_save();
-            screen_saved = true;
-            
-            /* Show unified sidebar */
-            show_unified_sidebar(&state);
+                unified_look_sync_cursor_selection(&state);
+
+                /* Save screen to preserve underlying display */
+                screen_save();
+                overlay_saved = true;
+
+                /* Show unified sidebar */
+                show_unified_sidebar(&state);
+            }
+
+            selection_redraw = false;
             
             /* Track monster health at current cursor position for left sidebar display */
             /* This handles Tab cycling and any other cursor position updates */
@@ -4175,15 +4280,21 @@ void do_cmd_unified_look(void)
         log_trace("Unified look key input: '%c' (%d) [char: %c, isupper: %d]", 
                  query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
                  (query >= 'A' && query <= 'Z') ? 1 : 0);
-        
-        /* Restore screen after input if we saved it */
-        if (screen_saved)
+
+        /* Keep the overlay live while cycling sidebar selection to avoid
+         * flashing back to the map between adjacent redraws. */
+        if (overlay_saved
+            && query != '\t'
+            && query != '`'
+            && query != 'q'
+            && !(portable_controls && (query == 'i' || query == 'e')))
         {
             screen_load();
+            overlay_saved = false;
+            
+            /* Update health bar display after screen restore */
+            handle_stuff();
         }
-        
-        /* Update health bar display after screen restore */
-        handle_stuff();
         
         /* Analyze input */
         log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
@@ -4754,6 +4865,7 @@ command_key:
                 }
                 
                 need_redraw = true;
+                selection_redraw = true;
                 break;
             }
             
@@ -4792,6 +4904,7 @@ command_key:
                 }
                 
                 need_redraw = true;
+                selection_redraw = true;
                 break;
             }
             
@@ -5271,6 +5384,12 @@ command_key:
         state.highlighted_x = -1;
         state.highlighted_entity_type = 0;
     }
+
+    if (overlay_saved)
+    {
+        screen_load();
+        overlay_saved = false;
+    }
     
     log_trace("=== UNIFIED LOOK ENDED ===");
     
@@ -5310,16 +5429,23 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
         /* Get the original character and color, but show with blue background */
         char display_char;
         byte display_attr;
-        
+        object_type* floor_obj = NULL;
+        bool has_live_object = false;
+
+        if (cave_o_idx[y][x] > 0)
+        {
+            floor_obj = &o_list[cave_o_idx[y][x]];
+            has_live_object = floor_obj->k_idx ? true : false;
+        }
+
         /* Determine what to display based on entity_type preference */
         /* entity_type: 0=auto-detect, 1=prefer monster, 2=prefer object */
-        
-        if (entity_type == 2 && cave_o_idx[y][x] > 0)
+
+        if (entity_type == 2 && has_live_object)
         {
             /* Prefer object display */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
@@ -5343,12 +5469,11 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
             log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }
-        else if (cave_o_idx[y][x] > 0)
+        else if (has_live_object)
         {
             /* Auto-detect: For objects, show normal appearance (no color change) */
-            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-            display_char = object_char(o_ptr);
-            display_attr = object_attr(o_ptr); /* Keep original object color */
+            display_char = object_char(floor_obj);
+            display_attr = object_attr(floor_obj); /* Keep original object color */
             log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
                      display_char, y, x);
         }

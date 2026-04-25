@@ -214,6 +214,7 @@ static bool sanctity_choose_target_from_entries(
     int help_row;
     int prompt_row;
     int page_size;
+    bool steamdeck = steamdeck_controls_active();
 
     if (!entries || count <= 0 || !out_item)
         return false;
@@ -292,7 +293,7 @@ static bool sanctity_choose_target_from_entries(
                 : object_display_color(o_ptr,
                     tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
-            if (i < 26)
+            if (!steamdeck && i < 26)
                 strnfmt(label, sizeof(label), "%c)", I2A(i));
             else
                 SDL_strlcpy(label, "  ", sizeof(label));
@@ -318,7 +319,9 @@ static bool sanctity_choose_target_from_entries(
             prt("", help_row, 0);
         }
 
-        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+        prt(steamdeck
+                ? "D-pad choose, A/Enter select, B/ESC cancel"
+                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
             prompt_row, 0);
         Term_fresh();
 
@@ -361,6 +364,22 @@ static bool sanctity_choose_target_from_entries(
         default:
         {
             int pick;
+
+            if (steamdeck && key == steamdeck_back_key())
+            {
+                screen_load();
+                return false;
+            }
+
+            if (steamdeck && key == steamdeck_confirm_key())
+            {
+                *out_item = entries[current].item;
+                screen_load();
+                return true;
+            }
+
+            if (steamdeck)
+                break;
 
             if (!isalpha((unsigned char)key))
                 break;
@@ -472,7 +491,10 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Eat which item? ";
         s = "You have nothing to eat.";
-        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true);
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
+            supplies_has_group(SUPPLY_GROUP_HERBS) ? SUPPLY_GROUP_HERBS
+                                                   : SUPPLY_GROUP_FOOD,
+            true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
         {
             supplies_clear_pending_action();
@@ -482,7 +504,10 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         if (item == SUPPLIES_INDEX)
         {
             supplies_clear_pending_action();
-            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true, true);
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
+                supplies_has_group(SUPPLY_GROUP_HERBS) ? SUPPLY_GROUP_HERBS
+                                                       : SUPPLY_GROUP_FOOD,
+                true, true);
             return;
         }
 
@@ -575,7 +600,9 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         }
         else
         {
-            if (get_check("Autoinscribe this herb type? "))
+            if (get_check((o_ptr->sval <= SV_FOOD_SICKNESS)
+                    ? "Autoinscribe this herb type? "
+                    : "Autoinscribe this food type? "))
             {
                 do_cmd_autoinscribe_item(kind_index);
             }

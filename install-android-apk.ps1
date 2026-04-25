@@ -4,6 +4,8 @@ param(
 
     [string]$AdbPath,
 
+    [string]$Serial,
+
     [switch]$AllowDowngrade
 )
 
@@ -26,6 +28,167 @@ function Resolve-AdbPath {
     throw 'adb not found. Add platform-tools to PATH or pass -AdbPath.'
 }
 
+function Get-ApkMetadata {
+    param([string]$ApkPath)
+
+    $metadataPath = Join-Path (Split-Path -Path $ApkPath -Parent) 'output-metadata.json'
+    if (-not (Test-Path $metadataPath)) {
+        return $null
+    }
+
+    try {
+        $metadata = Get-Content -Path $metadataPath -Raw | ConvertFrom-Json
+        $element = @($metadata.elements)[0]
+        if (-not $element) {
+            return $null
+        }
+
+        return [PSCustomObject]@{
+            ApplicationId = $metadata.applicationId
+            VersionCode   = $element.versionCode
+            VersionName   = $element.versionName
+        }
+    }
+    catch {
+        return $null
+    }
+}
+
+function Invoke-ExternalCommand {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+
+    try {
+        $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $stdout = Get-Content -Path $stdoutPath -Raw
+        $stderr = Get-Content -Path $stderrPath -Raw
+
+        $combined = @()
+        if ($stdout) {
+            $combined += $stdout.Trim()
+        }
+        if ($stderr) {
+            $combined += $stderr.Trim()
+        }
+
+        return [PSCustomObject]@{
+            ExitCode = $process.ExitCode
+            StdOut   = $stdout
+            StdErr   = $stderr
+            Output   = ($combined -join "`n").Trim()
+        }
+    }
+    finally {
+        Remove-Item -Path $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-ConnectedDevices {
+    param([string]$Adb)
+
+    $deviceResult = Invoke-ExternalCommand -FilePath $Adb -Arguments @('devices')
+    if ($deviceResult.ExitCode -ne 0) {
+        $details = $deviceResult.Output
+        if ($details) {
+            throw "adb devices failed with exit code $($deviceResult.ExitCode)`n`n$details"
+        }
+        throw "adb devices failed with exit code $($deviceResult.ExitCode)"
+    }
+
+    $deviceOutput = @($deviceResult.StdOut -split "\r?\n")
+    return @($deviceOutput | Where-Object {
+        $_ -is [string] -and $_ -match '^(?<serial>\S+)\s+device(\s|$)'
+    } | ForEach-Object {
+        [PSCustomObject]@{
+            Serial = $Matches.serial
+            Line   = $_
+        }
+    })
+}
+
+function Resolve-TargetDeviceSerial {
+    param(
+        [string]$RequestedSerial,
+        [object[]]$ConnectedDevices
+    )
+
+    if ($ConnectedDevices.Count -eq 0) {
+        throw 'No authorized adb device detected. Connect device, enable USB debugging, and accept RSA prompt.'
+    }
+
+    if ($RequestedSerial) {
+        $selected = @($ConnectedDevices | Where-Object { $_.Serial -eq $RequestedSerial })
+        if ($selected.Count -eq 0) {
+            $available = ($ConnectedDevices | ForEach-Object { $_.Serial }) -join ', '
+            throw "Requested adb device '$RequestedSerial' is not available. Connected devices: $available"
+        }
+        return $RequestedSerial
+    }
+
+    if ($ConnectedDevices.Count -gt 1) {
+        $available = ($ConnectedDevices | ForEach-Object { $_.Serial }) -join ', '
+        throw "Multiple adb devices detected ($available). Re-run with -Serial <device-serial>."
+    }
+
+    return $ConnectedDevices[0].Serial
+}
+
+function New-AdbInstallFailureMessage {
+    param(
+        [int]$ExitCode,
+        [string]$AdbOutput,
+        [object]$ApkMetadata,
+        [string]$TargetSerial
+    )
+
+    $lines = @("adb install failed with exit code $ExitCode")
+
+    if ($TargetSerial) {
+        $lines += "Device: $TargetSerial"
+    }
+
+    if ($ApkMetadata) {
+        $lines += "Package: $($ApkMetadata.ApplicationId)"
+        $lines += "Version: $($ApkMetadata.VersionName) ($($ApkMetadata.VersionCode))"
+    }
+
+    $trimmedOutput = $AdbOutput.Trim()
+    if ($trimmedOutput) {
+        $lines += "adb output:"
+        $lines += $trimmedOutput
+    }
+
+    if ($trimmedOutput -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
+        $packageName = if ($ApkMetadata -and $ApkMetadata.ApplicationId) {
+            $ApkMetadata.ApplicationId
+        } else {
+            'the target package'
+        }
+
+        $lines += "Cause: an installed copy of $packageName is signed with a different key."
+        $lines += "Fix: uninstall $packageName from the device before installing this APK, or rebuild/sign it with the same key as the installed app."
+    }
+    elseif ($trimmedOutput -match 'INSTALL_FAILED_VERSION_DOWNGRADE') {
+        $lines += 'Cause: the device already has a newer versionCode installed.'
+        $lines += 'Fix: re-run with -AllowDowngrade, or uninstall the newer app build first.'
+    }
+    elseif ($trimmedOutput -match 'INSTALL_FAILED_NO_MATCHING_ABIS') {
+        $lines += 'Cause: the APK does not contain native libraries for this device ABI.'
+        $lines += 'Fix: rebuild the APK with an ABI that matches the target device.'
+    }
+    elseif ($trimmedOutput -match 'more than one device/emulator') {
+        $lines += 'Cause: adb sees multiple targets.'
+        $lines += 'Fix: re-run with -Serial <device-serial>.'
+    }
+
+    return $lines -join "`n"
+}
+
 $adb = Resolve-AdbPath -Provided $AdbPath
 
 $apk = if ($Config -eq 'Release') {
@@ -38,26 +201,31 @@ if (-not (Test-Path $apk)) {
     throw "APK not found: $apk`nBuild it first via Android Studio or build-android-apk.ps1"
 }
 
-& $adb devices
-if ($LASTEXITCODE -ne 0) {
-    throw "adb devices failed with exit code $LASTEXITCODE"
-}
+$apkMetadata = Get-ApkMetadata -ApkPath $apk
+$connected = Get-ConnectedDevices -Adb $adb
+$targetSerial = Resolve-TargetDeviceSerial -RequestedSerial $Serial -ConnectedDevices $connected
 
-$deviceLines = & $adb devices
-$connected = @($deviceLines | Where-Object { $_ -match "^\S+\s+device$" })
-if ($connected.Count -eq 0) {
-    throw 'No authorized adb device detected. Connect device, enable USB debugging, and accept RSA prompt.'
-}
-
-$installArgs = @('install', '-r')
+$installArgs = @('-s', $targetSerial, 'install', '-r')
 if ($AllowDowngrade) {
     $installArgs += '-d'
 }
 $installArgs += $apk
 
-& $adb @installArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "adb install failed with exit code $LASTEXITCODE"
+$packageLabel = if ($apkMetadata -and $apkMetadata.ApplicationId) {
+    $apkMetadata.ApplicationId
+} else {
+    Split-Path -Path $apk -Leaf
+}
+
+Write-Host "Installing $packageLabel to $targetSerial..." -ForegroundColor Cyan
+
+$installResult = Invoke-ExternalCommand -FilePath $adb -Arguments $installArgs
+if ($installResult.ExitCode -ne 0) {
+    throw (New-AdbInstallFailureMessage -ExitCode $installResult.ExitCode -AdbOutput $installResult.Output -ApkMetadata $apkMetadata -TargetSerial $targetSerial)
+}
+
+if ($installResult.Output) {
+    Write-Host $installResult.Output
 }
 
 Write-Host "Installed APK: $apk" -ForegroundColor Green

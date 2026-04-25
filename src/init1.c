@@ -233,9 +233,15 @@ static flag_name info_flags[] = {
     { "SNG_PIERCING", RF4, RF4_SNG_PIERCING },
     { "SNG_OATHS", RF4, RF4_SNG_OATHS },
 
-    { "RF4XXX22", RF4, RF4_RF4XXX22 }, { "RF4XXX23", RF4, RF4_RF4XXX23 },
+    { "DWARFBANE", RF4, RF4_DWARFBANE },
+    { "RF4XXX22", RF4, RF4_RF4XXX22 },
+    { "EDAINBANE", RF4, RF4_EDAINBANE },
+    { "RF4XXX23", RF4, RF4_RF4XXX23 },
     { "THROW_WEB", RF4, RF4_THROW_WEB }, { "RALLY", RF4, RF4_RALLY },
-    { "RF4XXX26", RF4, RF4_RF4XXX26 }, { "RF4XXX27", RF4, RF4_RF4XXX27 },
+    { "NOLDORBANE", RF4, RF4_NOLDORBANE },
+    { "RF4XXX26", RF4, RF4_RF4XXX26 },
+    { "SINDARBANE", RF4, RF4_SINDARBANE },
+    { "RF4XXX27", RF4, RF4_RF4XXX27 },
     { "RF4XXX28", RF4, RF4_RF4XXX28 }, { "RF4XXX29", RF4, RF4_RF4XXX29 },
     { "RF4XXX30", RF4, RF4_RF4XXX30 }, { "RF4XXX31", RF4, RF4_RF4XXX31 },
     { "RF4XXX32", RF4, RF4_RF4XXX32 },
@@ -542,7 +548,7 @@ errr init_info_txt(
 }
 
 /* ---- helpers ------------------------------------------------------ */
-static const char *rank_name(int lvl)            /* -2…+2 → text */
+static const char *rank_name(int lvl)            /* -2...+2 -> text */
 {
     switch (lvl) {
         case  2: return "Mastery";
@@ -555,15 +561,15 @@ static const char *rank_name(int lvl)            /* -2…+2 → text */
 }
 
 /* ------------------------------------------------------------------ *
- *  combined_level() – return the net Affinity/Mastery/Penalty value
- *  (-2 … +2) for one skill, summing contributions from
- *       • race-or-character RHF flags (counted once even if both set)
- *       • active curses  (each curse can add its own +1 / –1)
- *  Affinity = +1, Penalty = –1, Mastery/Grand Penalty = ±2.
+ *  combined_level() - return the net Affinity/Mastery/Penalty value
+ *  (-2 ... +2) for one skill, summing contributions from
+ *       - race-or-character RHF flags (counted once even if both set)
+ *       - active curses  (each curse can add its own +1 / -1)
+ *  Affinity = +1, Penalty = -1, Mastery/Grand Penalty = +/-2.
  * ------------------------------------------------------------------ */
 static int combined_level(int skill)
 {
-    /*  lookup table: [S_*] → {AFFINITY-bit, PENALTY-bit}  */
+    /*  lookup table: [S_*] -> {AFFINITY-bit, PENALTY-bit}  */
     static const struct { u32b aff, pen; } tbl[] = {
         { RHF_MEL_AFFINITY, RHF_MEL_PENALTY },   /* S_MEL = 0 */
         { RHF_ARC_AFFINITY, RHF_ARC_PENALTY },   /* S_ARC */
@@ -588,13 +594,13 @@ static int combined_level(int skill)
     if (cur & tbl[skill].aff)  v++;               /* curse stack        */
     if (cur & tbl[skill].pen)  v--;
 
-    /* clamp to –2 … +2 as per spec ---------------------------------- */
+    /* clamp to -2 ... +2 as per spec ---------------------------------- */
     if (v >  2) v =  2;
     if (v < -2) v = -2;
     return v;
 }
 
-static byte rank_colour(int lvl)         /* –2 … +2 */
+static byte rank_colour(int lvl)         /* -2 ... +2 */
 {
     if (lvl ==  2) return TERM_L_GREEN;     /* Mastery        */
     if (lvl ==  1) return TERM_GREEN;   /* Affinity       */
@@ -613,7 +619,7 @@ static const char *skill_tag(int s)
 
 
 /*-----------------------------------------------------------------*
- *  dbg_show_active_flags() – show only the flags that are ON
+ *  dbg_show_active_flags() - show only the flags that are ON
  *  for the current character (i386-safe C89).
  *-----------------------------------------------------------------*/
 void dbg_show_active_flags(void)
@@ -758,7 +764,7 @@ void dbg_show_active_flags(void)
         const char *pow = is_curse ? (cu_text + cu_info[id].power)
                                    : (cu_info[id].blessing_power ? (cu_text + cu_info[id].blessing_power) : NULL);
         c_put_str(is_curse ? TERM_WHITE : TERM_L_GREEN,
-                  format("  %2d : %-26s [%d]  – %s",
+                  format("  %2d : %-26s [%d]  - %s",
                          id,
                          display_name,
                          magnitude,
@@ -1294,7 +1300,7 @@ errr parse_rt_info(char *buf, header *head)
         rt_ptr->colour = (byte)color_text_to_attr(buf+2);
         return 0;
     }
-    /* W:<num>  – win condition (Silmarils target) ---------------- */
+    /* W:<num>  - win condition (Silmarils target) ---------------- */
     if (buf[0] == 'W')
     {
         if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
@@ -1385,7 +1391,7 @@ errr parse_rt_info(char *buf, header *head)
         return 0;
     }
 
-    /* H:*  or  H:i|j|k  – applicable heroes mask (0..63) ---------- */
+    /* H:*  or  H:i|j|k  - applicable heroes mask (0..63) ---------- */
     if (buf[0] == 'H')
     {
         if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
@@ -1444,7 +1450,7 @@ static errr parse_style_message_line(char* buf);
 errr parse_style_info(char* buf, header* head)
 {
     /* Note: L:/U: moved to style-levels.txt for clarity. */
-    /* E:<row>:<col> or DY:<row>:<col> — default vein overlay tile (used if a style omits Y:) */
+    /* E:<row>:<col> or DY:<row>:<col> - default vein overlay tile (used if a style omits Y:) */
     {
         const char* p = buf;
         while (*p == ' ' || *p == '\t') p++;
@@ -1457,7 +1463,7 @@ errr parse_style_info(char* buf, header* head)
         }
     }
 
-    /* EK:R:G:B — optional explicit color key for overlays (e.g., 255:0:255) */
+    /* EK:R:G:B - optional explicit color key for overlays (e.g., 255:0:255) */
     {
         const char* p = buf;
         while (*p == ' ' || *p == '\t') p++;
@@ -1504,13 +1510,13 @@ errr parse_style_info(char* buf, header* head)
         int r, c; if (2 != sscanf(buf + 2, "%d:%d", &r, &c)) return PARSE_ERROR_GENERIC;
         stl_ptr->wall_row = (byte)r; stl_ptr->wall_col = (byte)c; return 0;
     }
-    /* Y:row:col  (vein) — use 'Y' since 'V' is reserved for file version */
+    /* Y:row:col  (vein) - use 'Y' since 'V' is reserved for file version */
     if (buf[0] == 'Y')
     {
         int r, c; if (2 != sscanf(buf + 2, "%d:%d", &r, &c)) return PARSE_ERROR_GENERIC;
     stl_ptr->vein_row = (byte)r; stl_ptr->vein_col = (byte)c; stl_ptr->vein_defined = true; return 0;
     }
-    /* F:row:col [row:col ...]  (floor) — multiple allowed; tokens separated by spaces */
+    /* F:row:col [row:col ...]  (floor) - multiple allowed; tokens separated by spaces */
     if (buf[0] == 'F')
     {
         const char* p = buf + 2;
@@ -1537,7 +1543,7 @@ errr parse_style_info(char* buf, header* head)
         if (!added) return PARSE_ERROR_GENERIC;
         return 0;
     }
-    /* D:row:col [row:col ...]  (door base) — multiple allowed; tokens separated by spaces */
+    /* D:row:col [row:col ...]  (door base) - multiple allowed; tokens separated by spaces */
     if (buf[0] == 'D')
     {
         const char* p = buf + 2;
@@ -1563,25 +1569,25 @@ errr parse_style_info(char* buf, header* head)
         return 0;
     }
 
-    /* S: <text> — short descriptor for transition composition */
+    /* S: <text> - short descriptor for transition composition */
     if (buf[0] == 'S' && buf[1] == ':')
     {
         return parse_style_short_desc_line(buf);
     }
 
-    /* M1: <text> — physical entry description */
+    /* M1: <text> - physical entry description */
     if (buf[0] == 'M' && buf[1] == '1' && buf[2] == ':')
     {
         return parse_style_m1_line(buf);
     }
 
-    /* M2: <text> — lore/atmosphere */
+    /* M2: <text> - lore/atmosphere */
     if (buf[0] == 'M' && buf[1] == '2' && buf[2] == ':')
     {
         return parse_style_m2_line(buf);
     }
 
-    /* M: <text> — legacy per-style message (treated as M1:) */
+    /* M: <text> - legacy per-style message (treated as M1:) */
     if (buf[0] == 'M' && buf[1] == ':')
     {
         return parse_style_message_line(buf);
@@ -2444,7 +2450,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 }
 
 /**********************************************************************
- * Grab a single RHF and CUR flag for a curse (used by “F:” and "U:" lines in curses.txt)
+ * Grab a single RHF and CUR flag for a curse (used by "F:" and "U:" lines in curses.txt)
  **********************************************************************/
 static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 {
@@ -3028,7 +3034,7 @@ errr parse_k_info(char* buf, header* head)
         k_ptr->max_ps = ps;
     }
 
-    /* Process 'R' for "Range" — smithing/drop maximums (one per line) */
+    /* Process 'R' for "Range" - smithing/drop maximums (one per line) */
     else if (buf[0] == 'R')
     {
         /* There better be a current k_ptr */
@@ -3055,6 +3061,23 @@ errr parse_k_info(char* buf, header* head)
             k_ptr->max_pval = (s16b)value;
         else
             return (PARSE_ERROR_GENERIC);
+    }
+
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!k_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        k_ptr->elemental_block = (byte)elemental_block;
     }
 
     /* Hack -- Process 'F' for flags */
@@ -3881,6 +3904,23 @@ errr parse_a_info(char* buf, header* head)
         a_ptr->ps = ps;
     }
 
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->elemental_block = (byte)elemental_block;
+    }
+
     /* Process 'F' for flags */
     else if (buf[0] == 'F')
     {
@@ -4191,11 +4231,12 @@ static byte skeleton_note_parse_hint_token(const char* tok)
  * Formats:
  *   O:<SVAL>:<weight>:<text>
  *   C:<SVAL>:<weight>:<text>
- *   M:<SVAL>:<HINT>:<weight>:<text>
+ *   M:<SVAL>:<HINT>:<weight>:<text>[||<extra text>]
  *
  * SVAL may be ELF/HUMAN/ORC/ANY
  * HINT may be GREAT_VAULT/VAULT_ARTIFACT/STAIRS/PARTITION/FORGE/UNIQUE/TIP/SIZE/QUEST/LABYRINTH/CHASM/CAVE/CAVE_ICE/CAVE_FIRE/CAVE_POIS/ROOMY/RUINED/CAVEY
  * Weight is optional (defaults to 100) and clamped to a byte.
+ * Extra text, when present, is stored as an optional companion line.
  */
 errr parse_skeleton_note_info(char* buf, header* head)
 {
@@ -4296,12 +4337,36 @@ errr parse_skeleton_note_info(char* buf, header* head)
         return PARSE_ERROR_GENERIC;
     }
 
+    char* extra_cursor = strstr(cursor, "||");
+    if (extra_cursor)
+    {
+        *extra_cursor = '\0';
+        extra_cursor += 2;
+        if (extra_cursor[0] == '\0')
+        {
+            log_error("skeleton_note.txt: missing extra text payload on line %d (buf='%s')",
+                error_line, buf_copy);
+            return PARSE_ERROR_GENERIC;
+        }
+    }
+
+    if (cursor[0] == '\0')
+    {
+        log_error("skeleton_note.txt: missing text payload on line %d (buf='%s')",
+            error_line, buf_copy);
+        return PARSE_ERROR_GENERIC;
+    }
+
     note->sval = sval;
     note->hint = hint;
     note->role = role;
     note->weight = (byte)weight;
+    note->extra_text = 0;
 
     if (!add_text(&note->text, head, cursor))
+        return PARSE_ERROR_OUT_OF_MEMORY;
+
+    if (extra_cursor && !add_text(&note->extra_text, head, extra_cursor))
         return PARSE_ERROR_OUT_OF_MEMORY;
 
     next_idx++;
@@ -4533,6 +4598,23 @@ errr parse_e_info(char* buf, header* head)
         {
             return (PARSE_ERROR_GENERIC);
         }
+    }
+
+    /* Process 'X' for elemental shield block chance */
+    else if (buf[0] == 'X')
+    {
+        int elemental_block;
+
+        if (!e_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (1 != sscanf(buf + 2, "%d", &elemental_block))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((elemental_block < 0) || (elemental_block > 100))
+            return (PARSE_ERROR_GENERIC);
+
+        e_ptr->elemental_block = (byte)elemental_block;
     }
 
     /* Process 'B' for "aBilities" (one line only) */
@@ -5355,7 +5437,7 @@ errr parse_p_info(char* buf, header* head)
             int bit = atoi(s);   // Converts the string (e.g. "42") to an int
             if (bit >= 0 && bit < FLAG_COUNT) {
                 int word = bit / 32;        // Which 32-bit slot (0 or 1)
-                int shift = bit % 32;       // Which bit in that slot (0–31)
+                int shift = bit % 32;       // Which bit in that slot (0-31)
                 pr_ptr->choice[word] |= (1U << shift);  // Set the bit
             } else {
                 // Invalid flag index
@@ -5437,7 +5519,7 @@ errr parse_p_info(char* buf, header* head)
 //         log_debug("New character #%d: \"%s\"", idx,
 //                 head->name_ptr + ph_ptr->name);
 
-//         /* Sentinel‐initialize all ability slots to “empty” */
+//         /* Sentinel-initialize all ability slots to "empty" */
 //         for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
 //         {
 //             ph_ptr->a_adj[j][0] = -1;
@@ -5640,10 +5722,10 @@ errr parse_p_info(char* buf, header* head)
 //         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
 //         /* Debug: which character we're parsing into */
-//         log_debug("Parsing abilities for character \"%s\"…",
+//         log_debug("Parsing abilities for character \"%s\"...",
 //                 head->name_ptr + ph_ptr->name);
 
-//         /* Read up to CHARACTER_ABILITY_MAX of “:stat:ability” pairs */
+//         /* Read up to CHARACTER_ABILITY_MAX of ":stat:ability" pairs */
 //         while (pair < CHARACTER_ABILITY_MAX)
 //         {
 //             /* stat */
@@ -5728,7 +5810,7 @@ errr parse_c_info(char* buf, header* head)
         log_trace("New character #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
-        /* Sentinel‐initialize all ability slots to "empty" */
+        /* Sentinel-initialize all ability slots to "empty" */
         for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
         {
             ph_ptr->a_adj[j][0] = -1;
@@ -6227,7 +6309,7 @@ errr parse_st_info(char* buf, header* head)
 }
 
 /**********************************************************************
- * Initialise the “cu_info” array by parsing curses.txt
+ * Initialise the "cu_info" array by parsing curses.txt
  **********************************************************************/
 errr parse_cu_info(char *buf, header *head)
 {
@@ -6297,7 +6379,7 @@ errr parse_cu_info(char *buf, header *head)
     }
 
     /* ------------------------------------------------------------ */
-    /* F: list of RHF flags (MEL_PENALTY | SWORD_AFFINITY …)        */
+    /* F: list of RHF flags (MEL_PENALTY | SWORD_AFFINITY ...)        */
     /* ------------------------------------------------------------ */
     else if (buf[0] == 'F')
     {

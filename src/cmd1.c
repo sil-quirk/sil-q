@@ -16,6 +16,26 @@
 #include <math.h>
 
 static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
+static bool queue_deferred_pickup_pack_drop(int item, int amount);
+
+static bool weapon_has_attack_confirmation_inscription(const object_type* o_ptr)
+{
+    cptr s;
+
+    if (!o_ptr || !o_ptr->obj_note)
+        return false;
+
+    s = strchr(quark_str(o_ptr->obj_note), '!');
+    while (s)
+    {
+        if (s[1] == 'a')
+            return true;
+
+        s = strchr(s + 1, '!');
+    }
+
+    return false;
+}
 
 static bool polearm_is_axe(const object_type* weapon)
 {
@@ -134,6 +154,21 @@ bool graphics_are_ascii()
  * If the inventory would overflow, this is handled at the start of the next
  * player turn.
  */
+static void strip_brass_lantern_turns_suffix(char* o_name, const object_type* o_ptr)
+{
+    char* fuel_suffix;
+
+    if (!o_name || !o_ptr)
+        return;
+
+    if (o_ptr->tval != TV_LIGHT || o_ptr->sval != SV_LIGHT_LANTERN)
+        return;
+
+    fuel_suffix = strstr(o_name, " (");
+    if (fuel_suffix && strstr(fuel_suffix, " turns)"))
+        *fuel_suffix = '\0';
+}
+
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
@@ -144,6 +179,7 @@ void give_player_item(object_type * o_ptr)
     if (slot == SUPPLIES_INDEX)
     {
         object_desc(o_name, sizeof(o_name), &copy, true, 3);
+        strip_brass_lantern_turns_suffix(o_name, &copy);
         char label = supplies_label_char();
         if (!label)
             label = 'a';
@@ -628,11 +664,13 @@ int skill_check(
     if ((m_ptr2 == PLAYER) && (m_ptr1 != NULL))
         difficulty += bane_bonus(m_ptr1);
 
-    // elf-bane bonus against you
+    // monster racial bane bonus against you
     if ((m_ptr1 == PLAYER) && (m_ptr2 != NULL))
-        difficulty += elf_bane_bonus(m_ptr2);
+        difficulty += elf_bane_bonus(m_ptr2) + dwarf_bane_bonus(m_ptr2)
+            + edain_bane_bonus(m_ptr2);
     if ((m_ptr2 == PLAYER) && (m_ptr1 != NULL))
-        skill += elf_bane_bonus(m_ptr1);
+        skill += elf_bane_bonus(m_ptr1) + dwarf_bane_bonus(m_ptr1)
+            + edain_bane_bonus(m_ptr1);
 
     // the basic rolls
     skill_total = dieroll(10) + skill;
@@ -861,8 +899,10 @@ int total_monster_attack(monster_type* m_ptr, int base)
     // penalise distance
     att -= distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) / 5;
 
-    // elf-bane bonus
+    // racial bane bonus
     att += elf_bane_bonus(m_ptr);
+    att += dwarf_bane_bonus(m_ptr);
+    att += edain_bane_bonus(m_ptr);
 
     // unique bane penalty (player ability affecting monster)
     att -= unique_bane_bonus(m_ptr);
@@ -903,8 +943,10 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
     // penalise being in bright light for light-averse monsters
     evn -= light_penalty(m_ptr);
 
-    // elf-bane bonus
+    // racial bane bonus
     evn += elf_bane_bonus(m_ptr);
+    evn += dwarf_bane_bonus(m_ptr);
+    evn += edain_bane_bonus(m_ptr);
 
     // unique bane penalty (player ability affecting monster)
     evn -= unique_bane_bonus(m_ptr);
@@ -1427,12 +1469,12 @@ extern void ident_on_wield(object_type* o_ptr)
     if (f2 & (TR2_DARKNESS))
     {
         notice = true;
-        msg_print("It shrouds you in darkness.");
+        msg_print("It reduces your light radius, but concentrates the light that remains.");
     }
     else if (f4 & (TR4_UNLIGHT))
     {
         notice = true;
-        msg_print("It dims your light.");
+        msg_print("It reduces your light radius without concentrating the light that remains.");
     }
     else if (f2 & (TR2_LIGHT))
     {
@@ -3264,12 +3306,19 @@ bool smith_oath_confirm_break(void)
  * Check if an object was smithed by the player
  */
 static const object_type* replacement_filter_incoming = NULL;
+static bool item_tester_limit_group(const object_type* o_ptr);
 
 static bool pack_item_matches_replacement_type(const object_type* incoming,
                                                const object_type* candidate)
 {
     if (!incoming || !candidate || !candidate->k_idx)
         return false;
+
+    if (player_oil_container_object(incoming)
+        && player_oil_container_object(candidate))
+    {
+        return true;
+    }
 
     if (incoming->tval == candidate->tval)
         return true;
@@ -3378,7 +3427,8 @@ static bool prompt_replace_pack_item(const object_type* incoming)
             continue;
         }
 
-        inven_drop(item, drop_ptr->number);
+        if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
+            continue;
 
         /* Let inventory housekeeping run before we attempt the pickup again */
         p_ptr->notice |= (PN_COMBINE | PN_REORDER);
@@ -3388,6 +3438,557 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     }
 }
 
+static bool object_is_brass_lamp(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_LIGHT
+        && o_ptr->sval == SV_LIGHT_LANTERN;
+}
+
+static bool object_uses_light_pickup_limit(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && player_light_carry_cap(o_ptr) > 0;
+}
+
+typedef enum pickup_failure_result
+{
+    PICKUP_FAILURE_ABORT = 0,
+    PICKUP_FAILURE_RETRY,
+    PICKUP_FAILURE_EQUIPPED
+} pickup_failure_result;
+
+static bool deferred_pickup_drop_pending = false;
+static object_type deferred_pickup_drop;
+static int deferred_pickup_drop_oil = 0;
+
+static void clear_deferred_pickup_drop(void)
+{
+    deferred_pickup_drop_pending = false;
+    object_wipe(&deferred_pickup_drop);
+    deferred_pickup_drop_oil = 0;
+}
+
+static void drop_object_at_player_feet_or_nearby(object_type* drop)
+{
+    bool can_drop_here;
+
+    if (!drop || !drop->k_idx || drop->number <= 0)
+        return;
+
+    can_drop_here = (cave_feat[p_ptr->py][p_ptr->px] == FEAT_FLOOR
+        || cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT);
+
+    if (can_drop_here && floor_carry(p_ptr->py, p_ptr->px, drop) > 0)
+        return;
+
+    (void)drop_near(drop, 0, p_ptr->py, p_ptr->px);
+}
+
+static void flush_deferred_pickup_drop(void)
+{
+    if (!deferred_pickup_drop_pending)
+        return;
+
+    log_debug("pickup replace: flushing deferred drop at (%d,%d) "
+        "cave_o_idx=%d tval=%d sval=%d number=%d oil=%d",
+        p_ptr->py, p_ptr->px, cave_o_idx[p_ptr->py][p_ptr->px],
+        deferred_pickup_drop.tval, deferred_pickup_drop.sval,
+        deferred_pickup_drop.number,
+        deferred_pickup_drop_oil);
+
+    if (player_oil_container_object(&deferred_pickup_drop)
+        && deferred_pickup_drop_oil > 0)
+    {
+        int oil_remaining = deferred_pickup_drop_oil;
+        int unit_capacity =
+            player_oil_container_unit_capacity(&deferred_pickup_drop);
+
+        for (int n = 0; n < deferred_pickup_drop.number; n++)
+        {
+            object_type single_drop;
+            object_wipe(&single_drop);
+            object_copy(&single_drop, &deferred_pickup_drop);
+            single_drop.number = 1;
+            player_oil_container_set_fuel(&single_drop,
+                MIN(oil_remaining, unit_capacity));
+            oil_remaining -= MIN(oil_remaining, unit_capacity);
+            drop_object_at_player_feet_or_nearby(&single_drop);
+        }
+    }
+    else
+    {
+        drop_object_at_player_feet_or_nearby(&deferred_pickup_drop);
+    }
+
+    clear_deferred_pickup_drop();
+}
+
+static bool queue_deferred_pickup_drop(const object_type* src, int amount,
+    int oil_to_drop)
+{
+    if (!src || !src->k_idx || amount <= 0)
+        return false;
+
+    if (amount > src->number)
+        amount = src->number;
+
+    if (deferred_pickup_drop_pending)
+    {
+        log_warn("pickup replace: flushing unexpected pre-existing deferred "
+            "drop before queueing another");
+        flush_deferred_pickup_drop();
+    }
+
+    object_wipe(&deferred_pickup_drop);
+    object_copy(&deferred_pickup_drop, src);
+    deferred_pickup_drop.number = amount;
+    deferred_pickup_drop_oil = oil_to_drop;
+    deferred_pickup_drop_pending = true;
+
+    return true;
+}
+
+static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
+{
+    object_type* supply_obj = supplies_entry_at(supply_idx);
+    object_type deferred;
+    char o_name[80];
+    int oil_to_drop = 0;
+
+    if (!supply_obj || !supply_obj->k_idx || amount <= 0)
+        return false;
+
+    if (amount > supply_obj->number)
+        amount = supply_obj->number;
+
+    if (player_oil_container_object(supply_obj))
+    {
+        if (!player_prepare_oil_container_drop(supply_obj, amount,
+                &oil_to_drop, NULL))
+            return false;
+    }
+
+    object_wipe(&deferred);
+    object_copy(&deferred, supply_obj);
+    deferred.number = amount;
+
+    object_desc(o_name, sizeof(o_name), &deferred, true, 3);
+
+    if (player_light_destroyed_on_drop(&deferred))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (deferred.number > 1) ? "they are" : "it is");
+        (void)supplies_consume_quantity(supply_idx, amount);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return true;
+    }
+
+    if (!queue_deferred_pickup_drop(supply_obj, amount, oil_to_drop))
+        return false;
+
+    (void)supplies_consume_quantity(supply_idx, amount);
+
+    log_debug("pickup replace: queued deferred supply drop supply_idx=%d "
+        "amount=%d tval=%d sval=%d oil=%d",
+        supply_idx, amount, deferred_pickup_drop.tval,
+        deferred_pickup_drop.sval, deferred_pickup_drop_oil);
+
+    return true;
+}
+
+static bool queue_deferred_pickup_pack_drop(int item, int amount)
+{
+    object_type* drop_ptr;
+    object_type deferred;
+    char o_name[80];
+    int oil_to_drop = 0;
+
+    if ((item < 0) || (item >= INVEN_PACK) || amount <= 0)
+        return false;
+
+    drop_ptr = &inventory[item];
+    if (!drop_ptr->k_idx)
+        return false;
+
+    if (amount > drop_ptr->number)
+        amount = drop_ptr->number;
+
+    object_wipe(&deferred);
+    object_copy(&deferred, drop_ptr);
+    deferred.number = amount;
+
+    if (player_oil_container_object(&deferred))
+    {
+        if (!player_prepare_oil_container_drop(&deferred, amount,
+                &oil_to_drop, NULL))
+            return false;
+    }
+
+    object_desc(o_name, sizeof(o_name), &deferred, true, 3);
+
+    if (player_light_destroyed_on_drop(&deferred))
+    {
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (deferred.number > 1) ? "they are" : "it is");
+
+        inven_item_increase(item, -amount);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return true;
+    }
+
+    if (!queue_deferred_pickup_drop(drop_ptr, amount, oil_to_drop))
+        return false;
+
+    inven_item_increase(item, -amount);
+    inven_item_describe(item);
+    inven_item_optimize(item);
+
+    return true;
+}
+
+static bool confirm_oil_pickup_overflow(const object_type* o_ptr, int oil_amount)
+{
+    char o_name[80];
+    char prompt[160];
+
+    if (!o_ptr || oil_amount <= 0 || !player_lamp_oil_would_overflow(oil_amount))
+        return true;
+
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+    strnfmt(prompt, sizeof(prompt),
+        "Adding the oil from %s will waste some oil. Proceed? ", o_name);
+    return get_check(prompt);
+}
+
+static pickup_failure_result prompt_replace_light_limit_item(
+    object_type* incoming, int floor_o_idx, const char* incoming_name)
+{
+    char prompt[160];
+    cptr label = inven_carry_limit_label();
+    int limit = inven_carry_limit_value();
+    bool replaced = false;
+    bool old_item_tester_full = item_tester_full;
+    byte old_item_tester_tval = item_tester_tval;
+    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
+    const object_type* old_filter = replacement_filter_incoming;
+    bool old_expand_supplies = inventory_menu_set_expand_supplies(true);
+
+    extern bool sdl_is_story_font_enabled(void);
+    extern void sdl_story_font_disable(void);
+    if (sdl_is_story_font_enabled())
+        sdl_story_font_disable();
+
+    if (label)
+        msg_format("You already carry %s (limit %d).", label, limit);
+    else
+        msg_print("You cannot carry any more of those.");
+
+    msg_print("Choose an item to replace.");
+
+    strnfmt(prompt, sizeof(prompt),
+            "Replace which item to pick up %s? ", incoming_name);
+
+    replacement_filter_incoming = incoming;
+    item_tester_tval = 0;
+    item_tester_hook = item_tester_limit_group;
+    item_tester_full = false;
+
+    while (true)
+    {
+        int item;
+        object_type* drop_ptr = NULL;
+        int remove_amt = 1;
+
+        if (!get_item(&item, prompt, "You have nothing to replace.",
+            USE_INVEN | USE_EQUIP))
+        {
+            break;
+        }
+
+        if (item >= SUPPLIES_INDEX)
+        {
+            int supply_idx = item - SUPPLIES_INDEX;
+            drop_ptr = supplies_entry_at(supply_idx);
+
+            if (!drop_ptr || !drop_ptr->k_idx)
+            {
+                bell("That supply entry is empty.");
+                continue;
+            }
+        }
+        else
+        {
+            if ((item < 0) || (item >= INVEN_TOTAL))
+            {
+                bell("Illegal object choice!");
+                continue;
+            }
+
+            drop_ptr = &inventory[item];
+            if (!drop_ptr->k_idx)
+            {
+                bell("That slot is empty.");
+                continue;
+            }
+
+            if ((item >= INVEN_WIELD) && cursed_p(drop_ptr))
+            {
+                char equipped_name[80];
+                object_desc(equipped_name, sizeof(equipped_name), drop_ptr, true,
+                    3);
+                msg_format("You cannot remove %s.", equipped_name);
+                continue;
+            }
+        }
+
+        if (!inven_carry_limit_can_replace(drop_ptr)
+            || !pack_item_matches_replacement_type(incoming, drop_ptr))
+        {
+            msg_print("That will not make enough room.");
+            continue;
+        }
+
+        if ((item >= INVEN_WIELD) && (item == wield_slot(incoming)))
+        {
+            log_debug("pickup light replace: equipping floor item %d directly "
+                "into slot %d instead of dropping first", floor_o_idx, item);
+            inventory_menu_set_expand_supplies(old_expand_supplies);
+            replacement_filter_incoming = old_filter;
+            item_tester_hook = old_item_tester_hook;
+            item_tester_tval = old_item_tester_tval;
+            item_tester_full = old_item_tester_full;
+            do_cmd_wield(incoming, 0 - floor_o_idx);
+            return PICKUP_FAILURE_EQUIPPED;
+        }
+
+        if (player_oil_container_object(incoming)
+            && player_oil_container_object(drop_ptr))
+        {
+            int incoming_cost = player_oil_container_slot_cost(incoming);
+            int drop_cost = player_oil_container_slot_cost(drop_ptr);
+            int free_slots = player_oil_container_slot_capacity()
+                - player_oil_container_slots_used();
+            int needed_slots = incoming_cost * MAX(incoming->number, 1)
+                - MAX(free_slots, 0);
+
+            remove_amt = MAX(1, (needed_slots + drop_cost - 1) / drop_cost);
+        }
+        else
+        {
+            remove_amt = MAX(1,
+                incoming->number - player_light_available_capacity(incoming));
+        }
+        remove_amt = MIN(remove_amt, MAX(drop_ptr->number, 1));
+
+        if (item >= SUPPLIES_INDEX)
+        {
+            int supply_idx = item - SUPPLIES_INDEX;
+
+            if (floor_o_idx > 0)
+            {
+                if (!queue_deferred_pickup_supply_drop(supply_idx, remove_amt))
+                    continue;
+            }
+            else
+            {
+                if (!supplies_drop_amount(supply_idx, remove_amt))
+                    continue;
+            }
+        }
+        else
+        {
+            if ((item < INVEN_WIELD)
+                && !queue_deferred_pickup_pack_drop(item, remove_amt))
+            {
+                continue;
+            }
+
+            if (item >= INVEN_WIELD)
+                inven_drop(item, remove_amt);
+        }
+
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        notice_stuff();
+        replaced = true;
+        break;
+    }
+
+    inventory_menu_set_expand_supplies(old_expand_supplies);
+    replacement_filter_incoming = old_filter;
+    item_tester_hook = old_item_tester_hook;
+    item_tester_tval = old_item_tester_tval;
+    item_tester_full = old_item_tester_full;
+
+    return replaced ? PICKUP_FAILURE_RETRY : PICKUP_FAILURE_ABORT;
+}
+
+static bool pickup_brass_lamp(int o_idx, object_type* o_ptr)
+{
+    int oil_amount;
+    int pickup_y;
+    int pickup_x;
+
+    if (!object_is_brass_lamp(o_ptr))
+        return false;
+
+    if (o_ptr->number != 1)
+        return false;
+
+    pickup_y = o_ptr->iy;
+    pickup_x = o_ptr->ix;
+    oil_amount = MIN(o_ptr->timeout, FUEL_LAMP);
+
+    if (player_light_available_capacity(o_ptr) <= 0)
+        return false;
+
+    player_gain_lamp_oil_with_bonus(oil_amount, true, 1);
+    o_ptr->timeout = 0;
+    give_player_item(o_ptr);
+
+    if (!o_ptr->k_idx || o_ptr->number <= 0)
+    {
+        if (!o_ptr->k_idx)
+        {
+            log_debug("pickup_brass_lamp: restoring wiped floor object %d to "
+                "(%d,%d) before delete", o_idx, pickup_y, pickup_x);
+            o_ptr->iy = pickup_y;
+            o_ptr->ix = pickup_x;
+        }
+        delete_object_idx(o_idx);
+    }
+
+    flush_deferred_pickup_drop();
+
+    return true;
+}
+
+static bool pickup_brass_lamp_oil_only(object_type* o_ptr)
+{
+    int oil_amount;
+
+    if (!object_is_brass_lamp(o_ptr) || (o_ptr->number != 1))
+        return false;
+
+    oil_amount = MIN(o_ptr->timeout, FUEL_LAMP);
+    if ((oil_amount <= 0) || !get_check("Take only the oil? "))
+        return false;
+
+    if (!confirm_oil_pickup_overflow(o_ptr, oil_amount))
+    {
+        msg_print("You leave it on the ground.");
+        return true;
+    }
+
+    player_gain_lamp_oil(oil_amount, true);
+    o_ptr->timeout = 0;
+    msg_print("You siphon the oil and leave the lamp behind.");
+    return true;
+}
+
+static int carried_oil_flask_count(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* s_ptr = supplies_entry_at(i);
+        if (s_ptr && s_ptr->k_idx && s_ptr->tval == TV_FLASK)
+            count += MAX(s_ptr->number, 1);
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (o_ptr->k_idx && o_ptr->tval == TV_FLASK)
+            count += MAX(o_ptr->number, 1);
+    }
+
+    return count;
+}
+
+static int drop_oil_flasks_for_lamp(int needed_slots)
+{
+    int dropped = 0;
+
+    while (needed_slots > 0)
+    {
+        bool removed = false;
+
+        for (int i = 0; i < supplies_entry_count(); i++)
+        {
+            object_type* s_ptr = supplies_entry_at(i);
+            if (!s_ptr || !s_ptr->k_idx || s_ptr->tval != TV_FLASK)
+                continue;
+
+            if (supplies_drop_amount(i, 1))
+            {
+                dropped++;
+                needed_slots--;
+                removed = true;
+            }
+            break;
+        }
+
+        if (removed)
+            continue;
+
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            object_type* o_ptr = &inventory[i];
+            if (!o_ptr->k_idx || o_ptr->tval != TV_FLASK)
+                continue;
+
+            inven_drop(i, 1);
+            dropped++;
+            needed_slots--;
+            removed = true;
+            break;
+        }
+
+        if (!removed)
+            break;
+    }
+
+    return dropped;
+}
+
+static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming)
+{
+    int incoming_slots;
+    int needed_slots;
+    int dropped;
+
+    if (!object_is_brass_lamp(incoming))
+        return false;
+
+    incoming_slots = player_oil_container_slot_cost(incoming)
+        * MAX(incoming->number, 1);
+    needed_slots = player_oil_container_slots_used() + incoming_slots
+        - player_oil_container_slot_capacity();
+
+    if (needed_slots <= 0)
+        return false;
+
+    if (carried_oil_flask_count() < needed_slots)
+        return false;
+
+    dropped = drop_oil_flasks_for_lamp(needed_slots);
+    if (dropped > 0)
+    {
+        msg_format("Your lamp replaces %d oil flask%s.",
+            dropped, (dropped == 1) ? "" : "s");
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    }
+
+    return dropped > 0;
+}
+
 /*
  * Helper routine for py_pickup() and py_pickup_floor().
  *
@@ -3395,6 +3996,7 @@ static bool prompt_replace_pack_item(const object_type* incoming)
  *
  * Delete the object afterwards.
  */
+static bool prepare_floor_object_for_pickup(int o_idx, object_type* o_ptr);
 
 void py_pickup_aux(int o_idx)
 {
@@ -3402,6 +4004,10 @@ void py_pickup_aux(int o_idx)
     char o_name[120];
     
     o_ptr = &o_list[o_idx];
+
+    if (object_is_searched_skeleton(o_ptr))
+        return;
+
     // Remember the floor position even if give_player_item wipes the object
     int pickup_y = o_ptr->iy;
     int pickup_x = o_ptr->ix;
@@ -3409,11 +4015,23 @@ void py_pickup_aux(int o_idx)
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
     {
+        if (!prepare_floor_object_for_pickup(o_idx, o_ptr))
+        {
+            flush_deferred_pickup_drop();
+            return;
+        }
+
+        if (pickup_brass_lamp(o_idx, o_ptr))
+            return;
+
         /* Check for Oath of the Smith violation */
         if (smith_oath_forbids_object(o_ptr))
         {
             if (!smith_oath_confirm_break())
+            {
+                flush_deferred_pickup_drop();
                 return;
+            }
         }
 
         /* Check for supply items with partial pickup option */
@@ -3436,6 +4054,7 @@ void py_pickup_aux(int o_idx)
                 if (qty <= 0)
                 {
                     msg_print("You leave it on the ground.");
+                    flush_deferred_pickup_drop();
                     return;
                 }
                 
@@ -3451,6 +4070,8 @@ void py_pickup_aux(int o_idx)
                 
                 /* Break the truce if creatures see */
                 break_truce(false);
+
+                flush_deferred_pickup_drop();
                 
                 return;
             }
@@ -3471,6 +4092,8 @@ void py_pickup_aux(int o_idx)
             delete_object_idx(o_idx);
         }
 
+        flush_deferred_pickup_drop();
+
         return;
     }
 
@@ -3478,6 +4101,7 @@ void py_pickup_aux(int o_idx)
     o_ptr->iy = pickup_y;
     o_ptr->ix = pickup_x;
     delete_object_idx(o_idx);
+    flush_deferred_pickup_drop();
 }
 
 /*
@@ -3521,20 +4145,6 @@ void do_cmd_pickup_from_pile(void)
             break;
         }
 
-        /* Restrict the choices */
-        item_tester_hook = inven_carry_okay;
-
-        /* re-test to see if we can pick any of them up */
-        floor_num = scan_floor(
-            floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x01);
-
-        /* Nothing can be picked up */
-        if (floor_num < 1)
-        {
-            msg_format("Your backpack is full.");
-            break;
-        }
-
         /* Save screen */
         screen_save();
 
@@ -3543,9 +4153,6 @@ void do_cmd_pickup_from_pile(void)
 
         SDL_strlcpy(
             prompt, "Pick up which object? (ESC to cancel):", sizeof(prompt));
-
-        /*clear the restriction*/
-        item_tester_hook = NULL;
 
         /* Get the object number to be bought */
         item = get_menu_choice(floor_num, prompt);
@@ -3566,9 +4173,6 @@ void do_cmd_pickup_from_pile(void)
         /* Load screen */
         screen_load();
     }
-
-    /*clear the restriction*/
-    item_tester_hook = NULL;
 
     /* Combine / Reorder the pack */
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
@@ -3612,17 +4216,13 @@ static void report_pack_limit_failure(const char* o_name, bool still)
         msg_format("You have no room for %s.", o_name);
 }
 
-typedef enum
-{
-    PICKUP_FAILURE_ABORT = 0,
-    PICKUP_FAILURE_RETRY,
-    PICKUP_FAILURE_EQUIPPED
-} pickup_failure_result;
-
 static bool item_tester_limit_group(const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx)
         return false;
+
+    if (inven_carry_limit_is_supply_weight())
+        return inven_carry_limit_can_replace(o_ptr);
 
     if (replacement_filter_incoming
         && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
@@ -3631,25 +4231,34 @@ static bool item_tester_limit_group(const object_type* o_ptr)
     return inven_carry_limit_can_replace(o_ptr);
 }
 
-static bool pack_has_limit_candidates(const object_type* incoming)
+static int supply_weight_replacement_amount(const object_type* incoming,
+                                            const object_type* candidate)
 {
-    for (int i = 0; i < INVEN_PACK; i++)
+    int incoming_weight;
+    int over_limit;
+    int amount;
+
+    if (!incoming || !candidate || !candidate->k_idx)
+        return 0;
+
+    if (!supplies_weight_counts_to_limit(incoming)
+        || !supplies_weight_counts_to_limit(candidate))
     {
-        object_type* j_ptr = &inventory[i];
-
-        if (!j_ptr->k_idx)
-            continue;
-
-        if (!inven_carry_limit_can_replace(j_ptr))
-            continue;
-
-        if (!pack_item_matches_replacement_type(incoming, j_ptr))
-            continue;
-
-        return true;
+        return 0;
     }
 
-    return false;
+    if (incoming->weight <= 0 || candidate->weight <= 0)
+        return 0;
+
+    incoming_weight = incoming->weight * MAX(incoming->number, 1);
+    over_limit = supplies_limit_weight() + incoming_weight
+        - supplies_current_weight_cap();
+
+    if (over_limit <= 0)
+        return 1;
+
+    amount = (over_limit + candidate->weight - 1) / candidate->weight;
+    return MIN(amount, MAX(candidate->number, 1));
 }
 
 static bool prompt_replace_pack_item_limit(const object_type* incoming,
@@ -3659,11 +4268,14 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     cptr label = inven_carry_limit_label();
     int limit = inven_carry_limit_value();
     bool replaced = false;
+    bool supply_weight_limit = inven_carry_limit_is_supply_weight();
 
     bool old_item_tester_full = item_tester_full;
     byte old_item_tester_tval = item_tester_tval;
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
+    bool old_expand_supplies =
+        inventory_menu_set_expand_supplies(supply_weight_limit);
 
     /* Ensure story font is disabled before showing messages */
     extern bool sdl_is_story_font_enabled(void);
@@ -3689,22 +4301,37 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     while (true)
     {
         int item;
+        object_type* drop_ptr = NULL;
+        int remove_amt = 0;
 
         if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
             break;
 
-        if ((item < 0) || (item >= INVEN_PACK))
+        if (item >= SUPPLIES_INDEX)
+        {
+            int supply_idx = item - SUPPLIES_INDEX;
+            drop_ptr = supplies_entry_at(supply_idx);
+
+            if (!drop_ptr || !drop_ptr->k_idx)
+            {
+                bell("That supply entry is empty.");
+                continue;
+            }
+        }
+        else if ((item < 0) || (item >= INVEN_PACK))
         {
             bell("Illegal object choice!");
             continue;
         }
-
-        object_type* drop_ptr = &inventory[item];
-
-        if (!drop_ptr->k_idx)
+        else
         {
-            bell("That slot is empty.");
-            continue;
+            drop_ptr = &inventory[item];
+
+            if (!drop_ptr->k_idx)
+            {
+                bell("That slot is empty.");
+                continue;
+            }
         }
 
         if (!inven_carry_limit_can_replace(drop_ptr))
@@ -3713,7 +4340,38 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             continue;
         }
 
-        inven_drop(item, drop_ptr->number);
+        if (supply_weight_limit)
+        {
+            if (item < SUPPLIES_INDEX)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            remove_amt = supply_weight_replacement_amount(incoming, drop_ptr);
+            if (remove_amt <= 0)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            if (!queue_deferred_pickup_supply_drop(item - SUPPLIES_INDEX,
+                    remove_amt))
+            {
+                continue;
+            }
+        }
+        else
+        {
+            if (item >= SUPPLIES_INDEX)
+            {
+                msg_print("That will not make enough room.");
+                continue;
+            }
+
+            if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
+                continue;
+        }
 
         p_ptr->notice |= (PN_COMBINE | PN_REORDER);
         notice_stuff();
@@ -3726,6 +4384,7 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     item_tester_hook = old_item_tester_hook;
     item_tester_tval = old_item_tester_tval;
     item_tester_full = old_item_tester_full;
+    inventory_menu_set_expand_supplies(old_expand_supplies);
 
     return replaced;
 }
@@ -3789,10 +4448,12 @@ static pickup_failure_result handle_zero_limit_pickup(object_type* incoming,
 }
 
 static pickup_failure_result handle_group_limit_pickup(object_type* incoming,
+                                                       int floor_o_idx,
                                                        const char* incoming_name)
 {
-    if (!pack_has_limit_candidates(incoming))
-        return PICKUP_FAILURE_ABORT;
+    if (object_uses_light_pickup_limit(incoming))
+        return prompt_replace_light_limit_item(incoming, floor_o_idx,
+            incoming_name);
 
     if (!prompt_replace_pack_item_limit(incoming, incoming_name))
         return PICKUP_FAILURE_ABORT;
@@ -3805,6 +4466,9 @@ static pickup_failure_result resolve_pickup_failure(object_type* incoming,
                                                     const char* incoming_name,
                                                     bool attempted_replacement)
 {
+    bool has_lamp_oil_fallback = object_is_brass_lamp(incoming)
+        && (incoming->number == 1) && (incoming->timeout > 0);
+
     if (inven_carry_limit_failed())
     {
         if (inven_carry_limit_value() <= 0)
@@ -3812,9 +4476,9 @@ static pickup_failure_result resolve_pickup_failure(object_type* incoming,
                                             incoming_name);
 
         pickup_failure_result limit_result =
-            handle_group_limit_pickup(incoming, incoming_name);
+            handle_group_limit_pickup(incoming, floor_o_idx, incoming_name);
 
-        if (limit_result == PICKUP_FAILURE_ABORT)
+        if ((limit_result == PICKUP_FAILURE_ABORT) && !has_lamp_oil_fallback)
             report_pack_limit_failure(incoming_name, attempted_replacement);
 
         return limit_result;
@@ -3823,8 +4487,49 @@ static pickup_failure_result resolve_pickup_failure(object_type* incoming,
     if (prompt_replace_pack_item(incoming))
         return PICKUP_FAILURE_RETRY;
 
-    report_pack_limit_failure(incoming_name, attempted_replacement);
+    if (!has_lamp_oil_fallback)
+        report_pack_limit_failure(incoming_name, attempted_replacement);
+
     return PICKUP_FAILURE_ABORT;
+}
+
+static bool prepare_floor_object_for_pickup(int o_idx, object_type* o_ptr)
+{
+    char o_name[120];
+    bool attempted_replacement = false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+
+    auto_replace_flasks_for_brass_lamp(o_ptr);
+
+    while (!inven_carry_okay(o_ptr))
+    {
+        pickup_failure_result failure = resolve_pickup_failure(
+            o_ptr, o_idx, o_name, attempted_replacement);
+
+        if (failure == PICKUP_FAILURE_RETRY)
+        {
+            attempted_replacement = true;
+            continue;
+        }
+
+        if (failure == PICKUP_FAILURE_EQUIPPED)
+            return false;
+
+        if (pickup_brass_lamp_oil_only(o_ptr))
+        {
+            flush_deferred_pickup_drop();
+            return false;
+        }
+
+        flush_deferred_pickup_drop();
+        return false;
+    }
+
+    return true;
 }
 
 void py_pickup(void)
@@ -3848,11 +4553,14 @@ void py_pickup(void)
         /* Get the object */
         o_ptr = &o_list[this_o_idx];
 
-        /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-
         /* Get the next object */
         next_o_idx = o_ptr->next_o_idx;
+
+        if (object_is_searched_skeleton(o_ptr))
+            continue;
+
+        /* Describe the object */
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Hack -- disturb */
         disturb(0, 0);
@@ -3865,7 +4573,6 @@ void py_pickup(void)
             continue;
         }
 
-        bool attempted_replacement = false;
         bool skip_current_item = false;
 
         if (p_ptr->active_ability[S_WIL][WIL_CHANNELING] && o_ptr->tval == TV_STAFF && o_ptr->pval > 0)
@@ -3965,33 +4672,6 @@ void py_pickup(void)
                     }
                 }
             }
-        }
-
-        if (skip_current_item)
-            continue;
-
-        while (!inven_carry_okay(o_ptr))
-        {
-            pickup_failure_result failure = resolve_pickup_failure(
-                o_ptr, this_o_idx, o_name, attempted_replacement);
-
-            if (failure == PICKUP_FAILURE_RETRY)
-            {
-                attempted_replacement = true;
-                continue;
-            }
-
-            if (failure == PICKUP_FAILURE_EQUIPPED)
-            {
-                done_pickup = true;
-                skip_current_item = true;
-            }
-            else
-            {
-                skip_current_item = true;
-            }
-
-            break;
         }
 
         if (skip_current_item)
@@ -4324,7 +5004,7 @@ void hit_trap(int y, int x)
         update_combat_rolls1b(NULL, PLAYER, true);
         update_combat_rolls2(4, 4, dam, -1, -1, prt, 100, GF_HURT, false);
 
-        acid_dam(net_dam, "an acid trap");
+        acid_dam(dam, 4, 16, net_dam, "an acid trap");
 
         /* Make a small amount of noise */
         monster_perception(true, false, 10);
@@ -5268,26 +5948,13 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = true;
     }
 
-    // inscribing an object with "!a" produces prompts to confirm that you with
-    // to attack with it idea and code from MarvinPA
-    if (o_ptr->obj_note && !p_ptr->truce && m_ptr->ml)
+    // "!a" on the weapon, or the gameplay option, prompts before attacking.
+    if ((pacifist_attack_warning
+            || weapon_has_attack_confirmation_inscription(o_ptr))
+        && !p_ptr->truce && m_ptr->ml)
     {
-        cptr s;
-        /* Find a '!' */
-        s = strchr(quark_str(o_ptr->obj_note), '!');
-
-        /* Process inscription */
-        while (s)
-        {
-            if ((s[1] == 'a')
-                && !get_check("Are you sure you wish to attack? "))
-            {
-                abort_attack = true;
-            }
-
-            /* Find another '!' */
-            s = strchr(s + 1, '!');
-        }
+        if (!get_check("Are you sure you wish to attack? "))
+            abort_attack = true;
     }
 
     // Warning about breaking the truce
@@ -5553,18 +6220,11 @@ void py_attack_aux(int y, int x, int attack_type)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
 
-            // Delay before result sound (varies by weapon type)
-            SDL_Delay(weapon_animation_delay(weapon_swing_type));
-
-            // Determine result sound: armor blocked, hit, or nothing
-            u16b result_sound = MSG_ARMOR; // default to armor
-            if (net_dam > 0)
-            {
-                result_sound = MSG_HIT;
-            }
-
-            // Play result sound
-            sound(result_sound);
+            // Schedule the result sound (armor or hit) anchored to the swing
+            // onset, so weapon_animation_delay is "ms from swing start" rather
+            // than drifting with display_hit's internal pause.
+            u16b result_sound = (net_dam > 0) ? MSG_HIT : MSG_ARMOR;
+            sound_delayed(result_sound, weapon_animation_delay(weapon_swing_type));
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -5772,12 +6432,10 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Player misses */
         else
         {
-            // Play weapon swing sound first (layered sound system)
+            // Play weapon swing sound (no result sound for misses, so no
+            // scheduling needed)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
-
-            // Delay before message (shorter for misses, still weapon-aware)
-            SDL_Delay(weapon_animation_delay(weapon_swing_type) - 200);
 
             /* Message - no additional sound for miss */
             msg_format("You miss %s.", m_name);
@@ -7030,7 +7688,7 @@ static bool run_test(void)
              o_ptr = get_next_object(o_ptr))
         {
             /* Visible object */
-            if (o_ptr->marked)
+            if (o_ptr->marked && !object_is_searched_skeleton(o_ptr))
                 return (true);
         }
 

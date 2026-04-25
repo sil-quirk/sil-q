@@ -4,11 +4,12 @@
 # O:<SVAL>:<weight>:<text>          (opening line)
 # C:<SVAL>:<weight>:<text>          (closing line)
 # M:<SVAL>:<HINT>:<weight>:<text>   (main hint line)
+# M:<SVAL>:<HINT>:<weight>:<text>||<extra text>   (main hint with companion line)
 #   SVAL: ELF | HUMAN | ORC | ANY
 #   HINT: GREAT_VAULT | VAULT_ARTIFACT | STAIRS | FORGE | UNIQUE | TIP | SIZE | QUEST | LABYRINTH | CHASM | CAVE | CAVE_ICE | CAVE_FIRE | CAVE_POIS | ROOMY | RUINED | CAVEY
 # Tokens: {PART} {PART_HAZARD} {SIZEWORD} {UNIQUE_TYPE} {DIR} {DIST} {SITE}
 
-V:0.9.5
+V:0.9.6
 
 # --- Openings ---
 
@@ -194,7 +195,7 @@ M:ELF:ROOMY:100:In the {PART} {DIST} {DIR} the Enemy's hand is plain; yet blades
 # Human
 M:HUMAN:ROOMY:100:Need weapons or armor? Head {DIST} {DIR} for the {PART}.
 M:HUMAN:ROOMY:100:The {PART} are {DIST} {DIR}. That's where I found most of my gear.
-M:HUMAN:ROOMY:100:If you want a better blade, try the {PART} {DIST} {DIR}—more steel there than in broken rooms.
+M:HUMAN:ROOMY:100:If you want a better blade, try the {PART} {DIST} {DIR}-more steel there than in broken rooms.
 
 # Orc
 M:ORC:ROOMY:100:Want sword or mail? Go {DIST} {DIR} to the {PART}.
@@ -210,8 +211,8 @@ M:ELF:RUINED:100:In the {PART} {DIST} {DIR}, the floor yields broken tools and s
 
 # Human
 M:HUMAN:RUINED:100:The {PART} are {DIST} {DIR}. Good place for odds and whatever people dropped running.
-M:HUMAN:RUINED:100:If you're short on supplies, check the {PART} {DIST} {DIR}—I've found scraps there.
-M:HUMAN:RUINED:100:Ruins {DIST} {DIR}. Expect junk… but sometimes useful junk.
+M:HUMAN:RUINED:100:If you're short on supplies, check the {PART} {DIST} {DIR}-I've found scraps there.
+M:HUMAN:RUINED:100:Ruins {DIST} {DIR}. Expect junk... but sometimes useful junk.
 
 # Orc
 M:ORC:RUINED:100:Ruined halls {DIST} {DIR}. Lots of junk. Some good.
@@ -226,7 +227,7 @@ M:ELF:CAVEY:100:The {PART} lie {DIST} {DIR}. Common spoils are few there, but yo
 M:ELF:CAVEY:100:In the {PART} {DIST} {DIR}, look to the stone itself; treasure comes not as gifts, but as veins.
 
 # Human
-M:HUMAN:CAVEY:100:The {PART} are {DIST} {DIR}. Don't expect much gear… but I've seen gems there.
+M:HUMAN:CAVEY:100:The {PART} are {DIST} {DIR}. Don't expect much gear... but I've seen gems there.
 M:HUMAN:CAVEY:100:If you want gems or mithril, try the {PART} {DIST} {DIR}. The rock sometimes gives up glittering things.
 M:HUMAN:CAVEY:100:Natural caves {DIST} {DIR}. Less stuff on the floor, more in the stone.
 
@@ -518,41 +519,49 @@ M:ORC:QUEST:100:{DIST} {DIR} is {SITE}. Snaga don't belong there.
 
 # --- Tips ---
 
-# Elf
-M:ELF:TIP:100:In Angband, silence is a shield. Close doors, and let your footsteps be as snow.
-M:ELF:TIP:100:Do not squander your strength on every thrall of the Dark. Choose your hour, and pass unseen when you can.
-M:ELF:TIP:100:In these pits, pride is a swift slayer. Flee early, while the road is still yours.
-M:ELF:TIP:100:Keep your light, yet do not trust it: in deep places the dark has eyes of its own.
-M:ELF:TIP:100:Mark your path in mind and memory; in twisting halls a moment's haste becomes an hour of loss.
-M:ELF:TIP:100:If you are hurt, break sight and be still. Let the Enemy search empty shadows.
-M:ELF:TIP:100:Herbs are a small mercy in great darkness. Spend them only when no other hope remains.
-M:ELF:TIP:100:Songs are fair, but they carry. Sing only when you mean to be heard.
-M:ELF:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
-M:ELF:TIP:100:Look twice at pits and broken stone. Many in Angband die without ever meeting a blade.
-M:ELF:TIP:100:A door left ajar is a throat laid bare. Seal what you pass through.
-
-# Human
-M:HUMAN:TIP:100:In Angband, noise draws death. Shut doors behind you and keep your steps light.
-M:HUMAN:TIP:100:Do not fight every foe. Choose when to strike, and let darkness hide you when you must pass.
-M:HUMAN:TIP:100:Beware sleeping foes: they fall easily, but waking them at the wrong time can doom you.
-M:HUMAN:TIP:100:When you must flee, flee early. Pride kills quicker than blades.
-M:HUMAN:TIP:100:Keep a spare light. The dark is a weapon in the Enemy's hand.
-M:HUMAN:TIP:100:Watch the floor for pits and broken stone. Many deaths here are silent.
-M:HUMAN:TIP:100:If you are wounded, break line of sight and wait in silence. Let your breath return.
-M:HUMAN:TIP:100:If you carry herbs, save them for the moments you cannot outrun.
-M:HUMAN:TIP:100:Songs hearten the spirit, but they also carry. Use them with care.
-M:HUMAN:TIP:100:If you are unsure of a thing in the dark, look again before you step forward.
-M:HUMAN:TIP:100:I've seen strong men die fighting what they could have walked around.
-M:HUMAN:TIP:100:The dungeons are vast, and the enemies are plenty. Let that not detract you from your ultimate goal.
-
-# Orc
-M:ORC:TIP:100:Noise gets you killed. Shut doors. Walk soft.
-M:ORC:TIP:100:Don't fight everything. Pick fights you win. Run from fights you don't.
-M:ORC:TIP:100:If you run, run early. Brave snaga die first.
-M:ORC:TIP:100:Keep extra light. Dark is hungry.
-M:ORC:TIP:100:Watch for pits and broken stone. Floor eats snaga.
-M:ORC:TIP:100:If you get hurt, hide and wait. Let others look for you.
-M:ORC:TIP:100:Herbs save lives. Don't waste them on scratches.
-M:ORC:TIP:100:Songs? Ha. Noise is for fools.
-M:ORC:TIP:100:Dungeons big. Enemies many. Don't forget why you came.
-M:ORC:TIP:100:Look again before you step. In the dark, one wrong move is death.
+# Shared tutorial hints
+M:ANY:TIP:100:Evasion (+x) helps you avoid a hit. Protection [ydz] helps you absorb damage.
+M:ANY:TIP:100:Attack (+x) helps you land a hit. Damage [ydz] is what your actual hit will be.
+M:ANY:TIP:100:You do not need to kill all enemies; the game can be finished without killing anyone.
+M:ANY:TIP:100:Monsters can spawn on the stairs.
+M:ANY:TIP:100:You can tell item alignment by its description.
+M:ANY:TIP:100:If you get killed too soon, try the mightiest heroes with a 3 bright star rating.
+M:ANY:TIP:100:You can move more quietly using stealth mode with capital 'S'.
+M:ANY:TIP:100:Stealth is both sound-based and vision-based. Sound is determined by your Stealth skill.
+M:ANY:TIP:100:Your stealth score decreases if you are visible to a monster. For that to happen, your light radius has to be in its line of sight, based on its Perception.
+M:ANY:TIP:100:Sleeping monsters get Evasion set to [-5]. Sleeping monsters have a blue dot on top of their tile.
+M:ANY:TIP:100:Monsters that have noticed you have '!' on top of their tile.
+M:ANY:TIP:100:Your supply is limited by weight.
+M:ANY:TIP:100:Items in your inventory are limited by number in each category.
+M:ANY:TIP:100:Do not forget to use diagonal movement.
+M:ANY:TIP:100:You can reassign controls in the options.
+M:ANY:TIP:100:You can scale your game size by Alt+'+' or Alt+'-'.
+M:ANY:TIP:100:You can hide or unhide the right panel by Alt+'i'.
+M:ANY:TIP:100:You can hide or unhide the bottom panel by Alt+'l'.
+M:ANY:TIP:100:You can hide the left status panel by Alt+'p'.
+M:ANY:TIP:100:Monsters that surround you get a bonus to attack.
+M:ANY:TIP:100:Your character's special traits and curses descriptions can be seen by a Gem of Knowledge, if you are lucky.
+M:ANY:TIP:100:Removal of a curse or jinx via a Gem of Sanctity is roll-based.
+M:ANY:TIP:100:Identification benefits from Perception, Smithing, and abilities.
+M:ANY:TIP:100:It is harder to identify cursed items.
+M:ANY:TIP:100:You can turn off these tutorial hints via options.
+M:ANY:TIP:100:Monsters have elemental attacks. There are 2 types. Mixed elemental attacks give a monster an additional damage die. Pure elemental attacks ignore almost all protection.
+M:ANY:TIP:100:Protection that is not ignored by elemental attack is stated in the item's description.
+M:ANY:TIP:100:Weapon weight provides additional damage die sides, up to your Strength, but it decreases your ability to crit.
+M:ANY:TIP:100:You get a critical hit every time the difference between your attack and monster evasion is x = 7 + weight of your weapon. For every x, you get an additional damage die.
+M:ANY:TIP:100:Weapons can be one-handed, two-handed, or one-and-a-half-handed.
+M:ANY:TIP:100:If a one-and-a-half-handed weapon is used without a shield, it gets +2 damage sides.
+M:ANY:TIP:100:Some abilities only work explicitly with one-handed or two-handed weapons.
+M:ANY:TIP:100:You can equip arrows or throwing weapons in your quiver. Quiver 2 retains passive bonuses.
+M:ANY:TIP:100:You can stack elemental resistances and vulnerabilities.
+M:ANY:TIP:100:For each elemental resistance of that type, pure elemental damage is halved.
+M:ANY:TIP:100:For each elemental vulnerability of that type, pure elemental damage is doubled.
+M:ANY:TIP:100:If you or a monster is vulnerable to an element, the attacker gets an additional damage die.
+M:ANY:TIP:100:Different partitions of the map have different probabilities to spawn specific item types.
+M:ANY:TIP:100:Will helps you resist negative effects.
+M:ANY:TIP:100:Perception helps you notice invisible enemies and identify items.
+M:ANY:TIP:100:Constitution increases your HP.
+M:ANY:TIP:100:Dexterity increases your attack, evasion, archery, and stealth skills.
+M:ANY:TIP:100:Grace increases your song points and your Will, Perception, Smithing, and Song skills.
+M:ANY:TIP:100:Keep watch of your light reserves.
+M:ANY:TIP:100:XP is used to increase skills and buy abilities. The cost increases progressively, so try to plan your future build.

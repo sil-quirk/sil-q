@@ -1433,6 +1433,19 @@ void sound(int val)
 }
 
 /*
+ * Schedule a sound to play after delay_ms milliseconds without blocking.
+ * Use this when you want an audio gap between sounds (e.g. weapon swing
+ * then hit "thunk") without freezing the game loop.
+ */
+void sound_delayed(int val, unsigned int delay_ms)
+{
+    if (!use_sound)
+        return;
+
+    sdl_sound_handle_delayed(val, (Uint32)delay_ms);
+}
+
+/*
  * The "quark" package
  *
  * This package is used to reduce the memory usage of object inscriptions.
@@ -2045,6 +2058,9 @@ void messages_free(void)
  */
 void move_cursor(int row, int col) { Term_gotoxy(col, row); }
 
+static bool ui_top_status_line_enabled(void);
+static void restore_top_status_line_after_clear(void);
+
 /*
  * Hack -- flush
  */
@@ -2082,6 +2098,27 @@ static void msg_flush(int x)
     Term_erase(0, 0, 255);
 }
 
+static bool ui_top_status_line_enabled(void)
+{
+    return (op_ptr && op_ptr->opt[OPT_top_status_line]);
+}
+
+static void restore_top_status_line_after_clear(void)
+{
+    if (!ui_top_status_line_enabled())
+        return;
+    if (!character_generated || !character_dungeon || !p_ptr)
+        return;
+    if (character_icky > 0)
+        return;
+
+    if (Term)
+        Term_erase(0, 0, 255);
+
+    p_ptr->redraw |= (PR_EXTRA | PR_DEPTH | PR_SONG);
+    handle_stuff();
+}
+
 static int message_column = 0;
 
 /*
@@ -2116,9 +2153,13 @@ static void msg_print_aux(u16b type, cptr msg)
     char buf[1024];
     byte color;
     int w, h;
+    int available_width;
 
     /* Obtain the size */
     (void)Term_get_size(&w, &h);
+    available_width = w - 8;
+    if (available_width < 1)
+        available_width = 1;
 
     /* Hack -- Reset */
     if (!msg_flag)
@@ -2128,7 +2169,7 @@ static void msg_print_aux(u16b type, cptr msg)
     n = (msg ? strlen(msg) : 0);
 
     /* Hack -- flush when requested or needed */
-    if (message_column && (!msg || ((message_column + n) > (w - 8))))
+    if (message_column && (!msg || ((message_column + n) > available_width)))
     {
         /* Flush */
         msg_flush(message_column);
@@ -2138,11 +2179,18 @@ static void msg_print_aux(u16b type, cptr msg)
 
         /* Reset */
         message_column = 0;
+
+        if (!msg)
+            restore_top_status_line_after_clear();
     }
 
     /* No message */
     if (!msg)
+    {
+        if (ui_top_status_line_enabled())
+            restore_top_status_line_after_clear();
         return;
+    }
 
     /* Paranoia */
     if (n > 1000)
@@ -2155,6 +2203,13 @@ static void msg_print_aux(u16b type, cptr msg)
     /* Window stuff */
     p_ptr->window |= (PW_MESSAGE);
 
+    if (ui_top_status_line_enabled())
+    {
+        msg_flag = false;
+        message_column = 0;
+        return;
+    }
+
     /* Copy it */
     SDL_strlcpy(buf, msg, sizeof(buf));
 
@@ -2164,18 +2219,25 @@ static void msg_print_aux(u16b type, cptr msg)
     /* Get the color of the message */
     color = message_type_color(type);
 
+    /* With auto-more enabled, intermediate chunks are never visible. */
+    if (auto_more && (n > available_width))
+    {
+        t += (n - available_width);
+        n = available_width;
+    }
+
     /* Split message */
-    while (n > (w - 8))
+    while (n > available_width)
     {
         char oops;
 
         int check, split;
 
         /* Default split */
-        split = (w - 8);
+        split = available_width;
 
         /* Find the "best" split point */
-        for (check = (w / 2); check < (w - 8); check++)
+        for (check = (w / 2); check < available_width; check++)
         {
             /* Found a valid split point */
             if (t[check] == ' ')
@@ -2316,6 +2378,13 @@ void message_format(u16b message_type, s16b extra, cptr fmt, ...)
  */
 void message_flush(void)
 {
+    if (ui_top_status_line_enabled())
+    {
+        msg_flag = false;
+        message_column = 0;
+        return;
+    }
+
     /* Hack -- Reset */
     if (!msg_flag)
         message_column = 0;
@@ -2334,10 +2403,75 @@ void message_flush(void)
     }
 }
 
+void message_discard_pending(void)
+{
+    msg_flag = false;
+    message_column = 0;
+
+    if (!Term)
+        return;
+
+    Term_erase(0, 0, 255);
+    if (ui_top_status_line_enabled())
+        restore_top_status_line_after_clear();
+}
+
 /*
  * Hack -- prevent "accidents" in "screen_save()" or "screen_load()"
  */
 static int screen_depth = 0;
+static int supporting_panes_hidden_depth = 0;
+static bool startup_supporting_panes_hidden = false;
+
+bool screen_saved_fullscreen_active(void)
+{
+    return false;
+}
+
+void screen_push_supporting_panes_hidden(void)
+{
+    supporting_panes_hidden_depth++;
+    sdl_refresh_supporting_panes_layout();
+}
+
+void screen_pop_supporting_panes_hidden(void)
+{
+    if (supporting_panes_hidden_depth > 0)
+        supporting_panes_hidden_depth--;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_supporting_panes_hidden_active(void)
+{
+    return (supporting_panes_hidden_depth > 0);
+}
+
+void screen_set_startup_supporting_panes_hidden(bool hidden)
+{
+    startup_supporting_panes_hidden = hidden;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_startup_supporting_panes_hidden_active(void)
+{
+    return startup_supporting_panes_hidden;
+}
+
+void screen_clear_all_terms_no_fresh(void)
+{
+    term* old = Term;
+
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++)
+    {
+        if (!angband_term[i])
+            continue;
+
+        Term_activate(angband_term[i]);
+        Term_clear();
+    }
+
+    Term_activate(old);
+}
 
 /*
  * Save the screen, and increase the "icky" depth.
@@ -2346,6 +2480,8 @@ static int screen_depth = 0;
  */
 void screen_save(void)
 {
+    g_term_clear_hook = NULL;
+
     /* Hack -- Flush messages */
     message_flush();
 
@@ -2384,12 +2520,17 @@ void screen_save(void)
  */
 void screen_load(void)
 {
+    bool restored_screen = false;
+
     /* Hack -- Flush messages */
     message_flush();
 
     /* Load the screen (if legal) */
     if (--screen_depth == 0)
+    {
         Term_load();
+        restored_screen = true;
+    }
 
     /* Decrease "icky" depth */
     character_icky--;
@@ -2413,6 +2554,13 @@ void screen_load(void)
                   scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
                   scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
     }
+
+    /* Push the restored terminal contents immediately. Some overlay exits do
+     * not hit another global refresh pass before idling for input. */
+    if (restored_screen)
+        Term_fresh();
+
+    sdl_refresh_supporting_panes_layout();
 }
 
 /*
@@ -2482,7 +2630,6 @@ void c_prt(byte attr, cptr str, int row, int col)
 
     /* Dump the attr/text */
     Term_addstr(-1, attr, str);
-    
     /* Log buffer state after adding text */
     if (row == 0 && Term && Term->scr)
     {
@@ -2530,24 +2677,56 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
 {
     int x = indent;
     int lines = 1;
+    bool have_space_on_line = false;
+    int chars_since_space = 0;
     cptr s;
 
-    for (s = str; *s; s++) {
-        if (*s == '\n') {
+    for (s = str; *s; s++)
+    {
+        char ch;
+
+        if (*s == '\n')
+        {
             x = indent;
             lines++;
+            have_space_on_line = false;
+            chars_since_space = 0;
             continue;
         }
-        /* Printable or space */
-        char ch = isprint((unsigned char)*s) ? *s : ' ';
-        /* If adding this char exceeds wrap, and it's not a space, wrap */
-        if (x >= wrap_width && ch != ' ') {
-            x = indent;
+
+        ch = isprint((unsigned char)*s) ? *s : ' ';
+
+        /*
+         * Mirror text_out_to_screen(): wrap on a non-space once we have
+         * reached the wrap boundary, and carry the current trailing word to
+         * the next line when there is a prior break space on this line.
+         */
+        if ((x >= wrap_width) && (ch != ' '))
+        {
+            int moved_chars = 0;
+
+            if (have_space_on_line && (chars_since_space > 0))
+                moved_chars = chars_since_space;
+
+            x = indent + moved_chars;
             lines++;
+            have_space_on_line = false;
+            chars_since_space = moved_chars;
         }
-        /* Advance column */
+
         x++;
+
+        if (ch == ' ')
+        {
+            have_space_on_line = true;
+            chars_since_space = 0;
+        }
+        else
+        {
+            chars_since_space++;
+        }
     }
+
     return lines;
 }
 
@@ -2555,10 +2734,19 @@ void text_out_to_screen(byte a, cptr str)
 {
     /* If story font is enabled, use pixel-based wrapping */
     extern bool sdl_is_story_font_enabled(void);
-    if (sdl_is_story_font_enabled())
+    if (sdl_is_story_font_enabled()
+        && !(Term && Term->story_font_grid))
     {
         text_out_to_screen_story(a, str);
         return;
+    }
+
+    if (sdl_is_story_font_enabled() && Term && Term->story_font_grid)
+    {
+        log_debug("text_out_to_screen: grid story text using cell wrapping "
+            "at row=%d col=%d wrap=%d text='%.50s'",
+            Term->scr ? Term->scr->cy : -1, Term->scr ? Term->scr->cx : -1,
+            text_out_wrap, str ? str : "");
     }
 
     int x, y;
@@ -3537,21 +3725,38 @@ bool get_check_oath_multiline(cptr prompt)
 int get_menu_choice(s16b max, char* prompt)
 {
     int choice = -1;
-
-    char ch;
-
+    int highlight = 0;
+    int ch;
+    bool steamdeck = steamdeck_controls_active();
     bool done = false;
+    char prompt_buf[160];
 
-    prt(prompt, 0, 0);
+    if (steamdeck)
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "%s D-pad choose, A/Enter select, B/ESC cancel", prompt);
+    else
+        SDL_strlcpy(prompt_buf, prompt, sizeof(prompt_buf));
+
+    prt(prompt_buf, 0, 0);
 
     while (!done)
     {
+        if (steamdeck && max > 0)
+        {
+            for (int i = 0; i < max; i++)
+                Term_putstr(0, i + 1, 1,
+                    (i == highlight) ? TERM_L_BLUE : TERM_SLATE,
+                    (i == highlight) ? ">" : " ");
+            Term_gotoxy(0, highlight + 1);
+            Term_fresh();
+        }
+
         ch = inkey();
 
         /* Letters are used for selection */
-        if (isalpha(ch))
+        if (!steamdeck && isalpha((unsigned char)ch))
         {
-            if (islower(ch))
+            if (islower((unsigned char)ch))
             {
                 choice = A2I(ch);
             }
@@ -3571,14 +3776,41 @@ int get_menu_choice(s16b max, char* prompt)
                 bell("Illegal response to question!");
             }
         }
+        else if (steamdeck && max > 0 && (ch == '8'
+#ifdef ARROW_UP
+            || ch == ARROW_UP
+#endif
+            ))
+        {
+            highlight = (highlight + max - 1) % max;
+        }
+        else if (steamdeck && max > 0 && (ch == '2'
+#ifdef ARROW_DOWN
+            || ch == ARROW_DOWN
+#endif
+            ))
+        {
+            highlight = (highlight + 1) % max;
+        }
+        else if (steamdeck && max > 0
+            && ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+                || (ch == steamdeck_confirm_key())))
+        {
+            choice = highlight;
+            done = true;
+        }
 
         /* Allow user to exit the fuction */
-        else if (ch == ESCAPE)
+        else if ((ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
         {
             /* Mark as no choice made */
             choice = -1;
 
             done = true;
+        }
+        else if (steamdeck && isalpha((unsigned char)ch))
+        {
+            bell("Use D-pad and confirm to select in this mode.");
         }
 
         /* Invalid input */
@@ -3691,6 +3923,17 @@ void request_command(void)
     /* Get command */
     while (1)
     {
+        if (active_narrative_banner_consumes_input())
+        {
+            msg_flag = false;
+            inkey_flag = true;
+            (void)inkey();
+            prt("", 0, 0);
+            clear_active_narrative_banner();
+            do_cmd_redraw();
+            continue;
+        }
+
         /* Hack -- auto-commands */
         if (p_ptr->command_new)
         {
@@ -3903,7 +4146,10 @@ void request_command(void)
     }
 
     /* Hack -- erase the message line. */
-    prt("", 0, 0);
+    if (ui_top_status_line_enabled())
+        restore_top_status_line_after_clear();
+    else
+        prt("", 0, 0);
 }
 
 /*

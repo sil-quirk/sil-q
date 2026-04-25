@@ -6,6 +6,11 @@
 
 #define GAMEPAD_TRIGGER_COUNT 2
 #define GAMEPAD_STICK_DIR_COUNT 4
+#define GAMEPAD_MODIFIER_COUNT 3
+
+#define GAMEPAD_MODIFIER_SHIFT 0
+#define GAMEPAD_MODIFIER_CTRL 1
+#define GAMEPAD_MODIFIER_ALT 2
 
 #define GAMEPAD_STICK_DIR_UP 0
 #define GAMEPAD_STICK_DIR_DOWN 1
@@ -26,10 +31,26 @@
 #define SDL_TOUCH_PANE_PANEL_COUNT 2
 #define SDL_TOUCH_PANE_PANEL_MAIN 0
 #define SDL_TOUCH_PANE_PANEL_SECOND 1
+#define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
     SDL_MIN_TERMINAL_COMPACT = 1,
+};
+
+enum sdl_config_load_status {
+    SDL_CONFIG_LOAD_OK = 0,
+    SDL_CONFIG_LOAD_READ_FAILED,
+    SDL_CONFIG_LOAD_PARSE_FAILED,
+};
+
+struct sdl_pane_profile {
+    int main_view_scale;
+    int aux_view_font_size;
+    bool enable_right_panes;
+    bool enable_bottom_panes;
+    int pane_count;
+    struct pane_config pane_configs[MAX_PANE_CONFIGS];
 };
 
 // SDL-specific configuration structure
@@ -41,9 +62,12 @@ struct sdl_config {
     int margin;
     bool fullscreen;
     bool tiles;
+    bool use_unsafe_area;
     bool enable_right_panes;
     bool enable_bottom_panes;
+    bool show_pane_borders;
     bool hide_left_panel;
+    int hidden_left_panel_mode;
     int min_terminal_mode;
     
     // Window position and size for windowed mode
@@ -78,6 +102,7 @@ struct sdl_config {
     bool gamepad_enabled;                 // Enable gamepad input
     bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
     bool steamdeck_mode;                  // Steam Deck UI mode setting
+    bool steamdeck_inv_equip_same_button_cycle; // In Steam Deck UI, pressing inventory/equipment again cycles to the other menu
     bool gamepad_use_dpad;                // Use d-pad for movement
     bool gamepad_use_left_stick;          // Use left stick for movement
     int gamepad_deadzone;                 // Deadzone for analog sticks
@@ -86,21 +111,28 @@ struct sdl_config {
     int gamepad_trigger_bindings[GAMEPAD_TRIGGER_COUNT];
     int gamepad_left_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
     int gamepad_right_stick_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_button_combo_bindings[GAMEPAD_MODIFIER_COUNT][SDL_GAMEPAD_BUTTON_COUNT];
+    int gamepad_trigger_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_TRIGGER_COUNT];
+    int gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
+    int gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    bool touch_swipe_enabled;
+    int touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
 };
 
 // Load SDL configuration from JSON file
-void sdl_config_load(const char* filename, struct sdl_config* config, 
-                     struct pane_config* pane_configs, int* pane_count, int max_panes);
+enum sdl_config_load_status sdl_config_load(const char* filename,
+    struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
+    int profile_count);
 
 // Save SDL configuration to JSON file
 void sdl_config_save(const char* filename, const struct sdl_config* config,
-                     const struct pane_config* pane_configs, int pane_count);
+                     const struct sdl_pane_profile* pane_profiles, int profile_count);
 
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);

@@ -854,6 +854,14 @@ static s16b score_runs_net_curses(void)
     return (s16b)net;
 }
 
+static bool score_runs_should_record_artefact(const artefact_type* art)
+{
+    if (!art)
+        return false;
+
+    return (art->found_num > 0) && !(art->flags3 & TR3_INSTA_ART);
+}
+
 static u16b score_runs_artefacts_found(void)
 {
     if (!a_info || !z_info)
@@ -862,7 +870,7 @@ static u16b score_runs_artefacts_found(void)
     u32b total = 0;
     for (int i = 0; i < z_info->art_max; i++) {
         artefact_type* a_ptr = &a_info[i];
-        if (a_ptr->cur_num > 0 && !(a_ptr->flags3 & TR3_INSTA_ART))
+        if (score_runs_should_record_artefact(a_ptr))
             total++;
     }
     if (total > UINT16_MAX)
@@ -901,11 +909,7 @@ static u16b score_runs_collect_artefact_entries(score_run_artefact_v1* entries,
     u16b count = 0;
     for (int i = 0; i < z_info->art_max && count < capacity; i++) {
         artefact_type* art = &a_info[i];
-        if (!art)
-            continue;
-        if (art->cur_num <= 0)
-            continue;
-        if (art->flags3 & TR3_INSTA_ART)
+        if (!score_runs_should_record_artefact(art))
             continue;
 
         score_run_artefact_v1* slot = &entries[count++];

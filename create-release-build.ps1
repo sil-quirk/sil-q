@@ -16,6 +16,48 @@ if ($IncludeCoverArt) {
 }
 Write-Host "========================================" -ForegroundColor Cyan
 
+function Remove-WavFilesRecursive {
+    param(
+        [string]$RootPath
+    )
+
+    if (-not (Test-Path $RootPath)) {
+        return 0
+    }
+
+    $wavFiles = @(Get-ChildItem -Path $RootPath -Recurse -File -Filter "*.wav" -ErrorAction SilentlyContinue)
+    foreach ($wav in $wavFiles) {
+        Remove-Item -Force $wav.FullName
+    }
+
+    return $wavFiles.Count
+}
+
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+function Resolve-ScriptRelativePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    if ([System.IO.Path]::IsPathRooted($PathValue)) {
+        return [System.IO.Path]::GetFullPath($PathValue)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $PathValue))
+}
+
+$buildScriptPath = Resolve-ScriptRelativePath "build-cmake.bat"
+$deploymentFolderPath = Resolve-ScriptRelativePath "sil-more-windows-sdl3"
+$deploymentFolder = Split-Path -Leaf $deploymentFolderPath
+$deploymentExePath = Join-Path $deploymentFolderPath "sil-more.exe"
+$outputFolderPath = Resolve-ScriptRelativePath $OutputFolder
+$libSourceRoot = Resolve-ScriptRelativePath "lib"
+$coverArtPath = Resolve-ScriptRelativePath "CoverArt"
+$legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
+$archiveScriptPath = Resolve-ScriptRelativePath "create-distribution-archive.ps1"
+
 # Define game data folders to copy (content only) - edit, pref, xtra, docs
 $libFoldersToCopy = @('edit', 'pref', 'xtra', 'docs')
 
@@ -25,11 +67,12 @@ $emptyLibFolders = @('data', 'apex', 'save', 'user')
 # Sub-folders to create within apex (for runtime data)
 $apexSubfolders = @('metaruns')
 
-# DLLs required for SDL3 runtime - EXACT list from sil-more_beta 0.9
+# DLLs required for the Windows SDL runtime
 $requiredDlls = @(
     'SDL3.dll',
     'SDL3_ttf.dll',
     'SDL3_image.dll',
+    'SDL3_mixer.dll',
     'libgcc_s_seh-1.dll',
     'libstdc++-6.dll',
     'libwinpthread-1.dll',
@@ -47,23 +90,41 @@ $requiredDlls = @(
     'libiconv-2.dll'
 )
 
-# Create release folder
-if (Test-Path $OutputFolder) {
-    Write-Host "Removing existing $OutputFolder..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force $OutputFolder
+Write-Host ""
+Write-Host "Checking for standard Windows deployment..." -ForegroundColor Yellow
+if (-not (Test-Path $deploymentExePath)) {
+    Write-Host "Standard deployment not found. Building now..." -ForegroundColor Cyan
+    & $buildScriptPath
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed!" -ForegroundColor Red
+        exit 1
+    }
 }
 
-New-Item -ItemType Directory -Path $OutputFolder | Out-Null
-Write-Host "Created release folder: $OutputFolder" -ForegroundColor Green
+if (-not (Test-Path $deploymentExePath)) {
+    Write-Host "  [ERROR] Standard deployment executable not found: $deploymentExePath" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "  [OK] Standard deployment found"
+
+# Create release folder
+if (Test-Path $outputFolderPath) {
+    Write-Host "Removing existing $outputFolderPath..." -ForegroundColor Yellow
+    Remove-Item -Recurse -Force $outputFolderPath
+}
+
+New-Item -ItemType Directory -Path $outputFolderPath | Out-Null
+Write-Host "Created release folder: $outputFolderPath" -ForegroundColor Green
 
 # Copy executable
 Write-Host ""
 Write-Host "Copying executable..." -ForegroundColor Yellow
-if (Test-Path "build-standard/sil-more.exe") {
-    Copy-Item "build-standard/sil-more.exe" "$OutputFolder/" -Force
+if (Test-Path $deploymentExePath) {
+    Copy-Item $deploymentExePath $outputFolderPath -Force
     Write-Host "  [OK] sil-more.exe"
 } else {
-    Write-Host "  [ERROR] sil-more.exe not found in build-standard/" -ForegroundColor Red
+    Write-Host "  [ERROR] sil-more.exe not found in $deploymentFolder/" -ForegroundColor Red
     exit 1
 }
 
@@ -74,15 +135,15 @@ $copiedDlls = 0
 $missingDlls = @()
 
 foreach ($dll in $requiredDlls) {
-    $srcPath = "sil-more-windows-sdl3/$dll"
+    $srcPath = Join-Path $deploymentFolderPath $dll
     if (Test-Path $srcPath) {
-        Copy-Item $srcPath "$OutputFolder/" -Force
+        Copy-Item $srcPath $outputFolderPath -Force
         $copiedDlls++
     } else {
         # Also check in lib folder as fallback
-        $libPath = "lib/$dll"
+        $libPath = Join-Path $libSourceRoot $dll
         if (Test-Path $libPath) {
-            Copy-Item $libPath "$OutputFolder/" -Force
+            Copy-Item $libPath $outputFolderPath -Force
             $copiedDlls++
         } else {
             $missingDlls += $dll
@@ -92,24 +153,25 @@ foreach ($dll in $requiredDlls) {
 
 Write-Host "  [OK] Copied $copiedDlls DLLs"
 if ($missingDlls.Count -gt 0) {
-    Write-Host "  [WARN] Missing DLLs:" -ForegroundColor Yellow
+    Write-Host "  [ERROR] Missing DLLs:" -ForegroundColor Red
     $missingDlls | ForEach-Object { Write-Host "    - $_" }
+    exit 1
 }
 
 # Create lib folder structure
 Write-Host ""
 Write-Host "Creating game data structure..." -ForegroundColor Yellow
-$libPath = "$OutputFolder/lib"
-if (-not (Test-Path $libPath)) {
-    New-Item -ItemType Directory -Path $libPath | Out-Null
+$releaseLibPath = Join-Path $outputFolderPath "lib"
+if (-not (Test-Path $releaseLibPath)) {
+    New-Item -ItemType Directory -Path $releaseLibPath | Out-Null
 }
 
 # Copy game data folders (with special handling for certain folders)
 $foldersCopied = 0
 $musicFilesCopied = 0
 foreach ($folder in $libFoldersToCopy) {
-    $srcFolder = "lib/$folder"
-    $dstFolder = "$libPath/$folder"
+    $srcFolder = Join-Path $libSourceRoot $folder
+    $dstFolder = Join-Path $releaseLibPath $folder
     
     if (Test-Path $srcFolder) {
         if ($folder -eq "edit") {
@@ -133,6 +195,7 @@ foreach ($folder in $libFoldersToCopy) {
 
             # Remove 'packs' subfolders in sound (sound packs are not included in the release)
             $soundPath = "$dstFolder/sound"
+            $musicPath = "$dstFolder/music"
             if (Test-Path $soundPath) {
                 $packs = Get-ChildItem -Path $soundPath -Directory -Recurse -Force | Where-Object { $_.Name -ieq "packs" }
                 if ($packs -and $packs.Count -gt 0) {
@@ -145,18 +208,12 @@ foreach ($folder in $libFoldersToCopy) {
                 }
             }
 
-            # Remove .wav files from the *root* of the sound folder (keep sounds in subfolders)
-            $rootSoundPath = "$dstFolder/sound"
-            if (Test-Path $rootSoundPath) {
-                $wavFiles = Get-ChildItem -Path $rootSoundPath -File -Filter "*.wav" -ErrorAction SilentlyContinue
-                if ($wavFiles -and $wavFiles.Count -gt 0) {
-                    foreach ($wf in $wavFiles) {
-                        Remove-Item -Force $wf.FullName
-                    }
-                    Write-Host "  [OK] lib/$folder (sound: removed $($wavFiles.Count) .wav files from sound root)"
-                } else {
-                    Write-Host "  [SKIP] lib/$folder (sound: no .wav files at root)"
-                }
+            # Keep the release tree OGG-only.
+            $wavFilesRemoved = Remove-WavFilesRecursive $dstFolder
+            if ($wavFilesRemoved -gt 0) {
+                Write-Host "  [OK] lib/$folder (audio: removed $wavFilesRemoved .wav files)"
+            } else {
+                Write-Host "  [SKIP] lib/$folder (audio: no .wav files found)"
             }
             
             # Remove non-16x16.png files from graf subfolder
@@ -168,10 +225,9 @@ foreach ($folder in $libFoldersToCopy) {
             }
 
             # Count music files if present in xtra
-            $musicPath = "$dstFolder/music"
             if (Test-Path $musicPath) {
-                $musicFilesCopied = (Get-ChildItem -Recurse $musicPath -File | Measure-Object).Count
-                Write-Host "  [OK] lib/$folder (music: $musicFilesCopied files)"
+                $musicFilesCopied = (Get-ChildItem -Path $musicPath -Recurse -File -Filter "*.ogg" | Measure-Object).Count
+                Write-Host "  [OK] lib/$folder (music: $musicFilesCopied .ogg files)"
             } else {
                 Write-Host "  [SKIP] lib/$folder/music (not found)"
             }
@@ -193,7 +249,7 @@ foreach ($folder in $libFoldersToCopy) {
 
 # Create empty folders for runtime use (data, apex, save, user)
 foreach ($folder in $emptyLibFolders) {
-    $emptyPath = "$libPath/$folder"
+    $emptyPath = Join-Path $releaseLibPath $folder
     if (-not (Test-Path $emptyPath)) {
         New-Item -ItemType Directory -Path $emptyPath | Out-Null
         Write-Host "  [CREATED] lib/$folder (empty)"
@@ -212,13 +268,14 @@ foreach ($folder in $emptyLibFolders) {
 if ($IncludeCoverArt) {
     Write-Host ""
     Write-Host "Copying CoverArt..." -ForegroundColor Yellow
-    if (Test-Path "CoverArt") {
-        Copy-Item -Recurse "CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "CoverArt" | Measure-Object).Count
+    $releaseCoverArtPath = Join-Path $outputFolderPath "CoverArt"
+    if (Test-Path $coverArtPath) {
+        Copy-Item -Recurse $coverArtPath $releaseCoverArtPath -Force
+        $artCount = (Get-ChildItem -Recurse $coverArtPath | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
-    } elseif (Test-Path "sil-more_beta 0.9/CoverArt") {
-        Copy-Item -Recurse "sil-more_beta 0.9/CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "$OutputFolder/CoverArt" | Measure-Object).Count
+    } elseif (Test-Path $legacyCoverArtPath) {
+        Copy-Item -Recurse $legacyCoverArtPath $releaseCoverArtPath -Force
+        $artCount = (Get-ChildItem -Recurse $releaseCoverArtPath | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
     } else {
         Write-Host "  [SKIP] CoverArt not found"
@@ -242,14 +299,14 @@ $manifestText += "  pref/                      - Default preferences and keybind
 $manifestText += "  data/                      - Empty directory (for future use)`n"
 $manifestText += "  xtra/                      - Extended resources (fonts, sound, music, minimal graphics)`n"
 $manifestText += "    font/                    - Font files`n"
-$manifestText += "    sound/                   - Audio files (sound packs excluded; root .wav files excluded)`n"
-$manifestText += "    music/                   - Background music files`n"
+$manifestText += "    sound/                   - Audio files (.ogg only; sound packs excluded)`n"
+$manifestText += "    music/                   - Background music files (.ogg only)`n"
 $manifestText += "    graf/                    - Graphics (only 16x16.png)`n"
 $manifestText += "  docs/                      - Documentation and manuals (6 files)`n"
 $manifestText += "  apex/                      - Runtime data directory (EMPTY - for metarun data)`n"
 $manifestText += "  save/                      - Runtime data directory (EMPTY - for player saves)`n"
 $manifestText += "  user/                      - Runtime data directory (EMPTY - for user data)`n"
-$manifestText += "*.dll                        - SDL3 runtime libraries (18 DLLs)`n"
+$manifestText += "*.dll                        - SDL3 runtime libraries ($($requiredDlls.Count) DLLs)`n"
 if ($IncludeCoverArt) {
     $manifestText += "CoverArt/                    - Game cover art and promotional images`n"
 }
@@ -260,14 +317,14 @@ $manifestText += "2. Run: sil-more.exe`n"
 $manifestText += "`n"
 $manifestText += "=== REQUIREMENTS ===" + "`n"
 $manifestText += "- Windows (64-bit)`n"
-$manifestText += "- All 18 DLL files must remain in the game folder`n"
+$manifestText += "- All $($requiredDlls.Count) DLL files must remain in the game folder`n"
 $manifestText += "- No external dependencies beyond what's included`n"
 $manifestText += "`n"
 $manifestText += "=== CONFIGURATION ===" + "`n"
 $manifestText += "Edit lib/pref/pref.prf to customize game settings`n"
 $manifestText += "`n"
 
-$manifestText | Set-Content "$OutputFolder/MANIFEST.txt"
+$manifestText | Set-Content (Join-Path $outputFolderPath "MANIFEST.txt")
 Write-Host "  [OK] MANIFEST.txt"
 
 # Calculate and display final size
@@ -276,9 +333,9 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "Release build complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Location: ./$OutputFolder" -ForegroundColor Cyan
+Write-Host "Location: $outputFolderPath" -ForegroundColor Cyan
 
-$folderSize = (Get-ChildItem -Recurse $OutputFolder | Measure-Object -Property Length -Sum).Sum / 1MB
+$folderSize = (Get-ChildItem -Recurse $outputFolderPath | Measure-Object -Property Length -Sum).Sum / 1MB
 $folderSizeGB = $folderSize / 1024
 if ($folderSize -gt 1024) {
     Write-Host "Size: $([math]::Round($folderSizeGB, 2)) GB"
@@ -291,13 +348,13 @@ Write-Host "Contents:" -ForegroundColor Yellow
 Write-Host "  - Executable: sil-more.exe"
 Write-Host "  - SDL3 Runtime: $copiedDlls DLLs"
 Write-Host "  - Game Data: $foldersCopied folders + empty directories"
-Write-Host "  - Music files: $musicFilesCopied files"
+Write-Host "  - Music files: $musicFilesCopied .ogg files"
 if ($IncludeCoverArt) {
     Write-Host "  - CoverArt: Included"
 }
 
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Test: .\$OutputFolder\sil-more.exe"
-Write-Host "  2. Archive: .\create-distribution-archive.ps1 -ReleaseFolder $OutputFolder"
+Write-Host "  1. Test: $(Join-Path $outputFolderPath 'sil-more.exe')"
+Write-Host "  2. Archive: $archiveScriptPath -ReleaseFolder $outputFolderPath -Version $Version"
 Write-Host ""

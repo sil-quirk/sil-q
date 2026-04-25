@@ -40,10 +40,10 @@ struct resolution_profile {
 // 1. Minimum main terminal: 40x24 tiles (in tile mode with 16x16 base tile size)
 // 2. Try maximum scale (up to 4) that fits: scale 4 = 2560x1536, scale 3 = 1920x1152, scale 2 = 1280x768, scale 1 = 640x384
 // 3. Aux view font size: proportional to scale (scale 4 = 24px, scale 3 = 18px, scale 2 = 16px, scale 1 = 9px)
-// 4. Right pane: if we can fit ≥40 columns (using ~0.6*font_size char width), add right pane
+// 4. Right pane: if we can fit >=40 columns (using ~0.6*font_size char width), add right pane
 //    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
 //    - Right pane width: 40-50 columns depending on available space
-// 5. Bottom pane: if we can fit ≥1 row below main terminal, add bottom pane
+// 5. Bottom pane: if we can fit >=1 row below main terminal, add bottom pane
 //    - Bottom pane contains: Rolls (half) and Log (half), rows=0 on second pane means auto-split
 //    - Maximum 4 rows for bottom pane
 // 6. Main terminal expands to use all remaining space
@@ -340,6 +340,8 @@ static enum pane_placement parse_pane_placement(const char* value)
     if (!value)
         return PLACE_RIGHT;
     if (strcmp(value, "BOTTOM") == 0) return PLACE_BOTTOM;
+    if (strcmp(value, "DOUBLE_BOTTOM") == 0 || strcmp(value, "DOUBLE BOTTOM") == 0)
+        return PLACE_DOUBLE_BOTTOM;
     if (strcmp(value, "RIGHT") == 0) return PLACE_RIGHT;
     if (strcmp(value, "LEFT") == 0) return PLACE_LEFT;
     if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
@@ -365,6 +367,145 @@ static int parse_min_terminal_mode(const char* value)
     if (strcmp(value, "COMPACT") == 0) return SDL_MIN_TERMINAL_COMPACT;
     if (strcmp(value, "NORMAL") == 0) return SDL_MIN_TERMINAL_NORMAL;
     return SDL_MIN_TERMINAL_NORMAL;
+}
+
+static const char* hidden_left_panel_mode_to_string(int mode)
+{
+    switch (mode) {
+        case HIDDEN_LEFT_PANEL_TOPLINE: return "SECOND_ROW";
+        case HIDDEN_LEFT_PANEL_TOP_LEFT:
+        default:
+            return "TOP_LEFT";
+    }
+}
+
+static int parse_hidden_left_panel_mode(const char* value)
+{
+    if (!value)
+        return HIDDEN_LEFT_PANEL_TOP_LEFT;
+    if (strcmp(value, "SECOND_ROW") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
+    if (strcmp(value, "TOP_STRING") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
+    if (strcmp(value, "TOP_LEFT") == 0) return HIDDEN_LEFT_PANEL_TOP_LEFT;
+    return HIDDEN_LEFT_PANEL_TOP_LEFT;
+}
+
+static int sdl_config_gamepad_action_binding_count(const struct sdl_config* config,
+    int binding)
+{
+    int count = 0;
+
+    if (!config)
+        return 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (config->gamepad_button_bindings[i] == binding)
+            count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (config->gamepad_trigger_bindings[i] == binding)
+            count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (config->gamepad_left_stick_bindings[i] == binding)
+            count++;
+        if (config->gamepad_right_stick_bindings[i] == binding)
+            count++;
+    }
+
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (config->gamepad_button_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (config->gamepad_trigger_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (config->gamepad_left_stick_combo_bindings[modifier][i] == binding)
+                count++;
+            if (config->gamepad_right_stick_combo_bindings[modifier][i] == binding)
+                count++;
+        }
+    }
+
+    if (config->gamepad_shoulder_combo_binding == binding)
+        count++;
+
+    return count;
+}
+
+static bool sdl_config_gamepad_combo_bindings_empty(const struct sdl_config* config)
+{
+    if (!config)
+        return true;
+
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (config->gamepad_button_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (config->gamepad_trigger_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (config->gamepad_left_stick_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+            if (config->gamepad_right_stick_combo_bindings[modifier][i]
+                != GAMEPAD_BIND_NONE)
+                return false;
+        }
+    }
+
+    return true;
+}
+
+static bool sdl_config_should_upgrade_legacy_gamepad_defaults(
+    const struct sdl_config* config)
+{
+    struct sdl_config defaults;
+
+    if (!config)
+        return false;
+
+    memset(&defaults, 0, sizeof(defaults));
+    sdl_config_set_default_gamepad_bindings(&defaults);
+
+    if (memcmp(config->gamepad_button_bindings, defaults.gamepad_button_bindings,
+            sizeof(defaults.gamepad_button_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_trigger_bindings, defaults.gamepad_trigger_bindings,
+            sizeof(defaults.gamepad_trigger_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_left_stick_bindings,
+            defaults.gamepad_left_stick_bindings,
+            sizeof(defaults.gamepad_left_stick_bindings)) != 0)
+        return false;
+
+    if (memcmp(config->gamepad_right_stick_bindings,
+            defaults.gamepad_right_stick_bindings,
+            sizeof(defaults.gamepad_right_stick_bindings)) != 0)
+        return false;
+
+    if (config->gamepad_shoulder_combo_binding
+        != defaults.gamepad_shoulder_combo_binding)
+        return false;
+
+    if (!sdl_config_gamepad_combo_bindings_empty(config))
+        return false;
+
+    if (config->steamdeck_inv_equip_same_button_cycle)
+        return false;
+
+    return true;
 }
 
 static char* read_file_contents(const char* filename)
@@ -399,6 +540,7 @@ static const byte app_interface_options[] = {
     OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
     OPT_look_objects_sort_by_difficulty, OPT_show_level_generation_debug,
+    OPT_show_elemental_item_rolls, OPT_top_status_line,
     OPT_NONE
 };
 
@@ -411,6 +553,7 @@ static const byte app_text_options[] = {
 
 static const byte app_efficiency_options[] = {
     OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
+    OPT_hide_supporting_panes_fullscreen,
     OPT_NONE
 };
 
@@ -420,12 +563,11 @@ static const byte app_gameplay_options[] = {
 };
 
 static const byte app_visual_options[] = {
-    OPT_auto_display_lists, OPT_artifact_unique_color, OPT_hilite_player,
-    OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
+    OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
+    OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
-    OPT_banner_message_stairs,
-    OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-    OPT_NONE
+    OPT_banner_message_stairs, OPT_show_smithing_difficulty,
+    OPT_show_smithing_difficulty_look, OPT_NONE
 };
 
 static bool option_list_contains(const byte* ids, int opt)
@@ -444,7 +586,13 @@ static bool option_list_contains(const byte* ids, int opt)
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
-    if (opt == OPT_intro_style)
+    if (opt == OPT_delay_factor || opt == OPT_hitpoint_warning
+        || opt == OPT_main_combat_rolls || opt == OPT_ability_desc_mode
+        || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
+        || opt == OPT_show_partition_narrative
+        || opt == OPT_narrative_banner_turns
+        || opt == OPT_hide_left_panel
+        || opt == OPT_hidden_left_panel_mode)
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
@@ -453,15 +601,63 @@ bool option_is_app_persistent(int opt)
         || option_list_contains(app_visual_options, opt);
 }
 
+static bool sdl_config_should_default_top_status_line(void)
+{
+    int pane_count;
+
+    if (!get_sdl_enable_bottom_panes())
+        return false;
+
+    pane_count = get_pane_config_count();
+    for (int i = 0; i < pane_count; i++) {
+        enum pane_placement where;
+
+        if (get_sdl_pane_type(i) != PANE_LOG)
+            continue;
+        if (!get_sdl_pane_enabled(i))
+            continue;
+
+        where = (enum pane_placement)get_sdl_pane_where(i);
+        if (!pane_placement_is_bottom(where))
+            continue;
+        if (get_sdl_pane_current_rows(i) <= 0)
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_config_apply_app_bool_defaults(const byte* option_ids)
+{
+    if (!op_ptr)
+        return;
+
+    /* Keep app-wide option defaults aligned with the canonical option table. */
+    for (int i = 0; option_ids[i] != OPT_NONE; i++) {
+        int opt = option_ids[i];
+
+        if (opt >= 0 && opt < OPT_MAX)
+            op_ptr->opt[opt] = option_norm[opt];
+    }
+}
+
 static void sdl_config_apply_app_option_defaults(void)
 {
     if (!op_ptr)
         return;
 
+    sdl_config_apply_app_bool_defaults(app_interface_options);
+    sdl_config_apply_app_bool_defaults(app_text_options);
+    sdl_config_apply_app_bool_defaults(app_efficiency_options);
+    sdl_config_apply_app_bool_defaults(app_gameplay_options);
+    sdl_config_apply_app_bool_defaults(app_visual_options);
+
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;
-    op_ptr->main_combat_rolls = get_sdl_steamdeck_mode() ? 2 : 0;
-#ifdef __ANDROID__
+    op_ptr->main_combat_rolls = 0;
+#if defined(__ANDROID__) || defined(SIL_IOS)
     op_ptr->ability_desc_mode = 1;
 #else
     op_ptr->ability_desc_mode = 0;
@@ -469,6 +665,10 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+    op_ptr->opt[OPT_stealth_vision] = true;
+    op_ptr->opt[OPT_sleep_icon] = true;
+    op_ptr->opt[OPT_top_status_line] = sdl_config_should_default_top_status_line();
 }
 
 static void sdl_config_load_app_option_group(cJSON* app_options,
@@ -607,6 +807,8 @@ void sdl_config_load_app_options(const char* filename)
             &op_ptr->level_entry_narrative_mode, LEVEL_ENTRY_NARRATIVE_OFF);
         sdl_config_load_byte_value(item, "partitionNarrativeMode",
             &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_OFF);
+        sdl_config_load_byte_value(item, "narrativeBannerTurns",
+            &op_ptr->narrative_banner_turns, NARRATIVE_BANNER_TURNS_MAX);
     }
 
     cJSON_Delete(root);
@@ -671,6 +873,47 @@ static cJSON* sdl_config_create_int_array(const int* src, int count)
     return array;
 }
 
+static void sdl_config_clear_gamepad_combo_bindings(struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++)
+            config->gamepad_button_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++)
+            config->gamepad_trigger_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            config->gamepad_left_stick_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+            config->gamepad_right_stick_combo_bindings[modifier][i] = GAMEPAD_BIND_NONE;
+        }
+    }
+}
+
+static const char* sdl_config_gamepad_button_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftButtonBindings",
+    "ctrlButtonBindings",
+    "altButtonBindings",
+};
+
+static const char* sdl_config_gamepad_trigger_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftTriggerBindings",
+    "ctrlTriggerBindings",
+    "altTriggerBindings",
+};
+
+static const char* sdl_config_gamepad_left_stick_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftLeftStickBindings",
+    "ctrlLeftStickBindings",
+    "altLeftStickBindings",
+};
+
+static const char* sdl_config_gamepad_right_stick_combo_names[GAMEPAD_MODIFIER_COUNT] = {
+    "shiftRightStickBindings",
+    "ctrlRightStickBindings",
+    "altRightStickBindings",
+};
+
 static cJSON* sdl_config_create_string_array(const char src[][SDL_TOUCH_PANE_LABEL_LEN], int count)
 {
     cJSON* array;
@@ -689,15 +932,250 @@ static cJSON* sdl_config_create_string_array(const char src[][SDL_TOUCH_PANE_LAB
     return array;
 }
 
-void sdl_config_load(const char* filename, struct sdl_config* config, 
-                     struct pane_config* pane_configs, int* pane_count, int max_panes)
+static void sdl_config_copy_pane_configs(struct pane_config* dest, int* dest_count,
+    const struct pane_config* src, int src_count)
 {
+    int count = src_count;
+
+    if (!dest || !dest_count)
+        return;
+
+    if (count < 0)
+        count = 0;
+    if (count > MAX_PANE_CONFIGS)
+        count = MAX_PANE_CONFIGS;
+
+    if (count > 0 && src)
+        memcpy(dest, src, sizeof(struct pane_config) * count);
+
+    if (count < MAX_PANE_CONFIGS)
+        memset(dest + count, 0, sizeof(struct pane_config) * (MAX_PANE_CONFIGS - count));
+
+    *dest_count = count;
+}
+
+static void sdl_config_copy_pane_profile(struct sdl_pane_profile* dest,
+    const struct sdl_pane_profile* src)
+{
+    if (!dest || !src)
+        return;
+
+    dest->main_view_scale = src->main_view_scale;
+    dest->aux_view_font_size = src->aux_view_font_size;
+    dest->enable_right_panes = src->enable_right_panes;
+    dest->enable_bottom_panes = src->enable_bottom_panes;
+    sdl_config_copy_pane_configs(dest->pane_configs, &dest->pane_count,
+        src->pane_configs, src->pane_count);
+}
+
+static void sdl_config_load_pane_array(cJSON* panes, struct pane_config* pane_configs,
+    int* pane_count, int max_panes, const char* label)
+{
+    int count = 0;
+    cJSON* pane_item = NULL;
+    int array_size;
+
+    if (!pane_count)
+        return;
+
+    *pane_count = 0;
+
+    if (!cJSON_IsArray(panes)) {
+        if (label)
+            log_warn("'%s' array not found in JSON", label);
+        return;
+    }
+
+    array_size = cJSON_GetArraySize(panes);
+    if (label)
+        log_debug("Found '%s' array with %d items", label, array_size);
+
+    cJSON_ArrayForEach(pane_item, panes) {
+        struct pane_config* pc;
+        cJSON* type;
+        cJSON* where;
+        cJSON* enabled;
+        cJSON* rows;
+        cJSON* cols;
+        cJSON* ratio;
+        cJSON* font_size;
+
+        if (count >= max_panes) {
+            log_warn("Too many panes in config, maximum is %d", max_panes);
+            break;
+        }
+
+        pc = &pane_configs[count];
+        memset(pc, 0, sizeof(*pc));
+        pc->pane = PANE_MAIN;
+        pc->enabled = true;
+
+        type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
+        if (cJSON_IsString(type)) {
+            pc->pane = parse_pane_type(type->valuestring);
+            log_debug("Pane %d: type=%s", count, type->valuestring);
+        }
+
+        where = cJSON_GetObjectItemCaseSensitive(pane_item, "where");
+        if (cJSON_IsString(where)) {
+            pc->where = parse_pane_placement(where->valuestring);
+            log_debug("Pane %d: where=%s", count, where->valuestring);
+        }
+
+        enabled = cJSON_GetObjectItemCaseSensitive(pane_item, "enabled");
+        if (cJSON_IsBool(enabled)) {
+            pc->enabled = cJSON_IsTrue(enabled);
+            log_debug("Pane %d: enabled=%s", count, pc->enabled ? "true" : "false");
+        }
+
+        rows = cJSON_GetObjectItemCaseSensitive(pane_item, "rows");
+        if (cJSON_IsNumber(rows)) {
+            pc->rect.rows = rows->valueint;
+            log_debug("Pane %d: rows=%d", count, pc->rect.rows);
+        }
+
+        cols = cJSON_GetObjectItemCaseSensitive(pane_item, "cols");
+        if (cJSON_IsNumber(cols)) {
+            pc->rect.cols = cols->valueint;
+            log_debug("Pane %d: cols=%d", count, pc->rect.cols);
+        }
+
+        ratio = cJSON_GetObjectItemCaseSensitive(pane_item, "ratio");
+        if (cJSON_IsNumber(ratio)) {
+            pc->ratio = (float)ratio->valuedouble;
+            log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
+        }
+
+        font_size = cJSON_GetObjectItemCaseSensitive(pane_item, "fontSize");
+        if (cJSON_IsNumber(font_size)) {
+            pc->font_size = font_size->valueint;
+            if (pc->font_size < 0)
+                pc->font_size = 0;
+            if (pc->font_size > 48)
+                pc->font_size = 48;
+            log_debug("Pane %d: fontSize=%d", count, pc->font_size);
+        }
+
+        if (!pane_type_allows_placement(pc->pane, pc->where)) {
+            enum pane_placement fallback = pane_first_allowed_placement(pc->pane);
+            log_warn("Pane %d placement %s is invalid for type %s, using %s",
+                count,
+                pane_placement_name(pc->where),
+                pane_type_to_string(pc->pane),
+                pane_placement_name(fallback));
+            pc->where = fallback;
+        }
+
+        count++;
+    }
+
+    *pane_count = count;
+    if (label)
+        log_debug("Parsed %d panes from %s", count, label);
+}
+
+static void sdl_config_init_pane_profiles_from_legacy(const struct sdl_config* config,
+    struct sdl_pane_profile* pane_profiles, int profile_count,
+    const struct pane_config* pane_configs, int pane_count)
+{
+    if (!pane_profiles || profile_count <= 0)
+        return;
+
+    for (int mode = 0; mode < profile_count; mode++) {
+        pane_profiles[mode].main_view_scale = config->main_view_scale;
+        pane_profiles[mode].aux_view_font_size = config->aux_view_font_size;
+        pane_profiles[mode].enable_right_panes = config->enable_right_panes;
+        pane_profiles[mode].enable_bottom_panes = config->enable_bottom_panes;
+        if (pane_count > 0) {
+            sdl_config_copy_pane_configs(pane_profiles[mode].pane_configs,
+                &pane_profiles[mode].pane_count, pane_configs, pane_count);
+        }
+    }
+}
+
+static void sdl_config_load_pane_profile(cJSON* profile_obj,
+    struct sdl_pane_profile* profile, const char* label)
+{
+    cJSON* item;
+    struct pane_config panes[MAX_PANE_CONFIGS] = { 0 };
+    int pane_count = 0;
+
+    if (!cJSON_IsObject(profile_obj) || !profile)
+        return;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "mainViewScale");
+    if (cJSON_IsNumber(item))
+        profile->main_view_scale = item->valueint;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "auxViewFontSize");
+    if (cJSON_IsNumber(item))
+        profile->aux_view_font_size = item->valueint;
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "enableRightPanes");
+    if (cJSON_IsBool(item))
+        profile->enable_right_panes = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "enableBottomPanes");
+    if (cJSON_IsBool(item))
+        profile->enable_bottom_panes = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(profile_obj, "panes");
+    if (cJSON_IsArray(item)) {
+        sdl_config_load_pane_array(item, panes, &pane_count, MAX_PANE_CONFIGS, label);
+        sdl_config_copy_pane_configs(profile->pane_configs, &profile->pane_count,
+            panes, pane_count);
+    }
+}
+
+static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_configs, int pane_count)
+{
+    cJSON* panes = cJSON_CreateArray();
+
+    if (!panes)
+        return NULL;
+
+    for (int i = 0; i < pane_count; i++) {
+        const struct pane_config* pc = &pane_configs[i];
+        cJSON* pane = cJSON_CreateObject();
+
+        if (!pane)
+            continue;
+
+        cJSON_AddStringToObject(pane, "type", pane_type_to_string(pc->pane));
+        cJSON_AddStringToObject(pane, "where", pane_placement_to_string(pc->where));
+        cJSON_AddBoolToObject(pane, "enabled", pc->enabled);
+
+        if (pc->rect.rows > 0)
+            cJSON_AddNumberToObject(pane, "rows", pc->rect.rows);
+
+        if (pc->rect.cols > 0)
+            cJSON_AddNumberToObject(pane, "cols", pc->rect.cols);
+
+        if (pc->ratio > 0.0f)
+            cJSON_AddNumberToObject(pane, "ratio", pc->ratio);
+
+        if (pc->font_size > 0)
+            cJSON_AddNumberToObject(pane, "fontSize", pc->font_size);
+
+        cJSON_AddItemToArray(panes, pane);
+    }
+
+    return panes;
+}
+
+enum sdl_config_load_status sdl_config_load(const char* filename,
+    struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
+    int profile_count)
+{
+    struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
+    int legacy_pane_count = 0;
+
     log_info("Loading SDL configuration from: %s", filename);
     
     char* content = read_file_contents(filename);
     if (!content) {
         log_debug("Failed to read config file, using defaults");
-        return;
+        return SDL_CONFIG_LOAD_READ_FAILED;
     }
     
     log_debug("Config file content length: %zu bytes", strlen(content));
@@ -712,7 +1190,7 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         } else {
             log_error("JSON parse error (no error pointer available)");
         }
-        return;
+        return SDL_CONFIG_LOAD_PARSE_FAILED;
     }
     
     log_debug("JSON parsed successfully");
@@ -763,6 +1241,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_warn("tiles not found or not a boolean");
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "useUnsafeArea");
+        if (cJSON_IsBool(item)) {
+            config->use_unsafe_area = cJSON_IsTrue(item);
+            log_debug("Loaded useUnsafeArea: %s",
+                config->use_unsafe_area ? "true" : "false");
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "enableRightPanes");
         if (cJSON_IsBool(item)) {
             config->enable_right_panes = cJSON_IsTrue(item);
@@ -775,10 +1260,33 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_debug("Loaded enableBottomPanes: %s", config->enable_bottom_panes ? "true" : "false");
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "showPaneBorders");
+        if (cJSON_IsBool(item)) {
+            config->show_pane_borders = cJSON_IsTrue(item);
+            log_debug("Loaded showPaneBorders: %s", config->show_pane_borders ? "true" : "false");
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "hideLeftPanel");
         if (cJSON_IsBool(item)) {
             config->hide_left_panel = cJSON_IsTrue(item);
             log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelPlacement");
+        if (!item)
+            item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelLightMode");
+        if (cJSON_IsString(item)) {
+            config->hidden_left_panel_mode
+                = parse_hidden_left_panel_mode(item->valuestring);
+            log_debug("Loaded hiddenLeftPanelPlacement: %s",
+                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
+        } else if (cJSON_IsNumber(item)) {
+            config->hidden_left_panel_mode
+                = (item->valueint == HIDDEN_LEFT_PANEL_TOPLINE)
+                ? HIDDEN_LEFT_PANEL_TOPLINE
+                : HIDDEN_LEFT_PANEL_TOP_LEFT;
+            log_debug("Loaded numeric hiddenLeftPanelPlacement: %s",
+                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "minTerminalMode");
@@ -927,94 +1435,52 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         log_warn("'sdl' object not found in JSON");
     }
     
-    // Parse pane configurations
-    cJSON* panes = cJSON_GetObjectItemCaseSensitive(root, "panes");
-    if (cJSON_IsArray(panes)) {
-        int count = 0;
-        cJSON* pane_item = NULL;
-        int array_size = cJSON_GetArraySize(panes);
-        log_debug("Found 'panes' array with %d items", array_size);
-        
-        cJSON_ArrayForEach(pane_item, panes) {
-            if (count >= max_panes) {
-                log_warn("Too many panes in config, maximum is %d", max_panes);
-                break;
-            }
-            
-            struct pane_config* pc = &pane_configs[count];
-            memset(pc, 0, sizeof(*pc));
-            pc->pane = PANE_MAIN;
-            pc->enabled = true;
-            
-            cJSON* type = cJSON_GetObjectItemCaseSensitive(pane_item, "type");
-            if (cJSON_IsString(type)) {
-                pc->pane = parse_pane_type(type->valuestring);
-                log_debug("Pane %d: type=%s", count, type->valuestring);
-            }
-            
-            cJSON* where = cJSON_GetObjectItemCaseSensitive(pane_item, "where");
-            if (cJSON_IsString(where)) {
-                pc->where = parse_pane_placement(where->valuestring);
-                log_debug("Pane %d: where=%s", count, where->valuestring);
+    /* Parse legacy shared pane configuration first, then copy into all profiles.
+     * If paneProfiles exists below, it overrides each mode separately. */
+    sdl_config_load_pane_array(cJSON_GetObjectItemCaseSensitive(root, "panes"),
+        legacy_panes, &legacy_pane_count, MAX_PANE_CONFIGS, "panes");
+    sdl_config_init_pane_profiles_from_legacy(config, pane_profiles, profile_count,
+        legacy_panes, legacy_pane_count);
+
+    {
+        cJSON* pane_profiles_obj = cJSON_GetObjectItemCaseSensitive(root, "paneProfiles");
+        bool loaded_profiles[SDL_PANE_PROFILE_COUNT] = { false };
+
+        if (cJSON_IsObject(pane_profiles_obj) && pane_profiles && profile_count > 0) {
+            for (int mode = 0; mode < profile_count; mode++) {
+                const char* mode_name = min_terminal_mode_to_string(mode);
+                cJSON* profile_obj = cJSON_GetObjectItemCaseSensitive(pane_profiles_obj, mode_name);
+
+                if (cJSON_IsObject(profile_obj)) {
+                    sdl_config_load_pane_profile(profile_obj, &pane_profiles[mode], mode_name);
+                    if (mode >= 0 && mode < SDL_PANE_PROFILE_COUNT)
+                        loaded_profiles[mode] = true;
+                }
             }
 
-            cJSON* enabled = cJSON_GetObjectItemCaseSensitive(pane_item, "enabled");
-            if (cJSON_IsBool(enabled)) {
-                pc->enabled = cJSON_IsTrue(enabled);
-                log_debug("Pane %d: enabled=%s", count, pc->enabled ? "true" : "false");
+            if (profile_count > SDL_MIN_TERMINAL_COMPACT
+                && loaded_profiles[SDL_MIN_TERMINAL_NORMAL]
+                && !loaded_profiles[SDL_MIN_TERMINAL_COMPACT]) {
+                sdl_config_copy_pane_profile(
+                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT],
+                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL]);
+                log_info("paneProfiles.COMPACT missing; copied NORMAL profile into COMPACT");
+            } else if (profile_count > SDL_MIN_TERMINAL_COMPACT
+                && loaded_profiles[SDL_MIN_TERMINAL_COMPACT]
+                && !loaded_profiles[SDL_MIN_TERMINAL_NORMAL]) {
+                sdl_config_copy_pane_profile(
+                    &pane_profiles[SDL_MIN_TERMINAL_NORMAL],
+                    &pane_profiles[SDL_MIN_TERMINAL_COMPACT]);
+                log_info("paneProfiles.NORMAL missing; copied COMPACT profile into NORMAL");
             }
-            
-            cJSON* rows = cJSON_GetObjectItemCaseSensitive(pane_item, "rows");
-            if (cJSON_IsNumber(rows)) {
-                pc->rect.rows = rows->valueint;
-                log_debug("Pane %d: rows=%d", count, pc->rect.rows);
-            }
-            
-            cJSON* cols = cJSON_GetObjectItemCaseSensitive(pane_item, "cols");
-            if (cJSON_IsNumber(cols)) {
-                pc->rect.cols = cols->valueint;
-                log_debug("Pane %d: cols=%d", count, pc->rect.cols);
-            }
-            
-            cJSON* ratio = cJSON_GetObjectItemCaseSensitive(pane_item, "ratio");
-            if (cJSON_IsNumber(ratio)) {
-                pc->ratio = (float)ratio->valuedouble;
-                log_debug("Pane %d: ratio=%.2f", count, pc->ratio);
-            }
-
-            cJSON* font_size = cJSON_GetObjectItemCaseSensitive(pane_item, "fontSize");
-            if (cJSON_IsNumber(font_size)) {
-                pc->font_size = font_size->valueint;
-                if (pc->font_size < 0)
-                    pc->font_size = 0;
-                if (pc->font_size > 48)
-                    pc->font_size = 48;
-                log_debug("Pane %d: fontSize=%d", count, pc->font_size);
-            }
-
-            if (!pane_type_allows_placement(pc->pane, pc->where)) {
-                enum pane_placement fallback = pane_first_allowed_placement(pc->pane);
-                log_warn("Pane %d placement %s is invalid for type %s, using %s",
-                    count,
-                    pane_placement_name(pc->where),
-                    pane_type_to_string(pc->pane),
-                    pane_placement_name(fallback));
-                pc->where = fallback;
-            }
-            
-            count++;
         }
-        
-        *pane_count = count;
-        log_debug("Parsed %d panes from JSON", count);
-    } else {
-        log_warn("'panes' array not found in JSON");
     }
 
     // Parse gamepad settings
     cJSON* gamepad = cJSON_GetObjectItemCaseSensitive(root, "gamepad");
     if (cJSON_IsObject(gamepad)) {
         cJSON* item;
+        bool saw_shoulder_combo_binding = false;
 
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "enabled");
         if (cJSON_IsBool(item)) {
@@ -1032,6 +1498,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         if (cJSON_IsBool(item)) {
             config->steamdeck_mode = cJSON_IsTrue(item);
             log_debug("Loaded gamepad.steamdeckMode: %s", config->steamdeck_mode ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(gamepad, "steamdeckInvEquipSameButtonCycle");
+        if (cJSON_IsBool(item)) {
+            config->steamdeck_inv_equip_same_button_cycle = cJSON_IsTrue(item);
+            log_debug("Loaded gamepad.steamdeckInvEquipSameButtonCycle: %s",
+                config->steamdeck_inv_equip_same_button_cycle ? "true" : "false");
         }
 
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "useDpad");
@@ -1106,10 +1579,58 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             log_debug("Loaded gamepad.rightStickBindings (%d entries)", count);
         }
 
+        for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_button_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_button_combo_bindings[modifier],
+                    SDL_GAMEPAD_BUTTON_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_trigger_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_trigger_combo_bindings[modifier],
+                    GAMEPAD_TRIGGER_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_left_stick_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_left_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+            }
+
+            item = cJSON_GetObjectItemCaseSensitive(gamepad,
+                sdl_config_gamepad_right_stick_combo_names[modifier]);
+            if (cJSON_IsArray(item)) {
+                sdl_config_load_touch_binding_array(item,
+                    config->gamepad_right_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+            }
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(gamepad, "shoulderComboBinding");
         if (cJSON_IsNumber(item)) {
+            saw_shoulder_combo_binding = true;
             config->gamepad_shoulder_combo_binding = item->valueint;
             log_debug("Loaded gamepad.shoulderComboBinding: %d", config->gamepad_shoulder_combo_binding);
+        }
+
+        if (!saw_shoulder_combo_binding
+            && config->gamepad_shoulder_combo_binding == 'l'
+            && sdl_config_gamepad_action_binding_count(config, 'l') > 1) {
+            log_info("Legacy gamepad config already binds 'l'; clearing inherited shoulder combo binding");
+            config->gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
+        }
+
+        if (sdl_config_should_upgrade_legacy_gamepad_defaults(config)) {
+            log_info("Upgrading legacy default gamepad config to current defaults");
+            sdl_config_set_default_gamepad_bindings(config);
+            config->steamdeck_inv_equip_same_button_cycle = true;
         }
 
         if (config->gamepad_use_dpad) {
@@ -1136,6 +1657,8 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             cJSON* second_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondBindings");
             cJSON* second_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondLabels");
             cJSON* panel_names = cJSON_GetObjectItemCaseSensitive(touch_pane, "panelNames");
+            cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeEnabled");
+            cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeBindings");
             if (cJSON_IsArray(bindings)) {
                 int count = cJSON_GetArraySize(bindings);
                 if (count == 21) {
@@ -1189,18 +1712,34 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
                 }
                 log_debug("Loaded touchPane.panelNames (%d entries)", count);
             }
+
+            if (cJSON_IsBool(swipe_enabled)) {
+                config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
+                log_debug("Loaded touchPane.swipeEnabled: %s",
+                    config->touch_swipe_enabled ? "true" : "false");
+            }
+
+            if (cJSON_IsArray(swipe_bindings)) {
+                int count = cJSON_GetArraySize(swipe_bindings);
+                sdl_config_load_touch_binding_array(swipe_bindings, config->touch_swipe_bindings,
+                    GAMEPAD_STICK_DIR_COUNT);
+                log_debug("Loaded touchPane.swipeBindings (%d entries)", count);
+            }
         } else {
             log_warn("'touchPane' object not found in JSON");
         }
     }
     
     cJSON_Delete(root);
-    log_debug("Configuration loading complete. Total panes: %d", *pane_count);
+    log_debug("Configuration loading complete. Active mode=%s", min_terminal_mode_to_string(config->min_terminal_mode));
+    return SDL_CONFIG_LOAD_OK;
 }
 
 void sdl_config_save(const char* filename, const struct sdl_config* config,
-                     const struct pane_config* pane_configs, int pane_count)
+                     const struct sdl_pane_profile* pane_profiles, int profile_count)
 {
+    int active_mode = config->min_terminal_mode;
+    const struct sdl_pane_profile* active_profile = NULL;
     cJSON* root = cJSON_CreateObject();
     if (!root) {
         log_error("Failed to create JSON root object");
@@ -1220,9 +1759,13 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
+    cJSON_AddBoolToObject(sdl, "useUnsafeArea", config->use_unsafe_area);
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
+    cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
+    cJSON_AddStringToObject(sdl, "hiddenLeftPanelPlacement",
+        hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     
     // Save window position and size for windowed mode
@@ -1254,47 +1797,65 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
     
     cJSON_AddItemToObject(root, "sdl", sdl);
-    
-    // Create panes array
-    cJSON* panes = cJSON_CreateArray();
-    if (!panes) {
-        cJSON_Delete(root);
-        log_error("Failed to create panes array");
-        return;
-    }
-    
-    for (int i = 0; i < pane_count; i++) {
-        const struct pane_config* pc = &pane_configs[i];
-        
-        cJSON* pane = cJSON_CreateObject();
-        if (!pane) {
-            continue;
-        }
-        
-        cJSON_AddStringToObject(pane, "type", pane_type_to_string(pc->pane));
-        cJSON_AddStringToObject(pane, "where", pane_placement_to_string(pc->where));
-        cJSON_AddBoolToObject(pane, "enabled", pc->enabled);
-        
-        if (pc->rect.rows > 0) {
-            cJSON_AddNumberToObject(pane, "rows", pc->rect.rows);
-        }
-        
-        if (pc->rect.cols > 0) {
-            cJSON_AddNumberToObject(pane, "cols", pc->rect.cols);
-        }
-        
-        if (pc->ratio > 0.0f) {
-            cJSON_AddNumberToObject(pane, "ratio", pc->ratio);
+
+    if (active_mode < 0 || active_mode >= profile_count)
+        active_mode = SDL_MIN_TERMINAL_NORMAL;
+    if (pane_profiles && active_mode >= 0 && active_mode < profile_count)
+        active_profile = &pane_profiles[active_mode];
+
+    {
+        cJSON* panes = active_profile
+            ? sdl_config_create_panes_array(active_profile->pane_configs, active_profile->pane_count)
+            : cJSON_CreateArray();
+
+        if (!panes) {
+            cJSON_Delete(root);
+            log_error("Failed to create panes array");
+            return;
         }
 
-        if (pc->font_size > 0) {
-            cJSON_AddNumberToObject(pane, "fontSize", pc->font_size);
-        }
-        
-        cJSON_AddItemToArray(panes, pane);
+        cJSON_AddItemToObject(root, "panes", panes);
     }
-    
-    cJSON_AddItemToObject(root, "panes", panes);
+
+    {
+        cJSON* pane_profiles_obj = cJSON_CreateObject();
+
+        if (!pane_profiles_obj) {
+            cJSON_Delete(root);
+            log_error("Failed to create paneProfiles object");
+            return;
+        }
+
+        for (int mode = 0; mode < profile_count; mode++) {
+            cJSON* profile_obj = cJSON_CreateObject();
+            cJSON* panes = NULL;
+
+            if (!profile_obj)
+                continue;
+
+            cJSON_AddNumberToObject(profile_obj, "mainViewScale",
+                pane_profiles[mode].main_view_scale);
+            cJSON_AddNumberToObject(profile_obj, "auxViewFontSize",
+                pane_profiles[mode].aux_view_font_size);
+            cJSON_AddBoolToObject(profile_obj, "enableRightPanes",
+                pane_profiles[mode].enable_right_panes);
+            cJSON_AddBoolToObject(profile_obj, "enableBottomPanes",
+                pane_profiles[mode].enable_bottom_panes);
+
+            panes = sdl_config_create_panes_array(pane_profiles[mode].pane_configs,
+                pane_profiles[mode].pane_count);
+            if (!panes) {
+                cJSON_Delete(profile_obj);
+                continue;
+            }
+
+            cJSON_AddItemToObject(profile_obj, "panes", panes);
+            cJSON_AddItemToObject(pane_profiles_obj,
+                min_terminal_mode_to_string(mode), profile_obj);
+        }
+
+        cJSON_AddItemToObject(root, "paneProfiles", pane_profiles_obj);
+    }
 
     // Create gamepad settings object
     {
@@ -1308,6 +1869,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddBoolToObject(gamepad, "enabled", config->gamepad_enabled);
             cJSON_AddBoolToObject(gamepad, "autoMode", config->gamepad_auto_mode);
             cJSON_AddBoolToObject(gamepad, "steamdeckMode", config->steamdeck_mode);
+            cJSON_AddBoolToObject(gamepad, "steamdeckInvEquipSameButtonCycle",
+                config->steamdeck_inv_equip_same_button_cycle);
             cJSON_AddBoolToObject(gamepad, "useDpad", config->gamepad_use_dpad);
             cJSON_AddBoolToObject(gamepad, "useLeftStick", config->gamepad_use_left_stick);
             cJSON_AddNumberToObject(gamepad, "deadzone", config->gamepad_deadzone);
@@ -1345,6 +1908,44 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 cJSON_AddItemToObject(gamepad, "rightStickBindings", right_stick);
             }
 
+            for (int modifier = 0; modifier < GAMEPAD_MODIFIER_COUNT; modifier++) {
+                cJSON* combo_array = sdl_config_create_int_array(
+                    config->gamepad_button_combo_bindings[modifier],
+                    SDL_GAMEPAD_BUTTON_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_button_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_trigger_combo_bindings[modifier],
+                    GAMEPAD_TRIGGER_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_trigger_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_left_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_left_stick_combo_names[modifier],
+                        combo_array);
+                }
+
+                combo_array = sdl_config_create_int_array(
+                    config->gamepad_right_stick_combo_bindings[modifier],
+                    GAMEPAD_STICK_DIR_COUNT);
+                if (combo_array) {
+                    cJSON_AddItemToObject(gamepad,
+                        sdl_config_gamepad_right_stick_combo_names[modifier],
+                        combo_array);
+                }
+            }
+
             cJSON_AddNumberToObject(gamepad, "shoulderComboBinding", config->gamepad_shoulder_combo_binding);
 
             cJSON_AddItemToObject(root, "gamepad", gamepad);
@@ -1364,6 +1965,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 SDL_TOUCH_PANE_BUTTON_COUNT);
             cJSON* panel_names = sdl_config_create_string_array(config->touch_pane_panel_names,
                 SDL_TOUCH_PANE_PANEL_COUNT);
+            cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
+                GAMEPAD_STICK_DIR_COUNT);
             if (bindings) {
                 cJSON_AddItemToObject(touch_pane, "bindings", bindings);
             }
@@ -1378,6 +1981,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             }
             if (panel_names) {
                 cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
+            }
+            cJSON_AddBoolToObject(touch_pane, "swipeEnabled", config->touch_swipe_enabled);
+            if (swipe_bindings) {
+                cJSON_AddItemToObject(touch_pane, "swipeBindings", swipe_bindings);
             }
             cJSON_AddItemToObject(root, "touchPane", touch_pane);
         }
@@ -1418,6 +2025,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                     op_ptr->level_entry_narrative_mode);
                 cJSON_AddNumberToObject(visual, "partitionNarrativeMode",
                     op_ptr->partition_narrative_mode);
+                cJSON_AddNumberToObject(visual, "narrativeBannerTurns",
+                    op_ptr->narrative_banner_turns);
             }
 
             cJSON_AddItemToObject(root, "appOptions", app_options);
@@ -1463,6 +2072,7 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
         config->gamepad_left_stick_bindings[i] = GAMEPAD_BIND_NONE;
         config->gamepad_right_stick_bindings[i] = GAMEPAD_BIND_NONE;
     }
+    sdl_config_clear_gamepad_combo_bindings(config);
 
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_SOUTH] = ' ';
     config->gamepad_button_bindings[SDL_GAMEPAD_BUTTON_EAST] = 'f';
@@ -1486,6 +2096,21 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
 
     config->gamepad_trigger_bindings[0] = GAMEPAD_BIND_SHIFT;
     config->gamepad_trigger_bindings[1] = GAMEPAD_BIND_CTRL;
+
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_SOUTH] = 'Z';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_EAST] = 'F';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_WEST] = 'x';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_NORTH] = 'S';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'M';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_SHIFT][SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'p';
+
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_SOUTH] = 'z';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_EAST] = '-';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_WEST] = 'X';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_NORTH] = '0';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_BACK] = '\t';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_LEFT_SHOULDER] = 'a';
+    config->gamepad_button_combo_bindings[GAMEPAD_MODIFIER_CTRL][SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER] = 'j';
 
     config->gamepad_shoulder_combo_binding = 'l';
 }
@@ -1512,6 +2137,9 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'L', 'X', 'p',
         'w', 'b', 'c',
     };
+    static const int swipe_defaults[GAMEPAD_STICK_DIR_COUNT] = {
+        '8', '2', '4', '6',
+    };
 
     if (!config)
         return;
@@ -1522,6 +2150,8 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN]));
     SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "Shift",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND]));
+    config->touch_swipe_enabled = true;
+    memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }
 
 void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
@@ -1540,10 +2170,17 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->margin = 4;
     config->fullscreen = true;
     config->tiles = true;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    config->use_unsafe_area = false;
+#else
+    config->use_unsafe_area = false;
+#endif
     config->enable_right_panes = true;
     config->enable_bottom_panes = true;
+    config->show_pane_borders = true;
     config->hide_left_panel = false;
-#ifdef __ANDROID__
+    config->hidden_left_panel_mode = HIDDEN_LEFT_PANEL_TOP_LEFT;
+#if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
 #else
     config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
@@ -1581,6 +2218,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_enabled = true;
     config->gamepad_auto_mode = true;
     config->steamdeck_mode = false;
+    config->steamdeck_inv_equip_same_button_cycle = true;
     config->gamepad_use_dpad = true;
     config->gamepad_use_left_stick = true;
     config->gamepad_deadzone = 12000;

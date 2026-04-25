@@ -271,7 +271,9 @@ struct term
 
 extern term* Term;
 typedef void (*term_pre_fresh_hook_func)(void);
+typedef void (*term_clear_hook_func)(term* t);
 extern term_pre_fresh_hook_func g_term_pre_fresh_hook;
+extern term_clear_hook_func g_term_clear_hook;
 
 /**** Available Functions ****/
 

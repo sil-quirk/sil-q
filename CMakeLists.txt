@@ -8,10 +8,19 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(SIL_BUILD_WITH_SDL_SOURCES_DEFAULT OFF)
+# On macOS, Homebrew ships sdl3 / sdl3_image / sdl3_ttf but no sdl3_mixer,
+# and its sdl3 lags the version our vendored SDL_mixer pins — so there is no
+# working mixed-mode configuration. Default APPLE (macOS + iOS) to the
+# source build alongside Windows/Android.
+if(WIN32 OR ANDROID OR APPLE)
+  set(SIL_BUILD_WITH_SDL_SOURCES_DEFAULT ON)
+endif()
+
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
 option(STEAMDECK_SUPPORT "Build for Steam Deck" OFF)
 option(SIL_USE_LOCAL_DATA "Store generated data inside the game directory (debug builds)" OFF)
-option(SIL_BUILD_WITH_SDL_SOURCES "Build SDL dependencies from source under external/ (useful for Android)" OFF)
+option(SIL_BUILD_WITH_SDL_SOURCES "Build SDL dependencies from pinned sources under external/ (recommended for Windows and Android)" ${SIL_BUILD_WITH_SDL_SOURCES_DEFAULT})
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release")
@@ -22,13 +31,90 @@ if(ANDROID)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -llog")
 endif()
 
+# Detect iOS when the CMake system name is set (via -DCMAKE_SYSTEM_NAME=iOS)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  set(SIL_IOS ON)
+  if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS version")
+  endif()
+endif()
+
+set(SIL_EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+
+# Configure SDL_mixer when built from the vendored submodule: enable only the
+# codecs we actually use (WAV + Ogg Vorbis via stb_vorbis) and keep the build
+# self-contained so it works on every platform without system codec packages.
+macro(_sil_configure_vendored_sdl_mixer)
+  set(SDLMIXER_INSTALL OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_TESTS OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_STRICT OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_DEPS_SHARED OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_VENDORED ON CACHE BOOL "" FORCE)
+  set(SDLMIXER_AIFF OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_VOC OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_AU OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_FLAC OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_GME OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MOD OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MP3 OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MIDI OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_OPUS OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_WAVPACK OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_WAVE ON CACHE BOOL "" FORCE)
+  set(SDLMIXER_VORBIS_STB ON CACHE BOOL "" FORCE)
+  set(SDLMIXER_VORBIS_VORBISFILE OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_VORBIS_TREMOR OFF CACHE BOOL "" FORCE)
+endmacro()
+
 if (SIL_BUILD_WITH_SDL_SOURCES)
-  set(SIL_EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+
+  # iOS has no system FreeType/HarfBuzz; force SDL_ttf to build from its
+  # vendored copies.  Android already defaults to vendored via MSVC logic
+  # in SDL_ttf, but set it explicitly here for clarity.
+  if(SIL_IOS OR ANDROID)
+    set(SDLTTF_VENDORED ON CACHE BOOL "Use vendored freetype/harfbuzz for mobile" FORCE)
+  endif()
+
+  # Build SDL as static libraries on iOS to avoid code-signing issues
+  # with dynamic frameworks and to simplify the app bundle.
+  if(SIL_IOS)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL3IMAGE_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL3IMAGE_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL3TTF_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL3TTF_STATIC ON CACHE BOOL "" FORCE)
+  endif()
 
   if (EXISTS "${SIL_EXTERNAL_DIR}/SDL/CMakeLists.txt")
     add_subdirectory("${SIL_EXTERNAL_DIR}/SDL" "${CMAKE_BINARY_DIR}/_deps/SDL")
   else()
     message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL is missing. Run 'git submodule update --init --recursive' from the repo root or disable SIL_BUILD_WITH_SDL_SOURCES.")
+  endif()
+
+  # When building SDL as static on iOS, SDL_image and SDL_ttf call
+  # find_package(SDL3) internally, but the export files don't exist yet
+  # (they're generated at install time).  Write a minimal shim that
+  # declares the package found - the actual targets are already visible
+  # from add_subdirectory above.
+  if(SIL_IOS)
+    set(_sdl3_shim_dir "${CMAKE_BINARY_DIR}/_sdl3_shim")
+    file(MAKE_DIRECTORY "${_sdl3_shim_dir}")
+    file(WRITE "${_sdl3_shim_dir}/SDL3Config.cmake"
+      "set(SDL3_FOUND TRUE)\n"
+      "set(SDL3_VERSION \"${SDL_VERSION}\")\n"
+      "set(SDL3_SDL3-static_FOUND TRUE)\n"
+      "set(SDL3_Headers_FOUND TRUE)\n"
+      "# Targets already defined by add_subdirectory\n"
+    )
+    file(WRITE "${_sdl3_shim_dir}/SDL3ConfigVersion.cmake"
+      "set(PACKAGE_VERSION \"${SDL_VERSION}\")\n"
+      "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n"
+      "set(PACKAGE_VERSION_EXACT FALSE)\n"
+    )
+    set(SDL3_DIR "${_sdl3_shim_dir}" CACHE PATH "" FORCE)
   endif()
 
   if (EXISTS "${SIL_EXTERNAL_DIR}/SDL_image/CMakeLists.txt")
@@ -43,6 +129,13 @@ if (SIL_BUILD_WITH_SDL_SOURCES)
     message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL_ttf is missing. Run 'git submodule update --init --recursive' from the repo root or disable SIL_BUILD_WITH_SDL_SOURCES.")
   endif()
 
+  if (EXISTS "${SIL_EXTERNAL_DIR}/SDL_mixer/CMakeLists.txt")
+    _sil_configure_vendored_sdl_mixer()
+    add_subdirectory("${SIL_EXTERNAL_DIR}/SDL_mixer" "${CMAKE_BINARY_DIR}/_deps/SDL_mixer")
+  else()
+    message(FATAL_ERROR "SIL_BUILD_WITH_SDL_SOURCES=ON but external/SDL_mixer is missing. Run 'git submodule update --init --recursive' from the repo root or disable SIL_BUILD_WITH_SDL_SOURCES.")
+  endif()
+
   if (ANDROID AND TARGET SDL3-shared)
     # Needed for __android_log_print / __android_log_write in SDL Android backend.
     target_link_libraries(SDL3-shared PRIVATE log)
@@ -51,6 +144,18 @@ else()
   find_package(SDL3 REQUIRED)
   find_package(SDL3_ttf REQUIRED)
   find_package(SDL3_image REQUIRED)
+  # Homebrew (and several other distros) do not ship an SDL3_mixer package
+  # yet, so fall back to building the vendored submodule when no system
+  # package is present.
+  find_package(SDL3_mixer QUIET)
+  if(NOT SDL3_mixer_FOUND)
+    if (EXISTS "${SIL_EXTERNAL_DIR}/SDL_mixer/CMakeLists.txt")
+      _sil_configure_vendored_sdl_mixer()
+      add_subdirectory("${SIL_EXTERNAL_DIR}/SDL_mixer" "${CMAKE_BINARY_DIR}/_deps/SDL_mixer")
+    else()
+      message(FATAL_ERROR "SDL3_mixer was not found as an installed package and external/SDL_mixer is missing. Run 'git submodule update --init --recursive' to build it from source, or install SDL3_mixer system-wide.")
+    endif()
+  endif()
 endif()
 
 add_subdirectory(src/log)
@@ -127,6 +232,8 @@ set(SIL_MORE_SOURCES
 
 if(ANDROID)
   add_library(sil-more SHARED ${SIL_MORE_SOURCES})
+elseif(SIL_IOS)
+  add_executable(sil-more MACOSX_BUNDLE ${SIL_MORE_SOURCES})
 else()
   add_executable(sil-more ${SIL_MORE_SOURCES})
 endif()
@@ -134,6 +241,55 @@ endif()
 if(ANDROID)
   # SDL's Android launcher expects libmain.so by convention.
   set_target_properties(sil-more PROPERTIES OUTPUT_NAME "main")
+endif()
+
+if(SIL_IOS)
+  set_target_properties(sil-more PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/Info.plist.in"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.silqh.silmore"
+    MACOSX_BUNDLE_BUNDLE_NAME "Sil-More"
+    MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+  )
+
+  # Bundle the runtime lib/ resources into the app.
+  # iOS apps are sandboxed; read-only data must live inside the .app bundle.
+  file(GLOB SIL_RES_EDIT    "lib/edit/*.txt")
+  file(GLOB SIL_RES_PREF    "lib/pref/*.prf" "lib/pref/*.json")
+  file(GLOB SIL_RES_FONT    "lib/xtra/font/*.ttf")
+  file(GLOB SIL_RES_GRAF    "lib/xtra/graf/*.png")
+  file(GLOB SIL_RES_SOUND   "lib/xtra/sound/*")
+  file(GLOB SIL_RES_HELP    "lib/help/*.txt" "lib/help/*.hlp")
+
+  # Preserve directory structure inside the bundle's Resources/lib/ tree.
+  foreach(_file ${SIL_RES_EDIT})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/edit")
+  endforeach()
+  foreach(_file ${SIL_RES_PREF})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/pref")
+  endforeach()
+  foreach(_file ${SIL_RES_FONT})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/xtra/font")
+  endforeach()
+  foreach(_file ${SIL_RES_GRAF})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/xtra/graf")
+  endforeach()
+  foreach(_file ${SIL_RES_SOUND})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/xtra/sound")
+  endforeach()
+  foreach(_file ${SIL_RES_HELP})
+    set_source_files_properties(${_file} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/help")
+  endforeach()
+
+  set(SIL_ALL_RESOURCES
+    ${SIL_RES_EDIT} ${SIL_RES_PREF} ${SIL_RES_FONT}
+    ${SIL_RES_GRAF} ${SIL_RES_SOUND} ${SIL_RES_HELP}
+  )
+  target_sources(sil-more PRIVATE ${SIL_ALL_RESOURCES})
+
+  target_compile_definitions(sil-more PRIVATE SIL_IOS)
 endif()
 
 # Include Windows resource (.rc) so the executable has an icon on Windows
@@ -159,7 +315,12 @@ endif()
 
 # Link SDL3 libraries (required for this build)
 target_compile_definitions(sil-more PRIVATE USE_SDL)
-target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log m)
+
+if(SIL_IOS)
+  target_link_libraries(sil-more PRIVATE SDL3::SDL3-static SDL3_ttf::SDL3_ttf-static SDL3_image::SDL3_image-static SDL3_mixer::SDL3_mixer-static log m)
+else()
+  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer log m)
+endif()
 
 if (LOG_MODE_TIMESTAMP)
   target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)

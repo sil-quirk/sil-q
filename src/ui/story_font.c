@@ -15,6 +15,8 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         return 1;
 
     /* Convert column-based wrap to pixel width */
+    int term_wid = 80;
+    int term_hgt = 24;
     int cell_width = sdl_get_cell_width();
     int wrap_pixels = wrap_cols * cell_width;
     int indent_pixels = indent * cell_width;
@@ -22,7 +24,13 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
     if (space_pixels <= 0)
         space_pixels = cell_width;
 
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    (void)term_hgt;
+
     int lines = 1;
+    int x = indent;
     int x_pixels = indent_pixels;
     cptr s = str;
 
@@ -31,6 +39,7 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         /* Handle newlines */
         if (*s == '\n')
         {
+            x = indent;
             x_pixels = indent_pixels;
             lines++;
             s++;
@@ -40,12 +49,8 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         /* Skip leading spaces */
         while (*s == ' ')
         {
+            x++;
             x_pixels += space_pixels;
-            if (x_pixels >= wrap_pixels)
-            {
-                x_pixels = indent_pixels;
-                lines++;
-            }
             s++;
         }
 
@@ -63,14 +68,18 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
 
         /* Measure the word in pixels */
         int word_pixels = sdl_story_font_text_width(word_start, word_chars);
-        /* Check if word fits on current line */
-        if (x_pixels > indent_pixels && (x_pixels + word_pixels) > wrap_pixels)
+        bool exceeds_pixels = (x > indent && (x_pixels + word_pixels) > wrap_pixels);
+        bool exceeds_columns = (x + word_chars >= term_wid);
+
+        if (exceeds_pixels || exceeds_columns)
         {
+            x = indent;
             x_pixels = indent_pixels;
             lines++;
         }
 
         /* Advance by the word's pixel width */
+        x += word_chars;
         x_pixels += word_pixels;
 
         /* Move past the word */
@@ -227,8 +236,30 @@ void text_out_to_screen_story(byte a, cptr str)
 
 static void story_print_text_internal(int row, int col, int max_cols, byte attr, cptr text, bool force_grid)
 {
+    int term_wid = 0;
+    int term_hgt = 0;
+
     if (!text)
         text = "";
+
+    if (!Term)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid <= 0 || term_hgt <= 0)
+        return;
+
+    if (row < 0 || row >= term_hgt || col < 0 || col >= term_wid)
+        return;
+
+    if (max_cols > 0)
+    {
+        int remaining = term_wid - col;
+        if (remaining <= 0)
+            return;
+        if (max_cols > remaining)
+            max_cols = remaining;
+    }
 
     if (max_cols > 0)
         Term_erase(col, row, max_cols);
@@ -253,9 +284,9 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
         void (*old_hook)(byte, cptr) = text_out_hook;
 
         if (max_cols > 0)
-            text_out_wrap = col + max_cols;
+            text_out_wrap = MIN(term_wid, col + max_cols);
         else
-            text_out_wrap = 0;
+            text_out_wrap = term_wid;
 
         text_out_indent = col;
         text_out_hook = text_out_to_screen;

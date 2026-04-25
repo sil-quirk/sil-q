@@ -38,7 +38,7 @@ void identify_revealed_items(bool identify[]);
 flag_name info_flags_desc[] = { 
 {"Will Affinity is at 3, and never affected by curses", UNQ, UNQ_EARENDIL}, 
 { "Artifacts take only 1 charge of forge, easier to make fire and light items", UNQ, UNQ_SMT_FEANOR },
-{ "Majesty ability is twice effective", UNQ, UNQ_WIL_FIN }, 
+{ "Majesty ability is 1.5x effective", UNQ, UNQ_WIL_FIN },
 { "Song of Staying is twice effective", UNQ, UNQ_SNG_FIN },
 { "Song of Lorien is 1.5x effective", UNQ, UNQ_SNG_LUT }, 
 { "Horns are twice effective", UNQ, UNQ_WIL_TUOR },
@@ -1351,6 +1351,12 @@ bool detect_objects_normal(int radius)
         /* Hack -- memorize it */
         o_ptr->marked = true;
 
+        if (o_ptr->name1)
+        {
+            a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
+            o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+        }
+
         /* Detection reveals easy smithing items (no distance penalty). */
         (void)player_auto_identify_smithing_object(o_ptr, true);
 
@@ -1912,6 +1918,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
     int help_row;
     int prompt_row;
     int page_size;
+    bool steamdeck = steamdeck_controls_active();
 
     if (!entries || count <= 0 || !out_item)
         return false;
@@ -1991,7 +1998,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
                 : object_display_color(o_ptr,
                     tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
-            if (i < 26)
+            if (!steamdeck && i < 26)
                 strnfmt(label, sizeof(label), "%c)", I2A(i));
             else
                 SDL_strlcpy(label, "  ", sizeof(label));
@@ -2018,7 +2025,9 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             prt("", help_row, 0);
         }
 
-        prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+        prt(steamdeck
+                ? "D-pad choose, A/Enter select, B/ESC cancel"
+                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
             prompt_row, 0);
         Term_fresh();
 
@@ -2061,6 +2070,22 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
         default:
         {
             int pick;
+
+            if (steamdeck && key == steamdeck_back_key())
+            {
+                screen_load();
+                return false;
+            }
+
+            if (steamdeck && key == steamdeck_confirm_key())
+            {
+                *out_item = entries[current].item;
+                screen_load();
+                return true;
+            }
+
+            if (steamdeck)
+                break;
 
             if (!isalpha((unsigned char)key))
                 break;

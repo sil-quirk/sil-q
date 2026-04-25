@@ -1,4 +1,4 @@
-/* platform.h – tiny shim for Win32 / POSIX  ---------------------------- */
+/* platform.h - tiny shim for Win32 / POSIX  ---------------------------- */
 #ifndef PLATFORM_H
 #define PLATFORM_H
 

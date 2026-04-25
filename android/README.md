@@ -7,23 +7,24 @@ This folder contains an Android Studio / Gradle project that builds Sil-More as 
 - Builds the native code via **CMake + Android NDK**.
 - Packages game content from the repo `lib/` directory into APK **assets** under `assets/lib/...`.
 - Excludes runtime-state folders (`lib/save`, `lib/user`, `lib/apex`) so APKs never ship developer saves/metarun data.
+- Packages audio as `.ogg` only and excludes the legacy `.wav` assets plus `lib/xtra/sound/packs`.
 - Expects SDL's Android Java glue (e.g. `org.libsdl.app.SDLActivity`) to be available.
 
 ## Prereqs
 
+- Git
 - Android Studio (or Gradle + JDK)
-- Android SDK + NDK installed
+- Android SDK + NDK + CMake installed
 
 ## SDL dependencies
 
-This repo's top-level CMake can either:
-
-1. Use `find_package(SDL3 ...)` (desktop-style), OR
-2. Build SDL deps from source via `-DSIL_BUILD_WITH_SDL_SOURCES=ON`, expecting:
+This repo's top-level CMake supports both package-based and source-based SDL builds.
+Android uses the source-based path and expects:
 
 - `external/SDL` (SDL3)
 - `external/SDL_image`
 - `external/SDL_ttf`
+- `external/SDL_mixer`
 
 These directories are tracked as pinned Git submodules in the repo root. Before opening `android/` in Android Studio, initialize them from the repo root:
 
@@ -37,10 +38,12 @@ In SDL3, the Java shim Activity class is `org.libsdl.app.SDLActivity` (from `SDL
 
 ## Build
 
-1. Open the `android/` folder in Android Studio.
-2. If needed, run `git submodule update --init --recursive` from the repo root.
-3. Install Android SDK + NDK in Android Studio (SDK Manager).
-4. Build/Run the `app` configuration (ABI is set to `arm64-v8a`).
+1. Clone the repo and enter it.
+2. Run `git submodule update --init --recursive` from the repo root.
+3. Install Android SDK + NDK + CMake in Android Studio (SDK Manager).
+4. Open the `android/` folder in Android Studio.
+5. Let Gradle sync complete.
+6. Build/Run the `app` configuration (ABI is set to `arm64-v8a`).
 
 ## Command-line native build (optional)
 
@@ -54,6 +57,14 @@ This script auto-detects NDK from:
 - `%LOCALAPPDATA%/Android/Sdk/ndk/*`
 - `ANDROID_HOME/ndk/*`
 - `ANDROID_SDK_ROOT/ndk/*`
+
+It also auto-detects `cmake.exe` from:
+
+- `PATH`
+- `C:\msys64\mingw64\bin\cmake.exe`
+- `%LOCALAPPDATA%/Android/Sdk/cmake/*/bin/cmake.exe`
+- `ANDROID_HOME/cmake/*/bin/cmake.exe`
+- `ANDROID_SDK_ROOT/cmake/*/bin/cmake.exe`
 
 ## Deploy to device (ADB)
 

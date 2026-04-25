@@ -806,8 +806,12 @@ static void wr_options(void)
     /* Write "noble_item_spawn_mode" */
     wr_byte(op_ptr->noble_item_spawn_mode);
 
-    /* 1 remaining spare byte */
-    wr_byte(0);
+    /* Persist banner turns as value+1 so old saves' zero spare byte means "use default". */
+    wr_byte((byte)(MIN(op_ptr->narrative_banner_turns,
+        NARRATIVE_BANNER_TURNS_MAX) + 1));
+
+    /* Write "min_depth_timer_mode" */
+    wr_byte((byte)MIN(op_ptr->min_depth_timer_mode, MIN_DEPTH_TIMER_MODE_MAX));
 
     /*** Normal options ***/
 
@@ -1025,7 +1029,8 @@ static void wr_extra(void)
     wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
     wr_byte(p_ptr->discovery_lore_flags);
-    wr_u32b(0L);
+    wr_s16b(p_ptr->lamp_oil);
+    wr_u16b(0U);
     wr_u32b(0L);
     wr_u32b(0L);
 
@@ -1803,6 +1808,7 @@ static bool wr_savefile(void)
     /* Write supplies cache */
     log_trace("[save:%06u] === BEGIN SUPPLIES ===", (unsigned)save_byte_offset);
     {
+        wr_u16b(SAVEFILE_SUPPLY_BLOCK_MAGIC);
         u16b supply_count = (u16b)supplies_entry_count();
         wr_u16b(supply_count);
         log_debug("Writing %u supply entries", (unsigned)supply_count);

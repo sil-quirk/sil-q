@@ -40,6 +40,103 @@ static void redraw_inven_equip_subwindows(void);
 static void redraw_monster_subwindows(void);
 static void smith_ui_reset_description_state(void);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
+static void controller_prompt_label_no_sticks(int binding, const char* fallback, char* buf, size_t buflen);
+static void desc_obj_fake(int k_idx);
+
+static bool indexed_menu_letters_enabled(void)
+{
+    return !steamdeck_controls_active();
+}
+
+static void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr text)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c) %s", (char)'a' + index, text ? text : "");
+    else
+        strnfmt(buf, buflen, "   %s", text ? text : "");
+}
+
+static void keyed_menu_entry_label(char* buf, size_t buflen, char key, cptr text)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c) %s", key, text ? text : "");
+    else
+        strnfmt(buf, buflen, "   %s", text ? text : "");
+}
+
+static void indexed_menu_focus_prefix(char* buf, size_t buflen, int index)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c)", (char)'a' + index);
+    else
+        SDL_strlcpy(buf, "> ", buflen);
+}
+
+static void indexed_menu_normal_prefix(char* buf, size_t buflen, int index)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (indexed_menu_letters_enabled())
+        strnfmt(buf, buflen, "%c)", (char)'a' + index);
+    else
+        SDL_strlcpy(buf, "  ", buflen);
+}
+
+static bool heavy_armour_desc_evasion_bonus_applies(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_MAIL)
+        && ((o_ptr->sval == SV_MAIL_CORSLET)
+            || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static int heavy_armour_desc_current_weight(void)
+{
+    int i;
+    int armour_weight = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        /* Off-hand weapons are not counted as armour weight. */
+        if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+
+        if (i >= INVEN_BODY)
+            armour_weight += o_ptr->weight;
+    }
+
+    return armour_weight;
+}
+
+static int heavy_armour_desc_current_evasion_bonus(void)
+{
+    int i;
+    int bonus = 0;
+
+    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (heavy_armour_desc_evasion_bonus_applies(o_ptr))
+            bonus++;
+    }
+
+    return bonus;
+}
 
 typedef struct knowledge_browser_layout knowledge_browser_layout;
 typedef struct knowledge_browser_state knowledge_browser_state;
@@ -75,13 +172,31 @@ struct object_list_entry
 };
 
 typedef struct supply_list_entry supply_list_entry;
+typedef struct supply_list_columns supply_list_columns;
 
 struct supply_list_entry
 {
-    int item_idx;   /* First inventory slot containing this kind */
+    int item_idx;   /* Inventory slot backing this row */
     int k_idx;      /* Object kind index */
-    int total;      /* Total quantity across the pack */
+    int total;      /* Displayed quantity for this row */
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
+    int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
+    bool equipped;  /* This supply-kind is currently equipped */
+    bool single_item_display; /* Display one item even if the source stack is larger */
+};
+
+struct supply_list_columns
+{
+    int name_w;
+    int weight_col;
+    int turns_col;
+    int qty_col;
+    int sym_hdr_col;
+    int sym_col;
+    bool show_weight;
+    bool show_turns;
+    bool show_qty;
+    bool show_sym;
 };
 
 struct knowledge_browser_layout
@@ -141,8 +256,17 @@ static void dump_visual_pair(
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equipped && entry->equip_idx == INVEN_LITE)
+        {
+            msg_print("That light source is already equipped.");
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -164,6 +288,12 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
     case TV_GEM:
         do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
         break;
+    case TV_FLASK:
+        do_cmd_refuel_lamp(o_ptr, SUPPLIES_INDEX);
+        break;
+    case TV_LIGHT:
+        do_cmd_wield(o_ptr, SUPPLIES_INDEX);
+        break;
     default:
         supplies_end_action();
         bell("Cannot use that item here!");
@@ -177,8 +307,18 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
 
 static bool supplies_menu_drop_entry(supply_list_entry* entry)
 {
-    if (!entry || entry->supply_idx < 0)
+    if (!entry)
         return false;
+
+    if (entry->supply_idx < 0)
+    {
+        if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        {
+            do_cmd_drop_item_by_index(entry->equip_idx);
+            return true;
+        }
+        return false;
+    }
 
     object_type* o_ptr = supplies_entry_at(entry->supply_idx);
     if (!o_ptr || !o_ptr->k_idx)
@@ -201,10 +341,62 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     return dropped;
 }
 
+static bool supplies_menu_recall_entry(supply_list_entry* entry)
+{
+    if (!entry)
+        return false;
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        (void)player_try_identify_smithing_object_on_examine(
+            &inventory[entry->equip_idx], true);
+        object_info_screen(&inventory[entry->equip_idx]);
+        return true;
+    }
+
+    if (entry->supply_idx >= 0)
+    {
+        object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+        if (o_ptr)
+        {
+            object_info_screen(o_ptr);
+            return true;
+        }
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        (void)player_try_identify_smithing_object_on_examine(
+            &inventory[entry->item_idx], false);
+        object_info_screen(&inventory[entry->item_idx]);
+        return true;
+    }
+
+    if (entry->k_idx >= 0)
+    {
+        object_kind* k_ptr = &k_info[entry->k_idx];
+        if (k_ptr->aware)
+        {
+            desc_obj_fake(entry->k_idx);
+            return true;
+        }
+
+        bell("You have not identified that yet.");
+        msg_print("You have not identified that yet.");
+        return false;
+    }
+
+    bell("Nothing to recall.");
+    msg_print("Nothing to recall.");
+    return false;
+}
+
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Herbs",
+    "Food",
     "Potions",
     "Gems",
+    "Lights/Oil",
     NULL
 };
 
@@ -599,6 +791,7 @@ void do_cmd_character_sheet(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     /* Forever */
     while (1)
@@ -694,14 +887,20 @@ void do_cmd_character_sheet(void)
                 sdl_story_font_disable();
         }
 
+        (void)Term_set_cursor(false);
         Term_fresh();  /* Render commands */
 
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
 
-        /* Query */
-        ch = inkey();
+        /* Keep the cursor hidden while the character sheet is active. */
+        {
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
 
         /* Exit - B button (back) or ESC */
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
@@ -818,6 +1017,7 @@ void do_cmd_character_sheet(void)
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     /* Force redraw after screen restore if skills/abilities were changed */
@@ -904,6 +1104,83 @@ static void ability_menu_format_amount_line(char* buf, size_t buflen,
         strnfmt(buf, buflen, "%s %d / %d", short_label, need, have);
     else
         strnfmt(buf, buflen, "%d %s (you have %d)", need, long_label, have);
+}
+
+static void ability_menu_append_text(char* out, size_t outsz, size_t* cur,
+    cptr text)
+{
+    if (!out || !outsz || !cur || !text)
+        return;
+
+    strnfcat(out, outsz, cur, "%s", text);
+}
+
+static cptr ability_menu_controller_text(cptr src, char* out, size_t outsz)
+{
+    char wait_label[32];
+    char fletch_label[32];
+    char exchange_label[32];
+    char wait_token[64];
+    char fletch_token[64];
+    char exchange_token[64];
+    struct replacement
+    {
+        cptr from;
+        cptr to;
+    } replacements[3];
+    size_t cur = 0;
+    const char* p;
+
+    if (!src || !out || outsz == 0)
+        return src;
+
+    if (!steamdeck_controls_active())
+        return src;
+
+    controller_prompt_label_no_sticks('z', "z", wait_label, sizeof(wait_label));
+    controller_prompt_label_no_sticks('-', "-", fletch_label, sizeof(fletch_label));
+    controller_prompt_label_no_sticks('X', "X", exchange_label, sizeof(exchange_label));
+
+    strnfmt(wait_token, sizeof(wait_token), "(%s/5)", wait_label);
+    strnfmt(fletch_token, sizeof(fletch_token), "Use %s to", fletch_label);
+    strnfmt(exchange_token, sizeof(exchange_token), "Use %s to", exchange_label);
+
+    replacements[0].from = "(z/5)";
+    replacements[0].to = wait_token;
+    replacements[1].from = "Use '-' to";
+    replacements[1].to = fletch_token;
+    replacements[2].from = "Use 'X' to";
+    replacements[2].to = exchange_token;
+
+    out[0] = '\0';
+    p = src;
+
+    while (*p)
+    {
+        bool replaced = false;
+
+        for (int i = 0; i < (int)N_ELEMENTS(replacements); i++)
+        {
+            size_t from_len = strlen(replacements[i].from);
+
+            if (!strncmp(p, replacements[i].from, from_len))
+            {
+                ability_menu_append_text(out, outsz, &cur, replacements[i].to);
+                p += from_len;
+                replaced = true;
+                break;
+            }
+        }
+
+        if (!replaced)
+        {
+            char tmp[2] = { *p, '\0' };
+            ability_menu_append_text(out, outsz, &cur, tmp);
+            p++;
+        }
+    }
+
+    return out;
 }
 
 static int ability_menu_next_row_after_text(int desc_col, int fallback_row)
@@ -993,10 +1270,267 @@ static void ability_menu_render_prerequisites_block(int skilltype,
     Term_gotoxy(desc_col, row);
 }
 
+static int ability_menu_stepped_song_bonus(int skill, int first_threshold,
+    int next_gap)
+{
+    int bonus = 1;
+    int threshold = first_threshold;
+    int gap = next_gap;
+
+    if (skill < 0)
+        skill = 0;
+
+    while (skill > threshold)
+    {
+        bonus++;
+        threshold += gap;
+        gap++;
+    }
+
+    return bonus;
+}
+
+static int ability_menu_current_song_score(void)
+{
+    return MAX(0, p_ptr->skill_use[S_SNG]);
+}
+
+static int ability_menu_minor_song_score(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER)
+        return song_skill;
+
+    return song_skill / 2;
+}
+
+static int ability_menu_song_synergy_bonus(int song_skill)
+{
+    if (song_skill <= 0)
+        return 0;
+
+    return (song_skill + 5) / 10;
+}
+
+static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
+{
+    int song_skill = ability_menu_current_song_score();
+    char bonus_text[256];
+
+    bonus_text[0] = '\0';
+
+    switch (b_ptr->abilitynum)
+    {
+    case SNG_ELBERETH:
+    {
+        int will_penalty = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will -%d.", song_skill,
+            will_penalty);
+        break;
+    }
+    case SNG_CHALLENGE:
+    {
+        int debuff = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: enemy Will and Stealth -%d.",
+            song_skill, debuff);
+        break;
+    }
+    case SNG_DELVINGS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: delving range %d squares.",
+            song_skill, song_skill + 8);
+        break;
+    }
+    case SNG_FREEDOM:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: freedom checks use Song %d and grant +1 free action while singing.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_SILENCE:
+    {
+        int silence_bonus = song_skill / 2;
+        int enemy_song_penalty = silence_bonus / 2;
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d to hush/noise checks; enemy songs -%d.",
+            song_skill, silence_bonus, enemy_song_penalty);
+        break;
+    }
+    case SNG_STAUNCHING:
+    {
+        int base_heal = song_skill / 12;
+        int extra_turns = song_skill % 12;
+
+        if (extra_turns > 0)
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn, with +1 extra on %d turns in 12.",
+                song_skill, base_heal, extra_turns);
+        }
+        else
+        {
+            strnfmt(bonus_text, sizeof(bonus_text),
+                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn.",
+                song_skill, base_heal);
+        }
+        break;
+    }
+    case SNG_THRESHOLDS:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: door-warding checks use Song %d.",
+            song_skill, song_skill);
+        break;
+    }
+    case SNG_TREES:
+    {
+        int light_radius = ability_menu_stepped_song_bonus(song_skill, 5, 6);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d light radius.", song_skill,
+            light_radius);
+        break;
+    }
+    case SNG_WOVEN_THEMES:
+    {
+        int minor_skill = ability_menu_minor_song_score(song_skill);
+        int synergy_bonus = ability_menu_song_synergy_bonus(song_skill);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: a minor theme uses Song %d; a valid synergy pair adds +%d Song.",
+            song_skill, minor_skill, synergy_bonus);
+        break;
+    }
+    case SNG_SLAYING:
+    {
+        int hp_threshold = song_skill * 2;
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_HURIN)
+            hp_threshold *= 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: criticals can slay foes at %d HP or less.",
+            song_skill, hp_threshold);
+        break;
+    }
+    case SNG_REVEALING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: revealing range %d squares.",
+            song_skill, (song_skill / 2) + 8);
+        break;
+    }
+    case SNG_ELVENESS:
+    {
+        int evasion_bonus = ability_menu_stepped_song_bonus(song_skill, 7, 8);
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +1 Grace and +%d Evasion.",
+            song_skill, evasion_bonus);
+        break;
+    }
+    case SNG_STAYING:
+    {
+        int will_bonus = song_skill / 2;
+        int protection_dice = 2;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN)
+        {
+            will_bonus = song_skill * 2;
+            protection_dice = 4;
+        }
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: +%d Will and [%dd2] protection.",
+            song_skill, will_bonus, protection_dice);
+        break;
+    }
+    case SNG_DISGUISE:
+    {
+        int disguise_bonus = song_skill + 5;
+        const char* extra = (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_TURGON)
+            ? " + Perception"
+            : "";
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: disguise checks use %d + Will%s.",
+            song_skill, disguise_bonus, extra);
+        break;
+    }
+    case SNG_LORIEN:
+    {
+        int sleep_score = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT)
+            sleep_score = (3 * song_skill) / 2;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: sleep checks use %d.",
+            song_skill, sleep_score);
+        break;
+    }
+    case SNG_SHATTERING:
+    {
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: shatter checks use Song %d; each success has a %d%% weaken chance.",
+            song_skill, song_skill, song_skill / 3);
+        break;
+    }
+    case SNG_MASTERY:
+    {
+        int mastery_bonus = song_skill;
+
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL)
+            mastery_bonus = (7 * song_skill) / 4;
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: mastery rolls are 2d8 + %d.",
+            song_skill, mastery_bonus);
+        break;
+    }
+    case SNG_GRA:
+    {
+        SDL_strlcpy(bonus_text, "\n\nCurrent effect: +1 Grace.",
+            sizeof(bonus_text));
+        break;
+    }
+    case SNG_CONTEST:
+    {
+        int will_penalty = MAX(1, song_skill / 3);
+        int stealth_penalty = MAX(1, song_skill / 2);
+        int evasion_penalty = MAX(1, song_skill / 5);
+        int armour_penalty = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will, -%d Stealth, -%d Evasion, -%d armour die.",
+            song_skill, will_penalty, stealth_penalty, evasion_penalty,
+            armour_penalty);
+        break;
+    }
+    case SNG_LAMENT:
+    {
+        int will_penalty = MAX(1, song_skill / 2);
+        int attrition_steps = MAX(1, song_skill / 12);
+
+        strnfmt(bonus_text, sizeof(bonus_text),
+            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will and -%d health/damage steps.",
+            song_skill, will_penalty, attrition_steps);
+        break;
+    }
+    default:
+        break;
+    }
+
+    if (bonus_text[0])
+        text_out_to_screen(TERM_L_GREEN, bonus_text);
+}
+
 /* ------------------------------------------------------------------
  * add_random_curse()
- *   � Marks the item cursed
- *   � Gives it random negative modifiers
+ *    Marks the item cursed
+ *    Gives it random negative modifiers
  *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
  * ------------------------------------------------------------------ */
 void add_random_curse(object_type *o_ptr)
@@ -1006,7 +1540,7 @@ void add_random_curse(object_type *o_ptr)
 
     /* 2. negative pval / attack / evasion */
     int old_pval = o_ptr->pval;
-    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* �1 � �3 */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* 1  3 */
     int pval_delta = o_ptr->pval - old_pval;
     if (pval_delta != 0)
         object_apply_pval_delta_with_mask(o_ptr, object_pval_flags1(o_ptr), pval_delta);
@@ -1141,6 +1675,7 @@ void show_songs_with_highlight(int highlight)
 {
     int i, j, k = 0;
     int current_line = 0;
+    bool steamdeck = steamdeck_controls_active();
 
     int col = 26;
 
@@ -1178,7 +1713,8 @@ void show_songs_with_highlight(int highlight)
     prt("", 1, col - 2);
 
     /* Clear the line with the (possibly indented) index */
-    put_str("s)", 1, col);
+    put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "s)",
+        1, col);
 
     /* Display the entry itself - highlight if selected */
     if (highlight == current_line)
@@ -1197,7 +1733,11 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", song_menu_letter(i));
+        if (steamdeck)
+            SDL_strlcpy(tmp_val, (highlight == current_line) ? "> " : "  ",
+                sizeof(tmp_val));
+        else
+            sprintf(tmp_val, "%c)", song_menu_letter(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -1217,7 +1757,8 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Clear the line with the (possibly indented) index */
-        put_str("x)", j + 2, col);
+        put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "x)",
+            j + 2, col);
 
         /* Display the entry itself - highlight if selected */
         if (highlight == current_line)
@@ -1254,6 +1795,7 @@ void do_cmd_change_song()
     char tmp_val[80];
 
     char which;
+    bool steamdeck = steamdeck_controls_active();
 
     log_debug("Player opening song selection menu");
 
@@ -1293,11 +1835,8 @@ void do_cmd_change_song()
     /* Flush the prompt */
     Term_fresh();
 
-    /* Option to always show a list */
-    if (auto_display_lists)
-    {
-        p_ptr->command_see = true;
-    }
+    /* Song selectors always start with the list visible. */
+    p_ptr->command_see = true;
 
     /* Start out in "display" mode */
     if (p_ptr->command_see)
@@ -1314,7 +1853,10 @@ void do_cmd_change_song()
             show_songs_with_highlight(highlight);
 
         /* Begin the prompt */
-        sprintf(out_val, "Songs: s");
+        if (steamdeck)
+            sprintf(out_val, "D-pad choose");
+        else
+            sprintf(out_val, "Songs: s");
 
         // count the abilities
         for (i = 0; i < SNG_MAX; i++)
@@ -1326,11 +1868,14 @@ void do_cmd_change_song()
             // keep track of the number of options
             if (p_ptr->active_ability[S_SNG][i])
             {
-                SDL_strlcat(out_val, ",", sizeof(out_val));
-                sprintf(tmp_val, "%c", song_menu_letter(i));
+                if (!steamdeck)
+                {
+                    SDL_strlcat(out_val, ",", sizeof(out_val));
+                    sprintf(tmp_val, "%c", song_menu_letter(i));
 
-                /* Append */
-                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
+                    /* Append */
+                    SDL_strlcat(out_val, tmp_val, sizeof(out_val));
+                }
             }
         }
 
@@ -1338,12 +1883,15 @@ void do_cmd_change_song()
         if (p_ptr->song2 != SNG_NOTHING)
         {
             /* Append */
-            SDL_strlcat(out_val, ",x", sizeof(out_val));
+            if (!steamdeck)
+                SDL_strlcat(out_val, ",x", sizeof(out_val));
         }
 
         /* Indicate ability to "view" */
         if (!p_ptr->command_see)
             SDL_strlcat(out_val, ", * to see", sizeof(out_val));
+        else if (steamdeck)
+            SDL_strlcat(out_val, ", A select, B back", sizeof(out_val));
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
@@ -1354,16 +1902,21 @@ void do_cmd_change_song()
         /* Get a key */
         which = inkey();
 
-        /* Parse it */
-        switch (which)
-        {
-        case ESCAPE:
+        if (which == ESCAPE || (steamdeck && which == steamdeck_back_key()))
         {
             log_trace("Song selection cancelled by player");
             done = true;
-            break;
+            continue;
         }
 
+        if (steamdeck && which == steamdeck_confirm_key())
+        {
+            which = ' ';
+        }
+
+        /* Parse it */
+        switch (which)
+        {
         case '\r': // Enter - select highlighted item when menu is visible, otherwise exit
         {
             if (p_ptr->command_see)
@@ -1584,6 +2137,12 @@ void do_cmd_change_song()
 
         case 's':
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
             log_debug("Player selected to stop singing");
             song_choice = SNG_NOTHING;
             done = true;
@@ -1592,6 +2151,12 @@ void do_cmd_change_song()
 
         case 'x':
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
             if (p_ptr->song2 != SNG_NOTHING)
             {
                 log_debug("Player exchanging woven themes");
@@ -1609,6 +2174,13 @@ void do_cmd_change_song()
 
         default:
         {
+            if (steamdeck)
+            {
+                log_trace("Illegal song choice attempted");
+                bell("Illegal song choice.");
+                break;
+            }
+
             song_choice = song_index_from_menu_letter(which);
 
             if (song_choice >= 0 && song_choice < SNG_MAX)
@@ -1713,12 +2285,47 @@ int elf_bane_bonus(monster_type* m_ptr)
     else
         r_ptr = &r_info[m_ptr->r_idx];
 
-    // Sil-x: a bit of a hack. Noldor and Sindar are coded as races 0 and 1 in
-    // the races.txt file
-    if ((r_ptr->flags2 & (RF2_ELFBANE))
-        && ((p_ptr->prace == 0) || (p_ptr->prace == 1)))
+    /* race.txt serials 0-2 are Noldor; serial 3 is Sindar */
+    if (((r_ptr->flags2 & (RF2_ELFBANE)) && (p_ptr->prace <= 3))
+        || ((r_ptr->flags4 & (RF4_NOLDORBANE)) && (p_ptr->prace <= 2))
+        || ((r_ptr->flags4 & (RF4_SINDARBANE)) && (p_ptr->prace == 3)))
     {
-        // Dagohir must have killed between 32 and 63 elves
+        return (5);
+    }
+
+    return (0);
+}
+
+int dwarf_bane_bonus(monster_type* m_ptr)
+{
+    monster_race* r_ptr;
+
+    if (m_ptr == NULL)
+        return (0);
+    else
+        r_ptr = &r_info[m_ptr->r_idx];
+
+    /* race.txt serial 4 is Naugrim */
+    if ((r_ptr->flags4 & (RF4_DWARFBANE)) && (p_ptr->prace == 4))
+    {
+        return (5);
+    }
+
+    return (0);
+}
+
+int edain_bane_bonus(monster_type* m_ptr)
+{
+    monster_race* r_ptr;
+
+    if (m_ptr == NULL)
+        return (0);
+    else
+        r_ptr = &r_info[m_ptr->r_idx];
+
+    /* race.txt serial 5 is Edain */
+    if ((r_ptr->flags4 & (RF4_EDAINBANE)) && (p_ptr->prace == 5))
+    {
         return (5);
     }
 
@@ -1998,6 +2605,7 @@ int bane_menu(int* highlight)
 
     int ch;
     int options;
+    bool steamdeck = steamdeck_controls_active();
 
     char buf[80];
 
@@ -2024,13 +2632,13 @@ int bane_menu(int* highlight)
             attr = TERM_L_DARK;
         }
 
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i - 1, bane_name[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), i - 1, bane_name[i]);
         Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
 
         if (*highlight == i)
         {
             // highlight the label
-            strnfmt(buf, 80, "%c)", (char)'a' + i - 1);
+            indexed_menu_focus_prefix(buf, sizeof(buf), i - 1);
             Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
 
             /* Indent output by 2 character, and wrap at column 70 */
@@ -2074,7 +2682,7 @@ int bane_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -2083,19 +2691,21 @@ int bane_menu(int* highlight)
         return (*highlight);
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
         return (*highlight);
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (BANE_TYPES + 1);
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -2291,6 +2901,7 @@ int oath_menu(int* highlight)
     int desc_col = ability_menu_description_col();
     int nav_row_1 = MAX(0, term_hgt - 2);
     int nav_row_2 = MAX(0, term_hgt - 1);
+    bool steamdeck = steamdeck_controls_active();
     /* Support up to 16 oaths without realloc. */
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
@@ -2332,7 +2943,8 @@ int oath_menu(int* highlight)
         }
         
         // Format oath name with status indicator
-        strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name_short(i));
+        indexed_menu_entry_label(buf, sizeof(buf), visible_count,
+            oath_name_short(i));
         
         // Display in abilities column with proper spacing
         Term_putstr(ability_col, 4 + visible_count, -1, attr, buf);
@@ -2424,28 +3036,30 @@ int oath_menu(int* highlight)
     hide_cursor = false;
 
     /* Handle letter selection (a-z) for immediate highlighting */
-    if ((ch >= 'a') && (ch < 'a' + visible_count))
+    if (!steamdeck && (ch >= 'a') && (ch < 'a' + visible_count))
     {
         *highlight = (int)ch - 'a' + 1;
         return oath_menu(highlight); // Recursive call to update display
     }
 
     /* Handle capital letter selection (A-Z) for immediate selection */
-    if ((ch >= 'A') && (ch < 'A' + visible_count))
+    if (!steamdeck && (ch >= 'A') && (ch < 'A' + visible_count))
     {
         *highlight = (int)ch - 'A' + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
     /* ESC or 'q' - exit menu */
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         /* Return a sentinel that's outside valid oath indices */
         return OATH_TYPES + 1;
     }
 
     /* Enter or Space - select current highlighted oath */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         if (visible_count <= 0) return OATH_TYPES + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
@@ -2475,6 +3089,7 @@ int abilities_menu1(int* highlight)
     int ch;
     int options = S_MAX;
     bool show_special = false;
+    bool steamdeck = steamdeck_controls_active();
 
     // Determine if any special abilities are present (owned or active)
     for (i = 0; i < ABILITIES_MAX; i++) {
@@ -2505,7 +3120,7 @@ int abilities_menu1(int* highlight)
     // list the skills
     for (i = 0; i < options; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
         // Highlight the entire line if selected
         Term_putstr(COL_SKILL, i + 4, -1,
@@ -2523,14 +3138,14 @@ int abilities_menu1(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
         // relist the skills
     for (i = 0; i < options; i++)
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
             Term_putstr(COL_SKILL, i + 4, -1,
                 (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
@@ -2539,14 +3154,14 @@ int abilities_menu1(int* highlight)
         return (*highlight);
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
 
         // relist the skills
     for (i = 0; i < options; i++)
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
+            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
 
             Term_putstr(COL_SKILL, i + 4, -1,
                 (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
@@ -2555,7 +3170,8 @@ int abilities_menu1(int* highlight)
         return (*highlight);
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (S_MAX + 1);  // Always return S_MAX + 1 to exit, regardless of options
     }
@@ -2566,7 +3182,8 @@ int abilities_menu1(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -2590,6 +3207,7 @@ int abilities_menu2(int skilltype, int* highlight)
 {
     int i;
     bool compact_layout = ability_menu_use_compact_layout();
+    bool steamdeck = steamdeck_controls_active();
     int ability_col = ability_menu_list_col();
     int desc_col = ability_menu_description_col();
     int list_first_row = 3;
@@ -2790,18 +3408,22 @@ int abilities_menu2(int skilltype, int* highlight)
         if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
             && (p_ptr->bane_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s-%s", (char)'a' + i,
+            char name_buf[80];
+            strnfmt(name_buf, sizeof(name_buf), "%s-%s",
                 bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+            indexed_menu_entry_label(buf, sizeof(buf), i, name_buf);
         }
         else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
             && (p_ptr->oath_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s: %s", (char)'a' + i,
+            char name_buf[80];
+            strnfmt(name_buf, sizeof(name_buf), "%s: %s",
                 (b_name + b_ptr->name), oath_name_short(p_ptr->oath_type));
+            indexed_menu_entry_label(buf, sizeof(buf), i, name_buf);
         }
         else
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + i, (b_name + b_ptr->name));
+            indexed_menu_entry_label(buf, sizeof(buf), i, (b_name + b_ptr->name));
         }
 
         Term_putstr(ability_col, display_row, -1, attr, buf);
@@ -2809,7 +3431,7 @@ int abilities_menu2(int skilltype, int* highlight)
         if (*highlight == b_ptr->abilitynum + 1)
         {
             /* Highlight the label with bright blue */
-            strnfmt(buf, 80, "%c)", (char)'a' + i);
+            indexed_menu_focus_prefix(buf, sizeof(buf), i);
             Term_putstr(ability_col, display_row, -1, TERM_L_BLUE, buf);
 
             /* Print the description of the highlighted ability. */
@@ -2870,8 +3492,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 else
                 {
                     /* Display ability description based on ability_desc_mode */
-                    const char *desc_text = (b_ptr->text) ? b_text + b_ptr->text : NULL;
-                    const char *effect_text = (b_ptr->effect) ? b_text + b_ptr->effect : NULL;
+                    char desc_controller_text[2048];
+                    char effect_controller_text[2048];
+                    const char *desc_text = (b_ptr->text)
+                        ? ability_menu_controller_text(b_text + b_ptr->text,
+                              desc_controller_text, sizeof(desc_controller_text))
+                        : NULL;
+                    const char *effect_text = (b_ptr->effect)
+                        ? ability_menu_controller_text(b_text + b_ptr->effect,
+                              effect_controller_text, sizeof(effect_controller_text))
+                        : NULL;
                     bool has_desc = desc_text && desc_text[0];
                     bool has_effect = effect_text && effect_text[0];
 
@@ -2919,6 +3549,9 @@ int abilities_menu2(int skilltype, int* highlight)
                         break;
                     }
 
+                    if (skilltype == S_SNG)
+                        ability_menu_render_song_bonus_block(b_ptr);
+
                     /* For Nienna's Gift of Mercy, show current bonus */
                     if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
                         p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
@@ -2956,6 +3589,26 @@ int abilities_menu2(int skilltype, int* highlight)
                         {
                             text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
                         }
+                    }
+
+                    if ((skilltype == S_EVN)
+                        && (b_ptr->abilitynum == EVN_HEAVY_ARMOUR))
+                    {
+                        const int armour_weight = heavy_armour_desc_current_weight();
+                        const int protection_bonus = armour_weight / 150;
+                        const int evasion_bonus =
+                            heavy_armour_desc_current_evasion_bonus();
+                        const bool learned =
+                            p_ptr->have_ability[skilltype][b_ptr->abilitynum];
+                        char bonus_text[160];
+
+                        strnfmt(bonus_text, sizeof(bonus_text),
+                            learned
+                                ? "\n\nCurrent bonus: +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)"
+                                : "\n\nWith current equipment, this would grant +%d protection vs physical attacks and %+d evasion (%d.%d lb counted)",
+                            protection_bonus, evasion_bonus, armour_weight / 10,
+                            armour_weight % 10);
+                        text_out_to_screen(TERM_L_GREEN, bonus_text);
                     }
                 }
 
@@ -3092,7 +3745,7 @@ int abilities_menu2(int skilltype, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
+    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
         /* Bounds check for safety */
@@ -3102,7 +3755,7 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
+    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
         int selected_index = (int)ch - 'A';
         /* Bounds check for safety */
@@ -3112,7 +3765,8 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+    if ((ch == ESCAPE) || (ch == 'q') || (ch == '4')
+        || (steamdeck && ch == steamdeck_back_key()))
     {
         return (ABILITIES_MAX + 1);
     }
@@ -3128,7 +3782,8 @@ int abilities_menu2(int skilltype, int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -4152,7 +4807,7 @@ typedef struct
     int pval_bonus;
 } artifice_limits_t;
 
-/* Indexed by a small enum — looked up via artifice_bonus_for(). */
+/* Indexed by a small enum - looked up via artifice_bonus_for(). */
 enum {
     ARTIFICE_ARROW,
     ARTIFICE_MELEE,     /* sword, polearm, hafted */
@@ -4750,11 +5405,11 @@ void move_displayed_highlight(
     char buf[80];
 
     // remove highlight from the old label
-    strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+    indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
     Term_putstr(col, old_highlight + 1, -1, old_attr, buf);
 
     // highlight the new label
-    strnfmt(buf, 80, "%c)", (char)'a' + new_highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), new_highlight - 1);
     Term_putstr(col, new_highlight + 1, -1, TERM_L_BLUE, buf);
 }
 
@@ -5113,9 +5768,9 @@ int object_difficulty(object_type* o_ptr)
 
     /* ------------------------------------------------------------------
      *  GAMIL character bonus
-     *  � Craft mithril items without mithril material
-     *  � Costs 3 forge uses instead of 1
-     *  � Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     *   Craft mithril items without mithril material
+     *   Costs 3 forge uses instead of 1
+     *   Mark item with TR3_CANT_MELT so the melt-menu ignores it
      * ------------------------------------------------------------------ */
 
 
@@ -5124,8 +5779,8 @@ int object_difficulty(object_type* o_ptr)
         dif_mult -= 25;
 
     /*  FEANOR character bonus
-     *  � 40% off on all lamps
-     *  � 25% off on any fire- or light-branded object */
+     *   40% off on all lamps
+     *   25% off on any fire- or light-branded object */
     if (feanor_bonus)
     {
         /* 40% off on all lamps */
@@ -5820,14 +6475,14 @@ int object_difficulty(object_type* o_ptr)
             smithing_cost.star_iron += alloy_weight;
     }
 
-   /* Gamil character bonus � override normal mithril cost */
-  if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* you�re Gamil */
+   /* Gamil character bonus  override normal mithril cost */
+  if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* youre Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
       smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
       smithing_cost.mithril = 0;                           /* waive material */
-      o_ptr->ident         |= IDENT_CANT_MELT;             /* can�t melt later */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* cant melt later */
   }
 
     // Apply the difficulty multiplier
@@ -6604,7 +7259,7 @@ static int find_reforge_target_item(void)
 
         if (!o_ptr->k_idx)
             continue;
-        if (object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr))
+        if (object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr))
             return i;
     }
 
@@ -6926,7 +7581,7 @@ int create_sval_menu_aux(int tval, int* highlight)
                 valid[num] = false;
 
             /* Print it */
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, name);
+            indexed_menu_entry_label(buf, sizeof(buf), num, name);
             Term_putstr(list_col, smith_ui_dense_row(num), -1,
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
 
@@ -6939,7 +7594,7 @@ int create_sval_menu_aux(int tval, int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(list_col, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -6963,7 +7618,8 @@ int create_sval_menu_aux(int tval, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -7070,7 +7726,7 @@ int create_tval_menu_aux(int* highlight)
 
     for (i = 0; i < MAX_SMITHING_TVALS; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_tvals[i].desc);
+        indexed_menu_entry_label(buf, sizeof(buf), i, smithing_tvals[i].desc);
 
         if (smithing_tvals[i].category == CAT_WEAPON)
         {
@@ -7098,7 +7754,7 @@ int create_tval_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -7114,16 +7770,17 @@ int create_tval_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         int old_highlight = *highlight;
 
         *highlight = (int)ch - 'a' + 1;
 
-        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
             valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, buf);
-        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
             TERM_L_BLUE, buf);
 
@@ -7495,32 +8152,29 @@ int numbers_menu_aux(int* highlight)
                            : TERM_L_DARK;
     }
 
-    Term_putstr(COL_SMT2, 2, -1, attr[SMT_NUM_MENU_I_ATT - 1],
-        "a) increase attack bonus");
-    Term_putstr(COL_SMT2, 3, -1, attr[SMT_NUM_MENU_D_ATT - 1],
-        "b) decrease attack bonus");
-    Term_putstr(COL_SMT2, 4, -1, attr[SMT_NUM_MENU_I_DS - 1],
-        "c) increase damage sides");
-    Term_putstr(COL_SMT2, 5, -1, attr[SMT_NUM_MENU_D_DS - 1],
-        "d) decrease damage sides");
-    Term_putstr(COL_SMT2, 6, -1, attr[SMT_NUM_MENU_I_EVN - 1],
-        "e) increase evasion bonus");
-    Term_putstr(COL_SMT2, 7, -1, attr[SMT_NUM_MENU_D_EVN - 1],
-        "f) decrease evasion bonus");
-    Term_putstr(COL_SMT2, 8, -1, attr[SMT_NUM_MENU_I_PS - 1],
-        "g) increase protection");
-    Term_putstr(COL_SMT2, 9, -1, attr[SMT_NUM_MENU_D_PS - 1],
-        "h) decrease protection");
-    Term_putstr(
-        COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_WGT - 1], "i) increase weight");
-    Term_putstr(
-        COL_SMT2, 11, -1, attr[SMT_NUM_MENU_D_WGT - 1], "j) decrease weight");
-    Term_putstr(COL_SMT2, 12, -1, attr[SMT_NUM_MENU_ALLOY_CYCLE - 1],
-        "k) cycle alloy (none/mithril/star iron)");
-    Term_putstr(COL_SMT2, 13, -1, attr[SMT_NUM_MENU_ALLOY_CLEAR - 1],
-        "l) remove alloy bonus");
-    Term_putstr(COL_SMT2, 14, -1, attr[SMT_NUM_MENU_EDIT_BONUSES - 1],
-        "m) adjust special bonuses");
+    {
+        static cptr number_menu_labels[SMT_NUM_MENU_MAX] = {
+            "increase attack bonus",
+            "decrease attack bonus",
+            "increase damage sides",
+            "decrease damage sides",
+            "increase evasion bonus",
+            "decrease evasion bonus",
+            "increase protection",
+            "decrease protection",
+            "increase weight",
+            "decrease weight",
+            "cycle alloy (none/mithril/star iron)",
+            "remove alloy bonus",
+            "adjust special bonuses",
+        };
+
+        for (i = 0; i < SMT_NUM_MENU_MAX; i++)
+        {
+            indexed_menu_entry_label(buf, sizeof(buf), i, number_menu_labels[i]);
+            Term_putstr(COL_SMT2, i + 2, -1, attr[i], buf);
+        }
+    }
     if (alloy_applicable)
     {
         byte info_attr = has_alloy_mastery ? TERM_SLATE : TERM_L_DARK;
@@ -7549,7 +8203,7 @@ int numbers_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // display the object difficulty
@@ -7570,7 +8224,8 @@ int numbers_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
 
@@ -7955,14 +8610,16 @@ static int smith_bonus_menu_aux(int* highlight)
         int row = first_row + (entry_idx - top);
         if (row >= first_row && row <= max_row)
         {
-            strnfmt(buf, sizeof(buf), "%c) %s %-12s (%+d)", (char)'a' + i, verb,
-                name, value);
+            char action_label[80];
+            strnfmt(action_label, sizeof(action_label), "%s %-12s (%+d)",
+                verb, name, value);
+            indexed_menu_entry_label(buf, sizeof(buf), i, action_label);
             Term_putstr(COL_SMT2, row, -1, attr[i], buf);
         }
     }
 
     int hl_row = first_row + (*highlight - top);
-    strnfmt(buf, sizeof(buf), "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, hl_row, -1, TERM_L_BLUE, buf);
 
     prt_object_difficulty();
@@ -7978,7 +8635,8 @@ static int smith_bonus_menu_aux(int* highlight)
     if ((ch == '4') || (ch == ESCAPE))
         return -1;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
@@ -8268,7 +8926,7 @@ static int reforge_prefix_menu(const object_type* source)
             choice[entry_count] = i;
 
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
-            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             Term_putstr(COL_SMT2, entry_count + 2, -1,
                 valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
             entry_count++;
@@ -8289,7 +8947,7 @@ static int reforge_prefix_menu(const object_type* source)
         if (highlight < 1) highlight = 1;
         if (highlight > entry_count) highlight = entry_count;
 
-        strnfmt(buf, sizeof(buf), "%c)", (char)'a' + highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), highlight - 1);
         Term_putstr(COL_SMT2, highlight + 1, -1, TERM_L_BLUE, buf);
 
         (void)reforge_preview_build(source, choice[highlight - 1],
@@ -8304,7 +8962,8 @@ static int reforge_prefix_menu(const object_type* source)
         ch = inkey();
         hide_cursor = false;
 
-        if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
+        if (!steamdeck_controls_active()
+            && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
         {
             highlight = (int)ch - 'a' + 1;
             if (!valid[highlight - 1])
@@ -8428,7 +9087,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     /* Always allow selecting no affix */
     valid[entry_count] = true;
     choice[entry_count] = 0;
-    strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, "(none)");
+    indexed_menu_entry_label(buf, sizeof(buf), entry_count, "(none)");
     Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
     entry_count++;
 
@@ -8464,7 +9123,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             /* Print it */
             char ego_label[64];
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
-            strnfmt(buf, sizeof(buf), "%c) %s", (char)'a' + entry_count, ego_label);
+            indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             Term_putstr(COL_SMT2, entry_count + 2, -1,
                 valid[entry_count] ? TERM_WHITE : TERM_SLATE, buf);
 
@@ -8480,7 +9139,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     if (*highlight > entry_count) *highlight = entry_count;
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     /* Make a preview 'special' version of the object */
@@ -8507,7 +9166,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     hide_cursor = false;
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -8963,7 +9623,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
                         : TERM_L_DARK);
 
             /* Display the line */
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num,
+            indexed_menu_entry_label(buf, sizeof(buf), num,
                 smithing_flag_types[i].desc);
             Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
 
@@ -8972,7 +9632,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // add this flag to the dummy artefact under construction
@@ -9002,7 +9662,8 @@ int artefact_flag_menu_aux(int category, int* highlight)
     }
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
 
@@ -9394,14 +10055,14 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                     : TERM_L_DARK);
 
         /* Display the line */
-        strnfmt(buf, 80, "%c) %s", (char)'a' + num, b_name + b_ptr->name);
+        indexed_menu_entry_label(buf, sizeof(buf), num, b_name + b_ptr->name);
         Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
 
         num++;
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // add this ability to the dummy artefact under construction (use actual ability number)
@@ -9431,7 +10092,8 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     }
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
 
@@ -9649,7 +10311,7 @@ int artefact_menu_aux(int* highlight)
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
     {
-        strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_flag_cats[i].desc);
+        indexed_menu_entry_label(buf, sizeof(buf), i, smithing_flag_cats[i].desc);
         Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1, TERM_WHITE, buf);
     }
 
@@ -9660,8 +10322,8 @@ int artefact_menu_aux(int* highlight)
         /* Skip Special abilities - they cannot be smithed onto items */
         if (i == S_SPC) continue;
         
-        strnfmt(
-            buf, 80, "%c) %s", (char)'a' + MAX_CATS + display_idx, skill_names_full[i]);
+        indexed_menu_entry_label(buf, sizeof(buf), MAX_CATS + display_idx,
+            skill_names_full[i]);
         Term_putstr(COL_SMT2, smith_ui_dense_row(MAX_CATS + display_idx), -1,
             TERM_WHITE, buf);
         display_idx++;
@@ -9670,11 +10332,11 @@ int artefact_menu_aux(int* highlight)
     num = MAX_CATS + display_idx + 1;
 
     // Menu item for naming artefacts
-    strnfmt(buf, 80, "%c) %s", (char)'a' + num - 1, "Name Artefact");
+    indexed_menu_entry_label(buf, sizeof(buf), num - 1, "Name Artefact");
     Term_putstr(COL_SMT2, smith_ui_dense_row(num - 1), -1, TERM_WHITE, buf);
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -9696,16 +10358,17 @@ int artefact_menu_aux(int* highlight)
     hide_cursor = false;
 
     /* Choose by letter */
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
         *highlight = (int)ch - 'a' + 1;
 
-        strnfmt(buf, 80, "%c)", (char)'a' + old_highlight - 1);
+        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
             TERM_WHITE, buf);
-        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
         Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
             TERM_L_BLUE, buf);
 
@@ -9861,7 +10524,7 @@ int melt_menu_aux(int* highlight)
         if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON)) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             object_desc(desc, 80, o_ptr, false, 2);
-            strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
+            indexed_menu_entry_label(buf, sizeof(buf), num, desc);
 
             Term_putstr(COL_SMT2, smith_ui_dense_row(num), -1, TERM_WHITE, buf);
 
@@ -9878,7 +10541,7 @@ int melt_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
         TERM_L_BLUE, buf);
 
@@ -9894,7 +10557,8 @@ int melt_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
 
@@ -9977,7 +10641,7 @@ void melt_menu(void)
 
 static bool smith_item_tester_hook_reforge_target(const object_type* o_ptr)
 {
-    return object_is_damaged_item(o_ptr) || object_can_reforge_prefix(o_ptr);
+    return object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr);
 }
 
 static bool smith_reforge_item(void)
@@ -10024,7 +10688,7 @@ static bool smith_reforge_item(void)
     object_copy(&smith_backup, smith_o_ptr);
     object_copy(&smith2_backup, smith2_o_ptr);
 
-    if (object_is_damaged_item(&inventory[slot]))
+    if (object_can_repair_damage(&inventory[slot]))
     {
         if (!repair_damaged_item(slot))
         {
@@ -10162,33 +10826,41 @@ int smithing_menu_aux(int* highlight)
                      || p_ptr->active_ability[S_SMT][SMT_JEWELLER])
         ? TERM_WHITE
         : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_CREATE - 1, "Base Item");
     Term_putstr(COL_SMT1, 2, -1,
-        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, "a) Base Item");
+        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
                                                                  : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ENCHANT - 1, "Enchant");
     Term_putstr(COL_SMT1, 3, -1,
-        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, "b) Enchant");
+        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr
         = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ARTEFACT - 1, "Artifice");
     Term_putstr(COL_SMT1, 4, -1,
-        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, "c) Artifice");
+        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, buf);
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_NUMBERS - 1, "Numbers");
     Term_putstr(COL_SMT1, 5, -1,
-        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, "d) Numbers");
+        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_MELT - 1, "Melt");
     Term_putstr(COL_SMT1, 6, -1,
-        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, "e) Melt");
+        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_REPAIR - 1, "Reforge");
     Term_putstr(COL_SMT1, 7, -1,
-        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, "f) Reforge");
+        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, buf);
 
     if (p_ptr->smithing_leftover == 0)
     {
+        indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Accept");
         Term_putstr(COL_SMT1, 8, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Accept");
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
     else
     {
+        indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Resume");
         Term_putstr(COL_SMT1, 8, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "g) Resume");
+            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
 
     // display information about the selected item
@@ -10284,7 +10956,7 @@ int smithing_menu_aux(int* highlight)
     }
 
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
     Term_putstr(COL_SMT1, *highlight + 1, -1, TERM_L_BLUE, buf);
 
     // display the object difficulty
@@ -10305,7 +10977,8 @@ int smithing_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
+    if (!steamdeck_controls_active()
+        && (ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
 
@@ -10734,6 +11407,7 @@ void create_smithing_item(void)
 #define MAIN_MENU_RETURN_GAME 16
 
 #define MAIN_MENU_MAX 16
+#define MAIN_MENU_LABEL_WIDTH 21
 
 typedef struct main_menu_about_line
 {
@@ -10747,32 +11421,173 @@ typedef struct main_menu_about_span
     cptr text;
 } main_menu_about_span;
 
+static cptr main_menu_title(int choice)
+{
+    switch (choice)
+    {
+    case MAIN_MENU_CHARACTER: return "Character sheet";
+    case MAIN_MENU_KNOWLEDGE: return "Known lore";
+    case MAIN_MENU_QUEST_STATUS: return "Quest status";
+    case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
+    case MAIN_MENU_RUN_HISTORY: return "Run history";
+    case MAIN_MENU_MAP: return "Map";
+    case MAIN_MENU_LOG: return "Log";
+    case MAIN_MENU_COMBAT_HISTORY: return "Combat history";
+    case MAIN_MENU_HINT_MESSAGES: return "Hint messages";
+    case MAIN_MENU_STORY: return "The story so far";
+    case MAIN_MENU_OPTIONS: return "Options and misc";
+    case MAIN_MENU_HELP: return "Help";
+    case MAIN_MENU_ABOUT: return "About";
+    case MAIN_MENU_SAVE: return "Save";
+    case MAIN_MENU_SAVE_QUIT: return "Quit with save";
+    case MAIN_MENU_RETURN_GAME: return "Return to game";
+    default: return "";
+    }
+}
+
+static int main_menu_keyboard_key(int choice)
+{
+    switch (choice)
+    {
+    case MAIN_MENU_CHARACTER: return 'c';
+    case MAIN_MENU_KNOWLEDGE: return 'a';
+    case MAIN_MENU_QUEST_STATUS: return 't';
+    case MAIN_MENU_HALLS_OF_MANDOS: return 'd';
+    case MAIN_MENU_RUN_HISTORY: return 'v';
+    case MAIN_MENU_MAP: return 'm';
+    case MAIN_MENU_LOG: return 'l';
+    case MAIN_MENU_COMBAT_HISTORY: return 'x';
+    case MAIN_MENU_HINT_MESSAGES: return 'i';
+    case MAIN_MENU_STORY: return 'y';
+    case MAIN_MENU_OPTIONS: return 'o';
+    case MAIN_MENU_HELP: return 'h';
+    case MAIN_MENU_ABOUT: return 'b';
+    case MAIN_MENU_SAVE: return 's';
+    case MAIN_MENU_SAVE_QUIT: return 'q';
+    case MAIN_MENU_RETURN_GAME: return 'r';
+    default: return 0;
+    }
+}
+
+static bool main_menu_controller_binding_for_choice(int choice, int* type,
+    int* id, const char** fallback)
+{
+    int out_type = GAMEPAD_CAPTURE_BUTTON;
+    int out_id = -1;
+    const char* out_fallback = "";
+
+    switch (choice)
+    {
+    case MAIN_MENU_HALLS_OF_MANDOS:
+        out_id = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER; /* L1 */
+        out_fallback = "L1";
+        break;
+    case MAIN_MENU_LOG:
+        out_id = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER; /* R1 */
+        out_fallback = "R1";
+        break;
+    case MAIN_MENU_HINT_MESSAGES:
+        out_id = SDL_GAMEPAD_BUTTON_NORTH;         /* Y */
+        out_fallback = "Y";
+        break;
+    case MAIN_MENU_SAVE:
+        out_id = SDL_GAMEPAD_BUTTON_WEST;          /* X */
+        out_fallback = "X";
+        break;
+    default:
+        return false;
+    }
+
+    if (type)
+        *type = out_type;
+    if (id)
+        *id = out_id;
+    if (fallback)
+        *fallback = out_fallback;
+
+    return true;
+}
+
+static int main_menu_controller_choice_from_key(int key)
+{
+    if (!steamdeck_controls_active())
+        return 0;
+
+    for (int choice = 1; choice <= MAIN_MENU_MAX; choice++)
+    {
+        int type = 0;
+        int id = 0;
+        int binding;
+
+        if (!main_menu_controller_binding_for_choice(choice, &type, &id, NULL))
+            continue;
+
+        binding = (type == GAMEPAD_CAPTURE_TRIGGER)
+            ? get_sdl_gamepad_trigger_binding(id)
+            : get_sdl_gamepad_button_binding(id);
+
+        if (key == binding)
+            return choice;
+    }
+
+    return 0;
+}
+
+static void main_menu_controller_label(int choice, char* buf, size_t buflen)
+{
+    int type = 0;
+    int id = 0;
+    int binding;
+    const char* fallback = "";
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    if (!main_menu_controller_binding_for_choice(choice, &type, &id, &fallback))
+        return;
+
+    binding = (type == GAMEPAD_CAPTURE_TRIGGER)
+        ? get_sdl_gamepad_trigger_binding(id)
+        : get_sdl_gamepad_button_binding(id);
+
+    controller_prompt_label(binding, fallback, buf, buflen);
+}
+
+static void main_menu_format_line(int choice, char* buf, size_t buflen)
+{
+    char label[24];
+
+    if (!buf || !buflen)
+        return;
+
+    if (steamdeck_controls_active())
+    {
+        main_menu_controller_label(choice, label, sizeof(label));
+        if (label[0])
+            strnfmt(buf, buflen, "%-*s [%s]", MAIN_MENU_LABEL_WIDTH,
+                main_menu_title(choice), label);
+        else
+            strnfmt(buf, buflen, "%s", main_menu_title(choice));
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%-*s (%c)", MAIN_MENU_LABEL_WIDTH,
+            main_menu_title(choice), main_menu_keyboard_key(choice));
+    }
+}
+
 static int main_menu_calc_width(void)
 {
-    /* Keep in sync with the strings printed in main_menu_aux(). */
-    static const char* lines[] = {
-        "Character sheet      (c)",
-        "Known lore           (a)",
-        "Quest status         (t)",
-        "Halls of Mandos      (d)",
-        "Run history          (v)",
-        "Map                  (m)",
-        "Log                  (l)",
-        "Combat history       (x)",
-        "Hint messages        (i)",
-        "The story so far     (y)",
-        "Options and misc     (o)",
-        "Help                 (h)",
-        "About                (b)",
-        "Save                 (s)",
-        "Quit with save       (q)",
-        "Return to game       (r)",
-    };
-
     int max_w = 0;
-    for (int i = 0; i < (int)(sizeof(lines) / sizeof(lines[0])); i++)
+    for (int i = 1; i <= MAIN_MENU_MAX; i++)
     {
-        int w = (int)strlen(lines[i]);
+        char line[80];
+        int w;
+
+        main_menu_format_line(i, line, sizeof(line));
+        w = (int)strlen(line);
         if (w > max_w)
             max_w = w;
     }
@@ -11115,56 +11930,17 @@ int main_menu_aux(int* highlight)
             Term_erase(clear_x, y, clear_w);
     }
 
-    Term_putstr(col_main, row_top + row_first + 0, -1,
-        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "Character sheet      (c)");
-    Term_putstr(col_main, row_top + row_first + 1, -1,
-        (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "Known lore           (a)");
-    Term_putstr(col_main, row_top + row_first + 2, -1,
-        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "Quest status         (t)");
-    Term_putstr(col_main, row_top + row_first + 3, -1,
-        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "Halls of Mandos      (d)");
-    Term_putstr(col_main, row_top + row_first + 4, -1,
-        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "Run history          (v)");
-    Term_putstr(col_main, row_top + row_first + 5, -1,
-        (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "Map                  (m)");
-    Term_putstr(col_main, row_top + row_first + 6, -1,
-        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "Log                  (l)");
-    Term_putstr(col_main, row_top + row_first + 7, -1,
-        (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "Combat history       (x)");
-    Term_putstr(col_main, row_top + row_first + 8, -1,
-        (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "Hint messages        (i)");
-    Term_putstr(col_main, row_top + row_first + 9, -1,
-        (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "The story so far     (y)");
-    Term_putstr(col_main, row_top + row_first + 10, -1,
-        (*highlight == MAIN_MENU_OPTIONS) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
-    Term_putstr(col_main, row_top + row_first + 11, -1,
-        (*highlight == MAIN_MENU_HELP) ? TERM_L_BLUE : TERM_WHITE,
-        "Help                 (h)");
-    byte about_color = (*highlight == MAIN_MENU_ABOUT) ? TERM_L_BLUE : TERM_WHITE;
-    Term_putstr(col_main, row_top + row_first + 12, -1, about_color,
-        "About                (b)");
-    byte save_color = death_view ? TERM_L_DARK
-        : ((*highlight == MAIN_MENU_SAVE) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(col_main, row_top + row_first + 13, -1, save_color,
-        "Save                 (s)");
-    byte quit_color = death_view ? TERM_L_DARK
-        : ((*highlight == MAIN_MENU_SAVE_QUIT) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(col_main, row_top + row_first + 14, -1, quit_color,
-        "Quit with save       (q)");
-    Term_putstr(col_main, row_top + row_first + 15, -1,
-        (*highlight == MAIN_MENU_RETURN_GAME) ? TERM_L_BLUE : TERM_WHITE,
-        "Return to game       (r)");
+    for (i = 1; i <= MAIN_MENU_MAX; i++)
+    {
+        char line[80];
+        byte color = (*highlight == i) ? TERM_L_BLUE : TERM_WHITE;
+
+        if (death_view && main_menu_choice_is_disabled(i))
+            color = TERM_L_DARK;
+
+        main_menu_format_line(i, line, sizeof(line));
+        Term_putstr(col_main, row_top + row_first + i - 1, -1, color, line);
+    }
 
     if (steamdeck && Term)
     {
@@ -11210,65 +11986,79 @@ int main_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    // choose an option by letter - alphabetical mapping (updated for new order)
-    switch (ch)
+    if (steamdeck)
     {
-    case 'c':
-        *highlight = 1;
-        return (*highlight);  // Character sheet
-    case 'a':
-        *highlight = 2;
-        return (*highlight);  // Known lore
-    case 't':
-        *highlight = 3;
-        return (*highlight);  // Quest status
-    case 'd':
-        *highlight = 4;
-        return (*highlight);  // Halls of Mandos
-    case 'v':
-        *highlight = 5;
-        return (*highlight);  // Run history
-    case 'm':
-        *highlight = 6;
-        return (*highlight);  // Map
-    case 'l':
-        *highlight = 7;
-        return (*highlight);  // Log
-    case 'x':
-        *highlight = 8;
-        return (*highlight); // Combat history
-    case 'i':
-        *highlight = 9;
-        return (*highlight); // Hint messages
-    case 'y':
-        *highlight = 10;
-        return (*highlight); // The story so far
-    case 'o':
-        *highlight = MAIN_MENU_OPTIONS;
-        return (*highlight); // Options and misc
-    case 'h':
-        *highlight = MAIN_MENU_HELP;
-        return (*highlight); // Help
-    case 'b':
-        *highlight = MAIN_MENU_ABOUT;
-        return (*highlight); // About
-    case 's':
-        if (death_view) {
-            msg_print("You can no longer take that action.");
-            break;
+        int controller_choice = main_menu_controller_choice_from_key(ch);
+
+        if (controller_choice > 0)
+        {
+            *highlight = controller_choice;
+            return (*highlight);
         }
-        *highlight = MAIN_MENU_SAVE;
-        return (*highlight); // Save
-    case 'q':
-        if (death_view) {
-            msg_print("You can no longer take that action.");
-            break;
+    }
+
+    // choose an option by letter - alphabetical mapping (updated for new order)
+    if (!steamdeck)
+    {
+        switch (ch)
+        {
+        case 'c':
+            *highlight = 1;
+            return (*highlight);  // Character sheet
+        case 'a':
+            *highlight = 2;
+            return (*highlight);  // Known lore
+        case 't':
+            *highlight = 3;
+            return (*highlight);  // Quest status
+        case 'd':
+            *highlight = 4;
+            return (*highlight);  // Halls of Mandos
+        case 'v':
+            *highlight = 5;
+            return (*highlight);  // Run history
+        case 'm':
+            *highlight = 6;
+            return (*highlight);  // Map
+        case 'l':
+            *highlight = 7;
+            return (*highlight);  // Log
+        case 'x':
+            *highlight = 8;
+            return (*highlight); // Combat history
+        case 'i':
+            *highlight = 9;
+            return (*highlight); // Hint messages
+        case 'y':
+            *highlight = 10;
+            return (*highlight); // The story so far
+        case 'o':
+            *highlight = MAIN_MENU_OPTIONS;
+            return (*highlight); // Options and misc
+        case 'h':
+            *highlight = MAIN_MENU_HELP;
+            return (*highlight); // Help
+        case 'b':
+            *highlight = MAIN_MENU_ABOUT;
+            return (*highlight); // About
+        case 's':
+            if (death_view) {
+                msg_print("You can no longer take that action.");
+                break;
+            }
+            *highlight = MAIN_MENU_SAVE;
+            return (*highlight); // Save
+        case 'q':
+            if (death_view) {
+                msg_print("You can no longer take that action.");
+                break;
+            }
+            *highlight = MAIN_MENU_SAVE_QUIT;
+            return (*highlight); // Quit with save
+        case 'r':
+            *highlight = MAIN_MENU_RETURN_GAME;
+            return (*highlight); // Return to game
         }
-        *highlight = MAIN_MENU_SAVE_QUIT;
-        return (*highlight); // Quit with save
-    case 'r':
-        *highlight = MAIN_MENU_RETURN_GAME;
-        return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -11510,6 +12300,24 @@ static bool hint_message_is_word_boundary(char ch)
     return (ch == '\0') || !isalnum((unsigned char)ch);
 }
 
+static bool hint_message_phrase_matches_ci(const char* line, int offset,
+    const char* phrase)
+{
+    size_t len;
+
+    if (!line || !phrase || !phrase[0])
+        return false;
+
+    len = strlen(phrase);
+    if (SDL_strncasecmp(line + offset, phrase, len) != 0)
+        return false;
+
+    if (offset > 0 && !hint_message_is_word_boundary(line[offset - 1]))
+        return false;
+
+    return hint_message_is_word_boundary(line[offset + len]);
+}
+
 static bool hint_message_phrase_matches(const char* line, int offset, const char* phrase)
 {
     size_t len;
@@ -11525,6 +12333,109 @@ static bool hint_message_phrase_matches(const char* line, int offset, const char
         return false;
 
     return hint_message_is_word_boundary(line[offset + len]);
+}
+
+typedef struct tutorial_highlight_rule {
+    const char* phrase;
+    byte attr;
+} tutorial_highlight_rule;
+
+static const tutorial_highlight_rule tutorial_highlight_rules[] = {
+    { "Alt+'+'", TERM_WHITE },
+    { "Alt+'-'", TERM_WHITE },
+    { "Alt+'i'", TERM_WHITE },
+    { "Alt+'l'", TERM_WHITE },
+    { "Alt+'p'", TERM_WHITE },
+    { "'S'", TERM_WHITE },
+    { "critical hit", TERM_L_BLUE },
+    { "damage dice", TERM_L_BLUE },
+    { "damage die", TERM_L_BLUE },
+    { "damage sides", TERM_L_BLUE },
+    { "damage side", TERM_L_BLUE },
+    { "song points", TERM_L_BLUE },
+    { "line of sight", TERM_L_BLUE },
+    { "light radius", TERM_YELLOW },
+    { "right panel", TERM_UMBER },
+    { "bottom panel", TERM_UMBER },
+    { "left status panel", TERM_UMBER },
+    { "status panel", TERM_UMBER },
+    { "bright star rating", TERM_L_GREEN },
+    { "mixed elemental", TERM_L_BLUE },
+    { "pure elemental", TERM_L_BLUE },
+    { "vulnerabilities", TERM_L_RED },
+    { "vulnerability", TERM_L_RED },
+    { "vulnerable", TERM_L_RED },
+    { "resistances", TERM_L_GREEN },
+    { "resistance", TERM_L_GREEN },
+    { "cursed", TERM_ORANGE },
+    { "curse", TERM_ORANGE },
+    { "jinx", TERM_ORANGE },
+    { "elemental", TERM_L_BLUE },
+    { "Protection", TERM_L_BLUE },
+    { "protection", TERM_L_BLUE },
+    { "Evasion", TERM_L_BLUE },
+    { "evasion", TERM_L_BLUE },
+    { "Attack", TERM_L_BLUE },
+    { "attack", TERM_L_BLUE },
+    { "Damage", TERM_L_BLUE },
+    { "damage", TERM_L_BLUE },
+    { "Stealth", TERM_L_BLUE },
+    { "stealth", TERM_L_BLUE },
+    { "Will", TERM_L_BLUE },
+    { "will", TERM_L_BLUE },
+    { "Perception", TERM_L_BLUE },
+    { "perception", TERM_L_BLUE },
+    { "Constitution", TERM_L_BLUE },
+    { "constitution", TERM_L_BLUE },
+    { "Dexterity", TERM_L_BLUE },
+    { "dexterity", TERM_L_BLUE },
+    { "Grace", TERM_L_BLUE },
+    { "grace", TERM_L_BLUE },
+    { "Strength", TERM_L_BLUE },
+    { "strength", TERM_L_BLUE },
+    { "Smithing", TERM_L_BLUE },
+    { "smithing", TERM_L_BLUE },
+    { "Song", TERM_L_BLUE },
+    { "song", TERM_L_BLUE },
+    { "Archery", TERM_L_BLUE },
+    { "archery", TERM_L_BLUE },
+    { "HP", TERM_L_BLUE },
+    { "XP", TERM_L_BLUE },
+    { "quiver", TERM_L_BLUE },
+    { "inventory", TERM_L_BLUE },
+    { "options", TERM_UMBER },
+    { "light", TERM_YELLOW },
+    { "fire", TERM_L_RED },
+    { "ice", TERM_BLUE },
+    { "cold", TERM_BLUE },
+    { "poison", TERM_L_GREEN },
+};
+
+static int tutorial_hint_match_length(const char* line, int offset, byte* out_attr)
+{
+    int best_len = 0;
+    byte best_attr = TERM_WHITE;
+
+    for (int i = 0; i < (int)N_ELEMENTS(tutorial_highlight_rules); ++i)
+    {
+        const tutorial_highlight_rule* rule = &tutorial_highlight_rules[i];
+        int len;
+
+        if (!hint_message_phrase_matches_ci(line, offset, rule->phrase))
+            continue;
+
+        len = (int)strlen(rule->phrase);
+        if (len > best_len)
+        {
+            best_len = len;
+            best_attr = rule->attr;
+        }
+    }
+
+    if (out_attr)
+        *out_attr = best_attr;
+
+    return best_len;
 }
 
 static int hint_message_match_length(const char* line, int offset,
@@ -11580,7 +12491,7 @@ static void hint_message_put_segment(int row, int col, byte attr, const char* te
 }
 
 static void hint_message_draw_colored_line(int row, int col, byte base_attr,
-    const char* line, const hint_message_meta* meta)
+    const char* line, const hint_message_meta* meta, bool highlight_tutorial)
 {
     int start = 0;
     int cursor = col;
@@ -11594,11 +12505,21 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
     {
         byte match_attr = base_attr;
         int match_len = hint_message_match_length(line, i, meta, &match_attr);
+        if (highlight_tutorial)
+        {
+            byte tutorial_attr = base_attr;
+            int tutorial_len = tutorial_hint_match_length(line, i, &tutorial_attr);
+            if (tutorial_len > match_len)
+            {
+                match_len = tutorial_len;
+                match_attr = tutorial_attr;
+            }
+        }
         if (match_len > 0)
         {
             if (i > start)
             {
-                char plain[100];
+                char plain[256];
                 int plain_len = i - start;
                 memcpy(plain, line + start, plain_len);
                 plain[plain_len] = '\0';
@@ -11607,7 +12528,7 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
             }
 
             {
-                char special[HINT_MESSAGE_CUE_TEXT_MAX + 1];
+                char special[256];
                 memcpy(special, line + i, match_len);
                 special[match_len] = '\0';
                 hint_message_put_segment(row, cursor, match_attr, special);
@@ -11625,7 +12546,7 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
 
     if (start < len)
     {
-        char tail[100];
+        char tail[256];
         int tail_len = len - start;
         memcpy(tail, line + start, tail_len);
         tail[tail_len] = '\0';
@@ -11646,106 +12567,746 @@ static const char* hint_message_title(int index)
     return "";
 }
 
-static void hint_message_build_title(char* buf, size_t buf_sz, const char* title,
-    int max_len)
+static const char* hint_message_pick_prompt(int wid,
+    const char* const prompts[], int prompt_count)
 {
-    if (!buf || buf_sz == 0)
-        return;
+    int avail = wid;
 
-    if (!title)
-        title = "";
+    if (avail < 1)
+        avail = 1;
 
-    if (max_len < 4 || (int)strlen(title) <= max_len)
+    for (int i = 0; i < prompt_count; ++i)
     {
-        strnfmt(buf, buf_sz, "%s", title);
-        return;
+        if (!prompts[i])
+            continue;
+        if ((int)strlen(prompts[i]) <= avail)
+            return prompts[i];
     }
 
-    strnfmt(buf, buf_sz, "%.*s...", max_len - 3, title);
+    return (prompt_count > 0 && prompts[prompt_count - 1])
+        ? prompts[prompt_count - 1]
+        : "";
 }
 
-static void hint_message_draw_list_row(int row, int idx, bool selected, int wid)
+static const char* hint_message_detail_prompt(bool has_source, int wid)
+{
+    static const char* const simple_prompts[] = {
+        "[Press any key to continue]",
+        "[Any key]"
+    };
+    static const char* const source_prompts[] = {
+        "[Press any key to continue, or 'l' to look at the skeleton]",
+        "[Any key continues; 'l' looks at skeleton]",
+        "[Any key; 'l' looks]"
+    };
+
+    if (has_source)
+        return hint_message_pick_prompt(wid, source_prompts,
+            N_ELEMENTS(source_prompts));
+
+    return hint_message_pick_prompt(wid, simple_prompts,
+        N_ELEMENTS(simple_prompts));
+}
+
+static const char* hint_message_list_prompt(bool show_all_tips,
+    int level_n, int tip_n, int wid)
+{
+    static const char* const tip_list_prompts[] = {
+        "[Press '8'/'2' to move, Enter to read, 'h' for level hints, or ESCAPE]",
+        "[8/2 move, Enter read, h=level hints, ESC]",
+        "[8/2 move, Enter, h, ESC]"
+    };
+    static const char* const level_list_prompts[] = {
+        "[Press '8'/'2' to move, Enter to read, 'h' for all tips, 'l' to look, or ESCAPE]",
+        "[8/2 move, Enter read, h tips, l look, ESC]",
+        "[8/2, Enter, h, l, ESC]"
+    };
+    static const char* const no_level_with_tips_prompts[] = {
+        "[No level hint messages. Press 'h' for all tips, or ESCAPE]",
+        "[No level hints. h=tips, ESC]",
+        "[No hints. h, ESC]"
+    };
+    static const char* const no_level_prompts[] = {
+        "[No level hint messages. Press ESCAPE]",
+        "[No level hints. ESC]"
+    };
+
+    if (show_all_tips)
+        return hint_message_pick_prompt(wid, tip_list_prompts,
+            N_ELEMENTS(tip_list_prompts));
+
+    if (level_n > 0)
+        return hint_message_pick_prompt(wid, level_list_prompts,
+            N_ELEMENTS(level_list_prompts));
+
+    if (tip_n > 0)
+        return hint_message_pick_prompt(wid, no_level_with_tips_prompts,
+            N_ELEMENTS(no_level_with_tips_prompts));
+
+    return hint_message_pick_prompt(wid, no_level_prompts,
+        N_ELEMENTS(no_level_prompts));
+}
+
+typedef struct hint_message_display_line {
+    char text[256];
+    byte source_line;
+} hint_message_display_line;
+
+enum {
+    HINT_MESSAGE_DISPLAY_TEXT_MAX = 256,
+    HINT_MESSAGE_DISPLAY_LINES_MAX = 48,
+    HINT_MESSAGE_LIST_LINES_MAX = 64
+};
+
+static int hint_message_wrap_list_text(const char* text, int wrap_cols,
+    hint_message_display_line* lines, int limit);
+
+static int hint_message_list_emit_token(int base_row, int wid, int text_col,
+    int max_rows, int* used_rows, int* cursor_col, bool draw, byte attr,
+    const char* text)
+{
+    int full_width;
+    int len;
+    int row;
+
+    if (!text || !text[0] || !used_rows || !cursor_col)
+        return true;
+
+    full_width = wid - text_col - 1;
+    if (full_width < 1)
+        full_width = 1;
+
+    len = (int)strlen(text);
+
+    if (*used_rows <= 0)
+    {
+        *used_rows = 1;
+        *cursor_col = text_col;
+    }
+
+    if (*cursor_col + len > wid - 1 && *cursor_col > text_col)
+    {
+        if (*used_rows >= max_rows)
+            return false;
+
+        row = base_row + *used_rows;
+        if (draw)
+            Term_erase(0, row, 255);
+        (*used_rows)++;
+        *cursor_col = text_col;
+    }
+
+    row = base_row + (*used_rows - 1);
+
+    if (len <= full_width)
+    {
+        if (draw)
+            hint_message_put_segment(row, *cursor_col, attr, text);
+        *cursor_col += len;
+        return true;
+    }
+
+    {
+        hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+        int line_count = hint_message_wrap_list_text(text, full_width, lines,
+            HINT_MESSAGE_LIST_LINES_MAX);
+
+        for (int li = 0; li < line_count; ++li)
+        {
+            if (li > 0 || *cursor_col > text_col)
+            {
+                if (*used_rows >= max_rows)
+                    return false;
+
+                row = base_row + *used_rows;
+                if (draw)
+                    Term_erase(0, row, 255);
+                (*used_rows)++;
+                *cursor_col = text_col;
+            }
+
+            row = base_row + (*used_rows - 1);
+            if (draw)
+                hint_message_put_segment(row, *cursor_col, attr, lines[li].text);
+            *cursor_col += (int)strlen(lines[li].text);
+        }
+    }
+
+    return true;
+}
+
+static int skeleton_tip_template_count(void)
+{
+    int count = 0;
+
+    if (!skeleton_note_info || !skeleton_note_text || !z_info)
+        return 0;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
+    {
+        const skeleton_note_template* tip = &skeleton_note_info[i];
+
+        if (tip->role != SKELETON_NOTE_ROLE_HINT || tip->hint != SKEL_HINT_TIP)
+            continue;
+        if (tip->weight == 0 || tip->text == 0)
+            continue;
+
+        count++;
+    }
+
+    return count;
+}
+
+static const skeleton_note_template* skeleton_tip_template_by_index(int index)
+{
+    int seen = 0;
+
+    if (index < 0 || !skeleton_note_info || !skeleton_note_text || !z_info)
+        return NULL;
+
+    for (int i = 0; i < z_info->skeleton_note_max; ++i)
+    {
+        const skeleton_note_template* tip = &skeleton_note_info[i];
+
+        if (tip->role != SKELETON_NOTE_ROLE_HINT || tip->hint != SKEL_HINT_TIP)
+            continue;
+        if (tip->weight == 0 || tip->text == 0)
+            continue;
+
+        if (seen == index)
+            return tip;
+
+        seen++;
+    }
+
+    return NULL;
+}
+
+static bool skeleton_tip_text_by_index(int index, char* buf, size_t buf_sz)
+{
+    const skeleton_note_template* tip = skeleton_tip_template_by_index(index);
+    const char* main_text;
+    const char* extra_text = NULL;
+
+    if (!buf || buf_sz == 0)
+        return false;
+
+    buf[0] = '\0';
+
+    if (!tip || !skeleton_note_text)
+        return false;
+
+    main_text = skeleton_note_text + tip->text;
+    if (tip->extra_text)
+        extra_text = skeleton_note_text + tip->extra_text;
+
+    if (extra_text && extra_text[0])
+    {
+        strnfmt(buf, buf_sz, "%s %s", main_text, extra_text);
+    }
+    else
+    {
+        strnfmt(buf, buf_sz, "%s", main_text);
+    }
+
+    return (buf[0] != '\0');
+}
+
+static int hint_message_effective_wrap_cols(int wrap_cols,
+    size_t line_capacity)
+{
+    int max_cols = (int)line_capacity - 1;
+
+    if (max_cols < 1)
+        max_cols = 1;
+    if (wrap_cols < 1)
+        wrap_cols = 1;
+    if (wrap_cols > max_cols)
+        wrap_cols = max_cols;
+
+    return wrap_cols;
+}
+
+static int hint_message_max_chars_fit_pixels(const char* text, int max_chars,
+    int max_px, int cell_width)
+{
+    if (!text || max_chars <= 0)
+        return 0;
+
+    if (max_px <= 0 || cell_width <= 0)
+        return max_chars;
+
+    int lo = 1;
+    int hi = max_chars;
+    int best = 1;
+
+    while (lo <= hi)
+    {
+        int mid = (lo + hi) / 2;
+        int width = sdl_story_font_text_width(text, mid);
+        if (width <= 0)
+            width = mid * cell_width;
+
+        if (width <= max_px)
+        {
+            best = mid;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+
+    return best;
+}
+
+static int hint_message_append_wrapped_segment_mono(const char* seg,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
+{
+    int len;
+    int pos;
+
+    if (!seg || !seg[0] || !lines || limit <= idx)
+        return idx;
+
+    wrap_cols = hint_message_effective_wrap_cols(
+        wrap_cols, sizeof(lines[0].text));
+
+    len = (int)strlen(seg);
+    pos = 0;
+
+    while (pos < len && idx < limit)
+    {
+        int remaining;
+        int take;
+
+        while (pos < len && seg[pos] == ' ')
+            pos++;
+        if (pos >= len)
+            break;
+
+        remaining = len - pos;
+        take = (remaining <= wrap_cols) ? remaining : wrap_cols;
+
+        if (remaining > wrap_cols)
+        {
+            int end = pos + take;
+            int split = -1;
+            for (int j = end - 1; j > pos; --j)
+            {
+                if (seg[j] == ' ')
+                {
+                    split = j;
+                    break;
+                }
+            }
+            if (split > pos)
+                take = split - pos;
+        }
+
+        while (take > 0 && seg[pos + take - 1] == ' ')
+            take--;
+
+        if (take <= 0)
+            break;
+
+        strnfmt(lines[idx].text, sizeof(lines[idx].text), "%.*s", take, seg + pos);
+        lines[idx].source_line = source_line;
+        idx++;
+        pos += take;
+    }
+
+    return idx;
+}
+
+static int hint_message_append_wrapped_segment_story(const char* seg,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
+{
+    int cell_width;
+    int wrap_px;
+    int space_px;
+    int max_line_chars;
+    const char* s;
+
+    if (!seg || !seg[0] || !lines || limit <= idx)
+        return idx;
+
+    wrap_cols = hint_message_effective_wrap_cols(
+        wrap_cols, sizeof(lines[0].text));
+
+    cell_width = sdl_get_cell_width();
+    if (cell_width <= 0)
+        return hint_message_append_wrapped_segment_mono(
+            seg, lines, idx, limit, wrap_cols, source_line);
+
+    wrap_px = wrap_cols * cell_width;
+    space_px = sdl_story_font_text_width(" ", 1);
+    if (space_px <= 0)
+        space_px = cell_width;
+
+    max_line_chars = wrap_cols;
+    if (max_line_chars > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1)
+        max_line_chars = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1;
+
+    s = seg;
+    while (*s && idx < limit)
+    {
+        char out[HINT_MESSAGE_DISPLAY_TEXT_MAX];
+        int out_len = 0;
+        int line_px = 0;
+        bool first_word = true;
+
+        while (*s == ' ')
+            s++;
+        if (!*s)
+            break;
+
+        while (*s)
+        {
+            const char* word;
+            int word_len = 0;
+            int word_px;
+            int add_px;
+            int add_chars;
+
+            while (*s == ' ')
+                s++;
+            if (!*s)
+                break;
+
+            word = s;
+            while (word[word_len] && word[word_len] != ' ')
+                word_len++;
+
+            word_px = sdl_story_font_text_width(word, word_len);
+            if (word_px <= 0)
+                word_px = word_len * cell_width;
+
+            add_px = word_px + (first_word ? 0 : space_px);
+            add_chars = word_len + (first_word ? 0 : 1);
+
+            if (!first_word
+                && ((line_px + add_px) > wrap_px
+                    || (out_len + add_chars) > max_line_chars))
+            {
+                break;
+            }
+
+            if (first_word && (word_px > wrap_px || word_len > max_line_chars))
+            {
+                int max_chars = word_len;
+                int fit;
+
+                if (max_chars > max_line_chars - out_len)
+                    max_chars = max_line_chars - out_len;
+                fit = hint_message_max_chars_fit_pixels(
+                    word, max_chars, wrap_px, cell_width);
+                if (fit <= 0)
+                    fit = 1;
+
+                memcpy(out + out_len, word, fit);
+                out_len += fit;
+                out[out_len] = '\0';
+                s += fit;
+                break;
+            }
+
+            if (!first_word)
+            {
+                out[out_len++] = ' ';
+                line_px += space_px;
+            }
+
+            if (word_len > HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len)
+                word_len = HINT_MESSAGE_DISPLAY_TEXT_MAX - 1 - out_len;
+            if (word_len > max_line_chars - out_len)
+                word_len = max_line_chars - out_len;
+            memcpy(out + out_len, word, word_len);
+            out_len += word_len;
+            out[out_len] = '\0';
+            line_px += word_px;
+
+            s += word_len;
+            first_word = false;
+        }
+
+        if (out_len > 0)
+        {
+            strnfmt(lines[idx].text, sizeof(lines[idx].text), "%s", out);
+            lines[idx].source_line = source_line;
+            idx++;
+        }
+
+        while (*s == ' ')
+            s++;
+    }
+
+    return idx;
+}
+
+static int hint_message_append_wrapped_text(const char* text,
+    hint_message_display_line* lines, int idx, int limit, int wrap_cols,
+    byte source_line)
+{
+    char expanded[512];
+    char* seg;
+
+    if (!text || !lines || limit <= idx)
+        return idx;
+
+    if (!text[0])
+    {
+        lines[idx].text[0] = '\0';
+        lines[idx].source_line = source_line;
+        return idx + 1;
+    }
+
+    strnfmt(expanded, sizeof(expanded), "%s", text);
+    seg = expanded;
+
+    while (seg && *seg && idx < limit)
+    {
+        char* next = strchr(seg, '|');
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        while (*seg == ' ')
+            seg++;
+
+        if (*seg)
+        {
+            if (sdl_is_story_font_enabled() && sdl_story_font_text_width(" ", 1) > 0
+                && sdl_get_cell_width() > 0)
+            {
+                idx = hint_message_append_wrapped_segment_story(
+                    seg, lines, idx, limit, wrap_cols, source_line);
+            }
+            else
+            {
+                idx = hint_message_append_wrapped_segment_mono(
+                    seg, lines, idx, limit, wrap_cols, source_line);
+            }
+        }
+        else
+        {
+            lines[idx].text[0] = '\0';
+            lines[idx].source_line = source_line;
+            idx++;
+        }
+
+        seg = next;
+    }
+
+    return idx;
+}
+
+static int hint_message_wrap_list_text(const char* text, int wrap_cols,
+    hint_message_display_line* lines, int limit)
+{
+    int line_count = hint_message_append_wrapped_text(
+        text, lines, 0, limit, wrap_cols, 0);
+
+    if (line_count <= 0 && limit > 0)
+    {
+        lines[0].text[0] = '\0';
+        lines[0].source_line = 0;
+        line_count = 1;
+    }
+
+    return line_count;
+}
+
+static int hint_message_draw_wrapped_list_entry(int row, int idx,
+    bool selected, int wid, int max_rows, const char* text,
+    const hint_message_meta* meta, bool highlight_tutorial)
+{
+    char prefix[8];
+    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
+    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
+    int text_col;
+    int line_count;
+    int draw_count;
+
+    if (max_rows <= 0)
+        return 0;
+
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    text_col = (int)strlen(prefix);
+    line_count = hint_message_wrap_list_text(text ? text : "",
+        wid - text_col - 1, lines, HINT_MESSAGE_LIST_LINES_MAX);
+    draw_count = MIN(line_count, max_rows);
+
+    for (int li = 0; li < draw_count; ++li)
+    {
+        Term_erase(0, row + li, 255);
+
+        if (li == 0)
+            Term_putstr(0, row + li, -1, prefix_attr, prefix);
+
+        hint_message_draw_colored_line(row + li, text_col, title_attr,
+            lines[li].text, meta, highlight_tutorial);
+    }
+
+    return draw_count;
+}
+
+static int hint_message_layout_list_entry(int row, int idx, bool selected,
+    int wid, int max_rows, bool draw)
 {
     hint_message_meta meta;
     char prefix[8];
-    char title_buf[96];
+    hint_message_display_line title_lines[HINT_MESSAGE_LIST_LINES_MAX];
     const char* title = hint_message_title(idx);
     byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
     byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
     byte chrome_attr = TERM_SLATE;
-    int col = 0;
-    int title_room;
+    int text_col;
+    int title_count;
+    int used_rows = 0;
+    int cursor_col = 0;
+
+    if (max_rows <= 0)
+        return 0;
 
     hint_messages_message_meta(idx, &meta);
-
-    Term_erase(0, row, 255);
-
     strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
-    Term_putstr(col, row, -1, prefix_attr, prefix);
-    col += (int)strlen(prefix);
+    text_col = (int)strlen(prefix);
+    title_count = hint_message_wrap_list_text(title ? title : "",
+        wid - text_col - 1, title_lines, HINT_MESSAGE_LIST_LINES_MAX);
 
-    title_room = MAX(8, wid - col - 1);
-    if (meta.cue_count > 0)
-        title_room = MIN(title_room, MAX(wid / 2, 24));
-    hint_message_build_title(title_buf, sizeof(title_buf), title, title_room);
-    Term_putstr(col, row, -1, title_attr, title_buf);
-    col += (int)strlen(title_buf);
+    for (int li = 0; li < title_count && used_rows < max_rows; ++li)
+    {
+        if (draw)
+        {
+            Term_erase(0, row + used_rows, 255);
+            if (li == 0)
+                Term_putstr(0, row + used_rows, -1, prefix_attr, prefix);
+            hint_message_put_segment(row + used_rows, text_col, title_attr,
+                title_lines[li].text);
+        }
 
-    if (meta.cue_count <= 0 || col >= wid - 4)
-        return;
+        used_rows++;
+    }
 
-    Term_putstr(col, row, -1, chrome_attr, " [");
-    col += 2;
+    if (used_rows <= 0 || meta.cue_count <= 0)
+        return used_rows;
 
-    for (int cue = 0; cue < meta.cue_count && col < wid - 1; ++cue)
+    cursor_col = text_col + (int)strlen(title_lines[title_count - 1].text);
+
+    if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+            &used_rows, &cursor_col, draw, chrome_attr, " ["))
+    {
+        return used_rows;
+    }
+
+    for (int cue = 0; cue < meta.cue_count; ++cue)
     {
         if (cue > 0)
         {
-            Term_putstr(col, row, -1, chrome_attr, "; ");
-            col += 2;
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, chrome_attr, "; "))
+            {
+                return used_rows;
+            }
         }
 
         if (meta.cue_dists[cue][0])
         {
-            Term_putstr(col, row, -1, TERM_YELLOW, meta.cue_dists[cue]);
-            col += (int)strlen(meta.cue_dists[cue]);
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, TERM_YELLOW,
+                    meta.cue_dists[cue]))
+            {
+                return used_rows;
+            }
         }
 
-        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0] && col < wid - 1)
+        if (meta.cue_dists[cue][0] && meta.cue_dirs[cue][0])
         {
-            Term_putstr(col, row, -1, chrome_attr, " ");
-            col += 1;
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, chrome_attr, " "))
+            {
+                return used_rows;
+            }
         }
 
-        if (meta.cue_dirs[cue][0] && col < wid - 1)
+        if (meta.cue_dirs[cue][0])
         {
-            Term_putstr(col, row, -1, TERM_L_BLUE, meta.cue_dirs[cue]);
-            col += (int)strlen(meta.cue_dirs[cue]);
+            if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
+                    &used_rows, &cursor_col, draw, TERM_L_BLUE,
+                    meta.cue_dirs[cue]))
+            {
+                return used_rows;
+            }
         }
     }
 
-    if (col < wid - 1)
-        Term_putstr(col, row, -1, chrome_attr, "]");
+    (void)hint_message_list_emit_token(row, wid, text_col, max_rows,
+        &used_rows, &cursor_col, draw, chrome_attr, "]");
+
+    return used_rows;
 }
 
-static bool hint_message_show_internal(int index, int* look_y, int* look_x,
-    bool manage_screen)
+static int hint_message_list_entry_height(int idx, int wid)
+{
+    return hint_message_layout_list_entry(0, idx, false, wid,
+        HINT_MESSAGE_LIST_LINES_MAX, false);
+}
+
+static int hint_message_draw_list_row(int row, int idx, bool selected, int wid,
+    int max_rows)
+{
+    return hint_message_layout_list_entry(row, idx, selected, wid,
+        max_rows, true);
+}
+
+static int skeleton_tip_list_entry_height(int idx, int wid)
+{
+    char text[512];
+    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+    char prefix[8];
+    int text_col;
+
+    if (!skeleton_tip_text_by_index(idx, text, sizeof(text)))
+        text[0] = '\0';
+
+    strnfmt(prefix, sizeof(prefix), "%2d) ", idx + 1);
+    text_col = (int)strlen(prefix);
+
+    return hint_message_wrap_list_text(text, wid - text_col - 1,
+        lines, HINT_MESSAGE_LIST_LINES_MAX);
+}
+
+static int skeleton_tip_draw_list_row(int row, int idx, bool selected, int wid,
+    int max_rows)
+{
+    char tip_text[512];
+
+    if (!skeleton_tip_text_by_index(idx, tip_text, sizeof(tip_text)))
+        tip_text[0] = '\0';
+
+    return hint_message_draw_wrapped_list_entry(row, idx, selected, wid,
+        max_rows, tip_text, NULL, true);
+}
+
+static bool skeleton_tip_show_internal(int index, bool manage_screen)
 {
     int wid = 80;
     int hgt = 24;
     int row = 4;
     int col = 8;
-    char ch;
-    hint_message_meta meta;
-    byte line_count;
-    bool request_look = false;
+    hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
+    char tip_text[512];
+    int line_count = 0;
 
-    hint_messages_ensure_level_state();
-    line_count = hint_messages_message_line_count(index);
-    if (!line_count)
+    if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
         return false;
-
-    hint_messages_message_meta(index, &meta);
 
     if (manage_screen)
         screen_save();
@@ -11756,24 +13317,92 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     {
         Term_clear();
         Term_get_size(&wid, &hgt);
+        line_count = 0;
+
+        line_count = hint_message_append_wrapped_text(
+            "Hint: Survival Tip", lines, line_count,
+            HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 0);
+        line_count = hint_message_append_wrapped_text(
+            tip_text, lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
+            wid - col - 1, 1);
 
         for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
         {
-            const char* line = hint_messages_message_line(index, li);
-            byte base_attr = (li == 0) ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr, line,
-                (li == 0) ? NULL : &meta);
+            bool title_line = (lines[li].source_line == 0);
+            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr, lines[li].text,
+                NULL, !title_line);
         }
 
-        if (hint_message_has_source(&meta))
+        prt(hint_message_detail_prompt(false, wid), hgt - 1, 0);
+        Term_fresh();
+
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        break;
+    }
+
+    sdl_story_font_disable();
+    if (manage_screen)
+        screen_load();
+
+    return false;
+}
+
+static bool hint_message_show_internal(int index, int* look_y, int* look_x,
+    bool manage_screen)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 4;
+    int col = 8;
+    hint_message_display_line display_lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
+    char ch;
+    hint_message_meta meta;
+    byte stored_line_count;
+    int display_line_count = 0;
+    bool request_look = false;
+    bool highlight_tutorial = false;
+
+    hint_messages_ensure_level_state();
+    stored_line_count = hint_messages_message_line_count(index);
+    if (!stored_line_count)
+        return false;
+
+    hint_messages_message_meta(index, &meta);
+    highlight_tutorial = (strstr(hint_messages_message_line(index, 0), "Survival Tip") != NULL);
+
+    if (manage_screen)
+        screen_save();
+
+    sdl_story_font_enable();
+
+    while (1)
+    {
+        Term_clear();
+        Term_get_size(&wid, &hgt);
+        display_line_count = 0;
+
+        for (int li = 0; li < stored_line_count; ++li)
         {
-            prt("[Press any key to continue, or 'l' to look at the skeleton]",
-                hgt - 1, 0);
+            display_line_count = hint_message_append_wrapped_text(
+                hint_messages_message_line(index, li),
+                display_lines, display_line_count,
+                HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, (byte)li);
         }
-        else
+
+        for (int li = 0; li < display_line_count && row + li < hgt - 1; ++li)
         {
-            prt("[Press any key to continue]", hgt - 1, 0);
+            bool title_line = (display_lines[li].source_line == 0);
+            byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
+            hint_message_draw_colored_line(row + li, col, base_attr,
+                display_lines[li].text, title_line ? NULL : &meta,
+                (highlight_tutorial && !title_line));
         }
+
+        prt(hint_message_detail_prompt(hint_message_has_source(&meta), wid),
+            hgt - 1, 0);
 
         Term_fresh();
 
@@ -11822,6 +13451,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
+    bool show_all_tips = false;
 
     /* Clear any active banner before opening hint messages */
     extern int g_banner_force_redraw_remaining;
@@ -11832,53 +13462,98 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
     hint_messages_ensure_level_state();
 
-    int n = (int)hint_messages_count_for_save();
-    if (n <= 0)
-    {
-        msg_print("You recall no hint messages on this level.");
-        return;
-    }
-
+    int level_n = (int)hint_messages_count_for_save();
+    int tip_n = skeleton_tip_template_count();
     int sel = 0;
     int top = 0;
-
-    Term_get_size(&wid, &hgt);
+    show_all_tips = false;
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     while (1)
     {
+        int n = show_all_tips ? tip_n : level_n;
+        int draw_row = 0;
+
+        Term_get_size(&wid, &hgt);
         Term_clear();
 
         int rows = hgt - 4;
         if (rows < 1)
             rows = 1;
 
-        if (sel < 0)
+        if (n > 0)
+        {
+            if (sel < 0)
+                sel = 0;
+            if (sel >= n)
+                sel = n - 1;
+
+            if (sel < top)
+                top = sel;
+            if (top < 0)
+                top = 0;
+
+            while (top < sel)
+            {
+                int used = 0;
+
+                for (int idx = top; idx <= sel; ++idx)
+                {
+                    int height = show_all_tips
+                        ? skeleton_tip_list_entry_height(idx, wid)
+                        : hint_message_list_entry_height(idx, wid);
+
+                    used += MIN(height, rows);
+                }
+
+                if (used <= rows)
+                    break;
+
+                top++;
+            }
+
+            if (top >= n)
+                top = n - 1;
+        }
+        else
+        {
             sel = 0;
-        if (sel >= n)
-            sel = n - 1;
-
-        if (sel < top)
-            top = sel;
-        if (sel >= top + rows)
-            top = sel - rows + 1;
-        if (top < 0)
             top = 0;
-        if (top > n - rows)
-            top = n - rows;
-        if (top < 0)
-            top = 0;
+        }
 
-        prt(format("Hint Messages (%d)", n), 0, 0);
-        prt("[Press '8'/'2' to move, Enter to read, 'l' to look, or ESCAPE]",
+        if (show_all_tips)
+            prt(format("All Tutorial Hints (%d)", tip_n), 0, 0);
+        else
+            prt(format("Hint Messages (%d)", level_n), 0, 0);
+
+        prt(hint_message_list_prompt(show_all_tips, level_n, tip_n, wid),
             hgt - 1, 0);
 
-        for (int row = 0; row < rows && top + row < n; ++row)
+        if (n <= 0)
         {
-            int idx = top + row;
-            hint_message_draw_list_row(2 + row, idx, idx == sel, wid);
+            Term_putstr(0, 2, -1, TERM_SLATE,
+                show_all_tips ? "No tutorial hints are available."
+                             : "You recall no hint messages on this level.");
+        }
+
+        for (int idx = top; idx < n && draw_row < rows; ++idx)
+        {
+            int used;
+
+            if (show_all_tips)
+                used = skeleton_tip_draw_list_row(2 + draw_row, idx,
+                    idx == sel, wid, rows - draw_row);
+            else
+                used = hint_message_draw_list_row(2 + draw_row, idx,
+                    idx == sel, wid, rows - draw_row);
+
+            if (used <= 0)
+                break;
+
+            draw_row += used;
         }
 
         Term_fresh();
@@ -11886,6 +13561,26 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
         if (ch == ESCAPE)
             break;
+
+        if (ch == 'h' || ch == 'H')
+        {
+            if (tip_n <= 0)
+            {
+                bell(NULL);
+                continue;
+            }
+
+            show_all_tips = !show_all_tips;
+            sel = 0;
+            top = 0;
+            continue;
+        }
+
+        if (n <= 0)
+        {
+            bell(NULL);
+            continue;
+        }
 
         if (ch == '8')
         {
@@ -11904,7 +13599,11 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             int selected_look_y = -1;
             int selected_look_x = -1;
 
-            if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
+            if (show_all_tips)
+            {
+                (void)skeleton_tip_show_internal(sel, false);
+            }
+            else if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
             {
                 pending_look = true;
                 look_y = selected_look_y;
@@ -11917,6 +13616,13 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         if (ch == 'l' || ch == 'L')
         {
             hint_message_meta meta;
+
+            if (show_all_tips)
+            {
+                bell(NULL);
+                continue;
+            }
+
             hint_messages_message_meta(sel, &meta);
             if (hint_message_has_source(&meta))
             {
@@ -11934,6 +13640,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     if (out_pending_look)
@@ -11991,11 +13698,12 @@ void do_cmd_messages(void)
     /* Start at leftmost edge */
     q = 0;
 
-    /* Get size */
-    Term_get_size(&wid, &hgt);
-
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get size after any hidden-pane layout change */
+    Term_get_size(&wid, &hgt);
 
     /* Process requests until done */
     while (1)
@@ -12170,6 +13878,7 @@ void do_cmd_messages(void)
     }
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 
@@ -12267,11 +13976,11 @@ struct option_group_marker
 
 static const struct option_group_marker interface_option_groups[] = {
     { 0, "Messages" },
-    { 3, "Input" },
-    { 7, "Look" },
-    { 8, "Layout" },
-    { 9, "Warnings" },
-    { 10, "Debug" },
+    { 2, "Look" },
+    { 4, "Panels" },
+    { 7, "Warnings" },
+    { 8, "Input" },
+    { 12, "Debug" },
     { -1, NULL }
 };
 
@@ -12284,8 +13993,9 @@ static const struct option_group_marker text_option_groups[] = {
 
 static const struct option_group_marker gameplay_option_groups[] = {
     { 0, "Combat Behavior" },
-    { 3, "Information" },
-    { 6, "World Generation" },
+    { 5, "Information" },
+    { 8, "World Generation" },
+    { 13, "Blitz" },
     { -1, NULL }
 };
 
@@ -12296,10 +14006,13 @@ static const struct option_group_marker efficiency_option_groups[] = {
 };
 
 static const struct option_group_marker visual_option_groups[] = {
-    { 0, "Lists and Overlays" },
-    { 3, "Map and Highlights" },
-    { 12, "Narrative" },
-    { 16, "Debug" },
+    { 0, "Lists" },
+    { 2, "Overlay" },
+    { 4, "Items" },
+    { 6, "Narrative" },
+    { 10, "ASCII" },
+    { 12, "Cursor" },
+    { 15, "Debug" },
     { -1, NULL }
 };
 
@@ -12503,6 +14216,95 @@ static void settings_ui_put_fitted(int row, int col, byte attr, cptr text)
     Term_putstr(col, row, width, attr, buf);
 }
 
+static cptr settings_ui_wrap_line(cptr text, int max_chars, char* buf,
+    size_t buflen)
+{
+    cptr start;
+    cptr end;
+    cptr split = NULL;
+    size_t copy_len;
+
+    if (!buf || !buflen)
+        return text;
+
+    buf[0] = '\0';
+
+    if (!text)
+        return text;
+
+    while (*text == ' ')
+        text++;
+
+    if (!*text || max_chars <= 0)
+        return text;
+
+    start = text;
+    end = text;
+
+    while (*end && *end != '\n' && (end - start) < max_chars)
+    {
+        if (*end == ' ')
+            split = end;
+        end++;
+    }
+
+    if (*end == '\n')
+    {
+        copy_len = (size_t)(end - start);
+        text = end + 1;
+    }
+    else if (*end && (end - start) >= max_chars)
+    {
+        if (split && split > start)
+        {
+            copy_len = (size_t)(split - start);
+            text = split + 1;
+        }
+        else
+        {
+            copy_len = (size_t)(end - start);
+            text = end;
+        }
+    }
+    else
+    {
+        copy_len = (size_t)(end - start);
+        text = end;
+    }
+
+    if (copy_len >= buflen)
+        copy_len = buflen - 1;
+
+    memcpy(buf, start, copy_len);
+    buf[copy_len] = '\0';
+
+    while (*text == ' ')
+        text++;
+
+    return text;
+}
+
+static void settings_ui_draw_wrapped_block(int row, int col, int max_width,
+    int max_rows, byte attr, cptr text)
+{
+    int i;
+    cptr rest = text;
+    char line_buf[160];
+
+    if (max_width < 1 || max_rows <= 0)
+        return;
+
+    for (i = 0; i < max_rows; i++)
+        Term_erase(col, row + i, max_width);
+
+    for (i = 0; i < max_rows && rest && *rest; i++)
+    {
+        rest = settings_ui_wrap_line(rest, max_width, line_buf,
+            sizeof(line_buf));
+        Term_putstr(col, row + i, max_width, attr, line_buf);
+    }
+}
+
 static void settings_ui_format_field(char* buf, size_t buflen, cptr text,
     bool selected)
 {
@@ -12640,6 +14442,15 @@ static cptr option_menu_label(int opt)
     case OPT_hide_left_panel:
         return compact ? (narrow ? "Compact panel" : "Compact left panel")
                        : "Hide Left Panel [Alt+P]";
+    case OPT_hidden_left_panel_mode:
+        return compact ? (narrow ? "Panel place" : "Hidden panel")
+                       : "Hidden-panel placement";
+    case OPT_top_status_line:
+        return compact ? (narrow ? "Top status" : "Top status line")
+                       : "Top Status Line (No Msg Row)";
+    case OPT_hide_supporting_panes_fullscreen:
+        return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
+                       : "Hide supporting panes on full-screen screens";
     case OPT_show_level_entry_banner:
         return compact ? (narrow ? "Entry text" : "Entry narrative")
                        : "Level entry narrative";
@@ -12651,6 +14462,9 @@ static cptr option_menu_label(int opt)
                        : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
     case OPT_vault_drop_frequency:
         return compact ? "Vault drops" : "Vault drop frequency";
+    case OPT_min_depth_timer_mode:
+        return compact ? (narrow ? "Depth pace" : "Min depth pace")
+                       : "Minimum depth pace";
     case OPT_noble_item_spawn_mode:
         return compact ? (narrow ? "Noble items" : "Noble item sources")
                        : "Noble item spawns";
@@ -12665,6 +14479,8 @@ static cptr option_menu_label(int opt)
                        : "Welcome screen style";
     case OPT_banner_message_stairs:
         return compact ? "Banner layout" : "Banner message layout";
+    case OPT_narrative_banner_turns:
+        return compact ? "Banner turns" : "Narrative banner turns";
     case OPT_unlock_blitz_mode:
         return compact ? (narrow ? "Blitz unlocked" : "Unlock Blitz Mode")
                        : "Unlock Blitz Mode";
@@ -12692,6 +14508,7 @@ static cptr option_menu_label(int opt)
         case OPT_story_monster_desc: return narrow ? "Story mon desc" : "Story font: monster desc";
         case OPT_story_monster_desc_pane: return narrow ? "Story mon pane" : "Story font: monster pane";
         case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
+        case OPT_pacifist_attack_warning: return narrow ? "Pacifist warn" : "Warn before attacks";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
         case OPT_assassination_over_charge: return narrow ? "Stealth over charge" : "Assassination over Charge";
         case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";
@@ -12703,7 +14520,6 @@ static cptr option_menu_label(int opt)
         case OPT_instant_run: return narrow ? "Fast running" : "Faster running";
         case OPT_center_player: return narrow ? "Center map" : "Center map";
         case OPT_run_avoid_center: return narrow ? "No center on run" : "Avoid centering on run";
-        case OPT_auto_display_lists: return narrow ? "Auto lists" : "Auto display lists";
         case OPT_artifact_unique_color: return narrow ? "Yellow artefacts" : "Yellow unique artefacts";
         case OPT_hilite_player: return narrow ? "Cursor on player" : "Highlight player";
         case OPT_hilite_target: return narrow ? "Cursor on target" : "Highlight target";
@@ -12717,6 +14533,7 @@ static cptr option_menu_label(int opt)
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
+        case OPT_show_elemental_item_rolls: return narrow ? "Dbg elem items" : "Debug elemental items";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
         case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";
@@ -12787,6 +14604,12 @@ static void option_apply_side_effects(int opt)
         redraw_inven_equip_subwindows();
     if (opt == OPT_story_monster_desc_pane)
         redraw_monster_subwindows();
+    if (opt == OPT_top_status_line && p_ptr) {
+        p_ptr->update |= (PU_PANEL);
+        p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
+    }
+    if (opt == OPT_hide_supporting_panes_fullscreen)
+        sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon)
         p_ptr->redraw |= (PR_MAP);
@@ -12981,6 +14804,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     get_sdl_hide_left_panel() ? "yes" : "no ");
             }
+            else if (opt[i] == OPT_hidden_left_panel_mode)
+            {
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    (get_sdl_hidden_left_panel_mode()
+                        == HIDDEN_LEFT_PANEL_TOPLINE)
+                    ? "Second row"
+                    : "Top left");
+            }
             else if (opt[i] == OPT_main_combat_rolls)
             {
                 char value_str[32];
@@ -13047,6 +14878,30 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     value_str);
             }
+            else if (opt[i] == OPT_min_depth_timer_mode)
+            {
+                const char *mode_str;
+
+                switch (op_ptr->min_depth_timer_mode)
+                {
+                case MIN_DEPTH_TIMER_MODE_RELAXED:
+                    mode_str = option_menu_use_compact_layout()
+                        ? "+30000 relaxed"
+                        : "Relaxed (+30000)";
+                    break;
+                case MIN_DEPTH_TIMER_MODE_HARSH:
+                    mode_str = option_menu_use_compact_layout()
+                        ? "-30000 harsh"
+                        : "Harsh (-30000)";
+                    break;
+                default:
+                    mode_str = "Normal";
+                    break;
+                }
+
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    mode_str);
+            }
             else if (opt[i] == OPT_noble_item_spawn_mode)
             {
                 const char *mode_str
@@ -13073,6 +14928,23 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     op_ptr->opt[opt[i]] ? "Stair" : "Straight");
+            }
+            else if (opt[i] == OPT_narrative_banner_turns)
+            {
+                byte turns = op_ptr->narrative_banner_turns;
+                char value_str[32];
+
+                if (turns > NARRATIVE_BANNER_TURNS_MAX)
+                    turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+
+                if (turns == 0)
+                    strnfmt(value_str, sizeof(value_str), "0 dismiss");
+                else
+                    strnfmt(value_str, sizeof(value_str), "%d turn%s",
+                        turns, (turns == 1) ? "" : "s");
+
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
             }
             else
             {
@@ -13232,7 +15104,18 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
-                    sdl_apply_config();
+                    sdl_request_redraw();
+                }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        (get_sdl_hidden_left_panel_mode()
+                            == HIDDEN_LEFT_PANEL_TOPLINE)
+                        ? HIDDEN_LEFT_PANEL_TOP_LEFT
+                        : HIDDEN_LEFT_PANEL_TOPLINE);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
                 }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
@@ -13279,12 +15162,26 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_NORMAL;
                 }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode < MIN_DEPTH_TIMER_MODE_MAX)
+                        ? op_ptr->min_depth_timer_mode + 1
+                        : MIN_DEPTH_TIMER_MODE_NORMAL;
+                }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
                     op_ptr->noble_item_spawn_mode
                         = (op_ptr->noble_item_spawn_mode == NOBLE_ITEM_SPAWN_RESTRICTED)
                         ? NOBLE_ITEM_SPAWN_INCLUDE_VAULTS
                         : NOBLE_ITEM_SPAWN_RESTRICTED;
+                }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns < NARRATIVE_BANNER_TURNS_MAX)
+                        ? op_ptr->narrative_banner_turns + 1
+                        : 0;
                 }
                 else
                 {
@@ -13349,7 +15246,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(true);
-                    sdl_apply_config();
+                    sdl_request_redraw();
+                }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        HIDDEN_LEFT_PANEL_TOPLINE);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
                 }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
@@ -13389,6 +15294,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->vault_drop_frequency + 1
                         : VDF_PLENTIFUL;
                 }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode < MIN_DEPTH_TIMER_MODE_MAX)
+                        ? op_ptr->min_depth_timer_mode + 1
+                        : MIN_DEPTH_TIMER_MODE_MAX;
+                }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
                     op_ptr->noble_item_spawn_mode
@@ -13402,6 +15314,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->intro_style < INTRO_STYLE_RANDOM)
                         ? op_ptr->intro_style + 1
                         : INTRO_STYLE_RANDOM;
+                }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns < NARRATIVE_BANNER_TURNS_MAX)
+                        ? op_ptr->narrative_banner_turns + 1
+                        : NARRATIVE_BANNER_TURNS_MAX;
                 }
                 else
                 {
@@ -13466,7 +15385,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (opt[k] == OPT_hide_left_panel)
                 {
                     set_sdl_hide_left_panel(false);
-                    sdl_apply_config();
+                    sdl_request_redraw();
+                }
+                else if (opt[k] == OPT_hidden_left_panel_mode)
+                {
+                    set_sdl_hidden_left_panel_mode(
+                        HIDDEN_LEFT_PANEL_TOP_LEFT);
+                    if (p_ptr)
+                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
+                            | PR_HEALTHBAR | PR_MAP);
                 }
                 else if (opt[k] == OPT_main_combat_rolls)
                 {
@@ -13506,6 +15433,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->vault_drop_frequency - 1
                         : VDF_NORMAL;
                 }
+                else if (opt[k] == OPT_min_depth_timer_mode)
+                {
+                    op_ptr->min_depth_timer_mode
+                        = (op_ptr->min_depth_timer_mode > MIN_DEPTH_TIMER_MODE_NORMAL)
+                        ? op_ptr->min_depth_timer_mode - 1
+                        : MIN_DEPTH_TIMER_MODE_NORMAL;
+                }
                 else if (opt[k] == OPT_noble_item_spawn_mode)
                 {
                     op_ptr->noble_item_spawn_mode
@@ -13519,6 +15453,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                         = (op_ptr->intro_style > INTRO_STYLE_FLAME)
                         ? op_ptr->intro_style - 1
                         : INTRO_STYLE_FLAME;
+                }
+                else if (opt[k] == OPT_narrative_banner_turns)
+                {
+                    op_ptr->narrative_banner_turns =
+                        (op_ptr->narrative_banner_turns > 0)
+                        ? op_ptr->narrative_banner_turns - 1
+                        : 0;
                 }
                 else
                 {
@@ -13682,6 +15623,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
 static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
+
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
     int max_chars)
 {
@@ -13712,10 +15654,105 @@ static const char* sdl_min_terminal_mode_label(int mode)
     return (mode == 1) ? "compact (50x18)" : "normal (80x24)";
 }
 
+static const char* sdl_config_path_leaf(const char* path)
+{
+    const char* last_slash;
+    const char* last_backslash;
+    const char* leaf;
+
+    if (!path || !path[0])
+        return "sil_sdl.json";
+
+    last_slash = strrchr(path, '/');
+    last_backslash = strrchr(path, '\\');
+    leaf = last_slash;
+    if (!leaf || (last_backslash && last_backslash > leaf))
+        leaf = last_backslash;
+
+    return leaf ? (leaf + 1) : path;
+}
+
+static bool sdl_build_file_url(const char* path, char* buf, size_t buflen)
+{
+    size_t used;
+    const char* prefix;
+
+    if (!path || !path[0] || !buf || buflen < 16)
+        return false;
+
+    prefix = (path[0] == '/' || path[0] == '\\') ? "file://" : "file:///";
+    SDL_strlcpy(buf, prefix, buflen);
+    used = strlen(buf);
+
+    for (const unsigned char* src = (const unsigned char*)path; *src; src++) {
+        unsigned char ch = *src;
+        char normalized = (ch == '\\') ? '/' : (char)ch;
+
+        if (isalnum((unsigned char)normalized) || normalized == '-'
+            || normalized == '_' || normalized == '.' || normalized == '~'
+            || normalized == '/' || normalized == ':')
+        {
+            if (used + 1 >= buflen)
+                return false;
+            buf[used++] = normalized;
+            buf[used] = '\0';
+        } else {
+            if (used + 3 >= buflen)
+                return false;
+            strnfmt(buf + used, buflen - used, "%%%02X", ch);
+            used += 3;
+        }
+    }
+
+    return true;
+}
+
+static void sdl_open_config_file(void)
+{
+    const char* config_path = get_sdl_config_path();
+    char url[2048];
+
+    if (!config_path || !config_path[0]) {
+        bell("SDL config path is not available");
+        return;
+    }
+
+    if (!sdl_build_file_url(config_path, url, sizeof(url))) {
+        msg_format("Could not build file URL for %s",
+            sdl_config_path_leaf(config_path));
+        return;
+    }
+
+    if (!SDL_OpenURL(url)) {
+        msg_format("Could not open %s (%s)",
+            sdl_config_path_leaf(config_path), SDL_GetError());
+        return;
+    }
+
+    msg_format("Opened %s", sdl_config_path_leaf(config_path));
+}
+
 void do_cmd_pane_settings(void)
 {
+    enum {
+        PANE_SETTING_MIN_TERMINAL_SIZE = 0,
+        PANE_SETTING_MAIN_VIEW_SCALE,
+        PANE_SETTING_ENABLE_SIDE_PANES,
+        PANE_SETTING_ENABLE_BOTTOM_PANES,
+        PANE_SETTING_FULLSCREEN,
+        PANE_SETTING_TILES,
+        PANE_SETTING_USE_UNSAFE_AREA,
+        PANE_SETTING_WHITE_PANE_BORDERS,
+        PANE_SETTING_HIDE_FULLSCREEN_PANES,
+        PANE_SETTING_AUX_VIEW_FONT_SIZE,
+        PANE_SETTING_VIEW_PANE_CONFIGURATION,
+        PANE_SETTING_PANE_FONT_SIZES,
+        PANE_SETTING_OPEN_CONFIG_FILE,
+        PANE_SETTING_SAVE_RETURN,
+        PANE_SETTING_COUNT
+    };
     int k = 0;
-    int n = 11; /* Total number of options */
+    int n = PANE_SETTING_COUNT;
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -13745,19 +15782,8 @@ void do_cmd_pane_settings(void)
         row_width = settings_ui_line_width(2);
         label_hint = MAX(10, row_width - 12);
 
-        /* Option 0: Main View Scale */
-        a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Main View Scale (1-max) [Alt++/-]",
-                "Main View Scale [Alt++/-]",
-                "View Scale"),
-            value_buf, row_width, 3);
-        c_prt(a, buf, y0 + 0, 2);
-
-        /* Option 1: Minimum Terminal Size */
-        a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 0: Minimum Terminal Size */
+        a = (k == PANE_SETTING_MIN_TERMINAL_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
                 "Minimum Terminal Size",
@@ -13765,10 +15791,88 @@ void do_cmd_pane_settings(void)
                 "Min Terminal"),
             sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()),
             row_width, 10);
+        c_prt(a, buf, y0 + 0, 2);
+
+        /* Option 1: Main View Scale */
+        a = (k == PANE_SETTING_MAIN_VIEW_SCALE) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Main View Scale (1-max) [Alt++/-]",
+                "Main View Scale [Alt++/-]",
+                "View Scale"),
+            value_buf, row_width, 3);
         c_prt(a, buf, y0 + 1, 2);
 
-        /* Option 2: Aux View Font Size */
-        a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 2: Enable Side Panes */
+        a = (k == PANE_SETTING_ENABLE_SIDE_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Side Panes [Alt+I]",
+                "Side Panes [Alt+I]",
+                "Side Panes"),
+            get_sdl_enable_right_panes() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 2, 2);
+
+        /* Option 3: Enable Bottom Panes */
+        a = (k == PANE_SETTING_ENABLE_BOTTOM_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Enable Bottom Panes [Alt+L]",
+                "Bottom Panes [Alt+L]",
+                "Bottom Panes"),
+            get_sdl_enable_bottom_panes() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 3, 2);
+
+        /* Option 4: Fullscreen */
+        a = (k == PANE_SETTING_FULLSCREEN) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
+            get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
+        c_prt(a, buf, y0 + 4, 2);
+
+        /* Option 5: Tiles */
+        a = (k == PANE_SETTING_TILES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
+            get_sdl_tiles() ? "yes" : "no", row_width, 3);
+        c_prt(a, buf, y0 + 5, 2);
+
+        /* Option 6: Use Unsafe Area */
+        a = (k == PANE_SETTING_USE_UNSAFE_AREA) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Use Unsafe Area (notch/cutout area)",
+                "Use Unsafe Area",
+                "Unsafe Area"),
+            get_sdl_use_unsafe_area() ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 6, 2);
+
+        /* Option 7: White Pane Borders */
+        a = (k == PANE_SETTING_WHITE_PANE_BORDERS) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "White Pane Borders",
+                "White Pane Borders",
+                "White Borders"),
+            get_sdl_show_pane_borders() ? "white" : "black",
+            row_width, 5);
+        c_prt(a, buf, y0 + 7, 2);
+
+        /* Option 8: Hide supporting panes on full-screen screens */
+        a = (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Hide supporting panes on full-screen screens",
+                "Hide panes on full-screen screens",
+                "Hide panes on full-screen"),
+            op_ptr->opt[OPT_hide_supporting_panes_fullscreen] ? "yes" : "no",
+            row_width, 3);
+        c_prt(a, buf, y0 + 8, 2);
+
+        /* Option 9: Aux View Font Size */
+        a = (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         format_font_size_value(font_value, sizeof(font_value),
             get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
             MAX(6, MIN(14, row_width / 2)));
@@ -13778,55 +15882,10 @@ void do_cmd_pane_settings(void)
                 "Default Aux Font (0=auto)",
                 "Aux Font"),
             font_value, row_width, 6);
-        c_prt(a, buf, y0 + 2, 2);
+        c_prt(a, buf, y0 + 9, 2);
 
-        /* Option 3: Margin */
-        a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_margin());
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Margin (0-20)",
-                "Margin",
-                "Margin"),
-            value_buf, row_width, 3);
-        c_prt(a, buf, y0 + 3, 2);
-
-        /* Option 4: Fullscreen */
-        a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
-            get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
-        c_prt(a, buf, y0 + 4, 2);
-
-        /* Option 5: Tiles */
-        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
-            get_sdl_tiles() ? "yes" : "no", row_width, 3);
-        c_prt(a, buf, y0 + 5, 2);
-
-        /* Option 6: Enable Side Panes */
-        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Enable Side Panes [Alt+I]",
-                "Side Panes [Alt+I]",
-                "Side Panes"),
-            get_sdl_enable_right_panes() ? "yes" : "no",
-            row_width, 3);
-        c_prt(a, buf, y0 + 6, 2);
-
-        /* Option 7: Enable Bottom Panes */
-        a = (k == 7) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Enable Bottom Panes [Alt+L]",
-                "Bottom Panes [Alt+L]",
-                "Bottom Panes"),
-            get_sdl_enable_bottom_panes() ? "yes" : "no",
-            row_width, 3);
-        c_prt(a, buf, y0 + 7, 2);
-
-        /* Option 8: View Pane Configuration (supporting panes only) */
-        a = (k == 8) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 10: View Pane Configuration (supporting panes only) */
+        a = (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%s (%d)",
             settings_ui_pick_label(row_width,
                 "View Pane Configuration",
@@ -13838,25 +15897,35 @@ void do_cmd_pane_settings(void)
             settings_ui_fit_text(fitted_buf, sizeof(fitted_buf), buf, row_width);
             SDL_strlcpy(buf, fitted_buf, sizeof(buf));
         }
-        c_prt(a, buf, y0 + 8, 2);
+        c_prt(a, buf, y0 + 10, 2);
 
-        /* Option 9: Pane Font Sizes */
-        a = (k == 9) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 11: Pane Font Sizes */
+        a = (k == PANE_SETTING_PANE_FONT_SIZES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
                 "Pane Font Sizes",
                 "Pane Fonts",
                 "Pane Fonts"),
             row_width);
-        c_prt(a, buf, y0 + 9, 2);
+        c_prt(a, buf, y0 + 11, 2);
 
-        /* Option 10: Save/Return */
-        a = (k == 10) ? TERM_L_BLUE : TERM_WHITE;
+        /* Option 12: Open SDL Config File */
+        a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Open SDL Config File",
+                "Open SDL Config",
+                "Open Config"),
+            sdl_config_path_leaf(config_label), row_width, 12);
+        c_prt(a, buf, y0 + 12, 2);
+
+        /* Option 13: Save/Return */
+        a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 10, 2);
+        c_prt(a, buf, y0 + 13, 2);
 
         /* Display help */
         int y = Term->hgt - 3;
@@ -13875,9 +15944,9 @@ void do_cmd_pane_settings(void)
         }
         settings_ui_put_fitted(y++, 2, TERM_SLATE,
             settings_ui_pick_label(settings_ui_line_width(2),
-                "(direction keys to set, 0 = auto font, Return/Escape to accept)",
-                "(arrows move, 4/6 or y/n set, 0 auto, Enter/Esc exit)",
-                "(arrows move, 4/6 set, 0 auto, Enter/Esc)"));
+                "(direction keys to set, 0 = auto font, o = open config, Return/Escape to accept)",
+                "(arrows move, 4/6 or y/n set, 0 auto, o open config, Enter/Esc)",
+                "(arrows move, 4/6 set, 0 auto, o config, Enter/Esc)"));
 
         /* Get key */
         hide_cursor = true;
@@ -13910,14 +15979,19 @@ void do_cmd_pane_settings(void)
         case '\r':
         {
             /* Enter activates the current option for actions; otherwise accept/exit. */
-            if (k == 8) /* Supporting Pane Layout */
+            if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
             }
-            if (k == 9) /* Pane Font Sizes */
+            if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
+                break;
+            }
+            if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
+            {
+                sdl_open_config_file();
                 break;
             }
 
@@ -13950,7 +16024,7 @@ void do_cmd_pane_settings(void)
 
         case '0':
         {
-            if (k == 2)
+            if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE)
             {
                 if (get_sdl_aux_view_font_size() != 0)
                 {
@@ -13971,43 +16045,65 @@ void do_cmd_pane_settings(void)
         case ' ':
         {
             /* Toggle or activate current option */
-            if (k == 1) /* Minimum Terminal Size */
-            {
-                set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(!get_sdl_fullscreen());
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(!get_sdl_tiles());
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
+            if (k == PANE_SETTING_ENABLE_SIDE_PANES)
             {
                 set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 7) /* Enable Bottom Panes */
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES)
             {
                 set_sdl_enable_bottom_panes(!get_sdl_enable_bottom_panes());
                 settings_changed = true;
                 sdl_apply_config();
             }
-            else if (k == 8) /* Supporting Pane Layout */
+            else if (k == PANE_SETTING_FULLSCREEN)
+            {
+                set_sdl_fullscreen(!get_sdl_fullscreen());
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES)
+            {
+                set_sdl_tiles(!get_sdl_tiles());
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA)
+            {
+                set_sdl_use_unsafe_area(!get_sdl_use_unsafe_area());
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS)
+            {
+                set_sdl_show_pane_borders(!get_sdl_show_pane_borders());
+                settings_changed = true;
+                sdl_request_redraw();
+            }
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES)
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen]
+                    = !op_ptr->opt[OPT_hide_supporting_panes_fullscreen];
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
+            {
+                set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
-            else if (k == 9) /* Pane Font Sizes */
+            else if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
                 do_cmd_supporting_pane_font_editor(&settings_changed);
             }
-            else if (k == 10) /* Save/Return */
+            else if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
+            {
+                sdl_open_config_file();
+            }
+            else if (k == PANE_SETTING_SAVE_RETURN) /* Save/Return */
             {
                 if (settings_changed)
                 {
@@ -14027,7 +16123,7 @@ void do_cmd_pane_settings(void)
             /* Increase value or set to yes */
             int val;
             
-            if (k == 0) /* Main View Scale */
+            if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
                 int max_scale = get_sdl_max_scale();
@@ -14038,7 +16134,46 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Minimum Terminal Size */
+            else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
+            {
+                set_sdl_enable_right_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_FULLSCREEN) /* Fullscreen */
+            {
+                set_sdl_fullscreen(true);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES) /* Tiles */
+            {
+                set_sdl_tiles(true);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA) /* Use Unsafe Area */
+            {
+                set_sdl_use_unsafe_area(true);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(true);
+                settings_changed = true;
+                sdl_request_redraw();
+            }
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) /* Hide panes on full-screen screens */
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = true;
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 0)
                 {
@@ -14047,7 +16182,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Aux View Font Size */
+            else if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val == 0)
@@ -14063,38 +16198,6 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 3) /* Margin */
-            {
-                val = get_sdl_margin();
-                if (val < 20)
-                {
-                    set_sdl_margin(val + 1);
-                    settings_changed = true;
-                    sdl_apply_config();
-                }
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(true);
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(true);
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
-            {
-                set_sdl_enable_right_panes(true);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 7) /* Enable Bottom Panes */
-            {
-                set_sdl_enable_bottom_panes(true);
-                settings_changed = true;
-                sdl_apply_config();
-            }
             break;
         }
         
@@ -14104,7 +16207,7 @@ void do_cmd_pane_settings(void)
             /* Decrease value or set to no */
             int val;
             
-            if (k == 0) /* Main View Scale */
+            if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
                 if (val > 1)
@@ -14114,7 +16217,46 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 1) /* Minimum Terminal Size */
+            else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
+            {
+                set_sdl_enable_right_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_ENABLE_BOTTOM_PANES) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == PANE_SETTING_FULLSCREEN) /* Fullscreen */
+            {
+                set_sdl_fullscreen(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_TILES) /* Tiles */
+            {
+                set_sdl_tiles(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_USE_UNSAFE_AREA) /* Use Unsafe Area */
+            {
+                set_sdl_use_unsafe_area(false);
+                settings_changed = true;
+            }
+            else if (k == PANE_SETTING_WHITE_PANE_BORDERS) /* White Pane Borders */
+            {
+                set_sdl_show_pane_borders(false);
+                settings_changed = true;
+                sdl_request_redraw();
+            }
+            else if (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) /* Hide panes on full-screen screens */
+            {
+                op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = false;
+                settings_changed = true;
+                sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 1)
                 {
@@ -14123,7 +16265,7 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 2) /* Aux View Font Size */
+            else if (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) /* Aux View Font Size */
             {
                 val = get_sdl_aux_view_font_size();
                 if (val == 0)
@@ -14139,38 +16281,13 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
-            else if (k == 3) /* Margin */
-            {
-                val = get_sdl_margin();
-                if (val > 0)
-                {
-                    set_sdl_margin(val - 1);
-                    settings_changed = true;
-                    sdl_apply_config();
-                }
-            }
-            else if (k == 4) /* Fullscreen */
-            {
-                set_sdl_fullscreen(false);
-                settings_changed = true;
-            }
-            else if (k == 5) /* Tiles */
-            {
-                set_sdl_tiles(false);
-                settings_changed = true;
-            }
-            else if (k == 6) /* Enable Side Panes */
-            {
-                set_sdl_enable_right_panes(false);
-                settings_changed = true;
-                sdl_apply_config();
-            }
-            else if (k == 7) /* Enable Bottom Panes */
-            {
-                set_sdl_enable_bottom_panes(false);
-                settings_changed = true;
-                sdl_apply_config();
-            }
+            break;
+        }
+
+        case 'o':
+        case 'O':
+        {
+            sdl_open_config_file();
             break;
         }
         
@@ -14394,6 +16511,7 @@ static const char* pane_where_short_name(enum pane_placement where)
     case PLACE_DOUBLE_RIGHT: return "DR";
     case PLACE_DOUBLE_LEFT: return "DL";
     case PLACE_BOTTOM: return "BOT";
+    case PLACE_DOUBLE_BOTTOM: return "DB";
     default: return "?";
     }
 }
@@ -14435,7 +16553,7 @@ static bool supporting_pane_rows_locked(const int* pane_indices, int pane_count,
     enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
     int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
-    return (where == PLACE_BOTTOM && idx != master_idx);
+    return (pane_placement_is_bottom(where) && idx != master_idx);
 }
 
 static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count, int idx)
@@ -14472,7 +16590,8 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
         int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
-        if (where == PLACE_BOTTOM && idx != master_idx && get_sdl_pane_rows(idx) != 0)
+        if (pane_placement_is_bottom(where) && idx != master_idx
+            && get_sdl_pane_rows(idx) != 0)
         {
             set_sdl_pane_rows(idx, 0);
             changed = true;
@@ -14616,9 +16735,9 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "4/6 cycle/set   0 auto"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
-                    "Each side slot shares cols with its first pane; bottom panes share rows",
-                    "Side slots share cols; bottom panes share rows",
-                    "Side slots share cols; bottom shares rows"));
+                    "Each side slot shares cols with its first pane; each bottom slot shares rows",
+                    "Side slots share cols; each bottom slot shares rows",
+                    "Side share cols; bottom share rows"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
                     "ESC/Enter: return (changes apply immediately)",
@@ -14672,7 +16791,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             }
             if (field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
             {
-                bell("Rows are shared for bottom panes");
+                bell("Rows are shared within each bottom slot");
                 break;
             }
             if (field == 3 && supporting_pane_cols_locked(pane_indices, pane_count, idx))
@@ -14718,7 +16837,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
                 if (supporting_pane_rows_locked(pane_indices, pane_count, idx))
                 {
-                    bell("Rows are shared for bottom panes");
+                    bell("Rows are shared within each bottom slot");
                     break;
                 }
                 if (rows == 0)
@@ -14809,17 +16928,66 @@ static const int* touch_pane_action_choices_for_panel(int panel, int* count)
         : touch_pane_main_action_choices;
 }
 
-static int touch_pane_action_choice_index(int panel, int binding)
+static const int* touch_swipe_action_choices(int* count)
 {
-    int count = 0;
-    const int* choices = touch_pane_action_choices_for_panel(panel, &count);
+    if (count)
+        *count = (int)N_ELEMENTS(touch_pane_main_action_choices);
 
+    return touch_pane_main_action_choices;
+}
+
+static int touch_action_choice_index(const int* choices, int count, int binding)
+{
     for (int i = 0; i < count; i++)
     {
         if (choices[i] == binding)
             return i;
     }
     return 0;
+}
+
+static int touch_pane_action_choice_index(int panel, int binding)
+{
+    int count = 0;
+    const int* choices = touch_pane_action_choices_for_panel(panel, &count);
+
+    return touch_action_choice_index(choices, count, binding);
+}
+
+static bool touch_pane_binding_is_confirm(int binding)
+{
+    return (binding == INPUT_BIND_CONFIRM || binding == ' ' || binding == '\r');
+}
+
+static bool touch_pane_main_panel_has_other_confirm(int skip_index)
+{
+    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++)
+    {
+        if (i == skip_index)
+            continue;
+
+        if (touch_pane_binding_is_confirm(
+                get_sdl_touch_pane_binding_for_panel(SDL_TOUCH_PANE_PANEL_MAIN, i)))
+            return true;
+    }
+
+    return false;
+}
+
+static bool touch_pane_main_confirm_change_allowed(int panel, int index, int new_binding)
+{
+    int current_binding;
+
+    if (panel != SDL_TOUCH_PANE_PANEL_MAIN)
+        return true;
+
+    current_binding = get_sdl_touch_pane_binding_for_panel(panel, index);
+    if (!touch_pane_binding_is_confirm(current_binding))
+        return true;
+    if (touch_pane_binding_is_confirm(new_binding))
+        return true;
+
+    return touch_pane_main_panel_has_other_confirm(index);
 }
 
 static void touch_pane_action_label_for_panel(int panel, int binding, char* buf, size_t buflen)
@@ -14842,7 +17010,70 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
         return;
     }
 
-    binding_action_label(binding, buf, buflen);
+    if (binding == INPUT_BIND_CONFIRM || binding == ' ') {
+        SDL_strlcpy(buf, "Pick/Confirm", buflen);
+        return;
+    }
+
+    binding_action_short(binding, buf, buflen);
+}
+
+enum {
+    TOUCH_SETTING_SWIPE_ENABLED = 0,
+    TOUCH_SETTING_SWIPE_UP,
+    TOUCH_SETTING_SWIPE_DOWN,
+    TOUCH_SETTING_SWIPE_LEFT,
+    TOUCH_SETTING_SWIPE_RIGHT,
+    TOUCH_SETTING_SWIPE_COUNT
+};
+
+static bool touch_setting_is_swipe_row(int row)
+{
+    return (row >= 0 && row < TOUCH_SETTING_SWIPE_COUNT);
+}
+
+static int touch_setting_button_index(int row)
+{
+    return row - TOUCH_SETTING_SWIPE_COUNT;
+}
+
+static int touch_setting_total_rows(void)
+{
+    return TOUCH_SETTING_SWIPE_COUNT + SDL_TOUCH_PANE_BUTTON_COUNT;
+}
+
+static int touch_setting_swipe_dir_for_row(int row)
+{
+    switch (row) {
+    case TOUCH_SETTING_SWIPE_UP:
+        return GAMEPAD_STICK_DIR_UP;
+    case TOUCH_SETTING_SWIPE_DOWN:
+        return GAMEPAD_STICK_DIR_DOWN;
+    case TOUCH_SETTING_SWIPE_LEFT:
+        return GAMEPAD_STICK_DIR_LEFT;
+    case TOUCH_SETTING_SWIPE_RIGHT:
+        return GAMEPAD_STICK_DIR_RIGHT;
+    default:
+        return -1;
+    }
+}
+
+static const char* touch_setting_swipe_name(int row)
+{
+    switch (row) {
+    case TOUCH_SETTING_SWIPE_ENABLED:
+        return "Swipe Gestures";
+    case TOUCH_SETTING_SWIPE_UP:
+        return "Swipe Up";
+    case TOUCH_SETTING_SWIPE_DOWN:
+        return "Swipe Down";
+    case TOUCH_SETTING_SWIPE_LEFT:
+        return "Swipe Left";
+    case TOUCH_SETTING_SWIPE_RIGHT:
+        return "Swipe Right";
+    default:
+        return "";
+    }
 }
 
 static void do_cmd_touch_pane_button_editor(bool* settings_changed)
@@ -14862,6 +17093,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         int row;
         int visible_rows;
         int row_width;
+        int total_rows = touch_setting_total_rows();
 
         Term_get_size(&term_w, &term_h);
         row_width = settings_ui_line_width(2);
@@ -14871,8 +17103,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         if (highlight < 0)
             highlight = 0;
-        if (highlight >= SDL_TOUCH_PANE_BUTTON_COUNT)
-            highlight = SDL_TOUCH_PANE_BUTTON_COUNT - 1;
+        if (highlight >= total_rows)
+            highlight = total_rows - 1;
 
         if (top > highlight)
             top = highlight;
@@ -14886,7 +17118,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
 
         row = list_start_row;
-        for (int i = top; i < SDL_TOUCH_PANE_BUTTON_COUNT && i < top + visible_rows; i++)
+        for (int i = top; i < total_rows && i < top + visible_rows; i++)
         {
             char action_buf[80];
             char label_buf[SDL_TOUCH_PANE_LABEL_LEN];
@@ -14894,16 +17126,37 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
-            get_sdl_touch_pane_button_label_for_panel(panel, i, label_buf, sizeof(label_buf));
-            touch_pane_action_label_for_panel(panel,
-                get_sdl_touch_pane_binding_for_panel(panel, i), action_buf, sizeof(action_buf));
+            if (touch_setting_is_swipe_row(i))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(i);
 
-            if (label_buf[0])
-                strnfmt(left_buf, sizeof(left_buf), "%s %s",
-                    get_sdl_touch_pane_slot_name(i), label_buf);
+                strnfmt(left_buf, sizeof(left_buf), "%s", touch_setting_swipe_name(i));
+                if (i == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
+                        sizeof(action_buf));
+                }
+                else
+                {
+                    touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                        get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
+                }
+            }
             else
-                strnfmt(left_buf, sizeof(left_buf), "%s",
-                    get_sdl_touch_pane_slot_name(i));
+            {
+                int button_index = touch_setting_button_index(i);
+
+                get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
+                touch_pane_action_label_for_panel(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index), action_buf, sizeof(action_buf));
+
+                if (label_buf[0])
+                    strnfmt(left_buf, sizeof(left_buf), "%s %s",
+                        get_sdl_touch_pane_slot_name(button_index), label_buf);
+                else
+                    strnfmt(left_buf, sizeof(left_buf), "%s",
+                        get_sdl_touch_pane_slot_name(button_index));
+            }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
                 action_buf, row_width, 14);
@@ -14916,25 +17169,25 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char info_buf[96];
 
             get_sdl_touch_pane_panel_name(panel, panel_name, sizeof(panel_name));
-            strnfmt(info_buf, sizeof(info_buf), "Editing %s panel%s",
+            strnfmt(info_buf, sizeof(info_buf), "Swipe settings are global. Editing %s panel%s",
                 panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
             settings_ui_put_fitted(3, 2, TERM_SLATE, info_buf);
         }
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select button   4/6: previous/next action   l: rename slot",
-                "Up/Down select   4/6 action   l rename slot",
+                "Up/Down: select item   4/6: previous/next action   l/View: rename button label",
+                "Up/Down select   4/6 action   l/View rename",
                 "Up/Down select   4/6 action"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Tab: switch panel   p: rename panel   r: reset selected   R: reset all",
-                "Tab switch panel   p rename panel   r/R reset",
-                "Tab switch   p rename   r/R reset"));
+                "Space on Swipe Gestures toggles on/off   Tab switches button panel   x resets selected",
+                "Space toggles swipes   Tab switch   x reset",
+                "Space toggles   Tab switch   x reset"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "ESC/Enter: return",
-                "Esc/Enter: return",
-                "Esc/Enter return"));
+                "p/Hero: rename panel   M/Map: reset all   Main panel must keep Pick/Confirm",
+                "p rename panel   Map reset all   Keep main confirm",
+                "p rename   Map all   Keep confirm"));
 
         Term_fresh();
 
@@ -14958,21 +17211,52 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         case '-':
         case '8':
-            highlight = (SDL_TOUCH_PANE_BUTTON_COUNT + highlight - 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            highlight = (total_rows + highlight - 1) % total_rows;
             break;
 
         case '2':
-            highlight = (highlight + 1) % SDL_TOUCH_PANE_BUTTON_COUNT;
+            highlight = (highlight + 1) % total_rows;
             break;
 
         case 'n':
         case '4':
         {
-            int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
-            idx = (choice_count + idx - 1) % choice_count;
-            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
+
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    set_sdl_touch_swipe_enabled(false);
+                }
+                else
+                {
+                    int choice_count = 0;
+                    const int* choices = touch_swipe_action_choices(&choice_count);
+                    int idx = touch_action_choice_index(choices, choice_count,
+                        get_sdl_touch_swipe_binding(swipe_dir));
+
+                    idx = (choice_count + idx - 1) % choice_count;
+                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+                }
+            }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+                int choice_count = 0;
+                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+                int idx = touch_pane_action_choice_index(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
+
+                idx = (choice_count + idx - 1) % choice_count;
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
+            }
             changed = true;
             break;
         }
@@ -14983,11 +17267,42 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel, get_sdl_touch_pane_binding_for_panel(panel, highlight));
-            idx = (idx + 1) % choice_count;
-            set_sdl_touch_pane_binding_for_panel(panel, highlight, choices[idx]);
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
+
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                {
+                    set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
+                }
+                else
+                {
+                    int choice_count = 0;
+                    const int* choices = touch_swipe_action_choices(&choice_count);
+                    int idx = touch_action_choice_index(choices, choice_count,
+                        get_sdl_touch_swipe_binding(swipe_dir));
+
+                    idx = (idx + 1) % choice_count;
+                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+                }
+            }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+                int choice_count = 0;
+                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+                int idx = touch_pane_action_choice_index(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
+
+                idx = (idx + 1) % choice_count;
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
+            }
             changed = true;
             break;
         }
@@ -15002,16 +17317,25 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_label[SDL_TOUCH_PANE_LABEL_LEN];
             char new_label[SDL_TOUCH_PANE_LABEL_LEN];
             char current_buf[96];
+            int button_index;
 
-            get_sdl_touch_pane_button_label_for_panel(panel, highlight, current_label, sizeof(current_label));
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                bell("Swipe labels are fixed.");
+                break;
+            }
+
+            button_index = touch_setting_button_index(highlight);
+
+            get_sdl_touch_pane_button_label_for_panel(panel, button_index, current_label, sizeof(current_label));
             strnfmt(prompt_long, sizeof(prompt_long),
                 "New label for %s (blank = use key label): ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt_medium, sizeof(prompt_medium),
                 "New label for %s (blank = default): ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt_short, sizeof(prompt_short), "Label for %s: ",
-                get_sdl_touch_pane_slot_name(highlight));
+                get_sdl_touch_pane_slot_name(button_index));
             strnfmt(prompt, sizeof(prompt), "%s",
                 settings_ui_pick_label(settings_ui_line_width(0),
                     prompt_long, prompt_medium, prompt_short));
@@ -15020,7 +17344,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             new_label[0] = '\0';
             if (term_get_string(prompt, new_label, sizeof(new_label)))
             {
-                set_sdl_touch_pane_button_label_for_panel(panel, highlight, new_label);
+                set_sdl_touch_pane_button_label_for_panel(panel, button_index, new_label);
                 changed = true;
             }
             break;
@@ -15034,6 +17358,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         case 'p':
         case 'P':
+        case 'h':
+        case 'H':
         {
             char prompt[96];
             char current_name[SDL_TOUCH_PANE_LABEL_LEN];
@@ -15058,13 +17384,37 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
 
         case 'r':
-            set_sdl_touch_pane_binding_for_panel(panel, highlight,
-                get_sdl_touch_pane_default_binding_for_panel(panel, highlight));
-            clear_sdl_touch_pane_button_label_for_panel(panel, highlight);
+        case 'x':
+        case 'X':
+            if (touch_setting_is_swipe_row(highlight))
+            {
+                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
+
+                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
+                    set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+                else
+                    set_sdl_touch_swipe_binding(swipe_dir,
+                        get_sdl_touch_swipe_default_binding(swipe_dir));
+            }
+            else
+            {
+                int button_index = touch_setting_button_index(highlight);
+
+                if (!touch_pane_main_confirm_change_allowed(panel, button_index,
+                        get_sdl_touch_pane_default_binding_for_panel(panel, button_index))) {
+                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    break;
+                }
+
+                set_sdl_touch_pane_binding_for_panel(panel, button_index,
+                    get_sdl_touch_pane_default_binding_for_panel(panel, button_index));
+                clear_sdl_touch_pane_button_label_for_panel(panel, button_index);
+            }
             changed = true;
             break;
 
         case 'R':
+        case 'M':
             sdl_touch_pane_reset_bindings_to_default();
             changed = true;
             break;
@@ -15311,11 +17661,13 @@ static void do_cmd_legacy_options(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 12;
+    int options = 10;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    char line_buf[80];
+    bool steamdeck = steamdeck_controls_active();
     bool allow_debug_menu = false;
 #ifdef SHOW_DEBUG_OPTIONS_MENU
     allow_debug_menu = true;
@@ -15336,35 +17688,43 @@ int options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
 
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Input Options");
     Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Set Keybinds");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b', "Pane Settings");
     Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Controller Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Interface Options");
     Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Touch Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'd', "Visual Options");
     Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Pane Settings");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Text Options");
     Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Interface Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'f', "Gameplay Options");
     Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Efficiency Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'g', "Sound Options");
     Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Visual Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'h', "Efficiency Options");
     Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "t) Text Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'i', "Legacy Options");
     Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Gameplay Options");
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o', "Return to Game");
     Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Sound Options");
-    Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Legacy Options");
-    Term_putstr(2, row++, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Return to Game");
+        line_buf);
 
     if (allow_debug_menu && p_ptr->noscore)
     {
-        Term_putstr(2, row++, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-            "p) Debugging Options");
+        keyed_menu_entry_label(line_buf, sizeof(line_buf), 'p',
+            "Debugging Options");
+        Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+            line_buf);
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -15386,86 +17746,77 @@ int options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch == 'a') || (ch == 'A'))
+    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
         return (1);
     }
 
-    if ((ch == 'b') || (ch == 'B'))
+    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
     {
         *highlight = 2;
         return (2);
     }
 
-    if ((ch == 'c') || (ch == 'C'))
+    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
     }
 
-    if ((ch == 'd') || (ch == 'D'))
+    if (!steamdeck && ((ch == 'd') || (ch == 'D')))
     {
         *highlight = 4;
         return (4);
     }
 
-    if ((ch == 'e') || (ch == 'E'))
+    if (!steamdeck && ((ch == 'e') || (ch == 'E')))
     {
         *highlight = 5;
         return (5);
     }
 
-    if ((ch == 'f') || (ch == 'F'))
+    if (!steamdeck && ((ch == 'f') || (ch == 'F')))
     {
         *highlight = 6;
         return (6);
     }
 
-    if ((ch == 'g') || (ch == 'G'))
+    if (!steamdeck && ((ch == 'g') || (ch == 'G')))
     {
         *highlight = 7;
         return (7);
     }
 
-    if ((ch == 't') || (ch == 'T'))
+    if (!steamdeck && ((ch == 'h') || (ch == 'H')))
     {
         *highlight = 8;
         return (8);
     }
 
-    if ((ch == 'h') || (ch == 'H'))
+    if (!steamdeck && ((ch == 'i') || (ch == 'I')))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((ch == 'i') || (ch == 'I'))
+    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 10;
         return (10);
     }
 
-    if ((ch == 'j') || (ch == 'J'))
+    if (!steamdeck && allow_debug_menu && p_ptr->noscore
+        && ((ch == 'p') || (ch == 'P')))
     {
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'o') || (ch == 'O') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 12;
-        return (12);
-    }
-
-    if (allow_debug_menu && p_ptr->noscore && ((ch == 'p') || (ch == 'P')))
-    {
-        *highlight = 13;
-        return (13);
-    }
-
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
     {
         return (*highlight);
     }
@@ -15485,6 +17836,129 @@ int options_menu(int* highlight)
     return (0);
 }
 
+static int input_options_menu(int* highlight)
+{
+    int ch;
+    int options = 4;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int title_row = 1;
+    int row;
+    char line_buf[80];
+    bool steamdeck = steamdeck_controls_active();
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_hgt < 20)
+        title_row = 0;
+
+    if (*highlight < 1)
+        *highlight = 1;
+    else if (*highlight > options)
+        *highlight = options;
+
+    row = title_row + 2;
+
+    Term_putstr(2, title_row, -1, TERM_WHITE, "Input Options");
+
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Set Keybinds");
+    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b',
+        "Controller Settings");
+    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Touch Settings");
+    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o',
+        "Return to Options");
+    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+
+    Term_fresh();
+    Term_gotoxy(2, title_row + 1 + *highlight);
+
+    hide_cursor = true;
+    ch = inkey();
+    hide_cursor = false;
+
+    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
+    {
+        *highlight = 1;
+        return (1);
+    }
+
+    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
+    {
+        *highlight = 2;
+        return (2);
+    }
+
+    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
+    {
+        *highlight = 3;
+        return (3);
+    }
+
+    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
+    {
+        *highlight = 4;
+        return (4);
+    }
+
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+        || (steamdeck && ch == steamdeck_confirm_key()))
+    {
+        return (*highlight);
+    }
+
+    if (ch == '8')
+    {
+        *highlight = (*highlight + (options - 2)) % options + 1;
+    }
+
+    if (ch == '2')
+    {
+        *highlight = *highlight % options + 1;
+    }
+
+    return (0);
+}
+
+static void do_cmd_input_options_submenu(int* highlight)
+{
+    int choice = 0;
+    bool return_to_options = false;
+
+    Term_clear();
+
+    while (!return_to_options)
+    {
+        choice = input_options_menu(highlight);
+
+        switch (choice)
+        {
+        case 1:
+            do_cmd_keybinds();
+            Term_clear();
+            break;
+        case 2:
+            do_cmd_controller_settings();
+            Term_clear();
+            break;
+        case 3:
+            do_cmd_touch_pane_button_editor(NULL);
+            Term_clear();
+            break;
+        case 4:
+            return_to_options = true;
+            Term_clear();
+            break;
+        }
+    }
+}
+
 /*
  * Set or unset various options.
  *
@@ -15495,6 +17969,7 @@ void do_cmd_options(void)
 {
     int choice = 0;
     int highlight = 1;
+    int input_highlight = 1;
 
     bool return_to_game = false;
 
@@ -15507,6 +17982,7 @@ void do_cmd_options(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -15522,65 +17998,53 @@ void do_cmd_options(void)
         {
         case 1:
         {
-            do_cmd_keybinds();
+            do_cmd_input_options_submenu(&input_highlight);
             Term_clear();
             break;
         }
         case 2:
         {
-            do_cmd_controller_settings();
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_touch_pane_button_editor(NULL);
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 4:
         {
-            do_cmd_pane_settings();
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 5:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_options_aux(TEXT_PAGE, "Text Options");
             Term_clear();
             break;
         }
         case 6:
         {
-            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
+            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
             Term_clear();
             break;
         }
         case 7:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
             Term_clear();
             break;
         }
         case 8:
         {
-            do_cmd_options_aux(TEXT_PAGE, "Text Options");
+            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
             Term_clear();
             break;
         }
         case 9:
-        {
-            do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
-            Term_clear();
-            break;
-        }
-        case 10:
-        {
-            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
-            Term_clear();
-            break;
-        }
-        case 11:
         {
             do_cmd_legacy_options();
             if (p_ptr && (p_ptr->leaving || !p_ptr->playing))
@@ -15588,14 +18052,14 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 12:
+        case 10:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 13:
+        case 11:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
@@ -15609,9 +18073,14 @@ void do_cmd_options(void)
     message_flush();
 
     /* Load screen */
+    screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
+    if (p_ptr && op_ptr && op_ptr->opt[OPT_top_status_line] && Term)
+        Term_erase(0, 0, 255);
+    if (p_ptr)
+        handle_stuff();
 }
 
 #ifdef ALLOW_MACROS
@@ -15698,6 +18167,63 @@ static bool entry_has_binding(int mode, const struct keybind_entry* entry)
     }
 
     return false;
+}
+
+static int count_action_bindings(int mode, const struct keybind_entry* entry)
+{
+    int key;
+    int count = 0;
+
+    if (!entry || !entry->action)
+        return 0;
+
+    if (key_provides_action(mode, entry->key_code, entry->action,
+            entry->requires_keymap))
+        count++;
+
+    if (entry->extra_default_keys)
+    {
+        const char* extra = entry->extra_default_keys;
+        while (*extra)
+        {
+            if (key_provides_action(mode, (byte)*extra, entry->action, false))
+                count++;
+            extra++;
+        }
+    }
+
+    for (key = 0; key < 256; key++)
+    {
+        cptr current = keymap_act[mode][key];
+
+        if (!current || !streq(current, entry->action))
+            continue;
+
+        if (key_matches_default(entry, (byte)key))
+            continue;
+
+        count++;
+    }
+
+    return count;
+}
+
+static void summarize_action_bindings_compact(int mode,
+    const struct keybind_entry* entry, char* buf, size_t buflen)
+{
+    int count;
+
+    if (!buf || !buflen)
+        return;
+
+    count = count_action_bindings(mode, entry);
+
+    if (count <= 0)
+        SDL_strlcpy(buf, "none", buflen);
+    else if (count == 1)
+        SDL_strlcpy(buf, "1 key", buflen);
+    else
+        strnfmt(buf, buflen, "%d keys", count);
 }
 
 /*
@@ -15936,15 +18462,25 @@ void do_cmd_keybinds(void)
         int row;
         int i;
         bool compact_width;
+        bool detail_mode;
         char binding_buf[80];
+        char detail_binding_buf[512];
+        char detail_buf[560];
         char line_buf[128];
         int row_width;
+        int detail_rows;
+        int bottom_reserved;
+        int detail_row;
+        int info_row;
 
         Term_get_size(&term_w, &term_h);
-        visible_rows = term_h - list_start_row - 6;
+        compact_width = (term_w < 70);
+        detail_mode = compact_width;
+        detail_rows = detail_mode ? 3 : 0;
+        bottom_reserved = detail_rows + 3;
+        visible_rows = term_h - list_start_row - bottom_reserved;
         if (visible_rows < 5)
             visible_rows = 5;
-        compact_width = (term_w < 70);
         row_width = settings_ui_line_width(2);
         
         if (showing_primary)
@@ -16014,7 +18550,12 @@ void do_cmd_keybinds(void)
         for (i = *top_ptr; i < display_end; i++)
         {
             int entry_row = list_start_row + (i - *top_ptr);
-            describe_action_bindings(mode, &keybinds[i], binding_buf, sizeof(binding_buf));
+            if (detail_mode)
+                summarize_action_bindings_compact(mode, &keybinds[i],
+                    binding_buf, sizeof(binding_buf));
+            else
+                describe_action_bindings(mode, &keybinds[i], binding_buf,
+                    sizeof(binding_buf));
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
                 keybinds[i].key_name, binding_buf, row_width, 12);
 
@@ -16037,28 +18578,40 @@ void do_cmd_keybinds(void)
             row = list_start_row + (i - *top_ptr);
             Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
+
+        detail_row = list_start_row + visible_rows;
+        info_row = detail_row + detail_rows;
+        if (detail_mode)
+        {
+            describe_action_bindings(mode, &keybinds[highlight],
+                detail_binding_buf, sizeof(detail_binding_buf));
+            strnfmt(detail_buf, sizeof(detail_buf), "Bindings: %s",
+                detail_binding_buf);
+            settings_ui_draw_wrapped_block(detail_row, 2, row_width,
+                detail_rows, TERM_SLATE, detail_buf);
+        }
         
         /* Instructions at bottom */
         if (compact_width)
         {
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 "s: save keybinds");
-            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
                 "r: reset selected");
         }
         else
         {
             strnfmt(line_buf, sizeof(line_buf), "Press 's' to save keybinds to %s",
                 default_file);
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 line_buf);
-            settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
                 "Press 'r' to reset selected keybind to default");
         }
         if (dirty)
-            c_prt(TERM_YELLOW, "Unsaved changes", list_start_row + visible_rows + 3, 2);
+            c_prt(TERM_YELLOW, "Unsaved changes", info_row + 2, 2);
         else
-            Term_erase(2, list_start_row + visible_rows + 3,
+            Term_erase(2, info_row + 2,
                 term_w > 2 ? term_w - 2 : 0);
         
         /* Get input */
@@ -16176,8 +18729,8 @@ void do_cmd_keybinds(void)
             strnfmt(ftmp, sizeof(ftmp), "%s", default_file);
             
             /* Clear prompt area */
-            prt("                                                              ", list_start_row + visible_rows + 1, 2);
-            prt("File: ", list_start_row + visible_rows + 1, 2);
+            Term_erase(2, info_row, term_w > 2 ? term_w - 2 : 0);
+            prt("File: ", info_row, 2);
             
             /* Ask for a file */
             if (askfor_aux(ftmp, sizeof(ftmp)))
@@ -16236,6 +18789,7 @@ typedef enum controller_toggle_id {
     CONTROLLER_TOGGLE_ENABLED = 0,
     CONTROLLER_TOGGLE_AUTO_MODE,
     CONTROLLER_TOGGLE_STEAMDECK_MODE,
+    CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE,
     CONTROLLER_TOGGLE_DPAD,
     CONTROLLER_TOGGLE_LEFT_STICK,
 } controller_toggle_id;
@@ -16245,6 +18799,21 @@ typedef struct controller_entry {
     int id;
     const char* label;
 } controller_entry;
+
+typedef struct controller_physical_binding_ref {
+    int type;
+    int id;
+} controller_physical_binding_ref;
+
+static bool controller_action_binding_equals(int lhs, int rhs);
+static int controller_action_binding_count(int binding, int* out_type,
+    int* out_id);
+static int controller_combo_action_binding_count(int binding,
+    int* out_modifier_type, int* out_modifier_id, int* out_type, int* out_id);
+static void controller_combo_binding_label(int modifier_type, int modifier_id,
+    int type, int id, char* buf, size_t buflen);
+static void controller_combo_binding_short_label(int modifier_type,
+    int modifier_id, int type, int id, char* buf, size_t buflen);
 
 static const char* controller_gamepad_button_label(int button)
 {
@@ -16279,6 +18848,39 @@ static const char* controller_gamepad_button_label(int button)
     }
 }
 
+static const char* controller_gamepad_button_short_label(int button)
+{
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return "A";
+    case SDL_GAMEPAD_BUTTON_EAST: return "B";
+    case SDL_GAMEPAD_BUTTON_WEST: return "X";
+    case SDL_GAMEPAD_BUTTON_NORTH: return "Y";
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "L1";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "R1";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1: return "L4";
+    case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2: return "L5";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1: return "R4";
+    case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2: return "R5";
+    case SDL_GAMEPAD_BUTTON_START: return "Start";
+    case SDL_GAMEPAD_BUTTON_BACK: return "Back";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "L3";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "R3";
+    case SDL_GAMEPAD_BUTTON_GUIDE: return "Guide";
+    case SDL_GAMEPAD_BUTTON_TOUCHPAD: return "Touchpad";
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return "D-Up";
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return "D-Down";
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return "D-Left";
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return "D-Right";
+    case SDL_GAMEPAD_BUTTON_MISC1: return "Misc1";
+    case SDL_GAMEPAD_BUTTON_MISC2: return "Misc2";
+    case SDL_GAMEPAD_BUTTON_MISC3: return "Misc3";
+    case SDL_GAMEPAD_BUTTON_MISC4: return "Misc4";
+    case SDL_GAMEPAD_BUTTON_MISC5: return "Misc5";
+    case SDL_GAMEPAD_BUTTON_MISC6: return "Misc6";
+    default: return "?";
+    }
+}
+
 static const char* controller_gamepad_trigger_label(int index)
 {
     if (index == 0)
@@ -16288,17 +18890,29 @@ static const char* controller_gamepad_trigger_label(int index)
     return "Unknown Trigger";
 }
 
-static const char* controller_gamepad_stick_dir_label(int type, int dir)
+static const char* controller_gamepad_trigger_short_label(int index)
 {
-    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK) ? "Right Stick" : "Left Stick";
+    if (index == 0)
+        return "L2";
+    if (index == 1)
+        return "R2";
+    return "?";
+}
+
+static const char* controller_gamepad_stick_dir_label(int type, int dir,
+    bool short_label)
+{
+    const char* stick = (type == GAMEPAD_CAPTURE_RIGHT_STICK)
+        ? (short_label ? "RS" : "Right Stick")
+        : (short_label ? "LS" : "Left Stick");
     const char* dir_label = NULL;
 
     switch (dir) {
-    case GAMEPAD_STICK_DIR_UP: dir_label = "Up"; break;
-    case GAMEPAD_STICK_DIR_DOWN: dir_label = "Down"; break;
-    case GAMEPAD_STICK_DIR_LEFT: dir_label = "Left"; break;
-    case GAMEPAD_STICK_DIR_RIGHT: dir_label = "Right"; break;
-    default: dir_label = "Unknown"; break;
+    case GAMEPAD_STICK_DIR_UP: dir_label = short_label ? "Up" : "Up"; break;
+    case GAMEPAD_STICK_DIR_DOWN: dir_label = short_label ? "Down" : "Down"; break;
+    case GAMEPAD_STICK_DIR_LEFT: dir_label = short_label ? "Left" : "Left"; break;
+    case GAMEPAD_STICK_DIR_RIGHT: dir_label = short_label ? "Right" : "Right"; break;
+    default: dir_label = short_label ? "?" : "Unknown"; break;
     }
 
     return format("%s %s", stick, dir_label);
@@ -16309,22 +18923,286 @@ static const char* controller_gamepad_combo_label(void)
     return "L1+R1 Combo";
 }
 
-static void controller_binding_label(int type, int id, char* buf, size_t buflen)
+static void controller_binding_label_ex(int type, int id, char* buf,
+    size_t buflen, bool short_label)
 {
     if (!buf || !buflen)
         return;
 
     if (type == GAMEPAD_CAPTURE_BUTTON) {
-        SDL_strlcpy(buf, controller_gamepad_button_label(id), buflen);
+        SDL_strlcpy(buf, short_label
+            ? controller_gamepad_button_short_label(id)
+            : controller_gamepad_button_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_TRIGGER) {
-        SDL_strlcpy(buf, controller_gamepad_trigger_label(id), buflen);
+        SDL_strlcpy(buf, short_label
+            ? controller_gamepad_trigger_short_label(id)
+            : controller_gamepad_trigger_label(id), buflen);
     } else if (type == GAMEPAD_CAPTURE_LEFT_STICK || type == GAMEPAD_CAPTURE_RIGHT_STICK) {
-        SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id), buflen);
+        SDL_strlcpy(buf, controller_gamepad_stick_dir_label(type, id,
+            short_label), buflen);
     } else if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO) {
-        SDL_strlcpy(buf, controller_gamepad_combo_label(), buflen);
+        SDL_strlcpy(buf, short_label ? "L1+R1" : controller_gamepad_combo_label(),
+            buflen);
     } else {
         SDL_strlcpy(buf, "(unknown)", buflen);
     }
+}
+
+static void controller_binding_label(int type, int id, char* buf, size_t buflen)
+{
+    controller_binding_label_ex(type, id, buf, buflen, false);
+}
+
+static void controller_binding_short_label(int type, int id, char* buf,
+    size_t buflen)
+{
+    controller_binding_label_ex(type, id, buf, buflen, true);
+}
+
+static void controller_append_binding_text(char* buf, size_t buflen,
+    size_t* current_len, bool* found, cptr text)
+{
+    if (!buf || !buflen || !current_len || !found || !text || !text[0])
+        return;
+
+    if (*found)
+        strnfcat(buf, buflen, current_len, ", %s", text);
+    else
+    {
+        SDL_strlcpy(buf, text, buflen);
+        *current_len = strlen(buf);
+        *found = true;
+    }
+}
+
+static int controller_collect_physical_bindings(int binding,
+    controller_physical_binding_ref out[], int max_out)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_BUTTON;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_TRIGGER;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_LEFT_STICK;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding))
+            continue;
+
+        if (out && count < max_out) {
+            out[count].type = GAMEPAD_CAPTURE_RIGHT_STICK;
+            out[count].id = i;
+        }
+        count++;
+    }
+
+    return count;
+}
+
+static void controller_describe_action_bindings_ex(int binding, char* buf,
+    size_t buflen, bool short_label)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    static const int combo_types[] = {
+        GAMEPAD_CAPTURE_BUTTON,
+        GAMEPAD_CAPTURE_TRIGGER,
+        GAMEPAD_CAPTURE_LEFT_STICK,
+        GAMEPAD_CAPTURE_RIGHT_STICK,
+    };
+    controller_physical_binding_ref mod_refs[32];
+    bool found = false;
+    size_t current_len = 0;
+    char binding_buf[96];
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_BUTTON, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_BUTTON, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_TRIGGER, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_TRIGGER, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_LEFT_STICK, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_LEFT_STICK, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding))
+            continue;
+
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_RIGHT_STICK, i,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_RIGHT_STICK, i, binding_buf,
+                sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
+        if (short_label)
+            controller_binding_short_label(GAMEPAD_CAPTURE_SHOULDER_COMBO, 0,
+                binding_buf, sizeof(binding_buf));
+        else
+            controller_binding_label(GAMEPAD_CAPTURE_SHOULDER_COMBO, 0,
+                binding_buf, sizeof(binding_buf));
+        controller_append_binding_text(buf, buflen, &current_len, &found,
+            binding_buf);
+    }
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int mod_count = controller_collect_physical_bindings(modifiers[i],
+            mod_refs, N_ELEMENTS(mod_refs));
+
+        if (mod_count <= 0)
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(combo_types); ti++) {
+            int count = 0;
+
+            if (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                count = SDL_GAMEPAD_BUTTON_COUNT;
+            else if (combo_types[ti] == GAMEPAD_CAPTURE_TRIGGER)
+                count = GAMEPAD_TRIGGER_COUNT;
+            else
+                count = GAMEPAD_STICK_DIR_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (!controller_action_binding_equals(
+                        get_sdl_gamepad_combo_binding(modifiers[i],
+                            combo_types[ti], id),
+                        binding))
+                    continue;
+
+                for (int m = 0; m < mod_count && m < (int)N_ELEMENTS(mod_refs);
+                    m++) {
+                    if (short_label)
+                        controller_combo_binding_short_label(mod_refs[m].type,
+                            mod_refs[m].id, combo_types[ti], id, binding_buf,
+                            sizeof(binding_buf));
+                    else
+                        controller_combo_binding_label(mod_refs[m].type,
+                            mod_refs[m].id, combo_types[ti], id, binding_buf,
+                            sizeof(binding_buf));
+                    controller_append_binding_text(buf, buflen, &current_len,
+                        &found, binding_buf);
+                }
+            }
+        }
+    }
+
+    if (!found)
+        SDL_strlcpy(buf, "(unbound)", buflen);
+}
+
+static void controller_describe_action_bindings_compact(int binding, char* buf,
+    size_t buflen)
+{
+    controller_describe_action_bindings_ex(binding, buf, buflen, true);
+}
+
+static bool controller_action_is_modifier(int binding)
+{
+    return (binding == GAMEPAD_BIND_SHIFT || binding == GAMEPAD_BIND_CTRL
+        || binding == GAMEPAD_BIND_ALT);
+}
+
+static bool controller_action_is_confirm(int binding)
+{
+    return (binding == INPUT_BIND_CONFIRM || binding == ' ');
+}
+
+static bool controller_action_binding_equals(int lhs, int rhs)
+{
+    if (controller_action_is_confirm(lhs) && controller_action_is_confirm(rhs))
+        return true;
+
+    return lhs == rhs;
+}
+
+static int controller_store_action_binding(int binding)
+{
+    if (controller_action_is_confirm(binding))
+        return ' ';
+
+    return binding;
 }
 
 static int controller_action_binding_count(int binding, int* out_type, int* out_id)
@@ -16332,7 +19210,8 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     int count = 0;
 
     for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
-        if (get_sdl_gamepad_button_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_BUTTON;
                 *out_id = i;
@@ -16342,7 +19221,8 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     }
 
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
-        if (get_sdl_gamepad_trigger_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_TRIGGER;
                 *out_id = i;
@@ -16352,7 +19232,8 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_left_stick_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
                 *out_id = i;
@@ -16362,7 +19243,8 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_right_stick_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding)) {
             if (count == 0 && out_type && out_id) {
                 *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
                 *out_id = i;
@@ -16371,7 +19253,8 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
         }
     }
 
-    if (get_sdl_gamepad_shoulder_combo_binding() == binding) {
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
         if (count == 0 && out_type && out_id) {
             *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
             *out_id = 0;
@@ -16382,36 +19265,354 @@ static int controller_action_binding_count(int binding, int* out_type, int* out_
     return count;
 }
 
+static int controller_physical_binding_count(int binding, int* out_type, int* out_id)
+{
+    int count = 0;
+
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_BUTTON;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_TRIGGER;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+        if (controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding)) {
+            if (count == 0 && out_type && out_id) {
+                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
+                *out_id = i;
+            }
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static int controller_combo_action_binding_count(int binding, int* out_modifier_type,
+    int* out_modifier_id, int* out_type, int* out_id)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    int total = 0;
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int mod_type = 0;
+        int mod_id = 0;
+        int mod_count;
+        static const int combo_types[] = {
+            GAMEPAD_CAPTURE_BUTTON,
+            GAMEPAD_CAPTURE_TRIGGER,
+            GAMEPAD_CAPTURE_LEFT_STICK,
+            GAMEPAD_CAPTURE_RIGHT_STICK,
+        };
+
+        mod_count = controller_physical_binding_count(modifiers[i], &mod_type, &mod_id);
+        if (mod_count <= 0)
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(combo_types); ti++) {
+            int count = 0;
+
+            if (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                count = SDL_GAMEPAD_BUTTON_COUNT;
+            else if (combo_types[ti] == GAMEPAD_CAPTURE_TRIGGER)
+                count = GAMEPAD_TRIGGER_COUNT;
+            else
+                count = GAMEPAD_STICK_DIR_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (!controller_action_binding_equals(
+                        get_sdl_gamepad_combo_binding(modifiers[i], combo_types[ti], id),
+                        binding))
+                    continue;
+
+                if (total == 0) {
+                    if (out_modifier_type)
+                        *out_modifier_type = mod_type;
+                    if (out_modifier_id)
+                        *out_modifier_id = mod_id;
+                    if (out_type)
+                        *out_type = combo_types[ti];
+                    if (out_id)
+                        *out_id = id;
+                }
+
+                total += mod_count;
+            }
+        }
+    }
+
+    return total;
+}
+
+static void controller_combo_binding_label(int modifier_type, int modifier_id,
+    int type, int id, char* buf, size_t buflen)
+{
+    char mod_buf[48];
+    char base_buf[48];
+
+    if (!buf || !buflen)
+        return;
+
+    controller_binding_label(modifier_type, modifier_id, mod_buf, sizeof(mod_buf));
+    controller_binding_label(type, id, base_buf, sizeof(base_buf));
+    strnfmt(buf, buflen, "%s + %s", mod_buf, base_buf);
+}
+
+static void controller_combo_binding_short_label(int modifier_type,
+    int modifier_id, int type, int id, char* buf, size_t buflen)
+{
+    char mod_buf[24];
+    char base_buf[24];
+
+    if (!buf || !buflen)
+        return;
+
+    controller_binding_short_label(modifier_type, modifier_id, mod_buf,
+        sizeof(mod_buf));
+    controller_binding_short_label(type, id, base_buf, sizeof(base_buf));
+    strnfmt(buf, buflen, "%s + %s", mod_buf, base_buf);
+}
+
+static int controller_action_total_binding_count(int binding)
+{
+    return controller_action_binding_count(binding, NULL, NULL)
+        + controller_combo_action_binding_count(binding, NULL, NULL, NULL, NULL);
+}
+
+static void controller_action_binding_summary(int binding, char* buf,
+    size_t buflen)
+{
+    int count;
+
+    if (!buf || !buflen)
+        return;
+
+    count = controller_action_total_binding_count(binding);
+
+    if (count <= 0)
+        SDL_strlcpy(buf, "none", buflen);
+    else if (count == 1)
+        SDL_strlcpy(buf, "1 bind", buflen);
+    else
+        strnfmt(buf, buflen, "%d binds", count);
+}
+
 static void controller_action_binding_label(int binding, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
         return;
 
+    char binding_buf[48];
     int type = 0;
     int id = 0;
-    int count = controller_action_binding_count(binding, &type, &id);
-    if (count <= 0) {
+    int mod_type = 0;
+    int mod_id = 0;
+    int direct_count = controller_action_binding_count(binding, &type, &id);
+    int combo_count = controller_combo_action_binding_count(binding,
+        &mod_type, &mod_id, &type, &id);
+    int total_count = direct_count + combo_count;
+
+    if (total_count <= 0) {
         SDL_strlcpy(buf, "(unbound)", buflen);
-    } else if (count == 1) {
+    } else if (total_count == 1 && direct_count == 1) {
         controller_binding_label(type, id, buf, buflen);
+    } else if (total_count == 1) {
+        controller_combo_binding_label(mod_type, mod_id, type, id, buf, buflen);
     } else {
-        SDL_strlcpy(buf, "Multiple", buflen);
+        if (direct_count > 0) {
+            controller_binding_label(type, id, binding_buf, sizeof(binding_buf));
+        } else {
+            controller_combo_binding_label(mod_type, mod_id, type, id, binding_buf,
+                sizeof(binding_buf));
+        }
+        strnfmt(buf, buflen, "%s +%d", binding_buf, total_count - 1);
     }
 }
 
 static bool controller_binding_matches_action(int binding, int type, int id)
 {
     if (type == GAMEPAD_CAPTURE_BUTTON)
-        return get_sdl_gamepad_button_binding(id) == binding;
+        return controller_action_binding_equals(get_sdl_gamepad_button_binding(id),
+            binding);
     if (type == GAMEPAD_CAPTURE_TRIGGER)
-        return get_sdl_gamepad_trigger_binding(id) == binding;
+        return controller_action_binding_equals(get_sdl_gamepad_trigger_binding(id),
+            binding);
     if (type == GAMEPAD_CAPTURE_LEFT_STICK)
-        return get_sdl_gamepad_left_stick_binding(id) == binding;
+        return controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(id),
+            binding);
     if (type == GAMEPAD_CAPTURE_RIGHT_STICK)
-        return get_sdl_gamepad_right_stick_binding(id) == binding;
+        return controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(id),
+            binding);
     if (type == GAMEPAD_CAPTURE_SHOULDER_COMBO)
-        return get_sdl_gamepad_shoulder_combo_binding() == binding;
+        return controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding);
     return false;
+}
+
+static bool controller_capture_matches_action(int binding, int modifier, int type, int id)
+{
+    if (modifier != GAMEPAD_BIND_NONE) {
+        return controller_action_binding_equals(
+            get_sdl_gamepad_combo_binding(modifier, type, id), binding);
+    }
+
+    return controller_binding_matches_action(binding, type, id);
+}
+
+static bool controller_first_nonstick_physical_binding(int binding, int* out_type,
+    int* out_id)
+{
+    for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+        if (i == SDL_GAMEPAD_BUTTON_LEFT_STICK
+            || i == SDL_GAMEPAD_BUTTON_RIGHT_STICK)
+            continue;
+        if (!controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding))
+            continue;
+
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_BUTTON;
+        if (out_id)
+            *out_id = i;
+        return true;
+    }
+
+    for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+        if (!controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding))
+            continue;
+
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_TRIGGER;
+        if (out_id)
+            *out_id = i;
+        return true;
+    }
+
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
+        if (out_type)
+            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
+        if (out_id)
+            *out_id = 0;
+        return true;
+    }
+
+    return false;
+}
+
+static bool controller_first_nonstick_combo_binding(int binding, int* out_mod_type,
+    int* out_mod_id, int* out_type, int* out_id)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    static const int combo_types[] = {
+        GAMEPAD_CAPTURE_BUTTON,
+        GAMEPAD_CAPTURE_TRIGGER,
+    };
+
+    for (int i = 0; i < (int)N_ELEMENTS(modifiers); i++) {
+        int mod_type = 0;
+        int mod_id = 0;
+
+        if (!controller_first_nonstick_physical_binding(modifiers[i],
+                &mod_type, &mod_id))
+            continue;
+
+        for (int ti = 0; ti < (int)N_ELEMENTS(combo_types); ti++) {
+            int count = (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON)
+                ? SDL_GAMEPAD_BUTTON_COUNT
+                : GAMEPAD_TRIGGER_COUNT;
+
+            for (int id = 0; id < count; id++) {
+                if (combo_types[ti] == GAMEPAD_CAPTURE_BUTTON
+                    && (id == SDL_GAMEPAD_BUTTON_LEFT_STICK
+                        || id == SDL_GAMEPAD_BUTTON_RIGHT_STICK))
+                    continue;
+
+                if (!controller_action_binding_equals(
+                        get_sdl_gamepad_combo_binding(modifiers[i],
+                            combo_types[ti], id),
+                        binding))
+                    continue;
+
+                if (out_mod_type)
+                    *out_mod_type = mod_type;
+                if (out_mod_id)
+                    *out_mod_id = mod_id;
+                if (out_type)
+                    *out_type = combo_types[ti];
+                if (out_id)
+                    *out_id = id;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static void controller_prompt_label_no_sticks(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    int type = 0;
+    int id = 0;
+    int mod_type = 0;
+    int mod_id = 0;
+
+    if (!buf || !buflen)
+        return;
+
+    if (controller_first_nonstick_physical_binding(binding, &type, &id))
+    {
+        controller_binding_short_label(type, id, buf, buflen);
+        return;
+    }
+
+    if (controller_first_nonstick_combo_binding(binding, &mod_type, &mod_id,
+            &type, &id))
+    {
+        controller_combo_binding_short_label(mod_type, mod_id, type, id, buf,
+            buflen);
+        return;
+    }
+
+    SDL_strlcpy(buf, fallback ? fallback : "", buflen);
 }
 
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
@@ -16441,6 +19642,11 @@ static void controller_entry_value(const controller_entry* entry, char* buf, siz
             break;
         case CONTROLLER_TOGGLE_STEAMDECK_MODE:
             SDL_strlcpy(buf, get_sdl_steamdeck_mode() ? "On" : "Off", buflen);
+            break;
+        case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+            SDL_strlcpy(buf,
+                get_sdl_steamdeck_inv_equip_same_button_cycle() ? "On" : "Off",
+                buflen);
             break;
         case CONTROLLER_TOGGLE_DPAD:
             SDL_strlcpy(buf, get_sdl_gamepad_use_dpad() ? "On" : "Off", buflen);
@@ -16474,6 +19680,9 @@ static void controller_set_toggle(int toggle_id, bool value)
     case CONTROLLER_TOGGLE_STEAMDECK_MODE:
         set_sdl_steamdeck_mode(value);
         break;
+    case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+        set_sdl_steamdeck_inv_equip_same_button_cycle(value);
+        break;
     case CONTROLLER_TOGGLE_DPAD:
         set_sdl_gamepad_use_dpad(value);
         break;
@@ -16491,7 +19700,8 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
         return;
 
     for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
-        if (get_sdl_gamepad_button_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_button_binding(i),
+                binding)) {
             if (skip_type == GAMEPAD_CAPTURE_BUTTON && skip_id == i)
                 continue;
             set_sdl_gamepad_button_binding(i, GAMEPAD_BIND_NONE);
@@ -16499,7 +19709,8 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
     }
 
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
-        if (get_sdl_gamepad_trigger_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_trigger_binding(i),
+                binding)) {
             if (skip_type == GAMEPAD_CAPTURE_TRIGGER && skip_id == i)
                 continue;
             set_sdl_gamepad_trigger_binding(i, GAMEPAD_BIND_NONE);
@@ -16507,7 +19718,8 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_left_stick_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_left_stick_binding(i),
+                binding)) {
             if (skip_type == GAMEPAD_CAPTURE_LEFT_STICK && skip_id == i)
                 continue;
             set_sdl_gamepad_left_stick_binding(i, GAMEPAD_BIND_NONE);
@@ -16515,22 +19727,70 @@ static void controller_clear_action_bindings(int binding, int skip_type, int ski
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_right_stick_binding(i) == binding) {
+        if (controller_action_binding_equals(get_sdl_gamepad_right_stick_binding(i),
+                binding)) {
             if (skip_type == GAMEPAD_CAPTURE_RIGHT_STICK && skip_id == i)
                 continue;
             set_sdl_gamepad_right_stick_binding(i, GAMEPAD_BIND_NONE);
         }
     }
 
-    if (get_sdl_gamepad_shoulder_combo_binding() == binding) {
+    if (controller_action_binding_equals(get_sdl_gamepad_shoulder_combo_binding(),
+            binding)) {
         if (!(skip_type == GAMEPAD_CAPTURE_SHOULDER_COMBO))
             set_sdl_gamepad_shoulder_combo_binding(GAMEPAD_BIND_NONE);
     }
 }
 
+static void controller_clear_effective_action_bindings(int binding)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+
+    controller_clear_action_bindings(binding, -1, -1);
+
+    for (int mi = 0; mi < (int)N_ELEMENTS(modifiers); mi++) {
+        int modifier = modifiers[mi];
+
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_BUTTON, i),
+                    binding)) {
+                set_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_BUTTON, i,
+                    GAMEPAD_BIND_NONE);
+            }
+        }
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_TRIGGER, i),
+                    binding)) {
+                set_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_TRIGGER, i,
+                    GAMEPAD_BIND_NONE);
+            }
+        }
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_LEFT_STICK, i),
+                    binding)) {
+                set_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_LEFT_STICK, i,
+                    GAMEPAD_BIND_NONE);
+            }
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_RIGHT_STICK, i),
+                    binding)) {
+                set_sdl_gamepad_combo_binding(modifier, GAMEPAD_CAPTURE_RIGHT_STICK, i,
+                    GAMEPAD_BIND_NONE);
+            }
+        }
+    }
+}
+
 static void controller_assign_action_binding(int binding, int type, int id)
 {
-    controller_clear_action_bindings(binding, type, id);
+    binding = controller_store_action_binding(binding);
 
     if (type == GAMEPAD_CAPTURE_BUTTON) {
         set_sdl_gamepad_button_binding(id, binding);
@@ -16545,57 +19805,107 @@ static void controller_assign_action_binding(int binding, int type, int id)
     }
 }
 
-static bool controller_action_default_binding(int binding, int* out_type, int* out_id)
+static void controller_assign_combo_binding(int binding, int modifier, int type, int id)
 {
+    binding = controller_store_action_binding(binding);
+    set_sdl_gamepad_combo_binding(modifier, type, id, binding);
+}
+
+static bool controller_restore_action_default_bindings(int binding)
+{
+    static const int modifiers[] = {
+        GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL,
+        GAMEPAD_BIND_ALT,
+    };
+    bool restored = false;
+
+    binding = controller_store_action_binding(binding);
+
     for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
-        if (get_sdl_gamepad_default_button_binding(i) == binding) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_BUTTON;
-            if (out_id)
-                *out_id = i;
-            return true;
+        if (controller_action_binding_equals(get_sdl_gamepad_default_button_binding(i),
+                binding)) {
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_BUTTON, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
-        if (get_sdl_gamepad_default_trigger_binding(i) == binding) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_TRIGGER;
-            if (out_id)
-                *out_id = i;
-            return true;
+        if (controller_action_binding_equals(get_sdl_gamepad_default_trigger_binding(i),
+                binding)) {
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_TRIGGER, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_default_left_stick_binding(i) == binding) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_LEFT_STICK;
-            if (out_id)
-                *out_id = i;
-            return true;
+        if (controller_action_binding_equals(get_sdl_gamepad_default_left_stick_binding(i),
+                binding)) {
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_LEFT_STICK, i);
+            restored = true;
         }
     }
 
     for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
-        if (get_sdl_gamepad_default_right_stick_binding(i) == binding) {
-            if (out_type)
-                *out_type = GAMEPAD_CAPTURE_RIGHT_STICK;
-            if (out_id)
-                *out_id = i;
-            return true;
+        if (controller_action_binding_equals(get_sdl_gamepad_default_right_stick_binding(i),
+                binding)) {
+            controller_assign_action_binding(binding, GAMEPAD_CAPTURE_RIGHT_STICK, i);
+            restored = true;
         }
     }
 
-    if (get_sdl_gamepad_default_shoulder_combo_binding() == binding) {
-        if (out_type)
-            *out_type = GAMEPAD_CAPTURE_SHOULDER_COMBO;
-        if (out_id)
-            *out_id = 0;
-        return true;
+    if (controller_action_binding_equals(get_sdl_gamepad_default_shoulder_combo_binding(),
+            binding)) {
+        controller_assign_action_binding(binding, GAMEPAD_CAPTURE_SHOULDER_COMBO, 0);
+        restored = true;
     }
 
-    return false;
+    for (int mi = 0; mi < (int)N_ELEMENTS(modifiers); mi++) {
+        int modifier = modifiers[mi];
+
+        for (int i = 0; i < SDL_GAMEPAD_BUTTON_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_BUTTON, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_BUTTON, i);
+                restored = true;
+            }
+        }
+
+        for (int i = 0; i < GAMEPAD_TRIGGER_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_TRIGGER, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_TRIGGER, i);
+                restored = true;
+            }
+        }
+
+        for (int i = 0; i < GAMEPAD_STICK_DIR_COUNT; i++) {
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_LEFT_STICK, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_LEFT_STICK, i);
+                restored = true;
+            }
+            if (controller_action_binding_equals(
+                    get_sdl_gamepad_default_combo_binding(modifier,
+                        GAMEPAD_CAPTURE_RIGHT_STICK, i),
+                    binding)) {
+                controller_assign_combo_binding(binding, modifier,
+                    GAMEPAD_CAPTURE_RIGHT_STICK, i);
+                restored = true;
+            }
+        }
+    }
+
+    return restored;
 }
 
 void do_cmd_controller_settings(void)
@@ -16610,11 +19920,15 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_ENABLED, "Controller Input" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_AUTO_MODE, "Auto Controller Mode" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_MODE, "Steam Deck UI Mode" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE, "Inv/Equip Same-Button Cycle" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_DPAD, "D-pad Movement" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_LEFT_STICK, "Left Stick Movement" },
-        { CONTROLLER_ENTRY_ACTION, ' ', "Confirm (Space)" },
         { CONTROLLER_ENTRY_ACTION, '\r', "Enter" },
+        { CONTROLLER_ENTRY_ACTION, INPUT_BIND_CONFIRM, "Confirm (Space)" },
         { CONTROLLER_ENTRY_ACTION, ESCAPE, "Escape" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
+        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
         { CONTROLLER_ENTRY_ACTION, '\t', "Abilities (Tab)" },
         { CONTROLLER_ENTRY_ACTION, 'i', "Inventory" },
         { CONTROLLER_ENTRY_ACTION, 'e', "Equipment" },
@@ -16661,9 +19975,6 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, '~', "Knowledge browser" },
         { CONTROLLER_ENTRY_ACTION, '[', "Monster list" },
         { CONTROLLER_ENTRY_ACTION, ']', "Object list" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
-        { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
     };
 
     int entry_count = (int)N_ELEMENTS(entries);
@@ -16672,18 +19983,28 @@ void do_cmd_controller_settings(void)
 
     while (!done) {
         char value_buf[64];
+        char detail_value_buf[512];
+        char detail_buf[560];
         char line_buf[128];
         int row;
         bool steamdeck = steamdeck_controls_active();
         bool compact_width;
+        bool detail_mode;
         int row_width;
+        int detail_rows;
+        int bottom_reserved;
+        int detail_row;
+        int info_row;
 
         Term_get_size(&term_w, &term_h);
+        compact_width = (term_w < 70);
+        detail_mode = compact_width;
+        detail_rows = detail_mode ? 4 : 0;
+        bottom_reserved = detail_rows + 2;
         row_width = settings_ui_line_width(2);
-        int visible_rows = term_h - list_start_row - 6;
+        int visible_rows = term_h - list_start_row - bottom_reserved;
         if (visible_rows < 5)
             visible_rows = 5;
-        compact_width = (term_w < 70);
 
         if (highlight < 0)
             highlight = 0;
@@ -16714,19 +20035,24 @@ void do_cmd_controller_settings(void)
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
             controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
-                compact_width ? "D-pad %s bind  %s back"
-                              : "D-pad navigate  %s bind  %s back",
+                compact_width ? "D-pad %s add  %s back"
+                              : "D-pad navigate  %s add  %s back",
                 confirm_label, back_label);
             settings_ui_put_fitted(2, 0, TERM_WHITE, prompt_buf);
         } else {
             settings_ui_put_fitted(2, 0, TERM_WHITE,
-                compact_width ? "8/2 move  Enter bind  Esc return"
-                              : "Arrow to navigate, Enter to bind, Escape to return");
+                compact_width ? "8/2 move  Enter add  Esc return"
+                              : "Arrow to navigate, Enter to add, Escape to return");
         }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
             int entry_row = list_start_row + (i - top);
-            controller_entry_value(&entries[i], value_buf, sizeof(value_buf));
+            if (detail_mode && entries[i].type == CONTROLLER_ENTRY_ACTION)
+                controller_action_binding_summary(entries[i].id, value_buf,
+                    sizeof(value_buf));
+            else
+                controller_entry_value(&entries[i], value_buf,
+                    sizeof(value_buf));
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), entries[i].label,
                 value_buf, row_width, 12);
 
@@ -16741,6 +20067,22 @@ void do_cmd_controller_settings(void)
             Term_erase(2, row, term_w > 2 ? term_w - 2 : 0);
         }
 
+        detail_row = list_start_row + visible_rows;
+        info_row = detail_row + detail_rows;
+        if (detail_mode) {
+            if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
+                controller_describe_action_bindings_compact(entries[highlight].id,
+                    detail_value_buf, sizeof(detail_value_buf));
+                strnfmt(detail_buf, sizeof(detail_buf), "Bindings: %s",
+                    detail_value_buf);
+            } else {
+                strnfmt(detail_buf, sizeof(detail_buf),
+                    "Press Enter to toggle %s.", entries[highlight].label);
+            }
+            settings_ui_draw_wrapped_block(detail_row, 2, row_width, detail_rows,
+                TERM_SLATE, detail_buf);
+        }
+
         if (steamdeck) {
             char reset_label[16];
             char reset_all_label[16];
@@ -16752,14 +20094,14 @@ void do_cmd_controller_settings(void)
                 compact_width ? "[%s] reset  [%s] reset all"
                               : "Reset: [%s] selected, [%s] all",
                 reset_label, reset_all_label);
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 prompt_buf);
         } else {
-            settings_ui_put_fitted(list_start_row + visible_rows + 1, 2, TERM_WHITE,
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 compact_width ? "r: reset selected  R: reset all"
                               : "Press 'r' to reset selected binding, 'R' to reset all bindings");
         }
-        settings_ui_put_fitted(list_start_row + visible_rows + 2, 2, TERM_WHITE,
+        settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
             compact_width ? "Saves on exit." : "Changes are saved on exit.");
 
         char ch = inkey();
@@ -16772,13 +20114,10 @@ void do_cmd_controller_settings(void)
             highlight = (highlight + 1) % entry_count;
         } else if (ch == 'r' || (steamdeck && ch == steamdeck_alt_action_key())) {
             if (entries[highlight].type == CONTROLLER_ENTRY_ACTION) {
-                int binding_type = 0;
-                int binding_id = 0;
-                if (controller_action_default_binding(entries[highlight].id, &binding_type, &binding_id)) {
-                    controller_assign_action_binding(entries[highlight].id, binding_type, binding_id);
-                    msg_print("Binding reset to default.");
+                controller_clear_effective_action_bindings(entries[highlight].id);
+                if (controller_restore_action_default_bindings(entries[highlight].id)) {
+                    msg_print("Bindings reset to defaults.");
                 } else {
-                    controller_clear_action_bindings(entries[highlight].id, -1, -1);
                     msg_print("No default binding for action.");
                 }
                 message_flush();
@@ -16802,26 +20141,34 @@ void do_cmd_controller_settings(void)
                 char prompt_short[64];
                 int cap_type = 0;
                 int cap_id = 0;
+                int cap_modifier = GAMEPAD_BIND_NONE;
+                bool allow_modifier_combo = !controller_action_is_modifier(entry->id);
                 Term_erase(2, entry_row, 255);
                 if (steamdeck) {
                     char cancel_label[16];
                     controller_prompt_label(steamdeck_back_key(), "B", cancel_label, sizeof(cancel_label));
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press controller button for %s  (%s=cancel)",
+                        "Press control%s to add %s  (%s=cancel)",
+                        allow_modifier_combo ? " or modifier+control" : "",
                         entry->label, cancel_label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Press button for %s  (%s=cancel)",
+                        "Add%s to %s  (%s=cancel)",
+                        allow_modifier_combo ? " control/combo" : " control",
                         entry->label, cancel_label);
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "Bind %s  (%s cancel)", entry->label, cancel_label);
+                        "Add %s%s  (%s cancel)", entry->label,
+                        allow_modifier_combo ? " combo" : "", cancel_label);
                 } else {
                     strnfmt(prompt_long, sizeof(prompt_long),
-                        "Press controller button for %s (Esc=cancel, Backspace=clear)",
+                        "Press controller control%s to add %s (Esc=cancel, Backspace=clear)",
+                        allow_modifier_combo ? " or modifier+control" : "",
                         entry->label);
                     strnfmt(prompt_medium, sizeof(prompt_medium),
-                        "Bind %s (Esc=cancel, Bksp=clear)", entry->label);
+                        "Add %s%s (Esc=cancel, Bksp=clear)", entry->label,
+                        allow_modifier_combo ? " with control/combo" : "");
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s (Esc cancel, Bksp clear)", entry->label);
+                        "Add %s%s (Esc cancel, Bksp clear)", entry->label,
+                        allow_modifier_combo ? " combo" : "");
                 }
                 strnfmt(prompt, sizeof(prompt), "%s",
                     settings_ui_pick_label(row_width, prompt_long, prompt_medium,
@@ -16830,7 +20177,7 @@ void do_cmd_controller_settings(void)
                 Term_fresh();
 
                 flush();
-                if (!sdl_gamepad_capture_begin()) {
+                if (!sdl_gamepad_capture_begin(allow_modifier_combo)) {
                     msg_print("No controller detected.");
                     message_flush();
                     continue;
@@ -16838,12 +20185,42 @@ void do_cmd_controller_settings(void)
 
                 bool waiting = true;
                 while (waiting) {
-                    if (sdl_gamepad_capture_poll(&cap_type, &cap_id)) {
-                        if (controller_binding_matches_action(ESCAPE, cap_type, cap_id)) {
+                    if (sdl_gamepad_capture_poll(&cap_type, &cap_id, &cap_modifier)) {
+                        if (cap_modifier == GAMEPAD_BIND_NONE
+                            && controller_binding_matches_action(ESCAPE, cap_type, cap_id)) {
                             sdl_gamepad_capture_cancel();
                             waiting = false;
                             break;
                         }
+
+                        if (!controller_action_is_confirm(entry->id)
+                            && controller_capture_matches_action(INPUT_BIND_CONFIRM,
+                                cap_modifier, cap_type, cap_id)) {
+                            msg_print("Rebind Confirm (Space) directly to change that control.");
+                            message_flush();
+                            if (!sdl_gamepad_capture_begin(allow_modifier_combo))
+                                waiting = false;
+                            continue;
+                        }
+
+                        if (cap_modifier != GAMEPAD_BIND_NONE) {
+                            if (cap_type == GAMEPAD_CAPTURE_BUTTON
+                                || cap_type == GAMEPAD_CAPTURE_TRIGGER
+                                || cap_type == GAMEPAD_CAPTURE_LEFT_STICK
+                                || cap_type == GAMEPAD_CAPTURE_RIGHT_STICK) {
+                                controller_assign_combo_binding(entry->id,
+                                    cap_modifier, cap_type, cap_id);
+                                waiting = false;
+                                break;
+                            }
+
+                            msg_print("That combo input is not supported.");
+                            message_flush();
+                            if (!sdl_gamepad_capture_begin(allow_modifier_combo))
+                                waiting = false;
+                            continue;
+                        }
+
                         controller_assign_action_binding(entry->id, cap_type, cap_id);
                         waiting = false;
                         break;
@@ -16856,7 +20233,7 @@ void do_cmd_controller_settings(void)
                         waiting = false;
                     } else if (choice == '\b' || choice == 127) {
                         sdl_gamepad_capture_cancel();
-                        controller_clear_action_bindings(entry->id, -1, -1);
+                        controller_clear_effective_action_bindings(entry->id);
                         waiting = false;
                     } else if (choice == 0) {
                         Term_xtra(TERM_XTRA_DELAY, 10);
@@ -19616,25 +22993,327 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 
 static bool supply_kind_matches(int group, int tval, int sval)
 {
-    switch (group)
-    {
-    case SUPPLY_GROUP_HERBS:
-        return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
-    case SUPPLY_GROUP_POTIONS:
-        return (tval == TV_POTION);
-    case SUPPLY_GROUP_GEMS:
-        return (tval == TV_GEM);
-    default:
-        return false;
-    }
+    return supplies_group_matches_kind(group, tval, sval);
 }
 
 static bool supply_item_matches(int group, const object_type* o_ptr)
 {
-    if (!o_ptr)
-        return false;
+    return supplies_group_matches_object(group, o_ptr);
+}
 
-    return supply_kind_matches(group, o_ptr->tval, o_ptr->sval);
+static int supply_group_uniform_weight(int group_idx)
+{
+    int weight = -1;
+
+    for (int i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+
+        if (!k_ptr->name)
+            continue;
+        if (!supply_kind_matches(group_idx, k_ptr->tval, k_ptr->sval))
+            continue;
+
+        if (weight < 0)
+            weight = k_ptr->weight;
+        else if (weight != k_ptr->weight)
+            return -1;
+    }
+
+    return weight;
+}
+
+static void describe_supply_group_status(int group_idx, char* buf, size_t len)
+{
+    int weight;
+
+    if (!buf || len == 0)
+        return;
+
+    buf[0] = '\0';
+
+    switch (group_idx)
+    {
+    case SUPPLY_GROUP_HERBS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All herbs weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_FOOD:
+        SDL_strlcpy(buf, "Food weight varies; each row shows per-item weight.",
+            len);
+        break;
+    case SUPPLY_GROUP_POTIONS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All potions weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_GEMS:
+        weight = supply_group_uniform_weight(group_idx);
+        if (weight >= 0)
+            strnfmt(buf, len, "All gems weigh %d.%1d lb each.",
+                weight / 10, weight % 10);
+        break;
+    case SUPPLY_GROUP_LIGHTS:
+        SDL_strlcpy(buf,
+            "Oil slots: lamp 2, flask 1 (max 4).",
+            len);
+        break;
+    default:
+        break;
+    }
+}
+
+static void build_supply_weight_summary(char* buf, size_t buflen, int term_wid,
+    int used_weight, int max_weight, int light_weight, int light_item_weight,
+    int light_oil_weight, int lamp_oil, int lamp_capacity, int oil_slots,
+    int oil_slot_capacity)
+{
+    char temp[128];
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    strnfmt(temp, sizeof(temp),
+        "Supply: %d.%1d/%d.%1d lb  Light: %d.%1d lb (%d.%1d items + %d.%1d oil)  Oil: %d/%d  Slots: %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp),
+        "Sup %d.%1d/%d.%1d lb  Lgt %d.%1d lb (%d.%1d itm + %d.%1d oil)  Oil %d/%d  Slots %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp),
+        "Sup %d.%1d/%d.%1d  Lgt %d.%1d (%d.%1d+%d.%1d)  Oil %d/%d  Sl %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        light_item_weight / 10, light_item_weight % 10,
+        light_oil_weight / 10, light_oil_weight % 10,
+        lamp_oil, lamp_capacity, oil_slots, oil_slot_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp), "Sup %d.%1d/%d.%1d  Lgt %d.%1d  Oil %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        lamp_oil, lamp_capacity);
+    if ((int)strlen(temp) <= term_wid)
+    {
+        SDL_strlcpy(buf, temp, buflen);
+        return;
+    }
+
+    strnfmt(temp, sizeof(temp), "S %d.%1d/%d.%1d  L %d.%1d  O %d/%d",
+        used_weight / 10, used_weight % 10,
+        max_weight / 10, max_weight % 10,
+        light_weight / 10, light_weight % 10,
+        lamp_oil, lamp_capacity);
+    SDL_strlcpy(buf, temp, buflen);
+}
+
+static void strip_supply_light_turns_suffix(char* name)
+{
+    char* suffix;
+
+    if (!name)
+        return;
+
+    suffix = strstr(name, " (");
+    if (suffix && strstr(suffix, " turns)"))
+        *suffix = '\0';
+}
+
+static object_type* supply_entry_display_object(const supply_list_entry* entry,
+    bool aware, object_type* fake)
+{
+    object_type* o_ptr = NULL;
+
+    if (!entry)
+        return NULL;
+
+    if (entry->supply_idx >= 0)
+    {
+        o_ptr = supplies_entry_at(entry->supply_idx);
+    }
+    else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        o_ptr = &inventory[entry->equip_idx];
+    }
+    else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        o_ptr = &inventory[entry->item_idx];
+    }
+    else if (fake)
+    {
+        object_wipe(fake);
+        object_prep(fake, entry->k_idx);
+        if (aware)
+            fake->ident |= IDENT_KNOWN;
+        fake->number = (entry->total > 0) ? entry->total : 1;
+        o_ptr = fake;
+    }
+
+    if (entry->single_item_display && o_ptr && fake && o_ptr->k_idx
+        && o_ptr->number > 1)
+    {
+        object_copy(fake, o_ptr);
+        fake->number = 1;
+        o_ptr = fake;
+    }
+
+    return o_ptr;
+}
+
+static void supply_entry_display_name(char* buf, size_t buflen,
+    const supply_list_entry* entry, const object_type* o_ptr, int current_group)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!entry || !o_ptr)
+        return;
+
+    object_desc(buf, buflen, o_ptr, false, 0);
+
+    if (current_group == SUPPLY_GROUP_LIGHTS)
+    {
+        strip_supply_light_turns_suffix(buf);
+        if (entry->equipped)
+            SDL_strlcat(buf, " [equipped]", buflen);
+    }
+}
+
+static int supply_entry_turns(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return -1;
+
+    if (o_ptr->tval == TV_FLASK)
+        return -2;
+
+    if (o_ptr->tval != TV_LIGHT)
+        return -1;
+
+    if (!fuelable_light_p(o_ptr))
+        return -1;
+
+    return player_light_fuel(o_ptr);
+}
+
+static void supply_init_columns(const knowledge_browser_layout* layout,
+    int current_group, supply_list_columns* cols)
+{
+    int col;
+
+    if (!layout || !cols)
+        return;
+
+    memset(cols, 0, sizeof(*cols));
+
+    cols->show_sym = true;
+    cols->show_qty = true;
+    cols->show_weight = (current_group == SUPPLY_GROUP_FOOD)
+        || (current_group == SUPPLY_GROUP_LIGHTS);
+    cols->show_turns = (current_group == SUPPLY_GROUP_LIGHTS);
+
+    col = layout->term_wid;
+
+    if (cols->show_sym)
+    {
+        col -= 3;
+        cols->sym_hdr_col = col;
+        cols->sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
+        col -= 1;
+    }
+
+    if (cols->show_qty)
+    {
+        col -= 4;
+        cols->qty_col = col;
+        col -= 1;
+    }
+
+    if (cols->show_turns)
+    {
+        col -= 5;
+        cols->turns_col = col;
+        col -= 1;
+    }
+
+    if (cols->show_weight)
+    {
+        col -= 5;
+        cols->weight_col = col;
+        col -= 1;
+    }
+
+    cols->name_w = col - layout->list_col;
+    if (cols->name_w < 1)
+        cols->name_w = 1;
+}
+
+static int supply_max_name_len(int current_group, supply_list_entry entries[],
+    int entry_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < entry_cnt; i++)
+    {
+        supply_list_entry* entry = &entries[i];
+        object_kind* k_ptr;
+        object_type fake;
+        object_type* o_ptr;
+        char name[128];
+        int len;
+
+        if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
+            continue;
+
+        k_ptr = &k_info[entry->k_idx];
+        o_ptr = supply_entry_display_object(entry, k_ptr->aware, &fake);
+        if (!o_ptr)
+            continue;
+
+        supply_entry_display_name(name, sizeof(name), entry, o_ptr,
+            current_group);
+        len = (int)strlen(name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
 }
 
 static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
@@ -19651,12 +23330,18 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!o_ptr->k_idx)
             continue;
 
-        if ((o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS))
+        if (supply_kind_matches(SUPPLY_GROUP_HERBS, o_ptr->tval, o_ptr->sval))
             totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
+        else if (supply_kind_matches(SUPPLY_GROUP_FOOD, o_ptr->tval, o_ptr->sval))
+            totals[SUPPLY_GROUP_FOOD] += o_ptr->number;
         else if (o_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += o_ptr->number;
+        else if (supply_item_matches(SUPPLY_GROUP_LIGHTS, o_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(o_ptr) > 0
+                ? player_oil_container_slot_cost(o_ptr) * o_ptr->number
+                : o_ptr->number;
     }
 
     for (i = 0; i < supplies_entry_count(); i++)
@@ -19665,12 +23350,26 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         if (!s_ptr || !s_ptr->k_idx)
             continue;
 
-        if ((s_ptr->tval == TV_FOOD) && (s_ptr->sval <= SV_FOOD_SICKNESS))
+        if (supply_kind_matches(SUPPLY_GROUP_HERBS, s_ptr->tval, s_ptr->sval))
             totals[SUPPLY_GROUP_HERBS] += s_ptr->number;
+        else if (supply_kind_matches(SUPPLY_GROUP_FOOD, s_ptr->tval, s_ptr->sval))
+            totals[SUPPLY_GROUP_FOOD] += s_ptr->number;
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
+        else if (supply_item_matches(SUPPLY_GROUP_LIGHTS, s_ptr))
+            totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(s_ptr) > 0
+                ? player_oil_container_slot_cost(s_ptr) * s_ptr->number
+                : s_ptr->number;
+    }
+
+    object_type* light_ptr = &inventory[INVEN_LITE];
+    if (supply_item_matches(SUPPLY_GROUP_LIGHTS, light_ptr))
+    {
+        totals[SUPPLY_GROUP_LIGHTS] += player_oil_container_slot_cost(light_ptr) > 0
+            ? player_oil_container_slot_cost(light_ptr) * MAX(light_ptr->number, 1)
+            : MAX(light_ptr->number, 1);
     }
 }
 
@@ -19695,82 +23394,249 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         return 0;
 
     memset(entries, 0, sizeof(supply_list_entry) * capacity);
-
-    /* Aggregate carried items first */
-    for (i = 0; i < INVEN_PACK; i++)
+    for (i = 0; i < capacity; i++)
     {
-        object_type* o_ptr = &inventory[i];
-        int j;
+        entries[i].item_idx = -1;
+        entries[i].supply_idx = -1;
+        entries[i].equip_idx = -1;
+        entries[i].k_idx = -1;
+        entries[i].single_item_display = false;
+    }
 
-        if (!o_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, o_ptr))
-            continue;
-
-        int value = o_ptr->number;
-
-        for (j = 0; j < count; j++)
+    if (group_idx == SUPPLY_GROUP_LIGHTS)
+    {
+        for (i = 0; i < INVEN_PACK; i++)
         {
-            if (entries[j].k_idx == o_ptr->k_idx)
+            object_type* o_ptr = &inventory[i];
+            int value;
+            int unit;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            value = MAX(o_ptr->number, 1);
+            if (o_ptr->tval == TV_FLASK)
             {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = i;
-                break;
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = value;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+                continue;
+            }
+
+            for (unit = 0; unit < value && count < capacity; unit++)
+            {
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (o_ptr->number > 1);
+                count++;
             }
         }
 
-        if (j == count)
+        for (i = 0; i < supplies_entry_count(); i++)
         {
-            if (count >= capacity)
-                break;
+            object_type* s_ptr = supplies_entry_at(i);
+            int value;
+            int unit;
 
-            entries[count].k_idx = o_ptr->k_idx;
-            entries[count].item_idx = i;
-            entries[count].total = value;
-            entries[count].supply_idx = -1;
-            count++;
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            value = MAX(s_ptr->number, 1);
+            if (s_ptr->tval == TV_FLASK)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = value;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+                continue;
+            }
+
+            for (unit = 0; unit < value && count < capacity; unit++)
+            {
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = 1;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = (s_ptr->number > 1);
+                count++;
+            }
+        }
+
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+
+            if (supply_item_matches(group_idx, l_ptr) && count < capacity)
+            {
+                entries[count].k_idx = l_ptr->k_idx;
+                entries[count].item_idx = INVEN_LITE;
+                entries[count].total = 1;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = INVEN_LITE;
+                entries[count].equipped = true;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+    }
+    else
+    {
+
+        /* Aggregate carried items first */
+        for (i = 0; i < INVEN_PACK; i++)
+        {
+            object_type* o_ptr = &inventory[i];
+            int j;
+
+            if (!o_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, o_ptr))
+                continue;
+
+            int value = o_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == o_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = o_ptr->k_idx;
+                entries[count].item_idx = i;
+                entries[count].total = value;
+                entries[count].supply_idx = -1;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        /* Aggregate supplies from the cache */
+        for (i = 0; i < supplies_entry_count(); i++)
+        {
+            object_type* s_ptr = supplies_entry_at(i);
+            int j;
+
+            if (!s_ptr || !s_ptr->k_idx)
+                continue;
+
+            if (!supply_item_matches(group_idx, s_ptr))
+                continue;
+
+            int value = s_ptr->number;
+
+            for (j = 0; j < count; j++)
+            {
+                if (entries[j].k_idx == s_ptr->k_idx)
+                {
+                    entries[j].total += value;
+                    if (entries[j].item_idx < 0)
+                        entries[j].item_idx = SUPPLIES_INDEX;
+                    entries[j].supply_idx = i;
+                    break;
+                }
+            }
+
+            if (j == count)
+            {
+                if (count >= capacity)
+                    break;
+
+                entries[count].k_idx = s_ptr->k_idx;
+                entries[count].item_idx = SUPPLIES_INDEX;
+                entries[count].total = value;
+                entries[count].supply_idx = i;
+                entries[count].equip_idx = -1;
+                entries[count].equipped = false;
+                entries[count].single_item_display = false;
+                count++;
+            }
+        }
+
+        if (group_idx == SUPPLY_GROUP_LIGHTS)
+        {
+            object_type* l_ptr = &inventory[INVEN_LITE];
+            int j;
+
+            if (supply_item_matches(group_idx, l_ptr))
+            {
+                for (j = 0; j < count; j++)
+                {
+                    if (entries[j].k_idx == l_ptr->k_idx)
+                    {
+                        entries[j].total += MAX(l_ptr->number, 1);
+                        entries[j].equip_idx = INVEN_LITE;
+                        entries[j].equipped = true;
+                        if (entries[j].item_idx < 0)
+                            entries[j].item_idx = INVEN_LITE;
+                        break;
+                    }
+                }
+
+                if (j == count && count < capacity)
+                {
+                    entries[count].k_idx = l_ptr->k_idx;
+                    entries[count].item_idx = INVEN_LITE;
+                    entries[count].total = MAX(l_ptr->number, 1);
+                    entries[count].supply_idx = -1;
+                    entries[count].equip_idx = INVEN_LITE;
+                    entries[count].equipped = true;
+                    entries[count].single_item_display = false;
+                    count++;
+                }
+            }
         }
     }
 
-    /* Aggregate supplies from the cache */
-    for (i = 0; i < supplies_entry_count(); i++)
+    /* Add known kinds even when none are carried.
+     * Lights are listed only when actually carried, to avoid misleading 0-count
+     * placeholders in the supply menu. */
+    if (group_idx == SUPPLY_GROUP_LIGHTS)
     {
-        object_type* s_ptr = supplies_entry_at(i);
-        int j;
-
-        if (!s_ptr || !s_ptr->k_idx)
-            continue;
-
-        if (!supply_item_matches(group_idx, s_ptr))
-            continue;
-
-        int value = s_ptr->number;
-
-        for (j = 0; j < count; j++)
+        if (count < capacity)
         {
-            if (entries[j].k_idx == s_ptr->k_idx)
-            {
-                entries[j].total += value;
-                if (entries[j].item_idx < 0)
-                    entries[j].item_idx = SUPPLIES_INDEX;
-                entries[j].supply_idx = i;
-                break;
-            }
+            entries[count].k_idx = -1;
+            entries[count].item_idx = -1;
+            entries[count].total = 0;
+            entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
         }
 
-        if (j == count)
-        {
-            if (count >= capacity)
-                break;
-
-            entries[count].k_idx = s_ptr->k_idx;
-            entries[count].item_idx = SUPPLIES_INDEX;
-            entries[count].total = value;
-            entries[count].supply_idx = i;
-            count++;
-        }
+        return count;
     }
 
     /* Add known kinds even when none are carried */
@@ -19803,6 +23669,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
             entries[count].item_idx = -1;
             entries[count].total = 0;
             entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
             count++;
         }
     }
@@ -19813,6 +23682,9 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         entries[count].item_idx = -1;
         entries[count].total = 0;
         entries[count].supply_idx = -1;
+        entries[count].equip_idx = -1;
+        entries[count].equipped = false;
+        entries[count].single_item_display = false;
     }
 
     return count;
@@ -19847,6 +23719,7 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 case SV_FOOD_ENTRANCEMENT: return TERM_VIOLET;   /* Violet for entrancement */
                 case SV_FOOD_WEAKNESS:     return TERM_SLATE;    /* Grey for weakness */
                 case SV_FOOD_SICKNESS:     return TERM_L_DARK;   /* Dark grey for sickness */
+                case SV_FOOD_LEMBAS:       return TERM_L_WHITE;
                 default:                   return TERM_WHITE;
             }
 
@@ -19893,6 +23766,20 @@ static byte get_supply_item_color(int k_idx, bool aware)
                 default:                     return TERM_WHITE;
             }
 
+        case TV_FLASK:
+            return TERM_YELLOW;
+
+        case TV_LIGHT:
+            switch (k_ptr->sval)
+            {
+                case SV_LIGHT_TORCH:   return TERM_UMBER;
+                case SV_LIGHT_MALLORN: return TERM_YELLOW;
+                case SV_LIGHT_LANTERN: return TERM_L_UMBER;
+                case SV_LIGHT_LESSER_JEWEL: return TERM_L_BLUE;
+                case SV_LIGHT_FEANORIAN: return TERM_WHITE;
+                default:               return TERM_WHITE;
+            }
+
         default:
             return TERM_WHITE;
     }
@@ -19904,19 +23791,27 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     int i;
     int total_col = col + wid - 3;
 
-    for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
+    for (i = 0; i < per_page; i++)
     {
-        int grp = grp_idx[grp_top + i];
+        int grp_pos = grp_top + i;
+        int grp;
         byte base_color;
         byte attr;
         char buf[8];
 
+        if (grp_pos >= SUPPLY_GROUP_MAX || grp_idx[grp_pos] < 0)
+            break;
+
+        grp = grp_idx[grp_pos];
+
         /* Assign color based on group type */
         switch (grp)
         {
-            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN; break;
+            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN;   break;
+            case SUPPLY_GROUP_FOOD:    base_color = TERM_L_GREEN; break;
             case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
             case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
+            case SUPPLY_GROUP_LIGHTS:  base_color = TERM_YELLOW;  break;
             default:                   base_color = TERM_WHITE;   break;
         }
 
@@ -19936,34 +23831,33 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     }
 }
 
-static void display_supply_list(int col, int row, int per_page,
-    supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
-    int count_col, int sym_col, int current_group, int column)
+static void display_supply_list(const knowledge_browser_layout* layout, int row,
+    int per_page, supply_list_entry entries[], int entry_cnt, int entry_cur,
+    int entry_top, int current_group, int column,
+    const supply_list_columns* cols)
 {
     int i;
-
-    (void)current_group; /* Not used since we color by specific item type now */
 
     for (i = 0; i < per_page; i++)
     {
         int idx = entry_top + i;
         int y = row + i;
 
-        Term_erase(col, y, 255);
+        Term_erase(layout->list_col, y, 255);
 
         if (idx >= entry_cnt)
             continue;
 
         supply_list_entry* entry = &entries[idx];
-        object_type* o_ptr;
         object_type fake;
         object_kind* k_ptr;
         bool aware;
+        object_type* o_ptr;
         byte base_attr, cursor_attr, attr;
         byte sym_attr;
         char sym_char;
-        char name[80];
-        char count_buf[8];
+        char name[128];
+        char cell_buf[16];
 
         if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
             continue;
@@ -19985,49 +23879,86 @@ static void display_supply_list(int col, int row, int per_page,
         /* Only highlight when right panel is active (column == 1) */
         attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
-        if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        o_ptr = supply_entry_display_object(entry, aware, &fake);
+        if (!o_ptr)
+            continue;
+
+        supply_entry_display_name(name, sizeof(name), entry, o_ptr,
+            current_group);
+        Term_putstr(layout->list_col, y, cols->name_w, attr, name);
+
+        if (cols->show_weight)
         {
-            o_ptr = &inventory[entry->item_idx];
-        }
-        else
-        {
-            object_wipe(&fake);
-            object_prep(&fake, entry->k_idx);
-            if (aware)
-                fake.ident |= IDENT_KNOWN;
-            fake.number = (entry->total > 0) ? entry->total : 1;
-            o_ptr = &fake;
+            strnfmt(cell_buf, sizeof(cell_buf), "%d.%1d",
+                o_ptr->weight / 10, o_ptr->weight % 10);
+            Term_putstr(cols->weight_col, y, 5, attr, cell_buf);
         }
 
-        object_desc(name, sizeof(name), o_ptr, true, 3);
-        c_prt(attr, name, y, col);
+        if (cols->show_turns)
+        {
+            int turns = supply_entry_turns(o_ptr);
 
-        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
-        c_put_str(attr, count_buf, y, count_col);
+            if (turns >= 0)
+                strnfmt(cell_buf, sizeof(cell_buf), "%5d", turns);
+            else if (turns == -2)
+                strnfmt(cell_buf, sizeof(cell_buf), "%5s", "");
+            else
+                strnfmt(cell_buf, sizeof(cell_buf), "%5s", "inf");
+            Term_putstr(cols->turns_col, y, 5, attr, cell_buf);
+        }
+
+        if (cols->show_qty)
+        {
+            strnfmt(cell_buf, sizeof(cell_buf), "x%-3d", entry->total);
+            Term_putstr(cols->qty_col, y, 4, attr, cell_buf);
+        }
 
         sym_attr = object_attr(o_ptr);
         sym_char = object_char(o_ptr);
-        Term_putch(sym_col, y, sym_attr, sym_char);
+        Term_putch(cols->sym_col, y, sym_attr, sym_char);
         if (use_bigtile)
         {
             if (sym_attr & 0x80)
-                Term_putch(sym_col + 1, y, 255, -1);
+                Term_putch(cols->sym_col + 1, y, 255, -1);
             else
-                Term_putch(sym_col + 1, y, 0, ' ');
+                Term_putch(cols->sym_col + 1, y, 0, ' ');
         }
     }
 
     for (; i < per_page; i++)
     {
-        Term_erase(col, row + i, 255);
+        Term_erase(layout->list_col, row + i, 255);
     }
 }
 
 /*
  * Move the cursor in a browser window
  */
+static int browser_move_index(int cur, int count, int delta, bool wrap)
+{
+    int next;
+
+    if (count <= 0)
+        return 0;
+
+    next = cur + delta;
+    if (wrap)
+    {
+        next %= count;
+        if (next < 0)
+            next += count;
+        return next;
+    }
+
+    if (next >= count)
+        next = count - 1;
+    if (next < 0)
+        next = 0;
+    return next;
+}
+
 static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
-    int grp_cnt, int* list_cur, int list_cnt, int page_rows)
+    int grp_cnt, int* list_cur, int list_cnt, int page_rows, bool wrap_rows)
 {
     int d;
     int col = *column;
@@ -20050,13 +23981,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
             int old_grp = grp;
 
             /* Move up or down */
-            grp += ddy[d] * page_jump;
-
-            /* Verify */
-            if (grp >= grp_cnt)
-                grp = grp_cnt - 1;
-            if (grp < 0)
-                grp = 0;
+            grp = browser_move_index(grp, grp_cnt, ddy[d] * page_jump,
+                wrap_rows);
             if (grp != old_grp)
                 list = 0;
         }
@@ -20065,13 +23991,8 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         else
         {
             /* Move up or down */
-            list += ddy[d] * page_jump;
-
-            /* Verify */
-            if (list >= list_cnt)
-                list = list_cnt - 1;
-            if (list < 0)
-                list = 0;
+            list = browser_move_index(list, list_cnt, ddy[d] * page_jump,
+                wrap_rows);
         }
 
         (*grp_cur) = grp;
@@ -20099,13 +24020,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
         int old_grp = grp;
 
         /* Move up or down */
-        grp += ddy[d];
-
-        /* Verify */
-        if (grp >= grp_cnt)
-            grp = grp_cnt - 1;
-        if (grp < 0)
-            grp = 0;
+        grp = browser_move_index(grp, grp_cnt, ddy[d], wrap_rows);
         if (grp != old_grp)
             list = 0;
     }
@@ -20114,13 +24029,7 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
     else
     {
         /* Move up or down */
-        list += ddy[d];
-
-        /* Verify */
-        if (list >= list_cnt)
-            list = list_cnt - 1;
-        if (list < 0)
-            list = 0;
+        list = browser_move_index(list, list_cnt, ddy[d], wrap_rows);
     }
 
     (*grp_cur) = grp;
@@ -20949,6 +24858,18 @@ static void knowledge_init_layout(knowledge_browser_layout* layout,
         layout->list_w = 1;
 }
 
+static void knowledge_expand_active_column(knowledge_browser_layout* layout)
+{
+    if (!layout)
+        return;
+
+    layout->group_col = 0;
+    layout->group_w = layout->term_wid;
+    layout->divider_col = -1;
+    layout->list_col = 0;
+    layout->list_w = layout->term_wid;
+}
+
 static void knowledge_draw_tabs(const knowledge_browser_layout* layout, int page,
     bool tabs_focus)
 {
@@ -21165,22 +25086,230 @@ static void knowledge_display_groups(const knowledge_browser_layout* layout,
     }
 }
 
+static int knowledge_artefact_name_width(const knowledge_browser_layout* layout,
+    bool* show_debug)
+{
+    bool debug = cheat_know && (layout->term_wid >= 78);
+    int name_w = layout->list_w;
+
+    if (debug)
+    {
+        int debug_name_w = (layout->term_wid - 12) - layout->list_col - 1;
+        if (debug_name_w >= 12)
+            name_w = debug_name_w;
+        else
+            debug = false;
+    }
+
+    if (show_debug)
+        *show_debug = debug;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static void knowledge_object_display_name(char* buf, size_t buflen,
+    const object_list_entry* obj)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!obj)
+        return;
+
+    switch (obj->type)
+    {
+    case OBJ_NORMAL:
+        strip_name(buf, obj->idx);
+        break;
+
+    case OBJ_SPECIAL:
+    {
+        ego_item_type* e_ptr = &e_info[obj->e_idx];
+
+        if (obj->sval == -1)
+        {
+            strnfmt(buf, buflen, "  %s", &e_name[e_ptr->name]);
+        }
+        else
+        {
+            int j;
+            char base_name[80];
+
+            base_name[0] = '\0';
+            for (j = 0; j < z_info->k_max; ++j)
+            {
+                if ((k_info[j].tval == obj->tval)
+                    && (k_info[j].sval == obj->sval))
+                {
+                    strip_name(base_name, j);
+                    break;
+                }
+            }
+
+            strnfmt(buf, buflen, "%s %s", base_name, &e_name[e_ptr->name]);
+        }
+        break;
+    }
+
+    case OBJ_NONE:
+    default:
+        break;
+    }
+}
+
+static int knowledge_object_name_width(const knowledge_browser_layout* layout,
+    bool* show_idx, bool* show_sym)
+{
+    bool idx = cheat_know && (layout->term_wid >= 70);
+    bool sym = (layout->term_wid >= 44);
+    int name_w = layout->list_w;
+
+    if (idx)
+    {
+        int idx_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        if (idx_name_w >= 12 && idx_name_w < name_w)
+            name_w = idx_name_w;
+        else if (idx_name_w < 12)
+            idx = false;
+    }
+
+    if (sym)
+    {
+        int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
+        int sym_name_w = sym_col - layout->list_col - 1;
+        if (sym_name_w >= 12 && sym_name_w < name_w)
+            name_w = sym_name_w;
+        else if (sym_name_w < 12)
+            sym = false;
+    }
+
+    if (show_idx)
+        *show_idx = idx;
+    if (show_sym)
+        *show_sym = sym;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static int knowledge_monster_name_width(const knowledge_browser_layout* layout,
+    bool* show_sym, bool* show_kills)
+{
+    bool sym = (layout->term_wid >= 44);
+    bool kills = (layout->term_wid >= 56);
+    int name_w = layout->list_w;
+
+    if (kills)
+    {
+        int kills_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        if (kills_name_w >= 12 && kills_name_w < name_w)
+            name_w = kills_name_w;
+        else if (kills_name_w < 12)
+            kills = false;
+    }
+
+    if (sym)
+    {
+        int kills_col = layout->term_wid - 5;
+        int sym_col = kills ? (kills_col - 2)
+                            : (layout->term_wid - (use_bigtile ? 2 : 1));
+        int sym_name_w = sym_col - layout->list_col - 1;
+        if (sym_name_w >= 12 && sym_name_w < name_w)
+            name_w = sym_name_w;
+        else if (sym_name_w < 12)
+            sym = false;
+    }
+
+    if (show_sym)
+        *show_sym = sym;
+    if (show_kills)
+        *show_kills = kills;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static int knowledge_max_artefact_name_len(int artefact_idx[], int artefact_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < artefact_cnt; i++)
+    {
+        object_type object_type_body;
+        object_type* i_ptr = &object_type_body;
+        char o_name[80];
+        int len;
+
+        object_wipe(i_ptr);
+        prepare_fake_artefact(i_ptr, artefact_idx[i]);
+        object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
+        len = (int)strlen(o_name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static int knowledge_max_object_name_len(object_list_entry object_idx[],
+    int object_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < object_cnt; i++)
+    {
+        char buf[80];
+        int len;
+
+        knowledge_object_display_name(buf, sizeof(buf), &object_idx[i]);
+        len = (int)strlen(buf);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static int knowledge_max_monster_name_len(monster_list_entry mon_idx[],
+    int mon_cnt)
+{
+    int max_len = 0;
+    int i;
+
+    for (i = 0; i < mon_cnt; i++)
+    {
+        char race_name[80];
+        int len;
+
+        monster_desc_race(race_name, sizeof(race_name), mon_idx[i].r_idx);
+        len = (int)strlen(race_name);
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static bool knowledge_should_use_single_column_for_names(int split_name_w,
+    int full_name_w, int max_name_len)
+{
+    if (split_name_w < 12)
+        return full_name_w > split_name_w;
+
+    return (max_name_len > split_name_w) && (full_name_w > split_name_w);
+}
+
 static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
     int artefact_idx[], int artefact_cnt, int artefact_cur, int artefact_top)
 {
-    bool show_debug = cheat_know && (layout->term_wid >= 78);
+    bool show_debug = false;
     int idx_col = layout->term_wid - 12;
     int dep_col = layout->term_wid - 8;
     int rar_col = layout->term_wid - 4;
-    int name_w = layout->list_w;
+    int name_w = knowledge_artefact_name_width(layout, &show_debug);
     int i;
-
-    if (show_debug)
-    {
-        name_w = idx_col - layout->list_col - 1;
-        if (name_w < 12)
-            show_debug = false;
-    }
 
     if (show_debug)
     {
@@ -21222,28 +25351,12 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
 static void knowledge_display_objects(const knowledge_browser_layout* layout,
     object_list_entry object_idx[], int object_cnt, int object_cur, int object_top)
 {
-    bool show_idx = cheat_know && (layout->term_wid >= 70);
-    bool show_sym = (layout->term_wid >= 44);
+    bool show_idx = false;
+    bool show_sym = false;
     int idx_col = layout->term_wid - 5;
     int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
-    int name_w = layout->list_w;
+    int name_w = knowledge_object_name_width(layout, &show_idx, &show_sym);
     int i;
-
-    if (show_idx)
-    {
-        name_w = idx_col - layout->list_col - 1;
-        if (name_w < 12)
-            show_idx = false;
-    }
-
-    if (show_sym)
-    {
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w < name_w)
-            name_w = sym_name_w;
-        if (name_w < 12)
-            show_sym = false;
-    }
 
     if (show_idx)
         Term_putstr(idx_col, layout->header_row, 3, TERM_SLATE, "Idx");
@@ -21275,8 +25388,7 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = k_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = k_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
-
-            strip_name(buf, obj->idx);
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             Term_putstr(layout->list_col, row, name_w, attr, buf);
 
             if (show_idx)
@@ -21302,30 +25414,7 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = e_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = e_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
-
-            if (obj->sval == -1)
-            {
-                strnfmt(buf, sizeof(buf), "  %s", &e_name[e_ptr->name]);
-            }
-            else
-            {
-                int j;
-                char buf2[80];
-
-                buf[0] = '\0';
-                buf2[0] = '\0';
-                for (j = 0; j < z_info->k_max; ++j)
-                {
-                    if ((k_info[j].tval == obj->tval) && (k_info[j].sval == obj->sval))
-                    {
-                        strip_name(buf2, j);
-                        break;
-                    }
-                }
-
-                strnfmt(buf, sizeof(buf), "%s %s", buf2, &e_name[e_ptr->name]);
-            }
-
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             Term_putstr(layout->list_col, row, name_w, attr, buf);
             break;
 
@@ -21387,21 +25476,14 @@ static void knowledge_monster_summary(char* buf, size_t buflen, int grp_cur)
 static void knowledge_display_monsters(const knowledge_browser_layout* layout,
     monster_list_entry mon_idx[], int mon_cnt, int mon_cur, int mon_top)
 {
-    bool show_sym = (layout->term_wid >= 44);
-    bool show_kills = (layout->term_wid >= 56);
+    bool show_sym = false;
+    bool show_kills = false;
     int kills_col = layout->term_wid - 5;
-    int sym_col = show_kills ? (kills_col - 2) : (layout->term_wid - (use_bigtile ? 2 : 1));
-    int name_w = layout->list_w;
+    int sym_col;
+    int name_w = knowledge_monster_name_width(layout, &show_sym, &show_kills);
     int i;
-
-    if (show_sym)
-    {
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w < name_w)
-            name_w = sym_name_w;
-        if (name_w < 12)
-            show_sym = false;
-    }
+    sym_col = show_kills ? (kills_col - 2)
+                         : (layout->term_wid - (use_bigtile ? 2 : 1));
 
     if (show_sym)
         Term_putstr(sym_col, layout->header_row, 3, TERM_SLATE, "Sym");
@@ -21805,6 +25887,7 @@ void do_cmd_knowledge_browser_page(int page)
     curse_cnt = knowledge_collect_curses(curse_idx);
 
     screen_save();
+    screen_push_supporting_panes_hidden();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -21819,7 +25902,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int artefact_cnt = 0;
             int selected_artefact = -1;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[96];
+            cptr list_label = "Artefact";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, artefact_group_w, true);
             if (artefact_grp_cnt > 0)
@@ -21831,13 +25921,38 @@ void do_cmd_knowledge_browser_page(int page)
             if (artefact_grp_cnt > 0)
                 artefact_cnt = collect_artefacts(
                     artefact_grp_idx[state.group_cur[page]], artefact_idx);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_artefact_name_width(&layout, NULL);
+            full_name_w = knowledge_artefact_name_width(&full_layout, NULL);
+            max_name_len = knowledge_max_artefact_name_len(artefact_idx,
+                artefact_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (artefact_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = object_group_text[
+                        artefact_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Artefact",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, artefact_grp_idx, object_group_text,
-                artefact_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_artefacts(&layout, artefact_idx, artefact_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, artefact_grp_idx,
+                    object_group_text, artefact_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_artefacts(&draw_layout, artefact_idx,
+                    artefact_cnt, state.entry_cur[page], state.entry_top[page]);
+            }
 
             if (artefact_cnt > 0)
             {
@@ -21850,9 +25965,10 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 SDL_strlcpy(status, "No known artefacts yet.", sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (selected_artefact != artefact_old)
             {
@@ -21862,15 +25978,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (artefact_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -21908,7 +26024,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], artefact_grp_cnt,
-                    &state.entry_cur[page], artefact_cnt, layout.list_rows);
+                    &state.entry_cur[page], artefact_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -21918,7 +26035,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int object_cnt = 0;
             int tracked_kind = 0;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[112];
+            cptr list_label = "Object";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, object_group_w, true);
             if (object_grp_cnt > 0)
@@ -21930,13 +26054,37 @@ void do_cmd_knowledge_browser_page(int page)
             if (object_grp_cnt > 0)
                 object_cnt = collect_objects(
                     object_grp_idx[state.group_cur[page]], object_idx);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_object_name_width(&layout, NULL, NULL);
+            full_name_w = knowledge_object_name_width(&full_layout, NULL, NULL);
+            max_name_len = knowledge_max_object_name_len(object_idx, object_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (object_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = object_group_text[
+                        object_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Object",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, object_grp_idx, object_group_text,
-                object_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_objects(&layout, object_idx, object_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, object_grp_idx,
+                    object_group_text, object_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_objects(&draw_layout, object_idx, object_cnt,
+                    state.entry_cur[page], state.entry_top[page]);
+            }
 
             if ((object_cnt > 0)
                 && (object_idx[state.entry_cur[page]].type == OBJ_NORMAL))
@@ -21965,9 +26113,10 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 SDL_strlcpy(status, "No known objects yet.", sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (tracked_kind != object_old)
             {
@@ -21978,15 +26127,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (object_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -22030,7 +26179,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], object_grp_cnt,
-                    &state.entry_cur[page], object_cnt, layout.list_rows);
+                    &state.entry_cur[page], object_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22040,7 +26190,14 @@ void do_cmd_knowledge_browser_page(int page)
         {
             int monster_cnt = 0;
             int selected_r_idx = 0;
+            bool single_column;
+            knowledge_browser_layout draw_layout;
+            knowledge_browser_layout full_layout;
             char status[96];
+            cptr list_label = "Monster";
+            int split_name_w;
+            int full_name_w;
+            int max_name_len;
 
             knowledge_init_layout(&layout, monster_group_w, true);
             if (monster_grp_cnt > 0)
@@ -22052,13 +26209,37 @@ void do_cmd_knowledge_browser_page(int page)
             if (monster_grp_cnt > 0)
                 monster_cnt = collect_monsters(
                     monster_grp_idx[state.group_cur[page]], mon_idx, 0x00);
+            full_layout = layout;
+            knowledge_expand_active_column(&full_layout);
+            split_name_w = knowledge_monster_name_width(&layout, NULL, NULL);
+            full_name_w = knowledge_monster_name_width(&full_layout, NULL, NULL);
+            max_name_len = knowledge_max_monster_name_len(mon_idx, monster_cnt);
+            single_column = knowledge_should_use_single_column_for_names(
+                split_name_w, full_name_w, max_name_len);
+            draw_layout = layout;
+            if (single_column)
+            {
+                knowledge_expand_active_column(&draw_layout);
+                if ((state.column[page] == 0) || (monster_grp_cnt <= 0))
+                    list_label = "Group";
+                else
+                    list_label = monster_group_text[
+                        monster_grp_idx[state.group_cur[page]]];
+            }
 
-            knowledge_draw_frame(&layout, page, true, "Monster",
+            knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
-            knowledge_display_groups(&layout, monster_grp_idx, monster_group_text,
-                monster_grp_cnt, state.group_cur[page], state.group_top[page]);
-            knowledge_display_monsters(&layout, mon_idx, monster_cnt,
-                state.entry_cur[page], state.entry_top[page]);
+            if (!single_column || (state.column[page] == 0))
+            {
+                knowledge_display_groups(&draw_layout, monster_grp_idx,
+                    monster_group_text, monster_grp_cnt, state.group_cur[page],
+                    state.group_top[page]);
+            }
+            if (!single_column || (state.column[page] == 1))
+            {
+                knowledge_display_monsters(&draw_layout, mon_idx, monster_cnt,
+                    state.entry_cur[page], state.entry_top[page]);
+            }
 
             if (monster_cnt > 0)
             {
@@ -22071,9 +26252,10 @@ void do_cmd_knowledge_browser_page(int page)
                 SDL_strlcpy(status, "No known monsters in this group yet.",
                     sizeof(status));
             }
-            if (layout.status_row != layout.prompt_row)
-                Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
-            knowledge_draw_prompt(&layout);
+            if (draw_layout.status_row != draw_layout.prompt_row)
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE, status);
+            knowledge_draw_prompt(&draw_layout);
 
             if (selected_r_idx != monster_old)
             {
@@ -22084,15 +26266,15 @@ void do_cmd_knowledge_browser_page(int page)
 
             if (state.tabs_focus)
             {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
+                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
             }
             else if (monster_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
-                    Term_gotoxy(0, layout.list_row
+                    Term_gotoxy(draw_layout.group_col, draw_layout.list_row
                         + (state.group_cur[page] - state.group_top[page]));
                 else
-                    Term_gotoxy(layout.list_col, layout.list_row
+                    Term_gotoxy(draw_layout.list_col, draw_layout.list_row
                         + (state.entry_cur[page] - state.entry_top[page]));
             }
 
@@ -22135,7 +26317,8 @@ void do_cmd_knowledge_browser_page(int page)
             default:
                 browser_cursor_with_rows((char)ch, &state.column[page],
                     &state.group_cur[page], monster_grp_cnt,
-                    &state.entry_cur[page], monster_cnt, layout.list_rows);
+                    &state.entry_cur[page], monster_cnt, layout.list_rows,
+                    false);
                 break;
             }
             break;
@@ -22243,6 +26426,7 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(object_idx);
     mem_free_null(artefact_idx);
 
+    screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
@@ -22270,6 +26454,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool hotkey_mode = false;
     bool acted = false;
     bool refresh_after_close = false;
+    bool prev_single_column = false;
+    int prev_group = -1;
+    int prev_column = -1;
+    int prev_term_wid = -1;
+    int prev_term_hgt = -1;
+    int prev_divider_col = -2;
 
     if (request)
     {
@@ -22299,31 +26489,36 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     {
         int entry_cnt;
         knowledge_browser_layout layout;
-        int count_col;
-        int sym_col;
+        knowledge_browser_layout draw_layout;
+        knowledge_browser_layout full_layout;
+        bool single_column;
+        supply_list_columns split_cols;
+        supply_list_columns full_cols;
+        supply_list_columns draw_cols;
         int used_weight;
+        int light_item_weight;
+        int light_oil_weight;
+        int light_weight;
+        int lamp_oil;
+        int oil_slots;
+        int oil_slot_capacity;
         int max_weight;
-        char weight_buf[80];
+        char weight_buf[128];
+        char status_buf[96];
+        int split_name_w;
+        int full_name_w;
+        int max_name_len;
 
         compute_supply_group_totals(group_totals);
         knowledge_init_layout(&layout, max, true);
-        count_col = layout.term_wid - 6;
-        sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
-        used_weight = supplies_total_weight();
+        used_weight = supplies_limit_weight();
+        light_item_weight = supplies_carried_light_item_weight();
+        light_oil_weight = player_lamp_oil_weight();
+        light_weight = light_item_weight + light_oil_weight;
+        lamp_oil = player_lamp_oil();
+        oil_slots = player_oil_container_slots_used();
+        oil_slot_capacity = player_oil_container_slot_capacity();
         max_weight = supplies_current_weight_cap();
-        strnfmt(weight_buf, sizeof(weight_buf),
-            "Supply weight: %d.%1d/%d.%1d lb used",
-            used_weight / 10, used_weight % 10,
-            max_weight / 10, max_weight % 10);
-
-        if (count_col <= layout.list_col + 8)
-            count_col = layout.list_col + 8;
-        if (sym_col <= count_col + 4)
-            sym_col = count_col + 4;
-        if (sym_col >= layout.term_wid)
-            sym_col = layout.term_wid - (use_bigtile ? 2 : 1);
-        if (count_col >= sym_col)
-            count_col = sym_col - 4;
 
         if (grp_cur >= grp_cnt)
             grp_cur = grp_cnt - 1;
@@ -22361,35 +26556,121 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         if (grp_top < 0)
             grp_top = 0;
 
-        if (redraw)
+        full_layout = layout;
+        knowledge_expand_active_column(&full_layout);
+        supply_init_columns(&layout, grp_idx[grp_cur], &split_cols);
+        supply_init_columns(&full_layout, grp_idx[grp_cur], &full_cols);
+        split_name_w = split_cols.name_w;
+        full_name_w = full_cols.name_w;
+        max_name_len = supply_max_name_len(grp_idx[grp_cur], entries, entry_cnt);
+        single_column = knowledge_should_use_single_column_for_names(
+            split_name_w, full_name_w, max_name_len);
+        draw_layout = single_column ? full_layout : layout;
+        draw_cols = single_column ? full_cols : split_cols;
+        build_supply_weight_summary(weight_buf, sizeof(weight_buf),
+            draw_layout.term_wid, used_weight, max_weight, light_weight,
+            light_item_weight, light_oil_weight, lamp_oil,
+            player_lamp_oil_capacity(), oil_slots, oil_slot_capacity);
+
+        if (redraw || single_column
+            || (single_column != prev_single_column)
+            || (grp_idx[grp_cur] != prev_group)
+            || (column != prev_column)
+            || (draw_layout.term_wid != prev_term_wid)
+            || (draw_layout.term_hgt != prev_term_hgt)
+            || (draw_layout.divider_col != prev_divider_col))
         {
+            cptr list_label = (single_column && column)
+                ? supply_group_text[grp_idx[grp_cur]]
+                : "Name";
+            cptr title_label = (draw_layout.term_wid <= 50)
+                ? "Supplies - H/F/P/G/Oil"
+                : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil";
+
             Term_clear();
-            Term_putstr(0, layout.title_row, layout.term_wid, TERM_L_WHITE + TERM_SHADE,
-                "Supplies - Herbs, Potions, Gems");
-            Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE, weight_buf);
-            Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE, "Group");
-            Term_putstr(layout.list_col, layout.header_row, layout.list_w, TERM_SLATE,
-                "Name");
-            Term_putstr(count_col, layout.header_row, 3, TERM_SLATE, "Qty");
-            Term_putstr(sym_col, layout.header_row, 3, TERM_SLATE, "Sym");
+            Term_putstr(0, draw_layout.title_row, draw_layout.term_wid,
+                TERM_L_WHITE + TERM_SHADE, title_label);
+            Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
+                weight_buf);
+            Term_erase(0, draw_layout.header_row, 255);
 
-            for (i = 0; i < layout.term_wid; i++)
-                Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
+            if (single_column && !column)
+            {
+                Term_putstr(0, draw_layout.header_row, draw_layout.term_wid,
+                    TERM_SLATE, "Group");
+            }
+            else
+            {
+                if (!single_column)
+                    Term_putstr(0, draw_layout.header_row, draw_layout.group_w,
+                        TERM_SLATE, "Group");
+                Term_putstr(draw_layout.list_col, draw_layout.header_row,
+                    draw_layout.list_w, TERM_SLATE, list_label);
+                if (draw_cols.show_weight)
+                    Term_putstr(draw_cols.weight_col, draw_layout.header_row, 5,
+                        TERM_SLATE, "Wt");
+                if (draw_cols.show_turns)
+                    Term_putstr(draw_cols.turns_col, draw_layout.header_row, 5,
+                        TERM_SLATE, "Turns");
+                if (draw_cols.show_qty)
+                    Term_putstr(draw_cols.qty_col, draw_layout.header_row, 3,
+                        TERM_SLATE, "Qty");
+                if (draw_cols.show_sym)
+                    Term_putstr(draw_cols.sym_hdr_col, draw_layout.header_row, 3,
+                        TERM_SLATE, "Sym");
+            }
 
-            for (i = 0; i < layout.list_rows; i++)
-                Term_putch(layout.divider_col, layout.list_row + i, TERM_L_DARK, '|');
+            for (i = 0; i < draw_layout.term_wid; i++)
+                Term_putch(i, draw_layout.divider_row, TERM_L_DARK, '=');
+
+            if (!single_column)
+            {
+                for (i = 0; i < draw_layout.list_rows; i++)
+                {
+                    Term_putch(draw_layout.divider_col, draw_layout.list_row + i,
+                        TERM_L_DARK, '|');
+                }
+            }
 
             redraw = false;
         }
 
-        display_supply_group_list(0, layout.list_row, layout.group_w, layout.list_rows, grp_idx,
-            grp_cur, grp_top, group_totals);
-        display_supply_list(layout.list_col, layout.list_row, layout.list_rows,
-            entries, entry_cnt, entry_cur, entry_top, count_col, sym_col,
-            grp_idx[grp_cur], column);
+        prev_single_column = single_column;
+        prev_group = grp_idx[grp_cur];
+        prev_column = column;
+        prev_term_wid = draw_layout.term_wid;
+        prev_term_hgt = draw_layout.term_hgt;
+        prev_divider_col = draw_layout.divider_col;
+
+        if (!single_column || !column)
+        {
+            int group_list_w = (!single_column) ? draw_layout.group_w
+                                                : layout.group_w;
+
+            display_supply_group_list(draw_layout.group_col, draw_layout.list_row,
+                group_list_w, draw_layout.list_rows, grp_idx, grp_cur,
+                grp_top, group_totals);
+        }
+        if (!single_column || column)
+        {
+            display_supply_list(&draw_layout, draw_layout.list_row,
+                draw_layout.list_rows, entries, entry_cnt, entry_cur, entry_top,
+                grp_idx[grp_cur], column, &draw_cols);
+        }
+
+        if (draw_layout.status_row != draw_layout.prompt_row)
+        {
+            describe_supply_group_status(grp_idx[grp_cur], status_buf,
+                sizeof(status_buf));
+            Term_erase(0, draw_layout.status_row, 255);
+            if (status_buf[0] != '\0')
+                Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
+                    TERM_L_BLUE,
+                    status_buf);
+        }
 
         /* Bottom bar: grey text with white first letters */
-        Term_erase(0, layout.prompt_row, 255);
+        Term_erase(0, draw_layout.prompt_row, 255);
         if (steamdeck_controls_active()) {
             char recall_label[16];
             char use_label[16];
@@ -22398,32 +26679,48 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             char back_label[16];
             char prompt_buf[160];
 
-            /* Steam Deck UI: RS Right=recall, X=use, A=confirm, d=drop, B=back */
+            /* Steam Deck UI: RS Right=recall, X=use, A=confirm, B=drop, Start=back */
             controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
             controller_prompt_label(steamdeck_alt_action_key(), "X", use_label, sizeof(use_label));
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            controller_prompt_label('d', "d", drop_label, sizeof(drop_label));
-            controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
+            controller_prompt_label('f', "B", drop_label, sizeof(drop_label));
+            controller_prompt_label(ESCAPE, "Start", back_label, sizeof(back_label));
 
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
-                recall_label, use_label, confirm_label, drop_label, back_label);
-            Term_putstr(1, layout.prompt_row, -1, TERM_L_DARK, prompt_buf);
+            if (draw_layout.term_wid <= 50)
+            {
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad move  [%s/%s] use  [%s] drop  [%s] back",
+                    use_label, confirm_label, drop_label, back_label);
+            }
+            else
+            {
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
+                    recall_label, use_label, confirm_label, drop_label, back_label);
+            }
+            Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
+                TERM_L_DARK, prompt_buf);
         } else {
-            Term_putstr(0, layout.prompt_row, layout.term_wid, TERM_SLATE,
-                "Dir move  r recall  u/Space use  d drop  Esc");
+            cptr prompt = (draw_layout.term_wid <= 50)
+                ? "Dir move  u/Space use  d drop  Esc"
+                : "Dir move  r/-> recall  u/Space use  d drop  Esc";
+            Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
+                TERM_SLATE, prompt);
         }
 
         if (!column)
-            Term_gotoxy(0, layout.list_row + (grp_cur - grp_top));
+            Term_gotoxy(draw_layout.group_col,
+                draw_layout.list_row + (grp_cur - grp_top));
         else if (entry_cnt)
-            Term_gotoxy(layout.list_col, layout.list_row + (entry_cur - entry_top));
+            Term_gotoxy(draw_layout.list_col,
+                draw_layout.list_row + (entry_cur - entry_top));
         else
-            Term_gotoxy(0, layout.list_row + (grp_cur - grp_top));
+            Term_gotoxy(draw_layout.group_col,
+                draw_layout.list_row + (grp_cur - grp_top));
 
         char ch = inkey();
-        if (steamdeck_controls_active() && ch == steamdeck_back_key())
-            ch = ESCAPE;
+        if (steamdeck_controls_active() && ch == 'f')
+            ch = 'd';
 
         if ((ch == '\r' || ch == '\n' || (steamdeck_controls_active() && ch == steamdeck_confirm_key())) && column && entry_cnt)
         {
@@ -22443,34 +26740,18 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         case 'r':
         case 'X':
         case 'x':
+        case '6':
+#ifdef ARROW_RIGHT
+        case ARROW_RIGHT:
+#endif
             if (!column && entry_cnt)
             {
                 column = 1;
             }
             else if (column && entry_cnt)
             {
-                supply_list_entry* entry = &entries[entry_cur];
-                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
-                {
-                    (void)player_try_identify_smithing_object_on_examine(
-                        &inventory[entry->item_idx], false);
-                    object_info_screen(&inventory[entry->item_idx]);
+                if (supplies_menu_recall_entry(&entries[entry_cur]))
                     redraw = true;
-                }
-                else if (entry->k_idx >= 0)
-                {
-                    object_kind* k_ptr = &k_info[entry->k_idx];
-                    if (k_ptr->aware)
-                    {
-                        desc_obj_fake(entry->k_idx);
-                        redraw = true;
-                    }
-                    else
-                    {
-                        bell("You have not identified that yet.");
-                        msg_print("You have not identified that yet.");
-                    }
-                }
             }
             break;
 
@@ -22496,6 +26777,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     handled = supplies_menu_use_entry(entry);
                 }
+                else if (entry->equip_idx == INVEN_LITE && entry->equipped)
+                {
+                    msg_print("That light source is already equipped.");
+                }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     object_type* o_ptr = &inventory[entry->item_idx];
@@ -22516,6 +26801,14 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         break;
                     case TV_GEM:
                         do_cmd_use_gem(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_FLASK:
+                        do_cmd_refuel_lamp(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_LIGHT:
+                        do_cmd_wield(o_ptr, entry->item_idx);
                         handled = true;
                         break;
                     default:
@@ -22564,6 +26857,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     dropped = supplies_menu_drop_entry(entry);
                 }
+                else if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+                {
+                    do_cmd_drop_item_by_index(entry->equip_idx);
+                    dropped = true;
+                }
                 else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
                 {
                     do_cmd_drop_item_by_index(entry->item_idx);
@@ -22589,7 +26887,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         default:
             browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt, &entry_cur,
-                entry_cnt, layout.list_rows);
+                entry_cnt, layout.list_rows, true);
             break;
         }
     }
@@ -23319,6 +27617,9 @@ static int unified_sidebar_collect_sorted_objects(const unified_look_state* stat
             continue;
 
         o_ptr = &o_list[o_idx];
+
+        if (!o_ptr->k_idx)
+            continue;
 
         /* Only show marked (memorized) objects that the player has actually seen. */
         if (!o_ptr->marked)

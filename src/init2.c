@@ -30,6 +30,10 @@
 #define SIL_USER_META_DIR "meta"
 #define SIL_USER_META_RUNS "metaruns"
 
+#ifdef __ANDROID__
+static bool g_android_skip_install_raw_seed = false;
+#endif
+
 #ifndef SIL_USE_LOCAL_DATA
 static bool is_path_separator(char ch)
 {
@@ -51,6 +55,11 @@ static void strip_trailing_separators(char* path)
 
 static bool build_user_root_path(char* buf, size_t len)
 {
+#if !defined(SIL_IOS)
+    /* On desktop, prefer the system saved-games / home folder.
+     * On iOS the container root returned by SDL_GetUserFolder is not
+     * directly writable - skip straight to SDL_GetPrefPath which
+     * returns the correct Library/Application Support/ sandbox path. */
     const char* base = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
     char temp[1024];
 
@@ -64,6 +73,7 @@ static bool build_user_root_path(char* buf, size_t len)
         strip_trailing_separators(temp);
         return path_build(buf, len, temp, SIL_USER_ROOT);
     }
+#endif
 
     char* pref = SDL_GetPrefPath("Sil-QH", SIL_USER_ROOT);
     if (!pref)
@@ -91,10 +101,141 @@ static void ensure_directory_exists(const char* path, const char* label)
     }
 }
 
+#ifdef __ANDROID__
+#define ANDROID_RAW_CACHE_BUILD_MARKER VERSION_NAME " " VERSION_STRING " | " __DATE__ " " __TIME__
+
+static bool read_small_text_file(const char* path, char* buf, size_t len)
+{
+    SDL_IOStream* fd;
+    size_t read;
+
+    if (!path || !buf || len == 0)
+        return false;
+
+    fd = sdl_fopen(path, "rb");
+    if (!fd)
+        return false;
+
+    read = SDL_ReadIO(fd, buf, len - 1);
+    buf[read] = '\0';
+    sdl_fclose(fd);
+
+    while (read > 0 && (buf[read - 1] == '\n' || buf[read - 1] == '\r'))
+    {
+        buf[--read] = '\0';
+    }
+
+    return true;
+}
+
+static bool write_small_text_file(const char* path, const char* text)
+{
+    SDL_IOStream* fd;
+    size_t len;
+
+    if (!path || !text)
+        return false;
+
+    fd = sdl_fopen(path, "wb");
+    if (!fd)
+        return false;
+
+    len = strlen(text);
+    if (SDL_WriteIO(fd, text, len) != len)
+    {
+        sdl_fclose(fd);
+        return false;
+    }
+
+    return sdl_fclose(fd) == 0;
+}
+
+static int delete_globbed_files(const char* dir, const char* pattern)
+{
+    int removed = 0;
+    int entry_count = 0;
+    char** entries;
+
+    if (!dir || !*dir)
+        return 0;
+
+    entries = SDL_GlobDirectory(dir, pattern, 0, &entry_count);
+    if (!entries)
+        return 0;
+
+    for (int i = 0; entries[i]; ++i)
+    {
+        char path[1024];
+        SDL_PathInfo info;
+
+        if (!path_build(path, sizeof(path), dir, entries[i]))
+            continue;
+        if (!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE)
+            continue;
+        if (!SDL_RemovePath(path))
+        {
+            log_warn("android raw cache: failed to remove '%s': %s", path, SDL_GetError());
+            continue;
+        }
+
+        removed++;
+    }
+
+    SDL_free(entries);
+    return removed;
+}
+
+static void invalidate_android_raw_cache_if_needed(const char* user_root, const char* user_data_dir)
+{
+    char marker_path[1024];
+    char saved_marker[256];
+    const char* current_marker = ANDROID_RAW_CACHE_BUILD_MARKER;
+    bool marker_matches = false;
+
+    if (!user_root || !*user_root || !user_data_dir || !*user_data_dir)
+        return;
+
+    if (!path_build(marker_path, sizeof(marker_path), user_root, "raw_cache_build.txt"))
+        return;
+
+    if (read_small_text_file(marker_path, saved_marker, sizeof(saved_marker)))
+    {
+        marker_matches = streq(saved_marker, current_marker);
+    }
+
+    if (!marker_matches)
+    {
+        int raw_removed = delete_globbed_files(user_data_dir, "*.raw");
+        int sig_removed = delete_globbed_files(user_data_dir, "*.raw.sig");
+
+        g_android_skip_install_raw_seed = true;
+        log_info("android raw cache: build marker changed, removed %d raw files and %d signature files",
+            raw_removed, sig_removed);
+    }
+    else
+    {
+        g_android_skip_install_raw_seed = false;
+    }
+
+    if (!write_small_text_file(marker_path, current_marker))
+    {
+        log_warn("android raw cache: failed to update build marker '%s'", marker_path);
+    }
+}
+#endif
+
 static void seed_user_data_from_install(const char* user_data_dir)
 {
     if (!user_data_dir || !*user_data_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
         return;
+
+#ifdef __ANDROID__
+    if (g_android_skip_install_raw_seed)
+    {
+        log_info("android raw cache: skipping install raw seed for this launch");
+        return;
+    }
+#endif
 
     char install_data_dir[1024];
     if (!path_build(install_data_dir, sizeof(install_data_dir), ANGBAND_DIR, "data"))
@@ -133,7 +274,7 @@ static void seed_user_data_from_install(const char* user_data_dir)
     SDL_free(entries);
 }
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
 typedef bool (*version_check_fn)(const char* path);
 
 static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir);
@@ -694,10 +835,8 @@ void init_file_paths(char* path)
     else
         ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS))
-        ANGBAND_DIR_METARUN = str_dup(buf);
-    else
-        ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
+    /* Portable builds keep metarun data directly in ANGBAND_DIR_APEX. */
+    ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
 #else
     char user_root[1024];
     if (!build_user_root_path(user_root, sizeof(user_root)))
@@ -759,8 +898,11 @@ void init_file_paths(char* path)
     }
 
     migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
+#ifdef __ANDROID__
+    invalidate_android_raw_cache_if_needed(user_root, ANGBAND_DIR_DATA);
+#endif
     seed_user_data_from_install(ANGBAND_DIR_DATA);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
     seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
 #endif
@@ -926,6 +1068,152 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
     return (0);
 }
 
+#ifdef __ANDROID__
+static bool build_template_signature_path(char* buf, size_t len, cptr raw_path)
+{
+    if (!buf || len == 0 || !raw_path)
+        return false;
+
+    if (SDL_strlcpy(buf, raw_path, len) >= len)
+        return false;
+
+    return SDL_strlcat(buf, ".sig", len) < len;
+}
+
+static bool compute_template_signature(cptr txt_path, Uint64* out_signature)
+{
+    SDL_IOStream* fd;
+    Uint64 signature = 1469598103934665603ULL;
+    Uint64 total_bytes = 0;
+    Uint8 buffer[4096];
+
+    if (!txt_path || !out_signature)
+        return false;
+
+    fd = sdl_fopen(txt_path, "rb");
+    if (!fd)
+    {
+        log_warn("template signature: unable to open '%s'", txt_path);
+        return false;
+    }
+
+    for (;;)
+    {
+        size_t bytes_read = SDL_ReadIO(fd, buffer, sizeof(buffer));
+        if (bytes_read == 0)
+            break;
+
+        total_bytes += bytes_read;
+
+        for (size_t i = 0; i < bytes_read; ++i)
+        {
+            signature ^= buffer[i];
+            signature *= 1099511628211ULL;
+        }
+    }
+
+    if (sdl_fclose(fd) != 0)
+    {
+        log_warn("template signature: failed to close '%s'", txt_path);
+        return false;
+    }
+
+    signature ^= total_bytes;
+    signature *= 1099511628211ULL;
+
+    *out_signature = signature;
+    return true;
+}
+
+static bool load_template_signature(cptr raw_path, Uint64* out_signature)
+{
+    char sig_path[1024];
+    SDL_IOStream* fd;
+    Uint64 signature;
+
+    if (!out_signature || !build_template_signature_path(sig_path, sizeof(sig_path), raw_path))
+        return false;
+
+    fd = sdl_fopen(sig_path, "rb");
+    if (!fd)
+        return false;
+
+    if (SDL_ReadIO(fd, &signature, sizeof(signature)) != sizeof(signature))
+    {
+        sdl_fclose(fd);
+        return false;
+    }
+
+    if (sdl_fclose(fd) != 0)
+        return false;
+
+    *out_signature = signature;
+    return true;
+}
+
+static void save_template_signature(cptr raw_path, cptr txt_path)
+{
+    char sig_path[1024];
+    SDL_IOStream* fd;
+    Uint64 signature;
+
+    if (!build_template_signature_path(sig_path, sizeof(sig_path), raw_path))
+        return;
+
+    if (!compute_template_signature(txt_path, &signature))
+        return;
+
+    fd = sdl_fopen(sig_path, "wb");
+    if (!fd)
+    {
+        log_warn("template signature: unable to write '%s'", sig_path);
+        return;
+    }
+
+    if (SDL_WriteIO(fd, &signature, sizeof(signature)) != sizeof(signature))
+    {
+        log_warn("template signature: failed to write '%s'", sig_path);
+    }
+
+    if (sdl_fclose(fd) != 0)
+    {
+        log_warn("template signature: failed to close '%s'", sig_path);
+    }
+}
+
+static errr check_template_signature(cptr raw_path, cptr txt_path)
+{
+    Uint64 current_signature;
+    Uint64 stored_signature;
+    SDL_PathInfo raw_info;
+
+    if (!raw_path || !txt_path)
+        return 0;
+
+    if (!SDL_GetPathInfo(raw_path, &raw_info) || raw_info.type != SDL_PATHTYPE_FILE)
+        return -1;
+
+    if (!compute_template_signature(txt_path, &current_signature))
+        return 0;
+
+    if (!load_template_signature(raw_path, &stored_signature))
+    {
+        log_info("template signature: missing or unreadable sidecar for '%s' - regenerating", raw_path);
+        return -1;
+    }
+
+    if (stored_signature != current_signature)
+    {
+        log_info("template signature: detected updated template '%s' - regenerating '%s'",
+            txt_path, raw_path);
+        return -1;
+    }
+
+    log_debug("template signature: '%s' matches cached raw '%s'", txt_path, raw_path);
+    return 0;
+}
+#endif
+
 /* local forward */
 static errr init_rt_info(void);
 static errr init_style_info(void);
@@ -997,10 +1285,15 @@ static errr init_info(cptr filename, header* head)
 
     /* General buffer */
     char buf[1024];
+#ifdef ALLOW_TEMPLATES
+    char txt_path[1024];
+#endif
 
 #ifdef ALLOW_TEMPLATES
 
     /*** Load the binary image file ***/
+
+    path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, format("%s.txt", filename));
 
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
@@ -1013,14 +1306,16 @@ static errr init_info(cptr filename, header* head)
     {
 #ifdef CHECK_MODIFICATION_TIME
         /* Check if text file is newer than raw file */
-        char txt_path[1024];
-        path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, format("%s.txt", filename));
         log_debug("Checking modification times: raw='%s' vs txt='%s'", buf, txt_path);
+#ifdef __ANDROID__
+        err = check_template_signature(buf, txt_path);
+#else
         err = check_modification_date_sdl(buf, txt_path);
+#endif
         if (err)
         {
-            /* Text file is newer - close raw and regenerate */
-            log_info("Text file '%s.txt' is newer than raw file - regenerating", filename);
+            /* Template changed - close raw and regenerate */
+            log_info("Template '%s.txt' changed or is newer than raw file - regenerating", filename);
             sdl_fclose(fd);
             fd = NULL;
         }
@@ -1152,6 +1447,10 @@ static errr init_info(cptr filename, header* head)
 
             /* Close */
             sdl_fclose(fd);
+
+#ifdef __ANDROID__
+            save_template_signature(buf, txt_path);
+#endif
         }
 
         /*** Kill the fake arrays ***/
@@ -1539,13 +1838,13 @@ static errr init_v_info(void)
 static errr init_rt_info(void)
 {
     errr err;
-    init_header(&rt_head, z_info->rt_max, sizeof(runtype_type));     /* ① */
+    init_header(&rt_head, z_info->rt_max, sizeof(runtype_type));     /* (1) */
 #ifdef ALLOW_TEMPLATES
-    rt_head.parse_info_txt = parse_rt_info;                          /* ② */
+    rt_head.parse_info_txt = parse_rt_info;                          /* (2) */
 #endif
-    err = init_info("runtypes", &rt_head);                           /* ③ */
+    err = init_info("runtypes", &rt_head);                           /* (3) */
 
-    runtype_info = rt_head.info_ptr;                                 /* ④ global */
+    runtype_info = rt_head.info_ptr;                                 /* (4) global */
     return err;
 }
 
@@ -1909,6 +2208,7 @@ extern void re_init_some_things(void)
     int i;
 
     run_mode_reset();
+    screen_set_startup_supporting_panes_hidden(true);
 
     // wipe the whole player structure
     memset(p_ptr, 0, sizeof(player_type));
@@ -1944,9 +2244,6 @@ extern void re_init_some_things(void)
 
         /* Erase */
         Term_clear();
-
-        /* Refresh */
-        Term_fresh();
 
         /* Restore */
         Term_activate(old);
@@ -2552,7 +2849,7 @@ static int welcome_screen_base_col(void)
     if (wid < 1)
         wid = legacy_term_wid;
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SIL_IOS)
     if (!get_sdl_steamdeck_mode())
     {
         shift = (wid - compact_block_wid) / 2;
@@ -2692,22 +2989,30 @@ static void display_introduction_with_layout(
     int term_wid = 80;
     int term_hgt = 24;
     int top_pad = 1;
+    int quote_attr_offset = 20;
 
     if (layout)
         top_pad = layout->top_pad;
     if (top_pad < 0)
         top_pad = 0;
 
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 1)
+        term_hgt = 24;
+
+    if (term_wid < 80)
+        /* Compact screens need a tighter attribution column for the
+         * longest welcome-screen source lines. */
+        quote_attr_offset = 17;
+
     const int y = top_pad; /* legacy intro rows start at row 1 with one blank line above */
     const int intro_col = welcome_screen_base_col();
     const int subtitle_col = intro_col + 6;
     const int title_col = intro_col + 8;
-    const int quote_attr_col = intro_col + 20;
+    const int quote_attr_col = intro_col + quote_attr_offset;
     const int song_attr_col = intro_col + 14;
-
-    Term_get_size(&term_wid, &term_hgt);
-    if (term_hgt < 1)
-        term_hgt = 24;
 
 #define INTRO_ROW(_rel) (y + welcome_screen_intro_row((_rel), layout) - 1)
 
@@ -2715,7 +3020,7 @@ static void display_introduction_with_layout(
     Term_clear();
 
     /* Hide the cursor for the intro screen while rendering. Do NOT
-        toggle the global hide_cursor here — callers (menus) should set
+        toggle the global hide_cursor here - callers (menus) should set
         hide_cursor around any following input waits. */
     bool _saved_cursor_state = false;
     (void)Term_get_cursor(&_saved_cursor_state);
@@ -3419,7 +3724,7 @@ extern NavResult initial_menu(bool *start_new)
      * small terminals (e.g. 20 rows).
      *
      * Fit rules (as requested):
-     *   1) Try to show all lines in order (starting from “string 0”).
+     *   1) Try to show all lines in order (starting from "string 0").
      *   2) If it doesn't fit, delete the empty line between separator and prompt.
      *   3) If it still doesn't fit, delete the separator and place the prompt there.
      *

@@ -26,7 +26,7 @@
 #include <sys/time.h>
 #endif
 
-#if !defined(__ANDROID__)
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
 #include <sys/timeb.h>
 #endif
 

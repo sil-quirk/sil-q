@@ -41,6 +41,13 @@
 #     lines may be used as are needed to specify all the flags and flags
 #     are separated by the '|' symbol.
 #
+# 'D' is for lore description text. Prefix and suffix ego descriptions
+#     may be combined when an identified item is examined, so these
+#     entries should read naturally both on their own and in sequence.
+#     For keyed lore, use clauses in the form:
+#         [dagger] text || [sword] text || [default] text
+#     The first matching keyword for the actual base item is used.
+#
 # 'M' is for explicit stat/skill bonuses. Format:
 #     M:STAT_or_SKILL:min[:max]
 #     If max is omitted, min and max are the same. Each M: line rolls
@@ -67,7 +74,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 
 
@@ -84,6 +91,15 @@ T:30:2:99
 T:36:4:99
 T:37:0:99
 F:IGNORE_ALL
+D:[shield]Its frame has been ordered with sober craft so that blows
+D: glance away from it more readily, and the bearer feels less naked
+D: beneath the enemy's weight. ||
+D:[greaves]The plates are shaped to take the hurt upon themselves,
+D: guarding shin and knee where a crippling stroke is often sought. ||
+D:[soft_armour]Hidden strength has been worked into it, so that the
+D: covering yields less quickly than its lighter fashion would promise. ||
+D:[mail]Link has been laid over link with a warding purpose, and the
+D: iron seems readier than common mail to hold against the press of war.
 
 
 N:2:(Venom-warding)
@@ -92,6 +108,14 @@ C:0:0:0:0:0:0:0
 T:36:0:99
 T:37:0:99
 F:RES_POIS
+D:[robe]Its cloth has been steeped and stitched with clean things, as
+D: though healers had set their craft against venom and corruption. ||
+D:[soft_armour]Hide and cloth have taken some bitter ward against poison,
+D: after the fashion of hunters who expected fang, thorn, and tainted
+D: blood. ||
+D:[mail]The rings have been treated with preserving salts and sharp
+D: herbs, as if the harness were made for wars in foul airs and among
+D: poisoned wounds.
 
 
 # Mithril and Galvorn
@@ -103,6 +127,10 @@ T:36:11:11
 T:37:20:20
 F:CON
 F:IGNORE_ALL
+D:[soft_armour]Though supple still, it has in it an inward endurance,
+D: as though the strange metal would spend itself last of all. ||
+D:[mail]The pale rings seem tireless in their joining, lending the
+D: wearer something of mithril's own unwearied strength.
 
 
 # Leather armour, gloves and boots only
@@ -114,6 +142,14 @@ T:36:4:7
 T:30:0:1
 T:31:0:1
 F:FREE_ACT | IGNORE_ALL | NOBLE_ITEM
+D:[boots]These are made for the springy floors of ancient woods, and
+D: the foot feels less hindered by root, briar, or sudden need. ||
+D:[gloves]The hand keeps its freedom in them, ready for bowstring,
+D: branch, or blade without awkwardness or delay. ||
+D:[leather_armour]It recalls the green shadows of Brethil, where free
+D: hunters needed quiet movement and a body unbound by its own defence. ||
+D:[studded_armour]Even with its iron set upon it, this harness has been
+D: kept lithe enough for woodland fighting and swift going beneath trees.
 
 
 N:5:(Stealthy)
@@ -121,6 +157,14 @@ W:0:75:0:1000
 C:0:0:0:0:0:0:3
 T:36:0:99
 F:STEALTH
+D:[robe]Its folds have been cut to hang close and quiet, swallowing
+D: small sounds that looser cloth would gladly betray. ||
+D:[leather_armour]The fastenings sit close and the hide does not creak
+D: as loudly as common armour when the wearer bends or turns. ||
+D:[studded_armour]Even the iron has been subdued as far as such gear may
+D: allow, so that it speaks less readily in dark places. ||
+D:[default]Its making favours silence, and it yields fewer sounds to
+D: stone, branch, or restless hand than such a thing should.
 
 
 # Shields, greaves and heavy armour
@@ -133,6 +177,15 @@ T:34:0:99
 T:37:0:99
 F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA | NOBLE_ITEM
 F:IGNORE_ALL
+D:[shield]Boss, rim, and grip are joined with Nogrod's close cunning,
+D: so that the shield sits stout upon the arm without deadening
+D: hand, eye, or courage. ||
+D:[greaves]These plates have the exact poise of Nogrod, where even
+D: war-gear was fitted with a master-smith's pride. They steady the
+D: stride without stealing its readiness. ||
+D:[mail]Ring answers ring with Nogrod's rich exactness, and the
+D: harness seems made not only to endure blows, but to keep the
+D: warrior within it master of himself.
 
 
 # Greaves and heavy armour - iron only
@@ -144,6 +197,12 @@ T:30:2:2
 T:37:4:6
 F:STAND_FAST | RES_FEAR | NOBLE_ITEM
 F:IGNORE_ALL
+D:[greaves]They are made for a planted stance upon stone, giving the
+D: legs a northern firmness that does not welcome retreat. ||
+D:[mail_corslet]This corslet has the stern honesty of northern smithwork,
+D: fit for warriors who were schooled to hold a line against terror. ||
+D:[hauberk]Long rings and iron discipline go together here, as though it
+D: had been prepared for chosen guards who would not easily be driven.
 
 
 # Gauntlets and greaves
@@ -154,6 +213,10 @@ C:0:0:0:0:0:0:0
 T:30:2:2
 T:31:2:2
 F:RES_COLD | IGNORE_ALL | NOBLE_ITEM
+D:[greaves]A memory of the cold uplands of Ladros clings to them, and
+D: the legs are better defended against bitter wind and frozen ground. ||
+D:[gauntlets]These iron-backed hands seem less troubled by cold, as if
+D: they had already known long watches beneath a hard northern sky.
 
 
 ###
@@ -170,6 +233,12 @@ T:30:0:1
 T:31:0:1
 A:1/50:10/25:15/5
 F:VUL_POIS | DIF_ID | LIGHT_CURSE | JINX
+D:[boots]A sour corruption clings to them, as though they had long trod
+D: in foul pools and carried that taint away in the leather. ||
+D:[gloves]The touch they promise is unclean, fit to spread rot from hand
+D: to hand or from wound to wound. ||
+D:[default]Something sickly has entered its substance, and what should
+D: have sheltered the body now seems more likely to welcome corruption.
 
 
 N:10:(Blacked)
@@ -180,6 +249,15 @@ T:36:4:7
 T:30:0:1
 T:31:0:1
 F:VUL_FIRE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[boots]The leather has been smoked dark after a cruel fashion, suited
+D: to stealthy feet abroad on ugly errands. ||
+D:[gloves]Black hide and soot-dark stitching give them the look of hands
+D: meant to grasp, throttle, and work unseen. ||
+D:[leather_armour]Its hide has been darkened almost to the colour of
+D: cinders, after the manner of prowlers who would pass half-lost in
+D: night and smoke. ||
+D:[studded_armour]Dark hide and black iron have been joined here in a
+D: hard and secretive fashion, more fit for ambush than open battle.
 
 
 N:11:(Orc-forged)
@@ -189,6 +267,10 @@ T:37:4:4
 T:37:6:6
 M:STEALTH:-2
 F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[mail_corslet]These links are roughly driven together after the orcish
+D: fashion, serviceable only because iron may endure bad hands. ||
+D:[hauberk]A long shirt of mail hammered out in some black forge, its
+D: strength bought at the cost of comfort, silence, and all grace.
 
 
 ##### Shields #####
@@ -199,6 +281,8 @@ W:0:50:0:1000
 C:0:0:0:2:0:0:0
 T:34:0:99
 F:IGNORE_ALL
+D:[shield]Its curve and binding have been tuned to spill the enemy's
+D: stroke aside, making the blow wander from its first intention.
 
 
 N:13:(Frosted)
@@ -207,6 +291,8 @@ C:0:0:0:0:0:0:0
 T:34:0:99
 F:RES_FIRE
 F:IGNORE_ALL
+D:[shield]Rime-like virtue lies on it, and the hand behind the shield
+D: feels less threatened by heat, ash, and sudden tongues of flame.
 
 
 # Mithril shields only
@@ -216,6 +302,9 @@ W:20:20:0:1000
 C:0:0:0:0:0:0:0
 T:34:10:10
 F:CHEAT_DEATH | NOBLE_ITEM
+D:[shield]Rune is laid upon rune in the deep fashion of the Dwarves,
+D: and their mingled counsel abides here still, so that doom itself
+D: finds less easy passage through it.
 
 
 ###
@@ -228,6 +317,10 @@ T:34:0:9
 T:32:5:6
 A:2/100:10:50/15:33
 F:AGGRAVATE | DIF_ID | LIGHT_CURSE | EVIL_ITEM | WILL | MIN_DEPTH_SPEED
+D:[shield]It goads the bearer toward the harsh answer, as though a shield
+D: were given not for shelter but for driving into the thick of strife. ||
+D:[helm]A cruel temper has been worked into it, filling the mind beneath
+D: with heat, impatience, and a readiness to answer every slight in blood.
 
 
 N:16:of Hithlum
@@ -237,6 +330,9 @@ T:34:5:5
 T:34:10:10
 F:WILL | NOBLE_ITEM
 B:0/5
+D:[shield]The grave strength of Hithlum abides in it, as if it had been
+D: made for northern wardens who learned to hold fast beneath long war
+D: and colder skies than most men willingly remember.
 
 
 N:17:of the Blue Mountains
@@ -246,6 +342,9 @@ T:34:5:5
 T:34:10:10
 F:NOBLE_ITEM
 B:2/7
+D:[shield]It keeps the temper of the Blue Mountains, where the long
+D: roads between Nogrod and Belegost taught smiths to marry timber,
+D: iron, and patience into one strength without boast.
 
 
 
@@ -259,6 +358,9 @@ W:0:20:0:6000
 C:0:0:0:0:0:0:3
 T:23:4:4
 F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
+D:[dagger]A memory of the first starlight of Cuivienen rests in this
+D: small blade, making it seem fitter for a swift and graceful hand than
+D: for any coarse work of butchery.
 
 
 # Includes arrows
@@ -275,6 +377,17 @@ T:17:0:99
 T:23:28:30
 A:1/60
 F:SLAY_ORC | SLAY_RAUKO | NOBLE_ITEM
+D:[arrow]These shafts have the white and deadly neatness of
+D: Gondolin, as though fletched for the walls before dawn when the
+D: plain below was dark with orcs. ||
+D:[polearm]It bears the ordered wrath of Gondolin's gate-wards,
+D: who met troll and Balrog in the killing-space before the
+D: Hidden King's walls. ||
+D:[sword]Its edge keeps the cold bright pride of Gondolin, and
+D: wakes most fiercely where orc or rauko would profane fair
+D: craft. ||
+D:[default]The hidden city's high wrath lives in it still, and
+D: the servants of Morgoth are answered first.
 
 # Includes arrows
 # Polearms (no axes)
@@ -290,6 +403,17 @@ T:23:25:25
 T:23:28:30
 T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF | NOBLE_ITEM
+D:[arrow]These shafts are feathered in the temper of Doriath's
+D: outer marches, where the wardens of Thingol slew wolf and
+D: spider before they came beneath the beech-shadows. ||
+D:[polearm]It has the watchful reach of a march-weapon from
+D: Doriath, made to keep fang and venomous web from the guarded
+D: woods. ||
+D:[sword]There is in it the grave beauty of Doriath under
+D: Melian's Girdle: quiet until the instant wolf or spider comes
+D: too near. ||
+D:[default]The Girdled Realm is remembered in it, and things of
+D: fang, fur, and venomous web are answered as trespassers.
 
 # Shortswords, longswords, bastard swords, greatswords
 # Spears, great spears, glaives, mithril swords
@@ -302,6 +426,15 @@ T:23:10:21
 T:23:25:25
 T:23:28:30
 F:SLAY_VAMPIRE | SLAY_DRAGON | NOBLE_ITEM
+D:[polearm]It has the long cold purpose of Nargothrond, where
+D: deep armouries were laid against wing, scale, and the
+D: blood-drinking night. ||
+D:[sword]A stern bright craft out of Nargothrond is in it, and
+D: the edge seems to remember dragon-fire and the stealth of
+D: vampires in dark places. ||
+D:[default]It keeps the hidden city's grim wisdom, prepared for
+D: dragon, vampire, and such elder evils as came prowling
+D: against Narog.
 
 # Mandos is keeper and judge of the dead; the spirits of slain Elves pass to his halls.
 # This ego is for weapons that lay the restless dead to rest.
@@ -314,6 +447,12 @@ T:21:8:8
 T:22:1:4
 T:23:10:99
 F:SLAY_UNDEAD | FREE_ACT | NOBLE_ITEM
+D:[war_hammer]Its stroke feels appointed to lay troubling dead things
+D: back into silence, as a bell might end a long and evil echo. ||
+D:[polearm]It has the grave authority of a weapon meant to keep the
+D: restless dead at their proper distance and peace. ||
+D:[sword]A hush from the Halls of Mandos seems to rest along its edge,
+D: and the undead have little welcome in that memory.
 
 
 # Warhammers, axes, digging tools
@@ -326,6 +465,12 @@ T:22:11:13
 T:20:3:3
 F:REGEN | RES_FIRE | NOBLE_ITEM
 F:IGNORE_ALL
+D:[war_hammer]The stubborn fire of the Firebeards is in it still, fit
+D: for long labour at forge or in battle. ||
+D:[axe]It has the hot bright temper of a Dwarven forge, and the hand
+D: upon it seems less wearied by toil or battle. ||
+D:[mattock]Though a delver's tool, it has been wrought in the same fiery
+D: patience that served the Firebeards in their deepest works.
 
 
 # Warhammers, battle-axes, great-axes
@@ -341,6 +486,14 @@ T:22:12:99
 T:23:17:25
 F:NOBLE_ITEM | SLAY_TROLL
 B:0/6
+D:[war_hammer]It carries the bold strength of Hador's House, and troll
+D: flesh seems especially hateful to its heavy blow. ||
+D:[glaive]Its long edge has the valour of the Men of Dor-lomin, eager
+D: for the great and brutish foes that once broke lesser lines. ||
+D:[axe]There is a man's fierce nobility in it, as though it had been
+D: borne by one who would rather die standing than yield ground to trolls. ||
+D:[sword]The proud war-spirit of Hador's House lives in its edge, and it
+D: is readier than common steel against the giant brood of darkness.
 
 
 # Warhammers, battle-axes, great-axes
@@ -356,6 +509,14 @@ T:22:12:99
 T:23:21:25
 B:0/9
 F:AGGRAVATE | LIGHT_CURSE
+D:[war_hammer]It seems impatient even at rest, as though each blow had
+D: taught it to desire another before the first has finished falling. ||
+D:[glaive]Along its length there runs a battle-hunger that would carry
+D: the wielder too deep into the press if left wholly unchecked. ||
+D:[axe]It is eager for wide and ruinous strokes, despising prudence and
+D: all quiet measures of war. ||
+D:[sword]A rash and dangerous heat has entered it, and the hand that uses
+D: it may find wrath answering sooner than wisdom.
 
 
 # Swords only
@@ -365,6 +526,13 @@ W:12:30:0:1000
 C:0:0:0:0:0:0:1
 T:23:10:99
 F:GRA | DEX | DANGER | NOBLE_ITEM
+D:[short_sword]It answers the hand with a bright fierce quickness, like
+D: one of those lesser blades that still carried the proud fire of Feanor's
+D: house. ||
+D:[great_sword]Even in so great a blade there is a perilous swiftness,
+D: splendid and a little terrible, after the manner of the Feanorians. ||
+D:[sword]A bright and restless mastery is remembered in it, noble in
+D: craft yet shadowed by the dangerous fire of Feanor's line.
 
 
 # Daggers, curved swords, and short swords only
@@ -377,6 +545,12 @@ T:23:4:7
 T:23:10:10
 B:3/1
 F:STEALTH | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[dagger]This knife has the look of a blade made to end speech at arm's
+D: length or less, before cry or struggle can fully rise. ||
+D:[curved_sword]Its cruel bend suits sudden slaughter in cramped places,
+D: where the stroke must be quick, filthy, and close. ||
+D:[short_sword]It is shaped for the first red instant of treachery, when
+D: a swift thrust matters more than any honour in the fighting.
 
 
 # Daggers only
@@ -387,6 +561,8 @@ W:0:50:0:2000
 C:0:0:0:2:0:0:0
 T:23:4:4
 B:0/12
+D:[dagger]It seems meant for the off-hand and the second opening, a
+D: companion blade that works not alone but in cunning answer to another.
 
 
 # Spears only
@@ -396,6 +572,9 @@ W:10:30:0:3000
 C:1:0:1:0:0:0:1
 T:22:1:2
 F:GRA | LIGHT | NOBLE_ITEM
+D:[spear]A clear and exalted memory is in it, as though the Vanyar had
+D: taught its point to move beneath a cleaner light than Middle-earth
+D: now commonly knows.
 
 
 # Quarterstaves only
@@ -405,6 +584,10 @@ W:0:80:0:8000
 C:1:0:0:0:0:0:0
 T:21:3:3
 F:REGEN | NOBLE_ITEM
+D:[quarterstaff]This staff has the weathered virtue of Mithrim,
+D: like ash cut by the cold mere and seasoned through long exile.
+D: It suits one who must endure want without surrendering either
+D: lore or heart.
 
 
 # Quarterstaves only
@@ -414,6 +597,8 @@ W:2:80:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:CON | RES_COLD | NOBLE_ITEM
+D:[quarterstaff]A bitter memory of the Grinding Ice clings to it, and
+D: the one who bears it seems schooled a little better for cold and want.
 
 
 # Warhammers only
@@ -424,6 +609,8 @@ W:0:75:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 B:0/2
+D:[war_hammer]The whole weight of it is taught toward one blunt and
+D: ruinous purpose, fit to break guard, bone, or barred way alike.
 
 
 # Warhammers only
@@ -433,6 +620,8 @@ W:10:33:0:10000
 C:0:0:1:0:0:0:1
 T:21:8:8
 F:STR
+D:[war_hammer]Its head has a dreadful honesty: what it strikes, it means
+D: not merely to wound but to ruin.
 
 
 # Polearms only
@@ -443,6 +632,12 @@ W:4:60:0:10000
 C:0:0:1:0:0:0:0
 T:22:1:4
 B:0/7
+D:[spear]Its point longs for the straight deep road through mail and
+D: flesh alike. ||
+D:[great_spear]The weapon seems made to drive through a foe entire, with
+D: little patience for shields or lesser obstructions. ||
+D:[glaive]Even this broad blade has been taught a narrower cruelty, as
+D: though its sweep desired at the end to become a thrust.
 
 
 N:42:of Overseer
@@ -455,6 +650,18 @@ T:22:1:1
 T:22:4:4
 T:22:12:12
 F:SLAY_ORC | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[curved_sword]This is the kind of blade an overseer might wear among
+D: lesser thralls: quick to threaten, eager to punish. ||
+D:[short_sword]It has the hard bullying temper of a captain set over
+D: slaves and orcs, ruling by nearness, noise, and fear. ||
+D:[spear]Its point is fit for keeping underlings at a distance and in
+D: obedience, while still promising sudden death. ||
+D:[glaive]The long blade has something of the drill-yard and the lash in
+D: it, meant to command space and compel submission. ||
+D:[axe]A brutal commander's axe, better suited to enforcement than to any
+D: generous trial of arms. ||
+D:[sword]A harsh authority clings to it, as though it had often been
+D: raised less against true foes than against those beneath command.
 
 
 # Warhammers, hand and battle axes, curved swords, longswords
@@ -469,6 +676,12 @@ T:23:7:7
 T:23:25:25
 T:22:12:13
 F:BRAND_FIRE | CUMBERSOME | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[curved_sword]Fire and black rage dwell in this crooked blade, after
+D: the fell manner of Udun beneath Thangorodrim. ||
+D:[great_sword]Its great edge seems to carry furnace-heat within it, as
+D: if drawn from some deeper and fouler fire than any honest forge. ||
+D:[axe]A heavy northern fire has entered it, making the stroke slower,
+D: fiercer, and more ruinous when it lands.
 
 
 # Warhammers, curved swords, greatswords, axes
@@ -481,6 +694,14 @@ T:23:7:7
 T:23:25:25
 T:22:11:99
 F:CON | CUMBERSOME | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[war_hammer]It has the cruel patience of Angband's deep forges, where
+D: strength mattered more than speed or mercy. ||
+D:[curved_sword]The black mountain's shadow seems on it, making even this
+D: crooked blade feel heavier with menace. ||
+D:[great_sword]A vast and joyless strength has been laid into it, like a
+D: weapon meant for the wars of Thangorodrim and nothing gentler. ||
+D:[axe]Its iron remembers smoke, pits, and labour without pity beneath
+D: the shadow of the triple peaks.
 
 
 # Curved swords, short swords, greatswords, spears, hand axes, battle axes, greataxes, glaives
@@ -495,6 +716,19 @@ T:22:1:1
 T:22:4:4
 T:22:11:13
 F:SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[curved_sword]Dark and pitiless, it is a weapon for the slaughter of
+D: free folk, not for any honest proving of arms. ||
+D:[short_sword]The short black blade seems made for killing Men and Elves
+D: in the crush, where malice profits from closeness. ||
+D:[great_sword]Its long black edge carries the old hatred of Angband for
+D: the Children of Iluvatar. ||
+D:[spear]This spear's point is set with a grim purpose toward the free
+D: peoples, as if black iron itself had learned enmity. ||
+D:[glaive]Along its edge there runs a hatred broad as the stroke it
+D: makes, cruelly bent toward Men and Elves alike. ||
+D:[axe]A black killing-tool for butcher's work among the free peoples. ||
+D:[default]Black iron and old malice are joined in it, and the Children
+D: of Iluvatar are its favoured prey.
 
 
 # Daggers, curved swords, short swords, hand axes, and glaives
@@ -508,6 +742,18 @@ T:22:11:11
 T:23:7:7
 T:22:4:4
 F:BRAND_POIS | EVIL_ITEM
+D:[dagger]Its narrow edge has been blackened with venom for work done
+D: within a single breath, where whisper and wound must come together. ||
+D:[short_sword]Such a short blade takes poison readily to the press
+D: of sudden battle, turning a quick wound into a slower death. ||
+D:[curved_sword]Venom suits this crooked blade too well, for it was
+D: already half akin to the cruel fashions of the Enemy. ||
+D:[glaive]Even along so broad a reaping edge venom has been laid,
+D: adding lingering hurt to the first great stroke. ||
+D:[axe]The bit has been smeared with a bitter venom, so that even a
+D: glancing hew may fester after the blow. ||
+D:[default]Venom has been laid upon it after the manner of dark
+D: hunters and patient murderers.
 
 
 # Daggers, shortswords, and hand axes only
@@ -519,6 +765,14 @@ T:23:4:4
 T:23:10:10
 T:22:11:11
 F:ACCURATE
+D:[dagger]Its weight gathers close to the hand, letting it turn like
+D: a thought and strike where the eye has only just marked the gap. ||
+D:[short_sword]It moves with the easy obedience of a well-matched
+D: companion, quick to recover and quick again to threaten. ||
+D:[axe]Though short and head-heavy, it has been poised so cunningly
+D: that the stroke falls clean without dragging the arm awry. ||
+D:[default]Weight and measure have been set with uncommon care, and
+D: the hand finds its true line in it almost at once.
 
 
 # Non-curved swords and glaives
@@ -528,6 +782,10 @@ W:0:80:0:1000
 C:0:0:0:1:0:0:0
 T:22:4:4
 T:23:11:99
+D:[glaive]Its long blade has been ordered not only to strike but to hold
+D: ground, keeping danger a little farther from the bearer. ||
+D:[sword]There is a guarding temper in it, as though the blade had been
+D: taught to preserve as well as to wound.
 
 N:49:(Vampiric)
 W:4:60:0:3000
@@ -538,6 +796,17 @@ T:23:4:4
 T:23:7:7
 T:23:25:25
 F:VAMPIRIC | HUNGER | LIGHT_CURSE | EVIL_ITEM
+D:[dagger]It drinks too readily of any hurt it gives, as though the
+D: little blade had learned a hungering life of its own. ||
+D:[curved_sword]The crooked edge seems eager not merely to cut but to
+D: feed upon the hurt it makes. ||
+D:[spear]Its point goes forth like a leeching thing, coldly desirous of
+D: the life that runs behind skin and mail. ||
+D:[great_sword]Even so great a weapon has in it a starving will, and each
+D: wound seems to promise more than blood alone. ||
+D:[great_axe]This heavy blade carries a foul thirst, as though great wounds
+D: were prized chiefly for how much life may be drained through them. ||
+D:[default]A dark hunger abides in it, feeding on the life it spills.
 
 
 ###
@@ -553,6 +822,8 @@ W:0:20:0:1000
 C:0:0:0:0:0:0:1
 T:20:3:3
 F:TUNNEL
+D:[mattock]It was plainly made for the delving of hard places, and the
+D: bite of its iron seems eager for vein, seam, and buried gate.
 
 
 N:52:of the Longbeards
@@ -560,6 +831,8 @@ W:0:30:0:1000
 C:0:0:0:0:0:0:0
 T:20:3:3
 F:STR | NOBLE_ITEM
+D:[mattock]The grave strength of the Longbeards is in it still, fit for
+D: long delving where lesser folk would have laid tool and will aside.
 
 
 ##### Helms #####
@@ -570,6 +843,12 @@ W:0:60:0:1000
 C:0:0:0:0:0:0:0
 T:32:0:99
 F:LIGHT | NOBLE_ITEM
+D:[mithril_helm]The pale metal takes light as still water takes stars,
+D: and gives it back with a clearer and more heartening fire. ||
+D:[great_helm]Even its stern face is kindled, so that the wearer seems
+D: to go crowned with a hard clear light amid the press of war. ||
+D:[helm]A clear brightness rests on brow and crest, and the darkness
+D: before the wearer is less lordly than it was.
 
 
 N:72:of Defiance
@@ -577,6 +856,9 @@ W:0:75:0:2000
 C:0:0:0:0:0:0:3
 T:32:0:99
 F:WILL | RES_FEAR | NOBLE_ITEM
+D:[helm]Under it the mind gathers and hardens, refusing dread as a
+D: shield-wall refuses the sea. It remembers captains of the Free
+D: Peoples who would not bow, though the dark pressed close.
 
 
 # Includes light sources
@@ -587,6 +869,14 @@ C:0:0:0:0:0:0:0
 T:32:0:99
 T:39:1:8
 F:RES_BLIND | SEE_INVIS | RES_HALLU
+D:[helm]Beneath it the shadows of the world are less able to deceive,
+D: and things hidden, veiled, or only half seen are more readily
+D: discerned. ||
+D:[light]Its light is of a clearer virtue than common flame,
+D: troubling deceit and making hidden things less willing to remain
+D: concealed. ||
+D:[default]Some clear virtue rests upon it that suffers little
+D: shadow or deceit.
 
 
 N:74:of Clarity
@@ -594,6 +884,9 @@ W:0:75:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
 F:RES_CONFU | RES_STUN | RES_HALLU
+D:[helm]Thought runs cleaner beneath it, and the confusions of hurt,
+D: fear, and sorcery find less easy hold. A blow may still daze the
+D: flesh, but the mind is readier to master it.
 
 
 # mithril helms and lesser jewels
@@ -604,6 +897,11 @@ C:0:0:0:0:0:0:1
 T:32:8:8
 T:39:2:2
 F:GRA | NOBLE_ITEM
+D:[mithril_helm]Pale grace has been added to pale metal, so that the
+D: mind beneath it is lifted above coarseness and answers the world
+D: with a nobler measure. ||
+D:[lesser_jewel]Its light grows gentler and more lovely, and those who
+D: keep it near are reminded for a while of fairer things than dread.
 
 ###
 
@@ -613,6 +911,11 @@ C:0:0:0:0:0:1:0
 T:32:5:6
 M:PERCEPTION:-2
 F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[great_helm]Its face is shut behind a black visor, making of the
+D: wearer a dark and nameless threat whose gaze need not be seen to
+D: be feared. ||
+D:[helm]The brow has been darkened and drawn low, after the fashion of
+D: cruel captains who preferred menace to open countenance.
 
 
 N:77:(Spiked)
@@ -622,6 +925,13 @@ T:32:5:6
 T:34:3:3
 M:STEALTH:-2
 F:EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[shield]Iron teeth stand from its rim, as if the bearer were meant
+D: to strike with shelter no less than with weapon, driving men back
+D: by brutality rather than skill. ||
+D:[great_helm]Spikes have been set upon it like a cruel crest, more fit
+D: to terrify thralls than to honour any valiant lord. ||
+D:[helm]A savage row of iron points has been added to it, proclaiming
+D: wrath and rough violence before the sword is ever drawn.
 
 
 N:80:of Snaga
@@ -630,6 +940,11 @@ C:0:0:0:1:0:-1:0
 T:32:5:5
 T:34:3:3
 F:FEAR | LIGHT_CURSE | EVIL_ITEM
+D:[shield]It has the low cunning of the lesser orcs upon it, and seems
+D: made for snarling courage that fails unless there is a stronger
+D: master's whip behind it. ||
+D:[helm]A cringing malice clings to it, the temper of those small
+D: servants of Angband who are bold only when they outnumber the weak.
 
 
 ##### Cloaks (and Robes) #####
@@ -641,6 +956,9 @@ W:1:50:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
+D:[cloak]Its weave drinks small sounds and its fall is close and wise,
+D: so that the wearer may pass by brush or broken stone with less
+D: betrayal from cloth and clasp.
 
 
 # Warm and Chilling egos now target both cloaks and robes
@@ -650,6 +968,10 @@ C:0:0:0:0:0:0:0
 T:35:0:99
 T:36:2:2
 F:RES_COLD
+D:[robe]A gentle stored warmth abides in its folds, like memory of a
+D: hearth long tended against winter and ill weather. ||
+D:[cloak]It holds the body's heat with unusual kindness, a welcome
+D: companion on cold marches and beneath bitter stars.
 
 
 N:84:of the Traveller
@@ -657,6 +979,9 @@ W:0:90:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:SLOW_DIGEST
+D:[cloak]Long roads and cold bivouacs are remembered in it; it wastes
+D: little, asks little, and keeps its strength for the leagues still
+D: to come.
 
 ###
 
@@ -670,6 +995,14 @@ T:30:0:1
 T:31:0:1
 A:1/75:10/50:15/33
 F:VUL_COLD | DIF_ID | LIGHT_CURSE | JINX
+D:[robe]There is in it a dead coolness, and the cloth lies against the
+D: skin like shade that has forgotten the sun. ||
+D:[cloak]Its folds keep an unkind chill of their own, as though they
+D: had long hung in some lightless place where warmth never entered. ||
+D:[boots]Cold rises through them from stone and earth, numbing the
+D: step and making every road feel lonelier than it is. ||
+D:[gloves]They leach warmth from the hands little by little, until
+D: even a ready touch grows reluctant and uneasy.
 
 
 N:87:of the Scarlet Heart
@@ -677,12 +1010,18 @@ W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
 F:RES_BLEED | SUST_CON | IGNORE_ALL | NOBLE_ITEM
+D:[cloak]A red courage seems sewn into it, and the life in the wearer
+D: is less easily spilled away. Hurt finds a steadier heart within
+D: its folds than it would have found elsewhere.
 
 N:88:of the Golden Flower
 W:0:50:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
 F:RES_FEAR | SUST_GRA | IGNORE_ALL | NOBLE_ITEM
+D:[cloak]A memory of the Golden Flower of Gondolin abides in it, and
+D: with that fair device come bright courage and a grace that does
+D: not readily bow to fear.
 
 ##### Bows #####
 
@@ -694,6 +1033,10 @@ C:0:0:1:0:0:0:0
 T:19:13:13
 A:5/50
 F:VUL_FIRE | LIGHT_CURSE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:A yew stave blackened by foul smoking and over-hard firing. It has the
+D: grim temper of a northern war-bow, fit for bitter wind, long waiting,
+D: and far shots loosed at quarry the archer has no wish to see close at
+D: hand.
 
 
 # Shortbows and longbows
@@ -703,6 +1046,12 @@ W:4:60:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:13
 F:RES_POIS | DANGER | DIF_ID | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[shortbow]A bleak memory of Lammoth clings to it, where the Enemy's
+D: scouts ranged the echoing shore beneath wind and wolf-cry. It feels
+D: made to shoot first when peril breaks suddenly from mist or stone. ||
+D:[longbow]It has the far and joyless watch of Lammoth beneath the
+D: screaming coast-wind, fit for black sentries who marked danger early
+D: and loosed from afar across the empty strand.
 
 
 N:93:(Radiant)
@@ -710,6 +1059,12 @@ W:6:33:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:RADIANCE | NOBLE_ITEM
+D:[dragonhorn_bow]Even the fell horn has been hallowed, and when the
+D: string is drawn a cleaner fire seems to answer the old. What was
+D: taken from a servant of Morgoth has been bent toward a brighter war. ||
+D:[bow]A pale virtue has been laid upon it, and bow and string seem
+D: readier to send light before them into dark places that love no clear
+D: ray.
 
 
 N:94:of the Marchwardens
@@ -718,6 +1073,13 @@ C:0:0:0:0:0:0:0
 T:19:0:12
 T:19:15:99
 F:SEE_INVIS | RES_FEAR | NOBLE_ITEM
+D:[shortbow]It has the keen woodland vigilance of the Marchwardens, who
+D: kept green borders against creeping things and sudden trespass. In the
+D: hand it feels alert even at rest, as though little in brush or dusk
+D: could pass it wholly unseen. ||
+D:[bow]It bears the watchful temper of the Marchwardens, fit for a
+D: border guard who must read stir and shadow without yielding the heart
+D: to fear.
 
 
 N:95:of Falas
@@ -725,6 +1087,12 @@ W:12:75:0:3000
 C:0:0:0:0:0:0:3
 T:19:0:99
 F:RES_COLD | PERCEPTION | NOBLE_ITEM
+D:[dragonhorn_bow]Even this fell horn has been schooled to the grey
+D: patience of the Falas, as though sea-wind and salt had cleansed some
+D: part of its old dragon-fury and turned it toward watch upon the west. ||
+D:[bow]It keeps the clear far-seeing temper of the Falas, where mariners
+D: and shore-wardens watched the grey sea in cold winds, reading danger
+D: while it was yet only a speck between wave and sky.
 
 
 N:96:of the Falmari
@@ -732,6 +1100,11 @@ W:12:40:0:3000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:ACCURATE | NOBLE_ITEM
+D:[dragonhorn_bow]Even the horn of a dragon has here been taught a
+D: fairer obedience, as though the sea-longing of the Falmari had drawn
+D: its old violence into a cleaner and more certain line. ||
+D:[bow]The memory of the Falmari is in it, and the shot seems to seek a
+D: truer course, like a white bird stooping cleanly above the sea.
 
 
 # (ability 1/2 is Point Blank Archery)
@@ -741,6 +1114,12 @@ C:0:0:0:0:0:0:0
 T:19:12:13
 B:1/2
 F:NOBLE_ITEM
+D:[shortbow]A hush of Menegroth lies on it, where fair things were kept
+D: hidden beneath stone and beech. It seems fit for swift hunters and
+D: guards who passed between the Thousand Caves and the outer woods. ||
+D:[longbow]It bears the deep and guarded nobility of Menegroth, as
+D: though wrought for silent watches under beeches and for the king's own
+D: hunts, where the shaft flew far yet secrecy remained unbroken.
 
 
 # (ability 1/0 is Rout)
@@ -750,6 +1129,10 @@ C:0:0:0:0:0:0:0
 T:19:13:13
 B:1/0
 F:NOBLE_ITEM
+D:It remembers the Long Peace that followed Dagor Aglareb, when the
+D: bowmen of the north kept unwearied watch upon the Enemy's land. Its
+D: draw is patient and warlike, fit for a long line and for distant
+D: shots loosed before the threat could break into the open.
 
 
 N:99:(Horn-backed)
@@ -757,6 +1140,10 @@ W:2:70:0:1500
 C:-1:0:1:0:0:0:0
 T:19:12:12
 F:DIF_ID | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:Its back has been stiffened with horn in a harsh northern fashion,
+D: giving the little bow a savage cast beyond what its size should bear.
+D: It seems made for strong-handed prowlers who value a sudden hard shot
+D: above any fair ease in the drawing.
 
 
 N:100:of Angband's Host
@@ -764,6 +1151,10 @@ W:5:60:0:2000
 C:1:0:0:0:0:0:0
 T:19:12:12
 F:SLAY_MAN_OR_ELF | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
+D:This bow has the temper of the black hosts of Angband, quick to cast
+D: death into the first broken ranks of Men or Elves. One can almost hear
+D: in it the ugly shouting of musters and the trampling rush of cruel
+D: companies whenever the string is drawn.
 
 
 ##### Arrows #####
@@ -774,6 +1165,9 @@ W:6:30:0:100
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:BRAND_POIS | EVIL_ITEM
+D:[arrow]Their heads are smeared with a bitter venom, so that even a
+D: shallow graze may carry the hunter's will deeper than the iron
+D: itself.
 
 
 N:102:(Piercing)
@@ -781,6 +1175,10 @@ W:10:15:0:300
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:SHARPNESS
+D:[arrow]These shafts are headed with long narrow bodkins, made to seek
+D: the joins of mail and the lesser kindnesses of armour. They favour the
+D: hard straight shot that asks not for broad hurt, but for a single deep
+D: finding.
 
 
 
@@ -799,6 +1197,9 @@ W:0:40:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
 F:RADIANCE | NOBLE_ITEM
+D:[greaves]Moonlike radiance plays about them when darkness gathers,
+D: silvering the path at the wearer's feet and making the enemies of
+D: moonlight less eager to draw near.
 
 
 # boots only
@@ -807,6 +1208,9 @@ W:0:75:0:1000
 C:0:0:0:0:0:0:3
 T:30:1:1
 F:STEALTH
+D:[boots]The leather gives little answer to stone or leaf, and even a
+D: hurried step keeps more of its counsel than such boots have any
+D: right to do.
 
 
 N:112:of Snares Eluded
@@ -814,6 +1218,9 @@ W:10:40:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
 F:AVOID_TRAPS | FREE_ACT
+D:[greaves]Their bright plates seem strangely free of catch or
+D: hindrance; root, wire, and cunning trap alike find it harder to
+D: hold the leg that wears them.
 
 
 # boots only
@@ -824,6 +1231,9 @@ W:10:30:0:5000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/5
+D:[boots]Once the stride is set, they seem to hunger for the next step,
+D: and the next again, until the road itself appears to yield more
+D: quickly beneath the wearer.
 
 # boots only
 # (ability 2/4 is Leaping)
@@ -833,6 +1243,9 @@ W:7:30:0:4000
 C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
+D:[boots]They gather calf, knee, and heart into one sudden spring, as
+D: though ditch, snare, or broken stone were only a question to be
+D: answered in a single bold motion.
 
 
 N:115:(Iron-shod)
@@ -841,6 +1254,9 @@ C:0:0:0:0:0:1:0
 T:30:2:3
 M:STEALTH:-2
 F:AGGRAVATE | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[greaves]Iron has been cruelly over-set upon them, turning each step
+D: into a ringing challenge. They are fit for harsh soldiery who mean
+D: to be heard coming and to trouble quieter hearts by the sound.
 
 
 ###
@@ -852,6 +1268,12 @@ C:0:0:0:0:0:0:0
 T:30:0:2
 A:5/60:10/40:15/20
 F:DANGER | LIGHT_CURSE | EVIL_ITEM | JINX
+D:[boots]A false craft is in them, and the feet are tempted toward the
+D: uncertain stone, the hidden edge, and the way that looks easiest
+D: only from a little distance. ||
+D:[greaves]They seem made for black roads where danger is half the
+D: master's purpose, and the step is driven onward whether the ground
+D: is honest or no.
 
 
 
@@ -860,6 +1282,11 @@ W:10:60:0:2000
 C:0:0:0:1:0:0:0
 T:30:1:3
 F:LIGHT_CURSE | VUL_POIS | EVIL_ITEM
+D:[boots]They carry the memory of a long evil road, where marchers
+D: were driven north beneath whips and foul standards until even rest
+D: was forgotten. ||
+D:[greaves]There is in them the hard rhythm of Angband's marches,
+D: more suited to trampling obedience than to any free man's road.
 
 
 ##### Gloves #####
@@ -872,6 +1299,9 @@ W:2:50:0:1000
 C:0:0:0:0:0:0:3
 T:31:1:1
 F:ARCHERY
+D:[gloves]They preserve the fingers from weather and string-burn
+D: without deadening them, and the bowstring seems to come away
+D: more cleanly beneath the hand.
 
 
 N:121:of Lorellin
@@ -879,6 +1309,11 @@ W:0:75:0:1000
 C:0:0:0:0:0:0:0
 T:31:0:99
 F:MEDIC | NOBLE_ITEM
+D:[gauntlets]Even through iron there abides a strange healing quiet,
+D: turning the war-hand from mere wounding toward guarding and relief. ||
+D:[gloves]A cool and restful virtue is in them, as though the hands had
+D: been washed in the still waters of Lorellin and taught a gentler
+D: craft against hurt.
 
 
 # (ability 2/2 is Parry)
@@ -888,6 +1323,11 @@ W:4:75:0:2000
 C:0:0:0:0:0:0:0
 T:31:0:99
 B:2/2
+D:[gauntlets]Their joints are wrought for the sword rather than for the
+D: fist alone, preserving in iron the quick answer of a master's parry. ||
+D:[gloves]The fingers remember old discipline, and a blade held in them
+D: turns aside danger more readily, as though schooled by long practice
+D: in the guarded halls of the Noldor.
 
 
 N:123:of the Ironfists
@@ -895,6 +1335,9 @@ W:4:20:0:2000
 C:0:0:0:0:0:0:1:1
 T:31:2:2
 F:CON | NEG_DEX | NOBLE_ITEM
+D:[gauntlets]Their weight is grave but wholesome, filling the hand with
+D: the stubborn strength of iron and stone. Fine quickness is somewhat
+D: denied, yet the grip becomes hard to shake or weary.
 
 
 # Mithril gauntlets only
@@ -905,6 +1348,9 @@ C:0:0:0:0:0:0:1
 T:31:3:3
 F:STR
 F:IGNORE_ALL
+D:[gloves]Though light as high metal should be, they lend the hand a
+D: greater command, so that grip, lift, and stroke all seem to answer
+D: a deeper strength than flesh alone would provide.
 
 
 N:125:(Clawed)
@@ -912,6 +1358,9 @@ W:6:70:0:1200
 C:2:0:0:0:0:0:1:1
 T:31:2:2
 F:NEG_DEX | EVIL_ITEM | ENCHANTABLE | MIN_DEPTH_SPEED
+D:[gauntlets]Hooked iron has been added at fingertip and knuckle, so
+D: that the hand is turned from grasping toward rending. They are fit
+D: for cruel work at close quarters and little else.
 
 
 ###
@@ -925,6 +1374,11 @@ C:0:0:0:0:0:0:1:1
 T:31:0:2
 F:NEG_STR | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:3/4
+D:[gauntlets]These plates are made for the faithless close-in stroke,
+D: seizing advantage where a nobler fighter would have held his hand. ||
+D:[gloves]The hand within them grows watchful for the turned back and
+D: the ill-guarded instant, after the fashion of those who strike
+D: only when honour has already been abandoned.
 
 
 # (ability 3/2 is Cruel Blow)
@@ -934,6 +1388,9 @@ C:0:0:0:0:0:1:2
 T:31:2:2
 F:NEG_GRA | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 B:3/2
+D:[gauntlets]Every joint and edge is contrived for hurt that lingers.
+D: They were not made merely to master an enemy, but to make pain
+D: speak long after the blow has fallen.
 
 
 
@@ -946,6 +1403,13 @@ C:0:0:0:0:0:0:0
 T:39:1:2
 T:39:8:8
 F:LIGHT
+D:[lantern]Its flame burns with a clearer and more searching light,
+D: driving the dark a little farther back from every crack and turning. ||
+D:[lesser_jewel]Its captive radiance has been opened a little more, and
+D: the jewel shines like a steadfast star in a deep place. ||
+D:[feanorian_lamp]The housed light within it has been drawn nearer to
+D: the bright intent of its makers, until its beam seems less earthly
+D: than wrought of remembered dawn.
 
 
 # 'of true Sight' is already defined above
@@ -962,6 +1426,9 @@ A:5/100:11/0
 C:0:0:0:0:0:0:0
 T:39:1:1
 F:UNLIGHT | LIGHT_CURSE | EVIL_ITEM | JINX
+D:[lantern]The flame within will not wholly trust its own burning, but
+D: gutters, wavers, and breeds moving shadows that trouble the eye more
+D: than the dark would have done alone.
 
 
 
@@ -980,6 +1447,17 @@ T:23:21:21
 T:22:13:13
 T:22:4:4
 F:EVIL_ITEM | MIN_DEPTH_SPEED
+D:[curved_sword]Its edge has been hacked into cruel teeth that worry
+D: flesh more than they truly cut, after the manner of orc-blades
+D: from Angband. ||
+D:[sword]The long edge has been broken into savage notches, so that
+D: each stroke rends as well as bites. ||
+D:[axe]The blade has been left in brutal teeth, fit to tear
+D: mail-links and leave mangled wounds behind it. ||
+D:[glaive]Along its sweeping edge run ugly notches, turning each
+D: reaping stroke into a tearing one. ||
+D:[default]Its edge has been worked into cruel teeth more fit to rend
+D: than to cut cleanly.
 
 
 # Daggers, shortswords, longswords, bastard swords, mithril/Elven blades, star-iron greatswords,
@@ -996,13 +1474,23 @@ T:23:28:30
 T:22:1:2
 T:22:11:12
 F:NOBLE_ITEM | NEG_WEIGHT
+D:[dagger]It has been lightened until it seems almost eager, ready in
+D: the fingers before the will has fully spoken. ||
+D:[sword]Though made for war, it answers the hand with an Elvish
+D: quickness rare in weapons of such reach. ||
+D:[spear]Its length has been made obedient, and the point comes to
+D: line with scarcely a thought. ||
+D:[axe]Its weight is drawn close and made strangely governable, so
+D: that even the recovery of the stroke is swift. ||
+D:[default]Craft has drawn out its needless burden and left behind a
+D: quicker, more willing thing.
 
 
 
 ##### Amulet Prefixes #####
 
 
-# Good amulets only (object numbers 132–136, 139, 143–144)
+# Good amulets only (object numbers 132-136, 139, 143-144)
 # Excludes Morgoth-themed amulets (Haunted Dreams 6, Slave Pits 8, Shadow 9, Orc-captain 10)
 
 N:142:(Starlit)
@@ -1014,6 +1502,10 @@ T:40:11:11
 T:40:14:14
 T:40:15:15
 F:LIGHT | RES_HALLU | RES_BLIND | NOBLE_ITEM
+D:[amulet]A pale and wholesome radiance abides in it, like a memory of
+D: stars seen before the Sun. Under that clear influence the heart is
+D: less willing to yield to dark fancy, blind terror, or deceitful
+D: seeming.
 
 
 # A cursed amulet that dims the wearer's light
@@ -1025,6 +1517,9 @@ T:40:0:4
 T:40:6:99
 A:1:0:13:50
 F:UNLIGHT | VUL_FIRE | DIF_ID | LIGHT_CURSE | JINX
+D:[amulet]An unwholesome dusk hangs about it, as though the little
+D: thing withheld what light should naturally rest upon it. The eye
+D: slips from it, and the mind mislikes to dwell upon it long.
 
 
 ##### Ring Prefixes #####
@@ -1038,6 +1533,9 @@ C:0:0:0:0:0:0:0
 T:45:0:99
 A:1:0:13:50
 F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE | JINX
+D:[ring]Something in it has been secretly marred. Its virtue remains,
+D: yet not cleanly: one feels a lurking warp in the work, as if help
+D: and harm had been brought too near akin within the circle.
 
 
 # Rings only - blessed ring (good prefix suggestion)
@@ -1050,6 +1548,9 @@ T:45:0:9
 T:45:12:12
 T:45:21:99
 F:SONG | SUST_GRA | NOBLE_ITEM
+D:[ring]Some fair hallowing rests upon it, gentle as starlight on
+D: still water. It steadies the spirit, and from it there rises
+D: something of the inward peace from which true song is born.
 
 
 ##### Weapon Prefixes #####
@@ -1066,6 +1567,20 @@ T:22:11:11
 T:22:12:12
 T:22:13:13
 F:WEIGHT
+D:[mattock]The iron has been drawn hard toward the bite, and each
+D: stroke falls with the grave certainty of a delver breaking stubborn
+D: seam, root, or barred stone door. ||
+D:[war_hammer]More of its will has been gathered into the head, so that
+D: the blow seems to travel on after impact, troubling shield, mail,
+D: and bone together. ||
+D:[hand_axe]More weight has been laid into the bit, and the small axe
+D: now bites with a depth surprising in so short a weapon, as though
+D: meant to end the matter in one hard meeting. ||
+D:[battle_axe]More of its burden is laid into the edge, and once the
+D: stroke is loosed it comes down like a sentence, not lightly to be
+D: recalled. ||
+D:[great_axe]Its vast head is burdened further still, until the falling
+D: stroke seems fit to sunder timber, harness, and courage alike.
 
 
 # Quarterstaves only
@@ -1075,6 +1590,9 @@ W:10:30:0:3000
 C:0:0:0:0:0:0:2
 T:21:3:3
 F:SONG | SUST_GRA | NOBLE_ITEM
+D:[quarterstaff]There is an answering note hidden in the wood, and
+D: hand, voice, and breath come more readily into one accord, as though
+D: an old song slept in it and woke gladly when called.
 
 
 # Warhammers only
@@ -1084,6 +1602,9 @@ W:18:15:0:12000
 C:0:0:-1:0:0:0:3
 T:21:8:8
 F:SMITHING | WILL | BRAND_FIRE | NO_PREFIX
+D:[war_hammer]An old furnace-memory abides in it, not spent by years
+D: or ash. When the hammer strikes, the hidden fire in the metal seems
+D: to wake again, as though the forge itself had judged the blow.
 
 
 # Daggers and hand axes only
@@ -1097,6 +1618,15 @@ T:23:4:4
 T:22:1:1
 T:22:11:11
 B:0/3
+D:[dagger]This is the sort of knife a hunted man might trust in the
+D: wild: plain to hide, quick to cast, and ready alike for meat, rope,
+D: or a sudden foe in the thicket. ||
+D:[spear]It has the lean look of a weapon borne by hard wanderers, fit
+D: to take food in the wastes and keep wolf or orc at distance when
+D: the fire burns low. ||
+D:[hand_axe]Small enough for the belt and useful in camp as in ambush,
+D: it recalls the harsh craft of outlaws who lived by swift hands,
+D: keen eyes, and little mercy from the world.
 
 
 # Shortswords only
@@ -1109,6 +1639,10 @@ C:0:0:0:0:0:0:0
 T:23:10:10
 F:NOBLE_ITEM
 B:0/8
+D:[short_sword]Its edge is schooled to the green secrecy of
+D: Ossiriand, where the Laiquendi let leaf, shadow, and silence
+D: fight beside them; the stroke seems already gone before the
+D: enemy has found the hand.
 
 
 # Quarterstaves only
@@ -1121,6 +1655,11 @@ C:0:0:0:0:0:0:1
 T:21:3:3
 B:5/1
 F:WILL | NOBLE_ITEM
+D:[quarterstaff]Something of Tirion upon Tuna is in it still: the
+D: clear order of high speech, measured thought, and strength
+D: governed by lore. It answers hand and voice as if long
+D: accustomed to halls where wisdom and power were not wholly
+D: sundered.
 
 
 ##### New Weapon Suffixes #####
@@ -1134,6 +1673,17 @@ C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
 F:SLAY_SERPENT | SLAY_DRAGON | NOBLE_ITEM
+D:[war_hammer]The dragon-war of Belegost is remembered in it, and the
+D: head seems taught for scale, plated neck, and the great bones
+D: beneath them. ||
+D:[hand_axe]Though small, it bears the old Dwarven cunning of
+D: Belegost, meant to find the seam beneath scale or the softer place
+D: behind the jaw of a great worm. ||
+D:[battle_axe]Its broad edge recalls the dragon-fighters of Belegost,
+D: who trusted a sure hewing stroke where scale and fire would have
+D: broken lesser hearts. ||
+D:[great_axe]A mighty axe of Belegost's stern tradition, fit to bite
+D: deep even where scale and sinew lie heavy over monstrous life.
 
 
 # Warhammers, hand axes, battle-axes, great-axes
@@ -1144,6 +1694,18 @@ C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
 F:SLAY_SPIDER | SLAY_HORROR | NOBLE_ITEM
+D:[war_hammer]There is in it the memory of deep vaults where the folk
+D: of Nogrod met things with too many limbs and too little light, and
+D: learned to strike hard before terror could master the heart. ||
+D:[hand_axe]It seems made for the close and dreadful work of delving,
+D: where webs, narrow rock, and sudden horrors leave room for only one
+D: swift and certain blow. ||
+D:[battle_axe]Its edge recalls the black ways under Nogrod, where
+D: broad iron was prized for clearing web, limb, and nightmare alike
+D: from a crowded passage. ||
+D:[great_axe]A grave under-earth weapon, fit for those who went armed
+D: into the deep places of Nogrod where ancient horrors were better
+D: sundered outright than merely held at bay.
 
 
 # Warhammers, hand axes, battle-axes, great-axes
@@ -1154,6 +1716,18 @@ C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
 F:SLAY_UNDEAD | SLAY_VAMPIRE | NOBLE_ITEM
+D:[war_hammer]A grave ward has been laid on it in the name of the
+D: Smith, and unclean things that move after death seem little welcome
+D: beneath its descending stroke. ||
+D:[hand_axe]Though small, it carries a stern hallowing, as if made to
+D: bite truly upon the deathless and the blood-drinking things that
+D: mock the works of living hands. ||
+D:[battle_axe]Its broad edge has in it a lawful wrath against the
+D: walking dead, as though the craft of Aule denied them any lasting
+D: place in the world of stone and iron. ||
+D:[great_axe]A deep protective virtue abides in it, and even its vast
+D: stroke feels set not only to destroy, but to cast down what should
+D: have remained in darkness and silence.
 
 
 ##### New Armour Suffixes #####
@@ -1168,6 +1742,9 @@ C:0:0:0:0:0:0:0
 T:36:2:2
 B:7/0
 F:NOBLE_ITEM
+D:[robe]This robe keeps the memory of hymns sung beneath Varda's
+D: stars, and around it fear and darkness seem for a while less
+D: lordly than before.
 
 
 # Robes only
@@ -1179,6 +1756,9 @@ C:0:0:0:0:0:0:0
 T:36:2:2
 B:7/4
 F:NOBLE_ITEM
+D:[robe]A hush of silver memory lies upon it, like dew beneath the
+D: last stars before dawn. In its keeping, sound and disquiet seem
+D: to fall away from the wearer.
 
 
 # Leather Armour and Studded Leather
@@ -1190,6 +1770,12 @@ C:0:0:0:0:0:0:0
 T:36:4:7
 B:7/2
 F:NOBLE_ITEM
+D:[leather_armour]It remembers low songs in echoing places, where the
+D: delvers of old learned the temper of stone by voice as much as by
+D: hand. Hidden ways yield themselves more readily to such music. ||
+D:[studded_armour]Even its iron seems tuned to the deep speech of rock,
+D: as though it had gone often through caverns where song was used in
+D: place of hammer or torch.
 
 
 # Mail Corslet, Hauberk, Mithril Corslet (ring-mail forged by the smiths of Belegost)
@@ -1201,6 +1787,15 @@ T:37:4:4
 T:37:6:6
 T:37:20:20
 F:NOBLE_ITEM
+D:[mail_corslet]Its rings are closed in the ancient manner of
+D: Belegost, where the Dwarves first brought ring-mail to its full
+D: mastery, each link measured, riveted, and laid for endurance. ||
+D:[hauberk]Long linked order runs through it, after the fashion of
+D: Belegost's mail-smiths, who made strength flexible and burden
+D: more evenly borne from shoulder to hem. ||
+D:[mithril_mail]Here the old ring-mail craft of Belegost is married
+D: to mithril, and the harness seems at once lighter, closer, and
+D: more sure than any common mail.
 
 
 ##### New Bow Suffixes #####
@@ -1213,6 +1808,10 @@ W:14:30:0:6000
 C:0:0:0:0:0:0:3
 T:19:14:14
 F:STEALTH | FREE_ACT | NOBLE_ITEM
+D:[dragonhorn_bow]Even this fell horn has been gentled to the hush of
+D: Sirion's Havens, where the last fair remnant kept watch beside grey
+D: water and hidden reeds. It seems made for a patient archer who must
+D: go lightly, lie still, and yet slip free the instant danger closes.
 
 
 ##### Additional Host Armour Suffixes #####
@@ -1225,6 +1824,9 @@ W:4:90:0:1500
 C:0:0:0:0:0:0:3:1
 T:36:7:7
 F:PERCEPTION | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[studded_armour]In it abides the hard vigilance of the Black Gate,
+D: where no footfall went unweighed and mercy was not known; it
+D: sharpens watchfulness, but breeds a cruel unrest in the wearer.
 
 
 # Mail Corslet only
@@ -1238,6 +1840,9 @@ B:2/3
 M:STEALTH:-2
 M:WILL:-2
 F:EVIL_ITEM | MIN_DEPTH_SPEED
+D:[mail_corslet]Dust, ash, and the bitter wind of Anfauglith seem to
+D: abide in it still; it fares best where bodies crowd together in hard
+D: war, but leaves little room for quiet step or hopeful heart.
 
 
 # Leather Armour only
@@ -1248,6 +1853,9 @@ C:-1:0:0:0:0:0:3
 T:36:4:4
 F:UNLIGHT | PERCEPTION | STEALTH | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
+D:[leather_armour]It remembers the crouching hunters that Morgoth
+D: sent abroad beyond his walls, and favours stealth that serves
+D: suspicion rather than courage.
 
 
 # Greaves only
@@ -1256,9 +1864,14 @@ N:163:of the Enforcer
 W:8:70:0:1800
 C:0:0:0:-1:0:1:0
 T:30:2:2
-B:0:5
+B:0/5
 F:WEIGHT | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STEALTH:-2
+D:[greaves]They are shod for the brutal onset, after the manner of
+D: those hard legions that drove thralls and lesser soldiery before
+D: them. Their weight teaches a trampling stride, and the iron seems
+D: to desire not the hidden step but the sudden rush that breaks
+D: fear and order together.
 
 
 # Boots only
@@ -1271,6 +1884,10 @@ T:30:1:1
 B:3/3
 F:FEAR | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:WILL:-2
+D:[boots]These are fit for the keeper of pits and barred ways, whose
+D: coming is known before he speaks. In them abides the gaoler's
+D: fell office: to force another from his place, to tread where he
+D: wills, and to leave a dread behind him in the dark.
 
 
 # Hauberk only
@@ -1282,6 +1899,9 @@ C:0:0:0:-1:0:2:0
 T:37:6:6
 B:5/3
 F:WEIGHT | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[hauberk]It bears the merciless weight of those black companies that
+D: kept watch beside the Balrogs of Angband, teaching the wearer to stand
+D: like a wall at a dreadful master's side and to think little of pain.
 
 
 # Great Helm only
@@ -1293,6 +1913,9 @@ T:32:6:6
 F:WILL | AGGRAVATE | LIGHT_CURSE | EVIL_ITEM | MIN_DEPTH_SPEED
 M:STR:1
 M:GRA:-2
+D:[great_helm]Such a helm is meant to be seen above lesser soldiery,
+D: hardening the will of the one who wears it while driving all beneath
+D: him toward noise, fury, and blind obedience.
 
 
 # Robe only
@@ -1305,6 +1928,9 @@ T:36:2:2
 B:7/8
 F:LIGHT_CURSE | EVIL_ITEM | SONG | MIN_DEPTH_SPEED | NO_PREFIX
 M:GRA:-2
+D:[robe]Song has been turned awry in it, so that what should have joined
+D: hearts is bent instead toward mistrust, revelation against one's will,
+D: and the unmaking of quiet accord.
 
 
 # Shields except mithril
@@ -1316,6 +1942,9 @@ C:0:0:0:-1:0:-1:3:1
 T:34:0:9
 B:2/9
 F:WILL | EVIL_ITEM | MIN_DEPTH_SPEED
+D:[shield]The memory of a foul banner and the bellowing charge around it
+D: clings to this shield; it is fit for a retreat kept under blows, but
+D: it carries with it the bully's will and the captain's harsh pride.
 
 
 # Arrows only
@@ -1325,6 +1954,10 @@ W:4:40:0:250
 C:-1:0:0:0:0:0:0
 T:17:0:99
 F:SLAY_SPIDER | EVIL_ITEM | MIN_DEPTH_SPEED | SLAY_MAN_OR_ELF | AGGRAVATE
+D:[arrow]These are cruel hunting-shafts, barbed for the long chase
+D: rather than the clean kill. One might think them fletched for the
+D: black hunts of the Enemy, when free folk or web-spawn were driven
+D: from cover by pain, shouting, and the promise of worse behind.
 
 
 # Feanorian Lamp only
@@ -1336,6 +1969,11 @@ C:0:0:0:0:0:0:0
 T:39:8:8
 B:7/7
 F:NOBLE_ITEM
+D:[feanorian_lamp]A golden memory has been kindled in it, as though some
+D: last echo of Laurelin were housed within the crystal. It answers
+D: gladly to song, and when its radiance is lifted up the dark is
+D: thrust farther back, while creatures of shadow endure that light
+D: with pain and unwillingness.
 
 
 ##### Damaged Prefixes #####
@@ -1434,6 +2072,16 @@ F:DAMAGED | EASY_KNOW
 D:Greaves hammered out of shape, their plates caved and their straps strained.
 
 
+N:181:(broken)
+W:2:100:0:0
+C:0:0:0:0:0:0:0
+T:39:1:1
+A:2/100
+F:DAMAGED | EASY_KNOW
+D:[lantern]Its glass is cracked and its fittings bent awry, so that no
+D: steady light can be kept within it until a smith mends the hurt.
+
+
 ##### Additional Armour Egos #####
 
 
@@ -1446,6 +2094,10 @@ C:0:0:0:1:0:1:0
 T:32:7:7
 B:5/3
 F:NOBLE_ITEM
+D:[helm]The old war-pride of the Broadbeams abides in it still. Not
+D: merely dreadful, it is kingly in wrath, after the manner of
+D: Dwarf-lords who went masked into dragon-war, so that the enemy's
+D: courage failed before the stroke was ever given.
 
 
 # Mithril gauntlets only
@@ -1455,6 +2107,10 @@ W:12:50:0:3000
 C:1:0:0:0:0:0:0
 T:31:3:3
 F:NOBLE_ITEM
+D:[gloves]The pale metal has been wrought so cunningly that wrist and
+D: finger move almost as though they were unarmed. There is in
+D: them a swift and delicate obedience, rare in any hand-armour
+D: and rarer still in a defence strong enough to meet the stroke.
 
 
 # Robe only
@@ -1463,4 +2119,8 @@ N:184:of Evasiveness
 W:4:40:0:1200
 C:0:0:0:1:0:0:0
 T:36:2:2
+D:[robe]Its folds have been cut with a subtle craft, so that the body
+D: within seems to slip the enemy's full notice. It does not turn
+D: the stroke as armour does, but lets it go awry, as if cloth,
+D: step, and sudden turning had entered into quiet agreement.
 

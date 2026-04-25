@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
+#define MAX_PANE_CONFIGS 8
+
 // Available pane types in the game.
 enum pane_type {
     PANE_MAIN = 0,
@@ -10,9 +12,9 @@ enum pane_type {
     PANE_WORN = 2, // worn items
     PANE_ROLLS = 3,
     PANE_INFO = 4, // monster info window
-    PANE_CHARACTER = 5, // — character sheet
+    PANE_CHARACTER = 5, // - character sheet
     PANE_LOG = 6,
-    PANE_MONSTERS = 7, // — visible monsters window
+    PANE_MONSTERS = 7, // - visible monsters window
     PANE_TOUCH = 8, // touchscreen / mouse action pad
     PANE_MAX = 9,
 };
@@ -24,6 +26,7 @@ enum pane_placement {
     PLACE_LEFT = 1u << 2,
     PLACE_DOUBLE_LEFT = 1u << 3,
     PLACE_DOUBLE_RIGHT = 1u << 4,
+    PLACE_DOUBLE_BOTTOM = 1u << 5,
 };
 
 struct rect {
@@ -36,7 +39,7 @@ struct rect {
     };
 };
 
-// Specifications of a pane — where it can be placed and what is its minimum
+// Specifications of a pane - where it can be placed and what is its minimum
 // size.
 struct pane_specs {
     // Combination of `pane_placement` denoting allowed placement for this pane.
@@ -70,6 +73,7 @@ struct pane {
     int index;
 };
 
+bool pane_placement_is_bottom(enum pane_placement where);
 bool pane_placement_is_side(enum pane_placement where);
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where);

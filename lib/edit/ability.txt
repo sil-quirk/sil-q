@@ -31,7 +31,7 @@
 
 # Version stamp (required)
 
-V:0.9.5
+V:0.9.6
 
 # Melee ---------------------------------------------
 
@@ -184,7 +184,7 @@ T:19:0:99  # Bows
 N:21:Fletchery
 I:1:1:3
 D:Crafting arrows with the skill of the Green-elves of Ossiriand, who fashioned shafts from the woods of their forested realm. The Laiquendi were renowned for the quality of their arrows, each one shaped with patient care from the straight-grained wood of birch and ash, fletched with feathers gathered from the banks of Gelion.
-E:Use '-' to craft ordinary arrows to +3 (one turn each). Carve 3 arrows from torches, 6 from staves.
+E:Use '-' to craft arrows to +3 without changing their affixes (one turn each). Carve 3 arrows from torches, 6 from staves.
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
@@ -352,7 +352,7 @@ N:62:Cruel Blow
 I:3:2:5
 P:3/1
 D:Delivering a cruel blow that echoes the torments inflicted in the pits of Thangorodrim, where Morgoth's servants learned the darkest arts of pain. A well-placed strike to nerve or joint can leave a foe reeling and disoriented, their senses overwhelmed by agony.
-E:Critical hits may confuse monsters (critical level vs monster's Will).
+E:Critical hits may confuse monsters (critical level vs monster's Will). If granted by an equipped item, it also speeds the minimum depth timer as much as Deep Call, even when disabled.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -641,7 +641,7 @@ T:39:0:99  # Light Source
 N:141:Song of Challenge
 I:7:1:1
 D:Echoing the bold verses of Fingolfin's challenge to Morgoth at the gates of Angband, as preserved in ancient lays. You intone a defiant melody that goads and enrages lesser foes, compelling them to abandon caution and throw themselves recklessly into battle like wolves driven mad by the sound of the hunter's horn.
-E:Reduces enemy Will and Stealth by Song/4 each. Enrages foes into reckless attacks.
+E:Reduces enemy Will and Stealth by Song/5 each. Enrages foes into reckless attacks.
 T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms

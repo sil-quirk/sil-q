@@ -49,7 +49,12 @@ void complete_thrall_quest(monster_type* m_ptr, int item_slot);
 bool object_is_damaged_item(const object_type* o_ptr);
 
 /*
- * Find a broken item in player's inventory/equipment that can be upgraded
+ * Check whether an object's damage can actually be repaired by the repair flow.
+ */
+bool object_can_repair_damage(const object_type* o_ptr);
+
+/*
+ * Find a damaged item in player's inventory/equipment that can be repaired
  * Returns the slot if found, -1 otherwise
  */
 int find_broken_item_to_upgrade(void);
