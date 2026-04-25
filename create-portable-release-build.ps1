@@ -7,13 +7,18 @@ param(
     [switch]$IncludeCoverArt = $false
 )
 
-Write-Host "Creating portable release build: $OutputFolder" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Mode: PORTABLE (data stored in lib/ folder)" -ForegroundColor Green
-if ($IncludeCoverArt) {
-    Write-Host "  With CoverArt" -ForegroundColor Green
+function Resolve-ScriptRelativePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    if ([System.IO.Path]::IsPathRooted($PathValue)) {
+        return [System.IO.Path]::GetFullPath($PathValue)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $scriptRoot $PathValue))
 }
-Write-Host "========================================" -ForegroundColor Cyan
 
 function Remove-WavFilesRecursive {
     param(
@@ -31,6 +36,23 @@ function Remove-WavFilesRecursive {
 
     return $wavFiles.Count
 }
+
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+$outputFolderPath = Resolve-ScriptRelativePath $OutputFolder
+$buildScriptPath = Resolve-ScriptRelativePath "build-cmake.bat"
+$buildPortableExePath = Resolve-ScriptRelativePath "build-portable/sil-more.exe"
+$deploymentFolderPath = Resolve-ScriptRelativePath "sil-more-windows-sdl3-portable"
+$libSourceRoot = Resolve-ScriptRelativePath "lib"
+$coverArtPath = Resolve-ScriptRelativePath "CoverArt"
+$legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
+
+Write-Host "Creating portable release build: $outputFolderPath" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Mode: PORTABLE (data stored in lib/ folder)" -ForegroundColor Green
+if ($IncludeCoverArt) {
+    Write-Host "  With CoverArt" -ForegroundColor Green
+}
+Write-Host "========================================" -ForegroundColor Cyan
 
 # Define game data folders to copy (content only)
 $libFoldersToCopy = @('edit', 'pref', 'xtra', 'docs')
@@ -67,9 +89,9 @@ $requiredDlls = @(
 # Step 1: Build portable (if not already built)
 Write-Host ""
 Write-Host "Checking for portable build..." -ForegroundColor Yellow
-if (-not (Test-Path "build-portable/sil-more.exe")) {
+if (-not (Test-Path $buildPortableExePath)) {
     Write-Host "Portable build not found. Building now..." -ForegroundColor Cyan
-    & ".\build-cmake.bat" portable
+    & $buildScriptPath portable
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed!" -ForegroundColor Red
         exit 1
@@ -78,23 +100,23 @@ if (-not (Test-Path "build-portable/sil-more.exe")) {
 Write-Host "  [OK] Portable build found"
 
 # Step 2: Create release folder
-if (Test-Path $OutputFolder) {
+if (Test-Path $outputFolderPath) {
     Write-Host ""
-    Write-Host "Removing existing $OutputFolder..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force $OutputFolder
+    Write-Host "Removing existing $outputFolderPath..." -ForegroundColor Yellow
+    Remove-Item -Recurse -Force $outputFolderPath
 }
 
-New-Item -ItemType Directory -Path $OutputFolder | Out-Null
-Write-Host "Created portable release folder: $OutputFolder" -ForegroundColor Green
+New-Item -ItemType Directory -Path $outputFolderPath | Out-Null
+Write-Host "Created portable release folder: $outputFolderPath" -ForegroundColor Green
 
 # Step 3: Copy executable from portable build
 Write-Host ""
 Write-Host "Copying portable executable..." -ForegroundColor Yellow
-if (Test-Path "build-portable/sil-more.exe") {
-    Copy-Item "build-portable/sil-more.exe" "$OutputFolder/" -Force
+if (Test-Path $buildPortableExePath) {
+    Copy-Item $buildPortableExePath $outputFolderPath -Force
     Write-Host "  [OK] sil-more.exe"
 } else {
-    Write-Host "  [ERROR] sil-more.exe not found in build-portable/" -ForegroundColor Red
+    Write-Host "  [ERROR] sil-more.exe not found: $buildPortableExePath" -ForegroundColor Red
     exit 1
 }
 
@@ -105,15 +127,15 @@ $copiedDlls = 0
 $missingDlls = @()
 
 foreach ($dll in $requiredDlls) {
-    $srcPath = "sil-more-windows-sdl3-portable/$dll"
+    $srcPath = Join-Path $deploymentFolderPath $dll
     if (Test-Path $srcPath) {
-        Copy-Item $srcPath "$OutputFolder/" -Force
+        Copy-Item $srcPath $outputFolderPath -Force
         $copiedDlls++
     } else {
         # Also check in lib folder as fallback
-        $libPath = "lib/$dll"
+        $libPath = Join-Path $libSourceRoot $dll
         if (Test-Path $libPath) {
-            Copy-Item $libPath "$OutputFolder/" -Force
+            Copy-Item $libPath $outputFolderPath -Force
             $copiedDlls++
         } else {
             $missingDlls += $dll
@@ -130,7 +152,7 @@ if ($missingDlls.Count -gt 0) {
 # Step 5: Create lib folder structure
 Write-Host ""
 Write-Host "Creating portable game data structure..." -ForegroundColor Yellow
-$libPath = "$OutputFolder/lib"
+$libPath = Join-Path $outputFolderPath "lib"
 if (-not (Test-Path $libPath)) {
     New-Item -ItemType Directory -Path $libPath | Out-Null
 }
@@ -139,8 +161,8 @@ if (-not (Test-Path $libPath)) {
 $foldersCopied = 0
 $musicFilesCopied = 0
 foreach ($folder in $libFoldersToCopy) {
-    $srcFolder = "lib/$folder"
-    $dstFolder = "$libPath/$folder"
+    $srcFolder = Join-Path $libSourceRoot $folder
+    $dstFolder = Join-Path $libPath $folder
     
     if (Test-Path $srcFolder) {
         if ($folder -eq "edit") {
@@ -237,13 +259,13 @@ foreach ($folder in $emptyLibFolders) {
 if ($IncludeCoverArt) {
     Write-Host ""
     Write-Host "Copying CoverArt..." -ForegroundColor Yellow
-    if (Test-Path "CoverArt") {
-        Copy-Item -Recurse "CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "CoverArt" | Measure-Object).Count
+    if (Test-Path $coverArtPath) {
+        Copy-Item -Recurse $coverArtPath (Join-Path $outputFolderPath "CoverArt") -Force
+        $artCount = (Get-ChildItem -Recurse $coverArtPath | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
-    } elseif (Test-Path "sil-more_beta 0.9/CoverArt") {
-        Copy-Item -Recurse "sil-more_beta 0.9/CoverArt" "$OutputFolder/CoverArt" -Force
-        $artCount = (Get-ChildItem -Recurse "$OutputFolder/CoverArt" | Measure-Object).Count
+    } elseif (Test-Path $legacyCoverArtPath) {
+        Copy-Item -Recurse $legacyCoverArtPath (Join-Path $outputFolderPath "CoverArt") -Force
+        $artCount = (Get-ChildItem -Recurse (Join-Path $outputFolderPath "CoverArt") | Measure-Object).Count
         Write-Host "  [OK] CoverArt ($artCount items)"
     } else {
         Write-Host "  [SKIP] CoverArt not found"
@@ -297,7 +319,7 @@ $manifestText += "- All $($requiredDlls.Count) DLL files must remain in the game
 $manifestText += "- No external dependencies beyond what's included`n"
 $manifestText += "`n"
 
-$manifestText | Set-Content "$OutputFolder/MANIFEST.txt"
+$manifestText | Set-Content (Join-Path $outputFolderPath "MANIFEST.txt")
 Write-Host "  [OK] MANIFEST.txt"
 
 # Step 7: Calculate and display results
@@ -306,9 +328,9 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "Portable release build complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Location: ./$OutputFolder" -ForegroundColor Cyan
+Write-Host "Location: $outputFolderPath" -ForegroundColor Cyan
 
-$folderSize = (Get-ChildItem -Recurse $OutputFolder | Measure-Object -Property Length -Sum).Sum / 1MB
+$folderSize = (Get-ChildItem -Recurse $outputFolderPath | Measure-Object -Property Length -Sum).Sum / 1MB
 $folderSizeGB = $folderSize / 1024
 if ($folderSize -gt 1024) {
     Write-Host "Size: $([math]::Round($folderSizeGB, 2)) GB"
@@ -328,7 +350,7 @@ if ($IncludeCoverArt) {
 
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Test: .\$OutputFolder\sil-more.exe"
+Write-Host "  1. Test: $(Join-Path $outputFolderPath 'sil-more.exe')"
 Write-Host "  2. Saves will be stored in: lib/save/"
-Write-Host "  3. Archive: .\create-distribution-archive.ps1 -ReleaseFolder $OutputFolder -Version $Version"
+Write-Host "  3. Archive: $(Resolve-ScriptRelativePath 'create-distribution-archive.ps1') -ReleaseFolder $outputFolderPath -Version $Version -Portable"
 Write-Host ""

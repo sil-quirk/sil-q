@@ -10546,20 +10546,17 @@ void close_game(void)
     /* Still alive */
     else
     {
-        /* Save the game */
+        /* Save the game without transient message-line text before scores. */
+        save_game_quietly = true;
         do_cmd_save_game();
-
-        Term_putstr(6, 0, -1, TERM_L_BLUE, "View high scores? (ESC to skip)");
-        char prompt_key = inkey();
         Term_erase(0, 0, 255);
-        if (prompt_key != ESCAPE)
-        {
-            high_score preview;
-            if (build_live_preview_score(&preview))
-                show_scores_interactive_highlight(true, &preview);
-            else
-                show_scores_interactive(true);
-        }
+        Term_fresh();
+
+        high_score preview;
+        if (build_live_preview_score(&preview))
+            show_scores_interactive_highlight(true, &preview);
+        else
+            show_scores_interactive(true);
 
         /* Update the live character entry in the scores file so that
            scores.raw acts as a database of current running characters.

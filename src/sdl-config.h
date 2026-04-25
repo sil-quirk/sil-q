@@ -101,8 +101,8 @@ struct sdl_config {
     // Gamepad/controller settings
     bool gamepad_enabled;                 // Enable gamepad input
     bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
-    bool steamdeck_mode;                  // Steam Deck UI mode setting
-    bool steamdeck_inv_equip_same_button_cycle; // In Steam Deck UI, pressing inventory/equipment again cycles to the other menu
+    bool steamdeck_mode;                  // Controller UI mode setting
+    bool steamdeck_inv_equip_same_button_cycle; // In controller UI, pressing inventory/equipment again cycles to the other menu
     bool gamepad_use_dpad;                // Use d-pad for movement
     bool gamepad_use_left_stick;          // Use left stick for movement
     int gamepad_deadzone;                 // Deadzone for analog sticks

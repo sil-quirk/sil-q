@@ -56,7 +56,7 @@ static void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr t
     if (indexed_menu_letters_enabled())
         strnfmt(buf, buflen, "%c) %s", (char)'a' + index, text ? text : "");
     else
-        strnfmt(buf, buflen, "   %s", text ? text : "");
+        strnfmt(buf, buflen, "%s", text ? text : "");
 }
 
 static void keyed_menu_entry_label(char* buf, size_t buflen, char key, cptr text)
@@ -67,7 +67,15 @@ static void keyed_menu_entry_label(char* buf, size_t buflen, char key, cptr text
     if (indexed_menu_letters_enabled())
         strnfmt(buf, buflen, "%c) %s", key, text ? text : "");
     else
-        strnfmt(buf, buflen, "   %s", text ? text : "");
+        strnfmt(buf, buflen, "%s", text ? text : "");
+}
+
+static int indexed_menu_prefix_col(int col)
+{
+    if (indexed_menu_letters_enabled())
+        return col;
+
+    return (col >= 2) ? (col - 2) : col;
 }
 
 static void indexed_menu_focus_prefix(char* buf, size_t buflen, int index)
@@ -1678,6 +1686,8 @@ void show_songs_with_highlight(int highlight)
     bool steamdeck = steamdeck_controls_active();
 
     int col = 26;
+    int label_col = steamdeck ? indexed_menu_prefix_col(col) : col;
+    int text_col = steamdeck ? col : col + 3;
 
     char tmp_val[80];
 
@@ -1718,9 +1728,9 @@ void show_songs_with_highlight(int highlight)
 
     /* Display the entry itself - highlight if selected */
     if (highlight == current_line)
-        c_put_str(TERM_L_BLUE, "Stop Singing", 1, col + 3);
+        c_put_str(TERM_L_BLUE, "Stop Singing", 1, text_col);
     else
-        c_put_str(TERM_SLATE, "Stop Singing", 1, col + 3);
+        c_put_str(TERM_SLATE, "Stop Singing", 1, text_col);
     current_line++;
 
     /* Output each entry */
@@ -1740,13 +1750,13 @@ void show_songs_with_highlight(int highlight)
             sprintf(tmp_val, "%c)", song_menu_letter(i));
 
         /* Clear the line with the (possibly indented) index */
-        put_str(tmp_val, j + 2, col);
+        put_str(tmp_val, j + 2, label_col);
 
         /* Display the entry itself - highlight if selected */
         if (highlight == current_line)
-            c_put_str(TERM_L_BLUE, out_desc[j], j + 2, col + 3);
+            c_put_str(TERM_L_BLUE, out_desc[j], j + 2, text_col);
         else
-            c_put_str(TERM_L_WHITE, out_desc[j], j + 2, col + 3);
+            c_put_str(TERM_L_WHITE, out_desc[j], j + 2, text_col);
         current_line++;
     }
 
@@ -1762,9 +1772,9 @@ void show_songs_with_highlight(int highlight)
 
         /* Display the entry itself - highlight if selected */
         if (highlight == current_line)
-            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
+            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, text_col);
         else
-            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
+            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, text_col);
 
         j++;
     }
@@ -3112,7 +3122,7 @@ int abilities_menu1(int* highlight)
 
     // Clear the whole screen body so compact-layout submenu rows do not
     // linger when returning from an ability list to the skills list.
-    wipe_screen_from(COL_SKILL);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SKILL));
 
     // title
     Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
@@ -3228,7 +3238,8 @@ int abilities_menu2(int skilltype, int* highlight)
     byte attr;
 
     // In compact layout the abilities list reuses the skills column.
-    wipe_screen_from(compact_layout ? COL_SKILL : COL_ABILITY);
+    wipe_screen_from(indexed_menu_prefix_col(
+        compact_layout ? COL_SKILL : COL_ABILITY));
 
     // abilities title with color
     Term_putstr(ability_col, 1, -1, TERM_L_BLUE, "Abilities");
@@ -11408,6 +11419,7 @@ void create_smithing_item(void)
 
 #define MAIN_MENU_MAX 16
 #define MAIN_MENU_LABEL_WIDTH 21
+#define MAIN_MENU_SHORTCUT_WIDTH 6
 
 typedef struct main_menu_about_line
 {
@@ -11469,6 +11481,56 @@ static int main_menu_keyboard_key(int choice)
     }
 }
 
+static size_t main_menu_append_fixed(char* buf, size_t buflen, size_t cur,
+    cptr text, int width)
+{
+    int len = text ? (int)strlen(text) : 0;
+
+    if (!buf || !buflen || cur >= buflen)
+        return cur;
+
+    if (text && text[0])
+    {
+        size_t written = strnfmt(buf + cur, buflen - cur, "%s", text);
+        cur += written;
+        if (cur >= buflen)
+            cur = buflen - 1;
+    }
+
+    while ((len < width) && (cur + 1 < buflen))
+    {
+        buf[cur++] = ' ';
+        len++;
+    }
+
+    buf[cur] = '\0';
+    return cur;
+}
+
+static void main_menu_append_right_aligned_shortcut(char* buf, size_t buflen,
+    size_t* cur, cptr text)
+{
+    int len = text ? (int)strlen(text) : 0;
+    int left_pad = 0;
+
+    if (!buf || !buflen || !cur || *cur >= buflen)
+        return;
+
+    if (len < MAIN_MENU_SHORTCUT_WIDTH)
+        left_pad = MAIN_MENU_SHORTCUT_WIDTH - len;
+
+    while ((left_pad > 0) && (*cur + 1 < buflen))
+    {
+        buf[(*cur)++] = ' ';
+        left_pad--;
+    }
+
+    if (text && text[0])
+        strnfcat(buf, buflen, cur, "%s", text);
+
+    buf[*cur] = '\0';
+}
+
 static bool main_menu_controller_binding_for_choice(int choice, int* type,
     int* id, const char** fallback)
 {
@@ -11490,7 +11552,11 @@ static bool main_menu_controller_binding_for_choice(int choice, int* type,
         out_id = SDL_GAMEPAD_BUTTON_NORTH;         /* Y */
         out_fallback = "Y";
         break;
-    case MAIN_MENU_SAVE:
+    case MAIN_MENU_OPTIONS:
+        out_id = SDL_GAMEPAD_BUTTON_BACK;          /* Back/View */
+        out_fallback = "Back";
+        break;
+    case MAIN_MENU_SAVE_QUIT:
         out_id = SDL_GAMEPAD_BUTTON_WEST;          /* X */
         out_fallback = "X";
         break;
@@ -11526,7 +11592,7 @@ static int main_menu_controller_choice_from_key(int key)
             ? get_sdl_gamepad_trigger_binding(id)
             : get_sdl_gamepad_button_binding(id);
 
-        if (key == binding)
+        if ((binding != GAMEPAD_BIND_NONE) && (key == binding))
             return choice;
     }
 
@@ -11558,23 +11624,30 @@ static void main_menu_controller_label(int choice, char* buf, size_t buflen)
 static void main_menu_format_line(int choice, char* buf, size_t buflen)
 {
     char label[24];
+    size_t cur;
 
     if (!buf || !buflen)
         return;
+
+    buf[0] = '\0';
+    cur = main_menu_append_fixed(buf, buflen, 0, main_menu_title(choice),
+        MAIN_MENU_LABEL_WIDTH);
 
     if (steamdeck_controls_active())
     {
         main_menu_controller_label(choice, label, sizeof(label));
         if (label[0])
-            strnfmt(buf, buflen, "%-*s [%s]", MAIN_MENU_LABEL_WIDTH,
-                main_menu_title(choice), label);
+        {
+            char shortcut[32];
+            strnfmt(shortcut, sizeof(shortcut), "[%s]", label);
+            main_menu_append_right_aligned_shortcut(buf, buflen, &cur, shortcut);
+        }
         else
-            strnfmt(buf, buflen, "%s", main_menu_title(choice));
+            main_menu_append_right_aligned_shortcut(buf, buflen, &cur, "");
     }
     else
     {
-        strnfmt(buf, buflen, "%-*s (%c)", MAIN_MENU_LABEL_WIDTH,
-            main_menu_title(choice), main_menu_keyboard_key(choice));
+        strnfcat(buf, buflen, &cur, "(%c)", main_menu_keyboard_key(choice));
     }
 }
 
@@ -11971,6 +12044,7 @@ int main_menu_aux(int* highlight)
     /* Place cursor at current choice */
     {
         int cursor_y = row_top + row_first + (*highlight - 1);
+
         if (Term)
         {
             if (cursor_y < 0)
@@ -19919,7 +19993,7 @@ void do_cmd_controller_settings(void)
     static const controller_entry entries[] = {
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_ENABLED, "Controller Input" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_AUTO_MODE, "Auto Controller Mode" },
-        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_MODE, "Steam Deck UI Mode" },
+        { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_MODE, "Controller UI Mode" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE, "Inv/Equip Same-Button Cycle" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_DPAD, "D-pad Movement" },
         { CONTROLLER_ENTRY_TOGGLE, CONTROLLER_TOGGLE_LEFT_STICK, "Left Stick Movement" },

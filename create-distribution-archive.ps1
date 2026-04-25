@@ -1,9 +1,11 @@
 # Create a distribution archive from an OGG-only release build folder
+# Supports standard and portable release layouts
 
 param(
     [string]$ReleaseFolder = "sil-more-release",
     [string]$Version = "",
-    [string]$ArchiveName = ""
+    [string]$ArchiveName = "",
+    [switch]$Portable
 )
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -53,14 +55,22 @@ if ($Version.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0) {
     exit 1
 }
 
+$releaseFolderPath = Get-FullPath $ReleaseFolder
+$releaseFolderName = Split-Path -Leaf $releaseFolderPath
+if (-not $Portable -and $releaseFolderName -match 'portable') {
+    $Portable = $true
+}
+
 $defaultArchiveBaseName = "sil-more-$Version"
+if ($Portable) {
+    $defaultArchiveBaseName += "-portable"
+}
 
 # Auto-generate archive name from version if not provided
 if (-not $ArchiveName) {
     $ArchiveName = "$defaultArchiveBaseName.zip"
 }
 
-$releaseFolderPath = Get-FullPath $ReleaseFolder
 $archivePath = Get-FullPath $ArchiveName
 
 if (-not [System.IO.Path]::GetExtension($archivePath)) {
@@ -98,7 +108,14 @@ if ($archiveDirectory -and -not (Test-Path -LiteralPath $archiveDirectory)) {
     New-Item -ItemType Directory -Path $archiveDirectory | Out-Null
 }
 
+if ($Portable) {
+    $archiveMode = "PORTABLE"
+} else {
+    $archiveMode = "STANDARD"
+}
+
 Write-Host "Source folder: $releaseFolderPath" -ForegroundColor Yellow
+Write-Host "Mode: $archiveMode" -ForegroundColor Yellow
 Write-Host "Version: $Version" -ForegroundColor Yellow
 Write-Host "Archive folder: $archiveRootName" -ForegroundColor Yellow
 Write-Host "Archive name: $archivePath" -ForegroundColor Yellow

@@ -1889,7 +1889,7 @@ extern int get_sdl_touch_swipe_binding(int dir);
 extern void set_sdl_touch_swipe_binding(int dir, int binding);
 extern bool get_sdl_touch_swipe_default_enabled(void);
 extern int get_sdl_touch_swipe_default_binding(int dir);
-/* Steam Deck UI menu helpers - get key bindings for menu actions */
+/* Controller UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */
 extern int steamdeck_info_key(void);      /* RS Right - for info/recall */

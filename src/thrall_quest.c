@@ -1548,6 +1548,12 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         key = inkey();
         hide_cursor = false;
 
+        if (steamdeck && key == steamdeck_back_key())
+        {
+            screen_load();
+            return THRALL_REWARD_LATER;
+        }
+
         switch (key)
         {
         case ESCAPE:

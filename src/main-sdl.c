@@ -4369,7 +4369,7 @@ static bool sdl_gamepad_capture_queue_input(int type, int id)
     return true;
 }
 
-/* Steam Deck UI menu helpers - return key bindings for menu actions */
+/* Controller UI menu helpers - return key bindings for menu actions */
 int steamdeck_back_key(void)
 {
     /* B button (EAST) - for back/quit in menus */
@@ -7104,7 +7104,7 @@ errr init_sdl(int argc, char **argv)
 #if defined(__ANDROID__) || defined(SIL_IOS)
     if (!config_exists) {
         config.steamdeck_mode = (g_gamepad_state.pad_count > 0);
-        log_info("Mobile first-start Steam Deck UI mode set to %s (%d gamepad%s detected)",
+        log_info("Mobile first-start controller UI mode set to %s (%d gamepad%s detected)",
             config.steamdeck_mode ? "on" : "off",
             g_gamepad_state.pad_count,
             (g_gamepad_state.pad_count == 1) ? "" : "s");

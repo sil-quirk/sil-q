@@ -265,7 +265,7 @@ static bool sanctity_choose_target_from_entries(
             char prefix[32];
             char desc[80];
             char label[4];
-            int desc_col = 20;
+            int desc_col = steamdeck ? 17 : 20;
             int max_desc = term_wid - desc_col - 1;
             bool highlighted = (top + i == current);
             byte label_attr = highlighted ? TERM_L_BLUE : TERM_WHITE;
@@ -300,8 +300,13 @@ static bool sanctity_choose_target_from_entries(
 
             Term_erase(0, row, 255);
             Term_putstr(0, row, 2, label_attr, highlighted ? "> " : "  ");
-            Term_putstr(2, row, -1, label_attr, label);
-            Term_putstr(5, row, -1, label_attr, prefix);
+            if (steamdeck)
+                Term_putstr(2, row, -1, label_attr, prefix);
+            else
+            {
+                Term_putstr(2, row, -1, label_attr, label);
+                Term_putstr(5, row, -1, label_attr, prefix);
+            }
             Term_putstr(desc_col, row, -1, desc_attr, desc);
         }
 
@@ -326,6 +331,12 @@ static bool sanctity_choose_target_from_entries(
         Term_fresh();
 
         key = inkey();
+
+        if (steamdeck && key == steamdeck_back_key())
+        {
+            screen_load();
+            return false;
+        }
 
         switch (key)
         {

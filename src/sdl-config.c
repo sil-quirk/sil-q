@@ -2285,7 +2285,7 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
 
     if (screen_width == 1280 && screen_height == 800) {
         config->steamdeck_mode = true;
-        log_info("Detected 1280x800 resolution - enabling Steam Deck UI mode by default");
+        log_info("Detected 1280x800 resolution - enabling controller UI mode by default");
     }
 }
 
