@@ -258,7 +258,7 @@ cptr option_text[OPT_MAX] = {
     "narrative_banner_turns", /* OPT_narrative_banner_turns */
     "min_depth_timer_mode", /* OPT_min_depth_timer_mode */
     "song_list_sort_by_recent", /* OPT_song_list_sort_by_recent */
-    NULL, /* reserved legacy slot */
+    "inventory_selection_square", /* OPT_inventory_selection_square */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -502,7 +502,7 @@ cptr option_desc[OPT_MAX] = {
     "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
     "Minimum depth pace (0=normal, 1=relaxed [+30000], 2=harsh [-30000])", /* OPT_min_depth_timer_mode */
     "Sort the song menu by the songs most recently used this session", /* OPT_song_list_sort_by_recent */
-    NULL, /* reserved legacy slot */
+    "Add a tile frame to selected inventory/equipment items", /* OPT_inventory_selection_square */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -766,7 +766,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_narrative_banner_turns (default via byte field) */
     false, /* OPT_min_depth_timer_mode (default 0 via byte field) */
     true, /* OPT_song_list_sort_by_recent */
-    false, /* reserved legacy slot */
+    true, /* OPT_inventory_selection_square */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -921,15 +921,15 @@ const bool option_norm[OPT_MAX] = {
 const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
-    { OPT_quick_messages, OPT_auto_more,
+    { OPT_quick_messages, OPT_auto_more, OPT_system_beep,
         OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
         OPT_song_list_sort_by_recent,
         OPT_hide_left_panel, OPT_hidden_left_panel_mode, OPT_top_status_line,
         OPT_hitpoint_warning,
         OPT_easy_main_menu, OPT_hjkl_movement, OPT_angband_keyset,
         OPT_space_acts_as_comma,
+        OPT_inventory_selection_square,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-        OPT_system_beep, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/

@@ -108,6 +108,9 @@ bool player_prepare_lantern_drop(int lanterns_being_dropped,
     int* oil_to_transfer, int* oil_to_lose);
 bool player_prepare_oil_container_drop(const struct object_type* o_ptr,
     int amount, int* oil_to_transfer, int* oil_to_lose);
+bool player_prepare_oil_container_drop_after_removal(
+    const struct object_type* o_ptr, int amount, int* oil_to_transfer,
+    int* oil_to_lose);
 int player_carried_torch_count(void);
 int player_carried_light_count_for_sval(int sval);
 int player_light_carry_group(const struct object_type* o_ptr);

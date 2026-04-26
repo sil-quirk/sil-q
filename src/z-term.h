@@ -184,6 +184,8 @@ struct term
     bool story_font_active;   /* Current queueing mode */
     bool story_font_grid;     /* Whether queued story text should snap to cell columns */
     bool story_chunk_active;  /* Mode for the chunk being flushed */
+    bool extra_cursor;        /* Draw a cursor-style frame without moving the cursor */
+    bool extra_cursor_big;
 
     byte attr_blank;
     char char_blank;
@@ -200,6 +202,8 @@ struct term
 
     byte y1;
     byte y2;
+    byte extra_cursor_x;
+    byte extra_cursor_y;
 
     byte* x1;
     byte* x2;
@@ -285,6 +289,7 @@ extern void Term_queue_chars(int x, int y, int n, byte a, cptr s);
 
 extern errr Term_fresh(void);
 extern errr Term_set_cursor(bool v);
+extern errr Term_set_extra_cursor(bool v, int x, int y, bool big);
 extern errr Term_gotoxy(int x, int y);
 extern errr Term_draw(int x, int y, byte a, char c);
 extern errr Term_addch(byte a, char c);

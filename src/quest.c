@@ -293,7 +293,7 @@ void metarun_restore_quest_states(void)
     
     /* Restore Varda quest state */
     if (metarun_quest_completion_count(METARUN_QUEST_VARDA) > 0) {
-        if (p_ptr->varda_quest < VARDA_QUEST_REWARDED) {
+        if (p_ptr->varda_quest != VARDA_QUEST_REWARDED) {
             p_ptr->varda_quest = VARDA_QUEST_REWARDED;
             log_trace("Metarun restore: Varda quest set to REWARDED (%d)", VARDA_QUEST_REWARDED);
         }

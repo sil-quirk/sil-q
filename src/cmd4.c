@@ -14067,11 +14067,12 @@ struct option_group_marker
 
 static const struct option_group_marker interface_option_groups[] = {
     { 0, "Messages" },
-    { 2, "Look" },
-    { 5, "Panels" },
-    { 8, "Warnings" },
-    { 9, "Input" },
-    { 13, "Debug" },
+    { 3, "Look" },
+    { 6, "Panels" },
+    { 9, "Warnings" },
+    { 10, "Input" },
+    { 14, "Items" },
+    { 15, "Debug" },
     { -1, NULL }
 };
 
@@ -14577,6 +14578,9 @@ static cptr option_menu_label(int opt)
     case OPT_song_list_sort_by_recent:
         return compact ? (narrow ? "Songs recent" : "Recent songs first")
                        : "Sort song menu by recent use";
+    case OPT_inventory_selection_square:
+        return compact ? (narrow ? "Item frame" : "Item select frame")
+                       : "Item selection frame";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";
@@ -28520,6 +28524,8 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         && (state->selected_entity < 0)
         && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
     {
+        (void)Term_set_extra_cursor(false, 0, 0, false);
+
         if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
             highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
                 false);
@@ -28534,7 +28540,12 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     last_row = unified_sidebar_compact_last_row();
     rows = last_row - first_row + 1;
     if (rows <= 0)
+    {
+        (void)Term_set_extra_cursor(false, 0, 0, false);
         return true;
+    }
+
+    (void)Term_set_extra_cursor(false, 0, 0, false);
 
     Term_erase(0, 0, 255);
 
@@ -28563,7 +28574,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         int row = first_row + i;
         bool highlight_this = has_sidebar_selection
             && (state->selected_entity == entry->entity_index);
-        byte text_attr = highlight_this ? TERM_L_BLUE : entry->text_attr;
+        byte text_attr = entry->text_attr;
         int text_len = (int)strlen(entry->text);
 
         if (Term && text_len > Term->wid - text_col)
@@ -28579,6 +28590,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
 
         if (highlight_this)
         {
+            (void)Term_set_extra_cursor(true, pictogram_col, row, use_bigtile);
             state->highlighted_y = entry->y;
             state->highlighted_x = entry->x;
             state->highlighted_entity_type = entry->entity_type;
@@ -28648,6 +28660,8 @@ void show_unified_sidebar(unified_look_state* state)
               sidebar_col, Term->wid, sidebar_col - 1, clear_width);
     log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d", 
               state->show_monsters ? 1 : 0, state->show_objects ? 1 : 0);
+
+    (void)Term_set_extra_cursor(false, 0, 0, false);
 
     if ((state->look_mode == 0) && !state->in_sidebar_mode
         && (state->selected_entity < 0)
@@ -28859,11 +28873,10 @@ void show_unified_sidebar(unified_look_state* state)
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
                 
-                /* Display name+health in highlighted color */
-                Term_putstr(name_col, line, name_hp_len, TERM_L_BLUE, display_name);
-                
-                /* Display morale in highlighted color (overrides morale_color when highlighted) */
-                Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE, morale_display);
+                /* Display selected row in its normal colors; the tile frame marks selection. */
+                Term_putstr(name_col, line, name_hp_len, TERM_WHITE, display_name);
+                Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
+                (void)Term_set_extra_cursor(true, pictogram_col, line, use_bigtile);
                 
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
@@ -29049,7 +29062,7 @@ void show_unified_sidebar(unified_look_state* state)
             bool highlight_this_object = (has_sidebar_selection
                 && (state->selected_entity == (object_start + object_count)));
 
-            byte name_attr = highlight_this_object ? TERM_L_BLUE : base_color;
+            byte name_attr = base_color;
 
             if (highlight_this_object)
             {
@@ -29064,6 +29077,7 @@ void show_unified_sidebar(unified_look_state* state)
                 }
                 
                 Term_putstr(name_col, line, final_name_len, name_attr, display_name);
+                (void)Term_set_extra_cursor(true, pictogram_col, line, use_bigtile);
 
                 state->highlighted_y = entry->y;
                 state->highlighted_x = entry->x;

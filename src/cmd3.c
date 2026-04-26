@@ -861,7 +861,7 @@ void do_cmd_equip(void)
     screen_save();
     log_debug("do_cmd_equip: Screen saved");
 
-    /* Hack -- show empty slots */
+    /* Show every equipment slot; the menu navigates only occupied rows. */
     item_tester_full = true;
 
     /* Force viewing mode */
@@ -870,7 +870,7 @@ void do_cmd_equip(void)
     /* Display the equipment with scrolling capability */
     show_equip_enhanced();
 
-    /* Hack -- undo the hack above */
+    /* Keep selector state clean after closing the menu. */
     item_tester_full = false;
 
     /* Load screen */
@@ -4138,6 +4138,7 @@ void do_cmd_unified_look(void)
             {
                 if (overlay_saved)
                 {
+                    (void)Term_set_extra_cursor(false, 0, 0, false);
                     screen_load();
                     overlay_saved = false;
                 }
@@ -4415,6 +4416,7 @@ void do_cmd_unified_look(void)
             && query != 'q'
             && !(portable_controls && (query == 'i' || query == 'e')))
         {
+            (void)Term_set_extra_cursor(false, 0, 0, false);
             screen_load();
             overlay_saved = false;
             
@@ -5535,6 +5537,8 @@ cycle_display_modes:
         state.highlighted_x = -1;
         state.highlighted_entity_type = 0;
     }
+
+    (void)Term_set_extra_cursor(false, 0, 0, false);
 
     if (overlay_saved)
     {

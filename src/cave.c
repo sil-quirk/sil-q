@@ -42,6 +42,47 @@ static bool hidden_left_panel_masked_span(int vy, int vx, int width)
     return (vx < mask_width) && (vx + width > 0);
 }
 
+/* SDL map underlays can change even when the terminal glyph is unchanged. */
+static void force_term_cell_redraw(int vx, int vy, int width)
+{
+    int x;
+    int x2;
+
+    if (!Term || !Term->old)
+        return;
+
+    if ((vy < 0) || (vy >= Term->hgt) || (vx >= Term->wid))
+        return;
+
+    if (vx < 0)
+        vx = 0;
+
+    if (width < 1)
+        width = 1;
+
+    x2 = vx + width - 1;
+    if (x2 >= Term->wid)
+        x2 = Term->wid - 1;
+
+    for (x = vx; x <= x2; x++)
+    {
+        Term->old->a[vy][x] = 255;
+        Term->old->c[vy][x] = 0;
+        Term->old->ta[vy][x] = 255;
+        Term->old->tc[vy][x] = 0;
+        Term->old->story[vy][x] = 255;
+    }
+
+    if (vy < Term->y1)
+        Term->y1 = vy;
+    if (vy > Term->y2)
+        Term->y2 = vy;
+    if (vx < Term->x1[vy])
+        Term->x1[vy] = vx;
+    if (x2 > Term->x2[vy])
+        Term->x2[vy] = x2;
+}
+
 /* Encoded color range that indicates an absolute style index per cell.
  * We now store the chosen style for each cell directly in cave_color as
  * COLOR_STYLE_BASE + style_index. This guarantees deterministic visuals
@@ -2611,6 +2652,9 @@ void lite_spot(int y, int x)
         else
             Term_queue_char(vx, vy, TERM_WHITE, ' ', TERM_WHITE, ' ');
     }
+
+    if (!graphics_are_ascii() && (cave_m_idx[y][x] < 0))
+        force_term_cell_redraw(vx - (use_bigtile ? 1 : 0), vy, cell_w);
 }
 
 /*
@@ -2663,6 +2707,9 @@ void prt_map(void)
                     Term_queue_char(vx + 1, vy, TERM_WHITE, ' ', TERM_WHITE,
                         ' ');
             }
+
+            if (!graphics_are_ascii() && (cave_m_idx[y][x] < 0))
+                force_term_cell_redraw(vx, vy, cell_w);
         }
     }
 }

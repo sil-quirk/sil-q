@@ -531,11 +531,11 @@ static char* read_file_contents(const char* filename)
 static bool g_app_intro_seen = false;
 
 static const byte app_interface_options[] = {
-    OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
+    OPT_quick_messages, OPT_auto_more, OPT_system_beep, OPT_easy_main_menu,
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
     OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-    OPT_top_status_line,
+    OPT_top_status_line, OPT_inventory_selection_square,
     OPT_NONE
 };
 

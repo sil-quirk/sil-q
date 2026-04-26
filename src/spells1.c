@@ -1230,6 +1230,8 @@ void teleport_player_level()
     {
         message(MSG_TPLEVEL, 0, "You rise up through the ceiling.");
 
+        varda_quest_fail_if_bastion_missed();
+
         // make a note if the player loses a greater vault
         note_lost_greater_vault();
 
@@ -1243,6 +1245,8 @@ void teleport_player_level()
     else
     {
         message(MSG_TPLEVEL, 0, "You sink through the floor.");
+
+        varda_quest_fail_if_bastion_missed();
 
         // make a note if the player loses a greater vault
         note_lost_greater_vault();

@@ -320,6 +320,11 @@ void do_cmd_go_up(void)
         }
     }
 
+    if (!varda_quest_confirm_leave_bastion())
+    {
+        return;
+    }
+
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
 
@@ -535,6 +540,8 @@ void do_cmd_go_up(void)
         }
     }
 
+    varda_quest_fail_if_bastion_missed();
+
     // make a note if the player loses a greater vault
     note_lost_greater_vault();
 
@@ -665,6 +672,11 @@ void do_cmd_go_down(void)
         }
     }
 
+    if (!varda_quest_confirm_leave_bastion())
+    {
+        return;
+    }
+
     // Do not descend from the Gates
     if (p_ptr->depth == 0)
     {
@@ -742,6 +754,8 @@ void do_cmd_go_down(void)
         message(MSG_STAIRS, 0, "You emerge much deeper in the dungeon.");
         new = min;
     }
+
+    varda_quest_fail_if_bastion_missed();
 
     // make a note if the player loses a greater vault
     note_lost_greater_vault();

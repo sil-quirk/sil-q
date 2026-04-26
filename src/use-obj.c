@@ -1306,6 +1306,8 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
 
                     message_flush();
 
+                    varda_quest_fail_if_bastion_missed();
+
                     // make a note if the player loses a greater vault
                     note_lost_greater_vault();
 

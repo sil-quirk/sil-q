@@ -1808,7 +1808,7 @@ static errr rd_extra(void)
         p_ptr->quest_reserved[qi] = 0;
     }
 
-    /* If Varda quest was active/successful in the save, ensure reservation persists after load */
+    /* If Varda has claimed this run's quest slot, ensure reservation persists after load. */
     if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
         p_ptr->quest_reserved[0] = 1;
     }

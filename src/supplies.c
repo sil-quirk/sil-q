@@ -306,6 +306,14 @@ int player_lamp_oil_capacity_with_bonus(int lantern_bonus)
     return player_lamp_oil_capacity_from_slots(slots);
 }
 
+static int player_lamp_oil_raw(void)
+{
+    if (!p_ptr || p_ptr->lamp_oil <= 0)
+        return 0;
+
+    return p_ptr->lamp_oil;
+}
+
 int player_lamp_oil(void)
 {
     int capacity;
@@ -360,7 +368,7 @@ bool player_lamp_oil_would_overflow_with_bonus(int addition, int lantern_bonus)
     if (addition <= 0)
         return false;
 
-    return player_lamp_oil() + addition
+    return player_lamp_oil_raw() + addition
         > player_lamp_oil_capacity_with_bonus(lantern_bonus);
 }
 
@@ -390,7 +398,7 @@ bool player_gain_lamp_oil_with_bonus(int addition, bool allow_overflow,
         return true;
     }
 
-    oil = player_lamp_oil();
+    oil = player_lamp_oil_raw();
     capacity = player_lamp_oil_capacity_with_bonus(lantern_bonus);
 
     if (oil + addition > capacity)
@@ -407,37 +415,56 @@ bool player_gain_lamp_oil_with_bonus(int addition, bool allow_overflow,
     return true;
 }
 
-static bool player_prepare_oil_drop_by_capacity(int amount, int unit_capacity,
-    int* oil_to_transfer, int* oil_to_lose)
+static bool player_prepare_oil_drop_by_slots(int amount, int slot_cost,
+    bool already_removed, int* oil_to_transfer, int* oil_to_lose)
 {
     int pooled_oil;
+    int removed_slots;
+    int remaining_slots;
+    int remaining_capacity;
+    int drop_capacity;
+    int keep_oil;
     int transfer;
-    int remaining;
+    int lost;
 
     if (oil_to_transfer)
         *oil_to_transfer = 0;
     if (oil_to_lose)
         *oil_to_lose = 0;
 
-    if (amount <= 0 || unit_capacity <= 0)
+    if (amount <= 0 || slot_cost <= 0)
         return true;
 
-    pooled_oil = (p_ptr && p_ptr->lamp_oil > 0) ? p_ptr->lamp_oil : 0;
+    pooled_oil = player_lamp_oil_raw();
     if (pooled_oil <= 0)
         return true;
 
-    transfer = MIN(pooled_oil, amount * unit_capacity);
-    remaining = pooled_oil - transfer;
-    if (remaining < 0)
-        remaining = 0;
+    removed_slots = amount * slot_cost;
+    remaining_slots = player_carried_oil_container_slots();
+    if (!already_removed)
+        remaining_slots -= removed_slots;
+    if (remaining_slots < 0)
+        remaining_slots = 0;
+
+    remaining_capacity = player_lamp_oil_capacity_from_slots(remaining_slots);
+    drop_capacity = removed_slots * FUEL_FLASK;
+    keep_oil = MIN(pooled_oil, remaining_capacity);
+    transfer = pooled_oil - keep_oil;
+    lost = 0;
+
+    if (transfer > drop_capacity)
+    {
+        lost = transfer - drop_capacity;
+        transfer = drop_capacity;
+    }
 
     if (p_ptr)
-        p_ptr->lamp_oil = remaining;
+        p_ptr->lamp_oil = keep_oil;
 
     if (oil_to_transfer)
         *oil_to_transfer = transfer;
     if (oil_to_lose)
-        *oil_to_lose = 0;
+        *oil_to_lose = lost;
 
     return true;
 }
@@ -481,15 +508,24 @@ int player_refill_lamp_oil_from_container(object_type* o_ptr)
 bool player_prepare_lantern_drop(int lanterns_being_dropped,
     int* oil_to_transfer, int* oil_to_lose)
 {
-    return player_prepare_oil_drop_by_capacity(lanterns_being_dropped,
-        FUEL_LAMP, oil_to_transfer, oil_to_lose);
+    return player_prepare_oil_drop_by_slots(lanterns_being_dropped,
+        PLAYER_BRASS_LAMP_SLOT_COST, false, oil_to_transfer, oil_to_lose);
 }
 
 bool player_prepare_oil_container_drop(const object_type* o_ptr, int amount,
     int* oil_to_transfer, int* oil_to_lose)
 {
-    return player_prepare_oil_drop_by_capacity(amount,
-        player_oil_container_unit_capacity(o_ptr), oil_to_transfer,
+    return player_prepare_oil_drop_by_slots(amount,
+        player_oil_container_slot_cost(o_ptr), false, oil_to_transfer,
+        oil_to_lose);
+}
+
+bool player_prepare_oil_container_drop_after_removal(
+    const object_type* o_ptr, int amount, int* oil_to_transfer,
+    int* oil_to_lose)
+{
+    return player_prepare_oil_drop_by_slots(amount,
+        player_oil_container_slot_cost(o_ptr), true, oil_to_transfer,
         oil_to_lose);
 }
 

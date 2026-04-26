@@ -808,7 +808,8 @@ static u16b score_runs_completed_quests(void)
         count++;
     if (p_ptr->orome_quest >= OROME_QUEST_SUCCESS)
         count++;
-    if (p_ptr->varda_quest >= VARDA_QUEST_SUCCESS)
+    if (p_ptr->varda_quest == VARDA_QUEST_SUCCESS
+        || p_ptr->varda_quest == VARDA_QUEST_REWARDED)
         count++;
     return count;
 }

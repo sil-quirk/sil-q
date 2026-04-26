@@ -1415,6 +1415,17 @@ errr Term_fresh(void)
         Term->y2 = 0;
     }
 
+    /* Cursor-style overlay for selections that should not move the cursor */
+    if (Term->extra_cursor)
+    {
+        if (Term->extra_cursor_big && Term->bigcurs_hook)
+            (void)((*Term->bigcurs_hook)(Term->extra_cursor_x,
+                Term->extra_cursor_y));
+        else if (Term->curs_hook)
+            (void)((*Term->curs_hook)(Term->extra_cursor_x,
+                Term->extra_cursor_y));
+    }
+
     /* Cursor update -- Show new Cursor */
     if (Term->soft_cursor)
     {
@@ -1483,6 +1494,42 @@ errr Term_fresh(void)
 
 /*** Output routines ***/
 
+static void Term_invalidate_extra_cursor(void)
+{
+    int width;
+
+    if (!Term || !Term->extra_cursor)
+        return;
+    if (Term->extra_cursor_x >= Term->wid || Term->extra_cursor_y >= Term->hgt)
+        return;
+
+    width = Term->extra_cursor_big ? 2 : 1;
+    if (Term->extra_cursor_x + width > Term->wid)
+        width = Term->wid - Term->extra_cursor_x;
+
+    for (int i = 0; i < width; i++)
+    {
+        int x = Term->extra_cursor_x + i;
+        int y = Term->extra_cursor_y;
+
+        Term->old->a[y][x] = 255;
+        Term->old->c[y][x] = 0;
+        Term->old->ta[y][x] = 255;
+        Term->old->tc[y][x] = 0;
+        Term->old->story[y][x] = 255;
+
+        if (x < Term->x1[y])
+            Term->x1[y] = x;
+        if (x > Term->x2[y])
+            Term->x2[y] = x;
+    }
+
+    if (Term->extra_cursor_y < Term->y1)
+        Term->y1 = Term->extra_cursor_y;
+    if (Term->extra_cursor_y > Term->y2)
+        Term->y2 = Term->extra_cursor_y;
+}
+
 /*
  * Set the cursor visibility
  */
@@ -1494,6 +1541,37 @@ errr Term_set_cursor(bool v)
 
     /* Change */
     Term->scr->cv = v;
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Draw a cursor-style frame without changing the real cursor position.
+ *
+ * This is a render-only selection marker.  Moving or disabling it invalidates
+ * the old cell span so the next refresh restores the underlying grid.
+ */
+errr Term_set_extra_cursor(bool v, int x, int y, bool big)
+{
+    Term_invalidate_extra_cursor();
+
+    Term->extra_cursor = false;
+    Term->extra_cursor_big = false;
+    Term->extra_cursor_x = 0;
+    Term->extra_cursor_y = 0;
+
+    /* Validate visible locations */
+    if (v)
+    {
+        if ((x < 0) || (x >= Term->wid)) return (-1);
+        if ((y < 0) || (y >= Term->hgt)) return (-1);
+    }
+
+    Term->extra_cursor = v;
+    Term->extra_cursor_big = v ? big : false;
+    Term->extra_cursor_x = v ? (byte)x : 0;
+    Term->extra_cursor_y = v ? (byte)y : 0;
 
     /* Success */
     return (0);

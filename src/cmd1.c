@@ -5021,6 +5021,8 @@ void hit_trap(int y, int x)
             // take some damage
             falling_damage(false);
 
+            varda_quest_fail_if_bastion_missed();
+
             // make a note if the player loses a greater vault
             note_lost_greater_vault();
 
@@ -5049,6 +5051,8 @@ void hit_trap(int y, int x)
 
         // take some damage
         falling_damage(false);
+
+        varda_quest_fail_if_bastion_missed();
 
         // make a note if the player loses a greater vault
         note_lost_greater_vault();

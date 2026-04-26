@@ -1982,9 +1982,9 @@ static void run_quest_lottery(void) {
         return;
     }
     
-    /* If Varda quest is active/successful, suppress other roulette quests entirely */
+    /* Once Varda has claimed this run's quest slot, suppress other roulette quests. */
     if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
-        log_trace("Quest lottery: SKIPPED - Varda quest in progress (state=%d)", p_ptr->varda_quest);
+        log_trace("Quest lottery: SKIPPED - Varda quest state consumes the slot (state=%d)", p_ptr->varda_quest);
         quest_lottery_winner = 0;
         quest_lottery_resolved = true;
         return;
@@ -17902,10 +17902,10 @@ static bool cave_gen(void)
     log_trace("cave_gen: Starting level generation (quest_vault_used=%s, lottery_winner=%d)", 
               p_ptr->quest_vault_used ? "true" : "false", quest_lottery_winner);
     
-    /* Varda quest reserves the run to avoid other quest content until complete */
+    /* Varda quest states reserve the run to avoid other quest content. */
     if (!is_morgoth_level && p_ptr->varda_quest >= VARDA_QUEST_ACTIVE && !p_ptr->quest_reserved[0]) {
         p_ptr->quest_reserved[0] = 1;
-        log_trace("Varda quest: === QUEST SLOT RESERVED === Active Varda quest reserves slot (state=%d)", p_ptr->varda_quest);
+        log_trace("Varda quest: === QUEST SLOT RESERVED === Varda state reserves slot (state=%d)", p_ptr->varda_quest);
     }
     
     log_trace("cave_gen: Quest status at level start - quest_reserved[0]=%d, varda_quest=%d, lottery_winner=%d",

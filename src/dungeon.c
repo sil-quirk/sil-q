@@ -4151,6 +4151,8 @@ static void dungeon(void)
         }
     }
 
+    varda_quest_notice_bastion_level_entry();
+
     was_in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH) && (cave_info[p_ptr->py][p_ptr->px] & CAVE_G_VAULT);
     if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered
         && (was_in_morgoth_vault || (silmarils_possessed() > 0)))

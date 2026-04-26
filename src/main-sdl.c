@@ -6062,6 +6062,32 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                                 SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
                             }
                         }
+
+                        /* Keep the floor item visible beneath the player tile. */
+                        if (m_idx < 0) {
+                            byte feat = cave_feat[dy][dx];
+
+                            if ((feat == FEAT_FLOOR) || (feat == FEAT_SUNLIGHT)) {
+                                object_type* o_ptr;
+
+                                for (o_ptr = get_first_object(dy, dx); o_ptr;
+                                     o_ptr = get_next_object(o_ptr)) {
+                                    if (o_ptr->marked) {
+                                        byte obj_a = object_attr(o_ptr);
+                                        byte obj_c = (byte)object_char(o_ptr);
+
+                                        if ((obj_a & TILE_FLAG) && (obj_c & TILE_FLAG)) {
+                                            src.x = (obj_c & 0x3F) * TILE_SIZE;
+                                            src.y = (obj_a & 0x3F) * TILE_SIZE;
+                                            SDL_RenderTexture(g_state.renderer,
+                                                g_state.tileset, &src, &dst);
+                                        }
+
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

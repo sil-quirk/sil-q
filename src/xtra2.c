@@ -7832,6 +7832,7 @@ void do_cmd_quest_status(void)
         any_quests = true;
         cptr varda_status;
         byte color;
+        bool on_bastion_level = varda_quest_bastion_level_active();
 
         cptr quest_title = get_quest_title(QUEST_ID_VARDA);
         cptr quest_challenge = get_quest_challenge(QUEST_ID_VARDA);
@@ -7850,10 +7851,22 @@ void do_cmd_quest_status(void)
                 quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, buf);
                 break;
             case VARDA_QUEST_ACTIVE:
-                varda_status = "Active - Seek Duruin's bastion";
-                color = TERM_WHITE;
+                if (on_bastion_level) {
+                    varda_status = "Active - Duruin's Bastion is on this level";
+                    color = TERM_ORANGE;
+                } else {
+                    varda_status = "Active - Seek Duruin's Bastion";
+                    color = TERM_WHITE;
+                }
                 quest_status_put_line(col + 2, hgt, &row, color, varda_status);
                 quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, quest_challenge);
+                if (on_bastion_level) {
+                    quest_status_put_wrapped(col, wid, hgt, &row, TERM_ORANGE,
+                        "This is the first level you have reached after 500 ft. Slay Duruin before leaving, or Varda's quest is lost.");
+                } else {
+                    quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE,
+                        "Duruin's Bastion will appear on the first level you reach after 500 ft.");
+                }
                 strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_VARDA));
                 quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, buf);
                 break;
@@ -7870,6 +7883,13 @@ void do_cmd_quest_status(void)
                 quest_status_put_line(col + 2, hgt, &row, color, varda_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_VARDA));
                 quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, buf);
+                break;
+            case VARDA_QUEST_FAILED:
+                varda_status = "Failed - Duruin's Bastion was left behind";
+                color = TERM_RED;
+                quest_status_put_line(col + 2, hgt, &row, color, varda_status);
+                quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE,
+                    "Varda's trial was on the first level you reached after 500 ft; leaving it without slaying Duruin ended the quest.");
                 break;
             default:
                 varda_status = "Unknown status";
@@ -9013,6 +9033,62 @@ static void try_place_varda_near_player(void)
     log_trace("Varda reward: failed to place quest giver near player (no valid space), will retry on new depth");
 }
 
+static bool varda_quest_duruin_present(void)
+{
+    for (int i = 1; i < mon_max; i++) {
+        monster_type* m_ptr = &mon_list[i];
+        if (m_ptr->r_idx == R_IDX_DURUIN) return true;
+    }
+
+    return false;
+}
+
+bool varda_quest_bastion_level_active(void)
+{
+    if (!p_ptr) return false;
+    if (p_ptr->varda_quest != VARDA_QUEST_ACTIVE) return false;
+    if (!p_ptr->varda_vault_placed) return false;
+    if (p_ptr->varda_level != p_ptr->depth) return false;
+
+    return varda_quest_duruin_present();
+}
+
+void varda_quest_notice_bastion_level_entry(void)
+{
+    if (!varda_quest_bastion_level_active()) return;
+
+    msg_print("Varda's quest presses upon you.");
+    msg_print("This is the first level you have reached after 500 ft.");
+    msg_print("Duruin, least of the Balrogs, waits here.");
+    msg_print("His Bastion is on this level.");
+    msg_print("Leave without slaying him and the quest is lost.");
+}
+
+bool varda_quest_confirm_leave_bastion(void)
+{
+    if (!varda_quest_bastion_level_active()) return true;
+
+    msg_print("Duruin's Bastion lies on this level.");
+    msg_print("It is the first level you reached after 500 ft.");
+    msg_print("Leaving now will fail Varda's quest.");
+
+    return get_check("Leave Duruin's Bastion and fail Varda's quest? ");
+}
+
+void varda_quest_fail_if_bastion_missed(void)
+{
+    if (!varda_quest_bastion_level_active()) return;
+
+    p_ptr->varda_quest = VARDA_QUEST_FAILED;
+    p_ptr->varda_vault_ready = 0;
+    p_ptr->quest_reserved[0] = 1;
+
+    msg_print("You have left Duruin's Bastion behind.");
+    msg_print("Varda's quest is lost.");
+    do_cmd_note("Failed Varda's quest by leaving Duruin's Bastion behind.", p_ptr->depth);
+    log_trace("Varda quest: FAILED - player left Duruin's Bastion at depth %d", p_ptr->depth);
+}
+
 void check_varda_quest_completion(int r_idx)
 {
     if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE && r_idx == R_IDX_DURUIN) {
@@ -9060,7 +9136,10 @@ void varda_quest_interaction(void)
     }
 
     if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
-        msg_print("Varda's whisper: \"Find Duruin's bastion at the turning of the deeps, where your journey nears its halfway point.\"");
+        msg_print("Varda's whisper:");
+        msg_print("\"Find Duruin's Bastion on the first level");
+        msg_print("you reach after 500 ft.\"");
+        msg_print("\"Leave it behind and the quest is lost.\"");
         return;
     }
 
