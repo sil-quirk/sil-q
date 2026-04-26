@@ -3922,6 +3922,9 @@ static bool unified_look_use_compact_layout(void)
 
 static int unified_look_status_row(void)
 {
+    if (unified_look_use_compact_layout() && Term && Term->hgt > 0)
+        return Term->hgt - 1;
+
     return 0;
 }
 
@@ -4019,6 +4022,10 @@ void do_cmd_unified_look(void)
     bool need_redraw = true;
     bool overlay_saved = false;
     bool selection_redraw = false;
+    bool compact_look_layout = false;
+    bool original_hide_left_panel = g_hide_left_panel;
+    bool original_suppress_hidden_left_panel_overlay
+        = g_suppress_hidden_left_panel_overlay;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -4035,12 +4042,23 @@ void do_cmd_unified_look(void)
         log_debug("do_cmd_unified_look: Enabling story font");
         sdl_story_font_enable();
     }
+
+    compact_look_layout = unified_look_use_compact_layout();
     
     log_trace("=== UNIFIED LOOK STARTED ===");
     
     /* Store original viewport */
     original_wy = p_ptr->wy;
     original_wx = p_ptr->wx;
+
+    if (compact_look_layout)
+    {
+        g_hide_left_panel = true;
+        g_suppress_hidden_left_panel_overlay = true;
+        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+        handle_stuff();
+    }
     
     log_trace("Original viewport: (%d,%d)", original_wy, original_wx);
     
@@ -4279,6 +4297,9 @@ void do_cmd_unified_look(void)
                             char pan_label[16];
                             char back_label[16];
                             char prompt_buf[160];
+                            char compact_buf[96];
+                            char tiny_buf[64];
+                            const char* obj_action = compact_look_layout ? "View" : "Obj";
 
                             unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
                             unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
@@ -4289,11 +4310,16 @@ void do_cmd_unified_look(void)
                             unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
 
                             strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Pan [%s]=Back",
-                                next_label, prev_label, exam_label, target_label, obj_label, pan_label, back_label);
-                            unified_look_print_prompt3(prompt_buf,
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan",
-                                "Y Pan R1/L1 A B X");
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Pan [%s]=Back",
+                                next_label, prev_label, exam_label, target_label,
+                                obj_label, obj_action, pan_label, back_label);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] %s [Y] Pan",
+                                obj_action);
+                            strnfmt(tiny_buf, sizeof(tiny_buf),
+                                "Y Pan X %s R1/L1 A B", obj_action);
+                            unified_look_print_prompt3(prompt_buf, compact_buf,
+                                tiny_buf);
                         } else {
                             char prompt_buf[192];
                             char compact_buf[160];
@@ -4324,6 +4350,9 @@ void do_cmd_unified_look(void)
                             char cursor_label[16];
                             char back_label[16];
                             char prompt_buf[160];
+                            char compact_buf[96];
+                            char tiny_buf[64];
+                            const char* obj_action = compact_look_layout ? "View" : "Obj";
 
                             unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
                             unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
@@ -4334,11 +4363,16 @@ void do_cmd_unified_look(void)
                             unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
 
                             strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Curs [%s]=Back",
-                                next_label, prev_label, exam_label, target_label, obj_label, cursor_label, back_label);
-                            unified_look_print_prompt3(prompt_buf,
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs",
-                                "Y Curs R1/L1 A B X");
+                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Curs [%s]=Back",
+                                next_label, prev_label, exam_label, target_label,
+                                obj_label, obj_action, cursor_label, back_label);
+                            strnfmt(compact_buf, sizeof(compact_buf),
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] %s [Y] Curs",
+                                obj_action);
+                            strnfmt(tiny_buf, sizeof(tiny_buf),
+                                "Y Curs X %s R1/L1 A B", obj_action);
+                            unified_look_print_prompt3(prompt_buf, compact_buf,
+                                tiny_buf);
                         } else {
                             char prompt_buf[192];
                             char compact_buf[160];
@@ -4957,7 +4991,7 @@ command_key:
                 }
                 
                 need_redraw = true;
-                selection_redraw = !unified_look_use_compact_layout();
+                selection_redraw = !compact_look_layout;
                 break;
             }
             
@@ -4996,7 +5030,7 @@ command_key:
                 }
                 
                 need_redraw = true;
-                selection_redraw = !unified_look_use_compact_layout();
+                selection_redraw = !compact_look_layout;
                 break;
             }
             
@@ -5258,6 +5292,8 @@ command_key:
             case 'u':
                 if (!portable_controls)
                     goto command_key;
+                if (compact_look_layout)
+                    goto cycle_display_modes;
                 /* fallthrough */
             case 'o':
             {
@@ -5361,10 +5397,33 @@ command_key:
             }
             
             case 'l':
+cycle_display_modes:
             {
                 log_trace("'l' key pressed - cycling through display modes");
-                /* Cycle display modes: monsters+objects -> objects -> nothing -> monsters+objects */
-                if (state.show_monsters && state.show_objects)
+
+                if (compact_look_layout)
+                {
+                    /* Compact cycle: both -> objects -> monsters -> both. */
+                    if (state.show_monsters && state.show_objects)
+                    {
+                        state.show_monsters = false;
+                        state.show_objects = true;
+                        log_trace("Mode changed to: objects only");
+                    }
+                    else if (!state.show_monsters && state.show_objects)
+                    {
+                        state.show_monsters = true;
+                        state.show_objects = false;
+                        log_trace("Mode changed to: monsters only");
+                    }
+                    else
+                    {
+                        state.show_monsters = true;
+                        state.show_objects = true;
+                        log_trace("Mode changed to: both monsters and objects");
+                    }
+                }
+                else if (state.show_monsters && state.show_objects)
                 {
                     /* From both to objects only */
                     state.show_monsters = false;
@@ -5495,13 +5554,29 @@ command_key:
         sdl_story_font_disable();
     }
     
+    if (compact_look_layout)
+    {
+        g_hide_left_panel = original_hide_left_panel;
+        g_suppress_hidden_left_panel_overlay
+            = original_suppress_hidden_left_panel_overlay;
+        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+    }
+
     /* Restore original viewport */
-    if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)
+    bool viewport_changed = (p_ptr->wy != original_wy)
+        || (p_ptr->wx != original_wx);
+
+    if (viewport_changed)
     {
         p_ptr->wy = original_wy;
         p_ptr->wx = original_wx;
         p_ptr->redraw |= (PR_MAP);
         p_ptr->window |= (PW_OVERHEAD);
+    }
+
+    if (compact_look_layout || viewport_changed)
+    {
         handle_stuff();
     }
 }

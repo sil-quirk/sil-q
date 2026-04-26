@@ -28272,9 +28272,9 @@ static bool unified_sidebar_use_compact_layout(void)
 static int unified_sidebar_compact_last_row(void)
 {
     if (!Term || Term->hgt <= 1)
-        return 0;
+        return -1;
 
-    return Term->hgt - 1;
+    return Term->hgt - 2;
 }
 
 static void unified_sidebar_fit_text(char* buf, size_t buflen, cptr text,
@@ -28530,11 +28530,13 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         return true;
     }
 
-    first_row = 1;
+    first_row = 0;
     last_row = unified_sidebar_compact_last_row();
     rows = last_row - first_row + 1;
     if (rows <= 0)
         return true;
+
+    Term_erase(0, 0, 255);
 
     max_entries = MAX(1, mon_max + o_max);
     entries = mem_alloc_array(max_entries, unified_sidebar_compact_entry);

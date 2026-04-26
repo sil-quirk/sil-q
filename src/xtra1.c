@@ -80,6 +80,7 @@ typedef struct hidden_overlay_line {
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+bool g_suppress_hidden_left_panel_overlay = false;
 static byte g_hidden_left_panel_topline_rendered_width = 0;
 
 static void prt_status_line_compact(void);
@@ -991,12 +992,14 @@ static void prt_char_health_graphic(void)
 static bool hidden_left_panel_uses_top_left_layout(void)
 {
     return ui_hide_left_panel()
+        && !g_suppress_hidden_left_panel_overlay
         && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOP_LEFT);
 }
 
 static bool hidden_left_panel_uses_topline_layout(void)
 {
     return ui_hide_left_panel()
+        && !g_suppress_hidden_left_panel_overlay
         && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE);
 }
 
