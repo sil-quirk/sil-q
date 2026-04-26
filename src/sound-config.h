@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#define SOUND_CONFIG_EVENT_MAX 66
+#define SOUND_CONFIG_EVENT_MAX 72
 
 // Sound configuration structure
 struct sound_config {
@@ -11,11 +11,15 @@ struct sound_config {
     bool enable_inventory;     // Enable inventory sounds
     bool enable_walk;          // Enable walk sounds
     bool enable_doors;         // Enable door sounds
+    bool enable_monster_hits;  // Enable monster hit sounds
+    bool enable_traps;         // Enable trap sounds
     float volume_master;       // Master volume (0.0-1.0, default: 1.0)
     float volume_combat;       // Combat sounds volume (0.0-1.0, default: 1.0)
     float volume_inventory;    // Inventory sounds volume (0.0-1.0, default: 1.0)
     float volume_walk;         // Walk sounds volume (0.0-1.0, default: 1.0)
     float volume_doors;        // Door sounds volume (0.0-1.0, default: 1.0)
+    float volume_monster_hits; // Monster hit sounds volume (0.0-1.0, default: 1.0)
+    float volume_traps;        // Trap sounds volume (0.0-1.0, default: 1.0)
     float volume_other;        // Other sounds volume (0.0-1.0, default: 1.0)
     bool music_main_enabled;
     bool music_ambient_enabled;

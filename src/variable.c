@@ -347,6 +347,12 @@ const cptr angband_sound_name[MSG_MAX] = {
     "monster_attack",
     "monster_attack_ranged",
     "monster_attack_breath",
+    "bashdoor_fail",
+    "trap_gas",
+    "trap_needle",
+    "trap_fire",
+    "chest_open",
+    "torch_light",
 };
 
 /*

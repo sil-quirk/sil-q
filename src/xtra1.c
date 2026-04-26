@@ -1082,7 +1082,7 @@ static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
 
         if (light_fuel == 0)
             attr = TERM_RED;
-        else if (light_fuel <= 100)
+        else if (light_fuel <= player_light_sputter_threshold(o_ptr))
             attr = TERM_ORANGE;
     }
 

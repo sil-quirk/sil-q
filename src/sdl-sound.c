@@ -45,10 +45,14 @@ static struct {
     bool enable_inventory;
     bool enable_walk;
     bool enable_doors;
+    bool enable_monster_hits;
+    bool enable_traps;
     float volume_combat;
     float volume_inventory;
     float volume_walk;
     float volume_doors;
+    float volume_monster_hits;
+    float volume_traps;
     float volume_other;
     MIX_Track* sfx_tracks[SDL_SOUND_MAX_ACTIVE_TRACKS];
     int next_sfx_track;
@@ -134,21 +138,67 @@ static SDL_EnumerationResult SDLCALL sdl_sound_scan_enum_cb(void* userdata,
     return SDL_ENUM_CONTINUE;
 }
 
-static bool is_sound_enabled(int sound_idx)
+static bool sound_is_monster_hit(int sound_idx)
+{
+    return sound_idx == MSG_MONSTER_ATTACK ||
+        sound_idx == MSG_MONSTER_ATTACK_RANGED ||
+        sound_idx == MSG_MONSTER_ATTACK_BREATH;
+}
+
+static bool sound_is_combat(int sound_idx)
 {
     if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
         (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
         sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS ||
-        sound_idx == MSG_KILL || sound_idx == MSG_MONSTER_ATTACK ||
-        sound_idx == MSG_MONSTER_ATTACK_RANGED ||
-        sound_idx == MSG_MONSTER_ATTACK_BREATH) {
+        sound_idx == MSG_KILL) {
+        return true;
+    }
+
+    return false;
+}
+
+static bool sound_is_inventory(int sound_idx)
+{
+    if (sound_idx == MSG_DROP || sound_idx == MSG_QUAFF || sound_idx == MSG_ZAP ||
+        sound_idx == MSG_EAT || sound_idx == MSG_PICK || sound_idx == MSG_ARMOR ||
+        sound_idx == MSG_TORCH_LIGHT ||
+        (sound_idx >= MSG_EQUIP_SWORD && sound_idx <= MSG_UNEQUIP_JEWELRY) ||
+        (sound_idx >= MSG_DROP_GLASS && sound_idx <= MSG_ACTIVATE)) {
+        return true;
+    }
+
+    return false;
+}
+
+static bool sound_is_trap(int sound_idx)
+{
+    return sound_idx == MSG_TRAP_GAS || sound_idx == MSG_TRAP_NEEDLE ||
+        sound_idx == MSG_TRAP_FIRE;
+}
+
+static bool sound_is_door(int sound_idx)
+{
+    if (sound_idx == MSG_OPENDOOR || sound_idx == MSG_SHUTDOOR ||
+        sound_idx == MSG_BASHDOOR || sound_idx == MSG_BASHDOOR_FAIL ||
+        sound_idx == MSG_HITWALL || sound_idx == MSG_CHEST_OPEN ||
+        sound_idx == MSG_NOTHING_TO_OPEN || sound_idx == MSG_LOCKPICK_FAIL) {
+        return true;
+    }
+
+    return false;
+}
+
+static bool is_sound_enabled(int sound_idx)
+{
+    if (sound_is_combat(sound_idx)) {
         return sound_state.enable_combat;
     }
 
-    if (sound_idx == MSG_DROP || sound_idx == MSG_QUAFF || sound_idx == MSG_ZAP ||
-        sound_idx == MSG_EAT || sound_idx == MSG_PICK || sound_idx == MSG_ARMOR ||
-        (sound_idx >= MSG_EQUIP_SWORD && sound_idx <= MSG_UNEQUIP_JEWELRY) ||
-        (sound_idx >= MSG_DROP_GLASS && sound_idx <= MSG_ACTIVATE)) {
+    if (sound_is_monster_hit(sound_idx)) {
+        return sound_state.enable_monster_hits;
+    }
+
+    if (sound_is_inventory(sound_idx)) {
         return sound_state.enable_inventory;
     }
 
@@ -156,9 +206,11 @@ static bool is_sound_enabled(int sound_idx)
         return sound_state.enable_walk;
     }
 
-    if (sound_idx == MSG_OPENDOOR || sound_idx == MSG_SHUTDOOR ||
-        sound_idx == MSG_BASHDOOR || sound_idx == MSG_HITWALL ||
-        sound_idx == MSG_NOTHING_TO_OPEN || sound_idx == MSG_LOCKPICK_FAIL) {
+    if (sound_is_trap(sound_idx)) {
+        return sound_state.enable_traps;
+    }
+
+    if (sound_is_door(sound_idx)) {
         return sound_state.enable_doors;
     }
 
@@ -167,19 +219,15 @@ static bool is_sound_enabled(int sound_idx)
 
 static float get_sound_volume(int sound_idx)
 {
-    if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
-        (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
-        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS ||
-        sound_idx == MSG_KILL || sound_idx == MSG_MONSTER_ATTACK ||
-        sound_idx == MSG_MONSTER_ATTACK_RANGED ||
-        sound_idx == MSG_MONSTER_ATTACK_BREATH) {
+    if (sound_is_combat(sound_idx)) {
         return sound_state.volume_combat;
     }
 
-    if (sound_idx == MSG_DROP || sound_idx == MSG_QUAFF || sound_idx == MSG_ZAP ||
-        sound_idx == MSG_EAT || sound_idx == MSG_PICK || sound_idx == MSG_ARMOR ||
-        (sound_idx >= MSG_EQUIP_SWORD && sound_idx <= MSG_UNEQUIP_JEWELRY) ||
-        (sound_idx >= MSG_DROP_GLASS && sound_idx <= MSG_ACTIVATE)) {
+    if (sound_is_monster_hit(sound_idx)) {
+        return sound_state.volume_monster_hits;
+    }
+
+    if (sound_is_inventory(sound_idx)) {
         return sound_state.volume_inventory;
     }
 
@@ -187,9 +235,11 @@ static float get_sound_volume(int sound_idx)
         return sound_state.volume_walk;
     }
 
-    if (sound_idx == MSG_OPENDOOR || sound_idx == MSG_SHUTDOOR ||
-        sound_idx == MSG_BASHDOOR || sound_idx == MSG_HITWALL ||
-        sound_idx == MSG_NOTHING_TO_OPEN || sound_idx == MSG_LOCKPICK_FAIL) {
+    if (sound_is_trap(sound_idx)) {
+        return sound_state.volume_traps;
+    }
+
+    if (sound_is_door(sound_idx)) {
         return sound_state.volume_doors;
     }
 
@@ -927,10 +977,14 @@ void sdl_sound_reload(void)
     sound_state.enable_inventory = g_sound_config.enable_inventory;
     sound_state.enable_walk = g_sound_config.enable_walk;
     sound_state.enable_doors = g_sound_config.enable_doors;
+    sound_state.enable_monster_hits = g_sound_config.enable_monster_hits;
+    sound_state.enable_traps = g_sound_config.enable_traps;
     sound_state.volume_combat = g_sound_config.volume_combat;
     sound_state.volume_inventory = g_sound_config.volume_inventory;
     sound_state.volume_walk = g_sound_config.volume_walk;
     sound_state.volume_doors = g_sound_config.volume_doors;
+    sound_state.volume_monster_hits = g_sound_config.volume_monster_hits;
+    sound_state.volume_traps = g_sound_config.volume_traps;
     sound_state.volume_other = g_sound_config.volume_other;
     sound_state.music_main_enabled = g_sound_config.music_main_enabled;
     sound_state.music_ambient_enabled = g_sound_config.music_ambient_enabled;
@@ -1189,10 +1243,14 @@ void sdl_sound_save_config(void)
     sound_state.enable_inventory = g_sound_config.enable_inventory;
     sound_state.enable_walk = g_sound_config.enable_walk;
     sound_state.enable_doors = g_sound_config.enable_doors;
+    sound_state.enable_monster_hits = g_sound_config.enable_monster_hits;
+    sound_state.enable_traps = g_sound_config.enable_traps;
     sound_state.volume_combat = g_sound_config.volume_combat;
     sound_state.volume_inventory = g_sound_config.volume_inventory;
     sound_state.volume_walk = g_sound_config.volume_walk;
     sound_state.volume_doors = g_sound_config.volume_doors;
+    sound_state.volume_monster_hits = g_sound_config.volume_monster_hits;
+    sound_state.volume_traps = g_sound_config.volume_traps;
     sound_state.volume_other = g_sound_config.volume_other;
     sound_state.music_main_enabled = g_sound_config.music_main_enabled;
     sound_state.music_ambient_enabled = g_sound_config.music_ambient_enabled;

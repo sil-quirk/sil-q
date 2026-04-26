@@ -1141,7 +1141,7 @@ static void chest_trap(int y, int x, s16b o_idx)
         return;
 
     /* Obtain the traps */
-    trap = chest_traps[o_ptr->pval];
+    trap = object_chest_trap_flags(o_ptr);
 
     // Store information for the combat rolls window
     combat_roll_special_char = object_char(o_ptr);
@@ -1150,6 +1150,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Needle - Hallucination */
     if (trap & (CHEST_NEEDLE_HALLU))
     {
+        sound(MSG_TRAP_NEEDLE);
+
         if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
@@ -1171,6 +1173,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Needle - Entrancement */
     if (trap & (CHEST_NEEDLE_ENTRANCE))
     {
+        sound(MSG_TRAP_NEEDLE);
+
         if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
@@ -1192,6 +1196,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Needle - Lose strength */
     if (trap & (CHEST_NEEDLE_LOSE_STR))
     {
+        sound(MSG_TRAP_NEEDLE);
+
         if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
@@ -1206,6 +1212,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Confusion Gas */
     if (trap & (CHEST_GAS_CONF))
     {
+        sound(MSG_TRAP_GAS);
+
         msg_print("A noxious vapour escapes from the chest!");
         if (allow_player_confusion(NULL))
         {
@@ -1220,6 +1228,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Acrid Smoke */
     if (trap & (CHEST_GAS_STUN))
     {
+        sound(MSG_TRAP_GAS);
+
         msg_print("Acrid smoke pours from the chest!");
         if (allow_player_stun(NULL))
         {
@@ -1244,6 +1254,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Poison Gas */
     if (trap & (CHEST_GAS_POISON))
     {
+        sound(MSG_TRAP_GAS);
+
         msg_print("A noxious vapour escapes from the chest!");
 
         update_combat_rolls1b(NULL, PLAYER, true);
@@ -1254,6 +1266,8 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Flame */
     if (trap & (CHEST_FLAME))
     {
+        sound(MSG_TRAP_FIRE);
+
         msg_print("There is a sudden burst of flame!");
 
         update_combat_rolls1b(NULL, PLAYER, true);
@@ -4863,6 +4877,8 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
     /* Allowed to open */
     if (flag)
     {
+        sound(MSG_CHEST_OPEN);
+
         /* Apply chest traps, if any */
         chest_trap(y, x, o_idx);
 
@@ -4927,7 +4943,7 @@ static bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
     }
 
     /* No traps to find. */
-    else if (!chest_traps[o_ptr->pval])
+    else if (!object_chest_trap_flags(o_ptr))
     {
         msg_print("The chest is not trapped.");
     }
@@ -5064,7 +5080,7 @@ static int count_chests(int* y, int* x, bool trapped)
         /* No (known) traps here */
         if (trapped
             && (!object_known_p(o_ptr) || (o_ptr->pval < 0)
-                || !chest_traps[o_ptr->pval]))
+                || !object_chest_trap_flags(o_ptr)))
         {
             continue;
         }
@@ -5666,6 +5682,156 @@ void do_cmd_exchange(void)
         /* Hit the trap */
         hit_trap(y, x);
     }
+}
+
+
+void do_cmd_swap_quivers(void)
+{
+    object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+    object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+    object_type tmp;
+    int i;
+
+    if (!q1_ptr->k_idx && !q2_ptr->k_idx)
+    {
+        msg_print("Both quivers are empty.");
+        return;
+    }
+
+    if ((q1_ptr->k_idx && cursed_p(q1_ptr))
+        || (q2_ptr->k_idx && cursed_p(q2_ptr)))
+    {
+        msg_print("You cannot bear to rearrange your quiver.");
+        return;
+    }
+
+    p_ptr->energy_use = 100;
+    p_ptr->previous_action[0] = ACTION_MISC;
+
+    object_copy(&tmp, q1_ptr);
+    object_copy(q1_ptr, q2_ptr);
+    object_copy(q2_ptr, &tmp);
+
+    if (!q1_ptr->k_idx)
+        object_wipe(q1_ptr);
+    if (!q2_ptr->k_idx)
+        object_wipe(q2_ptr);
+
+    if (q2_ptr->k_idx)
+    {
+        if (player_can_treat_as_throwing(q2_ptr))
+        {
+            ident_on_wield(q2_ptr);
+
+            for (i = 0; i < q2_ptr->abilities; i++)
+            {
+                int skill = q2_ptr->skilltype[i];
+                int ability = q2_ptr->abilitynum[i];
+
+                if (!p_ptr->have_ability[skill][ability])
+                {
+                    p_ptr->have_ability[skill][ability] = true;
+                    p_ptr->active_ability[skill][ability] = true;
+                }
+            }
+        }
+    }
+
+    msg_print("You swap your first and second quivers.");
+
+    p_ptr->update |= (PU_BONUS | PU_MANA);
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER | PR_ARC);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+    handle_stuff();
+}
+
+
+static bool item_tester_hook_pack_staff(const object_type* o_ptr)
+{
+    return o_ptr && (o_ptr >= inventory) && (o_ptr < inventory + INVEN_PACK)
+        && (o_ptr->tval == TV_STAFF);
+}
+
+
+static int choose_pack_staff_for_swap(void)
+{
+    int count = 0;
+    int slot = -1;
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx || o_ptr->tval != TV_STAFF)
+            continue;
+
+        count++;
+        slot = i;
+    }
+
+    if (count == 0)
+    {
+        msg_print("You have no staff in your pack to swap with.");
+        return -1;
+    }
+
+    if (count == 1)
+        return slot;
+
+    {
+        byte old_item_tester_tval = item_tester_tval;
+        bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
+        bool old_item_tester_full = item_tester_full;
+        bool picked;
+
+        item_tester_tval = 0;
+        item_tester_hook = item_tester_hook_pack_staff;
+        item_tester_full = false;
+
+        picked = get_item(&slot, "Swap with which staff? ",
+            "You have no staff in your pack to swap with.", USE_INVEN);
+
+        item_tester_tval = old_item_tester_tval;
+        item_tester_hook = old_item_tester_hook;
+        item_tester_full = old_item_tester_full;
+
+        if (!picked)
+            return -1;
+    }
+
+    if ((slot < 0) || (slot >= INVEN_PACK) || inventory[slot].tval != TV_STAFF)
+    {
+        msg_print("That is not a staff in your pack.");
+        return -1;
+    }
+
+    return slot;
+}
+
+
+void do_cmd_swap_staff(void)
+{
+    object_type* staff_ptr = &inventory[INVEN_STAFF];
+    int item;
+
+    if (!staff_ptr->k_idx || staff_ptr->tval != TV_STAFF)
+    {
+        msg_print("You are not wielding a walking staff.");
+        return;
+    }
+
+    if (cursed_p(staff_ptr))
+    {
+        msg_print("You cannot bear to part with it.");
+        return;
+    }
+
+    item = choose_pack_staff_for_swap();
+    if (item < 0)
+        return;
+
+    do_cmd_wield(&inventory[item], item);
 }
 
 
@@ -7630,7 +7796,7 @@ static bool do_cmd_bash_aux(int y, int x)
         if (cave_known_closed_door_bold(y, x))
         {
             /* Message */
-            msg_print("The door holds firm.");
+            message(MSG_BASHDOOR_FAIL, 0, "The door holds firm.");
         }
 
         /* Stuns */
@@ -7805,7 +7971,7 @@ void do_cmd_alter(void)
         {
             chest_present = true;
 
-            if ((o_ptr->pval > 0) && chest_traps[o_ptr->pval]
+            if ((o_ptr->pval > 0) && object_chest_trap_flags(o_ptr)
                 && object_known_p(o_ptr))
                 chest_trap = true;
         }

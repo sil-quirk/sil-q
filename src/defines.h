@@ -3649,7 +3649,13 @@
 #define MSG_MONSTER_ATTACK 63
 #define MSG_MONSTER_ATTACK_RANGED 64
 #define MSG_MONSTER_ATTACK_BREATH 65
-#define MSG_MAX 66
+#define MSG_BASHDOOR_FAIL 66
+#define MSG_TRAP_GAS 67
+#define MSG_TRAP_NEEDLE 68
+#define MSG_TRAP_FIRE 69
+#define MSG_CHEST_OPEN 70
+#define MSG_TORCH_LIGHT 71
+#define MSG_MAX 72
 
 /*
  * Maximum number of macro trigger names

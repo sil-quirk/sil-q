@@ -1854,11 +1854,11 @@ static void process_command(void)
 #ifdef ALLOW_DEBUG
 
     /* Special "debug" commands */
-    case KTRL('A'):
+    case KTRL('Y'):
     {
         if (verify_debug_mode())
         {
-            log_info("Ctrl-A debug menu opened (wizard=%d, noscore=0x%04X, savefile='%s')",
+            log_info("Ctrl-Y debug menu opened (wizard=%d, noscore=0x%04X, savefile='%s')",
                      p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
             do_cmd_debug();
         }
@@ -2096,10 +2096,24 @@ static void process_command(void)
         break;
     }
 
+    /* Swap the equipped staff with one from the pack */
+    case KTRL('A'):
+    {
+        do_cmd_swap_staff();
+        break;
+    }
+
     /* Eat some food */
     case 'E':
     {
         do_cmd_eat_food(NULL, 0);
+        break;
+    }
+
+    /* Swap the 1st and 2nd quivers */
+    case KTRL('F'):
+    {
+        do_cmd_swap_quivers();
         break;
     }
 

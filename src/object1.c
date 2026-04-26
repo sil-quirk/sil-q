@@ -2053,7 +2053,7 @@ void object_desc(
         /* May be "disarmed" */
         else if (o_ptr->pval < 0)
         {
-            if (chest_traps[0 - o_ptr->pval])
+            if (object_chest_trap_flags(o_ptr))
             {
                 tail = " (disarmed)";
             }
@@ -2067,7 +2067,7 @@ void object_desc(
         else
         {
             /* Describe the traps */
-            switch (chest_traps[o_ptr->pval])
+            switch (object_chest_trap_flags(o_ptr))
             {
             case 0:
             {

@@ -5265,7 +5265,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (SDL_isprint(ev->key.key)) {
             /* If Ctrl+letter (no Alt/GUI), send the corresponding control char
              * (so Ctrl-A -> ASCII 1) to preserve traditional control bindings
-             * like Ctrl-A for the debug menu. Other printable keys with
+             * like Ctrl-A for staff swapping. Other printable keys with
              * Ctrl/Alt/GUI use macro triggers so pref bindings can match. */
             bool shift = ev->key.mod & SDL_KMOD_SHIFT;
             bool ctrl = ev->key.mod & SDL_KMOD_CTRL;

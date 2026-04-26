@@ -2586,6 +2586,41 @@ void object_copy(object_type* o_ptr, const object_type* j_ptr)
     memcpy(o_ptr, j_ptr, sizeof(object_type));
 }
 
+static bool object_is_wooden_chest(const object_type* o_ptr)
+{
+    if (!o_ptr || o_ptr->tval != TV_CHEST)
+        return (false);
+
+    return ((o_ptr->sval == SV_CHEST_SMALL_WOODEN)
+        || (o_ptr->sval == SV_CHEST_LARGE_WOODEN));
+}
+
+static byte chest_trap_flags_for_pval(int pval)
+{
+    if (pval < 0)
+        pval = -pval;
+
+    if ((pval < 1) || (pval > 25))
+        return (0);
+
+    return (chest_traps[pval]);
+}
+
+byte object_chest_trap_flags(const object_type* o_ptr)
+{
+    byte trap;
+
+    if (!o_ptr || o_ptr->tval != TV_CHEST)
+        return (0);
+
+    trap = chest_trap_flags_for_pval(o_ptr->pval);
+
+    if (object_is_wooden_chest(o_ptr))
+        trap &= (byte)(~CHEST_FLAME);
+
+    return (trap);
+}
+
 /*
  * Set Hallucinatory object kind
  */

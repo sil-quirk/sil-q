@@ -4456,6 +4456,27 @@ static void smith_ui_put_cost_line(int index0, byte attr, cptr text)
 #define COL_SMT3 (smith_ui_secondary_col())
 #define COL_SMT4 (smith_ui_cost_col())
 
+static void smith_ui_put_menu_label(int col, int row, byte attr, cptr label)
+{
+    if (!indexed_menu_letters_enabled())
+        Term_putstr(indexed_menu_prefix_col(col), row, -1, attr, "  ");
+
+    Term_putstr(col, row, -1, attr, label);
+}
+
+static void smith_ui_put_menu_prefix(
+    int col, int row, int index, byte attr, bool focused)
+{
+    char buf[80];
+
+    if (focused)
+        indexed_menu_focus_prefix(buf, sizeof(buf), index);
+    else
+        indexed_menu_normal_prefix(buf, sizeof(buf), index);
+
+    Term_putstr(indexed_menu_prefix_col(col), row, -1, attr, buf);
+}
+
 /*
  * A list of tvals and their textual names
  */
@@ -5352,11 +5373,13 @@ void move_displayed_highlight(
 
     // remove highlight from the old label
     indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
-    Term_putstr(col, old_highlight + 1, -1, old_attr, buf);
+    Term_putstr(indexed_menu_prefix_col(col), old_highlight + 1, -1, old_attr,
+        buf);
 
     // highlight the new label
     indexed_menu_focus_prefix(buf, sizeof(buf), new_highlight - 1);
-    Term_putstr(col, new_highlight + 1, -1, TERM_L_BLUE, buf);
+    Term_putstr(indexed_menu_prefix_col(col), new_highlight + 1, -1,
+        TERM_L_BLUE, buf);
 }
 
 bool melt_metal_item(int item_num)
@@ -7481,7 +7504,7 @@ int create_sval_menu_aux(int tval, int* highlight)
     int list_col = COL_SMT3;
 
     // clear the right of the screen
-    wipe_screen_from(smith_ui_compact_width() ? list_col : COL_SMT4);
+    wipe_screen_from(indexed_menu_prefix_col(list_col));
 
     /* We have to search the whole itemlist. */
     for (num = 0, i = 1; i < z_info->k_max; i++)
@@ -7528,7 +7551,7 @@ int create_sval_menu_aux(int tval, int* highlight)
 
             /* Print it */
             indexed_menu_entry_label(buf, sizeof(buf), num, name);
-            Term_putstr(list_col, smith_ui_dense_row(num), -1,
+            smith_ui_put_menu_label(list_col, smith_ui_dense_row(num),
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
 
             /* Remember the object sval */
@@ -7540,9 +7563,9 @@ int create_sval_menu_aux(int tval, int* highlight)
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(list_col, smith_ui_dense_highlight_row(*highlight), -1,
-        TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(list_col,
+        smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+        TERM_L_BLUE, true);
 
     // make a simple version of the object
     create_base_object(tval, sval[*highlight - 1]);
@@ -7661,7 +7684,7 @@ int create_tval_menu_aux(int* highlight)
     byte valid_attr = TERM_WHITE; // default to soothe compilation warnings
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     // clear bottom of the screen
     wipe_object_description();
@@ -7695,14 +7718,14 @@ int create_tval_menu_aux(int* highlight)
                                                                     : TERM_RED;
         }
 
-        Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1,
+        smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(i),
             valid[i] ? valid_attr : TERM_L_DARK, buf);
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
-        TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2,
+        smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+        TERM_L_BLUE, true);
 
     /* Flush the prompt */
     Term_fresh();
@@ -7723,12 +7746,12 @@ int create_tval_menu_aux(int* highlight)
 
         *highlight = (int)ch - 'a' + 1;
 
-        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
-        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
-            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, buf);
-        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
-            TERM_L_BLUE, buf);
+        smith_ui_put_menu_prefix(COL_SMT2,
+            smith_ui_dense_highlight_row(old_highlight), old_highlight - 1,
+            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, false);
+        smith_ui_put_menu_prefix(COL_SMT2,
+            smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+            TERM_L_BLUE, true);
 
         if (valid[*highlight - 1])
             return (*highlight);
@@ -8020,7 +8043,7 @@ int numbers_menu_aux(int* highlight)
     bool can_afford[SMT_NUM_MENU_MAX] = { false };
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     memset(valid, 0, sizeof(valid));
 
@@ -8118,7 +8141,7 @@ int numbers_menu_aux(int* highlight)
         for (i = 0; i < SMT_NUM_MENU_MAX; i++)
         {
             indexed_menu_entry_label(buf, sizeof(buf), i, number_menu_labels[i]);
-            Term_putstr(COL_SMT2, i + 2, -1, attr[i], buf);
+            smith_ui_put_menu_label(COL_SMT2, i + 2, attr[i], buf);
         }
     }
     if (alloy_applicable)
@@ -8149,8 +8172,8 @@ int numbers_menu_aux(int* highlight)
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2, *highlight + 1, *highlight - 1,
+        TERM_L_BLUE, true);
 
     // display the object difficulty
     prt_object_difficulty();
@@ -8474,7 +8497,7 @@ static int smith_bonus_menu_aux(int* highlight)
     const int max_row = MAX_SMITHING_TVALS + 2;
     const int max_visible = max_row - first_row + 1;
 
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
         "Adjust special bonuses (ESC to return)");
@@ -8560,13 +8583,13 @@ static int smith_bonus_menu_aux(int* highlight)
             strnfmt(action_label, sizeof(action_label), "%s %-12s (%+d)",
                 verb, name, value);
             indexed_menu_entry_label(buf, sizeof(buf), i, action_label);
-            Term_putstr(COL_SMT2, row, -1, attr[i], buf);
+            smith_ui_put_menu_label(COL_SMT2, row, attr[i], buf);
         }
     }
 
     int hl_row = first_row + (*highlight - top);
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, hl_row, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2, hl_row, *highlight - 1,
+        TERM_L_BLUE, true);
 
     prt_object_difficulty();
     prt_object_description();
@@ -8851,7 +8874,7 @@ static int reforge_prefix_menu(const object_type* source)
 
     while (true)
     {
-        wipe_screen_from(COL_SMT2);
+        wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
         Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, "Select prefix:");
 
         entry_count = 0;
@@ -8873,7 +8896,7 @@ static int reforge_prefix_menu(const object_type* source)
 
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
             indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
-            Term_putstr(COL_SMT2, entry_count + 2, -1,
+            smith_ui_put_menu_label(COL_SMT2, entry_count + 2,
                 valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
             entry_count++;
         }
@@ -8893,8 +8916,8 @@ static int reforge_prefix_menu(const object_type* source)
         if (highlight < 1) highlight = 1;
         if (highlight > entry_count) highlight = entry_count;
 
-        indexed_menu_focus_prefix(buf, sizeof(buf), highlight - 1);
-        Term_putstr(COL_SMT2, highlight + 1, -1, TERM_L_BLUE, buf);
+        smith_ui_put_menu_prefix(COL_SMT2, highlight + 1, highlight - 1,
+            TERM_L_BLUE, true);
 
         (void)reforge_preview_build(source, choice[highlight - 1],
             &previews[highlight - 1]);
@@ -9024,7 +9047,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     int choice[26];
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     /* Header */
     Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
@@ -9034,7 +9057,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     valid[entry_count] = true;
     choice[entry_count] = 0;
     indexed_menu_entry_label(buf, sizeof(buf), entry_count, "(none)");
-    Term_putstr(COL_SMT2, entry_count + 2, -1, TERM_WHITE, buf);
+    smith_ui_put_menu_label(COL_SMT2, entry_count + 2, TERM_WHITE, buf);
     entry_count++;
 
     /* Suffix egos marked NO_PREFIX only allow "(none)" as the prefix choice. */
@@ -9070,7 +9093,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             char ego_label[64];
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
             indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
-            Term_putstr(COL_SMT2, entry_count + 2, -1,
+            smith_ui_put_menu_label(COL_SMT2, entry_count + 2,
                 valid[entry_count] ? TERM_WHITE : TERM_SLATE, buf);
 
             /* Remember the object index */
@@ -9085,8 +9108,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     if (*highlight > entry_count) *highlight = entry_count;
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2, *highlight + 1, *highlight - 1,
+        TERM_L_BLUE, true);
 
     /* Make a preview 'special' version of the object */
     if (selecting_prefix)
@@ -9511,7 +9534,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
     byte attr;
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT3);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
 
     // display the categories
     for (i = 0; smithing_flag_types[i].flag != 0; i++)
@@ -9571,15 +9594,15 @@ int artefact_flag_menu_aux(int category, int* highlight)
             /* Display the line */
             indexed_menu_entry_label(buf, sizeof(buf), num,
                 smithing_flag_types[i].desc);
-            Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
+            smith_ui_put_menu_label(COL_SMT3, num + 2, attr, buf);
 
             num++;
         }
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT3, *highlight + 1, *highlight - 1,
+        TERM_L_BLUE, true);
 
     // add this flag to the dummy artefact under construction
     add_artefact_flag(flag[*highlight - 1], flagset[*highlight - 1]);
@@ -9936,7 +9959,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     memset(ability_affordable, 0, z_info->b_max * sizeof(bool));
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT3);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -10002,14 +10025,14 @@ int artefact_ability_menu_aux(int skill, int* highlight)
 
         /* Display the line */
         indexed_menu_entry_label(buf, sizeof(buf), num, b_name + b_ptr->name);
-        Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
+        smith_ui_put_menu_label(COL_SMT3, num + 2, attr, buf);
 
         num++;
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT3, *highlight + 1, *highlight - 1,
+        TERM_L_BLUE, true);
 
     // add this ability to the dummy artefact under construction (use actual ability number)
     add_artefact_ability(skill, ability_nums[*highlight - 1]);
@@ -10252,13 +10275,14 @@ int artefact_menu_aux(int* highlight)
     char buf[80];
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
     {
         indexed_menu_entry_label(buf, sizeof(buf), i, smithing_flag_cats[i].desc);
-        Term_putstr(COL_SMT2, smith_ui_dense_row(i), -1, TERM_WHITE, buf);
+        smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(i), TERM_WHITE,
+            buf);
     }
 
     // display the categories for abilities (skip Special abilities - S_SPC)
@@ -10270,8 +10294,8 @@ int artefact_menu_aux(int* highlight)
         
         indexed_menu_entry_label(buf, sizeof(buf), MAX_CATS + display_idx,
             skill_names_full[i]);
-        Term_putstr(COL_SMT2, smith_ui_dense_row(MAX_CATS + display_idx), -1,
-            TERM_WHITE, buf);
+        smith_ui_put_menu_label(COL_SMT2,
+            smith_ui_dense_row(MAX_CATS + display_idx), TERM_WHITE, buf);
         display_idx++;
     }
 
@@ -10279,12 +10303,13 @@ int artefact_menu_aux(int* highlight)
 
     // Menu item for naming artefacts
     indexed_menu_entry_label(buf, sizeof(buf), num - 1, "Name Artefact");
-    Term_putstr(COL_SMT2, smith_ui_dense_row(num - 1), -1, TERM_WHITE, buf);
+    smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(num - 1), TERM_WHITE,
+        buf);
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
-        TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2,
+        smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+        TERM_L_BLUE, true);
 
     // display the object difficulty
     prt_object_difficulty();
@@ -10311,12 +10336,12 @@ int artefact_menu_aux(int* highlight)
 
         *highlight = (int)ch - 'a' + 1;
 
-        indexed_menu_normal_prefix(buf, sizeof(buf), old_highlight - 1);
-        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(old_highlight), -1,
-            TERM_WHITE, buf);
-        indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-        Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
-            TERM_L_BLUE, buf);
+        smith_ui_put_menu_prefix(COL_SMT2,
+            smith_ui_dense_highlight_row(old_highlight), old_highlight - 1,
+            TERM_WHITE, false);
+        smith_ui_put_menu_prefix(COL_SMT2,
+            smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+            TERM_L_BLUE, true);
 
         return (*highlight);
     }
@@ -10455,7 +10480,7 @@ int melt_menu_aux(int* highlight)
     char buf[80];
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     // clear bottom of the screen
     wipe_object_description();
@@ -10472,7 +10497,8 @@ int melt_menu_aux(int* highlight)
             object_desc(desc, 80, o_ptr, false, 2);
             indexed_menu_entry_label(buf, sizeof(buf), num, desc);
 
-            Term_putstr(COL_SMT2, smith_ui_dense_row(num), -1, TERM_WHITE, buf);
+            smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(num),
+                TERM_WHITE, buf);
 
             if (smith_ui_weight_col() > 0)
             {
@@ -10487,9 +10513,9 @@ int melt_menu_aux(int* highlight)
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT2, smith_ui_dense_highlight_row(*highlight), -1,
-        TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT2,
+        smith_ui_dense_highlight_row(*highlight), *highlight - 1,
+        TERM_L_BLUE, true);
 
     /* Flush the prompt */
     Term_fresh();
@@ -10729,7 +10755,7 @@ int smithing_menu_aux(int* highlight)
     char buf[80];
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT2);
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     // determine whether or not we can actually make objects here
     if (!cave_forge_bold(p_ptr->py, p_ptr->px))
@@ -10773,39 +10799,39 @@ int smithing_menu_aux(int* highlight)
         ? TERM_WHITE
         : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_CREATE - 1, "Base Item");
-    Term_putstr(COL_SMT1, 2, -1,
+    smith_ui_put_menu_label(COL_SMT1, 2,
         valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
                                                                  : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ENCHANT - 1, "Enchant");
-    Term_putstr(COL_SMT1, 3, -1,
+    smith_ui_put_menu_label(COL_SMT1, 3,
         valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, buf);
     valid_attr
         = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ARTEFACT - 1, "Artifice");
-    Term_putstr(COL_SMT1, 4, -1,
+    smith_ui_put_menu_label(COL_SMT1, 4,
         valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, buf);
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_NUMBERS - 1, "Numbers");
-    Term_putstr(COL_SMT1, 5, -1,
+    smith_ui_put_menu_label(COL_SMT1, 5,
         valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_MELT - 1, "Melt");
-    Term_putstr(COL_SMT1, 6, -1,
+    smith_ui_put_menu_label(COL_SMT1, 6,
         valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_REPAIR - 1, "Reforge");
-    Term_putstr(COL_SMT1, 7, -1,
+    smith_ui_put_menu_label(COL_SMT1, 7,
         valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, buf);
 
     if (p_ptr->smithing_leftover == 0)
     {
         indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Accept");
-        Term_putstr(COL_SMT1, 8, -1,
+        smith_ui_put_menu_label(COL_SMT1, 8,
             valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
     else
     {
         indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Resume");
-        Term_putstr(COL_SMT1, 8, -1,
+        smith_ui_put_menu_label(COL_SMT1, 8,
             valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
 
@@ -10902,8 +10928,8 @@ int smithing_menu_aux(int* highlight)
     }
 
     // highlight the label
-    indexed_menu_focus_prefix(buf, sizeof(buf), *highlight - 1);
-    Term_putstr(COL_SMT1, *highlight + 1, -1, TERM_L_BLUE, buf);
+    smith_ui_put_menu_prefix(COL_SMT1, *highlight + 1, *highlight - 1,
+        TERM_L_BLUE, true);
 
     // display the object difficulty
     prt_object_difficulty();
@@ -13977,6 +14003,28 @@ void clear_skills_and_abilities()
 /*
  * Interact with some options
  */
+enum {
+    SOUND_OPT_ENABLED = 0,
+    SOUND_OPT_COMBAT_ENABLED,
+    SOUND_OPT_MONSTER_HITS_ENABLED,
+    SOUND_OPT_INVENTORY_ENABLED,
+    SOUND_OPT_WALK_ENABLED,
+    SOUND_OPT_DOORS_ENABLED,
+    SOUND_OPT_TRAPS_ENABLED,
+    SOUND_OPT_COMBAT_VOLUME,
+    SOUND_OPT_MONSTER_HITS_VOLUME,
+    SOUND_OPT_INVENTORY_VOLUME,
+    SOUND_OPT_WALK_VOLUME,
+    SOUND_OPT_DOORS_VOLUME,
+    SOUND_OPT_TRAPS_VOLUME,
+    SOUND_OPT_OTHER_VOLUME,
+    SOUND_OPT_MUSIC_MAIN_ENABLED,
+    SOUND_OPT_MUSIC_AMBIENT_ENABLED,
+    SOUND_OPT_MUSIC_MAIN_VOLUME,
+    SOUND_OPT_MUSIC_AMBIENT_VOLUME,
+    SOUND_OPT_MAX
+};
+
 struct option_group_marker
 {
     int before_index;
@@ -14039,10 +14087,11 @@ static const struct option_group_marker debug_option_groups[] = {
 };
 
 static const struct option_group_marker sound_option_groups[] = {
-    { 0, "Effects" },
-    { 5, "Effect Volume" },
-    { 10, "Music" },
-    { 12, "Music Volume" },
+    { SOUND_OPT_ENABLED, "Master" },
+    { SOUND_OPT_COMBAT_ENABLED, "Effects" },
+    { SOUND_OPT_COMBAT_VOLUME, "Effect Volume" },
+    { SOUND_OPT_MUSIC_MAIN_ENABLED, "Music" },
+    { SOUND_OPT_MUSIC_MAIN_VOLUME, "Music Volume" },
     { -1, NULL }
 };
 
@@ -14394,40 +14443,48 @@ static cptr sound_option_label(int index)
     {
         switch (index)
         {
-        case 0: return narrow ? "Sounds" : "Game sounds";
-        case 1: return narrow ? "Combat sfx" : "Combat sounds";
-        case 2: return narrow ? "Inv sfx" : "Inventory sounds";
-        case 3: return narrow ? "Walk sfx" : "Walk sounds";
-        case 4: return narrow ? "Door sfx" : "Door sounds";
-        case 5: return narrow ? "Combat vol" : "Combat volume";
-        case 6: return narrow ? "Inv vol" : "Inventory volume";
-        case 7: return narrow ? "Walk vol" : "Walk volume";
-        case 8: return narrow ? "Door vol" : "Door volume";
-        case 9: return narrow ? "Other vol" : "Other volume";
-        case 10: return "Menu music";
-        case 11: return "Ambient music";
-        case 12: return narrow ? "Menu vol" : "Menu music volume";
-        case 13: return narrow ? "Ambient vol" : "Ambient music volume";
+        case SOUND_OPT_ENABLED: return narrow ? "Sounds" : "Game sounds";
+        case SOUND_OPT_COMBAT_ENABLED: return narrow ? "Combat sfx" : "Combat sounds";
+        case SOUND_OPT_MONSTER_HITS_ENABLED: return narrow ? "Mon hit sfx" : "Monster hit sounds";
+        case SOUND_OPT_INVENTORY_ENABLED: return narrow ? "Inv sfx" : "Inventory sounds";
+        case SOUND_OPT_WALK_ENABLED: return narrow ? "Walk sfx" : "Walk sounds";
+        case SOUND_OPT_DOORS_ENABLED: return narrow ? "Door sfx" : "Door sounds";
+        case SOUND_OPT_TRAPS_ENABLED: return narrow ? "Trap sfx" : "Trap sounds";
+        case SOUND_OPT_COMBAT_VOLUME: return narrow ? "Combat vol" : "Combat volume";
+        case SOUND_OPT_MONSTER_HITS_VOLUME: return narrow ? "Mon hit vol" : "Monster hit volume";
+        case SOUND_OPT_INVENTORY_VOLUME: return narrow ? "Inv vol" : "Inventory volume";
+        case SOUND_OPT_WALK_VOLUME: return narrow ? "Walk vol" : "Walk volume";
+        case SOUND_OPT_DOORS_VOLUME: return narrow ? "Door vol" : "Door volume";
+        case SOUND_OPT_TRAPS_VOLUME: return narrow ? "Trap vol" : "Trap volume";
+        case SOUND_OPT_OTHER_VOLUME: return narrow ? "Other vol" : "Other volume";
+        case SOUND_OPT_MUSIC_MAIN_ENABLED: return "Menu music";
+        case SOUND_OPT_MUSIC_AMBIENT_ENABLED: return "Ambient music";
+        case SOUND_OPT_MUSIC_MAIN_VOLUME: return narrow ? "Menu vol" : "Menu music volume";
+        case SOUND_OPT_MUSIC_AMBIENT_VOLUME: return narrow ? "Ambient vol" : "Ambient music volume";
         default: return "(unknown sound option)";
         }
     }
 
     switch (index)
     {
-    case 0: return "Enable game sounds";
-    case 1: return "Enable combat sounds";
-    case 2: return "Enable inventory sounds";
-    case 3: return "Enable walk sounds";
-    case 4: return "Enable door sounds";
-    case 5: return "Combat sounds volume";
-    case 6: return "Inventory sounds volume";
-    case 7: return "Walk sounds volume";
-    case 8: return "Door sounds volume";
-    case 9: return "Other sounds volume";
-    case 10: return "Enable main menu music";
-    case 11: return "Enable ambient dungeon music";
-    case 12: return "Main menu music volume";
-    case 13: return "Ambient music volume";
+    case SOUND_OPT_ENABLED: return "Enable game sounds";
+    case SOUND_OPT_COMBAT_ENABLED: return "Enable combat sounds";
+    case SOUND_OPT_MONSTER_HITS_ENABLED: return "Enable monster hit sounds";
+    case SOUND_OPT_INVENTORY_ENABLED: return "Enable inventory sounds";
+    case SOUND_OPT_WALK_ENABLED: return "Enable walk sounds";
+    case SOUND_OPT_DOORS_ENABLED: return "Enable door sounds";
+    case SOUND_OPT_TRAPS_ENABLED: return "Enable trap sounds";
+    case SOUND_OPT_COMBAT_VOLUME: return "Combat sounds volume";
+    case SOUND_OPT_MONSTER_HITS_VOLUME: return "Monster hit sounds volume";
+    case SOUND_OPT_INVENTORY_VOLUME: return "Inventory sounds volume";
+    case SOUND_OPT_WALK_VOLUME: return "Walk sounds volume";
+    case SOUND_OPT_DOORS_VOLUME: return "Door sounds volume";
+    case SOUND_OPT_TRAPS_VOLUME: return "Trap sounds volume";
+    case SOUND_OPT_OTHER_VOLUME: return "Other sounds volume";
+    case SOUND_OPT_MUSIC_MAIN_ENABLED: return "Enable main menu music";
+    case SOUND_OPT_MUSIC_AMBIENT_ENABLED: return "Enable ambient dungeon music";
+    case SOUND_OPT_MUSIC_MAIN_VOLUME: return "Main menu music volume";
+    case SOUND_OPT_MUSIC_AMBIENT_VOLUME: return "Ambient music volume";
     default: return "(unknown sound option)";
     }
 }
@@ -14662,7 +14719,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     /* Special case: Sound page uses custom display instead of standard options */
     if (is_sound_page)
     {
-        n = 14; /* 5 enable flags + 5 volume controls + 2 music enable + 2 music volume */
+        n = SOUND_OPT_MAX;
     }
 
     /* Interact with the player */
@@ -14722,75 +14779,83 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 char value_str[32];
 
-                if (i == 0)
+                switch (i)
                 {
+                case SOUND_OPT_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enabled ? "yes" : "no ");
-                }
-                else if (i == 1)
-                {
+                    break;
+                case SOUND_OPT_COMBAT_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_combat ? "yes" : "no ");
-                }
-                else if (i == 2)
-                {
+                    break;
+                case SOUND_OPT_MONSTER_HITS_ENABLED:
+                    strnfmt(value_str, sizeof(value_str), "%s",
+                        sound_cfg->enable_monster_hits ? "yes" : "no ");
+                    break;
+                case SOUND_OPT_INVENTORY_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_inventory ? "yes" : "no ");
-                }
-                else if (i == 3)
-                {
+                    break;
+                case SOUND_OPT_WALK_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_walk ? "yes" : "no ");
-                }
-                else if (i == 4)
-                {
+                    break;
+                case SOUND_OPT_DOORS_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->enable_doors ? "yes" : "no ");
-                }
-                else if (i == 5)
-                {
+                    break;
+                case SOUND_OPT_TRAPS_ENABLED:
+                    strnfmt(value_str, sizeof(value_str), "%s",
+                        sound_cfg->enable_traps ? "yes" : "no ");
+                    break;
+                case SOUND_OPT_COMBAT_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_combat * 100.0f);
-                }
-                else if (i == 6)
-                {
+                    break;
+                case SOUND_OPT_MONSTER_HITS_VOLUME:
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
+                        sound_cfg->volume_monster_hits * 100.0f);
+                    break;
+                case SOUND_OPT_INVENTORY_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_inventory * 100.0f);
-                }
-                else if (i == 7)
-                {
+                    break;
+                case SOUND_OPT_WALK_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_walk * 100.0f);
-                }
-                else if (i == 8)
-                {
+                    break;
+                case SOUND_OPT_DOORS_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_doors * 100.0f);
-                }
-                else if (i == 9)
-                {
+                    break;
+                case SOUND_OPT_TRAPS_VOLUME:
+                    strnfmt(value_str, sizeof(value_str), "%.0f%%",
+                        sound_cfg->volume_traps * 100.0f);
+                    break;
+                case SOUND_OPT_OTHER_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->volume_other * 100.0f);
-                }
-                else if (i == 10)
-                {
+                    break;
+                case SOUND_OPT_MUSIC_MAIN_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->music_main_enabled ? "yes" : "no ");
-                }
-                else if (i == 11)
-                {
+                    break;
+                case SOUND_OPT_MUSIC_AMBIENT_ENABLED:
                     strnfmt(value_str, sizeof(value_str), "%s",
                         sound_cfg->music_ambient_enabled ? "yes" : "no ");
-                }
-                else if (i == 12)
-                {
+                    break;
+                case SOUND_OPT_MUSIC_MAIN_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->music_main_volume * 100.0f);
-                }
-                else if (i == 13)
-                {
+                    break;
+                case SOUND_OPT_MUSIC_AMBIENT_VOLUME:
                     strnfmt(value_str, sizeof(value_str), "%.0f%%",
                         sound_cfg->music_ambient_volume * 100.0f);
+                    break;
+                default:
+                    strnfmt(value_str, sizeof(value_str), "%s", "");
+                    break;
                 }
 
                 option_menu_format_line(buf, sizeof(buf), sound_option_label(i),
@@ -15088,18 +15153,39 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 if (is_sound_page)
                 {
-                    if (k == 0)
+                    switch (k)
                     {
+                    case SOUND_OPT_ENABLED:
                         sound_cfg->enabled = !sound_cfg->enabled;
                         use_sound = sound_cfg->enabled;
+                        break;
+                    case SOUND_OPT_COMBAT_ENABLED:
+                        sound_cfg->enable_combat = !sound_cfg->enable_combat;
+                        break;
+                    case SOUND_OPT_MONSTER_HITS_ENABLED:
+                        sound_cfg->enable_monster_hits = !sound_cfg->enable_monster_hits;
+                        break;
+                    case SOUND_OPT_INVENTORY_ENABLED:
+                        sound_cfg->enable_inventory = !sound_cfg->enable_inventory;
+                        break;
+                    case SOUND_OPT_WALK_ENABLED:
+                        sound_cfg->enable_walk = !sound_cfg->enable_walk;
+                        break;
+                    case SOUND_OPT_DOORS_ENABLED:
+                        sound_cfg->enable_doors = !sound_cfg->enable_doors;
+                        break;
+                    case SOUND_OPT_TRAPS_ENABLED:
+                        sound_cfg->enable_traps = !sound_cfg->enable_traps;
+                        break;
+                    case SOUND_OPT_MUSIC_MAIN_ENABLED:
+                        sound_cfg->music_main_enabled = !sound_cfg->music_main_enabled;
+                        break;
+                    case SOUND_OPT_MUSIC_AMBIENT_ENABLED:
+                        sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
+                        break;
+                    default:
+                        break;
                     }
-                    else if (k == 1) sound_cfg->enable_combat = !sound_cfg->enable_combat;
-                    else if (k == 2) sound_cfg->enable_inventory = !sound_cfg->enable_inventory;
-                    else if (k == 3) sound_cfg->enable_walk = !sound_cfg->enable_walk;
-                    else if (k == 4) sound_cfg->enable_doors = !sound_cfg->enable_doors;
-                    else if (k == 10) sound_cfg->music_main_enabled = !sound_cfg->music_main_enabled;
-                    else if (k == 11) sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
-                    /* Volume controls (5-9, 12-13) don't toggle */
                 }
                 else if (opt[k] == OPT_delay_factor)
                 {
@@ -15218,29 +15304,67 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 if (is_sound_page)
                 {
-                    if (k == 0)
+                    switch (k)
                     {
+                    case SOUND_OPT_ENABLED:
                         sound_cfg->enabled = true;
                         use_sound = true;
-                    }
-                    else if (k == 1) sound_cfg->enable_combat = true;
-                    else if (k == 2) sound_cfg->enable_inventory = true;
-                    else if (k == 3) sound_cfg->enable_walk = true;
-                    else if (k == 4) sound_cfg->enable_doors = true;
-                    else if (k == 5) sound_cfg->volume_combat = (sound_cfg->volume_combat < 1.0f) ? sound_cfg->volume_combat + 0.1f : 1.0f;
-                    else if (k == 6) sound_cfg->volume_inventory = (sound_cfg->volume_inventory < 1.0f) ? sound_cfg->volume_inventory + 0.1f : 1.0f;
-                    else if (k == 7) sound_cfg->volume_walk = (sound_cfg->volume_walk < 1.0f) ? sound_cfg->volume_walk + 0.1f : 1.0f;
-                    else if (k == 8) sound_cfg->volume_doors = (sound_cfg->volume_doors < 1.0f) ? sound_cfg->volume_doors + 0.1f : 1.0f;
-                    else if (k == 9) sound_cfg->volume_other = (sound_cfg->volume_other < 1.0f) ? sound_cfg->volume_other + 0.1f : 1.0f;
-                    else if (k == 10) sound_cfg->music_main_enabled = true;
-                    else if (k == 11) sound_cfg->music_ambient_enabled = true;
-                    else if (k == 12) {
+                        break;
+                    case SOUND_OPT_COMBAT_ENABLED:
+                        sound_cfg->enable_combat = true;
+                        break;
+                    case SOUND_OPT_MONSTER_HITS_ENABLED:
+                        sound_cfg->enable_monster_hits = true;
+                        break;
+                    case SOUND_OPT_INVENTORY_ENABLED:
+                        sound_cfg->enable_inventory = true;
+                        break;
+                    case SOUND_OPT_WALK_ENABLED:
+                        sound_cfg->enable_walk = true;
+                        break;
+                    case SOUND_OPT_DOORS_ENABLED:
+                        sound_cfg->enable_doors = true;
+                        break;
+                    case SOUND_OPT_TRAPS_ENABLED:
+                        sound_cfg->enable_traps = true;
+                        break;
+                    case SOUND_OPT_COMBAT_VOLUME:
+                        sound_cfg->volume_combat = (sound_cfg->volume_combat < 1.0f) ? sound_cfg->volume_combat + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_MONSTER_HITS_VOLUME:
+                        sound_cfg->volume_monster_hits = (sound_cfg->volume_monster_hits < 1.0f) ? sound_cfg->volume_monster_hits + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_INVENTORY_VOLUME:
+                        sound_cfg->volume_inventory = (sound_cfg->volume_inventory < 1.0f) ? sound_cfg->volume_inventory + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_WALK_VOLUME:
+                        sound_cfg->volume_walk = (sound_cfg->volume_walk < 1.0f) ? sound_cfg->volume_walk + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_DOORS_VOLUME:
+                        sound_cfg->volume_doors = (sound_cfg->volume_doors < 1.0f) ? sound_cfg->volume_doors + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_TRAPS_VOLUME:
+                        sound_cfg->volume_traps = (sound_cfg->volume_traps < 1.0f) ? sound_cfg->volume_traps + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_OTHER_VOLUME:
+                        sound_cfg->volume_other = (sound_cfg->volume_other < 1.0f) ? sound_cfg->volume_other + 0.1f : 1.0f;
+                        break;
+                    case SOUND_OPT_MUSIC_MAIN_ENABLED:
+                        sound_cfg->music_main_enabled = true;
+                        break;
+                    case SOUND_OPT_MUSIC_AMBIENT_ENABLED:
+                        sound_cfg->music_ambient_enabled = true;
+                        break;
+                    case SOUND_OPT_MUSIC_MAIN_VOLUME:
                         sound_cfg->music_main_volume = (sound_cfg->music_main_volume < 1.0f) ? sound_cfg->music_main_volume + 0.1f : 1.0f;
                         sdl_sound_save_config(); /* Apply volume change immediately */
-                    }
-                    else if (k == 13) {
+                        break;
+                    case SOUND_OPT_MUSIC_AMBIENT_VOLUME:
                         sound_cfg->music_ambient_volume = (sound_cfg->music_ambient_volume < 1.0f) ? sound_cfg->music_ambient_volume + 0.1f : 1.0f;
                         sdl_sound_save_config(); /* Apply volume change immediately */
+                        break;
+                    default:
+                        break;
                     }
                 }
                 else if (opt[k] == OPT_delay_factor)
@@ -15357,29 +15481,67 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 if (is_sound_page)
                 {
-                    if (k == 0)
+                    switch (k)
                     {
+                    case SOUND_OPT_ENABLED:
                         sound_cfg->enabled = false;
                         use_sound = false;
-                    }
-                    else if (k == 1) sound_cfg->enable_combat = false;
-                    else if (k == 2) sound_cfg->enable_inventory = false;
-                    else if (k == 3) sound_cfg->enable_walk = false;
-                    else if (k == 4) sound_cfg->enable_doors = false;
-                    else if (k == 5) sound_cfg->volume_combat = (sound_cfg->volume_combat > 0.0f) ? sound_cfg->volume_combat - 0.1f : 0.0f;
-                    else if (k == 6) sound_cfg->volume_inventory = (sound_cfg->volume_inventory > 0.0f) ? sound_cfg->volume_inventory - 0.1f : 0.0f;
-                    else if (k == 7) sound_cfg->volume_walk = (sound_cfg->volume_walk > 0.0f) ? sound_cfg->volume_walk - 0.1f : 0.0f;
-                    else if (k == 8) sound_cfg->volume_doors = (sound_cfg->volume_doors > 0.0f) ? sound_cfg->volume_doors - 0.1f : 0.0f;
-                    else if (k == 9) sound_cfg->volume_other = (sound_cfg->volume_other > 0.0f) ? sound_cfg->volume_other - 0.1f : 0.0f;
-                    else if (k == 10) sound_cfg->music_main_enabled = false;
-                    else if (k == 11) sound_cfg->music_ambient_enabled = false;
-                    else if (k == 12) {
+                        break;
+                    case SOUND_OPT_COMBAT_ENABLED:
+                        sound_cfg->enable_combat = false;
+                        break;
+                    case SOUND_OPT_MONSTER_HITS_ENABLED:
+                        sound_cfg->enable_monster_hits = false;
+                        break;
+                    case SOUND_OPT_INVENTORY_ENABLED:
+                        sound_cfg->enable_inventory = false;
+                        break;
+                    case SOUND_OPT_WALK_ENABLED:
+                        sound_cfg->enable_walk = false;
+                        break;
+                    case SOUND_OPT_DOORS_ENABLED:
+                        sound_cfg->enable_doors = false;
+                        break;
+                    case SOUND_OPT_TRAPS_ENABLED:
+                        sound_cfg->enable_traps = false;
+                        break;
+                    case SOUND_OPT_COMBAT_VOLUME:
+                        sound_cfg->volume_combat = (sound_cfg->volume_combat > 0.0f) ? sound_cfg->volume_combat - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_MONSTER_HITS_VOLUME:
+                        sound_cfg->volume_monster_hits = (sound_cfg->volume_monster_hits > 0.0f) ? sound_cfg->volume_monster_hits - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_INVENTORY_VOLUME:
+                        sound_cfg->volume_inventory = (sound_cfg->volume_inventory > 0.0f) ? sound_cfg->volume_inventory - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_WALK_VOLUME:
+                        sound_cfg->volume_walk = (sound_cfg->volume_walk > 0.0f) ? sound_cfg->volume_walk - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_DOORS_VOLUME:
+                        sound_cfg->volume_doors = (sound_cfg->volume_doors > 0.0f) ? sound_cfg->volume_doors - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_TRAPS_VOLUME:
+                        sound_cfg->volume_traps = (sound_cfg->volume_traps > 0.0f) ? sound_cfg->volume_traps - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_OTHER_VOLUME:
+                        sound_cfg->volume_other = (sound_cfg->volume_other > 0.0f) ? sound_cfg->volume_other - 0.1f : 0.0f;
+                        break;
+                    case SOUND_OPT_MUSIC_MAIN_ENABLED:
+                        sound_cfg->music_main_enabled = false;
+                        break;
+                    case SOUND_OPT_MUSIC_AMBIENT_ENABLED:
+                        sound_cfg->music_ambient_enabled = false;
+                        break;
+                    case SOUND_OPT_MUSIC_MAIN_VOLUME:
                         sound_cfg->music_main_volume = (sound_cfg->music_main_volume > 0.0f) ? sound_cfg->music_main_volume - 0.1f : 0.0f;
                         sdl_sound_save_config(); /* Apply volume change immediately */
-                    }
-                    else if (k == 13) {
+                        break;
+                    case SOUND_OPT_MUSIC_AMBIENT_VOLUME:
                         sound_cfg->music_ambient_volume = (sound_cfg->music_ambient_volume > 0.0f) ? sound_cfg->music_ambient_volume - 0.1f : 0.0f;
                         sdl_sound_save_config(); /* Apply volume change immediately */
+                        break;
+                    default:
+                        break;
                     }
                 }
                 else if (opt[k] == OPT_delay_factor)
@@ -16905,8 +17067,8 @@ static const int touch_pane_main_action_choices[] = {
     'z', '.', '/',
     'w', 'r', 'k', 'g', 'Z',
     'o', 'c', 'D', 'X',
-    '-', '{', 'a', 'E', 't', 'p', 'q',
-    'F', 'S', 'l', 'b', 'L',
+    '-', '{', 'a', KTRL('A'), 'E', 't', 'p', 'q',
+    'F', KTRL('F'), 'S', 'l', 'b', 'L',
     '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
@@ -16923,8 +17085,8 @@ static const int touch_pane_second_action_choices[] = {
     'z', '.', '/',
     'w', 'r', 'k', 'g', 'Z',
     'o', 'c', 'D', 'X',
-    '-', '{', 'a', 'E', 't', 'p', 'q',
-    'F', 'S', 'l', 'b', 'L',
+    '-', '{', 'a', KTRL('A'), 'E', 't', 'p', 'q',
+    'F', KTRL('F'), 'S', 'l', 'b', 'L',
     '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
@@ -18416,6 +18578,7 @@ void do_cmd_keybinds(void)
         {'k', NULL, "Destroy item", "k", false},
         {'g', NULL, "Pick up items", "g", false},
         {'Z', NULL, "Rest", "Z", false},
+        {KTRL('F'), NULL, "Swap quivers", "\006", false},
         {'o', NULL, "Open door / chest", "o", false},
         {'c', NULL, "Close door", "c", false},
         {'D', NULL, "Disarm trap / chest", "D", false},
@@ -18423,6 +18586,7 @@ void do_cmd_keybinds(void)
         {'-', NULL, "Fletch arrows", "-", false},
         {'{', NULL, "Inscribe item", "{", false},
         {'a', NULL, "Activate staff", "a", false},
+        {KTRL('A'), NULL, "Swap staff", "\001", false},
         {'E', NULL, "Eat food", "E", false},
         {'t', NULL, "Throw item", "t", false},
         {'p', NULL, "Blow horn", "p", false},
@@ -19951,6 +20115,7 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, 'h', "Character sheet" },
         { CONTROLLER_ENTRY_ACTION, 'f', "Fire (primary)" },
         { CONTROLLER_ENTRY_ACTION, 'F', "Fire (secondary)" },
+        { CONTROLLER_ENTRY_ACTION, KTRL('F'), "Swap quivers" },
         { CONTROLLER_ENTRY_ACTION, 'l', "Look around" },
         { CONTROLLER_ENTRY_ACTION, 'T', "Tunnel / dig" },
         { CONTROLLER_ENTRY_ACTION, 'b', "Bash door" },
@@ -19971,6 +20136,7 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, '-', "Fletch arrows" },
         { CONTROLLER_ENTRY_ACTION, '{', "Inscribe item" },
         { CONTROLLER_ENTRY_ACTION, 'a', "Activate staff" },
+        { CONTROLLER_ENTRY_ACTION, KTRL('A'), "Swap staff" },
         { CONTROLLER_ENTRY_ACTION, 'E', "Eat food" },
         { CONTROLLER_ENTRY_ACTION, 't', "Throw item" },
         { CONTROLLER_ENTRY_ACTION, 'p', "Blow horn" },
@@ -23226,13 +23392,20 @@ static void supply_entry_display_name(char* buf, size_t buflen,
     }
 }
 
-static int supply_entry_turns(const object_type* o_ptr)
+static int supply_entry_turns(const supply_list_entry* entry,
+    const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx)
         return -1;
 
     if (o_ptr->tval == TV_FLASK)
         return -2;
+
+    if (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN
+        && (!entry || !entry->equipped))
+    {
+        return -2;
+    }
 
     if (o_ptr->tval != TV_LIGHT)
         return -1;
@@ -23908,7 +24081,7 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
 
         if (cols->show_turns)
         {
-            int turns = supply_entry_turns(o_ptr);
+            int turns = supply_entry_turns(entry, o_ptr);
 
             if (turns >= 0)
                 strnfmt(cell_buf, sizeof(cell_buf), "%5d", turns);

@@ -1362,6 +1362,27 @@ static void put_label_fit(int x, int y, const char* label, int start)
     Term_putstr(x, y, -1, TERM_WHITE, buf);
 }
 
+static void format_tenths(char* buf, size_t buflen, long tenths)
+{
+    long whole;
+    long frac;
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (tenths < 0)
+        tenths = 0;
+
+    whole = tenths / 10L;
+    frac = tenths % 10L;
+    strnfmt(buf, buflen, "%ld.%ld", whole, frac);
+}
+
+static byte burden_attr(void)
+{
+    return (p_ptr->total_weight <= weight_limit()) ? TERM_L_GREEN : TERM_YELLOW;
+}
+
 /* Pair: numbers block ends at x + LINEW20. cur_w + 1 + rhs_w == block width. */
 static void put_pair20_right(int x, int y,
                              const char *label,
@@ -1684,16 +1705,16 @@ void display_player_xtra_info(int mode)
                      cur, 5, TERM_L_GREEN,
                      '/', rhs, 6, TERM_L_GREEN);
 
-    /* Burden: cur(4)/max(4) - integer pounds */
+    /* Burden: cur/max in pounds with tenths */
     {
-        long cur_b = (long)(p_ptr->total_weight / 10L);
-        long max_b = (long)(weight_limit() / 10L);
-        strnfmt(cur, sizeof(cur), "%ld", cur_b);
-        strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+        long cur_b = (long)p_ptr->total_weight;
+        long max_b = (long)weight_limit();
+        format_tenths(cur, sizeof(cur), cur_b);
+        format_tenths(rhs, sizeof(rhs), max_b);
         put_pair20_right(col_stats, row_stats++,
                          "Burden",
-                         cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
-                         '/', rhs, 4, TERM_L_GREEN);
+                         cur, 6, burden_attr(),
+                         '/', rhs, 6, TERM_L_GREEN);
     }
 
     /* Depth: current / minimum you can return to.
@@ -2967,10 +2988,16 @@ void display_character_tutorial(void)
                     "Awarded for depth progress, identifying items, spotting and killing monsters.",
                     text_col, row, text_w, content_max_row, TERM_SLATE);
 
-                long cur_wgt = p_ptr->total_weight / 10;
-                long max_wgt = weight_limit() / 10;
-                strnfmt(buf, sizeof(buf), "Burden: %ld/%ld lbs", cur_wgt, max_wgt);
-                Term_putstr(2, row++, -1, TERM_L_GREEN, buf);
+                long cur_wgt = p_ptr->total_weight;
+                long max_wgt = weight_limit();
+                char cur_wgt_buf[32];
+                char max_wgt_buf[32];
+                format_tenths(cur_wgt_buf, sizeof(cur_wgt_buf), cur_wgt);
+                format_tenths(max_wgt_buf, sizeof(max_wgt_buf), max_wgt);
+                strnfmt(buf, sizeof(buf), "Burden: %s/%s lbs", cur_wgt_buf,
+                    max_wgt_buf);
+                Term_putstr(2, row++, -1,
+                    (cur_wgt <= max_wgt) ? TERM_L_GREEN : TERM_YELLOW, buf);
                 row += tutorial_put_wrapped_limited(
                     "Weight carried / maximum capacity.",
                     text_col, row, text_w, content_max_row, TERM_SLATE);
@@ -3497,14 +3524,14 @@ static int display_player_compact_summary_block(int row_start)
 
         /* Burden */
         {
-            long cur_b = (long)(p_ptr->total_weight / 10L);
-            long max_b = (long)(weight_limit() / 10L);
-            strnfmt(cur, sizeof(cur), "%ld", cur_b);
-            strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+            long cur_b = (long)p_ptr->total_weight;
+            long max_b = (long)weight_limit();
+            format_tenths(cur, sizeof(cur), cur_b);
+            format_tenths(rhs, sizeof(rhs), max_b);
             put_pair20_right(col, row++,
                      "Burden",
-                     cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
-                     '/', rhs, 4, TERM_L_GREEN);
+                     cur, 6, burden_attr(),
+                     '/', rhs, 6, TERM_L_GREEN);
         }
 
         /* Depth c/m */
@@ -3624,14 +3651,14 @@ static int display_player_compact_summary_block(int row_start)
 
     /* Burden (right) */
     {
-        long cur_b = (long)(p_ptr->total_weight / 10L);
-        long max_b = (long)(weight_limit() / 10L);
-        strnfmt(cur, sizeof(cur), "%ld", cur_b);
-        strnfmt(rhs, sizeof(rhs), "%ld", max_b);
+        long cur_b = (long)p_ptr->total_weight;
+        long max_b = (long)weight_limit();
+        format_tenths(cur, sizeof(cur), cur_b);
+        format_tenths(rhs, sizeof(rhs), max_b);
         put_pair20_right(col_r, row_r++,
                          "Burden",
-                         cur, 4, (cur_b <= max_b) ? TERM_L_GREEN : TERM_YELLOW,
-                         '/', rhs, 4, TERM_L_GREEN);
+                         cur, 6, burden_attr(),
+                         '/', rhs, 6, TERM_L_GREEN);
     }
 
     /* Depth c/m (right) */
@@ -5803,6 +5830,12 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case 'S':
         SDL_strlcpy(buf, "Stealth (S)", buflen);
         return;
+    case KTRL('A'):
+        SDL_strlcpy(buf, "Swap staff (^A)", buflen);
+        return;
+    case KTRL('F'):
+        SDL_strlcpy(buf, "Swap quivers (^F)", buflen);
+        return;
     case 'f':
         SDL_strlcpy(buf, "Fire (f)", buflen);
         return;
@@ -6009,6 +6042,12 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case 'S':
         SDL_strlcpy(buf, "Stealth", buflen);
+        return;
+    case KTRL('A'):
+        SDL_strlcpy(buf, "Staff", buflen);
+        return;
+    case KTRL('F'):
+        SDL_strlcpy(buf, "Swap", buflen);
         return;
     case 'f':
         SDL_strlcpy(buf, "Fire", buflen);
@@ -7292,6 +7331,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         help_emit_heading("Miscellaneous", row - 2, col);
 
         put_role(ROLE_KEY,  "f F", row, col - 1); put_role(ROLE_SUBTLE, "/", row, col); put_role(ROLE_SUBTLE, "fire from quiver 1/2", row, col + 3); row++;
+        put_role(ROLE_KEY, "^f", row, col - 1); put_role(ROLE_SUBTLE, "swap quiver 1/2", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
         put_role(ROLE_KEY, " S", row, col); put_role(ROLE_SUBTLE, "stealth mode", row, col + 3); row++;
         put_role(ROLE_KEY, " n", row, col); put_role(ROLE_SUBTLE, "repeat last command", row, col + 3); row++;
@@ -7390,6 +7430,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_KEY, "E", row, col); put_role(ROLE_UI,  "eat food", row, col + 2); row++;
         put_role(ROLE_KEY, "q", row, col); put_role(ROLE_UI,  "quaff potion", row, col + 2); row++;
         if (angband_keyset) put_role(ROLE_KEY, "u", row, col); else put_role(ROLE_KEY, "a", row, col); put_role(ROLE_UI,  "activate staff", row, col + 2); row++;
+        put_role(ROLE_KEY, "^a", row, col); put_role(ROLE_UI,  "swap staff", row, col + 2); row++;
         put_role(ROLE_KEY, "p", row, col); put_role(ROLE_UI,  "play instrument", row, col + 2); row += 2;
 
         put_role(ROLE_KEY, "o", row, col); put_role(ROLE_UI,  "open door/chest", row, col + 2); row++;

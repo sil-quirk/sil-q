@@ -26,11 +26,15 @@ void sound_config_set_defaults(struct sound_config* config)
     config->enable_inventory = true;
     config->enable_walk = true;
     config->enable_doors = true;
+    config->enable_monster_hits = true;
+    config->enable_traps = true;
     config->volume_master = 1.0f;
     config->volume_combat = 1.0f;
     config->volume_inventory = 1.0f;
     config->volume_walk = 1.0f;
     config->volume_doors = 1.0f;
+    config->volume_monster_hits = 1.0f;
+    config->volume_traps = 1.0f;
     config->volume_other = 1.0f;
     config->music_main_enabled = true;
     config->music_ambient_enabled = true;
@@ -142,6 +146,20 @@ void sound_config_load(const char* filename, struct sound_config* config)
         log_debug("Loaded sound enable_doors: %s", config->enable_doors ? "true" : "false");
     }
 
+    // Load monster hit sounds flag
+    cJSON* enable_monster_hits = cJSON_GetObjectItemCaseSensitive(root, "enableMonsterHits");
+    if (cJSON_IsBool(enable_monster_hits)) {
+        config->enable_monster_hits = cJSON_IsTrue(enable_monster_hits);
+        log_debug("Loaded sound enable_monster_hits: %s", config->enable_monster_hits ? "true" : "false");
+    }
+
+    // Load trap sounds flag
+    cJSON* enable_traps = cJSON_GetObjectItemCaseSensitive(root, "enableTraps");
+    if (cJSON_IsBool(enable_traps)) {
+        config->enable_traps = cJSON_IsTrue(enable_traps);
+        log_debug("Loaded sound enable_traps: %s", config->enable_traps ? "true" : "false");
+    }
+
     // Load volume settings
     cJSON* volume_master = cJSON_GetObjectItemCaseSensitive(root, "volumeMaster");
     if (cJSON_IsNumber(volume_master)) {
@@ -171,6 +189,18 @@ void sound_config_load(const char* filename, struct sound_config* config)
     if (cJSON_IsNumber(volume_doors)) {
         config->volume_doors = (float)volume_doors->valuedouble;
         log_debug("Loaded doors volume: %.2f", config->volume_doors);
+    }
+
+    cJSON* volume_monster_hits = cJSON_GetObjectItemCaseSensitive(root, "volumeMonsterHits");
+    if (cJSON_IsNumber(volume_monster_hits)) {
+        config->volume_monster_hits = (float)volume_monster_hits->valuedouble;
+        log_debug("Loaded monster hits volume: %.2f", config->volume_monster_hits);
+    }
+
+    cJSON* volume_traps = cJSON_GetObjectItemCaseSensitive(root, "volumeTraps");
+    if (cJSON_IsNumber(volume_traps)) {
+        config->volume_traps = (float)volume_traps->valuedouble;
+        log_debug("Loaded traps volume: %.2f", config->volume_traps);
     }
 
     cJSON* volume_other = cJSON_GetObjectItemCaseSensitive(root, "volumeOther");
@@ -299,11 +329,15 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddBoolToObject(root, "enableInventory", config->enable_inventory);
     cJSON_AddBoolToObject(root, "enableWalk", config->enable_walk);
     cJSON_AddBoolToObject(root, "enableDoors", config->enable_doors);
+    cJSON_AddBoolToObject(root, "enableMonsterHits", config->enable_monster_hits);
+    cJSON_AddBoolToObject(root, "enableTraps", config->enable_traps);
     cJSON_AddNumberToObject(root, "volumeMaster", config->volume_master);
     cJSON_AddNumberToObject(root, "volumeCombat", config->volume_combat);
     cJSON_AddNumberToObject(root, "volumeInventory", config->volume_inventory);
     cJSON_AddNumberToObject(root, "volumeWalk", config->volume_walk);
     cJSON_AddNumberToObject(root, "volumeDoors", config->volume_doors);
+    cJSON_AddNumberToObject(root, "volumeMonsterHits", config->volume_monster_hits);
+    cJSON_AddNumberToObject(root, "volumeTraps", config->volume_traps);
     cJSON_AddNumberToObject(root, "volumeOther", config->volume_other);
     cJSON_AddBoolToObject(root, "music_main_enabled", config->music_main_enabled);
     cJSON_AddBoolToObject(root, "music_ambient_enabled", config->music_ambient_enabled);

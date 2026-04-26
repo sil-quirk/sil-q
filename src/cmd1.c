@@ -3055,8 +3055,8 @@ void search_square(int y, int x, int dist, int searching)
     // determine if a trap is present
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
     {
-        if ((o_ptr->tval == TV_CHEST) && chest_traps[o_ptr->pval]
-            && !object_known_p(o_ptr))
+        if ((o_ptr->tval == TV_CHEST) && (o_ptr->pval > 0)
+            && object_chest_trap_flags(o_ptr) && !object_known_p(o_ptr))
         {
             chest_trap_present = true;
             chest_level = o_ptr->pval;
@@ -3444,6 +3444,11 @@ static bool object_is_brass_lamp(const object_type* o_ptr)
         && o_ptr->sval == SV_LIGHT_LANTERN;
 }
 
+static bool object_is_oil_flask(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_FLASK;
+}
+
 static bool object_uses_light_pickup_limit(const object_type* o_ptr)
 {
     return o_ptr && o_ptr->k_idx && player_light_carry_cap(o_ptr) > 0;
@@ -3459,6 +3464,7 @@ typedef enum pickup_failure_result
 static bool deferred_pickup_drop_pending = false;
 static object_type deferred_pickup_drop;
 static int deferred_pickup_drop_oil = 0;
+static bool brass_lamp_pickup_overflow_checked = false;
 
 static void clear_deferred_pickup_drop(void)
 {
@@ -3651,18 +3657,26 @@ static bool queue_deferred_pickup_pack_drop(int item, int amount)
     return true;
 }
 
-static bool confirm_oil_pickup_overflow(const object_type* o_ptr, int oil_amount)
+static bool confirm_oil_pickup_overflow_with_bonus(const object_type* o_ptr,
+    int oil_amount, int lantern_bonus)
 {
     char o_name[80];
     char prompt[160];
 
-    if (!o_ptr || oil_amount <= 0 || !player_lamp_oil_would_overflow(oil_amount))
+    if (!o_ptr || oil_amount <= 0
+        || !player_lamp_oil_would_overflow_with_bonus(oil_amount,
+            lantern_bonus))
         return true;
 
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
     strnfmt(prompt, sizeof(prompt),
         "Adding the oil from %s will waste some oil. Proceed? ", o_name);
     return get_check(prompt);
+}
+
+static bool confirm_oil_pickup_overflow(const object_type* o_ptr, int oil_amount)
+{
+    return confirm_oil_pickup_overflow_with_bonus(o_ptr, oil_amount, 0);
 }
 
 static pickup_failure_result prompt_replace_light_limit_item(
@@ -3846,9 +3860,18 @@ static bool pickup_brass_lamp(int o_idx, object_type* o_ptr)
     if (player_light_available_capacity(o_ptr) <= 0)
         return false;
 
+    if (!brass_lamp_pickup_overflow_checked
+        && !confirm_oil_pickup_overflow_with_bonus(o_ptr, oil_amount, 1))
+    {
+        msg_print("You leave it on the ground.");
+        return true;
+    }
+
+    brass_lamp_pickup_overflow_checked = false;
     player_gain_lamp_oil_with_bonus(oil_amount, true, 1);
     o_ptr->timeout = 0;
     give_player_item(o_ptr);
+    (void)player_lamp_oil();
 
     if (!o_ptr->k_idx || o_ptr->number <= 0)
     {
@@ -3911,9 +3934,9 @@ static int carried_oil_flask_count(void)
     return count;
 }
 
-static int drop_oil_flasks_for_lamp(int needed_slots)
+static int discard_oil_flasks_for_lamp(int needed_slots)
 {
-    int dropped = 0;
+    int discarded = 0;
 
     while (needed_slots > 0)
     {
@@ -3925,12 +3948,10 @@ static int drop_oil_flasks_for_lamp(int needed_slots)
             if (!s_ptr || !s_ptr->k_idx || s_ptr->tval != TV_FLASK)
                 continue;
 
-            if (supplies_drop_amount(i, 1))
-            {
-                dropped++;
-                needed_slots--;
-                removed = true;
-            }
+            (void)supplies_consume_quantity(i, 1);
+            discarded++;
+            needed_slots--;
+            removed = true;
             break;
         }
 
@@ -3943,8 +3964,9 @@ static int drop_oil_flasks_for_lamp(int needed_slots)
             if (!o_ptr->k_idx || o_ptr->tval != TV_FLASK)
                 continue;
 
-            inven_drop(i, 1);
-            dropped++;
+            inven_item_increase(i, -1);
+            inven_item_optimize(i);
+            discarded++;
             needed_slots--;
             removed = true;
             break;
@@ -3954,14 +3976,163 @@ static int drop_oil_flasks_for_lamp(int needed_slots)
             break;
     }
 
-    return dropped;
+    return discarded;
 }
 
-static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming)
+static bool carried_brass_lamps_fill_oil_storage(void)
+{
+    return player_carried_light_count_for_sval(SV_LIGHT_LANTERN)
+        * PLAYER_BRASS_LAMP_SLOT_COST >= PLAYER_OIL_CONTAINER_SLOT_CAP;
+}
+
+static int oil_container_pickup_oil_amount(const object_type* o_ptr)
+{
+    int unit_oil;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return 0;
+
+    if (object_is_brass_lamp(o_ptr))
+        unit_oil = MIN(o_ptr->timeout, FUEL_LAMP);
+    else if (object_is_oil_flask(o_ptr))
+        unit_oil = MIN(o_ptr->pval, FUEL_FLASK);
+    else
+        return 0;
+
+    if (unit_oil < 0)
+        unit_oil = 0;
+
+    return unit_oil * MAX(o_ptr->number, 1);
+}
+
+static int oil_flask_units_oil_amount(const object_type* o_ptr, int amount)
+{
+    int unit_oil;
+
+    if (!object_is_oil_flask(o_ptr) || amount <= 0)
+        return 0;
+
+    unit_oil = MIN(o_ptr->pval, FUEL_FLASK);
+    if (unit_oil < 0)
+        unit_oil = 0;
+
+    return unit_oil * MIN(amount, MAX(o_ptr->number, 1));
+}
+
+static bool pickup_oil_flask_oil_only(int o_idx, object_type* o_ptr)
+{
+    int oil_amount;
+
+    if (!object_is_oil_flask(o_ptr))
+        return false;
+
+    if (!carried_brass_lamps_fill_oil_storage())
+        return false;
+
+    oil_amount = oil_container_pickup_oil_amount(o_ptr);
+    if (oil_amount > 0 && !confirm_oil_pickup_overflow(o_ptr, oil_amount))
+    {
+        msg_print("You leave it on the ground.");
+        return true;
+    }
+
+    if (oil_amount > 0)
+    {
+        player_gain_lamp_oil(oil_amount, true);
+        (void)player_lamp_oil();
+        msg_format("You pour the oil into your lamp stores and discard the "
+            "flask%s.", (MAX(o_ptr->number, 1) == 1) ? "" : "s");
+    }
+    else
+    {
+        msg_format("You discard the empty oil flask%s.",
+            (MAX(o_ptr->number, 1) == 1) ? "" : "s");
+    }
+
+    delete_object_idx(o_idx);
+    p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    return true;
+}
+
+static int oil_flasks_replaced_for_lamp_oil_amount(int needed_slots)
+{
+    int oil_amount = 0;
+
+    if (needed_slots <= 0)
+        return 0;
+
+    for (int i = 0; i < supplies_entry_count() && needed_slots > 0; i++)
+    {
+        object_type* s_ptr = supplies_entry_at(i);
+        int amount;
+
+        if (!object_is_oil_flask(s_ptr))
+            continue;
+
+        amount = MIN(needed_slots, MAX(s_ptr->number, 1));
+        oil_amount += oil_flask_units_oil_amount(s_ptr, amount);
+        needed_slots -= amount;
+    }
+
+    for (int i = 0; i < INVEN_PACK && needed_slots > 0; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        int amount;
+
+        if (!object_is_oil_flask(o_ptr))
+            continue;
+
+        amount = MIN(needed_slots, MAX(o_ptr->number, 1));
+        oil_amount += oil_flask_units_oil_amount(o_ptr, amount);
+        needed_slots -= amount;
+    }
+
+    return oil_amount;
+}
+
+static bool brass_lamp_pickup_oil_would_overflow_after_discard(
+    const object_type* incoming, int discarded_flasks, int discarded_flask_oil)
+{
+    int oil_amount;
+    int resulting_slots;
+    int resulting_capacity;
+    int current_oil;
+
+    if (!object_is_brass_lamp(incoming))
+        return false;
+
+    oil_amount = oil_container_pickup_oil_amount(incoming);
+    oil_amount += discarded_flask_oil;
+    if (oil_amount <= 0)
+        return false;
+
+    resulting_slots = player_oil_container_slots_used()
+        - discarded_flasks * PLAYER_OIL_FLASK_SLOT_COST
+        + player_oil_container_slot_cost(incoming) * MAX(incoming->number, 1);
+    if (resulting_slots < 0)
+        resulting_slots = 0;
+    if (resulting_slots > PLAYER_OIL_CONTAINER_SLOT_CAP)
+        resulting_slots = PLAYER_OIL_CONTAINER_SLOT_CAP;
+
+    resulting_capacity = resulting_slots * FUEL_FLASK;
+    current_oil = p_ptr ? p_ptr->lamp_oil : 0;
+    if (current_oil < 0)
+        current_oil = 0;
+
+    return current_oil + oil_amount > resulting_capacity;
+}
+
+static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
+    bool* aborted)
 {
     int incoming_slots;
     int needed_slots;
-    int dropped;
+    int discarded_flask_oil;
+    int discarded;
+
+    if (aborted)
+        *aborted = false;
 
     if (!object_is_brass_lamp(incoming))
         return false;
@@ -3977,16 +4148,38 @@ static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming)
     if (carried_oil_flask_count() < needed_slots)
         return false;
 
-    dropped = drop_oil_flasks_for_lamp(needed_slots);
-    if (dropped > 0)
+    discarded_flask_oil = oil_flasks_replaced_for_lamp_oil_amount(needed_slots);
+
+    if (brass_lamp_pickup_oil_would_overflow_after_discard(incoming,
+            needed_slots, discarded_flask_oil))
     {
-        msg_format("Your lamp replaces %d oil flask%s.",
-            dropped, (dropped == 1) ? "" : "s");
+        if (!confirm_oil_pickup_overflow(incoming,
+                oil_container_pickup_oil_amount(incoming)
+                    + discarded_flask_oil))
+        {
+            if (aborted)
+                *aborted = true;
+            msg_print("You leave it on the ground.");
+            return false;
+        }
+
+        brass_lamp_pickup_overflow_checked = true;
+    }
+
+    discarded = discard_oil_flasks_for_lamp(needed_slots);
+    if (discarded > 0)
+    {
+        brass_lamp_pickup_overflow_checked = true;
+        if (discarded_flask_oil > 0)
+            player_gain_lamp_oil(discarded_flask_oil, true);
+        msg_format("Your lamp replaces %d oil flask%s, keeping the oil in "
+            "your lamp stores.",
+            discarded, (discarded == 1) ? "" : "s");
         p_ptr->notice |= (PN_COMBINE | PN_REORDER);
         p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
     }
 
-    return dropped > 0;
+    return discarded > 0;
 }
 
 /*
@@ -4497,13 +4690,20 @@ static bool prepare_floor_object_for_pickup(int o_idx, object_type* o_ptr)
 {
     char o_name[120];
     bool attempted_replacement = false;
+    bool pickup_aborted = false;
 
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
+    brass_lamp_pickup_overflow_checked = false;
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-    auto_replace_flasks_for_brass_lamp(o_ptr);
+    if (pickup_oil_flask_oil_only(o_idx, o_ptr))
+        return false;
+
+    auto_replace_flasks_for_brass_lamp(o_ptr, &pickup_aborted);
+    if (pickup_aborted)
+        return false;
 
     while (!inven_carry_okay(o_ptr))
     {
@@ -4888,6 +5088,8 @@ void hit_trap(int y, int x)
 
     case FEAT_TRAP_DART:
     {
+        sound(MSG_TRAP_NEEDLE);
+
         if (check_hit(15, true))
         {
             dam = damroll(1, 15);
@@ -4949,6 +5151,8 @@ void hit_trap(int y, int x)
 
     case FEAT_TRAP_GAS_CONF:
     {
+        sound(MSG_TRAP_GAS);
+
         msg_print("A vapor fills the air and you feel yourself becoming "
                   "lightheaded.");
         if (allow_player_confusion(NULL))
@@ -4969,6 +5173,8 @@ void hit_trap(int y, int x)
 
     case FEAT_TRAP_GAS_MEMORY:
     {
+        sound(MSG_TRAP_GAS);
+
         msg_print("You are surrounded by a strange mist!");
         if (saving_throw(NULL, 0))
         {

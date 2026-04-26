@@ -838,7 +838,7 @@ void dbg_show_active_flags(void)
             
         /* If the player opens the debug menu from debug curses UI from the character sheet,
         * make sure the save is marked as tempered/debug (noscore 0x0008)
-        * so metarun finalization will purge it just like the Ctrl-A debug path.
+        * so metarun finalization will purge it just like the Ctrl-Y debug path.
         */
         if (!(p_ptr->noscore & 0x0008)) {
             p_ptr->noscore |= 0x0008;

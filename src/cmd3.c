@@ -20,6 +20,24 @@ static void prise_silmaril(void);
  */
 static int get_equip_sound(const object_type* o_ptr)
 {
+    /* Fuel-burning light sources */
+    if (o_ptr->tval == TV_LIGHT)
+    {
+        if (((o_ptr->sval == SV_LIGHT_TORCH)
+                || (o_ptr->sval == SV_LIGHT_MALLORN))
+            && player_light_has_fuel(o_ptr))
+        {
+            return MSG_TORCH_LIGHT;
+        }
+
+        if ((o_ptr->sval == SV_LIGHT_LANTERN)
+            && (object_ego_prefix(o_ptr) != EGO_BROKEN_BRASS_LANTERN)
+            && player_light_has_fuel(o_ptr))
+        {
+            return MSG_TORCH_LIGHT;
+        }
+    }
+
     /* Swords */
     if (o_ptr->tval == TV_SWORD)
         return MSG_EQUIP_SWORD;
