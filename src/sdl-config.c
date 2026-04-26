@@ -539,8 +539,9 @@ static bool g_app_intro_seen = false;
 static const byte app_interface_options[] = {
     OPT_system_beep, OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
-    OPT_look_objects_sort_by_difficulty, OPT_show_level_generation_debug,
-    OPT_show_elemental_item_rolls, OPT_top_status_line,
+    OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
+    OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
+    OPT_top_status_line,
     OPT_NONE
 };
 
@@ -629,6 +630,26 @@ static bool sdl_config_should_default_top_status_line(void)
     return false;
 }
 
+static bool sdl_config_default_app_bool(int opt)
+{
+    if (opt == OPT_top_status_line)
+        return sdl_config_should_default_top_status_line();
+
+    if (opt >= 0 && opt < OPT_MAX)
+        return option_norm[opt];
+
+    return false;
+}
+
+static byte sdl_config_default_ability_desc_mode(void)
+{
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 static void sdl_config_apply_app_bool_defaults(const byte* option_ids)
 {
     if (!op_ptr)
@@ -639,7 +660,7 @@ static void sdl_config_apply_app_bool_defaults(const byte* option_ids)
         int opt = option_ids[i];
 
         if (opt >= 0 && opt < OPT_MAX)
-            op_ptr->opt[opt] = option_norm[opt];
+            op_ptr->opt[opt] = sdl_config_default_app_bool(opt);
     }
 }
 
@@ -657,18 +678,11 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;
     op_ptr->main_combat_rolls = 0;
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    op_ptr->ability_desc_mode = 1;
-#else
-    op_ptr->ability_desc_mode = 0;
-#endif
+    op_ptr->ability_desc_mode = sdl_config_default_ability_desc_mode();
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
     op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
-    op_ptr->opt[OPT_stealth_vision] = true;
-    op_ptr->opt[OPT_sleep_icon] = true;
-    op_ptr->opt[OPT_top_status_line] = sdl_config_should_default_top_status_line();
 }
 
 static void sdl_config_load_app_option_group(cJSON* app_options,
@@ -677,13 +691,19 @@ static void sdl_config_load_app_option_group(cJSON* app_options,
     cJSON* group = cJSON_GetObjectItemCaseSensitive(app_options, group_name);
     if (!op_ptr)
         return;
-    if (!cJSON_IsObject(group))
-        return;
 
+    /* Old sil_sdl.json files may not contain newly added options. Reset each
+     * key to its default before loading any stored override. */
     for (int i = 0; option_ids[i] != OPT_NONE; i++) {
         int opt = option_ids[i];
         cptr key = option_text[opt];
         cJSON* item;
+
+        if (opt >= 0 && opt < OPT_MAX)
+            op_ptr->opt[opt] = sdl_config_default_app_bool(opt);
+
+        if (!cJSON_IsObject(group))
+            continue;
 
         if (!key)
             continue;
@@ -718,9 +738,20 @@ static void sdl_config_save_app_option_group(cJSON* app_options,
 }
 
 static void sdl_config_load_byte_value(cJSON* parent, const char* key,
-    byte* out_value, byte max_value)
+    byte* out_value, byte max_value, byte default_value)
 {
-    cJSON* item = cJSON_GetObjectItemCaseSensitive(parent, key);
+    cJSON* item;
+
+    if (!out_value)
+        return;
+
+    /* Missing numeric keys are deliberate defaults, not inherited state. */
+    *out_value = MIN(default_value, max_value);
+
+    if (!cJSON_IsObject(parent))
+        return;
+
+    item = cJSON_GetObjectItemCaseSensitive(parent, key);
     if (!cJSON_IsNumber(item))
         return;
 
@@ -791,25 +822,29 @@ void sdl_config_load_app_options(const char* filename)
     sdl_config_load_app_option_group(app_options, "visual", app_visual_options);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "interface");
-    if (cJSON_IsObject(item))
-        sdl_config_load_byte_value(item, "hitpointWarning", &op_ptr->hitpoint_warn, 9);
+    sdl_config_load_byte_value(item, "hitpointWarning", &op_ptr->hitpoint_warn,
+        9, 3);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "efficiency");
-    if (cJSON_IsObject(item))
-        sdl_config_load_byte_value(item, "delayFactor", &op_ptr->delay_factor, 9);
+    sdl_config_load_byte_value(item, "delayFactor", &op_ptr->delay_factor,
+        9, 5);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
-    if (cJSON_IsObject(item)) {
-        sdl_config_load_byte_value(item, "mainCombatRolls", &op_ptr->main_combat_rolls, 4);
-        sdl_config_load_byte_value(item, "abilityDescMode", &op_ptr->ability_desc_mode, 2);
-        sdl_config_load_byte_value(item, "introStyle", &op_ptr->intro_style, INTRO_STYLE_RANDOM);
-        sdl_config_load_byte_value(item, "levelEntryNarrativeMode",
-            &op_ptr->level_entry_narrative_mode, LEVEL_ENTRY_NARRATIVE_OFF);
-        sdl_config_load_byte_value(item, "partitionNarrativeMode",
-            &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_OFF);
-        sdl_config_load_byte_value(item, "narrativeBannerTurns",
-            &op_ptr->narrative_banner_turns, NARRATIVE_BANNER_TURNS_MAX);
-    }
+    sdl_config_load_byte_value(item, "mainCombatRolls",
+        &op_ptr->main_combat_rolls, 4, 0);
+    sdl_config_load_byte_value(item, "abilityDescMode",
+        &op_ptr->ability_desc_mode, 2, sdl_config_default_ability_desc_mode());
+    sdl_config_load_byte_value(item, "introStyle", &op_ptr->intro_style,
+        INTRO_STYLE_RANDOM, INTRO_STYLE_RANDOM);
+    sdl_config_load_byte_value(item, "levelEntryNarrativeMode",
+        &op_ptr->level_entry_narrative_mode, LEVEL_ENTRY_NARRATIVE_OFF,
+        LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
+    sdl_config_load_byte_value(item, "partitionNarrativeMode",
+        &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_OFF,
+        PARTITION_NARRATIVE_BANNER);
+    sdl_config_load_byte_value(item, "narrativeBannerTurns",
+        &op_ptr->narrative_banner_turns, NARRATIVE_BANNER_TURNS_MAX,
+        DEFAULT_NARRATIVE_BANNER_TURNS);
 
     cJSON_Delete(root);
 }

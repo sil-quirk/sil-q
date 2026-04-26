@@ -5580,13 +5580,13 @@ static void sdl_present_if_needed(sdl_view* d)
             if (i == PANE_TOUCH)
                 continue;
 
+            /* Draw only internal leading edges.  This keeps separators
+             * between panes without painting a frame around the window. */
             sdl_draw_pane_edges(&view->rect,
-                true,
-                true,
-                (layout_screen.w > 0
-                    && view->rect.x + view->rect.w >= layout_screen.x + layout_screen.w),
-                (layout_screen.h > 0
-                    && view->rect.y + view->rect.h >= layout_screen.y + layout_screen.h));
+                (layout_screen.w > 0 && view->rect.x > layout_screen.x),
+                (layout_screen.h > 0 && view->rect.y > layout_screen.y),
+                false,
+                false);
         }
     }
 

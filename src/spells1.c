@@ -7700,9 +7700,9 @@ void hatch_spider(monster_type* m_ptr)
  *  Allows you to change the song you are singing to a new one.
  *  If you have the ability 'woven themes' and try to sing a different song,
  *  it will add it as a theme or change the current theme.
- *  If you have 'woven themes' and choose again to sing the main song, it will
- * cancel any minor theme. Starting a new song (or changing songs) takes a turn,
- * but ending a song/theme does not.
+ *  Choosing the current main song again stops singing. Choosing the current
+ *  minor theme again cancels that minor theme. Starting a new song (or
+ *  changing songs) takes a turn, but ending a song/theme does not.
  */
 
 void change_song(int song)
@@ -7724,27 +7724,18 @@ void change_song(int song)
         old_song = p_ptr->song1;
     }
 
-    // attempting to change to the same song
+    // attempting to change to the main song again stops singing
     if (p_ptr->song1 == song)
     {
-        // this can cancel minor themes
-        if (p_ptr->song2 != SNG_NOTHING)
-        {
-            song = SNG_NOTHING;
-        }
-        // but otherwise does nothing
-        else if (song != SNG_NOTHING)
-        {
-            msg_print("You were already singing that.");
-            return;
-        }
+        song_to_change = 1;
+        old_song = p_ptr->song1;
+        song = SNG_NOTHING;
     }
 
-    // attempting to change minor theme to itself
+    // attempting to change minor theme to itself cancels the minor theme
     else if ((song_to_change == 2) && (p_ptr->song2 == song))
     {
-        msg_print("You are already using that minor theme.");
-        return;
+        song = SNG_NOTHING;
     }
 
     new_song_is_duel = song_is_duel(song);

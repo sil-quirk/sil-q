@@ -5589,13 +5589,70 @@ int rough_direction(int y1, int x1, int y2, int x2)
  *
  * Currently this function applies confusion directly.
  */
+static void get_aim_prompt_label(
+    int binding, cptr fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static void get_aim_prompt(char* buf, size_t buflen, bool has_target)
+{
+    char fire_label[24];
+    char select_label[24];
+    char cancel_label[24];
+
+    if (!buf || !buflen)
+        return;
+
+    if (!steamdeck_controls_active())
+    {
+        if (has_target)
+        {
+            SDL_strlcpy(buf,
+                "Direction ('f'=target, 's'=select target, ESC)? ", buflen);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "Direction ('f'=closest, 's'=select target, ESC)? ", buflen);
+        }
+        return;
+    }
+
+    get_aim_prompt_label('f', "B", fire_label, sizeof(fire_label));
+    get_aim_prompt_label('s', "Y", select_label, sizeof(select_label));
+    get_aim_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
+
+    if (has_target)
+    {
+        strnfmt(buf, buflen, "Dir (%s target, %s select target, %s cancel)? ",
+            fire_label, select_label, cancel_label);
+        if (strlen(buf) > 49)
+            strnfmt(buf, buflen, "Dir (%s target, %s select, %s cancel)? ",
+                fire_label, select_label, cancel_label);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "Dir (%s closest, %s select target, %s cancel)? ",
+            fire_label, select_label, cancel_label);
+        if (strlen(buf) > 49)
+            strnfmt(buf, buflen, "Dir (%s closest, %s select, %s cancel)? ",
+                fire_label, select_label, cancel_label);
+    }
+}
+
 bool get_aim_dir(int* dp, int range)
 {
     int dir;
 
     char ch;
 
-    cptr p;
+    char prompt[80];
 
 #ifdef ALLOW_REPEAT
 
@@ -5631,25 +5688,20 @@ bool get_aim_dir(int* dp, int range)
     /* Ask until satisfied */
     while (!dir)
     {
+        bool has_target = target_okay(range);
+
         /* Choose a prompt */
-        if (!target_okay(range))
-        {
-            p = "Direction ('f' for closest, '*' to choose a target, ESC to "
-                "cancel)? ";
-        }
-        else
-        {
-            p = "Direction ('f' for target, '*' to re-target, ESC to cancel)? ";
-        }
+        get_aim_prompt(prompt, sizeof(prompt), has_target);
 
         /* Get a command (or Cancel) */
-        if (!get_com(p, &ch))
+        if (!get_com(prompt, &ch))
             break;
 
         /* Analyze */
         switch (ch)
         {
         /* Set new target, use target if legal */
+        case 's':
         case '*':
         {
             if (target_set_interactive(TARGET_KILL, range))

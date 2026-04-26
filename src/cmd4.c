@@ -1676,12 +1676,97 @@ static int song_index_from_menu_letter(char letter)
     return (int)(letter - 'a');
 }
 
+static u32b song_menu_use_counter = 0;
+static u32b song_menu_last_used[SNG_MAX];
+
+static bool song_menu_is_singable(int song)
+{
+    return (song >= 0) && (song < SNG_MAX) && (song != SNG_WOVEN_THEMES)
+        && (song != SNG_GRA);
+}
+
+static bool song_menu_sorts_before(int song, int other)
+{
+    if (op_ptr && song_list_sort_by_recent
+        && (song_menu_last_used[song] != song_menu_last_used[other]))
+    {
+        return song_menu_last_used[song] > song_menu_last_used[other];
+    }
+
+    return song < other;
+}
+
+static int song_menu_collect_available(int songs[], int max_songs)
+{
+    int i, j;
+    int count = 0;
+
+    for (i = 0; i < SNG_MAX; i++)
+    {
+        if (!song_menu_is_singable(i))
+            continue;
+
+        if (!p_ptr->active_ability[S_SNG][i])
+            continue;
+
+        if (count < max_songs)
+            songs[count++] = i;
+    }
+
+    for (i = 1; i < count; i++)
+    {
+        int song = songs[i];
+
+        for (j = i - 1; j >= 0 && song_menu_sorts_before(song, songs[j]); j--)
+        {
+            songs[j + 1] = songs[j];
+        }
+
+        songs[j + 1] = song;
+    }
+
+    return count;
+}
+
+static int song_menu_choice_from_highlight(int highlight, const int songs[],
+    int song_count)
+{
+    if (highlight == 0)
+        return SNG_NOTHING;
+
+    if ((highlight > 0) && (highlight <= song_count))
+        return songs[highlight - 1];
+
+    if ((p_ptr->song2 != SNG_NOTHING) && (highlight == song_count + 1))
+        return SNG_EXCHANGE_THEMES;
+
+    return -1;
+}
+
+static int song_menu_total_options(int song_count)
+{
+    int total = 1 + song_count;
+
+    if (p_ptr->song2 != SNG_NOTHING)
+        total++;
+
+    return total;
+}
+
+static void song_menu_mark_used(int song)
+{
+    if (!song_menu_is_singable(song))
+        return;
+
+    song_menu_last_used[song] = ++song_menu_use_counter;
+}
+
 /*
  * Display the available songs (modelled on show_inven) with optional highlighting.
  */
 void show_songs_with_highlight(int highlight)
 {
-    int i, j, k = 0;
+    int i, j;
     int current_line = 0;
     bool steamdeck = steamdeck_controls_active();
 
@@ -1691,31 +1776,8 @@ void show_songs_with_highlight(int highlight)
 
     char tmp_val[80];
 
-    int out_index[24];
-    char out_desc[24][80];
-
-    /* Display the songs */
-    for (k = 0, i = 0; i < SNG_MAX; i++)
-    {
-        /* Skip Woven Themes (not a singable song) */
-        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-            continue;
-
-        /* Is this song acceptable? */
-        if (!p_ptr->active_ability[S_SNG][i])
-            continue;
-
-        /* Save the index */
-        out_index[k] = i;
-
-        /* Save the song name */
-        SDL_strlcpy(out_desc[k],
-            b_name + (&b_info[ability_index(S_SNG, i)])->name,
-            sizeof(out_desc[0]));
-
-        /* Advance to next "line" */
-        k++;
-    }
+    int songs[SNG_MAX];
+    int song_count = song_menu_collect_available(songs, SNG_MAX);
 
     // add a line for the 'stop singing' command
 
@@ -1734,10 +1796,13 @@ void show_songs_with_highlight(int highlight)
     current_line++;
 
     /* Output each entry */
-    for (j = 0; j < k; j++)
+    for (j = 0; j < song_count; j++)
     {
+        cptr desc;
+
         /* Get the index */
-        i = out_index[j];
+        i = songs[j];
+        desc = b_name + (&b_info[ability_index(S_SNG, i)])->name;
 
         /* Clear the line */
         prt("", j + 2, col - 2);
@@ -1754,9 +1819,9 @@ void show_songs_with_highlight(int highlight)
 
         /* Display the entry itself - highlight if selected */
         if (highlight == current_line)
-            c_put_str(TERM_L_BLUE, out_desc[j], j + 2, text_col);
+            c_put_str(TERM_L_BLUE, desc, j + 2, text_col);
         else
-            c_put_str(TERM_L_WHITE, out_desc[j], j + 2, text_col);
+            c_put_str(TERM_L_WHITE, desc, j + 2, text_col);
         current_line++;
     }
 
@@ -1797,7 +1862,8 @@ void do_cmd_change_song()
     int i;
     bool done = false;
 
-    int options = 0;
+    int songs[SNG_MAX];
+    int song_count = 0;
     int song_choice = -1;
     int highlight = 0; // Add highlight tracking
 
@@ -1818,29 +1884,17 @@ void do_cmd_change_song()
         return;
     }
 
-    // count the abilities
-    for (i = 0; i < SNG_MAX; i++)
-    {
-        /* Skip Woven Themes (not a singable song) */
-        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-            continue;
-
-        // keep track of the number of options and final song
-        if (p_ptr->active_ability[S_SNG][i])
-        {
-            options += 1;
-        }
-    }
+    song_count = song_menu_collect_available(songs, SNG_MAX);
 
     // abort if you know no songs
-    if (options == 0)
+    if (song_count == 0)
     {
         log_trace("No songs available - player knows no songs of power");
         msg_print("You do not know any songs of power.");
         return;
     }
     
-    log_debug("Player has %d songs available", options);
+    log_debug("Player has %d songs available", song_count);
 
     /* Flush the prompt */
     Term_fresh();
@@ -1868,24 +1922,15 @@ void do_cmd_change_song()
         else
             sprintf(out_val, "Songs: s");
 
-        // count the abilities
-        for (i = 0; i < SNG_MAX; i++)
+        for (i = 0; i < song_count; i++)
         {
-            /* Skip Woven Themes (not a singable song) */
-            if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                continue;
-
-            // keep track of the number of options
-            if (p_ptr->active_ability[S_SNG][i])
+            if (!steamdeck)
             {
-                if (!steamdeck)
-                {
-                    SDL_strlcat(out_val, ",", sizeof(out_val));
-                    sprintf(tmp_val, "%c", song_menu_letter(i));
+                SDL_strlcat(out_val, ",", sizeof(out_val));
+                sprintf(tmp_val, "%c", song_menu_letter(songs[i]));
 
-                    /* Append */
-                    SDL_strlcat(out_val, tmp_val, sizeof(out_val));
-                }
+                /* Append */
+                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
             }
         }
 
@@ -1931,37 +1976,8 @@ void do_cmd_change_song()
         {
             if (p_ptr->command_see)
             {
-                // Convert highlight to appropriate song choice (same logic as '6' and Space keys)
-                if (highlight == 0)
-                {
-                    song_choice = SNG_NOTHING; // Stop singing
-                }
-                else
-                {
-                    // Find the i-th available song
-                    int song_count = 1;
-                    for (i = 0; i < SNG_MAX; i++)
-                    {
-                        /* Skip Woven Themes (not a singable song) */
-                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                            continue;
-
-                        if (p_ptr->active_ability[S_SNG][i])
-                        {
-                            if (song_count == highlight)
-                            {
-                                song_choice = i;
-                                break;
-                            }
-                            song_count++;
-                        }
-                    }
-                    // Check for exchange themes option
-                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
-                    {
-                        song_choice = SNG_EXCHANGE_THEMES;
-                    }
-                }
+                song_choice =
+                    song_menu_choice_from_highlight(highlight, songs, song_count);
                 
                 if (song_choice >= 0)
                 {
@@ -2006,37 +2022,8 @@ void do_cmd_change_song()
         {
             if (p_ptr->command_see)
             {
-                // Convert highlight to appropriate song choice (same logic as '6' key)
-                if (highlight == 0)
-                {
-                    song_choice = SNG_NOTHING; // Stop singing
-                }
-                else
-                {
-                    // Find the i-th available song
-                    int song_count = 1;
-                    for (i = 0; i < SNG_MAX; i++)
-                    {
-                        /* Skip Woven Themes (not a singable song) */
-                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                            continue;
-
-                        if (p_ptr->active_ability[S_SNG][i])
-                        {
-                            if (song_count == highlight)
-                            {
-                                song_choice = i;
-                                break;
-                            }
-                            song_count++;
-                        }
-                    }
-                    // Check for exchange themes option
-                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
-                    {
-                        song_choice = SNG_EXCHANGE_THEMES;
-                    }
-                }
+                song_choice =
+                    song_menu_choice_from_highlight(highlight, songs, song_count);
                 
                 if (song_choice >= 0)
                 {
@@ -2059,19 +2046,7 @@ void do_cmd_change_song()
         {
             if (p_ptr->command_see)
             {
-                // Get total available songs + stop singing + exchange themes
-                int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_MAX; i++)
-                {
-                    /* Skip Woven Themes (not a singable song) */
-                    if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                        continue;
-
-                    if (p_ptr->active_ability[S_SNG][i])
-                        total_options++;
-                }
-                if (p_ptr->song2 != SNG_NOTHING)
-                    total_options++; // "Exchange themes"
+                int total_options = song_menu_total_options(song_count);
 
                 highlight = (highlight + 1) % total_options;
             }
@@ -2082,19 +2057,7 @@ void do_cmd_change_song()
         {
             if (p_ptr->command_see)
             {
-                // Get total available songs + stop singing + exchange themes
-                int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_MAX; i++)
-                {
-                    /* Skip Woven Themes (not a singable song) */
-                    if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                        continue;
-
-                    if (p_ptr->active_ability[S_SNG][i])
-                        total_options++;
-                }
-                if (p_ptr->song2 != SNG_NOTHING)
-                    total_options++; // "Exchange themes"
+                int total_options = song_menu_total_options(song_count);
 
                 highlight = (highlight - 1 + total_options) % total_options;
             }
@@ -2105,37 +2068,8 @@ void do_cmd_change_song()
         {
             if (p_ptr->command_see)
             {
-                // Convert highlight to appropriate song choice
-                if (highlight == 0)
-                {
-                    song_choice = SNG_NOTHING; // Stop singing
-                }
-                else
-                {
-                    // Find the i-th available song
-                    int song_count = 1;
-                    for (i = 0; i < SNG_MAX; i++)
-                    {
-                        /* Skip Woven Themes (not a singable song) */
-                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
-                            continue;
-
-                        if (p_ptr->active_ability[S_SNG][i])
-                        {
-                            if (song_count == highlight)
-                            {
-                                song_choice = i;
-                                break;
-                            }
-                            song_count++;
-                        }
-                    }
-                    // Check for exchange themes option
-                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
-                    {
-                        song_choice = SNG_EXCHANGE_THEMES;
-                    }
-                }
+                song_choice =
+                    song_menu_choice_from_highlight(highlight, songs, song_count);
                 
                 if (song_choice >= 0)
                 {
@@ -2147,12 +2081,6 @@ void do_cmd_change_song()
 
         case 's':
         {
-            if (steamdeck)
-            {
-                log_trace("Illegal song choice attempted");
-                bell("Illegal song choice.");
-                break;
-            }
             log_debug("Player selected to stop singing");
             song_choice = SNG_NOTHING;
             done = true;
@@ -2195,8 +2123,7 @@ void do_cmd_change_song()
 
             if (song_choice >= 0 && song_choice < SNG_MAX)
             {
-                /* Skip Woven Themes (not a singable song) */
-                if (song_choice == SNG_WOVEN_THEMES || song_choice == SNG_GRA)
+                if (!song_menu_is_singable(song_choice))
                 {
                     song_choice = -1;
                 }
@@ -2234,7 +2161,12 @@ void do_cmd_change_song()
 
     if (song_choice >= 0)
     {
-        if (song_choice != SNG_NOTHING)
+        bool choice_stops_current_song = (song_choice == p_ptr->song1)
+            || ((p_ptr->song2 != SNG_NOTHING) && (song_choice == p_ptr->song2));
+
+        if ((song_choice != SNG_NOTHING)
+            && (song_choice != SNG_EXCHANGE_THEMES)
+            && !choice_stops_current_song)
         {
             if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
             {
@@ -2266,6 +2198,8 @@ void do_cmd_change_song()
         log_info("Player changed song to %s", song_choice == SNG_NOTHING ? "silence" : 
                  song_choice == SNG_EXCHANGE_THEMES ? "exchange themes" : "new song");
         change_song(song_choice);
+        if (song_menu_is_singable(song_choice) && singing(song_choice))
+            song_menu_mark_used(song_choice);
     }
 }
 
@@ -3443,7 +3377,8 @@ int abilities_menu2(int skilltype, int* highlight)
         {
             /* Highlight the label with bright blue */
             indexed_menu_focus_prefix(buf, sizeof(buf), i);
-            Term_putstr(ability_col, display_row, -1, TERM_L_BLUE, buf);
+            Term_putstr(indexed_menu_prefix_col(ability_col), display_row, -1,
+                TERM_L_BLUE, buf);
 
             /* Print the description of the highlighted ability. */
             /* (ability_type::text is an offset, so it's always non-negative) */
@@ -14051,10 +13986,10 @@ struct option_group_marker
 static const struct option_group_marker interface_option_groups[] = {
     { 0, "Messages" },
     { 2, "Look" },
-    { 4, "Panels" },
-    { 7, "Warnings" },
-    { 8, "Input" },
-    { 12, "Debug" },
+    { 5, "Panels" },
+    { 8, "Warnings" },
+    { 9, "Input" },
+    { 13, "Debug" },
     { -1, NULL }
 };
 
@@ -14548,6 +14483,9 @@ static cptr option_menu_label(int opt)
     case OPT_look_nearby_filter_default:
         return compact ? (narrow ? "Look near def" : "Look nearby default")
                        : "Default look (l) nearby filter";
+    case OPT_song_list_sort_by_recent:
+        return compact ? (narrow ? "Songs recent" : "Recent songs first")
+                       : "Sort song menu by recent use";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";

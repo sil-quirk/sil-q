@@ -2829,6 +2829,7 @@
 #define OPT_hide_supporting_panes_fullscreen 107
 #define OPT_narrative_banner_turns 108
 #define OPT_min_depth_timer_mode 109
+#define OPT_song_list_sort_by_recent 110
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2990,6 +2991,7 @@
 #define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
 #define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
 #define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]
+#define song_list_sort_by_recent op_ptr->opt[OPT_song_list_sort_by_recent]
 #define show_elemental_item_rolls op_ptr->opt[OPT_show_elemental_item_rolls]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
