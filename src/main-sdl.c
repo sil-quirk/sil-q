@@ -136,10 +136,10 @@ static void sdl_seed_all_pane_profiles_from_active(void)
 static void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height)
 {
-    sdl_config_set_defaults_for_resolution(&config, pane_config,
+    bool matched_profile = sdl_config_set_defaults_for_resolution(&config, pane_config,
         &pane_config_count, MAX_PANE_CONFIGS, screen_width, screen_height);
 
-    if (pane_config_count == 0) {
+    if (!matched_profile && pane_config_count == 0) {
         pane_config_count = default_pane_config_count;
         for (int i = 0; i < default_pane_config_count
             && i < MAX_PANE_CONFIGS; i++)

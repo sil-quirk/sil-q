@@ -6986,6 +6986,7 @@ s16b inven_takeoff(int item, int amt)
     cptr act;
 
     char o_name[80];
+    int oil_to_drop = 0;
 
     /* Get the item to take off */
     o_ptr = &inventory[item];
@@ -7129,6 +7130,18 @@ s16b inven_takeoff(int item, int amt)
     else
     {
         msg_print("You have no room in your pack.");
+    }
+
+    if (player_oil_container_object(&drop_obj))
+    {
+        if (!player_prepare_oil_container_drop(&drop_obj, amt,
+                &oil_to_drop, NULL))
+        {
+            return (-1);
+        }
+
+        player_oil_container_set_fuel(&drop_obj, oil_to_drop);
+        object_copy(&drop_template, &drop_obj);
     }
 
     bool can_drop_here = (cave_feat[p_ptr->py][p_ptr->px] == FEAT_FLOOR

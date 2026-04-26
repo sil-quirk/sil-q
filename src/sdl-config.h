@@ -147,7 +147,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config);
 void sdl_config_clear_touch_pane_labels(struct sdl_config* config);
 
 // Set default configuration values based on screen resolution
-void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
+bool sdl_config_set_defaults_for_resolution(struct sdl_config* config,
                                             struct pane_config* pane_configs,
                                             int* pane_count,
                                             int max_panes,

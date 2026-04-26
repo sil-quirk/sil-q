@@ -16,7 +16,8 @@
 #include <math.h>
 
 static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
-static bool queue_deferred_pickup_pack_drop(int item, int amount);
+static bool queue_deferred_pickup_pack_drop(int item, int amount,
+    bool refill_oil_pool);
 
 static bool weapon_has_attack_confirmation_inscription(const object_type* o_ptr)
 {
@@ -3427,7 +3428,9 @@ static bool prompt_replace_pack_item(const object_type* incoming)
             continue;
         }
 
-        if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
+        if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number,
+                player_oil_container_object(incoming)
+                    && player_oil_container_object(drop_ptr)))
             continue;
 
         /* Let inventory housekeeping run before we attempt the pickup again */
@@ -3464,6 +3467,7 @@ typedef enum pickup_failure_result
 static bool deferred_pickup_drop_pending = false;
 static object_type deferred_pickup_drop;
 static int deferred_pickup_drop_oil = 0;
+static bool deferred_pickup_refill_oil_pool = false;
 static bool brass_lamp_pickup_overflow_checked = false;
 
 static void clear_deferred_pickup_drop(void)
@@ -3471,6 +3475,7 @@ static void clear_deferred_pickup_drop(void)
     deferred_pickup_drop_pending = false;
     object_wipe(&deferred_pickup_drop);
     deferred_pickup_drop_oil = 0;
+    deferred_pickup_refill_oil_pool = false;
 }
 
 static void drop_object_at_player_feet_or_nearby(object_type* drop)
@@ -3489,10 +3494,37 @@ static void drop_object_at_player_feet_or_nearby(object_type* drop)
     (void)drop_near(drop, 0, p_ptr->py, p_ptr->px);
 }
 
+static int refill_lamp_oil_from_deferred_drop(void)
+{
+    int current_oil;
+    int free_capacity;
+    int oil_to_transfer;
+
+    if (!deferred_pickup_refill_oil_pool || deferred_pickup_drop_oil <= 0)
+        return 0;
+
+    current_oil = player_lamp_oil();
+    free_capacity = player_lamp_oil_capacity() - current_oil;
+    if (free_capacity <= 0)
+        return 0;
+
+    oil_to_transfer = MIN(deferred_pickup_drop_oil, free_capacity);
+    if (oil_to_transfer <= 0)
+        return 0;
+
+    if (!player_gain_lamp_oil(oil_to_transfer, false))
+        return 0;
+
+    deferred_pickup_drop_oil -= oil_to_transfer;
+    return oil_to_transfer;
+}
+
 static void flush_deferred_pickup_drop(void)
 {
     if (!deferred_pickup_drop_pending)
         return;
+
+    (void)refill_lamp_oil_from_deferred_drop();
 
     log_debug("pickup replace: flushing deferred drop at (%d,%d) "
         "cave_o_idx=%d tval=%d sval=%d number=%d oil=%d",
@@ -3529,7 +3561,7 @@ static void flush_deferred_pickup_drop(void)
 }
 
 static bool queue_deferred_pickup_drop(const object_type* src, int amount,
-    int oil_to_drop)
+    int oil_to_drop, bool refill_oil_pool)
 {
     if (!src || !src->k_idx || amount <= 0)
         return false;
@@ -3548,12 +3580,14 @@ static bool queue_deferred_pickup_drop(const object_type* src, int amount,
     object_copy(&deferred_pickup_drop, src);
     deferred_pickup_drop.number = amount;
     deferred_pickup_drop_oil = oil_to_drop;
+    deferred_pickup_refill_oil_pool = refill_oil_pool;
     deferred_pickup_drop_pending = true;
 
     return true;
 }
 
-static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
+static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount,
+    bool refill_oil_pool)
 {
     object_type* supply_obj = supplies_entry_at(supply_idx);
     object_type deferred;
@@ -3590,7 +3624,8 @@ static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
         return true;
     }
 
-    if (!queue_deferred_pickup_drop(supply_obj, amount, oil_to_drop))
+    if (!queue_deferred_pickup_drop(supply_obj, amount, oil_to_drop,
+            refill_oil_pool))
         return false;
 
     (void)supplies_consume_quantity(supply_idx, amount);
@@ -3603,7 +3638,8 @@ static bool queue_deferred_pickup_supply_drop(int supply_idx, int amount)
     return true;
 }
 
-static bool queue_deferred_pickup_pack_drop(int item, int amount)
+static bool queue_deferred_pickup_pack_drop(int item, int amount,
+    bool refill_oil_pool)
 {
     object_type* drop_ptr;
     object_type deferred;
@@ -3647,7 +3683,8 @@ static bool queue_deferred_pickup_pack_drop(int item, int amount)
         return true;
     }
 
-    if (!queue_deferred_pickup_drop(drop_ptr, amount, oil_to_drop))
+    if (!queue_deferred_pickup_drop(drop_ptr, amount, oil_to_drop,
+            refill_oil_pool))
         return false;
 
     inven_item_increase(item, -amount);
@@ -3802,10 +3839,13 @@ static pickup_failure_result prompt_replace_light_limit_item(
         if (item >= SUPPLIES_INDEX)
         {
             int supply_idx = item - SUPPLIES_INDEX;
+            bool refill_oil_pool = player_oil_container_object(incoming)
+                && player_oil_container_object(drop_ptr);
 
             if (floor_o_idx > 0)
             {
-                if (!queue_deferred_pickup_supply_drop(supply_idx, remove_amt))
+                if (!queue_deferred_pickup_supply_drop(supply_idx, remove_amt,
+                        refill_oil_pool))
                     continue;
             }
             else
@@ -3817,7 +3857,9 @@ static pickup_failure_result prompt_replace_light_limit_item(
         else
         {
             if ((item < INVEN_WIELD)
-                && !queue_deferred_pickup_pack_drop(item, remove_amt))
+                && !queue_deferred_pickup_pack_drop(item, remove_amt,
+                    player_oil_container_object(incoming)
+                        && player_oil_container_object(drop_ptr)))
             {
                 continue;
             }
@@ -4549,7 +4591,7 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             }
 
             if (!queue_deferred_pickup_supply_drop(item - SUPPLIES_INDEX,
-                    remove_amt))
+                    remove_amt, false))
             {
                 continue;
             }
@@ -4562,7 +4604,7 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
                 continue;
             }
 
-            if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number))
+            if (!queue_deferred_pickup_pack_drop(item, drop_ptr->number, false))
                 continue;
         }
 

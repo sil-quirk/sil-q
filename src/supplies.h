@@ -98,6 +98,7 @@ int player_oil_container_unit_capacity(const struct object_type* o_ptr);
 int player_oil_container_slots_used(void);
 int player_oil_container_slot_capacity(void);
 void player_oil_container_set_fuel(struct object_type* o_ptr, int fuel);
+int player_refill_lamp_oil_from_container(struct object_type* o_ptr);
 bool player_lamp_oil_would_overflow(int addition);
 bool player_lamp_oil_would_overflow_with_bonus(int addition, int lantern_bonus);
 bool player_gain_lamp_oil(int addition, bool allow_overflow);

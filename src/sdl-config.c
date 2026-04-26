@@ -37,10 +37,10 @@ struct resolution_profile {
 // Common defaults (margin=4, fullscreen=true, tiles=true) are set in sdl_config_set_defaults()
 // 
 // LAYOUT CALCULATION LOGIC:
-// 1. Minimum main terminal: 40x24 tiles (in tile mode with 16x16 base tile size)
+// 1. Normal minimum main terminal: 80x24 cells
 // 2. Try maximum scale (up to 4) that fits: scale 4 = 2560x1536, scale 3 = 1920x1152, scale 2 = 1280x768, scale 1 = 640x384
-// 3. Aux view font size: proportional to scale (scale 4 = 24px, scale 3 = 18px, scale 2 = 16px, scale 1 = 9px)
-// 4. Right pane: if we can fit >=40 columns (using ~0.6*font_size char width), add right pane
+// 3. Aux view font size: auto-derived from scale (scale 4 = 48px, scale 3 = 36px, scale 2 = 24px, scale 1 = 12px)
+// 4. Right pane: if we can fit >=40 columns (using aux_font_size / 2 char width), add right pane
 //    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
 //    - Right pane width: 40-50 columns depending on available space
 // 5. Bottom pane: if we can fit >=1 row below main terminal, add bottom pane
@@ -80,7 +80,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 1280x800 (WXGA)
     { .width = 1280, .height = 800, .name = "1280x800 (WXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
-      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 2, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 1, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 1280x960
     { .width = 1280, .height = 960, .name = "1280x960", .main_view_scale = 2, .aux_view_font_size = 16,
@@ -108,7 +108,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 1536x864
     { .width = 1536, .height = 864, .name = "1536x864", .main_view_scale = 2, .aux_view_font_size = 16,
-      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 3, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 1600x900 (HD+)
     { .width = 1600, .height = 900, .name = "1600x900 (HD+)", .main_view_scale = 2, .aux_view_font_size = 16,
@@ -120,8 +120,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 1680x1050
     { .width = 1680, .height = 1050, .name = "1680x1050", .main_view_scale = 2, .aux_view_font_size = 16,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 40 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 1920x1080 (Full HD)
     { .width = 1920, .height = 1080, .name = "1920x1080 (Full HD)", .main_view_scale = 2, .aux_view_font_size = 16,
@@ -130,7 +129,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 1920x1200 (WUXGA)
     { .width = 1920, .height = 1200, .name = "1920x1200 (WUXGA)", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 2, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 1, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2048x1152
     { .width = 2048, .height = 1152, .name = "2048x1152", .main_view_scale = 3, .aux_view_font_size = 18,
@@ -152,8 +151,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 2520x1680 (MacBook Air 13" M2/M3)
     { .width = 2520, .height = 1680, .name = "2520x1680 (MacBook Air 13\" M2/M3)", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2560x1080 (Ultrawide)
     { .width = 2560, .height = 1080, .name = "2560x1080 (Ultrawide)", .main_view_scale = 2, .aux_view_font_size = 16,
@@ -162,22 +160,19 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 2560x1440 (QHD)
     { .width = 2560, .height = 1440, .name = "2560x1440 (QHD)", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2560x1600 (MacBook 13")
     { .width = 2560, .height = 1600, .name = "2560x1600 (MacBook 13\")", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2560x1700 (Dell XPS 17")
     { .width = 2560, .height = 1700, .name = "2560x1700 (Dell XPS 17\")", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2736x1824 (Surface Book)
     { .width = 2736, .height = 1824, .name = "2736x1824 (Surface Book)", .main_view_scale = 3, .aux_view_font_size = 18,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 45 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
                                   { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 2880x1620
@@ -227,8 +222,7 @@ static const struct resolution_profile resolution_profiles[] = {
     
     // 3456x2234 (MacBook Pro 14")
     { .width = 3456, .height = 2234, .name = "3456x2234 (MacBook Pro 14\")", .main_view_scale = 4, .aux_view_font_size = 24,
-      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 3840x1080 (Super Ultrawide)
     { .width = 3840, .height = 1080, .name = "3840x1080 (Super Ultrawide)", .main_view_scale = 2, .aux_view_font_size = 16,
@@ -238,7 +232,7 @@ static const struct resolution_profile resolution_profiles[] = {
     // 3840x1200
     { .width = 3840, .height = 1200, .name = "3840x1200", .main_view_scale = 3, .aux_view_font_size = 18,
       .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
-                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 1, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
     
     // 3840x1440
     { .width = 3840, .height = 1440, .name = "3840x1440", .main_view_scale = 3, .aux_view_font_size = 18,
@@ -2263,7 +2257,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     sdl_config_clear_touch_pane_labels(config);
 }
 
-void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
+bool sdl_config_set_defaults_for_resolution(struct sdl_config* config,
                                             struct pane_config* pane_configs,
                                             int* pane_count,
                                             int max_panes,
@@ -2322,6 +2316,8 @@ void sdl_config_set_defaults_for_resolution(struct sdl_config* config,
         config->steamdeck_mode = true;
         log_info("Detected 1280x800 resolution - enabling controller UI mode by default");
     }
+
+    return (profile != NULL);
 }
 
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)

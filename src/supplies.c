@@ -422,7 +422,7 @@ static bool player_prepare_oil_drop_by_capacity(int amount, int unit_capacity,
     if (amount <= 0 || unit_capacity <= 0)
         return true;
 
-    pooled_oil = player_lamp_oil();
+    pooled_oil = (p_ptr && p_ptr->lamp_oil > 0) ? p_ptr->lamp_oil : 0;
     if (pooled_oil <= 0)
         return true;
 
@@ -431,7 +431,8 @@ static bool player_prepare_oil_drop_by_capacity(int amount, int unit_capacity,
     if (remaining < 0)
         remaining = 0;
 
-    player_set_lamp_oil(remaining);
+    if (p_ptr)
+        p_ptr->lamp_oil = remaining;
 
     if (oil_to_transfer)
         *oil_to_transfer = transfer;
@@ -439,6 +440,42 @@ static bool player_prepare_oil_drop_by_capacity(int amount, int unit_capacity,
         *oil_to_lose = 0;
 
     return true;
+}
+
+int player_refill_lamp_oil_from_container(object_type* o_ptr)
+{
+    int container_oil;
+    int current_oil;
+    int free_capacity;
+    int oil_to_transfer;
+
+    if (!player_oil_container_object(o_ptr))
+        return 0;
+
+    if (object_is_brass_lamp_container(o_ptr))
+        container_oil = MIN(o_ptr->timeout, FUEL_LAMP);
+    else if (object_is_oil_flask_container(o_ptr))
+        container_oil = MIN(o_ptr->pval, FUEL_FLASK);
+    else
+        container_oil = 0;
+    if (container_oil <= 0)
+        return 0;
+
+    current_oil = player_lamp_oil();
+    free_capacity = player_lamp_oil_capacity() - current_oil;
+    if (free_capacity <= 0)
+        return 0;
+
+    oil_to_transfer = MIN(container_oil, free_capacity);
+    if (oil_to_transfer <= 0)
+        return 0;
+
+    if (!player_gain_lamp_oil(oil_to_transfer, false))
+        return 0;
+
+    player_oil_container_set_fuel(o_ptr, container_oil - oil_to_transfer);
+
+    return oil_to_transfer;
 }
 
 bool player_prepare_lantern_drop(int lanterns_being_dropped,

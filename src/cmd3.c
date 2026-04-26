@@ -972,6 +972,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     bool is_throwing = false;
     int supply_index = supplies_current_action();
     bool from_supplies = false;
+    int oil_swap_drop_idx = 0;
 
     u32b f1, f2, f3, f4;
 
@@ -1667,6 +1668,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        bool refill_oil_pool_from_takeoff = (item < 0)
+            && player_oil_container_object(i_ptr)
+            && player_oil_container_object(o_ptr);
+        int takeoff_result;
+
         /*
          * Lights coming from the floor are not counted yet, so reserve them
          * during the takeoff even when swapping within the same carry group.
@@ -1685,7 +1691,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             "do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, ego_pfx=%d, ego_sfx=%d",
             slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
         /* Take off existing item */
-        (void)inven_takeoff(slot, 255);
+        takeoff_result = inven_takeoff(slot, 255);
+        if (refill_oil_pool_from_takeoff && takeoff_result < 0)
+            oil_swap_drop_idx = 0 - takeoff_result;
         player_light_clear_incoming_reservation();
         
         /* Refresh pointer after takeoff */
@@ -1733,6 +1741,17 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         log_debug(
             "do_cmd_wield: After copy, slot %d now has k_idx=%d ego_pfx=%d ego_sfx=%d",
             slot, o_ptr->k_idx, object_ego_prefix(o_ptr), object_ego_suffix(o_ptr));
+    }
+
+    if (oil_swap_drop_idx > 0 && oil_swap_drop_idx < o_max
+        && o_list[oil_swap_drop_idx].k_idx)
+    {
+        if (player_refill_lamp_oil_from_container(&o_list[oil_swap_drop_idx])
+            > 0)
+        {
+            p_ptr->redraw |= (PR_LIGHT);
+            p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+        }
     }
 
     /* Once the player has equipped an item, remember its combat stats forever. */
@@ -3896,18 +3915,25 @@ static void unified_look_prompt_label(int binding, const char* fallback, char* b
         SDL_strlcpy(buf, fallback, buflen);
 }
 
-static void unified_look_print_prompt(cptr full_text, cptr compact_text)
+static bool unified_look_use_compact_layout(void)
+{
+    return Term && ((Term->hgt <= 18) || (Term->wid <= 60));
+}
+
+static int unified_look_status_row(void)
+{
+    return 0;
+}
+
+static void unified_look_put_status(cptr text)
 {
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    int row = unified_look_status_row();
     char buf[192];
-    cptr selected = full_text;
 
-    if (compact_text && term_wid < (int)strlen(full_text) + 1)
-        selected = compact_text;
+    SDL_strlcpy(buf, text ? text : "", sizeof(buf));
 
-    SDL_strlcpy(buf, selected, sizeof(buf));
-
-    if ((int)strlen(buf) >= term_wid && term_wid > 4)
+    if ((int)strlen(buf) > term_wid && term_wid > 4)
     {
         int cut = term_wid - 4;
         if (cut < 0)
@@ -3916,7 +3942,43 @@ static void unified_look_print_prompt(cptr full_text, cptr compact_text)
         SDL_strlcat(buf, "...", sizeof(buf));
     }
 
-    prt(buf, 0, 0);
+    prt(buf, row, 0);
+}
+
+static void unified_look_print_prompt3(cptr full_text, cptr compact_text,
+    cptr tiny_text)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    cptr options[3];
+    cptr shortest = "";
+    int shortest_len = 100000;
+
+    options[0] = full_text;
+    options[1] = compact_text;
+    options[2] = tiny_text;
+
+    for (int i = 0; i < 3; i++)
+    {
+        int len;
+
+        if (!options[i])
+            continue;
+
+        len = (int)strlen(options[i]);
+        if (len < shortest_len)
+        {
+            shortest = options[i];
+            shortest_len = len;
+        }
+
+        if (len <= term_wid)
+        {
+            unified_look_put_status(options[i]);
+            return;
+        }
+    }
+
+    unified_look_put_status(shortest);
 }
 
 static void unified_look_pan_player_for_sidebar(bool center_vertical)
@@ -4171,7 +4233,7 @@ void do_cmd_unified_look(void)
                     
                     /* Display "You see <monster name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
-                    prt(out_val, 0, 0);
+                    unified_look_put_status(out_val);
                 }
                 else if (has_marked_object)
                 {
@@ -4195,13 +4257,13 @@ void do_cmd_unified_look(void)
                     
                     /* Display "You see <object name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s%s.", o_name, smith_buf);
-                    prt(out_val, 0, 0);
+                    unified_look_put_status(out_val);
                 }
                 else if (has_known_feature)
                 {
                     /* Display "You see <feature name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s.", feature_name);
-                    prt(out_val, 0, 0);
+                    unified_look_put_status(out_val);
                 }
                 else
                 {
@@ -4229,20 +4291,26 @@ void do_cmd_unified_look(void)
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Pan [%s]=Back",
                                 next_label, prev_label, exam_label, target_label, obj_label, pan_label, back_label);
-                            unified_look_print_prompt(prompt_buf,
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan [ESC]");
+                            unified_look_print_prompt3(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Pan",
+                                "Y Pan R1/L1 A B X");
                         } else {
                             char prompt_buf[192];
                             char compact_buf[160];
+                            char tiny_buf[96];
                             const char* filter_action = state.nearby_filter ? "All" : "Near";
 
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
                                 filter_action);
                             strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan [ESC]",
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan",
                                 filter_action);
-                            unified_look_print_prompt(prompt_buf, compact_buf);
+                            strnfmt(tiny_buf, sizeof(tiny_buf),
+                                "Tab/q s Pan Spc t i%s l/m/o/T",
+                                filter_action);
+                            unified_look_print_prompt3(prompt_buf, compact_buf,
+                                tiny_buf);
                         }
                     }
                     else
@@ -4268,20 +4336,26 @@ void do_cmd_unified_look(void)
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=Obj [%s]=Curs [%s]=Back",
                                 next_label, prev_label, exam_label, target_label, obj_label, cursor_label, back_label);
-                            unified_look_print_prompt(prompt_buf,
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs [ESC]");
+                            unified_look_print_prompt3(prompt_buf,
+                                "[R1/L1] Sel [A] Exam [B] Targ [X] Obj [Y] Curs",
+                                "Y Curs R1/L1 A B X");
                         } else {
                             char prompt_buf[192];
                             char compact_buf[160];
+                            char tiny_buf[96];
                             const char* filter_action = state.nearby_filter ? "All" : "Near";
 
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
                                 filter_action);
                             strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs [ESC]",
+                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs",
                                 filter_action);
-                            unified_look_print_prompt(prompt_buf, compact_buf);
+                            strnfmt(tiny_buf, sizeof(tiny_buf),
+                                "Tab/q s Curs Spc t i%s l/m/o/T",
+                                filter_action);
+                            unified_look_print_prompt3(prompt_buf, compact_buf,
+                                tiny_buf);
                         }
                     }
                 }
@@ -4883,7 +4957,7 @@ command_key:
                 }
                 
                 need_redraw = true;
-                selection_redraw = true;
+                selection_redraw = !unified_look_use_compact_layout();
                 break;
             }
             
@@ -4922,7 +4996,7 @@ command_key:
                 }
                 
                 need_redraw = true;
-                selection_redraw = true;
+                selection_redraw = !unified_look_use_compact_layout();
                 break;
             }
             
