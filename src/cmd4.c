@@ -12016,6 +12016,7 @@ int main_menu_aux(int* highlight)
 {
     char ch;
     int i;
+    int clicked_choice = 0;
     bool death_view = death_spectator_active();
     bool steamdeck = steamdeck_controls_active();
 
@@ -12054,16 +12055,20 @@ int main_menu_aux(int* highlight)
         main_menu_erase_footprint_row(col_main, y, menu_w);
     }
 
+    ui_menu_click_begin();
+
     for (i = 1; i <= MAIN_MENU_MAX; i++)
     {
         char line[80];
         byte color = (*highlight == i) ? TERM_L_BLUE : TERM_WHITE;
+        int row = row_top + row_first + i - 1;
 
         if (death_view && main_menu_choice_is_disabled(i))
             color = TERM_L_DARK;
 
         main_menu_format_line(i, line, sizeof(line));
-        Term_putstr(col_main, row_top + row_first + i - 1, -1, color, line);
+        Term_putstr(col_main, row, -1, color, line);
+        ui_menu_click_add(i, col_main, row, (int)strlen(line));
     }
 
     if (steamdeck && Term)
@@ -12107,6 +12112,9 @@ int main_menu_aux(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    if (ui_menu_click_take(&clicked_choice))
+        *highlight = clicked_choice;
 
     if (steamdeck)
     {
@@ -12261,6 +12269,7 @@ void do_cmd_main_menu(void)
     while (!leave_menu)
     {
         actiontype = main_menu_aux(&highlight);
+        ui_menu_click_clear();
 
         if (death_spectator_active() && main_menu_choice_is_disabled(actiontype))
         {
@@ -14858,6 +14867,7 @@ extern void do_cmd_options_aux(int page, cptr info)
             scroll = max_scroll;
 
         Term_clear();
+        ui_menu_click_begin();
 
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
@@ -15146,7 +15156,10 @@ extern void do_cmd_options_aux(int page, cptr info)
 
             row = first_row + display_row - scroll;
             if (row >= first_row && row < first_row + visible_rows)
+            {
                 c_prt(a, buf, row, 4);
+                ui_menu_click_add(i, 4, row, (int)strlen(buf));
+            }
             display_row++;
         }
 
@@ -15205,6 +15218,16 @@ extern void do_cmd_options_aux(int page, cptr info)
         ch = inkey();
         hide_cursor = false;
 
+        {
+            int clicked_choice = 0;
+            if (ui_menu_click_take(&clicked_choice)
+                && clicked_choice >= 0 && clicked_choice < n)
+            {
+                k = clicked_choice;
+                ch = ' ';
+            }
+        }
+
         /*
          * HACK - Try to translate the key into a direction
          * to allow using the roguelike keys for navigation.
@@ -15220,6 +15243,8 @@ extern void do_cmd_options_aux(int page, cptr info)
         case '\n':
         case '\r':
         {
+            ui_menu_click_clear();
+
             /* Hack -- Notice use of any "cheat" options */
             for (i = OPT_CHEAT; i < OPT_ADULT; i++)
             {
@@ -16058,6 +16083,7 @@ void do_cmd_pane_settings(void)
 
         /* Clear screen */
         Term_clear();
+        ui_menu_click_begin();
 
         /* Display title */
         settings_ui_put_fitted(1, 2, TERM_WHITE, "SDL Pane Settings");
@@ -16081,6 +16107,8 @@ void do_cmd_pane_settings(void)
             sdl_min_terminal_mode_label(get_sdl_min_terminal_mode()),
             row_width, 10);
         c_prt(a, buf, y0 + 0, 2);
+        ui_menu_click_add(PANE_SETTING_MIN_TERMINAL_SIZE, 2, y0 + 0,
+            (int)strlen(buf));
 
         /* Option 1: Main View Scale */
         a = (k == PANE_SETTING_MAIN_VIEW_SCALE) ? TERM_L_BLUE : TERM_WHITE;
@@ -16092,6 +16120,8 @@ void do_cmd_pane_settings(void)
                 "View Scale"),
             value_buf, row_width, 3);
         c_prt(a, buf, y0 + 1, 2);
+        ui_menu_click_add(PANE_SETTING_MAIN_VIEW_SCALE, 2, y0 + 1,
+            (int)strlen(buf));
 
         /* Option 2: Enable Side Panes */
         a = (k == PANE_SETTING_ENABLE_SIDE_PANES) ? TERM_L_BLUE : TERM_WHITE;
@@ -16103,6 +16133,8 @@ void do_cmd_pane_settings(void)
             get_sdl_enable_right_panes() ? "yes" : "no",
             row_width, 3);
         c_prt(a, buf, y0 + 2, 2);
+        ui_menu_click_add(PANE_SETTING_ENABLE_SIDE_PANES, 2, y0 + 2,
+            (int)strlen(buf));
 
         /* Option 3: Enable Bottom Panes */
         a = (k == PANE_SETTING_ENABLE_BOTTOM_PANES) ? TERM_L_BLUE : TERM_WHITE;
@@ -16114,18 +16146,24 @@ void do_cmd_pane_settings(void)
             get_sdl_enable_bottom_panes() ? "yes" : "no",
             row_width, 3);
         c_prt(a, buf, y0 + 3, 2);
+        ui_menu_click_add(PANE_SETTING_ENABLE_BOTTOM_PANES, 2, y0 + 3,
+            (int)strlen(buf));
 
         /* Option 4: Fullscreen */
         a = (k == PANE_SETTING_FULLSCREEN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
             get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 4, 2);
+        ui_menu_click_add(PANE_SETTING_FULLSCREEN, 2, y0 + 4,
+            (int)strlen(buf));
 
         /* Option 5: Tiles */
         a = (k == PANE_SETTING_TILES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
             get_sdl_tiles() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 5, 2);
+        ui_menu_click_add(PANE_SETTING_TILES, 2, y0 + 5,
+            (int)strlen(buf));
 
         /* Option 6: Use Unsafe Area */
         a = (k == PANE_SETTING_USE_UNSAFE_AREA) ? TERM_L_BLUE : TERM_WHITE;
@@ -16137,6 +16175,8 @@ void do_cmd_pane_settings(void)
             get_sdl_use_unsafe_area() ? "yes" : "no",
             row_width, 3);
         c_prt(a, buf, y0 + 6, 2);
+        ui_menu_click_add(PANE_SETTING_USE_UNSAFE_AREA, 2, y0 + 6,
+            (int)strlen(buf));
 
         /* Option 7: White Pane Borders */
         a = (k == PANE_SETTING_WHITE_PANE_BORDERS) ? TERM_L_BLUE : TERM_WHITE;
@@ -16148,6 +16188,8 @@ void do_cmd_pane_settings(void)
             get_sdl_show_pane_borders() ? "white" : "black",
             row_width, 5);
         c_prt(a, buf, y0 + 7, 2);
+        ui_menu_click_add(PANE_SETTING_WHITE_PANE_BORDERS, 2, y0 + 7,
+            (int)strlen(buf));
 
         /* Option 8: Hide supporting panes on full-screen screens */
         a = (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) ? TERM_L_BLUE : TERM_WHITE;
@@ -16159,6 +16201,8 @@ void do_cmd_pane_settings(void)
             op_ptr->opt[OPT_hide_supporting_panes_fullscreen] ? "yes" : "no",
             row_width, 3);
         c_prt(a, buf, y0 + 8, 2);
+        ui_menu_click_add(PANE_SETTING_HIDE_FULLSCREEN_PANES, 2, y0 + 8,
+            (int)strlen(buf));
 
         /* Option 9: Aux View Font Size */
         a = (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) ? TERM_L_BLUE : TERM_WHITE;
@@ -16172,6 +16216,8 @@ void do_cmd_pane_settings(void)
                 "Aux Font"),
             font_value, row_width, 6);
         c_prt(a, buf, y0 + 9, 2);
+        ui_menu_click_add(PANE_SETTING_AUX_VIEW_FONT_SIZE, 2, y0 + 9,
+            (int)strlen(buf));
 
         /* Option 10: View Pane Configuration (supporting panes only) */
         a = (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) ? TERM_L_BLUE : TERM_WHITE;
@@ -16187,6 +16233,8 @@ void do_cmd_pane_settings(void)
             SDL_strlcpy(buf, fitted_buf, sizeof(buf));
         }
         c_prt(a, buf, y0 + 10, 2);
+        ui_menu_click_add(PANE_SETTING_VIEW_PANE_CONFIGURATION, 2, y0 + 10,
+            (int)strlen(buf));
 
         /* Option 11: Pane Font Sizes */
         a = (k == PANE_SETTING_PANE_FONT_SIZES) ? TERM_L_BLUE : TERM_WHITE;
@@ -16197,6 +16245,8 @@ void do_cmd_pane_settings(void)
                 "Pane Fonts"),
             row_width);
         c_prt(a, buf, y0 + 11, 2);
+        ui_menu_click_add(PANE_SETTING_PANE_FONT_SIZES, 2, y0 + 11,
+            (int)strlen(buf));
 
         /* Option 12: Open SDL Config File */
         a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
@@ -16207,6 +16257,8 @@ void do_cmd_pane_settings(void)
                 "Open Config"),
             sdl_config_path_leaf(config_label), row_width, 12);
         c_prt(a, buf, y0 + 12, 2);
+        ui_menu_click_add(PANE_SETTING_OPEN_CONFIG_FILE, 2, y0 + 12,
+            (int)strlen(buf));
 
         /* Option 13: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
@@ -16215,6 +16267,8 @@ void do_cmd_pane_settings(void)
                              : "Return to Options Menu",
             row_width);
         c_prt(a, buf, y0 + 13, 2);
+        ui_menu_click_add(PANE_SETTING_SAVE_RETURN, 2, y0 + 13,
+            (int)strlen(buf));
 
         /* Display help */
         int y = Term->hgt - 3;
@@ -16241,6 +16295,16 @@ void do_cmd_pane_settings(void)
         hide_cursor = true;
         char ch = inkey();
         hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            if (ui_menu_click_take(&clicked_choice)
+                && clicked_choice >= 0 && clicked_choice < n)
+            {
+                k = clicked_choice;
+                ch = ' ';
+            }
+        }
         
         /* Try to translate the key into a direction */
         dir = target_dir(ch);
@@ -16270,16 +16334,19 @@ void do_cmd_pane_settings(void)
             /* Enter activates the current option for actions; otherwise accept/exit. */
             if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
+                ui_menu_click_clear();
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
                 break;
             }
             if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
+                ui_menu_click_clear();
                 do_cmd_supporting_pane_font_editor(&settings_changed);
                 break;
             }
             if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
             {
+                ui_menu_click_clear();
                 sdl_open_config_file();
                 break;
             }
@@ -16382,14 +16449,17 @@ void do_cmd_pane_settings(void)
             }
             else if (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) /* Supporting Pane Layout */
             {
+                ui_menu_click_clear();
                 do_cmd_supporting_pane_layout_editor(&settings_changed);
             }
             else if (k == PANE_SETTING_PANE_FONT_SIZES) /* Pane Font Sizes */
             {
+                ui_menu_click_clear();
                 do_cmd_supporting_pane_font_editor(&settings_changed);
             }
             else if (k == PANE_SETTING_OPEN_CONFIG_FILE) /* Open SDL Config File */
             {
+                ui_menu_click_clear();
                 sdl_open_config_file();
             }
             else if (k == PANE_SETTING_SAVE_RETURN) /* Save/Return */
@@ -16576,6 +16646,7 @@ void do_cmd_pane_settings(void)
         case 'o':
         case 'O':
         {
+            ui_menu_click_clear();
             sdl_open_config_file();
             break;
         }
@@ -16589,6 +16660,7 @@ void do_cmd_pane_settings(void)
     }
     
     /* Restore screen */
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -17313,6 +17385,10 @@ enum {
     TOUCH_SETTING_SWIPE_DOWN,
     TOUCH_SETTING_SWIPE_LEFT,
     TOUCH_SETTING_SWIPE_RIGHT,
+    TOUCH_SETTING_SWIPE_UP_LEFT,
+    TOUCH_SETTING_SWIPE_UP_RIGHT,
+    TOUCH_SETTING_SWIPE_DOWN_LEFT,
+    TOUCH_SETTING_SWIPE_DOWN_RIGHT,
     TOUCH_SETTING_SWIPE_COUNT
 };
 
@@ -17335,13 +17411,21 @@ static int touch_setting_swipe_dir_for_row(int row)
 {
     switch (row) {
     case TOUCH_SETTING_SWIPE_UP:
-        return GAMEPAD_STICK_DIR_UP;
+        return TOUCH_SWIPE_DIR_UP;
     case TOUCH_SETTING_SWIPE_DOWN:
-        return GAMEPAD_STICK_DIR_DOWN;
+        return TOUCH_SWIPE_DIR_DOWN;
     case TOUCH_SETTING_SWIPE_LEFT:
-        return GAMEPAD_STICK_DIR_LEFT;
+        return TOUCH_SWIPE_DIR_LEFT;
     case TOUCH_SETTING_SWIPE_RIGHT:
-        return GAMEPAD_STICK_DIR_RIGHT;
+        return TOUCH_SWIPE_DIR_RIGHT;
+    case TOUCH_SETTING_SWIPE_UP_LEFT:
+        return TOUCH_SWIPE_DIR_UP_LEFT;
+    case TOUCH_SETTING_SWIPE_UP_RIGHT:
+        return TOUCH_SWIPE_DIR_UP_RIGHT;
+    case TOUCH_SETTING_SWIPE_DOWN_LEFT:
+        return TOUCH_SWIPE_DIR_DOWN_LEFT;
+    case TOUCH_SETTING_SWIPE_DOWN_RIGHT:
+        return TOUCH_SWIPE_DIR_DOWN_RIGHT;
     default:
         return -1;
     }
@@ -17360,6 +17444,14 @@ static const char* touch_setting_swipe_name(int row)
         return "Swipe Left";
     case TOUCH_SETTING_SWIPE_RIGHT:
         return "Swipe Right";
+    case TOUCH_SETTING_SWIPE_UP_LEFT:
+        return "Swipe Up-Left";
+    case TOUCH_SETTING_SWIPE_UP_RIGHT:
+        return "Swipe Up-Right";
+    case TOUCH_SETTING_SWIPE_DOWN_LEFT:
+        return "Swipe Down-Left";
+    case TOUCH_SETTING_SWIPE_DOWN_RIGHT:
+        return "Swipe Down-Right";
     default:
         return "";
     }
@@ -17403,6 +17495,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             top = 0;
 
         Term_clear();
+        ui_menu_click_begin();
         settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Settings");
         settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
 
@@ -17449,7 +17542,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
                 action_buf, row_width, 14);
-            c_prt(a, line_buf, row++, 2);
+            c_prt(a, line_buf, row, 2);
+            ui_menu_click_add(i, 2, row, (int)strlen(line_buf));
+            row++;
         }
 
         row = list_start_row + visible_rows + 1;
@@ -17483,6 +17578,16 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         hide_cursor = true;
         char ch = inkey();
         hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            if (ui_menu_click_take(&clicked_choice)
+                && clicked_choice >= 0 && clicked_choice < total_rows)
+            {
+                highlight = clicked_choice;
+                ch = ' ';
+            }
+        }
 
         {
             int dir = target_dir(ch);
@@ -17631,6 +17736,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             strnfmt(current_buf, sizeof(current_buf), "Current label: %s", current_label);
             settings_ui_put_fitted(4, 2, TERM_SLATE, current_buf);
             new_label[0] = '\0';
+            ui_menu_click_clear();
             if (term_get_string(prompt, new_label, sizeof(new_label)))
             {
                 set_sdl_touch_pane_button_label_for_panel(panel, button_index, new_label);
@@ -17664,6 +17770,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             strnfmt(current_buf, sizeof(current_buf), "Current panel name: %s", current_name);
             settings_ui_put_fitted(4, 2, TERM_SLATE, current_buf);
             new_name[0] = '\0';
+            ui_menu_click_clear();
             if (term_get_string(prompt, new_name, sizeof(new_name)))
             {
                 set_sdl_touch_pane_panel_name(panel, new_name);
@@ -17720,6 +17827,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             *settings_changed = true;
     }
 
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -17739,6 +17847,8 @@ static int legacy_options_menu(int* highlight)
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    int line_row;
+    int clicked_choice = 0;
     bool death_view = death_spectator_active();
 
     Term_get_size(&term_wid, &term_hgt);
@@ -17756,26 +17866,42 @@ static int legacy_options_menu(int* highlight)
     row = title_row + 2;
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Legacy Options");
+    ui_menu_click_begin();
 
-    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "j) Load a 'Pref' File");
-    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    ui_menu_click_add(1, 2, line_row, (int)strlen("j) Load a 'Pref' File"));
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         "k) Append Options to a 'Pref' File");
-    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    ui_menu_click_add(2, 2, line_row, (int)strlen("k) Append Options to a 'Pref' File"));
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         "l) Set Macros");
-    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    ui_menu_click_add(3, 2, line_row, (int)strlen("l) Set Macros"));
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         "m) Set Colours");
-    Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    ui_menu_click_add(4, 2, line_row, (int)strlen("m) Set Colours"));
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         "n) Write a note");
+    ui_menu_click_add(5, 2, line_row, (int)strlen("n) Write a note"));
 
     {
+        cptr suicide_label = "s) Suicide";
         byte suicide_color = death_view ? TERM_L_DARK
             : ((*highlight == 6) ? TERM_L_BLUE : TERM_WHITE);
-        Term_putstr(2, row++, -1, suicide_color, "s) Suicide");
+        line_row = row++;
+        Term_putstr(2, line_row, -1, suicide_color, suicide_label);
+        ui_menu_click_add(6, 2, line_row, (int)strlen(suicide_label));
     }
 
-    Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
         "o) Return to Options");
+    ui_menu_click_add(7, 2, line_row, (int)strlen("o) Return to Options"));
 
     {
         char verbuf[128];
@@ -17791,6 +17917,9 @@ static int legacy_options_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    if (ui_menu_click_take(&clicked_choice))
+        *highlight = clicked_choice;
 
     if ((ch == 'j') || (ch == 'J'))
     {
@@ -17881,6 +18010,7 @@ static void do_cmd_legacy_options(void)
     while (!return_to_options)
     {
         choice = legacy_options_menu(&highlight);
+        ui_menu_click_clear();
 
         switch (choice)
         {
@@ -17955,6 +18085,8 @@ int options_menu(int* highlight)
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    int line_row;
+    int clicked_choice = 0;
     char line_buf[80];
     bool steamdeck = steamdeck_controls_active();
     bool allow_debug_menu = false;
@@ -17976,44 +18108,67 @@ int options_menu(int* highlight)
     row = title_row + 2;
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
+    ui_menu_click_begin();
 
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Input Options");
-    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(1, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b', "Pane Settings");
-    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(2, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Interface Options");
-    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(3, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'd', "Visual Options");
-    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(4, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Text Options");
-    Term_putstr(2, row++, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(5, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'f', "Gameplay Options");
-    Term_putstr(2, row++, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(6, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'g', "Sound Options");
-    Term_putstr(2, row++, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(7, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'h', "Efficiency Options");
-    Term_putstr(2, row++, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(8, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'i', "Legacy Options");
-    Term_putstr(2, row++, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(9, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o', "Return to Game");
-    Term_putstr(2, row++, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(10, 2, line_row, (int)strlen(line_buf));
 
     if (allow_debug_menu && p_ptr->noscore)
     {
         keyed_menu_entry_label(line_buf, sizeof(line_buf), 'p',
             "Debugging Options");
-        Term_putstr(2, row++, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+        line_row = row++;
+        Term_putstr(2, line_row, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
             line_buf);
+        ui_menu_click_add(11, 2, line_row, (int)strlen(line_buf));
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -18034,6 +18189,9 @@ int options_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    if (ui_menu_click_take(&clicked_choice))
+        *highlight = clicked_choice;
 
     if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
@@ -18133,6 +18291,8 @@ static int input_options_menu(int* highlight)
     int term_hgt = 24;
     int title_row = 1;
     int row;
+    int line_row;
+    int clicked_choice = 0;
     char line_buf[80];
     bool steamdeck = steamdeck_controls_active();
 
@@ -18148,21 +18308,30 @@ static int input_options_menu(int* highlight)
     row = title_row + 2;
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Input Options");
+    ui_menu_click_begin();
 
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Set Keybinds");
-    Term_putstr(2, row++, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(1, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'b',
         "Controller Settings");
-    Term_putstr(2, row++, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(2, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Touch Settings");
-    Term_putstr(2, row++, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(3, 2, line_row, (int)strlen(line_buf));
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o',
         "Return to Options");
-    Term_putstr(2, row++, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
+    ui_menu_click_add(4, 2, line_row, (int)strlen(line_buf));
 
     Term_fresh();
     Term_gotoxy(2, title_row + 1 + *highlight);
@@ -18170,6 +18339,9 @@ static int input_options_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    if (ui_menu_click_take(&clicked_choice))
+        *highlight = clicked_choice;
 
     if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
@@ -18225,6 +18397,7 @@ static void do_cmd_input_options_submenu(int* highlight)
     while (!return_to_options)
     {
         choice = input_options_menu(highlight);
+        ui_menu_click_clear();
 
         switch (choice)
         {
@@ -18282,6 +18455,7 @@ void do_cmd_options(void)
     while (!return_to_game)
     {
         choice = options_menu(&highlight);
+        ui_menu_click_clear();
 
         switch (choice)
         {
@@ -18816,6 +18990,7 @@ void do_cmd_keybinds(void)
         
         /* Clear screen */
         Term_clear();
+        ui_menu_click_begin();
 
         /* Title */
         settings_ui_put_fitted(1, 0, TERM_WHITE, "Keybind Configuration");
@@ -18862,6 +19037,7 @@ void do_cmd_keybinds(void)
                 /* Normal */
                 prt(line_buf, entry_row, 2);
             }
+            ui_menu_click_add(i, 2, entry_row, (int)strlen(line_buf));
         }
         
         /* Clear any leftover rows */
@@ -18908,6 +19084,17 @@ void do_cmd_keybinds(void)
         
         /* Get input */
         ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            if (ui_menu_click_take(&clicked_choice)
+                && clicked_choice >= 0 && clicked_choice < num_keybinds)
+            {
+                highlight = clicked_choice;
+                *highlight_ptr = highlight;
+                ch = '\r';
+            }
+        }
         
         /* Handle input */
         if (ch == ESCAPE || ch == 'q' || ch == 'Q')
@@ -18919,6 +19106,7 @@ void do_cmd_keybinds(void)
                 char prompt[512];
                 strnfmt(prompt, sizeof(prompt),
                     "Essential commands are unbound (%s). Exit anyway? ", missing);
+                ui_menu_click_clear();
                 if (!get_check(prompt))
                     continue;
             }
@@ -18956,6 +19144,8 @@ void do_cmd_keybinds(void)
             char prompt_long[96];
             char prompt_short[80];
             int entry_row = list_start_row + (highlight - *top_ptr);
+
+            ui_menu_click_clear();
 
             /* Clear the action area */
             Term_erase(2, entry_row, 255);
@@ -19023,6 +19213,7 @@ void do_cmd_keybinds(void)
             /* Clear prompt area */
             Term_erase(2, info_row, term_w > 2 ? term_w - 2 : 0);
             prt("File: ", info_row, 2);
+            ui_menu_click_clear();
             
             /* Ask for a file */
             if (askfor_aux(ftmp, sizeof(ftmp)))
@@ -19050,6 +19241,7 @@ void do_cmd_keybinds(void)
     }
     
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     if (dirty)
@@ -20321,6 +20513,7 @@ void do_cmd_controller_settings(void)
         }
 
         Term_clear();
+        ui_menu_click_begin();
         settings_ui_put_fitted(1, 0, TERM_WHITE, "Controller Settings");
         if (steamdeck) {
             char confirm_label[16];
@@ -20356,6 +20549,7 @@ void do_cmd_controller_settings(void)
             } else {
                 prt(line_buf, entry_row, 2);
             }
+            ui_menu_click_add(i, 2, entry_row, (int)strlen(line_buf));
         }
 
         for (row = list_start_row + (entry_count - top); row < list_start_row + visible_rows; row++) {
@@ -20401,6 +20595,16 @@ void do_cmd_controller_settings(void)
 
         char ch = inkey();
 
+        {
+            int clicked_choice = 0;
+            if (ui_menu_click_take(&clicked_choice)
+                && clicked_choice >= 0 && clicked_choice < entry_count)
+            {
+                highlight = clicked_choice;
+                ch = '\r';
+            }
+        }
+
         if (ch == ESCAPE || ch == 'q' || ch == 'Q' || (steamdeck && ch == steamdeck_back_key())) {
             done = true;
         } else if (ch == '8') {
@@ -20438,6 +20642,7 @@ void do_cmd_controller_settings(void)
                 int cap_id = 0;
                 int cap_modifier = GAMEPAD_BIND_NONE;
                 bool allow_modifier_combo = !controller_action_is_modifier(entry->id);
+                ui_menu_click_clear();
                 Term_erase(2, entry_row, 255);
                 if (steamdeck) {
                     char cancel_label[16];
@@ -20538,6 +20743,7 @@ void do_cmd_controller_settings(void)
         }
     }
 
+    ui_menu_click_clear();
     screen_load();
 }
 

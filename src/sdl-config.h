@@ -6,6 +6,7 @@
 
 #define GAMEPAD_TRIGGER_COUNT 2
 #define GAMEPAD_STICK_DIR_COUNT 4
+#define TOUCH_SWIPE_DIR_COUNT 8
 #define GAMEPAD_MODIFIER_COUNT 3
 
 #define GAMEPAD_MODIFIER_SHIFT 0
@@ -16,6 +17,15 @@
 #define GAMEPAD_STICK_DIR_DOWN 1
 #define GAMEPAD_STICK_DIR_LEFT 2
 #define GAMEPAD_STICK_DIR_RIGHT 3
+
+#define TOUCH_SWIPE_DIR_UP 0
+#define TOUCH_SWIPE_DIR_DOWN 1
+#define TOUCH_SWIPE_DIR_LEFT 2
+#define TOUCH_SWIPE_DIR_RIGHT 3
+#define TOUCH_SWIPE_DIR_UP_LEFT 4
+#define TOUCH_SWIPE_DIR_UP_RIGHT 5
+#define TOUCH_SWIPE_DIR_DOWN_LEFT 6
+#define TOUCH_SWIPE_DIR_DOWN_RIGHT 7
 
 #define GAMEPAD_BIND_NONE -1
 #define GAMEPAD_BIND_SHIFT -2
@@ -122,7 +132,7 @@ struct sdl_config {
     char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     bool touch_swipe_enabled;
-    int touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };
 
 // Load SDL configuration from JSON file

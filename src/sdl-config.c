@@ -1758,7 +1758,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             if (cJSON_IsArray(swipe_bindings)) {
                 int count = cJSON_GetArraySize(swipe_bindings);
                 sdl_config_load_touch_binding_array(swipe_bindings, config->touch_swipe_bindings,
-                    GAMEPAD_STICK_DIR_COUNT);
+                    TOUCH_SWIPE_DIR_COUNT);
                 log_debug("Loaded touchPane.swipeBindings (%d entries)", count);
             }
         } else {
@@ -2002,7 +2002,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON* panel_names = sdl_config_create_string_array(config->touch_pane_panel_names,
                 SDL_TOUCH_PANE_PANEL_COUNT);
             cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
-                GAMEPAD_STICK_DIR_COUNT);
+                TOUCH_SWIPE_DIR_COUNT);
             if (bindings) {
                 cJSON_AddItemToObject(touch_pane, "bindings", bindings);
             }
@@ -2173,8 +2173,9 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'L', 'X', 'p',
         'w', 'b', 'c',
     };
-    static const int swipe_defaults[GAMEPAD_STICK_DIR_COUNT] = {
+    static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
         '8', '2', '4', '6',
+        '7', '9', '1', '3',
     };
 
     if (!config)

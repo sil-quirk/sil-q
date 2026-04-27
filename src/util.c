@@ -22,6 +22,110 @@ bool no_light(void)
     return false;
 }
 
+#define UI_MENU_CLICK_MAX_ENTRIES 96
+
+typedef struct ui_menu_click_entry
+{
+    int choice;
+    int col;
+    int row;
+    int width;
+} ui_menu_click_entry;
+
+static ui_menu_click_entry ui_menu_click_entries[UI_MENU_CLICK_MAX_ENTRIES];
+static int ui_menu_click_entry_count = 0;
+static bool ui_menu_click_active = false;
+static bool ui_menu_click_pending = false;
+static int ui_menu_click_pending_choice = 0;
+
+void ui_menu_click_clear(void)
+{
+    ui_menu_click_active = false;
+    ui_menu_click_entry_count = 0;
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+}
+
+void ui_menu_click_begin(void)
+{
+    ui_menu_click_active = true;
+    ui_menu_click_entry_count = 0;
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+}
+
+void ui_menu_click_add(int choice, int col, int row, int width)
+{
+    int term_wid = 0;
+    int term_hgt = 0;
+
+    if (!ui_menu_click_active)
+        return;
+    if (ui_menu_click_entry_count >= UI_MENU_CLICK_MAX_ENTRIES)
+        return;
+    if (width <= 0)
+        return;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_hgt > 0 && (row < 0 || row >= term_hgt))
+        return;
+    if (term_wid > 0)
+    {
+        if (col >= term_wid)
+            return;
+        if (col < 0)
+        {
+            width += col;
+            col = 0;
+        }
+        if (width <= 0)
+            return;
+        if (col + width > term_wid)
+            width = term_wid - col;
+    }
+
+    ui_menu_click_entries[ui_menu_click_entry_count++] = (ui_menu_click_entry){
+        choice, col, row, width
+    };
+}
+
+bool ui_menu_click_handle_cell(int col, int row)
+{
+    if (!ui_menu_click_active)
+        return false;
+
+    for (int i = 0; i < ui_menu_click_entry_count; i++)
+    {
+        const ui_menu_click_entry* entry = &ui_menu_click_entries[i];
+
+        if (row != entry->row)
+            continue;
+        if (col < entry->col || col >= entry->col + entry->width)
+            continue;
+
+        ui_menu_click_pending = true;
+        ui_menu_click_pending_choice = entry->choice;
+        return true;
+    }
+
+    return false;
+}
+
+bool ui_menu_click_take(int* choice)
+{
+    if (!ui_menu_click_pending)
+        return false;
+
+    if (choice)
+        *choice = ui_menu_click_pending_choice;
+
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+    return true;
+}
+
 /*
  * Parse a hexadecimal string (optional separators) into an unsigned 64-bit value.
  * Accepts optional "0x" prefix and ignores '-', '_' or whitespace separators.

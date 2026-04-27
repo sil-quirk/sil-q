@@ -395,7 +395,7 @@ static bool g_default_gamepad_bindings_ready = false;
 static int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_BUTTON_COUNT];
 static char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
 static bool g_default_touch_swipe_enabled = true;
-static int g_default_touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
+static int g_default_touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 static bool g_default_touch_pane_bindings_ready = false;
 static bool g_gamepad_capture_active = false;
 static bool g_gamepad_capture_ready = false;
@@ -528,6 +528,7 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press);
 static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press);
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
+static bool sdl_main_screen_handle_menu_text_pointer(float x, float y);
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
 static bool sdl_is_log_pane_active(void);
@@ -3136,6 +3137,20 @@ static bool sdl_main_screen_click_shortcuts_active(void)
         && g_views[PANE_MAIN].term_ready;
 }
 
+static bool sdl_main_screen_handle_menu_text_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (!ui_menu_click_handle_cell(col, row))
+        return false;
+
+    Term_keypress('\r');
+    return true;
+}
+
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
 {
     if (col < 0 || row < 0)
@@ -3271,13 +3286,21 @@ static int sdl_touch_swipe_index_for_keypad_dir(int dir)
 {
     switch (dir) {
     case 8:
-        return GAMEPAD_STICK_DIR_UP;
+        return TOUCH_SWIPE_DIR_UP;
     case 2:
-        return GAMEPAD_STICK_DIR_DOWN;
+        return TOUCH_SWIPE_DIR_DOWN;
     case 4:
-        return GAMEPAD_STICK_DIR_LEFT;
+        return TOUCH_SWIPE_DIR_LEFT;
     case 6:
-        return GAMEPAD_STICK_DIR_RIGHT;
+        return TOUCH_SWIPE_DIR_RIGHT;
+    case 7:
+        return TOUCH_SWIPE_DIR_UP_LEFT;
+    case 9:
+        return TOUCH_SWIPE_DIR_UP_RIGHT;
+    case 1:
+        return TOUCH_SWIPE_DIR_DOWN_LEFT;
+    case 3:
+        return TOUCH_SWIPE_DIR_DOWN_RIGHT;
     default:
         return -1;
     }
@@ -3298,11 +3321,31 @@ static float sdl_touch_swipe_threshold_px(void)
 
 static int sdl_touch_swipe_direction_for_delta(float dx, float dy, float threshold)
 {
+    const float diagonal_ratio = 0.41421356f; /* tan(22.5 degrees) */
+    const float diagonal_component_threshold = 0.5f;
     float abs_x = (dx >= 0.0f) ? dx : -dx;
     float abs_y = (dy >= 0.0f) ? dy : -dy;
+    float minor;
+    float major;
 
     if (abs_x < threshold && abs_y < threshold)
         return 0;
+
+    major = (abs_x >= abs_y) ? abs_x : abs_y;
+    minor = (abs_x >= abs_y) ? abs_y : abs_x;
+
+    if (minor >= threshold * diagonal_component_threshold
+        && minor >= major * diagonal_ratio)
+    {
+        if (dx < 0.0f && dy < 0.0f)
+            return 7;
+        if (dx > 0.0f && dy < 0.0f)
+            return 9;
+        if (dx < 0.0f && dy > 0.0f)
+            return 1;
+        if (dx > 0.0f && dy > 0.0f)
+            return 3;
+    }
 
     if (abs_x >= abs_y)
         return (dx >= 0.0f) ? 6 : 4;
@@ -5386,6 +5429,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_main_screen_handle_character_panel_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -5417,6 +5465,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
+            return;
+        if (sdl_main_screen_handle_menu_text_pointer(x, y))
             return;
         if (sdl_main_screen_handle_character_panel_pointer(x, y))
             return;
@@ -8528,14 +8578,14 @@ void set_sdl_touch_swipe_enabled(bool value)
 
 int get_sdl_touch_swipe_binding(int dir)
 {
-    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+    if (dir < 0 || dir >= TOUCH_SWIPE_DIR_COUNT)
         return GAMEPAD_BIND_NONE;
     return config.touch_swipe_bindings[dir];
 }
 
 void set_sdl_touch_swipe_binding(int dir, int binding)
 {
-    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+    if (dir < 0 || dir >= TOUCH_SWIPE_DIR_COUNT)
         return;
     config.touch_swipe_bindings[dir] = binding;
 }
@@ -8548,7 +8598,7 @@ bool get_sdl_touch_swipe_default_enabled(void)
 
 int get_sdl_touch_swipe_default_binding(int dir)
 {
-    if (dir < 0 || dir >= GAMEPAD_STICK_DIR_COUNT)
+    if (dir < 0 || dir >= TOUCH_SWIPE_DIR_COUNT)
         return GAMEPAD_BIND_NONE;
     sdl_touch_pane_load_default_bindings();
     return g_default_touch_swipe_bindings[dir];
