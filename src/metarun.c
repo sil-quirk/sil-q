@@ -3096,7 +3096,7 @@ static void show_all_active_curses(void)
 {
     int term_height, term_width;
     screen_save();
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
 
     if (steamdeck) {
@@ -3296,7 +3296,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
 
     int selected = 0;
     int choice = -1;
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3557,7 +3557,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     int selected = 0;
     int choice = -1;
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3712,7 +3712,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
     }
 
     int available = blessing_points_remaining();
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3894,7 +3894,7 @@ static void open_blessing_exchange(void)
     char status_msg[256] = "";
     byte status_attr = TERM_WHITE;
     bool clear_status_on_next_key = false;
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -4443,7 +4443,7 @@ static void adjust_blessing_threshold_menu(void)
     if (current_run < 0 || current_run >= metarun_max) return;
 
     metarun_blessing_threshold_mode current_mode = metarun_get_threshold_mode(&metar);
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -4600,7 +4600,7 @@ void print_metarun_stats(void)
         Term_clear();
         Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
-        if (get_sdl_steamdeck_mode()) {
+        if (steamdeck_controls_active()) {
             char label[16];
             metarun_prompt_label(steamdeck_confirm_key(), "A", label, sizeof(label));
             strnfmt(buf, sizeof(buf), "Press %s to return.", label);
@@ -4657,7 +4657,7 @@ void print_metarun_stats(void)
     screen_push_supporting_panes_hidden();
     Term_clear();
     Term_get_size(&term_width, &term_height);
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char spend_label[16] = "";
     char threshold_label[16] = "";
     char diff_label[16] = "";
@@ -5285,7 +5285,7 @@ static void choose_difficulty_menu(void)
     int max_difficulty = (runtype_info && z_info->rt_max > 0) ? z_info->rt_max - 1 : 0;
     
     screen_save();
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -5493,8 +5493,10 @@ static void choose_difficulty_menu(void)
                     portable ? "Do you want to continue? (y/n/sp)"
                              : "Do you want to continue? (y/n)");
             }
-            
+            sdl_touch_pane_begin_yes_no_prompt();
+            Term_fresh();
             char confirm = inkey();
+            sdl_touch_pane_end_yes_no_prompt();
             screen_load();
 
             if (steamdeck) {
@@ -5577,7 +5579,7 @@ static void choose_difficulty_menu(void)
 void list_metaruns(void)
 {
     screen_save();
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char accept_label[16] = "";
     int term_h = (Term && Term->hgt > 0) ? Term->hgt : 24;
     int footer_row = term_h - 1;

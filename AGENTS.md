@@ -5,7 +5,7 @@ High-signal repo guidance for coding agents (Codex CLI, Copilot, etc.). This is 
 ## Subagent Policy
 - Subagents are allowed when they materially help the task.
 - Choose the subagent model and reasoning level yourself based on task difficulty.
-- Prefer `gpt-5.4` or `gpt-5.4-mini` for subagents unless a different choice is clearly better for the work.
+- Prefer `gpt-5.5`, `gpt-5.4` or `gpt-5.4-mini` for subagents unless a different choice is clearly better for the work.
 - When you use a subagent, report which model and reasoning level you chose and why.
 
 ## Project Snapshot

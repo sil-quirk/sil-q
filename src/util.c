@@ -3829,6 +3829,8 @@ bool get_check(cptr prompt)
 
     /* Prompt for it */
     prt(buf, 0, 0);
+    sdl_touch_pane_begin_yes_no_prompt();
+    Term_fresh();
 
     /* Get an acceptable answer */
     while (true)
@@ -3844,7 +3846,9 @@ bool get_check(cptr prompt)
     }
 
     /* Erase the prompt */
+    sdl_touch_pane_end_yes_no_prompt();
     prt("", 0, 0);
+    Term_fresh();
 
     /* Normal negation */
     if ((ch != 'Y') && (ch != 'y') && !prompt_confirm_key(ch))
@@ -3961,6 +3965,8 @@ bool get_check_oath_multiline(cptr prompt)
     if (prompt_col < 1)
         prompt_col = 1;
     Term_putstr(prompt_col, h - 3, -1, TERM_YELLOW, confirm_prompt);
+    sdl_touch_pane_begin_yes_no_prompt();
+    Term_fresh();
     
     /* Get an acceptable answer */
     while (true)
@@ -3976,6 +3982,7 @@ bool get_check_oath_multiline(cptr prompt)
     }
     
     /* Restore screen */
+    sdl_touch_pane_end_yes_no_prompt();
     screen_load();
     
     /* Normal negation */
@@ -3999,8 +4006,18 @@ int get_menu_choice(s16b max, char* prompt)
     char prompt_buf[160];
 
     if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        prompt_controller_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
         strnfmt(prompt_buf, sizeof(prompt_buf),
-            "%s D-pad choose, A/Enter select, B/ESC cancel", prompt);
+            "%s D-pad choose, %s select, %s cancel", prompt, confirm_label,
+            back_label);
+    }
     else
         SDL_strlcpy(prompt_buf, prompt, sizeof(prompt_buf));
 

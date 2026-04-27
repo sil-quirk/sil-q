@@ -6830,8 +6830,8 @@ void show_inven_enhanced(void)
 
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        const bool portable_controls = portable_controls_active();
-        if (portable_controls) {
+        const bool controller_controls = steamdeck_controls_active();
+        if (controller_controls) {
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
@@ -7406,8 +7406,8 @@ void show_inven_enhanced(void)
                 extern char current_menu_command;
                 if (current_menu_command != 0) {
                     /* Command access (u/x pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                         done = true;
                     } else {
@@ -7417,8 +7417,8 @@ void show_inven_enhanced(void)
                     }
                 } else {
                     /* Direct access (i/e pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                         log_trace("show_inven_enhanced: Direct access E key - switching to equipment (action=1)");
                         done = true;
@@ -7447,7 +7447,7 @@ void show_inven_enhanced(void)
                 enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_inven_enhanced: Command cycling (%c) - switching to equipment (action=1)", which);
                 done = true;
-            } else if (portable_controls) {
+            } else if (controller_controls) {
                 if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                     enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
@@ -7530,8 +7530,8 @@ void show_inven_enhanced(void)
                 extern char current_menu_command;
                 bool allow_letters = false;
                 
-                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                allow_letters = !portable_controls;
+                /* Letter selection is hidden/disabled only in controller UI mode. */
+                allow_letters = !controller_controls;
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
@@ -7853,8 +7853,8 @@ void show_equip_enhanced(void)
         
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        const bool portable_controls = portable_controls_active();
-        if (portable_controls) {
+        const bool controller_controls = steamdeck_controls_active();
+        if (controller_controls) {
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
@@ -8043,8 +8043,8 @@ void show_equip_enhanced(void)
                 extern char current_menu_command;
                 if (current_menu_command != 0) {
                     /* Command access (u/x pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                         done = true;
                     } else {
@@ -8054,8 +8054,8 @@ void show_equip_enhanced(void)
                     }
                 } else {
                     /* Direct access (i/e pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                         log_trace("show_equip_enhanced: Direct access I key - switching to inventory (action=1)");
                         done = true;
@@ -8084,7 +8084,7 @@ void show_equip_enhanced(void)
                 enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_equip_enhanced: Command cycling (%c) - switching to inventory (action=1)", which);
                 done = true;
-            } else if (portable_controls) {
+            } else if (controller_controls) {
                 if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                     enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
@@ -8168,8 +8168,8 @@ void show_equip_enhanced(void)
                 extern char current_menu_command;
                 bool allow_letters = false;
                 
-                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                allow_letters = !portable_controls;
+                /* Letter selection is hidden/disabled only in controller UI mode. */
+                allow_letters = !controller_controls;
                 
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");
@@ -8472,6 +8472,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     int highlight = 0;
     bool done = false;
     bool success = false;
+    bool controller_controls = steamdeck_controls_active();
 
     screen_save();
 
@@ -8496,9 +8497,28 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         log_trace("display_unified_identify_menu: redraw cleared rows 1-%d from col %d width %d",
             MIN(rows_to_clear, term_hgt - 1), clear_start, clear_width);
 
-        char prompt[80];
-        strnfmt(prompt, sizeof(prompt),
-            "Identify: Space, <- Inspect, ESC to cancel");
+        char prompt[96];
+        if (controller_controls)
+        {
+            char confirm_label[16];
+            char inspect_label[16];
+            char back_label[16];
+
+            inventory_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            inventory_prompt_label(steamdeck_info_key(), "RS Right",
+                inspect_label, sizeof(inspect_label));
+            inventory_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt, sizeof(prompt),
+                "Identify: %s, %s Inspect, %s cancel", confirm_label,
+                inspect_label, back_label);
+        }
+        else
+        {
+            strnfmt(prompt, sizeof(prompt),
+                "Identify: Space, <- Inspect, ESC to cancel");
+        }
         prt(prompt, 0, 0);
 
         for (int i = 0; i < entry_count; i++)
@@ -8513,6 +8533,12 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         rows_to_clear = base_rows;
 
         int key = inkey();
+        if (controller_controls && key == steamdeck_back_key())
+            key = ESCAPE;
+        else if (controller_controls && key == steamdeck_confirm_key())
+            key = ' ';
+        else if (controller_controls && key == steamdeck_info_key())
+            key = '4';
 
         switch (key)
         {

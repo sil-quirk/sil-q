@@ -8945,12 +8945,28 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         
         /* Display controls */
         row = hgt - 2;
-        Term_putstr(2, row, -1, TERM_L_DARK,
-            steamdeck
-                ? (compact ? "D-pad move  X inspect  A choose"
-                           : "D-pad navigate   X Inspect   A accept")
-                : (compact ? "8/2 move  x inspect  Enter choose"
-                           : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select"));
+        if (steamdeck)
+        {
+            char inspect_label[16];
+            char confirm_label[16];
+            char prompt_buf[120];
+
+            target_prompt_label(steamdeck_alt_action_key(), "X",
+                inspect_label, sizeof(inspect_label));
+            target_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                compact ? "D-pad move  %s inspect  %s choose"
+                        : "D-pad navigate   %s Inspect   %s accept",
+                inspect_label, confirm_label);
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
+        }
+        else
+        {
+            Term_putstr(2, row, -1, TERM_L_DARK,
+                compact ? "8/2 move  x inspect  Enter choose"
+                        : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select");
+        }
         
         /* Position cursor at selection */
         Term_gotoxy(2, MIN(choice_start_row + selection, hgt - 3));

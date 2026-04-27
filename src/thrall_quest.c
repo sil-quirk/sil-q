@@ -15,6 +15,17 @@ static s16b get_upgrade_kind(const object_type* o_ptr);
 static byte damaged_ego_index(const object_type* o_ptr, bool* is_prefix);
 static bool damaged_ego_is_repairable(byte e_idx);
 
+static void thrall_prompt_label(int binding, const char* fallback, char* buf,
+    size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
+
 /*
  * Probability weights for each item type by thrall race
  * Human thralls prefer practical items, elven thralls prefer finer items
@@ -1535,12 +1546,28 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 "Greyed options need a suitable item in inventory or equipment.");
         }
 
-        Term_putstr(0, prompt_row, term_wid, TERM_L_DARK,
-            steamdeck
-                ? (compact ? "D-pad move  A choose  B later"
-                           : "D-pad navigate  A accept  B later")
-                : (compact ? "8/2 move  Enter choose  ESC later"
-                           : "8/2 or arrows navigate  Enter accept  Letter select  ESC later"));
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[120];
+
+            thrall_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            thrall_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                compact ? "D-pad move  %s choose  %s later"
+                        : "D-pad navigate  %s accept  %s later",
+                confirm_label, back_label);
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_buf);
+        }
+        else
+        {
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK,
+                compact ? "8/2 move  Enter choose  ESC later"
+                        : "8/2 or arrows navigate  Enter accept  Letter select  ESC later");
+        }
 
         Term_fresh();
 

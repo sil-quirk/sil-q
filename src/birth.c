@@ -4834,7 +4834,7 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
 
         birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-        birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
         strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
             back_label, confirm_label, quit_label);
@@ -5117,7 +5117,7 @@ static NavResult player_birth_aux_2(void)
                 /* Steam Deck UI: A=confirm, B=back, Start=quit */
                 birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-                birth_prompt_label('q', "Start", quit_label, sizeof(quit_label));
+                birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "D-pad allocate  %s back  %s confirm  %s quit",

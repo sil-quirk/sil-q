@@ -7810,8 +7810,10 @@ void do_cmd_help(void)
             if (steamdeck_controls_active()) {
                 char next_label[16];
                 char back_label[16];
-                help_prompt_label(' ', "A", next_label, sizeof(next_label));
-                help_prompt_label('b', "b", back_label, sizeof(back_label));
+                help_prompt_label(steamdeck_confirm_key(), "A", next_label,
+                    sizeof(next_label));
+                help_prompt_label(steamdeck_back_key(), "B", back_label,
+                    sizeof(back_label));
                 strnfmt(nav, sizeof(nav),
                     "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Back",
                     next_label, back_label);
@@ -7823,7 +7825,7 @@ void do_cmd_help(void)
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
         /* Enhanced navigation */
@@ -7969,24 +7971,60 @@ bool get_name(void)
     display_player(0);
 
     /* Prompt */
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, "Enter accept name");
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "  Tab random name");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char random_label[16];
+        char prompt_buf[80];
 
-    /* Hack - highlight the key names */
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
-    Term_putstr(QUESTION_COL + 2, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Tab");
+        tutorial_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        tutorial_prompt_label('\t', "L5", random_label, sizeof(random_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "%s accept name",
+            confirm_label);
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+            prompt_buf);
+        strnfmt(prompt_buf, sizeof(prompt_buf), "  %s random name",
+            random_label);
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
+            prompt_buf);
+    }
+    else
+    {
+        Term_putstr(
+            QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, "Enter accept name");
+        Term_putstr(
+            QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "  Tab random name");
+
+        /* Hack - highlight the key names */
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
+        Term_putstr(QUESTION_COL + 2, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Tab");
+    }
 
     /* Special Prompt? */
     if (character_dungeon)
     {
-        Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "ESC abort name change                  ");
+        if (steamdeck_controls_active())
+        {
+            char back_label[16];
+            char prompt_buf[80];
 
-        /* Hack - highlight the key names */
-        Term_putstr(
-            QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
+            tutorial_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf), "%s abort name change",
+                back_label);
+            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
+                TERM_SLATE, prompt_buf);
+        }
+        else
+        {
+            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                "ESC abort name change                  ");
+
+            /* Hack - highlight the key names */
+            Term_putstr(
+                QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
+        }
     }
 
     // use old name as a default
@@ -8624,6 +8662,12 @@ void atomonth(int number, char* output)
  * Helper: colour fade-in paragraph printer
  * Returns true if completed normally, false if interrupted by Esc
  * ----------------------------------------------------------- */
+static bool story_fast_forward_key(char ch)
+{
+    return (ch == ESCAPE)
+        || (steamdeck_controls_active() && ch == steamdeck_back_key());
+}
+
 /* Return values: 0=completed normally, 1=other key pressed (skip paragraph), 2=ESC pressed (fast-forward) */
 static int print_paragraph_fade(cptr text, int row, int indent,
                                  int wrap_width)
@@ -8650,7 +8694,7 @@ static int print_paragraph_fade(cptr text, int row, int indent,
             text_out_indent = 0;
             Term_fresh();
             /* Return different codes for ESC vs other keys */
-            return (ch == ESCAPE) ? 2 : 1;
+            return story_fast_forward_key(ch) ? 2 : 1;
         }
 
         text_out_indent = indent;
@@ -8670,7 +8714,7 @@ static int print_paragraph_fade(cptr text, int row, int indent,
         /* Consume the key */
         Term_inkey(&ch, false, true); /* Remove the key from queue */
         /* Return different codes for ESC vs other keys */
-        return (ch == ESCAPE) ? 2 : 1;
+        return story_fast_forward_key(ch) ? 2 : 1;
     }
 
     Term_xtra(TERM_XTRA_DELAY, 1000);
@@ -8955,8 +8999,10 @@ static void story_print_hint(int indent, int h)
         char esc_label[16];
         char prompt_buf[80];
 
-        story_prompt_label(' ', "A", next_label, sizeof(next_label));
-        story_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
+        story_prompt_label(steamdeck_confirm_key(), "A", next_label,
+            sizeof(next_label));
+        story_prompt_label(steamdeck_back_key(), "B", esc_label,
+            sizeof(esc_label));
 
         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] next  *  [%s] fast forward", next_label, esc_label);
         Term_putstr(indent, h - 1, -1, TERM_SLATE, prompt_buf);
@@ -9070,7 +9116,7 @@ void print_story(int last_parts, bool fade_in)
                 show_page_instantly = false;
                 REDRAW_HINT();
                 char ch = inkey();
-                if (ch == ESCAPE)
+                if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in = false;
@@ -9149,7 +9195,7 @@ void print_story(int last_parts, bool fade_in)
                 
                 REDRAW_HINT();
                 char ch = inkey();
-                if (ch == ESCAPE)
+                if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in      = false;   /* Disable delays for rest of story */
@@ -9189,7 +9235,8 @@ void print_story(int last_parts, bool fade_in)
     if (steamdeck_controls_active()) {
         char next_label[16];
         char prompt_buf[64];
-        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        story_prompt_label(steamdeck_confirm_key(), "A", next_label,
+            sizeof(next_label));
         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", next_label);
         Term_putstr(indent, h - 1, -1, TERM_L_WHITE, prompt_buf);
     } else {

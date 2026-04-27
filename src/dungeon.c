@@ -660,6 +660,8 @@ static bool confirm_enter_morgoth_hall(void)
             col = 1;
         Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
     }
+    sdl_touch_pane_begin_yes_no_prompt();
+    Term_fresh();
 
     /* Get an acceptable answer */
     while (true)
@@ -675,6 +677,7 @@ static bool confirm_enter_morgoth_hall(void)
     }
 
     /* Restore screen */
+    sdl_touch_pane_end_yes_no_prompt();
     screen_load();
 
     /* Normal negation */
@@ -4510,11 +4513,36 @@ static bool story_intro_skip_requested(void)
     if (Term_inkey(&check_key, false, false) == 0)
     {
         Term_inkey(&check_key, false, true);
-        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r')
+        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r'
+            || check_key == ' ')
+            return true;
+        if (steamdeck_controls_active()
+            && (check_key == steamdeck_confirm_key()
+                || check_key == steamdeck_back_key()))
             return true;
     }
 
     return false;
+}
+
+static void story_intro_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    morgoth_prompt_controller_label(binding, fallback, buf, buflen);
+}
+
+static bool story_intro_back_key(int ch)
+{
+    return steamdeck_controls_active() && ch == steamdeck_back_key()
+        && ch != steamdeck_confirm_key();
+}
+
+static bool story_intro_difficulty_key(int ch)
+{
+    if (ch == 'c' || ch == 'C')
+        return true;
+
+    return steamdeck_controls_active() && ch == steamdeck_alt_action_key();
 }
 
 static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
@@ -4755,11 +4783,28 @@ static void print_story_intro(void)
 
         /* Check if we have enough space for the whole paragraph */
         if (row + lines_needed >= h - 1) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            if (steamdeck_controls_active())
+            {
+                char confirm_label[16];
+                char back_label[16];
+                char prompt_buf[80];
+
+                story_intro_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                story_intro_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "[%s] continue  [%s] skip", confirm_label, back_label);
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+            }
+            else
+            {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            }
             hide_cursor = true;
             {
                 char k = inkey();
-                if (k == 'S') { /* Capital S skips the intro entirely */
+                if (k == 'S' || story_intro_back_key(k)) { /* Capital S skips the intro entirely */
                     Term_clear();
                     goto cleanup_intro;
                 }
@@ -4780,17 +4825,36 @@ static void print_story_intro(void)
     }
 
     /* Final "finish" prompt with difficulty option */
-    Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char difficulty_label[16];
+        char prompt_buf[96];
+
+        story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        story_intro_prompt_label(steamdeck_alt_action_key(), "X",
+            difficulty_label, sizeof(difficulty_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "[%s] Change difficulty (experienced players)", difficulty_label);
+        Term_putstr(8, h - 2, -1, TERM_L_WHITE, prompt_buf);
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
+        Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+    }
+    else
+    {
+        Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
+        Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+    }
 
     /* Handle input */
     hide_cursor = true;
     char key = inkey();
-    if (key == 'S') {
+    if (key == 'S' || story_intro_back_key(key)) {
         Term_clear();
         goto cleanup_intro;
     }
-    if (key == 'c' || key == 'C')
+    if (story_intro_difficulty_key(key))
     {
         Term_clear();
         choose_difficulty_level();

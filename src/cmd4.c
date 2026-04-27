@@ -1047,6 +1047,9 @@ void do_cmd_character_sheet(void)
 #define COL_ABILITY 16
 #define COL_DESCRIPTION 41
 #define ABILITY_MENU_LIST_WIDTH (COL_DESCRIPTION - COL_ABILITY)
+#define ABILITY_MENU_CLICK_SKILL_BASE 1000
+#define ABILITY_MENU_CLICK_ABILITY_BASE 2000
+#define ABILITY_MENU_SWITCH_SKILL_BASE (ABILITIES_MAX + 10)
 
 static bool ability_menu_use_compact_layout(void)
 {
@@ -1080,6 +1083,18 @@ static int ability_menu_description_wrap(int desc_col)
         return desc_col + 1;
 
     return wid - 1;
+}
+
+static int ability_menu_click_width(int text_col, int next_col, cptr label)
+{
+    int prefix_col = indexed_menu_prefix_col(text_col);
+    int text_width = (int)strlen(label ? label : "") + text_col - prefix_col;
+    int column_width = next_col - prefix_col - 1;
+
+    if (text_width < 1)
+        text_width = 1;
+
+    return MAX(text_width, column_width);
 }
 
 int abilities_in_skill(int skilltype);
@@ -1956,7 +1971,20 @@ void do_cmd_change_song()
         if (!p_ptr->command_see)
             SDL_strlcat(out_val, ", * to see", sizeof(out_val));
         else if (steamdeck)
-            SDL_strlcat(out_val, ", A select, B back", sizeof(out_val));
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            controller_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            controller_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            SDL_strlcat(out_val, ", ", sizeof(out_val));
+            SDL_strlcat(out_val, confirm_label, sizeof(out_val));
+            SDL_strlcat(out_val, " select, ", sizeof(out_val));
+            SDL_strlcat(out_val, back_label, sizeof(out_val));
+            SDL_strlcat(out_val, " back", sizeof(out_val));
+        }
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
@@ -2577,6 +2605,7 @@ int bane_menu(int* highlight)
     byte attr;
 
     wipe_screen_from(prefix_col);
+    ui_menu_click_begin();
 
     Term_putstr(list_col, 2, -1, TERM_WHITE, "Enemy types");
 
@@ -2598,6 +2627,8 @@ int bane_menu(int* highlight)
 
         indexed_menu_entry_label(buf, sizeof(buf), i - 1, bane_name[i]);
         Term_putstr(list_col, row, -1, attr, buf);
+        ui_menu_click_add(i, prefix_col, row,
+            ability_menu_click_width(list_col, desc_col, buf));
 
         indexed_menu_normal_prefix(prefix, sizeof(prefix), i - 1);
         Term_putstr(prefix_col, row, -1, attr, prefix);
@@ -2672,6 +2703,20 @@ int bane_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    {
+        int clicked_choice = -1;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
+            && clicked_choice >= 1 && clicked_choice <= options)
+        {
+            *highlight = clicked_choice;
+            if (click_action == UI_MENU_CLICK_SECONDARY)
+                return (*highlight);
+            return (0);
+        }
+    }
 
     if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
@@ -2911,6 +2956,7 @@ int oath_menu(int* highlight)
 
     // Clear the abilities and description area (following abilities_menu2 pattern)
     wipe_screen_from(ability_col);
+    ui_menu_click_begin();
 
     // Title in the abilities column
     Term_putstr(ability_col, 2, -1, TERM_WHITE, "Oaths");
@@ -2939,6 +2985,9 @@ int oath_menu(int* highlight)
         
         // Display in abilities column with proper spacing
         Term_putstr(ability_col, 4 + visible_count, -1, attr, buf);
+        ui_menu_click_add(visible_count + 1,
+            indexed_menu_prefix_col(ability_col), 4 + visible_count,
+            ability_menu_click_width(ability_col, desc_col, buf));
         visible_count++;
     }
 
@@ -3026,6 +3075,20 @@ int oath_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = -1;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
+            && clicked_choice >= 1 && clicked_choice <= visible_count)
+        {
+            *highlight = clicked_choice;
+            if (click_action == UI_MENU_CLICK_SECONDARY)
+                return visible_oaths[*highlight - 1];
+            return oath_menu(highlight);
+        }
+    }
+
     /* Handle letter selection (a-z) for immediate highlighting */
     if (!steamdeck && (ch >= 'a') && (ch < 'a' + visible_count))
     {
@@ -3074,49 +3137,59 @@ int oath_menu(int* highlight)
     return oath_menu(highlight);
 }
 
-int abilities_menu1(int* highlight)
+static bool ability_menu_show_special_skill(void)
 {
     int i;
-    int ch;
-    int options = S_MAX;
-    bool show_special = false;
-    bool steamdeck = steamdeck_controls_active();
 
-    // Determine if any special abilities are present (owned or active)
-    for (i = 0; i < ABILITIES_MAX; i++) {
-        if (p_ptr->have_ability[S_SPC][i]) { 
-            show_special = true; 
-            break; 
+    for (i = 0; i < ABILITIES_MAX; i++)
+    {
+        if (p_ptr->have_ability[S_SPC][i])
+            return true;
+    }
+
+    return p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE];
+}
+
+static int ability_menu_skill_options(void)
+{
+    return ability_menu_show_special_skill() ? S_MAX : (S_MAX - 1);
+}
+
+static void ability_menu_draw_skills(int highlight, int options, int click_base)
+{
+    int i;
+    char buf[80];
+
+    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
+
+    for (i = 0; i < options; i++)
+    {
+        int row = i + 4;
+
+        indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
+        Term_putstr(COL_SKILL, row, -1,
+            (highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
+
+        if (click_base > 0)
+        {
+            ui_menu_click_add(click_base + i,
+                indexed_menu_prefix_col(COL_SKILL), row,
+                ability_menu_click_width(COL_SKILL, COL_ABILITY, buf));
         }
     }
-    
-    // Debug: Always show special menu for unique bane status
-    if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE]) {
-        show_special = true;
-    }
-    
-    if (!show_special) {
-        options = S_MAX - 1; // hide Special category
-    }
+}
 
-    char buf[80];
+int abilities_menu1(int* highlight)
+{
+    int ch;
+    int options = ability_menu_skill_options();
+    bool steamdeck = steamdeck_controls_active();
 
     // Clear the whole screen body so compact-layout submenu rows do not
     // linger when returning from an ability list to the skills list.
     wipe_screen_from(indexed_menu_prefix_col(COL_SKILL));
-
-    // title
-    Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
-
-    // list the skills
-    for (i = 0; i < options; i++)
-    {
-        indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
-
-        // Highlight the entire line if selected
-        Term_putstr(COL_SKILL, i + 4, -1,
-            (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
-    }
+    ui_menu_click_begin();
+    ability_menu_draw_skills(*highlight, options, 1);
 
     /* Flush the prompt */
     Term_fresh();
@@ -3129,35 +3202,26 @@ int abilities_menu1(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = -1;
+
+        if (ui_menu_click_take(&clicked_choice)
+            && clicked_choice >= 1 && clicked_choice <= options)
+        {
+            *highlight = clicked_choice;
+            return (*highlight);
+        }
+    }
+
     if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
-
-        // relist the skills
-    for (i = 0; i < options; i++)
-        {
-            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
-
-            Term_putstr(COL_SKILL, i + 4, -1,
-                (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
-        }
-
         return (*highlight);
     }
 
     if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
-
-        // relist the skills
-    for (i = 0; i < options; i++)
-        {
-            indexed_menu_entry_label(buf, sizeof(buf), i, skill_names_full[i]);
-
-            Term_putstr(COL_SKILL, i + 4, -1,
-                (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
-        }
-
         return (*highlight);
     }
 
@@ -3221,6 +3285,11 @@ int abilities_menu2(int skilltype, int* highlight)
     // In compact layout the abilities list reuses the skills column.
     wipe_screen_from(indexed_menu_prefix_col(
         compact_layout ? COL_SKILL : COL_ABILITY));
+    ui_menu_click_begin();
+
+    if (!compact_layout)
+        ability_menu_draw_skills(skilltype + 1, ability_menu_skill_options(),
+            ABILITY_MENU_CLICK_SKILL_BASE);
 
     // abilities title with color
     Term_putstr(ability_col, 1, -1, TERM_L_BLUE, "Abilities");
@@ -3419,6 +3488,9 @@ int abilities_menu2(int skilltype, int* highlight)
         }
 
         Term_putstr(ability_col, display_row, -1, attr, buf);
+        ui_menu_click_add(ABILITY_MENU_CLICK_ABILITY_BASE + i,
+            indexed_menu_prefix_col(ability_col), display_row,
+            ability_menu_click_width(ability_col, desc_col, buf));
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
@@ -3738,6 +3810,38 @@ int abilities_menu2(int skilltype, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = -1;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if (clicked_choice >= ABILITY_MENU_CLICK_SKILL_BASE
+                && clicked_choice < ABILITY_MENU_CLICK_SKILL_BASE + S_MAX)
+            {
+                int clicked_skill = clicked_choice - ABILITY_MENU_CLICK_SKILL_BASE;
+                int skill_options = ability_menu_skill_options();
+
+                if (clicked_skill >= 0 && clicked_skill < skill_options)
+                    return ABILITY_MENU_SWITCH_SKILL_BASE + clicked_skill;
+            }
+            else if (clicked_choice >= ABILITY_MENU_CLICK_ABILITY_BASE
+                && clicked_choice < ABILITY_MENU_CLICK_ABILITY_BASE + visible_count)
+            {
+                int selected_index =
+                    clicked_choice - ABILITY_MENU_CLICK_ABILITY_BASE;
+
+                if (selected_index >= 0 && selected_index < visible_count)
+                {
+                    *highlight = visible_abilities[selected_index] + 1;
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                        return (*highlight);
+                    return (0);
+                }
+            }
+        }
+    }
+
     if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
@@ -3855,6 +3959,7 @@ void do_cmd_ability_screen(void)
     bool return_to_abilities = false;
 
     bool skip_purchase = false;
+    bool open_initial_skill = !ability_menu_use_compact_layout();
 
     log_trace("ABILITY_SCREEN: Entering ability screen");
 
@@ -3871,8 +3976,17 @@ void do_cmd_ability_screen(void)
     {
         int menu1_choice;
 
-        log_trace("ABILITY_SCREEN: Calling abilities_menu1 with highlight1=%d", highlight1);
-        menu1_choice = abilities_menu1(&highlight1);
+        if (open_initial_skill)
+        {
+            highlight1 = S_MEL + 1;
+            menu1_choice = highlight1;
+            open_initial_skill = false;
+        }
+        else
+        {
+            log_trace("ABILITY_SCREEN: Calling abilities_menu1 with highlight1=%d", highlight1);
+            menu1_choice = abilities_menu1(&highlight1);
+        }
 
         if (menu1_choice == (S_MAX + 2))
         {
@@ -3902,6 +4016,15 @@ void do_cmd_ability_screen(void)
 
                 log_trace("ABILITY_SCREEN: Calling abilities_menu2 for skilltype=%d with highlight2=%d", skilltype, highlight2);
                 menu2_choice = abilities_menu2(skilltype, &highlight2);
+
+                if (menu2_choice >= ABILITY_MENU_SWITCH_SKILL_BASE
+                    && menu2_choice < ABILITY_MENU_SWITCH_SKILL_BASE + S_MAX)
+                {
+                    skilltype = menu2_choice - ABILITY_MENU_SWITCH_SKILL_BASE;
+                    highlight1 = skilltype + 1;
+                    highlight2 = 1;
+                    continue;
+                }
 
                 if (menu2_choice == (ABILITIES_MAX + 3))
                 {
@@ -4219,6 +4342,7 @@ void do_cmd_ability_screen(void)
     // message_flush();
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     handle_stuff();

@@ -4121,7 +4121,7 @@ void do_cmd_unified_look(void)
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
-    const bool portable_controls = portable_controls_active();
+    const bool controller_controls = steamdeck_controls_active();
 
     if (!g_unified_look_has_start
         || ((state.cursor_y == p_ptr->py) && (state.cursor_x == p_ptr->px)))
@@ -4310,7 +4310,7 @@ void do_cmd_unified_look(void)
                     /* Display help text based on current mode */
                     if (state.look_mode == 0)
                     {
-                        if (portable_controls) {
+                        if (controller_controls) {
                             char prev_label[16];
                             char next_label[16];
                             char exam_label[16];
@@ -4319,8 +4319,8 @@ void do_cmd_unified_look(void)
                             char pan_label[16];
                             char back_label[16];
                             char prompt_buf[160];
-                            char compact_buf[96];
-                            char tiny_buf[64];
+                            char compact_buf[160];
+                            char tiny_buf[128];
                             const char* obj_action = compact_look_layout ? "View" : "Obj";
 
                             unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
@@ -4336,10 +4336,14 @@ void do_cmd_unified_look(void)
                                 next_label, prev_label, exam_label, target_label,
                                 obj_label, obj_action, pan_label, back_label);
                             strnfmt(compact_buf, sizeof(compact_buf),
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] %s [Y] Pan",
-                                obj_action);
+                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Pan",
+                                next_label, prev_label, exam_label,
+                                target_label, obj_label, obj_action,
+                                pan_label);
                             strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Y Pan X %s R1/L1 A B", obj_action);
+                                "%s Pan %s %s %s/%s %s %s", pan_label,
+                                obj_label, obj_action, next_label,
+                                prev_label, exam_label, target_label);
                             unified_look_print_prompt3(prompt_buf, compact_buf,
                                 tiny_buf);
                         } else {
@@ -4363,7 +4367,7 @@ void do_cmd_unified_look(void)
                     }
                     else
                     {
-                        if (portable_controls) {
+                        if (controller_controls) {
                             char prev_label[16];
                             char next_label[16];
                             char exam_label[16];
@@ -4372,8 +4376,8 @@ void do_cmd_unified_look(void)
                             char cursor_label[16];
                             char back_label[16];
                             char prompt_buf[160];
-                            char compact_buf[96];
-                            char tiny_buf[64];
+                            char compact_buf[160];
+                            char tiny_buf[128];
                             const char* obj_action = compact_look_layout ? "View" : "Obj";
 
                             unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
@@ -4389,10 +4393,14 @@ void do_cmd_unified_look(void)
                                 next_label, prev_label, exam_label, target_label,
                                 obj_label, obj_action, cursor_label, back_label);
                             strnfmt(compact_buf, sizeof(compact_buf),
-                                "[R1/L1] Sel [A] Exam [B] Targ [X] %s [Y] Curs",
-                                obj_action);
+                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Curs",
+                                next_label, prev_label, exam_label,
+                                target_label, obj_label, obj_action,
+                                cursor_label);
                             strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Y Curs X %s R1/L1 A B", obj_action);
+                                "%s Curs %s %s %s/%s %s %s", cursor_label,
+                                obj_label, obj_action, next_label,
+                                prev_label, exam_label, target_label);
                             unified_look_print_prompt3(prompt_buf, compact_buf,
                                 tiny_buf);
                         } else {
@@ -4435,7 +4443,7 @@ void do_cmd_unified_look(void)
             && query != '\t'
             && query != '`'
             && query != 'q'
-            && !(portable_controls && (query == 'i' || query == 'e')))
+            && !(controller_controls && (query == 'i' || query == 'e')))
         {
             (void)Term_set_extra_cursor(false, 0, 0, false);
             screen_load();
@@ -4986,7 +4994,7 @@ command_key:
             case '\t': /* Tab key */
             case 'i':  /* I key = nearby filter on keyboard, forward cycling in portable UI */
             {
-                if (query == 'i' && !portable_controls)
+                if (query == 'i' && !controller_controls)
                 {
                     state.nearby_filter = !state.nearby_filter;
                     state.selected_entity = -1;
@@ -5040,7 +5048,7 @@ command_key:
             case 'q': /* Q key - reverse Tab cycling */
             case 'e': /* E key - reverse Tab cycling in portable UI */
             {
-                if (query == 'e' && !portable_controls)
+                if (query == 'e' && !controller_controls)
                     goto command_key;
                 log_trace("REVERSE CYCLING: Key handler reached - cycling entities backward");
                 
@@ -5346,7 +5354,7 @@ command_key:
             }
             
             case 'u':
-                if (!portable_controls)
+                if (!controller_controls)
                     goto command_key;
                 if (compact_look_layout)
                     goto cycle_display_modes;

@@ -11,6 +11,17 @@
 #include "angband.h"
 #include "externs.h"
 
+static void cmd6_prompt_label(int binding, const char* fallback, char* buf,
+    size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
+
 static void format_staff_prompt_name(char* buf, size_t max,
     const object_type* o_ptr, bool pref)
 {
@@ -324,10 +335,26 @@ static bool sanctity_choose_target_from_entries(
             prt("", help_row, 0);
         }
 
-        prt(steamdeck
-                ? "D-pad choose, A/Enter select, B/ESC cancel"
-                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
-            prompt_row, 0);
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[80];
+
+            cmd6_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            cmd6_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad choose, %s select, %s cancel", confirm_label,
+                back_label);
+            prt(prompt_buf, prompt_row, 0);
+        }
+        else
+        {
+            prt("Letters/8/2/arrows choose, Enter select, ESC cancel",
+                prompt_row, 0);
+        }
         Term_fresh();
 
         key = inkey();

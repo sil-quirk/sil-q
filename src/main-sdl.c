@@ -421,6 +421,7 @@ static int g_touch_pane_pressed_slot = -1;
 static bool g_touch_pane_second_panel = false;
 static bool g_touch_pane_ctrl_toggle = false;
 static bool g_touch_pane_reset_confirm_active = false;
+static bool g_touch_pane_yes_no_prompt_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
 static menu_touch_press_state g_menu_touch_press;
@@ -512,7 +513,10 @@ static int sdl_touch_pane_other_panel(int panel);
 static int sdl_touch_pane_raw_binding_for_panel(int panel, int index);
 static int sdl_touch_pane_effective_binding_for_panel(int panel, int index);
 static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot);
+static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect);
 static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects);
+static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* yes_rect, SDL_FRect* no_rect);
+static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y);
 static bool sdl_touch_pane_binding_is_direction(int binding);
 static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
 static bool sdl_touch_pane_confirm_binding(int binding);
@@ -528,6 +532,7 @@ static void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen)
 static bool sdl_touch_pane_label_is_symbol_only(const char* label);
 static bool sdl_touch_pane_should_hide_symbol(const char* name, const char* symbol);
 static void sdl_touch_pane_render_reset_prompt(void);
+static void sdl_touch_pane_render_yes_no_prompt(void);
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen);
@@ -2615,15 +2620,16 @@ static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* 
     return true;
 }
 
-static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
+static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect)
 {
-    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
     SDL_Rect panes[PANE_MAX];
     const SDL_Rect* pane;
     bool show_supporting_panes = sdl_should_show_supporting_panes();
 
-    if (out_slot)
-        *out_slot = -1;
+    if (!out_rect)
+        return false;
+    if (!sdl_touch_pane_is_config_enabled())
+        return false;
 
     if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
         pane = &g_pane_rects[PANE_TOUCH];
@@ -2635,7 +2641,72 @@ static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
     if (pane->w <= 0 || pane->h <= 0)
         return false;
 
-    if (!sdl_touch_pane_compute_layout(pane, slot_rects))
+    *out_rect = *pane;
+    return true;
+}
+
+static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* yes_rect, SDL_FRect* no_rect)
+{
+    SDL_Rect pane;
+    SDL_Rect screen;
+    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
+    float button_size;
+    float gap;
+    float total_w;
+    float start_x;
+    float start_y;
+
+    if (!g_touch_pane_yes_no_prompt_active || !yes_rect || !no_rect)
+        return false;
+    if (!sdl_touch_pane_current_rect(&pane))
+        return false;
+    if (!sdl_touch_pane_compute_layout(&pane, slot_rects))
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (screen.w <= 0 || screen.h <= 0)
+        return false;
+
+    button_size = slot_rects[0].w * 2.0f;
+    gap = 0.0f;
+
+    total_w = button_size * 2.0f + gap;
+    start_x = (float)screen.x + ((float)screen.w - total_w) * 0.5f;
+    start_y = (float)screen.y + ((float)screen.h - button_size) * 0.5f;
+
+    if (start_x < (float)screen.x)
+        start_x = (float)screen.x;
+    if (start_y < (float)screen.y)
+        start_y = (float)screen.y;
+
+    *yes_rect = (SDL_FRect){
+        .x = start_x,
+        .y = start_y,
+        .w = button_size,
+        .h = button_size,
+    };
+    *no_rect = (SDL_FRect){
+        .x = start_x + button_size + gap,
+        .y = start_y,
+        .w = button_size,
+        .h = button_size,
+    };
+
+    return true;
+}
+
+static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
+{
+    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
+    SDL_Rect pane;
+
+    if (out_slot)
+        *out_slot = -1;
+
+    if (!sdl_touch_pane_current_rect(&pane))
+        return false;
+
+    if (!sdl_touch_pane_compute_layout(&pane, slot_rects))
         return false;
 
     for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
@@ -2647,8 +2718,40 @@ static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
         }
     }
 
-    if (x >= pane->x && x < pane->x + pane->w && y >= pane->y && y < pane->y + pane->h)
+    if (x >= (float)pane.x && x < (float)(pane.x + pane.w)
+        && y >= (float)pane.y && y < (float)(pane.y + pane.h))
+    {
         return true;
+    }
+
+    return false;
+}
+
+static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
+{
+    SDL_FRect yes_rect;
+    SDL_FRect no_rect;
+
+    if (!sdl_touch_pane_yes_no_prompt_layout(&yes_rect, &no_rect))
+        return false;
+
+    if (x >= yes_rect.x && x < yes_rect.x + yes_rect.w
+        && y >= yes_rect.y && y < yes_rect.y + yes_rect.h)
+    {
+        g_touch_pane_yes_no_prompt_active = false;
+        g_state.need_present = true;
+        Term_keypress('y');
+        return true;
+    }
+
+    if (x >= no_rect.x && x < no_rect.x + no_rect.w
+        && y >= no_rect.y && y < no_rect.y + no_rect.h)
+    {
+        g_touch_pane_yes_no_prompt_active = false;
+        g_state.need_present = true;
+        Term_keypress('n');
+        return true;
+    }
 
     return false;
 }
@@ -2953,6 +3056,42 @@ static void sdl_touch_pane_render_reset_prompt(void)
     SDL_RenderRect(g_state.renderer, &rect);
     sdl_touch_pane_draw_button_text(&rect, "Reset touch controls to defaults?",
         "Confirm: Pick/Enter. Cancel: Esc.", text);
+}
+
+static void sdl_touch_pane_render_yes_no_prompt(void)
+{
+    SDL_FRect yes_rect;
+    SDL_FRect no_rect;
+    SDL_FRect shadow;
+    SDL_Color frame = g_state.palette[TERM_WHITE];
+    SDL_Color accent = g_state.palette[TERM_L_BLUE];
+
+    if (!sdl_touch_pane_yes_no_prompt_layout(&yes_rect, &no_rect))
+        return;
+
+    shadow = yes_rect;
+    shadow.x += 2.0f;
+    shadow.y += 2.0f;
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+
+    shadow = no_rect;
+    shadow.x += 2.0f;
+    shadow.y += 2.0f;
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 245);
+    SDL_RenderFillRect(g_state.renderer, &yes_rect);
+    SDL_RenderFillRect(g_state.renderer, &no_rect);
+
+    SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g, accent.b, 230);
+    SDL_RenderRect(g_state.renderer, &yes_rect);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 220);
+    SDL_RenderRect(g_state.renderer, &no_rect);
+
+    sdl_touch_pane_draw_button_text(&yes_rect, NULL, "Y", accent);
+    sdl_touch_pane_draw_button_text(&no_rect, NULL, "N", frame);
 }
 
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
@@ -5662,6 +5801,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (ev->button.button == SDL_BUTTON_LEFT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_touch_pane_handle_yes_no_prompt_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_touch_pane_handle_pointer_down((float)ev->button.x, (float)ev->button.y,
                 true, 0))
             {
@@ -5721,6 +5865,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_touch_pane_handle_yes_no_prompt_pointer(x, y))
+            return;
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
             return;
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
@@ -5959,29 +6105,20 @@ static void sdl_touch_pane_render(void)
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
     SDL_Color muted = g_state.palette[TERM_SLATE];
-    SDL_Rect panes[PANE_MAX];
-    const SDL_Rect* pane;
+    SDL_Rect pane;
     int panel = sdl_touch_pane_active_panel();
-    bool show_supporting_panes = sdl_should_show_supporting_panes();
 
-    if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
-        pane = &g_pane_rects[PANE_TOUCH];
-    } else {
-        sdl_compute_display_panes(panes);
-        pane = &panes[PANE_TOUCH];
-    }
-
-    if (pane->w <= 0 || pane->h <= 0)
+    if (!sdl_touch_pane_current_rect(&pane))
         return;
 
-    if (!sdl_touch_pane_compute_layout(pane, slot_rects))
+    if (!sdl_touch_pane_compute_layout(&pane, slot_rects))
         return;
 
     pane_rect = (SDL_FRect){
-        .x = (float)pane->x,
-        .y = (float)pane->y,
-        .w = (float)pane->w,
-        .h = (float)pane->h,
+        .x = (float)pane.x,
+        .y = (float)pane.y,
+        .w = (float)pane.w,
+        .h = (float)pane.h,
     };
 
     SDL_SetRenderDrawColor(g_state.renderer, 12, 12, 12, 255);
@@ -6140,6 +6277,7 @@ static void sdl_present_if_needed(sdl_view* d)
 
     sdl_touch_pane_render();
     sdl_touch_pane_render_reset_prompt();
+    sdl_touch_pane_render_yes_no_prompt();
     SDL_RenderPresent(g_state.renderer);
 
     if (d && d->canvas)
@@ -8490,13 +8628,17 @@ bool steamdeck_controls_active(void)
         return true;
     if (!config.gamepad_enabled)
         return false;
-    return (config.gamepad_auto_mode && g_gamepad_auto_ui);
+    if (!config.gamepad_auto_mode)
+        return false;
+
+    return g_gamepad_auto_ui || (g_gamepad_state.pad_count > 0);
 }
 
 bool portable_controls_active(void)
 {
 #if defined(SIL_USE_LOCAL_DATA) || defined(__ANDROID__) || defined(SIL_IOS)
-    /* Portable builds and mobile platforms use the controller-style menu shortcuts. */
+    /* Portable builds and mobile platforms accept touch-friendly confirm shortcuts.
+     * Controller button labels are gated separately by steamdeck_controls_active(). */
     return true;
 #else
     return steamdeck_controls_active();
@@ -8897,6 +9039,27 @@ void sdl_touch_pane_reset_bindings_to_default(void)
     sdl_config_set_default_touch_pane_bindings(&config);
     sdl_config_clear_touch_pane_labels(&config);
     sdl_touch_pane_ensure_main_panel_confirm();
+}
+
+void sdl_touch_pane_begin_yes_no_prompt(void)
+{
+    if (!sdl_touch_pane_is_config_enabled())
+        return;
+
+    sdl_touch_pane_cancel_press();
+    sdl_touch_swipe_cancel();
+    sdl_menu_touch_cancel();
+    g_touch_pane_yes_no_prompt_active = true;
+    g_state.need_present = true;
+}
+
+void sdl_touch_pane_end_yes_no_prompt(void)
+{
+    if (!g_touch_pane_yes_no_prompt_active)
+        return;
+
+    g_touch_pane_yes_no_prompt_active = false;
+    g_state.need_present = true;
 }
 
 cptr get_sdl_touch_pane_slot_name(int index)

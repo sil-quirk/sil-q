@@ -1032,7 +1032,7 @@ extern void display_single_score(
 static char display_scores_pages(const high_score* entries, int count, int highlight_index,
                                  score_view_order order, bool detailed, int page_size)
 {
-    bool steamdeck = get_sdl_steamdeck_mode();
+    bool steamdeck = steamdeck_controls_active();
     char order_label[16] = "";
     char layout_label[16] = "";
     char exit_label[16] = "";
