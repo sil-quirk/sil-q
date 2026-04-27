@@ -6086,6 +6086,9 @@ void disturb(int stop_stealth, int unused_flag)
     /* Unused parameter */
     (void)unused_flag;
 
+    /* Cancel SDL mouse auto-walk paths along with other auto-actions. */
+    sdl_mouse_path_cancel();
+
     /* Cancel auto-commands */
     /* p_ptr->command_new = 0; */
 

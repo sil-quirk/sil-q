@@ -4218,6 +4218,21 @@ void request_command(void)
             continue;
         }
 
+        if (sdl_mouse_recall_process_pending())
+            continue;
+
+        {
+            int mouse_command = 0;
+            int mouse_dir = 0;
+
+            if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+        }
+
         /* Hack -- auto-commands */
         if (p_ptr->command_new)
         {
@@ -4242,6 +4257,26 @@ void request_command(void)
 
             /* Get a command */
             ch = inkey();
+        }
+
+        if (sdl_mouse_recall_process_pending())
+            continue;
+
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int mouse_command = 0;
+            int mouse_dir = 0;
+
+            if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+        }
+        else
+        {
+            sdl_mouse_path_cancel();
         }
 
         /* Clear top line */

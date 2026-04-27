@@ -383,6 +383,27 @@ typedef struct menu_touch_press_state {
     Uint64 start_time;
 } menu_touch_press_state;
 
+enum {
+    SDL_MOUSE_PATH_MAX_GRIDS = MAX_DUNGEON_HGT * MAX_DUNGEON_WID,
+};
+
+typedef struct mouse_path_state {
+    bool hover_visible;
+    bool follow_active;
+    bool path_valid;
+    int source_y;
+    int source_x;
+    int target_y;
+    int target_x;
+    int target_m_idx;
+    int path_len;
+    u16b path[SDL_MOUSE_PATH_MAX_GRIDS];
+    bool path_wake_pending;
+    bool recall_pending;
+    int recall_y;
+    int recall_x;
+} mouse_path_state;
+
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
 static SDL_Rect g_pane_rects[PANE_MAX];
@@ -425,6 +446,11 @@ static bool g_touch_pane_yes_no_prompt_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
 static menu_touch_press_state g_menu_touch_press;
+static mouse_path_state g_mouse_path;
+static byte g_mouse_path_visited[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+static u16b g_mouse_path_parent[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+static u16b g_mouse_path_queue[SDL_MOUSE_PATH_MAX_GRIDS];
+static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static bool g_sdl_blocking_key_wait = false;
 static bool g_direct_touch_present = SIL_SDL_MOBILE_BUILD ? true : false;
 static int g_auto_aux_main_cell_h_override = 0;
@@ -555,6 +581,18 @@ static bool sdl_menu_touch_handle_pointer_up(float x, float y, SDL_FingerID fing
 static void sdl_menu_touch_cancel(void);
 static int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_menu_touch_flush_pending_press(Uint64 now_ns);
+static bool sdl_main_screen_click_shortcuts_active(void);
+static bool sdl_mouse_gameplay_context_active(void);
+static bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x);
+static bool sdl_mouse_grid_has_visible_monster(int y, int x, int* out_m_idx);
+static bool sdl_mouse_path_compute(int target_y, int target_x);
+static void sdl_mouse_path_handle_motion(float x, float y);
+static bool sdl_mouse_path_handle_left_click(float x, float y);
+static bool sdl_mouse_recall_handle_right_click(float x, float y);
+static void sdl_mouse_path_render(void);
+bool sdl_mouse_path_take_step_command(int* command, int* dir);
+bool sdl_mouse_recall_process_pending(void);
+void sdl_mouse_path_cancel(void);
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
 static bool sdl_is_log_pane_active(void);
@@ -3268,6 +3306,594 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
     return (*out_col >= 0 && *out_col < view->cols && *out_row >= 0 && *out_row < view->rows);
 }
 
+static bool sdl_mouse_gameplay_context_active(void)
+{
+    return character_generated
+        && character_dungeon
+        && p_ptr
+        && character_icky == 0
+        && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x)
+{
+    int col = 0;
+    int row = 0;
+    int map_row;
+    int map_col;
+    int map_y;
+    int map_x;
+
+    if (!out_y || !out_x)
+        return false;
+    if (!sdl_mouse_gameplay_context_active())
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row < ROW_MAP || col < COL_MAP)
+        return false;
+
+    map_row = row - ROW_MAP;
+    map_col = col - COL_MAP;
+    if (use_bigtile)
+        map_col /= 2;
+
+    if (map_row < 0 || map_col < 0 || map_row >= SCREEN_HGT || map_col >= SCREEN_WID)
+        return false;
+
+    map_y = p_ptr->wy + map_row;
+    map_x = p_ptr->wx + map_col;
+    if (!in_bounds(map_y, map_x))
+        return false;
+
+    *out_y = map_y;
+    *out_x = map_x;
+    return true;
+}
+
+static bool sdl_mouse_path_grid_known(int y, int x)
+{
+    if (!in_bounds(y, x))
+        return false;
+    if ((y == p_ptr->py) && (x == p_ptr->px))
+        return true;
+    if (!grid_info_is_available(y, x))
+        return false;
+    return ((cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)) != 0)
+        || player_can_see_bold(y, x);
+}
+
+static bool sdl_mouse_path_grid_is_known_danger(int y, int x)
+{
+    if (!((cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)) || player_can_see_bold(y, x)))
+        return false;
+    if (cave_feat[y][x] == FEAT_CHASM)
+        return true;
+    return cave_trap_bold(y, x) && !(cave_info[y][x] & (CAVE_HIDDEN));
+}
+
+static bool sdl_mouse_path_grid_walkable(int y, int x)
+{
+    int m_idx;
+
+    if (!sdl_mouse_path_grid_known(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx < 0)
+        return (y == p_ptr->py) && (x == p_ptr->px);
+    if ((m_idx > 0) && mon_list[m_idx].ml)
+        return (y == g_mouse_path.target_y) && (x == g_mouse_path.target_x);
+
+    if (sdl_mouse_path_grid_is_known_danger(y, x))
+        return false;
+
+    if (cave_known_closed_door_bold(y, x))
+        return true;
+
+    return cave_floor_bold(y, x);
+}
+
+static int sdl_mouse_path_heuristic(int y1, int x1, int y2, int x2)
+{
+    int dy = ABS(y1 - y2);
+    int dx = ABS(x1 - x2);
+
+    return MAX(dy, dx) * 100 + MIN(dy, dx);
+}
+
+static void sdl_mouse_path_order_dirs(int y, int x, int target_y, int target_x, int dirs[8])
+{
+    static const int base_dirs[8] = { 1, 2, 3, 4, 6, 7, 8, 9 };
+
+    for (int i = 0; i < 8; i++)
+        dirs[i] = base_dirs[i];
+
+    for (int i = 1; i < 8; i++) {
+        int dir = dirs[i];
+        int score = sdl_mouse_path_heuristic(y + ddy[dir], x + ddx[dir],
+            target_y, target_x);
+        int j = i - 1;
+
+        while (j >= 0) {
+            int other = dirs[j];
+            int other_score = sdl_mouse_path_heuristic(y + ddy[other],
+                x + ddx[other], target_y, target_x);
+            if (other_score <= score)
+                break;
+            dirs[j + 1] = dirs[j];
+            j--;
+        }
+
+        dirs[j + 1] = dir;
+    }
+}
+
+static bool sdl_mouse_path_build_from_parent(int target_y, int target_x)
+{
+    u16b start = GRID(p_ptr->py, p_ptr->px);
+    u16b here = GRID(target_y, target_x);
+    int reverse_len = 0;
+
+    while (here != start) {
+        int y = GRID_Y(here);
+        int x = GRID_X(here);
+        u16b parent;
+
+        if (!in_bounds(y, x))
+            return false;
+        if (reverse_len >= SDL_MOUSE_PATH_MAX_GRIDS)
+            return false;
+
+        g_mouse_path_reverse[reverse_len++] = here;
+        parent = g_mouse_path_parent[y][x];
+        if (parent == 0xFFFF || parent == here)
+            return false;
+        here = parent;
+    }
+
+    g_mouse_path.path_len = reverse_len;
+    for (int i = 0; i < reverse_len; i++)
+        g_mouse_path.path[i] = g_mouse_path_reverse[reverse_len - i - 1];
+
+    return reverse_len > 0;
+}
+
+static bool sdl_mouse_path_compute(int target_y, int target_x)
+{
+    int head = 0;
+    int tail = 0;
+    bool found = false;
+    int target_m_idx = 0;
+
+    g_mouse_path.path_valid = false;
+    g_mouse_path.path_len = 0;
+
+    if (!sdl_mouse_gameplay_context_active())
+        return false;
+    if (!in_bounds(target_y, target_x))
+        return false;
+
+    g_mouse_path.source_y = p_ptr->py;
+    g_mouse_path.source_x = p_ptr->px;
+    g_mouse_path.target_y = target_y;
+    g_mouse_path.target_x = target_x;
+    (void)sdl_mouse_grid_has_visible_monster(target_y, target_x, &target_m_idx);
+    g_mouse_path.target_m_idx = target_m_idx;
+
+    if ((target_y == p_ptr->py) && (target_x == p_ptr->px))
+        return false;
+    if (!sdl_mouse_path_grid_walkable(target_y, target_x))
+        return false;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; y++) {
+        memset(g_mouse_path_visited[y], 0, (size_t)p_ptr->cur_map_wid);
+        for (int x = 0; x < p_ptr->cur_map_wid; x++)
+            g_mouse_path_parent[y][x] = 0xFFFF;
+    }
+
+    g_mouse_path_queue[tail++] = GRID(p_ptr->py, p_ptr->px);
+    g_mouse_path_visited[p_ptr->py][p_ptr->px] = true;
+    g_mouse_path_parent[p_ptr->py][p_ptr->px] = GRID(p_ptr->py, p_ptr->px);
+
+    while (head < tail) {
+        u16b grid = g_mouse_path_queue[head++];
+        int y = GRID_Y(grid);
+        int x = GRID_X(grid);
+        int dirs[8];
+
+        if ((y == target_y) && (x == target_x)) {
+            found = true;
+            break;
+        }
+
+        sdl_mouse_path_order_dirs(y, x, target_y, target_x, dirs);
+        for (int i = 0; i < 8; i++) {
+            int dir = dirs[i];
+            int ny = y + ddy[dir];
+            int nx = x + ddx[dir];
+
+            if (!in_bounds(ny, nx))
+                continue;
+            if (g_mouse_path_visited[ny][nx])
+                continue;
+            if (!sdl_mouse_path_grid_walkable(ny, nx))
+                continue;
+            if (tail >= SDL_MOUSE_PATH_MAX_GRIDS)
+                return false;
+
+            g_mouse_path_visited[ny][nx] = true;
+            g_mouse_path_parent[ny][nx] = grid;
+            g_mouse_path_queue[tail++] = GRID(ny, nx);
+        }
+    }
+
+    if (!found)
+        return false;
+
+    if (!sdl_mouse_path_build_from_parent(target_y, target_x))
+        return false;
+
+    g_mouse_path.path_valid = true;
+    return true;
+}
+
+void sdl_mouse_path_cancel(void)
+{
+    if (!g_mouse_path.hover_visible && !g_mouse_path.follow_active
+        && !g_mouse_path.path_valid)
+    {
+        return;
+    }
+
+    g_mouse_path.hover_visible = false;
+    g_mouse_path.follow_active = false;
+    g_mouse_path.path_valid = false;
+    g_mouse_path.path_wake_pending = false;
+    g_mouse_path.target_m_idx = 0;
+    g_mouse_path.path_len = 0;
+    g_state.need_present = true;
+}
+
+static void sdl_mouse_path_handle_motion(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool had_visible = g_mouse_path.hover_visible;
+    bool had_valid = g_mouse_path.path_valid;
+    int old_target_y = g_mouse_path.target_y;
+    int old_target_x = g_mouse_path.target_x;
+
+    if (g_mouse_path.follow_active)
+        return;
+
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)) {
+        if (g_mouse_path.hover_visible || g_mouse_path.path_valid) {
+            g_mouse_path.hover_visible = false;
+            g_mouse_path.path_valid = false;
+            g_mouse_path.path_len = 0;
+            g_state.need_present = true;
+        }
+        return;
+    }
+
+    g_mouse_path.hover_visible = true;
+    (void)sdl_mouse_path_compute(map_y, map_x);
+
+    if (had_visible != g_mouse_path.hover_visible
+        || had_valid != g_mouse_path.path_valid
+        || old_target_y != g_mouse_path.target_y
+        || old_target_x != g_mouse_path.target_x)
+    {
+        g_state.need_present = true;
+    }
+}
+
+static bool sdl_mouse_path_handle_left_click(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+    if (!sdl_mouse_path_compute(map_y, map_x)) {
+        bell("No mouse path.");
+        return true;
+    }
+
+    g_mouse_path.hover_visible = true;
+    g_mouse_path.follow_active = true;
+    g_mouse_path.path_wake_pending = true;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_mouse_consume_wake_key(void)
+{
+    char ch = '\0';
+
+    if (!Term)
+        return false;
+    if (Term_inkey(&ch, false, false) != 0)
+        return false;
+    if (ch != UI_MENU_CLICK_WAKE_KEY)
+        return false;
+
+    (void)Term_inkey(&ch, false, true);
+    return true;
+}
+
+static bool sdl_mouse_path_has_pending_key(void)
+{
+    char ch = '\0';
+
+    if (!Term)
+        return false;
+
+    return Term_inkey(&ch, false, false) == 0;
+}
+
+bool sdl_mouse_path_take_step_command(int* command, int* dir)
+{
+    int next_y;
+    int next_x;
+    int target_y;
+    int target_x;
+    bool attack_step;
+
+    if (!command || !dir)
+        return false;
+    if (!g_mouse_path.follow_active)
+        return false;
+
+    if (!sdl_mouse_gameplay_context_active()) {
+        sdl_mouse_path_cancel();
+        return false;
+    }
+
+    if (g_mouse_path.path_wake_pending) {
+        (void)sdl_mouse_consume_wake_key();
+        g_mouse_path.path_wake_pending = false;
+    }
+
+    if (sdl_mouse_path_has_pending_key()) {
+        sdl_mouse_path_cancel();
+        return false;
+    }
+
+    target_y = g_mouse_path.target_y;
+    target_x = g_mouse_path.target_x;
+
+    if (g_mouse_path.target_m_idx > 0) {
+        monster_type* m_ptr = &mon_list[g_mouse_path.target_m_idx];
+
+        if (!m_ptr->r_idx || !m_ptr->ml
+            || !grid_info_is_available(m_ptr->fy, m_ptr->fx))
+        {
+            sdl_mouse_path_cancel();
+            return false;
+        }
+
+        target_y = m_ptr->fy;
+        target_x = m_ptr->fx;
+    }
+
+    if ((p_ptr->py == target_y) && (p_ptr->px == target_x)) {
+        sdl_mouse_path_cancel();
+        return false;
+    }
+
+    if (!sdl_mouse_path_compute(target_y, target_x)) {
+        sdl_mouse_path_cancel();
+        bell("Mouse path blocked.");
+        return false;
+    }
+
+    if (g_mouse_path.path_len <= 0) {
+        sdl_mouse_path_cancel();
+        return false;
+    }
+
+    next_y = GRID_Y(g_mouse_path.path[0]);
+    next_x = GRID_X(g_mouse_path.path[0]);
+    attack_step = sdl_mouse_grid_has_visible_monster(next_y, next_x, NULL);
+
+    *command = ';';
+    *dir = motion_dir(p_ptr->py, p_ptr->px, next_y, next_x);
+    if (*dir == 5) {
+        sdl_mouse_path_cancel();
+        return false;
+    }
+
+    if (attack_step)
+        sdl_mouse_path_cancel();
+
+    return true;
+}
+
+static bool sdl_mouse_grid_has_visible_monster(int y, int x, int* out_m_idx)
+{
+    int m_idx;
+
+    if (!in_bounds(y, x) || !grid_info_is_available(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if ((m_idx <= 0) || !mon_list[m_idx].ml)
+        return false;
+
+    if (out_m_idx)
+        *out_m_idx = m_idx;
+    return true;
+}
+
+static bool sdl_mouse_grid_has_marked_object(int y, int x, object_type** out_obj)
+{
+    s16b o_idx;
+
+    if (!in_bounds(y, x) || !grid_info_is_available(y, x))
+        return false;
+    if (!(cave_floorlike_bold(y, x) || cave_feat[y][x] == FEAT_SUNLIGHT))
+        return false;
+
+    o_idx = cave_o_idx[y][x];
+    if (!o_idx || !o_list[o_idx].marked)
+        return false;
+
+    if (out_obj)
+        *out_obj = &o_list[o_idx];
+    return true;
+}
+
+static void sdl_mouse_recall_object(object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    if (o_ptr->tval == TV_NOTE) {
+        note_info_screen(o_ptr);
+        return;
+    }
+
+    (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
+
+    if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL) {
+        int slot = wield_slot(o_ptr);
+        const object_type* compare_objects[2];
+        const char* compare_headings[2];
+        char selected_heading[32];
+        char equipped_heading[32];
+
+        strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+        strnfmt(equipped_heading, sizeof(equipped_heading), "%s", mention_use(slot));
+
+        compare_objects[0] = o_ptr;
+        compare_headings[0] = selected_heading;
+        compare_objects[1] = inventory[slot].k_idx ? &inventory[slot] : NULL;
+        compare_headings[1] = equipped_heading;
+
+        object_info_screen_multi(compare_objects, compare_headings, 2);
+    } else {
+        object_info_screen(o_ptr);
+    }
+}
+
+static bool sdl_mouse_recall_handle_right_click(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+
+    g_mouse_path.recall_pending = true;
+    g_mouse_path.recall_y = map_y;
+    g_mouse_path.recall_x = map_x;
+    sdl_mouse_path_cancel();
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+bool sdl_mouse_recall_process_pending(void)
+{
+    int y;
+    int x;
+    int m_idx = 0;
+    object_type* o_ptr = NULL;
+
+    if (!g_mouse_path.recall_pending)
+        return false;
+
+    y = g_mouse_path.recall_y;
+    x = g_mouse_path.recall_x;
+    g_mouse_path.recall_pending = false;
+    (void)sdl_mouse_consume_wake_key();
+
+    if (!sdl_mouse_gameplay_context_active())
+        return true;
+    if (!in_bounds(y, x))
+        return true;
+
+    if (sdl_mouse_grid_has_visible_monster(y, x, &m_idx)) {
+        monster_type* m_ptr = &mon_list[m_idx];
+
+        monster_race_track(m_ptr->r_idx);
+        health_track(m_idx);
+        handle_stuff();
+
+        screen_save();
+        screen_roff(m_ptr->r_idx, m_ptr);
+        (void)inkey();
+        screen_load();
+        return true;
+    }
+
+    if (sdl_mouse_grid_has_marked_object(y, x, &o_ptr)) {
+        sdl_mouse_recall_object(o_ptr);
+        return true;
+    }
+
+    bell("Nothing to recall.");
+    return true;
+}
+
+static void sdl_mouse_path_render(void)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int cell_cols = use_bigtile ? 2 : 1;
+    SDL_Color path_color = g_state.palette[TERM_L_BLUE];
+    SDL_Color target_color = g_state.palette[
+        (g_mouse_path.target_m_idx > 0) ? TERM_L_RED : TERM_YELLOW];
+
+    if (!sdl_mouse_gameplay_context_active())
+        return;
+    if (!g_mouse_path.follow_active && !g_mouse_path.hover_visible)
+        return;
+
+    if (!g_mouse_path.path_valid
+        || g_mouse_path.source_y != p_ptr->py
+        || g_mouse_path.source_x != p_ptr->px)
+    {
+        if (!sdl_mouse_path_compute(g_mouse_path.target_y, g_mouse_path.target_x))
+            return;
+    }
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+
+    for (int i = 0; i < g_mouse_path.path_len; i++) {
+        int y = GRID_Y(g_mouse_path.path[i]);
+        int x = GRID_X(g_mouse_path.path[i]);
+        int term_row;
+        int term_col;
+        SDL_FRect rect;
+        SDL_Color color = (i == g_mouse_path.path_len - 1)
+            ? target_color
+            : path_color;
+
+        if (!panel_contains(y, x))
+            continue;
+
+        term_row = ROW_MAP + (y - p_ptr->wy);
+        term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
+        rect.x = (float)(view->rect.x + view->margin_x + term_col * view->cell_w);
+        rect.y = (float)(view->rect.y + view->margin_y + term_row * view->cell_h);
+        rect.w = (float)(view->cell_w * cell_cols);
+        rect.h = (float)view->cell_h;
+
+        SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+            (i == g_mouse_path.path_len - 1) ? 92 : 56);
+        SDL_RenderFillRect(g_state.renderer, &rect);
+
+        SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b, 190);
+        SDL_RenderRect(g_state.renderer, &rect);
+    }
+}
+
 static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
 {
     const sdl_view* view;
@@ -5797,6 +6423,10 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         } else if (ev->type == SDL_EVENT_FINGER_UP || ev->type == SDL_EVENT_FINGER_CANCELED) {
             return;
         }
+    } else if (ev->type == SDL_EVENT_MOUSE_MOTION) {
+        if (ev->motion.which == SDL_TOUCH_MOUSEID)
+            return;
+        sdl_mouse_path_handle_motion((float)ev->motion.x, (float)ev->motion.y);
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         if (ev->button.button == SDL_BUTTON_LEFT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
@@ -5831,12 +6461,22 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_mouse_path_handle_left_click((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
         }
         else if (ev->button.button == SDL_BUTTON_RIGHT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
             if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
                 (float)ev->button.y, UI_MENU_CLICK_SECONDARY))
+            {
+                return;
+            }
+            if (sdl_mouse_recall_handle_right_click((float)ev->button.x,
+                (float)ev->button.y))
             {
                 return;
             }
@@ -6247,6 +6887,8 @@ static void sdl_present_if_needed(sdl_view* d)
             .h = dst_h,
         });
     }
+
+    sdl_mouse_path_render();
 
     if (visible_views > 1) {
         if (config.show_pane_borders)
