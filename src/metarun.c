@@ -5466,6 +5466,7 @@ static void choose_difficulty_menu(void)
         /* Warn if increasing difficulty */
         if (choice > metar.type) {
             int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+            bool portable = portable_controls_active();
             screen_save();
             Term_clear();
             Term_putstr(2, 5, -1, TERM_YELLOW, "WARNING: Increasing Difficulty");
@@ -5489,17 +5490,23 @@ static void choose_difficulty_menu(void)
                 Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE, prompt_buf);
             } else {
                 Term_putstr(2, 12, term_wid - 2, TERM_L_WHITE,
-                    "Do you want to continue? (y/n)");
+                    portable ? "Do you want to continue? (y/n/sp)"
+                             : "Do you want to continue? (y/n)");
             }
             
             char confirm = inkey();
             screen_load();
 
             if (steamdeck) {
-                if (confirm == ' ' || confirm == '\r' || confirm == '\n')
+                if (confirm == steamdeck_confirm_key() || confirm == ' '
+                    || confirm == '\r' || confirm == '\n')
                     confirm = 'y';
-                else if (confirm == ESCAPE || confirm == 'h' || confirm == 'H')
+                else if (confirm == ESCAPE || confirm == steamdeck_back_key()
+                    || confirm == 'h' || confirm == 'H')
                     confirm = 'n';
+            } else if (portable
+                && (confirm == ' ' || confirm == '\r' || confirm == '\n')) {
+                confirm = 'y';
             }
             
             if (confirm != 'y' && confirm != 'Y') {

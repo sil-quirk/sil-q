@@ -2831,6 +2831,8 @@
 #define OPT_min_depth_timer_mode 109
 #define OPT_song_list_sort_by_recent 110
 #define OPT_inventory_selection_square 111
+#define OPT_supply_menu_random_icons 112
+#define OPT_supply_menu_hide_flavor_compact 113
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2994,6 +2996,8 @@
 #define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]
 #define song_list_sort_by_recent op_ptr->opt[OPT_song_list_sort_by_recent]
 #define inventory_selection_square op_ptr->opt[OPT_inventory_selection_square]
+#define supply_menu_random_icons op_ptr->opt[OPT_supply_menu_random_icons]
+#define supply_menu_hide_flavor_compact op_ptr->opt[OPT_supply_menu_hide_flavor_compact]
 #define show_elemental_item_rolls op_ptr->opt[OPT_show_elemental_item_rolls]
 #define story_display_lists op_ptr->opt[OPT_story_lists]
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]

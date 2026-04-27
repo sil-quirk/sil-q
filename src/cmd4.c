@@ -181,6 +181,7 @@ struct object_list_entry
 
 typedef struct supply_list_entry supply_list_entry;
 typedef struct supply_list_columns supply_list_columns;
+typedef struct supply_group_icon supply_group_icon;
 
 struct supply_list_entry
 {
@@ -195,6 +196,7 @@ struct supply_list_entry
 
 struct supply_list_columns
 {
+    int name_col;
     int name_w;
     int weight_col;
     int turns_col;
@@ -206,6 +208,14 @@ struct supply_list_columns
     bool show_qty;
     bool show_sym;
 };
+
+struct supply_group_icon
+{
+    bool has_icon;
+    object_type obj;
+};
+
+#define SUPPLY_COMPACT_TERM_WIDTH 80
 
 struct knowledge_browser_layout
 {
@@ -2545,26 +2555,36 @@ int unique_bane_type_killed(void)
 
 int bane_menu(int* highlight)
 {
-    int i, k;
-
+    int i;
     int ch;
-    int options;
+    int options = BANE_TYPES - 1;
+    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    bool compact_layout = ability_menu_use_compact_layout();
+    int list_col = compact_layout ? ability_menu_list_col()
+                                  : ability_menu_description_col();
+    int desc_col = compact_layout ? ability_menu_description_col()
+                                  : list_col;
+    int prefix_col = indexed_menu_prefix_col(list_col);
+    int list_first_row = 4;
+    int nav_row_1 = MAX(0, term_hgt - 2);
+    int nav_row_2 = MAX(0, term_hgt - 1);
     bool steamdeck = steamdeck_controls_active();
 
     char buf[80];
+    char prefix[8];
 
     byte attr;
 
-    // bane title
-    Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Enemy types");
+    wipe_screen_from(prefix_col);
 
-    // clear the description area
-    wipe_screen_from(COL_DESCRIPTION);
+    Term_putstr(list_col, 2, -1, TERM_WHITE, "Enemy types");
 
     // list the enemies
     for (i = 1; i < BANE_TYPES; i++)
     {
-        k = bane_type_killed(i);
+        int row = list_first_row + i - 1;
+        int k = bane_type_killed(i);
 
         // Determine the appropriate colour
         if (k >= 4)
@@ -2577,49 +2597,76 @@ int bane_menu(int* highlight)
         }
 
         indexed_menu_entry_label(buf, sizeof(buf), i - 1, bane_name[i]);
-        Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
+        Term_putstr(list_col, row, -1, attr, buf);
+
+        indexed_menu_normal_prefix(prefix, sizeof(prefix), i - 1);
+        Term_putstr(prefix_col, row, -1, attr, prefix);
 
         if (*highlight == i)
         {
             // highlight the label
-            indexed_menu_focus_prefix(buf, sizeof(buf), i - 1);
-            Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
+            indexed_menu_focus_prefix(prefix, sizeof(prefix), i - 1);
+            Term_putstr(prefix_col, row, -1, TERM_L_BLUE, prefix);
+        }
+    }
 
-            /* Indent output by 2 character, and wrap at column 70 */
-            text_out_wrap = 79;
-            text_out_indent = COL_DESCRIPTION;
+    if (*highlight < 1)
+        *highlight = 1;
+    if (*highlight > options)
+        *highlight = options;
 
-            Term_gotoxy(text_out_indent, BANE_TYPES + 4);
+    if (*highlight >= 1 && *highlight <= options)
+    {
+        int k = bane_type_killed(*highlight);
+        int old_wrap = text_out_wrap;
+        int old_indent = text_out_indent;
+        int detail_row = compact_layout ? 4 : (BANE_TYPES + 4);
+        byte detail_attr = (k >= 4) ? TERM_SLATE : TERM_L_DARK;
 
-            /* Information */
-            if (k >= 4)
-            {
-                strnfmt(buf, 80, "You have slain %d of these foes.", k);
-                text_out_to_screen(TERM_SLATE, buf);
-            }
-            else
-            {
-                strnfmt(buf, 80,
-                    "You have slain %d of these foes,   and need to slay %d "
-                    "more.",
-                    k, 4 - k);
-                text_out_to_screen(TERM_L_DARK, buf);
-            }
-
-            /* Reset text_out() vars */
-            text_out_wrap = 0;
-            text_out_indent = 0;
+        if (compact_layout)
+        {
+            wipe_screen_from(desc_col);
+            Term_putstr(desc_col, 2, -1, TERM_WHITE, "Enemy Details");
+            Term_putstr(desc_col, detail_row, term_wid - desc_col,
+                (k >= 4) ? TERM_SLATE : TERM_L_DARK,
+                bane_name[*highlight]);
+            detail_row += 2;
         }
 
-        // keep track of the number of options
-        options = i;
+        text_out_wrap = ability_menu_description_wrap(desc_col);
+        text_out_indent = desc_col;
+
+        Term_gotoxy(text_out_indent, detail_row);
+
+        if (k >= 4)
+        {
+            strnfmt(buf, 80, "You have slain %d of these foes.", k);
+        }
+        else
+        {
+            strnfmt(buf, 80,
+                "You have slain %d of these foes, and need to slay %d more.",
+                k, 4 - k);
+        }
+        text_out_to_screen(detail_attr, buf);
+
+        text_out_wrap = old_wrap;
+        text_out_indent = old_indent;
+    }
+
+    if (compact_layout)
+    {
+        Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
+            "8/2 - Navigate");
+        Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
+            "Enter Select  Esc Back");
     }
 
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
-    Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
+    Term_gotoxy(prefix_col, list_first_row + *highlight - 1);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -3977,8 +4024,7 @@ void do_cmd_ability_screen(void)
 
                                 if (!skip_purchase)
                                 {
-                                    if (get_check("Are you sure you wish to "
-                                                  "gain this ability? "))
+                                    if (get_check("Gain this ability? "))
                                     {
                                         p_ptr->innate_ability[skilltype]
                                                              [abilitynum]
@@ -14072,7 +14118,7 @@ static const struct option_group_marker interface_option_groups[] = {
     { 9, "Warnings" },
     { 10, "Input" },
     { 14, "Items" },
-    { 15, "Debug" },
+    { 17, "Debug" },
     { -1, NULL }
 };
 
@@ -14581,6 +14627,12 @@ static cptr option_menu_label(int opt)
     case OPT_inventory_selection_square:
         return compact ? (narrow ? "Item frame" : "Item select frame")
                        : "Item selection frame";
+    case OPT_supply_menu_random_icons:
+        return compact ? (narrow ? "Supply icons" : "Supply icon mode")
+                       : "Supply group icon mode";
+    case OPT_supply_menu_hide_flavor_compact:
+        return compact ? (narrow ? "Hide flavors" : "Hide supply flavors")
+                       : "Hide supply flavors in compact mode";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";
@@ -15060,6 +15112,12 @@ extern void do_cmd_options_aux(int page, cptr info)
 
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     value_str);
+            }
+            else if (opt[i] == OPT_supply_menu_random_icons)
+            {
+                option_menu_format_line(buf, sizeof(buf),
+                    option_menu_label(opt[i]),
+                    op_ptr->opt[opt[i]] ? "Random" : "Fixed");
             }
             else
             {
@@ -23409,8 +23467,137 @@ static object_type* supply_entry_display_object(const supply_list_entry* entry,
     return o_ptr;
 }
 
+static void supply_strip_leading_name_unit(char* buf)
+{
+    static cptr prefixes[] = {
+        "Fragment of ",
+        "Fragments of ",
+        "Piece of ",
+        "Pieces of ",
+        "Strip of ",
+        "Strips of ",
+        NULL
+    };
+    int i;
+
+    if (!buf || !buf[0])
+        return;
+
+    for (i = 0; prefixes[i]; i++)
+    {
+        size_t len = strlen(prefixes[i]);
+
+        if (strncmp(buf, prefixes[i], len) == 0)
+        {
+            memmove(buf, buf + len, strlen(buf + len) + 1);
+            return;
+        }
+    }
+}
+
+static void supply_strip_compact_kind_word(char* buf, size_t buflen)
+{
+    static cptr prefixes[] = {
+        "Easter Egg of ",
+        "Easter Eggs of ",
+        "Herb of ",
+        "Herbs of ",
+        "Potion of ",
+        "Potions of ",
+        "Gem of ",
+        "Gems of ",
+        NULL
+    };
+    static cptr generic_names[] = {
+        "Easter Egg",
+        "Easter Eggs",
+        "Herb",
+        "Herbs",
+        "Potion",
+        "Potions",
+        "Gem",
+        "Gems",
+        NULL
+    };
+    int i;
+
+    if (!buf || buflen == 0 || !buf[0])
+        return;
+
+    for (i = 0; prefixes[i]; i++)
+    {
+        size_t len = strlen(prefixes[i]);
+
+        if (strncmp(buf, prefixes[i], len) == 0)
+        {
+            memmove(buf, buf + len, strlen(buf + len) + 1);
+            if (!buf[0])
+                SDL_strlcpy(buf, "?", buflen);
+            return;
+        }
+    }
+
+    for (i = 0; generic_names[i]; i++)
+    {
+        if (strcmp(buf, generic_names[i]) == 0)
+        {
+            SDL_strlcpy(buf, "?", buflen);
+            return;
+        }
+    }
+}
+
+static bool supply_entry_compact_flavorless_name(char* buf, size_t buflen,
+    const object_type* o_ptr)
+{
+    object_kind* k_ptr;
+
+    if (!buf || buflen == 0 || !o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->k_idx < 0 || o_ptr->k_idx >= z_info->k_max)
+        return false;
+
+    k_ptr = &k_info[o_ptr->k_idx];
+    if (!k_ptr->flavor)
+        return false;
+
+    if (object_aware_p(o_ptr))
+    {
+        object_desc_spoil(buf, buflen, o_ptr, false, 0);
+        supply_strip_leading_name_unit(buf);
+        supply_strip_compact_kind_word(buf, buflen);
+        return true;
+    }
+
+    switch (o_ptr->tval)
+    {
+    case TV_FOOD:
+        if (o_ptr->sval >= SV_FOOD_MIN_FOOD)
+            return false;
+        SDL_strlcpy(buf, easter_time() ? "Easter Egg" : "Herb", buflen);
+        break;
+    case TV_POTION:
+        SDL_strlcpy(buf, "Potion", buflen);
+        break;
+    case TV_GEM:
+        SDL_strlcpy(buf, "Gem", buflen);
+        break;
+    default:
+        return false;
+    }
+
+    supply_strip_compact_kind_word(buf, buflen);
+
+    if (object_tried_p(o_ptr))
+        SDL_strlcat(buf, " {tried}", buflen);
+
+    return true;
+}
+
 static void supply_entry_display_name(char* buf, size_t buflen,
-    const supply_list_entry* entry, const object_type* o_ptr, int current_group)
+    const supply_list_entry* entry, const object_type* o_ptr, int current_group,
+    bool compact_names)
 {
     if (!buf || buflen == 0)
         return;
@@ -23420,7 +23607,14 @@ static void supply_entry_display_name(char* buf, size_t buflen,
     if (!entry || !o_ptr)
         return;
 
+    if (compact_names
+        && supply_entry_compact_flavorless_name(buf, buflen, o_ptr))
+    {
+        return;
+    }
+
     object_desc(buf, buflen, o_ptr, false, 0);
+    supply_strip_leading_name_unit(buf);
 
     if (current_group == SUPPLY_GROUP_LIGHTS)
     {
@@ -23454,6 +23648,200 @@ static int supply_entry_turns(const supply_list_entry* entry,
     return player_light_fuel(o_ptr);
 }
 
+static bool supply_kind_is_seen(const object_kind* k_ptr);
+
+static bool supply_icon_frame_is_big(const object_type* o_ptr)
+{
+    return use_bigtile && use_graphics != GRAPHICS_NONE
+        && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx;
+}
+
+static void draw_supply_icon(int col, int row, const object_type* o_ptr)
+{
+    byte sym_attr;
+    char sym_char;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    sym_attr = object_attr(o_ptr);
+    sym_char = object_char(o_ptr);
+    Term_putch(col, row, sym_attr, sym_char);
+    if (use_bigtile)
+    {
+        if (sym_attr & TILE_FLAG)
+            Term_putch(col + 1, row, 255, -1);
+        else
+            Term_putch(col + 1, row, 0, ' ');
+    }
+}
+
+static void draw_supply_icon_frame(int col, int row, const object_type* o_ptr)
+{
+    if (op_ptr && op_ptr->opt[OPT_inventory_selection_square])
+        (void)Term_set_extra_cursor(true, col, row,
+            supply_icon_frame_is_big(o_ptr));
+}
+
+static int supply_group_fixed_icon_kind(int group)
+{
+    int k_idx = 0;
+
+    switch (group)
+    {
+    case SUPPLY_GROUP_HERBS:
+        k_idx = lookup_kind(TV_FOOD, SV_FOOD_HEALING);
+        break;
+    case SUPPLY_GROUP_FOOD:
+        k_idx = lookup_kind(TV_FOOD, SV_FOOD_LEMBAS);
+        if (k_idx <= 0)
+            k_idx = lookup_kind(TV_FOOD, SV_FOOD_BREAD);
+        break;
+    case SUPPLY_GROUP_POTIONS:
+        k_idx = lookup_kind(TV_POTION, SV_POTION_HEALING);
+        break;
+    case SUPPLY_GROUP_GEMS:
+        k_idx = lookup_kind(TV_GEM, SV_GEM_LIGHT);
+        break;
+    case SUPPLY_GROUP_LIGHTS:
+        k_idx = lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+        break;
+    default:
+        break;
+    }
+
+    if (k_idx > 0)
+        return k_idx;
+
+    for (int i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+
+        if (!k_ptr->name)
+            continue;
+        if (supply_kind_matches(group, k_ptr->tval, k_ptr->sval))
+            return i;
+    }
+
+    return 0;
+}
+
+static bool supply_group_kind_is_carried(int group, int k_idx)
+{
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (o_ptr->k_idx == k_idx && supply_item_matches(group, o_ptr))
+            return true;
+    }
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (o_ptr && o_ptr->k_idx == k_idx && supply_item_matches(group, o_ptr))
+            return true;
+    }
+
+    return false;
+}
+
+static bool supply_group_icon_candidate(int group, int k_idx,
+    bool require_known_or_carried)
+{
+    object_kind* k_ptr;
+
+    if (k_idx <= 0 || k_idx >= z_info->k_max)
+        return false;
+
+    k_ptr = &k_info[k_idx];
+    if (!k_ptr->name)
+        return false;
+    if (!supply_kind_matches(group, k_ptr->tval, k_ptr->sval))
+        return false;
+
+    if (!require_known_or_carried)
+        return true;
+
+    return supply_group_kind_is_carried(group, k_idx)
+        || supply_kind_is_seen(k_ptr);
+}
+
+static int supply_group_random_icon_kind(int group)
+{
+    int chosen = 0;
+    int seen = 0;
+
+    for (int pass = 0; pass < 2 && chosen <= 0; pass++)
+    {
+        bool require_known_or_carried = (pass == 0);
+
+        seen = 0;
+        for (int i = 0; i < z_info->k_max; i++)
+        {
+            if (!supply_group_icon_candidate(group, i,
+                    require_known_or_carried))
+                continue;
+
+            seen++;
+            if (rand_int(seen) == 0)
+                chosen = i;
+        }
+    }
+
+    return (chosen > 0) ? chosen : supply_group_fixed_icon_kind(group);
+}
+
+static void choose_supply_group_icon_kinds(
+    int group_icon_kinds[SUPPLY_GROUP_MAX])
+{
+    bool random_icons = op_ptr && op_ptr->opt[OPT_supply_menu_random_icons];
+    u64b saved_state = Rand_state_export();
+
+    for (int group = 0; group < SUPPLY_GROUP_MAX; group++)
+    {
+        if (group == SUPPLY_GROUP_LIGHTS || !random_icons)
+            group_icon_kinds[group] = supply_group_fixed_icon_kind(group);
+        else
+            group_icon_kinds[group] = supply_group_random_icon_kind(group);
+    }
+
+    Rand_state_import(saved_state);
+}
+
+static void prepare_supply_group_icons(supply_group_icon icons[SUPPLY_GROUP_MAX],
+    const int group_icon_kinds[SUPPLY_GROUP_MAX])
+{
+    for (int group = 0; group < SUPPLY_GROUP_MAX; group++)
+    {
+        object_type* icon_obj = &icons[group].obj;
+        int k_idx = group_icon_kinds[group];
+
+        icons[group].has_icon = false;
+        object_wipe(icon_obj);
+
+        if (group == SUPPLY_GROUP_LIGHTS)
+        {
+            object_type* light_ptr = &inventory[INVEN_LITE];
+
+            if (light_ptr->k_idx && light_ptr->tval == TV_LIGHT)
+            {
+                object_copy(icon_obj, light_ptr);
+                icons[group].has_icon = true;
+                continue;
+            }
+        }
+
+        if (k_idx <= 0 || k_idx >= z_info->k_max)
+            continue;
+
+        object_prep(icon_obj, k_idx);
+        icon_obj->ident |= IDENT_KNOWN;
+        icons[group].has_icon = true;
+    }
+}
+
 static void supply_init_columns(const knowledge_browser_layout* layout,
     int current_group, supply_list_columns* cols)
 {
@@ -23471,14 +23859,6 @@ static void supply_init_columns(const knowledge_browser_layout* layout,
     cols->show_turns = (current_group == SUPPLY_GROUP_LIGHTS);
 
     col = layout->term_wid;
-
-    if (cols->show_sym)
-    {
-        col -= 3;
-        cols->sym_hdr_col = col;
-        cols->sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
-        col -= 1;
-    }
 
     if (cols->show_qty)
     {
@@ -23501,13 +23881,21 @@ static void supply_init_columns(const knowledge_browser_layout* layout,
         col -= 1;
     }
 
-    cols->name_w = col - layout->list_col;
+    cols->name_col = layout->list_col;
+    if (cols->show_sym)
+    {
+        cols->sym_hdr_col = layout->list_col;
+        cols->sym_col = layout->list_col;
+        cols->name_col = layout->list_col + (use_bigtile ? 2 : 1);
+    }
+
+    cols->name_w = col - cols->name_col;
     if (cols->name_w < 1)
         cols->name_w = 1;
 }
 
 static int supply_max_name_len(int current_group, supply_list_entry entries[],
-    int entry_cnt)
+    int entry_cnt, bool compact_names)
 {
     int max_len = 0;
     int i;
@@ -23530,13 +23918,19 @@ static int supply_max_name_len(int current_group, supply_list_entry entries[],
             continue;
 
         supply_entry_display_name(name, sizeof(name), entry, o_ptr,
-            current_group);
+            current_group, compact_names);
         len = (int)strlen(name);
         if (len > max_len)
             max_len = len;
     }
 
     return max_len;
+}
+
+static bool supply_use_compact_names_for_width(
+    const knowledge_browser_layout* layout)
+{
+    return layout && (layout->term_wid <= SUPPLY_COMPACT_TERM_WIDTH);
 }
 
 static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
@@ -23596,7 +23990,7 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
     }
 }
 
-static bool supply_kind_is_known(const object_kind* k_ptr)
+static bool supply_kind_is_seen(const object_kind* k_ptr)
 {
     if (!k_ptr)
         return false;
@@ -23604,7 +23998,7 @@ static bool supply_kind_is_known(const object_kind* k_ptr)
     if (cheat_know || p_ptr->wizard)
         return true;
 
-    return k_ptr->aware || k_ptr->everseen || k_ptr->tried;
+    return k_ptr->everseen || k_ptr->tried;
 }
 
 static int collect_supply_entries(int group_idx, supply_list_entry entries[])
@@ -23843,7 +24237,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         }
     }
 
-    /* Add known kinds even when none are carried.
+    /* Add seen kinds even when none are carried.
      * Lights are listed only when actually carried, to avoid misleading 0-count
      * placeholders in the supply menu. */
     if (group_idx == SUPPLY_GROUP_LIGHTS)
@@ -23862,7 +24256,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         return count;
     }
 
-    /* Add known kinds even when none are carried */
+    /* Add seen kinds even when none are carried */
     for (i = 0; i < z_info->k_max; i++)
     {
         object_kind* k_ptr = &k_info[i];
@@ -23874,7 +24268,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_kind_matches(group_idx, k_ptr->tval, k_ptr->sval))
             continue;
 
-        if (!supply_kind_is_known(k_ptr))
+        if (!supply_kind_is_seen(k_ptr))
             continue;
 
         for (j = 0; j < count; j++)
@@ -24009,10 +24403,12 @@ static byte get_supply_item_color(int k_idx, bool aware)
 }
 
 static void display_supply_group_list(int col, int row, int wid, int per_page,
-    int grp_idx[], int grp_cur, int grp_top, int group_totals[])
+    int grp_idx[], int grp_cur, int grp_top, int group_totals[],
+    const supply_group_icon icons[SUPPLY_GROUP_MAX], bool active)
 {
     int i;
     int total_col = col + wid - 3;
+    int text_col = col + (use_bigtile ? 2 : 1);
 
     for (i = 0; i < per_page; i++)
     {
@@ -24047,7 +24443,13 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
             attr = base_color;
 
         Term_erase(col, row + i, wid);
-        c_put_str(attr, supply_group_text[grp], row + i, col);
+        if (icons && icons[grp].has_icon)
+        {
+            draw_supply_icon(col, row + i, &icons[grp].obj);
+            if (active && grp_top + i == grp_cur)
+                draw_supply_icon_frame(col, row + i, &icons[grp].obj);
+        }
+        c_put_str(attr, supply_group_text[grp], row + i, text_col);
 
         strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
         c_put_str(attr, buf, row + i, total_col);
@@ -24057,7 +24459,7 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
 static void display_supply_list(const knowledge_browser_layout* layout, int row,
     int per_page, supply_list_entry entries[], int entry_cnt, int entry_cur,
     int entry_top, int current_group, int column,
-    const supply_list_columns* cols)
+    const supply_list_columns* cols, bool compact_names)
 {
     int i;
 
@@ -24077,10 +24479,9 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
         bool aware;
         object_type* o_ptr;
         byte base_attr, cursor_attr, attr;
-        byte sym_attr;
-        char sym_char;
         char name[128];
         char cell_buf[16];
+        bool selected = (column == 1 && idx == entry_cur);
 
         if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
             continue;
@@ -24100,15 +24501,22 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
             cursor_attr = aware ? TERM_L_WHITE : TERM_WHITE;
         }
         /* Only highlight when right panel is active (column == 1) */
-        attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
+        attr = selected ? cursor_attr : base_attr;
 
         o_ptr = supply_entry_display_object(entry, aware, &fake);
         if (!o_ptr)
             continue;
 
         supply_entry_display_name(name, sizeof(name), entry, o_ptr,
-            current_group);
-        Term_putstr(layout->list_col, y, cols->name_w, attr, name);
+            current_group, compact_names);
+        if (cols->show_sym)
+        {
+            draw_supply_icon(cols->sym_col, y, o_ptr);
+            if (selected)
+                draw_supply_icon_frame(cols->sym_col, y, o_ptr);
+        }
+
+        Term_putstr(cols->name_col, y, cols->name_w, attr, name);
 
         if (cols->show_weight)
         {
@@ -24136,16 +24544,6 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
             Term_putstr(cols->qty_col, y, 4, attr, cell_buf);
         }
 
-        sym_attr = object_attr(o_ptr);
-        sym_char = object_char(o_ptr);
-        Term_putch(cols->sym_col, y, sym_attr, sym_char);
-        if (use_bigtile)
-        {
-            if (sym_attr & 0x80)
-                Term_putch(cols->sym_col + 1, y, 255, -1);
-            else
-                Term_putch(cols->sym_col + 1, y, 0, ' ');
-        }
     }
 
     for (; i < per_page; i++)
@@ -26665,6 +27063,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     int grp_cnt = SUPPLY_GROUP_MAX;
     int grp_idx[SUPPLY_GROUP_MAX + 1];
     int group_totals[SUPPLY_GROUP_MAX];
+    int group_icon_kinds[SUPPLY_GROUP_MAX];
+    supply_group_icon group_icons[SUPPLY_GROUP_MAX];
     supply_list_entry* entries;
     int grp_cur = 0;
     int grp_top = 0;
@@ -26704,6 +27104,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     grp_idx[grp_cnt] = -1;
     max += 2;
 
+    choose_supply_group_icon_kinds(group_icon_kinds);
+
     entries = mem_alloc_array(z_info->k_max, supply_list_entry);
 
     screen_save();
@@ -26731,7 +27133,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int split_name_w;
         int full_name_w;
         int max_name_len;
+        bool compact_width;
+        bool compact_draw_names;
 
+        prepare_supply_group_icons(group_icons, group_icon_kinds);
         compute_supply_group_totals(group_totals);
         knowledge_init_layout(&layout, max, true);
         used_weight = supplies_limit_weight();
@@ -26785,7 +27190,15 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         supply_init_columns(&full_layout, grp_idx[grp_cur], &full_cols);
         split_name_w = split_cols.name_w;
         full_name_w = full_cols.name_w;
-        max_name_len = supply_max_name_len(grp_idx[grp_cur], entries, entry_cnt);
+        compact_width = supply_use_compact_names_for_width(&layout);
+        compact_draw_names = compact_width && op_ptr
+            && op_ptr->opt[OPT_supply_menu_hide_flavor_compact];
+        max_name_len = supply_max_name_len(grp_idx[grp_cur], entries,
+            entry_cnt, compact_draw_names);
+
+        if (split_name_w > 1)
+            split_name_w--;
+
         single_column = knowledge_should_use_single_column_for_names(
             split_name_w, full_name_w, max_name_len);
         draw_layout = single_column ? full_layout : layout;
@@ -26827,8 +27240,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (!single_column)
                     Term_putstr(0, draw_layout.header_row, draw_layout.group_w,
                         TERM_SLATE, "Group");
-                Term_putstr(draw_layout.list_col, draw_layout.header_row,
-                    draw_layout.list_w, TERM_SLATE, list_label);
+                if (draw_cols.show_sym)
+                    Term_putstr(draw_cols.sym_hdr_col, draw_layout.header_row,
+                        use_bigtile ? 2 : 1, TERM_SLATE, "S");
+                Term_putstr(draw_cols.name_col, draw_layout.header_row,
+                    draw_cols.name_w, TERM_SLATE, list_label);
                 if (draw_cols.show_weight)
                     Term_putstr(draw_cols.weight_col, draw_layout.header_row, 5,
                         TERM_SLATE, "Wt");
@@ -26838,9 +27254,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (draw_cols.show_qty)
                     Term_putstr(draw_cols.qty_col, draw_layout.header_row, 3,
                         TERM_SLATE, "Qty");
-                if (draw_cols.show_sym)
-                    Term_putstr(draw_cols.sym_hdr_col, draw_layout.header_row, 3,
-                        TERM_SLATE, "Sym");
             }
 
             for (i = 0; i < draw_layout.term_wid; i++)
@@ -26865,6 +27278,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         prev_term_hgt = draw_layout.term_hgt;
         prev_divider_col = draw_layout.divider_col;
 
+        (void)Term_set_extra_cursor(false, 0, 0, false);
+
         if (!single_column || !column)
         {
             int group_list_w = (!single_column) ? draw_layout.group_w
@@ -26872,13 +27287,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             display_supply_group_list(draw_layout.group_col, draw_layout.list_row,
                 group_list_w, draw_layout.list_rows, grp_idx, grp_cur,
-                grp_top, group_totals);
+                grp_top, group_totals, group_icons, column == 0);
         }
         if (!single_column || column)
         {
             display_supply_list(&draw_layout, draw_layout.list_row,
                 draw_layout.list_rows, entries, entry_cnt, entry_cur, entry_top,
-                grp_idx[grp_cur], column, &draw_cols);
+                grp_idx[grp_cur], column, &draw_cols, compact_draw_names);
         }
 
         if (draw_layout.status_row != draw_layout.prompt_row)
@@ -27116,6 +27531,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     }
 
     mem_free_null(entries);
+    (void)Term_set_extra_cursor(false, 0, 0, false);
     screen_load();
 
     if (refresh_after_close)

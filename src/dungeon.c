@@ -544,6 +544,35 @@ static void display_partition_narrative_banner(int old_sidx, int new_sidx,
     display_narrative_text(buf, PARTITION_NARRATIVE_BANNER, line_delay);
 }
 
+static void morgoth_prompt_controller_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
+
+static bool morgoth_prompt_confirm_key(int ch)
+{
+    if (steamdeck_controls_active() && ch == steamdeck_confirm_key())
+        return true;
+
+    return portable_controls_active()
+        && ((ch == ' ') || (ch == '\r') || (ch == '\n'));
+}
+
+static bool morgoth_prompt_cancel_key(int ch)
+{
+    if (steamdeck_controls_active() && ch == steamdeck_back_key()
+        && ch != steamdeck_confirm_key())
+        return true;
+
+    return (ch == ESCAPE);
+}
+
 static bool confirm_enter_morgoth_hall(void)
 {
     char ch;
@@ -604,9 +633,28 @@ static bool confirm_enter_morgoth_hall(void)
 
     /* Prompt */
     {
-        const char* prompt = steamdeck
-            ? "Enter Morgoth's hall? [y/n/space]"
-            : "Enter Morgoth's hall? [y/n]";
+        char prompt[80];
+
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            morgoth_prompt_controller_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            morgoth_prompt_controller_label(steamdeck_back_key(), "B",
+                back_label, sizeof(back_label));
+            strnfmt(prompt, sizeof(prompt), "Enter Morgoth's hall? [%s/%s]",
+                confirm_label, back_label);
+        }
+        else
+        {
+            SDL_strlcpy(prompt, portable_controls_active()
+                    ? "Enter Morgoth's hall? [y/n/sp]"
+                    : "Enter Morgoth's hall? [y/n]",
+                sizeof(prompt));
+        }
+
         int col = (wid - (int)strlen(prompt)) / 2;
         if (col < 1)
             col = 1;
@@ -619,9 +667,9 @@ static bool confirm_enter_morgoth_hall(void)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (morgoth_prompt_cancel_key(ch))
             break;
-        if (strchr("YyNn", ch) || (steamdeck && ch == ' '))
+        if (strchr("YyNn", ch) || morgoth_prompt_confirm_key(ch))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -630,7 +678,7 @@ static bool confirm_enter_morgoth_hall(void)
     screen_load();
 
     /* Normal negation */
-    if ((ch != 'Y') && (ch != 'y') && !(steamdeck && ch == ' '))
+    if ((ch != 'Y') && (ch != 'y') && !morgoth_prompt_confirm_key(ch))
         return (false);
 
     return (true);

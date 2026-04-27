@@ -3041,6 +3041,56 @@ static int active_term_width(void)
     return wid;
 }
 
+static void prompt_controller_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
+
+static bool prompt_confirm_key(int ch)
+{
+    if (steamdeck_controls_active() && ch == steamdeck_confirm_key())
+        return true;
+
+    return portable_controls_active()
+        && ((ch == ' ') || (ch == '\r') || (ch == '\n'));
+}
+
+static bool prompt_cancel_key(int ch)
+{
+    if (steamdeck_controls_active() && ch == steamdeck_back_key()
+        && ch != steamdeck_confirm_key())
+        return true;
+
+    return (ch == ESCAPE);
+}
+
+static void format_check_prompt(char* buf, size_t buflen, cptr prompt,
+    cptr suffix)
+{
+    int term_wid = active_term_width();
+    int suffix_wid = suffix ? (int)strlen(suffix) : 0;
+    int prompt_wid = term_wid - suffix_wid;
+
+    if (!buf || !buflen)
+        return;
+
+    if (!prompt)
+        prompt = "";
+    if (!suffix)
+        suffix = "";
+
+    if (prompt_wid < 0)
+        prompt_wid = 0;
+
+    strnfmt(buf, buflen, "%.*s%s", prompt_wid, prompt, suffix);
+}
+
 bool askfor_aux(char* buf, size_t len)
 {
     int y, x;
@@ -3501,15 +3551,14 @@ s16b get_quantity(cptr prompt, int max)
  *
  * The "prompt" should take the form "Query? "
  *
- * Note that "[y/n/{char}]" is appended to the prompt.
+ * Note that a compact confirmation suffix is appended to the prompt.
  */
 int get_check_other(cptr prompt, char other)
 {
     char ch;
     char buf[160];
-    int term_wid = active_term_width();
-    int suffix_wid = 9;
-    int prompt_wid = term_wid - suffix_wid;
+    char suffix[32];
+    bool steamdeck = steamdeck_controls_active();
 
     /*default set to no*/
     int result = 0;
@@ -3518,9 +3567,25 @@ int get_check_other(cptr prompt, char other)
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-    if (prompt_wid < 8)
-        prompt_wid = 8;
-    strnfmt(buf, sizeof(buf), "%.*s[y/n/%c] ", prompt_wid, prompt, other);
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        prompt_controller_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(suffix, sizeof(suffix), "[%s/%s/%c] ", confirm_label,
+            back_label, other);
+    }
+    else
+    {
+        strnfmt(suffix, sizeof(suffix),
+            portable_controls_active() ? "[y/n/%c/sp] " : "[y/n/%c] ",
+            other);
+    }
+    format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -3531,9 +3596,11 @@ int get_check_other(cptr prompt, char other)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (prompt_cancel_key(ch))
             break;
         if (strchr("YyNn", ch))
+            break;
+        if (prompt_confirm_key(ch))
             break;
         if (ch == toupper(other))
             break;
@@ -3546,7 +3613,7 @@ int get_check_other(cptr prompt, char other)
     prt("", 0, 0);
 
     /* Normal negation */
-    if ((ch == 'Y') || (ch == 'y'))
+    if ((ch == 'Y') || (ch == 'y') || prompt_confirm_key(ch))
         result = 1;
     /*other option*/
     else if ((ch == toupper(other)) || (ch == tolower(other)))
@@ -3562,26 +3629,37 @@ int get_check_other(cptr prompt, char other)
  *
  * The "prompt" should take the form "Query? "
  *
- * Note that "[y/n]" is appended to the prompt.
+ * Note that a compact confirmation suffix is appended to the prompt.
  */
 bool get_check(cptr prompt)
 {
     char ch;
 
     char buf[160];
-    bool portable = portable_controls_active();
-    int term_wid = active_term_width();
-    int suffix_wid = portable ? 13 : 7;
-    int prompt_wid = term_wid - suffix_wid;
+    char suffix[32];
+    bool steamdeck = steamdeck_controls_active();
 
     /* Paranoia XXX XXX XXX */
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
-    if (prompt_wid < 8)
-        prompt_wid = 8;
-    strnfmt(buf, sizeof(buf), "%.*s[y/n%s] ", prompt_wid, prompt,
-        portable ? "/space" : "");
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        prompt_controller_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(suffix, sizeof(suffix), "[%s/%s] ", confirm_label, back_label);
+    }
+    else
+    {
+        SDL_strlcpy(suffix, portable_controls_active() ? "[y/n/sp] " : "[y/n] ",
+            sizeof(suffix));
+    }
+    format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -3592,9 +3670,9 @@ bool get_check(cptr prompt)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (prompt_cancel_key(ch))
             break;
-        if (strchr("YyNn", ch) || (portable && (ch == ' ' || ch == '\r' || ch == '\n')))
+        if (strchr("YyNn", ch) || prompt_confirm_key(ch))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -3603,7 +3681,7 @@ bool get_check(cptr prompt)
     prt("", 0, 0);
 
     /* Normal negation */
-    if ((ch != 'Y') && (ch != 'y') && !(portable && (ch == ' ' || ch == '\r' || ch == '\n')))
+    if ((ch != 'Y') && (ch != 'y') && !prompt_confirm_key(ch))
         return (false);
 
     /* Success */
@@ -3618,6 +3696,7 @@ bool get_check_oath_multiline(cptr prompt)
 {
     char ch;
     int wid, h;
+    char confirm_prompt[80];
     
     /* Paranoia */
     message_flush();
@@ -3693,7 +3772,29 @@ bool get_check_oath_multiline(cptr prompt)
     }
     
     /* Prompt at bottom */
-    Term_putstr((wid - 20) / 2, h - 3, -1, TERM_YELLOW, "Are you certain? [y/n]");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        prompt_controller_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(confirm_prompt, sizeof(confirm_prompt),
+            "Are you certain? [%s/%s]", confirm_label, back_label);
+    }
+    else
+    {
+        SDL_strlcpy(confirm_prompt,
+            portable_controls_active() ? "Are you certain? [y/n/sp]"
+                                       : "Are you certain? [y/n]",
+            sizeof(confirm_prompt));
+    }
+    int prompt_col = (wid - (int)strlen(confirm_prompt)) / 2;
+    if (prompt_col < 1)
+        prompt_col = 1;
+    Term_putstr(prompt_col, h - 3, -1, TERM_YELLOW, confirm_prompt);
     
     /* Get an acceptable answer */
     while (true)
@@ -3701,9 +3802,9 @@ bool get_check_oath_multiline(cptr prompt)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (prompt_cancel_key(ch))
             break;
-        if (strchr("YyNn", ch))
+        if (strchr("YyNn", ch) || prompt_confirm_key(ch))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -3712,7 +3813,7 @@ bool get_check_oath_multiline(cptr prompt)
     screen_load();
     
     /* Normal negation */
-    if ((ch != 'Y') && (ch != 'y'))
+    if ((ch != 'Y') && (ch != 'y') && !prompt_confirm_key(ch))
         return (false);
     
     /* Success */
