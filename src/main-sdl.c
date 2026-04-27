@@ -383,6 +383,17 @@ typedef struct menu_touch_press_state {
     Uint64 start_time;
 } menu_touch_press_state;
 
+typedef struct map_touch_press_state {
+    bool active;
+    bool repeat_target;
+    SDL_FingerID finger_id;
+    int map_y;
+    int map_x;
+    float start_x;
+    float start_y;
+    Uint64 start_time;
+} map_touch_press_state;
+
 enum {
     SDL_MOUSE_PATH_MAX_GRIDS = MAX_DUNGEON_HGT * MAX_DUNGEON_WID,
 };
@@ -446,6 +457,10 @@ static bool g_touch_pane_yes_no_prompt_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
 static menu_touch_press_state g_menu_touch_press;
+static map_touch_press_state g_map_touch_press;
+static bool g_map_touch_selected = false;
+static int g_map_touch_selected_y = 0;
+static int g_map_touch_selected_x = 0;
 static mouse_path_state g_mouse_path;
 static byte g_mouse_path_visited[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 static u16b g_mouse_path_parent[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
@@ -593,6 +608,12 @@ static void sdl_mouse_path_render(void);
 bool sdl_mouse_path_take_step_command(int* command, int* dir);
 bool sdl_mouse_recall_process_pending(void);
 void sdl_mouse_path_cancel(void);
+static bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
+static bool sdl_map_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
+static bool sdl_map_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
+static void sdl_map_touch_cancel_press(void);
+static int sdl_map_touch_pending_timeout_ms(Uint64 now_ns);
+static bool sdl_map_touch_flush_pending_press(Uint64 now_ns);
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
 static bool sdl_is_log_pane_active(void);
@@ -3538,14 +3559,43 @@ static bool sdl_mouse_path_compute(int target_y, int target_x)
     return true;
 }
 
+static bool sdl_mouse_path_select_grid(int map_y, int map_x, bool report_failure)
+{
+    bool ok;
+
+    g_mouse_path.hover_visible = true;
+    ok = sdl_mouse_path_compute(map_y, map_x);
+    if (!ok && report_failure)
+        bell("No mouse path.");
+    g_state.need_present = true;
+    return ok;
+}
+
+static bool sdl_mouse_path_start_follow_grid(int map_y, int map_x)
+{
+    if (!sdl_mouse_path_select_grid(map_y, map_x, true))
+        return false;
+
+    g_mouse_path.follow_active = true;
+    g_mouse_path.path_wake_pending = true;
+    g_map_touch_selected = false;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
 void sdl_mouse_path_cancel(void)
 {
     if (!g_mouse_path.hover_visible && !g_mouse_path.follow_active
-        && !g_mouse_path.path_valid)
+        && !g_mouse_path.path_valid && !g_map_touch_press.active
+        && !g_map_touch_selected)
     {
         return;
     }
 
+    g_map_touch_press.active = false;
+    g_map_touch_press.repeat_target = false;
+    g_map_touch_selected = false;
     g_mouse_path.hover_visible = false;
     g_mouse_path.follow_active = false;
     g_mouse_path.path_valid = false;
@@ -3577,6 +3627,12 @@ static void sdl_mouse_path_handle_motion(float x, float y)
         return;
     }
 
+    if (g_map_touch_selected
+        && (map_y != g_map_touch_selected_y || map_x != g_map_touch_selected_x))
+    {
+        g_map_touch_selected = false;
+    }
+
     g_mouse_path.hover_visible = true;
     (void)sdl_mouse_path_compute(map_y, map_x);
 
@@ -3598,16 +3654,8 @@ static bool sdl_mouse_path_handle_left_click(float x, float y)
         return false;
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
-    if (!sdl_mouse_path_compute(map_y, map_x)) {
-        bell("No mouse path.");
-        return true;
-    }
 
-    g_mouse_path.hover_visible = true;
-    g_mouse_path.follow_active = true;
-    g_mouse_path.path_wake_pending = true;
-    g_state.need_present = true;
-    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    (void)sdl_mouse_path_start_follow_grid(map_y, map_x);
     return true;
 }
 
@@ -3796,6 +3844,163 @@ static bool sdl_mouse_recall_handle_right_click(float x, float y)
     g_mouse_path.recall_x = map_x;
     sdl_mouse_path_cancel();
     Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static void sdl_map_touch_cancel_press(void)
+{
+    g_map_touch_press.active = false;
+    g_map_touch_press.repeat_target = false;
+    g_map_touch_press.finger_id = 0;
+    g_map_touch_press.map_y = 0;
+    g_map_touch_press.map_x = 0;
+    g_map_touch_press.start_x = 0.0f;
+    g_map_touch_press.start_y = 0.0f;
+    g_map_touch_press.start_time = 0;
+}
+
+static bool sdl_map_touch_is_same_selected_target(int map_y, int map_x)
+{
+    return g_map_touch_selected
+        && g_mouse_path.hover_visible
+        && g_mouse_path.path_valid
+        && !g_mouse_path.follow_active
+        && g_map_touch_selected_y == map_y
+        && g_map_touch_selected_x == map_x
+        && g_mouse_path.target_y == map_y
+        && g_mouse_path.target_x == map_x;
+}
+
+static bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+
+    sdl_map_touch_cancel_press();
+    g_map_touch_press.active = true;
+    g_map_touch_press.repeat_target =
+        sdl_map_touch_is_same_selected_target(map_y, map_x);
+    g_map_touch_press.finger_id = finger_id;
+    g_map_touch_press.map_y = map_y;
+    g_map_touch_press.map_x = map_x;
+    g_map_touch_press.start_x = x;
+    g_map_touch_press.start_y = y;
+    g_map_touch_press.start_time = SDL_GetTicksNS();
+
+    (void)sdl_mouse_path_select_grid(map_y, map_x, false);
+    return true;
+}
+
+static bool sdl_map_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+    float dx;
+    float dy;
+
+    if (!g_map_touch_press.active || g_map_touch_press.finger_id != finger_id)
+        return false;
+
+    dx = x - g_map_touch_press.start_x;
+    dy = y - g_map_touch_press.start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        || map_y != g_map_touch_press.map_y
+        || map_x != g_map_touch_press.map_x
+        || dx > sdl_touch_swipe_threshold_px()
+        || dy > sdl_touch_swipe_threshold_px())
+    {
+        float start_x = g_map_touch_press.start_x;
+        float start_y = g_map_touch_press.start_y;
+
+        sdl_mouse_path_cancel();
+        if (sdl_touch_swipe_handle_pointer_down(start_x, start_y, finger_id))
+            (void)sdl_touch_swipe_handle_pointer_motion(x, y, finger_id);
+        return true;
+    }
+
+    return true;
+}
+
+static bool sdl_map_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool repeat_target;
+
+    if (!g_map_touch_press.active || g_map_touch_press.finger_id != finger_id)
+        return false;
+
+    repeat_target = g_map_touch_press.repeat_target;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        || map_y != g_map_touch_press.map_y
+        || map_x != g_map_touch_press.map_x)
+    {
+        sdl_mouse_path_cancel();
+        return true;
+    }
+
+    sdl_map_touch_cancel_press();
+    if (repeat_target) {
+        (void)sdl_mouse_path_start_follow_grid(map_y, map_x);
+        return true;
+    }
+
+    if (sdl_mouse_path_select_grid(map_y, map_x, true)) {
+        g_map_touch_selected = true;
+        g_map_touch_selected_y = map_y;
+        g_map_touch_selected_x = map_x;
+    } else {
+        g_map_touch_selected = false;
+    }
+
+    return true;
+}
+
+static int sdl_map_touch_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_map_touch_press.active)
+        return -1;
+
+    elapsed = now_ns - g_map_touch_press.start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+static bool sdl_map_touch_flush_pending_press(Uint64 now_ns)
+{
+    float x;
+    float y;
+
+    if (!g_map_touch_press.active)
+        return false;
+    if (now_ns - g_map_touch_press.start_time
+        < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return false;
+    }
+
+    x = g_map_touch_press.start_x;
+    y = g_map_touch_press.start_y;
+    sdl_map_touch_cancel_press();
+    g_map_touch_selected = false;
+
+    if (!sdl_mouse_recall_handle_right_click(x, y))
+        sdl_mouse_path_cancel();
+
     return true;
 }
 
@@ -6519,6 +6724,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_pointer_dismiss_any_key_prompt())
             return;
+        if (sdl_map_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
     } else if (ev->type == SDL_EVENT_FINGER_MOTION) {
@@ -6534,6 +6741,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_map_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_menu_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_touch_swipe_handle_pointer_motion(x, y, ev->tfinger.fingerID))
@@ -6550,6 +6759,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_map_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_menu_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
         sdl_touch_swipe_handle_pointer_up(x, y, ev->tfinger.fingerID);
@@ -6569,6 +6780,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             && g_menu_touch_press.finger_id == ev->tfinger.fingerID)
         {
             sdl_menu_touch_cancel();
+        }
+        if (g_map_touch_press.active
+            && g_map_touch_press.finger_id == ev->tfinger.fingerID)
+        {
+            sdl_mouse_path_cancel();
         }
     } else if (ev->type == SDL_EVENT_KEY_DOWN) {
         int key = ev->key.key;
@@ -6942,11 +7158,14 @@ static errr callback_sdl_xtra(int n, int v)
             int timeout_ms = sdl_gamepad_pending_timeout_ms(now_ns);
             int touch_timeout_ms = sdl_touch_pane_pending_timeout_ms(now_ns);
             int menu_touch_timeout_ms = sdl_menu_touch_pending_timeout_ms(now_ns);
+            int map_touch_timeout_ms = sdl_map_touch_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
             if (timeout_ms < 0 || (menu_touch_timeout_ms >= 0 && menu_touch_timeout_ms < timeout_ms))
                 timeout_ms = menu_touch_timeout_ms;
+            if (timeout_ms < 0 || (map_touch_timeout_ms >= 0 && map_touch_timeout_ms < timeout_ms))
+                timeout_ms = map_touch_timeout_ms;
             g_sdl_blocking_key_wait = true;
             if (timeout_ms >= 0) {
                 if (SDL_WaitEventTimeout(&ev, timeout_ms))
@@ -6962,6 +7181,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_shoulder(flush_ns, false);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_map_touch_flush_pending_press(flush_ns);
             sdl_music_update(); /* Update music after handling event */
         } else {
             /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
@@ -6977,6 +7197,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_shoulder(flush_ns, false);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_map_touch_flush_pending_press(flush_ns);
 
             /* Avoid pegging a CPU core when we're repeatedly asked to poll */
             if (!handled)
@@ -6994,6 +7215,7 @@ static errr callback_sdl_xtra(int n, int v)
         }
         sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
         sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+        sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
         sdl_present_if_needed(d);
         return 0;
     case TERM_XTRA_CLEAR:
@@ -7027,6 +7249,7 @@ static errr callback_sdl_xtra(int n, int v)
             }
             sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
             sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+            sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
         }
         return 0;
     }
