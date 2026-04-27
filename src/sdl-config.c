@@ -554,7 +554,7 @@ static const byte app_efficiency_options[] = {
 };
 
 static const byte app_gameplay_options[] = {
-    OPT_unlock_blitz_mode,
+    OPT_unlock_blitz_mode, OPT_load_blitz_by_default,
     OPT_NONE
 };
 
@@ -627,6 +627,9 @@ static bool sdl_config_should_default_top_status_line(void)
 
 static bool sdl_config_default_app_bool(int opt)
 {
+    if (opt == OPT_hide_supporting_panes_fullscreen)
+        return true;
+
     if (opt == OPT_top_status_line)
         return sdl_config_should_default_top_status_line();
 
@@ -2314,11 +2317,6 @@ bool sdl_config_set_defaults_for_resolution(struct sdl_config* config,
         log_info("Using generic defaults for %dx%d resolution", screen_width, screen_height);
         // The config already has base defaults from sdl_config_set_defaults()
         // pane_count is 0, so default_pane_config will be used by caller
-    }
-
-    if (screen_width == 1280 && screen_height == 800) {
-        config->steamdeck_mode = true;
-        log_info("Detected 1280x800 resolution - enabling controller UI mode by default");
     }
 
     return (profile != NULL);

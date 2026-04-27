@@ -542,7 +542,6 @@ int main(int argc, char* argv[])
                 mn = initial_menu(&start_new);
                 if (mn == NAV_QUIT) quit(NULL);          /* immediate exit   */
                 if (mn == NAV_OK) {                      /* play or load     */
-                    screen_clear_all_terms_no_fresh();
                     game_in_progress = true;
                 }
                 /* NAV_BACK => redraw + loop again */

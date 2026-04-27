@@ -810,6 +810,7 @@ void do_cmd_character_sheet(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    screen_push_supporting_panes_hidden();
 
     /* Forever */
     while (1)
@@ -11417,14 +11418,15 @@ void create_smithing_item(void)
 #define MAIN_MENU_COMBAT_HISTORY 8
 #define MAIN_MENU_HINT_MESSAGES 9
 #define MAIN_MENU_STORY 10
-#define MAIN_MENU_OPTIONS 11
-#define MAIN_MENU_HELP 12
-#define MAIN_MENU_ABOUT 13
-#define MAIN_MENU_SAVE 14
-#define MAIN_MENU_SAVE_QUIT 15
-#define MAIN_MENU_RETURN_GAME 16
+#define MAIN_MENU_STORY_STATS 11
+#define MAIN_MENU_OPTIONS 12
+#define MAIN_MENU_HELP 13
+#define MAIN_MENU_ABOUT 14
+#define MAIN_MENU_SAVE 15
+#define MAIN_MENU_SAVE_QUIT 16
+#define MAIN_MENU_RETURN_GAME 17
 
-#define MAIN_MENU_MAX 16
+#define MAIN_MENU_MAX 17
 #define MAIN_MENU_LABEL_WIDTH 21
 #define MAIN_MENU_SHORTCUT_WIDTH 6
 
@@ -11454,6 +11456,7 @@ static cptr main_menu_title(int choice)
     case MAIN_MENU_COMBAT_HISTORY: return "Combat history";
     case MAIN_MENU_HINT_MESSAGES: return "Hint messages";
     case MAIN_MENU_STORY: return "The story so far";
+    case MAIN_MENU_STORY_STATS: return "Story statistics";
     case MAIN_MENU_OPTIONS: return "Options and misc";
     case MAIN_MENU_HELP: return "Help";
     case MAIN_MENU_ABOUT: return "About";
@@ -11478,6 +11481,7 @@ static int main_menu_keyboard_key(int choice)
     case MAIN_MENU_COMBAT_HISTORY: return 'x';
     case MAIN_MENU_HINT_MESSAGES: return 'i';
     case MAIN_MENU_STORY: return 'y';
+    case MAIN_MENU_STORY_STATS: return 'g';
     case MAIN_MENU_OPTIONS: return 'o';
     case MAIN_MENU_HELP: return 'h';
     case MAIN_MENU_ABOUT: return 'b';
@@ -12017,9 +12021,9 @@ int main_menu_aux(int* highlight)
     bool steamdeck = steamdeck_controls_active();
 
     int menu_w = main_menu_calc_width();
-    const int top_pad = 1;
+    int top_pad = 1;
     const int bottom_pad = (Term && (Term->hgt <= 18)) ? 0 : 1;
-    const int row_first = top_pad;
+    int row_first = top_pad;
     int menu_h = MAIN_MENU_MAX + top_pad + bottom_pad;
     int col_main = 0;
     int row_top = 0;
@@ -12028,6 +12032,10 @@ int main_menu_aux(int* highlight)
         col_main = (Term->wid - menu_w) / 2;
         if (col_main < 0)
             col_main = 0;
+        if (Term->hgt <= MAIN_MENU_MAX + 2)
+            top_pad = 0;
+        row_first = top_pad;
+        menu_h = MAIN_MENU_MAX + top_pad + bottom_pad;
 
         /* Keep the menu fixed vertically.
          * At height 20, start at row 0 so all menu rows fit.
@@ -12147,6 +12155,9 @@ int main_menu_aux(int* highlight)
         case 'y':
             *highlight = 10;
             return (*highlight); // The story so far
+        case 'g':
+            *highlight = MAIN_MENU_STORY_STATS;
+            return (*highlight); // Story statistics
         case 'o':
             *highlight = MAIN_MENU_OPTIONS;
             return (*highlight); // Options and misc
@@ -12317,7 +12328,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 10: // The story so far (y)
+        case MAIN_MENU_STORY: // The story so far (y)
         {
             /* Save screen before showing story */
             screen_save();
@@ -12327,31 +12338,37 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 11: // Options and misc (o)
+        case MAIN_MENU_STORY_STATS: // Story statistics (g)
+        {
+            print_metarun_stats();
+            leave_menu = true;
+            break;
+        }
+        case MAIN_MENU_OPTIONS: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 12: // Help (h)
+        case MAIN_MENU_HELP: // Help (h)
         {
             do_cmd_help();
             leave_menu = true;
             break;
         }
-        case 13: // About (b)
+        case MAIN_MENU_ABOUT: // About (b)
         {
             main_menu_about();
             leave_menu = true;
             break;
         }
-        case 14: // Save (s)
+        case MAIN_MENU_SAVE: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case 15: // Quit with save (q)
+        case MAIN_MENU_SAVE_QUIT: // Quit with save (q)
         {
             do_cmd_save_game();
 
@@ -12366,7 +12383,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 16: // Return to game (r)
+        case MAIN_MENU_RETURN_GAME: // Return to game (r)
         {
             leave_menu = true;
             break;
@@ -14643,6 +14660,9 @@ static cptr option_menu_label(int opt)
     case OPT_unlock_blitz_mode:
         return compact ? (narrow ? "Blitz unlocked" : "Unlock Blitz Mode")
                        : "Unlock Blitz Mode";
+    case OPT_load_blitz_by_default:
+        return compact ? (narrow ? "Load Blitz" : "Load Blitz first")
+                       : "Load Blitz by default";
     default:
         break;
     }
@@ -27468,8 +27488,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     acted = true;
                     redraw = true;
                     refresh_after_close = true;
-                    if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_USE)
-                        flag = true;
+                    flag = true;
                 }
             }
             break;
@@ -27517,8 +27536,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     redraw = true;
                     handle_stuff();
                     refresh_after_close = true;
-                    if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_DROP)
-                        flag = true;
+                    flag = true;
                 }
             }
             break;
@@ -27532,6 +27550,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     mem_free_null(entries);
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     if (refresh_after_close)

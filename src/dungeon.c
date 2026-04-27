@@ -4862,6 +4862,24 @@ static void maybe_show_blitz_unlock_screen(void)
     save_pane_config_to_json();
 }
 
+static bool startup_try_autoload_current_mode(cptr mode_name)
+{
+    bool autoloaded;
+
+    startup_loading_overlay_arm();
+    autoloaded = autoload_alive_from_scores();
+    startup_loading_overlay_disarm();
+
+    if (autoloaded && character_loaded)
+    {
+        log_info("Auto-loaded alive %s character from scores; skipping selection",
+            mode_name ? mode_name : "current-mode");
+        return true;
+    }
+
+    return false;
+}
+
 
 
 /*
@@ -4946,21 +4964,13 @@ PlayResult play_game(void)
     run_mode_activate_pending();
     maybe_show_blitz_unlock_screen();
 
-    bool startup_stats_screen = false;
+    bool prefer_blitz_startup = !run_mode_is_blitz()
+        && op_ptr && op_ptr->opt[OPT_load_blitz_by_default];
 
-    if (!run_mode_is_blitz()) {
+    if (!run_mode_is_blitz() && !prefer_blitz_startup) {
         if (metarun_created) /* show only the first time ever */
+        {
             print_story_intro();
-        else {
-            print_metarun_stats();
-            startup_stats_screen = true;
-        }
-
-        /* Story-intro handoff still wants the next startup screen to own the
-         * full redraw. Story statistics may keep its frame alive a little
-         * longer so a delayed "Loading..." overlay can reuse it during
-         * autoload instead of flashing a separate screen. */
-        if (!startup_stats_screen) {
             screen_clear_all_terms_no_fresh();
             message_discard_pending();
         }
@@ -4971,17 +4981,47 @@ PlayResult play_game(void)
      * selection and proceed directly. */
     character_loaded = false;
     character_loaded_dead = false;
-    if (startup_stats_screen)
-        startup_loading_overlay_arm();
-    bool autoloaded = autoload_alive_from_scores();
-    if (startup_stats_screen)
-        startup_loading_overlay_disarm();
-    if (autoloaded && character_loaded)
+
+    if (prefer_blitz_startup)
     {
-        log_info("Auto-loaded alive character from scores; skipping selection");
-        new_game = false;
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
+
+        if (startup_try_autoload_current_mode("Blitz"))
+        {
+            new_game = false;
+        }
+        else
+        {
+            run_mode_set_pending(RUN_MODE_STORY);
+            run_mode_set_current(RUN_MODE_STORY);
+
+            print_metarun_stats();
+
+            if (!run_mode_is_blitz()
+                && startup_try_autoload_current_mode("story"))
+            {
+                new_game = false;
+            }
+        }
     }
-    else if (startup_stats_screen)
+    else
+    {
+        bool startup_score_empty = highscore_is_empty();
+
+        if (startup_try_autoload_current_mode(
+                run_mode_is_blitz() ? "Blitz" : "story"))
+        {
+            new_game = false;
+        }
+        else if (!run_mode_is_blitz() && !metarun_created
+            && !startup_score_empty && score_count_alive_entries() == 0)
+        {
+            print_metarun_stats();
+        }
+    }
+
+    if (!character_loaded)
     {
         screen_clear_all_terms_no_fresh();
         message_discard_pending();

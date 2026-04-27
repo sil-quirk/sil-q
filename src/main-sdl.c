@@ -18,6 +18,24 @@
 #include <jni.h>
 #endif
 
+#if defined(__ANDROID__) || defined(SIL_IOS)
+#define SIL_SDL_MOBILE_BUILD 1
+#else
+#define SIL_SDL_MOBILE_BUILD 0
+#endif
+
+#if defined(SDL_PLATFORM_WINDOWS) || defined(SDL_PLATFORM_LINUX)
+#define SIL_SDL_DESKTOP_HANDHELD_BUILD 1
+#else
+#define SIL_SDL_DESKTOP_HANDHELD_BUILD 0
+#endif
+
+#if SIL_SDL_MOBILE_BUILD || SIL_SDL_DESKTOP_HANDHELD_BUILD
+#define SIL_SDL_HANDHELD_DEFAULTS_BUILD 1
+#else
+#define SIL_SDL_HANDHELD_DEFAULTS_BUILD 0
+#endif
+
 const char help_sdl[] = "SDL3";
 
 static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
@@ -462,7 +480,7 @@ static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path,
     int cell_height, bool* out_cached);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
-#if defined(__ANDROID__) || defined(SIL_IOS)
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
 static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
     bool has_controller);
@@ -559,6 +577,7 @@ static void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height);
 static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     int screen_width, int screen_height);
+static bool sdl_is_desktop_handheld_resolution(int width, int height);
 static int sdl_touch_pane_target_width_px(int pane_height_px);
 static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     int active_count, const SDL_Rect* screen, const int* cell_widths,
@@ -998,7 +1017,7 @@ static void sdl_view_destroy(sdl_view* d)
     d->font_atlas_cached = false;
 }
 
-#if defined(__ANDROID__) || defined(SIL_IOS)
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
 {
     for (int i = 0; i < default_pane_config_count; i++) {
@@ -1051,7 +1070,7 @@ static void sdl_ensure_touch_pane_config_present(void)
     };
 }
 
-#if defined(__ANDROID__) || defined(SIL_IOS)
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
 static struct pane_config* sdl_find_pane_config_entry(struct pane_config* configs,
     int count, enum pane_type pane)
 {
@@ -1532,18 +1551,18 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
         pane_config_count, panes, cell_widths, cell_heights, &final_main_cols,
         &final_main_rows);
 
-    log_info("Mobile default pane layout: controller=%s touch=%s scale=%d main=%dx%d",
+    log_info("Handheld default pane layout: controller=%s touch=%s scale=%d main=%dx%d",
         has_controller ? "yes" : "no",
         touch_enabled ? "on" : "off",
         config.main_view_scale, final_main_cols, final_main_rows);
     if (have_bottom) {
-        log_info("Mobile default bottom panes: %s layout, %d row%s",
+        log_info("Handheld default bottom panes: %s layout, %d row%s",
             wide_bottom ? "split" : "stacked",
             bottom_rows, (bottom_rows == 1) ? "" : "s");
     } else {
-        log_info("Mobile default bottom panes: off");
+        log_info("Handheld default bottom panes: off");
     }
-    log_info("Mobile default right panes: inventory=%s worn=%s",
+    log_info("Handheld default right panes: inventory=%s worn=%s",
         inventory_enabled ? "on" : "off",
         worn_enabled ? "on" : "off");
 }
@@ -2351,6 +2370,30 @@ static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     log_info("Startup recovery: reset SDL config to defaults at %s",
         config_file_path);
     return true;
+}
+
+static bool sdl_resolution_matches_pair(int width, int height, int native_w,
+    int native_h)
+{
+    return ((width == native_w && height == native_h)
+        || (width == native_h && height == native_w));
+}
+
+static bool sdl_is_desktop_handheld_resolution(int width, int height)
+{
+#if SIL_SDL_DESKTOP_HANDHELD_BUILD
+    /* Native panel sizes for current Windows/Linux handhelds, plus common
+     * handheld performance-mode targets. Check both orientations. */
+    return sdl_resolution_matches_pair(width, height, 1280, 720)
+        || sdl_resolution_matches_pair(width, height, 1280, 800)
+        || sdl_resolution_matches_pair(width, height, 1920, 1080)
+        || sdl_resolution_matches_pair(width, height, 1920, 1200)
+        || sdl_resolution_matches_pair(width, height, 2560, 1600);
+#else
+    (void)width;
+    (void)height;
+    return false;
+#endif
 }
 
 static bool sdl_touch_pane_binding_is_direction(int binding)
@@ -6950,6 +6993,7 @@ errr init_sdl(int argc, char **argv)
     bool config_exists = SDL_GetPathInfo(config_file_path, NULL);
     enum sdl_config_load_status config_load_status = SDL_CONFIG_LOAD_OK;
     char startup_issue_summary[SDL_STARTUP_ISSUE_MAX];
+    bool desktop_handheld_first_start = false;
 
     startup_issue_summary[0] = '\0';
 
@@ -7127,15 +7171,32 @@ errr init_sdl(int argc, char **argv)
 
     sdl_gamepad_init();
 
-#if defined(__ANDROID__) || defined(SIL_IOS)
     if (!config_exists) {
-        config.steamdeck_mode = (g_gamepad_state.pad_count > 0);
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+        bool has_gamepad = (g_gamepad_state.pad_count > 0);
+
+#if SIL_SDL_MOBILE_BUILD
+        config.steamdeck_mode = has_gamepad;
         log_info("Mobile first-start controller UI mode set to %s (%d gamepad%s detected)",
             config.steamdeck_mode ? "on" : "off",
             g_gamepad_state.pad_count,
             (g_gamepad_state.pad_count == 1) ? "" : "s");
-    }
+#elif SIL_SDL_DESKTOP_HANDHELD_BUILD
+        desktop_handheld_first_start = has_gamepad
+            && sdl_is_desktop_handheld_resolution(screen_pixels_w,
+                screen_pixels_h);
+        if (desktop_handheld_first_start) {
+            config.steamdeck_mode = true;
+            config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
+        }
+        log_info("Desktop handheld first-start mode %s (%dx%d, %d gamepad%s detected)",
+            desktop_handheld_first_start ? "enabled" : "not enabled",
+            screen_pixels_w, screen_pixels_h,
+            g_gamepad_state.pad_count,
+            (g_gamepad_state.pad_count == 1) ? "" : "s");
 #endif
+#endif
+    }
     
     log_info("SDL Configuration:");
     log_info("  Main view scale: %d", config.main_view_scale);
@@ -7203,14 +7264,20 @@ errr init_sdl(int argc, char **argv)
         sdl_window_set_position(config.window_x, config.window_y);
     }
 
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    if (!config_exists) {
-        SDL_Rect mobile_screen;
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+    if (!config_exists && (SIL_SDL_MOBILE_BUILD || desktop_handheld_first_start)) {
+        SDL_Rect handheld_screen;
+        bool handheld_has_controller = (g_gamepad_state.pad_count > 0);
 
+#if SIL_SDL_DESKTOP_HANDHELD_BUILD
+        if (desktop_handheld_first_start)
+            handheld_has_controller = true;
+#endif
+        sdl_ensure_default_pane_configs_present(false);
         sdl_refresh_safe_area();
-        mobile_screen = sdl_get_layout_screen_rect();
-        sdl_apply_mobile_default_pane_layout(&mobile_screen,
-            g_gamepad_state.pad_count > 0);
+        handheld_screen = sdl_get_layout_screen_rect();
+        sdl_apply_mobile_default_pane_layout(&handheld_screen,
+            handheld_has_controller);
         g_active_side_panes = config.enable_right_panes;
         g_active_bottom_panes = config.enable_bottom_panes;
     }

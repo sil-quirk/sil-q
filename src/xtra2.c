@@ -13,6 +13,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "sdl-config.h"
 
 static void look_prt(bool use_story_font, cptr text, int row, int col)
 {
@@ -4708,10 +4709,10 @@ static void load_path(int max, u16b* path, char* c, byte* a)
  * problems, so this is not currently allowed.
  *
  * The player can use the direction keys to move among "interesting"
- * grids in a heuristic manner, or the "space", "+", and "-" keys to
+ * grids in a heuristic manner, or the "+" and "-" keys to
  * move through the "interesting" grids in a sequential manner, or
  * can enter "location" mode, and use the direction keys to move one
- * grid at a time in any direction.  The "t" (set target) command will
+ * grid at a time in any direction.  The confirm command will
  * only target a monster (as opposed to a location) if the monster is
  * target_able and the "interesting" mode is being used.
  *
@@ -4734,6 +4735,58 @@ static void load_path(int max, u16b* path, char* c, byte* a)
  * This command will cancel any old target, even if used from
  * inside the "look" command.
  */
+static void target_prompt_label(int binding, cptr fallback, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
+
+static void target_mode_prompt(
+    char* info, size_t info_len, bool valid_target, bool manual_mode)
+{
+    cptr toggle_name = manual_mode ? "auto" : "manual";
+
+    if (!info || !info_len)
+        return;
+
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[24];
+        char toggle_label[24];
+
+        target_prompt_label(INPUT_BIND_CONFIRM, "A", confirm_label,
+            sizeof(confirm_label));
+        target_prompt_label('s', "Y", toggle_label, sizeof(toggle_label));
+
+        if (valid_target)
+        {
+            strnfmt(info, info_len, "%s=target, %s=%s, <dir>",
+                confirm_label, toggle_label, toggle_name);
+        }
+        else
+        {
+            strnfmt(info, info_len, "%s=%s, <dir>", toggle_label,
+                toggle_name);
+        }
+
+        return;
+    }
+
+    if (valid_target)
+    {
+        strnfmt(info, info_len, "Space/Enter=target, (s)%s, <dir>",
+            toggle_name);
+    }
+    else
+    {
+        strnfmt(info, info_len, "(s)%s, <dir>", toggle_name);
+    }
+}
+
 bool target_set_interactive(int mode, int range)
 {
     int py = p_ptr->py;
@@ -4757,7 +4810,7 @@ bool target_set_interactive(int mode, int range)
 
     bool new_target = false;
 
-    char query;
+    int query;
 
     char info[80];
 
@@ -4826,15 +4879,8 @@ bool target_set_interactive(int mode, int range)
                 valid_target = false;
             }
 
-            // prepare the relevant prompt
-            if (valid_target)
-            {
-                SDL_strlcpy(info, "(t)arget, (m)anual, <dir>", sizeof(info));
-            }
-            else
-            {
-                SDL_strlcpy(info, "(m)anual, <dir>", sizeof(info));
-            }
+            /* Prepare the relevant prompt */
+            target_mode_prompt(info, sizeof(info), valid_target, false);
 
             /* Describe and Prompt */
             if (use_story_look)
@@ -4860,7 +4906,6 @@ bool target_set_interactive(int mode, int range)
                 break;
             }
 
-            case ' ':
             case '*':
             case '+':
             {
@@ -4893,12 +4938,15 @@ bool target_set_interactive(int mode, int range)
                 __attribute__((fallthrough));
             }
 
+            case 's':
             case 'm':
             {
                 flag = false;
                 break;
             }
 
+            case ' ':
+            case INPUT_BIND_CONFIRM:
             case 't':
             case '5':
             case 'z':
@@ -4935,7 +4983,7 @@ bool target_set_interactive(int mode, int range)
             default:
             {
                 /* Extract direction */
-                d = target_dir(query);
+                d = target_dir((char)query);
 
                 /* Oops */
                 if (!d)
@@ -5018,20 +5066,16 @@ bool target_set_interactive(int mode, int range)
                 valid_target = false;
             }
 
-            // prepare the relevant prompt
-            if (valid_target || p_ptr->wizard)
-            {
-                SDL_strlcpy(info, "(t)arget, (a)uto, <dir>", sizeof(info));
-            }
-            else
-            {
-                SDL_strlcpy(info, "(a)uto, <dir>", sizeof(info));
-            }
+            /* Prepare the relevant prompt */
+            target_mode_prompt(
+                info, sizeof(info), valid_target || p_ptr->wizard, true);
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
             if (use_story_look)
                 sdl_story_font_enable();
-            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
+            query = target_set_interactive_aux(y, x,
+                (mode & TARGET_KILL) ? mode : (mode | TARGET_LOOK), info,
+                use_story_look);
             if (use_story_look)
                 sdl_story_font_disable();
 
@@ -5065,6 +5109,7 @@ bool target_set_interactive(int mode, int range)
                 __attribute__((fallthrough));
             }
 
+            case 's':
             case 'a':
             {
                 flag = true;
@@ -5092,6 +5137,8 @@ bool target_set_interactive(int mode, int range)
                 break;
             }
 
+            case ' ':
+            case INPUT_BIND_CONFIRM:
             case 't':
             case '5':
             case 'z':
@@ -5119,7 +5166,7 @@ bool target_set_interactive(int mode, int range)
             default:
             {
                 /* Extract a direction */
-                d = target_dir(query);
+                d = target_dir((char)query);
 
                 /* Oops */
                 if (!d)
@@ -5241,7 +5288,7 @@ bool target_set_interactive(int mode, int range)
             else if (strchr("12346789", query))
             {
                 /* Extract a direction */
-                d = target_dir(query);
+                d = target_dir((char)query);
             }
 
             // summon a creature
@@ -5589,17 +5636,6 @@ int rough_direction(int y1, int x1, int y2, int x2)
  *
  * Currently this function applies confusion directly.
  */
-static void get_aim_prompt_label(
-    int binding, cptr fallback, char* buf, size_t buflen)
-{
-    if (!buf || !buflen)
-        return;
-
-    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
-    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
-        SDL_strlcpy(buf, fallback, buflen);
-}
-
 static void get_aim_prompt(char* buf, size_t buflen, bool has_target)
 {
     char fire_label[24];
@@ -5624,9 +5660,9 @@ static void get_aim_prompt(char* buf, size_t buflen, bool has_target)
         return;
     }
 
-    get_aim_prompt_label('f', "B", fire_label, sizeof(fire_label));
-    get_aim_prompt_label('s', "Y", select_label, sizeof(select_label));
-    get_aim_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
+    target_prompt_label('f', "B", fire_label, sizeof(fire_label));
+    target_prompt_label('s', "Y", select_label, sizeof(select_label));
+    target_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
 
     if (has_target)
     {

@@ -4467,7 +4467,7 @@ bool load_player(void)
 
         load_byte_offset = 0; /* reset counter before decoding stream */
 
-        /* Keep the current startup stats screen visible until the delayed
+        /* Keep the current startup screen visible until the delayed
          * overlay is actually ready to show. Otherwise the unconditional clear
          * erases the very frame we want to reuse. */
         if (startup_loading_overlay_armed)

@@ -2833,6 +2833,7 @@
 #define OPT_inventory_selection_square 111
 #define OPT_supply_menu_random_icons 112
 #define OPT_supply_menu_hide_flavor_compact 113
+#define OPT_load_blitz_by_default 114
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2923,6 +2924,7 @@
 #define sleep_icon op_ptr->opt[OPT_sleep_icon]
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
+#define load_blitz_by_default op_ptr->opt[OPT_load_blitz_by_default]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // reserved legacy slot: stack_force_notes
 // reserved legacy slot: stack_force_costs

@@ -261,7 +261,7 @@ cptr option_text[OPT_MAX] = {
     "inventory_selection_square", /* OPT_inventory_selection_square */
     "supply_menu_random_icons", /* OPT_supply_menu_random_icons */
     "supply_menu_hide_flavor_compact", /* OPT_supply_menu_hide_flavor_compact */
-    NULL, /* reserved legacy slot */
+    "load_blitz_by_default", /* OPT_load_blitz_by_default */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -506,7 +506,7 @@ cptr option_desc[OPT_MAX] = {
     "Add a tile frame to selected inventory/equipment/supply items", /* OPT_inventory_selection_square */
     "Use random representative icons for supply groups", /* OPT_supply_menu_random_icons */
     "Hide flavor words in the compact supply list", /* OPT_supply_menu_hide_flavor_compact */
-    NULL, /* reserved legacy slot */
+    "Load a living Blitz character by default when one exists", /* OPT_load_blitz_by_default */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -770,7 +770,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_inventory_selection_square */
     false, /* OPT_supply_menu_random_icons */
     true, /* OPT_supply_menu_hide_flavor_compact */
-    false, /* reserved legacy slot */
+    false, /* OPT_load_blitz_by_default */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -950,7 +950,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
         OPT_min_depth_timer_mode, OPT_unlock_blitz_mode,
-        OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_load_blitz_by_default, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/
