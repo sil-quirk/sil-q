@@ -810,7 +810,6 @@ void do_cmd_character_sheet(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_supporting_panes_hidden();
 
     /* Forever */
     while (1)
@@ -27094,7 +27093,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool flag = false;
     bool redraw = true;
     supply_menu_action forced_action = SUPPLY_MENU_ACTION_NONE;
-    bool hotkey_mode = false;
     bool acted = false;
     bool refresh_after_close = false;
     bool prev_single_column = false;
@@ -27107,7 +27105,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     if (request)
     {
         forced_action = request->action;
-        hotkey_mode = request->hotkey_mode;
         if (request->focus_group && request->group >= 0 && request->group < SUPPLY_GROUP_MAX)
             grp_cur = request->group;
         if (forced_action != SUPPLY_MENU_ACTION_NONE)
@@ -27129,6 +27126,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     entries = mem_alloc_array(z_info->k_max, supply_list_entry);
 
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     while (!flag)
     {
