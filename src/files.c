@@ -10323,6 +10323,7 @@ static void close_game_aux(void)
     }
     death_processing = true;
     clear_postmortem_scores_path();
+    screen_push_supporting_panes_hidden();
 
     log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
@@ -10550,6 +10551,7 @@ static void close_game_aux(void)
 
     /* Reset death processing flag for next character */
     clear_postmortem_scores_path();
+    screen_pop_supporting_panes_hidden();
     death_processing = false;
 }
 

@@ -2380,7 +2380,6 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     };
     static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
         '8', '2', '4', '6',
-        '7', '9', '1', '3',
     };
 
     if (!config)

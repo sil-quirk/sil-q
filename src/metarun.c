@@ -1740,7 +1740,9 @@ int menu_choose_one_curse(int n)
         } while (dup);
     }
 
-    screen_save();  Term_clear();
+    screen_save();
+    screen_push_supporting_panes_hidden();
+    Term_clear();
     
     /* Fade in the title */
     char str[60];
@@ -1944,6 +1946,7 @@ int menu_choose_one_curse(int n)
             menu_done = true;
         }
     }
+    screen_pop_supporting_panes_hidden();
     screen_load();
     return pick[sel];
 }
@@ -2128,6 +2131,7 @@ int choose_escape_curses_ui(int n, int out[4])
 
     /* Display intro with fade-in effect */
     screen_save();
+    screen_push_supporting_panes_hidden();
     Term_clear();
     
     print_heading_fade("The Valar's Judgment", TERM_L_BLUE);
@@ -2158,6 +2162,7 @@ int choose_escape_curses_ui(int n, int out[4])
     Term_clear();
     
     /* Restore screen state to fix character_icky imbalance */
+    screen_pop_supporting_panes_hidden();
     screen_load();
     
     /* Avoid unused variable warning */
@@ -2179,6 +2184,7 @@ int choose_oath_breaking_curse_ui(int oath_id)
     
     /* Display curse message with fade-in effect */
     screen_save();
+    screen_push_supporting_panes_hidden();
     Term_clear();
     
     /* Add Tolkien-style heading */
@@ -2227,6 +2233,7 @@ int choose_oath_breaking_curse_ui(int oath_id)
     Term_clear();
     
     /* Restore screen state */
+    screen_pop_supporting_panes_hidden();
     screen_load();
     
     /* Avoid unused variable warning */

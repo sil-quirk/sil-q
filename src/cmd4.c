@@ -17540,16 +17540,12 @@ enum {
     TOUCH_CONTROL_SWIPE_DOWN,
     TOUCH_CONTROL_SWIPE_LEFT,
     TOUCH_CONTROL_SWIPE_RIGHT,
-    TOUCH_CONTROL_SWIPE_UP_LEFT,
-    TOUCH_CONTROL_SWIPE_UP_RIGHT,
-    TOUCH_CONTROL_SWIPE_DOWN_LEFT,
-    TOUCH_CONTROL_SWIPE_DOWN_RIGHT,
     TOUCH_CONTROL_COUNT
 };
 
 static bool touch_control_is_swipe_binding_row(int row)
 {
-    return row >= TOUCH_CONTROL_SWIPE_UP && row <= TOUCH_CONTROL_SWIPE_DOWN_RIGHT;
+    return row >= TOUCH_CONTROL_SWIPE_UP && row <= TOUCH_CONTROL_SWIPE_RIGHT;
 }
 
 static bool touch_control_is_menu_command_row(int row)
@@ -17583,14 +17579,6 @@ static int touch_control_swipe_dir_for_row(int row)
         return TOUCH_SWIPE_DIR_LEFT;
     case TOUCH_CONTROL_SWIPE_RIGHT:
         return TOUCH_SWIPE_DIR_RIGHT;
-    case TOUCH_CONTROL_SWIPE_UP_LEFT:
-        return TOUCH_SWIPE_DIR_UP_LEFT;
-    case TOUCH_CONTROL_SWIPE_UP_RIGHT:
-        return TOUCH_SWIPE_DIR_UP_RIGHT;
-    case TOUCH_CONTROL_SWIPE_DOWN_LEFT:
-        return TOUCH_SWIPE_DIR_DOWN_LEFT;
-    case TOUCH_CONTROL_SWIPE_DOWN_RIGHT:
-        return TOUCH_SWIPE_DIR_DOWN_RIGHT;
     default:
         return -1;
     }
@@ -17617,14 +17605,6 @@ static const char* touch_control_row_name(int row)
         return "Swipe Left";
     case TOUCH_CONTROL_SWIPE_RIGHT:
         return "Swipe Right";
-    case TOUCH_CONTROL_SWIPE_UP_LEFT:
-        return "Swipe Up-Left";
-    case TOUCH_CONTROL_SWIPE_UP_RIGHT:
-        return "Swipe Up-Right";
-    case TOUCH_CONTROL_SWIPE_DOWN_LEFT:
-        return "Swipe Down-Left";
-    case TOUCH_CONTROL_SWIPE_DOWN_RIGHT:
-        return "Swipe Down-Right";
     default:
         return "";
     }
