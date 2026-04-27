@@ -1543,8 +1543,14 @@ extern int get_menu_choice(s16b max, char* prompt);
 extern void ui_menu_click_clear(void);
 extern void ui_menu_click_begin(void);
 extern void ui_menu_click_add(int choice, int col, int row, int width);
+extern bool ui_menu_click_has_cell(int col, int row);
 extern bool ui_menu_click_handle_cell(int col, int row);
+extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_take(int* choice);
+extern bool ui_menu_click_take_action(int* choice, int* action);
+#define UI_MENU_CLICK_PRIMARY 1
+#define UI_MENU_CLICK_SECONDARY 2
+#define UI_MENU_CLICK_WAKE_KEY KTRL('\\')
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
 extern void pause_line(int row);

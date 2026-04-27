@@ -6825,6 +6825,7 @@ void show_inven_enhanced(void)
     while (!done)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_begin();
         bool square_selection = inventory_selection_uses_square();
 
         /* Show the prompt - different text based on how menu was opened */
@@ -7054,6 +7055,8 @@ void show_inven_enhanced(void)
                 : line_obj;
 
             int label_col = label_col_base;
+
+            ui_menu_click_add(j, col, row, term_wid - col);
 
             if (use_story_font)
             {
@@ -7343,6 +7346,37 @@ void show_inven_enhanced(void)
         
         /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_row, &click_action)
+                && clicked_row >= 0 && clicked_row < k)
+            {
+                highlight_row = clicked_row;
+                highlight_active = true;
+                enhanced_inventory_selected_item = out_index[highlight_row];
+
+                if (click_action == UI_MENU_CLICK_SECONDARY)
+                {
+                    done = true;
+                    enhanced_menu_action = out_is_supply[highlight_row]
+                        ? ENHANCED_ACTION_SUPPLIES
+                        : ENHANCED_ACTION_EXAMINE;
+                }
+                else
+                {
+                    if (!death_spectator_allow_menu_action())
+                        continue;
+
+                    done = true;
+                    enhanced_menu_action = ENHANCED_ACTION_USE;
+                }
+
+                continue;
+            }
+        }
         
         log_trace("show_inven_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         
@@ -7603,6 +7637,7 @@ void show_inven_enhanced(void)
     }
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
@@ -7760,6 +7795,7 @@ void show_equip_enhanced(void)
     while (!done)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_begin();
         bool square_selection = inventory_selection_uses_square();
 
         /* Display equipment list */
@@ -7936,9 +7972,48 @@ void show_equip_enhanced(void)
                 log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
             }
         }
+
+        for (int click_i = 0; click_i < k; click_i++)
+        {
+            int click_slot = out_index[click_i];
+            if (click_slot >= INVEN_WIELD && click_slot < INVEN_TOTAL
+                && inventory[click_slot].k_idx)
+            {
+                ui_menu_click_add(click_i, col, click_i + 1, term_wid - col);
+            }
+        }
         
         /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_row, &click_action)
+                && clicked_row >= 0 && clicked_row < k)
+            {
+                int clicked_slot = out_index[clicked_row];
+                if (clicked_slot >= INVEN_WIELD && clicked_slot < INVEN_TOTAL
+                    && inventory[clicked_slot].k_idx)
+                {
+                    highlight_index = clicked_row;
+                    highlight_active = true;
+                    enhanced_equipment_selected_item = clicked_slot;
+                    done = true;
+                    enhanced_equip_action = (click_action == UI_MENU_CLICK_SECONDARY)
+                        ? ENHANCED_ACTION_EXAMINE
+                        : ENHANCED_ACTION_USE;
+                    if (enhanced_equip_action == ENHANCED_ACTION_USE
+                        && !death_spectator_allow_menu_action())
+                    {
+                        done = false;
+                        enhanced_equip_action = ENHANCED_ACTION_NONE;
+                    }
+                    continue;
+                }
+            }
+        }
         
         log_trace("show_equip_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         
@@ -8146,6 +8221,7 @@ void show_equip_enhanced(void)
     }
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);

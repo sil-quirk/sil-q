@@ -37,6 +37,7 @@ static int ui_menu_click_entry_count = 0;
 static bool ui_menu_click_active = false;
 static bool ui_menu_click_pending = false;
 static int ui_menu_click_pending_choice = 0;
+static int ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
 
 void ui_menu_click_clear(void)
 {
@@ -44,6 +45,7 @@ void ui_menu_click_clear(void)
     ui_menu_click_entry_count = 0;
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
 }
 
 void ui_menu_click_begin(void)
@@ -52,6 +54,7 @@ void ui_menu_click_begin(void)
     ui_menu_click_entry_count = 0;
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
 }
 
 void ui_menu_click_add(int choice, int col, int row, int width)
@@ -91,10 +94,10 @@ void ui_menu_click_add(int choice, int col, int row, int width)
     };
 }
 
-bool ui_menu_click_handle_cell(int col, int row)
+static const ui_menu_click_entry* ui_menu_click_find_cell(int col, int row)
 {
     if (!ui_menu_click_active)
-        return false;
+        return NULL;
 
     for (int i = 0; i < ui_menu_click_entry_count; i++)
     {
@@ -105,25 +108,62 @@ bool ui_menu_click_handle_cell(int col, int row)
         if (col < entry->col || col >= entry->col + entry->width)
             continue;
 
-        ui_menu_click_pending = true;
-        ui_menu_click_pending_choice = entry->choice;
-        return true;
+        return entry;
     }
 
-    return false;
+    return NULL;
 }
 
-bool ui_menu_click_take(int* choice)
+bool ui_menu_click_has_cell(int col, int row)
+{
+    return ui_menu_click_find_cell(col, row) != NULL;
+}
+
+bool ui_menu_click_handle_cell_action(int col, int row, int action)
+{
+    const ui_menu_click_entry* entry = ui_menu_click_find_cell(col, row);
+
+    if (!entry)
+        return false;
+
+    if (action != UI_MENU_CLICK_SECONDARY)
+        action = UI_MENU_CLICK_PRIMARY;
+
+    ui_menu_click_pending = true;
+    ui_menu_click_pending_choice = entry->choice;
+    ui_menu_click_pending_action = action;
+    return true;
+}
+
+bool ui_menu_click_handle_cell(int col, int row)
+{
+    return ui_menu_click_handle_cell_action(col, row, UI_MENU_CLICK_PRIMARY);
+}
+
+bool ui_menu_click_take_action(int* choice, int* action)
 {
     if (!ui_menu_click_pending)
         return false;
 
     if (choice)
         *choice = ui_menu_click_pending_choice;
+    if (action)
+        *action = ui_menu_click_pending_action;
 
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     return true;
+}
+
+bool ui_menu_click_take(int* choice)
+{
+    int action = UI_MENU_CLICK_PRIMARY;
+
+    if (!ui_menu_click_take_action(choice, &action))
+        return false;
+
+    return action == UI_MENU_CLICK_PRIMARY;
 }
 
 /*

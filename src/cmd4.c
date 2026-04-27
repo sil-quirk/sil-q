@@ -27285,6 +27285,11 @@ void do_cmd_knowledge_browser_page(int page)
  */
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
+    enum
+    {
+        SUPPLY_CLICK_GROUP_BASE = 1000,
+        SUPPLY_CLICK_ENTRY_BASE = 10000
+    };
     int i;
     int max = 0;
     int grp_cnt = SUPPLY_GROUP_MAX;
@@ -27505,6 +27510,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         prev_divider_col = draw_layout.divider_col;
 
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_begin();
 
         if (!single_column || !column)
         {
@@ -27514,12 +27520,34 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             display_supply_group_list(draw_layout.group_col, draw_layout.list_row,
                 group_list_w, draw_layout.list_rows, grp_idx, grp_cur,
                 grp_top, group_totals, group_icons, column == 0);
+
+            for (i = 0; i < draw_layout.list_rows; i++)
+            {
+                int grp_pos = grp_top + i;
+                if (grp_pos >= grp_cnt || grp_idx[grp_pos] < 0)
+                    break;
+
+                ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
+                    draw_layout.group_col, draw_layout.list_row + i,
+                    group_list_w);
+            }
         }
         if (!single_column || column)
         {
             display_supply_list(&draw_layout, draw_layout.list_row,
                 draw_layout.list_rows, entries, entry_cnt, entry_cur, entry_top,
                 grp_idx[grp_cur], column, &draw_cols, compact_draw_names);
+
+            for (i = 0; i < draw_layout.list_rows; i++)
+            {
+                int entry_pos = entry_top + i;
+                if (entry_pos >= entry_cnt)
+                    break;
+
+                ui_menu_click_add(SUPPLY_CLICK_ENTRY_BASE + entry_pos,
+                    draw_layout.list_col, draw_layout.list_row + i,
+                    draw_layout.list_w);
+            }
         }
 
         if (draw_layout.status_row != draw_layout.prompt_row)
@@ -27583,6 +27611,39 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 draw_layout.list_row + (grp_cur - grp_top));
 
         char ch = inkey();
+        {
+            int clicked_choice = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice >= SUPPLY_CLICK_ENTRY_BASE)
+                {
+                    int clicked_entry = clicked_choice - SUPPLY_CLICK_ENTRY_BASE;
+
+                    if (clicked_entry >= 0 && clicked_entry < entry_cnt)
+                    {
+                        entry_cur = clicked_entry;
+                        column = 1;
+                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r' : 'u';
+                    }
+                }
+                else if (clicked_choice >= SUPPLY_CLICK_GROUP_BASE)
+                {
+                    int clicked_group = clicked_choice - SUPPLY_CLICK_GROUP_BASE;
+
+                    if (clicked_group >= 0 && clicked_group < grp_cnt)
+                    {
+                        grp_cur = clicked_group;
+                        entry_cur = 0;
+                        entry_top = 0;
+                        column = single_column ? 1 : 0;
+                        redraw = true;
+                        continue;
+                    }
+                }
+            }
+        }
         if (steamdeck_controls_active() && ch == 'f')
             ch = 'd';
 
@@ -27756,6 +27817,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     mem_free_null(entries);
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
