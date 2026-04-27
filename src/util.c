@@ -2560,6 +2560,28 @@ void message_discard_pending(void)
         restore_top_status_line_after_clear();
 }
 
+bool message_line_has_text(void)
+{
+    int i;
+    int limit;
+
+    if (message_column <= 0 || !Term || !Term->scr || Term->hgt <= 0)
+        return false;
+
+    limit = message_column;
+    if (limit > Term->wid)
+        limit = Term->wid;
+
+    for (i = 0; i < limit; i++)
+    {
+        char ch = Term->scr->c[0][i];
+        if (ch && ch != Term->char_blank)
+            return true;
+    }
+
+    return false;
+}
+
 /*
  * Hack -- prevent "accidents" in "screen_save()" or "screen_load()"
  */
@@ -4207,6 +4229,7 @@ void request_command(void)
 
         /* Clear top line */
         prt("", 0, 0);
+        message_column = 0;
 
         /* Command Count */
         if (((ch == 'R') && !angband_keyset) || ((ch == '0') && angband_keyset))

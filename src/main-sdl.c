@@ -9,6 +9,7 @@
 #include "sdl-config.h"
 #include "sdl-sound.h"
 #include "sound-config.h"
+#include <ctype.h>
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_filesystem.h>
@@ -423,6 +424,7 @@ static bool g_touch_pane_reset_confirm_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
 static menu_touch_press_state g_menu_touch_press;
+static bool g_sdl_blocking_key_wait = false;
 static bool g_direct_touch_present = SIL_SDL_MOBILE_BUILD ? true : false;
 static int g_auto_aux_main_cell_h_override = 0;
 
@@ -540,6 +542,8 @@ static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool lon
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
 static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action);
+static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
+static bool sdl_pointer_dismiss_any_key_prompt(void);
 static bool sdl_menu_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_menu_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_menu_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
@@ -3170,6 +3174,87 @@ static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int actio
     return true;
 }
 
+static bool sdl_main_screen_handle_message_line_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!message_line_has_text())
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row != 0)
+        return false;
+
+    Term_keypress(KTRL('P'));
+    return true;
+}
+
+static bool sdl_screen_row_contains_ci(const term* t, int row, cptr needle)
+{
+    int needle_len;
+
+    if (!t || !t->scr || !t->scr->c || !needle)
+        return false;
+
+    needle_len = (int)strlen(needle);
+    if (needle_len <= 0 || row < 0 || row >= t->hgt || needle_len > t->wid)
+        return false;
+
+    for (int col = 0; col <= t->wid - needle_len; col++) {
+        bool match = true;
+
+        for (int i = 0; i < needle_len; i++) {
+            unsigned char actual = (unsigned char)t->scr->c[row][col + i];
+            unsigned char expected = (unsigned char)needle[i];
+
+            if (!actual || actual == (unsigned char)t->char_blank)
+                actual = ' ';
+
+            if (tolower(actual) != tolower(expected)) {
+                match = false;
+                break;
+            }
+        }
+
+        if (match)
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_screen_shows_any_key_prompt(void)
+{
+    const char* prompts[] = { "any key", "-more-" };
+    const term* t = Term;
+
+    if (!t || !t->scr || !t->scr->c)
+        return false;
+
+    for (int row = 0; row < t->hgt; row++) {
+        for (size_t i = 0; i < N_ELEMENTS(prompts); i++) {
+            if (sdl_screen_row_contains_ci(t, row, prompts[i]))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+static bool sdl_pointer_dismiss_any_key_prompt(void)
+{
+    if (!g_sdl_blocking_key_wait)
+        return false;
+    if (!sdl_screen_shows_any_key_prompt())
+        return false;
+
+    Term_keypress('\r');
+    return true;
+}
+
 static void sdl_menu_touch_cancel(void)
 {
     g_menu_touch_press.active = false;
@@ -3339,6 +3424,16 @@ static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
         return false;
     if (!sdl_should_show_supporting_panes())
         return false;
+
+    if (sdl_point_in_view_rect(PANE_INVENTORY, x, y)) {
+        sdl_enqueue_bypassed_command('i');
+        return true;
+    }
+
+    if (sdl_point_in_view_rect(PANE_WORN, x, y)) {
+        sdl_enqueue_bypassed_command('e');
+        return true;
+    }
 
     if (sdl_point_in_view_rect(PANE_LOG, x, y)) {
         Term_keypress(KTRL('P'));
@@ -5577,6 +5672,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_main_screen_handle_message_line_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_main_screen_handle_character_panel_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -5596,6 +5696,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+        }
+        if (ev->button.which != SDL_TOUCH_MOUSEID
+            && sdl_pointer_dismiss_any_key_prompt())
+        {
+            return;
         }
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP) {
         if (ev->button.button == SDL_BUTTON_LEFT) {
@@ -5620,9 +5725,13 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
+        if (sdl_main_screen_handle_message_line_pointer(x, y))
+            return;
         if (sdl_main_screen_handle_character_panel_pointer(x, y))
             return;
         if (sdl_main_screen_handle_supporting_pane_pointer(x, y))
+            return;
+        if (sdl_pointer_dismiss_any_key_prompt())
             return;
         if (sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
@@ -6053,10 +6162,12 @@ static errr callback_sdl_xtra(int n, int v)
             int timeout_ms = sdl_gamepad_pending_timeout_ms(now_ns);
             int touch_timeout_ms = sdl_touch_pane_pending_timeout_ms(now_ns);
             int menu_touch_timeout_ms = sdl_menu_touch_pending_timeout_ms(now_ns);
+            bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
             if (timeout_ms < 0 || (menu_touch_timeout_ms >= 0 && menu_touch_timeout_ms < timeout_ms))
                 timeout_ms = menu_touch_timeout_ms;
+            g_sdl_blocking_key_wait = true;
             if (timeout_ms >= 0) {
                 if (SDL_WaitEventTimeout(&ev, timeout_ms))
                     sdl_handle_event(&g_state, &ev);
@@ -6064,6 +6175,7 @@ static errr callback_sdl_xtra(int n, int v)
                 if (SDL_WaitEvent(&ev))
                     sdl_handle_event(&g_state, &ev);
             }
+            g_sdl_blocking_key_wait = old_blocking_key_wait;
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_dpad(flush_ns, false);
             sdl_gamepad_flush_pending_left_stick(flush_ns, false);

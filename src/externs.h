@@ -1513,6 +1513,7 @@ extern void screen_save(void);
 extern void screen_load(void);
 extern void screen_clear_all_terms_no_fresh(void);
 extern void message_discard_pending(void);
+extern bool message_line_has_text(void);
 extern void startup_loading_overlay_arm(void);
 extern void startup_loading_overlay_disarm(void);
 extern bool screen_saved_fullscreen_active(void);

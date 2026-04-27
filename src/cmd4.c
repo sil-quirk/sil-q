@@ -29228,6 +29228,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_clear();
 
         if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
             highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
@@ -29245,6 +29246,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     if (rows <= 0)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_clear();
         return true;
     }
 
@@ -29256,6 +29258,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     entries = mem_alloc_array(max_entries, unified_sidebar_compact_entry);
     entry_count = unified_sidebar_compact_build_entries(state, entries,
         max_entries);
+    ui_menu_click_begin();
 
     has_sidebar_selection = (state->selected_entity >= 0)
         && (state->in_sidebar_mode || (state->look_mode == 0));
@@ -29284,6 +29287,9 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
             text_len = Term->wid - text_col;
         if (text_len < 0)
             text_len = 0;
+
+        ui_menu_click_add(entry->entity_index, pictogram_col, row,
+            MAX(1, text_col + text_len - pictogram_col));
 
         c_put_str(entry->symbol_attr, entry->symbol, row, pictogram_col);
         if (use_bigtile)
@@ -29370,6 +29376,8 @@ void show_unified_sidebar(unified_look_state* state)
         && (state->selected_entity < 0)
         && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
     {
+        ui_menu_click_clear();
+
         if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
         {
             highlight_entity_on_map(state->highlighted_y, state->highlighted_x, false);
@@ -29385,6 +29393,7 @@ void show_unified_sidebar(unified_look_state* state)
 
     has_sidebar_selection = (state->selected_entity >= 0)
         && (state->in_sidebar_mode || (state->look_mode == 0));
+    ui_menu_click_begin();
     
     /* Don't clear anything - let screen_save/screen_load handle restoration */
     log_trace("show_unified_sidebar: skipping clear - letting screen management handle it");
@@ -29557,6 +29566,8 @@ void show_unified_sidebar(unified_look_state* state)
             
             /* Calculate column for morale display */
             int morale_col = name_col + name_hp_len;
+            ui_menu_click_add(monster_count, pictogram_col, line,
+                MAX(1, name_col - pictogram_col + total_span));
             
             /* Highlight if selected with cursor-style highlighting only */
             bool highlight_this_monster = (has_sidebar_selection
@@ -29747,6 +29758,8 @@ void show_unified_sidebar(unified_look_state* state)
             int row_index = line;
             if (row_index < 0) row_index = 0;
             if (row_index >= prev_array_capacity) row_index = prev_array_capacity - 1;
+            ui_menu_click_add(object_start + object_count, pictogram_col, line,
+                MAX(1, name_col - pictogram_col + final_name_len));
 
             int old_name_len = prev_name_len[row_index];
             if (old_name_len > final_name_len)

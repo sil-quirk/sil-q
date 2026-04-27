@@ -3905,6 +3905,27 @@ static void unified_look_sync_cursor_selection(unified_look_state* state)
     state->selected_entity = new_selection;
 }
 
+static void unified_look_select_sidebar_entity(unified_look_state* state,
+    int entity_index)
+{
+    if (!state || entity_index < 0)
+        return;
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+            false);
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+    }
+
+    state->selected_entity = entity_index;
+    state->in_sidebar_mode = true;
+    state->square_cycling_mode = false;
+    state->current_square_entity = 0;
+}
+
 static void unified_look_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -4428,6 +4449,24 @@ void do_cmd_unified_look(void)
         log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
         switch (query)
         {
+            case UI_MENU_CLICK_WAKE_KEY:
+            {
+                int clicked_entity = -1;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_entity, &click_action))
+                {
+                    unified_look_select_sidebar_entity(&state, clicked_entity);
+                    need_redraw = true;
+                    selection_redraw = false;
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                        Term_keypress(' ');
+                }
+
+                break;
+            }
+
             case 'T':
             {
                 state.limit_objects_top_five = !state.limit_objects_top_five;
@@ -5039,6 +5078,21 @@ command_key:
             case '\r': /* Enter key */
             case ' ':
             {
+                int clicked_entity = -1;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_entity, &click_action))
+                {
+                    unified_look_select_sidebar_entity(&state, clicked_entity);
+                    need_redraw = true;
+                    selection_redraw = false;
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                        Term_keypress(' ');
+
+                    break;
+                }
+
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
                 
                 /* Disable story font for info screens */
@@ -5539,6 +5593,7 @@ cycle_display_modes:
     }
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
 
     if (overlay_saved)
     {
