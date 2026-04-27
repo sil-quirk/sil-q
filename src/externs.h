@@ -1546,14 +1546,19 @@ extern bool get_check_oath_multiline(cptr prompt);
 extern int get_menu_choice(s16b max, char* prompt);
 extern void ui_menu_click_clear(void);
 extern void ui_menu_click_begin(void);
+extern void ui_menu_click_set_hover_enabled(bool enabled);
+extern void ui_menu_click_set_touch_category(int category);
+extern int ui_menu_click_get_touch_category(void);
 extern void ui_menu_click_add(int choice, int col, int row, int width);
 extern bool ui_menu_click_has_cell(int col, int row);
+extern bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
 extern bool ui_menu_click_handle_cell(int col, int row);
 extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
 #define UI_MENU_CLICK_PRIMARY 1
 #define UI_MENU_CLICK_SECONDARY 2
+#define UI_MENU_CLICK_HOVER 3
 #define UI_MENU_CLICK_WAKE_KEY KTRL('\\')
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
@@ -1890,6 +1895,9 @@ extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
 extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen);
+extern int get_sdl_mouse_movement_mode(void);
+extern void set_sdl_mouse_movement_mode(int mode);
+extern int get_sdl_mouse_movement_default_mode(void);
 extern int get_sdl_touch_pane_binding(int index);
 extern void set_sdl_touch_pane_binding(int index, int binding);
 extern int get_sdl_touch_pane_default_binding(int index);
@@ -1908,6 +1916,12 @@ extern void set_sdl_touch_pane_button_label_for_panel(int panel, int index, cptr
 extern void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 extern void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
+extern bool get_sdl_touch_menu_commands_enabled(int category);
+extern void set_sdl_touch_menu_commands_enabled(int category, bool value);
+extern bool get_sdl_touch_menu_commands_default_enabled(int category);
+extern int get_sdl_touch_movement_mode(void);
+extern void set_sdl_touch_movement_mode(int mode);
+extern int get_sdl_touch_movement_default_mode(void);
 extern bool get_sdl_touch_swipe_enabled(void);
 extern void set_sdl_touch_swipe_enabled(bool value);
 extern int get_sdl_touch_swipe_binding(int dir);

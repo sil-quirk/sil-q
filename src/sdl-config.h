@@ -27,6 +27,19 @@
 #define TOUCH_SWIPE_DIR_DOWN_LEFT 6
 #define TOUCH_SWIPE_DIR_DOWN_RIGHT 7
 
+#define SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT 0
+#define SDL_TOUCH_MENU_CATEGORY_SUPPLY 1
+#define SDL_TOUCH_MENU_CATEGORY_OTHER 2
+#define SDL_TOUCH_MENU_CATEGORY_COUNT 3
+
+#define SDL_TOUCH_MOVEMENT_ON 0
+#define SDL_TOUCH_MOVEMENT_OFF 1
+#define SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY 2
+
+#define SDL_MOUSE_MOVEMENT_ON 0
+#define SDL_MOUSE_MOVEMENT_OFF 1
+#define SDL_MOUSE_MOVEMENT_RIGHT_ONLY 2
+
 #define GAMEPAD_BIND_NONE -1
 #define GAMEPAD_BIND_SHIFT -2
 #define GAMEPAD_BIND_CTRL -3
@@ -126,11 +139,14 @@ struct sdl_config {
     int gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
+    int mouse_movement_mode;
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    bool touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_COUNT];
+    int touch_movement_mode;
     bool touch_swipe_enabled;
     int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };

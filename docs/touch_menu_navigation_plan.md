@@ -12,6 +12,9 @@ Make every menu navigable with touch controls and desktop mouse without requirin
 - Full row hit targets are used, not only the rendered text.
 - Modal "press any key" screens can be dismissed by tapping the prompt or the full modal area.
 - Mouse and touch use the same safe press/release behavior, so accidental down events do not immediately activate commands.
+- Touch settings are split into Touch Panel for the on-screen button panel and Touch Control for menu touch commands, map touch movement, and swipe gestures.
+- Every menu that uses registered touch commands must respect its Touch Control menu category setting: Inventory/Equipped, Supply, or Others.
+- Touch Movement must support On, Off, and Long click only; Long click only disables tap-to-follow movement and uses a long press on the map to start movement.
 
 ## Existing Infrastructure
 
@@ -154,7 +157,8 @@ Implementation notes:
 - `src/cmd4.c:18435-18467` `input_options_menu()`.
 - `src/cmd4.c:14994-15347` option page loop.
 - `src/cmd4.c:16210-16425` pane settings.
-- `src/cmd4.c:17622-17708` touch settings.
+- `src/cmd4.c` Touch Panel settings.
+- `src/cmd4.c` Touch Control settings.
 - `src/cmd4.c:19117-19214` keybind settings.
 - `src/cmd4.c:20640-20724` controller settings.
 
@@ -163,6 +167,8 @@ Implementation notes:
 - Convert narrow text-width registrations to full-row or full-control registrations.
 - For toggles and sliders, tapping the setting row should focus it; tapping focused row should cycle/increment. Right-click or long-press should cycle backward where keyboard already supports reverse cycling.
 - Add footer targets for Back, Restore Defaults, and Next/Previous Page where those commands exist.
+- Keep swipe gesture controls under Touch Control, not Touch Panel.
+- New touch-aware menus must use the shared click registry and set a category when they belong to Inventory/Equipped or Supply; untagged menus are controlled by Others.
 
 ### Ability, oath, and bane menus in gameplay
 
@@ -619,4 +625,3 @@ Regression smoke tests:
 - Unified look still highlights map targets correctly.
 - Combat roll overlay is not cleared or shifted by menu clicks.
 - `screen_save()`/`screen_load()` overlays do not leave stale click regions behind.
-

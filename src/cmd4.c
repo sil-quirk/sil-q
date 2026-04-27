@@ -2606,6 +2606,7 @@ int bane_menu(int* highlight)
 
     wipe_screen_from(prefix_col);
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     Term_putstr(list_col, 2, -1, TERM_WHITE, "Enemy types");
 
@@ -2957,6 +2958,7 @@ int oath_menu(int* highlight)
     // Clear the abilities and description area (following abilities_menu2 pattern)
     wipe_screen_from(ability_col);
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     // Title in the abilities column
     Term_putstr(ability_col, 2, -1, TERM_WHITE, "Oaths");
@@ -3085,7 +3087,7 @@ int oath_menu(int* highlight)
             *highlight = clicked_choice;
             if (click_action == UI_MENU_CLICK_SECONDARY)
                 return visible_oaths[*highlight - 1];
-            return oath_menu(highlight);
+            return (0);
         }
     }
 
@@ -3189,6 +3191,7 @@ int abilities_menu1(int* highlight)
     // linger when returning from an ability list to the skills list.
     wipe_screen_from(indexed_menu_prefix_col(COL_SKILL));
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
     ability_menu_draw_skills(*highlight, options, 1);
 
     /* Flush the prompt */
@@ -3204,11 +3207,14 @@ int abilities_menu1(int* highlight)
 
     {
         int clicked_choice = -1;
+        int click_action = UI_MENU_CLICK_PRIMARY;
 
-        if (ui_menu_click_take(&clicked_choice)
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
             && clicked_choice >= 1 && clicked_choice <= options)
         {
             *highlight = clicked_choice;
+            if (click_action == UI_MENU_CLICK_HOVER)
+                return (0);
             return (*highlight);
         }
     }
@@ -3286,6 +3292,7 @@ int abilities_menu2(int skilltype, int* highlight)
     wipe_screen_from(indexed_menu_prefix_col(
         compact_layout ? COL_SKILL : COL_ABILITY));
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     if (!compact_layout)
         ability_menu_draw_skills(skilltype + 1, ability_menu_skill_options(),
@@ -12180,6 +12187,7 @@ int main_menu_aux(int* highlight)
     }
 
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     for (i = 1; i <= MAIN_MENU_MAX; i++)
     {
@@ -12237,8 +12245,16 @@ int main_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if (ui_menu_click_take(&clicked_choice))
-        *highlight = clicked_choice;
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+        }
+    }
 
     if (steamdeck)
     {
@@ -14992,6 +15008,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 
         Term_clear();
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
@@ -15344,10 +15361,14 @@ extern void do_cmd_options_aux(int page, cptr info)
 
         {
             int clicked_choice = 0;
-            if (ui_menu_click_take(&clicked_choice)
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
                 && clicked_choice >= 0 && clicked_choice < n)
             {
                 k = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
                 ch = ' ';
             }
         }
@@ -16060,6 +16081,7 @@ static int get_supporting_pane_config_count(void);
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed);
 static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
+static void do_cmd_touch_control_settings(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
 
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
@@ -16208,6 +16230,7 @@ void do_cmd_pane_settings(void)
         /* Clear screen */
         Term_clear();
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Display title */
         settings_ui_put_fitted(1, 2, TERM_WHITE, "SDL Pane Settings");
@@ -16422,10 +16445,14 @@ void do_cmd_pane_settings(void)
 
         {
             int clicked_choice = 0;
-            if (ui_menu_click_take(&clicked_choice)
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
                 && clicked_choice >= 0 && clicked_choice < n)
             {
                 k = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
                 ch = ' ';
             }
         }
@@ -17504,80 +17531,194 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
 }
 
 enum {
-    TOUCH_SETTING_SWIPE_ENABLED = 0,
-    TOUCH_SETTING_SWIPE_UP,
-    TOUCH_SETTING_SWIPE_DOWN,
-    TOUCH_SETTING_SWIPE_LEFT,
-    TOUCH_SETTING_SWIPE_RIGHT,
-    TOUCH_SETTING_SWIPE_UP_LEFT,
-    TOUCH_SETTING_SWIPE_UP_RIGHT,
-    TOUCH_SETTING_SWIPE_DOWN_LEFT,
-    TOUCH_SETTING_SWIPE_DOWN_RIGHT,
-    TOUCH_SETTING_SWIPE_COUNT
+    TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT = 0,
+    TOUCH_CONTROL_MENU_SUPPLY,
+    TOUCH_CONTROL_MENU_OTHER,
+    TOUCH_CONTROL_MOVEMENT,
+    TOUCH_CONTROL_SWIPE_ENABLED,
+    TOUCH_CONTROL_SWIPE_UP,
+    TOUCH_CONTROL_SWIPE_DOWN,
+    TOUCH_CONTROL_SWIPE_LEFT,
+    TOUCH_CONTROL_SWIPE_RIGHT,
+    TOUCH_CONTROL_SWIPE_UP_LEFT,
+    TOUCH_CONTROL_SWIPE_UP_RIGHT,
+    TOUCH_CONTROL_SWIPE_DOWN_LEFT,
+    TOUCH_CONTROL_SWIPE_DOWN_RIGHT,
+    TOUCH_CONTROL_COUNT
 };
 
-static bool touch_setting_is_swipe_row(int row)
+static bool touch_control_is_swipe_binding_row(int row)
 {
-    return (row >= 0 && row < TOUCH_SETTING_SWIPE_COUNT);
+    return row >= TOUCH_CONTROL_SWIPE_UP && row <= TOUCH_CONTROL_SWIPE_DOWN_RIGHT;
 }
 
-static int touch_setting_button_index(int row)
+static bool touch_control_is_menu_command_row(int row)
 {
-    return row - TOUCH_SETTING_SWIPE_COUNT;
+    return row >= TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT
+        && row <= TOUCH_CONTROL_MENU_OTHER;
 }
 
-static int touch_setting_total_rows(void)
-{
-    return TOUCH_SETTING_SWIPE_COUNT + SDL_TOUCH_PANE_BUTTON_COUNT;
-}
-
-static int touch_setting_swipe_dir_for_row(int row)
+static int touch_control_menu_category_for_row(int row)
 {
     switch (row) {
-    case TOUCH_SETTING_SWIPE_UP:
+    case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
+        return SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT;
+    case TOUCH_CONTROL_MENU_SUPPLY:
+        return SDL_TOUCH_MENU_CATEGORY_SUPPLY;
+    case TOUCH_CONTROL_MENU_OTHER:
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    default:
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+}
+
+static int touch_control_swipe_dir_for_row(int row)
+{
+    switch (row) {
+    case TOUCH_CONTROL_SWIPE_UP:
         return TOUCH_SWIPE_DIR_UP;
-    case TOUCH_SETTING_SWIPE_DOWN:
+    case TOUCH_CONTROL_SWIPE_DOWN:
         return TOUCH_SWIPE_DIR_DOWN;
-    case TOUCH_SETTING_SWIPE_LEFT:
+    case TOUCH_CONTROL_SWIPE_LEFT:
         return TOUCH_SWIPE_DIR_LEFT;
-    case TOUCH_SETTING_SWIPE_RIGHT:
+    case TOUCH_CONTROL_SWIPE_RIGHT:
         return TOUCH_SWIPE_DIR_RIGHT;
-    case TOUCH_SETTING_SWIPE_UP_LEFT:
+    case TOUCH_CONTROL_SWIPE_UP_LEFT:
         return TOUCH_SWIPE_DIR_UP_LEFT;
-    case TOUCH_SETTING_SWIPE_UP_RIGHT:
+    case TOUCH_CONTROL_SWIPE_UP_RIGHT:
         return TOUCH_SWIPE_DIR_UP_RIGHT;
-    case TOUCH_SETTING_SWIPE_DOWN_LEFT:
+    case TOUCH_CONTROL_SWIPE_DOWN_LEFT:
         return TOUCH_SWIPE_DIR_DOWN_LEFT;
-    case TOUCH_SETTING_SWIPE_DOWN_RIGHT:
+    case TOUCH_CONTROL_SWIPE_DOWN_RIGHT:
         return TOUCH_SWIPE_DIR_DOWN_RIGHT;
     default:
         return -1;
     }
 }
 
-static const char* touch_setting_swipe_name(int row)
+static const char* touch_control_row_name(int row)
 {
     switch (row) {
-    case TOUCH_SETTING_SWIPE_ENABLED:
+    case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
+        return "Inventory/Equipped Touch";
+    case TOUCH_CONTROL_MENU_SUPPLY:
+        return "Supply Touch";
+    case TOUCH_CONTROL_MENU_OTHER:
+        return "Other Menus Touch";
+    case TOUCH_CONTROL_MOVEMENT:
+        return "Touch Movement";
+    case TOUCH_CONTROL_SWIPE_ENABLED:
         return "Swipe Gestures";
-    case TOUCH_SETTING_SWIPE_UP:
+    case TOUCH_CONTROL_SWIPE_UP:
         return "Swipe Up";
-    case TOUCH_SETTING_SWIPE_DOWN:
+    case TOUCH_CONTROL_SWIPE_DOWN:
         return "Swipe Down";
-    case TOUCH_SETTING_SWIPE_LEFT:
+    case TOUCH_CONTROL_SWIPE_LEFT:
         return "Swipe Left";
-    case TOUCH_SETTING_SWIPE_RIGHT:
+    case TOUCH_CONTROL_SWIPE_RIGHT:
         return "Swipe Right";
-    case TOUCH_SETTING_SWIPE_UP_LEFT:
+    case TOUCH_CONTROL_SWIPE_UP_LEFT:
         return "Swipe Up-Left";
-    case TOUCH_SETTING_SWIPE_UP_RIGHT:
+    case TOUCH_CONTROL_SWIPE_UP_RIGHT:
         return "Swipe Up-Right";
-    case TOUCH_SETTING_SWIPE_DOWN_LEFT:
+    case TOUCH_CONTROL_SWIPE_DOWN_LEFT:
         return "Swipe Down-Left";
-    case TOUCH_SETTING_SWIPE_DOWN_RIGHT:
+    case TOUCH_CONTROL_SWIPE_DOWN_RIGHT:
         return "Swipe Down-Right";
     default:
         return "";
+    }
+}
+
+static const char* touch_movement_mode_label(int mode)
+{
+    switch (mode) {
+    case SDL_TOUCH_MOVEMENT_OFF:
+        return "Off";
+    case SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY:
+        return "Long click only";
+    case SDL_TOUCH_MOVEMENT_ON:
+    default:
+        return "On";
+    }
+}
+
+static int touch_movement_mode_cycle(int mode, int delta)
+{
+    static const int modes[] = {
+        SDL_TOUCH_MOVEMENT_ON,
+        SDL_TOUCH_MOVEMENT_OFF,
+        SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY,
+    };
+    int idx = 0;
+
+    for (int i = 0; i < (int)N_ELEMENTS(modes); i++) {
+        if (modes[i] == mode) {
+            idx = i;
+            break;
+        }
+    }
+
+    idx = ((idx + delta) % (int)N_ELEMENTS(modes) + (int)N_ELEMENTS(modes))
+        % (int)N_ELEMENTS(modes);
+    return modes[idx];
+}
+
+static const char* mouse_movement_mode_label(int mode)
+{
+    switch (mode) {
+    case SDL_MOUSE_MOVEMENT_OFF:
+        return "Off";
+    case SDL_MOUSE_MOVEMENT_RIGHT_ONLY:
+        return "Right click only";
+    case SDL_MOUSE_MOVEMENT_ON:
+    default:
+        return "On";
+    }
+}
+
+static int mouse_movement_mode_cycle(int mode, int delta)
+{
+    static const int modes[] = {
+        SDL_MOUSE_MOVEMENT_ON,
+        SDL_MOUSE_MOVEMENT_OFF,
+        SDL_MOUSE_MOVEMENT_RIGHT_ONLY,
+    };
+    int idx = 0;
+
+    for (int i = 0; i < (int)N_ELEMENTS(modes); i++) {
+        if (modes[i] == mode) {
+            idx = i;
+            break;
+        }
+    }
+
+    idx = ((idx + delta) % (int)N_ELEMENTS(modes) + (int)N_ELEMENTS(modes))
+        % (int)N_ELEMENTS(modes);
+    return modes[idx];
+}
+
+static void touch_control_reset_to_default(void)
+{
+    for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++) {
+        set_sdl_touch_menu_commands_enabled(i,
+            get_sdl_touch_menu_commands_default_enabled(i));
+    }
+    set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+    set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+    for (int i = 0; i < TOUCH_SWIPE_DIR_COUNT; i++)
+        set_sdl_touch_swipe_binding(i, get_sdl_touch_swipe_default_binding(i));
+}
+
+static void touch_pane_reset_buttons_to_default(void)
+{
+    for (int panel = 0; panel < SDL_TOUCH_PANE_PANEL_COUNT; panel++) {
+        set_sdl_touch_pane_panel_name(panel, "");
+        for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++) {
+            set_sdl_touch_pane_binding_for_panel(panel, i,
+                get_sdl_touch_pane_default_binding_for_panel(panel, i));
+            clear_sdl_touch_pane_button_label_for_panel(panel, i);
+        }
     }
 }
 
@@ -17598,7 +17739,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         int row;
         int visible_rows;
         int row_width;
-        int total_rows = touch_setting_total_rows();
+        int total_rows = SDL_TOUCH_PANE_BUTTON_COUNT;
 
         Term_get_size(&term_w, &term_h);
         row_width = settings_ui_line_width(2);
@@ -17620,8 +17761,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         Term_clear();
         ui_menu_click_begin();
-        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Settings");
-        settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
+        ui_menu_click_set_hover_enabled(true);
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Panel");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "===========");
 
         row = list_start_row;
         for (int i = top; i < total_rows && i < top + visible_rows; i++)
@@ -17631,38 +17773,18 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char left_buf[64];
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
+            int button_index = i;
 
-            if (touch_setting_is_swipe_row(i))
-            {
-                int swipe_dir = touch_setting_swipe_dir_for_row(i);
+            get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
+            touch_pane_action_label_for_panel(panel,
+                get_sdl_touch_pane_binding_for_panel(panel, button_index), action_buf, sizeof(action_buf));
 
-                strnfmt(left_buf, sizeof(left_buf), "%s", touch_setting_swipe_name(i));
-                if (i == TOUCH_SETTING_SWIPE_ENABLED)
-                {
-                    SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
-                        sizeof(action_buf));
-                }
-                else
-                {
-                    touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
-                        get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
-                }
-            }
+            if (label_buf[0])
+                strnfmt(left_buf, sizeof(left_buf), "%s %s",
+                    get_sdl_touch_pane_slot_name(button_index), label_buf);
             else
-            {
-                int button_index = touch_setting_button_index(i);
-
-                get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
-                touch_pane_action_label_for_panel(panel,
-                    get_sdl_touch_pane_binding_for_panel(panel, button_index), action_buf, sizeof(action_buf));
-
-                if (label_buf[0])
-                    strnfmt(left_buf, sizeof(left_buf), "%s %s",
-                        get_sdl_touch_pane_slot_name(button_index), label_buf);
-                else
-                    strnfmt(left_buf, sizeof(left_buf), "%s",
-                        get_sdl_touch_pane_slot_name(button_index));
-            }
+                strnfmt(left_buf, sizeof(left_buf), "%s",
+                    get_sdl_touch_pane_slot_name(button_index));
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
                 action_buf, row_width, 14);
@@ -17677,7 +17799,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char info_buf[96];
 
             get_sdl_touch_pane_panel_name(panel, panel_name, sizeof(panel_name));
-            strnfmt(info_buf, sizeof(info_buf), "Swipe settings are global. Editing %s panel%s",
+            strnfmt(info_buf, sizeof(info_buf), "Editing %s panel%s",
                 panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
             settings_ui_put_fitted(3, 2, TERM_SLATE, info_buf);
         }
@@ -17688,14 +17810,14 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                 "Up/Down select   4/6 action"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Space on Swipe Gestures toggles on/off   Tab switches button panel   x resets selected",
-                "Space toggles swipes   Tab switch   x reset",
-                "Space toggles   Tab switch   x reset"));
+                "Space cycles selected   Tab switches button panel   x resets selected",
+                "Space cycles   Tab switch   x reset",
+                "Space cycles   Tab switch"));
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "p/Hero: rename panel   M/Map: reset all   Main panel must keep Pick/Confirm",
-                "p rename panel   Map reset all   Keep main confirm",
-                "p rename   Map all   Keep confirm"));
+                "p/Hero: rename panel   M/Map: reset all panel buttons   Main panel must keep Pick/Confirm",
+                "p rename panel   Map reset panel   Keep main confirm",
+                "p rename   Map reset   Keep confirm"));
 
         Term_fresh();
 
@@ -17705,10 +17827,14 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         {
             int clicked_choice = 0;
-            if (ui_menu_click_take(&clicked_choice)
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
                 && clicked_choice >= 0 && clicked_choice < total_rows)
             {
                 highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
                 ch = ' ';
             }
         }
@@ -17739,42 +17865,20 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'n':
         case '4':
         {
-            if (touch_setting_is_swipe_row(highlight))
-            {
-                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
+            int button_index = highlight;
+            int choice_count = 0;
+            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            int idx = touch_pane_action_choice_index(panel,
+                get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
-                {
-                    set_sdl_touch_swipe_enabled(false);
-                }
-                else
-                {
-                    int choice_count = 0;
-                    const int* choices = touch_swipe_action_choices(&choice_count);
-                    int idx = touch_action_choice_index(choices, choice_count,
-                        get_sdl_touch_swipe_binding(swipe_dir));
+            idx = (choice_count + idx - 1) % choice_count;
 
-                    idx = (choice_count + idx - 1) % choice_count;
-                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
-                }
+            if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                bell("Bind Pick/Confirm to another main-panel button first.");
+                break;
             }
-            else
-            {
-                int button_index = touch_setting_button_index(highlight);
-                int choice_count = 0;
-                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-                int idx = touch_pane_action_choice_index(panel,
-                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-                idx = (choice_count + idx - 1) % choice_count;
-
-                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
-                    bell("Bind Pick/Confirm to another main-panel button first.");
-                    break;
-                }
-
-                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
-            }
+            set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
             changed = true;
             break;
         }
@@ -17785,42 +17889,20 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            if (touch_setting_is_swipe_row(highlight))
-            {
-                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
+            int button_index = highlight;
+            int choice_count = 0;
+            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            int idx = touch_pane_action_choice_index(panel,
+                get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
-                {
-                    set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
-                }
-                else
-                {
-                    int choice_count = 0;
-                    const int* choices = touch_swipe_action_choices(&choice_count);
-                    int idx = touch_action_choice_index(choices, choice_count,
-                        get_sdl_touch_swipe_binding(swipe_dir));
+            idx = (idx + 1) % choice_count;
 
-                    idx = (idx + 1) % choice_count;
-                    set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
-                }
+            if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
+                bell("Bind Pick/Confirm to another main-panel button first.");
+                break;
             }
-            else
-            {
-                int button_index = touch_setting_button_index(highlight);
-                int choice_count = 0;
-                const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-                int idx = touch_pane_action_choice_index(panel,
-                    get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
-                idx = (idx + 1) % choice_count;
-
-                if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
-                    bell("Bind Pick/Confirm to another main-panel button first.");
-                    break;
-                }
-
-                set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
-            }
+            set_sdl_touch_pane_binding_for_panel(panel, button_index, choices[idx]);
             changed = true;
             break;
         }
@@ -17837,13 +17919,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_buf[96];
             int button_index;
 
-            if (touch_setting_is_swipe_row(highlight))
-            {
-                bell("Swipe labels are fixed.");
-                break;
-            }
-
-            button_index = touch_setting_button_index(highlight);
+            button_index = highlight;
 
             get_sdl_touch_pane_button_label_for_panel(panel, button_index, current_label, sizeof(current_label));
             strnfmt(prompt_long, sizeof(prompt_long),
@@ -17906,19 +17982,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'r':
         case 'x':
         case 'X':
-            if (touch_setting_is_swipe_row(highlight))
             {
-                int swipe_dir = touch_setting_swipe_dir_for_row(highlight);
-
-                if (highlight == TOUCH_SETTING_SWIPE_ENABLED)
-                    set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
-                else
-                    set_sdl_touch_swipe_binding(swipe_dir,
-                        get_sdl_touch_swipe_default_binding(swipe_dir));
-            }
-            else
-            {
-                int button_index = touch_setting_button_index(highlight);
+                int button_index = highlight;
 
                 if (!touch_pane_main_confirm_change_allowed(panel, button_index,
                         get_sdl_touch_pane_default_binding_for_panel(panel, button_index))) {
@@ -17935,12 +18000,12 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
         case 'R':
         case 'M':
-            sdl_touch_pane_reset_bindings_to_default();
+            touch_pane_reset_buttons_to_default();
             changed = true;
             break;
 
         default:
-            bell("Illegal command for touch settings!");
+            bell("Illegal command for touch panel settings!");
             break;
         }
     }
@@ -17950,6 +18015,354 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         if (settings_changed)
             *settings_changed = true;
     }
+
+    ui_menu_click_clear();
+    screen_load();
+}
+
+static void do_cmd_touch_control_settings(bool* settings_changed)
+{
+    int highlight = 0;
+    int top = 0;
+    bool done = false;
+    bool changed = false;
+    int term_w, term_h;
+    const int list_start_row = 5;
+
+    screen_save();
+
+    while (!done)
+    {
+        int row;
+        int visible_rows;
+        int row_width;
+        int total_rows = TOUCH_CONTROL_COUNT;
+
+        Term_get_size(&term_w, &term_h);
+        row_width = settings_ui_line_width(2);
+        visible_rows = term_h - list_start_row - 5;
+        if (visible_rows < 5)
+            visible_rows = 5;
+
+        if (highlight < 0)
+            highlight = 0;
+        if (highlight >= total_rows)
+            highlight = total_rows - 1;
+
+        if (top > highlight)
+            top = highlight;
+        if (top + visible_rows <= highlight)
+            top = highlight - visible_rows + 1;
+        if (top < 0)
+            top = 0;
+
+        Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Control");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "=============");
+        settings_ui_put_fitted(3, 2, TERM_SLATE,
+            "Controls touch menus by category, map movement, and swipe gestures.");
+
+        row = list_start_row;
+        for (int i = top; i < total_rows && i < top + visible_rows; i++)
+        {
+            char action_buf[80];
+            char line_buf[128];
+            byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
+
+            if (touch_control_is_menu_command_row(i)) {
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_menu_commands_enabled(
+                        touch_control_menu_category_for_row(i)) ? "On" : "Off",
+                    sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_MOVEMENT) {
+                SDL_strlcpy(action_buf,
+                    touch_movement_mode_label(get_sdl_touch_movement_mode()),
+                    sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_SWIPE_ENABLED) {
+                SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
+                    sizeof(action_buf));
+            } else {
+                int swipe_dir = touch_control_swipe_dir_for_row(i);
+
+                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                    get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
+            }
+
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf),
+                touch_control_row_name(i), action_buf, row_width, 18);
+            c_prt(a, line_buf, row, 2);
+            ui_menu_click_add(i, 2, row, (int)strlen(line_buf));
+            row++;
+        }
+
+        row = list_start_row + visible_rows + 1;
+        settings_ui_put_fitted(row++, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "Up/Down: select item   4/6: previous/next value   Space toggles or cycles",
+                "Up/Down select   4/6 value   Space toggles/cycles",
+                "Up/Down select   4/6 value"));
+        settings_ui_put_fitted(row++, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "x resets selected   M/Map resets all touch control settings",
+                "x reset selected   Map reset all",
+                "x reset   Map all"));
+
+        Term_fresh();
+
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && clicked_choice >= 0 && clicked_choice < total_rows)
+            {
+                highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
+                ch = ' ';
+            }
+        }
+
+        {
+            int dir = target_dir(ch);
+            if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+                ch = I2D(dir);
+        }
+
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+            done = true;
+            break;
+
+        case '-':
+        case '8':
+            highlight = (total_rows + highlight - 1) % total_rows;
+            break;
+
+        case '2':
+            highlight = (highlight + 1) % total_rows;
+            break;
+
+        case 'n':
+        case '4':
+            if (touch_control_is_menu_command_row(highlight)) {
+                set_sdl_touch_menu_commands_enabled(
+                    touch_control_menu_category_for_row(highlight), false);
+            } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
+                set_sdl_touch_movement_mode(
+                    touch_movement_mode_cycle(get_sdl_touch_movement_mode(), -1));
+            } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
+                set_sdl_touch_swipe_enabled(false);
+            } else if (touch_control_is_swipe_binding_row(highlight)) {
+                int choice_count = 0;
+                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
+                const int* choices = touch_swipe_action_choices(&choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_swipe_binding(swipe_dir));
+
+                idx = (choice_count + idx - 1) % choice_count;
+                set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+            }
+            changed = true;
+            break;
+
+        case 'y':
+        case '6':
+        case ' ':
+        case 't':
+        case '5':
+            if (touch_control_is_menu_command_row(highlight)) {
+                int category = touch_control_menu_category_for_row(highlight);
+
+                set_sdl_touch_menu_commands_enabled(category,
+                    !get_sdl_touch_menu_commands_enabled(category));
+            } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
+                set_sdl_touch_movement_mode(
+                    touch_movement_mode_cycle(get_sdl_touch_movement_mode(), 1));
+            } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
+                set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
+            } else if (touch_control_is_swipe_binding_row(highlight)) {
+                int choice_count = 0;
+                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
+                const int* choices = touch_swipe_action_choices(&choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_swipe_binding(swipe_dir));
+
+                idx = (idx + 1) % choice_count;
+                set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+            }
+            changed = true;
+            break;
+
+        case 'r':
+        case 'x':
+        case 'X':
+            if (touch_control_is_menu_command_row(highlight)) {
+                int category = touch_control_menu_category_for_row(highlight);
+
+                set_sdl_touch_menu_commands_enabled(
+                    category, get_sdl_touch_menu_commands_default_enabled(category));
+            } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
+                set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+            } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
+                set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+            } else if (touch_control_is_swipe_binding_row(highlight)) {
+                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
+
+                set_sdl_touch_swipe_binding(swipe_dir,
+                    get_sdl_touch_swipe_default_binding(swipe_dir));
+            }
+            changed = true;
+            break;
+
+        case 'R':
+        case 'M':
+            touch_control_reset_to_default();
+            changed = true;
+            break;
+
+        default:
+            bell("Illegal command for touch control settings!");
+            break;
+        }
+    }
+
+    if (changed && settings_changed)
+        *settings_changed = true;
+
+    ui_menu_click_clear();
+    screen_load();
+}
+
+static void do_cmd_mouse_settings(bool* settings_changed)
+{
+    enum {
+        MOUSE_SETTING_MOVEMENT = 0,
+        MOUSE_SETTING_COUNT
+    };
+    int highlight = 0;
+    bool done = false;
+    bool changed = false;
+    const int list_start_row = 5;
+
+    screen_save();
+
+    while (!done)
+    {
+        int row_width;
+        char action_buf[80];
+        char line_buf[128];
+        byte a;
+
+        row_width = settings_ui_line_width(2);
+
+        Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Mouse Settings");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
+        settings_ui_put_fitted(3, 2, TERM_SLATE,
+            "Controls desktop mouse map movement.");
+
+        a = (highlight == MOUSE_SETTING_MOVEMENT) ? TERM_L_BLUE : TERM_WHITE;
+        SDL_strlcpy(action_buf,
+            mouse_movement_mode_label(get_sdl_mouse_movement_mode()),
+            sizeof(action_buf));
+        settings_ui_format_pair_line(line_buf, sizeof(line_buf),
+            "Mouse Movement", action_buf, row_width, 18);
+        c_prt(a, line_buf, list_start_row, 2);
+        ui_menu_click_add(MOUSE_SETTING_MOVEMENT, 2, list_start_row,
+            (int)strlen(line_buf));
+
+        settings_ui_put_fitted(list_start_row + 3, 2, TERM_SLATE,
+            settings_ui_pick_label(row_width,
+                "4/6: previous/next value   Space cycles   x resets selected",
+                "4/6 value   Space cycles   x reset",
+                "4/6 value   Space   x"));
+
+        Term_fresh();
+
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && clicked_choice >= 0 && clicked_choice < MOUSE_SETTING_COUNT)
+            {
+                highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
+                ch = ' ';
+            }
+        }
+
+        {
+            int dir = target_dir(ch);
+            if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+                ch = I2D(dir);
+        }
+
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+            done = true;
+            break;
+
+        case '-':
+        case '8':
+        case '2':
+            highlight = MOUSE_SETTING_MOVEMENT;
+            break;
+
+        case 'n':
+        case '4':
+            set_sdl_mouse_movement_mode(
+                mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), -1));
+            changed = true;
+            break;
+
+        case 'y':
+        case '6':
+        case ' ':
+        case 't':
+        case '5':
+            set_sdl_mouse_movement_mode(
+                mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), 1));
+            changed = true;
+            break;
+
+        case 'r':
+        case 'x':
+        case 'X':
+        case 'R':
+        case 'M':
+            set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
+            changed = true;
+            break;
+
+        default:
+            bell("Illegal command for mouse settings!");
+            break;
+        }
+    }
+
+    if (changed && settings_changed)
+        *settings_changed = true;
 
     ui_menu_click_clear();
     screen_load();
@@ -17991,6 +18404,7 @@ static int legacy_options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Legacy Options");
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     line_row = row++;
     Term_putstr(2, line_row, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
@@ -18042,8 +18456,16 @@ static int legacy_options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if (ui_menu_click_take(&clicked_choice))
-        *highlight = clicked_choice;
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+        }
+    }
 
     if ((ch == 'j') || (ch == 'J'))
     {
@@ -18233,6 +18655,7 @@ int options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Input Options");
     line_row = row++;
@@ -18314,8 +18737,16 @@ int options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if (ui_menu_click_take(&clicked_choice))
-        *highlight = clicked_choice;
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+        }
+    }
 
     if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
@@ -18410,7 +18841,7 @@ int options_menu(int* highlight)
 static int input_options_menu(int* highlight)
 {
     int ch;
-    int options = 4;
+    int options = 6;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -18433,6 +18864,7 @@ static int input_options_menu(int* highlight)
 
     Term_putstr(2, title_row, -1, TERM_WHITE, "Input Options");
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     keyed_menu_entry_label(line_buf, sizeof(line_buf), 'a', "Set Keybinds");
     line_row = row++;
@@ -18445,17 +18877,27 @@ static int input_options_menu(int* highlight)
     Term_putstr(2, line_row, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
     ui_menu_click_add(2, 2, line_row, (int)strlen(line_buf));
-    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Touch Settings");
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'c', "Touch Panel");
     line_row = row++;
     Term_putstr(2, line_row, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
     ui_menu_click_add(3, 2, line_row, (int)strlen(line_buf));
-    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o',
-        "Return to Options");
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'd', "Touch Control");
     line_row = row++;
     Term_putstr(2, line_row, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
     ui_menu_click_add(4, 2, line_row, (int)strlen(line_buf));
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Mouse Settings");
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+    ui_menu_click_add(5, 2, line_row, (int)strlen(line_buf));
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'o',
+        "Return to Options");
+    line_row = row++;
+    Term_putstr(2, line_row, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
+        line_buf);
+    ui_menu_click_add(6, 2, line_row, (int)strlen(line_buf));
 
     Term_fresh();
     Term_gotoxy(2, title_row + 1 + *highlight);
@@ -18464,8 +18906,16 @@ static int input_options_menu(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if (ui_menu_click_take(&clicked_choice))
-        *highlight = clicked_choice;
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+        }
+    }
 
     if (!steamdeck && ((ch == 'a') || (ch == 'A')))
     {
@@ -18485,11 +18935,23 @@ static int input_options_menu(int* highlight)
         return (3);
     }
 
-    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
-        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
+    if (!steamdeck && ((ch == 'd') || (ch == 'D')))
     {
         *highlight = 4;
         return (4);
+    }
+
+    if (!steamdeck && ((ch == 'e') || (ch == 'E')))
+    {
+        *highlight = 5;
+        return (5);
+    }
+
+    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
+    {
+        *highlight = 6;
+        return (6);
     }
 
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
@@ -18538,6 +19000,14 @@ static void do_cmd_input_options_submenu(int* highlight)
             Term_clear();
             break;
         case 4:
+            do_cmd_touch_control_settings(NULL);
+            Term_clear();
+            break;
+        case 5:
+            do_cmd_mouse_settings(NULL);
+            Term_clear();
+            break;
+        case 6:
             return_to_options = true;
             Term_clear();
             break;
@@ -19115,6 +19585,7 @@ void do_cmd_keybinds(void)
         /* Clear screen */
         Term_clear();
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Title */
         settings_ui_put_fitted(1, 0, TERM_WHITE, "Keybind Configuration");
@@ -19211,11 +19682,15 @@ void do_cmd_keybinds(void)
 
         {
             int clicked_choice = 0;
-            if (ui_menu_click_take(&clicked_choice)
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
                 && clicked_choice >= 0 && clicked_choice < num_keybinds)
             {
                 highlight = clicked_choice;
                 *highlight_ptr = highlight;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
                 ch = '\r';
             }
         }
@@ -20638,6 +21113,7 @@ void do_cmd_controller_settings(void)
 
         Term_clear();
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         settings_ui_put_fitted(1, 0, TERM_WHITE, "Controller Settings");
         if (steamdeck) {
             char confirm_label[16];
@@ -20721,10 +21197,14 @@ void do_cmd_controller_settings(void)
 
         {
             int clicked_choice = 0;
-            if (ui_menu_click_take(&clicked_choice)
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
                 && clicked_choice >= 0 && clicked_choice < entry_count)
             {
                 highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_PRIMARY)
+                    continue;
                 ch = '\r';
             }
         }
@@ -27635,6 +28115,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
 
         if (!single_column || !column)
         {
@@ -27749,6 +28231,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     {
                         entry_cur = clicked_entry;
                         column = 1;
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
                         ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r' : 'u';
                     }
                 }

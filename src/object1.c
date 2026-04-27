@@ -13,6 +13,7 @@
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-config.h"
 #include "supplies.h"
 #include "item_set.h"
 #include "cJSON.h"
@@ -6826,6 +6827,8 @@ void show_inven_enhanced(void)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         bool square_selection = inventory_selection_uses_square();
 
         /* Show the prompt - different text based on how menu was opened */
@@ -7358,6 +7361,9 @@ void show_inven_enhanced(void)
                 highlight_active = true;
                 enhanced_inventory_selected_item = out_index[highlight_row];
 
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
                 if (click_action == UI_MENU_CLICK_SECONDARY)
                 {
                     done = true;
@@ -7796,6 +7802,8 @@ void show_equip_enhanced(void)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         bool square_selection = inventory_selection_uses_square();
 
         /* Display equipment list */
@@ -8000,6 +8008,9 @@ void show_equip_enhanced(void)
                     highlight_index = clicked_row;
                     highlight_active = true;
                     enhanced_equipment_selected_item = clicked_slot;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
                     done = true;
                     enhanced_equip_action = (click_action == UI_MENU_CLICK_SECONDARY)
                         ? ENHANCED_ACTION_EXAMINE

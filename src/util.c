@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-config.h"
 #include "sdl-sound.h"
 #include <SDL3/SDL.h>
 
@@ -38,6 +39,9 @@ static bool ui_menu_click_active = false;
 static bool ui_menu_click_pending = false;
 static int ui_menu_click_pending_choice = 0;
 static int ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+static bool ui_menu_click_hover_enabled = false;
+static bool ui_menu_click_hover_wake_pending = false;
+static int ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 
 void ui_menu_click_clear(void)
 {
@@ -46,6 +50,9 @@ void ui_menu_click_clear(void)
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    ui_menu_click_hover_enabled = false;
+    ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
 void ui_menu_click_begin(void)
@@ -55,6 +62,40 @@ void ui_menu_click_begin(void)
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    ui_menu_click_hover_enabled = false;
+    ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+}
+
+void ui_menu_click_set_hover_enabled(bool enabled)
+{
+    ui_menu_click_hover_enabled = enabled;
+    if (!enabled && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+        ui_menu_click_hover_wake_pending = false;
+    }
+}
+
+void ui_menu_click_set_touch_category(int category)
+{
+    if (category < 0 || category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+        category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+
+    ui_menu_click_touch_category = category;
+}
+
+int ui_menu_click_get_touch_category(void)
+{
+    if (ui_menu_click_touch_category < 0
+        || ui_menu_click_touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+    {
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+
+    return ui_menu_click_touch_category;
 }
 
 void ui_menu_click_add(int choice, int col, int row, int width)
@@ -119,6 +160,37 @@ bool ui_menu_click_has_cell(int col, int row)
     return ui_menu_click_find_cell(col, row) != NULL;
 }
 
+bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
+{
+    const ui_menu_click_entry* entry = NULL;
+
+    if (wake)
+        *wake = false;
+
+    if (!ui_menu_click_hover_enabled)
+        return false;
+
+    entry = ui_menu_click_find_cell(col, row);
+    if (!entry)
+        return false;
+
+    if (ui_menu_click_pending && ui_menu_click_pending_action != UI_MENU_CLICK_HOVER)
+        return true;
+
+    ui_menu_click_pending = true;
+    ui_menu_click_pending_choice = entry->choice;
+    ui_menu_click_pending_action = UI_MENU_CLICK_HOVER;
+
+    if (!ui_menu_click_hover_wake_pending)
+    {
+        if (wake)
+            *wake = true;
+        ui_menu_click_hover_wake_pending = true;
+    }
+
+    return true;
+}
+
 bool ui_menu_click_handle_cell_action(int col, int row, int action)
 {
     const ui_menu_click_entry* entry = ui_menu_click_find_cell(col, row);
@@ -126,8 +198,13 @@ bool ui_menu_click_handle_cell_action(int col, int row, int action)
     if (!entry)
         return false;
 
-    if (action != UI_MENU_CLICK_SECONDARY)
+    if (action != UI_MENU_CLICK_SECONDARY && action != UI_MENU_CLICK_HOVER)
         action = UI_MENU_CLICK_PRIMARY;
+
+    if (action == UI_MENU_CLICK_HOVER && !ui_menu_click_hover_enabled)
+        return false;
+    if (action != UI_MENU_CLICK_HOVER)
+        ui_menu_click_hover_wake_pending = false;
 
     ui_menu_click_pending = true;
     ui_menu_click_pending_choice = entry->choice;
@@ -149,6 +226,8 @@ bool ui_menu_click_take_action(int* choice, int* action)
         *choice = ui_menu_click_pending_choice;
     if (action)
         *action = ui_menu_click_pending_action;
+
+    ui_menu_click_hover_wake_pending = false;
 
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
