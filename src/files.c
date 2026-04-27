@@ -5920,6 +5920,9 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case 'L':
         SDL_strlcpy(buf, "Pan view (L)", buflen);
         return;
+    case KTRL('Q'):
+        SDL_strlcpy(buf, "Combat rolls (^Q)", buflen);
+        return;
     case '0':
         SDL_strlcpy(buf, "Smithing screen (0)", buflen);
         return;
@@ -6132,6 +6135,9 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case 'L':
         SDL_strlcpy(buf, "Pan", buflen);
+        return;
+    case KTRL('Q'):
+        SDL_strlcpy(buf, "Combat", buflen);
         return;
     case '0':
         SDL_strlcpy(buf, "Smithing", buflen);

@@ -17184,7 +17184,7 @@ static const int touch_pane_main_action_choices[] = {
     'o', 'c', 'D', 'X',
     '-', '{', 'a', KTRL('A'), 'E', 't', 'p', 'q',
     'F', KTRL('F'), 'S', 'l', 'b', 'L',
-    '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
+    KTRL('Q'), '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
 static const int touch_pane_second_action_choices[] = {
@@ -17202,7 +17202,7 @@ static const int touch_pane_second_action_choices[] = {
     'o', 'c', 'D', 'X',
     '-', '{', 'a', KTRL('A'), 'E', 't', 'p', 'q',
     'F', KTRL('F'), 'S', 'l', 'b', 'L',
-    '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
+    KTRL('Q'), '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
 static const int* touch_pane_action_choices_for_panel(int panel, int* count)
@@ -18708,6 +18708,7 @@ void do_cmd_keybinds(void)
         {'q', NULL, "Quaff potion", "q", false},
         {'M', NULL, "View map", "M", false},
         {'L', NULL, "Pan", "L", false},
+        {KTRL('Q'), NULL, "Combat rolls", "\021", false},
         {'0', NULL, "Smithing screen", "0", false},
         {'<', NULL, "Go upstairs", "<", false},
         {'>', NULL, "Go downstairs", ">", false},
@@ -20258,6 +20259,7 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, 'q', "Quaff potion" },
         { CONTROLLER_ENTRY_ACTION, 'M', "View map" },
         { CONTROLLER_ENTRY_ACTION, 'L', "Pan view" },
+        { CONTROLLER_ENTRY_ACTION, KTRL('Q'), "Combat rolls" },
         { CONTROLLER_ENTRY_ACTION, '0', "Smithing screen" },
         { CONTROLLER_ENTRY_ACTION, '<', "Go upstairs" },
         { CONTROLLER_ENTRY_ACTION, '>', "Go downstairs" },

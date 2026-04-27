@@ -2352,6 +2352,13 @@ static void process_command(void)
         break;
     }
 
+    /* Show combat rolls */
+    case KTRL('Q'):
+    {
+        do_cmd_combat_history();
+        break;
+    }
+
     /* Redraw the screen */
     case KTRL('R'):
     {
@@ -2453,6 +2460,7 @@ static bool death_spectator_command_allowed(int command)
     case KTRL('E'):
     case KTRL('O'):
     case KTRL('P'):
+    case KTRL('Q'):
     case KTRL('R'):
     case ESCAPE:
         return true;

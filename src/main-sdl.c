@@ -14,6 +14,12 @@
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#if defined(SDL_PLATFORM_WINDOWS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #if defined(SDL_PLATFORM_ANDROID)
 #include <jni.h>
 #endif
@@ -406,6 +412,7 @@ static bool g_touch_pane_ctrl_toggle = false;
 static bool g_touch_pane_reset_confirm_active = false;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
+static bool g_direct_touch_present = SIL_SDL_MOBILE_BUILD ? true : false;
 static int g_auto_aux_main_cell_h_override = 0;
 
 static sdl_view* sdl_view_from_term(term* t);
@@ -521,6 +528,8 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press);
 static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press);
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
+static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
+static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
 static bool sdl_is_log_pane_active(void);
 static bool sdl_is_bottom_log_pane_active(void);
 static void sdl_handle_log_pane_activation(bool log_was_active, bool bottom_log_was_active);
@@ -1617,24 +1626,65 @@ static int sdl_touch_pane_effective_binding_for_panel(int panel, int index)
     return binding;
 }
 
+static bool sdl_query_direct_touch_present(void)
+{
+#if SIL_SDL_MOBILE_BUILD
+    return true;
+#elif defined(SDL_PLATFORM_WINDOWS)
+    int digitizer = GetSystemMetrics(SM_DIGITIZER);
+    bool ready = (digitizer & NID_READY) != 0;
+    bool has_touch = (digitizer & (NID_INTEGRATED_TOUCH | NID_EXTERNAL_TOUCH)) != 0;
+
+    log_debug("Windows digitizer flags: 0x%x", digitizer);
+    return ready && has_touch;
+#else
+    SDL_TouchID* devices;
+    int count = 0;
+    bool present = false;
+
+    devices = SDL_GetTouchDevices(&count);
+    if (!devices)
+        return false;
+
+    for (int i = 0; i < count; i++) {
+        if (devices[i] == SDL_MOUSE_TOUCHID || devices[i] == SDL_PEN_TOUCHID)
+            continue;
+        if (SDL_GetTouchDeviceType(devices[i]) == SDL_TOUCH_DEVICE_DIRECT) {
+            present = true;
+            break;
+        }
+    }
+
+    SDL_free(devices);
+    return present;
+#endif
+}
+
+static bool sdl_refresh_direct_touch_present(void)
+{
+    bool present = sdl_query_direct_touch_present();
+    bool changed = (g_direct_touch_present != present);
+
+    g_direct_touch_present = present;
+    return changed;
+}
+
+static void sdl_note_touch_event_device(SDL_TouchID touch_id)
+{
+    if (g_direct_touch_present)
+        return;
+    if (touch_id == SDL_MOUSE_TOUCHID || touch_id == SDL_PEN_TOUCHID)
+        return;
+    if (SDL_GetTouchDeviceType(touch_id) != SDL_TOUCH_DEVICE_DIRECT)
+        return;
+
+    g_direct_touch_present = true;
+    sdl_update_cursor_visibility();
+}
+
 static void sdl_update_cursor_visibility(void)
 {
-    bool show_cursor = true;
-    bool show_supporting_panes = sdl_should_show_supporting_panes();
-
-    if (config.fullscreen) {
-        SDL_Rect panes[PANE_MAX];
-        const SDL_Rect* touch_pane;
-
-        if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
-            touch_pane = &g_pane_rects[PANE_TOUCH];
-        } else {
-            sdl_compute_display_panes(panes);
-            touch_pane = &panes[PANE_TOUCH];
-        }
-
-        show_cursor = (touch_pane->w > 0 && sdl_touch_pane_is_config_enabled());
-    }
+    bool show_cursor = !(config.fullscreen && g_direct_touch_present);
 
     if (show_cursor)
         SDL_ShowCursor();
@@ -3027,6 +3077,122 @@ static void sdl_touch_pane_display_label_for_slot(int panel, int index, char* bu
     buf[0] = '\0';
 
     sdl_touch_pane_base_label_for_slot(panel, index, buf, buflen);
+}
+
+static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    float grid_x;
+    float grid_y;
+    float grid_w;
+    float grid_h;
+
+    if (!out_col || !out_row)
+        return false;
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0 || view->cols <= 0 || view->rows <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    grid_w = (float)(view->cols * view->cell_w);
+    grid_h = (float)(view->rows * view->cell_h);
+
+    if (x < grid_x || y < grid_y || x >= grid_x + grid_w || y >= grid_y + grid_h)
+        return false;
+
+    *out_col = (int)((x - grid_x) / (float)view->cell_w);
+    *out_row = (int)((y - grid_y) / (float)view->cell_h);
+    return (*out_col >= 0 && *out_col < view->cols && *out_row >= 0 && *out_row < view->rows);
+}
+
+static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
+{
+    const sdl_view* view;
+
+    if (pane < PANE_MAIN || pane >= PANE_MAX)
+        return false;
+
+    view = &g_views[pane];
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->rect.w <= 0 || view->rect.h <= 0)
+        return false;
+
+    return x >= (float)view->rect.x
+        && y >= (float)view->rect.y
+        && x < (float)(view->rect.x + view->rect.w)
+        && y < (float)(view->rect.y + view->rect.h);
+}
+
+static bool sdl_main_screen_click_shortcuts_active(void)
+{
+    return character_generated
+        && character_dungeon
+        && p_ptr
+        && inkey_flag
+        && character_icky == 0
+        && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
+{
+    if (col < 0 || row < 0)
+        return false;
+
+    if (!get_sdl_hide_left_panel())
+        return (row > 0 && col < COL_MAP);
+
+    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE)
+        return (row == ROW_NAME && col < g_hidden_left_panel_overlay_widths[0]);
+
+    if (row >= g_hidden_left_panel_overlay_rows || row >= 16)
+        return false;
+
+    return (col < g_hidden_left_panel_overlay_widths[row]);
+}
+
+static void sdl_enqueue_bypassed_command(int command)
+{
+    Term_keypress('\\');
+    Term_keypress(command);
+}
+
+static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (!sdl_main_screen_cell_hits_character_panel(col, row))
+        return false;
+
+    sdl_enqueue_bypassed_command('h');
+    return true;
+}
+
+static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
+{
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_should_show_supporting_panes())
+        return false;
+
+    if (sdl_point_in_view_rect(PANE_LOG, x, y)) {
+        Term_keypress(KTRL('P'));
+        return true;
+    }
+
+    if (sdl_point_in_view_rect(PANE_ROLLS, x, y)) {
+        sdl_enqueue_bypassed_command(KTRL('Q'));
+        return true;
+    }
+
+    return false;
 }
 
 static void sdl_touch_pane_send_confirm_action(void)
@@ -5203,6 +5369,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 
             if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
                 return;
+            sdl_note_touch_event_device(ev->tfinger.touchID);
             SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
             sdl_touch_pane_handle_reset_prompt_pointer(ev->tfinger.x * (float)window_w,
                 ev->tfinger.y * (float)window_h);
@@ -5216,6 +5383,16 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             if (sdl_touch_pane_handle_pointer_down((float)ev->button.x, (float)ev->button.y,
                 true, 0))
+            {
+                return;
+            }
+            if (sdl_main_screen_handle_character_panel_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_main_screen_handle_supporting_pane_pointer((float)ev->button.x,
+                (float)ev->button.y))
             {
                 return;
             }
@@ -5234,11 +5411,16 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+        sdl_note_touch_event_device(ev->tfinger.touchID);
 
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
+            return;
+        if (sdl_main_screen_handle_character_panel_pointer(x, y))
+            return;
+        if (sdl_main_screen_handle_supporting_pane_pointer(x, y))
             return;
         if (sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
@@ -5250,6 +5432,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+        sdl_note_touch_event_device(ev->tfinger.touchID);
 
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
@@ -5264,6 +5447,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+        sdl_note_touch_event_device(ev->tfinger.touchID);
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
@@ -5272,6 +5456,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_FINGER_CANCELED) {
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
+        sdl_note_touch_event_device(ev->tfinger.touchID);
         if (g_touch_swipe.active && g_touch_swipe.finger_id == ev->tfinger.fingerID)
             sdl_touch_swipe_cancel();
         if (g_touch_pane_press.active && !g_touch_pane_press.mouse
@@ -6937,6 +7122,9 @@ errr init_sdl(int argc, char **argv)
         log_error("TTF_Init failed: %s", SDL_GetError());
         quit("could not init TTF");
     }
+    sdl_refresh_direct_touch_present();
+    log_info("Direct touch input: %s",
+        g_direct_touch_present ? "present" : "not detected");
     
     // Get primary display information
     SDL_DisplayID primary = SDL_GetPrimaryDisplay();
