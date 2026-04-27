@@ -3926,6 +3926,85 @@ static void unified_look_select_sidebar_entity(unified_look_state* state,
     state->current_square_entity = 0;
 }
 
+static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+{
+    int clicked_entity = -1;
+    int click_action = UI_MENU_CLICK_PRIMARY;
+
+    if (!ui_menu_click_take_action(&clicked_entity, &click_action))
+        return false;
+
+    if (state && state->in_sidebar_mode
+        && state->selected_entity == clicked_entity)
+    {
+        if (click_action == UI_MENU_CLICK_SECONDARY)
+            Term_keypress(' ');
+        return true;
+    }
+
+    unified_look_select_sidebar_entity(state, clicked_entity);
+    if (need_redraw)
+        *need_redraw = true;
+    if (selection_redraw)
+        *selection_redraw = !compact_look_layout;
+
+    if (click_action == UI_MENU_CLICK_SECONDARY)
+        Term_keypress(' ');
+
+    return true;
+}
+
+static bool unified_look_apply_map_hover(unified_look_state* state,
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+{
+    int hover_y = 0;
+    int hover_x = 0;
+    int new_selection;
+    bool new_sidebar_mode;
+
+    if (!state || !sdl_unified_look_take_map_hover(&hover_y, &hover_x))
+        return false;
+    if (hover_y < 0 || hover_y >= p_ptr->cur_map_hgt
+        || hover_x < 0 || hover_x >= p_ptr->cur_map_wid)
+    {
+        return true;
+    }
+
+    new_selection = unified_look_find_cursor_selection(state, hover_y, hover_x);
+    new_sidebar_mode = (new_selection >= 0);
+
+    if ((state->cursor_y == hover_y) && (state->cursor_x == hover_x)
+        && (state->selected_entity == new_selection)
+        && (state->in_sidebar_mode == new_sidebar_mode))
+    {
+        return true;
+    }
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+            false);
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+    }
+
+    state->cursor_y = hover_y;
+    state->cursor_x = hover_x;
+    state->selected_entity = new_selection;
+    state->in_sidebar_mode = new_sidebar_mode;
+    state->square_cycling_mode = false;
+    state->current_square_entity = 0;
+
+    if (need_redraw)
+        *need_redraw = true;
+    if (selection_redraw)
+        *selection_redraw = !compact_look_layout;
+
+    return true;
+}
+
 static void unified_look_prompt_label(int binding, const char* fallback, char* buf, size_t buflen)
 {
     if (!buf || !buflen)
@@ -4047,6 +4126,7 @@ void do_cmd_unified_look(void)
     bool original_hide_left_panel = g_hide_left_panel;
     bool original_suppress_hidden_left_panel_overlay
         = g_suppress_hidden_left_panel_overlay;
+    bool look_adjusts_left_panel = false;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -4072,14 +4152,12 @@ void do_cmd_unified_look(void)
     original_wy = p_ptr->wy;
     original_wx = p_ptr->wx;
 
-    if (compact_look_layout)
-    {
-        g_hide_left_panel = true;
-        g_suppress_hidden_left_panel_overlay = true;
-        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
-        p_ptr->window |= (PW_OVERHEAD);
-        handle_stuff();
-    }
+    g_suppress_hidden_left_panel_overlay = true;
+    g_hide_left_panel = true;
+    look_adjusts_left_panel = true;
+    p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+    p_ptr->window |= (PW_OVERHEAD);
+    handle_stuff();
     
     log_trace("Original viewport: (%d,%d)", original_wy, original_wx);
     
@@ -4122,6 +4200,7 @@ void do_cmd_unified_look(void)
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
     const bool controller_controls = steamdeck_controls_active();
+    sdl_unified_look_set_map_hover_enabled(true);
 
     if (!g_unified_look_has_start
         || ((state.cursor_y == p_ptr->py) && (state.cursor_x == p_ptr->px)))
@@ -4437,12 +4516,16 @@ void do_cmd_unified_look(void)
                  query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
                  (query >= 'A' && query <= 'Z') ? 1 : 0);
 
+        bool pointer_click_pending = ui_menu_click_has_pending();
+
         /* Keep the overlay live while cycling sidebar selection to avoid
          * flashing back to the map between adjacent redraws. */
         if (overlay_saved
             && query != '\t'
             && query != '`'
             && query != 'q'
+            && query != UI_MENU_CLICK_WAKE_KEY
+            && !((query == '\r') && pointer_click_pending)
             && !(controller_controls && (query == 'i' || query == 'e')))
         {
             (void)Term_set_extra_cursor(false, 0, 0, false);
@@ -4459,18 +4542,12 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
-                int clicked_entity = -1;
-                int click_action = UI_MENU_CLICK_PRIMARY;
-
-                if (ui_menu_click_take_action(&clicked_entity, &click_action))
-                {
-                    unified_look_select_sidebar_entity(&state, clicked_entity);
-                    need_redraw = true;
-                    selection_redraw = false;
-
-                    if (click_action == UI_MENU_CLICK_SECONDARY)
-                        Term_keypress(' ');
-                }
+                if (unified_look_apply_sidebar_pointer_action(&state,
+                        compact_look_layout, &need_redraw, &selection_redraw))
+                    break;
+                if (unified_look_apply_map_hover(&state, compact_look_layout,
+                        &need_redraw, &selection_redraw))
+                    break;
 
                 break;
             }
@@ -5086,20 +5163,9 @@ command_key:
             case '\r': /* Enter key */
             case ' ':
             {
-                int clicked_entity = -1;
-                int click_action = UI_MENU_CLICK_PRIMARY;
-
-                if (ui_menu_click_take_action(&clicked_entity, &click_action))
-                {
-                    unified_look_select_sidebar_entity(&state, clicked_entity);
-                    need_redraw = true;
-                    selection_redraw = false;
-
-                    if (click_action == UI_MENU_CLICK_SECONDARY)
-                        Term_keypress(' ');
-
+                if (unified_look_apply_sidebar_pointer_action(&state,
+                        compact_look_layout, &need_redraw, &selection_redraw))
                     break;
-                }
 
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
                 
@@ -5602,6 +5668,7 @@ cycle_display_modes:
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    sdl_unified_look_set_map_hover_enabled(false);
 
     if (overlay_saved)
     {
@@ -5621,7 +5688,7 @@ cycle_display_modes:
         sdl_story_font_disable();
     }
     
-    if (compact_look_layout)
+    if (look_adjusts_left_panel)
     {
         g_hide_left_panel = original_hide_left_panel;
         g_suppress_hidden_left_panel_overlay
@@ -5642,10 +5709,7 @@ cycle_display_modes:
         p_ptr->window |= (PW_OVERHEAD);
     }
 
-    if (compact_look_layout || viewport_changed)
-    {
-        handle_stuff();
-    }
+    handle_stuff();
 }
 
 /*

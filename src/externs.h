@@ -1526,6 +1526,8 @@ extern void sdl_refresh_supporting_panes_layout(void);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
+extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
+extern bool sdl_unified_look_take_map_hover(int* y, int* x);
 extern void c_put_str(byte attr, cptr str, int row, int col);
 extern void put_str(cptr str, int row, int col);
 extern void c_prt(byte attr, cptr str, int row, int col);
@@ -1554,6 +1556,8 @@ extern bool ui_menu_click_has_cell(int col, int row);
 extern bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
 extern bool ui_menu_click_handle_cell(int col, int row);
 extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
+extern bool ui_menu_click_has_pending(void);
+extern void ui_menu_click_clear_pending_hover(void);
 extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
 #define UI_MENU_CLICK_PRIMARY 1

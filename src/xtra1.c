@@ -483,12 +483,12 @@ extern byte total_ads(const object_type* j_ptr)
 void cnv_stat(int val, char* out_val) { sprintf(out_val, "%2d", val); }
 
 /*
- * Print character info at given row, column in a 13 char field
+ * Print character info at given row, column in the left panel field.
  */
 static void prt_field(cptr info, int row, int col)
 {
-    /* Dump 13 spaces to clear */
-    c_put_str(TERM_WHITE, "             ", row, col);
+    /* Dump the full field to clear stale text. */
+    Term_erase(col, row, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
     /* Dump the info itself */
@@ -497,7 +497,7 @@ static void prt_field(cptr info, int row, int col)
     sdl_story_font_disable();
 }
 
-enum { PLAYER_PANEL_NAME_MAX = 12 };
+enum { PLAYER_PANEL_NAME_MAX = LEFT_PANEL_CONTENT_WID };
 
 /*
  * Choose the longest whole-word player name prefix that fits the sidebar.
@@ -579,7 +579,7 @@ static void prt_stat(int stat)
     int len;
 
     /* Clear the line */
-    put_str("             ", ROW_STAT + stat, 0);
+    Term_erase(COL_STAT, ROW_STAT + stat, LEFT_PANEL_CONTENT_WID);
 
     /* Get the stat name */
     if (p_ptr->stat_drain[stat] < 0)
@@ -914,7 +914,7 @@ static void prt_hp(void)
     byte color;
 
     /* Clear the line */
-    put_str("             ", ROW_HP, COL_HP);
+    Term_erase(COL_HP, ROW_HP, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
@@ -1109,7 +1109,7 @@ static void prt_light(void)
     char icon;
 
     /* Clear the line */
-    Term_erase(icon_col, ROW_LIGHT, 13);
+    Term_erase(icon_col, ROW_LIGHT, LEFT_PANEL_CONTENT_WID);
 
     /* Nothing equipped */
     if (!current_light_status(&infinite, &fuel, &fuel_attr, &attr, &icon))
@@ -1152,7 +1152,7 @@ static void prt_sp(void)
     int len;
 
     /* Clear the line */
-    put_str("             ", ROW_SP, COL_SP);
+    Term_erase(COL_SP, ROW_SP, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
@@ -1744,9 +1744,9 @@ static void prt_song(void)
         = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
 
     // wipe old songs
-    put_str("             ", ROW_SONG, COL_SONG);
+    Term_erase(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID);
     if (!ui_compact_height())
-        put_str("             ", ROW_SONG + 1, COL_SONG);
+        Term_erase(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
@@ -1762,20 +1762,23 @@ static void prt_song(void)
             SDL_strlcpy(buf, song2_name + 8, sizeof(buf));
 
         if (buf[0])
-            c_put_str(TERM_L_BLUE, buf, ROW_SONG, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID, TERM_L_BLUE,
+                buf);
     }
     else
     {
         // show the first song
         if (p_ptr->song1 != SNG_NOTHING)
         {
-            c_put_str(TERM_L_BLUE, song1_name + 8, ROW_SONG, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID, TERM_L_BLUE,
+                song1_name + 8);
         }
 
         // show the second song
         if (p_ptr->song2 != SNG_NOTHING)
         {
-            c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID, TERM_BLUE,
+                song2_name + 8);
         }
     }
 
@@ -3111,8 +3114,12 @@ static void health_redraw(void)
         if (!get_alertness_text(m_ptr, sizeof(buf), buf, &color))
             return;
 
-        Term_putstr(COL_INFO + (13 - strlen(buf)) / 2, ROW_INFO + 1,
-            MIN(strlen(buf), 12), color, buf);
+        int buf_len = (int)strlen(buf);
+        int display_len = MIN(buf_len, LEFT_PANEL_CONTENT_WID);
+        int display_col = COL_INFO
+            + MAX(0, (LEFT_PANEL_CONTENT_WID - display_len) / 2);
+
+        Term_putstr(display_col, ROW_INFO + 1, display_len, color, buf);
     }
 }
 
@@ -3128,6 +3135,9 @@ static void prt_frame_basic(void)
         prt_depth();
         return;
     }
+
+    for (i = ROW_MAP; Term && i < ROW_MAP + SCREEN_HGT; i++)
+        Term_erase(0, i, LEFT_PANEL_WID);
 
     /* Name */
     prt_player_name();

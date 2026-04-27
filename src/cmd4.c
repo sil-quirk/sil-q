@@ -29615,6 +29615,53 @@ static void unified_sidebar_fit_text(char* buf, size_t buflen, cptr text,
         strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
 }
 
+static int unified_sidebar_story_text_cols(cptr text)
+{
+    int cell_w;
+    int pixel_w;
+    int len;
+
+    if (!text || !text[0] || !sdl_is_story_font_enabled())
+        return 0;
+
+    cell_w = sdl_get_cell_width();
+    if (cell_w <= 0)
+        return 0;
+
+    len = (int)strlen(text);
+    pixel_w = sdl_story_font_text_width(text, len);
+    if (pixel_w <= 0)
+        return 0;
+
+    return (pixel_w + cell_w - 1) / cell_w;
+}
+
+static int unified_sidebar_text_hit_width(int pictogram_col, int text_col,
+    cptr text, int fallback_width)
+{
+    int story_cols = unified_sidebar_story_text_cols(text);
+    int hit_width = fallback_width;
+
+    if (story_cols > 0)
+        hit_width = MAX(hit_width, text_col - pictogram_col + story_cols);
+
+    return MAX(hit_width, 1);
+}
+
+static int unified_sidebar_text_pair_hit_width(int pictogram_col, int text_col,
+    cptr first, cptr second, int fallback_width)
+{
+    int first_cols = unified_sidebar_story_text_cols(first);
+    int second_cols = unified_sidebar_story_text_cols(second);
+    int hit_width = fallback_width;
+
+    if (first_cols > 0 || second_cols > 0)
+        hit_width = MAX(hit_width, text_col - pictogram_col + first_cols
+            + second_cols);
+
+    return MAX(hit_width, 1);
+}
+
 static int unified_sidebar_compact_build_entries(
     const unified_look_state* state,
     unified_sidebar_compact_entry* entries,
@@ -29836,7 +29883,6 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
-        ui_menu_click_clear();
 
         if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
             highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
@@ -29845,7 +29891,6 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         state->highlighted_y = -1;
         state->highlighted_x = -1;
         state->highlighted_entity_type = 0;
-        return true;
     }
 
     first_row = 0;
@@ -29867,6 +29912,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     entry_count = unified_sidebar_compact_build_entries(state, entries,
         max_entries);
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     has_sidebar_selection = (state->selected_entity >= 0)
         && (state->in_sidebar_mode || (state->look_mode == 0));
@@ -29888,7 +29934,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         int row = first_row + i;
         bool highlight_this = has_sidebar_selection
             && (state->selected_entity == entry->entity_index);
-        byte text_attr = entry->text_attr;
+        byte text_attr = highlight_this ? TERM_L_BLUE : entry->text_attr;
         int text_len = (int)strlen(entry->text);
 
         if (Term && text_len > Term->wid - text_col)
@@ -29896,8 +29942,11 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         if (text_len < 0)
             text_len = 0;
 
-        ui_menu_click_add(entry->entity_index, pictogram_col, row,
-            MAX(1, text_col + text_len - pictogram_col));
+        int hit_width = unified_sidebar_text_hit_width(pictogram_col, text_col,
+            entry->text, MAX(1, text_col + text_len - pictogram_col));
+        if (Term)
+            hit_width = MAX(hit_width, Term->wid - pictogram_col);
+        ui_menu_click_add(entry->entity_index, pictogram_col, row, hit_width);
 
         c_put_str(entry->symbol_attr, entry->symbol, row, pictogram_col);
         if (use_bigtile)
@@ -29964,6 +30013,15 @@ void show_unified_sidebar(unified_look_state* state)
     /* Calculate exact positions */
     int pictogram_col = sidebar_col;
     int name_col = sidebar_col + 2;  /* Name starts right after pictogram (at column 2) */
+    int sidebar_hit_width;
+
+    if (COL_MAP > pictogram_col)
+        sidebar_hit_width = COL_MAP - pictogram_col;
+    else
+        sidebar_hit_width = 1;
+
+    if (sidebar_hit_width < 1)
+        sidebar_hit_width = 1;
     
     /* Prepare clearing string */
     clear_width = Term->wid - (sidebar_col - 1);
@@ -29980,12 +30038,16 @@ void show_unified_sidebar(unified_look_state* state)
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
 
+    if (COL_MAP > 0)
+    {
+        for (int row = 0; row < term_hgt; row++)
+            Term_erase(0, row, COL_MAP);
+    }
+
     if ((state->look_mode == 0) && !state->in_sidebar_mode
         && (state->selected_entity < 0)
         && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
     {
-        ui_menu_click_clear();
-
         if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
         {
             highlight_entity_on_map(state->highlighted_y, state->highlighted_x, false);
@@ -29994,14 +30056,12 @@ void show_unified_sidebar(unified_look_state* state)
         state->highlighted_y = -1;
         state->highlighted_x = -1;
         state->highlighted_entity_type = 0;
-        previous_line_count = 0;
-        memset(prev_name_len, 0, sizeof(prev_name_len));
-        return;
     }
 
     has_sidebar_selection = (state->selected_entity >= 0)
         && (state->in_sidebar_mode || (state->look_mode == 0));
     ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
     
     /* Don't clear anything - let screen_save/screen_load handle restoration */
     log_trace("show_unified_sidebar: skipping clear - letting screen management handle it");
@@ -30174,8 +30234,11 @@ void show_unified_sidebar(unified_look_state* state)
             
             /* Calculate column for morale display */
             int morale_col = name_col + name_hp_len;
+            int monster_hit_width = unified_sidebar_text_pair_hit_width(
+                pictogram_col, name_col, display_name, morale_display,
+                MAX(sidebar_hit_width, name_col - pictogram_col + total_span));
             ui_menu_click_add(monster_count, pictogram_col, line,
-                MAX(1, name_col - pictogram_col + total_span));
+                monster_hit_width);
             
             /* Highlight if selected with cursor-style highlighting only */
             bool highlight_this_monster = (has_sidebar_selection
@@ -30195,9 +30258,10 @@ void show_unified_sidebar(unified_look_state* state)
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
                 
-                /* Display selected row in its normal colors; the tile frame marks selection. */
-                Term_putstr(name_col, line, name_hp_len, TERM_WHITE, display_name);
-                Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
+                Term_putstr(name_col, line, name_hp_len, TERM_L_BLUE,
+                    display_name);
+                Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE,
+                    morale_display);
                 (void)Term_set_extra_cursor(true, pictogram_col, line, use_bigtile);
                 
                 /* Update highlighted position and cursor */
@@ -30366,8 +30430,12 @@ void show_unified_sidebar(unified_look_state* state)
             int row_index = line;
             if (row_index < 0) row_index = 0;
             if (row_index >= prev_array_capacity) row_index = prev_array_capacity - 1;
+            int object_hit_width = unified_sidebar_text_hit_width(
+                pictogram_col, name_col, display_name,
+                MAX(sidebar_hit_width, name_col - pictogram_col
+                    + final_name_len));
             ui_menu_click_add(object_start + object_count, pictogram_col, line,
-                MAX(1, name_col - pictogram_col + final_name_len));
+                object_hit_width);
 
             int old_name_len = prev_name_len[row_index];
             if (old_name_len > final_name_len)
@@ -30386,7 +30454,7 @@ void show_unified_sidebar(unified_look_state* state)
             bool highlight_this_object = (has_sidebar_selection
                 && (state->selected_entity == (object_start + object_count)));
 
-            byte name_attr = base_color;
+            byte name_attr = highlight_this_object ? TERM_L_BLUE : base_color;
 
             if (highlight_this_object)
             {

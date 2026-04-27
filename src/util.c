@@ -217,6 +217,24 @@ bool ui_menu_click_handle_cell(int col, int row)
     return ui_menu_click_handle_cell_action(col, row, UI_MENU_CLICK_PRIMARY);
 }
 
+bool ui_menu_click_has_pending(void)
+{
+    return ui_menu_click_pending;
+}
+
+void ui_menu_click_clear_pending_hover(void)
+{
+    if (ui_menu_click_pending
+        && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    }
+
+    ui_menu_click_hover_wake_pending = false;
+}
+
 bool ui_menu_click_take_action(int* choice, int* action)
 {
     if (!ui_menu_click_pending)

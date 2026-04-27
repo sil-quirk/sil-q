@@ -114,7 +114,10 @@
 #define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
 
 #define ROW_MAP 1
-#define COL_MAP (g_hide_left_panel ? 0 : 13)
+#define LEFT_PANEL_CONTENT_WID 12
+#define LEFT_PANEL_SEPARATOR_WID 1
+#define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
+#define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
 #define ROW_STATUS (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1))
 
 /*
