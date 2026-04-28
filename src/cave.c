@@ -2996,7 +2996,8 @@ void display_map(int* cy, int* cx)
  */
 void do_cmd_view_map(void)
 {
-    int cy, cx;
+    int cy = 0;
+    int cx = 0;
     cptr prompt = "Hit any key to continue";
 
     /* Save screen */
@@ -3013,13 +3014,22 @@ void do_cmd_view_map(void)
     Term_clear();
 
     /* Display the map */
-    display_map(&cy, &cx);
+#ifdef USE_SDL
+    Term_fresh();
+    if (!sdl_display_pixel_map(&cy, &cx))
+#endif
+    {
+        display_map(&cy, &cx);
+    }
 
     /* Show the prompt */
     put_str(prompt, Term->hgt - 1, Term->wid / 2 - strlen(prompt) / 2);
 
     /* Hilite the player */
     Term_gotoxy(cx, cy);
+
+    /* Flush the pixel map/prompt before waiting for input. */
+    Term_fresh();
 
     /* Get any key */
     (void)inkey();

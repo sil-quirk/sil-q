@@ -10518,6 +10518,347 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     return 0;
 }
 
+static void sdl_draw_tileset_sprite(byte a, char c, const SDL_FRect* dst,
+    bool icon)
+{
+    int mask;
+    SDL_FRect src;
+
+    if (!g_state.tileset || !dst)
+        return;
+
+    mask = icon ? 0x7F : TILE_INDEX_MASK;
+    src.x = (float)(((byte)c & mask) * TILE_SIZE);
+    src.y = (float)((a & mask) * TILE_SIZE);
+    src.w = TILE_SIZE;
+    src.h = TILE_SIZE;
+    SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, dst);
+}
+
+static void sdl_draw_ascii_minimap_cell(byte a, char c, byte ta, char tc,
+    const SDL_FRect* dst)
+{
+    byte draw_a = a;
+    char draw_c = c;
+
+    if (!dst)
+        return;
+
+    if ((byte)draw_c == ' ' && (byte)tc != ' ') {
+        draw_a = ta;
+        draw_c = tc;
+    }
+
+    if ((byte)draw_c == ' ')
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, angband_color_table[draw_a][1],
+        angband_color_table[draw_a][2], angband_color_table[draw_a][3], 255);
+    SDL_RenderFillRect(g_state.renderer, dst);
+}
+
+static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
+    char tc, const SDL_FRect* dst)
+{
+    bool glow = (a & GRAPHICS_GLOW_MASK) != 0;
+    bool alert = (((byte)c) & GRAPHICS_ALERT_MASK) != 0;
+    bool seen = (((byte)tc) & GRAPHICS_SEEN_MASK) != 0;
+    bool sleep = (ta & GRAPHICS_SLEEP_MASK) != 0;
+    bool tile_mode = g_state.use_tiles && g_state.tileset;
+
+    if (!dst)
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(g_state.renderer, dst);
+
+    if (!tile_mode) {
+        sdl_draw_ascii_minimap_cell(a, c, ta, tc, dst);
+        return;
+    }
+
+    /* Terrain underlay */
+    sdl_draw_tileset_sprite(ta, tc, dst, false);
+
+    if ((dy >= 0) && (dx >= 0) && p_ptr && (dy < p_ptr->cur_map_hgt)
+        && (dx < p_ptr->cur_map_wid))
+    {
+        u16b info = cave_info[dy][dx];
+        bool hide_square = (!p_ptr->is_dead)
+            && (p_ptr->rage || g_labyrinth_view_active)
+            && !(info & (CAVE_SEEN));
+
+        if (!hide_square) {
+            s16b m_idx = cave_m_idx[dy][dx];
+            bool creature_visible = (m_idx < 0)
+                || ((m_idx > 0) && mon_list[m_idx].ml);
+
+            if (creature_visible && (info & (CAVE_MARK))) {
+                byte feat = cave_feat[dy][dx];
+                feat = f_info[feat].mimic;
+
+                if (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+                    || ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL))
+                    || ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL))
+                    || (feat == FEAT_SUNLIGHT))
+                {
+                    feature_type* f_ptr = &f_info[feat];
+                    byte feat_a = f_ptr->x_attr;
+                    char feat_c = f_ptr->x_char;
+
+                    if ((use_graphics == GRAPHICS_MICROCHASM)
+                        && feat_supports_lighting(feat)) {
+                        bool is_dark = p_ptr->blind
+                            || ((cave_light[dy][dx] <= 0)
+                                && !(info & (CAVE_GLOW)));
+                        if (is_dark || !(info & (CAVE_SEEN)))
+                            feat_c += 1;
+                    }
+
+                    sdl_draw_tileset_sprite(feat_a, feat_c, dst, false);
+                }
+            }
+
+            /* Keep a floor item visible beneath the player tile. */
+            if (m_idx < 0) {
+                byte feat = cave_feat[dy][dx];
+
+                if ((feat == FEAT_FLOOR) || (feat == FEAT_SUNLIGHT)) {
+                    object_type* o_ptr;
+
+                    for (o_ptr = get_first_object(dy, dx); o_ptr;
+                         o_ptr = get_next_object(o_ptr)) {
+                        if (o_ptr->marked) {
+                            byte obj_a = object_attr(o_ptr);
+                            byte obj_c = (byte)object_char(o_ptr);
+
+                            if ((obj_a & TILE_FLAG) && (obj_c & TILE_FLAG))
+                                sdl_draw_tileset_sprite(obj_a, (char)obj_c,
+                                    dst, false);
+
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (glow) {
+        byte icon_a = misc_to_attr[ICON_GLOW];
+        byte icon_c = (byte)misc_to_char[ICON_GLOW];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+
+    /* Base tile */
+    sdl_draw_tileset_sprite(a, c, dst, false);
+
+    if (sleep) {
+        byte icon_a = misc_to_attr[ICON_SLEEPING];
+        byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+
+    if (seen) {
+        byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
+        byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+
+    if (alert) {
+        byte icon_a = misc_to_attr[ICON_ALERT];
+        byte icon_c = (byte)misc_to_char[ICON_ALERT];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+}
+
+static bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y,
+    int* max_x)
+{
+    bool any = false;
+
+    if (!p_ptr || !min_y || !min_x || !max_y || !max_x)
+        return false;
+    if (p_ptr->cur_map_hgt <= 0 || p_ptr->cur_map_wid <= 0)
+        return false;
+
+    *min_y = p_ptr->cur_map_hgt;
+    *min_x = p_ptr->cur_map_wid;
+    *max_y = 0;
+    *max_x = 0;
+
+    for (int y = 0; y < p_ptr->cur_map_hgt; y++) {
+        for (int x = 0; x < p_ptr->cur_map_wid; x++) {
+            if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
+                continue;
+
+            if (y < *min_y) *min_y = y;
+            if (y > *max_y) *max_y = y;
+            if (x < *min_x) *min_x = x;
+            if (x > *max_x) *max_x = x;
+            any = true;
+        }
+    }
+
+    if (!any) {
+        *min_y = 0;
+        *min_x = 0;
+        *max_y = p_ptr->cur_map_hgt - 1;
+        *max_x = p_ptr->cur_map_wid - 1;
+    }
+
+    if (p_ptr->py >= 0 && p_ptr->py < p_ptr->cur_map_hgt
+        && p_ptr->px >= 0 && p_ptr->px < p_ptr->cur_map_wid)
+    {
+        if (p_ptr->py < *min_y) *min_y = p_ptr->py;
+        if (p_ptr->py > *max_y) *max_y = p_ptr->py;
+        if (p_ptr->px < *min_x) *min_x = p_ptr->px;
+        if (p_ptr->px > *max_x) *max_x = p_ptr->px;
+    }
+
+    return (*max_y >= *min_y) && (*max_x >= *min_x);
+}
+
+bool sdl_display_pixel_map(int* cy, int* cx)
+{
+    sdl_view* d;
+    SDL_Texture* map_texture;
+    SDL_Texture* restore_target;
+    int min_y, min_x, max_y, max_x;
+    int map_rows, map_cols;
+    int source_w, source_h;
+    int canvas_w, canvas_h;
+    float scale_x, scale_y, scale;
+    SDL_FRect map_dst;
+
+    if (!Term || !p_ptr || !g_state.renderer)
+        return false;
+
+    d = sdl_view_from_term(Term);
+    if (!d || !d->canvas || d->cell_w <= 0 || d->cell_h <= 0)
+        return false;
+
+    if (!sdl_minimap_known_bounds(&min_y, &min_x, &max_y, &max_x))
+        return false;
+
+    map_rows = max_y - min_y + 1;
+    map_cols = max_x - min_x + 1;
+    if (map_rows <= 0 || map_cols <= 0)
+        return false;
+
+    source_w = map_cols * TILE_SIZE;
+    source_h = map_rows * TILE_SIZE;
+    canvas_w = d->cols * d->cell_w;
+    canvas_h = (d->rows > 1 ? d->rows - 1 : d->rows) * d->cell_h;
+    if (source_w <= 0 || source_h <= 0 || canvas_w <= 0 || canvas_h <= 0)
+        return false;
+
+    map_texture = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET, source_w, source_h);
+    if (!map_texture) {
+        log_warn("sdl_display_pixel_map: texture %dx%d failed: %s",
+            source_w, source_h, SDL_GetError());
+        return false;
+    }
+
+    SDL_SetTextureBlendMode(map_texture, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(map_texture, SDL_SCALEMODE_NEAREST);
+
+    restore_target = SDL_GetRenderTarget(g_state.renderer);
+    SDL_SetRenderTarget(g_state.renderer, map_texture);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    for (int y = min_y; y <= max_y; y++) {
+        for (int x = min_x; x <= max_x; x++) {
+            byte a = TERM_DARK;
+            byte ta = TERM_DARK;
+            char c = ' ';
+            char tc = ' ';
+            SDL_FRect cell_dst = {
+                (float)((x - min_x) * TILE_SIZE),
+                (float)((y - min_y) * TILE_SIZE),
+                TILE_SIZE,
+                TILE_SIZE
+            };
+
+            map_info(y, x, &a, &c, &ta, &tc);
+            sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+        }
+    }
+
+    SDL_SetRenderTarget(g_state.renderer, d->canvas);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    scale_x = (float)canvas_w / (float)source_w;
+    scale_y = (float)canvas_h / (float)source_h;
+    scale = (scale_x < scale_y) ? scale_x : scale_y;
+    if (scale <= 0.0f) {
+        SDL_DestroyTexture(map_texture);
+        SDL_SetRenderTarget(g_state.renderer, restore_target);
+        return false;
+    }
+
+    map_dst.w = (float)source_w * scale;
+    map_dst.h = (float)source_h * scale;
+    map_dst.x = ((float)canvas_w - map_dst.w) * 0.5f;
+    map_dst.y = ((float)canvas_h - map_dst.h) * 0.5f;
+    SDL_RenderTexture(g_state.renderer, map_texture, NULL, &map_dst);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 80);
+    SDL_RenderRect(g_state.renderer, &map_dst);
+
+    if (p_ptr->py >= min_y && p_ptr->py <= max_y
+        && p_ptr->px >= min_x && p_ptr->px <= max_x)
+    {
+        float grid_w = map_dst.w / (float)map_cols;
+        float grid_h = map_dst.h / (float)map_rows;
+        SDL_FRect player_dst = {
+            map_dst.x + (float)(p_ptr->px - min_x) * grid_w,
+            map_dst.y + (float)(p_ptr->py - min_y) * grid_h,
+            grid_w,
+            grid_h
+        };
+        float center_x = player_dst.x + player_dst.w * 0.5f;
+        float center_y = player_dst.y + player_dst.h * 0.5f;
+
+        SDL_SetRenderDrawColor(g_state.renderer, 255, 230, 80, 255);
+        SDL_RenderRect(g_state.renderer, &player_dst);
+        if (player_dst.w >= 4.0f && player_dst.h >= 4.0f) {
+            player_dst.x += 1.0f;
+            player_dst.y += 1.0f;
+            player_dst.w -= 2.0f;
+            player_dst.h -= 2.0f;
+            SDL_RenderRect(g_state.renderer, &player_dst);
+        }
+
+        if (cx) {
+            int term_x = (int)(center_x / (float)d->cell_w);
+            if (term_x < 0) term_x = 0;
+            if (term_x >= Term->wid) term_x = Term->wid - 1;
+            *cx = term_x;
+        }
+        if (cy) {
+            int term_y = (int)(center_y / (float)d->cell_h);
+            if (term_y < 0) term_y = 0;
+            if (term_y >= Term->hgt) term_y = Term->hgt - 1;
+            *cy = term_y;
+        }
+    }
+
+    SDL_DestroyTexture(map_texture);
+    SDL_SetRenderTarget(g_state.renderer, d->canvas);
+    g_state.need_present = true;
+    return true;
+}
+
 static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
                        const byte* tap, const char* tcp)
 {
@@ -10540,11 +10881,6 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         d->cell_h,
     });
 
-    SDL_FRect src = {
-        .w = TILE_SIZE,
-        .h = TILE_SIZE,
-    };
-
     SDL_FRect dst = {
         x * d->cell_w,
         y * d->cell_h,
@@ -10555,24 +10891,9 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
     for (int i = 0; i < n; ++i, dst.x += dst.w) {
         byte a = ap[i];
         char c = cp[i];
+        int dy = -1;
+        int dx = -1;
 
-        bool glow = a & GRAPHICS_GLOW_MASK;
-        bool alert = c & GRAPHICS_ALERT_MASK;
-        bool seen = tcp[i] & GRAPHICS_SEEN_MASK;
-        bool sleep = tap[i] & GRAPHICS_SLEEP_MASK;
-
-        /* Unconditionally clear the full (possibly 2-cell) destination area to avoid ghosting */
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-        SDL_RenderFillRect(g_state.renderer, &dst);
-
-        /* Draw terrain underlay ALWAYS */
-        src.x = (tcp[i] & 0x3F) * TILE_SIZE;
-        src.y = (tap[i] & 0x3F) * TILE_SIZE;
-        SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-
-        /* Traps, stairs, shafts, forges, and sunlight are drawn as a middle layer (floor ->
-         * feature -> monster). When a visible creature is standing on a visible feature,
-         * inject the feature tile between the terrain underlay and the creature tile. */
         if (Term == term_screen) {
             int term_x = x + (i * (use_bigtile + 1));
             if (y >= ROW_MAP && term_x >= COL_MAP) {
@@ -10581,124 +10902,12 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                 if (use_bigtile)
                     map_x /= 2;
 
-                int dy = p_ptr->wy + map_y;
-                int dx = p_ptr->wx + map_x;
-
-                if ((dy >= 0) && (dx >= 0) && (dy < p_ptr->cur_map_hgt)
-                    && (dx < p_ptr->cur_map_wid)) {
-                    u16b info = cave_info[dy][dx];
-                    bool hide_square = (!p_ptr->is_dead)
-                        && (p_ptr->rage || g_labyrinth_view_active)
-                        && !(info & (CAVE_SEEN));
-
-                    if (!hide_square) {
-                        s16b m_idx = cave_m_idx[dy][dx];
-                        bool creature_visible = (m_idx < 0)
-                            || ((m_idx > 0) && mon_list[m_idx].ml);
-
-                        if (creature_visible && (info & (CAVE_MARK))) {
-                            byte feat = cave_feat[dy][dx];
-                            feat = f_info[feat].mimic;
-
-                            if (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)) ||
-                                ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL)) ||
-                                ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL)) ||
-                                (feat == FEAT_SUNLIGHT)) {
-                                feature_type* f_ptr = &f_info[feat];
-                                byte feat_a = f_ptr->x_attr;
-                                char feat_c = f_ptr->x_char;
-
-                                if ((use_graphics == GRAPHICS_MICROCHASM)
-                                    && feat_supports_lighting(feat)) {
-                                    bool is_dark = p_ptr->blind
-                                        || ((cave_light[dy][dx] <= 0)
-                                            && !(info & (CAVE_GLOW)));
-                                    if (is_dark || !(info & (CAVE_SEEN))) {
-                                        feat_c += 1;
-                                    }
-                                }
-
-                                src.x = ((byte)feat_c & 0x3F) * TILE_SIZE;
-                                src.y = (feat_a & 0x3F) * TILE_SIZE;
-                                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-                            }
-                        }
-
-                        /* Keep the floor item visible beneath the player tile. */
-                        if (m_idx < 0) {
-                            byte feat = cave_feat[dy][dx];
-
-                            if ((feat == FEAT_FLOOR) || (feat == FEAT_SUNLIGHT)) {
-                                object_type* o_ptr;
-
-                                for (o_ptr = get_first_object(dy, dx); o_ptr;
-                                     o_ptr = get_next_object(o_ptr)) {
-                                    if (o_ptr->marked) {
-                                        byte obj_a = object_attr(o_ptr);
-                                        byte obj_c = (byte)object_char(o_ptr);
-
-                                        if ((obj_a & TILE_FLAG) && (obj_c & TILE_FLAG)) {
-                                            src.x = (obj_c & 0x3F) * TILE_SIZE;
-                                            src.y = (obj_a & 0x3F) * TILE_SIZE;
-                                            SDL_RenderTexture(g_state.renderer,
-                                                g_state.tileset, &src, &dst);
-                                        }
-
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                dy = p_ptr->wy + map_y;
+                dx = p_ptr->wx + map_x;
             }
         }
 
-        /* Overlays (glow / alert) */
-        if (glow) {
-            byte icon_a = misc_to_attr[ICON_GLOW];
-            byte icon_c = (byte)misc_to_char[ICON_GLOW];
-            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
-                src.x = (icon_c & 0x7F) * TILE_SIZE;
-                src.y = (icon_a & 0x7F) * TILE_SIZE;
-                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-            }
-        }
-
-        /* Draw base tile */
-        src.x = (c & 0x3F) * TILE_SIZE;
-        src.y = (a & 0x3F) * TILE_SIZE;
-        SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-
-        if (sleep) {
-            byte icon_a = misc_to_attr[ICON_SLEEPING];
-            byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
-            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
-                src.x = (icon_c & 0x7F) * TILE_SIZE;
-                src.y = (icon_a & 0x7F) * TILE_SIZE;
-                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-            }
-        }
-
-        if (seen) {
-            byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
-            byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
-            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
-                src.x = (icon_c & 0x7F) * TILE_SIZE;
-                src.y = (icon_a & 0x7F) * TILE_SIZE;
-                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-            }
-        }
-
-        if (alert) {
-            byte icon_a = misc_to_attr[ICON_ALERT];
-            byte icon_c = (byte)misc_to_char[ICON_ALERT];
-            if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG)) {
-                src.x = (icon_c & 0x7F) * TILE_SIZE;
-                src.y = (icon_a & 0x7F) * TILE_SIZE;
-                SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-            }
-        }
+        sdl_draw_map_tile_layers_at(dy, dx, a, c, tap[i], tcp[i], &dst);
     }
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);

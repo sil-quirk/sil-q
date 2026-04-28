@@ -2718,8 +2718,9 @@ s16b label_to_equip(int c)
     if ((i < INVEN_WIELD) || (i >= INVEN_TOTAL))
         return (-1);
 
-    /* Empty slots can never be chosen */
-    if (!inventory[i].k_idx)
+    /* Empty slots can normally never be chosen, except explicit slot prompts. */
+    if (!inventory[i].k_idx
+        && !(throw_slot_menu_active && throw_slot_enabled[i]))
         return (-1);
 
     /* Return the index */
@@ -5562,6 +5563,25 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             highlight_row = (highlight_row + (vis_floor_cnt) + (dir)) % vis_floor_cnt;\
         }                                                                           \
     } while (0)
+#define CURRENT_ROW_CHOICE(row_idx, out_item, out_valid)                            \
+    do {                                                                            \
+        int _row_idx = (row_idx);                                                    \
+        (out_valid) = false;                                                        \
+        if (p_ptr->command_wrk == (USE_INVEN)                                      \
+            && _row_idx >= 0 && _row_idx < vis_inven_cnt) {                         \
+            (out_item) = vis_inven[_row_idx];                                       \
+            (out_valid) = true;                                                     \
+        } else if (p_ptr->command_wrk == (USE_EQUIP)                               \
+            && _row_idx >= 0 && _row_idx < vis_equip_cnt) {                         \
+            (out_item) = vis_equip[_row_idx];                                       \
+            (out_valid) = true;                                                     \
+        } else if (p_ptr->command_wrk == (USE_FLOOR)                               \
+            && _row_idx >= 0 && _row_idx < vis_floor_cnt) {                         \
+            int _obj_idx = floor_list[vis_floor[_row_idx]];                         \
+            (out_item) = 0 - _obj_idx;                                              \
+            (out_valid) = true;                                                     \
+        }                                                                           \
+    } while (0)
 
     /* Draw highlight: re-render the line with reversed attr marker */
 #define DRAW_HIGHLIGHT()                                                             \
@@ -5919,8 +5939,92 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     /* Draw current highlight overlay if any */
     DRAW_HIGHLIGHT();
 
-    /* Get a key */
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+
+        if (p_ptr->command_see)
+        {
+            int click_rows = 0;
+
+            if (p_ptr->command_wrk == (USE_INVEN))
+                click_rows = vis_inven_cnt;
+            else if (p_ptr->command_wrk == (USE_EQUIP))
+                click_rows = vis_equip_cnt;
+            else if (p_ptr->command_wrk == (USE_FLOOR))
+                click_rows = vis_floor_cnt;
+
+            for (int click_row = 0; click_row < click_rows; click_row++)
+                ui_menu_click_add_full_row(click_row, click_row + 1);
+        }
+
+        /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken)
+            {
+                int clicked_item = 0;
+                bool have_selection = false;
+
+                CURRENT_ROW_CHOICE(clicked_row, clicked_item, have_selection);
+
+                if (have_selection)
+                {
+                    object_type* clicked_obj = inventory_item_to_object_ptr(
+                        clicked_item);
+                    bool legal_channel =
+                        (inventory_item_uses_inven_channel(clicked_item)
+                            && allow_inven)
+                        || (clicked_item >= INVEN_WIELD
+                            && clicked_item < INVEN_TOTAL && allow_equip)
+                        || (clicked_item < 0 && allow_floor);
+
+                    highlight_row = clicked_row;
+                    highlight_active = true;
+
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY
+                        && !inventory_item_is_supply_summary(clicked_item)
+                        && clicked_obj && clicked_obj->k_idx)
+                    {
+                        describe_item_with_comparisons(clicked_item, true);
+                        continue;
+                    }
+
+                    if (!legal_channel || !get_item_okay(clicked_item))
+                    {
+                        bell("Illegal object choice (click)!");
+                        continue;
+                    }
+
+                    if (!get_item_allow(clicked_item))
+                    {
+                        done = true;
+                        continue;
+                    }
+
+                    (*cp) = clicked_item;
+                    item = true;
+                    done = true;
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+            }
+
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
 
         /* Parse it */
         switch (which)
@@ -6460,12 +6564,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
 #undef BUILD_VISIBLE_LIST
 #undef MOVE_HIGHLIGHT
+#undef CURRENT_ROW_CHOICE
 #undef DRAW_HIGHLIGHT
 #undef DRAW_HIGHLIGHT_STORY_VARS
 #undef DRAW_HIGHLIGHT_STORY_UPDATE
 #undef DRAW_HIGHLIGHT_IF_STORY
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)

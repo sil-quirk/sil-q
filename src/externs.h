@@ -1539,6 +1539,7 @@ extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
+extern bool sdl_display_pixel_map(int* cy, int* cx);
 extern void c_put_str(byte attr, cptr str, int row, int col);
 extern void put_str(cptr str, int row, int col);
 extern void c_prt(byte attr, cptr str, int row, int col);
