@@ -69,7 +69,7 @@ void ui_menu_click_clear(void)
     ui_menu_click_hover_wake_pending = false;
     ui_menu_click_hover_current = preserve_hover;
     ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
-    ui_menu_click_preserve_hover_once = false;
+    ui_menu_click_preserve_hover_once = preserve_hover;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
@@ -4082,6 +4082,8 @@ int get_check_other(cptr prompt, char other)
     }
     format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
+    ui_menu_click_clear_pending_hover();
+
     /* Prompt for it */
     prt(buf, 0, 0);
 
@@ -4089,6 +4091,8 @@ int get_check_other(cptr prompt, char other)
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))
@@ -4156,15 +4160,19 @@ bool get_check(cptr prompt)
     }
     format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
+    ui_menu_click_clear_pending_hover();
+
     /* Prompt for it */
     prt(buf, 0, 0);
-    sdl_touch_pane_begin_yes_no_prompt();
+    sdl_touch_pane_begin_yes_no_prompt(prompt);
     Term_fresh();
 
     /* Get an acceptable answer */
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))
@@ -4294,13 +4302,16 @@ bool get_check_oath_multiline(cptr prompt)
     if (prompt_col < 1)
         prompt_col = 1;
     Term_putstr(prompt_col, h - 3, -1, TERM_YELLOW, confirm_prompt);
-    sdl_touch_pane_begin_yes_no_prompt();
+    ui_menu_click_clear_pending_hover();
+    sdl_touch_pane_begin_yes_no_prompt("Are you certain?");
     Term_fresh();
     
     /* Get an acceptable answer */
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))

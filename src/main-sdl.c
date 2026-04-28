@@ -423,6 +423,14 @@ typedef struct map_touch_press_state {
 
 enum {
     SDL_MOUSE_PATH_MAX_GRIDS = MAX_DUNGEON_HGT * MAX_DUNGEON_WID,
+    SDL_MOUSE_PATH_SPRINT_CHAIN_MAX = 4,
+    SDL_MOUSE_PATH_ROUTE_DIRS = 8,
+    SDL_MOUSE_PATH_ROUTE_STATE_COUNT =
+        1 + SDL_MOUSE_PATH_ROUTE_DIRS * SDL_MOUSE_PATH_SPRINT_CHAIN_MAX,
+    SDL_MOUSE_PATH_COST_NORMAL = 1000,
+    SDL_MOUSE_PATH_COST_SPRINT = 667,
+    SDL_MOUSE_PATH_TURN_COST_SOFT = 25,
+    SDL_MOUSE_PATH_TURN_COST_HARD = 90,
 };
 
 typedef struct mouse_path_state {
@@ -441,6 +449,19 @@ typedef struct mouse_path_state {
     int recall_y;
     int recall_x;
 } mouse_path_state;
+
+typedef struct mouse_path_search_state {
+    size_t capacity;
+    int width;
+    int heap_size;
+    int* cost;
+    int* heap_pos;
+    u16b* parent_grid;
+    byte* parent_state;
+    int* heap_priority;
+    u16b* heap_grid;
+    byte* heap_state;
+} mouse_path_search_state;
 
 enum {
     TOUCH_ZONE_LEFT_NW = 0,
@@ -501,6 +522,7 @@ static bool g_touch_pane_second_panel = false;
 static bool g_touch_pane_ctrl_toggle = false;
 static bool g_touch_pane_reset_confirm_active = false;
 static bool g_touch_pane_yes_no_prompt_active = false;
+static char g_touch_pane_yes_no_prompt_text[160];
 static bool g_touch_pane_mobile_open = true;
 static touch_pane_press_state g_touch_pane_press;
 static touch_swipe_state g_touch_swipe;
@@ -518,10 +540,10 @@ static bool g_unified_look_map_hover_pending = false;
 static bool g_unified_look_map_hover_wake_pending = false;
 static int g_unified_look_map_hover_y = 0;
 static int g_unified_look_map_hover_x = 0;
-static byte g_mouse_path_visited[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
-static u16b g_mouse_path_parent[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
-static u16b g_mouse_path_queue[SDL_MOUSE_PATH_MAX_GRIDS];
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
+static mouse_path_search_state g_mouse_path_search;
+static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
+    { 1, 2, 3, 4, 6, 7, 8, 9 };
 static bool g_sdl_blocking_key_wait = false;
 static bool g_direct_touch_present = SIL_SDL_MOBILE_BUILD ? true : false;
 static int g_auto_aux_main_cell_h_override = 0;
@@ -616,7 +638,8 @@ static int sdl_touch_pane_effective_binding_for_panel(int panel, int index);
 static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot);
 static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect);
 static bool sdl_touch_pane_compute_layout(const SDL_Rect* pane_rect, SDL_FRect* slot_rects);
-static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* yes_rect, SDL_FRect* no_rect);
+static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
+    SDL_FRect* prompt_rect, SDL_FRect* yes_rect, SDL_FRect* no_rect);
 static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y);
 static bool sdl_touch_pane_binding_is_direction(int binding);
 static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
@@ -627,6 +650,9 @@ static void sdl_touch_pane_begin_reset_confirm(void);
 static void sdl_touch_pane_finish_reset_confirm(bool confirmed);
 static void sdl_touch_pane_handle_reset_prompt_pointer(float x, float y);
 static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color);
+static void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* name,
+    const char* symbol, SDL_Color color, float single_text_font_ratio,
+    float single_text_height_ratio);
 static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
     SDL_Color color);
 static void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen);
@@ -2850,51 +2876,135 @@ static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect)
     return true;
 }
 
-static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* yes_rect, SDL_FRect* no_rect)
+static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
+    SDL_FRect* prompt_rect, SDL_FRect* yes_rect, SDL_FRect* no_rect)
 {
-    SDL_Rect pane;
     SDL_Rect screen;
-    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
-    float button_size;
+    const sdl_view* view = &g_views[PANE_MAIN];
+    float cell_w = 8.0f;
+    float cell_h = 16.0f;
+    float margin;
     float gap;
-    float total_w;
-    float start_x;
-    float start_y;
+    float button_w;
+    float button_h;
+    float buttons_w;
+    float panel_w;
+    float panel_h;
+    float max_panel_w;
+    float max_panel_h;
+    float prompt_h;
+    float x;
+    float y;
+    float button_y;
+    float button_x;
 
     if (!g_touch_pane_yes_no_prompt_active || !yes_rect || !no_rect)
         return false;
-    if (!sdl_touch_pane_current_rect(&pane))
-        return false;
-    if (!sdl_touch_pane_compute_layout(&pane, slot_rects))
-        return false;
 
-    screen = sdl_get_layout_screen_rect();
+    if (view->term_ready && view->cell_w > 0 && view->cell_h > 0
+        && view->cols > 0 && view->rows > 0)
+    {
+        screen = (SDL_Rect){
+            .x = view->rect.x + view->margin_x,
+            .y = view->rect.y + view->margin_y,
+            .w = view->cols * view->cell_w,
+            .h = view->rows * view->cell_h,
+        };
+        cell_w = (float)view->cell_w;
+        cell_h = (float)view->cell_h;
+    }
+    else
+    {
+        screen = sdl_get_layout_screen_rect();
+    }
+
     if (screen.w <= 0 || screen.h <= 0)
         return false;
 
-    button_size = slot_rects[0].w * 2.0f;
-    gap = 0.0f;
+    margin = cell_w * 1.6f;
+    if (margin < 13.0f)
+        margin = 13.0f;
 
-    total_w = button_size * 2.0f + gap;
-    start_x = (float)screen.x + ((float)screen.w - total_w) * 0.5f;
-    start_y = (float)screen.y + ((float)screen.h - button_size) * 0.5f;
+    gap = cell_w * 1.6f;
+    if (gap < 10.0f)
+        gap = 10.0f;
 
-    if (start_x < (float)screen.x)
-        start_x = (float)screen.x;
-    if (start_y < (float)screen.y)
-        start_y = (float)screen.y;
+    button_w = cell_w * 8.8f;
+    if (button_w < 78.0f)
+        button_w = 78.0f;
+
+    button_h = cell_h * 2.6f;
+    if (button_h < 46.0f)
+        button_h = 46.0f;
+
+    max_panel_w = (float)screen.w * 0.92f;
+    if (max_panel_w < 96.0f)
+        max_panel_w = (float)screen.w;
+
+    panel_w = button_w * 2.0f + gap + margin * 2.0f;
+    if (panel_w > max_panel_w)
+    {
+        button_w = (max_panel_w - gap - margin * 2.0f) * 0.5f;
+        if (button_w < 44.0f)
+            button_w = 44.0f;
+        panel_w = button_w * 2.0f + gap + margin * 2.0f;
+    }
+
+    max_panel_h = (float)screen.h * 0.72f;
+    prompt_h = cell_h * 1.7f;
+    if (prompt_h < 26.0f)
+        prompt_h = 26.0f;
+
+    panel_h = margin * 2.0f + prompt_h + cell_h + button_h;
+    if (panel_h > max_panel_h && max_panel_h > 0.0f)
+    {
+        button_h -= panel_h - max_panel_h;
+        if (button_h < 40.0f)
+            button_h = 40.0f;
+        panel_h = margin * 2.0f + prompt_h + cell_h + button_h;
+    }
+
+    if (panel_w > (float)screen.w)
+        panel_w = (float)screen.w;
+    if (panel_h > (float)screen.h)
+        panel_h = (float)screen.h;
+
+    x = (float)screen.x + ((float)screen.w - panel_w) * 0.5f;
+    y = (float)screen.y + ((float)screen.h - panel_h) * 0.5f;
+    if (x < (float)screen.x)
+        x = (float)screen.x;
+    if (y < (float)screen.y)
+        y = (float)screen.y;
+
+    buttons_w = button_w * 2.0f + gap;
+    button_x = x + (panel_w - buttons_w) * 0.5f;
+    button_y = y + panel_h - margin - button_h;
+
+    if (panel_rect)
+    {
+        *panel_rect = (SDL_FRect){ .x = x, .y = y, .w = panel_w, .h = panel_h };
+    }
+    if (prompt_rect)
+    {
+        *prompt_rect = (SDL_FRect){
+            .x = x + margin,
+            .y = y + margin * 0.75f,
+            .w = panel_w - margin * 2.0f,
+            .h = prompt_h,
+        };
+    }
 
     *yes_rect = (SDL_FRect){
-        .x = start_x,
-        .y = start_y,
-        .w = button_size,
-        .h = button_size,
+        .x = button_x,
+        .y = button_y,
+        .w = button_w,
+        .h = button_h,
     };
     *no_rect = (SDL_FRect){
-        .x = start_x + button_size + gap,
-        .y = start_y,
-        .w = button_size,
-        .h = button_size,
+        .x = button_x + button_w + gap,
+        .y = button_y,
+        .w = button_w,
+        .h = button_h,
     };
 
     return true;
@@ -2937,7 +3047,7 @@ static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
     SDL_FRect yes_rect;
     SDL_FRect no_rect;
 
-    if (!sdl_touch_pane_yes_no_prompt_layout(&yes_rect, &no_rect))
+    if (!sdl_touch_pane_yes_no_prompt_layout(NULL, NULL, &yes_rect, &no_rect))
         return false;
 
     if (x >= yes_rect.x && x < yes_rect.x + yes_rect.w
@@ -2958,7 +3068,8 @@ static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
         return true;
     }
 
-    return false;
+    /* The yes/no prompt is modal; ignore clicks outside its buttons. */
+    return true;
 }
 
 static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color)
@@ -3013,8 +3124,9 @@ static void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Co
         tip_y - dy * head_len - py * head_len * 0.55f);
 }
 
-static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
-    SDL_Color color)
+static void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* name,
+    const char* symbol, SDL_Color color, float single_text_font_ratio,
+    float single_text_height_ratio)
 {
     SDL_Surface* name_surface = NULL;
     SDL_Surface* symbol_surface = NULL;
@@ -3042,11 +3154,17 @@ static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* n
     if (!have_name && !have_symbol)
         return;
 
+    if (single_text_font_ratio <= 0.0f)
+        single_text_font_ratio = 0.28f;
+    if (single_text_height_ratio <= 0.0f)
+        single_text_height_ratio = 0.38f;
+
     name_font_px = (int)(rect->h * 0.18f);
     if (name_font_px < 10)
         name_font_px = 10;
 
-    symbol_font_px = (int)(rect->h * (have_name ? 0.22f : 0.28f));
+    symbol_font_px =
+        (int)(rect->h * (have_name ? 0.22f : single_text_font_ratio));
     if (symbol_font_px < 12)
         symbol_font_px = 12;
 
@@ -3150,7 +3268,8 @@ static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* n
         SDL_Surface* only_surface = name_surface ? name_surface : symbol_surface;
         SDL_Texture* only_texture = name_surface ? name_texture : symbol_texture;
         float max_w = rect->w * 0.82f;
-        float max_h = rect->h * 0.38f;
+        float max_h = rect->h
+            * ((!have_name && have_symbol) ? single_text_height_ratio : 0.38f);
         float scale_w = (only_surface->w > 0) ? (max_w / (float)only_surface->w) : 1.0f;
         float scale_h = (only_surface->h > 0) ? (max_h / (float)only_surface->h) : 1.0f;
         float scale = (scale_w < scale_h) ? scale_w : scale_h;
@@ -3177,6 +3296,12 @@ static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* n
         SDL_DestroySurface(name_surface);
     if (symbol_surface)
         SDL_DestroySurface(symbol_surface);
+}
+
+static void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
+    SDL_Color color)
+{
+    sdl_touch_pane_draw_button_text_scaled(rect, name, symbol, color, 0.28f, 0.38f);
 }
 
 static void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen)
@@ -3265,28 +3390,33 @@ static void sdl_touch_pane_render_reset_prompt(void)
 
 static void sdl_touch_pane_render_yes_no_prompt(void)
 {
+    SDL_FRect panel_rect;
+    SDL_FRect prompt_rect;
     SDL_FRect yes_rect;
     SDL_FRect no_rect;
     SDL_FRect shadow;
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
+    SDL_Color text = g_state.palette[TERM_WHITE];
 
-    if (!sdl_touch_pane_yes_no_prompt_layout(&yes_rect, &no_rect))
+    if (!sdl_touch_pane_yes_no_prompt_layout(&panel_rect, &prompt_rect,
+        &yes_rect, &no_rect))
+    {
         return;
+    }
 
-    shadow = yes_rect;
-    shadow.x += 2.0f;
-    shadow.y += 2.0f;
+    shadow = panel_rect;
+    shadow.x += 4.0f;
+    shadow.y += 4.0f;
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
     SDL_RenderFillRect(g_state.renderer, &shadow);
 
-    shadow = no_rect;
-    shadow.x += 2.0f;
-    shadow.y += 2.0f;
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
-    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 20, 20, 20, 245);
+    SDL_RenderFillRect(g_state.renderer, &panel_rect);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 210);
+    SDL_RenderRect(g_state.renderer, &panel_rect);
 
-    SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 245);
+    SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 250);
     SDL_RenderFillRect(g_state.renderer, &yes_rect);
     SDL_RenderFillRect(g_state.renderer, &no_rect);
 
@@ -3295,8 +3425,15 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
     SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 220);
     SDL_RenderRect(g_state.renderer, &no_rect);
 
-    sdl_touch_pane_draw_button_text(&yes_rect, NULL, "Y", accent);
-    sdl_touch_pane_draw_button_text(&no_rect, NULL, "N", frame);
+    sdl_touch_pane_draw_button_text_scaled(&prompt_rect, NULL,
+        g_touch_pane_yes_no_prompt_text[0]
+            ? g_touch_pane_yes_no_prompt_text
+            : "Are you sure?",
+        text, 0.46f, 0.56f);
+    sdl_touch_pane_draw_button_text_scaled(&yes_rect, NULL, "Yes", accent,
+        0.36f, 0.45f);
+    sdl_touch_pane_draw_button_text_scaled(&no_rect, NULL, "No", frame,
+        0.36f, 0.45f);
 }
 
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
@@ -3698,27 +3835,375 @@ static void sdl_mouse_path_order_dirs(int y, int x, int target_y, int target_x, 
     }
 }
 
-static bool sdl_mouse_path_build_from_parent(int target_y, int target_x)
+static bool sdl_mouse_path_is_move_dir(int dir)
+{
+    return (dir >= 1) && (dir <= 9) && (dir != 5);
+}
+
+static int sdl_mouse_path_route_dir_index(int dir)
+{
+    for (int i = 0; i < SDL_MOUSE_PATH_ROUTE_DIRS; i++) {
+        if (g_mouse_path_route_dirs[i] == dir)
+            return i;
+    }
+
+    return -1;
+}
+
+static byte sdl_mouse_path_route_state(int dir, int chain)
+{
+    int dir_index = sdl_mouse_path_route_dir_index(dir);
+
+    if (dir_index < 0)
+        return 0;
+    if (chain < 1)
+        chain = 1;
+    if (chain > SDL_MOUSE_PATH_SPRINT_CHAIN_MAX)
+        chain = SDL_MOUSE_PATH_SPRINT_CHAIN_MAX;
+
+    return (byte)(1 + dir_index * SDL_MOUSE_PATH_SPRINT_CHAIN_MAX
+        + (chain - 1));
+}
+
+static int sdl_mouse_path_route_state_dir(byte state)
+{
+    if (state == 0)
+        return 0;
+    if (state >= SDL_MOUSE_PATH_ROUTE_STATE_COUNT)
+        return 0;
+
+    return g_mouse_path_route_dirs[
+        (state - 1) / SDL_MOUSE_PATH_SPRINT_CHAIN_MAX];
+}
+
+static int sdl_mouse_path_route_state_chain(byte state)
+{
+    if (state == 0)
+        return 0;
+    if (state >= SDL_MOUSE_PATH_ROUTE_STATE_COUNT)
+        return 0;
+
+    return ((state - 1) % SDL_MOUSE_PATH_SPRINT_CHAIN_MAX) + 1;
+}
+
+static bool sdl_mouse_path_dirs_sprint_compatible(int newer_dir, int older_dir)
+{
+    if (!sdl_mouse_path_is_move_dir(newer_dir)
+        || !sdl_mouse_path_is_move_dir(older_dir))
+    {
+        return false;
+    }
+
+    return (newer_dir == older_dir)
+        || (newer_dir == cycle[chome[older_dir] - 1])
+        || (newer_dir == cycle[chome[older_dir] + 1]);
+}
+
+static byte sdl_mouse_path_initial_route_state(bool sprint_enabled)
+{
+    int dir;
+    int chain = 1;
+
+    if (!p_ptr || !sprint_enabled)
+        return 0;
+
+    dir = p_ptr->previous_action[1];
+    if (!sdl_mouse_path_is_move_dir(dir))
+        return 0;
+
+    for (int i = 1; i < SDL_MOUSE_PATH_SPRINT_CHAIN_MAX; i++) {
+        int newer_dir = p_ptr->previous_action[i];
+        int older_dir = p_ptr->previous_action[i + 1];
+
+        if (!sdl_mouse_path_dirs_sprint_compatible(newer_dir, older_dir))
+            break;
+
+        chain++;
+    }
+
+    return sdl_mouse_path_route_state(dir, chain);
+}
+
+static byte sdl_mouse_path_next_route_state(byte state, int dir,
+    bool sprint_enabled)
+{
+    int previous_dir = sdl_mouse_path_route_state_dir(state);
+    int chain = sdl_mouse_path_route_state_chain(state);
+
+    if (!sprint_enabled)
+        return sdl_mouse_path_route_state(dir, 1);
+
+    if (previous_dir
+        && sdl_mouse_path_dirs_sprint_compatible(dir, previous_dir))
+    {
+        chain++;
+    }
+    else
+    {
+        chain = 1;
+    }
+
+    return sdl_mouse_path_route_state(dir, chain);
+}
+
+static int sdl_mouse_path_route_edge_cost(byte state, int dir,
+    bool sprint_enabled)
+{
+    int previous_dir = sdl_mouse_path_route_state_dir(state);
+    int chain = sdl_mouse_path_route_state_chain(state);
+    int cost = (sprint_enabled && (chain >= SDL_MOUSE_PATH_SPRINT_CHAIN_MAX))
+        ? SDL_MOUSE_PATH_COST_SPRINT
+        : SDL_MOUSE_PATH_COST_NORMAL;
+
+    if (previous_dir && (dir != previous_dir))
+    {
+        cost += sdl_mouse_path_dirs_sprint_compatible(dir, previous_dir)
+            ? SDL_MOUSE_PATH_TURN_COST_SOFT
+            : SDL_MOUSE_PATH_TURN_COST_HARD;
+    }
+
+    return cost;
+}
+
+static int sdl_mouse_path_route_heuristic(int y, int x, int target_y,
+    int target_x, bool sprint_enabled)
+{
+    int dy = ABS(y - target_y);
+    int dx = ABS(x - target_x);
+    int min_step_cost = sprint_enabled ? SDL_MOUSE_PATH_COST_SPRINT
+                                       : SDL_MOUSE_PATH_COST_NORMAL;
+
+    return MAX(dy, dx) * min_step_cost;
+}
+
+static size_t sdl_mouse_path_search_index(int y, int x, byte state)
+{
+    return (((size_t)y * (size_t)g_mouse_path_search.width + (size_t)x)
+        * (size_t)SDL_MOUSE_PATH_ROUTE_STATE_COUNT)
+        + (size_t)state;
+}
+
+static size_t sdl_mouse_path_search_grid_state_index(u16b grid, byte state)
+{
+    return sdl_mouse_path_search_index(GRID_Y(grid), GRID_X(grid), state);
+}
+
+static void sdl_mouse_path_search_free(void)
+{
+    SDL_free(g_mouse_path_search.cost);
+    SDL_free(g_mouse_path_search.heap_pos);
+    SDL_free(g_mouse_path_search.parent_grid);
+    SDL_free(g_mouse_path_search.parent_state);
+    SDL_free(g_mouse_path_search.heap_priority);
+    SDL_free(g_mouse_path_search.heap_grid);
+    SDL_free(g_mouse_path_search.heap_state);
+    memset(&g_mouse_path_search, 0, sizeof(g_mouse_path_search));
+}
+
+static bool sdl_mouse_path_search_ensure(size_t state_count)
+{
+    if (g_mouse_path_search.capacity >= state_count)
+        return true;
+
+    sdl_mouse_path_search_free();
+
+    g_mouse_path_search.cost = (int*)SDL_calloc(state_count, sizeof(int));
+    g_mouse_path_search.heap_pos = (int*)SDL_calloc(state_count, sizeof(int));
+    g_mouse_path_search.parent_grid =
+        (u16b*)SDL_calloc(state_count, sizeof(u16b));
+    g_mouse_path_search.parent_state =
+        (byte*)SDL_calloc(state_count, sizeof(byte));
+    g_mouse_path_search.heap_priority =
+        (int*)SDL_calloc(state_count, sizeof(int));
+    g_mouse_path_search.heap_grid =
+        (u16b*)SDL_calloc(state_count, sizeof(u16b));
+    g_mouse_path_search.heap_state =
+        (byte*)SDL_calloc(state_count, sizeof(byte));
+
+    if (!g_mouse_path_search.cost || !g_mouse_path_search.heap_pos
+        || !g_mouse_path_search.parent_grid
+        || !g_mouse_path_search.parent_state
+        || !g_mouse_path_search.heap_priority
+        || !g_mouse_path_search.heap_grid || !g_mouse_path_search.heap_state)
+    {
+        sdl_mouse_path_search_free();
+        return false;
+    }
+
+    g_mouse_path_search.capacity = state_count;
+    return true;
+}
+
+static bool sdl_mouse_path_heap_less(int a, int b)
+{
+    int a_priority = g_mouse_path_search.heap_priority[a];
+    int b_priority = g_mouse_path_search.heap_priority[b];
+
+    if (a_priority != b_priority)
+        return a_priority < b_priority;
+
+    return g_mouse_path_search.cost[sdl_mouse_path_search_grid_state_index(
+               g_mouse_path_search.heap_grid[a],
+               g_mouse_path_search.heap_state[a])]
+        < g_mouse_path_search.cost[sdl_mouse_path_search_grid_state_index(
+               g_mouse_path_search.heap_grid[b],
+               g_mouse_path_search.heap_state[b])];
+}
+
+static void sdl_mouse_path_heap_swap(int a, int b)
+{
+    int priority = g_mouse_path_search.heap_priority[a];
+    u16b grid = g_mouse_path_search.heap_grid[a];
+    byte state = g_mouse_path_search.heap_state[a];
+
+    g_mouse_path_search.heap_priority[a] =
+        g_mouse_path_search.heap_priority[b];
+    g_mouse_path_search.heap_grid[a] = g_mouse_path_search.heap_grid[b];
+    g_mouse_path_search.heap_state[a] = g_mouse_path_search.heap_state[b];
+    g_mouse_path_search.heap_priority[b] = priority;
+    g_mouse_path_search.heap_grid[b] = grid;
+    g_mouse_path_search.heap_state[b] = state;
+
+    g_mouse_path_search.heap_pos[sdl_mouse_path_search_grid_state_index(
+        g_mouse_path_search.heap_grid[a],
+        g_mouse_path_search.heap_state[a])] = a;
+    g_mouse_path_search.heap_pos[sdl_mouse_path_search_grid_state_index(
+        g_mouse_path_search.heap_grid[b],
+        g_mouse_path_search.heap_state[b])] = b;
+}
+
+static void sdl_mouse_path_heap_sift_up(int pos)
+{
+    while (pos > 0) {
+        int parent = (pos - 1) / 2;
+
+        if (!sdl_mouse_path_heap_less(pos, parent))
+            break;
+
+        sdl_mouse_path_heap_swap(pos, parent);
+        pos = parent;
+    }
+}
+
+static void sdl_mouse_path_heap_sift_down(int pos)
+{
+    while (true) {
+        int left = pos * 2 + 1;
+        int right = left + 1;
+        int best = pos;
+
+        if (left < g_mouse_path_search.heap_size
+            && sdl_mouse_path_heap_less(left, best))
+        {
+            best = left;
+        }
+
+        if (right < g_mouse_path_search.heap_size
+            && sdl_mouse_path_heap_less(right, best))
+        {
+            best = right;
+        }
+
+        if (best == pos)
+            break;
+
+        sdl_mouse_path_heap_swap(pos, best);
+        pos = best;
+    }
+}
+
+static bool sdl_mouse_path_heap_insert_or_decrease(u16b grid, byte state,
+    int priority)
+{
+    size_t idx = sdl_mouse_path_search_grid_state_index(grid, state);
+    int pos = g_mouse_path_search.heap_pos[idx];
+
+    if (pos >= 0)
+    {
+        g_mouse_path_search.heap_priority[pos] = priority;
+        sdl_mouse_path_heap_sift_up(pos);
+        return true;
+    }
+
+    if ((size_t)g_mouse_path_search.heap_size
+        >= g_mouse_path_search.capacity)
+    {
+        return false;
+    }
+
+    pos = g_mouse_path_search.heap_size++;
+    g_mouse_path_search.heap_priority[pos] = priority;
+    g_mouse_path_search.heap_grid[pos] = grid;
+    g_mouse_path_search.heap_state[pos] = state;
+    g_mouse_path_search.heap_pos[idx] = pos;
+    sdl_mouse_path_heap_sift_up(pos);
+    return true;
+}
+
+static bool sdl_mouse_path_heap_pop(u16b* grid, byte* state)
+{
+    size_t root_idx;
+
+    if (g_mouse_path_search.heap_size <= 0)
+        return false;
+
+    *grid = g_mouse_path_search.heap_grid[0];
+    *state = g_mouse_path_search.heap_state[0];
+    root_idx = sdl_mouse_path_search_grid_state_index(*grid, *state);
+    g_mouse_path_search.heap_pos[root_idx] = -1;
+
+    g_mouse_path_search.heap_size--;
+    if (g_mouse_path_search.heap_size > 0)
+    {
+        g_mouse_path_search.heap_priority[0] =
+            g_mouse_path_search.heap_priority[g_mouse_path_search.heap_size];
+        g_mouse_path_search.heap_grid[0] =
+            g_mouse_path_search.heap_grid[g_mouse_path_search.heap_size];
+        g_mouse_path_search.heap_state[0] =
+            g_mouse_path_search.heap_state[g_mouse_path_search.heap_size];
+        g_mouse_path_search.heap_pos[sdl_mouse_path_search_grid_state_index(
+            g_mouse_path_search.heap_grid[0],
+            g_mouse_path_search.heap_state[0])] = 0;
+        sdl_mouse_path_heap_sift_down(0);
+    }
+
+    return true;
+}
+
+static bool sdl_mouse_path_build_from_search(int target_y, int target_x,
+    byte target_state)
 {
     u16b start = GRID(p_ptr->py, p_ptr->px);
     u16b here = GRID(target_y, target_x);
+    byte state = target_state;
     int reverse_len = 0;
 
     while (here != start) {
         int y = GRID_Y(here);
         int x = GRID_X(here);
+        size_t idx;
         u16b parent;
+        byte parent_state;
 
         if (!in_bounds(y, x))
+            return false;
+        if (state >= SDL_MOUSE_PATH_ROUTE_STATE_COUNT)
             return false;
         if (reverse_len >= SDL_MOUSE_PATH_MAX_GRIDS)
             return false;
 
-        g_mouse_path_reverse[reverse_len++] = here;
-        parent = g_mouse_path_parent[y][x];
-        if (parent == 0xFFFF || parent == here)
+        idx = sdl_mouse_path_search_grid_state_index(here, state);
+        parent = g_mouse_path_search.parent_grid[idx];
+        parent_state = g_mouse_path_search.parent_state[idx];
+
+        if ((parent == here) && (parent_state == state))
             return false;
+        if (!in_bounds(GRID_Y(parent), GRID_X(parent)))
+            return false;
+
+        g_mouse_path_reverse[reverse_len++] = here;
         here = parent;
+        state = parent_state;
     }
 
     g_mouse_path.path_len = reverse_len;
@@ -3728,12 +4213,108 @@ static bool sdl_mouse_path_build_from_parent(int target_y, int target_x)
     return reverse_len > 0;
 }
 
+static bool sdl_mouse_path_compute_route(int target_y, int target_x,
+    bool sprint_enabled)
+{
+    int map_hgt = p_ptr->cur_map_hgt;
+    int map_wid = p_ptr->cur_map_wid;
+    size_t state_count = (size_t)map_hgt * (size_t)map_wid
+        * (size_t)SDL_MOUSE_PATH_ROUTE_STATE_COUNT;
+    u16b start_grid = GRID(p_ptr->py, p_ptr->px);
+    byte start_state = sdl_mouse_path_initial_route_state(sprint_enabled);
+    size_t start_idx;
+
+    if (!sdl_mouse_path_search_ensure(state_count))
+        return false;
+
+    g_mouse_path_search.width = map_wid;
+    g_mouse_path_search.heap_size = 0;
+    memset(g_mouse_path_search.cost, 0x3f,
+        state_count * sizeof(*g_mouse_path_search.cost));
+    memset(g_mouse_path_search.heap_pos, 0xFF,
+        state_count * sizeof(*g_mouse_path_search.heap_pos));
+
+    start_idx = sdl_mouse_path_search_grid_state_index(start_grid, start_state);
+    g_mouse_path_search.cost[start_idx] = 0;
+    g_mouse_path_search.parent_grid[start_idx] = start_grid;
+    g_mouse_path_search.parent_state[start_idx] = start_state;
+    if (!sdl_mouse_path_heap_insert_or_decrease(start_grid, start_state,
+            sdl_mouse_path_route_heuristic(
+                p_ptr->py, p_ptr->px, target_y, target_x, sprint_enabled)))
+    {
+        return false;
+    }
+
+    while (g_mouse_path_search.heap_size > 0) {
+        u16b grid;
+        byte state;
+        int y;
+        int x;
+        size_t idx;
+        int base_cost;
+        int dirs[8];
+
+        if (!sdl_mouse_path_heap_pop(&grid, &state))
+            break;
+
+        y = GRID_Y(grid);
+        x = GRID_X(grid);
+        idx = sdl_mouse_path_search_grid_state_index(grid, state);
+        base_cost = g_mouse_path_search.cost[idx];
+
+        if ((y == target_y) && (x == target_x))
+            return sdl_mouse_path_build_from_search(target_y, target_x, state);
+
+        sdl_mouse_path_order_dirs(y, x, target_y, target_x, dirs);
+        for (int i = 0; i < 8; i++) {
+            int dir = dirs[i];
+            int ny = y + ddy[dir];
+            int nx = x + ddx[dir];
+            byte next_state;
+            u16b next_grid;
+            size_t next_idx;
+            int next_cost;
+            int priority;
+
+            if (!in_bounds(ny, nx))
+                continue;
+            if (!sdl_mouse_path_grid_walkable(ny, nx))
+                continue;
+
+            next_state = sdl_mouse_path_next_route_state(
+                state, dir, sprint_enabled);
+            next_grid = GRID(ny, nx);
+            next_idx = sdl_mouse_path_search_grid_state_index(
+                next_grid, next_state);
+            next_cost =
+                base_cost + sdl_mouse_path_route_edge_cost(
+                    state, dir, sprint_enabled);
+
+            if (next_cost >= g_mouse_path_search.cost[next_idx])
+                continue;
+
+            priority = next_cost
+                + sdl_mouse_path_route_heuristic(
+                    ny, nx, target_y, target_x, sprint_enabled);
+            g_mouse_path_search.cost[next_idx] = next_cost;
+            g_mouse_path_search.parent_grid[next_idx] = grid;
+            g_mouse_path_search.parent_state[next_idx] = state;
+
+            if (!sdl_mouse_path_heap_insert_or_decrease(
+                    next_grid, next_state, priority))
+            {
+                return false;
+            }
+        }
+    }
+
+    return false;
+}
+
 static bool sdl_mouse_path_compute(int target_y, int target_x)
 {
-    int head = 0;
-    int tail = 0;
-    bool found = false;
     int target_m_idx = 0;
+    bool sprint_enabled;
 
     g_mouse_path.path_valid = false;
     g_mouse_path.path_len = 0;
@@ -3755,52 +4336,8 @@ static bool sdl_mouse_path_compute(int target_y, int target_x)
     if (!sdl_mouse_path_grid_walkable(target_y, target_x))
         return false;
 
-    for (int y = 0; y < p_ptr->cur_map_hgt; y++) {
-        memset(g_mouse_path_visited[y], 0, (size_t)p_ptr->cur_map_wid);
-        for (int x = 0; x < p_ptr->cur_map_wid; x++)
-            g_mouse_path_parent[y][x] = 0xFFFF;
-    }
-
-    g_mouse_path_queue[tail++] = GRID(p_ptr->py, p_ptr->px);
-    g_mouse_path_visited[p_ptr->py][p_ptr->px] = true;
-    g_mouse_path_parent[p_ptr->py][p_ptr->px] = GRID(p_ptr->py, p_ptr->px);
-
-    while (head < tail) {
-        u16b grid = g_mouse_path_queue[head++];
-        int y = GRID_Y(grid);
-        int x = GRID_X(grid);
-        int dirs[8];
-
-        if ((y == target_y) && (x == target_x)) {
-            found = true;
-            break;
-        }
-
-        sdl_mouse_path_order_dirs(y, x, target_y, target_x, dirs);
-        for (int i = 0; i < 8; i++) {
-            int dir = dirs[i];
-            int ny = y + ddy[dir];
-            int nx = x + ddx[dir];
-
-            if (!in_bounds(ny, nx))
-                continue;
-            if (g_mouse_path_visited[ny][nx])
-                continue;
-            if (!sdl_mouse_path_grid_walkable(ny, nx))
-                continue;
-            if (tail >= SDL_MOUSE_PATH_MAX_GRIDS)
-                return false;
-
-            g_mouse_path_visited[ny][nx] = true;
-            g_mouse_path_parent[ny][nx] = grid;
-            g_mouse_path_queue[tail++] = GRID(ny, nx);
-        }
-    }
-
-    if (!found)
-        return false;
-
-    if (!sdl_mouse_path_build_from_parent(target_y, target_x))
+    sprint_enabled = p_ptr->active_ability[S_EVN][EVN_SPRINTING] ? true : false;
+    if (!sdl_mouse_path_compute_route(target_y, target_x, sprint_enabled))
         return false;
 
     g_mouse_path.path_valid = true;
@@ -3931,6 +4468,18 @@ static bool sdl_mouse_path_handle_movement_click(float x, float y)
 
 static bool sdl_mouse_path_handle_left_click(float x, float y)
 {
+    int map_y = 0;
+    int map_x = 0;
+
+    if (sdl_main_screen_click_shortcuts_active()
+        && sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        && map_y == p_ptr->py && map_x == p_ptr->px)
+    {
+        sdl_mouse_path_cancel();
+        sdl_touch_pane_send_confirm_action();
+        return true;
+    }
+
     if (sdl_mouse_movement_normalized_mode(config.mouse_movement_mode)
         != SDL_MOUSE_MOVEMENT_ON)
     {
@@ -3949,6 +4498,23 @@ static bool sdl_mouse_path_handle_right_movement_click(float x, float y)
     }
 
     return sdl_mouse_path_handle_movement_click(x, y);
+}
+
+static bool sdl_mouse_path_handle_right_click(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+    if (map_y != p_ptr->py || map_x != p_ptr->px)
+        return false;
+
+    sdl_mouse_path_cancel();
+    Term_keypress('z');
+    return true;
 }
 
 static bool sdl_mouse_consume_wake_key(void)
@@ -4483,6 +5049,12 @@ static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y)
     int col = 0;
     int row = 0;
     bool wake = false;
+
+    if (g_touch_pane_yes_no_prompt_active)
+    {
+        ui_menu_click_clear_pending_hover();
+        return true;
+    }
 
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
@@ -7812,6 +8384,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_mouse_path_handle_right_click((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_mouse_path_handle_right_movement_click((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -9638,6 +10215,9 @@ static void sdl_quit_hook(cptr str)
 
     // Close any open gamepads
     sdl_gamepad_shutdown();
+
+    // Release cached mouse route search buffers.
+    sdl_mouse_path_search_free();
     
     // Clean up story fonts
     sdl_story_font_cache_clear();
@@ -11215,13 +11795,26 @@ void sdl_touch_pane_reset_bindings_to_default(void)
     sdl_touch_pane_ensure_main_panel_confirm();
 }
 
-void sdl_touch_pane_begin_yes_no_prompt(void)
+void sdl_touch_pane_begin_yes_no_prompt(cptr prompt)
 {
-    if (!sdl_touch_pane_is_config_enabled())
-        return;
+    size_t len;
 
-    if (sdl_touch_pane_uses_mobile_overlay())
+    SDL_strlcpy(g_touch_pane_yes_no_prompt_text,
+        (prompt && prompt[0]) ? prompt : "Are you sure?",
+        sizeof(g_touch_pane_yes_no_prompt_text));
+    len = strlen(g_touch_pane_yes_no_prompt_text);
+    while (len > 0
+        && isspace((unsigned char)g_touch_pane_yes_no_prompt_text[len - 1]))
+    {
+        g_touch_pane_yes_no_prompt_text[--len] = '\0';
+    }
+
+    if (sdl_touch_pane_is_config_enabled()
+        && sdl_touch_pane_uses_mobile_overlay())
+    {
         sdl_touch_pane_set_mobile_open(true);
+    }
+
     sdl_touch_pane_cancel_press();
     sdl_touch_swipe_cancel();
     sdl_touch_zone_cancel_press();
@@ -11236,6 +11829,7 @@ void sdl_touch_pane_end_yes_no_prompt(void)
         return;
 
     g_touch_pane_yes_no_prompt_active = false;
+    g_touch_pane_yes_no_prompt_text[0] = '\0';
     g_state.need_present = true;
 }
 

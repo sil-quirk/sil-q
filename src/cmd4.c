@@ -1099,6 +1099,10 @@ void do_cmd_character_sheet(void)
                     ch = (char)clicked_choice;
                 }
             }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
         }
 
         /* Exit - B button (back) or ESC */
@@ -2895,7 +2899,7 @@ int bane_menu(int* highlight)
             && clicked_choice >= 1 && clicked_choice <= options)
         {
             *highlight = clicked_choice;
-            if (click_action == UI_MENU_CLICK_SECONDARY)
+            if (click_action != UI_MENU_CLICK_HOVER)
                 return (*highlight);
             return (0);
         }
@@ -3267,7 +3271,7 @@ int oath_menu(int* highlight)
             && clicked_choice >= 1 && clicked_choice <= visible_count)
         {
             *highlight = clicked_choice;
-            if (click_action == UI_MENU_CLICK_SECONDARY)
+            if (click_action != UI_MENU_CLICK_HOVER)
                 return visible_oaths[*highlight - 1];
             return (0);
         }
@@ -4023,7 +4027,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 if (selected_index >= 0 && selected_index < visible_count)
                 {
                     *highlight = visible_abilities[selected_index] + 1;
-                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                    if (click_action != UI_MENU_CLICK_HOVER)
                         return (*highlight);
                     return (0);
                 }

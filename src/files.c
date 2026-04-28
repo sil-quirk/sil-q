@@ -10174,11 +10174,13 @@ errr file_character(cptr name, bool full)
 static int final_menu(int* highlight)
 {
     char ch;
+    int clicked_choice = 0;
     bool morgoth_victory = (p_ptr->morgoth_slain && !p_ptr->escaped);
     int term_wid = 80;
     int term_hgt = 24;
     int separator_row;
     int option_row;
+    int first_option_row;
     char separator[96];
 
     const char* option_a = morgoth_victory ? "a) Review the Valar's record"
@@ -10198,30 +10200,41 @@ static int final_menu(int* highlight)
     Term_get_size(&term_wid, &term_hgt);
     separator_row = (term_hgt < 20) ? 9 : 10;
     option_row = separator_row + 2;
+    first_option_row = option_row;
     memset(separator, '_', sizeof(separator) - 1);
     separator[MIN((int)sizeof(separator) - 1, MAX(1, term_wid - 6))] = '\0';
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     Term_putstr(3, separator_row, term_wid - 6, TERM_L_DARK, separator);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         option_a);
+    ui_menu_click_add(1, 15, first_option_row + 0, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         option_b);
+    ui_menu_click_add(2, 15, first_option_row + 1, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         option_c);
+    ui_menu_click_add(3, 15, first_option_row + 2, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         option_d);
+    ui_menu_click_add(4, 15, first_option_row + 3, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         option_e);
+    ui_menu_click_add(5, 15, first_option_row + 4, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         option_f);
+    ui_menu_click_add(6, 15, first_option_row + 5, term_wid - 15);
     Term_putstr(15, option_row, term_wid - 15,
         (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
+    ui_menu_click_add(7, 15, first_option_row + 6, term_wid - 15);
 
     /* Flush the prompt */
     Term_fresh();
@@ -10233,6 +10246,19 @@ static int final_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
+            && clicked_choice >= 1 && clicked_choice <= 7)
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+            return (*highlight);
+        }
+    }
 
     if (ch == 'a')
     {
@@ -10435,6 +10461,7 @@ static void close_game_aux(void)
     while (!wants_to_quit)
     {
         choice = final_menu(&highlight);
+        ui_menu_click_clear();
 
         switch (choice)
         {

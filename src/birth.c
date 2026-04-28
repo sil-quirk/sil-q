@@ -5053,13 +5053,32 @@ static NavResult blitz_auto_build_character(void)
     return NAV_OK;
 }
 
-static void birth_display_stats_allocation_compact(const int stats[A_MAX], int selected,
-    int points_left, bool steamdeck)
+static void birth_register_allocation_prompt_clicks(int row, cptr prompt,
+    int col, cptr back_label, cptr confirm_label, cptr quit_label)
+{
+    if (!prompt)
+        return;
+
+    ui_menu_click_add_text_token(-1, col, row, prompt, back_label);
+    ui_menu_click_add_text_token(-1, col, row, prompt, "back");
+    ui_menu_click_add_text_token(-2, col, row, prompt, confirm_label);
+    ui_menu_click_add_text_token(-2, col, row, prompt, "ok");
+    ui_menu_click_add_text_token(-2, col, row, prompt, "confirm");
+    ui_menu_click_add_text_token(-2, col, row, prompt, "SPACE/ENTER");
+    ui_menu_click_add_text_token(-3, col, row, prompt, quit_label);
+    ui_menu_click_add_text_token(-3, col, row, prompt, "quit");
+}
+
+static void birth_display_stats_allocation_compact(const int stats[A_MAX],
+    int selected, int points_left, bool steamdeck)
 {
     int wid = 80;
     int hgt = 24;
     char buf[160];
     char stat_buf[16];
+    char confirm_label[16] = "SPACE/ENTER";
+    char back_label[16] = "ESC";
+    char quit_label[16] = "q";
     int prompt_row;
     int info_row;
 
@@ -5097,10 +5116,6 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
 
     if (steamdeck)
     {
-        char confirm_label[16];
-        char back_label[16];
-        char quit_label[16];
-
         birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
@@ -5114,6 +5129,8 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX], int s
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
+    birth_register_allocation_prompt_clicks(prompt_row, buf, 1,
+        back_label, confirm_label, quit_label);
 }
 
 static void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
@@ -5122,6 +5139,9 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
     int wid = 80;
     int hgt = 24;
     char buf[160];
+    char confirm_label[16] = "SPACE/ENTER";
+    char back_label[16] = "ESC";
+    char quit_label[16] = "q";
     int prompt_row;
     int info_row;
 
@@ -5161,10 +5181,6 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
 
     if (steamdeck)
     {
-        char confirm_label[16];
-        char back_label[16];
-        char quit_label[16];
-
         birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
@@ -5178,6 +5194,8 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
+    birth_register_allocation_prompt_clicks(prompt_row, buf, 1,
+        back_label, confirm_label, quit_label);
 }
 
 /*
@@ -5314,6 +5332,7 @@ static NavResult player_birth_aux_2(void)
         if (compact)
         {
             ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
             birth_display_stats_allocation_compact(stats, stat, MAX_COST - cost, steamdeck);
         }
         else
@@ -5396,23 +5415,16 @@ static NavResult player_birth_aux_2(void)
                     "D-pad allocate  %s back  %s confirm  %s quit",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
-                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
-                    prompt_buf, "back");
-                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
-                    prompt_buf, "confirm");
-                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
-                    prompt_buf, "quit");
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_buf, QUESTION_COL, back_label, confirm_label,
+                    quit_label);
             } else {
                 cptr prompt_text =
                     "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
-                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
-                    prompt_text, "back");
-                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
-                    prompt_text, "confirm");
-                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
-                    prompt_text, "quit");
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_text, QUESTION_COL, "ESC", "SPACE/ENTER", "q");
             }
 
             if (story_character_enabled()) {
@@ -5824,23 +5836,16 @@ extern NavResult gain_skills(void)
                     "D-pad -allocate      %s-back     %s-confirm     %s-quit",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
-                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
-                    prompt_buf, "back");
-                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
-                    prompt_buf, "confirm");
-                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
-                    prompt_buf, "quit");
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_buf, QUESTION_COL, back_label, confirm_label,
+                    quit_label);
             } else {
                 cptr prompt_text =
                     "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
-                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
-                    prompt_text, "back");
-                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
-                    prompt_text, "confirm");
-                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
-                    prompt_text, "quit");
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_text, QUESTION_COL, "ESC", "SPACE/ENTER", "q");
             }
 
             if (story_character_enabled()) {

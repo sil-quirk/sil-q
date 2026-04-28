@@ -660,7 +660,7 @@ static bool confirm_enter_morgoth_hall(void)
             col = 1;
         Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
     }
-    sdl_touch_pane_begin_yes_no_prompt();
+    sdl_touch_pane_begin_yes_no_prompt("Enter Morgoth's hall?");
     Term_fresh();
 
     /* Get an acceptable answer */

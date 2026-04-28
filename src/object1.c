@@ -7354,8 +7354,10 @@ void show_inven_enhanced(void)
             int clicked_row = -1;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_row, &click_action)
-                && clicked_row >= 0 && clicked_row < k)
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken && clicked_row >= 0 && clicked_row < k)
             {
                 highlight_row = clicked_row;
                 highlight_active = true;
@@ -7382,6 +7384,10 @@ void show_inven_enhanced(void)
 
                 continue;
             }
+            if (click_taken && click_action == UI_MENU_CLICK_HOVER)
+                continue;
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
         }
         
         log_trace("show_inven_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
@@ -7998,8 +8004,10 @@ void show_equip_enhanced(void)
             int clicked_row = -1;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_row, &click_action)
-                && clicked_row >= 0 && clicked_row < k)
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken && clicked_row >= 0 && clicked_row < k)
             {
                 int clicked_slot = out_index[clicked_row];
                 if (clicked_slot >= INVEN_WIELD && clicked_slot < INVEN_TOTAL
@@ -8024,6 +8032,10 @@ void show_equip_enhanced(void)
                     continue;
                 }
             }
+            if (click_taken && click_action == UI_MENU_CLICK_HOVER)
+                continue;
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
         }
         
         log_trace("show_equip_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');

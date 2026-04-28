@@ -6008,7 +6008,7 @@ static void choose_difficulty_menu(void)
                     portable ? "Do you want to continue? (y/n/sp)"
                              : "Do you want to continue? (y/n)");
             }
-            sdl_touch_pane_begin_yes_no_prompt();
+            sdl_touch_pane_begin_yes_no_prompt("Do you want to continue?");
             Term_fresh();
             char confirm = metarun_inkey_hidden();
             sdl_touch_pane_end_yes_no_prompt();

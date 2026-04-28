@@ -1923,7 +1923,7 @@ extern int get_sdl_touch_pane_binding_for_panel(int panel, int index);
 extern void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding);
 extern int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
 extern void sdl_touch_pane_reset_bindings_to_default(void);
-extern void sdl_touch_pane_begin_yes_no_prompt(void);
+extern void sdl_touch_pane_begin_yes_no_prompt(cptr prompt);
 extern void sdl_touch_pane_end_yes_no_prompt(void);
 extern cptr get_sdl_touch_pane_slot_name(int index);
 extern void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);
