@@ -3287,8 +3287,22 @@ void verify_panel(void)
 
     if (banner_rows >= SCREEN_HGT)
         banner_rows = SCREEN_HGT - 1;
-    if ((banner_rows > 0) && (py < wy + banner_rows))
-        wy = py - banner_rows;
+    if (banner_rows > 0)
+    {
+        int visible_rows = SCREEN_HGT - banner_rows;
+        int target_screen_row;
+
+        if (visible_rows < 1)
+            visible_rows = 1;
+
+        /* Center within the unobscured map rows instead of hugging the banner. */
+        target_screen_row = banner_rows + visible_rows / 2;
+        if (target_screen_row >= SCREEN_HGT)
+            target_screen_row = SCREEN_HGT - 1;
+
+        if (py < wy + target_screen_row)
+            wy = py - target_screen_row;
+    }
 
     /* Scroll screen horizontally when off-center */
     if (center_player && (!p_ptr->running || !run_avoid_center)
@@ -8895,6 +8909,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     Term_get_size(&wid, &hgt);
     bool compact = (wid < 60) || (hgt < 20);
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     
     int selection = 0;
     bool done = false;
@@ -8947,7 +8962,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             char marker = (i == selection) ? '>' : ' ';
             
             char line_buf[140];
-            if (steamdeck)
+            if (!menu_letters)
                 strnfmt(line_buf, sizeof(line_buf), "%c   %s", marker, desc);
             else
                 strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker,
@@ -8979,7 +8994,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "choose");
             ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "accept");
         }
-        else
+        else if (menu_letters)
         {
             cptr prompt_text = compact ? "8/2 move  x inspect  Enter choose"
                 : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select";
@@ -8987,6 +9002,15 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-2, 2, row, prompt_text, "inspect");
             ui_menu_click_add_text_token(-2, 2, row, prompt_text, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
+        }
+        else
+        {
+            cptr prompt_text = compact ? "8/2 move  Enter choose"
+                : "Arrows navigate   Space/Enter accept";
+
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
             ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
         }
@@ -9036,7 +9060,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             /* Accept current selection */
             selected_artifact = choices[selection];
             done = true;
-        } else if ((!steamdeck && (key == 'x' || key == 'X'))
+        } else if ((menu_letters && (key == 'x' || key == 'X'))
                    || key == '?'
                    || (steamdeck && key == steamdeck_alt_action_key())) {
             /* Inspect selection */
@@ -9049,11 +9073,11 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         } else if (key == '2' || key == 'j' || key == '+') {
             /* Move down */
             selection = (selection + 1) % choice_count;
-        } else if (!steamdeck && key >= 'a' && key < 'a' + choice_count) {
+        } else if (menu_letters && key >= 'a' && key < 'a' + choice_count) {
             /* Letter selection */
             selected_artifact = choices[key - 'a'];
             done = true;
-        } else if (!steamdeck && key >= 'A' && key < 'A' + choice_count) {
+        } else if (menu_letters && key >= 'A' && key < 'A' + choice_count) {
             /* Capital letter selection */
             selected_artifact = choices[key - 'A'];
             done = true;

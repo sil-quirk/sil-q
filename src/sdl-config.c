@@ -1923,8 +1923,16 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
     {
         cJSON* mouse_control = cJSON_GetObjectItemCaseSensitive(root, "mouseControl");
         if (cJSON_IsObject(mouse_control)) {
+            cJSON* enabled = cJSON_GetObjectItemCaseSensitive(mouse_control,
+                "enabled");
             cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(mouse_control,
                 "movementMode");
+
+            if (cJSON_IsBool(enabled)) {
+                config->mouse_enabled = cJSON_IsTrue(enabled);
+                log_debug("Loaded mouseControl.enabled: %s",
+                    config->mouse_enabled ? "true" : "false");
+            }
 
             if (cJSON_IsString(movement_mode) && movement_mode->valuestring) {
                 config->mouse_movement_mode =
@@ -2225,6 +2233,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     {
         cJSON* mouse_control = cJSON_CreateObject();
         if (mouse_control) {
+            cJSON_AddBoolToObject(mouse_control, "enabled",
+                config->mouse_enabled);
             cJSON_AddStringToObject(mouse_control, "movementMode",
                 mouse_movement_mode_to_string(config->mouse_movement_mode));
             cJSON_AddItemToObject(root, "mouseControl", mouse_control);
@@ -2467,6 +2477,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_use_left_stick = true;
     config->gamepad_deadzone = 12000;
     config->gamepad_trigger_threshold = 16000;
+    config->mouse_enabled = true;
     config->mouse_movement_mode = SDL_MOUSE_MOVEMENT_ON;
     sdl_config_set_default_gamepad_bindings(config);
     sdl_config_set_default_touch_pane_bindings(config);

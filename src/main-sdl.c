@@ -67,6 +67,13 @@ typedef struct sdl_layout_recovery_result {
     int new_scale;
 } sdl_layout_recovery_result;
 
+typedef enum sdl_startup_device_class {
+    SDL_STARTUP_DEVICE_DESKTOP = 0,
+    SDL_STARTUP_DEVICE_DESKTOP_HANDHELD,
+    SDL_STARTUP_DEVICE_ANDROID_HANDHELD,
+    SDL_STARTUP_DEVICE_MOBILE_TOUCH,
+} sdl_startup_device_class;
+
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 bool g_hide_left_panel = false;
@@ -94,6 +101,8 @@ const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struc
 struct pane_config pane_config[MAX_PANE_CONFIGS];
 int pane_config_count = 0;
 static struct sdl_pane_profile g_pane_profiles[SDL_PANE_PROFILE_COUNT];
+static sdl_startup_device_class g_startup_device_class =
+    SDL_STARTUP_DEVICE_DESKTOP;
 
 static void sdl_copy_pane_configs(struct pane_config* dest, int* dest_count,
     const struct pane_config* src, int src_count)
@@ -526,6 +535,7 @@ static int g_default_gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][G
 static int g_default_gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
 static int g_default_gamepad_shoulder_combo_binding = GAMEPAD_BIND_NONE;
 static bool g_default_gamepad_bindings_ready = false;
+static bool g_default_mouse_enabled = true;
 static int g_default_mouse_movement_mode = SDL_MOUSE_MOVEMENT_ON;
 static bool g_default_mouse_settings_ready = false;
 static int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_BUTTON_COUNT];
@@ -765,6 +775,8 @@ static bool sdl_pointer_attack_handle_touch_motion(float x, float y,
     SDL_FingerID finger_id);
 static bool sdl_pointer_attack_handle_touch_up(float x, float y,
     SDL_FingerID finger_id);
+static int sdl_pointer_attack_pending_timeout_ms(Uint64 now_ns);
+static bool sdl_pointer_attack_flush_pending_press(Uint64 now_ns);
 static void sdl_pointer_attack_cancel_touch_press(void);
 static void sdl_pointer_attack_render(void);
 static void sdl_mouse_path_handle_motion(float x, float y);
@@ -830,9 +842,13 @@ static bool sdl_prune_unusable_panes(struct pane_config* active,
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom, bool touch_only);
 static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes);
+static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
+    int mode, int scale, SDL_Rect* panes, bool* out_side,
+    bool* out_bottom, int* out_cols, int* out_rows);
 static void sdl_compute_display_panes(SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
 static int sdl_max_scale_for_rect_mode(const SDL_Rect* rect, int mode);
+static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode);
 static int sdl_max_scale_for_window_mode(int mode);
 static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
     int scale, int* cols, int* rows);
@@ -847,7 +863,9 @@ static void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height);
 static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     int screen_width, int screen_height);
+#if SIL_SDL_DESKTOP_HANDHELD_BUILD
 static bool sdl_is_desktop_handheld_resolution(int width, int height);
+#endif
 static int sdl_touch_pane_target_width_px(int pane_height_px);
 static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     int active_count, const SDL_Rect* screen, const int* cell_widths,
@@ -984,6 +1002,105 @@ static int sdl_android_sdk_int(JNIEnv* env)
 
     (*env)->DeleteLocalRef(env, version_class);
     return sdk;
+}
+
+static void sdl_android_clear_pending_exception(JNIEnv* env)
+{
+    if (env && (*env)->ExceptionCheck(env))
+        (*env)->ExceptionClear(env);
+}
+
+static bool sdl_android_has_controller_device(void)
+{
+    enum {
+        ANDROID_SOURCE_GAMEPAD = 0x00000401,
+        ANDROID_SOURCE_JOYSTICK = 0x01000010,
+    };
+    JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+    jclass input_device_class = NULL;
+    jmethodID get_device_ids = NULL;
+    jmethodID get_device = NULL;
+    jmethodID get_sources = NULL;
+    jintArray ids = NULL;
+    jint* id_values = NULL;
+    jsize count = 0;
+    bool has_controller = false;
+
+    if (!env)
+        return false;
+
+    input_device_class = (*env)->FindClass(env, "android/view/InputDevice");
+    if (!input_device_class) {
+        sdl_android_clear_pending_exception(env);
+        return false;
+    }
+
+    get_device_ids = (*env)->GetStaticMethodID(env, input_device_class,
+        "getDeviceIds", "()[I");
+    get_device = (*env)->GetStaticMethodID(env, input_device_class,
+        "getDevice", "(I)Landroid/view/InputDevice;");
+    get_sources = (*env)->GetMethodID(env, input_device_class,
+        "getSources", "()I");
+    if (!get_device_ids || !get_device || !get_sources) {
+        sdl_android_clear_pending_exception(env);
+        goto cleanup;
+    }
+
+    ids = (jintArray)(*env)->CallStaticObjectMethod(env, input_device_class,
+        get_device_ids);
+    if ((*env)->ExceptionCheck(env) || !ids) {
+        sdl_android_clear_pending_exception(env);
+        goto cleanup;
+    }
+
+    count = (*env)->GetArrayLength(env, ids);
+    id_values = (*env)->GetIntArrayElements(env, ids, NULL);
+    if (!id_values) {
+        sdl_android_clear_pending_exception(env);
+        goto cleanup;
+    }
+
+    for (jsize i = 0; i < count; i++) {
+        jobject device = (*env)->CallStaticObjectMethod(env, input_device_class,
+            get_device, id_values[i]);
+        jint sources;
+
+        if ((*env)->ExceptionCheck(env)) {
+            sdl_android_clear_pending_exception(env);
+            continue;
+        }
+        if (!device)
+            continue;
+
+        sources = (*env)->CallIntMethod(env, device, get_sources);
+        if ((*env)->ExceptionCheck(env)) {
+            sdl_android_clear_pending_exception(env);
+            (*env)->DeleteLocalRef(env, device);
+            continue;
+        }
+
+        /* Phones commonly expose a virtual keyboard with SOURCE_DPAD.  That is
+         * navigation input, not evidence of a handheld/gamepad profile. */
+        if (((sources & ANDROID_SOURCE_GAMEPAD) == ANDROID_SOURCE_GAMEPAD)
+            || ((sources & ANDROID_SOURCE_JOYSTICK) == ANDROID_SOURCE_JOYSTICK))
+        {
+            has_controller = true;
+            (*env)->DeleteLocalRef(env, device);
+            break;
+        }
+
+        (*env)->DeleteLocalRef(env, device);
+    }
+
+cleanup:
+    if (id_values && ids)
+        (*env)->ReleaseIntArrayElements(env, ids, id_values, JNI_ABORT);
+    if (ids)
+        (*env)->DeleteLocalRef(env, ids);
+    if (input_device_class)
+        (*env)->DeleteLocalRef(env, input_device_class);
+
+    return has_controller;
 }
 
 static SDL_Rect sdl_get_android_display_cutout_rect(void)
@@ -1338,6 +1455,121 @@ static void sdl_ensure_touch_pane_config_present(void)
         .rect = { .rows = 0, .cols = 0 },
         .ratio = 0.0f,
     };
+}
+
+static const char* sdl_startup_device_class_name(sdl_startup_device_class device)
+{
+    switch (device) {
+    case SDL_STARTUP_DEVICE_DESKTOP_HANDHELD:
+        return "desktop-handheld";
+    case SDL_STARTUP_DEVICE_ANDROID_HANDHELD:
+        return "android-handheld";
+    case SDL_STARTUP_DEVICE_MOBILE_TOUCH:
+        return "mobile";
+    case SDL_STARTUP_DEVICE_DESKTOP:
+    default:
+        return "desktop";
+    }
+}
+
+static bool sdl_startup_device_class_uses_controller_ui(
+    sdl_startup_device_class device)
+{
+    return device == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD
+        || device == SDL_STARTUP_DEVICE_ANDROID_HANDHELD;
+}
+
+static void sdl_apply_startup_input_defaults_to_config(
+    struct sdl_config* target, sdl_startup_device_class device)
+{
+    bool controller_ui = sdl_startup_device_class_uses_controller_ui(device);
+    bool mobile_touch = (device == SDL_STARTUP_DEVICE_MOBILE_TOUCH);
+
+    if (!target)
+        return;
+
+    target->gamepad_enabled = !mobile_touch;
+    target->gamepad_auto_mode = controller_ui;
+    target->steamdeck_mode = controller_ui;
+    target->mouse_enabled = (device == SDL_STARTUP_DEVICE_DESKTOP);
+
+    if (mobile_touch) {
+        for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
+            target->touch_menu_command_enabled[i] = true;
+        target->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+        target->touch_swipe_enabled = true;
+    }
+}
+
+static void sdl_set_touch_pane_config_enabled(bool enabled)
+{
+    sdl_ensure_touch_pane_config_present();
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_TOUCH)
+            continue;
+
+        pane_config[i].where = PLACE_DOUBLE_RIGHT;
+        pane_config[i].enabled = enabled;
+        pane_config[i].rect.rows = 0;
+        pane_config[i].rect.cols = 0;
+        pane_config[i].font_size = 0;
+        pane_config[i].ratio = 0.0f;
+        return;
+    }
+}
+
+static void sdl_apply_first_start_device_defaults(
+    sdl_startup_device_class device)
+{
+    bool touch_pane_enabled = (device == SDL_STARTUP_DEVICE_MOBILE_TOUCH);
+
+    sdl_apply_startup_input_defaults_to_config(&config, device);
+    sdl_set_touch_pane_config_enabled(touch_pane_enabled);
+
+    log_info("First-start device defaults: profile=%s controller_input=%s "
+             "controller_ui=%s mouse=%s touch_pane=%s menu_letters=%s",
+        sdl_startup_device_class_name(device),
+        config.gamepad_enabled ? "on" : "off",
+        config.steamdeck_mode ? "on" : "off",
+        config.mouse_enabled ? "on" : "off",
+        touch_pane_enabled ? "on" : "off",
+        (device == SDL_STARTUP_DEVICE_DESKTOP) ? "on" : "off");
+}
+
+static sdl_startup_device_class sdl_detect_startup_device_class(
+    int screen_width, int screen_height)
+{
+    bool has_gamepad = (g_gamepad_state.pad_count > 0);
+
+#if defined(__ANDROID__)
+    bool android_has_controller = false;
+
+    (void)screen_width;
+    (void)screen_height;
+
+#if defined(SDL_PLATFORM_ANDROID)
+    android_has_controller = sdl_android_has_controller_device();
+    if (android_has_controller && !has_gamepad) {
+        log_info("Android InputDevice reports a controller before SDL has an opened gamepad");
+    }
+#endif
+
+    return (has_gamepad || android_has_controller)
+        ? SDL_STARTUP_DEVICE_ANDROID_HANDHELD
+        : SDL_STARTUP_DEVICE_MOBILE_TOUCH;
+#elif defined(SIL_IOS)
+    (void)has_gamepad;
+    return SDL_STARTUP_DEVICE_MOBILE_TOUCH;
+#elif SIL_SDL_DESKTOP_HANDHELD_BUILD
+    if (has_gamepad
+        && sdl_is_desktop_handheld_resolution(screen_width, screen_height))
+    {
+        return SDL_STARTUP_DEVICE_DESKTOP_HANDHELD;
+    }
+#endif
+
+    return SDL_STARTUP_DEVICE_DESKTOP;
 }
 
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
@@ -1735,6 +1967,7 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
     bool wide_bottom = false;
     bool inventory_enabled = false;
     bool worn_enabled = false;
+    bool allow_right_panes = has_controller;
     int bottom_rows = 0;
     int final_main_cols = 0;
     int final_main_rows = 0;
@@ -1792,47 +2025,48 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
         }
     }
 
-    memcpy(candidate, selected, sizeof(candidate));
-    sdl_mobile_set_right_panes(candidate, pane_config_count, true, false);
-    if (sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
-            pane_config_count, NULL, NULL, NULL, NULL, NULL))
-    {
-        memcpy(selected, candidate, sizeof(selected));
-        inventory_enabled = true;
-    }
-
-    if (inventory_enabled) {
+    if (allow_right_panes) {
         memcpy(candidate, selected, sizeof(candidate));
-        sdl_mobile_set_right_panes(candidate, pane_config_count, true, true);
+        sdl_mobile_set_right_panes(candidate, pane_config_count, true, false);
         if (sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
                 pane_config_count, NULL, NULL, NULL, NULL, NULL))
         {
             memcpy(selected, candidate, sizeof(selected));
-            worn_enabled = true;
+            inventory_enabled = true;
+        }
+
+        if (inventory_enabled) {
+            memcpy(candidate, selected, sizeof(candidate));
+            sdl_mobile_set_right_panes(candidate, pane_config_count, true, true);
+            if (sdl_mobile_layout_fits(screen, config.main_view_scale, candidate,
+                    pane_config_count, NULL, NULL, NULL, NULL, NULL))
+            {
+                memcpy(selected, candidate, sizeof(selected));
+                worn_enabled = true;
+            }
         }
     }
 
     memcpy(pane_config, selected, sizeof(selected));
     config.enable_bottom_panes = have_bottom;
-    config.enable_right_panes = (touch_enabled || inventory_enabled
-        || worn_enabled);
+    config.enable_right_panes = (inventory_enabled || worn_enabled);
 
     sdl_mobile_layout_fits(screen, config.main_view_scale, pane_config,
         pane_config_count, panes, cell_widths, cell_heights, &final_main_cols,
         &final_main_rows);
 
-    log_info("Handheld default pane layout: controller=%s touch=%s scale=%d main=%dx%d",
+    log_info("Mobile default pane layout: controller=%s touch=%s scale=%d main=%dx%d",
         has_controller ? "yes" : "no",
         touch_enabled ? "on" : "off",
         config.main_view_scale, final_main_cols, final_main_rows);
     if (have_bottom) {
-        log_info("Handheld default bottom panes: %s layout, %d row%s",
+        log_info("Mobile default bottom panes: %s layout, %d row%s",
             wide_bottom ? "split" : "stacked",
             bottom_rows, (bottom_rows == 1) ? "" : "s");
     } else {
-        log_info("Handheld default bottom panes: off");
+        log_info("Mobile default bottom panes: off");
     }
-    log_info("Handheld default right panes: inventory=%s worn=%s",
+    log_info("Mobile default right panes: inventory=%s worn=%s",
         inventory_enabled ? "on" : "off",
         worn_enabled ? "on" : "off");
 }
@@ -1851,7 +2085,7 @@ static bool sdl_touch_only_mobile_device_active(void)
 {
 #if SIL_SDL_MOBILE_BUILD
     return g_direct_touch_present
-        && g_gamepad_state.pad_count == 0
+        && g_startup_device_class == SDL_STARTUP_DEVICE_MOBILE_TOUCH
         && !steamdeck_controls_active();
 #else
     return false;
@@ -2006,7 +2240,8 @@ static void sdl_note_touch_event_device(SDL_TouchID touch_id)
 
 static void sdl_update_cursor_visibility(void)
 {
-    bool show_cursor = !(config.fullscreen && g_direct_touch_present);
+    bool show_cursor = config.mouse_enabled
+        && !(config.fullscreen && g_direct_touch_present);
 
     if (show_cursor)
         SDL_ShowCursor();
@@ -2320,6 +2555,87 @@ static void sdl_compute_split_panes(const SDL_Rect* screen, SDL_Rect* panes)
         config.enable_bottom_panes, false);
 }
 
+static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
+    int mode, int scale, SDL_Rect* panes, bool* out_side,
+    bool* out_bottom, int* out_cols, int* out_rows)
+{
+    SDL_Rect local_panes[PANE_MAX] = { 0 };
+    SDL_Rect* target_panes = panes ? panes : local_panes;
+    int saved_mode = config.min_terminal_mode;
+    int saved_scale = config.main_view_scale;
+    int saved_aux_override = g_auto_aux_main_cell_h_override;
+    bool include_side = config.enable_right_panes;
+    bool include_bottom = config.enable_bottom_panes;
+    int cell_w;
+    int cell_h;
+    int min_cols;
+    int min_rows;
+    int cols = 0;
+    int rows = 0;
+
+    if (panes)
+        memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
+    if (out_side)
+        *out_side = include_side;
+    if (out_bottom)
+        *out_bottom = include_bottom;
+    if (out_cols)
+        *out_cols = 0;
+    if (out_rows)
+        *out_rows = 0;
+
+    if (!screen || !sdl_rect_has_area(screen) || scale <= 0)
+        return;
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        return;
+
+    config.min_terminal_mode = mode;
+    config.main_view_scale = scale;
+    g_auto_aux_main_cell_h_override = scale * TILE_SIZE;
+
+    cell_w = scale * TILE_SIZE / 2;
+    cell_h = scale * TILE_SIZE;
+    min_cols = sdl_min_terminal_cols_for_mode(mode);
+    min_rows = sdl_min_terminal_rows_for_mode(mode);
+
+    sdl_place_active_panes(screen, target_panes, include_side, include_bottom,
+        false);
+
+    for (;;) {
+        cols = (cell_w > 0) ? target_panes[PANE_MAIN].w / cell_w : 0;
+        rows = (cell_h > 0) ? target_panes[PANE_MAIN].h / cell_h : 0;
+
+        if (include_side && cols < min_cols) {
+            include_side = false;
+            sdl_place_active_panes(screen, target_panes, include_side,
+                include_bottom, false);
+            continue;
+        }
+
+        if (include_bottom && rows < min_rows) {
+            include_bottom = false;
+            sdl_place_active_panes(screen, target_panes, include_side,
+                include_bottom, false);
+            continue;
+        }
+
+        break;
+    }
+
+    config.min_terminal_mode = saved_mode;
+    config.main_view_scale = saved_scale;
+    g_auto_aux_main_cell_h_override = saved_aux_override;
+
+    if (out_side)
+        *out_side = include_side;
+    if (out_bottom)
+        *out_bottom = include_bottom;
+    if (out_cols)
+        *out_cols = cols;
+    if (out_rows)
+        *out_rows = rows;
+}
+
 static bool sdl_hide_supporting_panes_mode_effective(void)
 {
     /* Startup hidden mode must be able to take effect before persistent
@@ -2468,12 +2784,39 @@ static int sdl_max_scale_for_rect(const SDL_Rect* rect)
     return sdl_max_scale_for_rect_mode(rect, config.min_terminal_mode);
 }
 
+static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode)
+{
+    int max_scale;
+    int min_cols;
+    int min_rows;
+
+    if (!screen || !sdl_rect_has_area(screen))
+        return 1;
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        return 1;
+
+    max_scale = sdl_max_scale_for_rect_mode(screen, mode);
+    min_cols = sdl_min_terminal_cols_for_mode(mode);
+    min_rows = sdl_min_terminal_rows_for_mode(mode);
+
+    for (int scale = max_scale; scale >= 1; scale--) {
+        int cols = 0;
+        int rows = 0;
+
+        sdl_compute_pruned_split_panes_for_mode(screen, mode, scale, NULL,
+            NULL, NULL, &cols, &rows);
+        if (cols >= min_cols && rows >= min_rows)
+            return scale;
+    }
+
+    return 1;
+}
+
 static int sdl_max_scale_for_window_mode(int mode)
 {
     struct sdl_config saved_config = config;
     struct pane_config saved_panes[MAX_PANE_CONFIGS];
     SDL_Rect screen;
-    SDL_Rect panes[PANE_MAX];
     int saved_pane_count = pane_config_count;
     int max_scale = 1;
 
@@ -2485,10 +2828,8 @@ static int sdl_max_scale_for_window_mode(int mode)
 
     sdl_refresh_safe_area();
     screen = sdl_get_layout_screen_rect();
-    if (sdl_rect_has_area(&screen)) {
-        sdl_compute_split_panes(&screen, panes);
-        max_scale = sdl_max_scale_for_rect_mode(&panes[PANE_MAIN], mode);
-    }
+    if (sdl_rect_has_area(&screen))
+        max_scale = sdl_max_scale_for_layout(&screen, mode);
 
     config = saved_config;
     pane_config_count = saved_pane_count;
@@ -2516,11 +2857,8 @@ static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
     config.min_terminal_mode = mode;
     sdl_apply_stored_pane_profile(mode);
     config.min_terminal_mode = mode;
-    config.main_view_scale = scale;
-    sdl_compute_split_panes(screen, panes);
-
-    local_cols = panes[PANE_MAIN].w / (scale * TILE_SIZE / 2);
-    local_rows = panes[PANE_MAIN].h / (scale * TILE_SIZE);
+    sdl_compute_pruned_split_panes_for_mode(screen, mode, scale, panes, NULL,
+        NULL, &local_cols, &local_rows);
     fits = (local_cols >= sdl_min_terminal_cols_for_mode(mode)
         && local_rows >= sdl_min_terminal_rows_for_mode(mode));
 
@@ -2746,6 +3084,7 @@ static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     return true;
 }
 
+#if SIL_SDL_DESKTOP_HANDHELD_BUILD
 static bool sdl_resolution_matches_pair(int width, int height, int native_w,
     int native_h)
 {
@@ -2755,7 +3094,6 @@ static bool sdl_resolution_matches_pair(int width, int height, int native_w,
 
 static bool sdl_is_desktop_handheld_resolution(int width, int height)
 {
-#if SIL_SDL_DESKTOP_HANDHELD_BUILD
     /* Native panel sizes for current Windows/Linux handhelds, plus common
      * handheld performance-mode targets. Check both orientations. */
     return sdl_resolution_matches_pair(width, height, 1280, 720)
@@ -2763,12 +3101,8 @@ static bool sdl_is_desktop_handheld_resolution(int width, int height)
         || sdl_resolution_matches_pair(width, height, 1920, 1080)
         || sdl_resolution_matches_pair(width, height, 1920, 1200)
         || sdl_resolution_matches_pair(width, height, 2560, 1600);
-#else
-    (void)width;
-    (void)height;
-    return false;
-#endif
 }
+#endif
 
 static bool sdl_touch_pane_binding_is_direction(int binding)
 {
@@ -3850,6 +4184,12 @@ static bool sdl_mouse_path_grid_is_known_danger(int y, int x)
     return cave_trap_bold(y, x) && !(cave_info[y][x] & (CAVE_HIDDEN));
 }
 
+static bool sdl_mouse_path_grid_is_stuck_door(int y, int x)
+{
+    return (cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x08)
+        && (cave_feat[y][x] <= FEAT_DOOR_TAIL);
+}
+
 static bool sdl_mouse_path_grid_walkable(int y, int x)
 {
     int m_idx;
@@ -3867,7 +4207,7 @@ static bool sdl_mouse_path_grid_walkable(int y, int x)
         return false;
 
     if (cave_known_closed_door_bold(y, x))
-        return true;
+        return !sdl_mouse_path_grid_is_stuck_door(y, x);
 
     return cave_floor_bold(y, x);
 }
@@ -5069,6 +5409,13 @@ static bool sdl_pointer_attack_handle_touch_up(float x, float y,
         return true;
     }
 
+    if (SDL_GetTicksNS() - g_pointer_attack.touch_start_time
+        >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        (void)sdl_pointer_attack_flush_pending_press(SDL_GetTicksNS());
+        return true;
+    }
+
     sdl_pointer_attack_cancel_touch_press();
 
     if (repeat_target) {
@@ -5094,6 +5441,44 @@ static bool sdl_pointer_attack_handle_touch_up(float x, float y,
     }
 
     g_state.need_present = true;
+    return true;
+}
+
+static int sdl_pointer_attack_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_pointer_attack.touch_press_active)
+        return -1;
+
+    elapsed = now_ns - g_pointer_attack.touch_start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+static bool sdl_pointer_attack_flush_pending_press(Uint64 now_ns)
+{
+    float x;
+    float y;
+
+    if (!g_pointer_attack.touch_press_active)
+        return false;
+    if (now_ns - g_pointer_attack.touch_start_time
+        < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return false;
+    }
+
+    x = g_pointer_attack.touch_start_x;
+    y = g_pointer_attack.touch_start_y;
+    sdl_pointer_attack_cancel_touch_press();
+    sdl_pointer_attack_clear_touch_selection();
+
+    if (!sdl_mouse_recall_handle_right_click(x, y))
+        sdl_pointer_attack_clear_hover();
+
     return true;
 }
 
@@ -5705,6 +6090,17 @@ static void sdl_mouse_path_render(void)
     }
 }
 
+static bool sdl_point_in_rect(const SDL_Rect* rect, float x, float y)
+{
+    if (!sdl_rect_has_area(rect))
+        return false;
+
+    return x >= (float)rect->x
+        && y >= (float)rect->y
+        && x < (float)(rect->x + rect->w)
+        && y < (float)(rect->y + rect->h);
+}
+
 static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
 {
     const sdl_view* view;
@@ -5715,13 +6111,31 @@ static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
     view = &g_views[pane];
     if (!view->term_ready || !view->canvas)
         return false;
-    if (view->rect.w <= 0 || view->rect.h <= 0)
+    return sdl_point_in_rect(&view->rect, x, y);
+}
+
+static bool sdl_menu_pointer_hits_non_main_pane(float x, float y)
+{
+    SDL_Rect touch_rect;
+
+    if (sdl_touch_pane_current_rect(&touch_rect)
+        && sdl_point_in_rect(&touch_rect, x, y))
+    {
+        return true;
+    }
+
+    if (!sdl_should_show_supporting_panes())
         return false;
 
-    return x >= (float)view->rect.x
-        && y >= (float)view->rect.y
-        && x < (float)(view->rect.x + view->rect.w)
-        && y < (float)(view->rect.y + view->rect.h);
+    for (int i = PANE_MAIN + 1; i < PANE_MAX; i++)
+    {
+        if (i == PANE_TOUCH)
+            continue;
+        if (sdl_point_in_view_rect((enum pane_type)i, x, y))
+            return true;
+    }
+
+    return false;
 }
 
 static bool sdl_pane_command_shortcuts_active(void)
@@ -5783,6 +6197,8 @@ static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y)
     {
         return false;
     }
+    if (sdl_menu_pointer_hits_non_main_pane(x, y))
+        return false;
 
     ui_menu_click_clear_pending_hover();
     sdl_unified_look_clear_map_hover();
@@ -5835,6 +6251,50 @@ static bool sdl_main_screen_handle_message_line_pointer(float x, float y)
     return true;
 }
 
+static bool sdl_status_line_partition_label_at_col(int row, int col)
+{
+    cptr long_label = "";
+    cptr short_label = "";
+
+    if (!Term || !p_ptr)
+        return false;
+
+    switch (level_partition_kind_for_point(p_ptr->py, p_ptr->px))
+    {
+    case LEVEL_PART_ROOMY:
+        long_label = "Room";
+        short_label = "Rm";
+        break;
+    case LEVEL_PART_RUINED:
+        long_label = "Ruin";
+        short_label = "Ru";
+        break;
+    case LEVEL_PART_CAVEY:
+        long_label = "Cave";
+        short_label = "Cv";
+        break;
+    case LEVEL_PART_BIG_CAVE:
+        long_label = "BigCa";
+        short_label = "BC";
+        break;
+    case LEVEL_PART_LABYRINTH:
+        long_label = "Labir";
+        short_label = "Lb";
+        break;
+    case LEVEL_PART_CHASM:
+        long_label = "Chasm";
+        short_label = "Ch";
+        break;
+    default:
+        return false;
+    }
+
+    return sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+               long_label)
+        || sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+               short_label);
+}
+
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
 {
     int col = 0;
@@ -5853,6 +6313,12 @@ static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
         "Singing"))
     {
         sdl_enqueue_bypassed_command('s');
+        return true;
+    }
+
+    if (sdl_status_line_partition_label_at_col(row, col))
+    {
+        sdl_enqueue_bypassed_command('M');
         return true;
     }
 
@@ -6076,6 +6542,25 @@ static bool sdl_screen_shows_welcome_screen(void)
     }
 
     return saw_title && (saw_menu || !character_generated);
+}
+
+static bool sdl_welcome_screen_handle_gamepad_button(SDL_GamepadButton button,
+    bool down)
+{
+    if (!down)
+        return false;
+    if (!g_sdl_blocking_key_wait)
+        return false;
+    if (button != SDL_GAMEPAD_BUTTON_BACK
+        && button != SDL_GAMEPAD_BUTTON_EAST)
+    {
+        return false;
+    }
+    if (!sdl_screen_shows_welcome_screen())
+        return false;
+
+    Term_keypress(ESCAPE);
+    return true;
 }
 
 static bool sdl_pointer_activate_welcome_screen(void)
@@ -8768,6 +9253,9 @@ static void sdl_gamepad_handle_button(const SDL_GamepadButtonEvent* ev)
 
     sdl_gamepad_mark_auto_ui();
 
+    if (sdl_welcome_screen_handle_gamepad_button(button, down))
+        return;
+
     if (config.gamepad_use_dpad &&
         (button == SDL_GAMEPAD_BUTTON_DPAD_UP || button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ||
             button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT))
@@ -9196,6 +9684,8 @@ static void sdl_gamepad_init(void)
     g_gamepad_state.left_bind_dir = -1;
     g_gamepad_state.right_dir = -1;
     sdl_gamepad_clear_pending_shoulder();
+    SDL_UpdateGamepads();
+    SDL_PumpEvents();
 
     int count = 0;
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
@@ -9203,6 +9693,14 @@ static void sdl_gamepad_init(void)
         log_warn("SDL_GetGamepads failed: %s", SDL_GetError());
         return;
     }
+
+    log_info("SDL_GetGamepads returned %d gamepad%s",
+        count, (count == 1) ? "" : "s");
+#if defined(SDL_PLATFORM_ANDROID)
+    if (count == 0 && sdl_android_has_controller_device()) {
+        log_warn("Android InputDevice reports a controller, but SDL_GetGamepads returned none at startup");
+    }
+#endif
 
     for (int i = 0; i < count; i++) {
         sdl_gamepad_open(ids[i]);
@@ -9492,6 +9990,24 @@ static void sdl_mobile_lifecycle_unregister(void)
 }
 #endif
 
+static bool sdl_event_is_disabled_mouse_input(const SDL_Event* ev)
+{
+    if (!ev || config.mouse_enabled)
+        return false;
+
+    switch (ev->type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        return ev->motion.which != SDL_TOUCH_MOUSEID;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        return ev->button.which != SDL_TOUCH_MOUSEID;
+    case SDL_EVENT_MOUSE_WHEEL:
+        return ev->wheel.which != SDL_TOUCH_MOUSEID;
+    default:
+        return false;
+    }
+}
+
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
     (void)st;
@@ -9503,6 +10019,9 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         return;
     }
 #endif
+    if (sdl_event_is_disabled_mouse_input(ev))
+        return;
+
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
     } else if (g_touch_pane_reset_confirm_active) {
@@ -10224,6 +10743,8 @@ static errr callback_sdl_xtra(int n, int v)
             int timeout_ms = sdl_gamepad_pending_timeout_ms(now_ns);
             int touch_timeout_ms = sdl_touch_pane_pending_timeout_ms(now_ns);
             int menu_touch_timeout_ms = sdl_menu_touch_pending_timeout_ms(now_ns);
+            int pointer_attack_touch_timeout_ms =
+                sdl_pointer_attack_pending_timeout_ms(now_ns);
             int map_touch_timeout_ms = sdl_map_touch_pending_timeout_ms(now_ns);
             int zone_touch_timeout_ms = sdl_touch_zone_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
@@ -10231,6 +10752,11 @@ static errr callback_sdl_xtra(int n, int v)
                 timeout_ms = touch_timeout_ms;
             if (timeout_ms < 0 || (menu_touch_timeout_ms >= 0 && menu_touch_timeout_ms < timeout_ms))
                 timeout_ms = menu_touch_timeout_ms;
+            if (timeout_ms < 0 || (pointer_attack_touch_timeout_ms >= 0
+                    && pointer_attack_touch_timeout_ms < timeout_ms))
+            {
+                timeout_ms = pointer_attack_touch_timeout_ms;
+            }
             if (timeout_ms < 0 || (map_touch_timeout_ms >= 0 && map_touch_timeout_ms < timeout_ms))
                 timeout_ms = map_touch_timeout_ms;
             if (timeout_ms < 0 || (zone_touch_timeout_ms >= 0 && zone_touch_timeout_ms < timeout_ms))
@@ -10250,6 +10776,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_shoulder(flush_ns, false);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_music_update(); /* Update music after handling event */
@@ -10267,6 +10794,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_shoulder(flush_ns, false);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
 
@@ -10286,6 +10814,7 @@ static errr callback_sdl_xtra(int n, int v)
         }
         sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
         sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+        sdl_pointer_attack_flush_pending_press(SDL_GetTicksNS());
         sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
         sdl_touch_zone_flush_pending_press(SDL_GetTicksNS());
         sdl_present_if_needed(d);
@@ -10321,6 +10850,7 @@ static errr callback_sdl_xtra(int n, int v)
             }
             sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
             sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+            sdl_pointer_attack_flush_pending_press(SDL_GetTicksNS());
             sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
             sdl_touch_zone_flush_pending_press(SDL_GetTicksNS());
         }
@@ -11984,31 +12514,21 @@ errr init_sdl(int argc, char **argv)
 
     sdl_gamepad_init();
 
-    if (!config_exists) {
-#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-        bool has_gamepad = (g_gamepad_state.pad_count > 0);
+    g_startup_device_class = sdl_detect_startup_device_class(screen_pixels_w,
+        screen_pixels_h);
+    desktop_handheld_first_start =
+        (g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD);
+    log_info("Startup device profile: %s (%dx%d, %d gamepad%s detected%s)",
+        sdl_startup_device_class_name(g_startup_device_class),
+        screen_pixels_w, screen_pixels_h,
+        g_gamepad_state.pad_count,
+        (g_gamepad_state.pad_count == 1) ? "" : "s",
+        config_exists ? ", loaded config" : ", first start");
 
-#if SIL_SDL_MOBILE_BUILD
-        config.steamdeck_mode = has_gamepad;
-        log_info("Mobile first-start controller UI mode set to %s (%d gamepad%s detected)",
-            config.steamdeck_mode ? "on" : "off",
-            g_gamepad_state.pad_count,
-            (g_gamepad_state.pad_count == 1) ? "" : "s");
-#elif SIL_SDL_DESKTOP_HANDHELD_BUILD
-        desktop_handheld_first_start = has_gamepad
-            && sdl_is_desktop_handheld_resolution(screen_pixels_w,
-                screen_pixels_h);
-        if (desktop_handheld_first_start) {
-            config.steamdeck_mode = true;
+    if (!config_exists) {
+        sdl_apply_first_start_device_defaults(g_startup_device_class);
+        if (sdl_startup_device_class_uses_controller_ui(g_startup_device_class))
             config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
-        }
-        log_info("Desktop handheld first-start mode %s (%dx%d, %d gamepad%s detected)",
-            desktop_handheld_first_start ? "enabled" : "not enabled",
-            screen_pixels_w, screen_pixels_h,
-            g_gamepad_state.pad_count,
-            (g_gamepad_state.pad_count == 1) ? "" : "s");
-#endif
-#endif
     }
     
     log_info("SDL Configuration:");
@@ -12080,7 +12600,8 @@ errr init_sdl(int argc, char **argv)
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
     if (!config_exists && (SIL_SDL_MOBILE_BUILD || desktop_handheld_first_start)) {
         SDL_Rect handheld_screen;
-        bool handheld_has_controller = (g_gamepad_state.pad_count > 0);
+        bool handheld_has_controller =
+            sdl_startup_device_class_uses_controller_ui(g_startup_device_class);
 
 #if SIL_SDL_DESKTOP_HANDHELD_BUILD
         if (desktop_handheld_first_start)
@@ -12767,6 +13288,9 @@ static void sdl_mouse_load_default_settings(void)
 
     struct sdl_config defaults;
     sdl_config_set_defaults(&defaults);
+    sdl_apply_startup_input_defaults_to_config(&defaults,
+        g_startup_device_class);
+    g_default_mouse_enabled = defaults.mouse_enabled;
     g_default_mouse_movement_mode = defaults.mouse_movement_mode;
     g_default_mouse_settings_ready = true;
 }
@@ -12778,6 +13302,8 @@ static void sdl_touch_pane_load_default_bindings(void)
 
     struct sdl_config defaults;
     sdl_config_set_defaults(&defaults);
+    sdl_apply_startup_input_defaults_to_config(&defaults,
+        g_startup_device_class);
     memcpy(g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_MAIN], defaults.touch_pane_bindings,
         sizeof(defaults.touch_pane_bindings));
     memcpy(g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_SECOND], defaults.touch_pane_second_bindings,
@@ -12803,6 +13329,14 @@ bool steamdeck_controls_active(void)
         return false;
 
     return g_gamepad_auto_ui || (g_gamepad_state.pad_count > 0);
+}
+
+bool sdl_menu_letters_enabled(void)
+{
+    if (g_startup_device_class != SDL_STARTUP_DEVICE_DESKTOP)
+        return false;
+
+    return !steamdeck_controls_active();
 }
 
 bool portable_controls_active(void)
@@ -13125,6 +13659,30 @@ int get_sdl_mouse_movement_default_mode(void)
 {
     sdl_mouse_load_default_settings();
     return sdl_mouse_movement_normalized_mode(g_default_mouse_movement_mode);
+}
+
+bool get_sdl_mouse_enabled(void)
+{
+    return config.mouse_enabled;
+}
+
+void set_sdl_mouse_enabled(bool enabled)
+{
+    if (config.mouse_enabled == enabled)
+        return;
+
+    config.mouse_enabled = enabled;
+    if (!enabled) {
+        sdl_mouse_path_cancel();
+        sdl_pointer_attack_clear_hover();
+    }
+    sdl_update_cursor_visibility();
+}
+
+bool get_sdl_mouse_default_enabled(void)
+{
+    sdl_mouse_load_default_settings();
+    return g_default_mouse_enabled;
 }
 
 int get_sdl_touch_pane_binding(int index)

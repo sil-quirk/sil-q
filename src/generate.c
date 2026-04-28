@@ -11590,11 +11590,33 @@ static void place_traps(void)
     }
 }
 
+static bool player_start_fits_entry_banner_view(int y)
+{
+    int min_y;
+
+    if (!op_ptr || !Term)
+        return true;
+
+    if ((op_ptr->level_entry_narrative_mode != LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
+        && (op_ptr->level_entry_narrative_mode != LEVEL_ENTRY_NARRATIVE_BANNER))
+    {
+        return true;
+    }
+
+    min_y = MIN((SCREEN_HGT / 2) + 2, p_ptr->cur_map_hgt / 2);
+    if (min_y < 5)
+        min_y = 5;
+
+    return y >= min_y;
+}
+
 static bool place_rubble_player(void)
 {
     int r;
     int y, x;
     int i, panels;
+    int fallback_y = -1;
+    int fallback_x = -1;
     bool niena_level = (quest_lottery_winner == QUEST_ID_NIENA);
 
     /* Basic "amount" */
@@ -11633,13 +11655,29 @@ static bool place_rubble_player(void)
                             continue;
                     }
 
-                    player_place(y, x);
-                    break;
+                    if (!player_start_fits_entry_banner_view(y))
+                    {
+                        if (fallback_y < 0)
+                        {
+                            fallback_y = y;
+                            fallback_x = x;
+                        }
+                    }
+                    else
+                    {
+                        player_place(y, x);
+                        break;
+                    }
                 }
             }
         }
         if (i == 100)
         {
+            if (fallback_y >= 0)
+            {
+                player_place(fallback_y, fallback_x);
+                break;
+            }
             log_trace("place_rubble_player failed: Could not find suitable player placement after 100 attempts");
             return (false);
         }

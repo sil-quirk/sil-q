@@ -2801,8 +2801,6 @@ static int welcome_screen_intro_row(int rel_row,
     const welcome_intro_layout* layout);
 static int welcome_screen_intro_last_row(const welcome_intro_layout* layout);
 static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout);
-static void welcome_prompt_label(int binding, const char* fallback,
-    char* buf, size_t buflen);
 static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
     bool show_blank, bool show_prompt);
 static void welcome_screen_compute_layout(int hgt, bool show_wizard,
@@ -2823,17 +2821,6 @@ extern void display_introduction(void)
     welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
         NULL, NULL, NULL);
     display_introduction_with_layout(&layout);
-}
-
-static void welcome_prompt_label(int binding, const char* fallback,
-    char* buf, size_t buflen)
-{
-    if (!buf || !buflen)
-        return;
-
-    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
-    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
-        SDL_strlcpy(buf, fallback, buflen);
 }
 
 static int welcome_screen_base_col(void)
@@ -3293,12 +3280,7 @@ static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
 
     if (steamdeck)
     {
-        char quit_label[16];
-        char esc_label[16];
-
-        welcome_prompt_label('q', "Q", quit_label, sizeof(quit_label));
-        welcome_prompt_label(ESCAPE, "Esc", esc_label, sizeof(esc_label));
-        strnfmt(quit_token, sizeof(quit_token), "%s/%s", quit_label, esc_label);
+        SDL_strlcpy(quit_token, "Back/B", sizeof(quit_token));
         strnfmt(menu_line, sizeof(menu_line),
             (metarun_created == true)
                 ? "[Any key] Begin    [%s] Quit"

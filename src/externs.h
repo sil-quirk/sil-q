@@ -1902,6 +1902,7 @@ extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
 extern void sdl_request_redraw(void);
 extern bool steamdeck_controls_active(void);
+extern bool sdl_menu_letters_enabled(void);
 extern bool portable_controls_active(void);
 extern bool get_sdl_gamepad_enabled(void);
 extern void set_sdl_gamepad_enabled(bool value);
@@ -1939,6 +1940,9 @@ extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_
 extern int get_sdl_mouse_movement_mode(void);
 extern void set_sdl_mouse_movement_mode(int mode);
 extern int get_sdl_mouse_movement_default_mode(void);
+extern bool get_sdl_mouse_enabled(void);
+extern void set_sdl_mouse_enabled(bool enabled);
+extern bool get_sdl_mouse_default_enabled(void);
 extern int get_sdl_touch_pane_binding(int index);
 extern void set_sdl_touch_pane_binding(int index, int binding);
 extern int get_sdl_touch_pane_default_binding(int index);

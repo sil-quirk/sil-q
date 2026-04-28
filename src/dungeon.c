@@ -225,6 +225,8 @@ int active_narrative_banner_rows(void)
 static void keep_player_visible_for_narrative_banner(cptr text)
 {
     int banner_rows;
+    int visible_rows;
+    int target_screen_row;
 
     if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
         return;
@@ -233,10 +235,19 @@ static void keep_player_visible_for_narrative_banner(cptr text)
     if (banner_rows <= 0)
         return;
 
-    if (p_ptr->py >= p_ptr->wy + banner_rows)
-        return;
+    if (banner_rows >= SCREEN_HGT)
+        banner_rows = SCREEN_HGT - 1;
 
-    if (modify_panel(p_ptr->py - banner_rows, p_ptr->wx))
+    visible_rows = SCREEN_HGT - banner_rows;
+    if (visible_rows < 1)
+        visible_rows = 1;
+
+    /* Center the entry view in the map rows that the banner leaves visible. */
+    target_screen_row = banner_rows + visible_rows / 2;
+    if (target_screen_row >= SCREEN_HGT)
+        target_screen_row = SCREEN_HGT - 1;
+
+    if (modify_panel(p_ptr->py - target_screen_row, p_ptr->wx))
     {
         if (p_ptr->redraw)
             redraw_stuff();

@@ -45,7 +45,7 @@ static void desc_obj_fake(int k_idx);
 
 static bool indexed_menu_letters_enabled(void)
 {
-    return !steamdeck_controls_active();
+    return sdl_menu_letters_enabled();
 }
 
 static void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr text)
@@ -2837,6 +2837,7 @@ int bane_menu(int* highlight)
     int nav_row_1 = MAX(0, term_hgt - 2);
     int nav_row_2 = MAX(0, term_hgt - 1);
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     char buf[80];
     char prefix[8];
@@ -2958,7 +2959,7 @@ int bane_menu(int* highlight)
         }
     }
 
-    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (menu_letters && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
@@ -2967,7 +2968,7 @@ int bane_menu(int* highlight)
         return (*highlight);
     }
 
-    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (menu_letters && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
         return (*highlight);
@@ -3178,6 +3179,7 @@ int oath_menu(int* highlight)
     int nav_row_1 = MAX(0, term_hgt - 2);
     int nav_row_2 = MAX(0, term_hgt - 1);
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     /* Support up to 16 oaths without realloc. */
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
@@ -3331,14 +3333,14 @@ int oath_menu(int* highlight)
     }
 
     /* Handle letter selection (a-z) for immediate highlighting */
-    if (!steamdeck && (ch >= 'a') && (ch < 'a' + visible_count))
+    if (menu_letters && (ch >= 'a') && (ch < 'a' + visible_count))
     {
         *highlight = (int)ch - 'a' + 1;
         return oath_menu(highlight); // Recursive call to update display
     }
 
     /* Handle capital letter selection (A-Z) for immediate selection */
-    if (!steamdeck && (ch >= 'A') && (ch < 'A' + visible_count))
+    if (menu_letters && (ch >= 'A') && (ch < 'A' + visible_count))
     {
         *highlight = (int)ch - 'A' + 1;
         return visible_oaths[*highlight - 1]; // Return actual oath index
@@ -3425,6 +3427,7 @@ int abilities_menu1(int* highlight)
     int ch;
     int options = ability_menu_skill_options();
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     // Clear the whole screen body so compact-layout submenu rows do not
     // linger when returning from an ability list to the skills list.
@@ -3458,13 +3461,13 @@ int abilities_menu1(int* highlight)
         }
     }
 
-    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + options - 1))
+    if (menu_letters && (ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
         *highlight = (int)ch - 'a' + 1;
         return (*highlight);
     }
 
-    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if (menu_letters && (ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
         return (*highlight);
@@ -3508,6 +3511,7 @@ int abilities_menu2(int skilltype, int* highlight)
     int i;
     bool compact_layout = ability_menu_use_compact_layout();
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     int ability_col = ability_menu_list_col();
     int desc_col = ability_menu_description_col();
     int list_first_row = 3;
@@ -4088,7 +4092,7 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if (!steamdeck && (ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
+    if (menu_letters && (ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
         /* Bounds check for safety */
@@ -4098,7 +4102,7 @@ int abilities_menu2(int skilltype, int* highlight)
         }
     }
 
-    if (!steamdeck && (ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
+    if (menu_letters && (ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
         int selected_index = (int)ch - 'A';
         /* Bounds check for safety */
@@ -4710,6 +4714,8 @@ smithing_cost_type smithing_cost;
 #define COL_SMT2 16
 static int smith_ui_last_desc_row = -1;
 
+#define SMITH_CLICK_BACK 33000
+
 static int smith_ui_term_wid(void)
 {
     return (Term && (Term->wid > 0)) ? Term->wid : 80;
@@ -4878,6 +4884,65 @@ static void smith_ui_put_menu_label(int col, int row, byte attr, cptr label)
         Term_putstr(indexed_menu_prefix_col(col), row, -1, attr, "  ");
 
     Term_putstr(col, row, -1, attr, label);
+}
+
+static void smith_ui_register_menu_row(int choice, int col, int row, cptr label)
+{
+    int start_col = indexed_menu_prefix_col(col);
+    int width = smith_ui_term_wid() - start_col;
+    int min_width = label ? (int)strlen(label) + (col - start_col) : 0;
+
+    if (width < min_width)
+        width = min_width;
+    if (width < 1)
+        width = 1;
+
+    ui_menu_click_add(choice, start_col, row, width);
+}
+
+static void smith_ui_add_back_click_target(int col, int row, cptr text)
+{
+    ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "Esc");
+    ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "ESC");
+    ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "back");
+    ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "return");
+}
+
+static int smith_ui_column_width(int col)
+{
+    int next_col = smith_ui_term_wid();
+
+    if (col < COL_SMT2)
+        next_col = COL_SMT2;
+    else if (col < COL_SMT3)
+        next_col = COL_SMT3;
+    else if (col < COL_SMT4)
+        next_col = COL_SMT4;
+
+    if (next_col <= col)
+        next_col = smith_ui_term_wid();
+
+    return MAX(1, next_col - col - 1);
+}
+
+static void smith_ui_put_back_header(int col, int row, cptr label)
+{
+    char buf[80];
+    int width = smith_ui_column_width(col);
+
+    if (!label)
+        label = "";
+
+    if ((int)strlen(label) <= width)
+        SDL_strlcpy(buf, label, sizeof(buf));
+    else if (width > 3)
+        strnfmt(buf, sizeof(buf), "%.*s...", width - 3, label);
+    else
+        strnfmt(buf, sizeof(buf), "%.*s", width, label);
+
+    Term_erase(col, row, width);
+    Term_putstr(col, row, width, TERM_WHITE, buf);
+    smith_ui_add_back_click_target(col, row, buf);
 }
 
 static void smith_ui_put_menu_prefix(
@@ -7918,9 +7983,15 @@ int create_sval_menu_aux(int tval, int* highlight)
     bool valid[20];
     int sval[20];
     int list_col = COL_SMT3;
+    int title_row = MAX(0, smith_ui_dense_row0() - 1);
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(list_col));
+    smith_ui_put_back_header(list_col, title_row, "Subtype (Esc)");
 
     /* We have to search the whole itemlist. */
     for (num = 0, i = 1; i < z_info->k_max; i++)
@@ -7969,6 +8040,8 @@ int create_sval_menu_aux(int tval, int* highlight)
             indexed_menu_entry_label(buf, sizeof(buf), num, name);
             smith_ui_put_menu_label(list_col, smith_ui_dense_row(num),
                 valid[num] ? TERM_WHITE : TERM_SLATE, buf);
+            smith_ui_register_menu_row(num + 1, list_col,
+                smith_ui_dense_row(num), buf);
 
             /* Remember the object sval */
             sval[num] = k_ptr->sval;
@@ -8003,7 +8076,30 @@ int create_sval_menu_aux(int tval, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    if (!steamdeck_controls_active()
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         *highlight = (int)ch - 'a' + 1;
@@ -8082,6 +8178,7 @@ bool create_sval_menu(int tval)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     return (completed);
@@ -8098,9 +8195,15 @@ int create_tval_menu_aux(int* highlight)
     char buf[80];
     bool valid[MAX_SMITHING_TVALS];
     byte valid_attr = TERM_WHITE; // default to soothe compilation warnings
+    int title_row = MAX(0, smith_ui_dense_row0() - 1);
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    smith_ui_put_back_header(COL_SMT2, title_row, "Type (Esc)");
 
     // clear bottom of the screen
     wipe_object_description();
@@ -8136,6 +8239,8 @@ int create_tval_menu_aux(int* highlight)
 
         smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(i),
             valid[i] ? valid_attr : TERM_L_DARK, buf);
+        smith_ui_register_menu_row(i + 1, COL_SMT2, smith_ui_dense_row(i),
+            buf);
     }
 
     // highlight the label
@@ -8154,8 +8259,31 @@ int create_tval_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= MAX_SMITHING_TVALS)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     // choose an option by letter
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
         int old_highlight = *highlight;
@@ -8245,6 +8373,7 @@ void create_tval_menu(void)
     enchant_then_numbers = false;
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -8458,8 +8587,13 @@ int numbers_menu_aux(int* highlight)
     bool valid[SMT_NUM_MENU_MAX];
     bool can_afford[SMT_NUM_MENU_MAX] = { false };
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    smith_ui_put_back_header(COL_SMT2, 1, "Adjust (Esc)");
 
     memset(valid, 0, sizeof(valid));
 
@@ -8558,6 +8692,7 @@ int numbers_menu_aux(int* highlight)
         {
             indexed_menu_entry_label(buf, sizeof(buf), i, number_menu_labels[i]);
             smith_ui_put_menu_label(COL_SMT2, i + 2, attr[i], buf);
+            smith_ui_register_menu_row(i + 1, COL_SMT2, i + 2, buf);
         }
     }
     if (alloy_applicable)
@@ -8608,8 +8743,31 @@ int numbers_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= SMT_NUM_MENU_MAX)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     // choose an option by letter
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
@@ -8913,15 +9071,19 @@ static int smith_bonus_menu_aux(int* highlight)
     const int max_row = MAX_SMITHING_TVALS + 2;
     const int max_visible = max_row - first_row + 1;
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
-    Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
-        "Adjust special bonuses (ESC to return)");
+    smith_ui_put_back_header(COL_SMT2, 1, "Bonuses (Esc)");
 
     if (num <= 0)
     {
         Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
             "(No editable special bonuses on this item.)");
+        ui_menu_click_add_full_row(SMITH_CLICK_BACK, 3);
         Term_fresh();
         hide_cursor = true;
         (void)inkey();
@@ -8950,7 +9112,7 @@ static int smith_bonus_menu_aux(int* highlight)
         strnfmt(buf, sizeof(buf),
             "Adjust special bonuses (ESC to return) [%d-%d/%d]", top, end,
             num);
-        Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, buf);
+        smith_ui_put_back_header(COL_SMT2, 1, buf);
     }
 
     object_type snapshot;
@@ -9000,6 +9162,7 @@ static int smith_bonus_menu_aux(int* highlight)
                 verb, name, value);
             indexed_menu_entry_label(buf, sizeof(buf), i, action_label);
             smith_ui_put_menu_label(COL_SMT2, row, attr[i], buf);
+            smith_ui_register_menu_row(entry_idx, COL_SMT2, row, buf);
         }
     }
 
@@ -9017,10 +9180,33 @@ static int smith_bonus_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     if ((ch == '4') || (ch == ESCAPE))
         return -1;
 
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
@@ -9084,6 +9270,7 @@ static void smith_bonus_menu(void)
         }
     }
 
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -9128,6 +9315,7 @@ void numbers_menu(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     return;
@@ -9290,8 +9478,12 @@ static int reforge_prefix_menu(const object_type* source)
 
     while (true)
     {
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
+
         wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-        Term_putstr(COL_SMT2, 1, -1, TERM_WHITE, "Select prefix:");
+        smith_ui_put_back_header(COL_SMT2, 1, "Prefix (Esc)");
 
         entry_count = 0;
         memset(choice, 0, sizeof(choice));
@@ -9314,6 +9506,8 @@ static int reforge_prefix_menu(const object_type* source)
             indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             smith_ui_put_menu_label(COL_SMT2, entry_count + 2,
                 valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
+            smith_ui_register_menu_row(entry_count + 1, COL_SMT2,
+                entry_count + 2, buf);
             entry_count++;
         }
 
@@ -9321,10 +9515,12 @@ static int reforge_prefix_menu(const object_type* source)
         {
             Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
                 "(No legal prefixes available.)");
+            ui_menu_click_add_full_row(SMITH_CLICK_BACK, 3);
             Term_fresh();
             hide_cursor = true;
             (void)inkey();
             hide_cursor = false;
+            ui_menu_click_clear();
             screen_load();
             return 0;
         }
@@ -9347,7 +9543,30 @@ static int reforge_prefix_menu(const object_type* source)
         ch = inkey();
         hide_cursor = false;
 
-        if (!steamdeck_controls_active()
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if ((clicked_choice == SMITH_CLICK_BACK)
+                    || (click_action == UI_MENU_CLICK_SECONDARY))
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice >= 1 && clicked_choice <= entry_count)
+                {
+                    highlight = clicked_choice;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = '\r';
+                }
+            }
+        }
+
+        if (sdl_menu_letters_enabled()
             && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
         {
             highlight = (int)ch - 'a' + 1;
@@ -9355,6 +9574,7 @@ static int reforge_prefix_menu(const object_type* source)
                 bell("You cannot afford that reforge.");
             else
             {
+                ui_menu_click_clear();
                 screen_load();
                 return choice[highlight - 1];
             }
@@ -9369,6 +9589,7 @@ static int reforge_prefix_menu(const object_type* source)
                 bell("You cannot afford that reforge.");
             else
             {
+                ui_menu_click_clear();
                 screen_load();
                 return choice[highlight - 1];
             }
@@ -9379,6 +9600,7 @@ static int reforge_prefix_menu(const object_type* source)
 #endif
             )
         {
+            ui_menu_click_clear();
             screen_load();
             return 0;
         }
@@ -9461,19 +9683,28 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     char buf[80];
     bool valid[26];
     int choice[26];
+    char title[80];
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     /* Header */
-    Term_putstr(COL_SMT2, 1, -1, TERM_WHITE,
-        selecting_prefix ? "Select prefix:" : "Select suffix:");
+    strnfmt(title, sizeof(title), "%s (Esc)",
+        selecting_prefix ? "prefix" : "suffix");
+    title[0] = (char)toupper((unsigned char)title[0]);
+    smith_ui_put_back_header(COL_SMT2, 1, title);
 
     /* Always allow selecting no affix */
     valid[entry_count] = true;
     choice[entry_count] = 0;
     indexed_menu_entry_label(buf, sizeof(buf), entry_count, "(none)");
     smith_ui_put_menu_label(COL_SMT2, entry_count + 2, TERM_WHITE, buf);
+    smith_ui_register_menu_row(entry_count + 1, COL_SMT2, entry_count + 2,
+        buf);
     entry_count++;
 
     /* Suffix egos marked NO_PREFIX only allow "(none)" as the prefix choice. */
@@ -9511,6 +9742,8 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
             indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             smith_ui_put_menu_label(COL_SMT2, entry_count + 2,
                 valid[entry_count] ? TERM_WHITE : TERM_SLATE, buf);
+            smith_ui_register_menu_row(entry_count + 1, COL_SMT2,
+                entry_count + 2, buf);
 
             /* Remember the object index */
             choice[entry_count] = i;
@@ -9550,8 +9783,31 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= entry_count)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     /* Choose by letter */
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
     {
         *highlight = (int)ch - 'a' + 1;
@@ -9646,6 +9902,7 @@ bool enchant_menu(void)
     if (!show_prefix_step && !show_suffix_step)
     {
         /* Nothing to select; bail out without changing the item. */
+        ui_menu_click_clear();
         screen_load();
         return false;
     }
@@ -9715,6 +9972,7 @@ bool enchant_menu(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     return (completed);
@@ -9949,8 +10207,13 @@ int artefact_flag_menu_aux(int category, int* highlight)
     int flagset[MAX_SMITHING_FLAGS];
     byte attr;
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
+    smith_ui_put_back_header(COL_SMT3, 1, "Property (Esc)");
 
     // display the categories
     for (i = 0; smithing_flag_types[i].flag != 0; i++)
@@ -10011,9 +10274,23 @@ int artefact_flag_menu_aux(int category, int* highlight)
             indexed_menu_entry_label(buf, sizeof(buf), num,
                 smithing_flag_types[i].desc);
             smith_ui_put_menu_label(COL_SMT3, num + 2, attr, buf);
+            smith_ui_register_menu_row(num + 1, COL_SMT3, num + 2, buf);
 
             num++;
         }
+    }
+
+    /* Abort if there are no choices */
+    if (num == 0)
+    {
+        Term_putstr(COL_SMT3, 3, -1, TERM_L_DARK,
+            "(No properties can be added to this item.)");
+        ui_menu_click_add_full_row(SMITH_CLICK_BACK, 3);
+        Term_fresh();
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        return (-1);
     }
 
     // highlight the label
@@ -10040,14 +10317,31 @@ int artefact_flag_menu_aux(int category, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    /* Abort if there are no choices */
-    if (num == 0)
     {
-        return (-1);
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
     }
 
     /* Choose by letter */
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
@@ -10178,6 +10472,7 @@ void artefact_flag_menu(int category)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -10374,8 +10669,13 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     memset(ability_valid, 0, z_info->b_max * sizeof(bool));
     memset(ability_affordable, 0, z_info->b_max * sizeof(bool));
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
+    smith_ui_put_back_header(COL_SMT3, 1, "Ability (Esc)");
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -10442,8 +10742,25 @@ int artefact_ability_menu_aux(int skill, int* highlight)
         /* Display the line */
         indexed_menu_entry_label(buf, sizeof(buf), num, b_name + b_ptr->name);
         smith_ui_put_menu_label(COL_SMT3, num + 2, attr, buf);
+        smith_ui_register_menu_row(num + 1, COL_SMT3, num + 2, buf);
 
         num++;
+    }
+
+    if (num == 0)
+    {
+        Term_putstr(COL_SMT3, 3, -1, TERM_L_DARK,
+            "(No abilities can be added to this item.)");
+        ui_menu_click_add_full_row(SMITH_CLICK_BACK, 3);
+        Term_fresh();
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        mem_free(ability_present);
+        mem_free(ability_valid);
+        mem_free(ability_affordable);
+        mem_free(ability_nums);
+        return (-1);
     }
 
     // highlight the label
@@ -10470,14 +10787,43 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    /* Abort if there are no choices */
-    if (num == 0)
     {
-        return (-1);
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    mem_free(ability_present);
+                    mem_free(ability_valid);
+                    mem_free(ability_affordable);
+                    mem_free(ability_nums);
+                    return 0;
+                }
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    mem_free(ability_present);
+                    mem_free(ability_valid);
+                    mem_free(ability_affordable);
+                    mem_free(ability_nums);
+                    return 0;
+                }
+                ch = '\r';
+            }
+        }
     }
 
     /* Choose by letter */
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int new_highlight = (int)ch - 'a' + 1;
@@ -10619,6 +10965,7 @@ void artefact_ability_menu(int skill)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -10690,14 +11037,22 @@ int artefact_menu_aux(int* highlight)
     int i, num;
     char buf[80];
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    smith_ui_put_back_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
+        "Artifice (Esc)");
 
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
     {
         indexed_menu_entry_label(buf, sizeof(buf), i, smithing_flag_cats[i].desc);
         smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(i), TERM_WHITE,
+            buf);
+        smith_ui_register_menu_row(i + 1, COL_SMT2, smith_ui_dense_row(i),
             buf);
     }
 
@@ -10712,6 +11067,8 @@ int artefact_menu_aux(int* highlight)
             skill_names_full[i]);
         smith_ui_put_menu_label(COL_SMT2,
             smith_ui_dense_row(MAX_CATS + display_idx), TERM_WHITE, buf);
+        smith_ui_register_menu_row(MAX_CATS + display_idx + 1, COL_SMT2,
+            smith_ui_dense_row(MAX_CATS + display_idx), buf);
         display_idx++;
     }
 
@@ -10720,6 +11077,8 @@ int artefact_menu_aux(int* highlight)
     // Menu item for naming artefacts
     indexed_menu_entry_label(buf, sizeof(buf), num - 1, "Name Artefact");
     smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(num - 1), TERM_WHITE,
+        buf);
+    smith_ui_register_menu_row(num, COL_SMT2, smith_ui_dense_row(num - 1),
         buf);
 
     // highlight the label
@@ -10744,8 +11103,31 @@ int artefact_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     /* Choose by letter */
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
@@ -10877,6 +11259,7 @@ void artefact_menu(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 
     return;
@@ -10895,8 +11278,14 @@ int melt_menu_aux(int* highlight)
     char desc[80];
     char buf[80];
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    smith_ui_put_back_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
+        "Melt (Esc)");
 
     // clear bottom of the screen
     wipe_object_description();
@@ -10915,6 +11304,8 @@ int melt_menu_aux(int* highlight)
 
             smith_ui_put_menu_label(COL_SMT2, smith_ui_dense_row(num),
                 TERM_WHITE, buf);
+            smith_ui_register_menu_row(num + 1, COL_SMT2,
+                smith_ui_dense_row(num), buf);
 
             if (smith_ui_weight_col() > 0)
             {
@@ -10926,6 +11317,18 @@ int melt_menu_aux(int* highlight)
 
             num++;
         }
+    }
+
+    if (num == 0)
+    {
+        Term_putstr(COL_SMT2, 3, -1, TERM_L_DARK,
+            "(No carried metal items can be melted.)");
+        ui_menu_click_add_full_row(SMITH_CLICK_BACK, 3);
+        Term_fresh();
+        hide_cursor = true;
+        (void)inkey();
+        hide_cursor = false;
+        return (-1);
     }
 
     // highlight the label
@@ -10944,8 +11347,31 @@ int melt_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= num)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     // choose an option by letter
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         int old_highlight = *highlight;
@@ -11024,6 +11450,7 @@ void melt_menu(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -11170,8 +11597,13 @@ int smithing_menu_aux(int* highlight)
     bool valid[SMT_MENU_MAX];
     char buf[80];
 
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    smith_ui_put_back_header(COL_SMT1, 1, "Smithing (Esc)");
 
     // determine whether or not we can actually make objects here
     if (!cave_forge_bold(p_ptr->py, p_ptr->px))
@@ -11250,6 +11682,9 @@ int smithing_menu_aux(int* highlight)
         smith_ui_put_menu_label(COL_SMT1, 8,
             valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
     }
+
+    for (int menu_i = 0; menu_i < SMT_MENU_MAX; menu_i++)
+        smith_ui_register_menu_row(menu_i + 1, COL_SMT1, menu_i + 2, NULL);
 
     // display information about the selected item
     switch (*highlight)
@@ -11364,8 +11799,31 @@ int smithing_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if ((clicked_choice == SMITH_CLICK_BACK)
+                || (click_action == UI_MENU_CLICK_SECONDARY))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = ESCAPE;
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= SMT_MENU_MAX)
+            {
+                *highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    return 0;
+                ch = '\r';
+            }
+        }
+    }
+
     // choose an option by letter
-    if (!steamdeck_controls_active()
+    if (sdl_menu_letters_enabled()
         && (ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
     {
         int old_highlight = *highlight;
@@ -11660,6 +12118,7 @@ void do_cmd_smithing_screen(void)
 
     /* Load screen */
     smith_ui_reset_description_state();
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -12025,10 +12484,12 @@ static void main_menu_format_line(int choice, char* buf, size_t buflen)
         else
             main_menu_append_right_aligned_shortcut(buf, buflen, &cur, "");
     }
-    else
+    else if (sdl_menu_letters_enabled())
     {
         strnfcat(buf, buflen, &cur, "(%c)", main_menu_keyboard_key(choice));
     }
+    else
+        main_menu_append_right_aligned_shortcut(buf, buflen, &cur, "");
 }
 
 static void main_menu_format_controller_prompt(char* buf, size_t buflen)
@@ -12389,6 +12850,7 @@ int main_menu_aux(int* highlight)
     int clicked_choice = 0;
     bool death_view = death_spectator_active();
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     int menu_w = main_menu_calc_width();
     int top_pad = 1;
@@ -12508,7 +12970,7 @@ int main_menu_aux(int* highlight)
     }
 
     // choose an option by letter - alphabetical mapping (updated for new order)
-    if (!steamdeck)
+    if (menu_letters)
     {
         switch (ch)
         {
@@ -14879,6 +15341,43 @@ static void settings_ui_put_fitted(int row, int col, byte attr, cptr text)
     Term_putstr(col, row, width, attr, buf);
 }
 
+#define SETTINGS_CLICK_RETURN 32000
+#define SETTINGS_CLICK_SWITCH_GROUP 32001
+#define SETTINGS_CLICK_RESET_SELECTED 32002
+#define SETTINGS_CLICK_RESET_ALL 32003
+#define SETTINGS_CLICK_SAVE 32004
+#define SETTINGS_CLICK_RENAME_SELECTED 32005
+#define SETTINGS_CLICK_RENAME_GROUP 32006
+#define SETTINGS_CLICK_PANE_FIELD_BASE 32100
+
+static void settings_ui_add_return_click_targets(int row, int col, cptr text)
+{
+    static cptr tokens[] = {
+        "Esc", "ESC", "Escape", "Enter", "Return", "return",
+        "Back", "back", "accept"
+    };
+
+    if (!text)
+        return;
+
+    for (int i = 0; i < (int)N_ELEMENTS(tokens); i++)
+        ui_menu_click_add_text_token(SETTINGS_CLICK_RETURN, col, row, text,
+            tokens[i]);
+}
+
+static void settings_ui_put_return_prompt(int row, int col, byte attr,
+    cptr long_text, cptr medium_text, cptr short_text)
+{
+    char buf[160];
+    int width = settings_ui_line_width(col);
+
+    settings_ui_fit_text(buf, sizeof(buf),
+        settings_ui_pick_label(width, long_text, medium_text, short_text),
+        width);
+    Term_putstr(col, row, width, attr, buf);
+    settings_ui_add_return_click_targets(row, col, buf);
+}
+
 static cptr settings_ui_wrap_line(cptr text, int max_chars, char* buf,
     size_t buflen)
 {
@@ -15685,28 +16184,25 @@ extern void do_cmd_options_aux(int page, cptr info)
 
             if (playerturn == 0)
             {
-                settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
-                    settings_ui_pick_label(settings_ui_line_width(2),
-                        "(direction keys to set, Return/Escape to accept)",
-                        "(direction keys to set, Enter/Esc to accept)",
-                        "(arrows set, Enter/Esc accept)"));
+                settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
+                    "(direction keys to set, Return/Escape to accept)",
+                    "(direction keys to set, Enter/Esc to accept)",
+                    "(arrows set, Enter/Esc accept)");
             }
             else
             {
-                settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
-                    settings_ui_pick_label(settings_ui_line_width(2),
-                        "(press Return to go back)",
-                        "(press Enter to go back)",
-                        "(Enter goes back)"));
+                settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
+                    "(press Return to go back)",
+                    "(press Enter to go back)",
+                    "(Enter goes back)");
             }
         }
         else
         {
-            settings_ui_put_fitted(Term->hgt - 1, 2, TERM_SLATE,
-                settings_ui_pick_label(settings_ui_line_width(2),
-                    "(direction keys to set, Return/Escape to accept)",
-                    "(direction keys to set, Enter/Esc to accept)",
-                    "(arrows set, Enter/Esc accept)"));
+            settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
+                "(direction keys to set, Return/Escape to accept)",
+                "(direction keys to set, Enter/Esc to accept)",
+                "(arrows set, Enter/Esc accept)");
         }
 
         /* Hilite current option */
@@ -15722,13 +16218,21 @@ extern void do_cmd_options_aux(int page, cptr info)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < n)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                k = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = ' ';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice >= 0 && clicked_choice < n)
+                {
+                    k = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = ' ';
+                }
             }
         }
 
@@ -16791,11 +17295,10 @@ void do_cmd_pane_settings(void)
                     "Saved to your SDL config on exit.",
                     "Saved on exit."));
         }
-        settings_ui_put_fitted(y++, 2, TERM_SLATE,
-            settings_ui_pick_label(settings_ui_line_width(2),
-                "(direction keys to set, 0 = auto font, o = open config, Return/Escape to accept)",
-                "(arrows move, 4/6 or y/n set, 0 auto, o open config, Enter/Esc)",
-                "(arrows move, 4/6 set, 0 auto, o config, Enter/Esc)"));
+        settings_ui_put_return_prompt(y++, 2, TERM_SLATE,
+            "(direction keys to set, 0 = auto font, o = open config, Return/Escape to accept)",
+            "(arrows move, 4/6 or y/n set, 0 auto, o open config, Enter/Esc)",
+            "(arrows move, 4/6 set, 0 auto, o config, Enter/Esc)");
 
         /* Get key */
         hide_cursor = true;
@@ -16806,13 +17309,21 @@ void do_cmd_pane_settings(void)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < n)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                k = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = ' ';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice >= 0 && clicked_choice < n)
+                {
+                    k = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = ' ';
+                }
             }
         }
         
@@ -17212,11 +17723,14 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
     if (pane_count <= 0)
     {
         Term_clear();
+        ui_menu_click_begin();
         Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Fonts");
         Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
         Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+        ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
         Term_fresh();
         (void)inkey();
+        ui_menu_click_clear();
         screen_load();
         return;
     }
@@ -17234,6 +17748,8 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             int term_wid;
 
             Term_clear();
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
             term_wid = settings_ui_term_wid();
             row_width = settings_ui_line_width(2);
             settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Fonts");
@@ -17264,6 +17780,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                 settings_ui_format_pair_line(line_buf, sizeof(line_buf), label_buf,
                     font_field, row_width, 6);
                 c_prt(a, line_buf, y0 + i, 2);
+                ui_menu_click_add(i, 2, y0 + i, (int)strlen(line_buf));
             }
 
             {
@@ -17278,11 +17795,10 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                         "0: auto (uses default aux font / auto main-based size)",
                         "0: auto font size",
                         "0 auto font"));
-                settings_ui_put_fitted(y++, 2, TERM_SLATE,
-                    settings_ui_pick_label(term_wid - 2,
-                        "Changes apply immediately",
-                        "Changes apply immediately",
-                        "Changes apply now"));
+                settings_ui_put_return_prompt(y++, 2, TERM_SLATE,
+                    "Esc/Enter: return (changes apply immediately)",
+                    "Esc/Enter: return",
+                    "Esc/Enter return");
             }
 
             Term_fresh();
@@ -17290,6 +17806,35 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             hide_cursor = true;
             char ch = inkey();
             hide_cursor = false;
+
+            {
+                int clicked_choice = 0;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_choice, &click_action))
+                {
+                    if (clicked_choice == SETTINGS_CLICK_RETURN)
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        ch = ESCAPE;
+                    }
+                    else if (clicked_choice >= 0 && clicked_choice < pane_count)
+                    {
+                        if (clicked_choice != sel)
+                        {
+                            sel = clicked_choice;
+                            if (click_action == UI_MENU_CLICK_HOVER)
+                                continue;
+                            if (click_action == UI_MENU_CLICK_PRIMARY)
+                                continue;
+                        }
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                    }
+                }
+            }
 
             dir = target_dir(ch);
             if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
@@ -17353,6 +17898,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             *settings_changed = true;
     }
 
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -17504,11 +18050,14 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     if (pane_count <= 0)
     {
         Term_clear();
+        ui_menu_click_begin();
         Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
         Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
         Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+        ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
         Term_fresh();
         (void)inkey();
+        ui_menu_click_clear();
         screen_load();
         return;
     }
@@ -17527,6 +18076,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         int row_width;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         term_wid = settings_ui_term_wid();
         row_width = settings_ui_line_width(2);
         settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Layout");
@@ -17590,6 +18141,26 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             strnfmt(line_buf, sizeof(line_buf), "%s %s %s r%s c%s", type_buf,
                 where_field, enabled_field, rows_field, cols_field);
             settings_ui_put_fitted(y0 + i, 2, a, line_buf);
+            {
+                int row = y0 + i;
+                int where_col = 2 + (int)strlen(type_buf) + 1;
+                int enabled_col = where_col + (int)strlen(where_field) + 1;
+                int rows_col = enabled_col + (int)strlen(enabled_field) + 2;
+                int cols_col = rows_col + (int)strlen(rows_field) + 2;
+                int base = SETTINGS_CLICK_PANE_FIELD_BASE + i * 4;
+
+                ui_menu_click_add(base + 1, where_col, row,
+                    (int)strlen(where_field));
+                ui_menu_click_add(base + 0, enabled_col, row,
+                    (int)strlen(enabled_field));
+                if (!rows_locked)
+                    ui_menu_click_add(base + 2, rows_col, row,
+                        (int)strlen(rows_field));
+                if (!cols_locked)
+                    ui_menu_click_add(base + 3, cols_col, row,
+                        (int)strlen(cols_field));
+                ui_menu_click_add(i, 2, row, (int)strlen(line_buf));
+            }
         }
 
         {
@@ -17609,11 +18180,10 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "Each side slot shares cols with its first pane; each bottom slot shares rows",
                     "Side slots share cols; each bottom slot shares rows",
                     "Side share cols; bottom share rows"));
-            settings_ui_put_fitted(y++, 2, TERM_SLATE,
-                settings_ui_pick_label(term_wid - 2,
-                    "ESC/Enter: return (changes apply immediately)",
-                    "ESC/Enter: return",
-                    "Esc/Enter return"));
+            settings_ui_put_return_prompt(y++, 2, TERM_SLATE,
+                "ESC/Enter: return (changes apply immediately)",
+                "ESC/Enter: return",
+                "Esc/Enter return");
         }
 
         Term_fresh();
@@ -17621,6 +18191,49 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         hide_cursor = true;
         char ch = inkey();
         hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_PANE_FIELD_BASE
+                    && clicked_choice < SETTINGS_CLICK_PANE_FIELD_BASE + pane_count * 4)
+                {
+                    int offset = clicked_choice - SETTINGS_CLICK_PANE_FIELD_BASE;
+                    sel = offset / 4;
+                    field = offset % 4;
+                    supporting_pane_ensure_editable_field(&field, pane_indices,
+                        pane_count, sel);
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < pane_count)
+                {
+                    if (clicked_choice != sel)
+                    {
+                        sel = clicked_choice;
+                        supporting_pane_ensure_editable_field(&field, pane_indices,
+                            pane_count, sel);
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        if (click_action == UI_MENU_CLICK_PRIMARY)
+                            continue;
+                    }
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : ' ';
+                }
+            }
+        }
 
         dir = target_dir(ch);
         if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
@@ -17748,6 +18361,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     if (changed && settings_changed)
         *settings_changed = true;
 
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -18142,21 +18756,59 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                 panel_name, (panel == SDL_TOUCH_PANE_PANEL_SECOND) ? " (empty = main panel)" : "");
             settings_ui_put_fitted(3, 2, TERM_SLATE, info_buf);
         }
-        settings_ui_put_fitted(row++, 2, TERM_SLATE,
-            settings_ui_pick_label(row_width,
+        {
+            cptr prompt = settings_ui_pick_label(row_width,
                 "Up/Down: select item   4/6: previous/next action   l/View: rename button label",
                 "Up/Down select   4/6 action   l/View rename",
-                "Up/Down select   4/6 action"));
-        settings_ui_put_fitted(row++, 2, TERM_SLATE,
-            settings_ui_pick_label(row_width,
+                "Up/Down select   4/6 action");
+            int prompt_row = row++;
+
+            settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_SELECTED, 2,
+                prompt_row, prompt, "rename");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_SELECTED, 2,
+                prompt_row, prompt, "View");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_SELECTED, 2,
+                prompt_row, prompt, "l/");
+        }
+        {
+            cptr prompt = settings_ui_pick_label(row_width,
                 "Space cycles selected   Tab switches button panel   x resets selected",
                 "Space cycles   Tab switch   x reset",
-                "Space cycles   Tab switch"));
-        settings_ui_put_fitted(row++, 2, TERM_SLATE,
-            settings_ui_pick_label(row_width,
+                "Space cycles   Tab switch");
+            int prompt_row = row++;
+
+            settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 2,
+                prompt_row, prompt, "Tab");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 2,
+                prompt_row, prompt, "switch");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "x");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "reset");
+        }
+        {
+            cptr prompt = settings_ui_pick_label(row_width,
                 "p/Hero: rename panel   M/Map: reset all panel buttons   Main panel must keep Pick/Confirm",
                 "p rename panel   Map reset panel   Keep main confirm",
-                "p rename   Map reset   Keep confirm"));
+                "p rename   Map reset   Keep confirm");
+            int prompt_row = row++;
+
+            settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_GROUP, 2,
+                prompt_row, prompt, "rename panel");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_GROUP, 2,
+                prompt_row, prompt, "p ");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "Map");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "reset panel");
+        }
+        settings_ui_put_return_prompt(row++, 2, TERM_SLATE,
+            "Esc/Enter: return",
+            "Esc/Enter: return",
+            "Esc/Enter return");
 
         Term_fresh();
 
@@ -18168,13 +18820,51 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < total_rows)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = ' ';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice == SETTINGS_CLICK_SWITCH_GROUP)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = '\t';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'x';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'M';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RENAME_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'l';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RENAME_GROUP)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'p';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < total_rows)
+                {
+                    highlight = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = ' ';
+                }
             }
         }
 
@@ -18442,11 +19132,27 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 "Up/Down: select item   4/6: previous/next value   Space toggles or cycles",
                 "Up/Down select   4/6 value   Space toggles/cycles",
                 "Up/Down select   4/6 value"));
-        settings_ui_put_fitted(row++, 2, TERM_SLATE,
-            settings_ui_pick_label(row_width,
+        {
+            cptr prompt = settings_ui_pick_label(row_width,
                 "x resets selected   M/Map resets all touch control settings",
                 "x reset selected   Map reset all",
-                "x reset   Map all"));
+                "x reset   Map all");
+            int prompt_row = row++;
+
+            settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "x");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "selected");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "Map");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "all");
+        }
+        settings_ui_put_return_prompt(row++, 2, TERM_SLATE,
+            "Esc/Enter: return",
+            "Esc/Enter: return",
+            "Esc/Enter return");
 
         Term_fresh();
 
@@ -18458,13 +19164,33 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < total_rows)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = ' ';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'x';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'M';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < total_rows)
+                {
+                    highlight = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = ' ';
+                }
             }
         }
 
@@ -18585,7 +19311,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
 static void do_cmd_mouse_settings(bool* settings_changed)
 {
     enum {
-        MOUSE_SETTING_MOVEMENT = 0,
+        MOUSE_SETTING_ENABLE = 0,
+        MOUSE_SETTING_MOVEMENT,
         MOUSE_SETTING_COUNT
     };
     int highlight = 0;
@@ -18598,35 +19325,71 @@ static void do_cmd_mouse_settings(bool* settings_changed)
     while (!done)
     {
         int row_width;
-        char action_buf[80];
-        char line_buf[128];
-        byte a;
 
         row_width = settings_ui_line_width(2);
 
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
-        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Mouse Settings");
-        settings_ui_put_fitted(2, 2, TERM_WHITE, "==============");
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Mouse Input");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "===========");
         settings_ui_put_fitted(3, 2, TERM_SLATE,
-            "Controls desktop mouse map movement.");
+            "Controls desktop mouse input and map movement.");
 
-        a = (highlight == MOUSE_SETTING_MOVEMENT) ? TERM_L_BLUE : TERM_WHITE;
-        SDL_strlcpy(action_buf,
-            mouse_movement_mode_label(get_sdl_mouse_movement_mode()),
-            sizeof(action_buf));
-        settings_ui_format_pair_line(line_buf, sizeof(line_buf),
-            "Mouse Movement", action_buf, row_width, 18);
-        c_prt(a, line_buf, list_start_row, 2);
-        ui_menu_click_add(MOUSE_SETTING_MOVEMENT, 2, list_start_row,
-            (int)strlen(line_buf));
+        for (int i = 0; i < MOUSE_SETTING_COUNT; i++)
+        {
+            char action_buf[80];
+            char line_buf[128];
+            cptr label;
+            byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
-        settings_ui_put_fitted(list_start_row + 3, 2, TERM_SLATE,
+            if (i == MOUSE_SETTING_ENABLE) {
+                label = "Enable Mouse";
+                SDL_strlcpy(action_buf,
+                    get_sdl_mouse_enabled() ? "On" : "Off",
+                    sizeof(action_buf));
+            } else {
+                label = "Mouse Movement";
+                SDL_strlcpy(action_buf,
+                    mouse_movement_mode_label(get_sdl_mouse_movement_mode()),
+                    sizeof(action_buf));
+            }
+
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf),
+                label, action_buf, row_width, 18);
+            c_prt(a, line_buf, list_start_row + i, 2);
+            ui_menu_click_add(i, 2, list_start_row + i,
+                (int)strlen(line_buf));
+        }
+
+        settings_ui_put_fitted(list_start_row + MOUSE_SETTING_COUNT + 2, 2,
+            TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "4/6: previous/next value   Space cycles   x resets selected",
-                "4/6 value   Space cycles   x reset",
-                "4/6 value   Space   x"));
+                "Up/Down: select item   4/6: previous/next value   Space toggles or cycles",
+                "Up/Down select   4/6 value   Space toggles/cycles",
+                "Up/Down select   4/6 value"));
+        {
+            cptr prompt = settings_ui_pick_label(row_width,
+                "x resets selected   M/Map resets all mouse input settings",
+                "x reset selected   Map reset all",
+                "x reset   Map all");
+            int prompt_row = list_start_row + MOUSE_SETTING_COUNT + 3;
+
+            settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "x");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                prompt_row, prompt, "selected");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "Map");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                prompt_row, prompt, "all");
+        }
+        settings_ui_put_return_prompt(list_start_row + MOUSE_SETTING_COUNT + 4,
+            2, TERM_SLATE,
+            "Esc/Enter: return",
+            "Esc/Enter: return",
+            "Esc/Enter return");
 
         Term_fresh();
 
@@ -18638,13 +19401,33 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < MOUSE_SETTING_COUNT)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = ' ';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'x';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'M';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < MOUSE_SETTING_COUNT)
+                {
+                    highlight = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = ' ';
+                }
             }
         }
 
@@ -18664,14 +19447,22 @@ static void do_cmd_mouse_settings(bool* settings_changed)
 
         case '-':
         case '8':
+            highlight = (MOUSE_SETTING_COUNT + highlight - 1)
+                % MOUSE_SETTING_COUNT;
+            break;
+
         case '2':
-            highlight = MOUSE_SETTING_MOVEMENT;
+            highlight = (highlight + 1) % MOUSE_SETTING_COUNT;
             break;
 
         case 'n':
         case '4':
-            set_sdl_mouse_movement_mode(
-                mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), -1));
+            if (highlight == MOUSE_SETTING_ENABLE) {
+                set_sdl_mouse_enabled(false);
+            } else if (highlight == MOUSE_SETTING_MOVEMENT) {
+                set_sdl_mouse_movement_mode(
+                    mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), -1));
+            }
             changed = true;
             break;
 
@@ -18680,22 +19471,35 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         case ' ':
         case 't':
         case '5':
-            set_sdl_mouse_movement_mode(
-                mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), 1));
+            if (highlight == MOUSE_SETTING_ENABLE) {
+                set_sdl_mouse_enabled(!get_sdl_mouse_enabled());
+            } else if (highlight == MOUSE_SETTING_MOVEMENT) {
+                set_sdl_mouse_movement_mode(
+                    mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), 1));
+            }
             changed = true;
             break;
 
         case 'r':
         case 'x':
         case 'X':
+            if (highlight == MOUSE_SETTING_ENABLE) {
+                set_sdl_mouse_enabled(get_sdl_mouse_default_enabled());
+            } else if (highlight == MOUSE_SETTING_MOVEMENT) {
+                set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
+            }
+            changed = true;
+            break;
+
         case 'R':
         case 'M':
+            set_sdl_mouse_enabled(get_sdl_mouse_default_enabled());
             set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
             changed = true;
             break;
 
         default:
-            bell("Illegal command for mouse settings!");
+            bell("Illegal command for mouse input settings!");
             break;
         }
     }
@@ -18974,6 +19778,7 @@ int options_menu(int* highlight)
     int clicked_choice = 0;
     char line_buf[80];
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     bool allow_debug_menu = false;
 #ifdef SHOW_DEBUG_OPTIONS_MENU
     allow_debug_menu = true;
@@ -19087,68 +19892,68 @@ int options_menu(int* highlight)
         }
     }
 
-    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
+    if (menu_letters && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
         return (1);
     }
 
-    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
+    if (menu_letters && ((ch == 'b') || (ch == 'B')))
     {
         *highlight = 2;
         return (2);
     }
 
-    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
+    if (menu_letters && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
     }
 
-    if (!steamdeck && ((ch == 'd') || (ch == 'D')))
+    if (menu_letters && ((ch == 'd') || (ch == 'D')))
     {
         *highlight = 4;
         return (4);
     }
 
-    if (!steamdeck && ((ch == 'e') || (ch == 'E')))
+    if (menu_letters && ((ch == 'e') || (ch == 'E')))
     {
         *highlight = 5;
         return (5);
     }
 
-    if (!steamdeck && ((ch == 'f') || (ch == 'F')))
+    if (menu_letters && ((ch == 'f') || (ch == 'F')))
     {
         *highlight = 6;
         return (6);
     }
 
-    if (!steamdeck && ((ch == 'g') || (ch == 'G')))
+    if (menu_letters && ((ch == 'g') || (ch == 'G')))
     {
         *highlight = 7;
         return (7);
     }
 
-    if (!steamdeck && ((ch == 'h') || (ch == 'H')))
+    if (menu_letters && ((ch == 'h') || (ch == 'H')))
     {
         *highlight = 8;
         return (8);
     }
 
-    if (!steamdeck && ((ch == 'i') || (ch == 'I')))
+    if (menu_letters && ((ch == 'i') || (ch == 'I')))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+    if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
         || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 10;
         return (10);
     }
 
-    if (!steamdeck && allow_debug_menu && p_ptr->noscore
+    if (menu_letters && allow_debug_menu && p_ptr->noscore
         && ((ch == 'p') || (ch == 'P')))
     {
         *highlight = 11;
@@ -19189,6 +19994,7 @@ static int input_options_menu(int* highlight)
     int clicked_choice = 0;
     char line_buf[80];
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     Term_get_size(&term_wid, &term_hgt);
     if (term_hgt < 20)
@@ -19226,7 +20032,7 @@ static int input_options_menu(int* highlight)
     Term_putstr(2, line_row, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
     ui_menu_click_add(4, 2, line_row, (int)strlen(line_buf));
-    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Mouse Settings");
+    keyed_menu_entry_label(line_buf, sizeof(line_buf), 'e', "Mouse Input");
     line_row = row++;
     Term_putstr(2, line_row, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         line_buf);
@@ -19256,37 +20062,37 @@ static int input_options_menu(int* highlight)
         }
     }
 
-    if (!steamdeck && ((ch == 'a') || (ch == 'A')))
+    if (menu_letters && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
         return (1);
     }
 
-    if (!steamdeck && ((ch == 'b') || (ch == 'B')))
+    if (menu_letters && ((ch == 'b') || (ch == 'B')))
     {
         *highlight = 2;
         return (2);
     }
 
-    if (!steamdeck && ((ch == 'c') || (ch == 'C')))
+    if (menu_letters && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
     }
 
-    if (!steamdeck && ((ch == 'd') || (ch == 'D')))
+    if (menu_letters && ((ch == 'd') || (ch == 'D')))
     {
         *highlight = 4;
         return (4);
     }
 
-    if (!steamdeck && ((ch == 'e') || (ch == 'E')))
+    if (menu_letters && ((ch == 'e') || (ch == 'E')))
     {
         *highlight = 5;
         return (5);
     }
 
-    if ((!steamdeck && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+    if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
         || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 6;
@@ -19930,15 +20736,28 @@ void do_cmd_keybinds(void)
         settings_ui_put_fitted(1, 0, TERM_WHITE, "Keybind Configuration");
         if (compact_width)
         {
+            cptr nav_prompt = "8/2 move  Enter bind  Tab switch  Esc return";
             settings_ui_put_fitted(2, 0, TERM_WHITE,
-                "8/2 move  Enter bind  Tab switch  Esc return");
+                nav_prompt);
+            settings_ui_add_return_click_targets(2, 0, nav_prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 0, 2,
+                nav_prompt, "Tab");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 0, 2,
+                nav_prompt, "switch");
             settings_ui_put_fitted(3, 0, TERM_WHITE,
                 showing_primary ? "Primary commands" : "Supplementary commands");
         }
         else
         {
+            cptr nav_prompt =
+                "Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return";
             settings_ui_put_fitted(2, 0, TERM_WHITE,
-                "Arrow to navigate, Enter to bind, Tab to switch groups, Escape to return");
+                nav_prompt);
+            settings_ui_add_return_click_targets(2, 0, nav_prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 0, 2,
+                nav_prompt, "Tab");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SWITCH_GROUP, 0, 2,
+                nav_prompt, "switch");
             settings_ui_put_fitted(3, 0, TERM_WHITE,
                 showing_primary ? "Primary Commands: Essential for the gameplay"
                                 : "Supplementary Commands");
@@ -19996,10 +20815,19 @@ void do_cmd_keybinds(void)
         /* Instructions at bottom */
         if (compact_width)
         {
-            settings_ui_put_fitted(info_row, 2, TERM_WHITE,
-                "s: save keybinds");
-            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
-                "r: reset selected");
+            cptr save_prompt = "s: save keybinds";
+            cptr reset_prompt = "r: reset selected";
+
+            settings_ui_put_fitted(info_row, 2, TERM_WHITE, save_prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SAVE, 2, info_row,
+                save_prompt, "s:");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SAVE, 2, info_row,
+                save_prompt, "save");
+            settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE, reset_prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row + 1, reset_prompt, "r:");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row + 1, reset_prompt, "reset");
         }
         else
         {
@@ -20007,8 +20835,18 @@ void do_cmd_keybinds(void)
                 default_file);
             settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 line_buf);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SAVE, 2, info_row,
+                line_buf, "'s'");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_SAVE, 2, info_row,
+                line_buf, "save");
             settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
                 "Press 'r' to reset selected keybind to default");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row + 1, "Press 'r' to reset selected keybind to default",
+                "'r'");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row + 1, "Press 'r' to reset selected keybind to default",
+                "reset");
         }
         if (dirty)
             c_prt(TERM_YELLOW, "Unsaved changes", info_row + 2, 2);
@@ -20023,14 +20861,40 @@ void do_cmd_keybinds(void)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < num_keybinds)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                highlight = clicked_choice;
-                *highlight_ptr = highlight;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = '\r';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice == SETTINGS_CLICK_SWITCH_GROUP)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = '\t';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_SAVE)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 's';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'r';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < num_keybinds)
+                {
+                    highlight = clicked_choice;
+                    *highlight_ptr = highlight;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = '\r';
+                }
             }
         }
         
@@ -21466,10 +22330,14 @@ void do_cmd_controller_settings(void)
                               : "D-pad navigate  %s add  %s back",
                 confirm_label, back_label);
             settings_ui_put_fitted(2, 0, TERM_WHITE, prompt_buf);
+            settings_ui_add_return_click_targets(2, 0, prompt_buf);
         } else {
+            cptr nav_prompt = compact_width
+                ? "8/2 move  Enter add  Esc return"
+                : "Arrow to navigate, Enter to add, Escape to return";
             settings_ui_put_fitted(2, 0, TERM_WHITE,
-                compact_width ? "8/2 move  Enter add  Esc return"
-                              : "Arrow to navigate, Enter to add, Escape to return");
+                nav_prompt);
+            settings_ui_add_return_click_targets(2, 0, nav_prompt);
         }
 
         for (int i = top; i < entry_count && i < top + visible_rows; i++) {
@@ -21524,10 +22392,28 @@ void do_cmd_controller_settings(void)
                 reset_label, reset_all_label);
             settings_ui_put_fitted(info_row, 2, TERM_WHITE,
                 prompt_buf);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row, prompt_buf, reset_label);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row, prompt_buf, compact_width ? "reset" : "selected");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                info_row, prompt_buf, reset_all_label);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                info_row, prompt_buf, compact_width ? "reset all" : "all");
         } else {
+            cptr reset_prompt = compact_width
+                ? "r: reset selected  R: reset all"
+                : "Press 'r' to reset selected binding, 'R' to reset all bindings";
             settings_ui_put_fitted(info_row, 2, TERM_WHITE,
-                compact_width ? "r: reset selected  R: reset all"
-                              : "Press 'r' to reset selected binding, 'R' to reset all bindings");
+                reset_prompt);
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row, reset_prompt, compact_width ? "r:" : "'r'");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                info_row, reset_prompt, "selected");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                info_row, reset_prompt, compact_width ? "R:" : "'R'");
+            ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                info_row, reset_prompt, "reset all");
         }
         settings_ui_put_fitted(info_row + 1, 2, TERM_WHITE,
             compact_width ? "Saves on exit." : "Changes are saved on exit.");
@@ -21538,13 +22424,33 @@ void do_cmd_controller_settings(void)
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
 
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < entry_count)
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_PRIMARY)
-                    continue;
-                ch = '\r';
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'r';
+                }
+                else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'R';
+                }
+                else if (clicked_choice >= 0 && clicked_choice < entry_count)
+                {
+                    highlight = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_PRIMARY)
+                        continue;
+                    ch = '\r';
+                }
             }
         }
 

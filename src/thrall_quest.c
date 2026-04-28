@@ -1458,6 +1458,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
     int prompt_row;
     char key;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     if (!m_ptr)
         return THRALL_REWARD_LATER;
@@ -1536,9 +1537,9 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 (i == selected) ? "> " : "  ");
 
             Term_putstr(2, row, MAX(0, term_wid - 2), attr,
-                steamdeck ? format("   %s", options[i].label)
-                          : format("%c) %s", options[i].hotkey,
-                                options[i].label));
+                menu_letters ? format("%c) %s", options[i].hotkey,
+                                   options[i].label)
+                             : format("   %s", options[i].label));
             ui_menu_click_add(i, 0, row, term_wid);
         }
 
@@ -1571,10 +1572,23 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
             ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
                 "later");
         }
-        else
+        else if (menu_letters)
         {
             cptr prompt_text = compact ? "8/2 move  Enter choose  ESC later"
                 : "8/2 or arrows navigate  Enter accept  Letter select  ESC later";
+
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "choose");
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "accept");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+                "later");
+        }
+        else
+        {
+            cptr prompt_text = compact ? "8/2 move  Enter choose  ESC later"
+                : "8/2 or arrows navigate  Enter accept  ESC later";
 
             Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
@@ -1688,7 +1702,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 return options[selected].reward;
             }
 
-            if (steamdeck)
+            if (!menu_letters)
                 break;
 
             key = (char)tolower((unsigned char)key);

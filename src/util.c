@@ -81,6 +81,8 @@ void ui_menu_click_begin(void)
         && ui_menu_click_hover_current;
     int preserved_hover_choice = ui_menu_click_hover_choice;
 
+    sdl_mouse_path_cancel();
+
     ui_menu_click_active = true;
     ui_menu_click_entry_count = 0;
     ui_menu_click_pending = false;
@@ -2989,6 +2991,7 @@ void screen_clear_all_terms_no_fresh(void)
 void screen_save(void)
 {
     g_term_clear_hook = NULL;
+    sdl_mouse_path_cancel();
 
     /* Hack -- Flush messages */
     message_flush();

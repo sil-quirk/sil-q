@@ -1638,6 +1638,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     char prompt[160];
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     int clear_limit = birth_prompt_row() + 1;
     int last_list_rows_drawn = 0;
     int last_description_row = birth_prompt_row();
@@ -1951,7 +1952,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         }
 
         /* Alphabetic choice */
-    else if (!steamdeck && isalpha((unsigned char)c))
+    else if (menu_letters && isalpha((unsigned char)c))
         {
             /* Options */
             if ((c == 'O') || (c == 'o'))
@@ -4048,6 +4049,7 @@ static NavResult select_oath(void)
     int page = 0;
     int detail_scroll = 0;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     /* Find first available oath to highlight */
     for (int i = 1; i <= oath_selectable_max_id(); i++)
@@ -4116,7 +4118,7 @@ static NavResult select_oath(void)
                     else
                         attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
 
-                    if (steamdeck)
+                    if (!menu_letters)
                         strnfmt(buf, sizeof(buf), "   %s", oath_name_str(oath_id));
                     else
                         strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
@@ -4265,7 +4267,7 @@ static NavResult select_oath(void)
                 else
                     attr = (highlight == oath_id) ? TERM_L_BLUE : TERM_WHITE;
 
-                if (steamdeck)
+                if (!menu_letters)
                     strnfmt(buf, sizeof(buf), "   %s", oath_name_str(oath_id));
                 else
                     strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
@@ -4403,7 +4405,7 @@ static NavResult select_oath(void)
             }
         }
 
-        if (!steamdeck && key >= 'a' && key < 'a' + visible_count)
+        if (menu_letters && key >= 'a' && key < 'a' + visible_count)
         {
             int display_pos = key - 'a';
 

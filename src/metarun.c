@@ -1742,6 +1742,7 @@ int menu_choose_one_curse(int n)
 
     int pick[CURSE_MENU_LINES], sel;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
 
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         bool dup;
@@ -1778,7 +1779,7 @@ int menu_choose_one_curse(int n)
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         curse_type *cu = &cu_info[pick[i]];
         char name_buf[128];
-        if (steamdeck)
+        if (!menu_letters)
             strnfmt(name_buf, sizeof name_buf, "   %s", cu_name + cu->name);
         else
             strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
@@ -1871,10 +1872,16 @@ int menu_choose_one_curse(int n)
             accept_label, back_label);
         c_put_str(TERM_L_DARK, hint_buf, row + 1, 2);
     }
-    else
+    else if (menu_letters)
     {
         c_put_str(TERM_L_DARK,
             "Arrows to navigate     Space/Enter Accept     a/b/c Select",
+            row + 1, 2);
+    }
+    else
+    {
+        c_put_str(TERM_L_DARK,
+            "Arrows to navigate     Space/Enter Accept",
             row + 1, 2);
     }
     
@@ -1904,7 +1911,7 @@ int menu_choose_one_curse(int n)
         for (int i = 0; i < CURSE_MENU_LINES; i++) {
             curse_type *cu = &cu_info[pick[i]];
             char name_buf[128];
-            if (steamdeck)
+            if (!menu_letters)
                 strnfmt(name_buf, sizeof name_buf, "   %s", cu_name + cu->name);
             else
                 strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
@@ -1926,7 +1933,7 @@ int menu_choose_one_curse(int n)
         /* Position cursor at the end of the highlighted option text */
         curse_type *highlighted_cu = &cu_info[pick[highlight]];
         char highlighted_name_buf[128];
-        if (steamdeck)
+        if (!menu_letters)
             strnfmt(highlighted_name_buf, sizeof highlighted_name_buf, "   %s",
                 cu_name + highlighted_cu->name);
         else
@@ -1964,12 +1971,12 @@ int menu_choose_one_curse(int n)
         }
         
         /* Handle input */
-        if (!steamdeck && key >= 'a' && key < 'a' + CURSE_MENU_LINES) {
+        if (menu_letters && key >= 'a' && key < 'a' + CURSE_MENU_LINES) {
             /* Letter shortcuts */
             sel = key - 'a';
             menu_done = true;
         }
-        else if (!steamdeck && key >= 'A' && key < 'A' + CURSE_MENU_LINES) {
+        else if (menu_letters && key >= 'A' && key < 'A' + CURSE_MENU_LINES) {
             /* Capital letter shortcuts */
             sel = key - 'A';
             menu_done = true;
@@ -3392,6 +3399,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
     int selected = 0;
     int choice = -1;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3425,7 +3433,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             int option_line = line;
             /* Display curse name and stacks */
             char buf[128];
-            if (steamdeck)
+            if (!menu_letters)
                 snprintf(buf, sizeof buf, "   %-28s stacks: %d",
                          curse_display_name(id), stacks);
             else
@@ -3468,9 +3476,15 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
                 "cancel");
-        } else {
+        } else if (menu_letters) {
             cptr prompt_text =
                 "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
+                "Esc cancel");
+        } else {
+            cptr prompt_text =
+                "Arrows to navigate  Space/Enter accept  Esc cancel";
             Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
                 "Esc cancel");
@@ -3530,9 +3544,9 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
         }
 
         int idx = key - 'a';
-        if (!steamdeck && idx >= 0 && idx < count) {
+        if (menu_letters && idx >= 0 && idx < count) {
             choice = idx;
-        } else if (!steamdeck && key >= 'A' && key <= 'Z') {
+        } else if (menu_letters && key >= 'A' && key <= 'Z') {
             idx = key - 'A';
             if (idx >= 0 && idx < count) {
                 choice = idx;
@@ -3699,6 +3713,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
     int selected = 0;
     int choice = -1;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3724,7 +3739,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             cptr name = blessing_display_name(id);
             int option_line = line;
             char buf[160];
-            if (steamdeck)
+            if (!menu_letters)
                 snprintf(buf, sizeof buf, "   %-30s", name);
             else
                 snprintf(buf, sizeof buf, "%c) %-30s", 'a' + i, name);
@@ -3755,9 +3770,15 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
                 "cancel");
-        } else {
+        } else if (menu_letters) {
             cptr prompt_text =
                 "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
+                "Esc cancel");
+        } else {
+            cptr prompt_text =
+                "Arrows to navigate  Space/Enter accept  Esc cancel";
             Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
                 "Esc cancel");
@@ -3814,9 +3835,9 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
         }
 
         int idx = key - 'a';
-        if (!steamdeck && idx >= 0 && idx < picks) {
+        if (menu_letters && idx >= 0 && idx < picks) {
             choice = idx;
-        } else if (!steamdeck && key >= 'A' && key <= 'Z') {
+        } else if (menu_letters && key >= 'A' && key <= 'Z') {
             idx = key - 'A';
             if (idx >= 0 && idx < picks) {
                 choice = idx;
@@ -3900,6 +3921,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
 
     int available = blessing_points_remaining();
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -3953,7 +3975,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
             int option_line = line;
 
             char buf[160];
-            if (steamdeck)
+            if (!menu_letters)
                 snprintf(buf, sizeof buf, "   %s (cost %d)", name, cost);
             else
                 snprintf(buf, sizeof buf, "%c) %s (cost %d)", key, name, cost);
@@ -3996,9 +4018,15 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
             Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
                 "cancel");
-        } else {
+        } else if (menu_letters) {
             cptr prompt_text =
                 "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
+            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
+                "Esc cancel");
+        } else {
+            cptr prompt_text =
+                "Arrows to navigate  Space/Enter accept  Esc cancel";
             Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
                 "Esc cancel");
@@ -4094,7 +4122,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
 
         int choice_idx = -1;
         char lowered = tolower((unsigned char)key);
-        if ((!steamdeck || selected_from_confirm) && lowered >= 'a' && lowered <= 'z') {
+        if ((menu_letters || selected_from_confirm) && lowered >= 'a' && lowered <= 'z') {
             for (int i = 0; i < option_count; i++) {
                 if (lowered == options[i].key) {
                     int cost = major_blessing_cost(options[i].idx);
@@ -4149,6 +4177,7 @@ static void open_blessing_exchange(void)
     byte status_attr = TERM_WHITE;
     bool clear_status_on_next_key = false;
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -4215,8 +4244,8 @@ static void open_blessing_exchange(void)
         byte attr0 = (selected == 0) ? TERM_L_WHITE : TERM_WHITE;
         Term_putstr(2, 8, -1, TERM_L_BLUE, marker0);
         Term_putstr(4, 8, -1, attr0,
-            steamdeck ? "Remove a curse (cost 1)"
-                      : "r) Remove a curse (cost 1)");
+            menu_letters ? "r) Remove a curse (cost 1)"
+                         : "Remove a curse (cost 1)");
         ui_menu_click_add(0, 2, 8, click_width);
         
         /* Option 1: Minor blessing */
@@ -4224,8 +4253,8 @@ static void open_blessing_exchange(void)
         byte attr1 = (selected == 1) ? TERM_L_WHITE : TERM_WHITE;
         Term_putstr(2, 9, -1, TERM_L_BLUE, marker1);
         Term_putstr(4, 9, -1, attr1,
-            steamdeck ? "Gain a minor blessing (cost 1)"
-                      : "m) Gain a minor blessing (cost 1)");
+            menu_letters ? "m) Gain a minor blessing (cost 1)"
+                         : "Gain a minor blessing (cost 1)");
         ui_menu_click_add(1, 2, 9, click_width);
         
         /* Option 2: Major blessing */
@@ -4237,17 +4266,17 @@ static void open_blessing_exchange(void)
             } else {
                 attr2 = TERM_L_DARK; /* Grey out if unaffordable */
             }
-            snprintf(buf, sizeof buf, steamdeck
-                     ? "Unlock a major blessing (cost %d)"
-                     : "u) Unlock a major blessing (cost %d)",
+            snprintf(buf, sizeof buf, menu_letters
+                     ? "u) Unlock a major blessing (cost %d)"
+                     : "Unlock a major blessing (cost %d)",
                      min_major_cost);
             Term_putstr(2, 10, -1, TERM_L_BLUE, marker2);
             Term_putstr(4, 10, -1, attr2, buf);
             ui_menu_click_add(2, 2, 10, click_width);
         } else {
             Term_putstr(4,10, -1, TERM_L_DARK,
-                steamdeck ? "Unlock a major blessing (none available)"
-                          : "u) Unlock a major blessing (none available)");
+                menu_letters ? "u) Unlock a major blessing (none available)"
+                             : "Unlock a major blessing (none available)");
         }
         if (steamdeck) {
             char hint_buf[96];
@@ -4256,9 +4285,15 @@ static void open_blessing_exchange(void)
             Term_putstr(2, 12, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, 12, hint_buf,
                 "leave");
-        } else {
+        } else if (menu_letters) {
             cptr prompt_text =
                 "Arrows to navigate  Space/Enter accept  Letter select  ESC leave";
+            Term_putstr(2, 12, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, 12, prompt_text,
+                "ESC leave");
+        } else {
+            cptr prompt_text =
+                "Arrows to navigate  Space/Enter accept  ESC leave";
             Term_putstr(2, 12, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, 12, prompt_text,
                 "ESC leave");
@@ -4364,8 +4399,8 @@ static void open_blessing_exchange(void)
             continue;
         }
 
-        if (steamdeck && !selected_from_confirm) {
-            bell("Use D-pad and confirm to select in this mode.");
+        if (!menu_letters && !selected_from_confirm) {
+            bell("Use navigation and confirm to select in this mode.");
             continue;
         }
 
@@ -4837,6 +4872,7 @@ static void adjust_blessing_threshold_menu(void)
 
     metarun_blessing_threshold_mode current_mode = metarun_get_threshold_mode(&metar);
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -4883,7 +4919,7 @@ static void adjust_blessing_threshold_menu(void)
                              TERM_WHITE;
 
             char option_buf[80];
-            if (steamdeck)
+            if (!menu_letters)
                 snprintf(option_buf, sizeof option_buf, "%c  %s",
                          is_highlighted ? '>' : ' ', labels[i]);
             else
@@ -4915,9 +4951,15 @@ static void adjust_blessing_threshold_menu(void)
                     "D-pad to choose  [%s] accept  [%s] cancel", accept_label, back_label);
             Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
-        } else {
+        } else if (menu_letters) {
             cptr prompt_text =
                 "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.";
+            Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "Esc cancels");
+        } else {
+            cptr prompt_text =
+                "Use arrows to choose. Enter accepts, Esc cancels.";
             Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
                 "Esc cancels");
@@ -4965,10 +5007,10 @@ static void adjust_blessing_threshold_menu(void)
         } else if (key == '2' || key == 'j' || key == '+') {
             selection = (selection + 1) % option_count;
             continue;
-        } else if (!steamdeck && key >= 'a' && key < 'a' + option_count) {
+        } else if (menu_letters && key >= 'a' && key < 'a' + option_count) {
             selection = key - 'a';
             continue;
-        } else if (!steamdeck && key >= 'A' && key < 'A' + option_count) {
+        } else if (menu_letters && key >= 'A' && key < 'A' + option_count) {
             selection = key - 'A';
             continue;
         }
@@ -5762,6 +5804,7 @@ static void choose_difficulty_menu(void)
     
     screen_save();
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     char accept_label[16] = "";
     char back_label[16] = "";
 
@@ -5844,7 +5887,7 @@ static void choose_difficulty_menu(void)
             }
             
             char name_buf[128];
-            if (steamdeck) {
+            if (!menu_letters) {
                 if (is_locked)
                     snprintf(name_buf, sizeof(name_buf), "   %s [LOCKED]", rt_name);
                 else
@@ -5943,7 +5986,7 @@ static void choose_difficulty_menu(void)
             /* Navigate down normally */
             if (choice < max_difficulty) choice++;
         }
-        else if (!steamdeck && key >= 'a' && key <= 'z')  /* Letter selection */
+        else if (menu_letters && key >= 'a' && key <= 'z')  /* Letter selection */
         {
             int new_choice = key - 'a';
             if (new_choice <= max_difficulty) {
@@ -5957,7 +6000,7 @@ static void choose_difficulty_menu(void)
                 }
             }
         }
-        else if (!steamdeck && key >= 'A' && key <= 'Z')  /* Capital letter selection */
+        else if (menu_letters && key >= 'A' && key <= 'Z')  /* Capital letter selection */
         {
             int new_choice = key - 'A';
             if (new_choice <= max_difficulty) {
