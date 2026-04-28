@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "supplies.h"
+#include <limits.h>
 
 enum inventory_limit_group
 {
