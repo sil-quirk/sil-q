@@ -4406,14 +4406,20 @@ static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
         && y < (float)(view->rect.y + view->rect.h);
 }
 
-static bool sdl_main_screen_click_shortcuts_active(void)
+static bool sdl_pane_command_shortcuts_active(void)
 {
     return character_generated
         && character_dungeon
         && p_ptr
-        && inkey_flag
-        && character_icky == 0
+        && (inkey_flag || character_icky > 0)
         && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_main_screen_click_shortcuts_active(void)
+{
+    return sdl_pane_command_shortcuts_active()
+        && inkey_flag
+        && character_icky == 0;
 }
 
 static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action)
@@ -4571,6 +4577,12 @@ static bool sdl_pointer_activate_welcome_screen_at(float x, float y)
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
 
+    if (sdl_main_screen_handle_menu_text_pointer(
+        x, y, UI_MENU_CLICK_PRIMARY))
+    {
+        return true;
+    }
+
     Term_keypress('\r');
     return true;
 }
@@ -4664,7 +4676,7 @@ static bool sdl_welcome_touch_handle_pointer_up(float x, float y,
     if (!g_sdl_blocking_key_wait || !sdl_screen_shows_welcome_screen())
         return true;
 
-    Term_keypress('\r');
+    (void)sdl_pointer_activate_welcome_screen_at(x, y);
     return true;
 }
 
@@ -4838,8 +4850,34 @@ static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
 
 static void sdl_enqueue_bypassed_command(int command)
 {
+    if (character_icky > 0)
+        Term_keypress(ESCAPE);
     Term_keypress('\\');
     Term_keypress(command);
+}
+
+static bool sdl_binding_opens_pane_menu(int binding)
+{
+    switch (binding) {
+    case 'i':
+    case 'e':
+    case 'j':
+    case 'h':
+    case '@':
+    case '\t':
+    case 'M':
+    case 'm':
+    case '~':
+    case '[':
+    case ']':
+    case '?':
+    case 'O':
+    case KTRL('P'):
+    case KTRL('Q'):
+        return true;
+    default:
+        return false;
+    }
 }
 
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
@@ -4862,7 +4900,7 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
 
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
 {
-    if (!sdl_main_screen_click_shortcuts_active())
+    if (!sdl_pane_command_shortcuts_active())
         return false;
     if (!sdl_should_show_supporting_panes())
         return false;
@@ -4878,7 +4916,7 @@ static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
     }
 
     if (sdl_point_in_view_rect(PANE_LOG, x, y)) {
-        Term_keypress(KTRL('P'));
+        sdl_enqueue_bypassed_command(KTRL('P'));
         return true;
     }
 
@@ -4942,6 +4980,14 @@ static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool lon
 
     if (binding == 'z' && long_press) {
         Term_keypress('Z');
+        return;
+    }
+
+    if (character_icky > 0
+        && sdl_pane_command_shortcuts_active()
+        && sdl_binding_opens_pane_menu(binding))
+    {
+        sdl_enqueue_bypassed_command(binding);
         return;
     }
 

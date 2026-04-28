@@ -1078,7 +1078,28 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         }
         ui_menu_click_begin();
         ui_menu_click_add_full_row(SCORE_CLICK_NEXT, footer_row);
-        (void)inkey();
+        while (true)
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            char ch = inkey();
+            hide_cursor = saved_hide_cursor;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                break;
+            }
+
+            ui_menu_click_clear();
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+            break;
+        }
         ui_menu_click_clear();
         return 0;
     }
@@ -1172,7 +1193,7 @@ static char display_scores_pages(const high_score* entries, int count, int highl
                     has_more ? "next" : "close");
             } else {
                 strnfmt(footer, sizeof(footer),
-                    "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
+                    "[S] Order   [L] Layout   [ESC] Exit   (press any other key to %s)",
                     has_more ? "continue" : "close");
             }
         }
@@ -1208,7 +1229,10 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
             "close");
 
+        bool saved_hide_cursor = hide_cursor;
+        hide_cursor = true;
         char ch = inkey();
+        hide_cursor = saved_hide_cursor;
         prt("", footer_row, 0);
 
         {
@@ -1239,6 +1263,9 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             else
                 ui_menu_click_clear();
         }
+
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
 
         if (steamdeck) {
             int back_key = steamdeck_back_key();
