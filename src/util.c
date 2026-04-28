@@ -45,6 +45,14 @@ static bool ui_menu_click_hover_current = false;
 static bool ui_menu_click_preserve_hover_once = false;
 static int ui_menu_click_hover_choice = 0;
 static int ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+static bool ui_scroll_area_active = false;
+static int ui_scroll_area_top_row = 0;
+static int ui_scroll_area_bottom_row = -1;
+static int ui_scroll_area_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+static int ui_scroll_area_positive_y_key = '8';
+static int ui_scroll_area_negative_y_key = '2';
+static int ui_scroll_area_positive_x_key = '6';
+static int ui_scroll_area_negative_x_key = '4';
 
 void ui_menu_click_clear(void)
 {
@@ -67,6 +75,10 @@ void ui_menu_click_clear(void)
 
 void ui_menu_click_begin(void)
 {
+    bool preserve_hover = ui_menu_click_preserve_hover_once
+        && ui_menu_click_hover_current;
+    int preserved_hover_choice = ui_menu_click_hover_choice;
+
     ui_menu_click_active = true;
     ui_menu_click_entry_count = 0;
     ui_menu_click_pending = false;
@@ -74,6 +86,8 @@ void ui_menu_click_begin(void)
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     ui_menu_click_hover_enabled = false;
     ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_hover_current = preserve_hover;
+    ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
     ui_menu_click_preserve_hover_once = false;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
@@ -172,6 +186,8 @@ void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
     cptr token)
 {
     cptr match;
+    int token_col;
+    int token_width;
 
     if (!text || !token || !token[0])
         return;
@@ -180,8 +196,28 @@ void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
     if (!match)
         return;
 
-    ui_menu_click_add(choice, col + (int)(match - text), row,
-        (int)strlen(token));
+    token_col = col + (int)(match - text);
+    token_width = (int)strlen(token);
+
+    if (sdl_is_story_font_enabled() && !sdl_is_story_font_grid())
+    {
+        int cell_width = sdl_get_cell_width();
+        int prefix_px = sdl_story_font_text_width(text, (int)(match - text));
+        int token_px = sdl_story_font_text_width(token, token_width);
+
+        if (cell_width > 0 && token_px > 0)
+        {
+            int start = prefix_px / cell_width;
+            int end = (prefix_px + token_px + cell_width - 1) / cell_width;
+
+            token_col = col + start;
+            token_width = end - start;
+            if (token_width < 1)
+                token_width = 1;
+        }
+    }
+
+    ui_menu_click_add(choice, token_col, row, token_width);
 
     if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)
     {
@@ -242,7 +278,7 @@ bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
     ui_menu_click_pending_choice = entry->choice;
     ui_menu_click_pending_action = UI_MENU_CLICK_HOVER;
 
-    if (changed || !ui_menu_click_hover_wake_pending)
+    if (changed)
     {
         if (wake)
             *wake = true;
@@ -353,6 +389,110 @@ bool ui_menu_click_take(int* choice)
         return false;
 
     return action == UI_MENU_CLICK_PRIMARY;
+}
+
+void ui_scroll_area_clear(void)
+{
+    ui_scroll_area_active = false;
+    ui_scroll_area_top_row = 0;
+    ui_scroll_area_bottom_row = -1;
+    ui_scroll_area_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+    ui_scroll_area_positive_y_key = '8';
+    ui_scroll_area_negative_y_key = '2';
+    ui_scroll_area_positive_x_key = '6';
+    ui_scroll_area_negative_x_key = '4';
+}
+
+void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
+{
+    int term_hgt = 0;
+
+    if (Term)
+    {
+        int term_wid = 0;
+        Term_get_size(&term_wid, &term_hgt);
+        (void)term_wid;
+    }
+
+    if (touch_category < 0 || touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+        touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+
+    if (term_hgt > 0)
+    {
+        if (top_row < 0)
+            top_row = 0;
+        if (bottom_row >= term_hgt)
+            bottom_row = term_hgt - 1;
+    }
+
+    if (bottom_row < top_row)
+    {
+        ui_scroll_area_clear();
+        return;
+    }
+
+    ui_scroll_area_active = true;
+    ui_scroll_area_top_row = top_row;
+    ui_scroll_area_bottom_row = bottom_row;
+    ui_scroll_area_touch_category = touch_category;
+    ui_scroll_area_positive_y_key = '8';
+    ui_scroll_area_negative_y_key = '2';
+    ui_scroll_area_positive_x_key = '6';
+    ui_scroll_area_negative_x_key = '4';
+}
+
+bool ui_scroll_area_has_cell(int col, int row)
+{
+    int term_wid = 0;
+    int term_hgt = 0;
+
+    if (!ui_scroll_area_active)
+        return false;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_wid > 0 && (col < 0 || col >= term_wid))
+        return false;
+    if (term_hgt > 0 && (row < 0 || row >= term_hgt))
+        return false;
+
+    return row >= ui_scroll_area_top_row
+        && row <= ui_scroll_area_bottom_row;
+}
+
+int ui_scroll_area_get_touch_category(void)
+{
+    if (ui_scroll_area_touch_category < 0
+        || ui_scroll_area_touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+    {
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+
+    return ui_scroll_area_touch_category;
+}
+
+void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
+    int positive_x_key, int negative_x_key)
+{
+    ui_scroll_area_positive_y_key = positive_y_key;
+    ui_scroll_area_negative_y_key = negative_y_key;
+    ui_scroll_area_positive_x_key = positive_x_key;
+    ui_scroll_area_negative_x_key = negative_x_key;
+}
+
+int ui_scroll_area_get_vertical_key(int direction)
+{
+    return (direction >= 0)
+        ? ui_scroll_area_positive_y_key
+        : ui_scroll_area_negative_y_key;
+}
+
+int ui_scroll_area_get_horizontal_key(int direction)
+{
+    return (direction >= 0)
+        ? ui_scroll_area_positive_x_key
+        : ui_scroll_area_negative_x_key;
 }
 
 /*

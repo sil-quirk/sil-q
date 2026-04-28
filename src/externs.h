@@ -1569,6 +1569,14 @@ extern bool ui_menu_click_take_action(int* choice, int* action);
 #define UI_MENU_CLICK_SECONDARY 2
 #define UI_MENU_CLICK_HOVER 3
 #define UI_MENU_CLICK_WAKE_KEY KTRL('\\')
+extern void ui_scroll_area_clear(void);
+extern void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category);
+extern bool ui_scroll_area_has_cell(int col, int row);
+extern int ui_scroll_area_get_touch_category(void);
+extern void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
+    int positive_x_key, int negative_x_key);
+extern int ui_scroll_area_get_vertical_key(int direction);
+extern int ui_scroll_area_get_horizontal_key(int direction);
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
 extern void pause_line(int row);
@@ -1669,6 +1677,7 @@ extern bool set_cut(int v);
 extern bool set_food(int v);
 extern void falling_damage(bool stun);
 extern void check_experience(void);
+extern void gain_skills_set_initial_skill(int skill);
 extern s32b adjusted_mon_exp(const monster_race* r_ptr, bool kill);
 extern void gain_exp(s32b amount);
 extern void lose_exp(s32b amount);

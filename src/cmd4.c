@@ -651,10 +651,126 @@ void do_cmd_redraw(void)
 /*
  * Hack -- character sheet
  */
-static void character_sheet_put_prompt_fit(int col, int row, int wid, byte attr, cptr text)
+#define CHARACTER_SHEET_CLICK_SKILL_BASE 12000
+
+static char character_sheet_screen_char(int row, int col)
 {
-    char buf[256];
+    unsigned char ch;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return ' ';
+    if (row < 0 || row >= Term->hgt || col < 0 || col >= Term->wid)
+        return ' ';
+
+    ch = (unsigned char)Term->scr->c[row][col];
+    if (!ch || ch == (unsigned char)Term->char_blank)
+        return ' ';
+
+    return (char)ch;
+}
+
+static bool character_sheet_screen_text_matches(int row, int col, cptr text,
+    int len)
+{
+    if (!text || len <= 0)
+        return false;
+
+    for (int i = 0; i < len; i++)
+    {
+        if (character_sheet_screen_char(row, col + i) != text[i])
+            return false;
+    }
+
+    return true;
+}
+
+static bool character_sheet_screen_row_has_skill_value(int row, int start_col)
+{
+    int wid = Term ? Term->wid : 0;
+
+    for (int col = start_col; col < wid; col++)
+    {
+        if (character_sheet_screen_char(row, col) == '=')
+            return true;
+    }
+
+    return false;
+}
+
+static void character_sheet_register_skill_clicks(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int skill = 0; skill < S_MAX; skill++)
+    {
+        cptr name;
+        int name_len;
+        int match_len;
+        bool found = false;
+
+        if (skill == S_SPC)
+            continue;
+
+        name = skill_names_full[skill];
+        if (!name || !name[0])
+            continue;
+
+        name_len = (int)strlen(name);
+        match_len = name_len;
+        if (match_len > 5)
+            match_len = 5;
+        if (match_len < 4)
+            match_len = name_len;
+
+        for (int row = 0; row < hgt - 1 && !found; row++)
+        {
+            for (int col = 0; col <= wid - match_len; col++)
+            {
+                int start_col;
+
+                if (!character_sheet_screen_text_matches(row, col, name,
+                    name_len)
+                    && !character_sheet_screen_text_matches(row, col, name,
+                        match_len))
+                {
+                    continue;
+                }
+
+                if (!character_sheet_screen_row_has_skill_value(row,
+                    col + match_len))
+                {
+                    continue;
+                }
+
+                start_col = MAX(0, col - 1);
+                ui_menu_click_add(CHARACTER_SHEET_CLICK_SKILL_BASE + skill,
+                    start_col, row, wid - start_col);
+                found = true;
+                break;
+            }
+        }
+    }
+}
+
+static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
+    char* out, size_t outsz)
+{
     int max_len;
+
+    if (!out || !outsz)
+        return;
+
+    out[0] = '\0';
 
     if (!text)
         return;
@@ -666,9 +782,19 @@ static void character_sheet_put_prompt_fit(int col, int row, int wid, byte attr,
     if (max_len < 1)
         return;
 
-    SDL_strlcpy(buf, text, sizeof(buf));
-    if ((int)strlen(buf) > max_len)
-        buf[max_len] = '\0';
+    SDL_strlcpy(out, text, outsz);
+    if ((int)strlen(out) > max_len)
+        out[max_len] = '\0';
+}
+
+static void character_sheet_put_prompt_fit(int col, int row, int wid, byte attr,
+    cptr text)
+{
+    char buf[256];
+
+    character_sheet_fit_prompt_text(col, wid, text, buf, sizeof(buf));
+    if (!buf[0])
+        return;
 
     Term_putstr(col, row, -1, attr, buf);
 }
@@ -890,10 +1016,12 @@ void do_cmd_character_sheet(void)
         Term_erase(0, prompt_row, 255);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        character_sheet_register_skill_clicks();
 
         /* Prompt - dynamic, width-aware, and user-friendly for new players */
         {
             char prompt_buf[256];
+            char visible_prompt_buf[256];
 #ifdef DEBUG_CURSES
             const bool include_curses = true;
 #else
@@ -901,27 +1029,30 @@ void do_cmd_character_sheet(void)
 #endif
 
             character_sheet_build_prompt(steamdeck, include_curses, wid, prompt_buf, sizeof(prompt_buf));
+            character_sheet_fit_prompt_text(1, wid, prompt_buf,
+                visible_prompt_buf, sizeof(visible_prompt_buf));
 
             if (story_character_enabled())
                 sdl_story_font_enable();
 
-            character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE, prompt_buf);
-            ui_menu_click_add_text_token('a', 1, prompt_row, prompt_buf,
+            character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE,
+                visible_prompt_buf);
+            ui_menu_click_add_text_token('a', 1, prompt_row, visible_prompt_buf,
                 "abilities");
-            ui_menu_click_add_text_token('i', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('i', 1, prompt_row, visible_prompt_buf,
                 "increase");
-            ui_menu_click_add_text_token('?', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('?', 1, prompt_row, visible_prompt_buf,
                 "help");
-            ui_menu_click_add_text_token(ESCAPE, 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token(ESCAPE, 1, prompt_row, visible_prompt_buf,
                 "back");
-            ui_menu_click_add_text_token('n', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('n', 1, prompt_row, visible_prompt_buf,
                 "notes");
-            ui_menu_click_add_text_token('s', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('s', 1, prompt_row, visible_prompt_buf,
                 "story");
-            ui_menu_click_add_text_token('f', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('f', 1, prompt_row, visible_prompt_buf,
                 "file");
 #ifdef DEBUG_CURSES
-            ui_menu_click_add_text_token('c', 1, prompt_row, prompt_buf,
+            ui_menu_click_add_text_token('c', 1, prompt_row, visible_prompt_buf,
                 "curses");
 #endif
 
@@ -956,7 +1087,17 @@ void do_cmd_character_sheet(void)
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
-                ch = (char)clicked_choice;
+                if (clicked_choice >= CHARACTER_SHEET_CLICK_SKILL_BASE
+                    && clicked_choice < CHARACTER_SHEET_CLICK_SKILL_BASE + S_MAX)
+                {
+                    gain_skills_set_initial_skill(
+                        clicked_choice - CHARACTER_SHEET_CLICK_SKILL_BASE);
+                    ch = 'i';
+                }
+                else
+                {
+                    ch = (char)clicked_choice;
+                }
             }
         }
 
@@ -14029,20 +14170,58 @@ void do_cmd_messages(void)
     /* Process requests until done */
     while (1)
     {
+        int body_top;
+        int body_bottom;
+        int visible_rows;
+        int max_i;
+        int page_rows;
+        int range_first;
+        int range_last;
+        int old_i;
+        int old_q;
+
         /* Clear screen */
         Term_clear();
 
+        body_top = 2;
+        body_bottom = hgt - 3;
+        if (body_bottom < body_top)
+        {
+            body_top = 1;
+            body_bottom = hgt - 2;
+        }
+        if (body_bottom < body_top)
+        {
+            body_top = 0;
+            body_bottom = hgt - 1;
+        }
+
+        visible_rows = body_bottom - body_top + 1;
+        if (visible_rows < 1)
+            visible_rows = 1;
+
+        max_i = (n > visible_rows) ? (n - visible_rows) : 0;
+        if (i > max_i)
+            i = max_i;
+        if (i < 0)
+            i = 0;
+
+        page_rows = (visible_rows > 1) ? (visible_rows - 1) : 1;
+        ui_scroll_area_begin(body_top, body_bottom,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+
         /* Dump messages */
-        for (j = 0; (j < hgt - 4) && (i + j < n); j++)
+        for (j = 0; (j < visible_rows) && (i + j < n); j++)
         {
             cptr msg = message_str((s16b)(i + j));
             byte attr = message_color((s16b)(i + j));
+            int line_y = body_bottom - j;
 
             /* Apply horizontal scroll */
             msg = ((int)strlen(msg) >= q) ? (msg + q) : "";
 
             /* Dump the messages, bottom to top */
-            Term_putstr(0, hgt - 3 - j, -1, attr, msg);
+            Term_putstr(0, line_y, -1, attr, msg);
 
             /* Hilite "shower" */
             if (shower[0])
@@ -14056,7 +14235,7 @@ void do_cmd_messages(void)
 
                     /* Display the match */
                     Term_putstr(
-                        str - msg, hgt - 3 - j, len, TERM_YELLOW, shower);
+                        str - msg, line_y, len, TERM_YELLOW, shower);
 
                     /* Advance */
                     str += len;
@@ -14064,23 +14243,36 @@ void do_cmd_messages(void)
             }
         }
 
+        range_first = (n > 0) ? (i + 1) : 0;
+        range_last = (n > 0) ? (i + j) : 0;
+
         /* Display header XXX XXX XXX */
         prt(format(
-                "Message Recall (%d-%d of %d), Offset %d", i, i + j - 1, n, q),
+                "Message Log (%d-%d of %d), Offset %d",
+                range_first, range_last, n, q),
             0, 0);
 
-        /* Display prompt (not very informative) */
-        prt("[Press 'p' for older, 'n' for newer, ..., or ESCAPE]", hgt - 1, 0);
+        /* Display prompt */
+        prt("Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc",
+            hgt - 1, 0);
 
-        /* Get a command */
-        ch = inkey();
+        /* Get a command without showing the terminal cursor */
+        (void)Term_set_cursor(false);
+        Term_fresh();
+        {
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
 
         /* Exit on Escape */
         if (ch == ESCAPE)
             break;
 
         /* Hack -- Save the old index */
-        j = i;
+        old_i = i;
+        old_q = q;
 
         /* Horizontal scroll */
         if (ch == '4')
@@ -14105,8 +14297,10 @@ void do_cmd_messages(void)
         /* Hack -- handle show */
         if (ch == '=')
         {
+            ui_scroll_area_clear();
+
             /* Prompt */
-            prt("Show: ", hgt - 1, 0);
+            prt("Highlight: ", hgt - 1, 0);
 
             /* Get a "shower" string, or continue */
             if (!askfor_aux(shower, sizeof(shower)))
@@ -14120,6 +14314,8 @@ void do_cmd_messages(void)
         if (ch == '/')
         {
             s16b z;
+
+            ui_scroll_area_clear();
 
             /* Prompt */
             prt("Find: ", hgt - 1, 0);
@@ -14148,35 +14344,72 @@ void do_cmd_messages(void)
             }
         }
 
-        /* Recall 20 older messages */
+        /* Scroll one older message */
+        if (ch == '8')
+        {
+            if (i < max_i)
+                i += 1;
+        }
+
+        /* Scroll one newer message */
+        if (ch == '2')
+        {
+            if (i > 0)
+                i -= 1;
+        }
+
+        /* Page older */
+        if (ch == '9')
+        {
+            i += page_rows;
+            if (i > max_i)
+                i = max_i;
+        }
+
+        /* Page newer */
+        if (ch == '3')
+        {
+            i -= page_rows;
+            if (i < 0)
+                i = 0;
+        }
+
+        /* Jump to oldest visible messages */
+        if (ch == '7')
+        {
+            i = max_i;
+        }
+
+        /* Jump to newest messages */
+        if (ch == '1')
+        {
+            i = 0;
+        }
+
+        /* Recall one page of older messages */
         if ((ch == 'p') || (ch == KTRL('P')) || (ch == ' '))
         {
             /* Go older if legal */
-            if (i + 20 < n)
-                i += 20;
+            i += page_rows;
+            if (i > max_i)
+                i = max_i;
         }
 
         /* Recall 10 older messages */
         if (ch == '+')
         {
             /* Go older if legal */
-            if (i + 10 < n)
+            if (i + 10 < max_i)
                 i += 10;
+            else
+                i = max_i;
         }
 
-        /* Recall 1 older message */
-        if ((ch == '8') || (ch == '\n') || (ch == '\r'))
-        {
-            /* Go newer if legal */
-            if (i + 1 < n)
-                i += 1;
-        }
-
-        /* Recall 20 newer messages */
+        /* Recall one page of newer messages */
         if ((ch == 'n') || (ch == KTRL('N')))
         {
             /* Go newer (if able) */
-            i = (i >= 20) ? (i - 20) : 0;
+            i = (i >= page_rows) ? (i - page_rows) : 0;
         }
 
         /* Recall 10 newer messages */
@@ -14186,17 +14419,12 @@ void do_cmd_messages(void)
             i = (i >= 10) ? (i - 10) : 0;
         }
 
-        /* Recall 1 newer messages */
-        if (ch == '2')
-        {
-            /* Go newer (if able) */
-            i = (i >= 1) ? (i - 1) : 0;
-        }
-
         /* Hack -- Error of some kind */
-        if (i == j)
+        if (i == old_i && q == old_q)
             bell(NULL);
     }
+
+    ui_scroll_area_clear();
 
     /* Load screen */
     screen_pop_supporting_panes_hidden();

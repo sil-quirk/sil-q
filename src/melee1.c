@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "player/killer.h"
+#include "sdl-config.h"
 
 /*
  * Main combat rolls startup deferral state
@@ -3788,15 +3789,11 @@ void do_cmd_combat_history(void)
     char ch;
     int i, j, n, q;
     int wid, hgt;
-    char shower[80];
     char finder[80];
     char buf[120];
     
     /* Wipe finder */
     SDL_strlcpy(finder, "", sizeof(finder));
-    
-    /* Wipe shower */
-    SDL_strlcpy(shower, "", sizeof(shower));
     
     /* Count total combat rolls across all history */
     n = 0;
@@ -3819,14 +3816,48 @@ void do_cmd_combat_history(void)
     
     /* Process requests until done */
     while (1) {
+        int body_top;
+        int body_bottom;
+        int visible_rows;
+        int max_i;
+        int page_rows;
+        int range_first;
+        int range_last;
+        int old_i;
+        int old_q;
+
         /* Clear screen */
         Term_clear();
-        
-        /* Calculate rolls to display */
-        int rolls_to_show = hgt - 4;
+
+        body_top = 2;
+        body_bottom = hgt - 3;
+        if (body_bottom < body_top)
+        {
+            body_top = 1;
+            body_bottom = hgt - 2;
+        }
+        if (body_bottom < body_top)
+        {
+            body_top = 0;
+            body_bottom = hgt - 1;
+        }
+
+        visible_rows = body_bottom - body_top + 1;
+        if (visible_rows < 1)
+            visible_rows = 1;
+
+        max_i = (n > visible_rows) ? (n - visible_rows) : 0;
+        if (i > max_i)
+            i = max_i;
+        if (i < 0)
+            i = 0;
+
+        page_rows = (visible_rows > 1) ? (visible_rows - 1) : 1;
+        ui_scroll_area_begin(body_top, body_bottom,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
         
         /* Display combat rolls */
-        for (j = 0; (j < rolls_to_show) && (i + j < n); j++) {
+        for (j = 0; (j < visible_rows) && (i + j < n); j++) {
             /* Find which history entry and which roll within that entry */
             int total_rolls = 0;
             int history_idx = -1;
@@ -3887,7 +3918,7 @@ void do_cmd_combat_history(void)
             }
             
             /* Start building the line with proper formatting */
-            int line_y = hgt - 3 - j;
+            int line_y = body_bottom - j;
             int col = 0;
             
             /* Apply horizontal scroll to starting column */
@@ -4069,21 +4100,33 @@ void do_cmd_combat_history(void)
             }
         }
         
+        range_first = (n > 0) ? (i + 1) : 0;
+        range_last = (n > 0) ? (i + j) : 0;
+
         /* Display header */
-        prt(format("Combat History (%d-%d of %d rolls), Offset %d", 
-                   i, i + j - 1, n, q), 0, 0);
+        prt(format("Combat Log (%d-%d of %d rolls), Offset %d",
+                   range_first, range_last, n, q), 0, 0);
         
         /* Display prompt */
-        prt("[Press 'p' for older, 'n' for newer, '=' to highlight, '/' to search, or ESCAPE]", hgt - 1, 0);
+        prt("Up/Down line  PgUp/PgDn page  Wheel/drag  / find  Left/Right pan  Esc",
+            hgt - 1, 0);
         
-        /* Get a command */
-        ch = inkey();
+        /* Get a command without showing the terminal cursor */
+        (void)Term_set_cursor(false);
+        Term_fresh();
+        {
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
         
         /* Exit on Escape */
         if (ch == ESCAPE) break;
         
         /* Handle navigation and search same as messages */
-        j = i; /* Save old index */
+        old_i = i;
+        old_q = q;
         
         /* Horizontal scroll */
         if (ch == '4') {
@@ -4096,16 +4139,13 @@ void do_cmd_combat_history(void)
         }
         
         /* Search functionality */
-        if (ch == '=') {
-            prt("Show: ", hgt - 1, 0);
-            if (!askfor_aux(shower, sizeof(shower))) continue;
-            continue;
-        }
         if (ch == '/') {
             s16b z;
+
+            ui_scroll_area_clear();
+
             prt("Find: ", hgt - 1, 0);
             if (!askfor_aux(finder, sizeof(finder))) continue;
-            SDL_strlcpy(shower, finder, sizeof(shower));
             
             /* Search through combat rolls */
             for (z = i + 1; z < n; z++) {
@@ -4143,29 +4183,47 @@ void do_cmd_combat_history(void)
         }
         
         /* Navigation */
+        if (ch == '8') {
+            if (i < max_i) i += 1;
+        }
+        if (ch == '2') {
+            if (i > 0) i -= 1;
+        }
+        if (ch == '9') {
+            i += page_rows;
+            if (i > max_i) i = max_i;
+        }
+        if (ch == '3') {
+            i -= page_rows;
+            if (i < 0) i = 0;
+        }
+        if (ch == '7') {
+            i = max_i;
+        }
+        if (ch == '1') {
+            i = 0;
+        }
         if ((ch == 'p') || (ch == KTRL('P')) || (ch == ' ')) {
-            if (i + 20 < n) i += 20;
+            i += page_rows;
+            if (i > max_i) i = max_i;
         }
         if (ch == '+') {
-            if (i + 10 < n) i += 10;
-        }
-        if ((ch == '8') || (ch == '\n') || (ch == '\r')) {
-            if (i + 1 < n) i += 1;
+            if (i + 10 < max_i) i += 10;
+            else i = max_i;
         }
         if ((ch == 'n') || (ch == KTRL('N'))) {
-            i = (i >= 20) ? (i - 20) : 0;
+            i = (i >= page_rows) ? (i - page_rows) : 0;
         }
         if (ch == '-') {
             i = (i >= 10) ? (i - 10) : 0;
         }
-        if (ch == '2') {
-            i = (i >= 1) ? (i - 1) : 0;
-        }
         
         /* Error if no change */
-        if (i == j) bell(NULL);
+        if (i == old_i && q == old_q) bell(NULL);
     }
     
+    ui_scroll_area_clear();
+
     /* Restore screen */
     screen_pop_supporting_panes_hidden();
     screen_load();

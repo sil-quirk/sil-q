@@ -1954,8 +1954,6 @@ void display_player_xtra_info(int mode)
     text_out_wrap   = 0;
     text_out_indent = 0;
     
-    Term_fresh();  /* Render history */
-
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }

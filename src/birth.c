@@ -5519,6 +5519,121 @@ static int skill_cost(int base, int points)
     return ((total_cost - prev_cost) * 100);
 }
 
+static int gain_skills_initial_skill = -1;
+
+void gain_skills_set_initial_skill(int skill)
+{
+    if (skill < 0 || skill >= S_MAX || skill == S_SPC)
+        gain_skills_initial_skill = -1;
+    else
+        gain_skills_initial_skill = skill;
+}
+
+static char gain_skills_screen_char(int row, int col)
+{
+    unsigned char ch;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return ' ';
+    if (row < 0 || row >= Term->hgt || col < 0 || col >= Term->wid)
+        return ' ';
+
+    ch = (unsigned char)Term->scr->c[row][col];
+    if (!ch || ch == (unsigned char)Term->char_blank)
+        return ' ';
+
+    return (char)ch;
+}
+
+static bool gain_skills_screen_text_matches(int row, int col, cptr text,
+    int len)
+{
+    if (!text || len <= 0)
+        return false;
+
+    for (int i = 0; i < len; i++)
+    {
+        if (gain_skills_screen_char(row, col + i) != text[i])
+            return false;
+    }
+
+    return true;
+}
+
+static bool gain_skills_screen_row_has_value(int row, int start_col)
+{
+    int wid = Term ? Term->wid : 0;
+
+    for (int col = start_col; col < wid; col++)
+    {
+        if (gain_skills_screen_char(row, col) == '=')
+            return true;
+    }
+
+    return false;
+}
+
+static void gain_skills_register_visible_skill_clicks(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int skill = 0; skill < S_MAX; skill++)
+    {
+        cptr name;
+        int name_len;
+        int match_len;
+        bool found = false;
+
+        if (skill == S_SPC)
+            continue;
+
+        name = skill_names_full[skill];
+        if (!name || !name[0])
+            continue;
+
+        name_len = (int)strlen(name);
+        match_len = name_len;
+        if (match_len > 5)
+            match_len = 5;
+        if (match_len < 4)
+            match_len = name_len;
+
+        for (int row = 0; row < hgt - 1 && !found; row++)
+        {
+            for (int col = 0; col <= wid - match_len; col++)
+            {
+                int start_col;
+
+                if (!gain_skills_screen_text_matches(row, col, name,
+                    name_len)
+                    && !gain_skills_screen_text_matches(row, col, name,
+                        match_len))
+                {
+                    continue;
+                }
+
+                if (!gain_skills_screen_row_has_value(row, col + match_len))
+                    continue;
+
+                start_col = MAX(0, col - 1);
+                ui_menu_click_add(skill, start_col, row, wid - start_col);
+                found = true;
+                break;
+            }
+        }
+    }
+}
+
 /*
  * Increase your skills by spending experience points
  */
@@ -5529,7 +5644,11 @@ extern NavResult gain_skills(void)
     int row = 6;
     int col = 42;
 
-    int skill = 0;
+    int skill = ((gain_skills_initial_skill >= 0
+        && gain_skills_initial_skill < S_MAX
+        && gain_skills_initial_skill != S_SPC)
+        ? gain_skills_initial_skill
+        : 0);
 
     int old_base[S_MAX];
     int skill_gain[S_MAX];
@@ -5546,6 +5665,7 @@ extern NavResult gain_skills(void)
     int tab = 0;
 
     log_debug("Starting skills allocation with %d experience points", p_ptr->new_exp);
+    gain_skills_initial_skill = -1;
 
     // hack global variable
     skill_gain_in_progress = true;
@@ -5605,13 +5725,20 @@ extern NavResult gain_skills(void)
         if (compact)
         {
             ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
             birth_display_skill_allocation_compact(skill, old_base, skill_gain, p_ptr->new_exp, steamdeck);
+            gain_skills_register_visible_skill_clicks();
+            ui_scroll_area_begin(0, hgt - 2, SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('6', '4', '6', '4');
         }
         else
         {
             int prompt_row = birth_prompt_row();
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
+            ui_scroll_area_begin(row, row + S_SNG,
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('6', '4', '6', '4');
 
             /* Display the player */
             display_player(0);
@@ -5765,6 +5892,7 @@ extern NavResult gain_skills(void)
             }
             skill_gain_in_progress = false;
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             return NAV_TO_MAIN;
         }
 
@@ -5778,6 +5906,7 @@ extern NavResult gain_skills(void)
             birth_pending_compact_description_confirm = false;
             }
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             result = NAV_OK;
             break;
         }
@@ -5793,6 +5922,7 @@ extern NavResult gain_skills(void)
                     p_ptr->skill_base[i] = old_base[i];
             }
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             result = NAV_BACK;   /* go back to Character Selection */
             break;
         }
@@ -5831,6 +5961,7 @@ extern NavResult gain_skills(void)
 
     // reset hack global variable
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     skill_gain_in_progress = false;
 
     /* Calculate the bonuses */
