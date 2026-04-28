@@ -40,6 +40,7 @@ static bool ui_menu_click_pending = false;
 static int ui_menu_click_pending_choice = 0;
 static int ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
 static bool ui_menu_click_hover_enabled = false;
+static bool ui_menu_click_cancel_outside_enabled = false;
 static bool ui_menu_click_hover_wake_pending = false;
 static bool ui_menu_click_hover_current = false;
 static bool ui_menu_click_preserve_hover_once = false;
@@ -66,6 +67,7 @@ void ui_menu_click_clear(void)
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     ui_menu_click_hover_enabled = false;
+    ui_menu_click_cancel_outside_enabled = false;
     ui_menu_click_hover_wake_pending = false;
     ui_menu_click_hover_current = preserve_hover;
     ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
@@ -85,6 +87,7 @@ void ui_menu_click_begin(void)
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     ui_menu_click_hover_enabled = false;
+    ui_menu_click_cancel_outside_enabled = false;
     ui_menu_click_hover_wake_pending = false;
     ui_menu_click_hover_current = preserve_hover;
     ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
@@ -102,6 +105,16 @@ void ui_menu_click_set_hover_enabled(bool enabled)
         ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
         ui_menu_click_hover_wake_pending = false;
     }
+}
+
+void ui_menu_click_set_outside_cancel_enabled(bool enabled)
+{
+    ui_menu_click_cancel_outside_enabled = enabled;
+}
+
+bool ui_menu_click_outside_cancel_enabled(void)
+{
+    return ui_menu_click_active && ui_menu_click_cancel_outside_enabled;
 }
 
 void ui_menu_click_set_touch_category(int category)

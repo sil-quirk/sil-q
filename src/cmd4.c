@@ -1972,6 +1972,12 @@ static void song_menu_mark_used(int song)
     song_menu_last_used[song] = ++song_menu_use_counter;
 }
 
+static void song_menu_register_row(int choice, int row, int col)
+{
+    (void)col;
+    ui_menu_click_add_full_row(choice, row);
+}
+
 /*
  * Display the available songs (modelled on show_inven) with optional highlighting.
  */
@@ -2004,6 +2010,7 @@ void show_songs_with_highlight(int highlight)
         c_put_str(TERM_L_BLUE, "Stop Singing", 1, text_col);
     else
         c_put_str(TERM_SLATE, "Stop Singing", 1, text_col);
+    song_menu_register_row(current_line, 1, col);
     current_line++;
 
     /* Output each entry */
@@ -2033,6 +2040,7 @@ void show_songs_with_highlight(int highlight)
             c_put_str(TERM_L_BLUE, desc, j + 2, text_col);
         else
             c_put_str(TERM_L_WHITE, desc, j + 2, text_col);
+        song_menu_register_row(current_line, j + 2, col);
         current_line++;
     }
 
@@ -2052,6 +2060,8 @@ void show_songs_with_highlight(int highlight)
         else
             c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, text_col);
 
+        song_menu_register_row(current_line, j + 2, col);
+        current_line++;
         j++;
     }
 
@@ -2125,7 +2135,16 @@ void do_cmd_change_song()
     {
         /* Redraw if needed */
         if (p_ptr->command_see)
+        {
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_outside_cancel_enabled(true);
             show_songs_with_highlight(highlight);
+        }
+        else
+        {
+            ui_menu_click_clear();
+        }
 
         /* Begin the prompt */
         if (steamdeck)
@@ -2181,6 +2200,37 @@ void do_cmd_change_song()
         /* Get a key */
         which = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                int total_options = song_menu_total_options(song_count);
+
+                if (clicked_choice >= 0 && clicked_choice < total_options)
+                {
+                    highlight = clicked_choice;
+
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    song_choice = song_menu_choice_from_highlight(highlight,
+                        songs, song_count);
+                    if (song_choice >= 0)
+                        done = true;
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+            }
+            else if (which == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
+        }
+
         if (which == ESCAPE || (steamdeck && which == steamdeck_back_key()))
         {
             log_trace("Song selection cancelled by player");
@@ -2224,6 +2274,7 @@ void do_cmd_change_song()
             {
                 /* Flip flag */
                 p_ptr->command_see = false;
+                ui_menu_click_clear();
 
                 /* Load screen */
                 screen_load();
@@ -2369,6 +2420,8 @@ void do_cmd_change_song()
         }
         }
     }
+
+    ui_menu_click_clear();
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)
@@ -15057,8 +15110,8 @@ static cptr option_menu_label(int opt)
         return compact ? (narrow ? "Combat lines" : "Combat roll lines")
                        : "Main terminal combat roll lines (0=off, 1-4=lines)";
     case OPT_hide_left_panel:
-        return compact ? (narrow ? "Compact panel" : "Compact left panel")
-                       : "Hide Left Panel [Alt+P]";
+        return compact ? (narrow ? "Panel layout" : "Left panel layout")
+                       : "Left Panel Layout [Alt+P]";
     case OPT_hidden_left_panel_mode:
         return compact ? (narrow ? "Panel place" : "Hidden panel")
                        : "Hidden-panel placement";

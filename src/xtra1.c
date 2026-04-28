@@ -139,6 +139,93 @@ static byte pointer_attack_ranged_panel_attr(byte base_attr)
         || mode == SDL_POINTER_ATTACK_RANGED_2) ? TERM_YELLOW : base_attr;
 }
 
+static const object_type* pointer_attack_selected_ranged_ammo(void)
+{
+    switch (sdl_pointer_attack_current_mode())
+    {
+    case SDL_POINTER_ATTACK_RANGED_1:
+        return &inventory[INVEN_QUIVER1];
+    case SDL_POINTER_ATTACK_RANGED_2:
+        return &inventory[INVEN_QUIVER2];
+    default:
+        return NULL;
+    }
+}
+
+static int pointer_attack_throwing_display_attack(const object_type* o_ptr)
+{
+    const object_type* wield = &inventory[INVEN_WIELD];
+    int attack = p_ptr->skill_use[S_MEL] + o_ptr->att;
+
+    attack -= wield->att;
+    attack -= axe_bonus(wield);
+    attack -= polearm_bonus(wield);
+    attack += axe_bonus(o_ptr);
+    attack += polearm_bonus(o_ptr);
+
+    if (p_ptr->active_ability[S_MEL][MEL_THROWING]
+        || object_grants_ability(o_ptr, S_MEL, MEL_THROWING))
+    {
+        attack += 1;
+    }
+
+    return attack;
+}
+
+static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
+    bool* throwing)
+{
+    const object_type* ammo = pointer_attack_selected_ranged_ammo();
+
+    if (attack)
+        *attack = p_ptr->skill_use[S_ARC];
+    if (dd)
+        *dd = p_ptr->add;
+    if (ds)
+        *ds = p_ptr->ads;
+    if (throwing)
+        *throwing = false;
+
+    if (ammo && ammo->k_idx)
+    {
+        u32b f1 = 0;
+        u32b f2 = 0;
+        u32b f3 = 0;
+        u32b f4 = 0;
+
+        object_flags4(ammo, &f1, &f2, &f3, &f4);
+        if (player_can_treat_as_throwing_flags(ammo, f3))
+        {
+            int throw_ds = strength_modified_ds(ammo, 0);
+
+            if (attack)
+                *attack = pointer_attack_throwing_display_attack(ammo);
+            if (dd)
+                *dd = ammo->dd;
+            if (ds)
+                *ds = MAX(0, throw_ds);
+            if (throwing)
+                *throwing = true;
+            return true;
+        }
+
+        if ((&inventory[INVEN_BOW])->k_idx && ammo->tval == TV_ARROW)
+        {
+            if (attack)
+                *attack += ammo->att;
+            return true;
+        }
+    }
+
+    return (&inventory[INVEN_BOW])->k_idx ? true : false;
+}
+
+static bool pointer_attack_melee_has_offhand(void)
+{
+    return ((&inventory[INVEN_ARM])->k_idx)
+        && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
+}
+
 static void prt_pointer_attack_value_row(cptr label, byte label_attr,
     byte value_attr, cptr value, int row)
 {
@@ -722,8 +809,7 @@ static void prt_mel(void)
     char buf[32];
     int mod = 0;
 
-    if (((&inventory[INVEN_ARM])->k_idx)
-        && ((&inventory[INVEN_ARM])->tval != TV_SHIELD))
+    if (pointer_attack_melee_has_offhand())
         mod = -1;
 
     /* Clear both rows since melee can shift up/down and shrink in width */
@@ -760,26 +846,31 @@ static void prt_mel(void)
 static void prt_arc(void)
 {
     char buf[32];
+    int attack = 0;
+    int dd = 0;
+    int ds = 0;
+    bool throwing = false;
 
     /* Clear the line so shorter values don't leave stale characters */
     Term_erase(COL_ARC, ROW_ARC, 12);
 
     /* Range attacks */
-    if ((&inventory[INVEN_BOW])->k_idx)
+    if (pointer_attack_ranged_display_stats(&attack, &dd, &ds, &throwing))
     {
         byte arc_attr = pointer_attack_ranged_panel_attr(TERM_UMBER);
+        cptr label = throwing ? "Thr" : "Arc";
 
-        if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
+        if (!throwing && p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
             && p_ptr->killed_enemy_with_arrow)
         {
-            c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), "Arc",
+            c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), label,
                 ROW_ARC, COL_ARC);
             strnfmt(buf, sizeof(buf), ")");
             c_put_str(arc_attr, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
-            strnfmt(buf, sizeof(buf), "%dd%d", 2 * p_ptr->add, p_ptr->ads);
+            strnfmt(buf, sizeof(buf), "%dd%d", 2 * dd, ds);
             c_put_str(TERM_RED, buf, ROW_ARC, COL_ARC + 11 - strlen(buf));
-            strnfmt(buf, sizeof(buf), "(%+d,", p_ptr->skill_use[S_ARC]);
-            if (p_ptr->ads > 9)
+            strnfmt(buf, sizeof(buf), "(%+d,", attack);
+            if (ds > 9)
                 c_put_str(arc_attr, buf, ROW_ARC,
                     COL_ARC + 7 - strlen(buf));
             else
@@ -788,9 +879,8 @@ static void prt_arc(void)
         }
         else
         {
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC],
-                p_ptr->add, p_ptr->ads);
-            prt_pointer_attack_value_row("Arc",
+            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", attack, dd, ds);
+            prt_pointer_attack_value_row(label,
                 pointer_attack_ranged_panel_attr(TERM_L_WHITE), arc_attr, buf,
                 ROW_ARC);
         }
@@ -1353,6 +1443,20 @@ static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
         pointer_attack_mode);
 }
 
+static void hidden_left_panel_add_quiver_count_line(hidden_overlay_line* lines,
+    int* count, int max_lines, const object_type* q_ptr, int pointer_attack_mode)
+{
+    char buf[16];
+
+    if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
+        return;
+
+    strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
+    hidden_left_panel_add_line_mode(lines, count, max_lines,
+        pointer_attack_panel_attr(pointer_attack_mode, TERM_L_WHITE), buf,
+        pointer_attack_mode);
+}
+
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     bool use_short_text)
 {
@@ -1476,6 +1580,7 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     char short_buf[16];
     byte hp_color;
     byte voice_color;
+    bool topline_layout = hidden_left_panel_uses_topline_layout();
 
     if (!lines || !Term || !p_ptr || max_lines <= 0)
         return 0;
@@ -1511,37 +1616,97 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         }
     }
 
-    strnfmt(buf, sizeof(buf), "Mel %+d", p_ptr->skill_use[S_MEL]);
-    strnfmt(short_buf, sizeof(short_buf), "M%+d", p_ptr->skill_use[S_MEL]);
+    if (topline_layout)
     {
-        int old_count = count;
         hidden_left_panel_add_line_mode(lines, &count, max_lines,
             pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-            buf, SDL_POINTER_ATTACK_MELEE);
-        if (count > old_count)
-            SDL_strlcpy(lines[count - 1].short_text, short_buf,
-                sizeof(lines[count - 1].short_text));
+            "M", SDL_POINTER_ATTACK_MELEE);
     }
-
-    if ((&inventory[INVEN_BOW])->k_idx)
+    else
     {
-        strnfmt(buf, sizeof(buf), "Arc %+d", p_ptr->skill_use[S_ARC]);
-        strnfmt(short_buf, sizeof(short_buf), "A%+d", p_ptr->skill_use[S_ARC]);
+        strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)",
+            p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2" : "M",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        SDL_strlcpy(short_buf, buf, sizeof(short_buf));
         {
             int old_count = count;
             hidden_left_panel_add_line_mode(lines, &count, max_lines,
-                pointer_attack_ranged_panel_attr(TERM_UMBER),
-                buf, SDL_POINTER_ATTACK_RANGED_1);
+                pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+                buf, SDL_POINTER_ATTACK_MELEE);
             if (count > old_count)
                 SDL_strlcpy(lines[count - 1].short_text, short_buf,
                     sizeof(lines[count - 1].short_text));
         }
+
+        if (pointer_attack_melee_has_offhand())
+        {
+            strnfmt(buf, sizeof(buf), "O(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
+                p_ptr->mds2);
+            SDL_strlcpy(short_buf, buf, sizeof(short_buf));
+            {
+                int old_count = count;
+                hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                    pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                        TERM_L_WHITE),
+                    buf, SDL_POINTER_ATTACK_MELEE);
+                if (count > old_count)
+                    SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                        sizeof(lines[count - 1].short_text));
+            }
+        }
     }
 
-    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
-    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    {
+        int arc_attack = 0;
+        int arc_dd = 0;
+        int arc_ds = 0;
+        bool arc_throwing = false;
+
+        if (pointer_attack_ranged_display_stats(&arc_attack, &arc_dd, &arc_ds,
+            &arc_throwing))
+        {
+            if (topline_layout)
+            {
+                hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                    pointer_attack_ranged_panel_attr(TERM_UMBER),
+                    arc_throwing ? "T" : "A", SDL_POINTER_ATTACK_RANGED_1);
+            }
+            else
+            {
+                cptr label = arc_throwing ? "T" : "A";
+
+                strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)", label, arc_attack,
+                    arc_dd, arc_ds);
+                strnfmt(short_buf, sizeof(short_buf), "%s(%+d,%dd%d)",
+                    label, arc_attack, arc_dd, arc_ds);
+                {
+                    int old_count = count;
+                    hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                        pointer_attack_ranged_panel_attr(TERM_UMBER),
+                        buf, SDL_POINTER_ATTACK_RANGED_1);
+                    if (count > old_count)
+                        SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                            sizeof(lines[count - 1].short_text));
+                }
+            }
+        }
+    }
+
+    if (topline_layout)
+    {
+        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
+        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    }
+    else
+    {
+        hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
+        hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    }
 
     if (!ui_compact_status_line_handles_wounds())
     {
@@ -6574,7 +6739,10 @@ void redraw_stuff(void)
     {
         p_ptr->redraw &= ~(PR_QUIVER);
         if (!ui_hide_left_panel())
+        {
             prt_quiver();
+            prt_arc();
+        }
         else
             hidden_overlay_needs_refresh = true;
     }
