@@ -1552,8 +1552,13 @@ extern void ui_menu_click_set_hover_enabled(bool enabled);
 extern void ui_menu_click_set_touch_category(int category);
 extern int ui_menu_click_get_touch_category(void);
 extern void ui_menu_click_add(int choice, int col, int row, int width);
+extern void ui_menu_click_add_full_row(int choice, int row);
+extern void ui_menu_click_add_span(int choice, int col, int row, int end_col);
+extern void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
+    cptr token);
 extern bool ui_menu_click_has_cell(int col, int row);
 extern bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
+extern bool ui_menu_click_clear_hover(bool* wake);
 extern bool ui_menu_click_handle_cell(int col, int row);
 extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_has_pending(void);

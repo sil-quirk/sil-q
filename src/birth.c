@@ -1606,7 +1606,10 @@ static void display_character_description_screen(birth_menu choice)
     }
 
     Term_fresh();
+    ui_menu_click_begin();
+    ui_menu_click_add_full_row('\r', hgt - 1);
     (void)inkey();
+    ui_menu_click_clear();
 
     screen_load();
 }
@@ -1617,6 +1620,12 @@ static void display_character_description_screen(birth_menu choice)
 static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int wid, void (*hook)(birth_menu), bool allow_full_description_screen)
 {
+    enum {
+        BIRTH_CHOICE_CLICK_BACK = -1,
+        BIRTH_CHOICE_CLICK_SELECT = -2,
+        BIRTH_CHOICE_CLICK_DETAILS = -3,
+        BIRTH_CHOICE_CLICK_RANDOM = -4
+    };
     int top = 0, next;
     int i, dir;
     char c;
@@ -1657,6 +1666,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (hgt < 0)
             hgt = 0;
 
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
@@ -1688,6 +1700,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 strnfmt(name_part, sizeof(name_part), "%s", choices[i + top].name);
             
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
+            ui_menu_click_add(i + top, col, i + TABLE_ROW, wid);
         }
 
         list_rows_drawn = i;
@@ -1766,7 +1779,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         last_description_row = description_row;
 
         if (done)
+        {
+            ui_menu_click_clear();
             return (cur);
+        }
 
         if (Term->hgt > 0)
         {
@@ -1809,6 +1825,18 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                     "SPACE/ENTER select  ESC back  r random");
             }
             Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_SELECT,
+                QUESTION_COL, prompt_row, prompt, "select");
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_DETAILS,
+                QUESTION_COL, prompt_row, prompt, "description");
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_DETAILS,
+                QUESTION_COL, prompt_row, prompt, "details");
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_BACK,
+                QUESTION_COL, prompt_row, prompt, "back");
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_BACK,
+                QUESTION_COL, prompt_row, prompt, "ESC");
+            ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_RANDOM,
+                QUESTION_COL, prompt_row, prompt, "random");
         }
 
         /* Move the cursor */
@@ -1818,6 +1846,53 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         c = inkey();
         hide_cursor = false;
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < num)
+                {
+                    if (click_action == UI_MENU_CLICK_SECONDARY
+                        && allow_full_description_screen)
+                    {
+                        cur = clicked_choice;
+                        display_character_description_screen(choices[cur]);
+                        continue;
+                    }
+
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != cur)
+                    {
+                        cur = clicked_choice;
+                        if (cur < top || cur > top + hgt)
+                            top = cur;
+                        continue;
+                    }
+
+                    if (choices[cur].ghost)
+                        bell("Your race cannot choose that character.");
+                    else
+                        return (cur);
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                switch (clicked_choice)
+                {
+                case BIRTH_CHOICE_CLICK_BACK: c = ESCAPE; break;
+                case BIRTH_CHOICE_CLICK_SELECT: c = '\r'; break;
+                case BIRTH_CHOICE_CLICK_DETAILS: c = 'f'; break;
+                case BIRTH_CHOICE_CLICK_RANDOM: c = 'r'; break;
+                default: break;
+                }
+            }
+        }
+
         /* Exit the game */
         if ((c == 'Q') || (c == 'q'))
             quit(NULL);
@@ -1825,14 +1900,20 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Hack - go back */
         if ((c == ESCAPE) || (c == '4')
             || (steamdeck && c == steamdeck_back_key()))
+        {
+            ui_menu_click_clear();
             return (INVALID_CHOICE);
+        }
 
         /* Make a choice */
         if (birth_confirm_input(c, steamdeck) || (c == '6')) {
             if (choices[cur].ghost)
                 bell("Your race cannot choose that character.");
             else
+            {
+                ui_menu_click_clear();
                 return (cur);
+            }
         }
         // Show scores (short): accept both 's' and 'S'
         if (c == 's' || c == 'S')
@@ -1966,6 +2047,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             top = cur;
     }
 
+    ui_menu_click_clear();
     return (INVALID_CHOICE);
 }
 
@@ -3176,6 +3258,8 @@ static void blitz_setup_draw(const blitz_setup* setup, int selected)
 
     Term_get_size(&wid, &hgt);
     Term_clear();
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     c_put_str(TERM_YELLOW, "Blitz Setup", 1, MAX((wid - 11) / 2, 0));
     birth_put_wrapped_text(TERM_SLATE,
@@ -3184,18 +3268,23 @@ static void blitz_setup_draw(const blitz_setup* setup, int selected)
 
     strnfmt(buf, sizeof(buf), "Character: %s", blitz_character_mode_name(setup->character_mode));
     birth_put_str_fit(selected == 0 ? TERM_L_BLUE : TERM_WHITE, buf, 6, 4);
+    ui_menu_click_add(0, 4, 6, wid - 8);
 
     strnfmt(buf, sizeof(buf), "Oaths: %s", setup->oaths_enabled ? "Yes" : "No");
     birth_put_str_fit(selected == 1 ? TERM_L_BLUE : TERM_WHITE, buf, 7, 4);
+    ui_menu_click_add(1, 4, 7, wid - 8);
 
     strnfmt(buf, sizeof(buf), "Blessings: %d", setup->blessing_count);
     birth_put_str_fit(selected == 2 ? TERM_L_BLUE : TERM_WHITE, buf, 8, 4);
+    ui_menu_click_add(2, 4, 8, wid - 8);
 
     strnfmt(buf, sizeof(buf), "Curses: %d", setup->curse_count);
     birth_put_str_fit(selected == 3 ? TERM_L_BLUE : TERM_WHITE, buf, 9, 4);
+    ui_menu_click_add(3, 4, 9, wid - 8);
 
     strnfmt(buf, sizeof(buf), "Effect picks: %s", blitz_effect_mode_name(setup->effect_mode));
     birth_put_str_fit(selected == 4 ? TERM_L_BLUE : TERM_WHITE, buf, 10, 4);
+    ui_menu_click_add(4, 4, 10, wid - 8);
 
     if (steamdeck)
     {
@@ -3211,11 +3300,15 @@ static void blitz_setup_draw(const blitz_setup* setup, int selected)
             "D-pad navigate/change  %s begin  %s back",
             confirm_label, back_label);
         birth_put_str_fit(TERM_L_DARK, prompt_buf, 13, 2);
+        ui_menu_click_add_text_token(-2, 2, 13, prompt_buf, "begin");
+        ui_menu_click_add_text_token(-1, 2, 13, prompt_buf, "back");
     }
     else
     {
-        birth_put_str_fit(TERM_L_DARK,
-            "8/2 navigate  4/6 change  Enter begin  Esc back", 13, 2);
+        cptr prompt_text = "8/2 navigate  4/6 change  Enter begin  Esc back";
+        birth_put_str_fit(TERM_L_DARK, prompt_text, 13, 2);
+        ui_menu_click_add_text_token(-2, 2, 13, prompt_text, "begin");
+        ui_menu_click_add_text_token(-1, 2, 13, prompt_text, "back");
     }
 }
 
@@ -3233,13 +3326,44 @@ static NavResult blitz_setup_menu(void)
 
         blitz_setup_draw(setup, selected);
         key = inkey();
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < 5)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selected)
+                    {
+                        selected = clicked_choice;
+                        continue;
+                    }
+                    key = '6';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
 
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
+        {
+            ui_menu_click_clear();
             return NAV_TO_MAIN;
+        }
 
         if (key == '\n' || key == '\r' || key == ' '
             || (steamdeck && key == steamdeck_confirm_key()))
+        {
+            ui_menu_click_clear();
             return NAV_OK;
+        }
 
         if (key == '8')
         {
@@ -3903,6 +4027,12 @@ static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
  */
 static NavResult select_oath(void)
 {
+    enum {
+        OATH_CLICK_BACK = -1,
+        OATH_CLICK_SELECT = -2,
+        OATH_CLICK_DETAILS = -3,
+        OATH_CLICK_LIST = -4
+    };
     int available_mask = get_available_oaths_mask();
 
     /* If no oaths are available, skip oath selection */
@@ -3960,6 +4090,8 @@ static NavResult select_oath(void)
             visible_count = (int)N_ELEMENTS(visible_oaths);
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         if (compact)
         {
@@ -3989,6 +4121,7 @@ static NavResult select_oath(void)
                     else
                         strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
                     Term_putstr(2, list_row + i, -1, attr, buf);
+                    ui_menu_click_add(oath_id, 2, list_row + i, wid - 4);
                 }
 
                 oath_draw_compact_list_summary(highlight, list_row + visible_count + 1,
@@ -4008,11 +4141,26 @@ static NavResult select_oath(void)
                         "D-pad Nav/Page  %s Select  %s Back",
                         confirm_label, back_label);
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
                 }
                 else
                 {
+                    char prompt_buf[96];
+
+                    SDL_strlcpy(prompt_buf,
+                        "8/2 Nav  6 Details  Enter/Space Select  Esc Back",
+                        sizeof(prompt_buf));
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
-                        "8/2 Nav  6 Details  Enter/Space Select  Esc Back");
+                        prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_DETAILS, 2,
+                        prompt_row, prompt_buf, "Details");
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
                 }
             }
             else
@@ -4063,11 +4211,26 @@ static NavResult select_oath(void)
                         "D-pad Scroll/Page  %s Select  %s Back",
                         confirm_label, back_label);
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
                 }
                 else
                 {
+                    char prompt_buf[96];
+
+                    SDL_strlcpy(prompt_buf,
+                        "8/2 Scroll  4 List  Enter/Space Select  Esc Back",
+                        sizeof(prompt_buf));
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
-                        "8/2 Scroll  4 List  Enter/Space Select  Esc Back");
+                        prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_LIST, 2,
+                        prompt_row, prompt_buf, "List");
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
                 }
             }
         }
@@ -4107,6 +4270,7 @@ static NavResult select_oath(void)
                 else
                     strnfmt(buf, sizeof(buf), "%c) %s", 'a' + i, oath_name_str(oath_id));
                 oath_putstr_fit(2, 4 + i, list_width, attr, buf);
+                ui_menu_click_add(oath_id, 2, 4 + i, list_width);
             }
 
             (void)oath_render_detail_content(highlight, details_col, 4,
@@ -4137,21 +4301,82 @@ static NavResult select_oath(void)
                     "D-pad Navigate  %s Select  %s Back",
                     confirm_label, back_label);
                 oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                    prompt_row, prompt_buf, "Select");
+                ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                    prompt_row, prompt_buf, "Back");
             }
             else
             {
+                char prompt_buf[96];
+
+                SDL_strlcpy(prompt_buf,
+                    "8/2 Navigate  Enter/Space Select  Esc Back",
+                    sizeof(prompt_buf));
                 oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
-                    "8/2 Navigate  Enter/Space Select  Esc Back");
+                    prompt_buf);
+                ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                    prompt_row, prompt_buf, "Select");
+                ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                    prompt_row, prompt_buf, "Back");
             }
         }
 
         Term_fresh();
         key = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+
+                if (clicked_choice > 0 && clicked_choice < z_info->oath_max)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != highlight)
+                    {
+                        highlight = clicked_choice;
+                        detail_scroll = 0;
+                        continue;
+                    }
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY
+                        && compact && page == 0)
+                    {
+                        page = 1;
+                        detail_scroll = 0;
+                        continue;
+                    }
+
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else
+                {
+                    switch (clicked_choice)
+                    {
+                    case OATH_CLICK_BACK: key = ESCAPE; break;
+                    case OATH_CLICK_SELECT: key = '\r'; break;
+                    case OATH_CLICK_DETAILS: key = '6'; break;
+                    case OATH_CLICK_LIST: key = '4'; break;
+                    default: break;
+                    }
+                }
+            }
+        }
+
         if (steamdeck && key == steamdeck_back_key())
+        {
+            ui_menu_click_clear();
             return NAV_BACK; /* Go back to character creation */
+        }
         if (key == ESCAPE || key == 'q')
         {
+            ui_menu_click_clear();
             return NAV_BACK; /* Go back to character creation */
         }
 
@@ -4220,6 +4445,7 @@ static NavResult select_oath(void)
     }
 
     /* Set the chosen oath */
+    ui_menu_click_clear();
     p_ptr->oath_type = choice;
     
     /* Grant corresponding oath special ability using oath.txt data */
@@ -4471,6 +4697,8 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
 
         selected_id = ids[selected];
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         strnfmt(title, sizeof(title), "Choose %s %d of %d",
             blessing ? "Blessing" : "Curse", ordinal, total);
@@ -4485,6 +4713,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
             strnfmt(line, sizeof(line), "%s", name);
             birth_put_str_fit(idx == selected ? TERM_L_BLUE : (blessing ? TERM_L_GREEN : TERM_L_RED),
                 line, 3 + row, 4);
+            ui_menu_click_add(idx, 4, 3 + row, wid - 8);
         }
 
         {
@@ -4528,19 +4757,59 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                 "D-pad navigate  %s select  %s back",
                 confirm_label, back_label);
             birth_put_str_fit(TERM_L_DARK, prompt_buf, hgt - 1, 2);
+            ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_buf,
+                "select");
+            ui_menu_click_add_text_token(-1, 2, hgt - 1, prompt_buf,
+                "back");
         }
         else
         {
-            birth_put_str_fit(TERM_L_DARK, "8/2 navigate  Enter select  Esc back",
-                hgt - 1, 2);
+            cptr prompt_text = "8/2 navigate  Enter select  Esc back";
+            birth_put_str_fit(TERM_L_DARK, prompt_text, hgt - 1, 2);
+            ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_text,
+                "select");
+            ui_menu_click_add_text_token(-1, 2, hgt - 1, prompt_text,
+                "back");
         }
         key = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selected)
+                    {
+                        selected = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
+
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
+        {
+            ui_menu_click_clear();
             return -1;
+        }
         if (key == '\n' || key == '\r' || key == ' '
             || (steamdeck && key == steamdeck_confirm_key()))
+        {
+            ui_menu_click_clear();
             return selected_id;
+        }
         if (key == '8')
         {
             selected = (selected + count - 1) % count;
@@ -5044,11 +5313,14 @@ static NavResult player_birth_aux_2(void)
 
         if (compact)
         {
+            ui_menu_click_begin();
             birth_display_stats_allocation_compact(stats, stat, MAX_COST - cost, steamdeck);
         }
         else
         {
             int prompt_row = birth_prompt_row();
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
 
             /* Display the player */
             display_player(0);
@@ -5101,6 +5373,7 @@ static NavResult player_birth_aux_2(void)
                     strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
                     c_put_str(attr, buf, row + i, sheet_col + 32);
                 }
+                ui_menu_click_add(i, sheet_col - 2, row + i, 40);
             }
 
             /* Bottom bar follows character sheet font setting */
@@ -5123,9 +5396,23 @@ static NavResult player_birth_aux_2(void)
                     "D-pad allocate  %s back  %s confirm  %s quit",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
+                    prompt_buf, "back");
+                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
+                    prompt_buf, "confirm");
+                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
+                    prompt_buf, "quit");
             } else {
+                cptr prompt_text =
+                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit");
+                    prompt_text);
+                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
+                    prompt_text, "back");
+                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
+                    prompt_text, "confirm");
+                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
+                    prompt_text, "quit");
             }
 
             if (story_character_enabled()) {
@@ -5138,8 +5425,37 @@ static NavResult player_birth_aux_2(void)
         ch = inkey();
         hide_cursor = false;
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < A_MAX)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != stat)
+                    {
+                        stat = clicked_choice;
+                        continue;
+                    }
+                    ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    ch = ESCAPE;
+                else if (clicked_choice == -2)
+                    ch = '\r';
+                else if (clicked_choice == -3)
+                    ch = 'q';
+            }
+        }
+
         /* Quit -> return to main menu before the game starts */
         if ((ch == 'Q') || (ch == 'q')) {
+            ui_menu_click_clear();
             if (turn == 0) return NAV_TO_MAIN;
             return NAV_QUIT;
         }
@@ -5148,13 +5464,17 @@ static NavResult player_birth_aux_2(void)
         if (steamdeck && ch == steamdeck_back_key())
             ch = ESCAPE;
         if (ch == ESCAPE)
+        {
+            ui_menu_click_clear();
             return NAV_BACK;
+        }
 
         /* Done */
         if (birth_confirm_input(ch, steamdeck))
         {
             if (!birth_confirm_unspent_stat_points(MAX_COST - cost, steamdeck))
                 continue;
+            ui_menu_click_clear();
             return NAV_OK;
         }
 
@@ -5284,11 +5604,14 @@ extern NavResult gain_skills(void)
 
         if (compact)
         {
+            ui_menu_click_begin();
             birth_display_skill_allocation_compact(skill, old_base, skill_gain, p_ptr->new_exp, steamdeck);
         }
         else
         {
             int prompt_row = birth_prompt_row();
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
 
             /* Display the player */
             display_player(0);
@@ -5351,6 +5674,7 @@ extern NavResult gain_skills(void)
                         skill_cost(old_base[i], skill_gain[i]));
                     c_put_str(attr, buf, row + i, sheet_col + 30);
                 }
+                ui_menu_click_add(i, sheet_col - 2, row + i, 40);
             }
 
             /* Bottom bar follows character sheet font setting */
@@ -5373,9 +5697,23 @@ extern NavResult gain_skills(void)
                     "D-pad -allocate      %s-back     %s-confirm     %s-quit",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
+                    prompt_buf, "back");
+                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
+                    prompt_buf, "confirm");
+                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
+                    prompt_buf, "quit");
             } else {
+                cptr prompt_text =
+                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
-                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit");
+                    prompt_text);
+                ui_menu_click_add_text_token(-1, QUESTION_COL, prompt_row,
+                    prompt_text, "back");
+                ui_menu_click_add_text_token(-2, QUESTION_COL, prompt_row,
+                    prompt_text, "confirm");
+                ui_menu_click_add_text_token(-3, QUESTION_COL, prompt_row,
+                    prompt_text, "quit");
             }
 
             if (story_character_enabled()) {
@@ -5388,6 +5726,35 @@ extern NavResult gain_skills(void)
         ch = inkey();
         hide_cursor = false;
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < S_MAX
+                    && clicked_choice != S_SPC)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != skill)
+                    {
+                        skill = clicked_choice;
+                        continue;
+                    }
+                    ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    ch = ESCAPE;
+                else if (clicked_choice == -2)
+                    ch = '\r';
+                else if (clicked_choice == -3)
+                    ch = 'q';
+            }
+        }
+
         /* Quit -> back to main menu before the game starts */
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {
             /* restore state before leaving */
@@ -5397,6 +5764,7 @@ extern NavResult gain_skills(void)
                     p_ptr->skill_base[i] = old_base[i];
             }
             skill_gain_in_progress = false;
+            ui_menu_click_clear();
             return NAV_TO_MAIN;
         }
 
@@ -5407,8 +5775,9 @@ extern NavResult gain_skills(void)
             {
                 if (!birth_show_compact_description_after_assignment(steamdeck))
                     continue;
-                birth_pending_compact_description_confirm = false;
+            birth_pending_compact_description_confirm = false;
             }
+            ui_menu_click_clear();
             result = NAV_OK;
             break;
         }
@@ -5423,6 +5792,7 @@ extern NavResult gain_skills(void)
                 if (i != S_SPC) /* Don't restore Special abilities skill */
                     p_ptr->skill_base[i] = old_base[i];
             }
+            ui_menu_click_clear();
             result = NAV_BACK;   /* go back to Character Selection */
             break;
         }
@@ -5460,6 +5830,7 @@ extern NavResult gain_skills(void)
     }
 
     // reset hack global variable
+    ui_menu_click_clear();
     skill_gain_in_progress = false;
 
     /* Calculate the bonuses */

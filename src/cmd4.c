@@ -248,6 +248,14 @@ struct knowledge_browser_state
 
 static int g_knowledge_last_page = KNOWLEDGE_PAGE_ARTEFACTS;
 
+#define KNOWLEDGE_CLICK_BACK -1
+#define KNOWLEDGE_CLICK_RECALL -2
+#define KNOWLEDGE_CLICK_PREV_PAGE -3
+#define KNOWLEDGE_CLICK_NEXT_PAGE -4
+#define KNOWLEDGE_CLICK_TAB_BASE 100000
+#define KNOWLEDGE_CLICK_GROUP_BASE 200000
+#define KNOWLEDGE_CLICK_ENTRY_BASE 300000
+
 static void dump_visual_pair(
     SDL_IOStream* fff, const char* tag, int index, byte attr, byte chr)
 {
@@ -880,6 +888,8 @@ void do_cmd_character_sheet(void)
         if (prompt_row < 0)
             prompt_row = 0;
         Term_erase(0, prompt_row, 255);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Prompt - dynamic, width-aware, and user-friendly for new players */
         {
@@ -896,6 +906,24 @@ void do_cmd_character_sheet(void)
                 sdl_story_font_enable();
 
             character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE, prompt_buf);
+            ui_menu_click_add_text_token('a', 1, prompt_row, prompt_buf,
+                "abilities");
+            ui_menu_click_add_text_token('i', 1, prompt_row, prompt_buf,
+                "increase");
+            ui_menu_click_add_text_token('?', 1, prompt_row, prompt_buf,
+                "help");
+            ui_menu_click_add_text_token(ESCAPE, 1, prompt_row, prompt_buf,
+                "back");
+            ui_menu_click_add_text_token('n', 1, prompt_row, prompt_buf,
+                "notes");
+            ui_menu_click_add_text_token('s', 1, prompt_row, prompt_buf,
+                "story");
+            ui_menu_click_add_text_token('f', 1, prompt_row, prompt_buf,
+                "file");
+#ifdef DEBUG_CURSES
+            ui_menu_click_add_text_token('c', 1, prompt_row, prompt_buf,
+                "curses");
+#endif
 
             character_sheet_draw_page_indicator(sheet_page, compact_pages, wid,
                 indicator_row,
@@ -918,6 +946,18 @@ void do_cmd_character_sheet(void)
             hide_cursor = true;
             ch = inkey();
             hide_cursor = saved_hide_cursor;
+        }
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                ch = (char)clicked_choice;
+            }
         }
 
         /* Exit - B button (back) or ESC */
@@ -1035,6 +1075,7 @@ void do_cmd_character_sheet(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -12200,7 +12241,7 @@ int main_menu_aux(int* highlight)
 
         main_menu_format_line(i, line, sizeof(line));
         Term_putstr(col_main, row, -1, color, line);
-        ui_menu_click_add(i, col_main, row, (int)strlen(line));
+        ui_menu_click_add(i, col_main, row, menu_w);
     }
 
     if (steamdeck && Term)
@@ -26391,6 +26432,9 @@ static void knowledge_draw_frame(const knowledge_browser_layout* layout, int pag
     Term_erase(0, layout->prompt_row, 255);
 }
 
+static void knowledge_register_prompt_clicks(
+    const knowledge_browser_layout* layout, cptr prompt);
+
 static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
 {
     char prompt[128];
@@ -26415,12 +26459,151 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
             "D-pad move  [%s/%s] page  [%s/%s] recall  [%s] back",
             prev_label, next_label, confirm_label, recall_label, back_label);
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_L_DARK, prompt);
+        knowledge_register_prompt_clicks(layout, prompt);
     }
     else
     {
         SDL_strlcpy(prompt, "Dir move  e/i page  Up at top=tabs  Space/r recall  Esc",
             sizeof(prompt));
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_SLATE, prompt);
+        knowledge_register_prompt_clicks(layout, prompt);
+    }
+}
+
+static void knowledge_register_tabs(const knowledge_browser_layout* layout)
+{
+    int col = 0;
+
+    if (!layout)
+        return;
+
+    for (int i = KNOWLEDGE_PAGE_ARTEFACTS; i <= KNOWLEDGE_PAGE_CURSES; i++)
+    {
+        int len = (int)strlen(knowledge_tab_label(i));
+
+        if (col >= layout->term_wid)
+            break;
+
+        ui_menu_click_add(KNOWLEDGE_CLICK_TAB_BASE + i, col,
+            layout->tabs_row, len);
+        col += len + 1;
+    }
+}
+
+static void knowledge_register_visible_rows(int click_base,
+    const knowledge_browser_layout* layout, int top, int count, int col,
+    int width)
+{
+    if (!layout || width <= 0)
+        return;
+
+    for (int i = 0; i < layout->list_rows; i++)
+    {
+        int idx = top + i;
+
+        if (idx >= count)
+            break;
+
+        ui_menu_click_add(click_base + idx, col, layout->list_row + i, width);
+    }
+}
+
+static void knowledge_register_prompt_clicks(
+    const knowledge_browser_layout* layout, cptr prompt)
+{
+    if (!layout || !prompt)
+        return;
+
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_RECALL, 0,
+        layout->prompt_row, prompt, "recall");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_BACK, 0, layout->prompt_row,
+        prompt, "back");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_BACK, 0, layout->prompt_row,
+        prompt, "Esc");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_PREV_PAGE, 0,
+        layout->prompt_row, prompt, "e/i");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_PREV_PAGE, 0,
+        layout->prompt_row, prompt, "L1");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_NEXT_PAGE, 0,
+        layout->prompt_row, prompt, "R1");
+}
+
+static void knowledge_begin_clicks(const knowledge_browser_layout* layout)
+{
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    knowledge_register_tabs(layout);
+}
+
+static bool knowledge_consume_click(int* ch, int* page,
+    knowledge_browser_state* state, int group_cnt, int entry_cnt,
+    bool has_groups)
+{
+    int clicked_choice = 0;
+    int click_action = UI_MENU_CLICK_PRIMARY;
+
+    if (!ui_menu_click_take_action(&clicked_choice, &click_action))
+        return false;
+
+    ui_menu_click_clear();
+
+    if (clicked_choice >= KNOWLEDGE_CLICK_TAB_BASE
+        && clicked_choice < KNOWLEDGE_CLICK_TAB_BASE + 4)
+    {
+        *page = clicked_choice - KNOWLEDGE_CLICK_TAB_BASE;
+        g_knowledge_last_page = *page;
+        state->tabs_focus = true;
+        return true;
+    }
+
+    if (clicked_choice >= KNOWLEDGE_CLICK_GROUP_BASE)
+    {
+        int clicked_group = clicked_choice - KNOWLEDGE_CLICK_GROUP_BASE;
+
+        if (clicked_group >= 0 && clicked_group < group_cnt)
+        {
+            state->tabs_focus = false;
+            state->column[*page] = 0;
+            state->group_cur[*page] = clicked_group;
+            state->entry_cur[*page] = 0;
+            state->entry_top[*page] = 0;
+            return true;
+        }
+    }
+
+    if (clicked_choice >= KNOWLEDGE_CLICK_ENTRY_BASE)
+    {
+        int clicked_entry = clicked_choice - KNOWLEDGE_CLICK_ENTRY_BASE;
+
+        if (clicked_entry >= 0 && clicked_entry < entry_cnt)
+        {
+            state->tabs_focus = false;
+            if (has_groups)
+                state->column[*page] = 1;
+
+            if (click_action == UI_MENU_CLICK_HOVER
+                || state->entry_cur[*page] != clicked_entry)
+            {
+                state->entry_cur[*page] = clicked_entry;
+                return true;
+            }
+
+            state->entry_cur[*page] = clicked_entry;
+            *ch = 'r';
+            return false;
+        }
+    }
+
+    if (click_action == UI_MENU_CLICK_HOVER)
+        return true;
+
+    switch (clicked_choice)
+    {
+    case KNOWLEDGE_CLICK_BACK: *ch = ESCAPE; return false;
+    case KNOWLEDGE_CLICK_RECALL: *ch = 'r'; return false;
+    case KNOWLEDGE_CLICK_PREV_PAGE: *ch = 'e'; return false;
+    case KNOWLEDGE_CLICK_NEXT_PAGE: *ch = 'i'; return false;
+    default: return true;
     }
 }
 
@@ -27051,7 +27234,10 @@ static void knowledge_detail_prompt(int row, bool steamdeck, cptr title,
         Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key)");
     }
 
+    ui_menu_click_begin();
+    ui_menu_click_add_full_row('\r', row);
     (void)inkey();
+    ui_menu_click_clear();
     Term_clear();
     Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, title);
 }
@@ -27374,16 +27560,26 @@ void do_cmd_knowledge_browser_page(int page)
 
             knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
+            knowledge_begin_clicks(&draw_layout);
             if (!single_column || (state.column[page] == 0))
             {
                 knowledge_display_groups(&draw_layout, artefact_grp_idx,
                     object_group_text, artefact_grp_cnt, state.group_cur[page],
                     state.group_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_GROUP_BASE,
+                    &draw_layout, state.group_top[page], artefact_grp_cnt,
+                    single_column ? 0 : draw_layout.group_col,
+                    single_column ? draw_layout.term_wid : draw_layout.group_w);
             }
             if (!single_column || (state.column[page] == 1))
             {
                 knowledge_display_artefacts(&draw_layout, artefact_idx,
                     artefact_cnt, state.entry_cur[page], state.entry_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_ENTRY_BASE,
+                    &draw_layout, state.entry_top[page], artefact_cnt,
+                    single_column ? 0 : draw_layout.list_col,
+                    draw_layout.term_wid
+                        - (single_column ? 0 : draw_layout.list_col));
             }
 
             if (artefact_cnt > 0)
@@ -27423,6 +27619,11 @@ void do_cmd_knowledge_browser_page(int page)
             }
 
             ch = inkey();
+            if (knowledge_consume_click(&ch, &page, &state, artefact_grp_cnt,
+                artefact_cnt, true))
+            {
+                break;
+            }
             if (steamdeck_controls_active() && ch == steamdeck_back_key())
                 ch = ESCAPE;
 
@@ -27506,16 +27707,26 @@ void do_cmd_knowledge_browser_page(int page)
 
             knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
+            knowledge_begin_clicks(&draw_layout);
             if (!single_column || (state.column[page] == 0))
             {
                 knowledge_display_groups(&draw_layout, object_grp_idx,
                     object_group_text, object_grp_cnt, state.group_cur[page],
                     state.group_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_GROUP_BASE,
+                    &draw_layout, state.group_top[page], object_grp_cnt,
+                    single_column ? 0 : draw_layout.group_col,
+                    single_column ? draw_layout.term_wid : draw_layout.group_w);
             }
             if (!single_column || (state.column[page] == 1))
             {
                 knowledge_display_objects(&draw_layout, object_idx, object_cnt,
                     state.entry_cur[page], state.entry_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_ENTRY_BASE,
+                    &draw_layout, state.entry_top[page], object_cnt,
+                    single_column ? 0 : draw_layout.list_col,
+                    draw_layout.term_wid
+                        - (single_column ? 0 : draw_layout.list_col));
             }
 
             if ((object_cnt > 0)
@@ -27572,6 +27783,11 @@ void do_cmd_knowledge_browser_page(int page)
             }
 
             ch = inkey();
+            if (knowledge_consume_click(&ch, &page, &state, object_grp_cnt,
+                object_cnt, true))
+            {
+                break;
+            }
             if (steamdeck_controls_active() && ch == steamdeck_back_key())
                 ch = ESCAPE;
 
@@ -27661,16 +27877,26 @@ void do_cmd_knowledge_browser_page(int page)
 
             knowledge_draw_frame(&draw_layout, page, !single_column, list_label,
                 state.tabs_focus);
+            knowledge_begin_clicks(&draw_layout);
             if (!single_column || (state.column[page] == 0))
             {
                 knowledge_display_groups(&draw_layout, monster_grp_idx,
                     monster_group_text, monster_grp_cnt, state.group_cur[page],
                     state.group_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_GROUP_BASE,
+                    &draw_layout, state.group_top[page], monster_grp_cnt,
+                    single_column ? 0 : draw_layout.group_col,
+                    single_column ? draw_layout.term_wid : draw_layout.group_w);
             }
             if (!single_column || (state.column[page] == 1))
             {
                 knowledge_display_monsters(&draw_layout, mon_idx, monster_cnt,
                     state.entry_cur[page], state.entry_top[page]);
+                knowledge_register_visible_rows(KNOWLEDGE_CLICK_ENTRY_BASE,
+                    &draw_layout, state.entry_top[page], monster_cnt,
+                    single_column ? 0 : draw_layout.list_col,
+                    draw_layout.term_wid
+                        - (single_column ? 0 : draw_layout.list_col));
             }
 
             if (monster_cnt > 0)
@@ -27711,6 +27937,11 @@ void do_cmd_knowledge_browser_page(int page)
             }
 
             ch = inkey();
+            if (knowledge_consume_click(&ch, &page, &state, monster_grp_cnt,
+                monster_cnt, true))
+            {
+                break;
+            }
             if (steamdeck_controls_active() && ch == steamdeck_back_key())
                 ch = ESCAPE;
 
@@ -27731,7 +27962,11 @@ void do_cmd_knowledge_browser_page(int page)
                 if (monster_cnt > 0)
                 {
                     screen_roff(mon_idx[state.entry_cur[page]].r_idx, NULL);
+                    ui_menu_click_begin();
+                    for (int click_row = 0; click_row < Term->hgt; click_row++)
+                        ui_menu_click_add_full_row('\r', click_row);
                     (void)inkey();
+                    ui_menu_click_clear();
                 }
                 else
                 {
@@ -27766,8 +28001,11 @@ void do_cmd_knowledge_browser_page(int page)
                 curse_cnt, layout.list_rows);
             knowledge_draw_frame(&layout, page, false, "Known curses",
                 state.tabs_focus);
+            knowledge_begin_clicks(&layout);
             knowledge_display_curses(&layout, curse_idx, curse_cnt,
                 state.entry_cur[page], state.entry_top[page]);
+            knowledge_register_visible_rows(KNOWLEDGE_CLICK_ENTRY_BASE,
+                &layout, state.entry_top[page], curse_cnt, 0, layout.term_wid);
 
             if (curse_cnt > 0)
             {
@@ -27795,6 +28033,11 @@ void do_cmd_knowledge_browser_page(int page)
             }
 
             ch = inkey();
+            if (knowledge_consume_click(&ch, &page, &state, 0, curse_cnt,
+                false))
+            {
+                break;
+            }
             if (steamdeck_controls_active() && ch == steamdeck_back_key())
                 ch = ESCAPE;
 
@@ -28527,6 +28770,8 @@ void do_cmd_knowledge(void)
     {
         /* Clear screen */
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Ask for a choice */
         prt("Display current knowledge", 2, 0);
@@ -28540,16 +28785,32 @@ void do_cmd_knowledge(void)
         /*allow the player to see the notes taken if that option is selected*/
         c_put_str(TERM_WHITE, "(5) Display character notes file", 8, 5);
         prt("(6) Display oath status", 9, 5);
+        for (int i = 1; i <= 6; i++)
+            ui_menu_click_add_full_row(i, i + 3);
 
         /* Prompt */
         prt("Command: ", 11, 0);
 
         /* Prompt */
         ch = inkey();
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && clicked_choice >= 1 && clicked_choice <= 6)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                ch = I2D(clicked_choice);
+            }
+        }
 
         /* Done */
         if (ch == ESCAPE)
             break;
+
+        ui_menu_click_clear();
 
         /* Known lore browser */
         if (ch == '1')
@@ -28599,6 +28860,7 @@ void do_cmd_knowledge(void)
     }
 
     /* Load screen */
+    ui_menu_click_clear();
     screen_load();
 }
 

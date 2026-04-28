@@ -8115,6 +8115,9 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     screen_save();
     Term_clear();
     Term_flush();
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < h; click_row++)
+        ui_menu_click_add_full_row('\r', click_row);
     
     /* Display title */
     quest_typewriter_draw_title(title, title_color, wid);
@@ -8130,6 +8133,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
             if ((idx + 1 < total_texts)
                 && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                 Term_clear();
+                ui_menu_click_clear();
                 screen_load();
                 return;
             }
@@ -8150,6 +8154,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 i++;
                 if (!quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                     Term_clear();
+                    ui_menu_click_clear();
                     screen_load();
                     return;
                 }
@@ -8260,6 +8265,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
         if ((idx + 1 < total_texts)
             && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
             Term_clear();
+            ui_menu_click_clear();
             screen_load();
             return;
         }
@@ -8273,7 +8279,11 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     
     /* Final prompt */
     Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < h; click_row++)
+        ui_menu_click_add_full_row('\r', click_row);
     inkey();
+    ui_menu_click_clear();
     
     /* Flush any queued keypresses that accumulated during the typewriter effect */
     Term_flush();
@@ -8901,6 +8911,8 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     while (!done) {
         /* Clear screen */
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         
         /* Display title */
         int row = 1;
@@ -8940,7 +8952,9 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             else
                 strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker,
                     'a' + i, desc);
-            Term_putstr(2, row++, -1, attr, line_buf);
+            Term_putstr(2, row, -1, attr, line_buf);
+            ui_menu_click_add(i, 2, row, wid - 4);
+            row++;
         }
         
         /* Display controls */
@@ -8960,12 +8974,21 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
                         : "D-pad navigate   %s Inspect   %s accept",
                 inspect_label, confirm_label);
             Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "inspect");
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "accept");
         }
         else
         {
-            Term_putstr(2, row, -1, TERM_L_DARK,
-                compact ? "8/2 move  x inspect  Enter choose"
-                        : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select");
+            cptr prompt_text = compact ? "8/2 move  x inspect  Enter choose"
+                : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select";
+
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "inspect");
+            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
         }
         
         /* Position cursor at selection */
@@ -8974,6 +8997,38 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         
         /* Get input */
         char key = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < choice_count)
+                {
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                    {
+                        selection = clicked_choice;
+                        key = 'x';
+                    }
+                    else if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selection)
+                    {
+                        selection = clicked_choice;
+                        continue;
+                    }
+                    else
+                        key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = '\r';
+                else if (clicked_choice == -2)
+                    key = 'x';
+            }
+        }
         
         /* Handle input */
         if (key == '\r' || key == '\n' || key == ' ' || key == '6'
@@ -8985,6 +9040,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
                    || key == '?'
                    || (steamdeck && key == steamdeck_alt_action_key())) {
             /* Inspect selection */
+            ui_menu_click_clear();
             Term_clear();
             desc_art_fake(choices[selection]);
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -9004,6 +9060,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         }
     }
     
+    ui_menu_click_clear();
     screen_load();
     return selected_artifact;
 }

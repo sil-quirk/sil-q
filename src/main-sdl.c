@@ -394,6 +394,7 @@ typedef struct touch_zone_press_state {
 
 typedef struct menu_touch_press_state {
     bool active;
+    bool mouse;
     SDL_FingerID finger_id;
     int col;
     int row;
@@ -651,9 +652,12 @@ static void sdl_welcome_touch_cancel_press(void);
 static bool sdl_pointer_activate_welcome_screen_at(float x, float y);
 static bool sdl_pointer_activate_welcome_screen(void);
 static bool sdl_pointer_dismiss_any_key_prompt(void);
-static bool sdl_menu_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
-static bool sdl_menu_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
-static bool sdl_menu_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
+static bool sdl_menu_touch_handle_pointer_down(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
+static bool sdl_menu_touch_handle_pointer_motion(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
+static bool sdl_menu_touch_handle_pointer_up(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
 static void sdl_menu_touch_cancel(void);
 static int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_menu_touch_flush_pending_press(Uint64 now_ns);
@@ -4438,7 +4442,11 @@ static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y)
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
     if (!ui_menu_click_handle_hover_cell(col, row, &wake))
+    {
+        if (ui_menu_click_clear_hover(&wake) && wake)
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
         return false;
+    }
 
     sdl_unified_look_clear_map_hover();
     if (wake)
@@ -4676,6 +4684,7 @@ static bool sdl_pointer_dismiss_any_key_prompt(void)
 static void sdl_menu_touch_cancel(void)
 {
     g_menu_touch_press.active = false;
+    g_menu_touch_press.mouse = false;
     g_menu_touch_press.finger_id = 0;
     g_menu_touch_press.col = 0;
     g_menu_touch_press.row = 0;
@@ -4684,7 +4693,8 @@ static void sdl_menu_touch_cancel(void)
     g_menu_touch_press.start_time = 0;
 }
 
-static bool sdl_menu_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
+static bool sdl_menu_touch_handle_pointer_down(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
 {
     int col = 0;
     int row = 0;
@@ -4693,11 +4703,13 @@ static bool sdl_menu_touch_handle_pointer_down(float x, float y, SDL_FingerID fi
         return false;
     if (!ui_menu_click_has_cell(col, row))
         return false;
-    if (!config.touch_menu_command_enabled[ui_menu_click_get_touch_category()])
+    if (!mouse
+        && !config.touch_menu_command_enabled[ui_menu_click_get_touch_category()])
         return true;
 
     sdl_menu_touch_cancel();
     g_menu_touch_press.active = true;
+    g_menu_touch_press.mouse = mouse;
     g_menu_touch_press.finger_id = finger_id;
     g_menu_touch_press.col = col;
     g_menu_touch_press.row = row;
@@ -4707,14 +4719,16 @@ static bool sdl_menu_touch_handle_pointer_down(float x, float y, SDL_FingerID fi
     return true;
 }
 
-static bool sdl_menu_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id)
+static bool sdl_menu_touch_handle_pointer_motion(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
 {
     int col = 0;
     int row = 0;
     float dx;
     float dy;
 
-    if (!g_menu_touch_press.active || g_menu_touch_press.finger_id != finger_id)
+    if (!g_menu_touch_press.active || g_menu_touch_press.mouse != mouse
+        || g_menu_touch_press.finger_id != finger_id)
         return false;
 
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
@@ -4741,12 +4755,14 @@ static bool sdl_menu_touch_handle_pointer_motion(float x, float y, SDL_FingerID 
     return true;
 }
 
-static bool sdl_menu_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id)
+static bool sdl_menu_touch_handle_pointer_up(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
 {
     int col = 0;
     int row = 0;
 
-    if (!g_menu_touch_press.active || g_menu_touch_press.finger_id != finger_id)
+    if (!g_menu_touch_press.active || g_menu_touch_press.mouse != mouse
+        || g_menu_touch_press.finger_id != finger_id)
         return false;
 
     if (!sdl_main_view_point_to_cell(x, y, &col, &row)
@@ -4767,6 +4783,8 @@ static int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns)
 
     if (!g_menu_touch_press.active)
         return -1;
+    if (g_menu_touch_press.mouse)
+        return -1;
 
     elapsed = now_ns - g_menu_touch_press.start_time;
     if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
@@ -4781,6 +4799,8 @@ static bool sdl_menu_touch_flush_pending_press(Uint64 now_ns)
     int row;
 
     if (!g_menu_touch_press.active)
+        return false;
+    if (g_menu_touch_press.mouse)
         return false;
     if (now_ns - g_menu_touch_press.start_time
         < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
@@ -7469,6 +7489,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         {
             return;
         }
+        if (sdl_menu_touch_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y, 0, true))
+        {
+            return;
+        }
         if (sdl_main_screen_handle_menu_hover_pointer((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -7499,8 +7524,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
-            if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
-                (float)ev->button.y, UI_MENU_CLICK_PRIMARY))
+            if (sdl_menu_touch_handle_pointer_down((float)ev->button.x,
+                (float)ev->button.y, 0, true))
             {
                 return;
             }
@@ -7533,11 +7558,6 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         else if (ev->button.button == SDL_BUTTON_RIGHT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
-            if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
-                (float)ev->button.y, UI_MENU_CLICK_SECONDARY))
-            {
-                return;
-            }
             if (sdl_mouse_path_handle_right_movement_click((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -7560,6 +7580,20 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             sdl_touch_pane_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, true, 0);
+            if (sdl_menu_touch_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, 0, true))
+            {
+                return;
+            }
+        }
+        else if (ev->button.button == SDL_BUTTON_RIGHT) {
+            if (ev->button.which == SDL_TOUCH_MOUSEID)
+                return;
+            if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
+                (float)ev->button.y, UI_MENU_CLICK_SECONDARY))
+            {
+                return;
+            }
         }
     } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
         int window_w = 0;
@@ -7590,7 +7624,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_touch_zone_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
-        if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
+        if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID,
+            false))
             return;
         if (sdl_main_screen_handle_message_line_pointer(x, y))
             return;
@@ -7634,7 +7669,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_map_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
-        if (sdl_menu_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID))
+        if (sdl_menu_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID,
+            false))
             return;
         if (sdl_touch_swipe_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
@@ -7659,7 +7695,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_map_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
-        if (sdl_menu_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
+        if (sdl_menu_touch_handle_pointer_up(x, y, ev->tfinger.fingerID,
+            false))
             return;
         sdl_touch_swipe_handle_pointer_up(x, y, ev->tfinger.fingerID);
         sdl_touch_pane_handle_pointer_up(x, y, false, ev->tfinger.fingerID);

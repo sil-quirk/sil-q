@@ -1032,6 +1032,12 @@ extern void display_single_score(
 static char display_scores_pages(const high_score* entries, int count, int highlight_index,
                                  score_view_order order, bool detailed, int page_size)
 {
+    enum {
+        SCORE_CLICK_ORDER = -1,
+        SCORE_CLICK_LAYOUT = -2,
+        SCORE_CLICK_EXIT = -3,
+        SCORE_CLICK_NEXT = -4
+    };
     bool steamdeck = steamdeck_controls_active();
     char order_label[16] = "";
     char layout_label[16] = "";
@@ -1070,7 +1076,10 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             score_ui_put_fit(TERM_L_WHITE, "(press any key)", footer_row, 2,
                 term_wid);
         }
+        ui_menu_click_begin();
+        ui_menu_click_add_full_row(SCORE_CLICK_NEXT, footer_row);
         (void)inkey();
+        ui_menu_click_clear();
         return 0;
     }
 
@@ -1108,6 +1117,8 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         }
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
 
         char order_buf[64];
@@ -1129,10 +1140,14 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             if (detailed)
             {
                 display_single_score(attr, row * 4, 0, start_index + row + 1, false, (high_score*)&entries[idx]);
+                ui_menu_click_add_full_row(idx, row * 4 + 3);
+                ui_menu_click_add_full_row(idx, row * 4 + 4);
+                ui_menu_click_add_full_row(idx, row * 4 + 5);
             }
             else
             {
                 display_single_score_short(attr, start_index + row + 1, row, &entries[idx]);
+                ui_menu_click_add_full_row(idx, row + 3);
             }
         }
 
@@ -1162,9 +1177,68 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             }
         }
         score_ui_put_fit(TERM_L_WHITE, footer, footer_row, 1, term_wid);
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "Order");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "order");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "Ord");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "[S]");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "Layout");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "layout");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "Lay");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "[L]");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "Exit");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "exit");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "Esc");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "ESC");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "Next");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "continue");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "close");
 
         char ch = inkey();
         prt("", footer_row, 0);
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    highlight_index = clicked_choice;
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                switch (clicked_choice)
+                {
+                case SCORE_CLICK_ORDER: ch = 's'; break;
+                case SCORE_CLICK_LAYOUT: ch = 'l'; break;
+                case SCORE_CLICK_EXIT: ch = ESCAPE; break;
+                case SCORE_CLICK_NEXT: ch = '\r'; break;
+                default: break;
+                }
+            }
+            else
+                ui_menu_click_clear();
+        }
 
         if (steamdeck) {
             int back_key = steamdeck_back_key();
@@ -1681,6 +1755,13 @@ static int collect_run_history(run_history_entry* out, int capacity)
 }
 void do_cmd_run_history(void)
 {
+    enum {
+        RUN_HISTORY_CLICK_SORT = -1,
+        RUN_HISTORY_CLICK_BACK = -2,
+        RUN_HISTORY_CLICK_DETAILS = -3,
+        RUN_HISTORY_CLICK_PREV = -4,
+        RUN_HISTORY_CLICK_NEXT = -5
+    };
     run_history_refresh_active_run();
 
     run_history_entry entries[RUN_HISTORY_MAX];
@@ -1725,6 +1806,8 @@ void do_cmd_run_history(void)
         int page_label_row = 1;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         if (steamdeck) {
             score_prompt_label(steamdeck_confirm_key(), "A",
@@ -1790,6 +1873,7 @@ void do_cmd_run_history(void)
                     format("Sort: %s [R]", run_history_sort_label(sort_order)),
                     page_label_row, 2, term_wid);
             }
+            ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
             c_prt(TERM_L_UMBER, "Date", 2, 2);
             c_prt(TERM_L_UMBER, "S", 2, col_status);
             c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
@@ -1852,6 +1936,7 @@ void do_cmd_run_history(void)
                         run_history_sort_label(sort_order)),
                     page_label_row, 2, term_wid);
             }
+            ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
             c_prt(TERM_L_UMBER, "Date", 2, col_date);
             c_prt(TERM_L_UMBER, "Status", 2, col_status);
             c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
@@ -1892,6 +1977,7 @@ void do_cmd_run_history(void)
                            (rec->silmarils > 0) ? TERM_VIOLET : TERM_WHITE;
 
             c_prt(row_color, selected ? ">" : " ", row_y, 0);
+            ui_menu_click_add_full_row(idx, row_y);
             c_prt(row_color, date, row_y, 2);
             if (compact) {
                 char summary[160];
@@ -1938,18 +2024,79 @@ void do_cmd_run_history(void)
         }
 
         if (steamdeck) {
-            score_ui_put_fit(TERM_L_DARK,
-                format("[%s] details  [%s] sort  [%s] back  [Up/Down] move  [Left/Right] page",
-                    confirm_label, sort_label, back_label),
-                footer_row, 0, term_wid);
+            char footer[160];
+
+            strnfmt(footer, sizeof(footer),
+                "[%s] details  [%s] sort  [%s] back  [Up/Down] move  [Left/Right] page",
+                confirm_label, sort_label, back_label);
+            score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
+                footer_row, footer, "details");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_SORT, 0,
+                footer_row, footer, "sort");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_BACK, 0,
+                footer_row, footer, "back");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_PREV, 0,
+                footer_row, footer, "Left");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
+                footer_row, footer, "Right");
         } else {
-            score_ui_put_fit(TERM_L_DARK,
-                "[Space/Enter/Right] details  [R] sort  [Esc] back  [Up/Down] move  [N/P/3/7] page",
-                footer_row, 0, term_wid);
+            const char *footer =
+                "[Space/Enter/Right] details  [R] sort  [Esc] back  [Up/Down] move  [N/P/3/7] page";
+
+            score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
+                footer_row, footer, "details");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_SORT, 0,
+                footer_row, footer, "sort");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_BACK, 0,
+                footer_row, footer, "back");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
+                footer_row, footer, "N/P");
         }
 
         Term_fresh();
         int ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    if (highlight != clicked_choice)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    ch = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else
+                {
+                    switch (clicked_choice)
+                    {
+                    case RUN_HISTORY_CLICK_SORT: ch = 'r'; break;
+                    case RUN_HISTORY_CLICK_BACK: ch = ESCAPE; break;
+                    case RUN_HISTORY_CLICK_DETAILS: ch = '\r'; break;
+                    case RUN_HISTORY_CLICK_PREV: ch = 'p'; break;
+                    case RUN_HISTORY_CLICK_NEXT: ch = 'n'; break;
+                    default: break;
+                    }
+                }
+            }
+            else
+                ui_menu_click_clear();
+        }
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())
@@ -2051,6 +2198,7 @@ void do_cmd_run_history(void)
     }
 
     screen_pop_supporting_panes_hidden();
+    ui_menu_click_clear();
     screen_load();
 }
 static bool run_history_prepare_artefact_object(

@@ -1880,6 +1880,8 @@ int menu_choose_one_curse(int n)
         /* Ensure text output settings are consistent */
         text_out_hook = text_out_to_screen;
         text_out_wrap = Term->wid - 2;
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         
         /* Update highlight display for each option */
         for (int i = 0; i < CURSE_MENU_LINES; i++) {
@@ -1899,7 +1901,15 @@ int menu_choose_one_curse(int n)
             } else {
                 c_put_str(TERM_L_RED, name_buf, option_rows[i], 2);   /* Normal - light red */
             }
+            ui_menu_click_add(i, 2, option_rows[i], Term->wid - 4);
         }
+        ui_menu_click_add_text_token(-2, 2, row + 1,
+            "Arrows to navigate     Space/Enter Accept     a/b/c Select",
+            "Accept");
+        ui_menu_click_add_text_token(-2, 2, row + 1,
+            "D-pad to navigate     [A] accept     [B] cancel", "accept");
+        ui_menu_click_add_text_token(-1, 2, row + 1,
+            "D-pad to navigate     [A] accept     [B] cancel", "cancel");
         
         /* Position cursor at the end of the highlighted option text */
         curse_type *highlighted_cu = &cu_info[pick[highlight]];
@@ -1914,6 +1924,32 @@ int menu_choose_one_curse(int n)
         Term_gotoxy(cursor_col, option_rows[highlight]);
         Term_fresh();
         char key = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < CURSE_MENU_LINES)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != highlight)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
         
         /* Handle input */
         if (!steamdeck && key >= 'a' && key < 'a' + CURSE_MENU_LINES) {
@@ -1946,6 +1982,7 @@ int menu_choose_one_curse(int n)
             menu_done = true;
         }
     }
+    ui_menu_click_clear();
     screen_pop_supporting_panes_hidden();
     screen_load();
     return pick[sel];
@@ -3133,7 +3170,10 @@ static void show_all_active_curses(void)
         } else {
             Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
         }
+        ui_menu_click_begin();
+        ui_menu_click_add_full_row('\r', 5);
         inkey();
+        ui_menu_click_clear();
         screen_load();
         return;
     }
@@ -3167,6 +3207,7 @@ static void show_all_active_curses(void)
     
     while (true) {
         Term_clear();
+        ui_menu_click_begin();
         
         /* Title with page info */
         char title_buf[80];
@@ -3216,10 +3257,37 @@ static void show_all_active_curses(void)
         }
         
         Term_putstr(0, term_height - 1, -1, TERM_L_DARK, footer_buf);
+        ui_menu_click_add_text_token(-1, 0, term_height - 1, footer_buf,
+            "back");
+        ui_menu_click_add_text_token(-1, 0, term_height - 1, footer_buf,
+            "return");
+        ui_menu_click_add_text_token(-2, 0, term_height - 1, footer_buf,
+            "right");
+        ui_menu_click_add_text_token(-3, 0, term_height - 1, footer_buf,
+            "left");
+        ui_menu_click_add_text_token(-1, 0, term_height - 1, footer_buf,
+            "ok");
         Term_fresh();
         
         /* Get input */
         char key = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && click_action != UI_MENU_CLICK_HOVER)
+            {
+                ui_menu_click_clear();
+                if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '6';
+                else if (clicked_choice == -3)
+                    key = '4';
+            }
+        }
         
         /* Arrow navigation: 6 = right, 4 = left (keypad directions) */
         if (total_pages > 1 && key == '6') {
@@ -3244,6 +3312,7 @@ static void show_all_active_curses(void)
     text_out_indent = old_text_out_indent;
     text_out_wrap = old_text_out_wrap;
     
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -4199,6 +4268,58 @@ static void metarun_put_prompt_line(int term_width, int term_height, byte attr, 
     Term_putstr(0, term_height - 1, -1, attr, line);
 }
 
+static void metarun_register_prompt_label_click(int choice, int row,
+    const char *prompt, const char *label)
+{
+    char token[48];
+
+    if (!label || !label[0])
+        return;
+
+    strnfmt(token, sizeof(token), "[%s]", label);
+    ui_menu_click_add_text_token(choice, 0, row, prompt, token);
+}
+
+static void metarun_register_stats_prompt_clicks(const char *prompt, int row,
+    const char *spend_label, const char *threshold_label,
+    const char *diff_label, const char *full_label,
+    const char *history_label, const char *blitz_label, bool blitz_enabled)
+{
+    if (!prompt || row < 0)
+        return;
+
+    metarun_register_prompt_label_click('b', row, prompt, spend_label);
+    metarun_register_prompt_label_click('f', row, prompt, threshold_label);
+    metarun_register_prompt_label_click('c', row, prompt, diff_label);
+    metarun_register_prompt_label_click('u', row, prompt, full_label);
+    metarun_register_prompt_label_click('s', row, prompt, history_label);
+    if (blitz_enabled)
+        metarun_register_prompt_label_click('x', row, prompt, blitz_label);
+
+    ui_menu_click_add_text_token('b', 0, row, prompt, "[b]");
+    ui_menu_click_add_text_token('b', 0, row, prompt, "Spend");
+    ui_menu_click_add_text_token('b', 0, row, prompt, "Bless");
+    ui_menu_click_add_text_token('f', 0, row, prompt, "[f]");
+    ui_menu_click_add_text_token('f', 0, row, prompt, "Threshold");
+    ui_menu_click_add_text_token('f', 0, row, prompt, "Thresh");
+    ui_menu_click_add_text_token('f', 0, row, prompt, "Thr");
+    ui_menu_click_add_text_token('c', 0, row, prompt, "[c]");
+    ui_menu_click_add_text_token('c', 0, row, prompt, "Difficulty");
+    ui_menu_click_add_text_token('c', 0, row, prompt, "Diff");
+    ui_menu_click_add_text_token('u', 0, row, prompt, "[u]");
+    ui_menu_click_add_text_token('u', 0, row, prompt, "Full");
+    ui_menu_click_add_text_token('u', 0, row, prompt, "List");
+    ui_menu_click_add_text_token('s', 0, row, prompt, "[s]");
+    ui_menu_click_add_text_token('s', 0, row, prompt, "History");
+    ui_menu_click_add_text_token('s', 0, row, prompt, "Hist");
+
+    if (blitz_enabled) {
+        ui_menu_click_add_text_token('x', 0, row, prompt, "[x]");
+        ui_menu_click_add_text_token('x', 0, row, prompt, "Blitz");
+        ui_menu_click_add_text_token('x', 0, row, prompt, "Bz");
+    }
+}
+
 typedef struct {
     char variants[4][64];
     int variant_count;
@@ -4474,6 +4595,8 @@ static void adjust_blessing_threshold_menu(void)
 
     while (true) {
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Blessing Threshold ===");
 
         char buf[160];
@@ -4503,15 +4626,21 @@ static void adjust_blessing_threshold_menu(void)
                          is_highlighted ? '>' : ' ', 'a' + i, labels[i]);
 
             byte name_attr = is_highlighted ? TERM_YELLOW : (is_current ? base_color : base_color);
-            Term_putstr(2, row++, -1, name_attr, option_buf);
+            Term_putstr(2, row, -1, name_attr, option_buf);
+            ui_menu_click_add(i, 2, row, 60);
+            row++;
 
             snprintf(option_buf, sizeof option_buf, "    Requires %lu points per blessing",
                      (unsigned long)mode_threshold);
             byte threshold_attr = is_highlighted ? TERM_L_WHITE : TERM_L_DARK;
-            Term_putstr(2, row++, -1, threshold_attr, option_buf);
+            Term_putstr(2, row, -1, threshold_attr, option_buf);
+            ui_menu_click_add(i, 2, row, 60);
+            row++;
 
             byte desc_attr = is_highlighted ? TERM_L_WHITE : TERM_SLATE;
-            Term_putstr(4, row++, -1, desc_attr, descs[i]);
+            Term_putstr(4, row, -1, desc_attr, descs[i]);
+            ui_menu_click_add(i, 2, row, 60);
+            row++;
             row++;
         }
 
@@ -4520,15 +4649,49 @@ static void adjust_blessing_threshold_menu(void)
             strnfmt(hint_buf, sizeof(hint_buf),
                     "D-pad to choose  [%s] accept  [%s] cancel", accept_label, back_label);
             Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
+            ui_menu_click_add_text_token(-2, 2, row + 1, hint_buf, "accept");
+            ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
         } else {
-            Term_putstr(2, row + 1, -1, TERM_L_DARK,
-                        "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+            cptr prompt_text =
+                "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.";
+            Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-2, 2, row + 1, prompt_text,
+                "accepts");
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "cancels");
         }
 
         char key = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < option_count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selection)
+                    {
+                        selection = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
+
         /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H'))) {
+            ui_menu_click_clear();
             break;
         } else if (key == '\r' || key == '\n' || (steamdeck && key == steamdeck_confirm_key()) || key == '6') {
             accepted = true;
@@ -4551,6 +4714,8 @@ static void adjust_blessing_threshold_menu(void)
 
     bool changed = false;
     u32b new_threshold = 0;
+
+    ui_menu_click_clear();
 
     if (accepted && chosen_mode != current_mode) {
         metarun_set_threshold_mode(&metar, chosen_mode);
@@ -4586,9 +4751,13 @@ static void adjust_blessing_threshold_menu(void)
             Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
         }
         Term_fresh();
+        ui_menu_click_begin();
+        ui_menu_click_add_full_row('\r', 6);
         (void)inkey();
+        ui_menu_click_clear();
     }
 
+    ui_menu_click_clear();
     screen_load();
 }
 
@@ -4615,7 +4784,10 @@ void print_metarun_stats(void)
         } else {
             Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
         }
-        inkey();
+        ui_menu_click_begin();
+        ui_menu_click_add_full_row('\r', 8);
+        (void)inkey();
+        ui_menu_click_clear();
         screen_load();
         return;
     }
@@ -4663,6 +4835,7 @@ void print_metarun_stats(void)
         screen_save();
     screen_push_supporting_panes_hidden();
     Term_clear();
+    ui_menu_click_begin();
     Term_get_size(&term_width, &term_height);
     bool steamdeck = steamdeck_controls_active();
     char spend_label[16] = "";
@@ -5003,6 +5176,11 @@ void print_metarun_stats(void)
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+        metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
+                                             spend_label, threshold_label,
+                                             diff_label, full_label,
+                                             history_label, blitz_label,
+                                             blitz_enabled);
     } else {
         /* --- Compact layout --- */
         int max_display_width = term_width - col - 1;
@@ -5137,9 +5315,25 @@ void print_metarun_stats(void)
                                     prompt_buf, sizeof(prompt_buf));
         metarun_truncate_for_width(prompt_buf, term_width);
         metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+        metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
+                                             spend_label, threshold_label,
+                                             diff_label, full_label,
+                                             history_label, blitz_label,
+                                             blitz_enabled);
     }
 
     char key = inkey();
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
+            && click_action != UI_MENU_CLICK_HOVER)
+        {
+            key = (char)clicked_choice;
+        }
+    }
+    ui_menu_click_clear();
     if (steamdeck) {
         int back_key = steamdeck_back_key();
         int confirm_key = steamdeck_confirm_key();
@@ -5305,6 +5499,8 @@ static void choose_difficulty_menu(void)
     while (true)
     {
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Title */
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Select Difficulty Level ===");
@@ -5384,8 +5580,12 @@ static void choose_difficulty_menu(void)
                 snprintf(name_buf, sizeof(name_buf), "%c) %s", 'a'+i, rt_name);
             }
             
-            Term_putstr(4, row++, -1, name_color, name_buf);
-            Term_putstr(7, row++, -1, desc_color, desc_buf);
+            Term_putstr(4, row, -1, name_color, name_buf);
+            ui_menu_click_add(i, 2, row, 76);
+            row++;
+            Term_putstr(7, row, -1, desc_color, desc_buf);
+            ui_menu_click_add(i, 2, row, 76);
+            row++;
             
             /* Add extra spacing between options */
             row++;
@@ -5397,17 +5597,51 @@ static void choose_difficulty_menu(void)
             strnfmt(hint_buf, sizeof(hint_buf),
                     "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
             Term_putstr(2, row + 1, -1, TERM_L_WHITE, hint_buf);
+            ui_menu_click_add_text_token(-2, 2, row + 1, hint_buf, "accept");
+            ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
         } else {
-            Term_putstr(2, row + 1, -1, TERM_L_WHITE,
-                        "Arrows to navigate     Space/Enter Accept     Esc Cancel");
+            cptr prompt_text =
+                "Arrows to navigate     Space/Enter Accept     Esc Cancel";
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE, prompt_text);
+            ui_menu_click_add_text_token(-2, 2, row + 1, prompt_text,
+                "Accept");
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "Cancel");
         }
         
         /* Get input */
         char key = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice <= max_difficulty)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != choice)
+                    {
+                        choice = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
         
         /* Handle back/cancel - ESC, B button in Steam Deck mode, or 'h' key */
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()) || (!steamdeck && (key == 'h' || key == 'H')))
         {
+            ui_menu_click_clear();
             screen_load();
             return;
         }
@@ -5467,6 +5701,8 @@ static void choose_difficulty_menu(void)
         }
     }
     
+    ui_menu_click_clear();
+
     /* Apply the new difficulty */
     if (choice != metar.type)
     {
@@ -5519,6 +5755,7 @@ static void choose_difficulty_menu(void)
             }
             
             if (confirm != 'y' && confirm != 'Y') {
+                ui_menu_click_clear();
                 return; /* Cancel the change */
             }
         }
@@ -5576,6 +5813,7 @@ static void choose_difficulty_menu(void)
         msg_print(format("Difficulty changed to: %s", new_name));
     }
     
+    ui_menu_click_clear();
     screen_load();
     
     /* Return to metarun stats to show updated information */

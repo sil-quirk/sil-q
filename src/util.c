@@ -23,7 +23,7 @@ bool no_light(void)
     return false;
 }
 
-#define UI_MENU_CLICK_MAX_ENTRIES 96
+#define UI_MENU_CLICK_MAX_ENTRIES 256
 
 typedef struct ui_menu_click_entry
 {
@@ -41,10 +41,17 @@ static int ui_menu_click_pending_choice = 0;
 static int ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
 static bool ui_menu_click_hover_enabled = false;
 static bool ui_menu_click_hover_wake_pending = false;
+static bool ui_menu_click_hover_current = false;
+static bool ui_menu_click_preserve_hover_once = false;
+static int ui_menu_click_hover_choice = 0;
 static int ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 
 void ui_menu_click_clear(void)
 {
+    bool preserve_hover = ui_menu_click_preserve_hover_once
+        && ui_menu_click_hover_current;
+    int preserved_hover_choice = ui_menu_click_hover_choice;
+
     ui_menu_click_active = false;
     ui_menu_click_entry_count = 0;
     ui_menu_click_pending = false;
@@ -52,6 +59,9 @@ void ui_menu_click_clear(void)
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     ui_menu_click_hover_enabled = false;
     ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_hover_current = preserve_hover;
+    ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
+    ui_menu_click_preserve_hover_once = false;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
@@ -64,6 +74,7 @@ void ui_menu_click_begin(void)
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     ui_menu_click_hover_enabled = false;
     ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_preserve_hover_once = false;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
@@ -135,6 +146,50 @@ void ui_menu_click_add(int choice, int col, int row, int width)
     };
 }
 
+void ui_menu_click_add_full_row(int choice, int row)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    (void)term_hgt;
+    ui_menu_click_add(choice, 0, row, term_wid);
+}
+
+void ui_menu_click_add_span(int choice, int col, int row, int end_col)
+{
+    int width = end_col - col;
+
+    if (width < 1)
+        width = 1;
+
+    ui_menu_click_add(choice, col, row, width);
+}
+
+void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
+    cptr token)
+{
+    cptr match;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    ui_menu_click_add(choice, col + (int)(match - text), row,
+        (int)strlen(token));
+
+    if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)
+    {
+        Term_putstr(col + (int)(match - text), row, (int)strlen(token),
+            TERM_L_BLUE, token);
+    }
+}
+
 static const ui_menu_click_entry* ui_menu_click_find_cell(int col, int row)
 {
     if (!ui_menu_click_active)
@@ -163,6 +218,7 @@ bool ui_menu_click_has_cell(int col, int row)
 bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
 {
     const ui_menu_click_entry* entry = NULL;
+    bool changed = false;
 
     if (wake)
         *wake = false;
@@ -174,6 +230,11 @@ bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
     if (!entry)
         return false;
 
+    changed = !ui_menu_click_hover_current
+        || ui_menu_click_hover_choice != entry->choice;
+    ui_menu_click_hover_current = true;
+    ui_menu_click_hover_choice = entry->choice;
+
     if (ui_menu_click_pending && ui_menu_click_pending_action != UI_MENU_CLICK_HOVER)
         return true;
 
@@ -181,12 +242,38 @@ bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
     ui_menu_click_pending_choice = entry->choice;
     ui_menu_click_pending_action = UI_MENU_CLICK_HOVER;
 
-    if (!ui_menu_click_hover_wake_pending)
+    if (changed || !ui_menu_click_hover_wake_pending)
     {
         if (wake)
             *wake = true;
         ui_menu_click_hover_wake_pending = true;
     }
+
+    return true;
+}
+
+bool ui_menu_click_clear_hover(bool* wake)
+{
+    if (wake)
+        *wake = false;
+
+    if (!ui_menu_click_hover_current)
+        return false;
+
+    ui_menu_click_hover_current = false;
+    ui_menu_click_hover_choice = 0;
+    ui_menu_click_preserve_hover_once = false;
+    if (ui_menu_click_pending
+        && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    }
+    ui_menu_click_hover_wake_pending = false;
+
+    if (wake)
+        *wake = true;
 
     return true;
 }
@@ -232,6 +319,9 @@ void ui_menu_click_clear_pending_hover(void)
         ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
     }
 
+    ui_menu_click_hover_current = false;
+    ui_menu_click_hover_choice = 0;
+    ui_menu_click_preserve_hover_once = false;
     ui_menu_click_hover_wake_pending = false;
 }
 
@@ -244,6 +334,8 @@ bool ui_menu_click_take_action(int* choice, int* action)
         *choice = ui_menu_click_pending_choice;
     if (action)
         *action = ui_menu_click_pending_action;
+    if (ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+        ui_menu_click_preserve_hover_once = true;
 
     ui_menu_click_hover_wake_pending = false;
 
@@ -4122,6 +4214,11 @@ int get_menu_choice(s16b max, char* prompt)
 
     while (!done)
     {
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        for (int i = 0; i < max; i++)
+            ui_menu_click_add_full_row(i, i + 1);
+
         if (steamdeck && max > 0)
         {
             for (int i = 0; i < max; i++)
@@ -4133,6 +4230,23 @@ int get_menu_choice(s16b max, char* prompt)
         }
 
         ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && clicked_choice >= 0 && clicked_choice < max)
+            {
+                highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                choice = clicked_choice;
+                done = true;
+                continue;
+            }
+        }
 
         /* Letters are used for selection */
         if (!steamdeck && isalpha((unsigned char)ch))
@@ -4200,6 +4314,7 @@ int get_menu_choice(s16b max, char* prompt)
     }
 
     /* Clear the prompt */
+    ui_menu_click_clear();
     prt("", 0, 0);
 
     /* Return */

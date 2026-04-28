@@ -1502,6 +1502,8 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
     while (true)
     {
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
             Term_putstr(0, title_row, term_wid, TERM_L_BLUE,
@@ -1537,6 +1539,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 steamdeck ? format("   %s", options[i].label)
                           : format("%c) %s", options[i].hotkey,
                                 options[i].label));
+            ui_menu_click_add(i, 0, row, term_wid);
         }
 
         if (info_row > intro_row)
@@ -1561,12 +1564,25 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                         : "D-pad navigate  %s accept  %s later",
                 confirm_label, back_label);
             Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
+                "choose");
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
+                "accept");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
+                "later");
         }
         else
         {
-            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK,
-                compact ? "8/2 move  Enter choose  ESC later"
-                        : "8/2 or arrows navigate  Enter accept  Letter select  ESC later");
+            cptr prompt_text = compact ? "8/2 move  Enter choose  ESC later"
+                : "8/2 or arrows navigate  Enter accept  Letter select  ESC later";
+
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "choose");
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "accept");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+                "later");
         }
 
         Term_fresh();
@@ -1575,8 +1591,35 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         key = inkey();
         hide_cursor = false;
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < option_count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selected)
+                    {
+                        selected = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
+
         if (steamdeck && key == steamdeck_back_key())
         {
+            ui_menu_click_clear();
             screen_load();
             return THRALL_REWARD_LATER;
         }
@@ -1584,6 +1627,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         switch (key)
         {
         case ESCAPE:
+            ui_menu_click_clear();
             screen_load();
             return THRALL_REWARD_LATER;
 
@@ -1619,12 +1663,14 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                 break;
             }
 
+            ui_menu_click_clear();
             screen_load();
             return options[selected].reward;
 
         default:
             if (steamdeck && key == steamdeck_back_key())
             {
+                ui_menu_click_clear();
                 screen_load();
                 return THRALL_REWARD_LATER;
             }
@@ -1637,6 +1683,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                     break;
                 }
 
+                ui_menu_click_clear();
                 screen_load();
                 return options[selected].reward;
             }
@@ -1657,6 +1704,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
                     break;
                 }
 
+                ui_menu_click_clear();
                 screen_load();
                 return options[i].reward;
             }
