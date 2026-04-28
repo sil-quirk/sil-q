@@ -1523,6 +1523,12 @@ extern bool screen_supporting_panes_hidden_active(void);
 extern void screen_set_startup_supporting_panes_hidden(bool hidden);
 extern bool screen_startup_supporting_panes_hidden_active(void);
 extern void sdl_refresh_supporting_panes_layout(void);
+#define SDL_POINTER_ATTACK_NONE 0
+#define SDL_POINTER_ATTACK_MELEE 1
+#define SDL_POINTER_ATTACK_RANGED_1 2
+#define SDL_POINTER_ATTACK_RANGED_2 3
+extern int sdl_pointer_attack_current_mode(void);
+extern bool sdl_pointer_attack_take_command(int* command, int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
@@ -1850,6 +1856,12 @@ extern bool g_hide_left_panel;
 extern bool g_suppress_hidden_left_panel_overlay;
 extern byte g_hidden_left_panel_overlay_rows;
 extern byte g_hidden_left_panel_overlay_widths[16];
+extern byte g_hidden_left_panel_overlay_attack_modes[16];
+extern byte g_hidden_left_panel_overlay_attack_start_cols[16];
+extern byte g_hidden_left_panel_overlay_attack_end_cols[16];
+extern byte g_left_panel_quiver_attack_modes[2];
+extern byte g_left_panel_quiver_attack_start_cols[2];
+extern byte g_left_panel_quiver_attack_end_cols[2];
 extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
 extern int get_sdl_hidden_left_panel_mode(void);

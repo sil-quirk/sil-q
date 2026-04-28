@@ -421,6 +421,33 @@ typedef struct map_touch_press_state {
     Uint64 start_time;
 } map_touch_press_state;
 
+typedef struct pointer_attack_state {
+    int mode;
+    bool hover_visible;
+    bool hover_valid;
+    bool hover_actionable;
+    int hover_y;
+    int hover_x;
+    int hover_m_idx;
+    bool touch_press_active;
+    bool touch_repeat_target;
+    SDL_FingerID touch_finger_id;
+    int touch_press_y;
+    int touch_press_x;
+    float touch_start_x;
+    float touch_start_y;
+    Uint64 touch_start_time;
+    bool touch_selected;
+    int touch_selected_mode;
+    int touch_selected_y;
+    int touch_selected_x;
+    int touch_selected_m_idx;
+    bool pending;
+    int pending_mode;
+    int pending_m_idx;
+    bool pending_wake;
+} pointer_attack_state;
+
 enum {
     SDL_MOUSE_PATH_MAX_GRIDS = MAX_DUNGEON_HGT * MAX_DUNGEON_WID,
     SDL_MOUSE_PATH_SPRINT_CHAIN_MAX = 4,
@@ -534,6 +561,9 @@ static map_touch_press_state g_map_touch_press;
 static bool g_map_touch_selected = false;
 static int g_map_touch_selected_y = 0;
 static int g_map_touch_selected_x = 0;
+static pointer_attack_state g_pointer_attack = {
+    .mode = SDL_POINTER_ATTACK_MELEE
+};
 static mouse_path_state g_mouse_path;
 static bool g_unified_look_map_hover_enabled = false;
 static bool g_unified_look_map_hover_pending = false;
@@ -627,8 +657,8 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
 #endif
 static void sdl_ensure_touch_pane_config_present(void);
 static bool sdl_touch_only_mobile_device_active(void);
-static bool sdl_touch_pane_uses_mobile_overlay(void);
-static bool sdl_touch_pane_mobile_visible(void);
+static bool sdl_touch_pane_uses_mobile_toggle(void);
+static bool sdl_touch_pane_mobile_layout_open(void);
 static void sdl_touch_pane_set_mobile_open(bool open);
 static bool sdl_touch_pane_panel_is_valid(int panel);
 static int sdl_touch_pane_active_panel(void);
@@ -708,11 +738,25 @@ static bool sdl_mouse_gameplay_context_active(void);
 static bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x);
 static bool sdl_mouse_grid_has_visible_monster(int y, int x, int* out_m_idx);
 static bool sdl_mouse_path_compute(int target_y, int target_x);
+static bool sdl_main_screen_cell_hits_character_panel(int col, int row);
+static bool sdl_pointer_attack_binding_toggled(int binding);
+static bool sdl_pointer_attack_toggle_binding(int binding);
+static bool sdl_pointer_attack_handle_motion(float x, float y);
+static bool sdl_pointer_attack_handle_left_click(float x, float y);
+static bool sdl_pointer_attack_handle_touch_down(float x, float y,
+    SDL_FingerID finger_id);
+static bool sdl_pointer_attack_handle_touch_motion(float x, float y,
+    SDL_FingerID finger_id);
+static bool sdl_pointer_attack_handle_touch_up(float x, float y,
+    SDL_FingerID finger_id);
+static void sdl_pointer_attack_cancel_touch_press(void);
+static void sdl_pointer_attack_render(void);
 static void sdl_mouse_path_handle_motion(float x, float y);
 static bool sdl_mouse_path_handle_left_click(float x, float y);
 static bool sdl_mouse_path_handle_right_movement_click(float x, float y);
 static bool sdl_mouse_recall_handle_right_click(float x, float y);
 static void sdl_mouse_path_render(void);
+bool sdl_pointer_attack_take_command(int* command, int* dir);
 bool sdl_mouse_path_take_step_command(int* command, int* dir);
 bool sdl_mouse_recall_process_pending(void);
 void sdl_mouse_path_cancel(void);
@@ -1798,25 +1842,23 @@ static bool sdl_touch_only_mobile_device_active(void)
 #endif
 }
 
-static bool sdl_touch_pane_uses_mobile_overlay(void)
+static bool sdl_touch_pane_uses_mobile_toggle(void)
 {
     return sdl_touch_only_mobile_device_active()
         && sdl_touch_pane_is_config_enabled();
 }
 
-static bool sdl_touch_pane_mobile_visible(void)
+static bool sdl_touch_pane_mobile_layout_open(void)
 {
-    if (!sdl_touch_pane_uses_mobile_overlay())
+    if (!sdl_touch_pane_uses_mobile_toggle())
         return true;
 
-    return g_touch_pane_mobile_open
-        || g_touch_pane_reset_confirm_active
-        || g_touch_pane_yes_no_prompt_active;
+    return g_touch_pane_mobile_open;
 }
 
 static void sdl_touch_pane_set_mobile_open(bool open)
 {
-    if (!sdl_touch_pane_uses_mobile_overlay())
+    if (!sdl_touch_pane_uses_mobile_toggle())
         return;
     if (g_touch_pane_mobile_open == open)
         return;
@@ -1827,7 +1869,12 @@ static void sdl_touch_pane_set_mobile_open(bool open)
     else
         sdl_touch_zone_cancel_press();
 
-    g_state.need_present = true;
+    if (g_state.window) {
+        sdl_resize_for_current_layout();
+        sdl_request_redraw();
+    } else {
+        g_state.need_present = true;
+    }
 }
 
 static bool sdl_touch_pane_panel_is_valid(int panel)
@@ -1947,7 +1994,7 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
 
         if (touch_only && !is_touch_pane)
             continue;
-        if (!touch_only && is_touch_pane && sdl_touch_pane_uses_mobile_overlay())
+        if (is_touch_pane && !sdl_touch_pane_mobile_layout_open())
             continue;
         if (!is_touch_pane) {
             if (pane_placement_is_side(where) && !include_side)
@@ -2849,20 +2896,10 @@ static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect)
         return false;
     if (!sdl_touch_pane_is_config_enabled())
         return false;
+    if (!sdl_touch_pane_mobile_layout_open())
+        return false;
 
-    if (sdl_touch_pane_uses_mobile_overlay()) {
-        SDL_Rect screen;
-
-        if (!sdl_touch_pane_mobile_visible())
-            return false;
-
-        screen = sdl_get_layout_screen_rect();
-        if (!sdl_rect_has_area(&screen))
-            return false;
-
-        sdl_place_active_panes(&screen, panes, true, true, true);
-        pane = &panes[PANE_TOUCH];
-    } else if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
+    if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
         pane = &g_pane_rects[PANE_TOUCH];
     } else {
         sdl_compute_display_panes(panes);
@@ -3634,6 +3671,8 @@ static bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x)
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
+    if (sdl_main_screen_cell_hits_character_panel(col, row))
+        return false;
     if (row < ROW_MAP || col < COL_MAP)
         return false;
 
@@ -3673,6 +3712,8 @@ static bool sdl_main_view_point_to_look_map(float x, float y, int* out_y,
         return false;
     }
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (sdl_main_screen_cell_hits_character_panel(col, row))
         return false;
     if (row < ROW_MAP || col < COL_MAP)
         return false;
@@ -4529,6 +4570,670 @@ static bool sdl_mouse_consume_wake_key(void)
         return false;
 
     (void)Term_inkey(&ch, false, true);
+    return true;
+}
+
+static bool sdl_pointer_attack_mode_is_ranged(int mode)
+{
+    return mode == SDL_POINTER_ATTACK_RANGED_1
+        || mode == SDL_POINTER_ATTACK_RANGED_2;
+}
+
+static bool sdl_pointer_attack_input_context_active(void)
+{
+    return sdl_main_screen_click_shortcuts_active()
+        && (!p_ptr || p_ptr->command_cmd == 0);
+}
+
+static bool sdl_pointer_attack_mode_active(void)
+{
+    return sdl_pointer_attack_current_mode() != SDL_POINTER_ATTACK_NONE
+        && sdl_pointer_attack_input_context_active();
+}
+
+static void sdl_pointer_attack_clear_hover(void)
+{
+    if (!g_pointer_attack.hover_visible && !g_pointer_attack.hover_valid)
+        return;
+
+    g_pointer_attack.hover_visible = false;
+    g_pointer_attack.hover_valid = false;
+    g_pointer_attack.hover_actionable = false;
+    g_pointer_attack.hover_y = 0;
+    g_pointer_attack.hover_x = 0;
+    g_pointer_attack.hover_m_idx = 0;
+    g_state.need_present = true;
+}
+
+static void sdl_pointer_attack_clear_touch_selection(void)
+{
+    if (!g_pointer_attack.touch_selected)
+        return;
+
+    g_pointer_attack.touch_selected = false;
+    g_pointer_attack.touch_selected_mode = SDL_POINTER_ATTACK_NONE;
+    g_pointer_attack.touch_selected_y = 0;
+    g_pointer_attack.touch_selected_x = 0;
+    g_pointer_attack.touch_selected_m_idx = 0;
+    g_state.need_present = true;
+}
+
+static void sdl_pointer_attack_cancel_touch_press(void)
+{
+    if (!g_pointer_attack.touch_press_active)
+        return;
+
+    g_pointer_attack.touch_press_active = false;
+    g_pointer_attack.touch_repeat_target = false;
+    g_pointer_attack.touch_finger_id = 0;
+    g_pointer_attack.touch_press_y = 0;
+    g_pointer_attack.touch_press_x = 0;
+    g_pointer_attack.touch_start_x = 0.0f;
+    g_pointer_attack.touch_start_y = 0.0f;
+    g_pointer_attack.touch_start_time = 0;
+}
+
+static int sdl_pointer_attack_binding_mode(int binding)
+{
+    switch (binding) {
+    case '/':
+    case ';':
+        return SDL_POINTER_ATTACK_MELEE;
+    case 'f':
+        return SDL_POINTER_ATTACK_RANGED_1;
+    case 'F':
+        return SDL_POINTER_ATTACK_RANGED_2;
+    default:
+        return SDL_POINTER_ATTACK_NONE;
+    }
+}
+
+static bool sdl_pointer_attack_binding_toggled(int binding)
+{
+    int mode = sdl_pointer_attack_binding_mode(binding);
+
+    return mode != SDL_POINTER_ATTACK_NONE
+        && sdl_pointer_attack_current_mode() == mode;
+}
+
+int sdl_pointer_attack_current_mode(void)
+{
+    return (g_pointer_attack.mode == SDL_POINTER_ATTACK_NONE)
+        ? SDL_POINTER_ATTACK_MELEE
+        : g_pointer_attack.mode;
+}
+
+static const char* sdl_pointer_attack_mode_name(int mode)
+{
+    switch (mode) {
+    case SDL_POINTER_ATTACK_MELEE:
+        return "Melee";
+    case SDL_POINTER_ATTACK_RANGED_1:
+        return "Ranged";
+    case SDL_POINTER_ATTACK_RANGED_2:
+        return "Ranged 2";
+    default:
+        return "Pointer attack";
+    }
+}
+
+static void sdl_pointer_attack_refresh_mode_display(bool redraw_map)
+{
+    if (p_ptr && character_generated) {
+        p_ptr->redraw |= PR_BASIC;
+        if (redraw_map)
+            p_ptr->redraw |= PR_MAP;
+        handle_stuff();
+        if (Term)
+            Term_fresh();
+    }
+
+    g_state.need_present = true;
+}
+
+static void sdl_pointer_attack_set_mode(int mode)
+{
+    if (mode == SDL_POINTER_ATTACK_NONE)
+        mode = SDL_POINTER_ATTACK_MELEE;
+
+    if (g_pointer_attack.mode == mode) {
+        sdl_pointer_attack_refresh_mode_display(false);
+        return;
+    }
+
+    g_pointer_attack.mode = mode;
+    g_pointer_attack.pending = false;
+    g_pointer_attack.pending_mode = SDL_POINTER_ATTACK_NONE;
+    g_pointer_attack.pending_m_idx = 0;
+    g_pointer_attack.pending_wake = false;
+    sdl_pointer_attack_clear_hover();
+    sdl_pointer_attack_clear_touch_selection();
+    sdl_pointer_attack_cancel_touch_press();
+    sdl_mouse_path_cancel();
+
+    msg_format("%s pointer mode.", sdl_pointer_attack_mode_name(mode));
+    sdl_pointer_attack_refresh_mode_display(true);
+}
+
+static bool sdl_pointer_attack_toggle_binding(int binding)
+{
+    int mode = sdl_pointer_attack_binding_mode(binding);
+
+    if (mode == SDL_POINTER_ATTACK_NONE)
+        return false;
+    if (!sdl_pointer_attack_input_context_active())
+        return false;
+
+    sdl_pointer_attack_set_mode(mode);
+    return true;
+}
+
+static int sdl_pointer_attack_ranged_range(int mode)
+{
+    object_type* ammo;
+    object_type* bow;
+    u32b f1 = 0;
+    u32b f2 = 0;
+    u32b f3 = 0;
+    u32b f4 = 0;
+
+    if (!sdl_pointer_attack_mode_is_ranged(mode))
+        return 0;
+
+    ammo = &inventory[(mode == SDL_POINTER_ATTACK_RANGED_2)
+        ? INVEN_QUIVER2 : INVEN_QUIVER1];
+    if (!ammo->k_idx)
+        return 0;
+
+    object_flags4(ammo, &f1, &f2, &f3, &f4);
+    if (player_can_treat_as_throwing_flags(ammo, f3))
+        return throwing_range(ammo);
+
+    bow = &inventory[INVEN_BOW];
+    if (!bow->tval || !p_ptr->ammo_tval)
+        return 0;
+
+    return archery_range(bow);
+}
+
+static bool sdl_pointer_attack_target_hoverable(int mode, int y, int x,
+    int* out_m_idx)
+{
+    int m_idx;
+    monster_type* m_ptr;
+    monster_race* r_ptr;
+
+    if (out_m_idx)
+        *out_m_idx = 0;
+    if (mode != SDL_POINTER_ATTACK_MELEE
+        && !sdl_pointer_attack_mode_is_ranged(mode))
+    {
+        return false;
+    }
+    if (!sdl_mouse_gameplay_context_active())
+        return false;
+    if (!in_bounds(y, x) || !grid_info_is_available(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !m_ptr->ml)
+        return false;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    if (r_ptr->flags1 & (RF1_PEACEFUL))
+        return false;
+
+    if (out_m_idx)
+        *out_m_idx = m_idx;
+    return true;
+}
+
+static bool sdl_pointer_attack_target_actionable(int mode, int y, int x,
+    int* out_m_idx)
+{
+    int m_idx = 0;
+
+    if (out_m_idx)
+        *out_m_idx = 0;
+    if (!sdl_pointer_attack_target_hoverable(mode, y, x, &m_idx))
+        return false;
+
+    if (mode == SDL_POINTER_ATTACK_MELEE) {
+        if (distance(p_ptr->py, p_ptr->px, y, x) != 1)
+            return false;
+    } else if (sdl_pointer_attack_mode_is_ranged(mode)) {
+        int range = sdl_pointer_attack_ranged_range(mode);
+
+        if (range <= 0)
+            return false;
+        if (distance(p_ptr->py, p_ptr->px, y, x) > range)
+            return false;
+        if (!target_able(m_idx))
+            return false;
+    } else {
+        return false;
+    }
+
+    if (out_m_idx)
+        *out_m_idx = m_idx;
+    return true;
+}
+
+static bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x)
+{
+    int m_idx = 0;
+    bool hoverable = sdl_pointer_attack_target_hoverable(g_pointer_attack.mode,
+        map_y, map_x, &m_idx);
+    bool actionable = hoverable
+        && sdl_pointer_attack_target_actionable(g_pointer_attack.mode,
+            map_y, map_x, NULL);
+    bool changed = g_pointer_attack.hover_visible != hoverable
+        || g_pointer_attack.hover_valid != hoverable
+        || g_pointer_attack.hover_actionable != actionable
+        || g_pointer_attack.hover_y != map_y
+        || g_pointer_attack.hover_x != map_x
+        || g_pointer_attack.hover_m_idx != m_idx;
+
+    g_pointer_attack.hover_visible = hoverable;
+    g_pointer_attack.hover_valid = hoverable;
+    g_pointer_attack.hover_actionable = actionable;
+    g_pointer_attack.hover_y = hoverable ? map_y : 0;
+    g_pointer_attack.hover_x = hoverable ? map_x : 0;
+    g_pointer_attack.hover_m_idx = hoverable ? m_idx : 0;
+
+    if (changed)
+        g_state.need_present = true;
+
+    return hoverable;
+}
+
+static bool sdl_pointer_attack_queue_target(int mode, int map_y, int map_x)
+{
+    int m_idx = 0;
+
+    if (!sdl_pointer_attack_target_hoverable(mode, map_y, map_x, &m_idx))
+        return false;
+
+    health_track(m_idx);
+    if (!sdl_pointer_attack_target_actionable(mode, map_y, map_x, &m_idx)) {
+        bell(sdl_pointer_attack_mode_is_ranged(mode)
+            ? "No clear shot." : "No adjacent melee target.");
+        return false;
+    }
+
+    if (sdl_pointer_attack_mode_is_ranged(mode))
+        target_set_monster(m_idx);
+
+    g_pointer_attack.pending = true;
+    g_pointer_attack.pending_mode = mode;
+    g_pointer_attack.pending_m_idx = m_idx;
+    g_pointer_attack.pending_wake = true;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_pointer_attack_handle_motion(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool hoverable;
+
+    if (!sdl_pointer_attack_mode_active())
+        return false;
+
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)) {
+        sdl_pointer_attack_clear_hover();
+        return false;
+    }
+
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    if (hoverable && !g_mouse_path.follow_active)
+        sdl_mouse_path_cancel();
+
+    return hoverable;
+}
+
+static bool sdl_pointer_attack_handle_left_click(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool hoverable;
+
+    if (!sdl_pointer_attack_mode_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    if (!hoverable) {
+        sdl_pointer_attack_clear_touch_selection();
+        return false;
+    }
+    if (!g_mouse_path.follow_active)
+        sdl_mouse_path_cancel();
+
+    (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, map_y, map_x);
+    return true;
+}
+
+static bool sdl_pointer_attack_touch_same_selected_target(int mode, int map_y,
+    int map_x)
+{
+    int m_idx = 0;
+
+    if (!g_pointer_attack.touch_selected)
+        return false;
+    if (g_pointer_attack.touch_selected_mode != mode)
+        return false;
+    if (g_pointer_attack.touch_selected_y != map_y
+        || g_pointer_attack.touch_selected_x != map_x)
+    {
+        return false;
+    }
+    if (!sdl_pointer_attack_target_hoverable(mode, map_y, map_x, &m_idx))
+        return false;
+
+    return g_pointer_attack.touch_selected_m_idx == m_idx;
+}
+
+static bool sdl_pointer_attack_handle_touch_down(float x, float y,
+    SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool hoverable;
+
+    if (!sdl_pointer_attack_mode_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    if (!hoverable) {
+        sdl_pointer_attack_clear_touch_selection();
+        return false;
+    }
+
+    sdl_pointer_attack_cancel_touch_press();
+    g_pointer_attack.touch_press_active = true;
+    g_pointer_attack.touch_repeat_target =
+        sdl_pointer_attack_touch_same_selected_target(g_pointer_attack.mode,
+            map_y, map_x);
+    g_pointer_attack.touch_finger_id = finger_id;
+    g_pointer_attack.touch_press_y = map_y;
+    g_pointer_attack.touch_press_x = map_x;
+    g_pointer_attack.touch_start_x = x;
+    g_pointer_attack.touch_start_y = y;
+    g_pointer_attack.touch_start_time = SDL_GetTicksNS();
+    if (!g_mouse_path.follow_active)
+        sdl_mouse_path_cancel();
+    return true;
+}
+
+static bool sdl_pointer_attack_handle_touch_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+    float dx;
+    float dy;
+
+    if (!g_pointer_attack.touch_press_active
+        || g_pointer_attack.touch_finger_id != finger_id)
+    {
+        return false;
+    }
+
+    dx = x - g_pointer_attack.touch_start_x;
+    dy = y - g_pointer_attack.touch_start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        || map_y != g_pointer_attack.touch_press_y
+        || map_x != g_pointer_attack.touch_press_x
+        || dx > sdl_touch_swipe_threshold_px()
+        || dy > sdl_touch_swipe_threshold_px())
+    {
+        float start_x = g_pointer_attack.touch_start_x;
+        float start_y = g_pointer_attack.touch_start_y;
+
+        sdl_pointer_attack_cancel_touch_press();
+        sdl_pointer_attack_clear_hover();
+        if (sdl_touch_swipe_handle_pointer_down(start_x, start_y, finger_id))
+            (void)sdl_touch_swipe_handle_pointer_motion(x, y, finger_id);
+        return true;
+    }
+
+    return true;
+}
+
+static bool sdl_pointer_attack_handle_touch_up(float x, float y,
+    SDL_FingerID finger_id)
+{
+    int map_y = 0;
+    int map_x = 0;
+    int m_idx = 0;
+    bool repeat_target;
+
+    if (!g_pointer_attack.touch_press_active
+        || g_pointer_attack.touch_finger_id != finger_id)
+    {
+        return false;
+    }
+
+    repeat_target = g_pointer_attack.touch_repeat_target;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        || map_y != g_pointer_attack.touch_press_y
+        || map_x != g_pointer_attack.touch_press_x)
+    {
+        sdl_pointer_attack_cancel_touch_press();
+        sdl_pointer_attack_clear_hover();
+        return true;
+    }
+
+    sdl_pointer_attack_cancel_touch_press();
+
+    if (repeat_target) {
+        (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, map_y,
+            map_x);
+        return true;
+    }
+
+    if (sdl_pointer_attack_target_hoverable(g_pointer_attack.mode, map_y, map_x,
+            &m_idx))
+    {
+        g_pointer_attack.touch_selected = true;
+        g_pointer_attack.touch_selected_mode = g_pointer_attack.mode;
+        g_pointer_attack.touch_selected_y = map_y;
+        g_pointer_attack.touch_selected_x = map_x;
+        g_pointer_attack.touch_selected_m_idx = m_idx;
+        (void)sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    } else {
+        sdl_pointer_attack_clear_touch_selection();
+        sdl_pointer_attack_clear_hover();
+        bell(sdl_pointer_attack_mode_is_ranged(g_pointer_attack.mode)
+            ? "No clear shot." : "No adjacent melee target.");
+    }
+
+    g_state.need_present = true;
+    return true;
+}
+
+static bool sdl_pointer_attack_take_render_target(int* mode, int* y, int* x,
+    int* m_idx, bool* actionable)
+{
+    if (g_pointer_attack.hover_valid) {
+        if (mode)
+            *mode = g_pointer_attack.mode;
+        if (y)
+            *y = g_pointer_attack.hover_y;
+        if (x)
+            *x = g_pointer_attack.hover_x;
+        if (m_idx)
+            *m_idx = g_pointer_attack.hover_m_idx;
+        if (actionable)
+            *actionable = g_pointer_attack.hover_actionable;
+        return true;
+    }
+
+    if (g_pointer_attack.touch_selected
+        && sdl_pointer_attack_target_hoverable(
+            g_pointer_attack.touch_selected_mode,
+            g_pointer_attack.touch_selected_y,
+            g_pointer_attack.touch_selected_x, m_idx))
+    {
+        if (mode)
+            *mode = g_pointer_attack.touch_selected_mode;
+        if (y)
+            *y = g_pointer_attack.touch_selected_y;
+        if (x)
+            *x = g_pointer_attack.touch_selected_x;
+        if (actionable)
+            *actionable = sdl_pointer_attack_target_actionable(
+                g_pointer_attack.touch_selected_mode,
+                g_pointer_attack.touch_selected_y,
+                g_pointer_attack.touch_selected_x, NULL);
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_pointer_attack_render_cell(int y, int x, SDL_Color color,
+    bool target)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int cell_cols = use_bigtile ? 2 : 1;
+    int term_row;
+    int term_col;
+    SDL_FRect rect;
+
+    if (!panel_contains(y, x))
+        return;
+
+    term_row = ROW_MAP + (y - p_ptr->wy);
+    term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
+    rect.x = (float)(view->rect.x + view->margin_x + term_col * view->cell_w);
+    rect.y = (float)(view->rect.y + view->margin_y + term_row * view->cell_h);
+    rect.w = (float)(view->cell_w * cell_cols);
+    rect.h = (float)view->cell_h;
+
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        target ? 96 : 46);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        target ? 225 : 150);
+    SDL_RenderRect(g_state.renderer, &rect);
+}
+
+static void sdl_pointer_attack_render(void)
+{
+    int mode = SDL_POINTER_ATTACK_NONE;
+    int y = 0;
+    int x = 0;
+    int m_idx = 0;
+    bool actionable = false;
+    SDL_Color path_color = g_state.palette[TERM_UMBER];
+    SDL_Color target_color = g_state.palette[TERM_L_RED];
+    SDL_Color blocked_color = g_state.palette[TERM_SLATE];
+
+    if (!sdl_mouse_gameplay_context_active())
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+
+    if (!sdl_pointer_attack_take_render_target(&mode, &y, &x, &m_idx,
+        &actionable))
+    {
+        return;
+    }
+
+    (void)m_idx;
+    if (!actionable) {
+        sdl_pointer_attack_render_cell(y, x, blocked_color, true);
+    } else if (sdl_pointer_attack_mode_is_ranged(mode)) {
+        int range = sdl_pointer_attack_ranged_range(mode);
+        int ty = y;
+        int tx = x;
+        u16b path[256];
+        int path_n = project_path(path, range, p_ptr->py, p_ptr->px,
+            &ty, &tx, PROJECT_THRU | PROJECT_INVISIPASS);
+
+        for (int i = 0; i < path_n; i++) {
+            int py = GRID_Y(path[i]);
+            int px = GRID_X(path[i]);
+            bool target = (py == y && px == x);
+
+            sdl_pointer_attack_render_cell(py, px,
+                target ? target_color : path_color, target);
+            if (target)
+                break;
+        }
+    } else {
+        sdl_pointer_attack_render_cell(y, x, target_color, true);
+    }
+}
+
+bool sdl_pointer_attack_take_command(int* command, int* dir)
+{
+    int mode;
+    int m_idx;
+    monster_type* m_ptr;
+
+    if (!command || !dir)
+        return false;
+    if (!g_pointer_attack.pending)
+        return false;
+
+    if (g_pointer_attack.pending_wake) {
+        (void)sdl_mouse_consume_wake_key();
+        g_pointer_attack.pending_wake = false;
+    }
+
+    mode = g_pointer_attack.pending_mode;
+    m_idx = g_pointer_attack.pending_m_idx;
+    g_pointer_attack.pending = false;
+    g_pointer_attack.pending_mode = SDL_POINTER_ATTACK_NONE;
+    g_pointer_attack.pending_m_idx = 0;
+
+    if (!sdl_mouse_gameplay_context_active())
+        return false;
+    if (m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !m_ptr->ml) {
+        bell("Target is gone.");
+        return false;
+    }
+
+    if (!sdl_pointer_attack_target_actionable(mode, m_ptr->fy, m_ptr->fx,
+        NULL))
+    {
+        bell(sdl_pointer_attack_mode_is_ranged(mode)
+            ? "No clear shot." : "No adjacent melee target.");
+        return false;
+    }
+
+    health_track(m_idx);
+    if (sdl_pointer_attack_mode_is_ranged(mode)) {
+        target_set_monster(m_idx);
+        *command = (mode == SDL_POINTER_ATTACK_RANGED_2) ? 'F' : 'f';
+        *dir = 5;
+    } else {
+        *command = ';';
+        *dir = motion_dir(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
+        if (*dir == 5)
+            return false;
+    }
+
     return true;
 }
 
@@ -5606,13 +6311,88 @@ static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
     if (!get_sdl_hide_left_panel())
         return (row > 0 && col < COL_MAP);
 
+    if (g_suppress_hidden_left_panel_overlay)
+        return false;
+
     if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE)
         return (row == ROW_NAME && col < g_hidden_left_panel_overlay_widths[0]);
 
-    if (row >= g_hidden_left_panel_overlay_rows || row >= 16)
+    row -= ROW_NAME;
+    if (row < 0 || row >= g_hidden_left_panel_overlay_rows || row >= 16)
         return false;
 
     return (col < g_hidden_left_panel_overlay_widths[row]);
+}
+
+static int sdl_hidden_left_panel_attack_mode_at_cell(int col, int row)
+{
+    if (col < 0 || row < 0)
+        return SDL_POINTER_ATTACK_NONE;
+    if (!get_sdl_hide_left_panel())
+        return SDL_POINTER_ATTACK_NONE;
+
+    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE) {
+        if (row != ROW_NAME)
+            return SDL_POINTER_ATTACK_NONE;
+
+        for (int i = 0; i < 16; i++) {
+            if (g_hidden_left_panel_overlay_attack_modes[i]
+                    == SDL_POINTER_ATTACK_NONE)
+                continue;
+            if (col >= g_hidden_left_panel_overlay_attack_start_cols[i]
+                && col < g_hidden_left_panel_overlay_attack_end_cols[i])
+            {
+                return g_hidden_left_panel_overlay_attack_modes[i];
+            }
+        }
+
+        return SDL_POINTER_ATTACK_NONE;
+    }
+
+    row -= ROW_NAME;
+    if (row < 0 || row >= 16)
+        return SDL_POINTER_ATTACK_NONE;
+    if (g_hidden_left_panel_overlay_attack_modes[row]
+            == SDL_POINTER_ATTACK_NONE)
+    {
+        return SDL_POINTER_ATTACK_NONE;
+    }
+    if (col < g_hidden_left_panel_overlay_attack_start_cols[row]
+        || col >= g_hidden_left_panel_overlay_attack_end_cols[row])
+    {
+        return SDL_POINTER_ATTACK_NONE;
+    }
+
+    return g_hidden_left_panel_overlay_attack_modes[row];
+}
+
+static int sdl_left_panel_quiver_attack_mode_at_col(int col)
+{
+    bool has_any_span = false;
+
+    if (col < 0)
+        return SDL_POINTER_ATTACK_NONE;
+
+    for (int i = 0; i < 2; i++) {
+        if (g_left_panel_quiver_attack_modes[i] == SDL_POINTER_ATTACK_NONE)
+            continue;
+
+        has_any_span = true;
+        if (col >= g_left_panel_quiver_attack_start_cols[i]
+            && col < g_left_panel_quiver_attack_end_cols[i])
+        {
+            return g_left_panel_quiver_attack_modes[i];
+        }
+    }
+
+    if (!has_any_span) {
+        if (inventory[INVEN_QUIVER1].k_idx && !inventory[INVEN_QUIVER2].k_idx)
+            return SDL_POINTER_ATTACK_RANGED_1;
+        if (!inventory[INVEN_QUIVER1].k_idx && inventory[INVEN_QUIVER2].k_idx)
+            return SDL_POINTER_ATTACK_RANGED_2;
+    }
+
+    return SDL_POINTER_ATTACK_NONE;
 }
 
 static void sdl_enqueue_bypassed_command(int command)
@@ -5651,6 +6431,7 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
 {
     int col = 0;
     int row = 0;
+    int attack_mode = SDL_POINTER_ATTACK_NONE;
 
     if (!sdl_pane_command_shortcuts_active())
         return false;
@@ -5660,6 +6441,28 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         return false;
     if (!sdl_main_screen_cell_hits_character_panel(col, row))
         return false;
+
+    if (get_sdl_hide_left_panel()) {
+        attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+    } else {
+        bool melee_uses_two_rows = inventory[INVEN_ARM].k_idx
+            && inventory[INVEN_ARM].tval != TV_SHIELD;
+
+        if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1)) {
+            attack_mode = SDL_POINTER_ATTACK_MELEE;
+        } else if (row == ROW_ARC) {
+            attack_mode = SDL_POINTER_ATTACK_RANGED_1;
+        } else if (row == ROW_QUIVER) {
+            attack_mode = sdl_left_panel_quiver_attack_mode_at_col(col);
+        }
+    }
+
+    if (attack_mode != SDL_POINTER_ATTACK_NONE
+        && sdl_pointer_attack_input_context_active())
+    {
+        sdl_pointer_attack_set_mode(attack_mode);
+        return true;
+    }
 
     sdl_enqueue_bypassed_command('h');
     return true;
@@ -5727,6 +6530,9 @@ static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool lon
         sdl_gamepad_apply_modifier(binding, false);
         return;
     }
+
+    if (sdl_pointer_attack_toggle_binding(binding))
+        return;
 
     if (sdl_touch_pane_confirm_binding(binding)) {
         if (long_press && character_dungeon) {
@@ -5832,13 +6638,13 @@ static void sdl_touch_swipe_cancel(void)
 static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
 {
     int slot = -1;
-    bool mobile_overlay = sdl_touch_pane_uses_mobile_overlay();
+    bool mobile_toggle = sdl_touch_pane_uses_mobile_toggle();
 
-    if (!config.touch_swipe_enabled && !mobile_overlay)
+    if (!config.touch_swipe_enabled && !mobile_toggle)
         return false;
     if (sdl_touch_pane_is_config_enabled()
         && sdl_touch_pane_point_to_slot(x, y, &slot)
-        && !(mobile_overlay && g_touch_pane_mobile_open))
+        && !(mobile_toggle && g_touch_pane_mobile_open))
     {
         return false;
     }
@@ -5877,7 +6683,7 @@ static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID
     if (!dir)
         return true;
 
-    if (sdl_touch_pane_uses_mobile_overlay()
+    if (sdl_touch_pane_uses_mobile_toggle()
         && (dir == 4 || dir == 6))
     {
         sdl_touch_pane_set_mobile_open(dir == 4);
@@ -5979,7 +6785,7 @@ static bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL
 
     panel = sdl_touch_pane_active_panel();
     binding = sdl_touch_pane_effective_binding_for_panel(panel, slot);
-    long_press_enabled = sdl_touch_pane_uses_mobile_overlay()
+    long_press_enabled = sdl_touch_pane_uses_mobile_toggle()
         || sdl_touch_pane_slot_uses_long_press(slot, binding);
 
     if (!mouse || long_press_enabled) {
@@ -6093,8 +6899,8 @@ static void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse,
 
 static bool sdl_touch_zone_controls_active(void)
 {
-    return sdl_touch_pane_uses_mobile_overlay()
-        && !sdl_touch_pane_mobile_visible()
+    return sdl_touch_pane_uses_mobile_toggle()
+        && !sdl_touch_pane_mobile_layout_open()
         && sdl_main_screen_click_shortcuts_active();
 }
 
@@ -8317,6 +9123,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         {
             return;
         }
+        if (sdl_pointer_attack_handle_motion((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         sdl_mouse_path_handle_motion((float)ev->motion.x, (float)ev->motion.y);
     } else if (ev->type == SDL_EVENT_MOUSE_WHEEL) {
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
@@ -8366,6 +9177,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             }
             if (sdl_main_screen_handle_supporting_pane_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_pointer_attack_handle_left_click((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -8440,7 +9256,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
-        mobile_pane_swipe = sdl_touch_pane_uses_mobile_overlay()
+        mobile_pane_swipe = sdl_touch_pane_uses_mobile_toggle()
             && g_touch_pane_mobile_open;
         if (sdl_welcome_touch_handle_pointer_down(x, y,
             ev->tfinger.fingerID))
@@ -8469,6 +9285,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (sdl_main_screen_handle_supporting_pane_pointer(x, y))
             return;
         if (sdl_pointer_dismiss_any_key_prompt())
+            return;
+        if (sdl_pointer_attack_handle_touch_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_map_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
@@ -8502,6 +9320,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
         if (sdl_touch_zone_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
+        if (sdl_pointer_attack_handle_touch_motion(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_map_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_menu_scroll_handle_pointer_motion(x, y, ev->tfinger.fingerID))
@@ -8531,6 +9351,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (sdl_touch_zone_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
         sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID);
+        if (sdl_pointer_attack_handle_touch_up(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_map_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_menu_touch_handle_pointer_up(x, y, ev->tfinger.fingerID,
@@ -8568,6 +9390,12 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             && g_map_touch_press.finger_id == ev->tfinger.fingerID)
         {
             sdl_mouse_path_cancel();
+        }
+        if (g_pointer_attack.touch_press_active
+            && g_pointer_attack.touch_finger_id == ev->tfinger.fingerID)
+        {
+            sdl_pointer_attack_cancel_touch_press();
+            sdl_pointer_attack_clear_hover();
         }
         if (g_touch_zone_press.active
             && g_touch_zone_press.finger_id == ev->tfinger.fingerID)
@@ -8749,6 +9577,7 @@ static void sdl_touch_pane_render(void)
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
     SDL_Color muted = g_state.palette[TERM_SLATE];
+    SDL_Color selected = g_state.palette[TERM_YELLOW];
     SDL_Rect pane;
     int panel = sdl_touch_pane_active_panel();
 
@@ -8783,7 +9612,8 @@ static void sdl_touch_pane_render(void)
         bool flashed = (i == g_touch_pane_flash_slot);
         bool pressed = (i == g_touch_pane_pressed_slot);
         bool toggled = ((binding == GAMEPAD_BIND_SHIFT && g_touch_pane_second_panel)
-            || (binding == GAMEPAD_BIND_CTRL && sdl_gamepad_ctrl_active()));
+            || (binding == GAMEPAD_BIND_CTRL && sdl_gamepad_ctrl_active())
+            || sdl_pointer_attack_binding_toggled(binding));
 
         shadow = slot_rects[i];
         shadow.x += 2.0f;
@@ -8797,9 +9627,9 @@ static void sdl_touch_pane_render(void)
             text_color = muted;
             border_color = muted;
         } else if (toggled) {
-            SDL_SetRenderDrawColor(g_state.renderer, 48, 58, 44, 255);
-            text_color = accent;
-            border_color = accent;
+            SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 255);
+            text_color = selected;
+            border_color = selected;
         } else if (pressed) {
             SDL_SetRenderDrawColor(g_state.renderer, 54, 66, 86, 255);
             text_color = accent;
@@ -8892,6 +9722,7 @@ static void sdl_present_if_needed(sdl_view* d)
         });
     }
 
+    sdl_pointer_attack_render();
     sdl_mouse_path_render();
 
     if (visible_views > 1) {
@@ -11786,7 +12617,7 @@ void sdl_touch_pane_reset_bindings_to_default(void)
     }
 
     g_touch_pane_second_panel = false;
-    g_touch_pane_mobile_open = sdl_touch_pane_uses_mobile_overlay();
+    g_touch_pane_mobile_open = sdl_touch_pane_uses_mobile_toggle();
     sdl_touch_pane_cancel_press();
     sdl_touch_swipe_cancel();
     sdl_touch_zone_cancel_press();
@@ -11807,12 +12638,6 @@ void sdl_touch_pane_begin_yes_no_prompt(cptr prompt)
         && isspace((unsigned char)g_touch_pane_yes_no_prompt_text[len - 1]))
     {
         g_touch_pane_yes_no_prompt_text[--len] = '\0';
-    }
-
-    if (sdl_touch_pane_is_config_enabled()
-        && sdl_touch_pane_uses_mobile_overlay())
-    {
-        sdl_touch_pane_set_mobile_open(true);
     }
 
     sdl_touch_pane_cancel_press();

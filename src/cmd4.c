@@ -14138,6 +14138,8 @@ void do_cmd_messages(void)
 
     int i, j, n, q;
     int wid, hgt;
+    cptr prompt =
+        "Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc";
 
     char shower[80];
     char finder[80];
@@ -14257,8 +14259,18 @@ void do_cmd_messages(void)
             0, 0);
 
         /* Display prompt */
-        prt("Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc",
-            hgt - 1, 0);
+        prt(prompt, hgt - 1, 0);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
+        ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");
+        ui_menu_click_add_text_token('9', 0, hgt - 1, prompt, "PgUp");
+        ui_menu_click_add_text_token('3', 0, hgt - 1, prompt, "PgDn");
+        ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "/");
+        ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
+        ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "=");
+        ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "highlight");
+        ui_menu_click_add_text_token(ESCAPE, 0, hgt - 1, prompt, "Esc");
 
         /* Get a command without showing the terminal cursor */
         (void)Term_set_cursor(false);
@@ -14268,6 +14280,23 @@ void do_cmd_messages(void)
             hide_cursor = true;
             ch = inkey();
             hide_cursor = saved_hide_cursor;
+        }
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                ch = (char)clicked_choice;
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
         }
 
         /* Exit on Escape */
@@ -14301,6 +14330,7 @@ void do_cmd_messages(void)
         /* Hack -- handle show */
         if (ch == '=')
         {
+            ui_menu_click_clear();
             ui_scroll_area_clear();
 
             /* Prompt */
@@ -14319,6 +14349,7 @@ void do_cmd_messages(void)
         {
             s16b z;
 
+            ui_menu_click_clear();
             ui_scroll_area_clear();
 
             /* Prompt */
@@ -14429,6 +14460,7 @@ void do_cmd_messages(void)
     }
 
     ui_scroll_area_clear();
+    ui_menu_click_clear();
 
     /* Load screen */
     screen_pop_supporting_panes_hidden();

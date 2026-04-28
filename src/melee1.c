@@ -3791,6 +3791,8 @@ void do_cmd_combat_history(void)
     int wid, hgt;
     char finder[80];
     char buf[120];
+    cptr prompt =
+        "Up/Down line  PgUp/PgDn page  Wheel/drag  / find  Left/Right pan  Esc";
     
     /* Wipe finder */
     SDL_strlcpy(finder, "", sizeof(finder));
@@ -4108,8 +4110,18 @@ void do_cmd_combat_history(void)
                    range_first, range_last, n, q), 0, 0);
         
         /* Display prompt */
-        prt("Up/Down line  PgUp/PgDn page  Wheel/drag  / find  Left/Right pan  Esc",
-            hgt - 1, 0);
+        prt(prompt, hgt - 1, 0);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
+        ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");
+        ui_menu_click_add_text_token('9', 0, hgt - 1, prompt, "PgUp");
+        ui_menu_click_add_text_token('3', 0, hgt - 1, prompt, "PgDn");
+        ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "/");
+        ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
+        ui_menu_click_add_text_token('4', 0, hgt - 1, prompt, "Left");
+        ui_menu_click_add_text_token('6', 0, hgt - 1, prompt, "Right");
+        ui_menu_click_add_text_token(ESCAPE, 0, hgt - 1, prompt, "Esc");
         
         /* Get a command without showing the terminal cursor */
         (void)Term_set_cursor(false);
@@ -4119,6 +4131,23 @@ void do_cmd_combat_history(void)
             hide_cursor = true;
             ch = inkey();
             hide_cursor = saved_hide_cursor;
+        }
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                ch = (char)clicked_choice;
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
         }
         
         /* Exit on Escape */
@@ -4142,6 +4171,7 @@ void do_cmd_combat_history(void)
         if (ch == '/') {
             s16b z;
 
+            ui_menu_click_clear();
             ui_scroll_area_clear();
 
             prt("Find: ", hgt - 1, 0);
@@ -4223,6 +4253,7 @@ void do_cmd_combat_history(void)
     }
     
     ui_scroll_area_clear();
+    ui_menu_click_clear();
 
     /* Restore screen */
     screen_pop_supporting_panes_hidden();

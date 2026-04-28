@@ -76,10 +76,17 @@ typedef struct hidden_overlay_line {
     bool has_icon;
     byte icon_attr;
     char icon_char;
+    byte pointer_attack_mode;
 } hidden_overlay_line;
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_modes[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_start_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_end_cols[16] = { 0 };
+byte g_left_panel_quiver_attack_modes[2] = { 0 };
+byte g_left_panel_quiver_attack_start_cols[2] = { 0 };
+byte g_left_panel_quiver_attack_end_cols[2] = { 0 };
 bool g_suppress_hidden_left_panel_overlay = false;
 static byte g_hidden_left_panel_topline_rendered_width = 0;
 
@@ -117,6 +124,49 @@ static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
     return (o_ptr->tval == TV_MAIL)
         && ((o_ptr->sval == SV_MAIL_CORSLET)
             || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static byte pointer_attack_panel_attr(int mode, byte base_attr)
+{
+    return (sdl_pointer_attack_current_mode() == mode) ? TERM_YELLOW : base_attr;
+}
+
+static byte pointer_attack_ranged_panel_attr(byte base_attr)
+{
+    int mode = sdl_pointer_attack_current_mode();
+
+    return (mode == SDL_POINTER_ATTACK_RANGED_1
+        || mode == SDL_POINTER_ATTACK_RANGED_2) ? TERM_YELLOW : base_attr;
+}
+
+static void prt_pointer_attack_value_row(cptr label, byte label_attr,
+    byte value_attr, cptr value, int row)
+{
+    int value_len;
+    int value_col;
+
+    if (!label || !value || !value[0])
+        return;
+
+    value_len = strlen(value);
+    value_col = COL_MEL + LEFT_PANEL_CONTENT_WID - value_len;
+    if (value_col < COL_MEL)
+        value_col = COL_MEL;
+
+    if (((int)strlen(label) + 1) <= value_col - COL_MEL)
+    {
+        c_put_str(label_attr, label, row, COL_MEL);
+    }
+    else if (value_col > COL_MEL + 1)
+    {
+        char short_label[2];
+
+        short_label[0] = label[0];
+        short_label[1] = '\0';
+        c_put_str(label_attr, short_label, row, COL_MEL);
+    }
+
+    c_put_str(value_attr, value, row, value_col);
 }
 
 static u32b ability_log_turn_value(void)
@@ -683,21 +733,24 @@ static void prt_mel(void)
     /* Melee attacks */
     int meleeColour
         = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
+    meleeColour = pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+        meleeColour);
     strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL],
         p_ptr->mdd, p_ptr->mds);
-    c_put_str(meleeColour, buf, ROW_MEL + mod, COL_MEL + 12 - strlen(buf));
-
-    if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
-    {
-        c_put_str(TERM_WHITE, "2x", ROW_MEL + mod, COL_MEL);
-    }
+    prt_pointer_attack_value_row(
+        p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2x" : "Mel",
+        pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+        meleeColour, buf, ROW_MEL + mod);
 
     if (mod == -1)
     {
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
             p_ptr->mds2);
-        c_put_str(TERM_L_WHITE, buf, ROW_MEL, COL_MEL + 12 - strlen(buf));
+        prt_pointer_attack_value_row("Off",
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            buf, ROW_MEL);
     }
 }
 
@@ -714,24 +767,32 @@ static void prt_arc(void)
     /* Range attacks */
     if ((&inventory[INVEN_BOW])->k_idx)
     {
+        byte arc_attr = pointer_attack_ranged_panel_attr(TERM_UMBER);
+
         if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
             && p_ptr->killed_enemy_with_arrow)
         {
+            c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), "Arc",
+                ROW_ARC, COL_ARC);
             strnfmt(buf, sizeof(buf), ")");
-            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
+            c_put_str(arc_attr, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
             strnfmt(buf, sizeof(buf), "%dd%d", 2 * p_ptr->add, p_ptr->ads);
             c_put_str(TERM_RED, buf, ROW_ARC, COL_ARC + 11 - strlen(buf));
             strnfmt(buf, sizeof(buf), "(%+d,", p_ptr->skill_use[S_ARC]);
             if (p_ptr->ads > 9)
-                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 7 - strlen(buf));
+                c_put_str(arc_attr, buf, ROW_ARC,
+                    COL_ARC + 7 - strlen(buf));
             else
-                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 8 - strlen(buf));
+                c_put_str(arc_attr, buf, ROW_ARC,
+                    COL_ARC + 8 - strlen(buf));
         }
         else
         {
             strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC],
                 p_ptr->add, p_ptr->ads);
-            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
+            prt_pointer_attack_value_row("Arc",
+                pointer_attack_ranged_panel_attr(TERM_L_WHITE), arc_attr, buf,
+                ROW_ARC);
         }
     }
 
@@ -756,6 +817,17 @@ static void prt_quiver(void)
     bool same_type = false;
     int total_width;
     int start_col;
+    byte q1_text_attr = pointer_attack_panel_attr(
+        SDL_POINTER_ATTACK_RANGED_1, TERM_L_WHITE);
+    byte q2_text_attr = pointer_attack_panel_attr(
+        SDL_POINTER_ATTACK_RANGED_2, TERM_L_WHITE);
+
+    for (int i = 0; i < 2; i++)
+    {
+        g_left_panel_quiver_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_left_panel_quiver_attack_start_cols[i] = 0;
+        g_left_panel_quiver_attack_end_cols[i] = 0;
+    }
 
     /* Clear the entire line (12 characters) */
     Term_erase(COL_QUIVER, ROW_QUIVER, 12);
@@ -814,10 +886,16 @@ static void prt_quiver(void)
         /* Same type: counts with icon in middle */
         byte attr = object_attr(q1_ptr);
         char icon = object_char(q1_ptr);
+        int q1_start;
+        int q2_start;
         
         /* Q1 count */
-        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+        q1_start = col;
+        Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
         col += strlen(buf1);
+        g_left_panel_quiver_attack_modes[0] = SDL_POINTER_ATTACK_RANGED_1;
+        g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
+        g_left_panel_quiver_attack_end_cols[0] = (byte)col;
         
         /* Icon in middle */
         Term_putch(col, ROW_QUIVER, attr, icon);
@@ -834,7 +912,12 @@ static void prt_quiver(void)
         }
         
         /* Q2 count */
-        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+        q2_start = col;
+        Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
+        col += strlen(buf2);
+        g_left_panel_quiver_attack_modes[1] = SDL_POINTER_ATTACK_RANGED_2;
+        g_left_panel_quiver_attack_start_cols[1] = (byte)q2_start;
+        g_left_panel_quiver_attack_end_cols[1] = (byte)col;
     }
     else
     {
@@ -844,6 +927,7 @@ static void prt_quiver(void)
             /* Q1: "[icon][icon]cur/max" */
             byte attr = object_attr(q1_ptr);
             char icon = object_char(q1_ptr);
+            int q1_start = col;
             Term_putch(col, ROW_QUIVER, attr, icon);
             col++;
             if (use_bigtile)
@@ -857,8 +941,11 @@ static void prt_quiver(void)
                 col++;
             }
             
-            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+            Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
             col += strlen(buf1);
+            g_left_panel_quiver_attack_modes[0] = SDL_POINTER_ATTACK_RANGED_1;
+            g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
+            g_left_panel_quiver_attack_end_cols[0] = (byte)col;
         }
         
         if (q2_ptr->k_idx)
@@ -866,6 +953,7 @@ static void prt_quiver(void)
             /* Q2: "[icon][icon]cur/max" */
             byte attr = object_attr(q2_ptr);
             char icon = object_char(q2_ptr);
+            int q2_start = col;
             Term_putch(col, ROW_QUIVER, attr, icon);
             col++;
             if (use_bigtile)
@@ -879,7 +967,11 @@ static void prt_quiver(void)
                 col++;
             }
             
-            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+            Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
+            col += strlen(buf2);
+            g_left_panel_quiver_attack_modes[1] = SDL_POINTER_ATTACK_RANGED_2;
+            g_left_panel_quiver_attack_start_cols[1] = (byte)q2_start;
+            g_left_panel_quiver_attack_end_cols[1] = (byte)col;
         }
     }
 }
@@ -1186,8 +1278,8 @@ static void prt_sp(void)
     c_put_str(color, tmp, ROW_SP, COL_SP + 12 - len);
 }
 
-static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
-                                       int max_lines, byte attr, cptr text)
+static void hidden_left_panel_add_line_mode(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, int pointer_attack_mode)
 {
     if (!lines || !count || !text || !text[0])
         return;
@@ -1201,12 +1293,20 @@ static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
     lines[*count].has_icon = false;
     lines[*count].icon_attr = TERM_WHITE;
     lines[*count].icon_char = ' ';
+    lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
     (*count)++;
 }
 
-static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
+                                       int max_lines, byte attr, cptr text)
+{
+    hidden_left_panel_add_line_mode(lines, count, max_lines, attr, text,
+        SDL_POINTER_ATTACK_NONE);
+}
+
+static void hidden_left_panel_add_icon_line_mode(hidden_overlay_line* lines,
     int* count, int max_lines, byte attr, cptr text, cptr short_text,
-    byte icon_attr, char icon_char)
+    byte icon_attr, char icon_char, int pointer_attack_mode)
 {
     if (!lines || !count || !text || !text[0])
         return;
@@ -1224,21 +1324,33 @@ static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
     lines[*count].has_icon = true;
     lines[*count].icon_attr = icon_attr;
     lines[*count].icon_char = icon_char;
+    lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
     (*count)++;
 }
 
+static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, cptr short_text,
+    byte icon_attr, char icon_char)
+{
+    hidden_left_panel_add_icon_line_mode(lines, count, max_lines, attr, text,
+        short_text, icon_attr, icon_char, SDL_POINTER_ATTACK_NONE);
+}
+
 static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
-    int* count, int max_lines, const object_type* q_ptr)
+    int* count, int max_lines, const object_type* q_ptr, int pointer_attack_mode)
 {
     char buf[32];
+    byte attr;
 
     if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
         return;
 
     strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
+    attr = pointer_attack_panel_attr(pointer_attack_mode, TERM_L_WHITE);
 
-    hidden_left_panel_add_icon_line(lines, count, max_lines, TERM_L_WHITE,
-        buf, buf, object_attr(q_ptr), object_char(q_ptr));
+    hidden_left_panel_add_icon_line_mode(lines, count, max_lines, attr,
+        buf, buf, object_attr(q_ptr), object_char(q_ptr),
+        pointer_attack_mode);
 }
 
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
@@ -1399,10 +1511,37 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         }
     }
 
+    strnfmt(buf, sizeof(buf), "Mel %+d", p_ptr->skill_use[S_MEL]);
+    strnfmt(short_buf, sizeof(short_buf), "M%+d", p_ptr->skill_use[S_MEL]);
+    {
+        int old_count = count;
+        hidden_left_panel_add_line_mode(lines, &count, max_lines,
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            buf, SDL_POINTER_ATTACK_MELEE);
+        if (count > old_count)
+            SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                sizeof(lines[count - 1].short_text));
+    }
+
+    if ((&inventory[INVEN_BOW])->k_idx)
+    {
+        strnfmt(buf, sizeof(buf), "Arc %+d", p_ptr->skill_use[S_ARC]);
+        strnfmt(short_buf, sizeof(short_buf), "A%+d", p_ptr->skill_use[S_ARC]);
+        {
+            int old_count = count;
+            hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                pointer_attack_ranged_panel_attr(TERM_UMBER),
+                buf, SDL_POINTER_ATTACK_RANGED_1);
+            if (count > old_count)
+                SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                    sizeof(lines[count - 1].short_text));
+        }
+    }
+
     hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER1]);
+        &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
     hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER2]);
+        &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
 
     if (!ui_compact_status_line_handles_wounds())
     {
@@ -1497,22 +1636,38 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
     for (int i = 0; i < max_rows && i < 16; i++)
     {
         byte new_width = 0;
+        byte new_mode = SDL_POINTER_ATTACK_NONE;
+        byte new_start = 0;
+        byte new_end = 0;
 
         if (i < line_count && lines[i].text[0])
         {
             int width = hidden_left_panel_line_width(&lines[i], false);
             width = hidden_left_panel_mask_width(width);
             new_width = (byte)width;
+            if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE)
+            {
+                new_mode = lines[i].pointer_attack_mode;
+                new_end = new_width;
+            }
         }
 
         if (g_hidden_left_panel_overlay_widths[i] != new_width)
             changed = true;
 
         g_hidden_left_panel_overlay_widths[i] = new_width;
+        g_hidden_left_panel_overlay_attack_modes[i] = new_mode;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = new_start;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = new_end;
     }
 
     for (int i = max_rows; i < 16; i++)
+    {
         g_hidden_left_panel_overlay_widths[i] = 0;
+        g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+    }
 
     if (g_hidden_left_panel_overlay_rows != line_count)
         changed = true;
@@ -1529,6 +1684,9 @@ static bool hidden_left_panel_sync_topline_mask(
     int render_width = hidden_left_panel_topline_render_width(lines, line_count);
     int mask_width = hidden_left_panel_mask_width(render_width);
     byte new_rows = (render_width > 0) ? 1 : 0;
+    int col = 0;
+    bool first_entry = true;
+    int attack_index = 0;
 
     if (mask_width > 255)
         mask_width = 255;
@@ -1540,6 +1698,51 @@ static bool hidden_left_panel_sync_topline_mask(
 
     g_hidden_left_panel_overlay_rows = new_rows;
     g_hidden_left_panel_overlay_widths[0] = (byte)mask_width;
+
+    for (int i = 0; i < 16; i++)
+    {
+        g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+    }
+
+    if (Term && lines && line_count > 0)
+    {
+        for (int i = 0; i < line_count && attack_index < 16; i++)
+        {
+            int sep = first_entry ? 0 : 1;
+            bool use_short_text = false;
+            int width = hidden_left_panel_line_width(&lines[i], false);
+
+            if (col + sep + width > Term->wid)
+            {
+                width = hidden_left_panel_line_width(&lines[i], true);
+                if (col + sep + width > Term->wid)
+                    break;
+                use_short_text = true;
+            }
+
+            (void)use_short_text;
+            col += sep;
+            if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE)
+            {
+                int end_col = col + width;
+
+                if (end_col > 255)
+                    end_col = 255;
+                g_hidden_left_panel_overlay_attack_modes[attack_index]
+                    = lines[i].pointer_attack_mode;
+                g_hidden_left_panel_overlay_attack_start_cols[attack_index]
+                    = (byte)MIN(col, 255);
+                g_hidden_left_panel_overlay_attack_end_cols[attack_index]
+                    = (byte)end_col;
+                attack_index++;
+            }
+
+            col += width;
+            first_entry = false;
+        }
+    }
 
     for (int i = 1; i < 16; i++)
     {
@@ -6354,6 +6557,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_MEL);
         if (!ui_hide_left_panel())
             prt_mel();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_ARC))
@@ -6361,6 +6566,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_ARC);
         if (!ui_hide_left_panel())
             prt_arc();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_QUIVER))

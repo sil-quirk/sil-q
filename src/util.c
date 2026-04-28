@@ -4588,6 +4588,13 @@ void request_command(void)
             int mouse_command = 0;
             int mouse_dir = 0;
 
+            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+
             if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
             {
                 p_ptr->command_cmd = (char)mouse_command;
@@ -4629,6 +4636,13 @@ void request_command(void)
         {
             int mouse_command = 0;
             int mouse_dir = 0;
+
+            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
 
             if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
             {
