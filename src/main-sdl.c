@@ -724,6 +724,8 @@ static void sdl_unified_look_clear_map_hover(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y);
+static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
+    int start_col, int width, int hit_col, cptr needle);
 static bool sdl_welcome_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
@@ -5847,6 +5849,13 @@ static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
     if (row != ROW_STATUS)
         return false;
 
+    if (sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+        "Singing"))
+    {
+        sdl_enqueue_bypassed_command('s');
+        return true;
+    }
+
     sdl_enqueue_bypassed_command('m');
     return true;
 }
@@ -5944,6 +5953,55 @@ static bool sdl_screen_segment_contains_ci(const term* t, int row, int start_col
         }
 
         if (match)
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
+    int start_col, int width, int hit_col, cptr needle)
+{
+    int needle_len;
+    int end_col;
+
+    if (!t || !needle)
+        return false;
+    if (row < 0 || row >= t->hgt || width <= 0)
+        return false;
+    if (start_col < 0)
+    {
+        width += start_col;
+        start_col = 0;
+    }
+    if (start_col >= t->wid)
+        return false;
+
+    end_col = start_col + width;
+    if (end_col > t->wid)
+        end_col = t->wid;
+
+    needle_len = (int)strlen(needle);
+    if (needle_len <= 0 || needle_len > end_col - start_col)
+        return false;
+
+    for (int col = start_col; col <= end_col - needle_len; col++)
+    {
+        bool match = true;
+
+        for (int i = 0; i < needle_len; i++)
+        {
+            unsigned char actual = sdl_screen_char_at(t, row, col + i);
+            unsigned char expected = (unsigned char)needle[i];
+
+            if (tolower(actual) != tolower(expected))
+            {
+                match = false;
+                break;
+            }
+        }
+
+        if (match && hit_col >= col && hit_col < col + needle_len)
             return true;
     }
 
@@ -6624,11 +6682,26 @@ static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
         return SDL_PANEL_CLICK_CHARACTER;
     }
 
+    if (row == ROW_NAME
+        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
+    {
+        return SDL_PANEL_CLICK_CHARACTER;
+    }
+
+    if (row == ROW_NAME + 1
+        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
+    {
+        return SDL_PANEL_CLICK_CHARACTER;
+    }
+
     if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Voice")
         || sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Vce"))
     {
         return SDL_PANEL_CLICK_SONG;
     }
+
+    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Singing"))
+        return SDL_PANEL_CLICK_SONG;
 
     if (row == ROW_LIGHT && inventory[INVEN_LITE].k_idx)
         return SDL_PANEL_CLICK_SUPPLIES_LIGHTS;

@@ -12427,6 +12427,7 @@ int main_menu_aux(int* highlight)
 
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
 
     for (i = 1; i <= MAIN_MENU_MAX; i++)
     {
