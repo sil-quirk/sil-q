@@ -54,6 +54,9 @@ static int ui_scroll_area_positive_y_key = '8';
 static int ui_scroll_area_negative_y_key = '2';
 static int ui_scroll_area_positive_x_key = '6';
 static int ui_scroll_area_negative_x_key = '4';
+static int ui_scroll_area_tap_key = 0;
+static bool ui_key_wait_dismiss_active = false;
+static int ui_key_wait_dismiss_key = '\r';
 
 void ui_menu_click_clear(void)
 {
@@ -416,6 +419,7 @@ void ui_scroll_area_clear(void)
     ui_scroll_area_negative_y_key = '2';
     ui_scroll_area_positive_x_key = '6';
     ui_scroll_area_negative_x_key = '4';
+    ui_scroll_area_tap_key = 0;
 }
 
 void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
@@ -454,6 +458,7 @@ void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
     ui_scroll_area_negative_y_key = '2';
     ui_scroll_area_positive_x_key = '6';
     ui_scroll_area_negative_x_key = '4';
+    ui_scroll_area_tap_key = 0;
 }
 
 bool ui_scroll_area_has_cell(int col, int row)
@@ -508,6 +513,38 @@ int ui_scroll_area_get_horizontal_key(int direction)
     return (direction >= 0)
         ? ui_scroll_area_positive_x_key
         : ui_scroll_area_negative_x_key;
+}
+
+void ui_scroll_area_set_tap_key(int key)
+{
+    ui_scroll_area_tap_key = key;
+}
+
+int ui_scroll_area_get_tap_key(void)
+{
+    return ui_scroll_area_tap_key;
+}
+
+void ui_key_wait_dismiss_begin(int key)
+{
+    ui_key_wait_dismiss_active = true;
+    ui_key_wait_dismiss_key = key ? key : '\r';
+}
+
+void ui_key_wait_dismiss_clear(void)
+{
+    ui_key_wait_dismiss_active = false;
+    ui_key_wait_dismiss_key = '\r';
+}
+
+bool ui_key_wait_dismiss_is_active(void)
+{
+    return ui_key_wait_dismiss_active;
+}
+
+int ui_key_wait_dismiss_get_key(void)
+{
+    return ui_key_wait_dismiss_key ? ui_key_wait_dismiss_key : '\r';
 }
 
 /*
@@ -1695,6 +1732,7 @@ char inkey(void)
 
         /* Cancel the various "global parameters" */
         inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
+        ui_key_wait_dismiss_clear();
 
         /* Accept result */
         return (ch);
@@ -1873,6 +1911,7 @@ char inkey(void)
 
     /* Cancel the various "global parameters" */
     inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
+    ui_key_wait_dismiss_clear();
 
     /* (no banner countdown updates here; handled per turn) */
 
@@ -3212,7 +3251,7 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
          * reached the wrap boundary, and carry the current trailing word to
          * the next line when there is a prior break space on this line.
          */
-        if ((x >= wrap_width) && (ch != ' '))
+        if ((x >= wrap_width - 1) && (ch != ' '))
         {
             int moved_chars = 0;
 

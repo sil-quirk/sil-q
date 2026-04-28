@@ -1591,6 +1591,12 @@ extern void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
     int positive_x_key, int negative_x_key);
 extern int ui_scroll_area_get_vertical_key(int direction);
 extern int ui_scroll_area_get_horizontal_key(int direction);
+extern void ui_scroll_area_set_tap_key(int key);
+extern int ui_scroll_area_get_tap_key(void);
+extern void ui_key_wait_dismiss_begin(int key);
+extern void ui_key_wait_dismiss_clear(void);
+extern bool ui_key_wait_dismiss_is_active(void);
+extern int ui_key_wait_dismiss_get_key(void);
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
 extern void pause_line(int row);

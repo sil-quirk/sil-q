@@ -414,7 +414,10 @@ typedef struct menu_touch_press_state {
 
 typedef struct menu_scroll_drag_state {
     bool active;
+    bool dragged;
     SDL_FingerID finger_id;
+    float start_x;
+    float start_y;
     float last_y;
     float accum_y;
 } menu_scroll_drag_state;
@@ -753,11 +756,12 @@ static void sdl_menu_touch_cancel(void);
 static int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_menu_touch_flush_pending_press(Uint64 now_ns);
 static bool sdl_menu_scroll_handle_mouse_wheel(const SDL_MouseWheelEvent* wheel);
+static bool sdl_menu_scroll_handle_mouse_button(float x, float y);
 static bool sdl_menu_scroll_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id);
 static bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
     SDL_FingerID finger_id);
-static void sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id);
+static bool sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id);
 static void sdl_menu_scroll_cancel(void);
 static bool sdl_main_screen_click_shortcuts_active(void);
 static bool sdl_mouse_gameplay_context_active(void);
@@ -6695,6 +6699,11 @@ static bool sdl_pointer_dismiss_any_key_prompt(void)
         return true;
     if (!g_sdl_blocking_key_wait)
         return false;
+    if (ui_key_wait_dismiss_is_active())
+    {
+        Term_keypress(ui_key_wait_dismiss_get_key());
+        return true;
+    }
     if (!sdl_screen_shows_any_key_prompt())
         return false;
 
@@ -6932,10 +6941,30 @@ static bool sdl_menu_scroll_handle_mouse_wheel(const SDL_MouseWheelEvent* wheel)
     return true;
 }
 
+static bool sdl_menu_scroll_handle_mouse_button(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    int tap_key = ui_scroll_area_get_tap_key();
+
+    if (!tap_key)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (!ui_scroll_area_has_cell(col, row))
+        return false;
+
+    Term_keypress(tap_key);
+    return true;
+}
+
 static void sdl_menu_scroll_cancel(void)
 {
     g_menu_scroll_drag.active = false;
+    g_menu_scroll_drag.dragged = false;
     g_menu_scroll_drag.finger_id = 0;
+    g_menu_scroll_drag.start_x = 0.0f;
+    g_menu_scroll_drag.start_y = 0.0f;
     g_menu_scroll_drag.last_y = 0.0f;
     g_menu_scroll_drag.accum_y = 0.0f;
 }
@@ -6950,12 +6979,18 @@ static bool sdl_menu_scroll_handle_pointer_down(float x, float y,
         return false;
     if (!ui_scroll_area_has_cell(col, row))
         return false;
-    if (!config.touch_menu_command_enabled[ui_scroll_area_get_touch_category()])
+    if (!config.touch_menu_command_enabled[ui_scroll_area_get_touch_category()]
+        && !ui_scroll_area_get_tap_key())
+    {
         return true;
+    }
 
     sdl_menu_scroll_cancel();
     g_menu_scroll_drag.active = true;
+    g_menu_scroll_drag.dragged = false;
     g_menu_scroll_drag.finger_id = finger_id;
+    g_menu_scroll_drag.start_x = x;
+    g_menu_scroll_drag.start_y = y;
     g_menu_scroll_drag.last_y = y;
     g_menu_scroll_drag.accum_y = 0.0f;
     return true;
@@ -6965,9 +7000,10 @@ static bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
     SDL_FingerID finger_id)
 {
     int cell_h = g_views[PANE_MAIN].cell_h;
+    float dx;
     float dy;
-
-    (void)x;
+    float total_dy;
+    bool sent_key = false;
 
     if (!g_menu_scroll_drag.active
         || g_menu_scroll_drag.finger_id != finger_id)
@@ -6978,31 +7014,56 @@ static bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
     if (cell_h <= 0)
         cell_h = 1;
 
+    dx = x - g_menu_scroll_drag.start_x;
+    if (dx < 0.0f)
+        dx = -dx;
     dy = y - g_menu_scroll_drag.last_y;
     g_menu_scroll_drag.last_y = y;
     g_menu_scroll_drag.accum_y += dy;
+    total_dy = y - g_menu_scroll_drag.start_y;
+    if (total_dy < 0.0f)
+        total_dy = -total_dy;
+
+    if (dx > sdl_touch_swipe_threshold_px()
+        || total_dy > sdl_touch_swipe_threshold_px())
+    {
+        g_menu_scroll_drag.dragged = true;
+    }
 
     while (g_menu_scroll_drag.accum_y >= (float)cell_h)
     {
-        Term_keypress('8');
+        Term_keypress(ui_scroll_area_get_vertical_key(1));
         g_menu_scroll_drag.accum_y -= (float)cell_h;
+        sent_key = true;
     }
     while (g_menu_scroll_drag.accum_y <= -(float)cell_h)
     {
-        Term_keypress('2');
+        Term_keypress(ui_scroll_area_get_vertical_key(-1));
         g_menu_scroll_drag.accum_y += (float)cell_h;
+        sent_key = true;
     }
+
+    if (sent_key)
+        g_menu_scroll_drag.dragged = true;
 
     return true;
 }
 
-static void sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id)
+static bool sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id)
 {
     if (g_menu_scroll_drag.active
         && g_menu_scroll_drag.finger_id == finger_id)
     {
+        int tap_key = ui_scroll_area_get_tap_key();
+        bool send_tap = !g_menu_scroll_drag.dragged && tap_key != 0;
+
         sdl_menu_scroll_cancel();
+        if (send_tap)
+            Term_keypress(tap_key);
+        return true;
     }
+
+    return false;
 }
 
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
@@ -10100,8 +10161,18 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (ui_key_wait_dismiss_is_active()
+                && sdl_pointer_dismiss_any_key_prompt())
+            {
+                return;
+            }
             if (sdl_menu_touch_handle_pointer_down((float)ev->button.x,
                 (float)ev->button.y, 0, true))
+            {
+                return;
+            }
+            if (sdl_menu_scroll_handle_mouse_button((float)ev->button.x,
+                (float)ev->button.y))
             {
                 return;
             }
@@ -10160,6 +10231,16 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             }
             if (sdl_main_screen_handle_menu_outside_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (ui_key_wait_dismiss_is_active()
+                && sdl_pointer_dismiss_any_key_prompt())
+            {
+                return;
+            }
+            if (sdl_menu_scroll_handle_mouse_button((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -10229,11 +10310,21 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
         if (sdl_touch_pane_handle_yes_no_prompt_pointer(x, y))
             return;
+        if (ui_key_wait_dismiss_is_active()
+            && sdl_pointer_dismiss_any_key_prompt())
+        {
+            return;
+        }
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID,
             false))
             return;
         if (sdl_main_screen_handle_menu_outside_pointer(x, y))
             return;
+        if (ui_scroll_area_get_tap_key()
+            && sdl_menu_scroll_handle_pointer_down(x, y, ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (mobile_pane_swipe)
             (void)sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID);
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
@@ -10319,7 +10410,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         if (sdl_touch_zone_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
-        sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID);
+        if (sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID))
+            return;
         if (sdl_pointer_attack_handle_touch_up(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_map_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))

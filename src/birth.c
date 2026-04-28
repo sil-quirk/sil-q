@@ -956,6 +956,7 @@ static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     int prompt_row;
     char key;
     char buf[160];
+    bool confirmed = false;
 
     if (points_left <= 0)
         return true;
@@ -996,26 +997,69 @@ static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     }
 
     birth_put_str_fit(TERM_SLATE, buf, prompt_row, 1);
+    ui_scroll_area_clear();
+    ui_menu_click_begin();
+    if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        birth_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, confirm_label);
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, "continue");
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, back_label);
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, "keep allocating");
+    }
+    else
+    {
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, "SPACE/y");
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, "continue");
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/ESC");
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, "keep allocating");
+    }
+    sdl_touch_pane_begin_yes_no_prompt(
+        "Continue with unused stat points?");
     Term_fresh();
 
     while (1)
     {
+        int clicked_choice = -1;
+
         hide_cursor = true;
         key = inkey();
         hide_cursor = false;
 
+        if (ui_menu_click_take(&clicked_choice))
+        {
+            confirmed = (clicked_choice != 0);
+            break;
+        }
+
         if (birth_confirm_input(key, steamdeck))
-            return true;
+        {
+            confirmed = true;
+            break;
+        }
         if (steamdeck && key == steamdeck_back_key())
-            return false;
+            break;
 
         if (key == 'y' || key == 'Y')
-            return true;
+        {
+            confirmed = true;
+            break;
+        }
         if (key == 'n' || key == 'N' || key == ESCAPE)
-            return false;
+            break;
 
         bell("Confirm or cancel the stat warning.");
     }
+
+    sdl_touch_pane_end_yes_no_prompt();
+    ui_menu_click_clear();
+    return confirmed;
 }
 
 static bool birth_show_compact_description_after_assignment(bool steamdeck)
@@ -1744,6 +1788,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                  */
                 if (compact_flags)
                 {
+                    int compact_min_clear = TABLE_ROW + list_rows_drawn + 1;
                     int race_visible_rows = choice_visible_capacity(
                         z_info->p_max, p_text + p_info[p_ptr->prace].text, false);
                     int race_description_row = choice_description_row(
@@ -1751,6 +1796,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                     race_description_row = choice_description_fit_row(
                         race_description_row, race_visible_rows,
                         p_text + p_info[p_ptr->prace].text);
+                    if (compact_min_clear < clear_from_row)
+                        clear_from_row = compact_min_clear;
                     if (race_description_row < clear_from_row)
                         clear_from_row = race_description_row;
                 }
@@ -3040,7 +3087,7 @@ static void character_aux_hook(birth_menu c_str)
         if (left_block_width < 1)
             left_block_width = 1;
 
-        if (compact_layout && tight_height)
+        if (compact_layout)
         {
             for (i = legend_row; i < birth_prompt_row(); ++i)
                 Term_erase(0, i, left_block_width);
@@ -3053,8 +3100,9 @@ static void character_aux_hook(birth_menu c_str)
     {
         int legend_col = 2;  /* Left side */
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
+        int legend_limit_row = compact_layout ? description_row : birth_prompt_row();
 
-        if (legend_row + 3 < birth_prompt_row())
+        if (legend_row + 3 < legend_limit_row)
         {
             /* Count alive heroes by power level across ALL races */
             int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
@@ -5064,11 +5112,116 @@ static void birth_register_allocation_prompt_clicks(int row, cptr prompt,
     ui_menu_click_add_text_token(-1, col, row, prompt, back_label);
     ui_menu_click_add_text_token(-1, col, row, prompt, "back");
     ui_menu_click_add_text_token(-2, col, row, prompt, confirm_label);
+    ui_menu_click_add_text_token(-2, col, row, prompt, "Enter");
+    ui_menu_click_add_text_token(-2, col, row, prompt, "enter");
     ui_menu_click_add_text_token(-2, col, row, prompt, "ok");
     ui_menu_click_add_text_token(-2, col, row, prompt, "confirm");
     ui_menu_click_add_text_token(-2, col, row, prompt, "SPACE/ENTER");
     ui_menu_click_add_text_token(-3, col, row, prompt, quit_label);
     ui_menu_click_add_text_token(-3, col, row, prompt, "quit");
+}
+
+static char birth_screen_char(int row, int col)
+{
+    unsigned char ch;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return ' ';
+    if (row < 0 || row >= Term->hgt || col < 0 || col >= Term->wid)
+        return ' ';
+
+    ch = (unsigned char)Term->scr->c[row][col];
+    if (!ch || ch == (unsigned char)Term->char_blank)
+        return ' ';
+
+    return (char)ch;
+}
+
+static bool birth_screen_text_matches(int row, int col, cptr text)
+{
+    int len;
+
+    if (!text)
+        return false;
+
+    len = (int)strlen(text);
+    if (len <= 0)
+        return false;
+
+    for (int i = 0; i < len; i++)
+    {
+        if (birth_screen_char(row, col + i) != text[i])
+            return false;
+    }
+
+    return true;
+}
+
+static int birth_screen_find_text(int row, cptr text, int min_col)
+{
+    int wid = Term ? Term->wid : 0;
+    int len;
+
+    if (!text || !text[0] || wid <= 0)
+        return -1;
+
+    len = (int)strlen(text);
+    if (len <= 0 || len > wid)
+        return -1;
+    if (min_col < 0)
+        min_col = 0;
+
+    for (int col = min_col; col <= wid - len; col++)
+    {
+        if (birth_screen_text_matches(row, col, text))
+            return col;
+    }
+
+    return -1;
+}
+
+static void birth_register_visible_stat_clicks(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int row = 0; row < hgt - 1; row++)
+    {
+        int attr_col = birth_screen_find_text(row, "Attributes", 0);
+        int skills_col;
+        int start_col;
+        int end_col;
+
+        if (attr_col < 0)
+            continue;
+
+        skills_col = birth_screen_find_text(row, "Skills", attr_col + 1);
+        start_col = MAX(0, attr_col - 1);
+        end_col = (skills_col > attr_col) ? (skills_col - 1) : wid;
+        if (end_col <= start_col)
+            end_col = wid;
+
+        for (int stat = 0; stat < A_MAX; stat++)
+        {
+            int stat_row = row + 1 + stat;
+
+            if (stat_row >= hgt - 1)
+                break;
+            ui_menu_click_add(stat, start_col, stat_row,
+                end_col - start_col);
+        }
+
+        return;
+    }
 }
 
 static void birth_display_stats_allocation_compact(const int stats[A_MAX],
@@ -5127,7 +5280,12 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+        if (wid < 52)
+            strnfmt(buf, sizeof(buf),
+                "8/2 4/6  ESC back  Enter ok  q quit");
+        else
+            strnfmt(buf, sizeof(buf),
+                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -5192,7 +5350,12 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+        if (wid < 52)
+            strnfmt(buf, sizeof(buf),
+                "8/2 4/6  ESC back  Enter ok  q quit");
+        else
+            strnfmt(buf, sizeof(buf),
+                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -5336,12 +5499,18 @@ static NavResult player_birth_aux_2(void)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             birth_display_stats_allocation_compact(stats, stat, MAX_COST - cost, steamdeck);
+            birth_register_visible_stat_clicks();
+            ui_scroll_area_begin(0, hgt - 2, SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('6', '4', '6', '4');
         }
         else
         {
             int prompt_row = birth_prompt_row();
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
+            ui_scroll_area_begin(row, row + A_MAX - 1,
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('6', '4', '6', '4');
 
             /* Display the player */
             display_player(0);
@@ -5470,6 +5639,7 @@ static NavResult player_birth_aux_2(void)
         /* Quit -> return to main menu before the game starts */
         if ((ch == 'Q') || (ch == 'q')) {
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             if (turn == 0) return NAV_TO_MAIN;
             return NAV_QUIT;
         }
@@ -5480,6 +5650,7 @@ static NavResult player_birth_aux_2(void)
         if (ch == ESCAPE)
         {
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             return NAV_BACK;
         }
 
@@ -5489,6 +5660,7 @@ static NavResult player_birth_aux_2(void)
             if (!birth_confirm_unspent_stat_points(MAX_COST - cost, steamdeck))
                 continue;
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             return NAV_OK;
         }
 
@@ -5518,6 +5690,7 @@ static NavResult player_birth_aux_2(void)
     }
 
     /* Shouldn't reach; default to back */
+    ui_scroll_area_clear();
     return NAV_BACK;
 }
 

@@ -1833,6 +1833,9 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
     /* Describe monster */
     roff_top(r_idx);
 
+    if (Term == term_screen)
+        ui_key_wait_dismiss_begin('\r');
+
     text_out_hook = old_hook;
     text_out_indent = old_indent;
     text_out_wrap = old_wrap;

@@ -5194,6 +5194,10 @@ bool show_buffer(cptr main_buffer, int line)
             Term_putstr(67, hgt - 2, -1, TERM_L_WHITE, "");
         }
 
+        ui_scroll_area_begin(0, hgt - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_tap_key(ESCAPE);
+
         /* Get a keypress */
         ch = inkey();
 
@@ -5225,6 +5229,8 @@ bool show_buffer(cptr main_buffer, int line)
         if (ch == ESCAPE)
             break;
     }
+
+    ui_scroll_area_clear();
 
     /* Done */
     return (true);
