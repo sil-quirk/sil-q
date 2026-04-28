@@ -577,6 +577,10 @@ static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
 static bool g_sdl_blocking_key_wait = false;
 static bool g_direct_touch_present = SIL_SDL_MOBILE_BUILD ? true : false;
 static int g_auto_aux_main_cell_h_override = 0;
+#if SIL_SDL_MOBILE_BUILD
+static bool g_mobile_lifecycle_watch_registered = false;
+static bool g_mobile_lifecycle_autosaved = false;
+#endif
 
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
@@ -594,6 +598,12 @@ static SDL_Rect sdl_get_layout_screen_rect(void);
 static bool sdl_mobile_prefer_safe_edge_alignment(void);
 static void sdl_resize_for_current_layout(void);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
+#if SIL_SDL_MOBILE_BUILD
+static bool sdl_mobile_lifecycle_handle_event(const SDL_Event* ev);
+static bool SDLCALL sdl_mobile_lifecycle_event_watch(void* userdata, SDL_Event* ev);
+static void sdl_mobile_lifecycle_register(void);
+static void sdl_mobile_lifecycle_unregister(void);
+#endif
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
 static void sdl_gamepad_init(void);
@@ -709,9 +719,11 @@ static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int actio
 static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y);
 static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y);
 static bool sdl_main_screen_menu_pointer_hits_cell(float x, float y);
+static void sdl_enqueue_bypassed_command(int command);
 static void sdl_unified_look_clear_map_hover(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
+static bool sdl_main_screen_handle_status_line_pointer(float x, float y);
 static bool sdl_welcome_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
@@ -5821,6 +5833,24 @@ static bool sdl_main_screen_handle_message_line_pointer(float x, float y)
     return true;
 }
 
+static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!Term)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row != ROW_STATUS)
+        return false;
+
+    sdl_enqueue_bypassed_command('m');
+    return true;
+}
+
 static bool sdl_screen_row_contains_ci(const term* t, int row, cptr needle)
 {
     int needle_len;
@@ -5849,6 +5879,99 @@ static bool sdl_screen_row_contains_ci(const term* t, int row, cptr needle)
         }
 
         if (match)
+            return true;
+    }
+
+    return false;
+}
+
+static unsigned char sdl_screen_char_at(const term* t, int row, int col)
+{
+    unsigned char ch = ' ';
+
+    if (!t || !t->scr || !t->scr->c)
+        return ch;
+    if (row < 0 || row >= t->hgt || col < 0 || col >= t->wid)
+        return ch;
+
+    ch = (unsigned char)t->scr->c[row][col];
+    if (!ch || ch == (unsigned char)t->char_blank)
+        ch = ' ';
+
+    return ch;
+}
+
+static bool sdl_screen_segment_contains_ci(const term* t, int row, int start_col,
+    int width, cptr needle)
+{
+    int needle_len;
+    int end_col;
+
+    if (!t || !needle)
+        return false;
+    if (row < 0 || row >= t->hgt || width <= 0)
+        return false;
+    if (start_col < 0)
+    {
+        width += start_col;
+        start_col = 0;
+    }
+    if (start_col >= t->wid)
+        return false;
+
+    end_col = start_col + width;
+    if (end_col > t->wid)
+        end_col = t->wid;
+
+    needle_len = (int)strlen(needle);
+    if (needle_len <= 0 || needle_len > end_col - start_col)
+        return false;
+
+    for (int col = start_col; col <= end_col - needle_len; col++)
+    {
+        bool match = true;
+
+        for (int i = 0; i < needle_len; i++)
+        {
+            unsigned char actual = sdl_screen_char_at(t, row, col + i);
+            unsigned char expected = (unsigned char)needle[i];
+
+            if (tolower(actual) != tolower(expected))
+            {
+                match = false;
+                break;
+            }
+        }
+
+        if (match)
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_screen_segment_has_nonblank(const term* t, int row,
+    int start_col, int width)
+{
+    int end_col;
+
+    if (!t || row < 0 || row >= t->hgt || width <= 0)
+        return false;
+    if (start_col < 0)
+    {
+        width += start_col;
+        start_col = 0;
+    }
+    if (start_col >= t->wid)
+        return false;
+
+    end_col = start_col + width;
+    if (end_col > t->wid)
+        end_col = t->wid;
+
+    for (int col = start_col; col < end_col; col++)
+    {
+        if (sdl_screen_char_at(t, row, col) != ' ')
             return true;
     }
 
@@ -6439,6 +6562,108 @@ static void sdl_enqueue_bypassed_command(int command)
     Term_keypress(command);
 }
 
+static int sdl_hidden_left_panel_click_action_at_cell(int col, int row)
+{
+    if (col < 0 || row < 0)
+        return SDL_PANEL_CLICK_NONE;
+    if (!get_sdl_hide_left_panel())
+        return SDL_PANEL_CLICK_NONE;
+
+    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE)
+    {
+        if (row != ROW_NAME)
+            return SDL_PANEL_CLICK_NONE;
+
+        for (int i = 0; i < 16; i++)
+        {
+            if (g_hidden_left_panel_overlay_click_actions[i]
+                    == SDL_PANEL_CLICK_NONE)
+                continue;
+            if (col >= g_hidden_left_panel_overlay_click_start_cols[i]
+                && col < g_hidden_left_panel_overlay_click_end_cols[i])
+            {
+                return g_hidden_left_panel_overlay_click_actions[i];
+            }
+        }
+
+        return SDL_PANEL_CLICK_NONE;
+    }
+
+    row -= ROW_NAME;
+    if (row < 0 || row >= 16)
+        return SDL_PANEL_CLICK_NONE;
+    if (g_hidden_left_panel_overlay_click_actions[row] == SDL_PANEL_CLICK_NONE)
+        return SDL_PANEL_CLICK_NONE;
+    if (col < g_hidden_left_panel_overlay_click_start_cols[row]
+        || col >= g_hidden_left_panel_overlay_click_end_cols[row])
+    {
+        return SDL_PANEL_CLICK_NONE;
+    }
+
+    return g_hidden_left_panel_overlay_click_actions[row];
+}
+
+static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
+{
+    int panel_width;
+
+    if (col < 0 || row < 0 || get_sdl_hide_left_panel())
+        return SDL_PANEL_CLICK_NONE;
+    if (col >= COL_MAP)
+        return SDL_PANEL_CLICK_NONE;
+    if (!Term)
+        return SDL_PANEL_CLICK_NONE;
+
+    panel_width = COL_MAP;
+    if (panel_width <= 0)
+        panel_width = LEFT_PANEL_CONTENT_WID;
+
+    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Health")
+        || sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Hth"))
+    {
+        return SDL_PANEL_CLICK_CHARACTER;
+    }
+
+    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Voice")
+        || sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Vce"))
+    {
+        return SDL_PANEL_CLICK_SONG;
+    }
+
+    if (row == ROW_LIGHT && inventory[INVEN_LITE].k_idx)
+        return SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
+
+    if ((row == ROW_SONG || row == ROW_SONG + 1)
+        && p_ptr
+        && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING)
+        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
+    {
+        return SDL_PANEL_CLICK_SONG;
+    }
+
+    return SDL_PANEL_CLICK_NONE;
+}
+
+static bool sdl_handle_character_panel_click_action(int click_action)
+{
+    switch (click_action)
+    {
+    case SDL_PANEL_CLICK_CHARACTER:
+        sdl_enqueue_bypassed_command('h');
+        return true;
+    case SDL_PANEL_CLICK_SONG:
+        sdl_enqueue_bypassed_command('s');
+        return true;
+    case SDL_PANEL_CLICK_SUPPLIES_LIGHTS:
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
+            SUPPLY_GROUP_LIGHTS, true);
+        sdl_enqueue_bypassed_command('j');
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool sdl_binding_opens_pane_menu(int binding)
 {
     switch (binding) {
@@ -6468,6 +6693,7 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
     int col = 0;
     int row = 0;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
+    int click_action = SDL_PANEL_CLICK_NONE;
 
     if (!sdl_pane_command_shortcuts_active())
         return false;
@@ -6480,6 +6706,7 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
 
     if (get_sdl_hide_left_panel()) {
         attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+        click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
     } else {
         bool melee_uses_two_rows = inventory[INVEN_ARM].k_idx
             && inventory[INVEN_ARM].tval != TV_SHIELD;
@@ -6491,6 +6718,8 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         } else if (row == ROW_QUIVER) {
             attack_mode = sdl_left_panel_quiver_attack_mode_at_col(col);
         }
+
+        click_action = sdl_visible_character_panel_click_action_at_cell(col, row);
     }
 
     if (attack_mode != SDL_POINTER_ATTACK_NONE
@@ -6500,7 +6729,9 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         return true;
     }
 
-    sdl_enqueue_bypassed_command('h');
+    if (sdl_handle_character_panel_click_action(click_action))
+        return true;
+
     return true;
 }
 
@@ -9111,12 +9342,94 @@ static void sdl_handle_renderer_reset(void)
     Term_redraw();
 }
 
+#if SIL_SDL_MOBILE_BUILD
+static bool sdl_mobile_lifecycle_handle_event(const SDL_Event* ev)
+{
+    if (!ev)
+        return false;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_WILL_ENTER_BACKGROUND:
+        if (!g_mobile_lifecycle_autosaved
+            && mobile_autosave_game("will enter background"))
+        {
+            g_mobile_lifecycle_autosaved = true;
+        }
+        return true;
+
+    case SDL_EVENT_DID_ENTER_BACKGROUND:
+        if (!g_mobile_lifecycle_autosaved
+            && mobile_autosave_game("did enter background"))
+        {
+            g_mobile_lifecycle_autosaved = true;
+        }
+        return true;
+
+    case SDL_EVENT_TERMINATING:
+        if (mobile_autosave_game("terminating"))
+            g_mobile_lifecycle_autosaved = true;
+        return true;
+
+    case SDL_EVENT_WILL_ENTER_FOREGROUND:
+    case SDL_EVENT_DID_ENTER_FOREGROUND:
+        g_mobile_lifecycle_autosaved = false;
+        return true;
+
+    case SDL_EVENT_LOW_MEMORY:
+        log_warn("mobile lifecycle: low memory event received");
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+static bool SDLCALL sdl_mobile_lifecycle_event_watch(void* userdata, SDL_Event* ev)
+{
+    (void)userdata;
+    (void)sdl_mobile_lifecycle_handle_event(ev);
+    return true;
+}
+
+static void sdl_mobile_lifecycle_register(void)
+{
+    if (g_mobile_lifecycle_watch_registered)
+        return;
+
+    if (SDL_AddEventWatch(sdl_mobile_lifecycle_event_watch, NULL))
+    {
+        g_mobile_lifecycle_watch_registered = true;
+        log_info("Registered mobile lifecycle autosave event watch");
+    }
+    else
+    {
+        log_warn("Failed to register mobile lifecycle event watch: %s",
+            SDL_GetError());
+    }
+}
+
+static void sdl_mobile_lifecycle_unregister(void)
+{
+    if (!g_mobile_lifecycle_watch_registered)
+        return;
+
+    SDL_RemoveEventWatch(sdl_mobile_lifecycle_event_watch, NULL);
+    g_mobile_lifecycle_watch_registered = false;
+}
+#endif
+
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
     (void)st;
     if (sdl_sound_try_handle_event(ev)) {
         return;
     }
+#if SIL_SDL_MOBILE_BUILD
+    if (sdl_mobile_lifecycle_handle_event(ev)) {
+        return;
+    }
+#endif
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
     } else if (g_touch_pane_reset_confirm_active) {
@@ -9211,6 +9524,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             }
             if (sdl_unified_look_handle_map_hover_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_main_screen_handle_status_line_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -9331,6 +9649,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (sdl_touch_zone_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_menu_scroll_handle_pointer_down(x, y, ev->tfinger.fingerID))
+            return;
+        if (sdl_main_screen_handle_status_line_pointer(x, y))
             return;
         if (sdl_main_screen_handle_message_line_pointer(x, y))
             return;
@@ -11094,6 +11414,10 @@ int sdl_get_cell_width(void)
 static void sdl_quit_hook(cptr str)
 {
     (void)str; // Unused parameter
+
+#if SIL_SDL_MOBILE_BUILD
+    sdl_mobile_lifecycle_unregister();
+#endif
     
     // Shut down audio before tearing down SDL
     sdl_sound_shutdown();
@@ -11134,6 +11458,9 @@ errr init_sdl(int argc, char **argv)
         log_error("SDL_Init failed: %s", SDL_GetError());
         quit("could not init SDL");
     }
+#if SIL_SDL_MOBILE_BUILD
+    sdl_mobile_lifecycle_register();
+#endif
     if (!TTF_Init()) {
         log_error("TTF_Init failed: %s", SDL_GetError());
         quit("could not init TTF");

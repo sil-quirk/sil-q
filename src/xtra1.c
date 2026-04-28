@@ -77,6 +77,7 @@ typedef struct hidden_overlay_line {
     byte icon_attr;
     char icon_char;
     byte pointer_attack_mode;
+    byte click_action;
 } hidden_overlay_line;
 
 byte g_hidden_left_panel_overlay_rows = 0;
@@ -84,6 +85,9 @@ byte g_hidden_left_panel_overlay_widths[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_modes[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_start_cols[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_end_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_actions[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_start_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_end_cols[16] = { 0 };
 byte g_left_panel_quiver_attack_modes[2] = { 0 };
 byte g_left_panel_quiver_attack_start_cols[2] = { 0 };
 byte g_left_panel_quiver_attack_end_cols[2] = { 0 };
@@ -1384,6 +1388,7 @@ static void hidden_left_panel_add_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_attr = TERM_WHITE;
     lines[*count].icon_char = ' ';
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     (*count)++;
 }
 
@@ -1415,6 +1420,7 @@ static void hidden_left_panel_add_icon_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_attr = icon_attr;
     lines[*count].icon_char = icon_char;
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     (*count)++;
 }
 
@@ -1594,10 +1600,20 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         voice_color = TERM_RED;
 
     strnfmt(buf, sizeof(buf), "HP %3d", MIN(p_ptr->chp, 999));
-    hidden_left_panel_add_line(lines, &count, max_lines, hp_color, buf);
+    {
+        int old_count = count;
+        hidden_left_panel_add_line(lines, &count, max_lines, hp_color, buf);
+        if (count > old_count)
+            lines[count - 1].click_action = SDL_PANEL_CLICK_CHARACTER;
+    }
 
     strnfmt(buf, sizeof(buf), "VC %3d", MIN(p_ptr->csp, 999));
-    hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
+    {
+        int old_count = count;
+        hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
+        if (count > old_count)
+            lines[count - 1].click_action = SDL_PANEL_CLICK_SONG;
+    }
 
     {
         bool infinite = false;
@@ -1611,8 +1627,11 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
             && !infinite)
         {
             strnfmt(buf, sizeof(buf), "%ld", fuel);
+            int old_count = count;
             hidden_left_panel_add_icon_line(lines, &count, max_lines, light_attr,
                 buf, buf, light_icon_attr, light_icon);
+            if (count > old_count)
+                lines[count - 1].click_action = SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
         }
     }
 
@@ -1758,9 +1777,16 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         else
             SDL_strlcpy(short_buf, buf, sizeof(short_buf));
 
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
-        SDL_strlcpy(lines[count - 1].short_text, short_buf,
-            sizeof(lines[count - 1].short_text));
+        {
+            int old_count = count;
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
+            if (count > old_count)
+            {
+                lines[count - 1].click_action = SDL_PANEL_CLICK_SONG;
+                SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                    sizeof(lines[count - 1].short_text));
+            }
+        }
     }
 
     if (p_ptr->health_who
@@ -1804,12 +1830,20 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
         byte new_mode = SDL_POINTER_ATTACK_NONE;
         byte new_start = 0;
         byte new_end = 0;
+        byte new_click_action = SDL_PANEL_CLICK_NONE;
+        byte new_click_start = 0;
+        byte new_click_end = 0;
 
         if (i < line_count && lines[i].text[0])
         {
             int width = hidden_left_panel_line_width(&lines[i], false);
             width = hidden_left_panel_mask_width(width);
             new_width = (byte)width;
+            if (lines[i].click_action != SDL_PANEL_CLICK_NONE)
+            {
+                new_click_action = lines[i].click_action;
+                new_click_end = new_width;
+            }
             if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE)
             {
                 new_mode = lines[i].pointer_attack_mode;
@@ -1824,6 +1858,9 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
         g_hidden_left_panel_overlay_attack_modes[i] = new_mode;
         g_hidden_left_panel_overlay_attack_start_cols[i] = new_start;
         g_hidden_left_panel_overlay_attack_end_cols[i] = new_end;
+        g_hidden_left_panel_overlay_click_actions[i] = new_click_action;
+        g_hidden_left_panel_overlay_click_start_cols[i] = new_click_start;
+        g_hidden_left_panel_overlay_click_end_cols[i] = new_click_end;
     }
 
     for (int i = max_rows; i < 16; i++)
@@ -1832,6 +1869,9 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
         g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
         g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
         g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;
+        g_hidden_left_panel_overlay_click_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_end_cols[i] = 0;
     }
 
     if (g_hidden_left_panel_overlay_rows != line_count)
@@ -1852,6 +1892,7 @@ static bool hidden_left_panel_sync_topline_mask(
     int col = 0;
     bool first_entry = true;
     int attack_index = 0;
+    int click_index = 0;
 
     if (mask_width > 255)
         mask_width = 255;
@@ -1869,6 +1910,9 @@ static bool hidden_left_panel_sync_topline_mask(
         g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
         g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
         g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;
+        g_hidden_left_panel_overlay_click_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_end_cols[i] = 0;
     }
 
     if (Term && lines && line_count > 0)
@@ -1902,6 +1946,22 @@ static bool hidden_left_panel_sync_topline_mask(
                 g_hidden_left_panel_overlay_attack_end_cols[attack_index]
                     = (byte)end_col;
                 attack_index++;
+            }
+
+            if (lines[i].click_action != SDL_PANEL_CLICK_NONE
+                && click_index < 16)
+            {
+                int end_col = col + width;
+
+                if (end_col > 255)
+                    end_col = 255;
+                g_hidden_left_panel_overlay_click_actions[click_index]
+                    = lines[i].click_action;
+                g_hidden_left_panel_overlay_click_start_cols[click_index]
+                    = (byte)MIN(col, 255);
+                g_hidden_left_panel_overlay_click_end_cols[click_index]
+                    = (byte)end_col;
+                click_index++;
             }
 
             col += width;

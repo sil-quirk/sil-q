@@ -2395,7 +2395,8 @@ static void process_command(void)
     /* Supplies overview */
     case 'j':
     {
-        do_cmd_knowledge_supplies(NULL);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_NONE, -1,
+            false, false);
         break;
     }
 
@@ -5362,6 +5363,10 @@ PlayResult play_game(void)
     metarun_created = false;
 
     log_info("Game session started - entering play mode");
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    (void)mobile_autosave_game("game session start");
+#endif
     
     /* Any active run, including the Gates at depth 0, uses ambient gameplay music. */
     log_debug("Starting game session at depth=%d - switching to ambient music", p_ptr->depth);

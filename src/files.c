@@ -16,6 +16,7 @@
 #include "angband.h"
 #include "blitz.h"
 #include "scorefile.h"
+#include "score/score_io.h"
 #include "score/score_logic.h"
 #include "score/score_runs.h"
 #include "score/score_ui.h"
@@ -8301,9 +8302,8 @@ void do_cmd_save_game(void)
             prt("Saving game... done.", 0, 0);
         }
 
-        /* Note: upsert_live_score_on_save() is called from close_game() 
-         * when quitting, not here. This avoids opening the scores file 
-         * multiple times. */
+        /* Desktop quit still upserts from close_game().  Mobile also updates
+         * the live entry here so an OS suspend/terminate can resume cleanly. */
 
         high_score live_score;
         if (build_live_preview_score(&live_score)) {
@@ -8312,6 +8312,10 @@ void do_cmd_save_game(void)
                 log_warn("Failed to persist live run snapshot for '%s'", op_ptr->full_name);
             }
         }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        upsert_live_score_on_save();
+#endif
     }
 
     /* Save failed (oops) */
@@ -9533,6 +9537,79 @@ bool build_live_preview_score(high_score* out)
 
     return ok;
 }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+bool mobile_autosave_game(cptr reason)
+{
+    static bool in_progress = false;
+
+    if (in_progress)
+        return false;
+
+    if (!character_generated || !p_ptr || p_ptr->is_dead || !p_ptr->playing)
+        return false;
+
+    if (DEPLOYMENT && p_ptr->game_type != 0)
+    {
+        log_info("mobile autosave skipped during tutorial mode (%s)",
+            reason ? reason : "unspecified");
+        return false;
+    }
+
+    if (!savefile[0] && op_ptr && op_ptr->full_name[0])
+        process_player_name(true);
+
+    if (!savefile[0])
+    {
+        log_warn("mobile autosave skipped: savefile path is empty (%s)",
+            reason ? reason : "unspecified");
+        return false;
+    }
+
+    in_progress = true;
+
+    char saved_how[sizeof(p_ptr->died_from)];
+    SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+
+    log_info("mobile autosave starting (%s) -> '%s'",
+        reason ? reason : "unspecified", savefile);
+    bool ok = save_player();
+
+    SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+
+    if (ok)
+    {
+        upsert_live_score_on_save();
+
+        high_score live_score;
+        if (build_live_preview_score(&live_score))
+        {
+            time_t now = time(NULL);
+            if (!score_runs_record_current_run(&live_score, now, SCORE_RECORD_ALIVE))
+            {
+                log_warn("mobile autosave: failed to persist live run snapshot for '%s'",
+                    op_ptr->full_name);
+            }
+        }
+
+        log_info("mobile autosave completed (%s)", reason ? reason : "unspecified");
+    }
+    else
+    {
+        log_error("mobile autosave failed (%s)", reason ? reason : "unspecified");
+    }
+
+    in_progress = false;
+    return ok;
+}
+#else
+bool mobile_autosave_game(cptr reason)
+{
+    (void)reason;
+    return false;
+}
+#endif
 
 
 

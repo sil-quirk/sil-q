@@ -864,6 +864,7 @@ extern void print_fade_line(cptr text, int row, int indent);
 extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
 extern void clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
+extern bool mobile_autosave_game(cptr reason);
 
 /* generate.c */
 extern void place_monster_by_flag(
@@ -1527,6 +1528,10 @@ extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_POINTER_ATTACK_MELEE 1
 #define SDL_POINTER_ATTACK_RANGED_1 2
 #define SDL_POINTER_ATTACK_RANGED_2 3
+#define SDL_PANEL_CLICK_NONE 0
+#define SDL_PANEL_CLICK_CHARACTER 1
+#define SDL_PANEL_CLICK_SONG 2
+#define SDL_PANEL_CLICK_SUPPLIES_LIGHTS 3
 extern int sdl_pointer_attack_current_mode(void);
 extern bool sdl_pointer_attack_take_command(int* command, int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
@@ -1861,6 +1866,9 @@ extern byte g_hidden_left_panel_overlay_widths[16];
 extern byte g_hidden_left_panel_overlay_attack_modes[16];
 extern byte g_hidden_left_panel_overlay_attack_start_cols[16];
 extern byte g_hidden_left_panel_overlay_attack_end_cols[16];
+extern byte g_hidden_left_panel_overlay_click_actions[16];
+extern byte g_hidden_left_panel_overlay_click_start_cols[16];
+extern byte g_hidden_left_panel_overlay_click_end_cols[16];
 extern byte g_left_panel_quiver_attack_modes[2];
 extern byte g_left_panel_quiver_attack_start_cols[2];
 extern byte g_left_panel_quiver_attack_end_cols[2];
