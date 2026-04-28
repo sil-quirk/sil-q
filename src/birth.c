@@ -3100,9 +3100,9 @@ static void character_aux_hook(birth_menu c_str)
     {
         int legend_col = 2;  /* Left side */
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
-        int legend_limit_row = compact_layout ? description_row : birth_prompt_row();
+        int legend_limit_row = birth_prompt_row();
 
-        if (legend_row + 3 < legend_limit_row)
+        if (!compact_layout && legend_row + 3 < legend_limit_row)
         {
             /* Count alive heroes by power level across ALL races */
             int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
@@ -4549,6 +4549,19 @@ static const int birth_stat_costs[11]
 
 #define MAX_COST 13
 
+static int birth_stat_increase_cost(int stat)
+{
+    int current_index = stat + 4;
+    int next_index = current_index + 1;
+
+    if (current_index < 0 || next_index < 0)
+        return 0;
+    if (next_index >= (int)N_ELEMENTS(birth_stat_costs))
+        return 0;
+
+    return birth_stat_costs[next_index] - birth_stat_costs[current_index];
+}
+
 /* Forward declaration: used by compact skill allocation rendering. */
 static int skill_cost(int base, int points);
 
@@ -5256,7 +5269,7 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
 
     if (selected >= 0 && selected < A_MAX)
     {
-        int cost = birth_stat_costs[stats[selected] + 4];
+        int cost = birth_stat_increase_cost(stats[selected]);
         cnv_stat(p_ptr->stat_use[selected], stat_buf);
 
         strnfmt(buf, sizeof(buf), "Selected: %s %s  Cost: %d  Left: %d",
@@ -5549,10 +5562,10 @@ static NavResult player_birth_aux_2(void)
                     }
 
 #ifndef MONOCHROME_MODE
-                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_increase_cost(stats[i]));
                     c_put_str(attr, buf, row + i, sheet_col + 32);
 #else
-                    strnfmt(buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
+                    strnfmt(buf, sizeof(buf), "%4d*", birth_stat_increase_cost(stats[i]));
                     c_put_str(attr, buf, row + i, sheet_col + 32);
                     c_put_str(attr, "*", row + i, sheet_col - 2);
 #endif
@@ -5560,7 +5573,7 @@ static NavResult player_birth_aux_2(void)
                 else
                 {
                     byte attr = TERM_L_WHITE;
-                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+                    strnfmt(buf, sizeof(buf), "%4d", birth_stat_increase_cost(stats[i]));
                     c_put_str(attr, buf, row + i, sheet_col + 32);
                 }
                 ui_menu_click_add(i, sheet_col - 2, row + i, 40);
