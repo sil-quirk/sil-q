@@ -3079,7 +3079,10 @@ static void character_aux_hook(birth_menu c_str)
     
     {
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
-        int left_block_width = CLASS_COL - 1;
+        int left_block_width = CLASS_COL;
+        int character_list_count = 0;
+        int character_list_rows;
+        int wide_clear_row;
 
         if (legend_row < TABLE_ROW + A_MAX + 3)
             legend_row = TABLE_ROW + A_MAX + 3;
@@ -3087,11 +3090,20 @@ static void character_aux_hook(birth_menu c_str)
         if (left_block_width < 1)
             left_block_width = 1;
 
-        if (compact_layout)
-        {
-            for (i = legend_row; i < birth_prompt_row(); ++i)
-                Term_erase(0, i, left_block_width);
-        }
+        for (i = 0; i < z_info->c_max; i++)
+            if (is_set(i))
+                character_list_count++;
+
+        character_list_rows = choice_visible_capacity(character_list_count,
+            c_str.text, true);
+        wide_clear_row = TABLE_ROW + character_list_rows;
+        if (wide_clear_row < legend_row)
+            wide_clear_row = legend_row;
+
+        for (i = legend_row; i < birth_prompt_row(); ++i)
+            Term_erase(0, i, left_block_width);
+        for (i = wide_clear_row; i < birth_prompt_row(); ++i)
+            Term_erase(0, i, TOTAL_AUX_COL - 1);
     }
 
     print_rh_flags(
@@ -3101,8 +3113,22 @@ static void character_aux_hook(birth_menu c_str)
         int legend_col = 2;  /* Left side */
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
         int legend_limit_row = birth_prompt_row();
+        bool legend_has_room;
 
-        if (!compact_layout && legend_row + 3 < legend_limit_row)
+        legend_has_room = (legend_row + 3 < legend_limit_row);
+        if (compact_layout)
+        {
+            /*
+             * Compact flags can start one row above description_row when the
+             * screen is short. Keep the optional power legend only when there
+             * is a full blank separator before that compact block.
+             */
+            legend_has_room = !tight_height
+                && (description_row > legend_row + 4)
+                && (legend_row + 3 < legend_limit_row);
+        }
+
+        if (legend_has_room)
         {
             /* Count alive heroes by power level across ALL races */
             int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */

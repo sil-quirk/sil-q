@@ -46,6 +46,22 @@ endif()
 
 set(SIL_EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
 
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/defines.h"
+)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/defines.h" SIL_VERSION_STRING_LINE
+  REGEX "^#define[ \t]+VERSION_STRING[ \t]+\"[^\"]+\""
+)
+if(NOT SIL_VERSION_STRING_LINE)
+  message(FATAL_ERROR "Could not read VERSION_STRING from src/defines.h")
+endif()
+string(REGEX REPLACE
+  "^#define[ \t]+VERSION_STRING[ \t]+\"([^\"]+)\".*$"
+  "\\1"
+  SIL_VERSION_STRING
+  "${SIL_VERSION_STRING_LINE}"
+)
+
 # Configure SDL_mixer when built from the vendored submodule: enable only the
 # codecs we actually use (WAV + Ogg Vorbis via stb_vorbis) and keep the build
 # self-contained so it works on every platform without system codec packages.
@@ -253,11 +269,17 @@ if(SIL_IOS)
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/Info.plist.in"
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.silqh.silmore"
     MACOSX_BUNDLE_BUNDLE_NAME "Sil-More"
-    MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${SIL_VERSION_STRING}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${SIL_VERSION_STRING}"
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
   )
+
+  set(SIL_IOS_ASSET_CATALOG "${CMAKE_SOURCE_DIR}/ios/Assets.xcassets")
+  set_source_files_properties("${SIL_IOS_ASSET_CATALOG}" PROPERTIES
+    MACOSX_PACKAGE_LOCATION "Resources"
+  )
+  target_sources(sil-more PRIVATE "${SIL_IOS_ASSET_CATALOG}")
 
   # Bundle the runtime lib/ resources into the app.
   # iOS apps are sandboxed; read-only data must live inside the .app bundle.
