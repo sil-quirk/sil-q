@@ -444,6 +444,7 @@ typedef struct touch_round_press_state {
     float current_x;
     float current_y;
     int selected_dir;
+    Uint64 start_time;
 } touch_round_press_state;
 
 typedef struct menu_touch_press_state {
@@ -943,6 +944,7 @@ static bool sdl_touch_round_handle_pointer_up(float x, float y,
     SDL_FingerID finger_id);
 static void sdl_touch_round_cancel_press(void);
 static void sdl_touch_round_render(void);
+static void sdl_touch_round_render_target_square(int dir);
 static bool sdl_touch_top_panel_layout_visible(void);
 static void sdl_touch_top_panel_set_open(bool open);
 static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
@@ -9316,6 +9318,7 @@ static void sdl_touch_round_cancel_press(void)
     g_touch_round_press.current_x = 0.0f;
     g_touch_round_press.current_y = 0.0f;
     g_touch_round_press.selected_dir = 0;
+    g_touch_round_press.start_time = 0;
     g_state.need_present = true;
 }
 
@@ -9343,6 +9346,7 @@ static bool sdl_touch_round_handle_pointer_down(float x, float y,
     g_touch_round_press.current_x = x;
     g_touch_round_press.current_y = y;
     g_touch_round_press.selected_dir = 0;
+    g_touch_round_press.start_time = SDL_GetTicksNS();
     g_state.need_present = true;
     return true;
 }
@@ -9384,6 +9388,7 @@ static bool sdl_touch_round_handle_pointer_up(float x, float y,
     float dy;
     float dist;
     float radius;
+    Uint64 press_time;
     int dir = 0;
 
     if (!g_touch_round_press.active
@@ -9396,9 +9401,11 @@ static bool sdl_touch_round_handle_pointer_up(float x, float y,
     dy = y - g_touch_round_press.center_y;
     dist = SDL_sqrtf(dx * dx + dy * dy);
     radius = sdl_touch_round_radius_px();
+    press_time = SDL_GetTicksNS() - g_touch_round_press.start_time;
 
     if (dist <= radius * 0.34f) {
-        dir = g_touch_round_last_dir;
+        if (press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+            dir = g_touch_round_last_dir;
     } else if (dist >= radius * 0.78f) {
         dir = sdl_touch_round_dir_for_delta(dx, dy);
     } else if (g_touch_round_press.selected_dir) {
@@ -9446,6 +9453,104 @@ static void sdl_touch_round_draw_circle(float cx, float cy, float radius,
     }
 }
 
+static void sdl_touch_round_draw_sector_lines(float cx, float cy,
+    float inner_radius, float outer_radius, SDL_Color color)
+{
+    static const float sector_points[8][2] = {
+        { 0.923880f, 0.382683f },
+        { 0.382683f, 0.923880f },
+        { -0.382683f, 0.923880f },
+        { -0.923880f, 0.382683f },
+        { -0.923880f, -0.382683f },
+        { -0.382683f, -0.923880f },
+        { 0.382683f, -0.923880f },
+        { 0.923880f, -0.382683f },
+    };
+
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        color.a);
+    for (int i = 0; i < (int)N_ELEMENTS(sector_points); i++) {
+        float dx = sector_points[i][0];
+        float dy = sector_points[i][1];
+
+        SDL_RenderLine(g_state.renderer,
+            cx + dx * inner_radius,
+            cy + dy * inner_radius,
+            cx + dx * outer_radius,
+            cy + dy * outer_radius);
+    }
+}
+
+static bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int map_y;
+    int map_x;
+    int map_row;
+    int map_col;
+    int term_col;
+    int term_row;
+    int tile_cols = use_bigtile ? 2 : 1;
+
+    if (!out_rect)
+        return false;
+    if (!p_ptr || dir < 1 || dir > 9 || dir == 5)
+        return false;
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    map_y = p_ptr->py + ddy[dir];
+    map_x = p_ptr->px + ddx[dir];
+    if (!in_bounds(map_y, map_x))
+        return false;
+    if (!panel_contains(map_y, map_x))
+        return false;
+
+    map_row = map_y - p_ptr->wy;
+    map_col = map_x - p_ptr->wx;
+    if (map_row < 0 || map_col < 0
+        || map_row >= SCREEN_HGT || map_col >= SCREEN_WID)
+    {
+        return false;
+    }
+
+    term_row = ROW_MAP + map_row;
+    term_col = COL_MAP + map_col * tile_cols;
+    if (term_row < 0 || term_row >= view->rows
+        || term_col < 0 || term_col >= view->cols)
+    {
+        return false;
+    }
+
+    *out_rect = (SDL_FRect){
+        .x = (float)(view->rect.x + view->margin_x
+            + term_col * view->cell_w),
+        .y = (float)(view->rect.y + view->margin_y
+            + term_row * view->cell_h),
+        .w = (float)(view->cell_w * tile_cols),
+        .h = (float)view->cell_h,
+    };
+    return true;
+}
+
+static void sdl_touch_round_render_target_square(int dir)
+{
+    SDL_FRect rect;
+    SDL_Color accent = g_state.palette[TERM_YELLOW];
+
+    if (!sdl_touch_round_dir_to_map_rect(dir, &rect))
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g, accent.b,
+        84);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g, accent.b,
+        190);
+    SDL_RenderRect(g_state.renderer, &rect);
+}
+
 static void sdl_touch_round_render(void)
 {
     SDL_Color frame = g_state.palette[TERM_WHITE];
@@ -9460,6 +9565,9 @@ static void sdl_touch_round_render(void)
     float dist;
     float end_x;
     float end_y;
+    Uint64 press_time;
+    bool center_repeat;
+    int target_dir;
     int dir;
 
     if (!g_touch_round_press.active)
@@ -9476,16 +9584,29 @@ static void sdl_touch_round_render(void)
     accent.a = 190;
     selected.a = 230;
 
+    dx = g_touch_round_press.current_x - g_touch_round_press.center_x;
+    dy = g_touch_round_press.current_y - g_touch_round_press.center_y;
+    dist = SDL_sqrtf(dx * dx + dy * dy);
+    press_time = SDL_GetTicksNS() - g_touch_round_press.start_time;
+    center_repeat = (dist <= inner_radius
+        && press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL
+        && g_touch_round_last_dir != 0);
+    target_dir = g_touch_round_press.selected_dir
+        ? g_touch_round_press.selected_dir
+        : (center_repeat ? g_touch_round_last_dir : 0);
+
+    if (target_dir)
+        sdl_touch_round_render_target_square(target_dir);
+
     sdl_touch_round_draw_circle(g_touch_round_press.center_x,
         g_touch_round_press.center_y, radius, frame);
     sdl_touch_round_draw_circle(g_touch_round_press.center_x,
         g_touch_round_press.center_y, radius - 2.0f, frame);
     sdl_touch_round_draw_circle(g_touch_round_press.center_x,
         g_touch_round_press.center_y, inner_radius, accent);
+    sdl_touch_round_draw_sector_lines(g_touch_round_press.center_x,
+        g_touch_round_press.center_y, inner_radius, radius, frame);
 
-    dx = g_touch_round_press.current_x - g_touch_round_press.center_x;
-    dy = g_touch_round_press.current_y - g_touch_round_press.center_y;
-    dist = SDL_sqrtf(dx * dx + dy * dy);
     end_x = g_touch_round_press.current_x;
     end_y = g_touch_round_press.current_y;
     if (dist > radius && dist > 0.0f) {
@@ -9498,9 +9619,7 @@ static void sdl_touch_round_render(void)
     SDL_RenderLine(g_state.renderer, g_touch_round_press.center_x,
         g_touch_round_press.center_y, end_x, end_y);
 
-    dir = g_touch_round_press.selected_dir;
-    if (!dir && dist <= inner_radius)
-        dir = g_touch_round_last_dir;
+    dir = target_dir;
     if (dir) {
         center_arrow = (SDL_FRect){
             .x = g_touch_round_press.center_x - inner_radius,
