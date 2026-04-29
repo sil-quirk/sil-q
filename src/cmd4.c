@@ -18823,23 +18823,6 @@ enum {
     TOUCH_CONTROL_COUNT
 };
 
-static bool touch_control_is_swipe_binding_row(int row)
-{
-    return row >= TOUCH_CONTROL_SWIPE_UP && row <= TOUCH_CONTROL_SWIPE_RIGHT;
-}
-
-static bool touch_control_is_center_binding_row(int row)
-{
-    return row >= TOUCH_CONTROL_CENTER_LEFT_TAP
-        && row <= TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP;
-}
-
-static bool touch_control_is_top_panel_binding_row(int row)
-{
-    return row >= TOUCH_CONTROL_TOP_BUTTON_1_TAP
-        && row <= TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP;
-}
-
 static bool touch_control_is_menu_command_row(int row)
 {
     return row >= TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT
@@ -18860,56 +18843,186 @@ static int touch_control_menu_category_for_row(int row)
     }
 }
 
-static int touch_control_center_binding_index_for_row(int row)
+typedef enum {
+    TOUCH_CONTROL_BINDING_TOP_PANEL,
+    TOUCH_CONTROL_BINDING_CENTER_ZONE,
+    TOUCH_CONTROL_BINDING_SWIPE,
+} touch_control_binding_kind;
+
+typedef struct {
+    int row;
+    cptr label;
+    touch_control_binding_kind kind;
+    int index;
+    bool long_press;
+} touch_control_binding_row;
+
+static const touch_control_binding_row touch_control_binding_rows[] = {
+    { TOUCH_CONTROL_TOP_BUTTON_1_TAP, "Top Button 1 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 0, false },
+    { TOUCH_CONTROL_TOP_BUTTON_1_LONG_TAP, "Top Button 1 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 0, true },
+    { TOUCH_CONTROL_TOP_BUTTON_2_TAP, "Top Button 2 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 1, false },
+    { TOUCH_CONTROL_TOP_BUTTON_2_LONG_TAP, "Top Button 2 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 1, true },
+    { TOUCH_CONTROL_TOP_BUTTON_3_TAP, "Top Button 3 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 2, false },
+    { TOUCH_CONTROL_TOP_BUTTON_3_LONG_TAP, "Top Button 3 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 2, true },
+    { TOUCH_CONTROL_TOP_BUTTON_4_TAP, "Top Button 4 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 3, false },
+    { TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP, "Top Button 4 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 3, true },
+    { TOUCH_CONTROL_CENTER_LEFT_TAP, "Left Center Tap",
+        TOUCH_CONTROL_BINDING_CENTER_ZONE, SDL_TOUCH_ZONE_CENTER_LEFT_TAP, false },
+    { TOUCH_CONTROL_CENTER_LEFT_LONG_TAP, "Left Center Long Tap",
+        TOUCH_CONTROL_BINDING_CENTER_ZONE, SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP, false },
+    { TOUCH_CONTROL_CENTER_RIGHT_TAP, "Right Center Tap",
+        TOUCH_CONTROL_BINDING_CENTER_ZONE, SDL_TOUCH_ZONE_CENTER_RIGHT_TAP, false },
+    { TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP, "Right Center Long Tap",
+        TOUCH_CONTROL_BINDING_CENTER_ZONE, SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP, false },
+    { TOUCH_CONTROL_SWIPE_UP, "Swipe Up",
+        TOUCH_CONTROL_BINDING_SWIPE, TOUCH_SWIPE_DIR_UP, false },
+    { TOUCH_CONTROL_SWIPE_DOWN, "Swipe Down",
+        TOUCH_CONTROL_BINDING_SWIPE, TOUCH_SWIPE_DIR_DOWN, false },
+    { TOUCH_CONTROL_SWIPE_LEFT, "Swipe Left",
+        TOUCH_CONTROL_BINDING_SWIPE, TOUCH_SWIPE_DIR_LEFT, false },
+    { TOUCH_CONTROL_SWIPE_RIGHT, "Swipe Right",
+        TOUCH_CONTROL_BINDING_SWIPE, TOUCH_SWIPE_DIR_RIGHT, false },
+};
+
+static const touch_control_binding_row* touch_control_binding_for_row(int row)
 {
-    switch (row) {
-    case TOUCH_CONTROL_CENTER_LEFT_TAP:
-        return SDL_TOUCH_ZONE_CENTER_LEFT_TAP;
-    case TOUCH_CONTROL_CENTER_LEFT_LONG_TAP:
-        return SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP;
-    case TOUCH_CONTROL_CENTER_RIGHT_TAP:
-        return SDL_TOUCH_ZONE_CENTER_RIGHT_TAP;
-    case TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP:
-        return SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP;
+    for (int i = 0; i < (int)N_ELEMENTS(touch_control_binding_rows); i++) {
+        if (touch_control_binding_rows[i].row == row)
+            return &touch_control_binding_rows[i];
+    }
+
+    return NULL;
+}
+
+static int touch_control_binding_value(const touch_control_binding_row* binding)
+{
+    if (!binding)
+        return GAMEPAD_BIND_NONE;
+
+    switch (binding->kind) {
+    case TOUCH_CONTROL_BINDING_TOP_PANEL:
+        return get_sdl_touch_top_panel_binding(binding->index,
+            binding->long_press);
+    case TOUCH_CONTROL_BINDING_CENTER_ZONE:
+        return get_sdl_touch_zone_center_binding(binding->index);
+    case TOUCH_CONTROL_BINDING_SWIPE:
+        return get_sdl_touch_swipe_binding(binding->index);
     default:
-        return -1;
+        return GAMEPAD_BIND_NONE;
     }
 }
 
-static int touch_control_top_panel_slot_for_row(int row)
+static int touch_control_binding_default_value(
+    const touch_control_binding_row* binding)
 {
-    if (!touch_control_is_top_panel_binding_row(row))
-        return -1;
+    if (!binding)
+        return GAMEPAD_BIND_NONE;
 
-    return (row - TOUCH_CONTROL_TOP_BUTTON_1_TAP) / 2;
+    switch (binding->kind) {
+    case TOUCH_CONTROL_BINDING_TOP_PANEL:
+        return get_sdl_touch_top_panel_default_binding(binding->index,
+            binding->long_press);
+    case TOUCH_CONTROL_BINDING_CENTER_ZONE:
+        return get_sdl_touch_zone_center_default_binding(binding->index);
+    case TOUCH_CONTROL_BINDING_SWIPE:
+        return get_sdl_touch_swipe_default_binding(binding->index);
+    default:
+        return GAMEPAD_BIND_NONE;
+    }
 }
 
-static bool touch_control_top_panel_long_for_row(int row)
+static void touch_control_set_binding(const touch_control_binding_row* binding,
+    int value)
 {
-    if (!touch_control_is_top_panel_binding_row(row))
+    if (!binding)
+        return;
+
+    switch (binding->kind) {
+    case TOUCH_CONTROL_BINDING_TOP_PANEL:
+        set_sdl_touch_top_panel_binding(binding->index, binding->long_press,
+            value);
+        break;
+    case TOUCH_CONTROL_BINDING_CENTER_ZONE:
+        set_sdl_touch_zone_center_binding(binding->index, value);
+        break;
+    case TOUCH_CONTROL_BINDING_SWIPE:
+        set_sdl_touch_swipe_binding(binding->index, value);
+        break;
+    default:
+        break;
+    }
+}
+
+static const int* touch_control_binding_choices(
+    const touch_control_binding_row* binding, int* count)
+{
+    if (binding && binding->kind == TOUCH_CONTROL_BINDING_SWIPE)
+        return touch_swipe_action_choices(count);
+
+    return touch_pane_action_choices_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+        count);
+}
+
+static bool touch_control_binding_label(int row, char* buf, size_t buflen)
+{
+    const touch_control_binding_row* binding = touch_control_binding_for_row(row);
+
+    if (!binding)
         return false;
 
-    return ((row - TOUCH_CONTROL_TOP_BUTTON_1_TAP) % 2) == 1;
+    touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+        touch_control_binding_value(binding), buf, buflen);
+    return true;
 }
 
-static int touch_control_swipe_dir_for_row(int row)
+static bool touch_control_cycle_binding_row(int row, int delta)
 {
-    switch (row) {
-    case TOUCH_CONTROL_SWIPE_UP:
-        return TOUCH_SWIPE_DIR_UP;
-    case TOUCH_CONTROL_SWIPE_DOWN:
-        return TOUCH_SWIPE_DIR_DOWN;
-    case TOUCH_CONTROL_SWIPE_LEFT:
-        return TOUCH_SWIPE_DIR_LEFT;
-    case TOUCH_CONTROL_SWIPE_RIGHT:
-        return TOUCH_SWIPE_DIR_RIGHT;
-    default:
-        return -1;
-    }
+    const touch_control_binding_row* binding = touch_control_binding_for_row(row);
+    int choice_count = 0;
+    const int* choices;
+    int idx;
+
+    if (!binding)
+        return false;
+
+    choices = touch_control_binding_choices(binding, &choice_count);
+    if (!choices || choice_count <= 0)
+        return false;
+
+    idx = touch_action_choice_index(choices, choice_count,
+        touch_control_binding_value(binding));
+    idx = ((idx + delta) % choice_count + choice_count) % choice_count;
+    touch_control_set_binding(binding, choices[idx]);
+    return true;
+}
+
+static bool touch_control_reset_binding_row(int row)
+{
+    const touch_control_binding_row* binding = touch_control_binding_for_row(row);
+
+    if (!binding)
+        return false;
+
+    touch_control_set_binding(binding,
+        touch_control_binding_default_value(binding));
+    return true;
 }
 
 static const char* touch_control_row_name(int row)
 {
+    const touch_control_binding_row* binding = touch_control_binding_for_row(row);
+
+    if (binding)
+        return binding->label;
+
     switch (row) {
     case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
         return "Inventory/Equipped Touch";
@@ -18921,40 +19034,8 @@ static const char* touch_control_row_name(int row)
         return "Touch Movement";
     case TOUCH_CONTROL_CORNER_BUTTON_OVERLAY:
         return "Corner Button Overlay";
-    case TOUCH_CONTROL_TOP_BUTTON_1_TAP:
-        return "Top Button 1 Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_1_LONG_TAP:
-        return "Top Button 1 Long Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_2_TAP:
-        return "Top Button 2 Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_2_LONG_TAP:
-        return "Top Button 2 Long Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_3_TAP:
-        return "Top Button 3 Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_3_LONG_TAP:
-        return "Top Button 3 Long Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_4_TAP:
-        return "Top Button 4 Tap";
-    case TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP:
-        return "Top Button 4 Long Tap";
-    case TOUCH_CONTROL_CENTER_LEFT_TAP:
-        return "Left Center Tap";
-    case TOUCH_CONTROL_CENTER_LEFT_LONG_TAP:
-        return "Left Center Long Tap";
-    case TOUCH_CONTROL_CENTER_RIGHT_TAP:
-        return "Right Center Tap";
-    case TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP:
-        return "Right Center Long Tap";
     case TOUCH_CONTROL_SWIPE_ENABLED:
         return "Swipe Gestures";
-    case TOUCH_CONTROL_SWIPE_UP:
-        return "Swipe Up";
-    case TOUCH_CONTROL_SWIPE_DOWN:
-        return "Swipe Down";
-    case TOUCH_CONTROL_SWIPE_LEFT:
-        return "Swipe Left";
-    case TOUCH_CONTROL_SWIPE_RIGHT:
-        return "Swipe Right";
     default:
         return "";
     }
@@ -19556,25 +19637,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (i == TOUCH_CONTROL_SWIPE_ENABLED) {
                 SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
                     sizeof(action_buf));
-            } else if (touch_control_is_top_panel_binding_row(i)) {
-                int slot = touch_control_top_panel_slot_for_row(i);
-                bool long_press = touch_control_top_panel_long_for_row(i);
-
-                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
-                    get_sdl_touch_top_panel_binding(slot, long_press),
-                    action_buf, sizeof(action_buf));
-            } else if (touch_control_is_center_binding_row(i)) {
-                int index = touch_control_center_binding_index_for_row(i);
-
-                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
-                    get_sdl_touch_zone_center_binding(index), action_buf,
-                    sizeof(action_buf));
-            } else if (touch_control_is_swipe_binding_row(i)) {
-                int swipe_dir = touch_control_swipe_dir_for_row(i);
-
-                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
-                    get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
-            } else {
+            } else if (!touch_control_binding_label(i, action_buf,
+                    sizeof(action_buf))) {
                 action_buf[0] = '\0';
             }
 
@@ -19690,37 +19754,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         get_sdl_touch_zone_overlay_mode(), -1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(false);
-            } else if (touch_control_is_top_panel_binding_row(highlight)) {
-                int choice_count = 0;
-                int slot = touch_control_top_panel_slot_for_row(highlight);
-                bool long_press = touch_control_top_panel_long_for_row(highlight);
-                const int* choices = touch_pane_action_choices_for_panel(
-                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_top_panel_binding(slot, long_press));
-
-                idx = (choice_count + idx - 1) % choice_count;
-                set_sdl_touch_top_panel_binding(slot, long_press, choices[idx]);
-            } else if (touch_control_is_center_binding_row(highlight)) {
-                int choice_count = 0;
-                int binding_index =
-                    touch_control_center_binding_index_for_row(highlight);
-                const int* choices = touch_pane_action_choices_for_panel(
-                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_zone_center_binding(binding_index));
-
-                idx = (choice_count + idx - 1) % choice_count;
-                set_sdl_touch_zone_center_binding(binding_index, choices[idx]);
-            } else if (touch_control_is_swipe_binding_row(highlight)) {
-                int choice_count = 0;
-                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
-                const int* choices = touch_swipe_action_choices(&choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_swipe_binding(swipe_dir));
-
-                idx = (choice_count + idx - 1) % choice_count;
-                set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+            } else {
+                touch_control_cycle_binding_row(highlight, -1);
             }
             changed = true;
             break;
@@ -19744,37 +19779,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         get_sdl_touch_zone_overlay_mode(), 1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
-            } else if (touch_control_is_top_panel_binding_row(highlight)) {
-                int choice_count = 0;
-                int slot = touch_control_top_panel_slot_for_row(highlight);
-                bool long_press = touch_control_top_panel_long_for_row(highlight);
-                const int* choices = touch_pane_action_choices_for_panel(
-                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_top_panel_binding(slot, long_press));
-
-                idx = (idx + 1) % choice_count;
-                set_sdl_touch_top_panel_binding(slot, long_press, choices[idx]);
-            } else if (touch_control_is_center_binding_row(highlight)) {
-                int choice_count = 0;
-                int binding_index =
-                    touch_control_center_binding_index_for_row(highlight);
-                const int* choices = touch_pane_action_choices_for_panel(
-                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_zone_center_binding(binding_index));
-
-                idx = (idx + 1) % choice_count;
-                set_sdl_touch_zone_center_binding(binding_index, choices[idx]);
-            } else if (touch_control_is_swipe_binding_row(highlight)) {
-                int choice_count = 0;
-                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
-                const int* choices = touch_swipe_action_choices(&choice_count);
-                int idx = touch_action_choice_index(choices, choice_count,
-                    get_sdl_touch_swipe_binding(swipe_dir));
-
-                idx = (idx + 1) % choice_count;
-                set_sdl_touch_swipe_binding(swipe_dir, choices[idx]);
+            } else {
+                touch_control_cycle_binding_row(highlight, 1);
             }
             changed = true;
             break;
@@ -19794,23 +19800,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     get_sdl_touch_zone_overlay_default_mode());
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
-            } else if (touch_control_is_top_panel_binding_row(highlight)) {
-                int slot = touch_control_top_panel_slot_for_row(highlight);
-                bool long_press = touch_control_top_panel_long_for_row(highlight);
-
-                set_sdl_touch_top_panel_binding(slot, long_press,
-                    get_sdl_touch_top_panel_default_binding(slot, long_press));
-            } else if (touch_control_is_center_binding_row(highlight)) {
-                int binding_index =
-                    touch_control_center_binding_index_for_row(highlight);
-
-                set_sdl_touch_zone_center_binding(binding_index,
-                    get_sdl_touch_zone_center_default_binding(binding_index));
-            } else if (touch_control_is_swipe_binding_row(highlight)) {
-                int swipe_dir = touch_control_swipe_dir_for_row(highlight);
-
-                set_sdl_touch_swipe_binding(swipe_dir,
-                    get_sdl_touch_swipe_default_binding(swipe_dir));
+            } else {
+                touch_control_reset_binding_row(highlight);
             }
             changed = true;
             break;
