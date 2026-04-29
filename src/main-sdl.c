@@ -24,6 +24,9 @@
 #if defined(SDL_PLATFORM_ANDROID)
 #include <jni.h>
 #endif
+#if defined(SIL_IOS)
+#include "main-sdl-ios.h"
+#endif
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
 #define SIL_SDL_MOBILE_BUILD 1
@@ -1361,6 +1364,25 @@ static void sdl_refresh_safe_area(void)
 #if defined(SDL_PLATFORM_ANDROID)
             else if (!config.use_unsafe_area)
                 safe_area = sdl_get_android_display_cutout_rect();
+#elif defined(SIL_IOS)
+            else if (!config.use_unsafe_area) {
+                int li = 0, ri = 0, ti = 0, bi = 0;
+                if (sdl_ios_get_safe_area_insets(g_state.window,
+                        &li, &ri, &ti, &bi))
+                {
+                    SDL_Rect ios_units = {
+                        li, ti,
+                        window_units.w - li - ri,
+                        window_units.h - ti - bi
+                    };
+                    if (ios_units.w > 0 && ios_units.h > 0) {
+                        SDL_Rect ios_pixels = sdl_window_rect_to_pixel_rect(
+                            &ios_units);
+                        if (sdl_rect_has_area(&ios_pixels))
+                            safe_area = ios_pixels;
+                    }
+                }
+            }
 #endif
         }
     }
@@ -13558,6 +13580,9 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
 
     g_state.system_scale = SDL_GetWindowDisplayScale(g_state.window);
     log_debug("window scale is %g", g_state.system_scale);
+#if defined(SIL_IOS)
+    sdl_ios_install_orientation_observer(g_state.window);
+#endif
     sdl_refresh_safe_area();
 
     // Ensure predictable alpha blending (cursor/text)
