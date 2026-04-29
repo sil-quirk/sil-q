@@ -159,6 +159,7 @@ struct sdl_config {
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     bool touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_COUNT];
     int touch_movement_mode;
+    bool touch_round_movement_enabled;
     int touch_zone_overlay_mode;
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];

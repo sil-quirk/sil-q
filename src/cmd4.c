@@ -19271,6 +19271,7 @@ enum {
     TOUCH_CONTROL_MENU_SUPPLY,
     TOUCH_CONTROL_MENU_OTHER,
     TOUCH_CONTROL_MOVEMENT,
+    TOUCH_CONTROL_ROUND_MOVEMENT_LAYER,
     TOUCH_CONTROL_CORNER_BUTTON_OVERLAY,
     TOUCH_CONTROL_TOP_BUTTON_1_TAP,
     TOUCH_CONTROL_TOP_BUTTON_1_LONG_TAP,
@@ -19501,6 +19502,8 @@ static const char* touch_control_row_name(int row)
         return "Other Menus Touch";
     case TOUCH_CONTROL_MOVEMENT:
         return "Touch Movement";
+    case TOUCH_CONTROL_ROUND_MOVEMENT_LAYER:
+        return "Round Movement Layer";
     case TOUCH_CONTROL_CORNER_BUTTON_OVERLAY:
         return "Corner Button Overlay";
     case TOUCH_CONTROL_SWIPE_ENABLED:
@@ -19617,6 +19620,8 @@ static void touch_control_reset_to_default(void)
             get_sdl_touch_menu_commands_default_enabled(i));
     }
     set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+    set_sdl_touch_round_movement_enabled(
+        get_sdl_touch_round_movement_default_enabled());
     set_sdl_touch_zone_overlay_mode(get_sdl_touch_zone_overlay_default_mode());
     for (int i = 0; i < SDL_TOUCH_ZONE_CENTER_BINDING_COUNT; i++)
         set_sdl_touch_zone_center_binding(i,
@@ -20080,7 +20085,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
         settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Control");
         settings_ui_put_fitted(2, 2, TERM_WHITE, "=============");
         settings_ui_put_fitted(3, 2, TERM_SLATE,
-            "Controls touch menus, corner overlays, top buttons, and swipe gestures.");
+            "Controls touch menus, round movement, corner overlays, top buttons, and swipes.");
 
         row = list_start_row;
         for (int i = top; i < total_rows && i < top + visible_rows; i++)
@@ -20097,6 +20102,10 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (i == TOUCH_CONTROL_MOVEMENT) {
                 SDL_strlcpy(action_buf,
                     touch_movement_mode_label(get_sdl_touch_movement_mode()),
+                    sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_ROUND_MOVEMENT_LAYER) {
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_round_movement_enabled() ? "On" : "Off",
                     sizeof(action_buf));
             } else if (i == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
                 SDL_strlcpy(action_buf,
@@ -20217,6 +20226,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(
                     touch_movement_mode_cycle(get_sdl_touch_movement_mode(), -1));
+            } else if (highlight == TOUCH_CONTROL_ROUND_MOVEMENT_LAYER) {
+                set_sdl_touch_round_movement_enabled(false);
             } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
                 set_sdl_touch_zone_overlay_mode(
                     touch_zone_overlay_mode_cycle(
@@ -20242,6 +20253,9 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(
                     touch_movement_mode_cycle(get_sdl_touch_movement_mode(), 1));
+            } else if (highlight == TOUCH_CONTROL_ROUND_MOVEMENT_LAYER) {
+                set_sdl_touch_round_movement_enabled(
+                    !get_sdl_touch_round_movement_enabled());
             } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
                 set_sdl_touch_zone_overlay_mode(
                     touch_zone_overlay_mode_cycle(
@@ -20264,6 +20278,9 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     category, get_sdl_touch_menu_commands_default_enabled(category));
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+            } else if (highlight == TOUCH_CONTROL_ROUND_MOVEMENT_LAYER) {
+                set_sdl_touch_round_movement_enabled(
+                    get_sdl_touch_round_movement_default_enabled());
             } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
                 set_sdl_touch_zone_overlay_mode(
                     get_sdl_touch_zone_overlay_default_mode());

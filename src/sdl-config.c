@@ -1877,6 +1877,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "otherMenuCommandsEnabled");
                 cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "movementMode");
+                cJSON* round_movement = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "roundMovementLayerEnabled");
                 cJSON* corner_button_overlay = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "cornerButtonOverlayMode");
                 cJSON* corner_button_markers = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -1938,6 +1940,13 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         normalize_touch_movement_mode(movement_mode->valueint);
                     log_debug("Loaded numeric touchControl.movementMode: %s",
                         touch_movement_mode_to_string(config->touch_movement_mode));
+                }
+
+                if (cJSON_IsBool(round_movement)) {
+                    config->touch_round_movement_enabled =
+                        cJSON_IsTrue(round_movement);
+                    log_debug("Loaded touchControl.roundMovementLayerEnabled: %s",
+                        config->touch_round_movement_enabled ? "true" : "false");
                 }
 
                 if (cJSON_IsString(corner_button_overlay)
@@ -2361,6 +2370,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]);
             cJSON_AddStringToObject(touch_control, "movementMode",
                 touch_movement_mode_to_string(config->touch_movement_mode));
+            cJSON_AddBoolToObject(touch_control,
+                "roundMovementLayerEnabled",
+                config->touch_round_movement_enabled);
             cJSON_AddStringToObject(touch_control, "cornerButtonOverlayMode",
                 touch_zone_overlay_mode_to_string(
                     config->touch_zone_overlay_mode));
@@ -2568,6 +2580,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
         config->touch_menu_command_enabled[i] = true;
     config->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+    config->touch_round_movement_enabled = false;
     config->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
     memcpy(config->touch_zone_center_bindings, center_defaults,
         sizeof(center_defaults));
