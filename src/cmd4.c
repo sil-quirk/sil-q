@@ -1305,6 +1305,32 @@ static int ability_purchase_exp_cost(int skilltype)
     return exp_cost;
 }
 
+static void ability_menu_sort_smithing_entries(ability_type* entries[],
+    byte attrs[], int abilitynums[], int count)
+{
+    int i;
+
+    for (i = 1; i < count; i++)
+    {
+        ability_type* entry = entries[i];
+        byte attr = attrs[i];
+        int abilitynum = abilitynums[i];
+        int j = i - 1;
+
+        while ((j >= 0) && (entry->level < entries[j]->level))
+        {
+            entries[j + 1] = entries[j];
+            attrs[j + 1] = attrs[j];
+            abilitynums[j + 1] = abilitynums[j];
+            j--;
+        }
+
+        entries[j + 1] = entry;
+        attrs[j + 1] = attr;
+        abilitynums[j + 1] = abilitynum;
+    }
+}
+
 static int ability_menu_text_width(int desc_col, int indent)
 {
     int wrap = ability_menu_description_wrap(desc_col);
@@ -3668,6 +3694,12 @@ int abilities_menu2(int skilltype, int* highlight)
         visible_count++;
     }
 
+    if (skilltype == S_SMT)
+    {
+        ability_menu_sort_smithing_entries(visible_entries, visible_attrs,
+            visible_abilities, visible_count);
+    }
+
     /* Safety check: if no abilities are visible, show message and exit */
     if (visible_count == 0) {
         Term_putstr(ability_col, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
@@ -4735,6 +4767,7 @@ smithing_cost_type smithing_cost;
 static int smith_ui_last_desc_row = -1;
 
 #define SMITH_CLICK_BACK 33000
+#define SMITH_ROOT_BACK_LABEL "Smithing Esc"
 
 static int smith_ui_term_wid(void)
 {
@@ -4754,6 +4787,123 @@ static bool smith_ui_compact_width(void)
 static bool smith_ui_compact_height(void)
 {
     return (smith_ui_term_hgt() <= 18);
+}
+
+static int smith_text_count_x;
+static int smith_text_count_lines;
+static int smith_text_count_indent;
+static int smith_text_count_wrap;
+static bool smith_text_count_has_output;
+static bool smith_text_count_have_space;
+static int smith_text_count_chars_since_space;
+
+static void smith_text_count_begin(int indent, int wrap)
+{
+    smith_text_count_x = indent;
+    smith_text_count_lines = 0;
+    smith_text_count_indent = indent;
+    smith_text_count_wrap = wrap;
+    smith_text_count_has_output = false;
+    smith_text_count_have_space = false;
+    smith_text_count_chars_since_space = 0;
+}
+
+static void smith_text_count_out(byte attr, cptr str)
+{
+    cptr s;
+
+    (void)attr;
+
+    if (!str)
+        return;
+
+    for (s = str; *s; s++)
+    {
+        char ch;
+
+        if (!smith_text_count_has_output)
+        {
+            smith_text_count_has_output = true;
+            smith_text_count_lines = 1;
+        }
+
+        if (*s == '\n')
+        {
+            smith_text_count_x = smith_text_count_indent;
+            smith_text_count_lines++;
+            smith_text_count_have_space = false;
+            smith_text_count_chars_since_space = 0;
+            continue;
+        }
+
+        ch = isprint((unsigned char)*s) ? *s : ' ';
+
+        if ((smith_text_count_x >= smith_text_count_wrap - 1) && (ch != ' '))
+        {
+            int moved_chars = 0;
+
+            if (smith_text_count_have_space
+                && (smith_text_count_chars_since_space > 0))
+            {
+                moved_chars = smith_text_count_chars_since_space;
+            }
+
+            smith_text_count_x = smith_text_count_indent + moved_chars;
+            smith_text_count_lines++;
+            smith_text_count_have_space = false;
+            smith_text_count_chars_since_space = moved_chars;
+        }
+
+        smith_text_count_x++;
+        if (smith_text_count_x > smith_text_count_wrap)
+            smith_text_count_x = smith_text_count_wrap;
+
+        if (ch == ' ')
+        {
+            smith_text_count_have_space = true;
+            smith_text_count_chars_since_space = 0;
+        }
+        else
+        {
+            smith_text_count_chars_since_space++;
+        }
+    }
+}
+
+static int smith_count_object_preview_lines(
+    const object_type* o_ptr, cptr lore, bool include_info, int indent, int wrap)
+{
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    void (*old_info_out_flags)(
+        const object_type*, u32b*, u32b*, u32b*) = object_info_out_flags;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    int lines;
+
+    smith_text_count_begin(indent, wrap);
+    text_out_hook = smith_text_count_out;
+    text_out_wrap = wrap;
+    text_out_indent = indent;
+    object_info_out_flags = object_flags;
+
+    if (lore && lore[0])
+    {
+        text_out_c(TERM_WHITE, lore);
+        if (include_info)
+            text_out(" ");
+    }
+
+    if (include_info)
+        (void)object_info_out(o_ptr);
+
+    lines = smith_text_count_has_output ? smith_text_count_lines : 0;
+
+    text_out_hook = old_hook;
+    object_info_out_flags = old_info_out_flags;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+
+    return lines;
 }
 
 static int smith_ui_secondary_col(void)
@@ -4807,25 +4957,6 @@ static int smith_ui_desc_col(void)
     return COL_SMT1;
 }
 
-static bool smith_ui_show_lore(void)
-{
-    return (smith_ui_term_hgt() > 18);
-}
-
-static int smith_ui_preferred_desc_lines(void)
-{
-    int hgt = smith_ui_term_hgt();
-
-    if (hgt <= 18)
-        return 2;
-    if (hgt <= 20)
-        return 3;
-    if (hgt <= 22)
-        return 4;
-
-    return 5;
-}
-
 static void smith_ui_reset_description_state(void)
 {
     smith_ui_last_desc_row = -1;
@@ -4866,15 +4997,26 @@ static int smith_ui_used_bottom_row(void)
     return 0;
 }
 
-static int smith_ui_description_row(void)
+static int smith_ui_min_description_row(void)
+{
+    return smith_ui_used_bottom_row() + 1;
+}
+
+static int smith_ui_description_row_for_lines(int lines)
 {
     int hgt = smith_ui_term_hgt();
-    int row = MAX(
-        smith_ui_used_bottom_row() + 1, hgt - smith_ui_preferred_desc_lines());
-    int min_lines = smith_ui_show_lore() ? 2 : 1;
+    int min_row = smith_ui_min_description_row();
+    int row;
 
-    if ((row >= hgt) || ((hgt - row) < min_lines))
+    if (lines < 1)
+        lines = 1;
+
+    if (min_row >= hgt)
         return -1;
+
+    row = hgt - lines;
+    if (row < min_row)
+        row = min_row;
 
     return row;
 }
@@ -4945,7 +5087,7 @@ static int smith_ui_column_width(int col)
     return MAX(1, next_col - col - 1);
 }
 
-static void smith_ui_put_back_header(int col, int row, cptr label)
+static void smith_ui_put_header(int col, int row, cptr label)
 {
     char buf[80];
     int width = smith_ui_column_width(col);
@@ -4962,7 +5104,31 @@ static void smith_ui_put_back_header(int col, int row, cptr label)
 
     Term_erase(col, row, width);
     Term_putstr(col, row, width, TERM_WHITE, buf);
+}
+
+static void smith_ui_put_back_header(int col, int row, cptr label)
+{
+    char buf[80];
+    int width = smith_ui_column_width(col);
+
+    if (!label)
+        label = "";
+
+    if ((int)strlen(label) <= width)
+        SDL_strlcpy(buf, label, sizeof(buf));
+    else if (width > 3)
+        strnfmt(buf, sizeof(buf), "%.*s...", width - 3, label);
+    else
+        strnfmt(buf, sizeof(buf), "%.*s", width, label);
+
+    smith_ui_put_header(col, row, buf);
     smith_ui_add_back_click_target(col, row, buf);
+}
+
+static void smith_ui_put_section_header(int col, int row, cptr label)
+{
+    smith_ui_put_header(col, row, label);
+    smith_ui_add_back_click_target(COL_SMT1, 1, SMITH_ROOT_BACK_LABEL);
 }
 
 static void smith_ui_put_menu_prefix(
@@ -7056,10 +7222,28 @@ void prt_object_description(void)
 {
     char o_desc[80];
     char buf[80];
+    char base_desc_buf[2048];
+    cptr base_desc;
     int display_flag;
     int desc_row;
     int desc_col;
     int desc_width;
+    int wrap_col;
+    int min_desc_row;
+    int max_lines;
+    int progress_lines;
+    int header_lines = 1;
+    int info_lines;
+    int lore_lines;
+    int lore_info_lines;
+    int body_lines;
+    int total_lines;
+    bool show_lore = false;
+    bool show_info = false;
+    void (*old_hook)(byte, cptr);
+    void (*old_info_out_flags)(const object_type*, u32b*, u32b*, u32b*);
+    int old_wrap;
+    int old_indent;
 
     wipe_object_description();
 
@@ -7067,15 +7251,15 @@ void prt_object_description(void)
     if (smith_o_ptr->tval == 0)
         return;
 
-    desc_row = smith_ui_description_row();
-    if (desc_row < 0)
-        return;
-
-    smith_ui_last_desc_row = desc_row;
-    smith_ui_clear_from_row(desc_row);
-
     desc_col = smith_ui_desc_col();
     desc_width = smith_ui_term_wid() - desc_col;
+    wrap_col = smith_ui_term_wid() - 1;
+    if (desc_width <= 0)
+        return;
+    if (wrap_col <= desc_col + 1)
+        wrap_col = desc_col + 2;
+    min_desc_row = smith_ui_min_description_row();
+    max_lines = smith_ui_term_hgt() - min_desc_row;
 
     if (smith_o_ptr->number > 1)
         display_flag = true;
@@ -7088,6 +7272,40 @@ void prt_object_description(void)
         format("   %d.%d lb", smith_o_ptr->weight * smith_o_ptr->number / 10,
             (smith_o_ptr->weight * smith_o_ptr->number) % 10),
         sizeof(o_desc));
+
+    base_desc = object_lore_select_base_text(smith_o_ptr, base_desc_buf,
+        sizeof(base_desc_buf));
+
+    progress_lines = p_ptr->smithing_leftover ? 1 : 0;
+    info_lines = smith_count_object_preview_lines(
+        smith_o_ptr, NULL, true, desc_col, wrap_col);
+    lore_lines = smith_count_object_preview_lines(
+        smith_o_ptr, base_desc, false, desc_col, wrap_col);
+    lore_info_lines = smith_count_object_preview_lines(
+        smith_o_ptr, base_desc, true, desc_col, wrap_col);
+
+    show_info = (info_lines > 0);
+    if (base_desc && base_desc[0])
+    {
+        int full_body_lines = show_info ? lore_info_lines : lore_lines;
+
+        if ((full_body_lines > 0)
+            && (progress_lines + header_lines + full_body_lines <= max_lines))
+        {
+            show_lore = true;
+        }
+    }
+
+    body_lines = show_lore ? (show_info ? lore_info_lines : lore_lines)
+                           : info_lines;
+    total_lines = progress_lines + header_lines + body_lines;
+
+    desc_row = smith_ui_description_row_for_lines(total_lines);
+    if (desc_row < 0)
+        return;
+
+    smith_ui_last_desc_row = desc_row;
+    smith_ui_clear_from_row(desc_row);
 
     if (p_ptr->smithing_leftover)
     {
@@ -7107,29 +7325,33 @@ void prt_object_description(void)
     Term_gotoxy(desc_col, desc_row);
 
     /* Set hooks for character dump */
+    old_info_out_flags = object_info_out_flags;
     object_info_out_flags = object_flags;
 
     /* Set the indent/wrap */
+    old_hook = text_out_hook;
+    old_wrap = text_out_wrap;
+    old_indent = text_out_indent;
     text_out_indent = desc_col;
-    text_out_wrap = smith_ui_term_wid() - 1;
+    text_out_wrap = wrap_col;
 
     text_out_hook = text_out_to_screen;
 
-    if (smith_ui_show_lore())
+    if (show_lore && base_desc && base_desc[0])
     {
-        text_out_c(TERM_WHITE, k_text + k_info[smith_o_ptr->k_idx].text);
-
-        if ((k_text + k_info[smith_o_ptr->k_idx].text)[0] != '\0')
+        text_out_c(TERM_WHITE, base_desc);
+        if (show_info)
             text_out(" ");
     }
 
-    /* Dump only the mechanical info on short screens. */
-    if (object_info_out(smith_o_ptr) && smith_ui_show_lore())
-        text_out("\n");
+    if (show_info)
+        (void)object_info_out(smith_o_ptr);
 
     /* Reset indent/wrap */
-    text_out_indent = 0;
-    text_out_wrap = 0;
+    text_out_hook = old_hook;
+    object_info_out_flags = old_info_out_flags;
+    text_out_indent = old_indent;
+    text_out_wrap = old_wrap;
 }
 
 /*
@@ -7524,6 +7746,9 @@ typedef struct reforge_preview_type
     int turns;
     smithing_cost_type cost;
     bool affordable;
+    bool needs_forge;
+    bool needs_forge_resources;
+    bool needs_reforging;
 } reforge_preview_type;
 
 static void smithing_cost_reset_local(smithing_cost_type* cost)
@@ -7689,7 +7914,8 @@ static bool ego_prefix_can_apply_to_object(const object_type* o_ptr, int e_idx)
     return smith_ego_can_apply_to_object(o_ptr, e_idx, 0, 0, true);
 }
 
-static bool object_can_reforge_prefix(const object_type* o_ptr)
+static bool object_can_reforge_prefix_aux(
+    const object_type* o_ptr, bool require_category_ability)
 {
     int i;
 
@@ -7707,7 +7933,7 @@ static bool object_can_reforge_prefix(const object_type* o_ptr)
         return false;
     if (ego_forbids_prefix_combo((int)object_ego_suffix(o_ptr)))
         return false;
-    if (!smith_has_category_ability(o_ptr))
+    if (require_category_ability && !smith_has_category_ability(o_ptr))
         return false;
 
     for (i = 1; i < z_info->e_max; i++)
@@ -7717,6 +7943,11 @@ static bool object_can_reforge_prefix(const object_type* o_ptr)
     }
 
     return false;
+}
+
+static bool object_can_preview_reforge_prefix(const object_type* o_ptr)
+{
+    return object_can_reforge_prefix_aux(o_ptr, false);
 }
 
 static int find_reforge_target_item(void)
@@ -7729,7 +7960,8 @@ static int find_reforge_target_item(void)
 
         if (!o_ptr->k_idx)
             continue;
-        if (object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr))
+        if (object_can_repair_damage(o_ptr)
+            || object_can_preview_reforge_prefix(o_ptr))
             return i;
     }
 
@@ -7858,6 +8090,37 @@ static bool reforge_preview_build(const object_type* source, int prefix_idx,
         = smith_reforge_difficulty_affordable(
             preview->scaled_difficulty, &preview->cost.drain);
 
+    if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
+    {
+        preview->needs_reforging = true;
+        preview->affordable = false;
+    }
+
+    switch (smith_item_category(source))
+    {
+    case CAT_WEAPON:
+        if (!p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH])
+        {
+            preview->cost.weaponsmith = 1;
+            preview->affordable = false;
+        }
+        break;
+    case CAT_ARMOUR:
+        if (!p_ptr->active_ability[S_SMT][SMT_ARMOURSMITH])
+        {
+            preview->cost.armoursmith = 1;
+            preview->affordable = false;
+        }
+        break;
+    case CAT_JEWELRY:
+        if (!p_ptr->active_ability[S_SMT][SMT_JEWELLER])
+        {
+            preview->cost.jeweller = 1;
+            preview->affordable = false;
+        }
+        break;
+    }
+
     if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
     {
         preview->cost.str = 0;
@@ -7896,8 +8159,16 @@ static bool reforge_preview_build(const object_type* source, int prefix_idx,
     if ((preview->cost.star_iron > 0)
         && (preview->cost.star_iron > star_iron_carried()))
         preview->affordable = false;
-    if (forge_uses(p_ptr->py, p_ptr->px) < preview->cost.uses)
+    if (!cave_forge_bold(p_ptr->py, p_ptr->px))
+    {
+        preview->needs_forge = true;
         preview->affordable = false;
+    }
+    else if (forge_uses(p_ptr->py, p_ptr->px) < preview->cost.uses)
+    {
+        preview->needs_forge_resources = true;
+        preview->affordable = false;
+    }
     if ((preview->cost.drain > 0)
         && (preview->cost.drain > p_ptr->skill_base[S_SMT]))
         preview->affordable = false;
@@ -8011,7 +8282,7 @@ int create_sval_menu_aux(int tval, int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(list_col));
-    smith_ui_put_back_header(list_col, title_row, "Subtype (Esc)");
+    smith_ui_put_section_header(list_col, title_row, "Subtype");
 
     /* We have to search the whole itemlist. */
     for (num = 0, i = 1; i < z_info->k_max; i++)
@@ -8223,7 +8494,7 @@ int create_tval_menu_aux(int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-    smith_ui_put_back_header(COL_SMT2, title_row, "Type (Esc)");
+    smith_ui_put_section_header(COL_SMT2, title_row, "Type");
 
     // clear bottom of the screen
     wipe_object_description();
@@ -8613,7 +8884,7 @@ int numbers_menu_aux(int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-    smith_ui_put_back_header(COL_SMT2, 1, "Adjust (Esc)");
+    smith_ui_put_section_header(COL_SMT2, 1, "Adjust");
 
     memset(valid, 0, sizeof(valid));
 
@@ -9097,7 +9368,7 @@ static int smith_bonus_menu_aux(int* highlight)
 
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
-    smith_ui_put_back_header(COL_SMT2, 1, "Bonuses (Esc)");
+    smith_ui_put_section_header(COL_SMT2, 1, "Bonuses");
 
     if (num <= 0)
     {
@@ -9130,9 +9401,9 @@ static int smith_bonus_menu_aux(int* highlight)
         if (end > num)
             end = num;
         strnfmt(buf, sizeof(buf),
-            "Adjust special bonuses (ESC to return) [%d-%d/%d]", top, end,
+            "Adjust special bonuses [%d-%d/%d]", top, end,
             num);
-        smith_ui_put_back_header(COL_SMT2, 1, buf);
+        smith_ui_put_section_header(COL_SMT2, 1, buf);
     }
 
     object_type snapshot;
@@ -9399,10 +9670,36 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
     Term_putstr(COL_SMT4, smith_ui_cost_title_row(), -1,
         preview->affordable ? TERM_SLATE : TERM_L_DARK, "Cost:");
 
+    if (preview->needs_reforging)
+    {
+        smith_ui_put_cost_line(costs, TERM_RED, "Reforging");
+        costs++;
+    }
+    if (preview->cost.weaponsmith)
+    {
+        smith_ui_put_cost_line(costs, TERM_RED, "Weaponsmith");
+        costs++;
+    }
+    if (preview->cost.armoursmith)
+    {
+        smith_ui_put_cost_line(costs, TERM_RED, "Armoursmith");
+        costs++;
+    }
+    if (preview->cost.jeweller)
+    {
+        smith_ui_put_cost_line(costs, TERM_RED, "Jeweller");
+        costs++;
+    }
+    if (preview->needs_forge)
+    {
+        smith_ui_put_cost_line(costs, TERM_RED, "Forge");
+        costs++;
+    }
     if (preview->cost.uses > 0)
     {
-        attr = (forge_uses(p_ptr->py, p_ptr->px) >= preview->cost.uses)
-            ? TERM_SLATE : TERM_L_DARK;
+        attr = (preview->needs_forge || preview->needs_forge_resources)
+            ? TERM_RED
+            : TERM_SLATE;
         if (compact)
             strnfmt(buf, sizeof(buf), "%d/%d uses", preview->cost.uses,
                 forge_uses(p_ptr->py, p_ptr->px));
@@ -9480,6 +9777,29 @@ static void prt_reforge_preview(const reforge_preview_type* preview)
     smith_ui_put_cost_line(costs, TERM_SLATE, buf);
 }
 
+static bool reforge_preview_missing_ability(const reforge_preview_type* preview)
+{
+    if (!preview)
+        return false;
+
+    return preview->needs_reforging || preview->cost.weaponsmith
+        || preview->cost.armoursmith || preview->cost.jeweller;
+}
+
+static bool reforge_preview_missing_forge(const reforge_preview_type* preview)
+{
+    if (!preview)
+        return false;
+
+    return preview->needs_forge || preview->needs_forge_resources;
+}
+
+static bool reforge_preview_primary_blocker(const reforge_preview_type* preview)
+{
+    return reforge_preview_missing_ability(preview)
+        || reforge_preview_missing_forge(preview);
+}
+
 static int reforge_prefix_menu(const object_type* source)
 {
     char ch;
@@ -9503,7 +9823,7 @@ static int reforge_prefix_menu(const object_type* source)
         ui_menu_click_set_outside_cancel_enabled(true);
 
         wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-        smith_ui_put_back_header(COL_SMT2, 1, "Prefix (Esc)");
+        smith_ui_put_section_header(COL_SMT2, 1, "Prefix");
 
         entry_count = 0;
         memset(choice, 0, sizeof(choice));
@@ -9525,7 +9845,12 @@ static int reforge_prefix_menu(const object_type* source)
             ego_name_for_enchant_menu(i, ego_label, sizeof(ego_label));
             indexed_menu_entry_label(buf, sizeof(buf), entry_count, ego_label);
             smith_ui_put_menu_label(COL_SMT2, entry_count + 2,
-                valid[entry_count] ? TERM_WHITE : TERM_L_DARK, buf);
+                valid[entry_count] ? TERM_WHITE
+                                   : (reforge_preview_primary_blocker(
+                                          &previews[entry_count])
+                                             ? TERM_RED
+                                             : TERM_L_DARK),
+                buf);
             smith_ui_register_menu_row(entry_count + 1, COL_SMT2,
                 entry_count + 2, buf);
             entry_count++;
@@ -9590,7 +9915,11 @@ static int reforge_prefix_menu(const object_type* source)
             && (ch >= 'a') && (ch <= (char)'a' + entry_count - 1))
         {
             highlight = (int)ch - 'a' + 1;
-            if (!valid[highlight - 1])
+            if (reforge_preview_missing_ability(&previews[highlight - 1]))
+                bell("You lack the ability for that reforge.");
+            else if (reforge_preview_missing_forge(&previews[highlight - 1]))
+                bell("You need a forge with resources for that reforge.");
+            else if (!valid[highlight - 1])
                 bell("You cannot afford that reforge.");
             else
             {
@@ -9605,7 +9934,11 @@ static int reforge_prefix_menu(const object_type* source)
 #endif
             )
         {
-            if (!valid[highlight - 1])
+            if (reforge_preview_missing_ability(&previews[highlight - 1]))
+                bell("You lack the ability for that reforge.");
+            else if (reforge_preview_missing_forge(&previews[highlight - 1]))
+                bell("You need a forge with resources for that reforge.");
+            else if (!valid[highlight - 1])
                 bell("You cannot afford that reforge.");
             else
             {
@@ -9713,10 +10046,9 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
     /* Header */
-    strnfmt(title, sizeof(title), "%s (Esc)",
-        selecting_prefix ? "prefix" : "suffix");
+    strnfmt(title, sizeof(title), "%s", selecting_prefix ? "prefix" : "suffix");
     title[0] = (char)toupper((unsigned char)title[0]);
-    smith_ui_put_back_header(COL_SMT2, 1, title);
+    smith_ui_put_section_header(COL_SMT2, 1, title);
 
     /* Always allow selecting no affix */
     valid[entry_count] = true;
@@ -10233,7 +10565,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
-    smith_ui_put_back_header(COL_SMT3, 1, "Property (Esc)");
+    smith_ui_put_section_header(COL_SMT3, 1, "Property");
 
     // display the categories
     for (i = 0; smithing_flag_types[i].flag != 0; i++)
@@ -10695,7 +11027,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
-    smith_ui_put_back_header(COL_SMT3, 1, "Ability (Esc)");
+    smith_ui_put_section_header(COL_SMT3, 1, "Ability");
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -11063,8 +11395,8 @@ int artefact_menu_aux(int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-    smith_ui_put_back_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
-        "Artifice (Esc)");
+    smith_ui_put_section_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
+        "Artifice");
 
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
@@ -11304,8 +11636,8 @@ int melt_menu_aux(int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-    smith_ui_put_back_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
-        "Melt (Esc)");
+    smith_ui_put_section_header(COL_SMT2, MAX(0, smith_ui_dense_row0() - 1),
+        "Melt");
 
     // clear bottom of the screen
     wipe_object_description();
@@ -11476,7 +11808,98 @@ void melt_menu(void)
 
 static bool smith_item_tester_hook_reforge_target(const object_type* o_ptr)
 {
-    return object_can_repair_damage(o_ptr) || object_can_reforge_prefix(o_ptr);
+    return object_can_repair_damage(o_ptr)
+        || object_can_preview_reforge_prefix(o_ptr);
+}
+
+static void smithing_redraw_root_after_item_picker(void)
+{
+    bool valid[SMT_MENU_MAX];
+    byte valid_attr;
+    char buf[80];
+
+    Term_clear();
+    smith_ui_reset_description_state();
+    ui_menu_click_clear();
+
+    smith_ui_put_back_header(COL_SMT1, 1, SMITH_ROOT_BACK_LABEL);
+
+    if (!cave_forge_bold(p_ptr->py, p_ptr->px))
+    {
+        Term_putstr(COL_SMT1, 0, -1, TERM_L_BLUE,
+            "Exploration mode:  Smithing requires a forge.");
+    }
+    else if (forge_uses(p_ptr->py, p_ptr->px) == 0)
+    {
+        Term_putstr(COL_SMT1, 0, -1, TERM_L_BLUE,
+            "Exploration mode:  Smithing requires a forge with resources "
+            "left.");
+    }
+
+    valid[SMT_MENU_CREATE - 1] = true;
+    valid[SMT_MENU_ENCHANT - 1] = (!smith_o_ptr->name1)
+        && (!enchant_then_numbers) && (smith_o_ptr->tval != 0)
+        && (smith_o_ptr->tval != TV_HORN)
+        && !((smith_o_ptr->tval == TV_DIGGING)
+            && (smith_o_ptr->sval == SV_SHOVEL));
+    valid[SMT_MENU_ARTEFACT - 1] = (!object_has_ego(smith_o_ptr))
+        && (smith_o_ptr->tval != 0) && (smith_o_ptr->tval != TV_HORN)
+        && (p_ptr->self_made_arts
+            < z_info->art_self_made_max - z_info->art_rand_max - 2);
+    valid[SMT_MENU_NUMBERS - 1] = (smith_o_ptr->tval != 0);
+    valid[SMT_MENU_MELT - 1]
+        = meltable_metal_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
+    valid[SMT_MENU_REPAIR - 1] = (find_reforge_target_item() >= 0);
+    valid[SMT_MENU_ACCEPT - 1] = affordable(smith_o_ptr)
+        && cave_forge_bold(p_ptr->py, p_ptr->px)
+        && (forge_uses(p_ptr->py, p_ptr->px) > 0);
+
+    valid_attr = (p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH]
+                     || p_ptr->active_ability[S_SMT][SMT_ARMOURSMITH]
+                     || p_ptr->active_ability[S_SMT][SMT_JEWELLER])
+        ? TERM_WHITE
+        : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_CREATE - 1, "Base Item");
+    smith_ui_put_menu_label(COL_SMT1, 2,
+        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, buf);
+
+    valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
+                                                                 : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ENCHANT - 1, "Enchant");
+    smith_ui_put_menu_label(COL_SMT1, 3,
+        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, buf);
+
+    valid_attr
+        = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ARTEFACT - 1, "Artifice");
+    smith_ui_put_menu_label(COL_SMT1, 4,
+        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, buf);
+
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_NUMBERS - 1, "Numbers");
+    smith_ui_put_menu_label(COL_SMT1, 5,
+        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_MELT - 1, "Melt");
+    smith_ui_put_menu_label(COL_SMT1, 6,
+        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+
+    valid_attr = (p_ptr->active_ability[S_SMT][SMT_REPAIR]
+                     && cave_forge_bold(p_ptr->py, p_ptr->px)
+                     && (forge_uses(p_ptr->py, p_ptr->px) > 0))
+        ? TERM_WHITE
+        : TERM_RED;
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_REPAIR - 1, "Reforge");
+    smith_ui_put_menu_label(COL_SMT1, 7,
+        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, buf);
+
+    indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1,
+        (p_ptr->smithing_leftover == 0) ? "Accept" : "Resume");
+    smith_ui_put_menu_label(COL_SMT1, 8,
+        valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+
+    smith_ui_put_menu_prefix(
+        COL_SMT1, SMT_MENU_REPAIR + 1, SMT_MENU_REPAIR - 1, TERM_L_BLUE, true);
+    Term_fresh();
 }
 
 static bool smith_reforge_item(void)
@@ -11490,32 +11913,20 @@ static bool smith_reforge_item(void)
     smith_alloy_state alloy_backup = smith_alloy;
     smith_alloy_state alloy2_backup = smith2_alloy;
 
-    if (!cave_forge_bold(p_ptr->py, p_ptr->px))
-    {
-        msg_print("You can only reforge items at a forge.");
-        return false;
-    }
-
-    if (forge_uses(p_ptr->py, p_ptr->px) <= 0)
-    {
-        msg_print("This forge has no resources left.");
-        return false;
-    }
-
-    if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
-    {
-        bell("You do not know how to reforge gear.");
-        return false;
-    }
+    wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
+    wipe_object_description();
+    Term_fresh();
 
     item_tester_hook = smith_item_tester_hook_reforge_target;
     if (!get_item(&slot, "Reforge which item? ",
             "You have nothing to repair or reforge.", (USE_EQUIP | USE_INVEN)))
     {
         item_tester_hook = NULL;
+        smithing_redraw_root_after_item_picker();
         return false;
     }
     item_tester_hook = NULL;
+    smithing_redraw_root_after_item_picker();
 
     if (slot < 0)
         return false;
@@ -11525,6 +11936,36 @@ static bool smith_reforge_item(void)
 
     if (object_can_repair_damage(&inventory[slot]))
     {
+        if (!cave_forge_bold(p_ptr->py, p_ptr->px))
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You can only reforge items at a forge.");
+            return false;
+        }
+
+        if (forge_uses(p_ptr->py, p_ptr->px) <= 0)
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("This forge has no resources left.");
+            return false;
+        }
+
+        if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
+        {
+            object_copy(smith_o_ptr, &smith_backup);
+            object_copy(smith2_o_ptr, &smith2_backup);
+            smith_alloy = alloy_backup;
+            smith2_alloy = alloy2_backup;
+            bell("You do not know how to reforge gear.");
+            return false;
+        }
+
         if (!repair_damaged_item(slot))
         {
             object_copy(smith_o_ptr, &smith_backup);
@@ -11545,7 +11986,7 @@ static bool smith_reforge_item(void)
     {
         reforge_preview_type preview;
 
-        if (!object_can_reforge_prefix(&inventory[slot]))
+        if (!object_can_preview_reforge_prefix(&inventory[slot]))
         {
             object_copy(smith_o_ptr, &smith_backup);
             object_copy(smith2_o_ptr, &smith2_backup);
@@ -11615,6 +12056,7 @@ int smithing_menu_aux(int* highlight)
     char ch;
     byte valid_attr;
     bool valid[SMT_MENU_MAX];
+    byte menu_attr[SMT_MENU_MAX];
     char buf[80];
 
     ui_menu_click_begin();
@@ -11623,7 +12065,7 @@ int smithing_menu_aux(int* highlight)
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
-    smith_ui_put_back_header(COL_SMT1, 1, "Smithing (Esc)");
+    smith_ui_put_back_header(COL_SMT1, 1, SMITH_ROOT_BACK_LABEL);
 
     // determine whether or not we can actually make objects here
     if (!cave_forge_bold(p_ptr->py, p_ptr->px))
@@ -11651,11 +12093,7 @@ int smithing_menu_aux(int* highlight)
     valid[SMT_MENU_NUMBERS - 1] = (smith_o_ptr->tval != 0);
     valid[SMT_MENU_MELT - 1]
         = meltable_metal_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
-    valid[SMT_MENU_REPAIR - 1]
-        = cave_forge_bold(p_ptr->py, p_ptr->px)
-        && (forge_uses(p_ptr->py, p_ptr->px) > 0)
-        && p_ptr->active_ability[S_SMT][SMT_REPAIR]
-        && (find_reforge_target_item() >= 0);
+    valid[SMT_MENU_REPAIR - 1] = (find_reforge_target_item() >= 0);
     valid[SMT_MENU_ACCEPT - 1] = affordable(smith_o_ptr)
         && cave_forge_bold(p_ptr->py, p_ptr->px)
         && (forge_uses(p_ptr->py, p_ptr->px) > 0);
@@ -11667,40 +12105,60 @@ int smithing_menu_aux(int* highlight)
         ? TERM_WHITE
         : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_CREATE - 1, "Base Item");
+    menu_attr[SMT_MENU_CREATE - 1]
+        = valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 2,
-        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, buf);
+        menu_attr[SMT_MENU_CREATE - 1], buf);
     valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
                                                                  : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ENCHANT - 1, "Enchant");
+    menu_attr[SMT_MENU_ENCHANT - 1]
+        = valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 3,
-        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, buf);
+        menu_attr[SMT_MENU_ENCHANT - 1], buf);
     valid_attr
         = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ARTEFACT - 1, "Artifice");
+    menu_attr[SMT_MENU_ARTEFACT - 1]
+        = valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 4,
-        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, buf);
+        menu_attr[SMT_MENU_ARTEFACT - 1], buf);
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_NUMBERS - 1, "Numbers");
+    menu_attr[SMT_MENU_NUMBERS - 1]
+        = valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 5,
-        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+        menu_attr[SMT_MENU_NUMBERS - 1], buf);
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_MELT - 1, "Melt");
+    menu_attr[SMT_MENU_MELT - 1]
+        = valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 6,
-        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
-    valid_attr = p_ptr->active_ability[S_SMT][SMT_REPAIR] ? TERM_WHITE : TERM_RED;
+        menu_attr[SMT_MENU_MELT - 1], buf);
+    valid_attr = (p_ptr->active_ability[S_SMT][SMT_REPAIR]
+                     && cave_forge_bold(p_ptr->py, p_ptr->px)
+                     && (forge_uses(p_ptr->py, p_ptr->px) > 0))
+        ? TERM_WHITE
+        : TERM_RED;
     indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_REPAIR - 1, "Reforge");
+    menu_attr[SMT_MENU_REPAIR - 1]
+        = valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK;
     smith_ui_put_menu_label(COL_SMT1, 7,
-        valid[SMT_MENU_REPAIR - 1] ? valid_attr : TERM_L_DARK, buf);
+        menu_attr[SMT_MENU_REPAIR - 1], buf);
 
     if (p_ptr->smithing_leftover == 0)
     {
         indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Accept");
+        menu_attr[SMT_MENU_ACCEPT - 1]
+            = valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK;
         smith_ui_put_menu_label(COL_SMT1, 8,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+            menu_attr[SMT_MENU_ACCEPT - 1], buf);
     }
     else
     {
         indexed_menu_entry_label(buf, sizeof(buf), SMT_MENU_ACCEPT - 1, "Resume");
+        menu_attr[SMT_MENU_ACCEPT - 1]
+            = valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK;
         smith_ui_put_menu_label(COL_SMT1, 8,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, buf);
+            menu_attr[SMT_MENU_ACCEPT - 1], buf);
     }
 
     for (int menu_i = 0; menu_i < SMT_MENU_MAX; menu_i++)
@@ -11763,12 +12221,18 @@ int smithing_menu_aux(int* highlight)
             "to a found item at the forge.");
         Term_putstr(COL_SMT2 + 2, 4, -1, TERM_SLATE,
             "Reforging uses 1.5x the difficulty delta.");
-        if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
-            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
-                "(requires the Reforging ability)");
-        else if (find_reforge_target_item() < 0)
+        if (find_reforge_target_item() < 0)
             Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
                 "(you carry nothing to reforge)");
+        else if (!cave_forge_bold(p_ptr->py, p_ptr->px))
+            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
+                "(preview only: requires a forge)");
+        else if (forge_uses(p_ptr->py, p_ptr->px) <= 0)
+            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
+                "(preview only: forge has no resources)");
+        else if (!p_ptr->active_ability[S_SMT][SMT_REPAIR])
+            Term_putstr(COL_SMT2 + 2, 5, -1, TERM_L_DARK,
+                "(preview only: requires Reforging)");
         break;
     }
     case SMT_MENU_ACCEPT:
@@ -11851,9 +12315,8 @@ int smithing_menu_aux(int* highlight)
         *highlight = (int)ch - 'a' + 1;
 
         // move the light blue highlight
-        move_displayed_highlight(old_highlight,
-            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, *highlight,
-            COL_SMT1);
+        move_displayed_highlight(
+            old_highlight, menu_attr[old_highlight - 1], *highlight, COL_SMT1);
 
         if (valid[*highlight - 1])
             return (*highlight);
@@ -11924,6 +12387,7 @@ void do_cmd_smithing_screen(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
 
     /* Clear screen */
     Term_clear();
@@ -12139,6 +12603,7 @@ void do_cmd_smithing_screen(void)
     /* Load screen */
     smith_ui_reset_description_state();
     ui_menu_click_clear();
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

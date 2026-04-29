@@ -1028,6 +1028,8 @@ extern void message_pain(int m_idx, int dam);
 
 /* obj-info.c */
 extern bool object_info_out(const object_type* o_ptr);
+extern cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
+    size_t out_sz);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
 extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);

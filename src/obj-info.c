@@ -2192,7 +2192,7 @@ static bool object_lore_select_segment(cptr raw,
     return (out[0] != '\0');
 }
 
-static cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
+cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
     size_t out_sz)
 {
     cptr raw;

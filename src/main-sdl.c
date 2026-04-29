@@ -9222,14 +9222,13 @@ static bool sdl_touch_zone_overlay_visible(void)
 
 static bool sdl_touch_zone_layout_visible(void)
 {
-    return sdl_touch_zone_overlay_visible()
-        && character_icky == 0;
+    return sdl_touch_zone_overlay_visible();
 }
 
 static bool sdl_touch_zone_controls_active(void)
 {
     return sdl_touch_zone_layout_visible()
-        && sdl_main_screen_click_shortcuts_active();
+        && sdl_pane_command_shortcuts_active();
 }
 
 static bool sdl_touch_zone_compute_layout(SDL_FRect* zone_rects)
@@ -9633,6 +9632,10 @@ static bool sdl_touch_zone_handle_pointer_down(float x, float y,
     if (zone < 0)
         return false;
 
+    sdl_menu_touch_cancel();
+    sdl_menu_scroll_cancel();
+    sdl_map_touch_cancel_press();
+    sdl_pointer_attack_cancel_touch_press();
     sdl_touch_zone_cancel_press();
     g_touch_zone_press.active = true;
     g_touch_zone_press.finger_id = finger_id;
@@ -9763,6 +9766,7 @@ static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
     float screen_h;
     float corner_size;
     float panel_x;
+    float panel_y;
     float margin_top;
     float gap;
     float panel_w;
@@ -9787,6 +9791,15 @@ static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
     panel_x = (float)screen.x + corner_size * 2.0f;
     panel_w = screen_w - corner_size * 4.0f;
     margin_top = screen_h * 0.018f;
+    panel_y = (float)screen.y + margin_top;
+    if (g_views[PANE_MAIN].cell_h > 0) {
+        float row_zero_bottom = (float)(g_views[PANE_MAIN].rect.y
+            + g_views[PANE_MAIN].margin_y + g_views[PANE_MAIN].cell_h);
+        float row_gap = screen_h * 0.006f;
+
+        if (panel_y < row_zero_bottom + row_gap)
+            panel_y = row_zero_bottom + row_gap;
+    }
     gap = panel_w * 0.018f;
     panel_h = screen_h * 0.12f;
     if (panel_h > corner_size * 0.48f)
@@ -9801,7 +9814,7 @@ static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
     if (out_panel) {
         *out_panel = (SDL_FRect){
             .x = panel_x,
-            .y = (float)screen.y + margin_top,
+            .y = panel_y,
             .w = panel_w,
             .h = panel_h,
         };
@@ -9809,7 +9822,7 @@ static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
 
     if (button_rects) {
         float x = panel_x;
-        float y = (float)screen.y + margin_top;
+        float y = panel_y;
 
         for (int i = 0; i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++) {
             button_rects[i] = (SDL_FRect){
@@ -12359,6 +12372,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         {
             return;
         }
+        if (sdl_touch_zone_handle_pointer_down(x, y, ev->tfinger.fingerID))
+            return;
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID,
             false))
             return;
@@ -12374,8 +12389,6 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
             return;
         if (sdl_touch_top_panel_handle_pointer_down(x, y, ev->tfinger.fingerID))
-            return;
-        if (sdl_touch_zone_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_menu_scroll_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
