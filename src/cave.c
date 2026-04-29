@@ -3015,8 +3015,67 @@ void do_cmd_view_map(void)
 
     /* Display the map */
 #ifdef USE_SDL
-    Term_fresh();
-    if (!sdl_display_pixel_map(&cy, &cx))
+    {
+        bool sdl_map = false;
+
+        sdl_minimap_begin();
+        Term_fresh();
+        sdl_map = sdl_display_pixel_map(&cy, &cx);
+        if (sdl_map)
+        {
+            Term_fresh();
+
+            while (true)
+            {
+                char ch = inkey();
+                int pan_dx = 0;
+                int pan_dy = 0;
+
+                if (ch == '+' || ch == '=')
+                {
+                    (void)sdl_minimap_adjust_zoom(1);
+                    Term_fresh();
+                    continue;
+                }
+
+                if (ch == '-' || ch == '_')
+                {
+                    (void)sdl_minimap_adjust_zoom(-1);
+                    Term_fresh();
+                    continue;
+                }
+
+                switch (ch)
+                {
+                case '1': pan_dx = -1; pan_dy = 1; break;
+                case '2': pan_dy = 1; break;
+                case '3': pan_dx = 1; pan_dy = 1; break;
+                case '4': pan_dx = -1; break;
+                case '6': pan_dx = 1; break;
+                case '7': pan_dx = -1; pan_dy = -1; break;
+                case '8': pan_dy = -1; break;
+                case '9': pan_dx = 1; pan_dy = -1; break;
+                default: break;
+                }
+
+                if (pan_dx || pan_dy)
+                {
+                    (void)sdl_minimap_pan(pan_dx, pan_dy);
+                    Term_fresh();
+                    continue;
+                }
+
+                break;
+            }
+
+            sdl_minimap_end();
+            screen_pop_supporting_panes_hidden();
+            screen_load();
+            return;
+        }
+
+        sdl_minimap_end();
+    }
 #endif
     {
         display_map(&cy, &cx);

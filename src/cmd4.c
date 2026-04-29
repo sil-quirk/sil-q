@@ -13582,6 +13582,57 @@ static const char* hint_message_detail_prompt(bool has_source, int wid)
         "[Any key; 'l' looks]"
     };
 
+    if (steamdeck_controls_active())
+    {
+        static char prompt_long[96];
+        static char prompt_mid[80];
+        static char prompt_short[64];
+        char confirm_label[16];
+        char back_label[16];
+        char look_label[16];
+
+        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        controller_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+
+        if (has_source)
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_mid,
+                prompt_short
+            };
+
+            controller_prompt_label(steamdeck_alt_action_key(), "X",
+                look_label, sizeof(look_label));
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "[%s] continue  [%s] look at skeleton  [%s] back",
+                confirm_label, look_label, back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid),
+                "[%s] continue  [%s] look  [%s] back",
+                confirm_label, look_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "[%s] ok  [%s] look",
+                confirm_label, look_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_short
+            };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "[%s] continue  [%s] back", confirm_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "[%s] continue",
+                confirm_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+    }
+
     if (has_source)
         return hint_message_pick_prompt(wid, source_prompts,
             N_ELEMENTS(source_prompts));
@@ -13612,6 +13663,98 @@ static const char* hint_message_list_prompt(bool show_all_tips,
         "[No level hint messages. Press ESCAPE]",
         "[No level hints. ESC]"
     };
+
+    if (steamdeck_controls_active())
+    {
+        static char prompt_long[128];
+        static char prompt_mid[96];
+        static char prompt_short[80];
+        char confirm_label[16];
+        char toggle_label[16];
+        char look_label[16];
+        char back_label[16];
+
+        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        controller_prompt_label(steamdeck_secondary_key(), "Y", toggle_label,
+            sizeof(toggle_label));
+        controller_prompt_label(steamdeck_alt_action_key(), "X", look_label,
+            sizeof(look_label));
+        controller_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+
+        if (show_all_tips)
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_mid,
+                prompt_short
+            };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "D-pad move  [%s] read  [%s] level hints  [%s] back",
+                confirm_label, toggle_label, back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid),
+                "D-pad  [%s] read  [%s] hints  [%s] back",
+                confirm_label, toggle_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] read  [%s] hints  [%s] back",
+                confirm_label, toggle_label, back_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+
+        if (level_n > 0)
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_mid,
+                prompt_short
+            };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "D-pad move  [%s] read  [%s] all tips  [%s] look  [%s] back",
+                confirm_label, toggle_label, look_label, back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid),
+                "D-pad  [%s] read  [%s] tips  [%s] look  [%s] back",
+                confirm_label, toggle_label, look_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] read  [%s] tips  [%s] look  [%s] back",
+                confirm_label, toggle_label, look_label, back_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+
+        if (tip_n > 0)
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_short
+            };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "No level hints.  [%s] all tips  [%s] back",
+                toggle_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "No hints.  [%s] tips  [%s] back", toggle_label, back_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+
+        {
+            const char* prompts[] = {
+                prompt_long,
+                prompt_short
+            };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "No level hint messages.  [%s] back", back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "No hints.  [%s] back",
+                back_label);
+
+            return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
+        }
+    }
 
     if (show_all_tips)
         return hint_message_pick_prompt(wid, tip_list_prompts,
@@ -14346,6 +14489,7 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     int display_line_count = 0;
     bool request_look = false;
     bool highlight_tutorial = false;
+    bool steamdeck = steamdeck_controls_active();
 
     hint_messages_ensure_level_state();
     stored_line_count = hint_messages_message_line_count(index);
@@ -14392,7 +14536,12 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
         ch = inkey();
         hide_cursor = false;
 
-        if ((ch == 'l' || ch == 'L') && hint_message_has_source(&meta))
+        if (steamdeck && ch == steamdeck_back_key())
+            break;
+
+        if ((ch == 'l' || ch == 'L'
+                || (steamdeck && ch == steamdeck_alt_action_key()))
+            && hint_message_has_source(&meta))
         {
             if (look_y)
                 *look_y = meta.source_y;
@@ -14434,6 +14583,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int look_y = -1;
     int look_x = -1;
     bool show_all_tips = false;
+    bool steamdeck = steamdeck_controls_active();
 
     /* Clear any active banner before opening hint messages */
     extern int g_banner_force_redraw_remaining;
@@ -14541,10 +14691,11 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         Term_fresh();
         ch = inkey();
 
-        if (ch == ESCAPE)
+        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
             break;
 
-        if (ch == 'h' || ch == 'H')
+        if (ch == 'h' || ch == 'H'
+            || (steamdeck && ch == steamdeck_secondary_key()))
         {
             if (tip_n <= 0)
             {
@@ -14576,7 +14727,8 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             continue;
         }
 
-        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
+            || (steamdeck && ch == steamdeck_confirm_key()))
         {
             int selected_look_y = -1;
             int selected_look_x = -1;
@@ -14595,7 +14747,8 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             continue;
         }
 
-        if (ch == 'l' || ch == 'L')
+        if (ch == 'l' || ch == 'L'
+            || (steamdeck && ch == steamdeck_alt_action_key()))
         {
             hint_message_meta meta;
 

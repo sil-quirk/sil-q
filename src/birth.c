@@ -3118,13 +3118,19 @@ static void character_aux_hook(birth_menu c_str)
         legend_has_room = (legend_row + 3 < legend_limit_row);
         if (compact_layout)
         {
+            int compact_first_row = description_row;
+
             /*
              * Compact flags can start one row above description_row when the
-             * screen is short. Keep the optional power legend only when there
-             * is a full blank separator before that compact block.
+             * screen is short. Keep the optional power legend whenever its
+             * rows end before the compact block starts; no blank separator is
+             * required.
              */
+            if (Term && Term->hgt > 0 && Term->hgt < 24)
+                compact_first_row--;
+
             legend_has_room = !tight_height
-                && (description_row > legend_row + 4)
+                && (compact_first_row > legend_row + 3)
                 && (legend_row + 3 < legend_limit_row);
         }
 
