@@ -3000,6 +3000,12 @@ void do_cmd_view_map(void)
     int cx = 0;
     cptr prompt = "Hit any key to continue";
 
+    if (!p_ptr->is_dead && g_labyrinth_view_active)
+    {
+        msg_print("The labyrinth confounds your map.");
+        return;
+    }
+
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();

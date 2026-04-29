@@ -12838,7 +12838,8 @@ static void main_menu_about(void)
 }
 
 static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
-    int* out_look_x);
+    int* out_look_x, bool* out_pending_map, int* out_map_y,
+    int* out_map_x);
 
 /*
  * Performs the interface and selection work for the main menu.
@@ -13096,6 +13097,9 @@ void do_cmd_main_menu(void)
     bool pending_hint_look = false;
     int pending_hint_look_y = -1;
     int pending_hint_look_x = -1;
+    bool pending_hint_map = false;
+    int pending_hint_map_y = -1;
+    int pending_hint_map_x = -1;
 
     /* Clear any active banner before opening main menu */
     extern int g_banner_force_redraw_remaining;
@@ -13174,7 +13178,8 @@ void do_cmd_main_menu(void)
         case 9: // Hint messages (i)
         {
             do_cmd_hint_messages(&pending_hint_look, &pending_hint_look_y,
-                &pending_hint_look_x);
+                &pending_hint_look_x, &pending_hint_map, &pending_hint_map_y,
+                &pending_hint_map_x);
             leave_menu = true;
             break;
         }
@@ -13254,7 +13259,15 @@ void do_cmd_main_menu(void)
     /* Load screen */
     screen_load();
 
-    if (pending_hint_look)
+    if (pending_hint_map)
+    {
+        do_cmd_redraw();
+#ifdef USE_SDL
+        sdl_minimap_focus(pending_hint_map_y, pending_hint_map_x);
+#endif
+        do_cmd_view_map();
+    }
+    else if (pending_hint_look)
     {
         do_cmd_redraw();
         do_cmd_look_at(pending_hint_look_y, pending_hint_look_x);
@@ -13275,6 +13288,23 @@ static bool hint_message_has_source(const hint_message_meta* meta)
 {
     return meta && meta->source_y >= 0 && meta->source_x >= 0
         && meta->source_y < p_ptr->cur_map_hgt && meta->source_x < p_ptr->cur_map_wid;
+}
+
+typedef enum hint_message_action {
+    HINT_MESSAGE_ACTION_NONE = 0,
+    HINT_MESSAGE_ACTION_LOOK,
+    HINT_MESSAGE_ACTION_MAP
+} hint_message_action;
+
+static void hint_message_open_map_at(int y, int x)
+{
+#ifdef USE_SDL
+    sdl_minimap_focus(y, x);
+#else
+    (void)y;
+    (void)x;
+#endif
+    do_cmd_view_map();
 }
 
 static bool hint_message_is_word_boundary(char ch)
@@ -13577,19 +13607,20 @@ static const char* hint_message_detail_prompt(bool has_source, int wid)
         "[Any key]"
     };
     static const char* const source_prompts[] = {
-        "[Press any key to continue, or 'l' to look at the skeleton]",
-        "[Any key continues; 'l' looks at skeleton]",
-        "[Any key; 'l' looks]"
+        "[Press any key, 'l' to look, 'm' to show skeleton on map]",
+        "[Any key; 'l' look at skeleton; 'm' map]",
+        "[Any key; l look; m map]"
     };
 
     if (steamdeck_controls_active())
     {
-        static char prompt_long[96];
-        static char prompt_mid[80];
-        static char prompt_short[64];
+        static char prompt_long[128];
+        static char prompt_mid[96];
+        static char prompt_short[80];
         char confirm_label[16];
         char back_label[16];
         char look_label[16];
+        char map_label[16];
 
         controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
             sizeof(confirm_label));
@@ -13606,14 +13637,15 @@ static const char* hint_message_detail_prompt(bool has_source, int wid)
 
             controller_prompt_label(steamdeck_alt_action_key(), "X",
                 look_label, sizeof(look_label));
+            controller_prompt_label('M', "Map", map_label, sizeof(map_label));
             strnfmt(prompt_long, sizeof(prompt_long),
-                "[%s] continue  [%s] look at skeleton  [%s] back",
-                confirm_label, look_label, back_label);
+                "[%s] continue  [%s] look  [%s] map  [%s] back",
+                confirm_label, look_label, map_label, back_label);
             strnfmt(prompt_mid, sizeof(prompt_mid),
-                "[%s] continue  [%s] look  [%s] back",
-                confirm_label, look_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "[%s] ok  [%s] look",
-                confirm_label, look_label);
+                "[%s] continue  [%s] look  [%s] map",
+                confirm_label, look_label, map_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "[%s] ok  [%s] map",
+                confirm_label, map_label);
 
             return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
         }
@@ -13650,9 +13682,9 @@ static const char* hint_message_list_prompt(bool show_all_tips,
         "[8/2 move, Enter, h, ESC]"
     };
     static const char* const level_list_prompts[] = {
-        "[Press '8'/'2' to move, Enter to read, 'h' for all tips, 'l' to look, or ESCAPE]",
-        "[8/2 move, Enter read, h tips, l look, ESC]",
-        "[8/2, Enter, h, l, ESC]"
+        "[Press '8'/'2' to move, Enter read, 'h' tips, 'l' look, 'm' map, or ESCAPE]",
+        "[8/2 move, Enter read, h tips, l look, m map, ESC]",
+        "[8/2, Enter, h, l, m, ESC]"
     };
     static const char* const no_level_with_tips_prompts[] = {
         "[No level hint messages. Press 'h' for all tips, or ESCAPE]",
@@ -13666,12 +13698,13 @@ static const char* hint_message_list_prompt(bool show_all_tips,
 
     if (steamdeck_controls_active())
     {
-        static char prompt_long[128];
-        static char prompt_mid[96];
-        static char prompt_short[80];
+        static char prompt_long[160];
+        static char prompt_mid[128];
+        static char prompt_short[96];
         char confirm_label[16];
         char toggle_label[16];
         char look_label[16];
+        char map_label[16];
         char back_label[16];
 
         controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
@@ -13680,6 +13713,7 @@ static const char* hint_message_list_prompt(bool show_all_tips,
             sizeof(toggle_label));
         controller_prompt_label(steamdeck_alt_action_key(), "X", look_label,
             sizeof(look_label));
+        controller_prompt_label('M', "Map", map_label, sizeof(map_label));
         controller_prompt_label(steamdeck_back_key(), "B", back_label,
             sizeof(back_label));
 
@@ -13713,14 +13747,14 @@ static const char* hint_message_list_prompt(bool show_all_tips,
             };
 
             strnfmt(prompt_long, sizeof(prompt_long),
-                "D-pad move  [%s] read  [%s] all tips  [%s] look  [%s] back",
-                confirm_label, toggle_label, look_label, back_label);
+                "D-pad move  [%s] read  [%s] tips  [%s] look  [%s] map  [%s] back",
+                confirm_label, toggle_label, look_label, map_label, back_label);
             strnfmt(prompt_mid, sizeof(prompt_mid),
-                "D-pad  [%s] read  [%s] tips  [%s] look  [%s] back",
-                confirm_label, toggle_label, look_label, back_label);
+                "D-pad  [%s] read  [%s] tips  [%s] look  [%s] map",
+                confirm_label, toggle_label, look_label, map_label);
             strnfmt(prompt_short, sizeof(prompt_short),
-                "[%s] read  [%s] tips  [%s] look  [%s] back",
-                confirm_label, toggle_label, look_label, back_label);
+                "[%s] read  [%s] look  [%s] map",
+                confirm_label, look_label, map_label);
 
             return hint_message_pick_prompt(wid, prompts, N_ELEMENTS(prompts));
         }
@@ -14475,7 +14509,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     return false;
 }
 
-static bool hint_message_show_internal(int index, int* look_y, int* look_x,
+static hint_message_action hint_message_show_internal(int index, int* source_y, int* source_x,
     bool manage_screen)
 {
     int wid = 80;
@@ -14487,14 +14521,14 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     hint_message_meta meta;
     byte stored_line_count;
     int display_line_count = 0;
-    bool request_look = false;
+    hint_message_action action = HINT_MESSAGE_ACTION_NONE;
     bool highlight_tutorial = false;
     bool steamdeck = steamdeck_controls_active();
 
     hint_messages_ensure_level_state();
     stored_line_count = hint_messages_message_line_count(index);
     if (!stored_line_count)
-        return false;
+        return HINT_MESSAGE_ACTION_NONE;
 
     hint_messages_message_meta(index, &meta);
     highlight_tutorial = (strstr(hint_messages_message_line(index, 0), "Survival Tip") != NULL);
@@ -14543,11 +14577,22 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
                 || (steamdeck && ch == steamdeck_alt_action_key()))
             && hint_message_has_source(&meta))
         {
-            if (look_y)
-                *look_y = meta.source_y;
-            if (look_x)
-                *look_x = meta.source_x;
-            request_look = true;
+            if (source_y)
+                *source_y = meta.source_y;
+            if (source_x)
+                *source_x = meta.source_x;
+            action = HINT_MESSAGE_ACTION_LOOK;
+            break;
+        }
+
+        if ((ch == 'm' || ch == 'M')
+            && hint_message_has_source(&meta))
+        {
+            if (source_y)
+                *source_y = meta.source_y;
+            if (source_x)
+                *source_x = meta.source_x;
+            action = HINT_MESSAGE_ACTION_MAP;
             break;
         }
 
@@ -14558,23 +14603,31 @@ static bool hint_message_show_internal(int index, int* look_y, int* look_x,
     if (manage_screen)
         screen_load();
 
-    return request_look;
+    return action;
 }
 
 void show_hint_message_screen(int index)
 {
     int look_y = -1;
     int look_x = -1;
+    hint_message_action action;
 
-    if (hint_message_show_internal(index, &look_y, &look_x, true))
+    action = hint_message_show_internal(index, &look_y, &look_x, true);
+    if (action == HINT_MESSAGE_ACTION_LOOK)
     {
         do_cmd_redraw();
         do_cmd_look_at(look_y, look_x);
     }
+    else if (action == HINT_MESSAGE_ACTION_MAP)
+    {
+        do_cmd_redraw();
+        hint_message_open_map_at(look_y, look_x);
+    }
 }
 
 static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
-    int* out_look_x)
+    int* out_look_x, bool* out_pending_map, int* out_map_y,
+    int* out_map_x)
 {
     char ch;
 
@@ -14582,6 +14635,9 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
+    bool pending_map = false;
+    int map_y = -1;
+    int map_x = -1;
     bool show_all_tips = false;
     bool steamdeck = steamdeck_controls_active();
 
@@ -14732,17 +14788,30 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         {
             int selected_look_y = -1;
             int selected_look_x = -1;
+            hint_message_action action = HINT_MESSAGE_ACTION_NONE;
 
             if (show_all_tips)
             {
                 (void)skeleton_tip_show_internal(sel, false);
             }
-            else if (hint_message_show_internal(sel, &selected_look_y, &selected_look_x, false))
+            else
             {
-                pending_look = true;
-                look_y = selected_look_y;
-                look_x = selected_look_x;
-                break;
+                action = hint_message_show_internal(sel, &selected_look_y,
+                    &selected_look_x, false);
+                if (action == HINT_MESSAGE_ACTION_LOOK)
+                {
+                    pending_look = true;
+                    look_y = selected_look_y;
+                    look_x = selected_look_x;
+                    break;
+                }
+                if (action == HINT_MESSAGE_ACTION_MAP)
+                {
+                    pending_map = true;
+                    map_y = selected_look_y;
+                    map_x = selected_look_x;
+                    break;
+                }
             }
             continue;
         }
@@ -14771,6 +14840,29 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             continue;
         }
 
+        if (ch == 'm' || ch == 'M')
+        {
+            hint_message_meta meta;
+
+            if (show_all_tips)
+            {
+                bell(NULL);
+                continue;
+            }
+
+            hint_messages_message_meta(sel, &meta);
+            if (hint_message_has_source(&meta))
+            {
+                pending_map = true;
+                map_y = meta.source_y;
+                map_x = meta.source_x;
+                break;
+            }
+
+            bell(NULL);
+            continue;
+        }
+
         bell(NULL);
     }
 
@@ -14784,6 +14876,12 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         *out_look_y = look_y;
     if (out_look_x)
         *out_look_x = look_x;
+    if (out_pending_map)
+        *out_pending_map = pending_map;
+    if (out_map_y)
+        *out_map_y = map_y;
+    if (out_map_x)
+        *out_map_x = map_x;
 }
 
 /*

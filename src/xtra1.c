@@ -811,13 +811,20 @@ static void prt_exp(void)
 static void prt_mel(void)
 {
     char buf[32];
-    int mod = 0;
+    bool has_offhand = pointer_attack_melee_has_offhand();
+    bool can_use_offhand_row = (ROW_MEL - 1) != ROW_LIGHT;
+    int main_row = ROW_MEL;
 
-    if (pointer_attack_melee_has_offhand())
-        mod = -1;
+    if (has_offhand && can_use_offhand_row)
+        main_row = ROW_MEL - 1;
 
-    /* Clear both rows since melee can shift up/down and shrink in width */
-    Term_erase(COL_MEL, ROW_MEL - 1, 12);
+    /*
+     * Clear the secondary melee row only when it is not reserved for the light
+     * display. In compact layouts ROW_MEL - 1 is ROW_LIGHT, so clearing both
+     * rows after prt_light() erases the torch indicator.
+     */
+    if (can_use_offhand_row)
+        Term_erase(COL_MEL, ROW_MEL - 1, 12);
     Term_erase(COL_MEL, ROW_MEL, 12);
 
     /* Melee attacks */
@@ -830,9 +837,9 @@ static void prt_mel(void)
     prt_pointer_attack_value_row(
         p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2x" : "Mel",
         pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-        meleeColour, buf, ROW_MEL + mod);
+        meleeColour, buf, main_row);
 
-    if (mod == -1)
+    if (has_offhand && can_use_offhand_row)
     {
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,

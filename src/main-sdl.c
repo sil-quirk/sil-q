@@ -449,6 +449,11 @@ typedef struct minimap_state {
     int zoom_step;
     float pan_x;
     float pan_y;
+    bool focus_active;
+    int focus_y;
+    int focus_x;
+    int left_stick_dir;
+    int right_stick_dir;
     SDL_FRect zoom_out_rect;
     SDL_FRect zoom_in_rect;
     SDL_FRect close_rect;
@@ -609,6 +614,9 @@ static bool g_map_touch_selected = false;
 static int g_map_touch_selected_y = 0;
 static int g_map_touch_selected_x = 0;
 static minimap_state g_minimap;
+static bool g_minimap_pending_focus_active = false;
+static int g_minimap_pending_focus_y = -1;
+static int g_minimap_pending_focus_x = -1;
 static pointer_attack_state g_pointer_attack = {
     .mode = SDL_POINTER_ATTACK_MELEE
 };
@@ -3351,16 +3359,16 @@ static int sdl_touch_pane_story_text_width(TTF_Font* font, cptr text)
 
 static int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
 {
-    int font_px = (int)(cell_h * 1.05f);
+    int font_px = (int)(cell_h * 1.25f);
 
-    if (font_px < 16)
-        font_px = 16;
-    if (font_px > 22)
-        font_px = 22;
-    if (screen_h < 360 && font_px > 18)
+    if (font_px < 18)
         font_px = 18;
-    if (screen_h < 260 && font_px > 15)
-        font_px = 15;
+    if (font_px > 26)
+        font_px = 26;
+    if (screen_h < 360 && font_px > 22)
+        font_px = 22;
+    if (screen_h < 260 && font_px > 18)
+        font_px = 18;
 
     return font_px;
 }
@@ -3529,16 +3537,16 @@ static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     prompt_font = sdl_story_font_for_height(prompt_font_px);
     prompt_text_w = sdl_touch_pane_story_text_width(prompt_font, prompt_text);
 
-    margin = sdl_touch_pane_clampf(cell_h * 0.90f, 14.0f, 24.0f);
-    button_gap = sdl_touch_pane_clampf(cell_w * 1.15f, 10.0f, 18.0f);
-    row_gap = sdl_touch_pane_clampf(cell_h * 0.65f, 10.0f, 18.0f);
-    button_w = sdl_touch_pane_clampf(cell_w * 7.60f, 74.0f, 108.0f);
-    button_h = sdl_touch_pane_clampf(cell_h * 2.20f, 42.0f, 54.0f);
+    margin = sdl_touch_pane_clampf(cell_h * 1.10f, 18.0f, 30.0f);
+    button_gap = sdl_touch_pane_clampf(cell_w * 1.35f, 12.0f, 22.0f);
+    row_gap = sdl_touch_pane_clampf(cell_h * 0.80f, 13.0f, 22.0f);
+    button_w = sdl_touch_pane_clampf(cell_w * 9.20f, 92.0f, 132.0f);
+    button_h = sdl_touch_pane_clampf(cell_h * 2.65f, 52.0f, 66.0f);
 
-    max_panel_w = (float)screen.w * 0.86f;
-    if (max_panel_w > cell_w * 62.0f)
-        max_panel_w = cell_w * 62.0f;
-    if (max_panel_w < 224.0f)
+    max_panel_w = (float)screen.w * 0.90f;
+    if (max_panel_w > cell_w * 70.0f)
+        max_panel_w = cell_w * 70.0f;
+    if (max_panel_w < 272.0f)
         max_panel_w = (float)screen.w - 8.0f;
     if (max_panel_w > (float)screen.w - 8.0f)
         max_panel_w = (float)screen.w - 8.0f;
@@ -3561,7 +3569,7 @@ static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     }
 
     panel_w = (prompt_text_w > 0)
-        ? (float)prompt_text_w + margin * 2.40f
+        ? (float)prompt_text_w + margin * 2.60f
         : min_panel_w;
     panel_w = sdl_touch_pane_clampf(panel_w, min_panel_w, max_panel_w);
     prompt_w = panel_w - margin * 2.0f;
@@ -4147,9 +4155,9 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
     sdl_touch_pane_draw_wrapped_prompt(&prompt_rect, prompt_text, text,
         prompt_font_px);
     sdl_touch_pane_draw_button_text_scaled(&yes_rect, NULL, "Yes", text,
-        0.32f, 0.42f);
+        0.36f, 0.46f);
     sdl_touch_pane_draw_button_text_scaled(&no_rect, NULL, "No", text,
-        0.32f, 0.42f);
+        0.36f, 0.46f);
 }
 
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
@@ -7315,6 +7323,70 @@ static bool sdl_minimap_point_in_rect(float x, float y, const SDL_FRect* rect)
         && y >= rect->y && y < rect->y + rect->h;
 }
 
+static bool sdl_minimap_focus_point_valid(int y, int x)
+{
+    return p_ptr && y >= 0 && x >= 0
+        && y < p_ptr->cur_map_hgt && x < p_ptr->cur_map_wid;
+}
+
+static bool sdl_minimap_grid_opened(int y, int x)
+{
+    if (!sdl_minimap_focus_point_valid(y, x))
+        return false;
+
+    return (cave_info[y][x] & (CAVE_MARK | CAVE_SEEN))
+        || cave_m_idx[y][x] < 0;
+}
+
+void sdl_minimap_focus(int y, int x)
+{
+    if (!p_ptr->is_dead && g_labyrinth_view_active)
+        return;
+
+    if (!sdl_minimap_grid_opened(y, x))
+        return;
+
+    g_minimap_pending_focus_active = true;
+    g_minimap_pending_focus_y = y;
+    g_minimap_pending_focus_x = x;
+
+    if (g_minimap.active) {
+        g_minimap.focus_active = true;
+        g_minimap.focus_y = y;
+        g_minimap.focus_x = x;
+    }
+}
+
+static void sdl_minimap_clear_gamepad_modal_state(void)
+{
+    g_gamepad_state.dpad_up = false;
+    g_gamepad_state.dpad_down = false;
+    g_gamepad_state.dpad_left = false;
+    g_gamepad_state.dpad_right = false;
+    g_gamepad_state.dpad_dir = 0;
+    sdl_gamepad_clear_pending_dpad();
+
+    g_gamepad_state.left_x = 0;
+    g_gamepad_state.left_y = 0;
+    g_gamepad_state.left_dir = 0;
+    g_gamepad_state.left_bind_dir = -1;
+    sdl_gamepad_clear_pending_left_stick();
+
+    g_gamepad_state.right_x = 0;
+    g_gamepad_state.right_y = 0;
+    g_gamepad_state.right_dir = -1;
+
+    g_gamepad_state.left_trigger_down = false;
+    g_gamepad_state.right_trigger_down = false;
+    g_gamepad_state.left_shoulder_down = false;
+    g_gamepad_state.right_shoulder_down = false;
+    sdl_gamepad_clear_pending_shoulder();
+
+    g_gamepad_state.shift_held = 0;
+    g_gamepad_state.alt_held = 0;
+    g_gamepad_state.ctrl_held = g_touch_pane_ctrl_toggle ? 1 : 0;
+}
+
 static void sdl_minimap_clear_touches(void)
 {
     memset(g_minimap.fingers, 0, sizeof(g_minimap.fingers));
@@ -7335,6 +7407,16 @@ void sdl_minimap_begin(void)
     memset(&g_minimap, 0, sizeof(g_minimap));
     g_minimap.active = true;
     g_minimap.zoom_step = 0;
+    if (g_minimap_pending_focus_active
+        && sdl_minimap_grid_opened(g_minimap_pending_focus_y,
+            g_minimap_pending_focus_x))
+    {
+        g_minimap.focus_active = true;
+        g_minimap.focus_y = g_minimap_pending_focus_y;
+        g_minimap.focus_x = g_minimap_pending_focus_x;
+    }
+    g_minimap_pending_focus_active = false;
+    sdl_minimap_clear_gamepad_modal_state();
     sdl_minimap_clear_touches();
 }
 
@@ -7342,6 +7424,7 @@ void sdl_minimap_end(void)
 {
     g_minimap.active = false;
     sdl_minimap_clear_touches();
+    sdl_minimap_clear_gamepad_modal_state();
 }
 
 static bool sdl_minimap_redraw(void)
@@ -7943,9 +8026,56 @@ static bool sdl_minimap_handle_gamepad_axis(const SDL_GamepadAxisEvent* ev)
 {
     int threshold;
     bool pressed;
+    int deadzone;
+    int dir;
 
     if (!g_minimap.active || !ev)
         return false;
+
+    if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX
+        || ev->axis == SDL_GAMEPAD_AXIS_LEFTY)
+    {
+        if (ev->axis == SDL_GAMEPAD_AXIS_LEFTX)
+            g_gamepad_state.left_x = ev->value;
+        else
+            g_gamepad_state.left_y = ev->value;
+
+        deadzone = config.gamepad_deadzone;
+        if (deadzone < 0)
+            deadzone = 0;
+
+        dir = sdl_gamepad_axis_to_dir(g_gamepad_state.left_x,
+            g_gamepad_state.left_y, deadzone);
+        if (dir != g_minimap.left_stick_dir) {
+            g_minimap.left_stick_dir = dir;
+            if (dir)
+                (void)sdl_minimap_pan(ddx[dir], ddy[dir]);
+        }
+        return true;
+    }
+
+    if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX
+        || ev->axis == SDL_GAMEPAD_AXIS_RIGHTY)
+    {
+        if (ev->axis == SDL_GAMEPAD_AXIS_RIGHTX)
+            g_gamepad_state.right_x = ev->value;
+        else
+            g_gamepad_state.right_y = ev->value;
+
+        deadzone = config.gamepad_deadzone;
+        if (deadzone < 0)
+            deadzone = 0;
+
+        dir = sdl_gamepad_axis_to_dir(g_gamepad_state.right_x,
+            g_gamepad_state.right_y, deadzone);
+        if (dir != g_minimap.right_stick_dir) {
+            g_minimap.right_stick_dir = dir;
+            if (dir)
+                (void)sdl_minimap_pan(ddx[dir], ddy[dir]);
+        }
+        return true;
+    }
+
     if (ev->axis != SDL_GAMEPAD_AXIS_LEFT_TRIGGER
         && ev->axis != SDL_GAMEPAD_AXIS_RIGHT_TRIGGER)
     {
@@ -12562,6 +12692,165 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     }
 }
 
+static bool sdl_minimap_hint_source_valid(const hint_message_meta* meta)
+{
+    return meta && p_ptr && meta->source_y >= 0 && meta->source_x >= 0
+        && meta->source_y < p_ptr->cur_map_hgt
+        && meta->source_x < p_ptr->cur_map_wid
+        && sdl_minimap_grid_opened(meta->source_y, meta->source_x);
+}
+
+static void sdl_minimap_expand_bounds_for_hint_sources(int* min_y, int* min_x,
+    int* max_y, int* max_x, bool* any)
+{
+    byte count;
+
+    if (!min_y || !min_x || !max_y || !max_x || !any)
+        return;
+
+    count = hint_messages_count_for_save();
+    for (int i = 0; i < count; i++) {
+        hint_message_meta meta;
+
+        hint_messages_message_meta(i, &meta);
+        if (!sdl_minimap_hint_source_valid(&meta))
+            continue;
+
+        if (meta.source_y < *min_y) *min_y = meta.source_y;
+        if (meta.source_y > *max_y) *max_y = meta.source_y;
+        if (meta.source_x < *min_x) *min_x = meta.source_x;
+        if (meta.source_x > *max_x) *max_x = meta.source_x;
+        *any = true;
+    }
+}
+
+static const object_type* sdl_minimap_skeleton_at(int y, int x)
+{
+    object_type* o_ptr;
+
+    if (!p_ptr || y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
+        || x >= p_ptr->cur_map_wid)
+    {
+        return NULL;
+    }
+
+    for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr)) {
+        if (o_ptr->k_idx && o_ptr->tval == TV_SKELETON)
+            return o_ptr;
+    }
+
+    return NULL;
+}
+
+static void sdl_minimap_draw_hint_source_symbol(const object_type* o_ptr,
+    const SDL_FRect* dst)
+{
+    byte obj_a;
+    byte obj_c;
+
+    if (!o_ptr || !dst)
+        return;
+
+    obj_a = object_attr(o_ptr);
+    obj_c = (byte)object_char(o_ptr);
+
+    if (g_state.use_tiles && g_state.tileset
+        && (obj_a & TILE_FLAG) && (obj_c & TILE_FLAG))
+    {
+        sdl_draw_tileset_sprite(obj_a, (char)obj_c, dst, false);
+        return;
+    }
+
+    sdl_draw_ascii_minimap_cell(obj_a, (char)obj_c, obj_a, (char)obj_c, dst);
+}
+
+static void sdl_minimap_draw_hint_sources(const SDL_FRect* map_dst, int min_y,
+    int min_x, int max_y, int max_x)
+{
+    byte count;
+    int map_rows = max_y - min_y + 1;
+    int map_cols = max_x - min_x + 1;
+    float grid_w;
+    float grid_h;
+
+    if (!map_dst || map_rows <= 0 || map_cols <= 0)
+        return;
+
+    count = hint_messages_count_for_save();
+    if (!count)
+        return;
+
+    grid_w = map_dst->w / (float)map_cols;
+    grid_h = map_dst->h / (float)map_rows;
+
+    for (int i = 0; i < count; i++) {
+        hint_message_meta meta;
+        SDL_FRect cell;
+        SDL_FRect marker;
+        float center_x;
+        float center_y;
+        float min_marker = 6.0f;
+        bool focused;
+        const object_type* skel;
+
+        hint_messages_message_meta(i, &meta);
+        if (!sdl_minimap_hint_source_valid(&meta))
+            continue;
+        if (meta.source_y < min_y || meta.source_y > max_y
+            || meta.source_x < min_x || meta.source_x > max_x)
+        {
+            continue;
+        }
+
+        focused = g_minimap.focus_active
+            && (meta.source_y == g_minimap.focus_y)
+            && (meta.source_x == g_minimap.focus_x);
+        if (focused)
+            min_marker = 12.0f;
+
+        cell.x = map_dst->x + (float)(meta.source_x - min_x) * grid_w;
+        cell.y = map_dst->y + (float)(meta.source_y - min_y) * grid_h;
+        cell.w = grid_w;
+        cell.h = grid_h;
+
+        center_x = cell.x + cell.w * 0.5f;
+        center_y = cell.y + cell.h * 0.5f;
+        marker = cell;
+        if (marker.w < min_marker) {
+            marker.w = min_marker;
+            marker.x = center_x - marker.w * 0.5f;
+        }
+        if (marker.h < min_marker) {
+            marker.h = min_marker;
+            marker.y = center_y - marker.h * 0.5f;
+        }
+
+        if (focused)
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 230, 80, 104);
+        else
+            SDL_SetRenderDrawColor(g_state.renderer, 70, 220, 230, 64);
+        SDL_RenderFillRect(g_state.renderer, &marker);
+
+        skel = sdl_minimap_skeleton_at(meta.source_y, meta.source_x);
+        sdl_minimap_draw_hint_source_symbol(skel, &marker);
+
+        if (focused)
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 255);
+        else
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 238, 120, 240);
+        SDL_RenderRect(g_state.renderer, &marker);
+        if (marker.w >= 8.0f && marker.h >= 8.0f) {
+            SDL_FRect inner = {
+                marker.x + 1.0f,
+                marker.y + 1.0f,
+                marker.w - 2.0f,
+                marker.h - 2.0f
+            };
+            SDL_RenderRect(g_state.renderer, &inner);
+        }
+    }
+}
+
 static bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y,
     int* max_x)
 {
@@ -12590,11 +12879,29 @@ static bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y,
         }
     }
 
+    sdl_minimap_expand_bounds_for_hint_sources(min_y, min_x, max_y, max_x,
+        &any);
+
+    if (g_minimap.focus_active
+        && sdl_minimap_grid_opened(g_minimap.focus_y, g_minimap.focus_x))
+    {
+        if (g_minimap.focus_y < *min_y) *min_y = g_minimap.focus_y;
+        if (g_minimap.focus_y > *max_y) *max_y = g_minimap.focus_y;
+        if (g_minimap.focus_x < *min_x) *min_x = g_minimap.focus_x;
+        if (g_minimap.focus_x > *max_x) *max_x = g_minimap.focus_x;
+        any = true;
+    }
+
     if (!any) {
-        *min_y = 0;
-        *min_x = 0;
-        *max_y = p_ptr->cur_map_hgt - 1;
-        *max_x = p_ptr->cur_map_wid - 1;
+        if (sdl_minimap_focus_point_valid(p_ptr->py, p_ptr->px)) {
+            *min_y = p_ptr->py;
+            *max_y = p_ptr->py;
+            *min_x = p_ptr->px;
+            *max_x = p_ptr->px;
+            any = true;
+        } else {
+            return false;
+        }
     }
 
     if (p_ptr->py >= 0 && p_ptr->py < p_ptr->cur_map_hgt
@@ -12698,45 +13005,63 @@ bool sdl_display_pixel_map(int* cy, int* cx)
 
     map_dst.w = (float)source_w * scale;
     map_dst.h = (float)source_h * scale;
-    if (g_minimap.active
-        && p_ptr->py >= min_y && p_ptr->py <= max_y
-        && p_ptr->px >= min_x && p_ptr->px <= max_x)
+    if (g_minimap.active)
     {
-        float player_src_x = ((float)(p_ptr->px - min_x) + 0.5f)
-            * (float)TILE_SIZE * scale;
-        float player_src_y = ((float)(p_ptr->py - min_y) + 0.5f)
-            * (float)TILE_SIZE * scale;
+        int center_y = p_ptr->py;
+        int center_x = p_ptr->px;
 
-        base_x = (float)canvas_w * 0.5f - player_src_x;
-        base_y = (float)canvas_h * 0.5f - player_src_y;
-        map_dst.x = base_x + g_minimap.pan_x;
-        map_dst.y = base_y + g_minimap.pan_y;
-        if (map_dst.w <= (float)canvas_w)
+        if (g_minimap.focus_active
+            && g_minimap.focus_y >= min_y && g_minimap.focus_y <= max_y
+            && g_minimap.focus_x >= min_x && g_minimap.focus_x <= max_x)
+        {
+            center_y = g_minimap.focus_y;
+            center_x = g_minimap.focus_x;
+        }
+
+        if (center_y < min_y || center_y > max_y
+            || center_x < min_x || center_x > max_x)
+        {
             map_dst.x = ((float)canvas_w - map_dst.w) * 0.5f;
-        else
-            map_dst.x = sdl_minimap_clampf(map_dst.x,
-                (float)canvas_w - map_dst.w, 0.0f);
-
-        if (map_dst.h <= (float)canvas_h)
             map_dst.y = ((float)canvas_h - map_dst.h) * 0.5f;
-        else
-            map_dst.y = sdl_minimap_clampf(map_dst.y,
-                (float)canvas_h - map_dst.h, 0.0f);
-
-        g_minimap.pan_x = map_dst.x - base_x;
-        g_minimap.pan_y = map_dst.y - base_y;
-    } else {
-        map_dst.x = ((float)canvas_w - map_dst.w) * 0.5f;
-        map_dst.y = ((float)canvas_h - map_dst.h) * 0.5f;
-        if (g_minimap.active) {
             g_minimap.pan_x = 0.0f;
             g_minimap.pan_y = 0.0f;
         }
+        else
+        {
+            float player_src_x = ((float)(center_x - min_x) + 0.5f)
+                * (float)TILE_SIZE * scale;
+            float player_src_y = ((float)(center_y - min_y) + 0.5f)
+                * (float)TILE_SIZE * scale;
+
+            base_x = (float)canvas_w * 0.5f - player_src_x;
+            base_y = (float)canvas_h * 0.5f - player_src_y;
+            map_dst.x = base_x + g_minimap.pan_x;
+            map_dst.y = base_y + g_minimap.pan_y;
+            if (map_dst.w <= (float)canvas_w)
+                map_dst.x = ((float)canvas_w - map_dst.w) * 0.5f;
+            else
+                map_dst.x = sdl_minimap_clampf(map_dst.x,
+                    (float)canvas_w - map_dst.w, 0.0f);
+
+            if (map_dst.h <= (float)canvas_h)
+                map_dst.y = ((float)canvas_h - map_dst.h) * 0.5f;
+            else
+                map_dst.y = sdl_minimap_clampf(map_dst.y,
+                    (float)canvas_h - map_dst.h, 0.0f);
+
+            g_minimap.pan_x = map_dst.x - base_x;
+            g_minimap.pan_y = map_dst.y - base_y;
+        }
+    } else {
+        map_dst.x = ((float)canvas_w - map_dst.w) * 0.5f;
+        map_dst.y = ((float)canvas_h - map_dst.h) * 0.5f;
     }
     SDL_RenderTexture(g_state.renderer, map_texture, NULL, &map_dst);
 
     SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 80);
     SDL_RenderRect(g_state.renderer, &map_dst);
+
+    sdl_minimap_draw_hint_sources(&map_dst, min_y, min_x, max_y, max_x);
 
     if (p_ptr->py >= min_y && p_ptr->py <= max_y
         && p_ptr->px >= min_x && p_ptr->px <= max_x)

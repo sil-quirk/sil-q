@@ -1542,6 +1542,7 @@ extern bool sdl_unified_look_take_map_hover(int* y, int* x);
 extern bool sdl_display_pixel_map(int* cy, int* cx);
 extern void sdl_minimap_begin(void);
 extern void sdl_minimap_end(void);
+extern void sdl_minimap_focus(int y, int x);
 extern bool sdl_minimap_adjust_zoom(int delta);
 extern bool sdl_minimap_pan(int dx, int dy);
 extern void c_put_str(byte attr, cptr str, int row, int col);
