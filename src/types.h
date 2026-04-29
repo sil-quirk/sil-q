@@ -1614,7 +1614,8 @@ typedef enum {
     NAV_OK = 0,     /* proceed normally */
     NAV_BACK,       /* step back within current flow */
     NAV_TO_MAIN,    /* abort flow and return to main menu */
-    NAV_QUIT        /* exit program */
+    NAV_QUIT,       /* exit program */
+    NAV_TO_CHARACTER /* return to character selection */
 } NavResult;
 
 /* Result of play_game() */

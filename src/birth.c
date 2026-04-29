@@ -5164,6 +5164,264 @@ static void birth_register_allocation_prompt_clicks(int row, cptr prompt,
     ui_menu_click_add_text_token(-2, col, row, prompt, "SPACE/ENTER");
     ui_menu_click_add_text_token(-3, col, row, prompt, quit_label);
     ui_menu_click_add_text_token(-3, col, row, prompt, "quit");
+    ui_menu_click_add_text_token(-3, col, row, prompt, "char");
+    ui_menu_click_add_text_token(-3, col, row, prompt, "character");
+    ui_menu_click_add_text_token(-3, col, row, prompt, "selection");
+}
+
+static void birth_draw_allocation_confirm_status(int row, int col, int end_col,
+    cptr status)
+{
+    int wid = 80;
+    int hgt = 24;
+    char status_buf[80];
+    cptr back_text = "[Esc]";
+    cptr confirm_text = "[Confirm]";
+    int back_len = (int)strlen(back_text);
+    int confirm_len = (int)strlen(confirm_text);
+    int controls_len = back_len + 1 + confirm_len;
+    int clear_width;
+    int controls_col;
+    int confirm_col;
+    int status_width;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (row < 0 || row >= hgt)
+        return;
+    if (col < 0)
+        col = 0;
+    if (end_col >= wid)
+        end_col = wid - 1;
+    if (end_col < col)
+        return;
+
+    clear_width = end_col - col + 1;
+    Term_erase(col, row, clear_width);
+
+    if (clear_width < controls_len)
+        return;
+
+    controls_col = end_col - controls_len + 1;
+    confirm_col = controls_col;
+    status_width = controls_col - col - 1;
+
+    if (status && status[0] && status_width > 0)
+    {
+        SDL_strlcpy(status_buf, status, sizeof(status_buf));
+        if ((int)strlen(status_buf) > status_width)
+            status_buf[status_width] = '\0';
+        Term_putstr(col, row, status_width, TERM_L_BLUE, status_buf);
+    }
+
+    Term_putstr(controls_col, row, controls_len, TERM_SLATE,
+        "[Confirm] [Esc]");
+    ui_menu_click_add(-2, confirm_col, row, confirm_len);
+    ui_menu_click_add_text_token(-2, confirm_col, row, confirm_text,
+        "Confirm");
+    {
+        int back_col = confirm_col + confirm_len + 1;
+
+        ui_menu_click_add(-1, back_col, row, back_len);
+        ui_menu_click_add_text_token(-1, back_col, row, back_text, "Esc");
+    }
+}
+
+#define BIRTH_ALLOCATION_DEFAULT_SKILL_ROW 6
+#define BIRTH_ALLOCATION_MIN_SKILL_ROW 5
+#define BIRTH_ALLOCATION_MIN_HISTORY_ROWS 3
+
+static int birth_allocation_skill_rows(void)
+{
+    int rows = 0;
+
+    for (int skill = 0; skill < S_MAX; skill++)
+    {
+        if (skill != S_SPC)
+            rows++;
+    }
+
+    return rows;
+}
+
+static int birth_allocation_history_lines(int wid)
+{
+    int wrap_width;
+
+    if (!p_ptr || !p_ptr->history[0])
+        return 0;
+
+    wrap_width = wid - 1;
+    if (wrap_width < 10)
+        wrap_width = 10;
+
+    return count_wrapped_lines(p_ptr->history, wrap_width, 1);
+}
+
+static int birth_allocation_history_room(int history_row, int body_last_row)
+{
+    if (history_row < 0 || history_row > body_last_row)
+        return 0;
+
+    return body_last_row - history_row + 1;
+}
+
+static void birth_configure_allocation_sheet_layout(bool stats_screen,
+    int* skill_first_row_out, int* status_row_out)
+{
+    int wid = 80;
+    int hgt = 24;
+    int prompt_row;
+    int body_last_row;
+    int skill_rows;
+    int history_lines;
+    int skill_first_row = BIRTH_ALLOCATION_DEFAULT_SKILL_ROW;
+    int status_row = -1;
+    int history_row = -1;
+    int best_skill_first_row = skill_first_row;
+    int best_status_row = -1;
+    int best_history_row = -1;
+    int best_history_room = -1;
+    int best_spacing_score = -1;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+    (void)hgt;
+
+    prompt_row = birth_prompt_row();
+    body_last_row = prompt_row - 1;
+    skill_rows = birth_allocation_skill_rows();
+    history_lines = birth_allocation_history_lines(wid);
+
+    if (stats_screen)
+    {
+        int stat_last_row = 1 + A_MAX - 1;
+
+        for (int stat_gap = 1; stat_gap >= 0; stat_gap--)
+        {
+            for (int status_gap = 1; status_gap >= 0; status_gap--)
+            {
+                for (int history_gap = 1; history_gap >= 0; history_gap--)
+                {
+                    int candidate_status = stat_last_row + 1 + stat_gap;
+                    int candidate_skill = candidate_status + 1 + status_gap;
+                    int candidate_history = (history_lines > 0)
+                        ? candidate_skill + skill_rows + history_gap : -1;
+                    int candidate_room = birth_allocation_history_room(
+                        candidate_history, body_last_row);
+                    int spacing_score = stat_gap + status_gap + history_gap;
+
+                    if (candidate_skill + skill_rows - 1 > body_last_row)
+                        continue;
+
+                    if (history_lines <= 0 || candidate_room >= history_lines)
+                    {
+                        status_row = candidate_status;
+                        skill_first_row = candidate_skill;
+                        history_row = candidate_history;
+                        goto birth_allocation_layout_done;
+                    }
+
+                    if (candidate_room > best_history_room
+                        || (candidate_room == best_history_room
+                            && spacing_score > best_spacing_score))
+                    {
+                        best_status_row = candidate_status;
+                        best_skill_first_row = candidate_skill;
+                        best_history_row = candidate_history;
+                        best_history_room = candidate_room;
+                        best_spacing_score = spacing_score;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        int min_skill_first_row = BIRTH_ALLOCATION_MIN_SKILL_ROW;
+
+        for (int candidate = skill_first_row;
+             candidate >= min_skill_first_row; candidate--)
+        {
+            for (int status_gap = 1; status_gap >= 0; status_gap--)
+            {
+                for (int history_gap = 1; history_gap >= 0; history_gap--)
+                {
+                    int candidate_status = candidate + skill_rows + status_gap;
+                    int candidate_history = (history_lines > 0)
+                        ? candidate_status + 1 + history_gap : -1;
+                    int candidate_room = birth_allocation_history_room(
+                        candidate_history, body_last_row);
+                    int spacing_score = (candidate == skill_first_row ? 2 : 1)
+                        + status_gap + history_gap;
+
+                    if (candidate_status > body_last_row)
+                        continue;
+
+                    if (history_lines <= 0 || candidate_room >= history_lines)
+                    {
+                        skill_first_row = candidate;
+                        status_row = candidate_status;
+                        history_row = candidate_history;
+                        goto birth_allocation_layout_done;
+                    }
+
+                    if (candidate_room > best_history_room
+                        || (candidate_room == best_history_room
+                            && spacing_score > best_spacing_score))
+                    {
+                        best_skill_first_row = candidate;
+                        best_status_row = candidate_status;
+                        best_history_row = candidate_history;
+                        best_history_room = candidate_room;
+                        best_spacing_score = spacing_score;
+                    }
+                }
+            }
+        }
+    }
+
+    if (best_status_row >= 0)
+    {
+        int min_history_rows = MIN(history_lines,
+            BIRTH_ALLOCATION_MIN_HISTORY_ROWS);
+
+        skill_first_row = best_skill_first_row;
+        status_row = best_status_row;
+        history_row = (best_history_room >= min_history_rows)
+            ? best_history_row : -1;
+    }
+
+birth_allocation_layout_done:
+    if (status_row < 0)
+    {
+        if (stats_screen)
+        {
+            int stat_last_row = 1 + A_MAX - 1;
+
+            status_row = MIN(stat_last_row + 1, body_last_row);
+            skill_first_row = MIN(status_row + 1, body_last_row);
+        }
+        else
+        {
+            status_row = MIN(skill_first_row + skill_rows, body_last_row);
+        }
+        history_row = -1;
+    }
+
+    display_player_standard_layout_set(skill_first_row, history_row);
+
+    if (skill_first_row_out)
+        *skill_first_row_out = skill_first_row;
+    if (status_row_out)
+        *status_row_out = status_row;
 }
 
 static char birth_screen_char(int row, int col)
@@ -5320,17 +5578,17 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s char",
             back_label, confirm_label, quit_label);
     }
     else
     {
         if (wid < 52)
             strnfmt(buf, sizeof(buf),
-                "8/2 4/6  ESC back  Enter ok  q quit");
+                "8/2 4/6  ESC back  Enter ok  q char");
         else
             strnfmt(buf, sizeof(buf),
-                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q char");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -5390,17 +5648,17 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s quit",
+        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s char",
             back_label, confirm_label, quit_label);
     }
     else
     {
         if (wid < 52)
             strnfmt(buf, sizeof(buf),
-                "8/2 4/6  ESC back  Enter ok  q quit");
+                "8/2 4/6  ESC back  Enter ok  q char");
         else
             strnfmt(buf, sizeof(buf),
-                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q quit");
+                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q char");
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -5411,7 +5669,7 @@ static void birth_display_skill_allocation_compact(int selected_skill, const int
 /*
  * Helper function for 'player_birth()'.
  */
-static NavResult player_birth_aux_2(void)
+static NavResult player_birth_aux_2(int stats[A_MAX])
 {
     int i;
 
@@ -5420,20 +5678,11 @@ static NavResult player_birth_aux_2(void)
 
     int stat = 0;
 
-    int stats[A_MAX];
-
     int cost;
 
     char ch;
 
     char buf[80];
-
-    /* Initialize stats */
-    for (i = 0; i < A_MAX; i++)
-    {
-        /* Initial stats */
-        stats[i] = p_ptr->stat_base[i];
-    }
 
     /* Determine experience and things */
     get_extra();
@@ -5551,6 +5800,7 @@ static NavResult player_birth_aux_2(void)
         else
         {
             int prompt_row = birth_prompt_row();
+            int status_row = row + A_MAX;
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             ui_scroll_area_begin(row, row + A_MAX - 1,
@@ -5558,7 +5808,9 @@ static NavResult player_birth_aux_2(void)
             ui_scroll_area_set_keys('6', '4', '6', '4');
 
             /* Display the player */
+            birth_configure_allocation_sheet_layout(true, NULL, &status_row);
             display_player(0);
+            display_player_standard_layout_clear();
 
             /* Display the costs header */
             c_put_str(TERM_WHITE, "Points Left:", 0, sheet_col + 21);
@@ -5611,6 +5863,28 @@ static NavResult player_birth_aux_2(void)
                 ui_menu_click_add(i, sheet_col - 2, row + i, 40);
             }
 
+            if (status_row < prompt_row)
+            {
+                char stat_buf[80];
+                char stat_label[16];
+                int stat_label_len;
+
+                SDL_strlcpy(stat_label, stat_names[stat], sizeof(stat_label));
+                stat_label_len = (int)strlen(stat_label);
+                while (stat_label_len > 0
+                    && stat_label[stat_label_len - 1] == ' ')
+                {
+                    stat_label[--stat_label_len] = '\0';
+                }
+
+                strnfmt(stat_buf, sizeof(stat_buf),
+                    "%s %d Cost:%d Left:%d",
+                    stat_label, p_ptr->stat_use[stat],
+                    birth_stat_increase_cost(stats[stat]), MAX_COST - cost);
+                birth_draw_allocation_confirm_status(status_row, sheet_col - 1,
+                    sheet_col + 37, stat_buf);
+            }
+
             /* Bottom bar follows character sheet font setting */
             if (story_character_enabled()) {
                 sdl_story_font_enable();
@@ -5622,13 +5896,13 @@ static NavResult player_birth_aux_2(void)
                 char quit_label[16];
                 char prompt_buf[160];
 
-                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                /* Steam Deck UI: A=confirm, B=back, q=character selection */
                 birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
                 birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad allocate  %s back  %s confirm  %s quit",
+                    "D-pad allocate  %s back  %s confirm  %s char",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
                 birth_register_allocation_prompt_clicks(prompt_row,
@@ -5636,7 +5910,7 @@ static NavResult player_birth_aux_2(void)
                     quit_label);
             } else {
                 cptr prompt_text =
-                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -quit";
+                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -character";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
                 birth_register_allocation_prompt_clicks(prompt_row,
@@ -5681,11 +5955,11 @@ static NavResult player_birth_aux_2(void)
             }
         }
 
-        /* Quit -> return to main menu before the game starts */
+        /* Return to character selection before the game starts */
         if ((ch == 'Q') || (ch == 'q')) {
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            if (turn == 0) return NAV_TO_MAIN;
+            if (turn == 0) return NAV_BACK;
             return NAV_QUIT;
         }
 
@@ -5966,14 +6240,20 @@ extern NavResult gain_skills(void)
         else
         {
             int prompt_row = birth_prompt_row();
+            int status_row = row + S_SNG + 1;
+            int skill_first_row = row;
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
+            birth_configure_allocation_sheet_layout(false, &skill_first_row,
+                &status_row);
+            row = skill_first_row;
             ui_scroll_area_begin(row, row + S_SNG,
                 SDL_TOUCH_MENU_CATEGORY_OTHER);
             ui_scroll_area_set_keys('6', '4', '6', '4');
 
             /* Display the player */
             display_player(0);
+            display_player_standard_layout_clear();
 
             /* Display the costs header */
             if (!character_dungeon)
@@ -6036,6 +6316,17 @@ extern NavResult gain_skills(void)
                 ui_menu_click_add(i, sheet_col - 2, row + i, 40);
             }
 
+            if (status_row < prompt_row)
+            {
+                char skill_buf[80];
+
+                strnfmt(skill_buf, sizeof(skill_buf), "Cost:%d Left:%d",
+                    skill_cost(old_base[skill], skill_gain[skill]),
+                    p_ptr->new_exp);
+                birth_draw_allocation_confirm_status(status_row, sheet_col - 1,
+                    sheet_col + 37, skill_buf);
+            }
+
             /* Bottom bar follows character sheet font setting */
             if (story_character_enabled()) {
                 sdl_story_font_enable();
@@ -6047,13 +6338,13 @@ extern NavResult gain_skills(void)
                 char quit_label[16];
                 char prompt_buf[160];
 
-                /* Steam Deck UI: A=confirm, B=back, Start=quit */
+                /* Steam Deck UI: A=confirm, B=back, q=character selection */
                 birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
                 birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
                 strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad -allocate      %s-back     %s-confirm     %s-quit",
+                    "D-pad -allocate      %s-back     %s-confirm     %s-char",
                     back_label, confirm_label, quit_label);
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
                 birth_register_allocation_prompt_clicks(prompt_row,
@@ -6061,7 +6352,7 @@ extern NavResult gain_skills(void)
                     quit_label);
             } else {
                 cptr prompt_text =
-                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -quit";
+                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -character";
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
                 birth_register_allocation_prompt_clicks(prompt_row,
@@ -6107,7 +6398,7 @@ extern NavResult gain_skills(void)
             }
         }
 
-        /* Quit -> back to main menu before the game starts */
+        /* Return to character selection before the game starts */
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {
             /* restore state before leaving */
             p_ptr->new_exp = old_new_exp;
@@ -6118,7 +6409,7 @@ extern NavResult gain_skills(void)
             skill_gain_in_progress = false;
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            return NAV_TO_MAIN;
+            return NAV_TO_CHARACTER;
         }
 
         /* Done */
@@ -6148,7 +6439,7 @@ extern NavResult gain_skills(void)
             }
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            result = NAV_BACK;   /* go back to Character Selection */
+            result = NAV_BACK;   /* go back to stat allocation */
             break;
         }
 
@@ -6256,22 +6547,30 @@ static NavResult player_birth_aux(void)
     }
     else
     {
+        int stat_alloc[A_MAX];
+
+        for (int i = 0; i < A_MAX; i++)
+            stat_alloc[i] = p_ptr->stat_base[i];
+
         for (;;)
         {
             display_player(0);
 
             /* Stats allocation screen */
             log_debug("Entering stats allocation");
-            NavResult s = player_birth_aux_2();
+            NavResult s = player_birth_aux_2(stat_alloc);
             if (s == NAV_OK) {
-                /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
+                /* Skill allocation: Esc returns to stats; q returns to character selection. */
                 log_debug("Stats accepted, entering skills allocation");
                 NavResult g = gain_skills();
+                if (g == NAV_BACK) continue;
+                if (g == NAV_TO_CHARACTER) return NAV_BACK;
                 if (g != NAV_OK) return g;
                 log_debug("Skills allocation completed");
                 break; /* accepted */
             }
             if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
+            if (s == NAV_TO_CHARACTER) return NAV_BACK; /* back to Character Selection */
             if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
             if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
             /* any other value: loop again */
@@ -6313,6 +6612,7 @@ NavResult player_birth()
         NavResult r = player_birth_aux();
         if (r == NAV_OK) break;
         if (r == NAV_BACK) return NAV_BACK;         /* back to character_selection */
+        if (r == NAV_TO_CHARACTER) return NAV_BACK; /* back to character_selection */
         if (r == NAV_TO_MAIN) return NAV_TO_MAIN;   /* back to main menu */
         if (r == NAV_QUIT) return NAV_QUIT;         /* hard exit */
         /* Any other value -> retry loop */

@@ -396,6 +396,48 @@ static int parse_touch_movement_mode(const char* value)
     return SDL_TOUCH_MOVEMENT_ON;
 }
 
+static const char* touch_zone_overlay_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_TOUCH_ZONE_OVERLAY_OFF: return "OFF";
+        case SDL_TOUCH_ZONE_OVERLAY_BORDERS: return "BORDERS";
+        case SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS: return "BORDERS_LABELS";
+        case SDL_TOUCH_ZONE_OVERLAY_MARKERS:
+        default:
+            return "MARKERS";
+    }
+}
+
+static int normalize_touch_zone_overlay_mode(int mode)
+{
+    if (mode >= SDL_TOUCH_ZONE_OVERLAY_OFF
+        && mode < SDL_TOUCH_ZONE_OVERLAY_COUNT)
+    {
+        return mode;
+    }
+
+    return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+}
+
+static int parse_touch_zone_overlay_mode(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    if (strcmp(value, "OFF") == 0 || strcmp(value, "NONE") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_OFF;
+    if (strcmp(value, "MARKERS") == 0 || strcmp(value, "SMALL_LINES") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    if (strcmp(value, "BORDERS") == 0 || strcmp(value, "FULL_BORDERS") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_BORDERS;
+    if (strcmp(value, "BORDERS_LABELS") == 0
+        || strcmp(value, "FULL_BORDERS_LABELS") == 0
+        || strcmp(value, "BORDERS_WITH_NAMES") == 0)
+    {
+        return SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS;
+    }
+    return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+}
+
 static const char* mouse_movement_mode_to_string(int mode)
 {
     switch (mode) {
@@ -1835,6 +1877,14 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "otherMenuCommandsEnabled");
                 cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "movementMode");
+                cJSON* corner_button_overlay = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonOverlayMode");
+                cJSON* corner_button_markers = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonMarkersEnabled");
+                cJSON* corner_button_borders = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonBordersEnabled");
+                cJSON* corner_button_center_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonCenterBindings");
                 cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "swipeEnabled");
                 cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -1886,6 +1936,49 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         touch_movement_mode_to_string(config->touch_movement_mode));
                 }
 
+                if (cJSON_IsString(corner_button_overlay)
+                    && corner_button_overlay->valuestring)
+                {
+                    config->touch_zone_overlay_mode =
+                        parse_touch_zone_overlay_mode(
+                            corner_button_overlay->valuestring);
+                    log_debug("Loaded touchControl.cornerButtonOverlayMode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                } else if (cJSON_IsNumber(corner_button_overlay)) {
+                    config->touch_zone_overlay_mode =
+                        normalize_touch_zone_overlay_mode(
+                            corner_button_overlay->valueint);
+                    log_debug("Loaded numeric touchControl.cornerButtonOverlayMode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                } else if (cJSON_IsBool(corner_button_borders)
+                    || cJSON_IsBool(corner_button_markers))
+                {
+                    bool borders = cJSON_IsBool(corner_button_borders)
+                        && cJSON_IsTrue(corner_button_borders);
+                    bool markers = !cJSON_IsBool(corner_button_markers)
+                        || cJSON_IsTrue(corner_button_markers);
+
+                    config->touch_zone_overlay_mode = borders
+                        ? SDL_TOUCH_ZONE_OVERLAY_BORDERS
+                        : (markers ? SDL_TOUCH_ZONE_OVERLAY_MARKERS
+                                   : SDL_TOUCH_ZONE_OVERLAY_OFF);
+                    log_debug("Migrated touchControl corner button overlay mode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                }
+
+                if (cJSON_IsArray(corner_button_center_bindings)) {
+                    int count = cJSON_GetArraySize(corner_button_center_bindings);
+                    sdl_config_load_touch_binding_array(
+                        corner_button_center_bindings,
+                        config->touch_zone_center_bindings,
+                        SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
+                    log_debug("Loaded touchControl.cornerButtonCenterBindings (%d entries)",
+                        count);
+                }
+
                 if (cJSON_IsBool(swipe_enabled)) {
                     saw_touch_control_swipe_enabled = true;
                     config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
@@ -1918,6 +2011,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
 
         config->touch_movement_mode =
             normalize_touch_movement_mode(config->touch_movement_mode);
+        config->touch_zone_overlay_mode =
+            normalize_touch_zone_overlay_mode(config->touch_zone_overlay_mode);
     }
 
     {
@@ -2208,6 +2303,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     {
         cJSON* touch_control = cJSON_CreateObject();
         if (touch_control) {
+            cJSON* center_bindings = sdl_config_create_int_array(
+                config->touch_zone_center_bindings,
+                SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
             cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
                 TOUCH_SWIPE_DIR_COUNT);
 
@@ -2221,6 +2319,13 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]);
             cJSON_AddStringToObject(touch_control, "movementMode",
                 touch_movement_mode_to_string(config->touch_movement_mode));
+            cJSON_AddStringToObject(touch_control, "cornerButtonOverlayMode",
+                touch_zone_overlay_mode_to_string(
+                    config->touch_zone_overlay_mode));
+            if (center_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "cornerButtonCenterBindings", center_bindings);
+            }
             cJSON_AddBoolToObject(touch_control, "swipeEnabled",
                 config->touch_swipe_enabled);
             if (swipe_bindings) {
@@ -2391,6 +2496,9 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
         '8', '2', '4', '6',
     };
+    static const int center_defaults[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT] = {
+        'z', 'Z', INPUT_BIND_CONFIRM, 'u',
+    };
 
     if (!config)
         return;
@@ -2404,6 +2512,9 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
         config->touch_menu_command_enabled[i] = true;
     config->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+    config->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    memcpy(config->touch_zone_center_bindings, center_defaults,
+        sizeof(center_defaults));
     config->touch_swipe_enabled = true;
     memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }

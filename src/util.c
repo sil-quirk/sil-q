@@ -200,6 +200,31 @@ void ui_menu_click_add_span(int choice, int col, int row, int end_col)
     ui_menu_click_add(choice, col, row, width);
 }
 
+void ui_menu_click_add_text_span(int choice, int col, int row, cptr text,
+    int start_offset, int end_offset)
+{
+    int len;
+
+    if (!text)
+        return;
+
+    len = (int)strlen(text);
+    if (start_offset < 0)
+        start_offset = 0;
+    if (end_offset > len)
+        end_offset = len;
+    if (end_offset <= start_offset)
+        return;
+
+    ui_menu_click_add_span(choice, col + start_offset, row, col + end_offset);
+
+    if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)
+    {
+        Term_putstr(col + start_offset, row, end_offset - start_offset,
+            TERM_L_BLUE, text + start_offset);
+    }
+}
+
 void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
     cptr token)
 {

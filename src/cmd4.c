@@ -3819,6 +3819,7 @@ int abilities_menu2(int skilltype, int* highlight)
                         : NULL;
                     bool has_desc = desc_text && desc_text[0];
                     bool has_effect = effect_text && effect_text[0];
+                    bool song_bonus_rendered = false;
 
                     switch (op_ptr->ability_desc_mode)
                     {
@@ -3835,11 +3836,23 @@ int abilities_menu2(int skilltype, int* highlight)
                                 || !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                                 text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_SLATE, desc_text);
+                            if (skilltype == S_SNG)
+                            {
+                                ability_menu_render_song_bonus_block(b_ptr);
+                                song_bonus_rendered = true;
+                            }
                         }
                         break;
                     case 2: /* Effect only */
                         if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
-                        else if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_text);
+                        else if (has_desc) {
+                            text_out_to_screen(TERM_L_WHITE, desc_text);
+                            if (skilltype == S_SNG)
+                            {
+                                ability_menu_render_song_bonus_block(b_ptr);
+                                song_bonus_rendered = true;
+                            }
+                        }
                         if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                         {
                             if (has_effect || has_desc)
@@ -3849,7 +3862,14 @@ int abilities_menu2(int skilltype, int* highlight)
                         }
                         break;
                     default: /* 0: Description first, then effect */
-                        if (has_desc) text_out_to_screen(TERM_SLATE, desc_text);
+                        if (has_desc) {
+                            text_out_to_screen(TERM_SLATE, desc_text);
+                            if (skilltype == S_SNG)
+                            {
+                                ability_menu_render_song_bonus_block(b_ptr);
+                                song_bonus_rendered = true;
+                            }
+                        }
                         if (has_effect) {
                             if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_L_WHITE, effect_text);
@@ -3864,7 +3884,7 @@ int abilities_menu2(int skilltype, int* highlight)
                         break;
                     }
 
-                    if (skilltype == S_SNG)
+                    if (skilltype == S_SNG && !song_bonus_rendered)
                         ability_menu_render_song_bonus_block(b_ptr);
 
                     /* For Nienna's Gift of Mercy, show current bonus */
@@ -18759,6 +18779,11 @@ enum {
     TOUCH_CONTROL_MENU_SUPPLY,
     TOUCH_CONTROL_MENU_OTHER,
     TOUCH_CONTROL_MOVEMENT,
+    TOUCH_CONTROL_CORNER_BUTTON_OVERLAY,
+    TOUCH_CONTROL_CENTER_LEFT_TAP,
+    TOUCH_CONTROL_CENTER_LEFT_LONG_TAP,
+    TOUCH_CONTROL_CENTER_RIGHT_TAP,
+    TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP,
     TOUCH_CONTROL_SWIPE_ENABLED,
     TOUCH_CONTROL_SWIPE_UP,
     TOUCH_CONTROL_SWIPE_DOWN,
@@ -18770,6 +18795,12 @@ enum {
 static bool touch_control_is_swipe_binding_row(int row)
 {
     return row >= TOUCH_CONTROL_SWIPE_UP && row <= TOUCH_CONTROL_SWIPE_RIGHT;
+}
+
+static bool touch_control_is_center_binding_row(int row)
+{
+    return row >= TOUCH_CONTROL_CENTER_LEFT_TAP
+        && row <= TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP;
 }
 
 static bool touch_control_is_menu_command_row(int row)
@@ -18789,6 +18820,22 @@ static int touch_control_menu_category_for_row(int row)
         return SDL_TOUCH_MENU_CATEGORY_OTHER;
     default:
         return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+}
+
+static int touch_control_center_binding_index_for_row(int row)
+{
+    switch (row) {
+    case TOUCH_CONTROL_CENTER_LEFT_TAP:
+        return SDL_TOUCH_ZONE_CENTER_LEFT_TAP;
+    case TOUCH_CONTROL_CENTER_LEFT_LONG_TAP:
+        return SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP;
+    case TOUCH_CONTROL_CENTER_RIGHT_TAP:
+        return SDL_TOUCH_ZONE_CENTER_RIGHT_TAP;
+    case TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP:
+        return SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP;
+    default:
+        return -1;
     }
 }
 
@@ -18819,6 +18866,16 @@ static const char* touch_control_row_name(int row)
         return "Other Menus Touch";
     case TOUCH_CONTROL_MOVEMENT:
         return "Touch Movement";
+    case TOUCH_CONTROL_CORNER_BUTTON_OVERLAY:
+        return "Corner Button Overlay";
+    case TOUCH_CONTROL_CENTER_LEFT_TAP:
+        return "Left Center Tap";
+    case TOUCH_CONTROL_CENTER_LEFT_LONG_TAP:
+        return "Left Center Long Tap";
+    case TOUCH_CONTROL_CENTER_RIGHT_TAP:
+        return "Right Center Tap";
+    case TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP:
+        return "Right Center Long Tap";
     case TOUCH_CONTROL_SWIPE_ENABLED:
         return "Swipe Gestures";
     case TOUCH_CONTROL_SWIPE_UP:
@@ -18868,6 +18925,38 @@ static int touch_movement_mode_cycle(int mode, int delta)
     return modes[idx];
 }
 
+static const char* touch_zone_overlay_mode_label(int mode)
+{
+    switch (mode) {
+    case SDL_TOUCH_ZONE_OVERLAY_OFF:
+        return "No";
+    case SDL_TOUCH_ZONE_OVERLAY_BORDERS:
+        return "Full borders";
+    case SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS:
+        return "Full borders + names";
+    case SDL_TOUCH_ZONE_OVERLAY_MARKERS:
+    default:
+        return "Small lines";
+    }
+}
+
+static int touch_zone_overlay_mode_cycle(int mode, int delta)
+{
+    int normalized = mode;
+    int next;
+
+    if (normalized < SDL_TOUCH_ZONE_OVERLAY_OFF
+        || normalized >= SDL_TOUCH_ZONE_OVERLAY_COUNT)
+    {
+        normalized = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    }
+
+    next = normalized + delta;
+    next = ((next % SDL_TOUCH_ZONE_OVERLAY_COUNT)
+        + SDL_TOUCH_ZONE_OVERLAY_COUNT) % SDL_TOUCH_ZONE_OVERLAY_COUNT;
+    return next;
+}
+
 static const char* mouse_movement_mode_label(int mode)
 {
     switch (mode) {
@@ -18909,6 +18998,10 @@ static void touch_control_reset_to_default(void)
             get_sdl_touch_menu_commands_default_enabled(i));
     }
     set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+    set_sdl_touch_zone_overlay_mode(get_sdl_touch_zone_overlay_default_mode());
+    for (int i = 0; i < SDL_TOUCH_ZONE_CENTER_BINDING_COUNT; i++)
+        set_sdl_touch_zone_center_binding(i,
+            get_sdl_touch_zone_center_default_binding(i));
     set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
     for (int i = 0; i < TOUCH_SWIPE_DIR_COUNT; i++)
         set_sdl_touch_swipe_binding(i, get_sdl_touch_swipe_default_binding(i));
@@ -19360,14 +19453,27 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 SDL_strlcpy(action_buf,
                     touch_movement_mode_label(get_sdl_touch_movement_mode()),
                     sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
+                SDL_strlcpy(action_buf,
+                    touch_zone_overlay_mode_label(
+                        get_sdl_touch_zone_overlay_mode()),
+                    sizeof(action_buf));
             } else if (i == TOUCH_CONTROL_SWIPE_ENABLED) {
                 SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
                     sizeof(action_buf));
-            } else {
+            } else if (touch_control_is_center_binding_row(i)) {
+                int index = touch_control_center_binding_index_for_row(i);
+
+                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                    get_sdl_touch_zone_center_binding(index), action_buf,
+                    sizeof(action_buf));
+            } else if (touch_control_is_swipe_binding_row(i)) {
                 int swipe_dir = touch_control_swipe_dir_for_row(i);
 
                 touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
                     get_sdl_touch_swipe_binding(swipe_dir), action_buf, sizeof(action_buf));
+            } else {
+                action_buf[0] = '\0';
             }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
@@ -19476,8 +19582,23 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(
                     touch_movement_mode_cycle(get_sdl_touch_movement_mode(), -1));
+            } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
+                set_sdl_touch_zone_overlay_mode(
+                    touch_zone_overlay_mode_cycle(
+                        get_sdl_touch_zone_overlay_mode(), -1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(false);
+            } else if (touch_control_is_center_binding_row(highlight)) {
+                int choice_count = 0;
+                int binding_index =
+                    touch_control_center_binding_index_for_row(highlight);
+                const int* choices = touch_pane_action_choices_for_panel(
+                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_zone_center_binding(binding_index));
+
+                idx = (choice_count + idx - 1) % choice_count;
+                set_sdl_touch_zone_center_binding(binding_index, choices[idx]);
             } else if (touch_control_is_swipe_binding_row(highlight)) {
                 int choice_count = 0;
                 int swipe_dir = touch_control_swipe_dir_for_row(highlight);
@@ -19504,8 +19625,23 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(
                     touch_movement_mode_cycle(get_sdl_touch_movement_mode(), 1));
+            } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
+                set_sdl_touch_zone_overlay_mode(
+                    touch_zone_overlay_mode_cycle(
+                        get_sdl_touch_zone_overlay_mode(), 1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
+            } else if (touch_control_is_center_binding_row(highlight)) {
+                int choice_count = 0;
+                int binding_index =
+                    touch_control_center_binding_index_for_row(highlight);
+                const int* choices = touch_pane_action_choices_for_panel(
+                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_zone_center_binding(binding_index));
+
+                idx = (idx + 1) % choice_count;
+                set_sdl_touch_zone_center_binding(binding_index, choices[idx]);
             } else if (touch_control_is_swipe_binding_row(highlight)) {
                 int choice_count = 0;
                 int swipe_dir = touch_control_swipe_dir_for_row(highlight);
@@ -19529,8 +19665,17 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     category, get_sdl_touch_menu_commands_default_enabled(category));
             } else if (highlight == TOUCH_CONTROL_MOVEMENT) {
                 set_sdl_touch_movement_mode(get_sdl_touch_movement_default_mode());
+            } else if (highlight == TOUCH_CONTROL_CORNER_BUTTON_OVERLAY) {
+                set_sdl_touch_zone_overlay_mode(
+                    get_sdl_touch_zone_overlay_default_mode());
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+            } else if (touch_control_is_center_binding_row(highlight)) {
+                int binding_index =
+                    touch_control_center_binding_index_for_row(highlight);
+
+                set_sdl_touch_zone_center_binding(binding_index,
+                    get_sdl_touch_zone_center_default_binding(binding_index));
             } else if (touch_control_is_swipe_binding_row(highlight)) {
                 int swipe_dir = touch_control_swipe_dir_for_row(highlight);
 

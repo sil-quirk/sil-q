@@ -8117,16 +8117,21 @@ static bool quest_typewriter_ensure_row(cptr title, byte title_color, int wid,
 void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
 {
     int wid, h;
+    int wrap_width;
+    int row, col;
     const int indent = 2;
     bool skipped = false;
-    
-    /* Get terminal size */
-    Term_get_size(&wid, &h);
-    int wrap_width = wid - indent * 2;
-    int row = quest_typewriter_text_start_row(h), col = 0;
-    
+
     /* Save screen and start fresh */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get terminal size after any hidden-pane layout change */
+    Term_get_size(&wid, &h);
+    wrap_width = wid - indent * 2;
+    row = quest_typewriter_text_start_row(h);
+    col = 0;
+
     Term_clear();
     Term_flush();
     ui_menu_click_begin();
@@ -8148,6 +8153,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                 Term_clear();
                 ui_menu_click_clear();
+                screen_pop_supporting_panes_hidden();
                 screen_load();
                 return;
             }
@@ -8169,6 +8175,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 if (!quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                     Term_clear();
                     ui_menu_click_clear();
+                    screen_pop_supporting_panes_hidden();
                     screen_load();
                     return;
                 }
@@ -8200,6 +8207,8 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 col = 0;
                 if (!quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                     Term_clear();
+                    ui_menu_click_clear();
+                    screen_pop_supporting_panes_hidden();
                     screen_load();
                     return;
                 }
@@ -8280,6 +8289,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
             && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
             Term_clear();
             ui_menu_click_clear();
+            screen_pop_supporting_panes_hidden();
             screen_load();
             return;
         }
@@ -8303,6 +8313,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     Term_flush();
     
     Term_clear();
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 

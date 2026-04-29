@@ -50,6 +50,16 @@
 #define SDL_TOUCH_PANE_PANEL_COUNT 2
 #define SDL_TOUCH_PANE_PANEL_MAIN 0
 #define SDL_TOUCH_PANE_PANEL_SECOND 1
+#define SDL_TOUCH_ZONE_OVERLAY_OFF 0
+#define SDL_TOUCH_ZONE_OVERLAY_MARKERS 1
+#define SDL_TOUCH_ZONE_OVERLAY_BORDERS 2
+#define SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS 3
+#define SDL_TOUCH_ZONE_OVERLAY_COUNT 4
+#define SDL_TOUCH_ZONE_CENTER_LEFT_TAP 0
+#define SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP 1
+#define SDL_TOUCH_ZONE_CENTER_RIGHT_TAP 2
+#define SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP 3
+#define SDL_TOUCH_ZONE_CENTER_BINDING_COUNT 4
 #define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
@@ -144,6 +154,8 @@ struct sdl_config {
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     bool touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_COUNT];
     int touch_movement_mode;
+    int touch_zone_overlay_mode;
+    int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
     bool touch_swipe_enabled;
     int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };

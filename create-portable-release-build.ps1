@@ -39,12 +39,22 @@ function Remove-WavFilesRecursive {
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $outputFolderPath = Resolve-ScriptRelativePath $OutputFolder
+$standardOutputFolder = if ($OutputFolder -match '(?i)-portable-release$') {
+    $OutputFolder -replace '(?i)-portable-release$', '-release'
+} elseif ($OutputFolder -match '(?i)-portable$') {
+    $OutputFolder -replace '(?i)-portable$', ''
+} else {
+    "$OutputFolder-standard"
+}
+$standardOutputFolderPath = Resolve-ScriptRelativePath $standardOutputFolder
 $buildScriptPath = Resolve-ScriptRelativePath "build-cmake.bat"
 $buildPortableExePath = Resolve-ScriptRelativePath "build-portable/sil-more.exe"
 $deploymentFolderPath = Resolve-ScriptRelativePath "sil-more-windows-sdl3-portable"
 $libSourceRoot = Resolve-ScriptRelativePath "lib"
 $coverArtPath = Resolve-ScriptRelativePath "CoverArt"
 $legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
+$archiveScriptPath = Resolve-ScriptRelativePath "create-distribution-archive.ps1"
+$releaseApkPath = Resolve-ScriptRelativePath "android/app/build/outputs/apk/release/app-release.apk"
 
 Write-Host "Creating portable release build: $outputFolderPath" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -352,5 +362,5 @@ Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Test: $(Join-Path $outputFolderPath 'sil-more.exe')"
 Write-Host "  2. Saves will be stored in: lib/save/"
-Write-Host "  3. Archive: $(Resolve-ScriptRelativePath 'create-distribution-archive.ps1') -ReleaseFolder $outputFolderPath -Version $Version -Portable"
+Write-Host "  3. Package distributions after the standard release folder exists: $archiveScriptPath -ReleaseFolder $standardOutputFolderPath -PortableReleaseFolder $outputFolderPath -Version $Version -ApkPath $releaseApkPath"
 Write-Host ""

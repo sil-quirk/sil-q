@@ -587,6 +587,8 @@ static int g_default_touch_pane_bindings[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_P
 static char g_default_touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
 static bool g_default_touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_COUNT];
 static int g_default_touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+static int g_default_touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+static int g_default_touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
 static bool g_default_touch_swipe_enabled = true;
 static int g_default_touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 static bool g_default_touch_pane_bindings_ready = false;
@@ -868,13 +870,20 @@ static void sdl_touch_swipe_cancel(void);
 static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static void sdl_touch_swipe_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
+static int sdl_touch_zone_overlay_mode_normalized(int mode);
+static bool sdl_touch_zone_layout_visible(void);
 static bool sdl_touch_zone_controls_active(void);
+static int sdl_touch_zone_center_binding_index(int zone, bool long_press);
+static int sdl_touch_zone_binding_for_center(int zone, bool long_press);
+static void sdl_touch_zone_button_label(int zone, char* name, size_t name_len,
+    char* symbol, size_t symbol_len);
 static bool sdl_touch_zone_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_touch_zone_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_touch_zone_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
 static void sdl_touch_zone_cancel_press(void);
 static int sdl_touch_zone_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_touch_zone_flush_pending_press(Uint64 now_ns);
+static void sdl_touch_zone_render_markers(void);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);
 void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding);
 int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
@@ -1578,6 +1587,7 @@ static void sdl_apply_startup_input_defaults_to_config(
         for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
             target->touch_menu_command_enabled[i] = true;
         target->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+        target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
         target->touch_swipe_enabled = true;
     }
 }
@@ -9118,16 +9128,40 @@ static void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse,
     }
 }
 
-static bool sdl_touch_zone_controls_active(void)
+static int sdl_touch_zone_overlay_mode_normalized(int mode)
+{
+    if (mode >= SDL_TOUCH_ZONE_OVERLAY_OFF
+        && mode < SDL_TOUCH_ZONE_OVERLAY_COUNT)
+    {
+        return mode;
+    }
+
+    return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+}
+
+static bool sdl_touch_zone_layout_visible(void)
 {
     return sdl_touch_pane_uses_mobile_toggle()
         && !sdl_touch_pane_mobile_layout_open()
+        && character_generated
+        && character_dungeon
+        && p_ptr
+        && character_icky == 0
+        && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_touch_zone_controls_active(void)
+{
+    return sdl_touch_zone_layout_visible()
         && sdl_main_screen_click_shortcuts_active();
 }
 
 static bool sdl_touch_zone_compute_layout(SDL_FRect* zone_rects)
 {
     SDL_Rect screen;
+    int size_px;
+    int max_size_px;
+    int start_y_px;
     float size;
     float left_x;
     float right_x;
@@ -9135,22 +9169,25 @@ static bool sdl_touch_zone_compute_layout(SDL_FRect* zone_rects)
 
     if (!zone_rects)
         return false;
-    if (!sdl_touch_zone_controls_active())
+    if (!sdl_touch_zone_layout_visible())
         return false;
 
     screen = sdl_get_layout_screen_rect();
     if (!sdl_rect_has_area(&screen))
         return false;
 
-    size = (float)screen.h / 3.0f;
-    if (size > (float)screen.w / 4.0f)
-        size = (float)screen.w / 4.0f;
-    if (size <= 0.0f)
+    size_px = screen.h / 3;
+    max_size_px = screen.w / 4;
+    if (size_px > max_size_px)
+        size_px = max_size_px;
+    if (size_px <= 0)
         return false;
 
+    start_y_px = screen.y + (screen.h - size_px * 3) / 2;
+    size = (float)size_px;
     left_x = (float)screen.x;
-    right_x = (float)(screen.x + screen.w) - size * 2.0f;
-    start_y = (float)screen.y + ((float)screen.h - size * 3.0f) * 0.5f;
+    right_x = (float)(screen.x + screen.w - size_px * 2);
+    start_y = (float)start_y_px;
 
     zone_rects[TOUCH_ZONE_LEFT_NW] = (SDL_FRect){
         .x = left_x,
@@ -9252,6 +9289,189 @@ static bool sdl_touch_zone_point_to_zone(float x, float y, int* out_zone)
     return false;
 }
 
+static int sdl_touch_zone_center_binding_index(int zone, bool long_press)
+{
+    switch (zone) {
+    case TOUCH_ZONE_LEFT_Z:
+        return long_press ? SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP
+                          : SDL_TOUCH_ZONE_CENTER_LEFT_TAP;
+    case TOUCH_ZONE_RIGHT_SPACE:
+        return long_press ? SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP
+                          : SDL_TOUCH_ZONE_CENTER_RIGHT_TAP;
+    default:
+        return -1;
+    }
+}
+
+static int sdl_touch_zone_binding_for_center(int zone, bool long_press)
+{
+    int index = sdl_touch_zone_center_binding_index(zone, long_press);
+
+    if (index < 0 || index >= SDL_TOUCH_ZONE_CENTER_BINDING_COUNT)
+        return GAMEPAD_BIND_NONE;
+
+    return config.touch_zone_center_bindings[index];
+}
+
+static void sdl_touch_zone_button_label(int zone, char* name, size_t name_len,
+    char* symbol, size_t symbol_len)
+{
+    if (name && name_len)
+        name[0] = '\0';
+    if (symbol && symbol_len)
+        symbol[0] = '\0';
+
+    if (!name || !name_len)
+        return;
+
+    switch (zone) {
+    case TOUCH_ZONE_LEFT_NW:
+        SDL_strlcpy(name, "NW", name_len);
+        return;
+    case TOUCH_ZONE_LEFT_N:
+    case TOUCH_ZONE_RIGHT_N:
+        SDL_strlcpy(name, "N", name_len);
+        return;
+    case TOUCH_ZONE_RIGHT_NE:
+        SDL_strlcpy(name, "NE", name_len);
+        return;
+    case TOUCH_ZONE_LEFT_W:
+        SDL_strlcpy(name, "W", name_len);
+        return;
+    case TOUCH_ZONE_RIGHT_E:
+        SDL_strlcpy(name, "E", name_len);
+        return;
+    case TOUCH_ZONE_LEFT_SW:
+        SDL_strlcpy(name, "SW", name_len);
+        return;
+    case TOUCH_ZONE_LEFT_S:
+    case TOUCH_ZONE_RIGHT_S:
+        SDL_strlcpy(name, "S", name_len);
+        return;
+    case TOUCH_ZONE_RIGHT_SE:
+        SDL_strlcpy(name, "SE", name_len);
+        return;
+    case TOUCH_ZONE_LEFT_Z:
+    case TOUCH_ZONE_RIGHT_SPACE:
+        binding_action_short(sdl_touch_zone_binding_for_center(zone, false),
+            name, name_len);
+        if (symbol && symbol_len)
+            binding_action_short(sdl_touch_zone_binding_for_center(zone, true),
+                symbol, symbol_len);
+        return;
+    default:
+        return;
+    }
+}
+
+static void sdl_touch_zone_render_markers(void)
+{
+    SDL_FRect zone_rects[TOUCH_ZONE_COUNT];
+    SDL_Rect screen;
+    SDL_Color marker_color = g_state.palette[TERM_L_BLUE];
+    int overlay_mode =
+        sdl_touch_zone_overlay_mode_normalized(config.touch_zone_overlay_mode);
+    bool draw_markers = (overlay_mode == SDL_TOUCH_ZONE_OVERLAY_MARKERS);
+    bool draw_borders = (overlay_mode == SDL_TOUCH_ZONE_OVERLAY_BORDERS
+        || overlay_mode == SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS);
+    bool draw_labels = (overlay_mode == SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS);
+    float size;
+    float start_y;
+    float bottom_y;
+    float left_split_x;
+    float left_inner_x;
+    float right_inner_x;
+    float right_split_x;
+    float marker_len;
+    float marker_thickness;
+    float top_bottom_markers[4];
+
+    if (overlay_mode == SDL_TOUCH_ZONE_OVERLAY_OFF)
+        return;
+    if (!sdl_touch_zone_compute_layout(zone_rects))
+        return;
+
+    if (draw_borders) {
+        SDL_SetRenderDrawColor(g_state.renderer, marker_color.r,
+            marker_color.g, marker_color.b, 36);
+        for (int i = 0; i < TOUCH_ZONE_COUNT; i++)
+            SDL_RenderRect(g_state.renderer, &zone_rects[i]);
+    }
+
+    if (draw_labels) {
+        SDL_Color label_color = marker_color;
+
+        label_color.a = 92;
+        for (int i = 0; i < TOUCH_ZONE_COUNT; i++) {
+            char name[32];
+            char symbol[32];
+
+            sdl_touch_zone_button_label(i, name, sizeof(name), symbol,
+                sizeof(symbol));
+            sdl_touch_pane_draw_button_text_scaled(&zone_rects[i], name,
+                symbol, label_color, 0.24f, 0.30f);
+        }
+    }
+
+    if (!draw_markers)
+        return;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return;
+
+    size = zone_rects[TOUCH_ZONE_LEFT_NW].h;
+    start_y = zone_rects[TOUCH_ZONE_LEFT_NW].y;
+    bottom_y = start_y + size * 3.0f;
+    left_split_x = zone_rects[TOUCH_ZONE_LEFT_N].x;
+    left_inner_x = zone_rects[TOUCH_ZONE_LEFT_N].x + size;
+    right_inner_x = zone_rects[TOUCH_ZONE_RIGHT_N].x;
+    right_split_x = zone_rects[TOUCH_ZONE_RIGHT_NE].x;
+    marker_len = sdl_touch_pane_clampf(size * 0.20f, 18.0f, 44.0f);
+    marker_thickness = sdl_touch_pane_clampf(size * 0.018f, 2.0f, 4.0f);
+    top_bottom_markers[0] = left_split_x;
+    top_bottom_markers[1] = left_inner_x;
+    top_bottom_markers[2] = right_inner_x;
+    top_bottom_markers[3] = right_split_x;
+
+    SDL_SetRenderDrawColor(g_state.renderer, marker_color.r, marker_color.g,
+        marker_color.b, 150);
+
+    for (int i = 1; i <= 2; i++) {
+        float y = start_y + size * (float)i - marker_thickness * 0.5f;
+
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = (float)screen.x,
+            .y = y,
+            .w = marker_len,
+            .h = marker_thickness,
+        });
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = (float)(screen.x + screen.w) - marker_len,
+            .y = y,
+            .w = marker_len,
+            .h = marker_thickness,
+        });
+    }
+
+    for (int i = 0; i < (int)N_ELEMENTS(top_bottom_markers); i++) {
+        float x = top_bottom_markers[i] - marker_thickness * 0.5f;
+
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = x,
+            .y = start_y,
+            .w = marker_thickness,
+            .h = marker_len,
+        });
+        SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+            .x = x,
+            .y = bottom_y - marker_len,
+            .w = marker_thickness,
+            .h = marker_len,
+        });
+    }
+}
+
 static bool sdl_touch_zone_is_arrow(int zone)
 {
     return zone == TOUCH_ZONE_LEFT_NW
@@ -9302,15 +9522,16 @@ static void sdl_touch_zone_send(int zone, bool long_press)
     }
 
     if (zone == TOUCH_ZONE_LEFT_Z) {
-        Term_keypress(long_press ? 'Z' : 'z');
+        sdl_touch_pane_send_binding(
+            sdl_touch_zone_binding_for_center(zone, long_press),
+            false, false);
         return;
     }
 
     if (zone == TOUCH_ZONE_RIGHT_SPACE) {
-        if (long_press)
-            Term_keypress('u');
-        else
-            sdl_touch_pane_send_confirm_action();
+        sdl_touch_pane_send_binding(
+            sdl_touch_zone_binding_for_center(zone, long_press),
+            false, false);
     }
 }
 
@@ -9329,6 +9550,8 @@ static bool sdl_touch_zone_handle_pointer_down(float x, float y,
 {
     int zone = -1;
 
+    if (!sdl_touch_zone_controls_active())
+        return false;
     if (!sdl_touch_zone_point_to_zone(x, y, &zone))
         return false;
     if (zone < 0)
@@ -12154,6 +12377,7 @@ static void sdl_present_if_needed(sdl_view* d)
     }
 
     sdl_touch_pane_render();
+    sdl_touch_zone_render_markers();
     sdl_touch_pane_render_reset_prompt();
     sdl_touch_pane_render_yes_no_prompt();
     SDL_RenderPresent(g_state.renderer);
@@ -14988,6 +15212,10 @@ static void sdl_touch_pane_load_default_bindings(void)
     memcpy(g_default_touch_menu_command_enabled, defaults.touch_menu_command_enabled,
         sizeof(g_default_touch_menu_command_enabled));
     g_default_touch_movement_mode = defaults.touch_movement_mode;
+    g_default_touch_zone_overlay_mode = defaults.touch_zone_overlay_mode;
+    memcpy(g_default_touch_zone_center_bindings,
+        defaults.touch_zone_center_bindings,
+        sizeof(g_default_touch_zone_center_bindings));
     g_default_touch_swipe_enabled = defaults.touch_swipe_enabled;
     memcpy(g_default_touch_swipe_bindings, defaults.touch_swipe_bindings,
         sizeof(g_default_touch_swipe_bindings));
@@ -15463,6 +15691,49 @@ int get_sdl_touch_movement_default_mode(void)
 {
     sdl_touch_pane_load_default_bindings();
     return sdl_touch_movement_normalized_mode(g_default_touch_movement_mode);
+}
+
+int get_sdl_touch_zone_overlay_mode(void)
+{
+    return sdl_touch_zone_overlay_mode_normalized(
+        config.touch_zone_overlay_mode);
+}
+
+void set_sdl_touch_zone_overlay_mode(int mode)
+{
+    config.touch_zone_overlay_mode =
+        sdl_touch_zone_overlay_mode_normalized(mode);
+    g_state.need_present = true;
+}
+
+int get_sdl_touch_zone_overlay_default_mode(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return sdl_touch_zone_overlay_mode_normalized(
+        g_default_touch_zone_overlay_mode);
+}
+
+int get_sdl_touch_zone_center_binding(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_ZONE_CENTER_BINDING_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return config.touch_zone_center_bindings[index];
+}
+
+void set_sdl_touch_zone_center_binding(int index, int binding)
+{
+    if (index < 0 || index >= SDL_TOUCH_ZONE_CENTER_BINDING_COUNT)
+        return;
+    config.touch_zone_center_bindings[index] = binding;
+    g_state.need_present = true;
+}
+
+int get_sdl_touch_zone_center_default_binding(int index)
+{
+    if (index < 0 || index >= SDL_TOUCH_ZONE_CENTER_BINDING_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_zone_center_bindings[index];
 }
 
 bool get_sdl_touch_swipe_enabled(void)

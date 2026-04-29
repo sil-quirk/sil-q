@@ -1287,6 +1287,24 @@ static void display_skill(int skill, int row, int col)
             col + 28);
 }
 
+static int display_player_standard_skill_row_override = -1;
+static int display_player_standard_history_row_override = -1;
+static bool display_player_standard_layout_override_active = false;
+
+void display_player_standard_layout_set(int skill_row, int history_row)
+{
+    display_player_standard_layout_override_active = true;
+    display_player_standard_skill_row_override = skill_row;
+    display_player_standard_history_row_override = history_row;
+}
+
+void display_player_standard_layout_clear(void)
+{
+    display_player_standard_layout_override_active = false;
+    display_player_standard_skill_row_override = -1;
+    display_player_standard_history_row_override = -1;
+}
+
 
 /* ----- story-font aware helpers ---------------------------------------- */
 
@@ -1668,6 +1686,8 @@ void display_player_xtra_info(int mode)
     int col_stats;
     int col_flags;
     int col_skills;
+    int skill_first_row = 6;
+    int history_first_row = 15;
     bool compact_overview = (mode == 100);
     bool show_skills = !compact_overview;
 
@@ -1684,7 +1704,16 @@ void display_player_xtra_info(int mode)
         term_wid = 80;
     if (term_hgt < 1)
         term_hgt = 24;
-    (void)term_hgt;
+
+    if (display_player_standard_layout_override_active
+        && display_player_standard_skill_row_override >= 0)
+    {
+        skill_first_row = display_player_standard_skill_row_override;
+    }
+    if (display_player_standard_layout_override_active)
+    {
+        history_first_row = display_player_standard_history_row_override;
+    }
 
     if (term_wid > 80)
         wide_offset = (term_wid - 80) / 2;
@@ -1933,11 +1962,15 @@ void display_player_xtra_info(int mode)
     /* -------------------- SKILLS ---------------------------------------- */
     if (show_skills)
     {
+        int skill_row = 0;
+
         /* Skills will manage their own font switching */
         for (skill = 0; skill < S_MAX; skill++) {
             /* Skip Special abilities skill - not meant for display */
             if (skill == S_SPC) continue;
-            display_skill(skill, 6 + skill, col_skills);
+            if (skill_first_row + skill_row < term_hgt)
+                display_skill(skill, skill_first_row + skill_row, col_skills);
+            skill_row++;
         }
     }
 
@@ -1948,10 +1981,13 @@ void display_player_xtra_info(int mode)
     
     /* Use full terminal width for history wrapping */
     log_debug("Character history: terminal width=%d, using wrap=%d", term_wid, term_wid - 1);
-    text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
-    text_out_indent = 1;
-    Term_gotoxy(text_out_indent, 15);
-    text_out_to_screen(history_attr, p_ptr->history);
+    if (history_first_row >= 0 && history_first_row < term_hgt)
+    {
+        text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
+        text_out_indent = 1;
+        Term_gotoxy(text_out_indent, history_first_row);
+        text_out_to_screen(history_attr, p_ptr->history);
+    }
     text_out_wrap   = 0;
     text_out_indent = 0;
     
@@ -2159,25 +2195,61 @@ static void tutorial_prompt_label(int binding, const char* fallback, char* out, 
         SDL_strlcpy(out, fallback, out_size);
 }
 
-static void tutorial_put_centered(int row, byte attr, const char* text)
+static int tutorial_centered_col(const char* text)
 {
-    if (!text)
-        return;
-
     int wid = 80;
     int hgt = 24;
     Term_get_size(&wid, &hgt);
     if (wid < 1)
         wid = 80;
 
-    int len = (int)strlen(text);
+    int len = text ? (int)strlen(text) : 0;
     int col = 0;
     if (len < wid)
         col = (wid - len) / 2;
     if (col < 0)
         col = 0;
 
+    return col;
+}
+
+static void tutorial_put_centered(int row, byte attr, const char* text)
+{
+    if (!text)
+        return;
+
+    int col = tutorial_centered_col(text);
     Term_putstr(col, row, -1, attr, text);
+}
+
+static void tutorial_add_prompt_segment_click(
+    int choice, int col, int row, const char* text, const char* token)
+{
+    const char* match;
+    const char* start;
+    const char* end;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    start = match;
+    while (start > text && start[-1] != '(' && start[-1] != '[')
+        start--;
+    if (start > text && (start[-1] == '(' || start[-1] == '['))
+        start--;
+
+    end = match + strlen(token);
+    while (*end && *end != ')' && *end != ']')
+        end++;
+    if (*end == ')' || *end == ']')
+        end++;
+
+    ui_menu_click_add_text_span(choice, col, row, text, (int)(start - text),
+        (int)(end - text));
 }
 
 static int tutorial_put_trunc(int col, int row, int max_wid, byte attr, const char* text)
@@ -2475,6 +2547,12 @@ typedef struct {
     const char* txt;
     byte col;
 } tutorial_trait_line;
+
+enum {
+    TUTORIAL_CLICK_PREV = 1,
+    TUTORIAL_CLICK_NEXT,
+    TUTORIAL_CLICK_EXIT
+};
 
 static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
 {
@@ -2964,6 +3042,9 @@ void display_character_tutorial(void)
             page = total_pages - 1;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
 
         /* Header */
         {
@@ -3330,10 +3411,16 @@ void display_character_tutorial(void)
         /* Footer / navigation */
         {
             if (page == total_pages - 1)
+            {
                 tutorial_put_centered(hint_row, TERM_L_GREEN, "Tutorial complete!");
+                ui_menu_click_add_full_row(TUTORIAL_CLICK_EXIT, hint_row);
+            }
             else
+            {
                 tutorial_put_centered(hint_row, TERM_YELLOW,
-                    steamdeck ? "D-pad left/right to navigate" : "Use left/right (or any key) to navigate");
+                    steamdeck ? "D-pad left/right to navigate" : "Use left/right to navigate");
+                ui_menu_click_add_full_row(TUTORIAL_CLICK_NEXT, hint_row);
+            }
 
             if (steamdeck)
             {
@@ -3347,7 +3434,14 @@ void display_character_tutorial(void)
                     strnfmt(nav, sizeof(nav), "(D-Left Prev)   (%s Next)   (%s Exit)", next_label, back_label);
                 else
                     strnfmt(nav, sizeof(nav), "(%s Next)   (%s Exit)", next_label, back_label);
-                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+                int nav_col = tutorial_centered_col(nav);
+                Term_putstr(nav_col, nav_row, -1, TERM_SLATE, nav);
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_PREV, nav_col, nav_row, nav, "Prev");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_NEXT, nav_col, nav_row, nav, "Next");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_EXIT, nav_col, nav_row, nav, "Exit");
             }
             else
             {
@@ -3356,11 +3450,48 @@ void display_character_tutorial(void)
                     strnfmt(nav, sizeof(nav), "(4/<- Prev)   (6/-> Next)   (ESC Exit)");
                 else
                     strnfmt(nav, sizeof(nav), "(6/-> Next)   (ESC Exit)");
-                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+                int nav_col = tutorial_centered_col(nav);
+                Term_putstr(nav_col, nav_row, -1, TERM_SLATE, nav);
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_PREV, nav_col, nav_row, nav, "Prev");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_NEXT, nav_col, nav_row, nav, "Next");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_EXIT, nav_col, nav_row, nav, "Exit");
             }
         }
 
-        ch = inkey();
+        {
+            bool saved_hide_cursor = hide_cursor;
+
+            hide_cursor = true;
+            (void)Term_set_cursor(false);
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                if (clicked_choice == TUTORIAL_CLICK_PREV)
+                    ch = '4';
+                else if (clicked_choice == TUTORIAL_CLICK_NEXT)
+                    ch = '6';
+                else if (clicked_choice == TUTORIAL_CLICK_EXIT)
+                    ch = ESCAPE;
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
+        }
+
         if (steamdeck && ch == steamdeck_back_key())
             ch = ESCAPE;
 
@@ -3388,6 +3519,7 @@ void display_character_tutorial(void)
         }
     }
 
+    ui_menu_click_clear();
     Term_clear();
 }
 
