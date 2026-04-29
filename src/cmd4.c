@@ -3856,7 +3856,14 @@ int abilities_menu2(int skilltype, int* highlight)
                     switch (op_ptr->ability_desc_mode)
                     {
                     case 1: /* Effect first, then description */
-                        if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
+                        if (has_effect) {
+                            text_out_to_screen(TERM_L_WHITE, effect_text);
+                            if (skilltype == S_SNG)
+                            {
+                                ability_menu_render_song_bonus_block(b_ptr);
+                                song_bonus_rendered = true;
+                            }
+                        }
                         if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                         {
                             if (has_effect) text_out_to_screen(TERM_L_WHITE, desc_sep);
@@ -3868,22 +3875,19 @@ int abilities_menu2(int skilltype, int* highlight)
                                 || !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                                 text_out_to_screen(TERM_L_WHITE, desc_sep);
                             text_out_to_screen(TERM_SLATE, desc_text);
+                        }
+                        break;
+                    case 2: /* Effect only */
+                        if (has_effect) {
+                            text_out_to_screen(TERM_L_WHITE, effect_text);
                             if (skilltype == S_SNG)
                             {
                                 ability_menu_render_song_bonus_block(b_ptr);
                                 song_bonus_rendered = true;
                             }
                         }
-                        break;
-                    case 2: /* Effect only */
-                        if (has_effect) text_out_to_screen(TERM_L_WHITE, effect_text);
                         else if (has_desc) {
                             text_out_to_screen(TERM_L_WHITE, desc_text);
-                            if (skilltype == S_SNG)
-                            {
-                                ability_menu_render_song_bonus_block(b_ptr);
-                                song_bonus_rendered = true;
-                            }
                         }
                         if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                         {
@@ -3896,15 +3900,15 @@ int abilities_menu2(int skilltype, int* highlight)
                     default: /* 0: Description first, then effect */
                         if (has_desc) {
                             text_out_to_screen(TERM_SLATE, desc_text);
+                        }
+                        if (has_effect) {
+                            if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_sep);
+                            text_out_to_screen(TERM_L_WHITE, effect_text);
                             if (skilltype == S_SNG)
                             {
                                 ability_menu_render_song_bonus_block(b_ptr);
                                 song_bonus_rendered = true;
                             }
-                        }
-                        if (has_effect) {
-                            if (has_desc) text_out_to_screen(TERM_L_WHITE, desc_sep);
-                            text_out_to_screen(TERM_L_WHITE, effect_text);
                         }
                         if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                         {
