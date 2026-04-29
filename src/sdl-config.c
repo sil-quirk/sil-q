@@ -1885,6 +1885,10 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "cornerButtonBordersEnabled");
                 cJSON* corner_button_center_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "cornerButtonCenterBindings");
+                cJSON* top_panel_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelBindings");
+                cJSON* top_panel_long_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelLongBindings");
                 cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "swipeEnabled");
                 cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -1979,6 +1983,26 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         count);
                 }
 
+                if (cJSON_IsArray(top_panel_bindings)) {
+                    int count = cJSON_GetArraySize(top_panel_bindings);
+                    sdl_config_load_touch_binding_array(
+                        top_panel_bindings,
+                        config->touch_top_panel_bindings,
+                        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.topPanelBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsArray(top_panel_long_bindings)) {
+                    int count = cJSON_GetArraySize(top_panel_long_bindings);
+                    sdl_config_load_touch_binding_array(
+                        top_panel_long_bindings,
+                        config->touch_top_panel_long_bindings,
+                        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.topPanelLongBindings (%d entries)",
+                        count);
+                }
+
                 if (cJSON_IsBool(swipe_enabled)) {
                     saw_touch_control_swipe_enabled = true;
                     config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
@@ -2007,6 +2031,18 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             sdl_config_load_touch_binding_array(legacy_swipe_bindings,
                 config->touch_swipe_bindings, TOUCH_SWIPE_DIR_COUNT);
             log_debug("Loaded legacy touchPane.swipeBindings (%d entries)", count);
+        }
+
+        if (config->touch_swipe_bindings[TOUCH_SWIPE_DIR_UP] == '8'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_DOWN] == '2'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_LEFT] == '4'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_RIGHT] == '6')
+        {
+            config->touch_swipe_bindings[TOUCH_SWIPE_DIR_UP] =
+                TOUCH_BIND_TOP_PANEL_CLOSE;
+            config->touch_swipe_bindings[TOUCH_SWIPE_DIR_DOWN] =
+                TOUCH_BIND_TOP_PANEL_OPEN;
+            log_info("Migrated default touch swipe up/down bindings to top panel actions");
         }
 
         config->touch_movement_mode =
@@ -2306,6 +2342,12 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON* center_bindings = sdl_config_create_int_array(
                 config->touch_zone_center_bindings,
                 SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
+            cJSON* top_panel_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+            cJSON* top_panel_long_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_long_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
             cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
                 TOUCH_SWIPE_DIR_COUNT);
 
@@ -2325,6 +2367,14 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             if (center_bindings) {
                 cJSON_AddItemToObject(touch_control,
                     "cornerButtonCenterBindings", center_bindings);
+            }
+            if (top_panel_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "topPanelBindings", top_panel_bindings);
+            }
+            if (top_panel_long_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "topPanelLongBindings", top_panel_long_bindings);
             }
             cJSON_AddBoolToObject(touch_control, "swipeEnabled",
                 config->touch_swipe_enabled);
@@ -2494,10 +2544,16 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'w', 'b', 'c',
     };
     static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
-        '8', '2', '4', '6',
+        TOUCH_BIND_TOP_PANEL_CLOSE, TOUCH_BIND_TOP_PANEL_OPEN, '4', '6',
     };
     static const int center_defaults[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT] = {
         'z', 'Z', INPUT_BIND_CONFIRM, 'u',
+    };
+    static const int top_panel_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        'h', 'i', 'j', 'f',
+    };
+    static const int top_panel_long_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        '\t', 'e', 's', 'F',
     };
 
     if (!config)
@@ -2515,6 +2571,10 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     config->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
     memcpy(config->touch_zone_center_bindings, center_defaults,
         sizeof(center_defaults));
+    memcpy(config->touch_top_panel_bindings, top_panel_defaults,
+        sizeof(top_panel_defaults));
+    memcpy(config->touch_top_panel_long_bindings, top_panel_long_defaults,
+        sizeof(top_panel_long_defaults));
     config->touch_swipe_enabled = true;
     memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }

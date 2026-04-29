@@ -42,10 +42,14 @@
 #define GAMEPAD_BIND_ALT -4
 #define INPUT_BIND_CONFIRM -5
 #define TOUCH_PANE_BIND_INHERIT -6
+#define TOUCH_BIND_TOP_PANEL_OPEN -7
+#define TOUCH_BIND_TOP_PANEL_CLOSE -8
 
 #define SDL_TOUCH_PANE_BUTTON_COLS 3
 #define SDL_TOUCH_PANE_BUTTON_ROWS 8
 #define SDL_TOUCH_PANE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_BUTTON_ROWS)
+#define SDL_TOUCH_PANE_VISIBLE_BUTTON_ROWS 7
+#define SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_VISIBLE_BUTTON_ROWS)
 #define SDL_TOUCH_PANE_LABEL_LEN 24
 #define SDL_TOUCH_PANE_PANEL_COUNT 2
 #define SDL_TOUCH_PANE_PANEL_MAIN 0
@@ -60,6 +64,7 @@
 #define SDL_TOUCH_ZONE_CENTER_RIGHT_TAP 2
 #define SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP 3
 #define SDL_TOUCH_ZONE_CENTER_BINDING_COUNT 4
+#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 4
 #define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
@@ -156,6 +161,8 @@ struct sdl_config {
     int touch_movement_mode;
     int touch_zone_overlay_mode;
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
+    int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     bool touch_swipe_enabled;
     int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };

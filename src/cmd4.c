@@ -18638,6 +18638,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 
 static const int touch_pane_main_action_choices[] = {
     GAMEPAD_BIND_NONE,
+    TOUCH_BIND_TOP_PANEL_OPEN, TOUCH_BIND_TOP_PANEL_CLOSE,
     ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT, INPUT_BIND_CONFIRM,
     'e', 'i', 'j',
     'u', 's', 'f',
@@ -18656,6 +18657,7 @@ static const int touch_pane_main_action_choices[] = {
 
 static const int touch_pane_second_action_choices[] = {
     TOUCH_PANE_BIND_INHERIT, GAMEPAD_BIND_NONE,
+    TOUCH_BIND_TOP_PANEL_OPEN, TOUCH_BIND_TOP_PANEL_CLOSE,
     ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT, INPUT_BIND_CONFIRM,
     'e', 'i', 'j',
     'u', 's', 'f',
@@ -18671,6 +18673,24 @@ static const int touch_pane_second_action_choices[] = {
     'F', KTRL('F'), 'S', 'l', 'b', 'L',
     KTRL('Q'), '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
+
+static const int touch_pane_visible_button_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT] = {
+    0, 1, 2,
+    6, 7, 8,
+    9, 10, 11,
+    12, 13, 14,
+    15, 16, 17,
+    3, 4, 5,
+    18, 19, 20,
+};
+
+static int touch_pane_visible_button_index(int visible_index)
+{
+    if (visible_index < 0 || visible_index >= SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT)
+        return -1;
+
+    return touch_pane_visible_button_slots[visible_index];
+}
 
 static const int* touch_pane_action_choices_for_panel(int panel, int* count)
 {
@@ -18717,13 +18737,16 @@ static bool touch_pane_binding_is_confirm(int binding)
 
 static bool touch_pane_main_panel_has_other_confirm(int skip_index)
 {
-    for (int i = 0; i < SDL_TOUCH_PANE_BUTTON_COUNT; i++)
+    for (int i = 0; i < SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT; i++)
     {
-        if (i == skip_index)
+        int button_index = touch_pane_visible_button_index(i);
+
+        if (button_index < 0 || button_index == skip_index)
             continue;
 
         if (touch_pane_binding_is_confirm(
-                get_sdl_touch_pane_binding_for_panel(SDL_TOUCH_PANE_PANEL_MAIN, i)))
+                get_sdl_touch_pane_binding_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                    button_index)))
             return true;
     }
 
@@ -18780,6 +18803,14 @@ enum {
     TOUCH_CONTROL_MENU_OTHER,
     TOUCH_CONTROL_MOVEMENT,
     TOUCH_CONTROL_CORNER_BUTTON_OVERLAY,
+    TOUCH_CONTROL_TOP_BUTTON_1_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_1_LONG_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_2_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_2_LONG_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_3_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_3_LONG_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_4_TAP,
+    TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP,
     TOUCH_CONTROL_CENTER_LEFT_TAP,
     TOUCH_CONTROL_CENTER_LEFT_LONG_TAP,
     TOUCH_CONTROL_CENTER_RIGHT_TAP,
@@ -18801,6 +18832,12 @@ static bool touch_control_is_center_binding_row(int row)
 {
     return row >= TOUCH_CONTROL_CENTER_LEFT_TAP
         && row <= TOUCH_CONTROL_CENTER_RIGHT_LONG_TAP;
+}
+
+static bool touch_control_is_top_panel_binding_row(int row)
+{
+    return row >= TOUCH_CONTROL_TOP_BUTTON_1_TAP
+        && row <= TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP;
 }
 
 static bool touch_control_is_menu_command_row(int row)
@@ -18839,6 +18876,22 @@ static int touch_control_center_binding_index_for_row(int row)
     }
 }
 
+static int touch_control_top_panel_slot_for_row(int row)
+{
+    if (!touch_control_is_top_panel_binding_row(row))
+        return -1;
+
+    return (row - TOUCH_CONTROL_TOP_BUTTON_1_TAP) / 2;
+}
+
+static bool touch_control_top_panel_long_for_row(int row)
+{
+    if (!touch_control_is_top_panel_binding_row(row))
+        return false;
+
+    return ((row - TOUCH_CONTROL_TOP_BUTTON_1_TAP) % 2) == 1;
+}
+
 static int touch_control_swipe_dir_for_row(int row)
 {
     switch (row) {
@@ -18868,6 +18921,22 @@ static const char* touch_control_row_name(int row)
         return "Touch Movement";
     case TOUCH_CONTROL_CORNER_BUTTON_OVERLAY:
         return "Corner Button Overlay";
+    case TOUCH_CONTROL_TOP_BUTTON_1_TAP:
+        return "Top Button 1 Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_1_LONG_TAP:
+        return "Top Button 1 Long Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_2_TAP:
+        return "Top Button 2 Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_2_LONG_TAP:
+        return "Top Button 2 Long Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_3_TAP:
+        return "Top Button 3 Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_3_LONG_TAP:
+        return "Top Button 3 Long Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_4_TAP:
+        return "Top Button 4 Tap";
+    case TOUCH_CONTROL_TOP_BUTTON_4_LONG_TAP:
+        return "Top Button 4 Long Tap";
     case TOUCH_CONTROL_CENTER_LEFT_TAP:
         return "Left Center Tap";
     case TOUCH_CONTROL_CENTER_LEFT_LONG_TAP:
@@ -19002,6 +19071,12 @@ static void touch_control_reset_to_default(void)
     for (int i = 0; i < SDL_TOUCH_ZONE_CENTER_BINDING_COUNT; i++)
         set_sdl_touch_zone_center_binding(i,
             get_sdl_touch_zone_center_default_binding(i));
+    for (int i = 0; i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++) {
+        set_sdl_touch_top_panel_binding(i, false,
+            get_sdl_touch_top_panel_default_binding(i, false));
+        set_sdl_touch_top_panel_binding(i, true,
+            get_sdl_touch_top_panel_default_binding(i, true));
+    }
     set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
     for (int i = 0; i < TOUCH_SWIPE_DIR_COUNT; i++)
         set_sdl_touch_swipe_binding(i, get_sdl_touch_swipe_default_binding(i));
@@ -19036,7 +19111,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         int row;
         int visible_rows;
         int row_width;
-        int total_rows = SDL_TOUCH_PANE_BUTTON_COUNT;
+        int total_rows = SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT;
 
         Term_get_size(&term_w, &term_h);
         row_width = settings_ui_line_width(2);
@@ -19070,7 +19145,10 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char left_buf[64];
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
-            int button_index = i;
+            int button_index = touch_pane_visible_button_index(i);
+
+            if (button_index < 0)
+                continue;
 
             get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
             touch_pane_action_label_for_panel(panel,
@@ -19134,9 +19212,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "p/Hero: rename panel   M/Map: reset all panel buttons   Main panel must keep Pick/Confirm",
-                "p rename panel   Map reset panel   Keep main confirm",
-                "p rename   Map reset   Keep confirm");
+                "p: rename panel   M: reset all panel buttons   Main panel must keep Pick/Confirm",
+                "p rename panel   M reset panel   Keep main confirm",
+                "p rename   M reset   Keep confirm");
             int prompt_row = row++;
 
             settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
@@ -19145,7 +19223,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             ui_menu_click_add_text_token(SETTINGS_CLICK_RENAME_GROUP, 2,
                 prompt_row, prompt, "p ");
             ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
-                prompt_row, prompt, "Map");
+                prompt_row, prompt, "M:");
             ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
                 prompt_row, prompt, "reset panel");
         }
@@ -19238,10 +19316,16 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'n':
         case '4':
         {
-            int button_index = highlight;
+            int button_index = touch_pane_visible_button_index(highlight);
             int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel,
+            const int* choices;
+            int idx;
+
+            if (button_index < 0)
+                break;
+
+            choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            idx = touch_pane_action_choice_index(panel,
                 get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
             idx = (choice_count + idx - 1) % choice_count;
@@ -19262,10 +19346,16 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            int button_index = highlight;
+            int button_index = touch_pane_visible_button_index(highlight);
             int choice_count = 0;
-            const int* choices = touch_pane_action_choices_for_panel(panel, &choice_count);
-            int idx = touch_pane_action_choice_index(panel,
+            const int* choices;
+            int idx;
+
+            if (button_index < 0)
+                break;
+
+            choices = touch_pane_action_choices_for_panel(panel, &choice_count);
+            idx = touch_pane_action_choice_index(panel,
                 get_sdl_touch_pane_binding_for_panel(panel, button_index));
 
             idx = (idx + 1) % choice_count;
@@ -19292,7 +19382,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_buf[96];
             int button_index;
 
-            button_index = highlight;
+            button_index = touch_pane_visible_button_index(highlight);
+            if (button_index < 0)
+                break;
 
             get_sdl_touch_pane_button_label_for_panel(panel, button_index, current_label, sizeof(current_label));
             strnfmt(prompt_long, sizeof(prompt_long),
@@ -19356,7 +19448,10 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'x':
         case 'X':
             {
-                int button_index = highlight;
+                int button_index = touch_pane_visible_button_index(highlight);
+
+                if (button_index < 0)
+                    break;
 
                 if (!touch_pane_main_confirm_change_allowed(panel, button_index,
                         get_sdl_touch_pane_default_binding_for_panel(panel, button_index))) {
@@ -19435,7 +19530,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
         settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Touch Control");
         settings_ui_put_fitted(2, 2, TERM_WHITE, "=============");
         settings_ui_put_fitted(3, 2, TERM_SLATE,
-            "Controls touch menus by category, map movement, and swipe gestures.");
+            "Controls touch menus, corner overlays, top buttons, and swipe gestures.");
 
         row = list_start_row;
         for (int i = top; i < total_rows && i < top + visible_rows; i++)
@@ -19461,6 +19556,13 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (i == TOUCH_CONTROL_SWIPE_ENABLED) {
                 SDL_strlcpy(action_buf, get_sdl_touch_swipe_enabled() ? "On" : "Off",
                     sizeof(action_buf));
+            } else if (touch_control_is_top_panel_binding_row(i)) {
+                int slot = touch_control_top_panel_slot_for_row(i);
+                bool long_press = touch_control_top_panel_long_for_row(i);
+
+                touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+                    get_sdl_touch_top_panel_binding(slot, long_press),
+                    action_buf, sizeof(action_buf));
             } else if (touch_control_is_center_binding_row(i)) {
                 int index = touch_control_center_binding_index_for_row(i);
 
@@ -19477,7 +19579,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
-                touch_control_row_name(i), action_buf, row_width, 18);
+                touch_control_row_name(i), action_buf, row_width, 24);
             c_prt(a, line_buf, row, 2);
             ui_menu_click_add(i, 2, row, (int)strlen(line_buf));
             row++;
@@ -19588,6 +19690,17 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         get_sdl_touch_zone_overlay_mode(), -1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(false);
+            } else if (touch_control_is_top_panel_binding_row(highlight)) {
+                int choice_count = 0;
+                int slot = touch_control_top_panel_slot_for_row(highlight);
+                bool long_press = touch_control_top_panel_long_for_row(highlight);
+                const int* choices = touch_pane_action_choices_for_panel(
+                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_top_panel_binding(slot, long_press));
+
+                idx = (choice_count + idx - 1) % choice_count;
+                set_sdl_touch_top_panel_binding(slot, long_press, choices[idx]);
             } else if (touch_control_is_center_binding_row(highlight)) {
                 int choice_count = 0;
                 int binding_index =
@@ -19631,6 +19744,17 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         get_sdl_touch_zone_overlay_mode(), 1));
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(!get_sdl_touch_swipe_enabled());
+            } else if (touch_control_is_top_panel_binding_row(highlight)) {
+                int choice_count = 0;
+                int slot = touch_control_top_panel_slot_for_row(highlight);
+                bool long_press = touch_control_top_panel_long_for_row(highlight);
+                const int* choices = touch_pane_action_choices_for_panel(
+                    SDL_TOUCH_PANE_PANEL_MAIN, &choice_count);
+                int idx = touch_action_choice_index(choices, choice_count,
+                    get_sdl_touch_top_panel_binding(slot, long_press));
+
+                idx = (idx + 1) % choice_count;
+                set_sdl_touch_top_panel_binding(slot, long_press, choices[idx]);
             } else if (touch_control_is_center_binding_row(highlight)) {
                 int choice_count = 0;
                 int binding_index =
@@ -19670,6 +19794,12 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     get_sdl_touch_zone_overlay_default_mode());
             } else if (highlight == TOUCH_CONTROL_SWIPE_ENABLED) {
                 set_sdl_touch_swipe_enabled(get_sdl_touch_swipe_default_enabled());
+            } else if (touch_control_is_top_panel_binding_row(highlight)) {
+                int slot = touch_control_top_panel_slot_for_row(highlight);
+                bool long_press = touch_control_top_panel_long_for_row(highlight);
+
+                set_sdl_touch_top_panel_binding(slot, long_press,
+                    get_sdl_touch_top_panel_default_binding(slot, long_press));
             } else if (touch_control_is_center_binding_row(highlight)) {
                 int binding_index =
                     touch_control_center_binding_index_for_row(highlight);
