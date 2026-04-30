@@ -1561,6 +1561,9 @@ void update_mon(int m_idx, bool full)
     int fy = m_ptr->fy;
     int fx = m_ptr->fx;
 
+    if (monster_clear_vala_state(m_ptr))
+        calc_monster_speed(fy, fx);
+
     /* Seen at all */
     bool flag = false;
 
@@ -2525,6 +2528,47 @@ void calc_monster_speed(int y, int x)
     return;
 }
 
+bool monster_race_is_vala(int r_idx)
+{
+    monster_race* r_ptr;
+
+    if (!z_info || !r_info)
+        return false;
+    if ((r_idx <= 0) || (r_idx >= z_info->r_max))
+        return false;
+
+    /* Morgoth has bespoke alertness/sleep mechanics tied to the Iron Crown. */
+    if (r_idx == R_IDX_MORGOTH)
+        return false;
+
+    r_ptr = &r_info[r_idx];
+    if (!r_ptr->name)
+        return false;
+
+    return (r_ptr->d_char == 'V');
+}
+
+bool monster_clear_vala_state(monster_type* m_ptr)
+{
+    bool speed_changed;
+
+    if (!m_ptr || !monster_race_is_vala(m_ptr->r_idx))
+        return false;
+
+    speed_changed = (m_ptr->hasted != 0) || (m_ptr->slowed != 0);
+
+    m_ptr->alertness = ALERTNESS_ALERT;
+    m_ptr->stunned = 0;
+    m_ptr->confused = 0;
+    m_ptr->slowed = 0;
+    m_ptr->hasted = 0;
+    m_ptr->skip_next_turn = false;
+    m_ptr->skip_this_turn = false;
+    m_ptr->stance = STANCE_CONFIDENT;
+
+    return speed_changed;
+}
+
 void set_monster_haste(s16b m_idx, s16b counter, bool message)
 {
     /*get the monster at the given location*/
@@ -2533,6 +2577,13 @@ void set_monster_haste(s16b m_idx, s16b counter, bool message)
     bool recalc = false;
 
     char m_name[80];
+
+    if (monster_race_is_vala(m_ptr->r_idx))
+    {
+        if (monster_clear_vala_state(m_ptr))
+            calc_monster_speed(m_ptr->fy, m_ptr->fx);
+        return;
+    }
 
     /* Get monster name*/
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -2581,6 +2632,13 @@ void set_monster_slow(s16b m_idx, s16b counter, bool message)
     bool recalc = false;
 
     char m_name[80];
+
+    if (monster_race_is_vala(m_ptr->r_idx))
+    {
+        if (monster_clear_vala_state(m_ptr))
+            calc_monster_speed(m_ptr->fy, m_ptr->fx);
+        return;
+    }
 
     /* Get monster name*/
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);

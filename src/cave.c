@@ -1586,6 +1586,9 @@ static bool monster_can_see_player_for_stealth_vision(monster_type* m_ptr)
     if (!m_ptr || !m_ptr->r_idx)
         return false;
 
+    if (monster_race_is_vala(m_ptr->r_idx))
+        return true;
+
     /* Sleeping creatures cannot see */
     if (m_ptr->alertness < ALERTNESS_UNWARY)
         return false;
@@ -1785,7 +1788,9 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                         a = da; c = dc;
                                     }
                                     if (rage_active && graphics_are_ascii()) a = TERM_RED;
-                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                    if (!monster_race_is_vala(m_ptr->r_idx)
+                                        && !graphics_are_ascii()
+                                        && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
                                 }
                             }
                             
@@ -1828,7 +1833,9 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                         a = da; c = dc;
                                     }
                                     if (rage_active && graphics_are_ascii()) a = TERM_RED;
-                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                    if (!monster_race_is_vala(m_ptr->r_idx)
+                                        && !graphics_are_ascii()
+                                        && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
                                 }
                             }
                             
@@ -1967,6 +1974,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         {
             byte da;
             char dc;
+            bool is_vala = monster_race_is_vala(m_ptr->r_idx);
 
             /* Hack -- monster hallucination */
             if (image)
@@ -2036,26 +2044,26 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 a = TERM_RED;
             }
 
-            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT)
+            if (!is_vala && hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT)
                 && use_background_colors && graphics_are_ascii())
             {
                 a += (MAX_COLORS * BG_DARK);
             }
-            else if (!graphics_are_ascii()
+            else if (!is_vala && !graphics_are_ascii()
                 && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
             }
 
             /* Sleeping overlay: indicate when this monster is asleep. */
-            if (!graphics_are_ascii() && sleep_icon && tap != ap
+            if (!is_vala && !graphics_are_ascii() && sleep_icon && tap != ap
                 && m_ptr->alertness < ALERTNESS_UNWARY)
             {
                 *tap = (byte)(((byte)(*tap)) | GRAPHICS_SLEEP_MASK);
             }
 
             /* Stealth vision overlay: indicate when this monster can see you. */
-            if (!graphics_are_ascii() && stealth_vision && tcp != cp
+            if (!is_vala && !graphics_are_ascii() && stealth_vision && tcp != cp
                 && monster_can_see_player_for_stealth_vision(m_ptr))
             {
                 *tcp = (char)(((byte)(*tcp)) | GRAPHICS_SEEN_MASK);

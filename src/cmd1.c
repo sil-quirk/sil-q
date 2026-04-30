@@ -435,15 +435,22 @@ void set_alertness(monster_type* m_ptr, int alertness)
     bool is_non_alert_thrall =
         m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL;
 
-    // Nothing to be done...
-    if (m_ptr->alertness == alertness)
-        return;
-
     // cap the alertness value
     if (alertness < ALERTNESS_MIN)
         alertness = ALERTNESS_MIN;
     if (alertness > ALERTNESS_MAX)
         alertness = ALERTNESS_MAX;
+
+    if (monster_race_is_vala(m_ptr->r_idx))
+    {
+        alertness = ALERTNESS_ALERT;
+        if (monster_clear_vala_state(m_ptr))
+            calc_monster_speed(m_ptr->fy, m_ptr->fx);
+    }
+
+    // Nothing to be done...
+    if (m_ptr->alertness == alertness)
+        return;
 
     // Can't alert non-alert thralls so cap alertness lower for them
     if (is_non_alert_thrall && alertness >= ALERTNESS_UNWARY)
@@ -6667,7 +6674,8 @@ void py_attack_aux(int y, int x, int attack_type)
                         msg_format("%^s reels in pain!", m_name);
 
                         // confuse the monster (if possible)
-                        if (!(r_ptr->flags3 & (RF3_NO_CONF)))
+                        if (!monster_race_is_vala(m_ptr->r_idx)
+                            && !(r_ptr->flags3 & (RF3_NO_CONF)))
                         {
                             // The +1 is needed as a turn of this wears off
                             // immediately

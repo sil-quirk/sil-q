@@ -10415,7 +10415,8 @@ void do_cmd_throw(bool automatic)
                         {
                             msg_format("%s reels in pain!", m_name);
 
-                            if (!(r_ptr->flags3 & (RF3_NO_CONF)))
+                            if (!monster_race_is_vala(m_ptr->r_idx)
+                                && !(r_ptr->flags3 & (RF3_NO_CONF)))
                                 m_ptr->confused += crit_bonus_dice + 1;
 
                             scare_onlooking_friends(m_ptr, -20);

@@ -20,6 +20,7 @@
  */
 static void do_cmd_debug_complete_quest(void);
 static void do_cmd_debug_orome_status(void);
+static void do_cmd_debug_spawn_quest_valar(void);
 static void do_cmd_debug_identify_all_items(void);
 
 /*
@@ -1349,6 +1350,221 @@ static void do_cmd_wiz_tile_test(void)
     p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
 }
 
+static bool debug_grid_already_used(
+    int y, int x, const int* used_y, const int* used_x, int used_n)
+{
+    for (int i = 0; i < used_n; i++)
+    {
+        if ((used_y[i] == y) && (used_x[i] == x))
+            return true;
+    }
+
+    return false;
+}
+
+static bool debug_quest_vala_grid_ok(
+    int y, int x, const int* used_y, const int* used_x, int used_n)
+{
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if ((y == p_ptr->py) && (x == p_ptr->px))
+        return false;
+
+    if (cave_m_idx[y][x] < 0)
+        return false;
+
+    return !debug_grid_already_used(y, x, used_y, used_x, used_n);
+}
+
+static bool debug_find_quest_vala_grid(
+    int preferred_y, int preferred_x, const int* used_y, const int* used_x,
+    int used_n, int* out_y, int* out_x)
+{
+    if (debug_quest_vala_grid_ok(preferred_y, preferred_x, used_y, used_x,
+            used_n))
+    {
+        *out_y = preferred_y;
+        *out_x = preferred_x;
+        return true;
+    }
+
+    for (int radius = 2; radius <= 8; radius++)
+    {
+        int y_min = MAX(1, p_ptr->py - radius);
+        int y_max = MIN(p_ptr->cur_map_hgt - 2, p_ptr->py + radius);
+        int x_min = MAX(1, p_ptr->px - radius);
+        int x_max = MIN(p_ptr->cur_map_wid - 2, p_ptr->px + radius);
+
+        for (int y = y_min; y <= y_max; y++)
+        {
+            for (int x = x_min; x <= x_max; x++)
+            {
+                int dy = (y > p_ptr->py) ? (y - p_ptr->py) : (p_ptr->py - y);
+                int dx = (x > p_ptr->px) ? (x - p_ptr->px) : (p_ptr->px - x);
+
+                if ((dy <= 1) && (dx <= 1))
+                    continue;
+
+                if (!debug_quest_vala_grid_ok(y, x, used_y, used_x, used_n))
+                    continue;
+
+                *out_y = y;
+                *out_x = x;
+                return true;
+            }
+        }
+    }
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++)
+        {
+            if (!debug_quest_vala_grid_ok(y, x, used_y, used_x, used_n))
+                continue;
+
+            *out_y = y;
+            *out_x = x;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * Force-place one monster for debug tile inspection.
+ *
+ * This deliberately bypasses the normal monster placement path, including
+ * depth, quest, special-generation, unique count, and terrain checks.
+ */
+static bool debug_force_place_monster(int y, int x, int r_idx)
+{
+    monster_type monster_type_body;
+    monster_type* n_ptr = &monster_type_body;
+    monster_race* r_ptr;
+    s16b m_idx;
+
+    if (!in_bounds_fully(y, x))
+        return false;
+
+    if ((r_idx <= 0) || (r_idx >= z_info->r_max))
+        return false;
+
+    r_ptr = &r_info[r_idx];
+    if (!r_ptr->name)
+        return false;
+
+    if (cave_m_idx[y][x] > 0)
+        delete_monster_idx(cave_m_idx[y][x]);
+
+    if (cave_m_idx[y][x] != 0)
+        return false;
+
+    cave_set_feat(y, x, FEAT_FLOOR);
+    cave_info[y][x] = CAVE_GLOW | CAVE_ROOM | CAVE_MARK;
+
+    memset(n_ptr, 0, sizeof(monster_type));
+
+    n_ptr->r_idx = r_idx;
+    n_ptr->image_r_idx = r_idx;
+    n_ptr->maxhp = MAX(1, r_ptr->hdice * (1 + r_ptr->hside) / 2);
+    n_ptr->hp = n_ptr->maxhp;
+    n_ptr->alertness = ALERTNESS_ALERT;
+    n_ptr->mana = MON_MANA_MAX;
+    n_ptr->song = SNG_NOTHING;
+    n_ptr->energy = 0;
+    n_ptr->stance = STANCE_CONFIDENT;
+    n_ptr->mflag = MFLAG_MARK | MFLAG_SHOW;
+
+    m_idx = monster_place(y, x, n_ptr);
+    if (!m_idx)
+        return false;
+
+    n_ptr = &mon_list[m_idx];
+    n_ptr->mflag |= (MFLAG_MARK | MFLAG_SHOW);
+
+    repair_mflag_mark = true;
+    repair_mflag_show = true;
+
+    calc_monster_speed(y, x);
+    update_mon(m_idx, true);
+    lite_spot(y, x);
+
+    log_debug("Debug: force-spawned quest Vala '%s' r_idx=%d at (%d,%d)",
+        r_name + r_ptr->name, r_idx, y, x);
+
+    return true;
+}
+
+static void do_cmd_debug_spawn_quest_valar(void)
+{
+    static const int quest_valar_r_idx[] = {
+        R_IDX_TULKAS,
+        R_IDX_AULE,
+        R_IDX_MANDOS,
+        R_IDX_NIENA,
+        R_IDX_OROME,
+        R_IDX_VARDA,
+    };
+
+    int used_y[N_ELEMENTS(quest_valar_r_idx)] = {0};
+    int used_x[N_ELEMENTS(quest_valar_r_idx)] = {0};
+    int total = (int)N_ELEMENTS(quest_valar_r_idx);
+    int placed = 0;
+    int row = p_ptr->py - 2;
+    int max_start_x = p_ptr->cur_map_wid - 1 - total;
+    int start_x;
+
+    if (max_start_x < 1)
+        max_start_x = 1;
+
+    start_x = MAX(1, MIN(p_ptr->px - (total / 2), max_start_x));
+
+    if (!in_bounds_fully(row, start_x))
+        row = p_ptr->py + 2;
+
+    if (!in_bounds_fully(row, start_x))
+        row = MAX(1, MIN(p_ptr->py, p_ptr->cur_map_hgt - 2));
+
+    for (int i = 0; i < total; i++)
+    {
+        int y;
+        int x;
+
+        if (!debug_find_quest_vala_grid(row, start_x + i, used_y, used_x,
+                placed, &y, &x))
+        {
+            log_warn("Debug: failed to find a grid for quest Vala r_idx=%d",
+                quest_valar_r_idx[i]);
+            continue;
+        }
+
+        if (!debug_force_place_monster(y, x, quest_valar_r_idx[i]))
+        {
+            log_warn("Debug: failed to force-spawn quest Vala r_idx=%d at (%d,%d)",
+                quest_valar_r_idx[i], y, x);
+            continue;
+        }
+
+        used_y[placed] = y;
+        used_x[placed] = x;
+        placed++;
+    }
+
+    if (placed == total)
+        msg_format("Spawned %d quest Valar for tile inspection.", placed);
+    else if (placed > 0)
+        msg_format("Spawned %d of %d quest Valar for tile inspection.", placed,
+            total);
+    else
+        msg_print("Failed to spawn quest Valar.");
+
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
+    p_ptr->redraw |= (PR_MAP);
+    p_ptr->window |= (PW_MONSTER);
+}
+
 /*
  * Become unaware of objects, monster memory, and the map
  */
@@ -2371,6 +2587,13 @@ void do_cmd_debug(void)
     case '3':
     {
         do_cmd_debug_orome_status();
+        break;
+    }
+
+    /* Spawn all quest Valar for tile inspection */
+    case '4':
+    {
+        do_cmd_debug_spawn_quest_valar();
         break;
     }
 

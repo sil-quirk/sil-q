@@ -1001,6 +1001,8 @@ extern int monster_base_armour_sides(const monster_type* m_ptr);
 extern int monster_song_hp_loss(const monster_type* m_ptr);
 extern void monster_add_song_hp_loss(monster_type* m_ptr, int amount);
 extern void monster_swap(int y1, int x1, int y2, int x2);
+extern bool monster_race_is_vala(int r_idx);
+extern bool monster_clear_vala_state(monster_type* m_ptr);
 extern s16b player_place(int y, int x);
 extern s16b monster_place(int y, int x, monster_type* n_ptr);
 extern void calc_monster_speed(int y, int x);

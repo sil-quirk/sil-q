@@ -1264,6 +1264,12 @@ void teleport_player_level()
  */
 void stun_monster(monster_type* m_ptr, int stun)
 {
+    if (monster_race_is_vala(m_ptr->r_idx))
+    {
+        monster_clear_vala_state(m_ptr);
+        return;
+    }
+
     int new_stun = m_ptr->stunned + stun;
     m_ptr->stunned = MIN(new_stun, 255);
 }
@@ -5062,7 +5068,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_SLOW))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_SLOW)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5099,7 +5106,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_SLEEP))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_SLEEP)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5135,7 +5143,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_CONF))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_CONF)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5534,7 +5543,7 @@ static bool project_m(
             note = " is dazed.";
 
         /*some creatures are resistant to stunning*/
-        if (r_ptr->flags3 & RF3_NO_STUN)
+        if (monster_race_is_vala(m_ptr->r_idx) || (r_ptr->flags3 & RF3_NO_STUN))
         {
             /*mark the lore*/
             if (seen)
@@ -5559,16 +5568,24 @@ static bool project_m(
         if (seen)
             obvious = true;
 
-        /* Generate message */
-        if (m_ptr->confused)
-            note = " looks more confused.";
+        if (monster_race_is_vala(m_ptr->r_idx))
+        {
+            monster_clear_vala_state(m_ptr);
+            note = " is unaffected!";
+        }
         else
-            note = " looks confused.";
+        {
+            /* Generate message */
+            if (m_ptr->confused)
+                note = " looks more confused.";
+            else
+                note = " looks confused.";
 
-        tmp = m_ptr->confused + do_conf;
+            tmp = m_ptr->confused + do_conf;
 
-        /* Apply confusion */
-        m_ptr->confused += (tmp < 200) ? tmp : 200;
+            /* Apply confusion */
+            m_ptr->confused += (tmp < 200) ? tmp : 200;
+        }
 
         if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
             p_ptr->redraw |= (PR_HEALTHBAR);

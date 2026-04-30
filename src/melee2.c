@@ -6194,7 +6194,8 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
                 bool monster_sees_player = true;
 
                 // Visual recognition check for intelligent monsters
-                if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
+                if (!monster_race_is_vala(m_ptr->r_idx)
+                    && visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
                 {
                     // Disguise ability reduces monster's effective perception
                     int per_divisor = p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
