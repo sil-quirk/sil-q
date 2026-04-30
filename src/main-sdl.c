@@ -510,10 +510,12 @@ typedef struct player_action_menu_state {
     int hover_kind;
     bool press_active;
     bool press_mouse;
+    bool press_secondary;
     SDL_FingerID press_finger_id;
     int press_kind;
     float press_start_x;
     float press_start_y;
+    Uint64 press_start_time;
 } player_action_menu_state;
 
 typedef struct player_exchange_target_state {
@@ -551,6 +553,7 @@ typedef struct minimap_touch_finger {
 typedef struct minimap_state {
     bool active;
     int zoom_step;
+    bool default_zoom_pending;
     float pan_x;
     float pan_y;
     bool focus_active;
@@ -957,15 +960,17 @@ static bool sdl_mouse_path_compute(int target_y, int target_x);
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row);
 static void sdl_player_confirm_at_player(void);
 static bool sdl_player_action_menu_open(void);
-static void sdl_player_action_menu_activate_kind(int kind);
+static void sdl_player_action_menu_activate_kind(int kind, bool secondary);
 static bool sdl_player_action_menu_handle_gamepad_button(
     SDL_GamepadButton button, bool down);
 static bool sdl_player_action_menu_handle_pointer_down(float x, float y,
-    SDL_FingerID finger_id, bool mouse);
+    SDL_FingerID finger_id, bool mouse, bool secondary);
 static bool sdl_player_action_menu_handle_pointer_motion(float x, float y,
     SDL_FingerID finger_id, bool mouse);
 static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
-    SDL_FingerID finger_id, bool mouse);
+    SDL_FingerID finger_id, bool mouse, bool secondary);
+static int sdl_player_action_menu_pending_timeout_ms(Uint64 now_ns);
+static bool sdl_player_action_menu_flush_pending_press(Uint64 now_ns);
 static void sdl_player_action_menu_cancel(void);
 static bool sdl_player_exchange_handle_gamepad_button(
     SDL_GamepadButton button, bool down);
@@ -6982,7 +6987,8 @@ static void sdl_player_action_menu_activate_hover(void)
         sdl_player_action_menu_select_default();
 
     if (g_player_action_menu.hover_kind != SDL_PLAYER_ACTION_NONE)
-        sdl_player_action_menu_activate_kind(g_player_action_menu.hover_kind);
+        sdl_player_action_menu_activate_kind(g_player_action_menu.hover_kind,
+            false);
 }
 
 static void sdl_player_action_menu_slot_offset(int slot, int count,
@@ -7119,10 +7125,12 @@ static void sdl_player_action_menu_cancel_press(void)
 {
     g_player_action_menu.press_active = false;
     g_player_action_menu.press_mouse = false;
+    g_player_action_menu.press_secondary = false;
     g_player_action_menu.press_finger_id = 0;
     g_player_action_menu.press_kind = SDL_PLAYER_ACTION_NONE;
     g_player_action_menu.press_start_x = 0.0f;
     g_player_action_menu.press_start_y = 0.0f;
+    g_player_action_menu.press_start_time = 0;
 }
 
 static void sdl_player_action_menu_cancel(void)
@@ -7443,7 +7451,7 @@ static void sdl_player_exchange_activate_hover(void)
     bell("Choose an adjacent monster.");
 }
 
-static void sdl_player_action_menu_activate_kind(int kind)
+static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
 {
     int command = 0;
 
@@ -7452,7 +7460,7 @@ static void sdl_player_action_menu_activate_kind(int kind)
         (void)sdl_player_exchange_begin();
         return;
     case SDL_PLAYER_ACTION_WAIT:
-        command = 'z';
+        command = secondary ? 'Z' : 'z';
         break;
     case SDL_PLAYER_ACTION_USE:
         command = 'u';
@@ -7596,7 +7604,7 @@ static bool sdl_player_exchange_handle_gamepad_button(
 }
 
 static bool sdl_player_action_menu_handle_pointer_down(float x, float y,
-    SDL_FingerID finger_id, bool mouse)
+    SDL_FingerID finger_id, bool mouse, bool secondary)
 {
     int kind;
 
@@ -7612,14 +7620,20 @@ static bool sdl_player_action_menu_handle_pointer_down(float x, float y,
         sdl_player_action_menu_cancel();
         return true;
     }
+    if (secondary && kind != SDL_PLAYER_ACTION_WAIT) {
+        sdl_player_action_menu_cancel();
+        return true;
+    }
 
     sdl_player_action_menu_cancel_press();
     g_player_action_menu.press_active = true;
     g_player_action_menu.press_mouse = mouse;
+    g_player_action_menu.press_secondary = secondary;
     g_player_action_menu.press_finger_id = finger_id;
     g_player_action_menu.press_kind = kind;
     g_player_action_menu.press_start_x = x;
     g_player_action_menu.press_start_y = y;
+    g_player_action_menu.press_start_time = SDL_GetTicksNS();
     g_player_action_menu.hover_kind = kind;
     g_state.need_present = true;
     return true;
@@ -7671,9 +7685,10 @@ static bool sdl_player_action_menu_handle_pointer_motion(float x, float y,
 }
 
 static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
-    SDL_FingerID finger_id, bool mouse)
+    SDL_FingerID finger_id, bool mouse, bool secondary)
 {
     int kind;
+    bool activate_secondary;
 
     if (!g_player_action_menu.active)
         return false;
@@ -7684,17 +7699,58 @@ static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
     if (!g_player_action_menu.press_active)
         return true;
     if (g_player_action_menu.press_mouse != mouse
+        || g_player_action_menu.press_secondary != secondary
         || g_player_action_menu.press_finger_id != finger_id)
     {
         return true;
     }
 
     kind = sdl_player_action_menu_kind_at(x, y);
-    if (kind == g_player_action_menu.press_kind)
-        sdl_player_action_menu_activate_kind(kind);
-    else
+    if (kind == g_player_action_menu.press_kind) {
+        activate_secondary = g_player_action_menu.press_secondary;
+        if (!mouse && kind == SDL_PLAYER_ACTION_WAIT
+            && g_player_action_menu.press_start_time
+            && SDL_GetTicksNS() - g_player_action_menu.press_start_time
+                >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        {
+            activate_secondary = true;
+        }
+        sdl_player_action_menu_activate_kind(kind, activate_secondary);
+    } else {
         sdl_player_action_menu_cancel_press();
+    }
 
+    return true;
+}
+
+static int sdl_player_action_menu_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_player_action_menu.active)
+        return -1;
+    if (!g_player_action_menu.press_active
+        || g_player_action_menu.press_mouse
+        || g_player_action_menu.press_secondary
+        || g_player_action_menu.press_kind != SDL_PLAYER_ACTION_WAIT
+        || !g_player_action_menu.press_start_time)
+    {
+        return -1;
+    }
+
+    elapsed = now_ns - g_player_action_menu.press_start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+static bool sdl_player_action_menu_flush_pending_press(Uint64 now_ns)
+{
+    if (sdl_player_action_menu_pending_timeout_ms(now_ns) != 0)
+        return false;
+
+    sdl_player_action_menu_activate_kind(SDL_PLAYER_ACTION_WAIT, true);
     return true;
 }
 
@@ -8863,13 +8919,47 @@ static int sdl_minimap_clamp_zoom_step(int step)
     return step;
 }
 
-static float sdl_minimap_zoom_factor(void)
+static float sdl_minimap_zoom_factor_for_step(int step)
 {
     static const float factors[MINIMAP_MAX_ZOOM_STEP + 1] = {
         1.0f, 1.25f, 1.5f, 2.0f, 2.6f, 3.4f, 4.5f, 6.0f, 8.0f
     };
 
-    return factors[sdl_minimap_clamp_zoom_step(g_minimap.zoom_step)];
+    return factors[sdl_minimap_clamp_zoom_step(step)];
+}
+
+static float sdl_minimap_zoom_factor(void)
+{
+    return sdl_minimap_zoom_factor_for_step(g_minimap.zoom_step);
+}
+
+static int sdl_minimap_zoom_step_for_factor(float factor)
+{
+    if (factor <= sdl_minimap_zoom_factor_for_step(0))
+        return 0;
+
+    for (int step = 1; step <= MINIMAP_MAX_ZOOM_STEP; step++) {
+        if (factor <= sdl_minimap_zoom_factor_for_step(step))
+            return step;
+    }
+
+    return MINIMAP_MAX_ZOOM_STEP;
+}
+
+static int sdl_minimap_default_zoom_step(float fit_scale, const sdl_view* d)
+{
+    float normal_scale;
+    float normal_factor;
+    int normal_step;
+
+    if (!d || fit_scale <= 0.0f || d->cell_h <= 0)
+        return 0;
+
+    normal_scale = (float)d->cell_h / (float)TILE_SIZE;
+    normal_factor = normal_scale / fit_scale;
+    normal_step = sdl_minimap_zoom_step_for_factor(normal_factor);
+
+    return sdl_minimap_clamp_zoom_step((normal_step + 1) / 2);
 }
 
 static float sdl_minimap_clampf(float value, float min_value, float max_value)
@@ -8898,11 +8988,17 @@ static bool sdl_minimap_focus_point_valid(int y, int x)
 
 static bool sdl_minimap_grid_opened(int y, int x)
 {
+    int m_idx;
+
     if (!sdl_minimap_focus_point_valid(y, x))
         return false;
 
+    m_idx = cave_m_idx[y][x];
+
     return (cave_info[y][x] & (CAVE_MARK | CAVE_SEEN))
-        || cave_m_idx[y][x] < 0;
+        || m_idx < 0
+        || ((m_idx > 0)
+            && (mon_list[m_idx].ml || (mon_list[m_idx].mflag & MFLAG_MARK)));
 }
 
 void sdl_minimap_focus(int y, int x)
@@ -8975,6 +9071,7 @@ void sdl_minimap_begin(void)
     memset(&g_minimap, 0, sizeof(g_minimap));
     g_minimap.active = true;
     g_minimap.zoom_step = 0;
+    g_minimap.default_zoom_pending = true;
     if (g_minimap_pending_focus_active
         && sdl_minimap_grid_opened(g_minimap_pending_focus_y,
             g_minimap_pending_focus_x))
@@ -9011,6 +9108,7 @@ static bool sdl_minimap_set_zoom_step(int step)
         return false;
 
     g_minimap.zoom_step = new_step;
+    g_minimap.default_zoom_pending = false;
     (void)sdl_minimap_redraw();
     return true;
 }
@@ -14415,7 +14513,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
                 return;
             }
             if (sdl_player_action_menu_handle_pointer_down(
-                (float)ev->button.x, (float)ev->button.y, 0, true))
+                (float)ev->button.x, (float)ev->button.y, 0, true, false))
             {
                 return;
             }
@@ -14484,7 +14582,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
             if (g_player_action_menu.active) {
-                sdl_player_action_menu_cancel();
+                (void)sdl_player_action_menu_handle_pointer_down(
+                    (float)ev->button.x, (float)ev->button.y, 0, true, true);
                 return;
             }
             if (g_player_exchange_target.active) {
@@ -14537,7 +14636,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
             if (sdl_player_action_menu_handle_pointer_up((float)ev->button.x,
-                (float)ev->button.y, 0, true))
+                (float)ev->button.y, 0, true, false))
             {
                 return;
             }
@@ -14557,6 +14656,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         else if (ev->button.button == SDL_BUTTON_RIGHT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_player_action_menu_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, 0, true, true))
+            {
+                return;
+            }
             if (sdl_main_screen_handle_menu_text_pointer((float)ev->button.x,
                 (float)ev->button.y, UI_MENU_CLICK_SECONDARY))
             {
@@ -14593,7 +14697,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         }
         if (sdl_player_action_menu_handle_pointer_down(x, y,
-            ev->tfinger.fingerID, false))
+            ev->tfinger.fingerID, false, false))
         {
             return;
         }
@@ -14750,7 +14854,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             return;
         }
         if (sdl_player_action_menu_handle_pointer_up(x, y,
-            ev->tfinger.fingerID, false))
+            ev->tfinger.fingerID, false, false))
         {
             return;
         }
@@ -15258,6 +15362,8 @@ static errr callback_sdl_xtra(int n, int v)
             int timeout_ms = sdl_gamepad_pending_timeout_ms(now_ns);
             int touch_timeout_ms = sdl_touch_pane_pending_timeout_ms(now_ns);
             int menu_touch_timeout_ms = sdl_menu_touch_pending_timeout_ms(now_ns);
+            int player_action_timeout_ms =
+                sdl_player_action_menu_pending_timeout_ms(now_ns);
             int pointer_attack_touch_timeout_ms =
                 sdl_pointer_attack_pending_timeout_ms(now_ns);
             int map_touch_timeout_ms = sdl_map_touch_pending_timeout_ms(now_ns);
@@ -15269,6 +15375,11 @@ static errr callback_sdl_xtra(int n, int v)
                 timeout_ms = touch_timeout_ms;
             if (timeout_ms < 0 || (menu_touch_timeout_ms >= 0 && menu_touch_timeout_ms < timeout_ms))
                 timeout_ms = menu_touch_timeout_ms;
+            if (timeout_ms < 0 || (player_action_timeout_ms >= 0
+                    && player_action_timeout_ms < timeout_ms))
+            {
+                timeout_ms = player_action_timeout_ms;
+            }
             if (timeout_ms < 0 || (pointer_attack_touch_timeout_ms >= 0
                     && pointer_attack_touch_timeout_ms < timeout_ms))
             {
@@ -15299,6 +15410,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_confirm(flush_ns);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_player_action_menu_flush_pending_press(flush_ns);
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
@@ -15319,6 +15431,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_gamepad_flush_pending_confirm(flush_ns);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_player_action_menu_flush_pending_press(flush_ns);
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
@@ -15341,6 +15454,7 @@ static errr callback_sdl_xtra(int n, int v)
         sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
         sdl_gamepad_flush_pending_confirm(SDL_GetTicksNS());
         sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+        sdl_player_action_menu_flush_pending_press(SDL_GetTicksNS());
         sdl_pointer_attack_flush_pending_press(SDL_GetTicksNS());
         sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
         sdl_touch_zone_flush_pending_press(SDL_GetTicksNS());
@@ -15379,6 +15493,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_touch_pane_flush_pending_press(SDL_GetTicksNS());
             sdl_gamepad_flush_pending_confirm(SDL_GetTicksNS());
             sdl_menu_touch_flush_pending_press(SDL_GetTicksNS());
+            sdl_player_action_menu_flush_pending_press(SDL_GetTicksNS());
             sdl_pointer_attack_flush_pending_press(SDL_GetTicksNS());
             sdl_map_touch_flush_pending_press(SDL_GetTicksNS());
             sdl_touch_zone_flush_pending_press(SDL_GetTicksNS());
@@ -15996,6 +16111,28 @@ static bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y,
         }
     }
 
+    for (int i = 1; i < mon_max; i++) {
+        monster_type* m_ptr = &mon_list[i];
+        int y;
+        int x;
+
+        if (!m_ptr->r_idx)
+            continue;
+        if (!m_ptr->ml && !(m_ptr->mflag & MFLAG_MARK))
+            continue;
+
+        y = m_ptr->fy;
+        x = m_ptr->fx;
+        if (!sdl_minimap_focus_point_valid(y, x))
+            continue;
+
+        if (y < *min_y) *min_y = y;
+        if (y > *max_y) *max_y = y;
+        if (x < *min_x) *min_x = x;
+        if (x > *max_x) *max_x = x;
+        any = true;
+    }
+
     sdl_minimap_expand_bounds_for_hint_sources(min_y, min_x, max_y, max_x,
         &any);
 
@@ -16112,6 +16249,10 @@ bool sdl_display_pixel_map(int* cy, int* cx)
     scale_x = (float)canvas_w / (float)source_w;
     scale_y = (float)canvas_h / (float)source_h;
     scale = (scale_x < scale_y) ? scale_x : scale_y;
+    if (g_minimap.active && g_minimap.default_zoom_pending) {
+        g_minimap.zoom_step = sdl_minimap_default_zoom_step(scale, d);
+        g_minimap.default_zoom_pending = false;
+    }
     if (g_minimap.active)
         scale *= sdl_minimap_zoom_factor();
     if (scale <= 0.0f) {
