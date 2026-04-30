@@ -2047,6 +2047,20 @@ static double elemental_clamp01(double value)
     return value;
 }
 
+static double elemental_hurt_scale(int attack_type)
+{
+    switch (attack_type)
+    {
+    case GF_FIRE:
+        return 60.0 / 3.0;
+    case GF_ACID:
+    case GF_COLD:
+        return 50.0 / 3.0;
+    default:
+        return 80.0 / 3.0;
+    }
+}
+
 static double elemental_linear_damage_percentile(int raw_dam, int min_raw,
     int max_raw)
 {
@@ -2171,13 +2185,14 @@ static double elemental_damage_cdf_percentile(int raw_dam, int min_raw,
     return elemental_clamp01(cdf);
 }
 
-static int elemental_attack_probability_per_million(int raw_dam, int min_raw,
-    int max_raw, int hp_dam, elemental_item_debug_info* debug)
+static int elemental_attack_probability_per_million(int attack_type,
+    int raw_dam, int min_raw, int max_raw, int hp_dam,
+    elemental_item_debug_info* debug)
 {
     double percentile;
     double q;
     double hp = (double)hp_dam;
-    const double hurt_scale = 80.0 / 3.0;
+    const double hurt_scale = elemental_hurt_scale(attack_type);
     double hurt;
     double chance;
     int threshold;
@@ -2765,7 +2780,7 @@ static void elemental_attack_affect_multiple_items(int attack_type,
     double q;
     double q_squared;
     double hp = (double)hp_dam;
-    const double hurt_scale = 80.0 / 3.0;
+    const double hurt_scale = elemental_hurt_scale(attack_type);
     double hurt;
     double chance;
     int threshold;
@@ -3415,8 +3430,8 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     int gate_roll;
 
     elemental_debug_init(&debug, attack_type, raw_dam, min_raw, max_raw, hp_dam);
-    int threshold = elemental_attack_probability_per_million(raw_dam, min_raw,
-        max_raw, hp_dam, debug.enabled ? &debug : NULL);
+    int threshold = elemental_attack_probability_per_million(attack_type,
+        raw_dam, min_raw, max_raw, hp_dam, debug.enabled ? &debug : NULL);
 
     if (threshold <= 0)
     {
@@ -8161,6 +8176,80 @@ bool singing(int song)
     return (false);
 }
 
+cptr song_voice_cost_desc(int song)
+{
+    switch (song)
+    {
+    case SNG_CHALLENGE:
+    case SNG_FREEDOM:
+    case SNG_SILENCE:
+    case SNG_THRESHOLDS:
+    case SNG_DELVINGS:
+    case SNG_REVEALING:
+    case SNG_TREES:
+        return "1 Voice per 3 turns";
+
+    case SNG_ELBERETH:
+    case SNG_STAUNCHING:
+    case SNG_ELVENESS:
+    case SNG_STAYING:
+    case SNG_SLAYING:
+    case SNG_LORIEN:
+        return "1 Voice per turn";
+
+    case SNG_MASTERY:
+    case SNG_SHATTERING:
+        return "2 Voice per turn";
+
+    case SNG_DISGUISE:
+        return "3 Voice per turn";
+
+    case SNG_CONTEST:
+    case SNG_LAMENT:
+        return "7 Voice per turn";
+
+    default:
+        return NULL;
+    }
+}
+
+static int song_voice_cost_for_turn(int song, int theme_slot, int song_duration)
+{
+    switch (song)
+    {
+    case SNG_CHALLENGE:
+    case SNG_FREEDOM:
+    case SNG_SILENCE:
+    case SNG_THRESHOLDS:
+    case SNG_DELVINGS:
+    case SNG_REVEALING:
+    case SNG_TREES:
+        return ((song_duration % 3) == theme_slot - 1) ? 1 : 0;
+
+    case SNG_ELBERETH:
+    case SNG_STAUNCHING:
+    case SNG_ELVENESS:
+    case SNG_STAYING:
+    case SNG_SLAYING:
+    case SNG_LORIEN:
+        return 1;
+
+    case SNG_MASTERY:
+    case SNG_SHATTERING:
+        return 2;
+
+    case SNG_DISGUISE:
+        return 3;
+
+    case SNG_CONTEST:
+    case SNG_LAMENT:
+        return (theme_slot == 1) ? 7 : 0;
+
+    default:
+        return 0;
+    }
+}
+
 bool known_to_delvings(int y, int x)
 {
     if (!in_bounds(y, x))
@@ -9195,13 +9284,12 @@ void sing(void)
             song = p_ptr->song2;
 
         score = ability_bonus(S_SNG, song);
+        cost += song_voice_cost_for_turn(song, type, p_ptr->song_duration);
 
         switch (song)
         {
         case SNG_ELBERETH:
         {
-            cost += 1;
-
             sing_song_of_elbereth(score);
 
             // Maintain the lingering effect counter while singing
@@ -9215,9 +9303,6 @@ void sing(void)
         }
         case SNG_CHALLENGE:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_challenge(score);
 
             // Maintain the lingering effect counter while singing
@@ -9231,8 +9316,6 @@ void sing(void)
         }
         case SNG_FREEDOM:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
             sing_song_of_freedom(score);
             break;
         }
@@ -9242,7 +9325,6 @@ void sing(void)
             int song_frac = score % 12;
             int bonus_hp = 0;
 
-            cost += 1;
             set_cut(0);
 
             if ((cycle * song_frac) % 12 < song_frac)
@@ -9259,69 +9341,49 @@ void sing(void)
         }
         case SNG_SILENCE:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
             break;
         }
         case SNG_THRESHOLDS:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             break;
         }
         case SNG_DELVINGS:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_delvings(score);
 
             break;
         }
         case SNG_REVEALING:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_revealing(score, song == p_ptr->song1);
 
             break;
         }
         case SNG_TREES:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-            
             sing_song_of_trees(song_effective_skill(song));
             
             break;
         }
         case SNG_ELVENESS:
         {
-            cost += 1;
             break;
         }
         case SNG_STAYING:
         {
-            cost += 1;
             break;
         }
         case SNG_DISGUISE:
         {
-            cost += 3;
             sing_song_of_disguise(score);
             break;
         }
         case SNG_SLAYING:
         {
-            cost += 1;
             break;
         }
         case SNG_LORIEN:
         {
-            cost += 1;
-
             sing_song_of_lorien(score);
 
             break;
@@ -9330,7 +9392,6 @@ void sing(void)
         {
             if (type == 1)
             {
-                cost += 7;
                 if (!song_duel_process_contest(score))
                     abort_song = true;
             }
@@ -9340,7 +9401,6 @@ void sing(void)
         {
             if (type == 1)
             {
-                cost += 7;
                 if (!song_duel_process_lament(score))
                     abort_song = true;
             }
@@ -9348,13 +9408,10 @@ void sing(void)
         }
         case SNG_MASTERY:
         {
-            cost += 2;
             break;
         }
         case SNG_SHATTERING:
         {
-            cost += 2;
-
             sing_song_of_shattering(score);
             break;
         }

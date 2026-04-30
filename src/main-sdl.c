@@ -832,6 +832,7 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press);
 static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press);
 static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
+static bool sdl_touch_pane_is_left_placement(void);
 static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action);
 static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y);
 static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y);
@@ -2244,6 +2245,19 @@ static bool sdl_touch_pane_is_config_enabled(void)
         if (pane_config[i].pane == PANE_TOUCH)
             return pane_config[i].enabled;
     }
+    return false;
+}
+
+static bool sdl_touch_pane_is_left_placement(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_TOUCH)
+            continue;
+
+        return pane_config[i].where == PLACE_DOUBLE_LEFT
+            || pane_config[i].where == PLACE_LEFT;
+    }
+
     return false;
 }
 
@@ -9022,7 +9036,11 @@ static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID
     if (sdl_touch_pane_uses_mobile_toggle()
         && (dir == 4 || dir == 6))
     {
-        sdl_touch_pane_set_mobile_open(dir == 4);
+        bool open = sdl_touch_pane_is_left_placement()
+            ? (dir == 6)
+            : (dir == 4);
+
+        sdl_touch_pane_set_mobile_open(open);
         g_touch_swipe.triggered = true;
         return true;
     }
@@ -16666,6 +16684,59 @@ int get_sdl_touch_pane_default_binding_for_panel(int panel, int index)
         return GAMEPAD_BIND_NONE;
     sdl_touch_pane_load_default_bindings();
     return g_default_touch_pane_bindings[panel][index];
+}
+
+bool get_sdl_touch_pane_enabled(void)
+{
+    return sdl_touch_pane_is_config_enabled();
+}
+
+void set_sdl_touch_pane_enabled(bool value)
+{
+    sdl_ensure_touch_pane_config_present();
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_TOUCH)
+            continue;
+
+        if (pane_config[i].enabled == value)
+            return;
+
+        pane_config[i].enabled = value;
+        g_touch_pane_mobile_open = sdl_touch_pane_uses_mobile_toggle();
+        sdl_touch_pane_cancel_press();
+        sdl_touch_swipe_cancel();
+        return;
+    }
+}
+
+int get_sdl_touch_pane_placement(void)
+{
+    return sdl_touch_pane_is_left_placement()
+        ? SDL_TOUCH_PANE_PLACEMENT_LEFT
+        : SDL_TOUCH_PANE_PLACEMENT_RIGHT;
+}
+
+void set_sdl_touch_pane_placement(int placement)
+{
+    enum pane_placement where = (placement == SDL_TOUCH_PANE_PLACEMENT_LEFT)
+        ? PLACE_DOUBLE_LEFT
+        : PLACE_DOUBLE_RIGHT;
+
+    sdl_ensure_touch_pane_config_present();
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_TOUCH)
+            continue;
+
+        if (pane_config[i].where == where)
+            return;
+
+        pane_config[i].where = where;
+        sdl_touch_pane_cancel_press();
+        sdl_touch_swipe_cancel();
+        return;
+    }
 }
 
 static int sdl_touch_movement_normalized_mode(int mode)

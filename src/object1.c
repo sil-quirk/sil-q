@@ -24,6 +24,7 @@
 static bool inventory_menu_include_equip = false;
 static bool inventory_menu_expand_supplies = false;
 static bool inventory_choice_debug_logging = false;
+static int inventory_menu_scroll_offset = 0;
 
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
@@ -4007,6 +4008,74 @@ static int menu_term_width(void)
     return 80;
 }
 
+static int menu_term_height(void)
+{
+    if (Term && Term->hgt > 0)
+        return Term->hgt;
+
+    return 24;
+}
+
+static int inventory_menu_visible_rows_for_height(int term_hgt)
+{
+    int rows = term_hgt - 1;
+
+    if (rows < 0)
+        rows = 0;
+
+    if (rows > ENHANCED_MAX_LIST)
+        rows = ENHANCED_MAX_LIST;
+
+    return rows;
+}
+
+static int inventory_menu_clamp_scroll(int scroll, int total_rows,
+    int visible_rows)
+{
+    int max_scroll;
+
+    if (total_rows <= 0 || visible_rows <= 0 || total_rows <= visible_rows)
+        return 0;
+
+    max_scroll = total_rows - visible_rows;
+
+    if (scroll < 0)
+        return 0;
+    if (scroll > max_scroll)
+        return max_scroll;
+
+    return scroll;
+}
+
+static int inventory_menu_scroll_to_selection(int scroll, int selected_row,
+    int total_rows, int visible_rows, int extra_rows_after_selection)
+{
+    int bottom_slack;
+
+    scroll = inventory_menu_clamp_scroll(scroll, total_rows, visible_rows);
+
+    if (selected_row < 0 || total_rows <= 0 || visible_rows <= 0)
+        return scroll;
+
+    if (extra_rows_after_selection < 0)
+        extra_rows_after_selection = 0;
+    if (extra_rows_after_selection >= visible_rows)
+        extra_rows_after_selection = visible_rows - 1;
+
+    if (selected_row < scroll)
+    {
+        scroll = selected_row;
+    }
+    else
+    {
+        bottom_slack = visible_rows - 1 - extra_rows_after_selection;
+        if ((selected_row - scroll) > bottom_slack)
+            scroll = selected_row - bottom_slack;
+    }
+
+    return inventory_menu_clamp_scroll(scroll, total_rows, visible_rows);
+}
+
 static int menu_weight_col_for_width(int term_wid)
 {
     /* Reserve 8 columns for weight and 4 columns for the trailing label. */
@@ -4308,7 +4377,8 @@ void show_inven(void)
     int i, j, k, l;
     int col, len, lim;
     int term_wid = menu_term_width();
-    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int term_hgt = menu_term_height();
+    int display_rows = inventory_menu_visible_rows_for_height(term_hgt);
     int weight_col = menu_weight_col_for_width(term_wid);
     int label_col = menu_label_col_for_width(term_wid, show_weights);
 
@@ -4350,17 +4420,10 @@ void show_inven(void)
 
     bool include_supplies = supplies_visible_for_current_filter();
 
-    /* Avoid exceeding the available rows in the vanilla inventory view. */
-    int max_rows = term_hgt - 1;
-    if (max_rows < 1)
-        max_rows = ENHANCED_MAX_LIST;
-    if (max_rows > ENHANCED_MAX_LIST)
-        max_rows = ENHANCED_MAX_LIST;
-
     k = 0;
 
     if (include_supplies && !inventory_menu_uses_expanded_supplies()
-        && k < max_rows)
+        && k < ENHANCED_MAX_LIST)
     {
         char supply_desc[80];
         format_supply_summary(supply_desc, sizeof(supply_desc));
@@ -4379,7 +4442,7 @@ void show_inven(void)
 
     if (include_supplies && inventory_menu_uses_expanded_supplies())
     {
-        for (i = 0; i < supplies_entry_count() && k < max_rows; i++)
+        for (i = 0; i < supplies_entry_count() && k < ENHANCED_MAX_LIST; i++)
         {
             int item = SUPPLIES_INDEX + i;
 
@@ -4407,7 +4470,7 @@ void show_inven(void)
         }
     }
 
-    for (i = 0; i < INVEN_PACK && k < max_rows; i++)
+    for (i = 0; i < INVEN_PACK && k < ENHANCED_MAX_LIST; i++)
     {
         o_ptr = &inventory[i];
 
@@ -4450,7 +4513,7 @@ void show_inven(void)
 
     if (inventory_menu_include_equip)
     {
-        for (i = INVEN_WIELD; i < INVEN_TOTAL && k < max_rows; i++)
+        for (i = INVEN_WIELD; i < INVEN_TOTAL && k < ENHANCED_MAX_LIST; i++)
         {
             o_ptr = &inventory[i];
 
@@ -4482,10 +4545,30 @@ void show_inven(void)
     /* Find the column to start in */
     col = menu_center_col_for_len(term_wid, len);
 
-    /* Output each entry */
-    for (j = 0; j < k; j++)
+    int scroll_offset = (p_ptr && p_ptr->get_item_mode != 0)
+        ? inventory_menu_scroll_offset
+        : 0;
+    scroll_offset = inventory_menu_clamp_scroll(scroll_offset, k, display_rows);
+    if (p_ptr && p_ptr->get_item_mode != 0)
+        inventory_menu_scroll_offset = scroll_offset;
+
+    if (display_rows <= 0)
     {
-        int idx = out_index[j];
+        story_font_term_pop(&story_state);
+        return;
+    }
+
+    int visible_count = k - scroll_offset;
+    if (visible_count > display_rows)
+        visible_count = display_rows;
+    if (visible_count < 0)
+        visible_count = 0;
+
+    /* Output each entry */
+    for (j = 0; j < visible_count; j++)
+    {
+        int entry = scroll_offset + j;
+        int idx = out_index[entry];
         bool is_supply_summary = inventory_item_is_supply_summary(idx);
         bool is_supply_entry = inventory_item_is_supply_entry(idx);
         object_type* cur_obj = is_supply_entry ? supplies_entry_at(idx - SUPPLIES_INDEX)
@@ -4523,15 +4606,16 @@ void show_inven(void)
                     inventory_visible_label_for_item(idx));
             }
 
-            story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
-                show_weights, weight_ptr, out_color[j], label_buf, TERM_WHITE,
+            story_render_inventory_entry(j + 1, col, label_col,
+                out_desc[entry], out_color[entry],
+                show_weights, weight_ptr, out_color[entry], label_buf, TERM_WHITE,
                 display_obj, false, story_term_w);
             if (inventory_choice_debug_logging)
             {
                 log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
                     "supply_entry=%d desc='%s'",
                     j + 1, idx, label_buf, is_supply_summary ? 1 : 0,
-                    is_supply_entry ? 1 : 0, out_desc[j]);
+                    is_supply_entry ? 1 : 0, out_desc[entry]);
             }
             continue;
         }
@@ -4545,7 +4629,7 @@ void show_inven(void)
             text_col = draw_item_tile(col, j + 1, display_obj);
         }
 
-        c_put_str(out_color[j], out_desc[j], j + 1, text_col);
+        c_put_str(out_color[entry], out_desc[entry], j + 1, text_col);
 
         if (show_weights)
         {
@@ -4555,7 +4639,7 @@ void show_inven(void)
             else
                 wgt = cur_obj->weight * cur_obj->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, weight_col);
+            c_put_str(out_color[entry], tmp_val, j + 1, weight_col);
         }
 
         /* Print the item letter at the end */
@@ -4579,7 +4663,7 @@ void show_inven(void)
             log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
                 "supply_entry=%d desc='%s'",
                 j + 1, idx, tmp_val, is_supply_summary ? 1 : 0,
-                is_supply_entry ? 1 : 0, out_desc[j]);
+                is_supply_entry ? 1 : 0, out_desc[entry]);
         }
 
         put_str(tmp_val, j + 1, label_col);
@@ -5465,6 +5549,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     int highlight_row = -1; /* row within current visible list */
     bool highlight_active = false;
+    inventory_menu_scroll_offset = 0;
 
     /* Helper lambdas (C89 substitute: static inline style) defined as macros */
 #define DRAW_HIGHLIGHT_STORY_VARS()                                                 \
@@ -5593,6 +5678,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int term_wid = menu_term_width();                                           \
         int weight_col = menu_weight_col_for_width(term_wid);                       \
         int label_col_base = menu_label_col_for_width(term_wid, show_weights);      \
+        int visible_rows = inventory_menu_visible_rows_for_height(menu_term_height());\
         int len = 29;                                                                \
         int lim = term_wid - 3;                                                     \
         char tmp[80];                                                               \
@@ -5634,7 +5720,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Determine row and item */                                                \
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
-            row = highlight_row; item_index = vis_inven[highlight_row];             \
+            row = highlight_row - inventory_menu_scroll_offset;                     \
+            if (row < 0 || row >= visible_rows) break;                              \
+            item_index = vis_inven[highlight_row];                                  \
             prt("", row+1, col);                                                    \
             int label_col = label_col_base;                                         \
             if (inventory_item_is_supply_summary(item_index)) {                     \
@@ -5794,6 +5882,18 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     BUILD_VISIBLE_LIST();
     if (p_ptr->command_wrk == (USE_INVEN))
     {
+        int display_rows = inventory_menu_visible_rows_for_height(menu_term_height());
+        inventory_menu_scroll_offset = inventory_menu_scroll_to_selection(
+            inventory_menu_scroll_offset, highlight_row, vis_inven_cnt,
+            display_rows, 0);
+    }
+    else
+    {
+        inventory_menu_scroll_offset = 0;
+    }
+
+    if (p_ptr->command_wrk == (USE_INVEN))
+    {
         log_inventory_selector_state("visible-list", pmt, vis_inven, vis_inven_cnt);
     }
 
@@ -5947,16 +6047,37 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (p_ptr->command_see)
         {
             int click_rows = 0;
+            int display_rows = inventory_menu_visible_rows_for_height(
+                menu_term_height());
 
             if (p_ptr->command_wrk == (USE_INVEN))
-                click_rows = vis_inven_cnt;
+            {
+                int first_row = inventory_menu_scroll_offset;
+                click_rows = vis_inven_cnt - first_row;
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                if (click_rows < 0)
+                    click_rows = 0;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(first_row + click_row,
+                        click_row + 1);
+            }
             else if (p_ptr->command_wrk == (USE_EQUIP))
+            {
                 click_rows = vis_equip_cnt;
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(click_row, click_row + 1);
+            }
             else if (p_ptr->command_wrk == (USE_FLOOR))
+            {
                 click_rows = vis_floor_cnt;
-
-            for (int click_row = 0; click_row < click_rows; click_row++)
-                ui_menu_click_add_full_row(click_row, click_row + 1);
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(click_row, click_row + 1);
+            }
         }
 
         /* Get a key */
@@ -6585,6 +6706,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     story_inventory_list_active = false;
     story_equipment_list_active = false;
+    inventory_menu_scroll_offset = 0;
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
@@ -6777,6 +6899,9 @@ void show_inven_enhanced(void)
     int previous_total_rows = 0;
     int previous_compare_count = 0;
     int previous_highlight_row = -1; /* track last frame highlight for surgical clears */
+    int scroll_top = 0;
+    int previous_scroll_top = 0;
+    int visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
     bool first_render = true;
     
     /* Floor items variables */
@@ -6932,6 +7057,8 @@ void show_inven_enhanced(void)
     while (!done)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        term_hgt = menu_term_height();
+        visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
@@ -7019,10 +7146,12 @@ void show_inven_enhanced(void)
             /* Clear previous highlight block */
             if (previous_highlight_row >= 0 && previous_highlight_row < k)
             {
-                int base = 1 + previous_highlight_row;
-                for (int r = 0; r <= previous_compare_count; ++r)
+                int base = 1 + previous_highlight_row - previous_scroll_top;
+                for (int r = 0; base >= 1 && r <= previous_compare_count; ++r)
                 {
                     int rr = base + r;
+                    if (rr > visible_rows)
+                        break;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
                     if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
@@ -7032,10 +7161,12 @@ void show_inven_enhanced(void)
             /* Clear current highlight prospective block */
             if (highlight_active && highlight_row >= 0 && highlight_row < k)
             {
-                int base = 1 + highlight_row;
-                for (int r = 0; r <= MAX_COMPARE_LINES; ++r)
+                int base = 1 + highlight_row - scroll_top;
+                for (int r = 0; base >= 1 && r <= MAX_COMPARE_LINES; ++r)
                 {
                     int rr = base + r;
+                    if (rr > visible_rows)
+                        break;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
                     if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
@@ -7142,9 +7273,38 @@ void show_inven_enhanced(void)
             }
         }
 
+        scroll_top = inventory_menu_scroll_to_selection(scroll_top,
+            highlight_row, k, visible_rows, allow_compare ? compare_count : 0);
+
+        if (visible_rows > 0)
+        {
+            for (int clear_row = 1; clear_row <= visible_rows; clear_row++)
+            {
+                if (use_story_font)
+                {
+                    int erase_w = 255;
+                    int weight_erase_w = 9;
+                    if (story_term_w > 80)
+                    {
+                        erase_w = (erase_w * story_term_w) / 80;
+                        weight_erase_w = (weight_erase_w * story_term_w) / 80;
+                    }
+                    Term_erase(col, clear_row, erase_w);
+                    if (show_weights)
+                        Term_erase(weight_col, clear_row, weight_erase_w);
+                }
+                else
+                {
+                    prt("", clear_row, col);
+                    if (show_weights)
+                        prt("", clear_row, weight_col);
+                }
+            }
+        }
+
         /* Render combined list with floor entries first */
         int next_row = 1;
-        for (int j = 0; j < k; j++)
+        for (int j = scroll_top; j < k && next_row <= visible_rows; j++)
         {
             bool is_floor_item = out_is_floor[j];
             bool is_supply_item = out_is_supply[j];
@@ -7287,7 +7447,7 @@ void show_inven_enhanced(void)
                 log_trace(">>> INSIDE IF BLOCK: About to render %d comparison lines at next_row=%d", 
                     compare_count, next_row);
                     
-                for (int idx = 0; idx < compare_count; idx++)
+                for (int idx = 0; idx < compare_count && next_row <= visible_rows; idx++)
                 {
                     int compare_row = next_row;
                     
@@ -7382,9 +7542,13 @@ void show_inven_enhanced(void)
         {
             if (compare_count > 0 && highlight_row >= 0 && highlight_row < k)
             {
-                int base = 1 + highlight_row;
+                int base = 1 + highlight_row - scroll_top;
                 /* Redraw all items from highlighted row to end, since comparison lines shift everything down */
                 int last = total_rows;
+                if (base < 1)
+                    base = 1;
+                if (last > visible_rows)
+                    last = visible_rows;
                 if (redraw_y1 < 0 || base < redraw_y1) redraw_y1 = base;
                 if (redraw_y2 < 0 || last > redraw_y2) redraw_y2 = last;
             }
@@ -7404,7 +7568,7 @@ void show_inven_enhanced(void)
             }
         }
 
-        if (total_rows && total_rows < term_hgt - 1)
+        if (total_rows && total_rows < visible_rows)
         {
             if (use_story_font) {
                 int erase_w = 255;
@@ -7418,7 +7582,9 @@ void show_inven_enhanced(void)
         if (total_rows < previous_total_rows)
         {
             int clear_col = col;
-            for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
+            for (int clear_row = total_rows + 1;
+                 clear_row <= previous_total_rows && clear_row <= visible_rows;
+                 clear_row++)
             {
                 if (use_story_font)
                 {
@@ -7444,6 +7610,7 @@ void show_inven_enhanced(void)
     previous_total_rows = total_rows;
     previous_compare_count = compare_count;
     previous_highlight_row = highlight_row;
+    previous_scroll_top = scroll_top;
     first_render = false;  /* subsequent frames use surgical region */
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)

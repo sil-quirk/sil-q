@@ -1559,10 +1559,23 @@ static int ability_menu_song_synergy_bonus(int song_skill)
     return (song_skill + 5) / 10;
 }
 
+static void ability_menu_append_song_cost(char* text, size_t text_size,
+    const ability_type* b_ptr)
+{
+    cptr cost_desc = song_voice_cost_desc(b_ptr->abilitynum);
+
+    if (!cost_desc || !cost_desc[0])
+        return;
+
+    SDL_strlcat(text, " Cost: ", text_size);
+    SDL_strlcat(text, cost_desc, text_size);
+    SDL_strlcat(text, ".", text_size);
+}
+
 static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
 {
     int song_skill = ability_menu_current_song_score();
-    char bonus_text[256];
+    char bonus_text[384];
 
     bonus_text[0] = '\0';
 
@@ -1572,30 +1585,27 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     {
         int will_penalty = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: enemy Will -%d.", song_skill,
-            will_penalty);
+            "\n\nCurrent effect: enemy Will -%d.", will_penalty);
         break;
     }
     case SNG_CHALLENGE:
     {
         int debuff = (song_skill > 0) ? MAX(1, song_skill / 5) : 0;
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: enemy Will and Stealth -%d.",
-            song_skill, debuff);
+            "\n\nCurrent effect: enemy Will and Stealth -%d.", debuff);
         break;
     }
     case SNG_DELVINGS:
     {
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: delving range %d squares.",
-            song_skill, song_skill + 8);
+            "\n\nCurrent effect: delving range %d squares.", song_skill + 8);
         break;
     }
     case SNG_FREEDOM:
     {
-        strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: freedom checks use Song %d and grant +1 free action while singing.",
-            song_skill, song_skill);
+        SDL_strlcpy(bonus_text,
+            "\n\nCurrent effect: +1 free action while singing.",
+            sizeof(bonus_text));
         break;
     }
     case SNG_SILENCE:
@@ -1603,8 +1613,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         int silence_bonus = song_skill / 2;
         int enemy_song_penalty = silence_bonus / 2;
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: +%d to hush/noise checks; enemy songs -%d.",
-            song_skill, silence_bonus, enemy_song_penalty);
+            "\n\nCurrent effect: +%d to hush/noise checks; enemy songs -%d.",
+            silence_bonus, enemy_song_penalty);
         break;
     }
     case SNG_STAUNCHING:
@@ -1615,30 +1625,29 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         if (extra_turns > 0)
         {
             strnfmt(bonus_text, sizeof(bonus_text),
-                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn, with +1 extra on %d turns in 12.",
-                song_skill, base_heal, extra_turns);
+                "\n\nCurrent effect: stops bleeding and heals %d HP/turn, with +1 extra on %d turns in 12.",
+                base_heal, extra_turns);
         }
         else
         {
             strnfmt(bonus_text, sizeof(bonus_text),
-                "\n\nCurrent effect at Song %d: stops bleeding and heals %d HP/turn.",
-                song_skill, base_heal);
+                "\n\nCurrent effect: stops bleeding and heals %d HP/turn.",
+                base_heal);
         }
         break;
     }
     case SNG_THRESHOLDS:
     {
-        strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: door-warding checks use Song %d.",
-            song_skill, song_skill);
+        SDL_strlcpy(bonus_text,
+            "\n\nCurrent effect: closes doors as warded barriers.",
+            sizeof(bonus_text));
         break;
     }
     case SNG_TREES:
     {
         int light_radius = ability_menu_stepped_song_bonus(song_skill, 5, 6);
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: +%d light radius.", song_skill,
-            light_radius);
+            "\n\nCurrent effect: +%d light radius.", light_radius);
         break;
     }
     case SNG_WOVEN_THEMES:
@@ -1646,8 +1655,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         int minor_skill = ability_menu_minor_song_score(song_skill);
         int synergy_bonus = ability_menu_song_synergy_bonus(song_skill);
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: a minor theme uses Song %d; a valid synergy pair adds +%d Song.",
-            song_skill, minor_skill, synergy_bonus);
+            "\n\nCurrent effect: a minor theme uses Song %d; a valid synergy pair adds +%d Song. Minor themes pay their normal Voice cost.",
+            minor_skill, synergy_bonus);
         break;
     }
     case SNG_SLAYING:
@@ -1657,23 +1666,23 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
             hp_threshold *= 2;
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: criticals can slay foes at %d HP or less.",
-            song_skill, hp_threshold);
+            "\n\nCurrent effect: criticals can slay foes at %d HP or less.",
+            hp_threshold);
         break;
     }
     case SNG_REVEALING:
     {
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: revealing range %d squares.",
-            song_skill, (song_skill / 2) + 8);
+            "\n\nCurrent effect: revealing range %d squares.",
+            (song_skill / 2) + 8);
         break;
     }
     case SNG_ELVENESS:
     {
         int evasion_bonus = ability_menu_stepped_song_bonus(song_skill, 7, 8);
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: +1 Grace and +%d Evasion.",
-            song_skill, evasion_bonus);
+            "\n\nCurrent effect: +1 Grace and +%d Evasion.",
+            evasion_bonus);
         break;
     }
     case SNG_STAYING:
@@ -1688,8 +1697,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         }
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: +%d Will and [%dd2] protection.",
-            song_skill, will_bonus, protection_dice);
+            "\n\nCurrent effect: +%d Will and [%dd2] protection.",
+            will_bonus, protection_dice);
         break;
     }
     case SNG_DISGUISE:
@@ -1700,8 +1709,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
             : "";
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: disguise checks use %d + Will%s.",
-            song_skill, disguise_bonus, extra);
+            "\n\nCurrent effect: disguise checks use %d + Will%s.",
+            disguise_bonus, extra);
         break;
     }
     case SNG_LORIEN:
@@ -1712,15 +1721,14 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
             sleep_score = (3 * song_skill) / 2;
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: sleep checks use %d.",
-            song_skill, sleep_score);
+            "\n\nCurrent effect: sleep checks use %d.", sleep_score);
         break;
     }
     case SNG_SHATTERING:
     {
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: shatter checks use Song %d; each success has a %d%% weaken chance.",
-            song_skill, song_skill, song_skill / 3);
+            "\n\nCurrent effect: each successful shatter has a %d%% weaken chance.",
+            song_skill / 3);
         break;
     }
     case SNG_MASTERY:
@@ -1731,8 +1739,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
             mastery_bonus = (7 * song_skill) / 4;
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: mastery rolls are 2d8 + %d.",
-            song_skill, mastery_bonus);
+            "\n\nCurrent effect: mastery rolls are 2d8 + %d.",
+            mastery_bonus);
         break;
     }
     case SNG_GRA:
@@ -1749,8 +1757,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         int armour_penalty = MAX(1, song_skill / 12);
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will, -%d Stealth, -%d Evasion, -%d armour die.",
-            song_skill, will_penalty, stealth_penalty, evasion_penalty,
+            "\n\nCurrent effect: duel checks add Will/2; victory inflicts -%d Will, -%d Stealth, -%d Evasion, -%d armour die.",
+            will_penalty, stealth_penalty, evasion_penalty,
             armour_penalty);
         break;
     }
@@ -1760,8 +1768,8 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
         int attrition_steps = MAX(1, song_skill / 12);
 
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect at Song %d: duel checks use Song + Will/2; victory inflicts -%d Will and -%d health/damage steps.",
-            song_skill, will_penalty, attrition_steps);
+            "\n\nCurrent effect: duel checks add Will/2; victory inflicts -%d Will and -%d health/damage steps.",
+            will_penalty, attrition_steps);
         break;
     }
     default:
@@ -1769,7 +1777,10 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     }
 
     if (bonus_text[0])
+    {
+        ability_menu_append_song_cost(bonus_text, sizeof(bonus_text), b_ptr);
         text_out_to_screen(TERM_L_GREEN, bonus_text);
+    }
 }
 
 /* ------------------------------------------------------------------
@@ -17687,6 +17698,11 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static void do_cmd_touch_control_settings(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
 
+static bool pane_settings_exposes_pane(enum pane_type type)
+{
+    return type != PANE_MAIN && type != PANE_TOUCH;
+}
+
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
     int max_chars)
 {
@@ -18453,7 +18469,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
     for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        if (type == PANE_MAIN)
+        if (!pane_settings_exposes_pane(type))
             continue;
         pane_indices[pane_count++] = i;
     }
@@ -18680,7 +18696,7 @@ static int get_supporting_pane_config_count(void)
     for (int i = 0; i < total; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        if (type != PANE_MAIN)
+        if (pane_settings_exposes_pane(type))
             count++;
     }
     return count;
@@ -18774,7 +18790,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        if (type == PANE_MAIN)
+        if (!pane_settings_exposes_pane(type))
             continue;
         pane_indices[pane_count++] = i;
     }
@@ -19649,6 +19665,31 @@ static void touch_pane_reset_buttons_to_default(void)
     }
 }
 
+enum {
+    TOUCH_PANE_SETTING_ENABLED = 0,
+    TOUCH_PANE_SETTING_PLACEMENT,
+    TOUCH_PANE_SETTING_COUNT
+};
+
+static bool touch_pane_row_is_button(int row)
+{
+    return row >= TOUCH_PANE_SETTING_COUNT
+        && row < TOUCH_PANE_SETTING_COUNT + SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT;
+}
+
+static int touch_pane_row_button_index(int row)
+{
+    if (!touch_pane_row_is_button(row))
+        return -1;
+
+    return touch_pane_visible_button_index(row - TOUCH_PANE_SETTING_COUNT);
+}
+
+static const char* touch_pane_placement_label(int placement)
+{
+    return (placement == SDL_TOUCH_PANE_PLACEMENT_LEFT) ? "Left" : "Right";
+}
+
 static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 {
     int highlight = 0;
@@ -19666,7 +19707,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         int row;
         int visible_rows;
         int row_width;
-        int total_rows = SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT;
+        int total_rows = TOUCH_PANE_SETTING_COUNT
+            + SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT;
 
         Term_get_size(&term_w, &term_h);
         row_width = settings_ui_line_width(2);
@@ -19700,21 +19742,35 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char left_buf[64];
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
-            int button_index = touch_pane_visible_button_index(i);
+            int button_index = touch_pane_row_button_index(i);
 
-            if (button_index < 0)
-                continue;
+            if (i == TOUCH_PANE_SETTING_ENABLED) {
+                SDL_strlcpy(left_buf, "Panel", sizeof(left_buf));
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_pane_enabled() ? "On" : "Off",
+                    sizeof(action_buf));
+            } else if (i == TOUCH_PANE_SETTING_PLACEMENT) {
+                SDL_strlcpy(left_buf, "Placement", sizeof(left_buf));
+                SDL_strlcpy(action_buf,
+                    touch_pane_placement_label(get_sdl_touch_pane_placement()),
+                    sizeof(action_buf));
+            } else {
+                if (button_index < 0)
+                    continue;
 
-            get_sdl_touch_pane_button_label_for_panel(panel, button_index, label_buf, sizeof(label_buf));
-            touch_pane_action_label_for_panel(panel,
-                get_sdl_touch_pane_binding_for_panel(panel, button_index), action_buf, sizeof(action_buf));
+                get_sdl_touch_pane_button_label_for_panel(panel, button_index,
+                    label_buf, sizeof(label_buf));
+                touch_pane_action_label_for_panel(panel,
+                    get_sdl_touch_pane_binding_for_panel(panel, button_index),
+                    action_buf, sizeof(action_buf));
 
-            if (label_buf[0])
-                strnfmt(left_buf, sizeof(left_buf), "%s %s",
-                    get_sdl_touch_pane_slot_name(button_index), label_buf);
-            else
-                strnfmt(left_buf, sizeof(left_buf), "%s",
-                    get_sdl_touch_pane_slot_name(button_index));
+                if (label_buf[0])
+                    strnfmt(left_buf, sizeof(left_buf), "%s %s",
+                        get_sdl_touch_pane_slot_name(button_index), label_buf);
+                else
+                    strnfmt(left_buf, sizeof(left_buf), "%s",
+                        get_sdl_touch_pane_slot_name(button_index));
+            }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf), left_buf,
                 action_buf, row_width, 14);
@@ -19735,9 +19791,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "Up/Down: select item   4/6: previous/next action   l/View: rename button label",
-                "Up/Down select   4/6 action   l/View rename",
-                "Up/Down select   4/6 action");
+                "Up/Down: select setting/button   4/6: previous/next value   l/View: rename button label",
+                "Up/Down select   4/6 value   l/View rename",
+                "Up/Down select   4/6 value");
             int prompt_row = row++;
 
             settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
@@ -19871,11 +19927,23 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'n':
         case '4':
         {
-            int button_index = touch_pane_visible_button_index(highlight);
+            int button_index = touch_pane_row_button_index(highlight);
             int choice_count = 0;
             const int* choices;
             int idx;
 
+            if (highlight == TOUCH_PANE_SETTING_ENABLED) {
+                set_sdl_touch_pane_enabled(false);
+                changed = true;
+                sdl_apply_config();
+                break;
+            }
+            if (highlight == TOUCH_PANE_SETTING_PLACEMENT) {
+                set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_LEFT);
+                changed = true;
+                sdl_apply_config();
+                break;
+            }
             if (button_index < 0)
                 break;
 
@@ -19901,11 +19969,27 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 't':
         case '5':
         {
-            int button_index = touch_pane_visible_button_index(highlight);
+            int button_index = touch_pane_row_button_index(highlight);
             int choice_count = 0;
             const int* choices;
             int idx;
 
+            if (highlight == TOUCH_PANE_SETTING_ENABLED) {
+                set_sdl_touch_pane_enabled(!get_sdl_touch_pane_enabled());
+                changed = true;
+                sdl_apply_config();
+                break;
+            }
+            if (highlight == TOUCH_PANE_SETTING_PLACEMENT) {
+                int placement = get_sdl_touch_pane_placement();
+                set_sdl_touch_pane_placement(
+                    placement == SDL_TOUCH_PANE_PLACEMENT_LEFT
+                        ? SDL_TOUCH_PANE_PLACEMENT_RIGHT
+                        : SDL_TOUCH_PANE_PLACEMENT_LEFT);
+                changed = true;
+                sdl_apply_config();
+                break;
+            }
             if (button_index < 0)
                 break;
 
@@ -19937,9 +20021,11 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             char current_buf[96];
             int button_index;
 
-            button_index = touch_pane_visible_button_index(highlight);
-            if (button_index < 0)
+            button_index = touch_pane_row_button_index(highlight);
+            if (button_index < 0) {
+                bell("Select a touch panel button to rename.");
                 break;
+            }
 
             get_sdl_touch_pane_button_label_for_panel(panel, button_index, current_label, sizeof(current_label));
             strnfmt(prompt_long, sizeof(prompt_long),
@@ -20003,7 +20089,21 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         case 'x':
         case 'X':
             {
-                int button_index = touch_pane_visible_button_index(highlight);
+                int button_index = touch_pane_row_button_index(highlight);
+
+                if (highlight == TOUCH_PANE_SETTING_ENABLED) {
+                    set_sdl_touch_pane_enabled(false);
+                    changed = true;
+                    sdl_apply_config();
+                    break;
+                }
+                if (highlight == TOUCH_PANE_SETTING_PLACEMENT) {
+                    set_sdl_touch_pane_placement(
+                        SDL_TOUCH_PANE_PLACEMENT_RIGHT);
+                    changed = true;
+                    sdl_apply_config();
+                    break;
+                }
 
                 if (button_index < 0)
                     break;
