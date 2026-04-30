@@ -6776,6 +6776,22 @@ static int enhanced_menu_primary_select_action(void)
  */
 #define MAX_COMPARE_LINES 2
 #define ENHANCED_MENU_CLICK_SWITCH (-1000000)
+#define ENHANCED_MENU_CLICK_DROP (-1000001)
+
+static void enhanced_menu_highlight_prompt_token(cptr text, cptr token,
+    byte attr)
+{
+    cptr match;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    Term_putstr((int)(match - text), 0, (int)strlen(token), attr, token);
+}
 
 static void append_compare_slot(int* slots, int* count, int slot)
 {
@@ -6910,6 +6926,7 @@ void show_inven_enhanced(void)
     int previous_scroll_top = 0;
     int visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
     bool first_render = true;
+    bool drop_click_mode = false;
     
     /* Floor items variables */
     int floor_list[MAX_FLOOR_STACK];
@@ -7104,17 +7121,21 @@ void show_inven_enhanced(void)
                     confirm_label, desc_label);
             }
         } else if (current_menu_command == 'u') {
-            sprintf(out_val, "Space-Use, -> description, %c again-cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Use, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
         }
         else if (current_menu_command == 'x') {
-            sprintf(out_val, "Space-Examine, -> description, %c again - cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Examine, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
         }
         else {
             sprintf(out_val, "Space-Use, -> description, <- drop  (Inventory)");
         }
         prt(out_val, 0, 0);
+        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
+            out_val, "drop");
         ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
             out_val, "Inventory");
+        if (drop_click_mode)
+            enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
 
         bool allow_compare = (current_menu_command == 'u' || current_menu_command == 'x');
         
@@ -7656,6 +7677,14 @@ void show_inven_enhanced(void)
                 continue;
             }
 
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_DROP)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                drop_click_mode = !drop_click_mode;
+                continue;
+            }
+
             if (click_taken && clicked_row >= 0 && clicked_row < k)
             {
                 highlight_row = clicked_row;
@@ -7671,6 +7700,19 @@ void show_inven_enhanced(void)
                     enhanced_menu_action = out_is_supply[highlight_row]
                         ? ENHANCED_ACTION_SUPPLIES
                         : ENHANCED_ACTION_EXAMINE;
+                }
+                else if (drop_click_mode)
+                {
+                    if (out_is_floor[highlight_row])
+                    {
+                        bell("Cannot drop floor items!");
+                        continue;
+                    }
+                    if (!death_spectator_allow_menu_action())
+                        continue;
+
+                    done = true;
+                    enhanced_menu_action = ENHANCED_ACTION_DROP;
                 }
                 else
                 {
@@ -7974,6 +8016,7 @@ void show_equip_enhanced(void)
     bool saved_hide_cursor = hide_cursor;
     bool saved_cursor = false;
     char out_val[160];
+    bool drop_click_mode = false;
     
     log_debug("show_equip_enhanced: Starting equipment enhanced menu");
     log_debug("show_equip_enhanced: INVEN_BODY=%d, INVEN_FEET=%d, show_weights=%d", 
@@ -8202,12 +8245,12 @@ void show_equip_enhanced(void)
             }
         } else if (current_menu_command == 'u') {
             sprintf(out_val,
-                "Space-Remove, %c again - cycle  (Equipped)",
+                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
                 current_menu_command);
         }
         else if (current_menu_command == 'x') {
             sprintf(out_val,
-                "Space-Remove, %c again - cycle  (Equipped)",
+                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
                 current_menu_command);
         }
         else {
@@ -8218,8 +8261,12 @@ void show_equip_enhanced(void)
             story_print_text(0, 0, 0, TERM_WHITE, out_val);
         else
             prt(out_val, 0, 0);
+        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
+            out_val, "drop");
         ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
             out_val, "Equipped");
+        if (drop_click_mode)
+            enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
         
         /* Highlight current selection - find the display row for this equipped item */
         if (!use_story_font && highlight_active && highlight_index >= 0 && highlight_index < k)
@@ -8317,6 +8364,14 @@ void show_equip_enhanced(void)
                 continue;
             }
 
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_DROP)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                drop_click_mode = !drop_click_mode;
+                continue;
+            }
+
             if (click_taken && clicked_row >= 0 && clicked_row < k)
             {
                 int clicked_slot = out_index[clicked_row];
@@ -8330,11 +8385,12 @@ void show_equip_enhanced(void)
                         continue;
 
                     done = true;
-                    enhanced_equip_action =
-                        (click_action == UI_MENU_CLICK_SECONDARY)
-                            ? ENHANCED_ACTION_EXAMINE
-                            : enhanced_menu_primary_select_action();
-                    if (enhanced_equip_action == ENHANCED_ACTION_USE
+                    enhanced_equip_action = (click_action == UI_MENU_CLICK_SECONDARY)
+                        ? ENHANCED_ACTION_EXAMINE
+                        : (drop_click_mode ? ENHANCED_ACTION_DROP
+                                           : enhanced_menu_primary_select_action());
+                    if ((enhanced_equip_action == ENHANCED_ACTION_USE
+                            || enhanced_equip_action == ENHANCED_ACTION_DROP)
                         && !death_spectator_allow_menu_action())
                     {
                         done = false;

@@ -11513,38 +11513,79 @@ static SDL_FColor sdl_touch_hidden_indicator_fcolor(SDL_Color color)
     };
 }
 
-static void sdl_touch_hidden_indicator_fill_triangle(const SDL_Rect* screen,
-    bool right_side, float size, SDL_Color color)
+static void sdl_touch_hidden_indicator_draw_triangle(
+    const SDL_FPoint points[3], SDL_Color fill, SDL_Color outline)
 {
-    SDL_FColor fcolor = sdl_touch_hidden_indicator_fcolor(color);
+    SDL_FColor fcolor = sdl_touch_hidden_indicator_fcolor(fill);
     SDL_Vertex vertices[3];
     int indices[3] = { 0, 1, 2 };
-    float left;
-    float right;
-    float top;
-    float bottom;
 
-    if (!screen || size <= 0.0f)
+    if (!points)
         return;
 
-    left = right_side ? (float)(screen->x + screen->w - 1) - size + 1.0f
-                      : (float)screen->x;
-    right = right_side ? (float)(screen->x + screen->w - 1)
-                       : (float)screen->x + size - 1.0f;
-    top = (float)screen->y;
-    bottom = top + size;
+    vertices[0] = (SDL_Vertex){ points[0], fcolor, { 0.0f, 0.0f } };
+    vertices[1] = (SDL_Vertex){ points[1], fcolor, { 0.0f, 0.0f } };
+    vertices[2] = (SDL_Vertex){ points[2], fcolor, { 0.0f, 0.0f } };
+    SDL_RenderGeometry(g_state.renderer, NULL, vertices, 3, indices, 3);
+
+    SDL_SetRenderDrawColor(g_state.renderer, outline.r, outline.g,
+        outline.b, outline.a);
+    SDL_RenderLine(g_state.renderer, points[0].x, points[0].y,
+        points[1].x, points[1].y);
+    SDL_RenderLine(g_state.renderer, points[1].x, points[1].y,
+        points[2].x, points[2].y);
+    SDL_RenderLine(g_state.renderer, points[2].x, points[2].y,
+        points[0].x, points[0].y);
+}
+
+static void sdl_touch_hidden_indicator_render_pane(const SDL_Rect* screen,
+    bool right_side, float size, SDL_Color fill, SDL_Color outline)
+{
+    float edge_x;
+    float center_y;
+    float half = size * 0.5f;
+    float depth = size * 0.72f;
+    SDL_FPoint points[3];
+
+    if (!screen)
+        return;
+
+    edge_x = right_side ? (float)(screen->x + screen->w - 1)
+                        : (float)screen->x;
+    center_y = (float)screen->y + (float)screen->h * 0.5f;
 
     if (right_side) {
-        vertices[0] = (SDL_Vertex){ { right, top }, fcolor, { 0.0f, 0.0f } };
-        vertices[1] = (SDL_Vertex){ { left, top }, fcolor, { 0.0f, 0.0f } };
-        vertices[2] = (SDL_Vertex){ { right, bottom }, fcolor, { 0.0f, 0.0f } };
+        points[0] = (SDL_FPoint){ edge_x, center_y - half };
+        points[1] = (SDL_FPoint){ edge_x, center_y + half };
+        points[2] = (SDL_FPoint){ edge_x - depth, center_y };
     } else {
-        vertices[0] = (SDL_Vertex){ { left, top }, fcolor, { 0.0f, 0.0f } };
-        vertices[1] = (SDL_Vertex){ { right, top }, fcolor, { 0.0f, 0.0f } };
-        vertices[2] = (SDL_Vertex){ { left, bottom }, fcolor, { 0.0f, 0.0f } };
+        points[0] = (SDL_FPoint){ edge_x, center_y - half };
+        points[1] = (SDL_FPoint){ edge_x + depth, center_y };
+        points[2] = (SDL_FPoint){ edge_x, center_y + half };
     }
 
-    SDL_RenderGeometry(g_state.renderer, NULL, vertices, 3, indices, 3);
+    sdl_touch_hidden_indicator_draw_triangle(points, fill, outline);
+}
+
+static void sdl_touch_hidden_indicator_render_top(const SDL_Rect* screen,
+    float size, SDL_Color fill, SDL_Color outline)
+{
+    float center_x;
+    float edge_y;
+    float half = size * 0.5f;
+    float depth = size * 0.72f;
+    SDL_FPoint points[3];
+
+    if (!screen)
+        return;
+
+    center_x = (float)screen->x + (float)screen->w * 0.5f;
+    edge_y = (float)screen->y;
+    points[0] = (SDL_FPoint){ center_x - half, edge_y };
+    points[1] = (SDL_FPoint){ center_x + half, edge_y };
+    points[2] = (SDL_FPoint){ center_x, edge_y + depth };
+
+    sdl_touch_hidden_indicator_draw_triangle(points, fill, outline);
 }
 
 static void sdl_touch_hidden_indicator_render(void)
@@ -11556,8 +11597,6 @@ static void sdl_touch_hidden_indicator_render(void)
     bool top_panel_hidden;
     bool right_side;
     float size;
-    float x_edge;
-    float y_edge;
 
 #if SIL_SDL_MOBILE_BUILD
     if (!g_direct_touch_present && !sdl_touch_pane_is_config_enabled())
@@ -11585,28 +11624,11 @@ static void sdl_touch_hidden_indicator_render(void)
     outline.a = 255;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    sdl_touch_hidden_indicator_fill_triangle(&screen, right_side, size, fill);
-
-    x_edge = right_side ? (float)(screen.x + screen.w - 1) : (float)screen.x;
-    y_edge = (float)screen.y;
-
-    SDL_SetRenderDrawColor(g_state.renderer, outline.r, outline.g, outline.b,
-        outline.a);
-    if (right_side) {
-        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
-            x_edge - size + 1.0f, y_edge);
-        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
-            x_edge, y_edge + size - 1.0f);
-        SDL_RenderLine(g_state.renderer, x_edge - size + 1.0f, y_edge,
-            x_edge, y_edge + size - 1.0f);
-    } else {
-        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
-            x_edge + size - 1.0f, y_edge);
-        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
-            x_edge, y_edge + size - 1.0f);
-        SDL_RenderLine(g_state.renderer, x_edge + size - 1.0f, y_edge,
-            x_edge, y_edge + size - 1.0f);
-    }
+    if (pane_hidden)
+        sdl_touch_hidden_indicator_render_pane(&screen, right_side, size,
+            fill, outline);
+    if (top_panel_hidden)
+        sdl_touch_hidden_indicator_render_top(&screen, size, fill, outline);
 }
 
 static void sdl_touch_zone_send(int zone, bool long_press)

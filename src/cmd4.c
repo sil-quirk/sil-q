@@ -30674,6 +30674,22 @@ static void supply_register_prompt_clicks(const knowledge_browser_layout* layout
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, back_label);
 }
 
+static void supply_highlight_prompt_token(const knowledge_browser_layout* layout,
+    cptr prompt, cptr token, byte attr)
+{
+    cptr match;
+
+    if (!layout || !prompt || !token || !token[0])
+        return;
+
+    match = strstr(prompt, token);
+    if (!match)
+        return;
+
+    Term_putstr((int)(match - prompt), layout->prompt_row,
+        (int)strlen(token), attr, token);
+}
+
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
     int i;
@@ -30694,6 +30710,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     supply_menu_action forced_action = SUPPLY_MENU_ACTION_NONE;
     bool acted = false;
     bool refresh_after_close = false;
+    bool drop_click_mode = false;
     bool prev_single_column = false;
     int prev_group = -1;
     int prev_column = -1;
@@ -30708,6 +30725,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             grp_cur = request->group;
         if (forced_action != SUPPLY_MENU_ACTION_NONE)
             column = 1;
+        if (forced_action == SUPPLY_MENU_ACTION_DROP)
+            drop_click_mode = true;
     }
 
     for (i = 0; i < SUPPLY_GROUP_MAX; i++)
@@ -30983,6 +31002,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             supply_register_prompt_clicks(&draw_layout, prompt_buf,
                 recall_label, use_label, confirm_label, drop_label,
                 back_label);
+            if (drop_click_mode)
+                supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
+                    TERM_YELLOW);
         } else {
             cptr prompt = (draw_layout.term_wid <= 50)
                 ? "Dir move  u/Space use  d drop  Esc"
@@ -30991,6 +31013,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 TERM_SLATE, prompt);
             supply_register_prompt_clicks(&draw_layout, prompt,
                 NULL, NULL, NULL, NULL, NULL);
+            if (drop_click_mode)
+                supply_highlight_prompt_token(&draw_layout, prompt, "drop",
+                    TERM_YELLOW);
         }
 
         if (!column)
@@ -31020,7 +31045,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         column = 1;
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
-                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r' : 'u';
+                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
+                            : (drop_click_mode ? 'd' : 'u');
                     }
                 }
                 else if (clicked_choice >= SUPPLY_CLICK_GROUP_BASE)
@@ -31047,7 +31073,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     case SUPPLY_CLICK_BACK:   ch = ESCAPE; break;
                     case SUPPLY_CLICK_RECALL: ch = 'r'; break;
                     case SUPPLY_CLICK_USE:    ch = 'u'; break;
-                    case SUPPLY_CLICK_DROP:   ch = 'd'; break;
+                    case SUPPLY_CLICK_DROP:
+                        drop_click_mode = !drop_click_mode;
+                        redraw = true;
+                        continue;
                     default: break;
                     }
                 }
