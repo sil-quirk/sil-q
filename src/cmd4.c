@@ -30636,13 +30636,46 @@ void do_cmd_knowledge_browser_page(int page)
 /*
  * Display known objects
  */
+enum
+{
+    SUPPLY_CLICK_BACK = -1,
+    SUPPLY_CLICK_RECALL = -2,
+    SUPPLY_CLICK_USE = -3,
+    SUPPLY_CLICK_DROP = -4,
+    SUPPLY_CLICK_GROUP_BASE = 1000,
+    SUPPLY_CLICK_ENTRY_BASE = 10000
+};
+
+static void supply_register_prompt_clicks(const knowledge_browser_layout* layout,
+    cptr prompt, cptr recall_label, cptr use_label, cptr confirm_label,
+    cptr drop_label, cptr back_label)
+{
+    int row;
+
+    if (!layout || !prompt)
+        return;
+
+    row = layout->prompt_row;
+
+    ui_menu_click_add_text_token(SUPPLY_CLICK_RECALL, 0, row, prompt, "recall");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_RECALL, 0, row, prompt, "r/->");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_RECALL, 0, row, prompt,
+        recall_label);
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "use");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "u/Space");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, use_label);
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt,
+        confirm_label);
+    ui_menu_click_add_text_token(SUPPLY_CLICK_DROP, 0, row, prompt, "drop");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_DROP, 0, row, prompt, "d drop");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_DROP, 0, row, prompt, drop_label);
+    ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "back");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "Esc");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, back_label);
+}
+
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
-    enum
-    {
-        SUPPLY_CLICK_GROUP_BASE = 1000,
-        SUPPLY_CLICK_ENTRY_BASE = 10000
-    };
     int i;
     int max = 0;
     int grp_cnt = SUPPLY_GROUP_MAX;
@@ -30947,12 +30980,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_L_DARK, prompt_buf);
+            supply_register_prompt_clicks(&draw_layout, prompt_buf,
+                recall_label, use_label, confirm_label, drop_label,
+                back_label);
         } else {
             cptr prompt = (draw_layout.term_wid <= 50)
                 ? "Dir move  u/Space use  d drop  Esc"
                 : "Dir move  r/-> recall  u/Space use  d drop  Esc";
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_SLATE, prompt);
+            supply_register_prompt_clicks(&draw_layout, prompt,
+                NULL, NULL, NULL, NULL, NULL);
         }
 
         if (!column)
@@ -30997,6 +31035,20 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         column = single_column ? 1 : 0;
                         redraw = true;
                         continue;
+                    }
+                }
+                else
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    switch (clicked_choice)
+                    {
+                    case SUPPLY_CLICK_BACK:   ch = ESCAPE; break;
+                    case SUPPLY_CLICK_RECALL: ch = 'r'; break;
+                    case SUPPLY_CLICK_USE:    ch = 'u'; break;
+                    case SUPPLY_CLICK_DROP:   ch = 'd'; break;
+                    default: break;
                     }
                 }
             }

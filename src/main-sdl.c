@@ -947,6 +947,9 @@ static bool sdl_main_screen_click_shortcuts_active(void);
 static bool sdl_mouse_gameplay_context_active(void);
 static bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x);
 static bool sdl_mouse_grid_has_visible_monster(int y, int x, int* out_m_idx);
+static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
+    int* out_command, int* out_dir);
+static bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x);
 static bool sdl_mouse_path_compute(int target_y, int target_x);
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row);
 static void sdl_player_confirm_at_player(void);
@@ -1039,6 +1042,7 @@ static bool sdl_touch_round_handle_pointer_up(float x, float y,
 static void sdl_touch_round_cancel_press(void);
 static void sdl_touch_round_render(void);
 static void sdl_touch_round_render_target_square(int dir);
+static void sdl_touch_hidden_indicator_render(void);
 static bool sdl_touch_top_panel_layout_visible(void);
 static void sdl_touch_top_panel_set_open(bool open);
 static bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
@@ -3592,16 +3596,16 @@ static int sdl_touch_pane_story_text_width(TTF_Font* font, cptr text)
 
 static int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
 {
-    int font_px = (int)(cell_h * 1.25f);
+    int font_px = (int)(cell_h * 1.35f);
 
-    if (font_px < 18)
-        font_px = 18;
-    if (font_px > 26)
-        font_px = 26;
-    if (screen_h < 360 && font_px > 22)
-        font_px = 22;
-    if (screen_h < 260 && font_px > 18)
-        font_px = 18;
+    if (font_px < 20)
+        font_px = 20;
+    if (font_px > 30)
+        font_px = 30;
+    if (screen_h < 360 && font_px > 24)
+        font_px = 24;
+    if (screen_h < 260 && font_px > 20)
+        font_px = 20;
 
     return font_px;
 }
@@ -3770,11 +3774,11 @@ static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     prompt_font = sdl_story_font_for_height(prompt_font_px);
     prompt_text_w = sdl_touch_pane_story_text_width(prompt_font, prompt_text);
 
-    margin = sdl_touch_pane_clampf(cell_h * 1.10f, 18.0f, 30.0f);
-    button_gap = sdl_touch_pane_clampf(cell_w * 1.35f, 12.0f, 22.0f);
-    row_gap = sdl_touch_pane_clampf(cell_h * 0.80f, 13.0f, 22.0f);
-    button_w = sdl_touch_pane_clampf(cell_w * 9.20f, 92.0f, 132.0f);
-    button_h = sdl_touch_pane_clampf(cell_h * 2.65f, 52.0f, 66.0f);
+    margin = sdl_touch_pane_clampf(cell_h * 1.20f, 20.0f, 34.0f);
+    button_gap = sdl_touch_pane_clampf(cell_w * 1.50f, 14.0f, 26.0f);
+    row_gap = sdl_touch_pane_clampf(cell_h * 0.90f, 15.0f, 25.0f);
+    button_w = sdl_touch_pane_clampf(cell_w * 10.20f, 104.0f, 148.0f);
+    button_h = sdl_touch_pane_clampf(cell_h * 2.95f, 58.0f, 76.0f);
 
     max_panel_w = (float)screen.w * 0.90f;
     if (max_panel_w > cell_w * 70.0f)
@@ -5461,6 +5465,72 @@ static bool sdl_mouse_path_handle_left_click(float x, float y)
     return sdl_mouse_path_handle_movement_click(x, y);
 }
 
+static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
+    int* out_command, int* out_dir)
+{
+    int dir;
+    int feat;
+    int command = 0;
+
+    if (out_command)
+        *out_command = 0;
+    if (out_dir)
+        *out_dir = 0;
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!p_ptr || !in_bounds(map_y, map_x))
+        return false;
+    if (!(cave_info[map_y][map_x] & (CAVE_MARK)))
+        return false;
+    if (sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL))
+        return false;
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, map_y, map_x);
+    if (dir < 1 || dir > 9)
+        return false;
+    if ((map_y != p_ptr->py + ddy[dir])
+        || (map_x != p_ptr->px + ddx[dir]))
+    {
+        return false;
+    }
+
+    feat = cave_feat[map_y][map_x];
+    if (feat == FEAT_OPEN)
+        command = 'c';
+    else if (cave_known_closed_door_bold(map_y, map_x))
+        command = 'b';
+    else if (cave_trap_bold(map_y, map_x)
+        && !cave_floorlike_bold(map_y, map_x))
+    {
+        command = 'D';
+    }
+    else
+        return false;
+
+    if (dir == 5 && command != 'D')
+        return false;
+
+    if (out_command)
+        *out_command = command;
+    if (out_dir)
+        *out_dir = dir;
+    return true;
+}
+
+static bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x)
+{
+    int command = 0;
+    int dir = 0;
+
+    if (!sdl_mouse_feature_action_for_grid(map_y, map_x, &command, &dir))
+        return false;
+
+    sdl_mouse_path_cancel();
+    sdl_enqueue_bypassed_command(command);
+    Term_keypress('0' + dir);
+    return true;
+}
+
 static bool sdl_mouse_path_handle_right_movement_click(float x, float y)
 {
     if (sdl_mouse_movement_normalized_mode(config.mouse_movement_mode)
@@ -5481,6 +5551,10 @@ static bool sdl_mouse_path_handle_right_click(float x, float y)
         return false;
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
+
+    if (sdl_mouse_feature_action_queue_grid(map_y, map_x))
+        return true;
+
     if (map_y != p_ptr->py || map_x != p_ptr->px)
         return false;
 
@@ -6414,6 +6488,7 @@ static bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID fin
 {
     int map_y = 0;
     int map_x = 0;
+    bool feature_action_target;
 
     if (sdl_touch_round_layer_controls_active())
         return false;
@@ -6421,8 +6496,11 @@ static bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID fin
         return false;
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
+    feature_action_target = sdl_mouse_feature_action_for_grid(map_y, map_x,
+        NULL, NULL);
     if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_OFF
-        && (map_y != p_ptr->py || map_x != p_ptr->px))
+        && (map_y != p_ptr->py || map_x != p_ptr->px)
+        && !feature_action_target)
     {
         return false;
     }
@@ -6441,8 +6519,11 @@ static bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID fin
     g_map_touch_press.start_y = y;
     g_map_touch_press.start_time = SDL_GetTicksNS();
 
-    if (map_y != p_ptr->py || map_x != p_ptr->px)
+    if ((map_y != p_ptr->py || map_x != p_ptr->px)
+        && config.touch_movement_mode != SDL_TOUCH_MOVEMENT_OFF)
+    {
         (void)sdl_mouse_path_select_grid(map_y, map_x, false);
+    }
     return true;
 }
 
@@ -6528,6 +6609,9 @@ static bool sdl_map_touch_handle_pointer_up(float x, float y, SDL_FingerID finge
         return true;
     }
 
+    if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_OFF)
+        return true;
+
     if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY)
         return true;
 
@@ -6582,6 +6666,9 @@ static bool sdl_map_touch_flush_pending_press(Uint64 now_ns)
     map_x = g_map_touch_press.map_x;
     sdl_map_touch_cancel_press();
     g_map_touch_selected = false;
+
+    if (sdl_mouse_feature_action_queue_grid(map_y, map_x))
+        return true;
 
     if (map_y == p_ptr->py && map_x == p_ptr->px)
         return sdl_player_action_menu_open();
@@ -6947,10 +7034,10 @@ static bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     if (count <= 0)
         return false;
 
-    button_w = sdl_touch_pane_clampf((float)view->cell_w * 6.1f, 66.0f,
-        96.0f);
-    button_h = sdl_touch_pane_clampf((float)view->cell_h * 2.35f, 36.0f,
-        54.0f);
+    button_w = sdl_touch_pane_clampf((float)view->cell_w * 6.8f, 74.0f,
+        108.0f);
+    button_h = sdl_touch_pane_clampf((float)view->cell_h * 2.65f, 42.0f,
+        62.0f);
     if (button_w > bounds.w - 6.0f)
         button_w = bounds.w - 6.0f;
     if (button_h > bounds.h - 6.0f)
@@ -6959,7 +7046,7 @@ static bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
         return false;
 
     larger = (button_w > button_h) ? button_w : button_h;
-    radius = sdl_touch_pane_clampf(larger * 1.28f, 76.0f, 126.0f);
+    radius = sdl_touch_pane_clampf(larger * 1.34f, 84.0f, 138.0f);
     center_x = player_rect.x + player_rect.w * 0.5f;
     center_y = player_rect.y + player_rect.h * 0.5f;
 
@@ -10068,7 +10155,7 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
     int attack_mode = SDL_POINTER_ATTACK_NONE;
     int click_action = SDL_PANEL_CLICK_NONE;
 
-    if (!sdl_pane_command_shortcuts_active())
+    if (!sdl_main_screen_click_shortcuts_active())
         return false;
     if (sdl_touch_zone_controls_active())
         return false;
@@ -10290,6 +10377,8 @@ static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID f
     int slot = -1;
     bool mobile_toggle = sdl_touch_pane_uses_mobile_toggle();
 
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
     if (sdl_touch_round_layer_controls_active())
         return false;
     if (!config.touch_swipe_enabled && !mobile_toggle)
@@ -10322,6 +10411,10 @@ static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID
 
     if (!g_touch_swipe.active || g_touch_swipe.finger_id != finger_id)
         return false;
+    if (!sdl_main_screen_click_shortcuts_active()) {
+        sdl_touch_swipe_cancel();
+        return false;
+    }
 
     g_touch_swipe.last_x = x;
     g_touch_swipe.last_y = y;
@@ -10969,10 +11062,7 @@ static bool sdl_touch_zone_overlay_visible(void)
     return sdl_touch_pane_uses_mobile_toggle()
         && !sdl_touch_round_layer_config_enabled()
         && !sdl_touch_pane_mobile_layout_open()
-        && character_generated
-        && character_dungeon
-        && p_ptr
-        && g_views[PANE_MAIN].term_ready;
+        && sdl_mouse_gameplay_context_active();
 }
 
 static bool sdl_touch_zone_layout_visible(void)
@@ -10983,7 +11073,7 @@ static bool sdl_touch_zone_layout_visible(void)
 static bool sdl_touch_zone_controls_active(void)
 {
     return sdl_touch_zone_layout_visible()
-        && sdl_pane_command_shortcuts_active();
+        && sdl_main_screen_click_shortcuts_active();
 }
 
 static bool sdl_touch_zone_compute_layout(SDL_FRect* zone_rects)
@@ -11342,8 +11432,103 @@ static int sdl_touch_zone_arrow_dir(int zone)
     }
 }
 
+static void sdl_touch_hidden_indicator_fill_triangle(const SDL_Rect* screen,
+    bool right_side, float size, SDL_Color color)
+{
+    int pixels = (int)(size + 0.5f);
+    float corner_x;
+    float corner_y;
+
+    if (!screen || pixels <= 0)
+        return;
+
+    corner_x = right_side ? (float)(screen->x + screen->w - 1)
+                          : (float)screen->x;
+    corner_y = (float)screen->y;
+
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        color.a);
+    for (int i = 0; i < pixels; i++) {
+        float y = corner_y + (float)i;
+        float span = size - (float)i;
+
+        if (span <= 0.0f)
+            break;
+
+        if (right_side) {
+            SDL_RenderLine(g_state.renderer, corner_x - span + 1.0f, y,
+                corner_x, y);
+        } else {
+            SDL_RenderLine(g_state.renderer, corner_x, y,
+                corner_x + span - 1.0f, y);
+        }
+    }
+}
+
+static void sdl_touch_hidden_indicator_render(void)
+{
+    SDL_Rect screen;
+    SDL_Rect touch_rect;
+    SDL_Color fill = g_state.palette[TERM_YELLOW];
+    SDL_Color outline = g_state.palette[TERM_WHITE];
+    bool pane_hidden;
+    bool top_panel_hidden;
+    bool right_side;
+    float size;
+    float x_edge;
+    float y_edge;
+
+    if (!sdl_touch_pane_is_config_enabled())
+        return;
+    if (!sdl_mouse_gameplay_context_active())
+        return;
+
+    pane_hidden = !sdl_touch_pane_current_rect(&touch_rect);
+    top_panel_hidden = sdl_touch_top_panel_layout_visible()
+        && !g_touch_top_panel_open;
+    if (!pane_hidden && !top_panel_hidden)
+        return;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return;
+
+    size = (float)screen.h * 0.035f;
+    size = sdl_touch_pane_clampf(size, 28.0f, 52.0f);
+    right_side = !sdl_touch_pane_is_left_placement();
+    fill.a = 224;
+    outline.a = 255;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    sdl_touch_hidden_indicator_fill_triangle(&screen, right_side, size, fill);
+
+    x_edge = right_side ? (float)(screen.x + screen.w - 1) : (float)screen.x;
+    y_edge = (float)screen.y;
+
+    SDL_SetRenderDrawColor(g_state.renderer, outline.r, outline.g, outline.b,
+        outline.a);
+    if (right_side) {
+        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
+            x_edge - size + 1.0f, y_edge);
+        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
+            x_edge, y_edge + size - 1.0f);
+        SDL_RenderLine(g_state.renderer, x_edge - size + 1.0f, y_edge,
+            x_edge, y_edge + size - 1.0f);
+    } else {
+        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
+            x_edge + size - 1.0f, y_edge);
+        SDL_RenderLine(g_state.renderer, x_edge, y_edge,
+            x_edge, y_edge + size - 1.0f);
+        SDL_RenderLine(g_state.renderer, x_edge + size - 1.0f, y_edge,
+            x_edge, y_edge + size - 1.0f);
+    }
+}
+
 static void sdl_touch_zone_send(int zone, bool long_press)
 {
+    if (!sdl_touch_zone_controls_active())
+        return;
+
     if (sdl_touch_zone_is_arrow(zone)) {
         int dir = sdl_touch_zone_arrow_dir(zone);
 
@@ -11483,6 +11668,10 @@ static bool sdl_touch_zone_flush_pending_press(Uint64 now_ns)
 
     if (!g_touch_zone_press.active)
         return false;
+    if (!sdl_touch_zone_controls_active()) {
+        sdl_touch_zone_cancel_press();
+        return false;
+    }
     if (now_ns - g_touch_zone_press.start_time
         < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
     {
@@ -11499,9 +11688,7 @@ static bool sdl_touch_top_panel_layout_visible(void)
 {
     return sdl_touch_pane_uses_mobile_toggle()
         && !sdl_touch_round_layer_config_enabled()
-        && character_generated
-        && p_ptr
-        && g_views[PANE_MAIN].term_ready;
+        && sdl_mouse_gameplay_context_active();
 }
 
 static void sdl_touch_top_panel_set_open(bool open)
@@ -11761,6 +11948,9 @@ static void sdl_touch_top_panel_send_slot(int slot, bool long_press)
 {
     int binding = sdl_touch_top_panel_binding_for_slot(slot, long_press);
 
+    if (!sdl_main_screen_click_shortcuts_active())
+        return;
+
     sdl_touch_pane_send_binding(binding, false, false);
 }
 
@@ -11784,6 +11974,8 @@ static bool sdl_touch_top_panel_handle_pointer_down(float x, float y,
 {
     int slot = -1;
 
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
     if (!sdl_touch_top_panel_point_to_slot(x, y, &slot))
         return false;
     if (slot < 0)
@@ -11893,6 +12085,10 @@ static bool sdl_touch_top_panel_flush_pending_press(Uint64 now_ns)
 
     if (!g_touch_top_panel_press.active)
         return false;
+    if (!sdl_main_screen_click_shortcuts_active()) {
+        sdl_touch_top_panel_cancel_press();
+        return false;
+    }
     if (now_ns - g_touch_top_panel_press.start_time
         < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
     {
@@ -14923,6 +15119,7 @@ static void sdl_present_if_needed(sdl_view* d)
     sdl_touch_pane_render();
     sdl_touch_zone_render_markers();
     sdl_touch_top_panel_render();
+    sdl_touch_hidden_indicator_render();
     sdl_touch_pane_render_reset_prompt();
     sdl_touch_pane_render_yes_no_prompt();
     SDL_RenderPresent(g_state.renderer);
