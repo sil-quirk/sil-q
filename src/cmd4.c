@@ -32511,6 +32511,27 @@ static int unified_sidebar_text_pair_hit_width(int pictogram_col, int text_col,
     return MAX(hit_width, 1);
 }
 
+static int unified_sidebar_row_width(int width)
+{
+    if (!Term || Term->wid <= 0)
+        return MAX(width, 1);
+
+    width = MAX(width, 1);
+
+    if (use_bigtile && width < Term->wid && ((width - COL_MAP) & 1))
+        width++;
+
+    return MIN(width, Term->wid);
+}
+
+static void unified_sidebar_clear_row(int row, int width)
+{
+    if (!Term || row < 0 || row >= Term->hgt)
+        return;
+
+    Term_erase(0, row, unified_sidebar_row_width(width));
+}
+
 static int unified_sidebar_compact_build_entries(
     const unified_look_state* state,
     unified_sidebar_compact_entry* entries,
@@ -32833,8 +32854,6 @@ void show_unified_sidebar(unified_look_state* state)
     int i;
     int monster_count = 0;
     int object_count = 0;
-    char clear_line[256];
-    int clear_width;
     char entity_char[2];
     entity_char[1] = '\0';
     static int previous_line_count = 0; /* Track previous display size */
@@ -32845,7 +32864,9 @@ void show_unified_sidebar(unified_look_state* state)
     
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
-    int max_display_line = term_hgt - 2; /* Leave space for bottom line */
+    int max_display_line = term_hgt - (SIL_UI_TOP_STATUS_LINE ? 0 : 1);
+    if (max_display_line < 1)
+        max_display_line = 1;
     
     /* Calculate layout positions once for both monsters and objects */
     int term_wid = Term->wid;
@@ -32872,16 +32893,10 @@ void show_unified_sidebar(unified_look_state* state)
     if (sidebar_hit_width < 1)
         sidebar_hit_width = 1;
     
-    /* Prepare clearing string */
-    clear_width = Term->wid - (sidebar_col - 1);
-    if (clear_width > 255) clear_width = 255;
-    memset(clear_line, ' ', clear_width);
-    clear_line[clear_width] = '\0';
-    
     log_trace("show_unified_sidebar: previous_line_count=%d, term_hgt=%d, max_display_line=%d", 
               previous_line_count, term_hgt, max_display_line);
-    log_trace("show_unified_sidebar: sidebar_col=%d, Term->wid=%d, clear_start=%d, clear_width=%d", 
-              sidebar_col, Term->wid, sidebar_col - 1, clear_width);
+    log_trace("show_unified_sidebar: sidebar_col=%d, Term->wid=%d",
+              sidebar_col, Term->wid);
     log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d", 
               state->show_monsters ? 1 : 0, state->show_objects ? 1 : 0);
 
@@ -32912,13 +32927,15 @@ void show_unified_sidebar(unified_look_state* state)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     
-    /* Don't clear anything - let screen_save/screen_load handle restoration */
-    log_trace("show_unified_sidebar: skipping clear - letting screen management handle it");
+    /* Full overlay restoration comes from screen_save/screen_load; rows are
+     * cleared only to their dynamic rendered width as they are drawn. */
     
     /* Show monsters section */
     if (state->show_monsters)
     {
         log_trace("show_unified_sidebar: displaying MONSTERS header at line %d", line);
+        unified_sidebar_clear_row(line, unified_sidebar_text_hit_width(
+            sidebar_col, sidebar_col, "MONSTERS:    ", 13));
         c_put_str(TERM_WHITE, "MONSTERS:    ", line++, sidebar_col);
         
         /* Get monster list */
@@ -33086,6 +33103,7 @@ void show_unified_sidebar(unified_look_state* state)
             int monster_hit_width = unified_sidebar_text_pair_hit_width(
                 pictogram_col, name_col, display_name, morale_display,
                 MAX(sidebar_hit_width, name_col - pictogram_col + total_span));
+            unified_sidebar_clear_row(line, monster_hit_width);
             ui_menu_click_add(monster_count, pictogram_col, line,
                 monster_hit_width);
             
@@ -33165,6 +33183,8 @@ void show_unified_sidebar(unified_look_state* state)
 
         char header_buf[32];
         strnfmt(header_buf, sizeof(header_buf), "OBJECTS: %s", filter_tag);
+        unified_sidebar_clear_row(line, unified_sidebar_text_hit_width(
+            sidebar_col, sidebar_col, header_buf, (int)strlen(header_buf)));
         c_put_str(TERM_WHITE, header_buf, line++, sidebar_col);
         
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
@@ -33283,6 +33303,7 @@ void show_unified_sidebar(unified_look_state* state)
                 pictogram_col, name_col, display_name,
                 MAX(sidebar_hit_width, name_col - pictogram_col
                     + final_name_len));
+            unified_sidebar_clear_row(line, object_hit_width);
             ui_menu_click_add(object_start + object_count, pictogram_col, line,
                 object_hit_width);
 

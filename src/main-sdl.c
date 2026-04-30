@@ -5500,6 +5500,8 @@ static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
     feat = cave_feat[map_y][map_x];
     if (feat == FEAT_OPEN)
         command = 'c';
+    else if (feat == FEAT_RUBBLE)
+        command = 'T';
     else if (cave_known_closed_door_bold(map_y, map_x))
         command = 'b';
     else if (cave_trap_bold(map_y, map_x)
