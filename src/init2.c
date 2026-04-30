@@ -2254,6 +2254,7 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
     display_introduction();
     sdl_story_font_reset();
@@ -3401,6 +3402,7 @@ void init_angband(void)
 
     /*** Display the introduction ***/
 
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
     display_introduction();
     sdl_story_font_reset();
@@ -3688,6 +3690,7 @@ extern NavResult initial_menu(bool *start_new)
     int ch;
     NavResult result = NAV_BACK;
     bool intro_story_font = true;
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
 
     int wid, hgt;
@@ -3798,6 +3801,7 @@ extern NavResult initial_menu(bool *start_new)
 
 menu_done:
     ui_menu_click_clear();
+    screen_set_startup_touch_pane_hidden(false);
     log_info("initial_menu: EXITING with result=%d", result);
     if (sdl_config_should_force_intro_flame()) {
         sdl_config_mark_intro_seen();

@@ -1528,6 +1528,11 @@ extern void screen_pop_supporting_panes_hidden(void);
 extern bool screen_supporting_panes_hidden_active(void);
 extern void screen_set_startup_supporting_panes_hidden(bool hidden);
 extern bool screen_startup_supporting_panes_hidden_active(void);
+extern void screen_push_touch_pane_hidden(void);
+extern void screen_pop_touch_pane_hidden(void);
+extern bool screen_touch_pane_hidden_active(void);
+extern void screen_set_startup_touch_pane_hidden(bool hidden);
+extern bool screen_startup_touch_pane_hidden_active(void);
 extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_POINTER_ATTACK_NONE 0
 #define SDL_POINTER_ATTACK_MELEE 1
@@ -1537,6 +1542,10 @@ extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_PANEL_CLICK_CHARACTER 1
 #define SDL_PANEL_CLICK_SONG 2
 #define SDL_PANEL_CLICK_SUPPLIES_LIGHTS 3
+#define SDL_PANEL_CLICK_SKILL_DISTRIBUTION 4
+#define SDL_PANEL_CLICK_INVENTORY 5
+#define SDL_PANEL_CLICK_ABILITIES 6
+#define SDL_PANEL_CLICK_SMITHING 7
 extern int sdl_pointer_attack_current_mode(void);
 extern bool sdl_pointer_attack_take_command(int* command, int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);

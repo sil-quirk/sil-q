@@ -16,6 +16,7 @@
 #include "metarun.h"
 #include "score/score_runs.h"
 #include "score/score_ui.h"
+#include "sdl-config.h"
 #include "sdl-sound.h"
 #include "z-term.h"
 #include <time.h>
@@ -4526,7 +4527,7 @@ static bool story_intro_skip_requested(void)
     {
         Term_inkey(&check_key, false, true);
         if (check_key == ESCAPE || check_key == '\n' || check_key == '\r'
-            || check_key == ' ')
+            || check_key == ' ' || check_key == INPUT_BIND_CONFIRM)
             return true;
         if (steamdeck_controls_active()
             && (check_key == steamdeck_confirm_key()
@@ -4555,6 +4556,22 @@ static bool story_intro_difficulty_key(int ch)
         return true;
 
     return steamdeck_controls_active() && ch == steamdeck_alt_action_key();
+}
+
+static void story_intro_touch_confirm_begin(int h)
+{
+    if (h < 1)
+        return;
+
+    ui_menu_click_begin();
+    ui_menu_click_set_outside_cancel_enabled(true);
+    for (int row = 0; row < h; row++)
+        ui_menu_click_add_full_row('\r', row);
+}
+
+static void story_intro_touch_confirm_end(void)
+{
+    ui_menu_click_clear();
 }
 
 static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
@@ -4727,6 +4744,7 @@ static void print_story_intro(void)
 {
     bool story_intro_story_font = true;
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
     sdl_story_font_enable();
     sdl_music_play_main_full();
     int wid, h;
@@ -4815,7 +4833,9 @@ static void print_story_intro(void)
             }
             hide_cursor = true;
             {
+                story_intro_touch_confirm_begin(h);
                 char k = inkey();
+                story_intro_touch_confirm_end();
                 if (k == 'S' || story_intro_back_key(k)) { /* Capital S skips the intro entirely */
                     Term_clear();
                     goto cleanup_intro;
@@ -4825,7 +4845,9 @@ static void print_story_intro(void)
             row = 1;
         }
 
+        story_intro_touch_confirm_begin(h);
         skipped = story_intro_render_paragraph(s, indent, wrap_width, &row);
+        story_intro_touch_confirm_end();
 
         /* Leave one blank line after each paragraph */
         row++;
@@ -4861,7 +4883,9 @@ static void print_story_intro(void)
 
     /* Handle input */
     hide_cursor = true;
+    story_intro_touch_confirm_begin(h);
     char key = inkey();
+    story_intro_touch_confirm_end();
     if (key == 'S' || story_intro_back_key(key)) {
         Term_clear();
         goto cleanup_intro;
@@ -4879,6 +4903,7 @@ static void print_story_intro(void)
     Term_flush();
 
 cleanup_intro:
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     if (story_intro_story_font)
         sdl_story_font_reset();
@@ -5392,6 +5417,7 @@ PlayResult play_game(void)
     /* Redraw everything */
     // Sil-y: added to get 'shades' right in extra inventory terms
     screen_set_startup_supporting_panes_hidden(false);
+    screen_set_startup_touch_pane_hidden(false);
     do_cmd_redraw();
 
     // update player noise

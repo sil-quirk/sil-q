@@ -520,6 +520,7 @@ int main(int argc, char* argv[])
     if (show_score > 0)
     {
         screen_set_startup_supporting_panes_hidden(false);
+        screen_set_startup_touch_pane_hidden(false);
         display_scores(0, show_score);
     }
 

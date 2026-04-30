@@ -6358,10 +6358,15 @@ void pause_with_text(const char desc[][100], int row, int col,
     log_debug("Banner: story font disabled");
     sdl_story_font_disable();
 
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < term_hgt; click_row++)
+        ui_menu_click_add_full_row(1, click_row);
+
     /* 3. wait for key */
     hide_cursor = true;
     (void)inkey();
     hide_cursor = false;
+    ui_menu_click_clear();
 
     /* 4. wipe the area used */
     int total = banner_lines + main_rows;

@@ -1668,7 +1668,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         BIRTH_CHOICE_CLICK_BACK = -1,
         BIRTH_CHOICE_CLICK_SELECT = -2,
         BIRTH_CHOICE_CLICK_DETAILS = -3,
-        BIRTH_CHOICE_CLICK_RANDOM = -4
+        BIRTH_CHOICE_CLICK_RANDOM = -4,
+        BIRTH_CHOICE_CLICK_RIGHT_BACK = -5
     };
     int top = 0, next;
     int i, dir;
@@ -1887,6 +1888,20 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 QUESTION_COL, prompt_row, prompt, "random");
         }
 
+        if (allow_full_description_screen)
+        {
+            int term_wid = 80;
+            int term_hgt = 24;
+
+            Term_get_size(&term_wid, &term_hgt);
+            if (term_hgt < 1)
+                term_hgt = 24;
+
+            (void)term_wid;
+            for (i = 0; i < term_hgt; i++)
+                ui_menu_click_add_full_row(BIRTH_CHOICE_CLICK_RIGHT_BACK, i);
+        }
+
         /* Move the cursor */
         put_str("", TABLE_ROW + cur - top, col);
 
@@ -1901,16 +1916,21 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
                 ui_menu_click_clear();
-                if (clicked_choice >= 0 && clicked_choice < num)
+                if (click_action == UI_MENU_CLICK_SECONDARY
+                    && allow_full_description_screen)
                 {
-                    if (click_action == UI_MENU_CLICK_SECONDARY
-                        && allow_full_description_screen)
-                    {
-                        cur = clicked_choice;
-                        display_character_description_screen(choices[cur]);
+                    c = ESCAPE;
+                    clicked_choice = BIRTH_CHOICE_CLICK_BACK;
+                    click_action = UI_MENU_CLICK_PRIMARY;
+                }
+                else if (clicked_choice == BIRTH_CHOICE_CLICK_RIGHT_BACK)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
-                    }
-
+                    continue;
+                }
+                else if (clicked_choice >= 0 && clicked_choice < num)
+                {
                     if (click_action == UI_MENU_CLICK_HOVER
                         || clicked_choice != cur)
                     {
@@ -1936,6 +1956,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 case BIRTH_CHOICE_CLICK_SELECT: c = '\r'; break;
                 case BIRTH_CHOICE_CLICK_DETAILS: c = 'f'; break;
                 case BIRTH_CHOICE_CLICK_RANDOM: c = 'r'; break;
+                case BIRTH_CHOICE_CLICK_RIGHT_BACK: break;
                 default: break;
                 }
             }

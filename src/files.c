@@ -2551,7 +2551,9 @@ typedef struct {
 enum {
     TUTORIAL_CLICK_PREV = 1,
     TUTORIAL_CLICK_NEXT,
-    TUTORIAL_CLICK_EXIT
+    TUTORIAL_CLICK_EXIT,
+    TUTORIAL_CLICK_SCREEN_NEXT,
+    TUTORIAL_CLICK_SCREEN_EXIT
 };
 
 static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
@@ -3462,6 +3464,15 @@ void display_character_tutorial(void)
         }
 
         {
+            int screen_choice = (page == total_pages - 1)
+                ? TUTORIAL_CLICK_SCREEN_EXIT
+                : TUTORIAL_CLICK_SCREEN_NEXT;
+
+            for (int click_row = 0; click_row < hgt; click_row++)
+                ui_menu_click_add_full_row(screen_choice, click_row);
+        }
+
+        {
             bool saved_hide_cursor = hide_cursor;
 
             hide_cursor = true;
@@ -3481,9 +3492,11 @@ void display_character_tutorial(void)
 
                 if (clicked_choice == TUTORIAL_CLICK_PREV)
                     ch = '4';
-                else if (clicked_choice == TUTORIAL_CLICK_NEXT)
+                else if (clicked_choice == TUTORIAL_CLICK_NEXT
+                    || clicked_choice == TUTORIAL_CLICK_SCREEN_NEXT)
                     ch = '6';
-                else if (clicked_choice == TUTORIAL_CLICK_EXIT)
+                else if (clicked_choice == TUTORIAL_CLICK_EXIT
+                    || clicked_choice == TUTORIAL_CLICK_SCREEN_EXIT)
                     ch = ESCAPE;
             }
             else if (ch == UI_MENU_CLICK_WAKE_KEY)
@@ -9163,6 +9176,22 @@ static void story_print_hint(int indent, int h)
     }
 }
 
+static void story_touch_confirm_begin(int h)
+{
+    if (h < 1)
+        return;
+
+    ui_menu_click_begin();
+    ui_menu_click_set_outside_cancel_enabled(true);
+    for (int row = 0; row < h; row++)
+        ui_menu_click_add_full_row('\r', row);
+}
+
+static void story_touch_confirm_end(void)
+{
+    ui_menu_click_clear();
+}
+
 void print_story(int last_parts, bool fade_in)
 {
     int wid, h;
@@ -9229,6 +9258,7 @@ void print_story(int last_parts, bool fade_in)
 
     /* Screen prep ------------------------------------------- */
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
     Term_get_size(&wid, &h);
     Term_clear();
     /* Hide the cursor during story display and restore it at the end */
@@ -9267,7 +9297,9 @@ void print_story(int last_parts, bool fade_in)
             {
                 show_page_instantly = false;
                 REDRAW_HINT();
+                story_touch_confirm_begin(h);
                 char ch = inkey();
+                story_touch_confirm_end();
                 if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
@@ -9303,7 +9335,9 @@ void print_story(int last_parts, bool fade_in)
              *   0 = completed normally
              *   1 = other key pressed (skip this paragraph)
              *   2 = ESC pressed (enable fast-forward) */
+            story_touch_confirm_begin(h);
             int fade_result = print_paragraph_fade(text, row, indent, wrap_width);
+            story_touch_confirm_end();
             if (fade_result == 2) {
                 /* ESC pressed - enable fast-forward mode */
                 fast_forward = true;
@@ -9346,7 +9380,9 @@ void print_story(int last_parts, bool fade_in)
                 show_page_instantly = false;
                 
                 REDRAW_HINT();
+                story_touch_confirm_begin(h);
                 char ch = inkey();
+                story_touch_confirm_end();
                 if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
@@ -9395,12 +9431,15 @@ void print_story(int last_parts, bool fade_in)
         Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
                     "[Press any key to continue]");
     }
+    story_touch_confirm_begin(h);
     (void)inkey();
+    story_touch_confirm_end();
     
     /* Flush any queued keypresses that accumulated during the story */
     Term_flush();
     
     sdl_story_font_disable();  // Disable after story display
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);

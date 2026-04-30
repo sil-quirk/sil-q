@@ -2995,7 +2995,9 @@ bool message_line_has_text(void)
  */
 static int screen_depth = 0;
 static int supporting_panes_hidden_depth = 0;
+static int touch_pane_hidden_depth = 0;
 static bool startup_supporting_panes_hidden = false;
+static bool startup_touch_pane_hidden = false;
 
 bool screen_saved_fullscreen_active(void)
 {
@@ -3029,6 +3031,35 @@ void screen_set_startup_supporting_panes_hidden(bool hidden)
 bool screen_startup_supporting_panes_hidden_active(void)
 {
     return startup_supporting_panes_hidden;
+}
+
+void screen_push_touch_pane_hidden(void)
+{
+    touch_pane_hidden_depth++;
+    sdl_refresh_supporting_panes_layout();
+}
+
+void screen_pop_touch_pane_hidden(void)
+{
+    if (touch_pane_hidden_depth > 0)
+        touch_pane_hidden_depth--;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_touch_pane_hidden_active(void)
+{
+    return (touch_pane_hidden_depth > 0);
+}
+
+void screen_set_startup_touch_pane_hidden(bool hidden)
+{
+    startup_touch_pane_hidden = hidden;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_startup_touch_pane_hidden_active(void)
+{
+    return startup_touch_pane_hidden;
 }
 
 void screen_clear_all_terms_no_fresh(void)

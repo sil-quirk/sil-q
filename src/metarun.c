@@ -5077,6 +5077,8 @@ void print_metarun_stats(void)
 
     if (current_run < 0 || current_run >= metarun_max) {
         screen_save();
+        screen_push_supporting_panes_hidden();
+        screen_push_touch_pane_hidden();
         Term_clear();
         Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
@@ -5092,6 +5094,8 @@ void print_metarun_stats(void)
         ui_menu_click_add_full_row('\r', 8);
         metarun_wait_hidden();
         ui_menu_click_clear();
+        screen_pop_touch_pane_hidden();
+        screen_pop_supporting_panes_hidden();
         screen_load();
         return;
     }
@@ -5138,6 +5142,7 @@ void print_metarun_stats(void)
     if (!startup_scene)
         screen_save();
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
 
 redraw_story_stats:
     row = 1;
@@ -5662,12 +5667,14 @@ redraw_story_stats:
         
         if (key == back_key) {
             /* B button = exit/back */
+            screen_pop_touch_pane_hidden();
             screen_pop_supporting_panes_hidden();
             if (!startup_scene)
                 screen_load();
             return;
         } else if (key == confirm_key || key == '\r' || key == '\n') {
             /* A button = continue (exit) */
+            screen_pop_touch_pane_hidden();
             screen_pop_supporting_panes_hidden();
             if (!startup_scene)
                 screen_load();
@@ -5690,6 +5697,7 @@ redraw_story_stats:
         }
     }
     if (key == 'b' || key == 'B') {
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
@@ -5697,12 +5705,14 @@ redraw_story_stats:
         print_metarun_stats();
         return;
     } else if (key == 'c' || key == 'C') {
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
         choose_difficulty_menu();
         return;
     } else if (key == 'f' || key == 'F') {
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
@@ -5711,6 +5721,7 @@ redraw_story_stats:
         return;
     } else if (key == 'u' || key == 'U') {
         /* Show the full list of active curses/blessings separately */
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
@@ -5719,6 +5730,7 @@ redraw_story_stats:
         return;
     } else if (key == 's' || key == 'S') {
         /* Show history only */
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
@@ -5726,6 +5738,7 @@ redraw_story_stats:
         print_metarun_stats();
         return;
     } else if ((key == 'x' || key == 'X') && blitz_enabled) {
+        screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         if (!startup_scene)
             screen_load();
@@ -5734,6 +5747,7 @@ redraw_story_stats:
         return;
     }
 
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     if (!startup_scene)
         screen_load();

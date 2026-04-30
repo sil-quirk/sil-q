@@ -1388,12 +1388,19 @@ int monster_stat(monster_type* m_ptr, int stat_type)
 /*
  * Shared sound-based detection logic. Returns true when the check succeeds.
  */
+static bool listen_visual_effects_suppressed(void)
+{
+    return !character_generated || character_icky || character_xtra
+        || screen_startup_supporting_panes_hidden_active();
+}
+
 bool detect_monster_noise(monster_type* m_ptr, int skill)
 {
     byte a;
     char c;
     byte k;
     int base;
+    bool suppress_visuals;
 
     int result;
 
@@ -1428,11 +1435,13 @@ bool detect_monster_noise(monster_type* m_ptr, int skill)
 
     // make the check
     result = skill_check(PLAYER, skill, difficulty, m_ptr);
+    suppress_visuals = listen_visual_effects_suppressed();
 
     // give up if it is a failure
     if (result <= 0)
     {
-        lite_spot(y, x);
+        if (!suppress_visuals)
+            lite_spot(y, x);
         return false;
     }
 
@@ -1440,9 +1449,13 @@ bool detect_monster_noise(monster_type* m_ptr, int skill)
     if (result > 10)
     {
         m_ptr->ml = true;
-        lite_spot(y, x);
+        if (!suppress_visuals)
+            lite_spot(y, x);
         return true;
     }
+
+    if (suppress_visuals)
+        return true;
 
     if (graphics_are_ascii())
     {
