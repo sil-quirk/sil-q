@@ -488,12 +488,13 @@ enum {
     SDL_PLAYER_ACTION_NONE = 0,
     SDL_PLAYER_ACTION_WAIT,
     SDL_PLAYER_ACTION_USE,
+    SDL_PLAYER_ACTION_SING,
     SDL_PLAYER_ACTION_EXCHANGE,
     SDL_PLAYER_ACTION_FLETCH,
     SDL_PLAYER_ACTION_EXAMINE,
     SDL_PLAYER_ACTION_ACTIVATE,
     SDL_PLAYER_ACTION_HORN,
-    SDL_PLAYER_ACTION_MAX = 7,
+    SDL_PLAYER_ACTION_MAX = 8,
     SDL_PLAYER_EXCHANGE_MAX_TARGETS = 8,
 };
 
@@ -744,6 +745,7 @@ static bool g_unified_look_map_hover_pending = false;
 static bool g_unified_look_map_hover_wake_pending = false;
 static int g_unified_look_map_hover_y = 0;
 static int g_unified_look_map_hover_x = 0;
+static bool g_status_line_main_menu_hint_hovered = false;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
 static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
@@ -911,6 +913,7 @@ static void sdl_enqueue_bypassed_command(int command);
 static void sdl_unified_look_clear_map_hover(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
+static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y);
 static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
     int start_col, int width, int hit_col, cptr needle);
@@ -6842,6 +6845,21 @@ static bool sdl_player_has_equipped_horn(void)
         && inventory[INVEN_HORN].tval == TV_HORN;
 }
 
+static bool sdl_player_has_singable_song(void)
+{
+    if (!p_ptr)
+        return false;
+
+    for (int i = 0; i < SNG_MAX; i++) {
+        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+            continue;
+        if (p_ptr->active_ability[S_SNG][i])
+            return true;
+    }
+
+    return false;
+}
+
 static void sdl_player_action_menu_add_entry(player_action_menu_entry* entries,
     int* count, int kind, int command, cptr label)
 {
@@ -6863,6 +6881,10 @@ static int sdl_player_action_menu_collect(player_action_menu_entry* entries)
         'z', "Wait");
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_USE,
         'u', "Use");
+    if (sdl_player_has_singable_song()) {
+        sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_SING,
+            's', "Sing");
+    }
     if (p_ptr && p_ptr->active_ability[S_STL][STL_EXCHANGE_PLACES]) {
         sdl_player_action_menu_add_entry(entries, &count,
             SDL_PLAYER_ACTION_EXCHANGE, 'X', "Xchg");
@@ -6983,6 +7005,10 @@ static void sdl_player_action_menu_slot_offset(int slot, int count,
               { 0.78f, -0.78f }, { 1.0f, 0.0f },
               { 0.78f, 0.78f }, { -0.78f, 0.78f },
               { -1.0f, 0.0f } },
+            { { -0.78f, -0.78f }, { 0.0f, -1.0f },
+              { 0.78f, -0.78f }, { 1.0f, 0.0f },
+              { 0.78f, 0.78f }, { 0.0f, 1.0f },
+              { -0.78f, 0.78f }, { -1.0f, 0.0f } },
         };
     float x = 0.0f;
     float y = -1.0f;
@@ -7428,6 +7454,9 @@ static void sdl_player_action_menu_activate_kind(int kind)
         break;
     case SDL_PLAYER_ACTION_USE:
         command = 'u';
+        break;
+    case SDL_PLAYER_ACTION_SING:
+        command = 's';
         break;
     case SDL_PLAYER_ACTION_FLETCH:
         command = '-';
@@ -8090,6 +8119,48 @@ static bool sdl_status_line_partition_label_at_col(int row, int col)
                long_label)
         || sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
                short_label);
+}
+
+bool sdl_status_line_main_menu_hint_hovered(void)
+{
+    return g_status_line_main_menu_hint_hovered;
+}
+
+static void sdl_status_line_main_menu_hint_set_hovered(bool hovered,
+    bool redraw)
+{
+    if (g_status_line_main_menu_hint_hovered == hovered)
+        return;
+
+    g_status_line_main_menu_hint_hovered = hovered;
+
+    if (redraw && p_ptr && character_generated && character_icky == 0)
+    {
+        p_ptr->redraw |= PR_STATE;
+        handle_stuff();
+        if (Term)
+            Term_fresh();
+    }
+
+    g_state.need_present = true;
+}
+
+static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    bool active = sdl_main_screen_click_shortcuts_active();
+    bool hovered = false;
+
+    if (active && Term && sdl_main_view_point_to_cell(x, y, &col, &row)
+        && row == ROW_STATUS)
+    {
+        hovered = sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid,
+            col, "main menu");
+    }
+
+    sdl_status_line_main_menu_hint_set_hovered(hovered, active);
+    return hovered;
 }
 
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
@@ -11432,43 +11503,53 @@ static int sdl_touch_zone_arrow_dir(int zone)
     }
 }
 
+static SDL_FColor sdl_touch_hidden_indicator_fcolor(SDL_Color color)
+{
+    return (SDL_FColor){
+        (float)color.r / 255.0f,
+        (float)color.g / 255.0f,
+        (float)color.b / 255.0f,
+        (float)color.a / 255.0f,
+    };
+}
+
 static void sdl_touch_hidden_indicator_fill_triangle(const SDL_Rect* screen,
     bool right_side, float size, SDL_Color color)
 {
-    int pixels = (int)(size + 0.5f);
-    float corner_x;
-    float corner_y;
+    SDL_FColor fcolor = sdl_touch_hidden_indicator_fcolor(color);
+    SDL_Vertex vertices[3];
+    int indices[3] = { 0, 1, 2 };
+    float left;
+    float right;
+    float top;
+    float bottom;
 
-    if (!screen || pixels <= 0)
+    if (!screen || size <= 0.0f)
         return;
 
-    corner_x = right_side ? (float)(screen->x + screen->w - 1)
-                          : (float)screen->x;
-    corner_y = (float)screen->y;
+    left = right_side ? (float)(screen->x + screen->w - 1) - size + 1.0f
+                      : (float)screen->x;
+    right = right_side ? (float)(screen->x + screen->w - 1)
+                       : (float)screen->x + size - 1.0f;
+    top = (float)screen->y;
+    bottom = top + size;
 
-    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
-        color.a);
-    for (int i = 0; i < pixels; i++) {
-        float y = corner_y + (float)i;
-        float span = size - (float)i;
-
-        if (span <= 0.0f)
-            break;
-
-        if (right_side) {
-            SDL_RenderLine(g_state.renderer, corner_x - span + 1.0f, y,
-                corner_x, y);
-        } else {
-            SDL_RenderLine(g_state.renderer, corner_x, y,
-                corner_x + span - 1.0f, y);
-        }
+    if (right_side) {
+        vertices[0] = (SDL_Vertex){ { right, top }, fcolor, { 0.0f, 0.0f } };
+        vertices[1] = (SDL_Vertex){ { left, top }, fcolor, { 0.0f, 0.0f } };
+        vertices[2] = (SDL_Vertex){ { right, bottom }, fcolor, { 0.0f, 0.0f } };
+    } else {
+        vertices[0] = (SDL_Vertex){ { left, top }, fcolor, { 0.0f, 0.0f } };
+        vertices[1] = (SDL_Vertex){ { right, top }, fcolor, { 0.0f, 0.0f } };
+        vertices[2] = (SDL_Vertex){ { left, bottom }, fcolor, { 0.0f, 0.0f } };
     }
+
+    SDL_RenderGeometry(g_state.renderer, NULL, vertices, 3, indices, 3);
 }
 
 static void sdl_touch_hidden_indicator_render(void)
 {
     SDL_Rect screen;
-    SDL_Rect touch_rect;
     SDL_Color fill = g_state.palette[TERM_YELLOW];
     SDL_Color outline = g_state.palette[TERM_WHITE];
     bool pane_hidden;
@@ -11478,12 +11559,16 @@ static void sdl_touch_hidden_indicator_render(void)
     float x_edge;
     float y_edge;
 
+#if SIL_SDL_MOBILE_BUILD
+    if (!g_direct_touch_present && !sdl_touch_pane_is_config_enabled())
+        return;
+#else
     if (!sdl_touch_pane_is_config_enabled())
         return;
-    if (!sdl_mouse_gameplay_context_active())
-        return;
+#endif
 
-    pane_hidden = !sdl_touch_pane_current_rect(&touch_rect);
+    pane_hidden = sdl_touch_pane_hidden_mode_active()
+        || (sdl_touch_pane_uses_mobile_toggle() && !g_touch_pane_mobile_open);
     top_panel_hidden = sdl_touch_top_panel_layout_visible()
         && !g_touch_top_panel_open;
     if (!pane_hidden && !top_panel_hidden)
@@ -14259,6 +14344,11 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
         if (sdl_main_screen_handle_menu_hover_pointer((float)ev->motion.x,
             (float)ev->motion.y))
+        {
+            return;
+        }
+        if (sdl_main_screen_handle_status_line_hover_pointer(
+            (float)ev->motion.x, (float)ev->motion.y))
         {
             return;
         }

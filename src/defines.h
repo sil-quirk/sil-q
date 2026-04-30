@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.2"
+#define VERSION_STRING "0.9.6.3"
 /*
- * Version components (0.9.6.2).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.3).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 2   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 3   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 

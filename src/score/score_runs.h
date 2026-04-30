@@ -30,6 +30,14 @@ typedef struct score_run_detail_block {
 bool score_runs_record_current_run(const struct high_score* legacy_score,
                                    time_t timestamp,
                                    score_record_status status);
+bool score_runs_record_current_run_with_id(const struct high_score* legacy_score,
+                                           time_t timestamp,
+                                           score_record_status status,
+                                           u32b* out_record_id);
+void score_runs_set_legacy_link(struct high_score* legacy_score,
+                                u32b record_id);
+bool score_runs_get_legacy_link(const struct high_score* legacy_score,
+                                u32b* out_record_id);
 bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out);
 void score_runs_free_details(score_run_detail_block* details);
 bool score_runs_snapshot_details(score_run_detail_block* out);

@@ -58,6 +58,66 @@ static bool score_runs_write_header(SDL_IOStream* file,
 
 static bool score_runs_legacy_checked = false;
 
+static int score_runs_base36_digit_value(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (ch >= 'A' && ch <= 'Z')
+        return 10 + ch - 'A';
+    if (ch >= 'a' && ch <= 'z')
+        return 10 + ch - 'a';
+    return -1;
+}
+
+static char score_runs_base36_digit(u32b value)
+{
+    static const char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return digits[value % 36];
+}
+
+void score_runs_set_legacy_link(struct high_score* legacy_score,
+                                u32b record_id)
+{
+    if (!legacy_score)
+        return;
+
+    u32b value = record_id;
+    legacy_score->uid[7] = '\0';
+    for (int i = 6; i >= 0; i--)
+    {
+        legacy_score->uid[i] = score_runs_base36_digit(value);
+        value /= 36;
+    }
+
+    legacy_score->unused[0] = 'R';
+    legacy_score->unused[1] = '\0';
+}
+
+bool score_runs_get_legacy_link(const struct high_score* legacy_score,
+                                u32b* out_record_id)
+{
+    /* Older score rows used uid as player_uid and leave no reliable link
+     * marker. Treat anything without the marker as unlinked so callers can
+     * fall back to legacy matching. */
+    if (!legacy_score || legacy_score->unused[0] != 'R')
+        return false;
+
+    u64b value = 0;
+    for (int i = 0; i < 7; i++)
+    {
+        int digit = score_runs_base36_digit_value(legacy_score->uid[i]);
+        if (digit < 0)
+            return false;
+        value = value * 36 + (u32b)digit;
+        if (value > 0xFFFFFFFFULL)
+            return false;
+    }
+
+    if (out_record_id)
+        *out_record_id = (u32b)value;
+    return true;
+}
+
 static s32b score_runs_parse_int_field(const char* field, size_t len)
 {
     char buf[32];
@@ -1438,10 +1498,14 @@ static void score_runs_build_record(score_record_v1* rec,
     (void)legacy;
 }
 
-bool score_runs_record_current_run(const struct high_score* legacy_score,
-                                   time_t snapshot_time,
-                                   score_record_status status)
+bool score_runs_record_current_run_with_id(const struct high_score* legacy_score,
+                                           time_t snapshot_time,
+                                           score_record_status status,
+                                           u32b* out_record_id)
 {
+    if (out_record_id)
+        *out_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+
     if (!legacy_score) {
         log_warn("score_runs: skipping record (no legacy score snapshot)");
         return false;
@@ -1546,12 +1610,22 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
     safe_setuid_drop();
 
     if (success) {
+        if (out_record_id)
+            *out_record_id = record.record_id;
         log_info("score_runs: recorded run #%u for metarun %u (chron=%u status=%d)",
                  record.record_id, record.metarun_id, record.chronological_idx,
                  record.status);
     }
 
     return success;
+}
+
+bool score_runs_record_current_run(const struct high_score* legacy_score,
+                                   time_t snapshot_time,
+                                   score_record_status status)
+{
+    return score_runs_record_current_run_with_id(legacy_score, snapshot_time,
+        status, NULL);
 }
 
 bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)

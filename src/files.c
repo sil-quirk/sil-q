@@ -10640,7 +10640,11 @@ static void close_game_aux(void)
     log_info("entering score");
     create_score(&the_score);
     score_record_status final_status = p_ptr->escaped ? SCORE_RECORD_ESCAPED : SCORE_RECORD_DEAD;
-    if (!score_runs_record_current_run(&the_score, death_time, final_status)) {
+    u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+    if (score_runs_record_current_run_with_id(&the_score, death_time,
+        final_status, &run_record_id)) {
+        score_runs_set_legacy_link(&the_score, run_record_id);
+    } else {
         log_warn("Failed to persist run statistics for '%s'", op_ptr->full_name);
     }
     enter_score(&the_score);
@@ -10941,7 +10945,18 @@ void close_game(void)
 
         high_score preview;
         if (build_live_preview_score(&preview))
+        {
+            u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+            time_t now = time(NULL);
+            if (score_runs_record_current_run_with_id(&preview, now,
+                SCORE_RECORD_ALIVE, &run_record_id)) {
+                score_runs_set_legacy_link(&preview, run_record_id);
+            } else {
+                log_warn("Failed to persist live run snapshot for '%s'",
+                    op_ptr->full_name);
+            }
             show_scores_interactive_highlight(true, &preview);
+        }
         else
             show_scores_interactive(true);
 
@@ -10954,6 +10969,17 @@ void close_game(void)
             SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
             high_score live_score;
             create_score(&live_score);
+            {
+                u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+                time_t now = time(NULL);
+                if (score_runs_record_current_run_with_id(&live_score, now,
+                    SCORE_RECORD_ALIVE, &run_record_id)) {
+                    score_runs_set_legacy_link(&live_score, run_record_id);
+                } else {
+                    log_warn("Failed to persist live run snapshot for '%s'",
+                        op_ptr->full_name);
+                }
+            }
 
             /* Restore original (probably redundant during quit) */
             SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));

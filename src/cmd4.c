@@ -13780,8 +13780,8 @@ void do_cmd_main_menu(void)
             /* Stop playing */
             p_ptr->playing = false;
 
-            /* Mark that we want to quit to menu, not exit application */
-            p_ptr->quit_to_menu = true;
+            /* Exit the application after the save/score screen. */
+            p_ptr->quit_to_menu = false;
 
             /* Leaving */
             p_ptr->leaving = true;

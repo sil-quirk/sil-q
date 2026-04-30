@@ -4874,7 +4874,7 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
         /* Success -- May still have traps */
         if (skill_check(PLAYER, score, difficulty, NULL) > 0)
         {
-            msg_print("You have picked the lock.");
+            message(MSG_LOCKPICK_FAIL, 0, "You have picked the lock.");
             flag = true;
         }
 

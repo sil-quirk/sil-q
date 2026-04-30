@@ -7,10 +7,12 @@
 #include "fs/path.h"
 #include "log/log.h"
 #include "score/score_logic.h"
+#include "score/score_runs.h"
 
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+#include <time.h>
 
 bool build_current_score_path(char* buf, size_t len)
 {
@@ -29,6 +31,8 @@ static score_file_ctx* active_score_ctx = &global_score_ctx;
 
 static const char* file_mode_from_flags(int mode);
 static bool score_file_upgrade_to_curses(score_file_ctx* ctx, const char *filepath);
+static bool score_file_upgrade_to_current(score_file_ctx* ctx,
+                                          const char *filepath);
 
 score_file_ctx* score_file_set_active_ctx(score_file_ctx* ctx)
 {
@@ -47,24 +51,29 @@ score_file_ctx* score_file_global_ctx(void)
     return &global_score_ctx;
 }
 
-bool scores_version_has_curses(const score_file_ctx* ctx)
+static bool scores_version_at_least(const score_file_ctx* ctx, byte major,
+                                    byte minor, byte patch, byte extra)
 {
     if (!ctx)
         return false;
 
-    /* Compare version tuple: major.minor.patch.extra */
-    if (ctx->version_major > 0)
-        return true;
+    if (ctx->version_major != major)
+        return ctx->version_major > major;
+    if (ctx->version_minor != minor)
+        return ctx->version_minor > minor;
+    if (ctx->version_patch != patch)
+        return ctx->version_patch > patch;
+    return ctx->version_extra >= extra;
+}
 
-    if (ctx->version_minor > 9)
-        return true;
-    if (ctx->version_minor < 9)
-        return false;
+bool scores_version_has_curses(const score_file_ctx* ctx)
+{
+    return scores_version_at_least(ctx, 0, 9, 0, 6);
+}
 
-    if (ctx->version_patch > 0)
-        return true;
-
-    return (ctx->version_extra >= 6);
+bool scores_version_has_run_links(const score_file_ctx* ctx)
+{
+    return scores_version_at_least(ctx, 0, 9, 6, 3);
 }
 
 void score_file_reset_ctx(score_file_ctx* ctx)
@@ -205,6 +214,60 @@ static bool score_file_upgrade_to_curses(score_file_ctx* ctx, const char *filepa
     return true;
 }
 
+static bool score_file_upgrade_to_current(score_file_ctx* ctx,
+                                          const char *filepath)
+{
+    if (!ctx || !filepath)
+        return false;
+
+    if (scores_version_at_least(ctx, SCORE_FILE_VERSION_MAJOR,
+        SCORE_FILE_VERSION_MINOR, SCORE_FILE_VERSION_PATCH,
+        SCORE_FILE_VERSION_EXTRA))
+    {
+        return true;
+    }
+
+    FILE* file = fopen(filepath, "r+b");
+    if (!file) {
+        log_error("Cannot open scores file for version update: %s", filepath);
+        return false;
+    }
+
+    score_file_header header;
+    if (fread(&header, sizeof(header), 1, file) != 1) {
+        fclose(file);
+        log_error("Failed to read score header during version update");
+        return false;
+    }
+
+    log_info("Updating scores file header from v%d.%d.%d.%d to v%d.%d.%d.%d",
+             header.version_major, header.version_minor,
+             header.version_patch, header.version_extra,
+             SCORE_FILE_VERSION_MAJOR, SCORE_FILE_VERSION_MINOR,
+             SCORE_FILE_VERSION_PATCH, SCORE_FILE_VERSION_EXTRA);
+
+    header.version_major = SCORE_FILE_VERSION_MAJOR;
+    header.version_minor = SCORE_FILE_VERSION_MINOR;
+    header.version_patch = SCORE_FILE_VERSION_PATCH;
+    header.version_extra = SCORE_FILE_VERSION_EXTRA;
+
+    fseek(file, 0, SEEK_SET);
+    if (fwrite(&header, sizeof(header), 1, file) != 1) {
+        fclose(file);
+        log_error("Failed to write score header during version update");
+        return false;
+    }
+
+    fclose(file);
+
+    ctx->version_major = SCORE_FILE_VERSION_MAJOR;
+    ctx->version_minor = SCORE_FILE_VERSION_MINOR;
+    ctx->version_patch = SCORE_FILE_VERSION_PATCH;
+    ctx->version_extra = SCORE_FILE_VERSION_EXTRA;
+
+    return true;
+}
+
 SDL_IOStream* score_file_open(const char *filepath, int mode)
 {
     score_file_ctx* ctx = score_file_active_ctx();
@@ -235,6 +298,8 @@ SDL_IOStream* score_file_open(const char *filepath, int mode)
 
     if (exists && (mode & (O_RDWR | O_WRONLY))) {
         score_file_upgrade_to_curses(ctx, filepath);
+        score_file_load_header(ctx, filepath);
+        score_file_upgrade_to_current(ctx, filepath);
         score_file_load_header(ctx, filepath);
     }
 
@@ -929,6 +994,17 @@ void upsert_live_score_on_save(void)
     SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
     high_score live_score;
     create_score(&live_score);
+    {
+        u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+        time_t now = time(NULL);
+        if (score_runs_record_current_run_with_id(&live_score, now,
+            SCORE_RECORD_ALIVE, &run_record_id)) {
+            score_runs_set_legacy_link(&live_score, run_record_id);
+        } else {
+            log_warn("Failed to persist live run snapshot for '%s'",
+                op_ptr->full_name);
+        }
+    }
     SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
 
     if (highscore_seek(0) == 0) {

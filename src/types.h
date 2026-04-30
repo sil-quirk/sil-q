@@ -1473,8 +1473,8 @@ struct high_score
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */
-    char uid[8];         /* Player UID (number) */
-    char unused[2];      /* Was sex */
+    char uid[8];         /* Player UID, or linked runs.db record_id in score format 0.9.6.3+ */
+    char unused[2];      /* Link marker for score format 0.9.6.3+ rows */
     char p_r[3];         /* Player Race (number) */
     char p_h[3];         /* Player Character (number) */
     char cur_lev[4];     /* Unique monsters killed (number) */

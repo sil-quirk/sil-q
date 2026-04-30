@@ -94,9 +94,12 @@ byte g_left_panel_quiver_attack_end_cols[2] = { 0 };
 bool g_suppress_hidden_left_panel_overlay = false;
 static byte g_hidden_left_panel_topline_rendered_width = 0;
 
+#define STATUS_MAIN_MENU_HINT "main menu"
+
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
 static void prt_status_line_top(void);
+static void prt_status_line_main_menu_hint(bool compact_centered);
 static void prt_hidden_top_vitals(void);
 static bool status_state_text(char* out_long, size_t out_long_sz,
                               char* out_short, size_t out_short_sz,
@@ -2651,6 +2654,10 @@ static void prt_state(void)
         c_put_str(attr, text, ROW_STATE, COL_STATE);
         sdl_story_font_disable();
     }
+    else
+    {
+        prt_status_line_main_menu_hint(false);
+    }
 }
 
 /*
@@ -3040,6 +3047,61 @@ static const char* status_partition_short(const char* long_label)
     return long_label;
 }
 
+static bool status_line_span_blank(int row, int col, int width)
+{
+    if (!Term || !Term->scr || !Term->scr->c)
+        return false;
+    if (row < 0 || row >= Term->hgt)
+        return false;
+    if (col < 0 || width <= 0 || col + width > Term->wid)
+        return false;
+
+    for (int i = 0; i < width; i++)
+    {
+        unsigned char ch = (unsigned char)Term->scr->c[row][col + i];
+
+        if (ch && ch != (unsigned char)Term->char_blank && ch != ' ')
+            return false;
+    }
+
+    return true;
+}
+
+static void prt_status_line_main_menu_hint(bool compact_centered)
+{
+    const char* label = STATUS_MAIN_MENU_HINT;
+    int len = (int)strlen(label);
+    int row = ROW_STATE;
+    int col = COL_STATE;
+    byte attr = sdl_status_line_main_menu_hint_hovered()
+        ? TERM_L_BLUE
+        : TERM_SLATE;
+
+    if (!Term || !p_ptr || len <= 0)
+        return;
+    if (row < 0 || row >= Term->hgt)
+        return;
+    if (Term->wid < len)
+        return;
+
+    if (compact_centered)
+    {
+        col = (Term->wid - len) / 2;
+        if (!status_line_span_blank(row, col, len))
+            return;
+    }
+    else if (col < 0 || col + len > Term->wid)
+    {
+        return;
+    }
+
+    if (!compact_centered)
+        sdl_story_font_enable();
+    Term_putstr(col, row, len, attr, label);
+    if (!compact_centered)
+        sdl_story_font_disable();
+}
+
 static void prt_status_line_compact(void)
 {
     if (!Term || !p_ptr)
@@ -3290,6 +3352,8 @@ static void prt_status_line_compact(void)
         x += n;
         first = false;
     }
+
+    prt_status_line_main_menu_hint(true);
 }
 
 static void prt_status_line_top(void)
