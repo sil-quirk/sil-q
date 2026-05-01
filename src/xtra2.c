@@ -4248,18 +4248,27 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                     /* Recall, but not when raging */
                     if ((recall) && !p_ptr->rage)
                     {
+                        int recall_key;
+
                         /* Save screen */
                         screen_save();
 
                         /* Recall on screen */
-                        screen_roff(m_ptr->r_idx, m_ptr);
+                        recall_key = screen_roff(m_ptr->r_idx, m_ptr);
 
-                        /* Hack -- Complete the prompt (again) */
-                        Term_addstr(
-                            -1, TERM_WHITE, format("  [(r)ecall, %s]", info));
+                        if (recall_key)
+                        {
+                            query = (char)recall_key;
+                        }
+                        else
+                        {
+                            /* Hack -- Complete the prompt (again) */
+                            Term_addstr(-1, TERM_WHITE,
+                                format("  [(r)ecall, %s]", info));
 
-                        /* Command */
-                        query = inkey();
+                            /* Command */
+                            query = inkey();
+                        }
 
                         /* Load screen */
                         screen_load();

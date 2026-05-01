@@ -699,8 +699,10 @@ static void wr_lore(int r_idx)
     /* Monster limit per level */
     wr_byte(r_ptr->max_num);
 
-    // 8 spare bytes
-    wr_u32b(0L);
+    /* Song-revealed lore plus spare bytes */
+    wr_byte(l_ptr->song_lore_flags);
+    wr_byte(0);
+    wr_u16b(0);
     wr_u32b(0L);
 }
 

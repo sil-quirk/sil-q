@@ -4649,10 +4649,11 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx, m_ptr);
-                            
-                            /* Wait for input */
-                            inkey();
+                            if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            {
+                                /* Wait for input */
+                                inkey();
+                            }
                             
                             /* Restore screen */
                             screen_load();
@@ -4727,10 +4728,11 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx, m_ptr);
-                            
-                            /* Wait for input */
-                            inkey();
+                            if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            {
+                                /* Wait for input */
+                                inkey();
+                            }
                             
                             /* Restore screen */
                             screen_load();
@@ -4809,8 +4811,8 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        screen_roff(m_ptr->r_idx, m_ptr);
-                        inkey();
+                        if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            inkey();
                         screen_load();
                     }
                     else
@@ -5206,10 +5208,11 @@ command_key:
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx, m_ptr);
-                            
-                            /* Wait for input */
-                            inkey();
+                            if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            {
+                                /* Wait for input */
+                                inkey();
+                            }
                             
                             /* Restore screen */
                             screen_load();
@@ -5284,10 +5287,11 @@ command_key:
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx, m_ptr);
-                            
-                            /* Wait for input */
-                            inkey();
+                            if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            {
+                                /* Wait for input */
+                                inkey();
+                            }
                             
                             /* Restore screen */
                             screen_load();
@@ -5366,8 +5370,8 @@ command_key:
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        screen_roff(m_ptr->r_idx, m_ptr);
-                        inkey();
+                        if (!screen_roff(m_ptr->r_idx, m_ptr))
+                            inkey();
                         screen_load();
                     }
                     else
@@ -6255,21 +6259,33 @@ void do_cmd_query_symbol(void)
         /* Interact */
         while (1)
         {
+            query = 0;
+
             /* Recall (raging players don't get recall) */
             if (recall)
             {
+                int recall_key;
+
                 /* Save screen */
                 screen_save();
 
                 /* Recall on screen */
-                screen_roff(who[i], NULL);
+                recall_key = screen_roff(who[i], NULL);
 
-                /* Hack -- Complete the prompt (again) */
-                Term_addstr(-1, TERM_WHITE, " [(r)ecall, ESC]");
+                if (recall_key)
+                {
+                    query = (char)recall_key;
+                }
+                else
+                {
+                    /* Hack -- Complete the prompt (again) */
+                    Term_addstr(-1, TERM_WHITE, " [(r)ecall, ESC]");
+                }
             }
 
             /* Command */
-            query = inkey();
+            if (!recall || !query)
+                query = inkey();
 
             /* Unrecall */
             if (recall)

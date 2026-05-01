@@ -274,8 +274,23 @@ bool song_revealing_overlay(int m_idx, byte* a, char* c)
     return true;
 }
 
-#define SONG_DUEL_STACK_LIMIT 3
 #define SONG_DUEL_LOCKOUT_TURNS 10
+
+typedef struct song_contest_penalties
+{
+    int will;
+    int stealth;
+    int evasion;
+    int armour_dice;
+} song_contest_penalties;
+
+typedef struct song_lament_penalties
+{
+    int will;
+    int maxhp;
+    int damage_dice;
+    int damage_blows;
+} song_lament_penalties;
 
 static bool song_is_duel(int song)
 {
@@ -372,6 +387,132 @@ static void song_duel_reset_monster_stack(monster_type* m_ptr, int song)
     }
 }
 
+static int song_duel_armour_dice(const monster_type* m_ptr)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int dice = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+
+    if (dice < 0)
+        dice = 0;
+
+    dice += curse_flag_delta_cur(CUR_MON_ARM_DICE);
+
+    if (dice < 0)
+        dice = 0;
+
+    return dice;
+}
+
+static int song_duel_armour_sides(const monster_type* m_ptr, int armour_dice)
+{
+    int sides = monster_base_armour_sides(m_ptr);
+
+    sides += curse_flag_delta_cur(CUR_MON_ARM_SIDE);
+
+    if (sides < 0)
+        sides = 0;
+
+    if (armour_dice > 0 && sides < 1)
+        sides = 1;
+
+    return sides;
+}
+
+static void song_duel_blow_damage_dice(
+    const monster_type* m_ptr, int blow, int* dd, int* ds)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    *dd = r_ptr->blow[blow].dd;
+    *ds = r_ptr->blow[blow].ds;
+
+    if (*dd > 0 && m_ptr->blow_dd_reduction[blow] > 0)
+        *dd = MAX(1, *dd - m_ptr->blow_dd_reduction[blow]);
+
+    if (*ds > 0 && m_ptr->blow_ds_reduction[blow] > 0)
+        *ds = MAX(1, *ds - m_ptr->blow_ds_reduction[blow]);
+}
+
+static void song_duel_damage_dice_summary(
+    const monster_type* m_ptr, char* buf, size_t buf_size)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    bool any = false;
+
+    buf[0] = '\0';
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        char part[24];
+        int dd;
+        int ds;
+
+        if (!r_ptr->blow[i].method)
+            continue;
+
+        song_duel_blow_damage_dice(m_ptr, i, &dd, &ds);
+
+        if (dd <= 0 || ds <= 0)
+            continue;
+
+        strnfmt(part, sizeof(part), "%s%dd%d", any ? ", " : "", dd, ds);
+        SDL_strlcat(buf, part, buf_size);
+        any = true;
+    }
+
+    if (!any)
+        SDL_strlcpy(buf, "none", buf_size);
+}
+
+static void song_duel_learn_target_stats(monster_type* m_ptr, int song)
+{
+    monster_lore* l_ptr = &l_list[m_ptr->r_idx];
+
+    if (song == SNG_CONTEST)
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_CONTEST;
+    else if (song == SNG_LAMENT)
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_LAMENT;
+
+    p_ptr->window |= PW_MONSTER;
+}
+
+static void song_duel_reveal_target_stats(monster_type* m_ptr, int song)
+{
+    char m_name[80];
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    if (song == SNG_CONTEST)
+    {
+        int armour_dice = song_duel_armour_dice(m_ptr);
+        int armour_sides = song_duel_armour_sides(m_ptr, armour_dice);
+
+        if (armour_dice > 0 && armour_sides > 0)
+        {
+            msg_format(
+                "%s's contest stats: Will %d, Stealth %d, Evasion %+d, Armour %dd%d.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL),
+                total_monster_evasion(m_ptr, false), armour_dice, armour_sides);
+        }
+        else
+        {
+            msg_format(
+                "%s's contest stats: Will %d, Stealth %d, Evasion %+d, Armour none.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL),
+                total_monster_evasion(m_ptr, false));
+        }
+    }
+    else if (song == SNG_LAMENT)
+    {
+        char damage[96];
+
+        song_duel_damage_dice_summary(m_ptr, damage, sizeof(damage));
+        msg_format(
+            "%s's lament stats: Will %d, HP %d/%d, damage dice %s.",
+            m_name, monster_skill(m_ptr, S_WIL), m_ptr->hp, m_ptr->maxhp, damage);
+    }
+}
+
 static bool song_duel_select_target(int song)
 {
     const char* prompt = (song == SNG_CONTEST)
@@ -435,10 +576,10 @@ static bool song_duel_select_target(int song)
     return true;
 }
 
-static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
+static int song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
 {
     if (steps <= 0)
-        return;
+        return 0;
 
     int old_maxhp = m_ptr->maxhp;
     if (old_maxhp <= 0)
@@ -476,15 +617,24 @@ static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
 
         /* Morgoth's anger state depends on current HP% (and maxHP can change here). */
         maybe_update_morgoth_state_from_hp(m_ptr);
+
+        return hp_loss;
     }
+
+    return 0;
 }
 
-static void song_duel_reduce_monster_damage_dice(monster_type* m_ptr, int penalty)
+static int song_duel_reduce_monster_damage_dice(
+    monster_type* m_ptr, int penalty, int* affected_blows)
 {
     if (penalty <= 0)
-        return;
+        return 0;
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int total_reduction = 0;
+
+    if (affected_blows)
+        *affected_blows = 0;
 
     for (int b = 0; b < MONSTER_BLOW_MAX; b++)
     {
@@ -498,23 +648,41 @@ static void song_duel_reduce_monster_damage_dice(monster_type* m_ptr, int penalt
         int total = m_ptr->blow_dd_reduction[b] + penalty;
         if (total > max_reduction)
             total = max_reduction;
-        m_ptr->blow_dd_reduction[b] = (byte)total;
+
+        int delta = total - m_ptr->blow_dd_reduction[b];
+        if (delta > 0)
+        {
+            total_reduction += delta;
+            if (affected_blows)
+                (*affected_blows)++;
+            m_ptr->blow_dd_reduction[b] = (byte)total;
+        }
     }
+
+    return total_reduction;
 }
 
-static void song_duel_apply_lament_penalties(monster_type* m_ptr, int song_skill)
+static song_lament_penalties song_duel_apply_lament_penalties(
+    monster_type* m_ptr, int song_skill)
 {
+    song_lament_penalties applied = { 0, 0, 0, 0 };
     int will_penalty = MAX(1, song_skill / 2);
     int con_penalty = MAX(1, song_skill / 12);
 
     m_ptr->song_will_penalty += will_penalty;
+    applied.will = will_penalty;
 
-    song_duel_reduce_monster_hp(m_ptr, con_penalty);
-    song_duel_reduce_monster_damage_dice(m_ptr, con_penalty);
+    applied.maxhp = song_duel_reduce_monster_hp(m_ptr, con_penalty);
+    applied.damage_dice = song_duel_reduce_monster_damage_dice(
+        m_ptr, con_penalty, &applied.damage_blows);
+
+    return applied;
 }
 
-static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skill)
+static song_contest_penalties song_duel_apply_contest_penalties(
+    monster_type* m_ptr, int song_skill)
 {
+    song_contest_penalties applied = { 0, 0, 0, 0 };
     int will_penalty = MAX(1, song_skill / 3);
     int stealth_penalty = MAX(1, song_skill / 2);
     int evasion_penalty = MAX(1, song_skill / 5);
@@ -523,6 +691,9 @@ static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skil
     m_ptr->song_will_penalty += will_penalty;
     m_ptr->song_stealth_penalty += stealth_penalty;
     m_ptr->song_evasion_penalty += evasion_penalty;
+    applied.will = will_penalty;
+    applied.stealth = stealth_penalty;
+    applied.evasion = evasion_penalty;
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int max_penalty = r_ptr->pd;
@@ -532,8 +703,11 @@ static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skil
         int total = m_ptr->song_armor_dice_penalty + armor_penalty;
         if (total > max_penalty)
             total = max_penalty;
+        applied.armour_dice = total - m_ptr->song_armor_dice_penalty;
         m_ptr->song_armor_dice_penalty = (byte)total;
     }
+
+    return applied;
 }
 
 static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int song_skill)
@@ -547,10 +721,33 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
         msg_format("%s succumbs to your lament!", m_name);
 
     if (song == SNG_CONTEST)
-        song_duel_apply_contest_penalties(m_ptr, song_skill);
+    {
+        song_contest_penalties applied
+            = song_duel_apply_contest_penalties(m_ptr, song_skill);
+        msg_format(
+            "%s is diminished: Will -%d, Stealth -%d, Evasion -%d, armour dice -%d.",
+            m_name, applied.will, applied.stealth, applied.evasion,
+            applied.armour_dice);
+    }
     else
     {
-        song_duel_apply_lament_penalties(m_ptr, song_skill);
+        song_lament_penalties applied
+            = song_duel_apply_lament_penalties(m_ptr, song_skill);
+
+        if (applied.damage_dice > 0)
+        {
+            msg_format(
+                "%s is diminished: Will -%d, max HP -%d, damage dice -%d across %d blow%s.",
+                m_name, applied.will, applied.maxhp, applied.damage_dice,
+                applied.damage_blows, (applied.damage_blows == 1) ? "" : "s");
+        }
+        else
+        {
+            msg_format(
+                "%s is diminished: Will -%d, max HP -%d, damage dice -0.",
+                m_name, applied.will, applied.maxhp);
+        }
+
         // Song of Lament always drains Grace - no resistance
         if (dec_stat(A_GRA, 1, false))
             msg_print("You feel drained.");
@@ -619,6 +816,8 @@ static bool song_duel_process_contest(int song_skill)
     char m_name[80];
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
+    song_duel_learn_target_stats(m_ptr, SNG_CONTEST);
+
     int player_skill = song_skill + (p_ptr->skill_use[S_WIL] / 2);
     int monster_will = monster_skill(m_ptr, S_WIL);
 
@@ -682,6 +881,8 @@ static bool song_duel_process_lament(int song_skill)
 
     char m_name[80];
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    song_duel_learn_target_stats(m_ptr, SNG_LAMENT);
 
     int player_skill = song_skill + (p_ptr->skill_use[S_WIL] / 2);
     int monster_will = monster_skill(m_ptr, S_WIL);
@@ -8153,6 +8354,16 @@ void change_song(int song)
     if ((song_to_change == 2) || (song == SNG_NOTHING))
     {
         p_ptr->song2 = song;
+    }
+
+    if ((song_to_change == 1) && new_song_is_duel && (song != SNG_NOTHING))
+    {
+        monster_type* m_ptr = song_duel_get_target(song);
+        if (m_ptr)
+        {
+            song_duel_learn_target_stats(m_ptr, song);
+            song_duel_reveal_target_stats(m_ptr, song);
+        }
     }
 
     // Display synergy message if a woven theme pair is detected

@@ -28,6 +28,11 @@
 #define SDL_TOUCH_MENU_CATEGORY_OTHER 2
 #define SDL_TOUCH_MENU_CATEGORY_COUNT 3
 
+#define SDL_TOUCH_PROFILE_TOUCH_PANE 0
+#define SDL_TOUCH_PROFILE_CORNERS 1
+#define SDL_TOUCH_PROFILE_ROUND_WHEEL 2
+#define SDL_TOUCH_PROFILE_COUNT 3
+
 #define SDL_TOUCH_MOVEMENT_ON 0
 #define SDL_TOUCH_MOVEMENT_OFF 1
 #define SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY 2
@@ -154,6 +159,8 @@ struct sdl_config {
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
     bool mouse_enabled;
     int mouse_movement_mode;
+    int touch_profile;
+    bool touch_pane_default_open;
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
@@ -164,6 +171,7 @@ struct sdl_config {
     bool touch_round_movement_enabled;
     int touch_zone_overlay_mode;
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
+    bool touch_top_panel_default_open;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     bool touch_swipe_enabled;

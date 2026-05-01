@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "sdl-config.h"
 
 /*
  * Pronoun arrays, by gender.
@@ -53,6 +54,73 @@ static bool know_damage(const monster_lore* l_ptr, int i)
 
     /* Assume false */
     return (false);
+}
+
+static bool lore_knows_contest_stats(const monster_lore* l_ptr)
+{
+    return ((l_ptr->song_lore_flags & MONSTER_LORE_SONG_CONTEST) != 0);
+}
+
+static bool lore_knows_lament_stats(const monster_lore* l_ptr)
+{
+    return ((l_ptr->song_lore_flags & MONSTER_LORE_SONG_LAMENT) != 0);
+}
+
+static int monster_lore_live_index(const monster_type* m_ptr)
+{
+    if (!m_ptr)
+        return 0;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        if (&mon_list[i] == m_ptr)
+            return i;
+    }
+
+    return 0;
+}
+
+static bool monster_lore_is_current_duel_target(
+    const monster_type* m_ptr, int song)
+{
+    int m_idx = monster_lore_live_index(m_ptr);
+
+    return (m_idx > 0) && (p_ptr->song_target_idx == m_idx)
+        && (p_ptr->song_target_song == song);
+}
+
+static bool monster_lore_has_damage_dice_reduction(const monster_type* m_ptr)
+{
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        if (m_ptr->blow_dd_reduction[i] > 0)
+            return true;
+    }
+
+    return false;
+}
+
+static void monster_lore_learn_live_song_duels(
+    monster_lore* l_ptr, const monster_type* m_ptr)
+{
+    if (!m_ptr)
+        return;
+
+    if (monster_lore_is_current_duel_target(m_ptr, SNG_CONTEST)
+        || (m_ptr->song_contest_stacks > 0) || m_ptr->song_contest_completed
+        || (m_ptr->song_stealth_penalty > 0) || (m_ptr->song_evasion_penalty > 0)
+        || (m_ptr->song_armor_dice_penalty > 0))
+    {
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_CONTEST;
+    }
+
+    if (monster_lore_is_current_duel_target(m_ptr, SNG_LAMENT)
+        || (m_ptr->song_lament_stacks > 0) || m_ptr->song_lament_completed
+        || (monster_song_hp_loss(m_ptr) > 0)
+        || monster_lore_has_damage_dice_reduction(m_ptr))
+    {
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_LAMENT;
+    }
 }
 
 static void describe_monster_desc(int r_idx)
@@ -412,8 +480,8 @@ static void describe_monster_attack(
             continue;
 
         /* Count known attacks */
-        if ((l_ptr->blows[m]) || (l_ptr->tsights == MAX_SHORT)
-            || (l_ptr->ranged == MAX_UCHAR))
+        if ((l_ptr->blows[m]) || lore_knows_lament_stats(l_ptr)
+            || (l_ptr->tsights == MAX_SHORT) || (l_ptr->ranged == MAX_UCHAR))
             n++;
     }
 
@@ -427,7 +495,7 @@ static void describe_monster_attack(
             continue;
 
         /* Skip unknown attacks */
-        if (!l_ptr->blows[m])
+        if (!l_ptr->blows[m] && !lore_knows_lament_stats(l_ptr))
             continue;
 
         /* Extract the attack info */
@@ -637,8 +705,8 @@ static void describe_monster_attack(
             text_out_c(TERM_L_RED, q);
 
             /* Describe damage (if known) */
-            if ((know_damage(l_ptr, m)) || (l_ptr->tsights == MAX_SHORT)
-                || (l_ptr->ranged == MAX_UCHAR))
+            if ((know_damage(l_ptr, m)) || lore_knows_lament_stats(l_ptr)
+                || (l_ptr->tsights == MAX_SHORT) || (l_ptr->ranged == MAX_UCHAR))
             {
                 if (d1 > 0 && d2 > 0)
                 {
@@ -1216,6 +1284,10 @@ static void describe_monster_toughness(
     int r_idx, const monster_lore* l_ptr, const monster_type* m_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
+    bool knows_full_toughness = ((know_armour(l_ptr->tkills))
+        || (l_ptr->tsights == MAX_SHORT) || (l_ptr->ranged == MAX_UCHAR));
+    bool knows_hp = knows_full_toughness || lore_knows_lament_stats(l_ptr);
+    bool knows_defence = knows_full_toughness || lore_knows_contest_stats(l_ptr);
 
     int msex = 0;
 
@@ -1226,8 +1298,7 @@ static void describe_monster_toughness(
         msex = 1;
 
     /* Describe monster "toughness" */
-    if ((know_armour(l_ptr->tkills)) || (l_ptr->tsights == MAX_SHORT)
-        || (l_ptr->ranged == MAX_UCHAR))
+    if (knows_hp || knows_defence)
     {
         int evn = r_ptr->evn;
         int prot_dice = r_ptr->pd;
@@ -1242,18 +1313,26 @@ static void describe_monster_toughness(
         else
             strnfmt(hp_text, sizeof(hp_text), "%d", r_ptr->hside);
 
-        text_out(format("%^s has ", wd_he[msex]));
-        text_out_c(TERM_GREEN, hp_text);
-        if (m_ptr)
+        if (knows_hp)
         {
-            int hp_loss = monster_song_hp_loss(m_ptr);
-            if (hp_loss > 0)
-                text_out_c(TERM_L_RED, format("-%d", hp_loss));
+            text_out(format("%^s has ", wd_he[msex]));
+            if (m_ptr && lore_knows_lament_stats(l_ptr))
+                text_out_c(TERM_GREEN, format("%d/%d", m_ptr->hp, m_ptr->maxhp));
+            else
+            {
+                text_out_c(TERM_GREEN, hp_text);
+                if (m_ptr)
+                {
+                    int hp_loss = monster_song_hp_loss(m_ptr);
+                    if (hp_loss > 0)
+                        text_out_c(TERM_L_RED, format("-%d", hp_loss));
+                }
+            }
+            text_out(" hp");
         }
-        text_out(" hp ");
 
         /* Defence */
-        if (m_ptr)
+        if (knows_defence && m_ptr)
         {
             monster_type* live = (monster_type*)m_ptr;
             evn = total_monster_evasion(live, false);
@@ -1275,16 +1354,22 @@ static void describe_monster_toughness(
                 prot_sides = 1;
         }
 
-        text_out("and a defence of ");
-        if ((prot_dice > 0) && (prot_sides > 0))
+        if (knows_hp && knows_defence)
+            text_out(" and a defence of ");
+        else if (knows_defence)
+            text_out(format("%^s has a defence of ", wd_he[msex]));
+
+        if (knows_defence && (prot_dice > 0) && (prot_sides > 0))
         {
             text_out_c(
-                TERM_SLATE, format("[%+d, %dd%d].  ", evn, prot_dice, prot_sides));
+                TERM_SLATE, format("[%+d, %dd%d]", evn, prot_dice, prot_sides));
         }
-        else
+        else if (knows_defence)
         {
-            text_out_c(TERM_SLATE, format("[%+d].  ", evn));
+            text_out_c(TERM_SLATE, format("[%+d]", evn));
         }
+
+        text_out(".  ");
     }
 }
 
@@ -1295,6 +1380,9 @@ static void describe_monster_skills(
 
     int msex = 0;
     cptr act;
+    bool knows_normal_skills;
+    bool knows_will;
+    bool knows_stealth;
 
     /* Extract a gender (if applicable) */
     if (r_ptr->flags1 & RF1_FEMALE)
@@ -1302,14 +1390,22 @@ static void describe_monster_skills(
     else if (r_ptr->flags1 & RF1_MALE)
         msex = 1;
 
-    /* Describe experience if known */
-    if ((l_ptr->ranged == MAX_UCHAR)
+    knows_normal_skills = ((l_ptr->ranged == MAX_UCHAR)
         || ((l_ptr->tsights > 1)
-            && (10 - l_ptr->tsights < p_ptr->skill_use[S_PER])))
+            && (10 - l_ptr->tsights < p_ptr->skill_use[S_PER])));
+    knows_will = knows_normal_skills || lore_knows_contest_stats(l_ptr)
+        || lore_knows_lament_stats(l_ptr);
+    knows_stealth = (knows_normal_skills
+        && p_ptr->active_ability[S_PER][PER_LISTEN])
+        || lore_knows_contest_stats(l_ptr);
+
+    /* Describe experience if known */
+    if (knows_will || knows_stealth || knows_normal_skills)
     {
         int will = r_ptr->wil;
         int stealth = r_ptr->stl;
         int perception = r_ptr->per;
+        bool printed = false;
 
         if (m_ptr)
         {
@@ -1320,17 +1416,27 @@ static void describe_monster_skills(
         }
 
         text_out(format("%^s has ", wd_he[msex]));
-        text_out_c(TERM_L_GREEN, format("%d", will));
-        text_out(" Will,");
-        if (p_ptr->active_ability[S_PER][PER_LISTEN])
+        if (knows_will)
         {
-            text_out(" ");
-            text_out_c(TERM_L_GREEN, format("%d", stealth));
-            text_out(" Stealth,");
+            text_out_c(TERM_L_GREEN, format("%d", will));
+            text_out(" Will");
+            printed = true;
         }
-        text_out(" ");
-        text_out_c(TERM_L_GREEN, format("%d", perception));
-        text_out(" Perception");
+        if (knows_stealth)
+        {
+            if (printed)
+                text_out(", ");
+            text_out_c(TERM_L_GREEN, format("%d", stealth));
+            text_out(" Stealth");
+            printed = true;
+        }
+        if (knows_normal_skills)
+        {
+            if (printed)
+                text_out(", ");
+            text_out_c(TERM_L_GREEN, format("%d", perception));
+            text_out(" Perception");
+        }
 
         if (r_ptr->sleep > 20) // 21 +
         {
@@ -1361,7 +1467,7 @@ static void describe_monster_skills(
             act = "is ever vigilant";
         }
 
-        if (r_ptr->flags2 & (RF2_MINDLESS))
+        if (!knows_normal_skills || (r_ptr->flags2 & (RF2_MINDLESS)))
         {
             text_out(".  ");
         }
@@ -1370,6 +1476,36 @@ static void describe_monster_skills(
             text_out(format(", and %s.  ", act));
         }
     }
+}
+
+static void describe_monster_song_duel_progress(
+    const monster_lore* l_ptr, const monster_type* m_ptr)
+{
+    bool printed = false;
+
+    if (!m_ptr)
+        return;
+
+    if (lore_knows_contest_stats(l_ptr) && !m_ptr->song_contest_completed)
+    {
+        text_out_c(TERM_YELLOW,
+            format("Song of Contest pressure: %d/%d",
+                m_ptr->song_contest_stacks, SONG_DUEL_STACK_LIMIT));
+        printed = true;
+    }
+
+    if (lore_knows_lament_stats(l_ptr) && !m_ptr->song_lament_completed)
+    {
+        if (printed)
+            text_out("; ");
+        text_out_c(TERM_YELLOW,
+            format("Song of Lament pressure: %d/%d",
+                m_ptr->song_lament_stacks, SONG_DUEL_STACK_LIMIT));
+        printed = true;
+    }
+
+    if (printed)
+        text_out(".  ");
 }
 
 static void describe_monster_exp(int r_idx, const monster_lore* l_ptr)
@@ -1688,6 +1824,8 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     const monster_race* r_ptr = &r_info[r_idx];
     monster_lore* l_ptr = &l_list[r_idx];
 
+    monster_lore_learn_live_song_duels(l_ptr, m_ptr);
+
     /* Cheat -- know everything */
     if ((cheat_know) || know_monster_info)
     {
@@ -1748,6 +1886,9 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     /* Describe the known skills */
     describe_monster_skills(r_idx, &lore, m_ptr);
 
+    /* Describe duel-song pressure on this individual monster */
+    describe_monster_song_duel_progress(&lore, m_ptr);
+
     /* Describe the monster drop */
     describe_monster_drop(r_idx, &lore);
 
@@ -1801,28 +1942,316 @@ void roff_top(int r_idx)
     Term_addstr(-1, TERM_SLATE, "");
 }
 
-/*
- * Hack -- describe the given monster race at the top of the screen
- */
-void screen_roff(int r_idx, const monster_type* m_ptr)
+typedef struct monster_recall_screen_capture
+{
+    int width;
+    int height;
+    byte* attrs;
+    char* chars;
+    byte* story;
+} monster_recall_screen_capture;
+
+static void monster_recall_screen_capture_free(
+    monster_recall_screen_capture* capture)
+{
+    if (!capture)
+        return;
+
+    mem_free_null(capture->attrs);
+    mem_free_null(capture->chars);
+    mem_free_null(capture->story);
+
+    capture->width = 0;
+    capture->height = 0;
+}
+
+static int monster_recall_screen_capture_used_rows(term* t)
+{
+    if (!t || !t->scr)
+        return 0;
+
+    for (int y = t->hgt - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < t->wid; x++)
+        {
+            if ((t->scr->c[y][x] != ' ')
+                || (t->scr->a[y][x] != t->attr_blank)
+                || (t->scr->story[y][x] != 0))
+            {
+                return y + 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static bool monster_recall_screen_capture_build(
+    int r_idx, const monster_type* m_ptr,
+    monster_recall_screen_capture* capture)
+{
+    term scratch;
+    term* saved_term = Term;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    story_font_term_state story_state;
+    bool story_pushed = false;
+    bool scratch_ready = false;
+    bool success = false;
+    bool use_story_font = story_monster_desc_enabled();
+    int term_wid = 80;
+    int term_hgt = 24;
+    int used_rows;
+
+    if (!capture || !saved_term)
+        return false;
+
+    SDL_memset(capture, 0, sizeof(*capture));
+    SDL_memset(&scratch, 0, sizeof(scratch));
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 20)
+        term_wid = 20;
+    (void)term_hgt;
+
+    if (term_init(&scratch, term_wid, 255, 16) != 0)
+        goto cleanup;
+    scratch_ready = true;
+
+    Term_activate(&scratch);
+    story_font_term_push(use_story_font, false, &story_state);
+    story_pushed = true;
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = (term_wid > 2) ? (term_wid - 1) : 0;
+    text_out_indent = 0;
+
+    Term_clear();
+    roff_top(r_idx);
+    Term_gotoxy(0, 1);
+    Term_erase(0, 1, 255);
+    describe_monster(r_idx, false, m_ptr);
+
+    used_rows = monster_recall_screen_capture_used_rows(Term);
+    if (used_rows < 1)
+        used_rows = 1;
+
+    capture->width = term_wid;
+    capture->height = used_rows;
+    capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
+    capture->chars = mem_alloc_array(capture->width * capture->height, char);
+    capture->story = mem_alloc_array(capture->width * capture->height, byte);
+
+    for (int y = 0; y < capture->height; y++)
+    {
+        for (int x = 0; x < capture->width; x++)
+        {
+            int idx = y * capture->width + x;
+            capture->attrs[idx] = scratch.scr->a[y][x];
+            capture->chars[idx] = scratch.scr->c[y][x];
+            capture->story[idx] = scratch.scr->story[y][x];
+        }
+    }
+
+    success = true;
+
+cleanup:
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+
+    if (story_pushed)
+        story_font_term_pop(&story_state);
+
+    if (saved_term && Term != saved_term)
+        Term_activate(saved_term);
+
+    if (scratch_ready)
+        term_nuke(&scratch);
+
+    if (!success)
+        monster_recall_screen_capture_free(capture);
+
+    return success;
+}
+
+static void monster_recall_screen_capture_draw(
+    const monster_recall_screen_capture* capture, int scroll)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int visible_rows;
+    int prompt_row;
+    int max_scroll;
+    char prompt[96];
+    char scroll_buf[32];
+    bool old_story_active = false;
+    bool old_story_grid = false;
+
+    if (!capture || !capture->attrs || !capture->chars || !capture->story)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    visible_rows = MAX(1, term_hgt - 1);
+    prompt_row = MAX(0, term_hgt - 1);
+    max_scroll = MAX(0, capture->height - visible_rows);
+
+    if (scroll < 0)
+        scroll = 0;
+    if (scroll > max_scroll)
+        scroll = max_scroll;
+
+    old_story_active = Term->story_font_active;
+    old_story_grid = Term->story_font_grid;
+
+    Term_clear();
+
+    for (int row = 0; row < visible_rows; row++)
+    {
+        int src_row = row + scroll;
+
+        if (src_row >= capture->height)
+            break;
+
+        for (int col = 0; col < capture->width && col < term_wid; col++)
+        {
+            int idx = src_row * capture->width + col;
+
+            Term->story_font_active =
+                ((capture->story[idx] & STORY_FLAG_USE) != 0);
+            Term->story_font_grid =
+                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
+
+            Term_queue_char(
+                col, row, capture->attrs[idx], capture->chars[idx], 0, 0);
+        }
+    }
+
+    Term->story_font_active = old_story_active;
+    Term->story_font_grid = old_story_grid;
+
+    if (term_wid >= 70)
+    {
+        SDL_strlcpy(prompt,
+            "(press ESC to exit, Space for next page, Arrows/Keypad to scroll)",
+            sizeof(prompt));
+    }
+    else if (term_wid >= 40)
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Space page, Arrows scroll)",
+            sizeof(prompt));
+    }
+    else
+    {
+        SDL_strlcpy(prompt, "(ESC exit, Arrows scroll)", sizeof(prompt));
+    }
+
+    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
+
+    if (max_scroll > 0)
+    {
+        int scroll_col;
+
+        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
+            max_scroll + 1);
+        scroll_col = term_wid - (int)strlen(scroll_buf);
+        if (scroll_col < 0)
+            scroll_col = 0;
+        Term_putstr(scroll_col, prompt_row, -1, TERM_SLATE, scroll_buf);
+    }
+
+    Term_fresh();
+}
+
+static int monster_recall_screen_capture_view(
+    const monster_recall_screen_capture* capture)
+{
+    int scroll = 0;
+    int exit_key = ESCAPE;
+
+    if (!capture)
+        return 0;
+
+    while (true)
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int visible_rows;
+        int max_scroll;
+        int dir;
+        char ch;
+
+        Term_get_size(&term_wid, &term_hgt);
+        visible_rows = MAX(1, term_hgt - 1);
+        max_scroll = MAX(0, capture->height - visible_rows);
+
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        monster_recall_screen_capture_draw(capture, scroll);
+        ui_scroll_area_begin(0, MAX(0, term_hgt - 1),
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_tap_key(ESCAPE);
+
+        ch = inkey();
+        dir = target_dir(ch);
+        if ((dir == 8) || (dir == 2))
+            ch = I2D(dir);
+
+        if ((ch == '8') || (ch == '='))
+        {
+            if (scroll > 0)
+                scroll--;
+        }
+        else if ((ch == '2') || (ch == '\n') || (ch == '\r'))
+        {
+            if (scroll < max_scroll)
+                scroll++;
+        }
+        else if ((ch == '3') || (ch == ' '))
+        {
+            scroll += visible_rows;
+            if (scroll > max_scroll)
+                scroll = max_scroll;
+        }
+        else if ((ch == '9') || (ch == '-'))
+        {
+            scroll -= visible_rows;
+            if (scroll < 0)
+                scroll = 0;
+        }
+        else
+        {
+            exit_key = ch;
+            break;
+        }
+    }
+
+    ui_scroll_area_clear();
+    return exit_key;
+}
+
+static void monster_recall_screen_draw_plain(
+    int r_idx, const monster_type* m_ptr)
 {
     bool use_story_font = story_monster_desc_enabled();
     story_font_term_state story_state;
-    story_font_term_push(use_story_font, false, &story_state);
-
-    /* Flush messages */
-    message_flush();
-
-    /* Begin recall */
-    Term_erase(0, 1, 255);
-
-    /* Output to the screen */
     void (*old_hook)(byte, cptr) = text_out_hook;
     int old_indent = text_out_indent;
     int old_wrap = text_out_wrap;
+    int wid = 0;
+    int hgt = 0;
 
-    int wid = 0, hgt = 0;
+    story_font_term_push(use_story_font, false, &story_state);
+
+    /* Begin recall */
+    Term_erase(0, 1, 255);
+    Term_gotoxy(0, 1);
+
     Term_get_size(&wid, &hgt);
+    (void)hgt;
     text_out_indent = 0;
     text_out_wrap = (wid > 2) ? (wid - 1) : 0;
     text_out_hook = text_out_to_screen;
@@ -1841,6 +2270,42 @@ void screen_roff(int r_idx, const monster_type* m_ptr)
     text_out_wrap = old_wrap;
 
     story_font_term_pop(&story_state);
+}
+
+/*
+ * Hack -- describe the given monster race at the top of the screen
+ *
+ * Returns the key that dismissed the scrollable recall view, or zero when
+ * the legacy one-screen display was used and the caller should still wait.
+ */
+int screen_roff(int r_idx, const monster_type* m_ptr)
+{
+    monster_recall_screen_capture capture;
+    bool have_capture;
+    int term_wid = 80;
+    int term_hgt = 24;
+
+    /* Flush messages */
+    message_flush();
+
+    Term_get_size(&term_wid, &term_hgt);
+    (void)term_wid;
+
+    have_capture = monster_recall_screen_capture_build(r_idx, m_ptr, &capture);
+    if (have_capture && capture.height > term_hgt)
+    {
+        int exit_key = monster_recall_screen_capture_view(&capture);
+
+        monster_recall_screen_capture_free(&capture);
+        return exit_key;
+    }
+
+    if (have_capture)
+        monster_recall_screen_capture_free(&capture);
+
+    monster_recall_screen_draw_plain(r_idx, m_ptr);
+
+    return 0;
 }
 
 /*

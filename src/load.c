@@ -1050,14 +1050,17 @@ static void rd_lore(int r_idx)
     /* Read the "Racial" monster limit per level */
     rd_byte(&r_ptr->max_num);
 
-    // 8 spare bytes
-    strip_bytes(8);
+    /* Song-revealed lore plus spare bytes */
+    rd_byte(&l_ptr->song_lore_flags);
+    strip_bytes(7);
 
     /* Repair the lore flags */
     l_ptr->flags1 &= r_ptr->flags1;
     l_ptr->flags2 &= r_ptr->flags2;
     l_ptr->flags3 &= r_ptr->flags3;
     l_ptr->flags4 &= r_ptr->flags4;
+    l_ptr->song_lore_flags
+        &= (MONSTER_LORE_SONG_CONTEST | MONSTER_LORE_SONG_LAMENT);
 }
 
 static void rd_monster_race_stats(monster_race* r_ptr)

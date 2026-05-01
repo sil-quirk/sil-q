@@ -522,6 +522,8 @@ struct monster_lore
     u32b flags2; /* Observed racial flags */
     u32b flags3; /* Observed racial flags */
     u32b flags4; /* Observed racial flags */
+
+    byte song_lore_flags; /* Stats revealed by duel songs */
 };
 
 /*

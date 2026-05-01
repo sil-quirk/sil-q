@@ -972,7 +972,7 @@ extern void monster_perception(
 extern void describe_monster(
     int r_idx, bool spoilers, const monster_type* m_ptr);
 extern void roff_top(int r_idx);
-extern void screen_roff(int r_idx, const monster_type* m_ptr);
+extern int screen_roff(int r_idx, const monster_type* m_ptr);
 extern void display_roff(int r_idx, const monster_type* m_ptr);
 
 /* monster2.c */
@@ -1975,6 +1975,9 @@ extern void set_sdl_mouse_enabled(bool enabled);
 extern bool get_sdl_mouse_default_enabled(void);
 extern bool get_sdl_touch_pane_enabled(void);
 extern void set_sdl_touch_pane_enabled(bool value);
+extern bool get_sdl_touch_pane_default_open(void);
+extern void set_sdl_touch_pane_default_open(bool value);
+extern bool get_sdl_touch_pane_default_open_default(void);
 extern int get_sdl_touch_pane_placement(void);
 extern void set_sdl_touch_pane_placement(int placement);
 extern int get_sdl_touch_pane_binding(int index);
@@ -1998,6 +2001,10 @@ extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
 extern bool get_sdl_touch_menu_commands_enabled(int category);
 extern void set_sdl_touch_menu_commands_enabled(int category, bool value);
 extern bool get_sdl_touch_menu_commands_default_enabled(int category);
+extern int get_sdl_touch_profile(void);
+extern void set_sdl_touch_profile(int profile);
+extern int get_sdl_touch_profile_default(void);
+extern void sdl_touch_apply_profile(int profile);
 extern int get_sdl_touch_movement_mode(void);
 extern void set_sdl_touch_movement_mode(int mode);
 extern int get_sdl_touch_movement_default_mode(void);
@@ -2010,6 +2017,9 @@ extern int get_sdl_touch_zone_overlay_default_mode(void);
 extern int get_sdl_touch_zone_center_binding(int index);
 extern void set_sdl_touch_zone_center_binding(int index, int binding);
 extern int get_sdl_touch_zone_center_default_binding(int index);
+extern bool get_sdl_touch_top_panel_default_open(void);
+extern void set_sdl_touch_top_panel_default_open(bool value);
+extern bool get_sdl_touch_top_panel_default_open_default(void);
 extern int get_sdl_touch_top_panel_binding(int index, bool long_press);
 extern void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding);
 extern int get_sdl_touch_top_panel_default_binding(int index, bool long_press);

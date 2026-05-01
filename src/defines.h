@@ -697,6 +697,13 @@
 #define SNG_EXCHANGE_THEMES 101
 
 /*
+ * Duel songs and monster lore revealed by them
+ */
+#define SONG_DUEL_STACK_LIMIT 3
+#define MONSTER_LORE_SONG_CONTEST 0x01
+#define MONSTER_LORE_SONG_LAMENT 0x02
+
+/*
  * Special abilities (quest rewards etc.)
  * These are not purchaseable with experience; they are only granted.
  */

@@ -3235,8 +3235,8 @@ static void run_history_examine_monster(const score_run_detail_block* details,
 
     if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
         screen_save();
-        screen_roff(entry->r_idx, NULL);
-        (void)inkey();
+        if (!screen_roff(entry->r_idx, NULL))
+            (void)inkey();
         screen_load();
     } else {
         bell("Monster information not available.");
