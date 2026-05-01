@@ -1676,6 +1676,34 @@ static void display_player_deep_call_line(int x, int y, int line_w)
     value_attr = format_deep_call_value(value_buf, sizeof(value_buf), val_w);
     put_single_right(x, y, line_w, label, value_buf, val_w, value_attr);
 }
+
+static void display_player_trait_putstr_fit(int col, int row, int max_width,
+    byte attr, cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (row < 0 || row >= hgt)
+        return;
+    if (col < 0)
+        col = 0;
+    if (col >= wid)
+        return;
+
+    if (max_width <= 0 || col + max_width > wid)
+        max_width = wid - col;
+    if (max_width <= 0)
+        return;
+
+    Term_erase(col, row, max_width);
+    Term_putstr(col, row, max_width, attr, text ? text : "");
+}
 /* ======================================================================= */
 
 void display_player_xtra_info(int mode)
@@ -1686,6 +1714,7 @@ void display_player_xtra_info(int mode)
     int col_stats;
     int col_flags;
     int col_skills;
+    int flags_width;
     int skill_first_row = 6;
     int history_first_row = 15;
     bool compact_overview = (mode == 100);
@@ -1719,11 +1748,17 @@ void display_player_xtra_info(int mode)
         wide_offset = (term_wid - 80) / 2;
 
     col_stats = wide_offset + 1;
-    col_flags = wide_offset + 23;
+    col_flags = wide_offset + 22;
     col_skills = wide_offset + 41;
 
     if (compact_overview)
-        col_flags = col_stats + 22;
+        col_flags = col_stats + 21;
+
+    flags_width = col_skills - col_flags;
+    if (flags_width < 1)
+        flags_width = term_wid - col_flags;
+    if (flags_width < 1)
+        flags_width = 1;
 
     /* -------------------- STATS (col 1..20) ----------------------------- */
 
@@ -1946,13 +1981,17 @@ void display_player_xtra_info(int mode)
     }
     
     for (int i = 0; i < uniq_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            uniq_buf[i].col, uniq_buf[i].txt);
     for (int i = 0; i < ma_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, ma_buf[i].col, ma_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            ma_buf[i].col, ma_buf[i].txt);
     for (int i = 0; i < af_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, af_buf[i].col, af_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            af_buf[i].col, af_buf[i].txt);
     for (int i = 0; i < pen_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            pen_buf[i].col, pen_buf[i].txt);
 
     /* Disable story font after rendering flags/abilities */
     if (story_character_enabled()) {

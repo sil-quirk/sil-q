@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "sdl-config.h"
 
 static void cmd6_prompt_label(int binding, const char* fallback, char* buf,
     size_t buflen)
@@ -264,6 +265,11 @@ static bool sanctity_choose_target_from_entries(
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(list_row, help_row - 1,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
 
         prt("Cleanse which item?", 0, 0);
         strnfmt(buf, sizeof(buf), "%d eligible sanctity target%s",
@@ -400,6 +406,7 @@ static bool sanctity_choose_target_from_entries(
         if (steamdeck && key == steamdeck_back_key())
         {
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
         }
@@ -408,6 +415,7 @@ static bool sanctity_choose_target_from_entries(
         {
         case ESCAPE:
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
 
@@ -419,6 +427,7 @@ static bool sanctity_choose_target_from_entries(
 #endif
             *out_item = entries[current].item;
             ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return true;
 
@@ -447,6 +456,7 @@ static bool sanctity_choose_target_from_entries(
             if (steamdeck && key == steamdeck_back_key())
             {
                 ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return false;
             }
@@ -455,6 +465,7 @@ static bool sanctity_choose_target_from_entries(
             {
                 *out_item = entries[current].item;
                 ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }
@@ -470,6 +481,7 @@ static bool sanctity_choose_target_from_entries(
             {
                 *out_item = entries[top + pick].item;
                 ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }

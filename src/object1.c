@@ -138,6 +138,75 @@ static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
     }
 }
 
+static bool menu_prompt_fits_one_row(cptr prompt, int term_wid,
+    bool use_story_font)
+{
+    size_t len;
+
+    if (!prompt)
+        return true;
+
+    if (term_wid <= 1)
+        return false;
+
+    len = strlen(prompt);
+
+    if (len >= (size_t)term_wid)
+        return false;
+
+    if (use_story_font && sdl_is_story_font_enabled())
+    {
+        int cell_width = sdl_get_cell_width();
+        int max_pixels;
+
+        if (cell_width <= 0)
+            return true;
+
+        max_pixels = (term_wid - 1) * cell_width;
+        return sdl_story_font_text_width(prompt, (int)len) <= max_pixels;
+    }
+
+    return true;
+}
+
+static bool menu_prompt_drop_suffix_if_wrapped(char* prompt, cptr suffix,
+    int term_wid, bool use_story_font)
+{
+    size_t prompt_len;
+    size_t suffix_len;
+
+    if (!prompt || !suffix || !suffix[0])
+        return false;
+
+    if (menu_prompt_fits_one_row(prompt, term_wid, use_story_font))
+        return true;
+
+    prompt_len = strlen(prompt);
+    suffix_len = strlen(suffix);
+
+    if (prompt_len >= suffix_len
+        && streq(prompt + prompt_len - suffix_len, suffix))
+    {
+        prompt[prompt_len - suffix_len] = '\0';
+        prompt_len -= suffix_len;
+        while (prompt_len > 0 && isspace((unsigned char)prompt[prompt_len - 1]))
+            prompt[--prompt_len] = '\0';
+    }
+
+    while (prompt[0] && !menu_prompt_fits_one_row(prompt, term_wid,
+               use_story_font))
+    {
+        size_t len = strlen(prompt);
+
+        if (len == 0)
+            break;
+
+        prompt[len - 1] = '\0';
+    }
+
+    return false;
+}
+
 static bool death_spectator_allow_menu_action(void)
 {
     if (!death_spectator_active())
@@ -8213,12 +8282,13 @@ void show_equip_enhanced(void)
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
         const bool controller_controls = steamdeck_controls_active();
+        const char* prompt_suffix = " (Equipped)";
+        bool prompt_context_visible;
         if (controller_controls) {
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
             bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
-            const char* prompt_suffix = " (Equipped)";
 
             inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
@@ -8257,14 +8327,14 @@ void show_equip_enhanced(void)
             sprintf(out_val,
                 "Space-Remove, -> description, <- drop  (Equipped)");
         }
-        if (use_story_font)
-            story_print_text(0, 0, 0, TERM_WHITE, out_val);
-        else
-            prt(out_val, 0, 0);
+        prompt_context_visible = menu_prompt_drop_suffix_if_wrapped(out_val,
+            prompt_suffix, term_wid, use_story_font);
+        prt(out_val, 0, 0);
         ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
             out_val, "drop");
-        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
-            out_val, "Equipped");
+        if (prompt_context_visible)
+            ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+                out_val, "Equipped");
         if (drop_click_mode)
             enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
         
@@ -8878,6 +8948,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
     while (!done)
     {
+        char prompt[96];
+
         Term_erase(0, 0, 255);
 
         for (int row = 1; row <= rows_to_clear && row < term_hgt; row++)
@@ -8887,7 +8959,14 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         log_trace("display_unified_identify_menu: redraw cleared rows 1-%d from col %d width %d",
             MIN(rows_to_clear, term_hgt - 1), clear_start, clear_width);
 
-        char prompt[96];
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(1, term_hgt - 1,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+
         if (controller_controls)
         {
             char confirm_label[16];
@@ -8903,18 +8982,28 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             strnfmt(prompt, sizeof(prompt),
                 "Identify: %s, %s Inspect, %s cancel", confirm_label,
                 inspect_label, back_label);
+            prt(prompt, 0, 0);
+            ui_menu_click_add_text_token(-2, 0, 0, prompt, confirm_label);
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, inspect_label);
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, back_label);
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
         }
         else
         {
             strnfmt(prompt, sizeof(prompt),
                 "Identify: Space, <- Inspect, ESC to cancel");
+            prt(prompt, 0, 0);
+            ui_menu_click_add_text_token(-2, 0, 0, prompt, "Space");
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
         }
-        prt(prompt, 0, 0);
 
         for (int i = 0; i < entry_count; i++)
         {
             draw_ident_line(&entries[i], i + 1, col, weight_col,
                 (i == highlight));
+            ui_menu_click_add_full_row(i, i + 1);
         }
 
         if (entry_count && entry_count < term_hgt - 1)
@@ -8923,6 +9012,45 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         rows_to_clear = base_rows;
 
         int key = inkey();
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < entry_count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                    {
+                        highlight = clicked_choice;
+                        key = '4';
+                    }
+                    else if (clicked_choice != highlight)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    else
+                        key = ' ';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = ' ';
+                else if (clicked_choice == -3)
+                    key = '4';
+            }
+        }
+
         if (controller_controls && key == steamdeck_back_key())
             key = ESCAPE;
         else if (controller_controls && key == steamdeck_confirm_key())
@@ -8932,6 +9060,9 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
         switch (key)
         {
+        case UI_MENU_CLICK_WAKE_KEY:
+            break;
+
         case ESCAPE:
             done = true;
             success = false;
@@ -8952,6 +9083,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         case '4':
         case 'h':
         case 'H':
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             (void)player_try_identify_smithing_object_on_examine(
                 entries[highlight].o_ptr,
                 (entries[highlight].type == IDENT_ENTRY_EQUIP));
@@ -8971,6 +9104,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         }
     }
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
     screen_load();
 
     if (!success)

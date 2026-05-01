@@ -66,6 +66,8 @@ enum {
     SDL_TOUCH_YES_NO_LINE_LEN = 160,
 };
 
+#define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
+
 typedef struct sdl_layout_recovery_result {
     bool mode_changed;
     bool scale_changed;
@@ -339,7 +341,7 @@ enum {
 
 enum {
     MAX_GAMEPADS = 4,
-    DPAD_DIAGONAL_WINDOW_MS = 100,
+    DPAD_DIAGONAL_WINDOW_MS = 200,
     SHOULDER_COMBO_WINDOW_MS = 150,
     /* Rebinding should listen immediately instead of dropping quick inputs. */
     GAMEPAD_CAPTURE_ARM_DELAY_MS = 0,
@@ -510,8 +512,10 @@ typedef struct player_action_menu_state {
     int hover_kind;
     bool press_active;
     bool press_mouse;
+    bool press_gamepad;
     bool press_secondary;
     SDL_FingerID press_finger_id;
+    int press_button;
     int press_kind;
     float press_start_x;
     float press_start_y;
@@ -717,6 +721,7 @@ static bool g_touch_pane_yes_no_prompt_active = false;
 static char g_touch_pane_yes_no_prompt_text[SDL_TOUCH_YES_NO_LINE_LEN];
 static bool g_touch_pane_mobile_open = true;
 static touch_pane_press_state g_touch_pane_press;
+static bool g_touch_mouse_fallback_active = false;
 static touch_swipe_state g_touch_swipe;
 static welcome_touch_press_state g_welcome_touch_press;
 static touch_zone_press_state g_touch_zone_press;
@@ -774,9 +779,12 @@ static SDL_Rect sdl_get_android_display_cutout_rect(void);
 #endif
 static void sdl_refresh_safe_area(void);
 static SDL_Rect sdl_get_layout_screen_rect(void);
+static void sdl_log_mouse_devices(void);
 static bool sdl_mobile_prefer_safe_edge_alignment(void);
 static void sdl_resize_for_current_layout(void);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
+static bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
+    const SDL_Event* ev);
 #if SIL_SDL_MOBILE_BUILD
 static bool sdl_mobile_lifecycle_handle_event(const SDL_Event* ev);
 static bool SDLCALL sdl_mobile_lifecycle_event_watch(void* userdata, SDL_Event* ev);
@@ -971,6 +979,7 @@ static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
     SDL_FingerID finger_id, bool mouse, bool secondary);
 static int sdl_player_action_menu_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_player_action_menu_flush_pending_press(Uint64 now_ns);
+static void sdl_player_action_menu_cancel_press(void);
 static void sdl_player_action_menu_cancel(void);
 static bool sdl_player_exchange_handle_gamepad_button(
     SDL_GamepadButton button, bool down);
@@ -2531,6 +2540,7 @@ static void sdl_note_touch_event_device(SDL_TouchID touch_id)
         return;
 
     g_direct_touch_present = true;
+    g_touch_mouse_fallback_active = false;
     sdl_update_cursor_visibility();
 }
 
@@ -2543,6 +2553,28 @@ static void sdl_update_cursor_visibility(void)
         SDL_ShowCursor();
     else
         SDL_HideCursor();
+}
+
+static void sdl_log_mouse_devices(void)
+{
+    int count = 0;
+    SDL_MouseID* mice = SDL_GetMice(&count);
+
+    if (!mice) {
+        log_debug("SDL_GetMice failed: %s", SDL_GetError());
+        return;
+    }
+
+    log_info("SDL_GetMice returned %d mouse device%s",
+        count, (count == 1) ? "" : "s");
+    for (int i = 0; i < count; i++) {
+        const char* name = SDL_GetMouseNameForID(mice[i]);
+
+        log_info("Mouse device id %u (%s)",
+            (unsigned)mice[i], (name && name[0]) ? name : "unnamed");
+    }
+
+    SDL_free(mice);
 }
 
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
@@ -6991,6 +7023,70 @@ static void sdl_player_action_menu_activate_hover(void)
             false);
 }
 
+static void sdl_player_action_menu_start_gamepad_wait_press(int button)
+{
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
+        return;
+
+    sdl_player_action_menu_cancel_press();
+    g_player_action_menu.press_active = true;
+    g_player_action_menu.press_mouse = false;
+    g_player_action_menu.press_gamepad = true;
+    g_player_action_menu.press_secondary = false;
+    g_player_action_menu.press_finger_id = 0;
+    g_player_action_menu.press_button = button;
+    g_player_action_menu.press_kind = SDL_PLAYER_ACTION_WAIT;
+    g_player_action_menu.press_start_x = 0.0f;
+    g_player_action_menu.press_start_y = 0.0f;
+    g_player_action_menu.press_start_time = SDL_GetTicksNS();
+    g_state.need_present = true;
+}
+
+static bool sdl_player_action_menu_handle_gamepad_confirm(int button, bool down)
+{
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
+        return false;
+
+    if (g_player_action_menu.press_active
+        && g_player_action_menu.press_gamepad)
+    {
+        int kind = g_player_action_menu.press_kind;
+        bool activate_secondary = false;
+
+        if (g_player_action_menu.press_button != button)
+            return true;
+        if (down)
+            return true;
+
+        if (kind == SDL_PLAYER_ACTION_WAIT
+            && g_player_action_menu.press_start_time
+            && SDL_GetTicksNS() - g_player_action_menu.press_start_time
+                >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        {
+            activate_secondary = true;
+        }
+
+        sdl_player_action_menu_cancel_press();
+        if (kind != SDL_PLAYER_ACTION_NONE)
+            sdl_player_action_menu_activate_kind(kind, activate_secondary);
+        return true;
+    }
+
+    if (!down)
+        return true;
+
+    if (g_player_action_menu.hover_kind == SDL_PLAYER_ACTION_NONE)
+        sdl_player_action_menu_select_default();
+
+    if (g_player_action_menu.hover_kind == SDL_PLAYER_ACTION_WAIT) {
+        sdl_player_action_menu_start_gamepad_wait_press(button);
+    } else {
+        sdl_player_action_menu_activate_hover();
+    }
+
+    return true;
+}
+
 static void sdl_player_action_menu_slot_offset(int slot, int count,
     float* out_x, float* out_y)
 {
@@ -7125,8 +7221,10 @@ static void sdl_player_action_menu_cancel_press(void)
 {
     g_player_action_menu.press_active = false;
     g_player_action_menu.press_mouse = false;
+    g_player_action_menu.press_gamepad = false;
     g_player_action_menu.press_secondary = false;
     g_player_action_menu.press_finger_id = 0;
+    g_player_action_menu.press_button = -1;
     g_player_action_menu.press_kind = SDL_PLAYER_ACTION_NONE;
     g_player_action_menu.press_start_x = 0.0f;
     g_player_action_menu.press_start_y = 0.0f;
@@ -7525,14 +7623,26 @@ static bool sdl_player_action_menu_handle_gamepad_button(
     switch (button) {
     case SDL_GAMEPAD_BUTTON_DPAD_UP:
     case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
-        if (down)
+        if (down) {
+            if (g_player_action_menu.press_active
+                && g_player_action_menu.press_gamepad)
+            {
+                sdl_player_action_menu_cancel_press();
+            }
             sdl_player_action_menu_move_hover(-1);
+        }
         return true;
 
     case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
     case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
-        if (down)
+        if (down) {
+            if (g_player_action_menu.press_active
+                && g_player_action_menu.press_gamepad)
+            {
+                sdl_player_action_menu_cancel_press();
+            }
             sdl_player_action_menu_move_hover(1);
+        }
         return true;
 
     case SDL_GAMEPAD_BUTTON_EAST:
@@ -7549,9 +7659,8 @@ static bool sdl_player_action_menu_handle_gamepad_button(
     if (button >= 0 && button < SDL_GAMEPAD_BUTTON_COUNT
         && sdl_gamepad_action_is_confirm(config.gamepad_button_bindings[button]))
     {
-        if (down)
-            sdl_player_action_menu_activate_hover();
-        return true;
+        return sdl_player_action_menu_handle_gamepad_confirm(
+            (int)button, down);
     }
 
     return false;
@@ -7661,6 +7770,8 @@ static bool sdl_player_action_menu_handle_pointer_motion(float x, float y,
 
     if (!g_player_action_menu.press_active)
         return true;
+    if (g_player_action_menu.press_gamepad)
+        return true;
     if (g_player_action_menu.press_mouse != mouse
         || g_player_action_menu.press_finger_id != finger_id)
     {
@@ -7698,7 +7809,8 @@ static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
     }
     if (!g_player_action_menu.press_active)
         return true;
-    if (g_player_action_menu.press_mouse != mouse
+    if (g_player_action_menu.press_gamepad
+        || g_player_action_menu.press_mouse != mouse
         || g_player_action_menu.press_secondary != secondary
         || g_player_action_menu.press_finger_id != finger_id)
     {
@@ -14398,6 +14510,178 @@ static bool sdl_event_is_disabled_mouse_input(const SDL_Event* ev)
     }
 }
 
+static bool sdl_event_is_touch_mouse_input(const SDL_Event* ev)
+{
+    if (!ev)
+        return false;
+
+    switch (ev->type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        return ev->motion.which == SDL_TOUCH_MOUSEID;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        return ev->button.which == SDL_TOUCH_MOUSEID;
+    case SDL_EVENT_MOUSE_WHEEL:
+        return ev->wheel.which == SDL_TOUCH_MOUSEID;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_ascii_contains_ci(cptr text, cptr needle)
+{
+    size_t needle_len;
+
+    if (!text || !needle)
+        return false;
+    needle_len = strlen(needle);
+    if (needle_len == 0)
+        return true;
+
+    for (const char* p = text; *p; p++) {
+        size_t i;
+
+        for (i = 0; i < needle_len; i++) {
+            unsigned char a = (unsigned char)p[i];
+            unsigned char b = (unsigned char)needle[i];
+
+            if (!a)
+                return false;
+            if (tolower(a) != tolower(b))
+                break;
+        }
+        if (i == needle_len)
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_mouse_id_looks_like_touchscreen(SDL_MouseID id)
+{
+    const char* name;
+
+    if (id == 0)
+        return false;
+
+    name = SDL_GetMouseNameForID(id);
+    if (!name || !name[0])
+        return false;
+
+    if (sdl_ascii_contains_ci(name, "touchpad"))
+        return false;
+
+    return sdl_ascii_contains_ci(name, "touchscreen")
+        || sdl_ascii_contains_ci(name, "touch screen")
+        || sdl_ascii_contains_ci(name, "fts3528");
+}
+
+static bool sdl_event_is_handheld_touch_fallback_input(const SDL_Event* ev)
+{
+    if (!ev || config.mouse_enabled)
+        return false;
+    if (g_startup_device_class != SDL_STARTUP_DEVICE_DESKTOP_HANDHELD)
+        return false;
+
+    switch (ev->type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        return sdl_mouse_id_looks_like_touchscreen(ev->motion.which);
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        return sdl_mouse_id_looks_like_touchscreen(ev->button.which);
+    default:
+        return false;
+    }
+}
+
+/* Keep touch-generated mouse events on the touch path when SDL has not
+ * reported a direct touch device yet.  Steam Deck's touchscreen can also
+ * arrive as untagged mouse input, so the desktop-handheld profile gets the
+ * same fallback while mouse input is disabled. */
+static bool sdl_dispatch_touch_mouse_fallback(sdl_state* st,
+    SDL_EventType type, SDL_WindowID window_id, Uint64 timestamp, float x,
+    float y, float dx, float dy)
+{
+    SDL_Event touch_event;
+    int window_w = 0;
+    int window_h = 0;
+
+    if (!g_state.window)
+        return true;
+
+    SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+    if (window_w <= 0 || window_h <= 0)
+        return true;
+
+    memset(&touch_event, 0, sizeof(touch_event));
+    touch_event.type = type;
+    touch_event.tfinger.type = type;
+    touch_event.tfinger.timestamp = timestamp;
+    touch_event.tfinger.touchID = SDL_MOUSE_TOUCHID;
+    touch_event.tfinger.fingerID = TOUCH_MOUSE_FALLBACK_FINGER_ID;
+    touch_event.tfinger.x = x / (float)window_w;
+    touch_event.tfinger.y = y / (float)window_h;
+    touch_event.tfinger.dx = dx / (float)window_w;
+    touch_event.tfinger.dy = dy / (float)window_h;
+    touch_event.tfinger.pressure = (type == SDL_EVENT_FINGER_UP) ? 0.0f : 1.0f;
+    touch_event.tfinger.windowID = window_id;
+
+    sdl_handle_event(st, &touch_event);
+    return true;
+}
+
+static bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
+    const SDL_Event* ev)
+{
+    bool explicit_touch_mouse = sdl_event_is_touch_mouse_input(ev);
+    bool handheld_touch_fallback =
+        sdl_event_is_handheld_touch_fallback_input(ev);
+
+    if (!explicit_touch_mouse && !handheld_touch_fallback)
+        return false;
+
+    if (explicit_touch_mouse && g_direct_touch_present) {
+        g_touch_mouse_fallback_active = false;
+        return true;
+    }
+
+    switch (ev->type) {
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (ev->button.button != SDL_BUTTON_LEFT)
+            return true;
+
+        g_touch_mouse_fallback_active = true;
+        return sdl_dispatch_touch_mouse_fallback(st, SDL_EVENT_FINGER_DOWN,
+            ev->button.windowID, ev->button.timestamp, ev->button.x,
+            ev->button.y, 0.0f, 0.0f);
+
+    case SDL_EVENT_MOUSE_MOTION:
+        if (!g_touch_mouse_fallback_active)
+            return true;
+
+        return sdl_dispatch_touch_mouse_fallback(st, SDL_EVENT_FINGER_MOTION,
+            ev->motion.windowID, ev->motion.timestamp, ev->motion.x,
+            ev->motion.y, ev->motion.xrel, ev->motion.yrel);
+
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        if (ev->button.button != SDL_BUTTON_LEFT)
+            return true;
+        if (!g_touch_mouse_fallback_active)
+            return true;
+
+        g_touch_mouse_fallback_active = false;
+        return sdl_dispatch_touch_mouse_fallback(st, SDL_EVENT_FINGER_UP,
+            ev->button.windowID, ev->button.timestamp, ev->button.x,
+            ev->button.y, 0.0f, 0.0f);
+
+    case SDL_EVENT_MOUSE_WHEEL:
+        return true;
+
+    default:
+        return true;
+    }
+}
+
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
 {
     (void)st;
@@ -14409,6 +14693,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         return;
     }
 #endif
+    if (sdl_try_handle_touch_mouse_fallback_event(st, ev))
+        return;
     if (sdl_event_is_disabled_mouse_input(ev))
         return;
 
@@ -17191,6 +17477,7 @@ errr init_sdl(int argc, char **argv)
     sdl_refresh_direct_touch_present();
     log_info("Direct touch input: %s",
         g_direct_touch_present ? "present" : "not detected");
+    sdl_log_mouse_devices();
     
     // Get primary display information
     SDL_DisplayID primary = SDL_GetPrimaryDisplay();
