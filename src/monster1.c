@@ -1316,17 +1316,12 @@ static void describe_monster_toughness(
         if (knows_hp)
         {
             text_out(format("%^s has ", wd_he[msex]));
-            if (m_ptr && lore_knows_lament_stats(l_ptr))
-                text_out_c(TERM_GREEN, format("%d/%d", m_ptr->hp, m_ptr->maxhp));
-            else
+            text_out_c(TERM_GREEN, hp_text);
+            if (m_ptr)
             {
-                text_out_c(TERM_GREEN, hp_text);
-                if (m_ptr)
-                {
-                    int hp_loss = monster_song_hp_loss(m_ptr);
-                    if (hp_loss > 0)
-                        text_out_c(TERM_L_RED, format("-%d", hp_loss));
-                }
+                int hp_loss = monster_song_hp_loss(m_ptr);
+                if (hp_loss > 0)
+                    text_out_c(TERM_L_RED, format("-%d", hp_loss));
             }
             text_out(" hp");
         }
@@ -1903,10 +1898,7 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     }
 }
 
-/*
- * Hack -- Display the "name" and "attr/chars" of a monster race
- */
-void roff_top(int r_idx)
+static void roff_top_live(int r_idx, const monster_type* m_ptr)
 {
     monster_race* r_ptr = &r_info[r_idx];
 
@@ -1939,7 +1931,27 @@ void roff_top(int r_idx)
     {
         Term_addch(255, -1);
     }
+
+    if (m_ptr && (m_ptr->maxhp > 0))
+    {
+        char hp_bar[10];
+        byte attr = health_attr(m_ptr->hp, m_ptr->maxhp);
+
+        monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+
+        Term_addstr(-1, TERM_WHITE, " ");
+        Term_addstr(-1, attr, hp_bar[0] ? hp_bar : "-");
+    }
+
     Term_addstr(-1, TERM_SLATE, "");
+}
+
+/*
+ * Hack -- Display the "name" and "attr/chars" of a monster race
+ */
+void roff_top(int r_idx)
+{
+    roff_top_live(r_idx, NULL);
 }
 
 typedef struct monster_recall_screen_capture
@@ -2028,7 +2040,7 @@ static bool monster_recall_screen_capture_build(
     text_out_indent = 0;
 
     Term_clear();
-    roff_top(r_idx);
+    roff_top_live(r_idx, m_ptr);
     Term_gotoxy(0, 1);
     Term_erase(0, 1, 255);
     describe_monster(r_idx, false, m_ptr);
@@ -2260,7 +2272,7 @@ static void monster_recall_screen_draw_plain(
     describe_monster(r_idx, false, m_ptr);
 
     /* Describe monster */
-    roff_top(r_idx);
+    roff_top_live(r_idx, m_ptr);
 
     if (Term == term_screen)
         ui_key_wait_dismiss_begin('\r');
@@ -2344,7 +2356,7 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     describe_monster(r_idx, false, m_ptr);
 
     /* Describe monster */
-    roff_top(r_idx);
+    roff_top_live(r_idx, m_ptr);
 
     text_out_hook = old_hook;
     text_out_indent = old_indent;

@@ -339,7 +339,12 @@ static int sdl_touch_pane_visible_slot_at(int visible_index)
 }
 
 enum {
+    SDL_TOUCH_PANE_ESC_SLOT = 0,
+    SDL_TOUCH_PANE_NORTH_SLOT = 10,
+    SDL_TOUCH_PANE_WEST_SLOT = 12,
     SDL_TOUCH_PANE_CENTER_SLOT = 13,
+    SDL_TOUCH_PANE_EAST_SLOT = 14,
+    SDL_TOUCH_PANE_SOUTH_SLOT = 16,
 };
 
 enum {
@@ -686,6 +691,7 @@ static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
 static bool g_touch_pane_hidden_layout_active = false;
+static bool g_touch_pane_proto_layout_active = false;
 static bool g_suppress_layout_refresh_present = false;
 static bool g_skip_main_redraw_on_layout_refresh = false;
 static bool g_touch_tutorial_suppress_runtime_top_panel = false;
@@ -882,6 +888,10 @@ static void sdl_ensure_touch_pane_config_present(void);
 static bool sdl_touch_only_mobile_device_active(void);
 static bool sdl_touch_pane_uses_mobile_toggle(void);
 static bool sdl_touch_pane_mobile_layout_open(void);
+static bool sdl_touch_pane_proto_mode_active(void);
+static bool sdl_touch_pane_proto_slot_allowed(int slot);
+static bool sdl_touch_pane_slot_visible_in_current_mode(int slot);
+static int sdl_touch_pane_proto_binding_for_slot(int slot);
 static void sdl_touch_pane_refresh_after_layout_toggle(void);
 static void sdl_touch_pane_set_mobile_open(bool open);
 static bool sdl_touch_pane_panel_is_valid(int panel);
@@ -922,6 +932,7 @@ static void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
     cptr text, SDL_Color color, int font_px);
 static void sdl_touch_pane_render_yes_no_prompt(void);
 static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen);
+static void sdl_touch_pane_proto_label_for_slot(int index, char* buf, size_t buflen);
 static void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen);
 static void sdl_touch_pane_render(void);
@@ -2459,6 +2470,46 @@ static bool sdl_touch_pane_hidden_mode_active(void)
         || screen_touch_pane_hidden_active();
 }
 
+static bool sdl_touch_pane_proto_mode_active(void)
+{
+    return screen_touch_pane_proto_active()
+        && (g_direct_touch_present || sdl_touch_pane_is_config_enabled());
+}
+
+static bool sdl_touch_pane_proto_slot_allowed(int slot)
+{
+    switch (slot) {
+    case SDL_TOUCH_PANE_ESC_SLOT:
+    case SDL_TOUCH_PANE_NORTH_SLOT:
+    case SDL_TOUCH_PANE_WEST_SLOT:
+    case SDL_TOUCH_PANE_CENTER_SLOT:
+    case SDL_TOUCH_PANE_EAST_SLOT:
+    case SDL_TOUCH_PANE_SOUTH_SLOT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_touch_pane_slot_visible_in_current_mode(int slot)
+{
+    return !sdl_touch_pane_proto_mode_active()
+        || sdl_touch_pane_proto_slot_allowed(slot);
+}
+
+static int sdl_touch_pane_proto_binding_for_slot(int slot)
+{
+    switch (slot) {
+    case SDL_TOUCH_PANE_ESC_SLOT: return ESCAPE;
+    case SDL_TOUCH_PANE_NORTH_SLOT: return '8';
+    case SDL_TOUCH_PANE_WEST_SLOT: return '4';
+    case SDL_TOUCH_PANE_CENTER_SLOT: return INPUT_BIND_CONFIRM;
+    case SDL_TOUCH_PANE_EAST_SLOT: return '6';
+    case SDL_TOUCH_PANE_SOUTH_SLOT: return '2';
+    default: return GAMEPAD_BIND_NONE;
+    }
+}
+
 static void sdl_touch_pane_refresh_after_layout_toggle(void)
 {
     if (p_ptr && character_generated && !character_icky) {
@@ -2531,6 +2582,9 @@ static int sdl_touch_pane_effective_binding_for_panel(int panel, int index)
 {
     int binding;
 
+    if (sdl_touch_pane_proto_mode_active())
+        return sdl_touch_pane_proto_binding_for_slot(index);
+
     binding = sdl_touch_pane_raw_binding_for_panel(panel, index);
     if (panel == SDL_TOUCH_PANE_PANEL_SECOND && binding == TOUCH_PANE_BIND_INHERIT)
         return config.touch_pane_bindings[index];
@@ -2593,6 +2647,7 @@ static void sdl_note_touch_event_device(SDL_TouchID touch_id)
     g_direct_touch_present = true;
     g_touch_mouse_fallback_active = false;
     sdl_update_cursor_visibility();
+    sdl_refresh_supporting_panes_layout();
 }
 
 static void sdl_update_cursor_visibility(void)
@@ -2632,6 +2687,10 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
     bool include_bottom, bool touch_only)
 {
     int active_count = 0;
+    bool proto_touch = sdl_touch_pane_proto_mode_active();
+
+    if (proto_touch)
+        sdl_ensure_touch_pane_config_present();
 
     for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
         enum pane_placement where = pane_config[i].where;
@@ -2639,9 +2698,9 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
 
         if (touch_only && !is_touch_pane)
             continue;
-        if (is_touch_pane && sdl_touch_pane_hidden_mode_active())
+        if (is_touch_pane && !proto_touch && sdl_touch_pane_hidden_mode_active())
             continue;
-        if (is_touch_pane && !sdl_touch_pane_mobile_layout_open())
+        if (is_touch_pane && !proto_touch && !sdl_touch_pane_mobile_layout_open())
             continue;
         if (!is_touch_pane) {
             if (pane_placement_is_side(where) && !include_side)
@@ -2650,7 +2709,13 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
                 continue;
         }
 
-        active[active_count++] = pane_config[i];
+        active[active_count] = pane_config[i];
+        if (is_touch_pane && proto_touch) {
+            active[active_count].enabled = true;
+            if (!pane_placement_is_side(active[active_count].where))
+                active[active_count].where = PLACE_DOUBLE_RIGHT;
+        }
+        active_count++;
     }
 
     return active_count;
@@ -3110,7 +3175,8 @@ static bool sdl_should_show_supporting_panes(void)
 static bool sdl_layout_matches_supporting_pane_visibility(void)
 {
     return (g_supporting_panes_layout_visible == sdl_should_show_supporting_panes())
-        && (g_touch_pane_hidden_layout_active == sdl_touch_pane_hidden_mode_active());
+        && (g_touch_pane_hidden_layout_active == sdl_touch_pane_hidden_mode_active())
+        && (g_touch_pane_proto_layout_active == sdl_touch_pane_proto_mode_active());
 }
 
 static void sdl_compute_display_panes(SDL_Rect* panes)
@@ -3641,14 +3707,15 @@ static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect)
     SDL_Rect panes[PANE_MAX];
     const SDL_Rect* pane;
     bool show_supporting_panes = sdl_should_show_supporting_panes();
+    bool proto_touch = sdl_touch_pane_proto_mode_active();
 
     if (!out_rect)
         return false;
-    if (!sdl_touch_pane_is_config_enabled())
+    if (!proto_touch && !sdl_touch_pane_is_config_enabled())
         return false;
-    if (sdl_touch_pane_hidden_mode_active())
+    if (!proto_touch && sdl_touch_pane_hidden_mode_active())
         return false;
-    if (!sdl_touch_pane_mobile_layout_open())
+    if (!proto_touch && !sdl_touch_pane_mobile_layout_open())
         return false;
 
     if (show_supporting_panes || sdl_layout_matches_supporting_pane_visibility()) {
@@ -3986,6 +4053,8 @@ static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
         const SDL_FRect* rect;
 
         if (slot < 0)
+            continue;
+        if (!sdl_touch_pane_slot_visible_in_current_mode(slot))
             continue;
 
         rect = &slot_rects[slot];
@@ -4591,6 +4660,25 @@ static void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, ch
     binding_action_short(binding, buf, buflen);
 }
 
+static void sdl_touch_pane_proto_label_for_slot(int index, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+
+    switch (index) {
+    case SDL_TOUCH_PANE_ESC_SLOT:
+        SDL_strlcpy(buf, "Esc", buflen);
+        break;
+    case SDL_TOUCH_PANE_CENTER_SLOT:
+        SDL_strlcpy(buf, "Confirm", buflen);
+        break;
+    default:
+        break;
+    }
+}
+
 static void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen)
 {
     int raw_binding;
@@ -4605,6 +4693,11 @@ static void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, 
         return;
     if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
         return;
+
+    if (sdl_touch_pane_proto_mode_active()) {
+        sdl_touch_pane_proto_label_for_slot(index, buf, buflen);
+        return;
+    }
 
     raw_binding = sdl_touch_pane_raw_binding_for_panel(panel, index);
     custom_label = (panel == SDL_TOUCH_PANE_PANEL_SECOND)
@@ -11078,8 +11171,9 @@ static bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL
 
     panel = sdl_touch_pane_active_panel();
     binding = sdl_touch_pane_effective_binding_for_panel(panel, slot);
-    long_press_enabled = sdl_touch_pane_uses_mobile_toggle()
-        || sdl_touch_pane_slot_uses_long_press(slot, binding);
+    long_press_enabled = !sdl_touch_pane_proto_mode_active()
+        && (sdl_touch_pane_uses_mobile_toggle()
+            || sdl_touch_pane_slot_uses_long_press(slot, binding));
 
     if (!mouse || long_press_enabled) {
         sdl_touch_pane_cancel_press();
@@ -11132,7 +11226,7 @@ static bool sdl_touch_pane_handle_pointer_motion(float x, float y, bool mouse,
         float start_y = g_touch_pane_press.start_y;
 
         sdl_touch_pane_cancel_press();
-        if (!mouse) {
+        if (!mouse && !sdl_touch_pane_proto_mode_active()) {
             if (g_touch_swipe.active && g_touch_swipe.finger_id == finger_id) {
                 (void)sdl_touch_swipe_handle_pointer_motion(x, y, finger_id);
             } else if (sdl_touch_swipe_handle_pointer_down(start_x, start_y,
@@ -12105,17 +12199,21 @@ static void sdl_touch_hidden_indicator_render(void)
     bool top_panel_hidden;
     bool right_side;
     float size;
+    bool proto_touch = sdl_touch_pane_proto_mode_active();
 
 #if SIL_SDL_MOBILE_BUILD
-    if (!g_direct_touch_present && !sdl_touch_pane_is_config_enabled())
+    if (!proto_touch && !g_direct_touch_present
+        && !sdl_touch_pane_is_config_enabled())
         return;
 #else
-    if (!sdl_touch_pane_is_config_enabled())
+    if (!proto_touch && !sdl_touch_pane_is_config_enabled())
         return;
 #endif
 
-    pane_hidden = sdl_touch_pane_hidden_mode_active()
-        || (sdl_touch_pane_uses_mobile_toggle() && !g_touch_pane_mobile_open);
+    pane_hidden = !proto_touch
+        && (sdl_touch_pane_hidden_mode_active()
+            || (sdl_touch_pane_uses_mobile_toggle()
+                && !g_touch_pane_mobile_open));
     top_panel_hidden = sdl_touch_top_panel_layout_visible()
         && !g_touch_top_panel_open;
     if (!pane_hidden && !top_panel_hidden)
@@ -14608,6 +14706,7 @@ void resize(const SDL_Rect* screen)
 
     memcpy(g_pane_rects, panes, sizeof(g_pane_rects));
     g_touch_pane_hidden_layout_active = touch_pane_hidden;
+    g_touch_pane_proto_layout_active = sdl_touch_pane_proto_mode_active();
 
     // Use configured monospace font or fall back to default
     const char* font_path = config.monospace_font[0] != '\0' 
@@ -15834,6 +15933,8 @@ static void sdl_touch_pane_render(void)
         bool toggled;
 
         if (i < 0)
+            continue;
+        if (!sdl_touch_pane_slot_visible_in_current_mode(i))
             continue;
 
         binding = sdl_touch_pane_effective_binding_for_panel(panel, i);

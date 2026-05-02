@@ -944,6 +944,7 @@ void do_cmd_character_sheet(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_proto();
     sdl_screen_back_gesture_begin();
 
     /* Forever */
@@ -1223,6 +1224,7 @@ void do_cmd_character_sheet(void)
     /* Load screen */
     ui_menu_click_clear();
     sdl_screen_back_gesture_end();
+    screen_pop_touch_pane_proto();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -4334,6 +4336,7 @@ void do_cmd_ability_screen(void)
 
     /* Save screen */
     screen_save();
+    screen_push_touch_pane_proto();
     sdl_screen_back_gesture_begin();
 
     /* Clear screen */
@@ -4714,6 +4717,7 @@ void do_cmd_ability_screen(void)
     /* Load screen */
     ui_menu_click_clear();
     sdl_screen_back_gesture_end();
+    screen_pop_touch_pane_proto();
     screen_load();
 
     handle_stuff();
@@ -22137,6 +22141,7 @@ void do_cmd_options(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_proto();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -22231,6 +22236,7 @@ void do_cmd_options(void)
     message_flush();
 
     /* Load screen */
+    screen_pop_touch_pane_proto();
     screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
@@ -33235,7 +33241,6 @@ static int unified_sidebar_compact_build_entries(
             char name_buf[80];
             char hp_bar[10];
             char suffix[24];
-            int hp_len = 0;
             int morale_color = TERM_WHITE;
             int morale_num = 0;
             int name_budget;
@@ -33254,19 +33259,7 @@ static int unified_sidebar_compact_build_entries(
             r_ptr = &r_info[m_ptr->r_idx];
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
 
-            if (m_ptr->maxhp > 0)
-                hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-            hp_len = MIN(MAX(hp_len, 0), 8);
-
-            if (m_ptr->confused && m_ptr->stunned)
-                strncpy(hp_bar, "cscscscs", hp_len);
-            else if (m_ptr->confused)
-                strncpy(hp_bar, "cccccccc", hp_len);
-            else if (m_ptr->stunned)
-                strncpy(hp_bar, "ssssssss", hp_len);
-            else
-                strncpy(hp_bar, "********", hp_len);
-            hp_bar[hp_len] = '\0';
+            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
 
             if (m_ptr->alertness < ALERTNESS_UNWARY)
             {
@@ -33635,31 +33628,9 @@ void show_unified_sidebar(unified_look_state* state)
             /* Generate monster name without articles using race name function */
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
             
-            /* Create HP bar with asterisks */
-            int hp_len = 0;
-            if (m_ptr->maxhp > 0) {
-                hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-            }
+            /* Create compact HP bar */
             char hp_bar[10];
-            
-            /* Build health bar with status indicators */
-            if (m_ptr->confused && m_ptr->stunned)
-            {
-                strncpy(hp_bar, "cscscscs", hp_len);
-            }
-            else if (m_ptr->confused)
-            {
-                strncpy(hp_bar, "cccccccc", hp_len);
-            }
-            else if (m_ptr->stunned)
-            {
-                strncpy(hp_bar, "ssssssss", hp_len);
-            }
-            else
-            {
-                strncpy(hp_bar, "********", hp_len);
-            }
-            hp_bar[hp_len] = '\0';
+            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
             
             /* Create morale number with proper color */
             int morale_color = TERM_WHITE;

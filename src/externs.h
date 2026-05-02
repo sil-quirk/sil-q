@@ -1535,6 +1535,9 @@ extern void screen_pop_touch_pane_hidden(void);
 extern bool screen_touch_pane_hidden_active(void);
 extern void screen_set_startup_touch_pane_hidden(bool hidden);
 extern bool screen_startup_touch_pane_hidden_active(void);
+extern void screen_push_touch_pane_proto(void);
+extern void screen_pop_touch_pane_proto(void);
+extern bool screen_touch_pane_proto_active(void);
 extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_POINTER_ATTACK_NONE 0
 #define SDL_POINTER_ATTACK_MELEE 1
@@ -1665,6 +1668,8 @@ extern int polearm_bonus(const object_type* o_ptr);
 extern byte total_ads(const object_type* j_ptr);
 extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
+extern int monster_health_bar_text(
+    const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols);
 extern bool get_alertness_text(
     monster_type* m_ptr, int text_size, char* text, int* color);
 extern byte health_attr(int current, int max);

@@ -3241,8 +3241,11 @@ static bool get_character_profile(void)
         }
     }
 
+    screen_push_touch_pane_proto();
     character_choice = get_player_choice(
-        character_menu, character, previous_choice, CLASS_COL, 22, character_aux_hook, true);
+        character_menu, character, previous_choice, CLASS_COL, 22,
+        character_aux_hook, true);
+    screen_pop_touch_pane_proto();
 
     /* No selection? */
     if (character_choice == INVALID_CHOICE)

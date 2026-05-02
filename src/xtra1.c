@@ -1185,6 +1185,47 @@ static void prt_char_health_graphic(void)
     c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
 }
 
+/*
+ * Build the compact monster health bar used by look/target displays.
+ */
+int monster_health_bar_text(
+    const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols)
+{
+    int len;
+    int writable;
+
+    if (buflen == 0)
+        return 0;
+
+    buf[0] = '\0';
+
+    if (!m_ptr || (max_symbols <= 0) || (m_ptr->maxhp <= 0))
+        return 0;
+
+    len = (max_symbols * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+    if (len < 0)
+        len = 0;
+    if (len > max_symbols)
+        len = max_symbols;
+
+    writable = MIN(len, (int)buflen - 1);
+
+    for (int i = 0; i < writable; i++)
+    {
+        if (m_ptr->confused && m_ptr->stunned)
+            buf[i] = (i % 2) ? 's' : 'c';
+        else if (m_ptr->confused)
+            buf[i] = 'c';
+        else if (m_ptr->stunned)
+            buf[i] = 's';
+        else
+            buf[i] = '*';
+    }
+    buf[writable] = '\0';
+
+    return writable;
+}
+
 static bool hidden_left_panel_uses_top_left_layout(void)
 {
     return ui_hide_left_panel()
@@ -1805,21 +1846,13 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         && (mon_list[p_ptr->health_who].hp > 0))
     {
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
-        int len;
+        char health_bar[10];
         byte attr;
 
         attr = health_attr(m_ptr->hp, m_ptr->maxhp);
-        len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-        if (len < 0)
-            len = 0;
-        if (len > 8)
-            len = 8;
+        monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
 
-        for (int i = 0; i < len; i++)
-            buf[i] = '*';
-        buf[len] = '\0';
-
-        hidden_left_panel_add_line(lines, &count, max_lines, attr, buf);
+        hidden_left_panel_add_line(lines, &count, max_lines, attr, health_bar);
     }
 
     return count;
@@ -3582,6 +3615,7 @@ static void health_redraw(void)
         int len;
         int color;
         char buf[20];
+        char health_bar[10];
 
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
 
@@ -3592,21 +3626,13 @@ static void health_redraw(void)
         // if (m_ptr->stance == STANCE_FLEEING) attr = TERM_VIOLET;
 
         /* Convert into health bar (using ceiling for length) */
-        len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+        len = monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
 
         /* Default to "unknown" */
         Term_putstr(COL_INFO, ROW_INFO, 12, TERM_L_DARK, "  --------  ");
 
         /* Dump the current "health" (handle monster stunning, confusion) */
-
-        if (m_ptr->confused && m_ptr->stunned)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "cscscscs");
-        else if (m_ptr->confused)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "cccccccc");
-        else if (m_ptr->stunned)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "ssssssss");
-        else
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "********");
+        Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, health_bar);
 
         Term_erase(COL_INFO, ROW_INFO + 1, 12);
 
