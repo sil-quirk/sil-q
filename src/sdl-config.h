@@ -214,4 +214,6 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv);
 void sdl_config_load_app_options(const char* filename);
 bool sdl_config_should_force_intro_flame(void);
 void sdl_config_mark_intro_seen(void);
+bool sdl_config_touch_tutorial_seen(void);
+void sdl_config_mark_touch_tutorial_seen(void);
 bool option_is_app_persistent(int opt);

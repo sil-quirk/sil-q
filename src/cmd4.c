@@ -944,6 +944,7 @@ void do_cmd_character_sheet(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_screen_back_gesture_begin();
 
     /* Forever */
     while (1)
@@ -1221,6 +1222,7 @@ void do_cmd_character_sheet(void)
 
     /* Load screen */
     ui_menu_click_clear();
+    sdl_screen_back_gesture_end();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -4332,6 +4334,7 @@ void do_cmd_ability_screen(void)
 
     /* Save screen */
     screen_save();
+    sdl_screen_back_gesture_begin();
 
     /* Clear screen */
     Term_clear();
@@ -4710,6 +4713,7 @@ void do_cmd_ability_screen(void)
 
     /* Load screen */
     ui_menu_click_clear();
+    sdl_screen_back_gesture_end();
     screen_load();
 
     handle_stuff();
@@ -19720,7 +19724,7 @@ static const char* touch_profile_label(int profile)
         return "Round wheel + top widget";
     case SDL_TOUCH_PROFILE_TOUCH_PANE:
     default:
-        return "Touch pane + touch zones";
+        return "Touch pane + touch screen";
     }
 }
 
@@ -20731,6 +20735,7 @@ static void do_cmd_touch_settings(bool* settings_changed)
         TOUCH_SETTINGS_PROFILE = 0,
         TOUCH_SETTINGS_BUTTONS,
         TOUCH_SETTINGS_DETAILED,
+        TOUCH_SETTINGS_TUTORIAL,
         TOUCH_SETTINGS_RETURN,
         TOUCH_SETTINGS_COUNT
     };
@@ -20769,6 +20774,8 @@ static void do_cmd_touch_settings(bool* settings_changed)
                 label = "Touch buttons config";
             } else if (i == TOUCH_SETTINGS_DETAILED) {
                 label = "Detailed touch controls";
+            } else if (i == TOUCH_SETTINGS_TUTORIAL) {
+                label = "Touch tutorial";
             } else {
                 label = "Return";
             }
@@ -20846,6 +20853,11 @@ static void do_cmd_touch_settings(bool* settings_changed)
                 ui_menu_click_clear();
                 ui_scroll_area_clear();
                 do_cmd_touch_control_settings(&changed);
+            } else if (highlight == TOUCH_SETTINGS_TUTORIAL) {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
+                sdl_touch_request_tutorial_from_settings();
+                done = true;
             } else {
                 done = true;
             }
@@ -22085,6 +22097,8 @@ static void do_cmd_input_options_submenu(int* highlight)
             break;
         case 3:
             do_cmd_touch_settings(NULL);
+            if (sdl_touch_settings_tutorial_requested())
+                return_to_options = true;
             Term_clear();
             break;
         case 4:
@@ -22141,6 +22155,8 @@ void do_cmd_options(void)
         case 1:
         {
             do_cmd_input_options_submenu(&input_highlight);
+            if (sdl_touch_settings_tutorial_requested())
+                return_to_game = true;
             Term_clear();
             break;
         }
@@ -22223,6 +22239,12 @@ void do_cmd_options(void)
         Term_erase(0, 0, 255);
     if (p_ptr)
         handle_stuff();
+    if (sdl_touch_settings_tutorial_requested()) {
+        if (p_ptr && p_ptr->playing)
+            do_cmd_redraw();
+        else
+            Term_fresh();
+    }
 }
 
 #ifdef ALLOW_MACROS
