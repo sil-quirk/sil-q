@@ -7523,7 +7523,7 @@ static int sdl_player_action_menu_collect(player_action_menu_entry* entries)
         SDL_PLAYER_ACTION_EXAMINE, 'x', "Desc");
     if (sdl_player_has_equipped_staff()) {
         sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_ACTIVATE, 'a', "Act");
+            SDL_PLAYER_ACTION_ACTIVATE, 'a', "Staff");
     }
     if (sdl_player_has_equipped_horn()) {
         sdl_player_action_menu_add_entry(entries, &count,

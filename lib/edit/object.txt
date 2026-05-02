@@ -2219,9 +2219,9 @@ I:56:16:0
 W:11:0:5:400
 P:0:0d0:0:0d0
 A:11/20
-D:A gem that can restore the fading power of enchanted staves,
-D: renewing their virtue. It allows you to partially recharge
-D: another staff.
+D:A gem that can restore the fading power of an enchanted staff,
+D: renewing its virtue. It allows you to partially recharge
+D: a staff.
 
 
 N:210:Summoning

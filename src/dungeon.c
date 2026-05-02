@@ -3921,6 +3921,8 @@ static void process_player(void)
     min_depth_counter += depth_counter_increment > 0 ?
         depth_counter_increment : 0;
 
+    process_morgoth_call_pressure();
+
     /* Window stuff */
 
     // Sil-y: note that these are now being set every single turn, somewhat

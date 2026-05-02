@@ -1202,6 +1202,7 @@ struct player_type
     byte morgoth_slain; /* Player has slain Morgoth */
     byte morgoth_second_wind; /* Morgoth revived once at 20% HP */
     byte morgoth_hits; /* Number of big hits against Morgoth */
+    byte morgoth_call_state; /* Packed summons seen/escalation state */
     u16b escaped; /* Player has escaped Angband */
     u16b panic_save; /* Panic save */
 
@@ -1229,6 +1230,7 @@ struct player_type
     byte was_entranced; // stores whether you have just woken up from
                         // entrancement
     byte skip_next_turn; // stores whether you need to skip your next turn
+    s32b morgoth_call_last_stage; /* Runtime duplicate guard for summons */
 
     byte have_ability[S_MAX]
                      [ABILITIES_MAX]; /* Whether or not you have each

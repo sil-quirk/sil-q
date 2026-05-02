@@ -454,7 +454,7 @@ flag_name info_flags_desc[] = {
 { "Song of Staying is twice effective", UNQ, UNQ_SNG_FIN },
 { "Song of Lorien is 1.5x effective", UNQ, UNQ_SNG_LUT }, 
 { "Horns are twice effective", UNQ, UNQ_WIL_TUOR },
-{ "Song of Threshold and Staff of Warding are twice effective", UNQ, UNQ_SNG_MEL }, 
+{ "Song of Threshold and Gem of Warding are twice effective", UNQ, UNQ_SNG_MEL },
 { "Can create very sharp items, easier to create sharp and accurate items", UNQ, UNQ_SMT_TELCHAR },
 { "Using 3 forge charges can create mithril items without mithril", UNQ, UNQ_SMT_GAMIL }, 
 { "All rings cost 30% less to create and ring slots are treated as major slots", UNQ, UNQ_SMT_CELEBRIMBOR },
