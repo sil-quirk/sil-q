@@ -102,6 +102,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
+    {.pane = PANE_CHARACTER, .where = PLACE_RIGHT, .enabled = false},
     {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = false},
     // In the bottom
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
@@ -879,8 +880,9 @@ static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path,
     int cell_height, bool* out_cached);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
-#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
+static void sdl_ensure_default_pane_profiles_present(bool enable_new_panes);
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
 static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
     bool has_controller);
 #endif
@@ -1733,17 +1735,28 @@ static void sdl_view_destroy(sdl_view* d)
     d->font_atlas_cached = false;
 }
 
-#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
+static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
+    int* config_count, bool enable_new_panes)
 {
+    bool changed = false;
+
+    if (!configs || !config_count)
+        return false;
+
+    if (*config_count < 0)
+        *config_count = 0;
+    if (*config_count > MAX_PANE_CONFIGS)
+        *config_count = MAX_PANE_CONFIGS;
+
     for (int i = 0; i < default_pane_config_count; i++) {
         bool found = false;
+        enum pane_type pane = default_pane_config[i].pane;
 
-        if (default_pane_config[i].pane == PANE_TOUCH)
+        if (pane == PANE_TOUCH)
             continue;
 
-        for (int j = 0; j < pane_config_count; j++) {
-            if (pane_config[j].pane == default_pane_config[i].pane) {
+        for (int j = 0; j < *config_count; j++) {
+            if (configs[j].pane == pane) {
                 found = true;
                 break;
             }
@@ -1752,18 +1765,36 @@ static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
         if (found)
             continue;
 
-        if (pane_config_count >= MAX_PANE_CONFIGS) {
+        if (*config_count >= MAX_PANE_CONFIGS) {
             log_warn("Could not append pane %d; max pane count reached",
-                default_pane_config[i].pane);
-            return;
+                pane);
+            return changed;
         }
 
-        pane_config[pane_config_count] = default_pane_config[i];
-        pane_config[pane_config_count].enabled = enable_new_panes;
-        pane_config_count++;
+        configs[*config_count] = default_pane_config[i];
+        configs[*config_count].enabled =
+            enable_new_panes && default_pane_config[i].enabled;
+        (*config_count)++;
+        changed = true;
+    }
+
+    return changed;
+}
+
+static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
+{
+    (void)sdl_ensure_default_pane_config_entries(pane_config,
+        &pane_config_count, enable_new_panes);
+}
+
+static void sdl_ensure_default_pane_profiles_present(bool enable_new_panes)
+{
+    for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++) {
+        (void)sdl_ensure_default_pane_config_entries(
+            g_pane_profiles[mode].pane_configs,
+            &g_pane_profiles[mode].pane_count, enable_new_panes);
     }
 }
-#endif
 
 static void sdl_ensure_touch_pane_config_present(void)
 {
@@ -4912,21 +4943,71 @@ static bool sdl_unified_look_handle_map_hover_pointer(float x, float y)
     return true;
 }
 
+static bool sdl_mouse_path_grid_is_open_floor(int y, int x)
+{
+    return in_bounds(y, x) && cave_floor_bold(y, x)
+        && cave_feat[y][x] != FEAT_CHASM;
+}
+
+static void sdl_mouse_path_feature_visual(int feat, byte* a, char* c)
+{
+    feature_type* f_ptr;
+
+    if (!a || !c)
+        return;
+
+    f_ptr = &f_info[feat];
+    if (graphics_are_ascii()) {
+        *a = f_ptr->d_attr;
+        *c = f_ptr->d_char;
+    } else {
+        *a = f_ptr->x_attr;
+        *c = f_ptr->x_char;
+    }
+}
+
+static bool sdl_mouse_path_minimap_draws_terrain(int y, int x)
+{
+    byte a = TERM_DARK;
+    byte ta = TERM_DARK;
+    byte dark_a = TERM_DARK;
+    char c = ' ';
+    char tc = ' ';
+    char dark_c = ' ';
+
+    if (!p_ptr || !in_bounds(y, x))
+        return false;
+
+    map_info(y, x, &a, &c, &ta, &tc);
+    sdl_mouse_path_feature_visual(FEAT_NONE, &dark_a, &dark_c);
+
+    return (ta != dark_a) || (tc != dark_c);
+}
+
 static bool sdl_mouse_path_grid_known(int y, int x)
 {
+    u16b info;
+    int m_idx;
+
     if (!in_bounds(y, x))
         return false;
     if ((y == p_ptr->py) && (x == p_ptr->px))
         return true;
-    if (!grid_info_is_available(y, x))
-        return false;
-    return ((cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)) != 0)
-        || player_can_see_bold(y, x);
+
+    m_idx = cave_m_idx[y][x];
+    if ((m_idx > 0) && (mon_list[m_idx].ml || (mon_list[m_idx].mflag & MFLAG_MARK)))
+        return true;
+
+    info = cave_info[y][x];
+    return ((info & (CAVE_MARK | CAVE_SEEN)) != 0)
+        || ((info & CAVE_VIEW) && sdl_mouse_path_grid_is_open_floor(y, x))
+        || (sdl_mouse_path_grid_is_open_floor(y, x)
+            && sdl_mouse_path_minimap_draws_terrain(y, x));
 }
 
 static bool sdl_mouse_path_grid_is_known_danger(int y, int x)
 {
-    if (!((cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)) || player_can_see_bold(y, x)))
+    if (!sdl_mouse_path_grid_known(y, x))
         return false;
     if (cave_feat[y][x] == FEAT_CHASM)
         return true;
@@ -4958,7 +5039,7 @@ static bool sdl_mouse_path_grid_walkable(int y, int x)
     if (cave_known_closed_door_bold(y, x))
         return !sdl_mouse_path_grid_is_stuck_door(y, x);
 
-    return cave_floor_bold(y, x);
+    return sdl_mouse_path_grid_is_open_floor(y, x);
 }
 
 static int sdl_mouse_path_heuristic(int y1, int x1, int y2, int x2)
@@ -7083,7 +7164,7 @@ static int sdl_player_action_menu_collect(player_action_menu_entry* entries)
             SDL_PLAYER_ACTION_FLETCH, '-', "Fletch");
     }
     sdl_player_action_menu_add_entry(entries, &count,
-        SDL_PLAYER_ACTION_EXAMINE, 'x', "Exm");
+        SDL_PLAYER_ACTION_EXAMINE, 'x', "Desc");
     if (sdl_player_has_equipped_staff()) {
         sdl_player_action_menu_add_entry(entries, &count,
             SDL_PLAYER_ACTION_ACTIVATE, 'a', "Act");
@@ -7094,6 +7175,23 @@ static int sdl_player_action_menu_collect(player_action_menu_entry* entries)
     }
 
     return count;
+}
+
+static bool sdl_player_has_floor_item_underfoot(void)
+{
+    int floor_list[MAX_FLOOR_STACK];
+
+    if (!p_ptr)
+        return false;
+
+    return scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00) > 0;
+}
+
+static bool sdl_player_action_menu_kind_supports_secondary(int kind)
+{
+    return kind == SDL_PLAYER_ACTION_WAIT || kind == SDL_PLAYER_ACTION_USE
+        || kind == SDL_PLAYER_ACTION_EXAMINE;
 }
 
 static int sdl_player_action_menu_default_kind(void)
@@ -7173,9 +7271,11 @@ static void sdl_player_action_menu_activate_hover(void)
             false);
 }
 
-static void sdl_player_action_menu_start_gamepad_wait_press(int button)
+static void sdl_player_action_menu_start_gamepad_press(int button, int kind)
 {
     if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT)
+        return;
+    if (!sdl_player_action_menu_kind_supports_secondary(kind))
         return;
 
     sdl_player_action_menu_cancel_press();
@@ -7185,7 +7285,7 @@ static void sdl_player_action_menu_start_gamepad_wait_press(int button)
     g_player_action_menu.press_secondary = false;
     g_player_action_menu.press_finger_id = 0;
     g_player_action_menu.press_button = button;
-    g_player_action_menu.press_kind = SDL_PLAYER_ACTION_WAIT;
+    g_player_action_menu.press_kind = kind;
     g_player_action_menu.press_start_x = 0.0f;
     g_player_action_menu.press_start_y = 0.0f;
     g_player_action_menu.press_start_time = SDL_GetTicksNS();
@@ -7208,7 +7308,7 @@ static bool sdl_player_action_menu_handle_gamepad_confirm(int button, bool down)
         if (down)
             return true;
 
-        if (kind == SDL_PLAYER_ACTION_WAIT
+        if (sdl_player_action_menu_kind_supports_secondary(kind)
             && g_player_action_menu.press_start_time
             && SDL_GetTicksNS() - g_player_action_menu.press_start_time
                 >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
@@ -7228,8 +7328,11 @@ static bool sdl_player_action_menu_handle_gamepad_confirm(int button, bool down)
     if (g_player_action_menu.hover_kind == SDL_PLAYER_ACTION_NONE)
         sdl_player_action_menu_select_default();
 
-    if (g_player_action_menu.hover_kind == SDL_PLAYER_ACTION_WAIT) {
-        sdl_player_action_menu_start_gamepad_wait_press(button);
+    if (sdl_player_action_menu_kind_supports_secondary(
+            g_player_action_menu.hover_kind))
+    {
+        sdl_player_action_menu_start_gamepad_press(button,
+            g_player_action_menu.hover_kind);
     } else {
         sdl_player_action_menu_activate_hover();
     }
@@ -7702,6 +7805,7 @@ static void sdl_player_exchange_activate_hover(void)
 static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
 {
     int command = 0;
+    bool select_floor = false;
 
     switch (kind) {
     case SDL_PLAYER_ACTION_EXCHANGE:
@@ -7712,6 +7816,7 @@ static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
         break;
     case SDL_PLAYER_ACTION_USE:
         command = 'u';
+        select_floor = !secondary && sdl_player_has_floor_item_underfoot();
         break;
     case SDL_PLAYER_ACTION_SING:
         command = 's';
@@ -7721,6 +7826,7 @@ static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
         break;
     case SDL_PLAYER_ACTION_EXAMINE:
         command = 'x';
+        select_floor = !secondary && sdl_player_has_floor_item_underfoot();
         break;
     case SDL_PLAYER_ACTION_ACTIVATE:
         command = 'a';
@@ -7736,6 +7842,8 @@ static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
     sdl_player_exchange_cancel();
     sdl_mouse_path_cancel();
     sdl_enqueue_bypassed_command(command);
+    if (select_floor)
+        Term_keypress('-');
 }
 
 static bool sdl_player_action_menu_open(void)
@@ -7879,7 +7987,7 @@ static bool sdl_player_action_menu_handle_pointer_down(float x, float y,
         sdl_player_action_menu_cancel();
         return true;
     }
-    if (secondary && kind != SDL_PLAYER_ACTION_WAIT) {
+    if (secondary && !sdl_player_action_menu_kind_supports_secondary(kind)) {
         sdl_player_action_menu_cancel();
         return true;
     }
@@ -7970,7 +8078,7 @@ static bool sdl_player_action_menu_handle_pointer_up(float x, float y,
     kind = sdl_player_action_menu_kind_at(x, y);
     if (kind == g_player_action_menu.press_kind) {
         activate_secondary = g_player_action_menu.press_secondary;
-        if (!mouse && kind == SDL_PLAYER_ACTION_WAIT
+        if (!mouse && sdl_player_action_menu_kind_supports_secondary(kind)
             && g_player_action_menu.press_start_time
             && SDL_GetTicksNS() - g_player_action_menu.press_start_time
                 >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
@@ -7994,7 +8102,8 @@ static int sdl_player_action_menu_pending_timeout_ms(Uint64 now_ns)
     if (!g_player_action_menu.press_active
         || g_player_action_menu.press_mouse
         || g_player_action_menu.press_secondary
-        || g_player_action_menu.press_kind != SDL_PLAYER_ACTION_WAIT
+        || !sdl_player_action_menu_kind_supports_secondary(
+            g_player_action_menu.press_kind)
         || !g_player_action_menu.press_start_time)
     {
         return -1;
@@ -8009,10 +8118,13 @@ static int sdl_player_action_menu_pending_timeout_ms(Uint64 now_ns)
 
 static bool sdl_player_action_menu_flush_pending_press(Uint64 now_ns)
 {
+    int kind;
+
     if (sdl_player_action_menu_pending_timeout_ms(now_ns) != 0)
         return false;
 
-    sdl_player_action_menu_activate_kind(SDL_PLAYER_ACTION_WAIT, true);
+    kind = g_player_action_menu.press_kind;
+    sdl_player_action_menu_activate_kind(kind, true);
     return true;
 }
 
@@ -16712,7 +16824,7 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
     {
         sdl_touch_tutorial_draw_zone_callout(screen, &rect,
             "Map / player",
-            "Tap: path to a visible square or select a target.\nHold: open contextual actions, look, or special movement choices.\nPlayer square: quick access to player actions.");
+            "Tap: path to an explored or open square, or select a target.\nHold/right-click: open contextual actions, look, or special movement choices.\nPlayer square: action wheel; Use/Desc act on the floor item, hold/right-click them for full item menus.");
     }
 
     if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
@@ -19260,6 +19372,9 @@ errr init_sdl(int argc, char **argv)
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
     }
+
+    sdl_ensure_default_pane_profiles_present(false);
+    sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
     sdl_ensure_default_pane_configs_present(false);
