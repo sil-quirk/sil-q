@@ -118,29 +118,15 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
             break;
 
         case 's':
-        {
-            cptr arg = va_arg(vp, cptr);
-            if (!arg)
-                arg = "";
-            SDL_strlcpy(tmp, arg, sizeof(tmp));
-            break;
-        }
-
         case 'r':
-        {
-            char* arg = va_arg(vp, char*);
-            if (!arg)
-                arg = "";
-            SDL_strlcpy(tmp, arg, sizeof(tmp));
-            break;
-        }
-
         case 'v':
         {
             cptr arg = va_arg(vp, cptr);
             if (!arg)
                 arg = "";
-            SDL_strlcpy(tmp, arg, sizeof(tmp));
+            if (aux[q - 1] != 's')
+                aux[q - 1] = 's';
+            (void)snprintf(tmp, sizeof(tmp), aux, arg);
             break;
         }
 

@@ -13854,6 +13854,15 @@ typedef enum hint_message_action {
     HINT_MESSAGE_ACTION_MAP
 } hint_message_action;
 
+enum {
+    HINT_MESSAGE_CLICK_TOGGLE_TIPS = -1,
+    HINT_MESSAGE_CLICK_BACK = -2,
+    HINT_MESSAGE_CLICK_LOOK = -3,
+    HINT_MESSAGE_CLICK_MAP = -4,
+    HINT_MESSAGE_CLICK_CONTINUE = -5,
+    HINT_MESSAGE_CLICK_ENTRY_BASE = 1000
+};
+
 static void hint_message_open_map_at(int y, int x)
 {
 #ifdef USE_SDL
@@ -14231,6 +14240,36 @@ static const char* hint_message_detail_prompt(bool has_source, int wid)
         N_ELEMENTS(simple_prompts));
 }
 
+static void hint_message_detail_register_prompt(const char* prompt,
+    int row, bool has_source)
+{
+    if (!prompt)
+        return;
+
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "continue");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "Any key");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "any key");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "ok");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "back");
+
+    if (!has_source)
+        return;
+
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+        prompt, "look");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+        prompt, "'l'");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+        prompt, "map");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+        prompt, "'m'");
+}
+
 static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
@@ -14362,6 +14401,54 @@ static const char* hint_message_list_prompt(bool show_all_tips,
 
     return hint_message_pick_prompt(wid, no_level_prompts,
         N_ELEMENTS(no_level_prompts));
+}
+
+static void hint_message_list_register_prompt(const char* prompt, int row,
+    bool show_all_tips, int level_n, int tip_n)
+{
+    if (!prompt)
+        return;
+
+    if (tip_n > 0)
+    {
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
+            row, prompt, show_all_tips ? "level hints" : "all tips");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
+            row, prompt, show_all_tips ? "hints" : "tips");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
+            row, prompt, "'h'");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
+            row, prompt, "h=");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
+            row, prompt, "h,");
+    }
+
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "Enter");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+        prompt, "read");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "ESCAPE");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "ESC");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "back");
+
+    if (!show_all_tips && level_n > 0)
+    {
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+            prompt, "look");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+            prompt, "'l'");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+            prompt, "l,");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+            prompt, "map");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+            prompt, "'m'");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+            prompt, "m,");
+    }
 }
 
 typedef struct hint_message_display_line {
@@ -15020,6 +15107,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
     int col = 8;
     hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char tip_text[512];
+    char ch;
     int line_count = 0;
 
     if (!skeleton_tip_text_by_index(index, tip_text, sizeof(tip_text)))
@@ -15035,6 +15123,10 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
         Term_clear();
         Term_get_size(&wid, &hgt);
         line_count = 0;
+        ui_scroll_area_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
 
         line_count = hint_message_append_wrapped_text(
             "Hint: Survival Tip", lines, line_count,
@@ -15049,17 +15141,40 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
             byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
             hint_message_draw_colored_line(row + li, col, base_attr, lines[li].text,
                 NULL, !title_line);
+            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
         }
 
-        prt(hint_message_detail_prompt(false, wid), hgt - 1, 0);
+        {
+            const char* prompt = hint_message_detail_prompt(false, wid);
+            prt(prompt, hgt - 1, 0);
+            hint_message_detail_register_prompt(prompt, hgt - 1, false);
+        }
         Term_fresh();
 
         hide_cursor = true;
-        (void)inkey();
+        ch = inkey();
         hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                (void)clicked_choice;
+                break;
+            }
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
         break;
     }
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
     sdl_story_font_disable();
     if (manage_screen)
         screen_load();
@@ -15101,6 +15216,10 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
         Term_clear();
         Term_get_size(&wid, &hgt);
         display_line_count = 0;
+        ui_scroll_area_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
 
         for (int li = 0; li < stored_line_count; ++li)
         {
@@ -15117,16 +15236,58 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
             hint_message_draw_colored_line(row + li, col, base_attr,
                 display_lines[li].text, title_line ? NULL : &meta,
                 (highlight_tutorial && !title_line));
+            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
         }
 
-        prt(hint_message_detail_prompt(hint_message_has_source(&meta), wid),
-            hgt - 1, 0);
+        {
+            bool has_source = hint_message_has_source(&meta);
+            const char* prompt = hint_message_detail_prompt(has_source, wid);
+            prt(prompt, hgt - 1, 0);
+            hint_message_detail_register_prompt(prompt, hgt - 1, has_source);
+        }
 
         Term_fresh();
 
         hide_cursor = true;
         ch = inkey();
         hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                if (clicked_choice == HINT_MESSAGE_CLICK_LOOK
+                    && hint_message_has_source(&meta))
+                {
+                    if (source_y)
+                        *source_y = meta.source_y;
+                    if (source_x)
+                        *source_x = meta.source_x;
+                    action = HINT_MESSAGE_ACTION_LOOK;
+                    break;
+                }
+
+                if (clicked_choice == HINT_MESSAGE_CLICK_MAP
+                    && hint_message_has_source(&meta))
+                {
+                    if (source_y)
+                        *source_y = meta.source_y;
+                    if (source_x)
+                        *source_x = meta.source_x;
+                    action = HINT_MESSAGE_ACTION_MAP;
+                    break;
+                }
+
+                break;
+            }
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
 
         if (steamdeck && ch == steamdeck_back_key())
             break;
@@ -15157,6 +15318,8 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
         break;
     }
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
     sdl_story_font_disable();
     if (manage_screen)
         screen_load();
@@ -15222,6 +15385,8 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     {
         int n = show_all_tips ? tip_n : level_n;
         int draw_row = 0;
+        int body_top;
+        int body_bottom;
 
         Term_get_size(&wid, &hgt);
         Term_clear();
@@ -15229,6 +15394,18 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         int rows = hgt - 4;
         if (rows < 1)
             rows = 1;
+        body_top = 2;
+        body_bottom = body_top + rows - 1;
+        if (body_bottom >= hgt - 1)
+            body_bottom = hgt - 2;
+        if (body_bottom < body_top)
+            body_bottom = body_top;
+        ui_scroll_area_begin(body_top, body_bottom,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
 
         if (n > 0)
         {
@@ -15275,8 +15452,13 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         else
             prt(format("Hint Messages (%d)", level_n), 0, 0);
 
-        prt(hint_message_list_prompt(show_all_tips, level_n, tip_n, wid),
-            hgt - 1, 0);
+        {
+            const char* prompt = hint_message_list_prompt(show_all_tips,
+                level_n, tip_n, wid);
+            prt(prompt, hgt - 1, 0);
+            hint_message_list_register_prompt(prompt, hgt - 1,
+                show_all_tips, level_n, tip_n);
+        }
 
         if (n <= 0)
         {
@@ -15288,22 +15470,87 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         for (int idx = top; idx < n && draw_row < rows; ++idx)
         {
             int used;
+            int entry_row = body_top + draw_row;
 
             if (show_all_tips)
-                used = skeleton_tip_draw_list_row(2 + draw_row, idx,
+                used = skeleton_tip_draw_list_row(entry_row, idx,
                     idx == sel, wid, rows - draw_row);
             else
-                used = hint_message_draw_list_row(2 + draw_row, idx,
+                used = hint_message_draw_list_row(entry_row, idx,
                     idx == sel, wid, rows - draw_row);
 
             if (used <= 0)
                 break;
+
+            for (int click_row = 0; click_row < used; ++click_row)
+            {
+                int row_y = entry_row + click_row;
+                if (row_y > body_bottom)
+                    break;
+                ui_menu_click_add(HINT_MESSAGE_CLICK_ENTRY_BASE + idx,
+                    0, row_y, wid);
+            }
 
             draw_row += used;
         }
 
         Term_fresh();
         ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice >= HINT_MESSAGE_CLICK_ENTRY_BASE)
+                {
+                    int clicked_idx =
+                        clicked_choice - HINT_MESSAGE_CLICK_ENTRY_BASE;
+                    if (clicked_idx >= 0 && clicked_idx < n)
+                    {
+                        sel = clicked_idx;
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        ch = '\r';
+                    }
+                    else if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    switch (clicked_choice)
+                    {
+                    case HINT_MESSAGE_CLICK_TOGGLE_TIPS:
+                        ch = 'h';
+                        break;
+                    case HINT_MESSAGE_CLICK_LOOK:
+                        ch = 'l';
+                        break;
+                    case HINT_MESSAGE_CLICK_MAP:
+                        ch = 'm';
+                        break;
+                    case HINT_MESSAGE_CLICK_BACK:
+                        ch = ESCAPE;
+                        break;
+                    case HINT_MESSAGE_CLICK_CONTINUE:
+                        ch = '\r';
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
+        }
 
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
             break;
@@ -15423,6 +15670,9 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
         bell(NULL);
     }
+
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
 
     /* Load screen */
     screen_pop_supporting_panes_hidden();
@@ -17013,8 +17263,8 @@ extern void do_cmd_options_aux(int page, cptr info)
             if (playerturn == 0)
             {
                 settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
-                    "(tap/click selects; tap selected or 4/6 sets; drag/wheel scroll; Return/Escape accepts)",
-                    "(tap select/set; drag/wheel scroll; Enter/Esc accepts)",
+                    "(tap/click select; tap selected or 4/6 set; drag/wheel scroll; Return/Escape accept)",
+                    "(tap select/set; drag/wheel scroll; Enter/Esc accept)",
                     "(tap set; drag/wheel; Enter/Esc)");
                 ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
             }
@@ -17023,15 +17273,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
                     "(press Return to go back)",
                     "(press Enter to go back)",
-                    "(Enter goes back)");
+                    "(Enter back)");
                 ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
             }
         }
         else
         {
             settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
-                "(tap/click selects; tap selected or 4/6 sets; drag/wheel scroll; Return/Escape accepts)",
-                "(tap select/set; drag/wheel scroll; Enter/Esc accepts)",
+                "(tap/click select; tap selected or 4/6 set; drag/wheel scroll; Return/Escape accept)",
+                "(tap select/set; drag/wheel scroll; Enter/Esc accept)",
                 "(tap set; drag/wheel; Enter/Esc)");
             ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
         }
@@ -20012,9 +20262,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "Space cycles selected   Tab switches button panel   x resets selected",
-                "Space cycles   Tab switch   x reset",
-                "Space cycles   Tab switch");
+                "Space cycle selected   Tab switch button panel   x reset selected",
+                "Space cycle   Tab switch   x reset",
+                "Space cycle   Tab switch");
             int prompt_row = row++;
 
             settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
@@ -20358,12 +20608,12 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         settings_ui_put_fitted(list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 2,
             2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select button   4/6: previous/next action   Space cycles",
-                "Up/Down select   4/6 action   Space cycles",
+                "Up/Down: select button   4/6: previous/next action   Space cycle",
+                "Up/Down select   4/6 action   Space cycle",
                 "Up/Down select   4/6 action"));
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "x resets selected   M/Map resets all top widget buttons",
+                "x reset selected   M/Map reset all top widget buttons",
                 "x reset selected   Map reset all",
                 "x reset   Map all");
             int prompt_row = list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 3;
@@ -20523,8 +20773,8 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
         }
 
         settings_ui_put_return_prompt(list_start_row + TOUCH_BUTTON_MENU_COUNT + 2,
-            2, TERM_SLATE, "Esc: return; Enter opens selected row",
-            "Esc return; Enter opens row", "Esc return");
+            2, TERM_SLATE, "Esc: return; Enter open selected row",
+            "Esc return; Enter open row", "Esc return");
 
         Term_fresh();
 
@@ -20657,9 +20907,9 @@ static void do_cmd_touch_profile_settings(bool* settings_changed)
         settings_ui_put_fitted(list_start_row + (int)N_ELEMENTS(profiles) + 2,
             2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Space/Enter applies the highlighted profile defaults.",
-                "Space/Enter applies profile defaults.",
-                "Space applies profile."));
+                "Space/Enter apply the highlighted profile defaults.",
+                "Space/Enter apply profile defaults.",
+                "Space apply profile."));
         settings_ui_put_return_prompt(list_start_row + (int)N_ELEMENTS(profiles) + 3,
             2, TERM_SLATE, "Esc: return", "Esc: return", "Esc return");
 
@@ -20791,8 +21041,8 @@ static void do_cmd_touch_settings(bool* settings_changed)
         }
 
         settings_ui_put_return_prompt(list_start_row + TOUCH_SETTINGS_COUNT + 2,
-            2, TERM_SLATE, "Esc: return; Enter opens selected row",
-            "Esc return; Enter opens row", "Esc return");
+            2, TERM_SLATE, "Esc: return; Enter open selected row",
+            "Esc return; Enter open row", "Esc return");
 
         Term_fresh();
 
@@ -20984,12 +21234,12 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
         row = list_start_row + visible_rows + 1;
         settings_ui_put_fitted(row++, 2, TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select item   4/6: previous/next value   Space toggles or cycles",
-                "Up/Down select   4/6 value   Space toggles/cycles",
+                "Up/Down: select item   4/6: previous/next value   Space toggle or cycle",
+                "Up/Down select   4/6 value   Space toggle/cycle",
                 "Up/Down select   4/6 value"));
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "x resets selected   M/Map resets all touch control settings",
+                "x reset selected   M/Map reset all touch control settings",
                 "x reset selected   Map reset all",
                 "x reset   Map all");
             int prompt_row = row++;
@@ -21269,12 +21519,12 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         settings_ui_put_fitted(list_start_row + MOUSE_SETTING_COUNT + 2, 2,
             TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select item   4/6: previous/next value   Space toggles or cycles",
-                "Up/Down select   4/6 value   Space toggles/cycles",
+                "Up/Down: select item   4/6: previous/next value   Space toggle or cycle",
+                "Up/Down select   4/6 value   Space toggle/cycle",
                 "Up/Down select   4/6 value"));
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "x resets selected   M/Map resets all mouse input settings",
+                "x reset selected   M/Map reset all mouse input settings",
                 "x reset selected   Map reset all",
                 "x reset   Map all");
             int prompt_row = list_start_row + MOUSE_SETTING_COUNT + 3;
@@ -21510,9 +21760,9 @@ static int legacy_options_menu(int* highlight)
     }
 
     settings_ui_put_return_prompt(term_hgt - 1, 2, TERM_SLATE,
-        "tap/click a row to open; drag/wheel moves selection; Esc returns",
-        "tap/click opens; drag/wheel moves; Esc returns",
-        "tap opens; drag/wheel; Esc");
+        "tap/click a row to open; drag/wheel move selection; Esc return",
+        "tap/click open; drag/wheel move; Esc return",
+        "tap open; drag/wheel; Esc");
     ui_menu_click_add_full_row(7, term_hgt - 1);
 
     Term_fresh();
@@ -21812,9 +22062,9 @@ int options_menu(int* highlight)
     }
 
     settings_ui_put_return_prompt(term_hgt - 1, 2, TERM_SLATE,
-        "tap/click a row to open; drag/wheel moves selection; Esc returns",
-        "tap/click opens; drag/wheel moves; Esc returns",
-        "tap opens; drag/wheel; Esc");
+        "tap/click a row to open; drag/wheel move selection; Esc return",
+        "tap/click open; drag/wheel move; Esc return",
+        "tap open; drag/wheel; Esc");
     ui_menu_click_add_full_row(10, term_hgt - 1);
 
     /* Flush the prompt */
@@ -21998,9 +22248,9 @@ static int input_options_menu(int* highlight)
     ui_menu_click_add_full_row(5, line_row);
 
     settings_ui_put_return_prompt(term_hgt - 1, 2, TERM_SLATE,
-        "tap/click a row to open; drag/wheel moves selection; Esc returns",
-        "tap/click opens; drag/wheel moves; Esc returns",
-        "tap opens; drag/wheel; Esc");
+        "tap/click a row to open; drag/wheel move selection; Esc return",
+        "tap/click open; drag/wheel move; Esc return",
+        "tap open; drag/wheel; Esc");
     ui_menu_click_add_full_row(5, term_hgt - 1);
 
     Term_fresh();

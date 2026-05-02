@@ -19431,9 +19431,13 @@ if (playerturn == 0) {
     /* Split start string (motto) at first '-' */
     const char *dash_start = strchr(start, '-');
     if (dash_start) {
+        size_t prefix_len = (size_t)(dash_start - start + 1);
+
         /* Line 2: up to and including dash */
-        strnfmt(extra[idx], 100, "%.*s",
-                (int)(dash_start - start + 1), start);
+        if (prefix_len >= sizeof(extra[idx]))
+            prefix_len = sizeof(extra[idx]) - 1;
+        memcpy(extra[idx], start, prefix_len);
+        extra[idx][prefix_len] = '\0';
         idx++;
         /* Line 3: remainder after dash */
         strnfmt(extra[idx], 100, "%s", dash_start + 1);

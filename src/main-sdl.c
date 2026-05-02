@@ -639,10 +639,17 @@ enum {
     SDL_MOUSE_PATH_TURN_COST_HARD = 90,
 };
 
+enum {
+    SDL_MOUSE_PATH_BLOCKED_NONE = 0,
+    SDL_MOUSE_PATH_BLOCKED_STUCK_DOOR,
+    SDL_MOUSE_PATH_BLOCKED_DANGER,
+};
+
 typedef struct mouse_path_state {
     bool hover_visible;
     bool follow_active;
     bool path_valid;
+    int blocked_target_kind;
     int source_y;
     int source_x;
     int target_y;
@@ -654,6 +661,10 @@ typedef struct mouse_path_state {
     bool recall_pending;
     int recall_y;
     int recall_x;
+    bool stuck_door_bash_pending;
+    int stuck_door_bash_y;
+    int stuck_door_bash_x;
+    int stuck_door_bash_dir;
 } mouse_path_state;
 
 typedef struct mouse_path_search_state {
@@ -1001,6 +1012,9 @@ static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
     int* out_command, int* out_dir);
 static bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x);
 static bool sdl_mouse_path_compute(int target_y, int target_x);
+static bool sdl_mouse_stuck_door_bash_queue_prompt(int map_y, int map_x);
+static bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir);
+static int sdl_mouse_movement_normalized_mode(int mode);
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row);
 static void sdl_player_confirm_at_player(void);
 static bool sdl_player_action_menu_open(void);
@@ -5005,6 +5019,26 @@ static bool sdl_mouse_path_grid_known(int y, int x)
             && sdl_mouse_path_minimap_draws_terrain(y, x));
 }
 
+static bool sdl_mouse_feature_known_for_action(int y, int x)
+{
+    if (!in_bounds(y, x))
+        return false;
+    if (cave_info[y][x] & (CAVE_MARK))
+        return true;
+
+    return grid_info_is_available(y, x)
+        && (cave_info[y][x] & (CAVE_SEEN));
+}
+
+static void sdl_mouse_note_feature_for_action(int y, int x)
+{
+    if (!sdl_mouse_feature_known_for_action(y, x))
+        return;
+
+    cave_info[y][x] |= (CAVE_MARK);
+    lite_spot(y, x);
+}
+
 static bool sdl_mouse_path_grid_is_known_danger(int y, int x)
 {
     if (!sdl_mouse_path_grid_known(y, x))
@@ -5018,6 +5052,55 @@ static bool sdl_mouse_path_grid_is_stuck_door(int y, int x)
 {
     return (cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x08)
         && (cave_feat[y][x] <= FEAT_DOOR_TAIL);
+}
+
+static bool sdl_mouse_stuck_door_bash_target(int map_y, int map_x,
+    int* out_dir)
+{
+    int dir;
+
+    if (out_dir)
+        *out_dir = 0;
+    if (!p_ptr || !in_bounds(map_y, map_x))
+        return false;
+    if (!sdl_mouse_feature_known_for_action(map_y, map_x))
+        return false;
+    if (!cave_known_closed_door_bold(map_y, map_x))
+        return false;
+    if (!sdl_mouse_path_grid_is_stuck_door(map_y, map_x))
+        return false;
+    if (sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL))
+        return false;
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, map_y, map_x);
+    if (dir < 1 || dir > 9 || dir == 5)
+        return false;
+    if ((map_y != p_ptr->py + ddy[dir])
+        || (map_x != p_ptr->px + ddx[dir]))
+    {
+        return false;
+    }
+
+    if (out_dir)
+        *out_dir = dir;
+    return true;
+}
+
+static int sdl_mouse_path_blocked_target_kind(int y, int x)
+{
+    if (!sdl_mouse_path_grid_known(y, x))
+        return SDL_MOUSE_PATH_BLOCKED_NONE;
+    if (sdl_mouse_grid_has_visible_monster(y, x, NULL))
+        return SDL_MOUSE_PATH_BLOCKED_NONE;
+    if (cave_known_closed_door_bold(y, x)
+        && sdl_mouse_path_grid_is_stuck_door(y, x))
+    {
+        return SDL_MOUSE_PATH_BLOCKED_STUCK_DOOR;
+    }
+    if (sdl_mouse_path_grid_is_known_danger(y, x))
+        return SDL_MOUSE_PATH_BLOCKED_DANGER;
+
+    return SDL_MOUSE_PATH_BLOCKED_NONE;
 }
 
 static bool sdl_mouse_path_grid_walkable(int y, int x)
@@ -5553,13 +5636,53 @@ static bool sdl_mouse_path_compute_route(int target_y, int target_x,
     return false;
 }
 
+static bool sdl_mouse_path_compute_blocked_target_route(int target_y,
+    int target_x, bool sprint_enabled)
+{
+    int dir;
+    int dirs[8];
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, target_y, target_x);
+    if (dir >= 1 && dir <= 9 && dir != 5
+        && target_y == p_ptr->py + ddy[dir]
+        && target_x == p_ptr->px + ddx[dir])
+    {
+        g_mouse_path.path_len = 0;
+        return true;
+    }
+
+    sdl_mouse_path_order_dirs(target_y, target_x, p_ptr->py, p_ptr->px, dirs);
+    for (int i = 0; i < 8; i++) {
+        int approach_y = target_y + ddy[dirs[i]];
+        int approach_x = target_x + ddx[dirs[i]];
+
+        if (!in_bounds(approach_y, approach_x))
+            continue;
+        if (!sdl_mouse_path_grid_walkable(approach_y, approach_x))
+            continue;
+        if (approach_y == p_ptr->py && approach_x == p_ptr->px) {
+            g_mouse_path.path_len = 0;
+            return true;
+        }
+        if (sdl_mouse_path_compute_route(approach_y, approach_x,
+                sprint_enabled))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool sdl_mouse_path_compute(int target_y, int target_x)
 {
     int target_m_idx = 0;
+    int blocked_target_kind = SDL_MOUSE_PATH_BLOCKED_NONE;
     bool sprint_enabled;
 
     g_mouse_path.path_valid = false;
     g_mouse_path.path_len = 0;
+    g_mouse_path.blocked_target_kind = SDL_MOUSE_PATH_BLOCKED_NONE;
 
     if (!sdl_mouse_gameplay_context_active())
         return false;
@@ -5576,7 +5699,31 @@ static bool sdl_mouse_path_compute(int target_y, int target_x)
     if ((target_y == p_ptr->py) && (target_x == p_ptr->px))
         return false;
     if (!sdl_mouse_path_grid_walkable(target_y, target_x))
-        return false;
+    {
+        blocked_target_kind =
+            sdl_mouse_path_blocked_target_kind(target_y, target_x);
+        if (blocked_target_kind == SDL_MOUSE_PATH_BLOCKED_NONE)
+            return false;
+
+        sprint_enabled =
+            p_ptr->active_ability[S_EVN][EVN_SPRINTING] ? true : false;
+        if (!sdl_mouse_path_compute_blocked_target_route(target_y, target_x,
+                sprint_enabled))
+        {
+            if (blocked_target_kind == SDL_MOUSE_PATH_BLOCKED_DANGER)
+            {
+                g_mouse_path.blocked_target_kind = blocked_target_kind;
+                g_mouse_path.path_len = 0;
+                g_mouse_path.path_valid = true;
+                return true;
+            }
+            return false;
+        }
+
+        g_mouse_path.blocked_target_kind = blocked_target_kind;
+        g_mouse_path.path_valid = true;
+        return true;
+    }
 
     sprint_enabled = p_ptr->active_ability[S_EVN][EVN_SPRINTING] ? true : false;
     if (!sdl_mouse_path_compute_route(target_y, target_x, sprint_enabled))
@@ -5615,7 +5762,7 @@ void sdl_mouse_path_cancel(void)
 {
     if (!g_mouse_path.hover_visible && !g_mouse_path.follow_active
         && !g_mouse_path.path_valid && !g_map_touch_press.active
-        && !g_map_touch_selected)
+        && !g_map_touch_selected && !g_mouse_path.stuck_door_bash_pending)
     {
         return;
     }
@@ -5626,10 +5773,51 @@ void sdl_mouse_path_cancel(void)
     g_mouse_path.hover_visible = false;
     g_mouse_path.follow_active = false;
     g_mouse_path.path_valid = false;
+    g_mouse_path.blocked_target_kind = SDL_MOUSE_PATH_BLOCKED_NONE;
     g_mouse_path.path_wake_pending = false;
     g_mouse_path.target_m_idx = 0;
     g_mouse_path.path_len = 0;
+    g_mouse_path.stuck_door_bash_pending = false;
+    g_mouse_path.stuck_door_bash_y = 0;
+    g_mouse_path.stuck_door_bash_x = 0;
+    g_mouse_path.stuck_door_bash_dir = 0;
     g_state.need_present = true;
+}
+
+static bool sdl_mouse_stuck_door_bash_queue_prompt(int map_y, int map_x)
+{
+    int dir = 0;
+
+    if (!sdl_mouse_stuck_door_bash_target(map_y, map_x, &dir))
+        return false;
+
+    sdl_mouse_note_feature_for_action(map_y, map_x);
+    sdl_mouse_path_cancel();
+    g_mouse_path.stuck_door_bash_pending = true;
+    g_mouse_path.stuck_door_bash_y = map_y;
+    g_mouse_path.stuck_door_bash_x = map_x;
+    g_mouse_path.stuck_door_bash_dir = dir;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_mouse_stuck_door_handle_left_click(int map_y, int map_x)
+{
+    if (sdl_mouse_stuck_door_bash_queue_prompt(map_y, map_x))
+        return true;
+    if (sdl_mouse_movement_normalized_mode(config.mouse_movement_mode)
+        == SDL_MOUSE_MOVEMENT_OFF)
+    {
+        return false;
+    }
+    if (sdl_mouse_path_blocked_target_kind(map_y, map_x)
+        != SDL_MOUSE_PATH_BLOCKED_STUCK_DOOR)
+    {
+        return false;
+    }
+
+    return sdl_mouse_path_start_follow_grid(map_y, map_x);
 }
 
 static int sdl_mouse_movement_normalized_mode(int mode)
@@ -5704,6 +5892,9 @@ static bool sdl_mouse_path_handle_movement_click(float x, float y)
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
 
+    if (sdl_mouse_stuck_door_bash_queue_prompt(map_y, map_x))
+        return true;
+
     (void)sdl_mouse_path_start_follow_grid(map_y, map_x);
     return true;
 }
@@ -5718,6 +5909,13 @@ static bool sdl_mouse_path_handle_left_click(float x, float y)
         && map_y == p_ptr->py && map_x == p_ptr->px)
     {
         sdl_player_confirm_at_player();
+        return true;
+    }
+
+    if (sdl_main_screen_click_shortcuts_active()
+        && sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        && sdl_mouse_stuck_door_handle_left_click(map_y, map_x))
+    {
         return true;
     }
 
@@ -5745,7 +5943,7 @@ static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
         return false;
     if (!p_ptr || !in_bounds(map_y, map_x))
         return false;
-    if (!(cave_info[map_y][map_x] & (CAVE_MARK)))
+    if (!sdl_mouse_feature_known_for_action(map_y, map_x))
         return false;
     if (sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL))
         return false;
@@ -5789,10 +5987,14 @@ static bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x)
     int command = 0;
     int dir = 0;
 
+    if (sdl_mouse_stuck_door_bash_queue_prompt(map_y, map_x))
+        return true;
+
     if (!sdl_mouse_feature_action_for_grid(map_y, map_x, &command, &dir))
         return false;
 
     sdl_mouse_path_cancel();
+    sdl_mouse_note_feature_for_action(map_y, map_x);
     sdl_enqueue_bypassed_command(command);
     Term_keypress('0' + dir);
     return true;
@@ -6557,6 +6759,53 @@ bool sdl_pointer_attack_take_command(int* command, int* dir)
     return true;
 }
 
+static bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir)
+{
+    int bash_y;
+    int bash_x;
+    int bash_dir;
+
+    if (!command || !dir)
+        return false;
+    if (!g_mouse_path.stuck_door_bash_pending)
+        return false;
+
+    (void)sdl_mouse_consume_wake_key();
+
+    bash_y = g_mouse_path.stuck_door_bash_y;
+    bash_x = g_mouse_path.stuck_door_bash_x;
+    bash_dir = g_mouse_path.stuck_door_bash_dir;
+    g_mouse_path.stuck_door_bash_pending = false;
+    g_mouse_path.stuck_door_bash_y = 0;
+    g_mouse_path.stuck_door_bash_x = 0;
+    g_mouse_path.stuck_door_bash_dir = 0;
+
+    *command = ' ';
+    *dir = 0;
+
+    if (!sdl_mouse_gameplay_context_active())
+        return true;
+    if (!sdl_mouse_stuck_door_bash_target(bash_y, bash_x, &bash_dir))
+    {
+        log_debug("Queued stuck-door bash target is no longer valid at (%d,%d)",
+            bash_y, bash_x);
+        return true;
+    }
+    if (!get_check("Stuck door, do you want to bash it? "))
+        return true;
+    if (!sdl_mouse_stuck_door_bash_target(bash_y, bash_x, &bash_dir))
+    {
+        log_debug("Queued stuck-door bash target changed after confirmation at (%d,%d)",
+            bash_y, bash_x);
+        return true;
+    }
+
+    sdl_mouse_note_feature_for_action(bash_y, bash_x);
+    *command = 'b';
+    *dir = bash_dir;
+    return true;
+}
+
 static bool sdl_mouse_path_has_pending_key(void)
 {
     char ch = '\0';
@@ -6573,10 +6822,13 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
     int next_x;
     int target_y;
     int target_x;
+    int blocked_target_kind;
     bool attack_step;
 
     if (!command || !dir)
         return false;
+    if (sdl_mouse_stuck_door_bash_take_command(command, dir))
+        return true;
     if (!g_mouse_path.follow_active)
         return false;
 
@@ -6623,9 +6875,42 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
         return false;
     }
 
+    blocked_target_kind = g_mouse_path.blocked_target_kind;
     if (g_mouse_path.path_len <= 0) {
+        if (blocked_target_kind == SDL_MOUSE_PATH_BLOCKED_STUCK_DOOR) {
+            int bash_dir = 0;
+
+            if (sdl_mouse_stuck_door_bash_target(target_y, target_x,
+                    &bash_dir)
+                && get_check("Stuck door, do you want to bash it? "))
+            {
+                sdl_mouse_path_cancel();
+                sdl_mouse_note_feature_for_action(target_y, target_x);
+                *command = 'b';
+                *dir = bash_dir;
+                return true;
+            }
+        }
+        else if (blocked_target_kind == SDL_MOUSE_PATH_BLOCKED_DANGER) {
+            int danger_dir = motion_dir(p_ptr->py, p_ptr->px, target_y,
+                target_x);
+
+            if (danger_dir >= 1 && danger_dir <= 9 && danger_dir != 5
+                && target_y == p_ptr->py + ddy[danger_dir]
+                && target_x == p_ptr->px + ddx[danger_dir])
+            {
+                sdl_mouse_path_cancel();
+                sdl_mouse_note_feature_for_action(target_y, target_x);
+                *command = ';';
+                *dir = danger_dir;
+                return true;
+            }
+        }
+
         sdl_mouse_path_cancel();
-        return false;
+        *command = ' ';
+        *dir = 0;
+        return blocked_target_kind != SDL_MOUSE_PATH_BLOCKED_NONE;
     }
 
     next_y = GRID_Y(g_mouse_path.path[0]);
@@ -7003,8 +7288,8 @@ static void sdl_mouse_path_render(void)
     const sdl_view* view = &g_views[PANE_MAIN];
     int cell_cols = use_bigtile ? 2 : 1;
     SDL_Color path_color = g_state.palette[TERM_L_BLUE];
-    SDL_Color target_color = g_state.palette[
-        (g_mouse_path.target_m_idx > 0) ? TERM_L_RED : TERM_YELLOW];
+    bool blocked_target;
+    SDL_Color target_color;
 
     if (!sdl_mouse_gameplay_context_active())
         return;
@@ -7019,6 +7304,12 @@ static void sdl_mouse_path_render(void)
             return;
     }
 
+    blocked_target = g_mouse_path.blocked_target_kind
+        != SDL_MOUSE_PATH_BLOCKED_NONE;
+    target_color = g_state.palette[
+        (g_mouse_path.target_m_idx > 0 || blocked_target) ? TERM_L_RED
+                                                           : TERM_YELLOW];
+
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
     for (int i = 0; i < g_mouse_path.path_len; i++) {
@@ -7027,7 +7318,7 @@ static void sdl_mouse_path_render(void)
         int term_row;
         int term_col;
         SDL_FRect rect;
-        SDL_Color color = (i == g_mouse_path.path_len - 1)
+        SDL_Color color = (!blocked_target && i == g_mouse_path.path_len - 1)
             ? target_color
             : path_color;
 
@@ -7046,6 +7337,30 @@ static void sdl_mouse_path_render(void)
         SDL_RenderFillRect(g_state.renderer, &rect);
 
         SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b, 190);
+        SDL_RenderRect(g_state.renderer, &rect);
+    }
+
+    if (blocked_target && panel_contains(g_mouse_path.target_y,
+            g_mouse_path.target_x))
+    {
+        int term_row = ROW_MAP + (g_mouse_path.target_y - p_ptr->wy);
+        int term_col = COL_MAP + (g_mouse_path.target_x - p_ptr->wx)
+            * cell_cols;
+        SDL_FRect rect;
+
+        rect.x = (float)(view->rect.x + view->margin_x
+            + term_col * view->cell_w);
+        rect.y = (float)(view->rect.y + view->margin_y
+            + term_row * view->cell_h);
+        rect.w = (float)(view->cell_w * cell_cols);
+        rect.h = (float)view->cell_h;
+
+        SDL_SetRenderDrawColor(g_state.renderer, target_color.r,
+            target_color.g, target_color.b, 92);
+        SDL_RenderFillRect(g_state.renderer, &rect);
+
+        SDL_SetRenderDrawColor(g_state.renderer, target_color.r,
+            target_color.g, target_color.b, 190);
         SDL_RenderRect(g_state.renderer, &rect);
     }
 }
@@ -15324,6 +15639,17 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_main_screen_click_shortcuts_active()) {
+                int map_y = 0;
+                int map_x = 0;
+
+                if (sdl_main_view_point_to_map((float)ev->button.x,
+                        (float)ev->button.y, &map_y, &map_x)
+                    && sdl_mouse_stuck_door_handle_left_click(map_y, map_x))
+                {
+                    return;
+                }
+            }
             if (sdl_player_action_menu_handle_pointer_down(
                 (float)ev->button.x, (float)ev->button.y, 0, true, false))
             {
@@ -15507,6 +15833,19 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             && sdl_pointer_dismiss_any_key_prompt())
         {
             return;
+        }
+        if ((ev->tfinger.touchID == SDL_MOUSE_TOUCHID
+                || ev->tfinger.fingerID == TOUCH_MOUSE_FALLBACK_FINGER_ID)
+            && sdl_main_screen_click_shortcuts_active())
+        {
+            int map_y = 0;
+            int map_x = 0;
+
+            if (sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+                && sdl_mouse_stuck_door_handle_left_click(map_y, map_x))
+            {
+                return;
+            }
         }
         if (sdl_player_action_menu_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false, false))

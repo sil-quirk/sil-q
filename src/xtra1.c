@@ -3119,8 +3119,11 @@ static void prt_status_line_main_menu_hint(bool compact_centered)
 
     if (compact_centered)
     {
+        if (Term->wid < len + 2)
+            return;
+
         col = (Term->wid - len) / 2;
-        if (!status_line_span_blank(row, col, len))
+        if (!status_line_span_blank(row, col - 1, len + 2))
             return;
     }
     else if (col < 0 || col + len > Term->wid)

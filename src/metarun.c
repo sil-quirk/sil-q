@@ -4620,6 +4620,15 @@ static void metarun_register_stats_prompt_clicks(const char *prompt, int row,
     }
 }
 
+static void metarun_register_continue_clicks(int term_height)
+{
+    if (term_height < 1)
+        return;
+
+    for (int row = 0; row < term_height; row++)
+        ui_menu_click_add_full_row('\r', row);
+}
+
 typedef struct {
     char variants[4][64];
     int variant_count;
@@ -5091,7 +5100,7 @@ void print_metarun_stats(void)
             Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
         }
         ui_menu_click_begin();
-        ui_menu_click_add_full_row('\r', 8);
+        metarun_register_continue_clicks(Term ? Term->hgt : 24);
         metarun_wait_hidden();
         ui_menu_click_clear();
         screen_pop_touch_pane_hidden();
@@ -5495,6 +5504,7 @@ redraw_story_stats:
                                              diff_label, full_label,
                                              history_label, blitz_label,
                                              blitz_enabled);
+        metarun_register_continue_clicks(term_height);
     } else {
         /* --- Compact layout --- */
         int max_display_width = term_width - col - 1;
@@ -5634,6 +5644,7 @@ redraw_story_stats:
                                              diff_label, full_label,
                                              history_label, blitz_label,
                                              blitz_enabled);
+        metarun_register_continue_clicks(term_height);
     }
 
     char key = metarun_inkey_hidden();
@@ -5672,7 +5683,7 @@ redraw_story_stats:
             if (!startup_scene)
                 screen_load();
             return;
-        } else if (key == confirm_key || key == '\r' || key == '\n') {
+        } else if (key == confirm_key || key == ' ' || key == '\r' || key == '\n') {
             /* A button = continue (exit) */
             screen_pop_touch_pane_hidden();
             screen_pop_supporting_panes_hidden();

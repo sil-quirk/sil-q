@@ -7407,7 +7407,7 @@ void move_player(int dir)
                 /* Flush input */
                 flush();
 
-                if (!get_check("Are you sure you want to step on the trap? "))
+                if (!get_check("Step on the trap? Right-click/long tap to disarm. "))
                 {
                     // don't take a turn...
                     p_ptr->energy_use = 0;

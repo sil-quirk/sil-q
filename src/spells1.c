@@ -1984,6 +1984,12 @@ typedef struct elemental_item_debug_info
     cptr outcome;
 } elemental_item_debug_info;
 
+enum
+{
+    ELEMENTAL_PERCENT_ROLL = 100,
+    ELEMENTAL_ACID_REDUCTION_PERCENT = 70
+};
+
 static cptr elemental_attack_name(int attack_type)
 {
     switch (attack_type)
@@ -2100,6 +2106,9 @@ static double elemental_item_slot_factor(int slot,
 static double elemental_item_material_factor(int attack_type,
     const object_type* o_ptr);
 static void elemental_mark_inventory_item_changed(void);
+static bool acid_can_corrode_object(const object_type* o_ptr);
+static cptr elemental_corrode_candidate(
+    const elemental_item_candidate* candidate, elemental_item_debug_info* debug);
 
 static void elemental_debug_record_candidate(
     elemental_item_debug_info* debug, int attack_type,
@@ -2175,9 +2184,10 @@ static void elemental_debug_emit(const elemental_item_debug_info* debug)
     acid_buf[0] = '\0';
     if (debug->acid_roll_made)
     {
-        strnfmt(acid_buf, sizeof(acid_buf), " acid=%d/2->%s",
+        strnfmt(acid_buf, sizeof(acid_buf), " acid=%d/100->%s",
             debug->acid_roll + 1,
-            (debug->acid_roll == 0) ? "corrode" : "destroy");
+            (debug->acid_roll < ELEMENTAL_ACID_REDUCTION_PERCENT) ? "corrode"
+                                                                   : "destroy");
     }
 
     threshold_pct = (double)debug->threshold / 10000.0;
@@ -2261,6 +2271,7 @@ static double elemental_hurt_scale(int attack_type)
     case GF_FIRE:
         return 60.0 / 3.0;
     case GF_ACID:
+        return 60.0 / 3.0;
     case GF_COLD:
         return 50.0 / 3.0;
     default:
@@ -2849,6 +2860,16 @@ static int elemental_damage_total(int attack_type, int hp_dam)
     return total;
 }
 
+static bool elemental_acid_roll_reduces(int* roll)
+{
+    int value = rand_int(ELEMENTAL_PERCENT_ROLL);
+
+    if (roll)
+        *roll = value;
+
+    return value < ELEMENTAL_ACID_REDUCTION_PERCENT;
+}
+
 static bool elemental_select_size_candidate(int attack_type, int total,
     elemental_item_candidate* out, int* candidate_count, long* total_units,
     int* selection_roll)
@@ -2995,6 +3016,8 @@ static void elemental_attack_affect_multiple_items(int attack_type,
     int total_budget;
     int destroyed = 0;
     int destroyed_size = 0;
+    int reduced = 0;
+    int reduced_size = 0;
     int resisted = 0;
     int resisted_size = 0;
     char outcome[80];
@@ -3107,14 +3130,34 @@ static void elemental_attack_affect_multiple_items(int attack_type,
             continue;
         }
 
+        if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
+            && elemental_acid_roll_reduces(NULL))
+        {
+            cptr acid_outcome = elemental_corrode_candidate(&candidate, NULL);
+
+            if (streq(acid_outcome, "was destroyed!"))
+            {
+                destroyed++;
+                destroyed_size += candidate.unit_size;
+            }
+            else
+            {
+                reduced++;
+                reduced_size += candidate.unit_size;
+            }
+
+            continue;
+        }
+
         elemental_destroy_candidate_quantity(&candidate, attack_type, amount);
         destroyed++;
         destroyed_size += candidate.unit_size;
     }
 
     strnfmt(outcome, sizeof(outcome),
-        "destroyed=%d(size=%d) resisted=%d(size=%d)",
-        destroyed, destroyed_size, resisted, resisted_size);
+        "destroyed=%d(size=%d) reduced=%d(size=%d) resisted=%d(size=%d)",
+        destroyed, destroyed_size, reduced, reduced_size, resisted,
+        resisted_size);
     elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw, max_raw,
         hp_dam, cdf, q_squared, hurt, chance, total_budget, total, outcome);
 }
@@ -3681,7 +3724,8 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
         )
     {
-        int acid_roll = rand_int(2);
+        int acid_roll;
+        bool reduce = elemental_acid_roll_reduces(&acid_roll);
 
         if (debug.enabled)
         {
@@ -3689,7 +3733,7 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
             debug.acid_roll = acid_roll;
         }
 
-        if (acid_roll == 0)
+        if (reduce)
         {
             (void)elemental_corrode_candidate(&candidate,
                 debug.enabled ? &debug : NULL);

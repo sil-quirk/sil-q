@@ -3330,9 +3330,25 @@ static int skeleton_note_append_wrapped_text(
     return idx;
 }
 
+static const char* skeleton_note_body_separator(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "A second warning follows:";
+    case SV_SKELETON_HUMAN:
+        return "Another line follows:";
+    case SV_SKELETON_ORC:
+        return "More scratched below:";
+    default:
+        return "Another warning follows:";
+    }
+}
+
 static void skeleton_note_build_lines(const char* opening,
     const skeleton_note_line* body_lines, int body_count, const char* closing,
-    const level_layout_info* layout, char lines[][100], int col)
+    const level_layout_info* layout, char lines[][100], int col,
+    const char* body_separator)
 {
     const int max_lines = 12; /* Reserve final slot for terminator */
     int wrap = skeleton_note_effective_wrap_width(col);
@@ -3341,7 +3357,15 @@ static void skeleton_note_build_lines(const char* opening,
     idx = skeleton_note_append_wrapped_text(opening, lines, idx, max_lines, wrap);
 
     for (int i = 0; i < body_count && idx < max_lines; ++i)
-        idx = skeleton_note_append_expanded_lines(&body_lines[i], layout, lines, idx, max_lines, wrap);
+    {
+        if (i > 0)
+        {
+            idx = skeleton_note_append_wrapped_text(body_separator, lines,
+                idx, max_lines, wrap);
+        }
+        idx = skeleton_note_append_expanded_lines(&body_lines[i], layout,
+            lines, idx, max_lines, wrap);
+    }
 
     idx = skeleton_note_append_wrapped_text(closing, lines, idx, max_lines, wrap);
 
@@ -4672,7 +4696,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
     char note_lines[16][100];
     skeleton_note_build_lines(
-        opening, body_lines, body_count, signoff, &layout, note_lines, 8);
+        opening, body_lines, body_count, signoff, &layout, note_lines, 8,
+        skeleton_note_body_separator(sval));
 
     /* Prepend title */
     char title_buf[100];
