@@ -507,13 +507,14 @@ enum {
     SDL_PLAYER_ACTION_NONE = 0,
     SDL_PLAYER_ACTION_WAIT,
     SDL_PLAYER_ACTION_USE,
+    SDL_PLAYER_ACTION_STEALTH,
     SDL_PLAYER_ACTION_SING,
     SDL_PLAYER_ACTION_EXCHANGE,
     SDL_PLAYER_ACTION_FLETCH,
     SDL_PLAYER_ACTION_EXAMINE,
     SDL_PLAYER_ACTION_ACTIVATE,
     SDL_PLAYER_ACTION_HORN,
-    SDL_PLAYER_ACTION_MAX = 8,
+    SDL_PLAYER_ACTION_MAX = 9,
     SDL_PLAYER_EXCHANGE_MAX_TARGETS = 8,
 };
 
@@ -2490,7 +2491,7 @@ static bool sdl_touch_tutorial_device_available(void)
 
 static bool sdl_touch_tutorial_full_mode(void)
 {
-    return true;
+    return sdl_touch_only_mobile_device_active();
 }
 
 static bool sdl_touch_pane_uses_mobile_toggle(void)
@@ -2518,7 +2519,7 @@ static bool sdl_touch_pane_hidden_mode_active(void)
 static bool sdl_touch_pane_proto_mode_active(void)
 {
     return screen_touch_pane_proto_active()
-        && (g_direct_touch_present || sdl_touch_pane_is_config_enabled());
+        && sdl_touch_only_mobile_device_active();
 }
 
 static bool sdl_touch_pane_proto_slot_allowed(int slot)
@@ -7466,6 +7467,8 @@ static int sdl_player_action_menu_collect(player_action_menu_entry* entries)
         'z', "Wait");
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_USE,
         'u', "Use");
+    sdl_player_action_menu_add_entry(entries, &count,
+        SDL_PLAYER_ACTION_STEALTH, 'S', "Stealth");
     if (sdl_player_has_singable_song()) {
         sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_SING,
             's', "Sing");
@@ -7681,6 +7684,11 @@ static void sdl_player_action_menu_slot_offset(int slot, int count,
               { 0.78f, -0.78f }, { 1.0f, 0.0f },
               { 0.78f, 0.78f }, { 0.0f, 1.0f },
               { -0.78f, 0.78f }, { -1.0f, 0.0f } },
+            { { -0.78f, -0.78f }, { 0.0f, -1.0f },
+              { 0.78f, -0.78f }, { 1.0f, -0.34f },
+              { 1.0f, 0.34f }, { 0.78f, 0.78f },
+              { 0.0f, 1.0f }, { -0.78f, 0.78f },
+              { -1.0f, 0.0f } },
         };
     float x = 0.0f;
     float y = -1.0f;
@@ -8132,6 +8140,9 @@ static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
     case SDL_PLAYER_ACTION_USE:
         command = 'u';
         select_floor = !secondary && sdl_player_has_floor_item_underfoot();
+        break;
+    case SDL_PLAYER_ACTION_STEALTH:
+        command = 'S';
         break;
     case SDL_PLAYER_ACTION_SING:
         command = 's';
@@ -16971,6 +16982,148 @@ static void sdl_touch_tutorial_clamp_box_to_screen(SDL_FRect* box,
         box->y = max_y;
 }
 
+static bool sdl_touch_tutorial_compact_layout(const SDL_Rect* screen)
+{
+    if (Term
+        && ((Term->wid > 0 && Term->wid <= 50)
+            || (Term->hgt > 0 && Term->hgt <= 18)))
+    {
+        return true;
+    }
+
+    return screen && (screen->w < 900 || screen->h < 560);
+}
+
+static void sdl_touch_tutorial_draw_compact_zone_label(
+    const SDL_Rect* screen, const SDL_FRect* zone, cptr label)
+{
+    SDL_Color text = g_state.palette[TERM_YELLOW];
+    SDL_Color border = g_state.palette[TERM_L_WHITE];
+    int font_px;
+    float text_y;
+    float max_w;
+
+    if (!screen || !zone || !label || !label[0])
+        return;
+    if (zone->w <= 1.0f || zone->h <= 1.0f)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 18, 96, 156, 96);
+    SDL_RenderFillRect(g_state.renderer, zone);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+        228);
+    SDL_RenderRect(g_state.renderer, zone);
+
+    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.024f,
+        11.0f, 17.0f);
+    text_y = zone->y + zone->h * 0.5f - (float)font_px * 0.60f;
+    if (text_y < zone->y + 1.0f)
+        text_y = zone->y + 1.0f;
+    if (text_y + (float)font_px * 1.2f > zone->y + zone->h)
+        text_y = zone->y + zone->h - (float)font_px * 1.2f;
+    if (text_y < (float)screen->y)
+        text_y = (float)screen->y;
+
+    max_w = zone->w - 8.0f;
+    if (max_w < 24.0f)
+        max_w = zone->w;
+
+    (void)sdl_touch_tutorial_draw_text_line(label,
+        zone->x + zone->w * 0.5f, text_y, max_w, font_px, text, true);
+}
+
+static void sdl_touch_tutorial_draw_compact_zone_legend(
+    const SDL_Rect* screen, float min_y, const char* const* lines,
+    int line_count)
+{
+    SDL_Color title_color = g_state.palette[TERM_YELLOW];
+    SDL_Color text_color = g_state.palette[TERM_L_WHITE];
+    SDL_FRect box;
+    SDL_FRect shadow;
+    float footer_top;
+    float available_h;
+    float pad;
+    float line_h;
+    float title_h;
+    float w;
+    float h;
+    int font_px;
+    int title_px;
+
+    if (!screen || !lines || line_count <= 0)
+        return;
+
+    footer_top = (float)(screen->y + screen->h)
+        - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f)
+        - 10.0f;
+    available_h = footer_top - min_y - 8.0f;
+    if (available_h < 56.0f)
+        available_h = (float)screen->h * 0.48f;
+
+    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.022f,
+        10.0f, 15.0f);
+    pad = sdl_touch_pane_clampf((float)screen->h * 0.012f, 5.0f, 9.0f);
+
+    for (;;) {
+        title_px = font_px + 2;
+        line_h = (float)font_px * 1.22f;
+        title_h = (float)title_px * 1.22f;
+        h = pad * 2.0f + title_h + 4.0f
+            + line_h * (float)line_count;
+        if (h <= available_h || font_px <= 9)
+            break;
+        font_px--;
+    }
+
+    w = (float)screen->w * 0.88f;
+    if (w > 760.0f)
+        w = 760.0f;
+    if (w > (float)screen->w - pad * 2.0f)
+        w = (float)screen->w - pad * 2.0f;
+    if (w < 240.0f)
+        w = (float)screen->w - pad * 2.0f;
+    if (w <= 40.0f)
+        return;
+
+    box = (SDL_FRect){
+        .x = (float)screen->x + ((float)screen->w - w) * 0.5f,
+        .y = min_y + 8.0f,
+        .w = w,
+        .h = h,
+    };
+    if (box.y + box.h > footer_top)
+        box.y = footer_top - box.h;
+    sdl_touch_tutorial_clamp_box_to_screen(&box, screen, pad);
+
+    shadow = box;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 168);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 224);
+    SDL_RenderFillRect(g_state.renderer, &box);
+    SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
+        title_color.b, 236);
+    SDL_RenderRect(g_state.renderer, &box);
+
+    {
+        float y = box.y + pad;
+        float text_w = box.w - pad * 2.0f;
+
+        y += sdl_touch_tutorial_draw_text_line("Touch shortcuts",
+            box.x + box.w * 0.5f, y, text_w, title_px, title_color, true);
+        y += 4.0f;
+        for (int i = 0; i < line_count; i++) {
+            (void)sdl_touch_tutorial_draw_text_line(lines[i], box.x + pad, y,
+                text_w, font_px, text_color, false);
+            y += line_h;
+        }
+    }
+}
+
 static void sdl_touch_tutorial_draw_zone_callout(const SDL_Rect* screen,
     const SDL_FRect* zone, cptr title, cptr detail)
 {
@@ -17115,6 +17268,82 @@ static void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
         body_px, text_color);
 }
 
+static void sdl_touch_tutorial_draw_main_screen_zones_compact(
+    const SDL_Rect* screen, float header_bottom)
+{
+    SDL_FRect rect;
+    int term_w;
+    int term_h;
+    int map_cols;
+    int panel_rows;
+    const char* legend_lines[6];
+    int legend_n = 0;
+    bool supporting_pane_seen = false;
+
+    if (!screen || !Term)
+        return;
+
+    term_w = Term->wid;
+    term_h = Term->hgt;
+    map_cols = SCREEN_WID * (use_bigtile ? 2 : 1);
+
+    if (ROW_STATUS != 0
+        && sdl_touch_tutorial_cell_rect(0, 0, term_w, 1, &rect))
+    {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Log");
+        legend_lines[legend_n++] = "Log: tap top row for full message history.";
+    }
+
+    if (sdl_touch_tutorial_cell_rect(0, ROW_STATUS, term_w, 1, &rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Menu");
+        legend_lines[legend_n++] = "Status: tap for main menu and context screens.";
+    }
+
+    panel_rows = term_h - ROW_MAP;
+    if (ROW_STATUS > ROW_MAP)
+        panel_rows = ROW_STATUS - ROW_MAP;
+    if (!get_sdl_hide_left_panel() && COL_MAP > 0 && panel_rows > 0
+        && sdl_touch_tutorial_cell_rect(0, ROW_MAP, COL_MAP,
+            panel_rows, &rect))
+    {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Character");
+        legend_lines[legend_n++] = "Character: tap sidebar rows for matching sheets.";
+    }
+
+    if (SCREEN_HGT > 0 && map_cols > 0
+        && sdl_touch_tutorial_cell_rect(COL_MAP, ROW_MAP, map_cols,
+            SCREEN_HGT, &rect))
+    {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect,
+            "Map / Player");
+        legend_lines[legend_n++] = "Map/player: tap to path or target; hold for actions.";
+    }
+
+    if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Inventory");
+        supporting_pane_seen = true;
+    }
+    if (sdl_touch_tutorial_view_rect(PANE_WORN, &rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Equipment");
+        supporting_pane_seen = true;
+    }
+    if (sdl_touch_tutorial_view_rect(PANE_LOG, &rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Messages");
+        supporting_pane_seen = true;
+    }
+    if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Rolls");
+        supporting_pane_seen = true;
+    }
+    if (supporting_pane_seen && legend_n < (int)N_ELEMENTS(legend_lines)) {
+        legend_lines[legend_n++] =
+            "Panes: tap inventory, equipment, messages, or rolls panes.";
+    }
+
+    sdl_touch_tutorial_draw_compact_zone_legend(screen, header_bottom,
+        legend_lines, legend_n);
+}
+
 static void sdl_touch_tutorial_draw_main_screen_zones(
     const SDL_Rect* screen)
 {
@@ -17191,12 +17420,21 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
 static void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
     int page, int page_count)
 {
+    bool compact = sdl_touch_tutorial_compact_layout(screen);
+    float header_bottom;
+
     sdl_touch_tutorial_draw_screen_dim(screen, 112);
-    sdl_touch_tutorial_draw_header(screen, "Main Screen Touch Zones",
-        "Tap highlighted regions to open game views and menus. Presets can be changed any time in Options > Input Options > Touch Settings.",
+    header_bottom = sdl_touch_tutorial_draw_header(screen,
+        "Main Screen Touch Zones",
+        compact
+            ? "Tap highlighted regions to open game views and menus. Presets live in Touch Settings."
+            : "Tap highlighted regions to open game views and menus. Presets can be changed any time in Options > Input Options > Touch Settings.",
         page, page_count);
 
-    sdl_touch_tutorial_draw_main_screen_zones(screen);
+    if (compact)
+        sdl_touch_tutorial_draw_main_screen_zones_compact(screen, header_bottom);
+    else
+        sdl_touch_tutorial_draw_main_screen_zones(screen);
 
     sdl_touch_tutorial_draw_footer(screen);
 }

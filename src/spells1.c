@@ -490,15 +490,17 @@ static void song_duel_reveal_target_stats(monster_type* m_ptr, int song)
         if (armour_dice > 0 && armour_sides > 0)
         {
             msg_format(
-                "%s's contest stats: Will %d, Stealth %d, Evasion %+d, Armour %dd%d.",
-                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL),
+                "%s's contest stats: Will %d, Stealth %d.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL));
+            msg_format("Evasion %+d, Armour %dd%d.",
                 total_monster_evasion(m_ptr, false), armour_dice, armour_sides);
         }
         else
         {
             msg_format(
-                "%s's contest stats: Will %d, Stealth %d, Evasion %+d, Armour none.",
-                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL),
+                "%s's contest stats: Will %d, Stealth %d.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL));
+            msg_format("Evasion %+d, Armour none.",
                 total_monster_evasion(m_ptr, false));
         }
     }
@@ -508,8 +510,9 @@ static void song_duel_reveal_target_stats(monster_type* m_ptr, int song)
 
         song_duel_damage_dice_summary(m_ptr, damage, sizeof(damage));
         msg_format(
-            "%s's lament stats: Will %d, HP %d/%d, damage dice %s.",
-            m_name, monster_skill(m_ptr, S_WIL), m_ptr->hp, m_ptr->maxhp, damage);
+            "%s's lament stats: Will %d, HP %d/%d.",
+            m_name, monster_skill(m_ptr, S_WIL), m_ptr->hp, m_ptr->maxhp);
+        msg_format("Damage dice %s.", damage);
     }
 }
 
@@ -725,8 +728,9 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
         song_contest_penalties applied
             = song_duel_apply_contest_penalties(m_ptr, song_skill);
         msg_format(
-            "%s is diminished: Will -%d, Stealth -%d, Evasion -%d, armour dice -%d.",
-            m_name, applied.will, applied.stealth, applied.evasion,
+            "%s is diminished: Will -%d, Stealth -%d.",
+            m_name, applied.will, applied.stealth);
+        msg_format("Evasion -%d, armour dice -%d.", applied.evasion,
             applied.armour_dice);
     }
     else
@@ -737,15 +741,18 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
         if (applied.damage_dice > 0)
         {
             msg_format(
-                "%s is diminished: Will -%d, max HP -%d, damage dice -%d across %d blow%s.",
-                m_name, applied.will, applied.maxhp, applied.damage_dice,
-                applied.damage_blows, (applied.damage_blows == 1) ? "" : "s");
+                "%s is diminished: Will -%d, max HP -%d.",
+                m_name, applied.will, applied.maxhp);
+            msg_format("Damage dice -%d across %d blow%s.",
+                applied.damage_dice, applied.damage_blows,
+                (applied.damage_blows == 1) ? "" : "s");
         }
         else
         {
             msg_format(
-                "%s is diminished: Will -%d, max HP -%d, damage dice -0.",
+                "%s is diminished: Will -%d, max HP -%d.",
                 m_name, applied.will, applied.maxhp);
+            msg_print("Damage dice -0.");
         }
 
         // Song of Lament always drains Grace - no resistance
