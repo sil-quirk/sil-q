@@ -666,6 +666,11 @@ typedef struct mouse_path_state {
     int stuck_door_bash_y;
     int stuck_door_bash_x;
     int stuck_door_bash_dir;
+    bool last_step_door_pending;
+    int last_step_door_y;
+    int last_step_door_x;
+    int last_step_player_y;
+    int last_step_player_x;
 } mouse_path_state;
 
 typedef struct mouse_path_search_state {
@@ -821,7 +826,7 @@ static SDL_Rect sdl_get_layout_screen_rect(void);
 static void sdl_log_mouse_devices(void);
 static bool sdl_mobile_prefer_safe_edge_alignment(void);
 static void sdl_resize_for_current_layout(void);
-static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
+static void sdl_handle_event(sdl_state* st, SDL_Event* ev);
 static bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
     const SDL_Event* ev);
 #if SIL_SDL_MOBILE_BUILD
@@ -5782,6 +5787,11 @@ void sdl_mouse_path_cancel(void)
     g_mouse_path.stuck_door_bash_y = 0;
     g_mouse_path.stuck_door_bash_x = 0;
     g_mouse_path.stuck_door_bash_dir = 0;
+    g_mouse_path.last_step_door_pending = false;
+    g_mouse_path.last_step_door_y = 0;
+    g_mouse_path.last_step_door_x = 0;
+    g_mouse_path.last_step_player_y = 0;
+    g_mouse_path.last_step_player_x = 0;
     g_state.need_present = true;
 }
 
@@ -6833,6 +6843,24 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
     if (!g_mouse_path.follow_active)
         return false;
 
+    /* If the previous step tried to open a closed door and the door is
+     * still closed with the player in the same spot, the open/lockpick
+     * attempt failed.  Stop the path so we don't auto-retry the lockpick. */
+    if (g_mouse_path.last_step_door_pending) {
+        bool open_failed = (p_ptr->py == g_mouse_path.last_step_player_y
+            && p_ptr->px == g_mouse_path.last_step_player_x
+            && in_bounds(g_mouse_path.last_step_door_y,
+                g_mouse_path.last_step_door_x)
+            && cave_known_closed_door_bold(g_mouse_path.last_step_door_y,
+                g_mouse_path.last_step_door_x));
+
+        g_mouse_path.last_step_door_pending = false;
+        if (open_failed) {
+            sdl_mouse_path_cancel();
+            return false;
+        }
+    }
+
     if (!sdl_mouse_gameplay_context_active()) {
         sdl_mouse_path_cancel();
         return false;
@@ -6927,6 +6955,16 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
 
     if (attack_step)
         sdl_mouse_path_cancel();
+    else if (cave_known_closed_door_bold(next_y, next_x)) {
+        /* The walk command will trigger an open/lockpick attempt without
+         * moving the player.  Remember this so we can detect a failed
+         * attempt on the next iteration and stop retrying. */
+        g_mouse_path.last_step_door_pending = true;
+        g_mouse_path.last_step_door_y = next_y;
+        g_mouse_path.last_step_door_x = next_x;
+        g_mouse_path.last_step_player_y = p_ptr->py;
+        g_mouse_path.last_step_player_x = p_ptr->px;
+    }
 
     return true;
 }
@@ -15532,9 +15570,62 @@ static bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
     }
 }
 
-static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
+/* The renderer is created with SDL_WINDOW_HIGH_PIXEL_DENSITY and the rest of
+ * the code consumes coordinates in renderer/pixel space (SDL_GetWindowSizeInPixels).
+ * SDL3 mouse events arrive in window-point space, so on Retina/HiDPI displays
+ * the reported (x, y) is half (or 1/scale of) the rendered position. Convert
+ * mouse motion/button/wheel coordinates to renderer space here so every
+ * downstream handler sees pixel-space coordinates. Touch finger coordinates
+ * are normalized (0..1) and are left alone. */
+static void sdl_normalize_event_to_render_coords(SDL_Event* ev)
+{
+    if (!ev || !g_state.renderer)
+        return;
+
+    switch (ev->type) {
+    case SDL_EVENT_MOUSE_MOTION: {
+        float x = ev->motion.x;
+        float y = ev->motion.y;
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, x, y, &x, &y);
+        ev->motion.x = x;
+        ev->motion.y = y;
+
+        float ox = 0.0f;
+        float oy = 0.0f;
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, 0.0f, 0.0f, &ox, &oy);
+        float rx = ev->motion.xrel;
+        float ry = ev->motion.yrel;
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, rx, ry, &rx, &ry);
+        ev->motion.xrel = rx - ox;
+        ev->motion.yrel = ry - oy;
+        break;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+        float x = ev->button.x;
+        float y = ev->button.y;
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, x, y, &x, &y);
+        ev->button.x = x;
+        ev->button.y = y;
+        break;
+    }
+    case SDL_EVENT_MOUSE_WHEEL: {
+        float x = ev->wheel.mouse_x;
+        float y = ev->wheel.mouse_y;
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, x, y, &x, &y);
+        ev->wheel.mouse_x = x;
+        ev->wheel.mouse_y = y;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
+    sdl_normalize_event_to_render_coords(ev);
     if (sdl_sound_try_handle_event(ev)) {
         return;
     }
@@ -16816,10 +16907,10 @@ static float sdl_touch_tutorial_draw_header_at(const SDL_Rect* screen,
 
     x = (float)screen->x + (float)screen->w * 0.5f;
     max_w = (float)screen->w * 0.82f;
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.045f,
-        26.0f, 44.0f);
-    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.027f,
-        18.0f, 28.0f);
+    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.052f,
+        30.0f, 50.0f);
+    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.032f,
+        22.0f, 34.0f);
 
     y += sdl_touch_tutorial_draw_text_line(title, x, y, max_w, title_px,
         title_color, true);
@@ -16864,8 +16955,8 @@ static void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen)
     if (!screen)
         return;
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.026f,
-        18.0f, 26.0f);
+    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
+        22.0f, 30.0f);
     line_h = (float)font_px * 1.30f;
     y = (float)(screen->y + screen->h)
         - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f);
@@ -17015,8 +17106,8 @@ static void sdl_touch_tutorial_draw_compact_zone_label(
         228);
     SDL_RenderRect(g_state.renderer, zone);
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.024f,
-        11.0f, 17.0f);
+    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.032f,
+        18.0f, 28.0f);
     text_y = zone->y + zone->h * 0.5f - (float)font_px * 0.60f;
     if (text_y < zone->y + 1.0f)
         text_y = zone->y + 1.0f;
@@ -17061,8 +17152,8 @@ static void sdl_touch_tutorial_draw_compact_zone_legend(
     if (available_h < 56.0f)
         available_h = (float)screen->h * 0.48f;
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.022f,
-        10.0f, 15.0f);
+    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
+        16.0f, 24.0f);
     pad = sdl_touch_pane_clampf((float)screen->h * 0.012f, 5.0f, 9.0f);
 
     for (;;) {
@@ -17071,7 +17162,7 @@ static void sdl_touch_tutorial_draw_compact_zone_legend(
         title_h = (float)title_px * 1.22f;
         h = pad * 2.0f + title_h + 4.0f
             + line_h * (float)line_count;
-        if (h <= available_h || font_px <= 9)
+        if (h <= available_h || font_px <= 14)
             break;
         font_px--;
     }
@@ -17152,10 +17243,10 @@ static void sdl_touch_tutorial_draw_zone_callout(const SDL_Rect* screen,
         border_color.g, border_color.b, 235);
     SDL_RenderRect(g_state.renderer, zone);
 
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.036f,
-        22.0f, 34.0f);
-    detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.029f,
-        18.0f, 28.0f);
+    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.042f,
+        26.0f, 38.0f);
+    detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.034f,
+        22.0f, 32.0f);
     pad = sdl_touch_pane_clampf((float)screen->h * 0.016f, 10.0f, 18.0f);
 
     max_box_w = (float)screen->w - 2.0f * pad;
@@ -17230,10 +17321,10 @@ static void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
         return;
 
     pad = sdl_touch_pane_clampf((float)screen->h * 0.018f, 11.0f, 20.0f);
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.034f,
-        22.0f, 34.0f);
-    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.028f,
-        18.0f, 28.0f);
+    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.040f,
+        26.0f, 38.0f);
+    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.034f,
+        22.0f, 32.0f);
     text_w = w - pad * 2.0f;
     if (text_w <= 40.0f)
         return;
@@ -17535,8 +17626,8 @@ static void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
         float max_w = (float)screen->w * 0.70f;
         float x = (float)screen->x + (float)screen->w * 0.15f;
         float y = (float)screen->y + (float)screen->h * 0.38f;
-        int font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.032f,
-            18.0f, 28.0f);
+        int font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
+            22.0f, 32.0f);
 
         (void)sdl_touch_tutorial_draw_wrapped(
             "The touch pane is currently hidden or disabled. Choose the Touch pane + touch screen profile to show it by default.",
@@ -17591,8 +17682,8 @@ static void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
         x = (float)screen->x + (float)screen->w * 0.14f;
         y = (float)screen->y + (float)screen->h * 0.34f;
         max_w = (float)screen->w * 0.72f;
-        font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.033f,
-            19.0f, 28.0f);
+        font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
+            22.0f, 32.0f);
 
         (void)sdl_touch_tutorial_draw_wrapped(
             "Tap the side corner controls to move. Swipe down to open the top widget, then tap or hold its buttons for commands.",
