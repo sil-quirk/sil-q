@@ -607,6 +607,8 @@ typedef struct pointer_attack_state {
     bool hover_visible;
     bool hover_valid;
     bool hover_actionable;
+    bool hover_manual;
+    int hover_kind;
     int hover_y;
     int hover_x;
     int hover_m_idx;
@@ -619,15 +621,27 @@ typedef struct pointer_attack_state {
     float touch_start_y;
     Uint64 touch_start_time;
     bool touch_selected;
+    bool touch_selected_manual;
     int touch_selected_mode;
+    int touch_selected_kind;
     int touch_selected_y;
     int touch_selected_x;
     int touch_selected_m_idx;
     bool pending;
+    int pending_kind;
     int pending_mode;
     int pending_m_idx;
+    int pending_y;
+    int pending_x;
     bool pending_wake;
 } pointer_attack_state;
+
+enum {
+    SDL_POINTER_ATTACK_TARGET_NONE = 0,
+    SDL_POINTER_ATTACK_TARGET_MONSTER,
+    SDL_POINTER_ATTACK_TARGET_LOCATION,
+    SDL_POINTER_ATTACK_TARGET_ALTER,
+};
 
 enum {
     SDL_MOUSE_PATH_MAX_GRIDS = MAX_DUNGEON_HGT * MAX_DUNGEON_WID,
@@ -6106,6 +6120,12 @@ static bool sdl_pointer_attack_mode_is_ranged(int mode)
         || mode == SDL_POINTER_ATTACK_RANGED_2;
 }
 
+static bool sdl_pointer_attack_manual_modifier_active(void)
+{
+    return ((SDL_GetModState() & SDL_KMOD_CTRL) != 0)
+        || sdl_gamepad_ctrl_active();
+}
+
 static bool sdl_pointer_attack_input_context_active(void)
 {
     return sdl_main_screen_click_shortcuts_active()
@@ -6126,6 +6146,8 @@ static void sdl_pointer_attack_clear_hover(void)
     g_pointer_attack.hover_visible = false;
     g_pointer_attack.hover_valid = false;
     g_pointer_attack.hover_actionable = false;
+    g_pointer_attack.hover_manual = false;
+    g_pointer_attack.hover_kind = SDL_POINTER_ATTACK_TARGET_NONE;
     g_pointer_attack.hover_y = 0;
     g_pointer_attack.hover_x = 0;
     g_pointer_attack.hover_m_idx = 0;
@@ -6138,7 +6160,9 @@ static void sdl_pointer_attack_clear_touch_selection(void)
         return;
 
     g_pointer_attack.touch_selected = false;
+    g_pointer_attack.touch_selected_manual = false;
     g_pointer_attack.touch_selected_mode = SDL_POINTER_ATTACK_NONE;
+    g_pointer_attack.touch_selected_kind = SDL_POINTER_ATTACK_TARGET_NONE;
     g_pointer_attack.touch_selected_y = 0;
     g_pointer_attack.touch_selected_x = 0;
     g_pointer_attack.touch_selected_m_idx = 0;
@@ -6163,8 +6187,11 @@ static void sdl_pointer_attack_cancel_touch_press(void)
 static void sdl_pointer_attack_clear_pending(void)
 {
     g_pointer_attack.pending = false;
+    g_pointer_attack.pending_kind = SDL_POINTER_ATTACK_TARGET_NONE;
     g_pointer_attack.pending_mode = SDL_POINTER_ATTACK_NONE;
     g_pointer_attack.pending_m_idx = 0;
+    g_pointer_attack.pending_y = 0;
+    g_pointer_attack.pending_x = 0;
     g_pointer_attack.pending_wake = false;
 }
 
@@ -6295,7 +6322,85 @@ static int sdl_pointer_attack_ranged_range(int mode)
     return archery_range(bow);
 }
 
-static bool sdl_pointer_attack_target_hoverable(int mode, int y, int x,
+static bool sdl_pointer_attack_adjacent_dir_for_grid(int y, int x,
+    int* out_dir)
+{
+    int dir;
+
+    if (out_dir)
+        *out_dir = 0;
+    if (!p_ptr)
+        return false;
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, y, x);
+    if (dir < 1 || dir > 9 || dir == 5)
+        return false;
+    if ((y != p_ptr->py + ddy[dir]) || (x != p_ptr->px + ddx[dir]))
+        return false;
+
+    if (out_dir)
+        *out_dir = dir;
+    return true;
+}
+
+static bool sdl_pointer_attack_adjacent_tunnel_target(int y, int x,
+    int* out_dir)
+{
+    int dir = 0;
+
+    if (out_dir)
+        *out_dir = 0;
+    if (!in_bounds(y, x))
+        return false;
+    if (!sdl_pointer_attack_adjacent_dir_for_grid(y, x, &dir))
+        return false;
+    if (!cave_wall_bold(y, x) && cave_feat[y][x] != FEAT_RUBBLE)
+        return false;
+
+    if (out_dir)
+        *out_dir = dir;
+    return true;
+}
+
+static bool sdl_pointer_attack_manual_location_valid(int mode, int y, int x)
+{
+    int range;
+    int ty;
+    int tx;
+    int path_n;
+    u16b path[MAX_RANGE];
+
+    if (!sdl_pointer_attack_mode_is_ranged(mode))
+        return false;
+    if (!p_ptr || !in_bounds_fully(y, x))
+        return false;
+    if (y == p_ptr->py && x == p_ptr->px)
+        return false;
+
+    range = sdl_pointer_attack_ranged_range(mode);
+    if (range <= 0)
+        return false;
+    if (distance(p_ptr->py, p_ptr->px, y, x) > range)
+        return false;
+    if (!(cave_info[y][x] & (CAVE_FIRE | CAVE_WALL)))
+        return false;
+
+    ty = y;
+    tx = x;
+    path_n = project_path(path, range, p_ptr->py, p_ptr->px, &ty, &tx,
+        PROJECT_THRU | PROJECT_INVISIPASS);
+    if (path_n == 0)
+        return true;
+
+    ty = GRID_Y(path[path_n - 1]);
+    tx = GRID_X(path[path_n - 1]);
+    return ((((ty <= y) && (y <= p_ptr->py))
+                || ((ty >= y) && (y >= p_ptr->py)))
+            && (((tx <= x) && (x <= p_ptr->px))
+                || ((tx >= x) && (x >= p_ptr->px))));
+}
+
+static int sdl_pointer_attack_target_kind(int mode, bool manual, int y, int x,
     int* out_m_idx)
 {
     int m_idx;
@@ -6306,42 +6411,80 @@ static bool sdl_pointer_attack_target_hoverable(int mode, int y, int x,
         *out_m_idx = 0;
     if (mode != SDL_POINTER_ATTACK_MELEE
         && !sdl_pointer_attack_mode_is_ranged(mode))
-    {
-        return false;
-    }
+        return SDL_POINTER_ATTACK_TARGET_NONE;
     if (!sdl_mouse_gameplay_context_active())
-        return false;
-    if (!in_bounds(y, x) || !grid_info_is_available(y, x))
-        return false;
+        return SDL_POINTER_ATTACK_TARGET_NONE;
+    if (!in_bounds(y, x))
+        return SDL_POINTER_ATTACK_TARGET_NONE;
+
+    if (manual) {
+        (void)sdl_mouse_grid_has_visible_monster(y, x, out_m_idx);
+        if (sdl_pointer_attack_adjacent_tunnel_target(y, x, NULL))
+            return SDL_POINTER_ATTACK_TARGET_ALTER;
+        if (mode == SDL_POINTER_ATTACK_MELEE)
+            return SDL_POINTER_ATTACK_TARGET_ALTER;
+        if (sdl_pointer_attack_mode_is_ranged(mode))
+            return SDL_POINTER_ATTACK_TARGET_LOCATION;
+        return SDL_POINTER_ATTACK_TARGET_NONE;
+    }
+
+    if (!grid_info_is_available(y, x))
+        return SDL_POINTER_ATTACK_TARGET_NONE;
 
     m_idx = cave_m_idx[y][x];
     if (m_idx <= 0)
-        return false;
+        return SDL_POINTER_ATTACK_TARGET_NONE;
 
     m_ptr = &mon_list[m_idx];
     if (!m_ptr->r_idx || !m_ptr->ml)
-        return false;
+        return SDL_POINTER_ATTACK_TARGET_NONE;
 
     r_ptr = &r_info[m_ptr->r_idx];
     if (r_ptr->flags1 & (RF1_PEACEFUL))
-        return false;
+        return SDL_POINTER_ATTACK_TARGET_NONE;
 
     if (out_m_idx)
         *out_m_idx = m_idx;
+    return SDL_POINTER_ATTACK_TARGET_MONSTER;
+}
+
+static bool sdl_pointer_attack_target_hoverable(int mode, bool manual, int y,
+    int x, int* out_m_idx, int* out_kind)
+{
+    int kind;
+
+    if (out_kind)
+        *out_kind = SDL_POINTER_ATTACK_TARGET_NONE;
+
+    kind = sdl_pointer_attack_target_kind(mode, manual, y, x, out_m_idx);
+    if (kind == SDL_POINTER_ATTACK_TARGET_NONE)
+        return false;
+
+    if (out_kind)
+        *out_kind = kind;
     return true;
 }
 
-static bool sdl_pointer_attack_target_actionable(int mode, int y, int x,
-    int* out_m_idx)
+static bool sdl_pointer_attack_target_actionable(int mode, bool manual, int y,
+    int x, int* out_m_idx)
 {
     int m_idx = 0;
+    int kind;
 
     if (out_m_idx)
         *out_m_idx = 0;
-    if (!sdl_pointer_attack_target_hoverable(mode, y, x, &m_idx))
+
+    kind = sdl_pointer_attack_target_kind(mode, manual, y, x, &m_idx);
+    if (kind == SDL_POINTER_ATTACK_TARGET_NONE)
         return false;
 
-    if (mode == SDL_POINTER_ATTACK_MELEE) {
+    if (kind == SDL_POINTER_ATTACK_TARGET_ALTER) {
+        if (!sdl_pointer_attack_adjacent_dir_for_grid(y, x, NULL))
+            return false;
+    } else if (kind == SDL_POINTER_ATTACK_TARGET_LOCATION) {
+        if (!sdl_pointer_attack_manual_location_valid(mode, y, x))
+            return false;
+    } else if (mode == SDL_POINTER_ATTACK_MELEE) {
         if (distance(p_ptr->py, p_ptr->px, y, x) != 1)
             return false;
     } else if (sdl_pointer_attack_mode_is_ranged(mode)) {
@@ -6362,17 +6505,33 @@ static bool sdl_pointer_attack_target_actionable(int mode, int y, int x,
     return true;
 }
 
-static bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x)
+static cptr sdl_pointer_attack_blocked_message(int mode, int kind)
+{
+    if (kind == SDL_POINTER_ATTACK_TARGET_LOCATION
+        || sdl_pointer_attack_mode_is_ranged(mode))
+    {
+        return "No clear shot.";
+    }
+    if (kind == SDL_POINTER_ATTACK_TARGET_ALTER)
+        return "No adjacent action.";
+    return "No adjacent melee target.";
+}
+
+static bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x,
+    bool manual)
 {
     int m_idx = 0;
+    int kind = SDL_POINTER_ATTACK_TARGET_NONE;
     bool hoverable = sdl_pointer_attack_target_hoverable(g_pointer_attack.mode,
-        map_y, map_x, &m_idx);
+        manual, map_y, map_x, &m_idx, &kind);
     bool actionable = hoverable
         && sdl_pointer_attack_target_actionable(g_pointer_attack.mode,
-            map_y, map_x, NULL);
+            manual, map_y, map_x, NULL);
     bool changed = g_pointer_attack.hover_visible != hoverable
         || g_pointer_attack.hover_valid != hoverable
         || g_pointer_attack.hover_actionable != actionable
+        || g_pointer_attack.hover_manual != manual
+        || g_pointer_attack.hover_kind != kind
         || g_pointer_attack.hover_y != map_y
         || g_pointer_attack.hover_x != map_x
         || g_pointer_attack.hover_m_idx != m_idx;
@@ -6380,6 +6539,8 @@ static bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x)
     g_pointer_attack.hover_visible = hoverable;
     g_pointer_attack.hover_valid = hoverable;
     g_pointer_attack.hover_actionable = actionable;
+    g_pointer_attack.hover_manual = manual;
+    g_pointer_attack.hover_kind = hoverable ? kind : SDL_POINTER_ATTACK_TARGET_NONE;
     g_pointer_attack.hover_y = hoverable ? map_y : 0;
     g_pointer_attack.hover_x = hoverable ? map_x : 0;
     g_pointer_attack.hover_m_idx = hoverable ? m_idx : 0;
@@ -6390,26 +6551,39 @@ static bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x)
     return hoverable;
 }
 
-static bool sdl_pointer_attack_queue_target(int mode, int map_y, int map_x)
+static bool sdl_pointer_attack_queue_target(int mode, bool manual, int map_y,
+    int map_x)
 {
     int m_idx = 0;
+    int kind = SDL_POINTER_ATTACK_TARGET_NONE;
 
-    if (!sdl_pointer_attack_target_hoverable(mode, map_y, map_x, &m_idx))
-        return false;
-
-    health_track(m_idx);
-    if (!sdl_pointer_attack_target_actionable(mode, map_y, map_x, &m_idx)) {
-        bell(sdl_pointer_attack_mode_is_ranged(mode)
-            ? "No clear shot." : "No adjacent melee target.");
+    if (!sdl_pointer_attack_target_hoverable(mode, manual, map_y, map_x,
+            &m_idx, &kind))
+    {
         return false;
     }
 
-    if (sdl_pointer_attack_mode_is_ranged(mode))
+    if (m_idx > 0)
+        health_track(m_idx);
+    if (!sdl_pointer_attack_target_actionable(mode, manual, map_y, map_x,
+            &m_idx))
+    {
+        bell(sdl_pointer_attack_blocked_message(mode, kind));
+        return false;
+    }
+
+    if (kind == SDL_POINTER_ATTACK_TARGET_MONSTER
+        && sdl_pointer_attack_mode_is_ranged(mode))
+    {
         target_set_monster(m_idx);
+    }
 
     g_pointer_attack.pending = true;
+    g_pointer_attack.pending_kind = kind;
     g_pointer_attack.pending_mode = mode;
     g_pointer_attack.pending_m_idx = m_idx;
+    g_pointer_attack.pending_y = map_y;
+    g_pointer_attack.pending_x = map_x;
     g_pointer_attack.pending_wake = true;
     g_state.need_present = true;
     Term_keypress(UI_MENU_CLICK_WAKE_KEY);
@@ -6420,6 +6594,7 @@ static bool sdl_pointer_attack_handle_motion(float x, float y)
 {
     int map_y = 0;
     int map_x = 0;
+    bool manual;
     bool hoverable;
 
     if (!sdl_pointer_attack_mode_active())
@@ -6430,17 +6605,19 @@ static bool sdl_pointer_attack_handle_motion(float x, float y)
         return false;
     }
 
-    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
-    if (hoverable && !g_mouse_path.follow_active)
+    manual = sdl_pointer_attack_manual_modifier_active();
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x, manual);
+    if ((manual || hoverable) && !g_mouse_path.follow_active)
         sdl_mouse_path_cancel();
 
-    return hoverable;
+    return manual || hoverable;
 }
 
 static bool sdl_pointer_attack_handle_left_click(float x, float y)
 {
     int map_y = 0;
     int map_x = 0;
+    bool manual;
     bool hoverable;
 
     if (!sdl_pointer_attack_mode_active())
@@ -6448,34 +6625,46 @@ static bool sdl_pointer_attack_handle_left_click(float x, float y)
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
 
-    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    manual = sdl_pointer_attack_manual_modifier_active();
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x, manual);
     if (!hoverable) {
         sdl_pointer_attack_clear_touch_selection();
-        return false;
+        return manual;
     }
     if (!g_mouse_path.follow_active)
         sdl_mouse_path_cancel();
 
-    (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, map_y, map_x);
+    (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, manual, map_y,
+        map_x);
     return true;
 }
 
-static bool sdl_pointer_attack_touch_same_selected_target(int mode, int map_y,
-    int map_x)
+static bool sdl_pointer_attack_touch_same_selected_target(int mode,
+    bool manual, int map_y, int map_x)
 {
     int m_idx = 0;
+    int kind = SDL_POINTER_ATTACK_TARGET_NONE;
 
     if (!g_pointer_attack.touch_selected)
         return false;
     if (g_pointer_attack.touch_selected_mode != mode)
+        return false;
+    if (g_pointer_attack.touch_selected_manual != manual)
         return false;
     if (g_pointer_attack.touch_selected_y != map_y
         || g_pointer_attack.touch_selected_x != map_x)
     {
         return false;
     }
-    if (!sdl_pointer_attack_target_hoverable(mode, map_y, map_x, &m_idx))
+    if (!sdl_pointer_attack_target_hoverable(mode, manual, map_y, map_x,
+            &m_idx, &kind))
+    {
         return false;
+    }
+    if (g_pointer_attack.touch_selected_kind != kind)
+        return false;
+    if (kind != SDL_POINTER_ATTACK_TARGET_MONSTER)
+        return true;
 
     return g_pointer_attack.touch_selected_m_idx == m_idx;
 }
@@ -6485,6 +6674,7 @@ static bool sdl_pointer_attack_handle_touch_down(float x, float y,
 {
     int map_y = 0;
     int map_x = 0;
+    bool manual;
     bool hoverable;
 
     if (sdl_touch_round_layer_controls_active()
@@ -6496,7 +6686,8 @@ static bool sdl_pointer_attack_handle_touch_down(float x, float y,
         return false;
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
-    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x);
+    manual = sdl_pointer_attack_manual_modifier_active();
+    hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x, manual);
     if (!hoverable) {
         sdl_pointer_attack_clear_touch_selection();
         return false;
@@ -6506,7 +6697,7 @@ static bool sdl_pointer_attack_handle_touch_down(float x, float y,
     g_pointer_attack.touch_press_active = true;
     g_pointer_attack.touch_repeat_target =
         sdl_pointer_attack_touch_same_selected_target(g_pointer_attack.mode,
-            map_y, map_x);
+            manual, map_y, map_x);
     g_pointer_attack.touch_finger_id = finger_id;
     g_pointer_attack.touch_press_y = map_y;
     g_pointer_attack.touch_press_x = map_x;
@@ -6564,6 +6755,8 @@ static bool sdl_pointer_attack_handle_touch_up(float x, float y,
     int map_y = 0;
     int map_x = 0;
     int m_idx = 0;
+    int kind = SDL_POINTER_ATTACK_TARGET_NONE;
+    bool manual;
     bool repeat_target;
 
     if (!g_pointer_attack.touch_press_active
@@ -6590,27 +6783,29 @@ static bool sdl_pointer_attack_handle_touch_up(float x, float y,
     }
 
     sdl_pointer_attack_cancel_touch_press();
+    manual = sdl_pointer_attack_manual_modifier_active();
 
     if (repeat_target) {
-        (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, map_y,
-            map_x);
+        (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, manual,
+            map_y, map_x);
         return true;
     }
 
-    if (sdl_pointer_attack_target_hoverable(g_pointer_attack.mode, map_y, map_x,
-            &m_idx))
+    if (sdl_pointer_attack_target_hoverable(g_pointer_attack.mode, manual,
+            map_y, map_x, &m_idx, &kind))
     {
         g_pointer_attack.touch_selected = true;
+        g_pointer_attack.touch_selected_manual = manual;
         g_pointer_attack.touch_selected_mode = g_pointer_attack.mode;
+        g_pointer_attack.touch_selected_kind = kind;
         g_pointer_attack.touch_selected_y = map_y;
         g_pointer_attack.touch_selected_x = map_x;
         g_pointer_attack.touch_selected_m_idx = m_idx;
-        (void)sdl_pointer_attack_update_hover_grid(map_y, map_x);
+        (void)sdl_pointer_attack_update_hover_grid(map_y, map_x, manual);
     } else {
         sdl_pointer_attack_clear_touch_selection();
         sdl_pointer_attack_clear_hover();
-        bell(sdl_pointer_attack_mode_is_ranged(g_pointer_attack.mode)
-            ? "No clear shot." : "No adjacent melee target.");
+        bell(sdl_pointer_attack_blocked_message(g_pointer_attack.mode, kind));
     }
 
     g_state.need_present = true;
@@ -6655,12 +6850,16 @@ static bool sdl_pointer_attack_flush_pending_press(Uint64 now_ns)
     return true;
 }
 
-static bool sdl_pointer_attack_take_render_target(int* mode, int* y, int* x,
-    int* m_idx, bool* actionable)
+static bool sdl_pointer_attack_take_render_target(int* mode, bool* manual,
+    int* kind, int* y, int* x, int* m_idx, bool* actionable)
 {
     if (g_pointer_attack.hover_valid) {
         if (mode)
             *mode = g_pointer_attack.mode;
+        if (manual)
+            *manual = g_pointer_attack.hover_manual;
+        if (kind)
+            *kind = g_pointer_attack.hover_kind;
         if (y)
             *y = g_pointer_attack.hover_y;
         if (x)
@@ -6675,11 +6874,16 @@ static bool sdl_pointer_attack_take_render_target(int* mode, int* y, int* x,
     if (g_pointer_attack.touch_selected
         && sdl_pointer_attack_target_hoverable(
             g_pointer_attack.touch_selected_mode,
+            g_pointer_attack.touch_selected_manual,
             g_pointer_attack.touch_selected_y,
-            g_pointer_attack.touch_selected_x, m_idx))
+            g_pointer_attack.touch_selected_x, m_idx, kind))
     {
         if (mode)
             *mode = g_pointer_attack.touch_selected_mode;
+        if (manual)
+            *manual = g_pointer_attack.touch_selected_manual;
+        if (kind && *kind == SDL_POINTER_ATTACK_TARGET_NONE)
+            *kind = g_pointer_attack.touch_selected_kind;
         if (y)
             *y = g_pointer_attack.touch_selected_y;
         if (x)
@@ -6687,6 +6891,7 @@ static bool sdl_pointer_attack_take_render_target(int* mode, int* y, int* x,
         if (actionable)
             *actionable = sdl_pointer_attack_target_actionable(
                 g_pointer_attack.touch_selected_mode,
+                g_pointer_attack.touch_selected_manual,
                 g_pointer_attack.touch_selected_y,
                 g_pointer_attack.touch_selected_x, NULL);
         return true;
@@ -6722,9 +6927,28 @@ static void sdl_pointer_attack_render_cell(int y, int x, SDL_Color color,
     SDL_RenderRect(g_state.renderer, &rect);
 }
 
+static void sdl_pointer_attack_render_manual_ranged_overlay(int mode,
+    SDL_Color color)
+{
+    if (!sdl_pointer_attack_mode_is_ranged(mode))
+        return;
+    if (sdl_pointer_attack_ranged_range(mode) <= 0)
+        return;
+
+    for (int y = p_ptr->wy; y < p_ptr->wy + SCREEN_HGT; y++) {
+        for (int x = p_ptr->wx; x < p_ptr->wx + SCREEN_WID; x++) {
+            if (!sdl_pointer_attack_manual_location_valid(mode, y, x))
+                continue;
+            sdl_pointer_attack_render_cell(y, x, color, false);
+        }
+    }
+}
+
 static void sdl_pointer_attack_render(void)
 {
     int mode = SDL_POINTER_ATTACK_NONE;
+    bool manual = false;
+    int kind = SDL_POINTER_ATTACK_TARGET_NONE;
     int y = 0;
     int x = 0;
     int m_idx = 0;
@@ -6738,22 +6962,38 @@ static void sdl_pointer_attack_render(void)
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
-    if (!sdl_pointer_attack_take_render_target(&mode, &y, &x, &m_idx,
-        &actionable))
+    if (sdl_pointer_attack_manual_modifier_active()
+        && sdl_pointer_attack_mode_is_ranged(g_pointer_attack.mode))
+    {
+        sdl_pointer_attack_render_manual_ranged_overlay(
+            g_pointer_attack.mode, target_color);
+    }
+
+    if (!sdl_pointer_attack_take_render_target(&mode, &manual, &kind, &y, &x,
+        &m_idx, &actionable))
     {
         return;
     }
 
     (void)m_idx;
+    (void)manual;
     if (!actionable) {
         sdl_pointer_attack_render_cell(y, x, blocked_color, true);
-    } else if (sdl_pointer_attack_mode_is_ranged(mode)) {
+    } else if (kind == SDL_POINTER_ATTACK_TARGET_LOCATION
+        || (kind == SDL_POINTER_ATTACK_TARGET_MONSTER
+            && sdl_pointer_attack_mode_is_ranged(mode)))
+    {
         int range = sdl_pointer_attack_ranged_range(mode);
         int ty = y;
         int tx = x;
         u16b path[256];
         int path_n = project_path(path, range, p_ptr->py, p_ptr->px,
             &ty, &tx, PROJECT_THRU | PROJECT_INVISIPASS);
+
+        if (path_n <= 0) {
+            sdl_pointer_attack_render_cell(y, x, target_color, true);
+            return;
+        }
 
         for (int i = 0; i < path_n; i++) {
             int py = GRID_Y(path[i]);
@@ -6772,8 +7012,11 @@ static void sdl_pointer_attack_render(void)
 
 bool sdl_pointer_attack_take_command(int* command, int* dir)
 {
+    int kind;
     int mode;
     int m_idx;
+    int target_y;
+    int target_x;
     monster_type* m_ptr;
 
     if (!command || !dir)
@@ -6786,15 +7029,59 @@ bool sdl_pointer_attack_take_command(int* command, int* dir)
         g_pointer_attack.pending_wake = false;
     }
 
+    kind = g_pointer_attack.pending_kind;
     mode = g_pointer_attack.pending_mode;
     m_idx = g_pointer_attack.pending_m_idx;
+    target_y = g_pointer_attack.pending_y;
+    target_x = g_pointer_attack.pending_x;
     g_pointer_attack.pending = false;
+    g_pointer_attack.pending_kind = SDL_POINTER_ATTACK_TARGET_NONE;
     g_pointer_attack.pending_mode = SDL_POINTER_ATTACK_NONE;
     g_pointer_attack.pending_m_idx = 0;
+    g_pointer_attack.pending_y = 0;
+    g_pointer_attack.pending_x = 0;
 
     if (!sdl_mouse_gameplay_context_active())
         return false;
-    if (m_idx <= 0)
+
+    if (kind == SDL_POINTER_ATTACK_TARGET_LOCATION) {
+        if (!sdl_pointer_attack_target_actionable(mode, true, target_y,
+                target_x, NULL))
+        {
+            bell("No clear shot.");
+            return false;
+        }
+
+        target_set_location(target_y, target_x);
+        health_track(0);
+        *command = (mode == SDL_POINTER_ATTACK_RANGED_2) ? 'F' : 'f';
+        *dir = 5;
+        return true;
+    }
+
+    if (kind == SDL_POINTER_ATTACK_TARGET_ALTER) {
+        int alter_dir = 0;
+
+        if (!sdl_pointer_attack_target_actionable(mode, true, target_y,
+                target_x, NULL)
+            || !sdl_pointer_attack_adjacent_dir_for_grid(target_y, target_x,
+                &alter_dir))
+        {
+            bell("No adjacent action.");
+            return false;
+        }
+
+        if (sdl_pointer_attack_adjacent_tunnel_target(target_y, target_x,
+                NULL))
+        {
+            sdl_mouse_note_feature_for_action(target_y, target_x);
+        }
+        *command = '/';
+        *dir = alter_dir;
+        return true;
+    }
+
+    if (kind != SDL_POINTER_ATTACK_TARGET_MONSTER || m_idx <= 0)
         return false;
 
     m_ptr = &mon_list[m_idx];
@@ -6803,11 +7090,10 @@ bool sdl_pointer_attack_take_command(int* command, int* dir)
         return false;
     }
 
-    if (!sdl_pointer_attack_target_actionable(mode, m_ptr->fy, m_ptr->fx,
+    if (!sdl_pointer_attack_target_actionable(mode, false, m_ptr->fy, m_ptr->fx,
         NULL))
     {
-        bell(sdl_pointer_attack_mode_is_ranged(mode)
-            ? "No clear shot." : "No adjacent melee target.");
+        bell(sdl_pointer_attack_blocked_message(mode, kind));
         return false;
     }
 
@@ -13818,6 +14104,11 @@ static void sdl_gamepad_apply_modifier(int binding, bool down)
         g_gamepad_state.ctrl_held += delta;
         if (g_gamepad_state.ctrl_held < 0)
             g_gamepad_state.ctrl_held = 0;
+        sdl_pointer_attack_clear_hover();
+        sdl_pointer_attack_clear_touch_selection();
+        sdl_pointer_attack_cancel_touch_press();
+        sdl_mouse_path_cancel();
+        g_state.need_present = true;
     } else if (binding == GAMEPAD_BIND_ALT) {
         g_gamepad_state.alt_held += delta;
         if (g_gamepad_state.alt_held < 0)
@@ -16762,6 +17053,13 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             key == SDLK_LCTRL || key == SDLK_RCTRL ||
             key == SDLK_LGUI || key == SDLK_RGUI)
         {
+            if (key == SDLK_LCTRL || key == SDLK_RCTRL) {
+                sdl_pointer_attack_clear_hover();
+                sdl_pointer_attack_clear_touch_selection();
+                sdl_pointer_attack_cancel_touch_press();
+                sdl_mouse_path_cancel();
+                g_state.need_present = true;
+            }
             return;
         }
 
@@ -16873,6 +17171,16 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             } else {
                 Term_keypress(key);
             }
+        }
+    } else if (ev->type == SDL_EVENT_KEY_UP) {
+        int key = ev->key.key;
+
+        if (key == SDLK_LCTRL || key == SDLK_RCTRL) {
+            sdl_pointer_attack_clear_hover();
+            sdl_pointer_attack_clear_touch_selection();
+            sdl_pointer_attack_cancel_touch_press();
+            sdl_mouse_path_cancel();
+            g_state.need_present = true;
         }
     } else if (ev->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || ev->type == SDL_EVENT_GAMEPAD_BUTTON_UP) {
         sdl_gamepad_handle_button(&ev->gbutton);
