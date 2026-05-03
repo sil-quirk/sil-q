@@ -5717,6 +5717,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
     char ch;
 
     char buf[80];
+    NavResult result = NAV_BACK;
 
     /* Determine experience and things */
     get_extra();
@@ -5763,6 +5764,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
     }
 
     log_trace("Starting stats allocation interface");
+    screen_push_touch_pane_proto();
 
     /* Interact */
     while (1)
@@ -5993,8 +5995,8 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
         if ((ch == 'Q') || (ch == 'q')) {
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            if (turn == 0) return NAV_BACK;
-            return NAV_QUIT;
+            result = (turn == 0) ? NAV_BACK : NAV_QUIT;
+            goto cleanup;
         }
 
         /* Back to Character Selection */
@@ -6004,7 +6006,8 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
         {
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            return NAV_BACK;
+            result = NAV_BACK;
+            goto cleanup;
         }
 
         /* Done */
@@ -6014,7 +6017,8 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
                 continue;
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            return NAV_OK;
+            result = NAV_OK;
+            goto cleanup;
         }
 
         /* Prev stat */
@@ -6043,8 +6047,10 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
     }
 
     /* Shouldn't reach; default to back */
+cleanup:
+    screen_pop_touch_pane_proto();
     ui_scroll_area_clear();
-    return NAV_BACK;
+    return result;
 }
 
 /*
@@ -6596,7 +6602,9 @@ static NavResult player_birth_aux(void)
             if (s == NAV_OK) {
                 /* Skill allocation: Esc returns to stats; q returns to character selection. */
                 log_debug("Stats accepted, entering skills allocation");
+                screen_push_touch_pane_proto();
                 NavResult g = gain_skills();
+                screen_pop_touch_pane_proto();
                 if (g == NAV_BACK) continue;
                 if (g == NAV_TO_CHARACTER) return NAV_BACK;
                 if (g != NAV_OK) return g;

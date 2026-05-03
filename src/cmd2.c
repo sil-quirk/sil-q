@@ -1597,6 +1597,8 @@ static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type*
     return true;
 }
 
+#define SKELETON_GEAR_DIFFICULTY_BONUS 5
+
 static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval,
     bool* no_item_generated)
 {
@@ -1615,7 +1617,8 @@ static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sva
     for (int attempt = 0; attempt < 50; attempt++)
     {
         object_wipe(o_ptr);
-        if (!make_object(o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED))
+        if (!drop_generate_object_with_bonus(object_level, DROP_QUALITY_NORMAL,
+                DROP_TYPE_DAMAGED, SKELETON_GEAR_DIFFICULTY_BONUS, false, o_ptr))
             continue;
 
         generated_any = true;
