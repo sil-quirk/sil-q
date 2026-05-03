@@ -672,6 +672,7 @@ static char* read_file_contents(const char* filename)
 
 static bool g_app_intro_seen = false;
 static bool g_app_touch_tutorial_seen = false;
+static bool g_app_mouse_tutorial_seen = false;
 
 static const byte app_interface_options[] = {
     OPT_quick_messages, OPT_auto_more, OPT_system_beep, OPT_easy_main_menu,
@@ -922,6 +923,7 @@ void sdl_config_load_app_options(const char* filename)
 
     g_app_intro_seen = config_exists;
     g_app_touch_tutorial_seen = false;
+    g_app_mouse_tutorial_seen = false;
 
     if (!filename || !filename[0]) {
         log_warn("sdl_config_load_app_options: no config filename provided");
@@ -960,6 +962,10 @@ void sdl_config_load_app_options(const char* filename)
     item = cJSON_GetObjectItemCaseSensitive(app_options, "touchTutorialSeen");
     if (cJSON_IsBool(item))
         g_app_touch_tutorial_seen = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(app_options, "mouseTutorialSeen");
+    if (cJSON_IsBool(item))
+        g_app_mouse_tutorial_seen = cJSON_IsTrue(item);
 
     sdl_config_load_app_option_group(app_options, "interface", app_interface_options);
     sdl_config_load_app_option_group(app_options, "text", app_text_options);
@@ -1013,6 +1019,16 @@ bool sdl_config_touch_tutorial_seen(void)
 void sdl_config_mark_touch_tutorial_seen(void)
 {
     g_app_touch_tutorial_seen = true;
+}
+
+bool sdl_config_mouse_tutorial_seen(void)
+{
+    return g_app_mouse_tutorial_seen;
+}
+
+void sdl_config_mark_mouse_tutorial_seen(void)
+{
+    g_app_mouse_tutorial_seen = true;
 }
 
 static void sdl_config_load_touch_binding_array(cJSON* array, int* dst, int max_count)
@@ -2607,6 +2623,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddBoolToObject(app_options, "introSeen", g_app_intro_seen);
             cJSON_AddBoolToObject(app_options, "touchTutorialSeen",
                 g_app_touch_tutorial_seen);
+            cJSON_AddBoolToObject(app_options, "mouseTutorialSeen",
+                g_app_mouse_tutorial_seen);
 
             sdl_config_save_app_option_group(app_options, "interface", app_interface_options);
             sdl_config_save_app_option_group(app_options, "text", app_text_options);

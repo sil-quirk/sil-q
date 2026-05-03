@@ -21501,6 +21501,7 @@ static void do_cmd_mouse_settings(bool* settings_changed)
     enum {
         MOUSE_SETTING_ENABLE = 0,
         MOUSE_SETTING_MOVEMENT,
+        MOUSE_SETTING_TUTORIAL,
         MOUSE_SETTING_COUNT
     };
     int highlight = 0;
@@ -21532,16 +21533,19 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             cptr label;
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
+            action_buf[0] = '\0';
             if (i == MOUSE_SETTING_ENABLE) {
                 label = "Enable Mouse";
                 SDL_strlcpy(action_buf,
                     get_sdl_mouse_enabled() ? "On" : "Off",
                     sizeof(action_buf));
-            } else {
+            } else if (i == MOUSE_SETTING_MOVEMENT) {
                 label = "Mouse Movement";
                 SDL_strlcpy(action_buf,
                     mouse_movement_mode_label(get_sdl_mouse_movement_mode()),
                     sizeof(action_buf));
+            } else {
+                label = "Mouse tutorial";
             }
 
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
@@ -21553,8 +21557,8 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         settings_ui_put_fitted(list_start_row + MOUSE_SETTING_COUNT + 2, 2,
             TERM_SLATE,
             settings_ui_pick_label(row_width,
-                "Up/Down: select item   4/6: previous/next value   Space toggle or cycle",
-                "Up/Down select   4/6 value   Space toggle/cycle",
+                "Up/Down: select item   4/6: previous/next value   Space toggle, cycle, or show",
+                "Up/Down select   4/6 value   Space toggle/cycle/show",
                 "Up/Down select   4/6 value"));
         {
             cptr prompt = settings_ui_pick_label(row_width,
@@ -21654,11 +21658,12 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         case '4':
             if (highlight == MOUSE_SETTING_ENABLE) {
                 set_sdl_mouse_enabled(false);
+                changed = true;
             } else if (highlight == MOUSE_SETTING_MOVEMENT) {
                 set_sdl_mouse_movement_mode(
                     mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), -1));
+                changed = true;
             }
-            changed = true;
             break;
 
         case 'y':
@@ -21668,11 +21673,17 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         case '5':
             if (highlight == MOUSE_SETTING_ENABLE) {
                 set_sdl_mouse_enabled(!get_sdl_mouse_enabled());
+                changed = true;
             } else if (highlight == MOUSE_SETTING_MOVEMENT) {
                 set_sdl_mouse_movement_mode(
                     mouse_movement_mode_cycle(get_sdl_mouse_movement_mode(), 1));
+                changed = true;
+            } else if (highlight == MOUSE_SETTING_TUTORIAL) {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
+                sdl_mouse_request_tutorial_from_settings();
+                done = true;
             }
-            changed = true;
             break;
 
         case 'r':
@@ -21680,10 +21691,11 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         case 'X':
             if (highlight == MOUSE_SETTING_ENABLE) {
                 set_sdl_mouse_enabled(get_sdl_mouse_default_enabled());
+                changed = true;
             } else if (highlight == MOUSE_SETTING_MOVEMENT) {
                 set_sdl_mouse_movement_mode(get_sdl_mouse_movement_default_mode());
+                changed = true;
             }
-            changed = true;
             break;
 
         case 'R':
@@ -22391,6 +22403,8 @@ static void do_cmd_input_options_submenu(int* highlight)
             break;
         case 4:
             do_cmd_mouse_settings(NULL);
+            if (sdl_mouse_settings_tutorial_requested())
+                return_to_options = true;
             Term_clear();
             break;
         case 5:
@@ -22444,7 +22458,8 @@ void do_cmd_options(void)
         case 1:
         {
             do_cmd_input_options_submenu(&input_highlight);
-            if (sdl_touch_settings_tutorial_requested())
+            if (sdl_touch_settings_tutorial_requested()
+                || sdl_mouse_settings_tutorial_requested())
                 return_to_game = true;
             Term_clear();
             break;
@@ -22529,7 +22544,9 @@ void do_cmd_options(void)
         Term_erase(0, 0, 255);
     if (p_ptr)
         handle_stuff();
-    if (sdl_touch_settings_tutorial_requested()) {
+    if (sdl_touch_settings_tutorial_requested()
+        || sdl_mouse_settings_tutorial_requested())
+    {
         if (p_ptr && p_ptr->playing)
             do_cmd_redraw();
         else

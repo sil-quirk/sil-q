@@ -4175,6 +4175,7 @@ static void dungeon(void)
     }
 
     sdl_touch_maybe_show_first_game_tutorial();
+    sdl_mouse_maybe_show_first_game_tutorial();
 
     log_info("Dungeon display setup completed successfully");
 
