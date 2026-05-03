@@ -70,8 +70,8 @@ bool repair_damaged_item(int slot);
 bool upgrade_broken_item(int slot);
 
 /*
- * Reveal a random unknown artifact's description
- * Returns true if an artifact was revealed
+ * Reveal random unknown artifact descriptions
+ * Returns true if at least one artifact was revealed
  */
 bool reveal_random_artifact(void);
 

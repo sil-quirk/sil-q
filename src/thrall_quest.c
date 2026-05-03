@@ -42,7 +42,9 @@ static const int human_thrall_weights[THRALL_QUEST_MAX] = {
     22,  /* BOOTS - escape over stone */
     30,  /* HERB_SUSTENANCE - hunger is a chain */
     12,  /* HERB_RESTORATION - recover strength */
-    16   /* POTION_CLARITY - endure fear and glamour */
+    16,  /* POTION_CLARITY - endure fear and glamour */
+    24,  /* FLASK_OIL - precious lamp fuel */
+    20   /* WOODEN_TORCH - simple light for escape */
 };
 
 static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
@@ -57,10 +59,13 @@ static const int elf_thrall_weights[THRALL_QUEST_MAX] = {
     24,  /* BOOTS - to tread in silence */
     6,   /* HERB_SUSTENANCE - still needed in torment */
     18,  /* HERB_RESTORATION - recover spirit/strength */
-    14   /* POTION_CLARITY - lift veils from the mind */
+    14,  /* POTION_CLARITY - lift veils from the mind */
+    12,  /* FLASK_OIL - clean fuel for a guarded flame */
+    14   /* WOODEN_TORCH - light in the pits */
 };
 
 #define THRALL_REWARD_MENU_BASE_ROW 5
+#define THRALL_ARTEFACT_REVEAL_COUNT 3
 
 enum
 {
@@ -74,7 +79,9 @@ enum
     THRALL_REWARD_ARTEFACT = 0,
     THRALL_REWARD_REPAIR = 1,
     THRALL_REWARD_SANCTIFY = 2,
-    THRALL_REWARD_LATER = 3
+    THRALL_REWARD_IDENTIFY_ONE = 3,
+    THRALL_REWARD_IDENTIFY_NATURE = 4,
+    THRALL_REWARD_LATER = 5
 };
 
 typedef struct thrall_reward_option
@@ -425,6 +432,16 @@ static cptr get_thrall_quest_reason(monster_type* m_ptr, byte quest_item)
                 ? "With it the veils upon my mind may be lifted, and the dreams they weave may be scattered like mist before the morning."
                 : "With it I could cast out the madness of fear and whispering shadows, and think clearly when the hour of choice comes.";
 
+        case THRALL_QUEST_FLASK_OIL:
+            return is_elf
+                ? "With it I could keep a small flame clean and steady, and remember for a while that light was made for more than the watchfires of Angband."
+                : "With it I could nurse a lamp through the dead watches, when a stumble in the black means the lash or the pit.";
+
+        case THRALL_QUEST_WOODEN_TORCH:
+            return is_elf
+                ? "With it I could carry one honest flame into the black ways, and not go wholly blind beneath the earth."
+                : "With it I could find a gate, a crack, any path not barred by iron, before the dark swallows my nerve.";
+
         default:
             return "With it I might yet endure a little longer, and do some small good before all light is quenched.";
     }
@@ -493,6 +510,14 @@ bool is_alert_thrall(monster_type* m_ptr)
 /*
  * Select a random quest item based on weights
  */
+static bool thrall_quest_item_available(byte quest_item)
+{
+    if (quest_item == THRALL_QUEST_LANTERN)
+        return p_ptr && p_ptr->depth >= 6;
+
+    return true;
+}
+
 static byte select_quest_item(const int* weights)
 {
     int total_weight = 0;
@@ -501,8 +526,14 @@ static byte select_quest_item(const int* weights)
     /* Calculate total weight */
     for (i = 1; i < THRALL_QUEST_MAX; i++)
     {
+        if (!thrall_quest_item_available((byte)i))
+            continue;
+
         total_weight += weights[i];
     }
+
+    if (total_weight <= 0)
+        return THRALL_QUEST_SHOVEL;
     
     /* Roll */
     roll = rand_int(total_weight);
@@ -510,6 +541,9 @@ static byte select_quest_item(const int* weights)
     /* Find the selected item */
     for (i = 1; i < THRALL_QUEST_MAX; i++)
     {
+        if (!thrall_quest_item_available((byte)i))
+            continue;
+
         roll -= weights[i];
         if (roll < 0) return (byte)i;
     }
@@ -547,15 +581,17 @@ cptr get_thrall_quest_item_name(byte quest_item)
     {
         case THRALL_QUEST_SHOVEL:            return "a shovel";
         case THRALL_QUEST_LANTERN:           return "a brass lantern";
-        case THRALL_QUEST_HERB_HEALING:      return "an identified herb of healing";
+        case THRALL_QUEST_HERB_HEALING:      return "an herb of healing";
         case THRALL_QUEST_MALLORN:           return "a mallorn torch";
         case THRALL_QUEST_POTION_HEALING:    return "a potion of healing";
         case THRALL_QUEST_DAGGER:            return "a dagger";
         case THRALL_QUEST_CLOAK:             return "a cloak";
         case THRALL_QUEST_BOOTS:             return "a pair of boots";
-        case THRALL_QUEST_HERB_SUSTENANCE:   return "an identified herb of sustenance";
-        case THRALL_QUEST_HERB_RESTORATION:  return "an identified herb of restoration";
+        case THRALL_QUEST_HERB_SUSTENANCE:   return "an herb of sustenance";
+        case THRALL_QUEST_HERB_RESTORATION:  return "an herb of restoration";
         case THRALL_QUEST_POTION_CLARITY:    return "a potion of clarity";
+        case THRALL_QUEST_FLASK_OIL:         return "a flask of oil";
+        case THRALL_QUEST_WOODEN_TORCH:      return "a full wooden torch";
         default:                             return "something";
     }
 }
@@ -574,10 +610,8 @@ static bool item_matches_quest(object_type* o_ptr, byte quest_item)
             return (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_LANTERN);
             
         case THRALL_QUEST_HERB_HEALING:
-            /* Must be identified herb of healing */
             return (o_ptr->tval == TV_FOOD && 
-                    o_ptr->sval == SV_FOOD_HEALING &&
-                    object_aware_p(o_ptr));
+                    o_ptr->sval == SV_FOOD_HEALING);
             
         case THRALL_QUEST_MALLORN:
             return (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_MALLORN);
@@ -596,20 +630,85 @@ static bool item_matches_quest(object_type* o_ptr, byte quest_item)
 
         case THRALL_QUEST_HERB_SUSTENANCE:
             return (o_ptr->tval == TV_FOOD && 
-                    o_ptr->sval == SV_FOOD_SUSTENANCE &&
-                    object_aware_p(o_ptr));
+                    o_ptr->sval == SV_FOOD_SUSTENANCE);
 
         case THRALL_QUEST_HERB_RESTORATION:
             return (o_ptr->tval == TV_FOOD && 
-                    o_ptr->sval == SV_FOOD_RESTORATION &&
-                    object_aware_p(o_ptr));
+                    o_ptr->sval == SV_FOOD_RESTORATION);
 
         case THRALL_QUEST_POTION_CLARITY:
             return (o_ptr->tval == TV_POTION && o_ptr->sval == SV_POTION_CLARITY);
+
+        case THRALL_QUEST_FLASK_OIL:
+            return (o_ptr->tval == TV_FLASK && player_light_fuel(o_ptr) > 0);
+
+        case THRALL_QUEST_WOODEN_TORCH:
+            return (o_ptr->tval == TV_LIGHT && o_ptr->sval == SV_LIGHT_TORCH
+                    && player_light_fuel(o_ptr) >= 1000);
             
         default:
             return false;
     }
+}
+
+static bool supply_item_matches_quest(object_type* o_ptr, byte quest_item)
+{
+    if (quest_item == THRALL_QUEST_FLASK_OIL)
+        return o_ptr && o_ptr->k_idx && o_ptr->tval == TV_FLASK
+            && player_lamp_oil() > 0;
+
+    return item_matches_quest(o_ptr, quest_item);
+}
+
+static object_type* thrall_quest_slot_object(int item_slot, int* supply_idx)
+{
+    if (supply_idx)
+        *supply_idx = -1;
+
+    if (item_slot >= SUPPLIES_INDEX)
+    {
+        int idx = item_slot - SUPPLIES_INDEX;
+
+        if (supply_idx)
+            *supply_idx = idx;
+
+        return supplies_entry_at(idx);
+    }
+
+    if (item_slot < 0 || item_slot >= INVEN_TOTAL)
+        return NULL;
+
+    return &inventory[item_slot];
+}
+
+static bool thrall_quest_identifies_before_offer(byte quest_item)
+{
+    switch (quest_item)
+    {
+        case THRALL_QUEST_HERB_HEALING:
+        case THRALL_QUEST_POTION_HEALING:
+        case THRALL_QUEST_HERB_SUSTENANCE:
+        case THRALL_QUEST_HERB_RESTORATION:
+        case THRALL_QUEST_POTION_CLARITY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static void identify_thrall_quest_item_before_offer(byte quest_item, int item_slot)
+{
+    object_type* o_ptr;
+
+    if (!thrall_quest_identifies_before_offer(quest_item))
+        return;
+
+    o_ptr = thrall_quest_slot_object(item_slot, NULL);
+    if (!o_ptr || !o_ptr->k_idx)
+        return;
+
+    if (!object_aware_p(o_ptr) || !object_known_p(o_ptr))
+        (void)do_ident_item(item_slot, o_ptr);
 }
 
 /*
@@ -642,7 +741,7 @@ int player_has_thrall_quest_item(byte quest_item)
         if (!o_ptr || !o_ptr->k_idx)
             continue;
 
-        if (item_matches_quest(o_ptr, quest_item))
+        if (supply_item_matches_quest(o_ptr, quest_item))
             return SUPPLIES_INDEX + i;
     }
     
@@ -1100,6 +1199,125 @@ static bool choose_item_to_sanctify(int* out_slot)
     return true;
 }
 
+static bool thrall_object_needs_identify(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (o_ptr->ident & IDENT_SPOIL)
+        return false;
+
+    if (!object_aware_p(o_ptr))
+        return true;
+
+    if (o_ptr->tval == TV_STAFF || o_ptr->tval == TV_HORN)
+        return !object_known_p(o_ptr);
+
+    if (object_uses_smithing_difficulty(o_ptr))
+        return !object_known_p(o_ptr);
+
+    return false;
+}
+
+static int count_carried_identify_targets(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (thrall_object_needs_identify(o_ptr))
+            count++;
+    }
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        if (thrall_object_needs_identify(&inventory[i]))
+            count++;
+    }
+
+    return count;
+}
+
+static bool object_is_elven_identify_target(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    return o_ptr->tval == TV_POTION || o_ptr->tval == TV_GEM
+        || supplies_is_herb_object(o_ptr);
+}
+
+static int count_elven_identify_targets(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (object_is_elven_identify_target(o_ptr)
+            && thrall_object_needs_identify(o_ptr))
+        {
+            count++;
+        }
+    }
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (object_is_elven_identify_target(o_ptr)
+            && thrall_object_needs_identify(o_ptr))
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static bool identify_elven_carried_items(void)
+{
+    int hidden_count = count_elven_identify_targets();
+    char dialog_text[512];
+    cptr texts[1];
+
+    if (hidden_count <= 0)
+        return false;
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (!object_is_elven_identify_target(o_ptr))
+            continue;
+
+        ident(o_ptr);
+        supplies_refresh_entry(i);
+    }
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!object_is_elven_identify_target(o_ptr))
+            continue;
+
+        ident(o_ptr);
+    }
+
+    strnfmt(dialog_text, sizeof(dialog_text),
+        "The elven thrall names old scents, colors, and hidden virtues with a memory no darkness has wholly broken.\n\n"
+        "Your carried potions, gems, and herbs are revealed.");
+
+    texts[0] = dialog_text;
+    quest_typewriter_menu("Revelation", texts, 1, TERM_L_BLUE, TERM_WHITE);
+
+    return true;
+}
+
 /*
  * Repair a damaged item, either by removing its damaged ego prefix or
  * by upgrading a legacy damaged base kind for old saves.
@@ -1344,17 +1562,20 @@ static bool sanctify_item(int slot)
 }
 
 /*
- * Reveal a random unknown artifact's description
- * Returns true if an artifact was revealed
+ * Reveal random unknown artifact descriptions.
+ * Returns true if at least one artifact was revealed.
  */
 bool reveal_random_artifact(void)
 {
     int i, count;
     int* candidates;
-    int selected;
-    artefact_type* a_ptr;
-    object_type temp_obj;
-    char o_name[120];
+    int reveal_count;
+    int selected[THRALL_ARTEFACT_REVEAL_COUNT];
+    char o_names[THRALL_ARTEFACT_REVEAL_COUNT][120];
+    char name_list[512];
+    char dialog_text[2048];
+    cptr texts[1 + THRALL_ARTEFACT_REVEAL_COUNT];
+    int text_count = 1;
     
     /* Count unrevealed artifacts */
     count = count_revealable_artifacts();
@@ -1376,51 +1597,67 @@ bool reveal_random_artifact(void)
 
         candidates[count++] = i;
     }
-    
-    /* Select random artifact */
-    selected = candidates[rand_int(count)];
-    mem_free(candidates);
-    
-    a_ptr = &a_info[selected];
 
-    /* Reveal in the knowledge menu */
-    a_ptr->seen |= ART_SEEN_REVEALED;
-    
-    /* Create a temporary object to get full name */
-    object_wipe(&temp_obj);
+    reveal_count = MIN(THRALL_ARTEFACT_REVEAL_COUNT, count);
+
+    for (i = 0; i < reveal_count; i++)
     {
-        s16b k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+        int pick = rand_int(count - i);
+        int candidate = candidates[pick];
+
+        candidates[pick] = candidates[count - i - 1];
+        selected[i] = candidate;
+    }
+
+    mem_free(candidates);
+
+    name_list[0] = '\0';
+    texts[0] = dialog_text;
+
+    for (i = 0; i < reveal_count; i++)
+    {
+        artefact_type* a_ptr = &a_info[selected[i]];
+        object_type temp_obj;
+        s16b k_idx;
+
+        /* Reveal in the knowledge menu */
+        a_ptr->seen |= ART_SEEN_REVEALED;
+
+        /* Create a temporary object to get full name */
+        object_wipe(&temp_obj);
+        k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
         if (k_idx > 0)
         {
             object_prep(&temp_obj, k_idx);
-            temp_obj.name1 = selected;
+            temp_obj.name1 = selected[i];
             object_into_artefact(&temp_obj, a_ptr);
             object_known(&temp_obj);
             temp_obj.ident |= IDENT_SPOIL;
         }
+
+        if (temp_obj.k_idx)
+            object_desc(o_names[i], sizeof(o_names[i]), &temp_obj, true, 0);
+        else
+            SDL_strlcpy(o_names[i],
+                a_ptr->name[0] ? a_ptr->name : "a nameless artefact",
+                sizeof(o_names[i]));
+
+        SDL_strlcat(name_list, "\n  ", sizeof(name_list));
+        SDL_strlcat(name_list, o_names[i], sizeof(name_list));
+
+        if (a_ptr->text)
+            texts[text_count++] = a_text + a_ptr->text;
     }
-    
-    /* Get artifact name */
-    object_desc(o_name, sizeof(o_name), &temp_obj, true, 0);
-    
-    /* Display the revelation */
-    char dialog_text[2048];
-    cptr texts[2];
-    int text_count = 1;
-    
+
     strnfmt(dialog_text, sizeof(dialog_text),
         "The thrall leans close and speaks in a voice scarcely more than breath.\n\n"
-        "You learn of %s!",
-        o_name);
-
-    texts[0] = dialog_text;
-    if (a_ptr->text)
-    {
-        texts[text_count++] = a_text + a_ptr->text;
-    }
+        "You learn of %d ancient %s:%s",
+        reveal_count, reveal_count == 1 ? "thing" : "things", name_list);
 
     quest_typewriter_menu("Ancient Knowledge", texts, text_count, TERM_L_BLUE, TERM_WHITE);
-    desc_art_fake(selected);
+
+    for (i = 0; i < reveal_count; i++)
+        desc_art_fake(selected[i]);
     
     return true;
 }
@@ -1445,7 +1682,7 @@ static int next_thrall_reward_selection(const thrall_reward_option options[],
 
 static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
 {
-    thrall_reward_option options[4];
+    thrall_reward_option options[6];
     int option_count = 0;
     int selected;
     int term_wid = 80;
@@ -1475,6 +1712,15 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         options[option_count++] = (thrall_reward_option){
             THRALL_REWARD_SANCTIFY, 'c', "Sanctify a cursed or jinxed item",
             find_sanctifiable_item() >= 0 };
+        options[option_count++] = (thrall_reward_option){
+            THRALL_REWARD_IDENTIFY_NATURE, 'd', "Identify potions, gems, and herbs",
+            count_elven_identify_targets() > 0 };
+    }
+    else
+    {
+        options[option_count++] = (thrall_reward_option){
+            THRALL_REWARD_IDENTIFY_ONE, 'c', "Identify an item",
+            count_carried_identify_targets() > 0 };
     }
 
     {
@@ -1547,7 +1793,7 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         {
             Term_putstr(0, info_row, term_wid, TERM_L_DARK,
                 compact ? "Grey = unavailable." :
-                "Greyed options need a suitable item in inventory or equipment.");
+                "Greyed options need a suitable carried item or unrevealed artefact.");
         }
 
         if (steamdeck)
@@ -1776,6 +2022,18 @@ static bool offer_thrall_reward(monster_type* m_ptr, bool pending_reward)
             break;
         }
 
+        case THRALL_REWARD_IDENTIFY_ONE:
+            if (ident_spell(false))
+                return true;
+            break;
+
+        case THRALL_REWARD_IDENTIFY_NATURE:
+            if (identify_elven_carried_items())
+                return true;
+
+            msg_print("The thrall finds no hidden virtues among your potions, gems, or herbs.");
+            break;
+
         case THRALL_REWARD_LATER:
         default:
             msg_format("%^s bows the head and waits for your return.", m_name);
@@ -1816,6 +2074,9 @@ void complete_thrall_quest(monster_type* m_ptr, int item_slot)
     /* Consume one item */
     if (from_supplies)
     {
+        if (m_ptr && m_ptr->thrall_quest_item == THRALL_QUEST_FLASK_OIL)
+            player_set_lamp_oil(MAX(0, player_lamp_oil() - FUEL_FLASK));
+
         supplies_consume_quantity(supply_idx, 1);
     }
     else
@@ -1887,6 +2148,10 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         
         /* Show Pre-Give Dialog */
         int variant = rand_int(THRALL_TEXT_VARIANTS);
+
+        identify_thrall_quest_item_before_offer(
+            m_ptr->thrall_quest_item, item_slot);
+
         if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
             show_thrall_dialog(m_ptr, elf_pre_give_texts[variant]);
         else
