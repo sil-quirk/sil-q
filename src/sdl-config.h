@@ -161,6 +161,8 @@ struct sdl_config {
     int mouse_movement_mode;
     int touch_profile;
     bool touch_pane_default_open;
+    bool touch_pane_key_labels_visible;
+    bool touch_pane_inventory_equipment_cycle;
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];

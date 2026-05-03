@@ -1046,6 +1046,35 @@ static void sdl_config_load_touch_label_array(cJSON* array, char dst[][SDL_TOUCH
     }
 }
 
+static void sdl_config_migrate_touch_pane_binding(struct sdl_config* config,
+    int panel, int index, int old_binding, int new_binding, cptr message)
+{
+    int* bindings;
+    char (*labels)[SDL_TOUCH_PANE_LABEL_LEN];
+
+    if (!config)
+        return;
+    if (panel < 0 || panel >= SDL_TOUCH_PANE_PANEL_COUNT)
+        return;
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    if (panel == SDL_TOUCH_PANE_PANEL_SECOND) {
+        bindings = config->touch_pane_second_bindings;
+        labels = config->touch_pane_second_labels;
+    } else {
+        bindings = config->touch_pane_bindings;
+        labels = config->touch_pane_labels;
+    }
+
+    if (bindings[index] != old_binding || labels[index][0])
+        return;
+
+    bindings[index] = new_binding;
+    if (message && message[0])
+        log_info("%s", message);
+}
+
 static cJSON* sdl_config_create_int_array(const int* src, int count)
 {
     cJSON* array;
@@ -1855,6 +1884,10 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             cJSON* second_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondBindings");
             cJSON* second_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondLabels");
             cJSON* panel_names = cJSON_GetObjectItemCaseSensitive(touch_pane, "panelNames");
+            cJSON* show_key_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "showKeyLabels");
+            cJSON* inv_equip_cycle = cJSON_GetObjectItemCaseSensitive(touch_pane,
+                "inventoryEquipmentCycle");
+            bool old_touch_pane_defaults = !cJSON_IsBool(show_key_labels);
             legacy_swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeEnabled");
             legacy_swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeBindings");
             if (cJSON_IsArray(bindings)) {
@@ -1909,6 +1942,63 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     }
                 }
                 log_debug("Loaded touchPane.panelNames (%d entries)", count);
+            }
+
+            if (cJSON_IsBool(show_key_labels)) {
+                config->touch_pane_key_labels_visible =
+                    cJSON_IsTrue(show_key_labels);
+                log_debug("Loaded touchPane.showKeyLabels: %s",
+                    config->touch_pane_key_labels_visible ? "true" : "false");
+            }
+
+            if (cJSON_IsBool(inv_equip_cycle)) {
+                config->touch_pane_inventory_equipment_cycle =
+                    cJSON_IsTrue(inv_equip_cycle);
+                log_debug("Loaded touchPane.inventoryEquipmentCycle: %s",
+                    config->touch_pane_inventory_equipment_cycle ? "true" : "false");
+            }
+
+            if (old_touch_pane_defaults)
+                sdl_config_migrate_touch_pane_binding(config,
+                    SDL_TOUCH_PANE_PANEL_MAIN, 1, GAMEPAD_BIND_CTRL, 'S',
+                    "Migrated default touch pane Ctrl button to Stealth");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_MAIN, 3, 'e', 'h',
+                "Migrated default touch pane Equip button to Char");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_MAIN, 5, '-', 'j',
+                "Migrated default touch pane Fletch button to Supply");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 1, TOUCH_PANE_BIND_INHERIT, 'X',
+                "Migrated default touch pane Stealth second-panel button to Exchange");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 3, '0', '\t',
+                "Migrated default touch pane Char second-panel button to Ability");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 4, '-', 'e',
+                "Migrated default touch pane Inv second-panel button to Equip");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 7, 'S', '0',
+                "Migrated default touch pane Sing second-panel button to Smith");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 5, 'q', '-',
+                "Migrated default touch pane Supply second-panel button to Fletch");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 18, 'L', 'M',
+                "Migrated default touch pane View second-panel button to Map");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 19, 'X', 'q',
+                "Migrated default touch pane Desc second-panel button to Quaff");
+
+            if (old_touch_pane_defaults
+                && strcmp(config->touch_pane_panel_names[
+                    SDL_TOUCH_PANE_PANEL_SECOND], "Shift") == 0)
+            {
+                SDL_strlcpy(config->touch_pane_panel_names[
+                        SDL_TOUCH_PANE_PANEL_SECOND], "2nd Panel",
+                    sizeof(config->touch_pane_panel_names[
+                        SDL_TOUCH_PANE_PANEL_SECOND]));
+                log_info("Migrated default touch pane Shift panel name to 2nd Panel");
             }
         } else {
             log_warn("'touchPane' object not found in JSON");
@@ -2425,6 +2515,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             if (panel_names) {
                 cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
             }
+            cJSON_AddBoolToObject(touch_pane, "showKeyLabels",
+                config->touch_pane_key_labels_visible);
+            cJSON_AddBoolToObject(touch_pane, "inventoryEquipmentCycle",
+                config->touch_pane_inventory_equipment_cycle);
             cJSON_AddItemToObject(root, "touchPane", touch_pane);
         }
     }
@@ -2628,8 +2722,8 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
 void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
 {
     static const int main_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
-        ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT,
-        'e', 'i', 'j',
+        ESCAPE, 'S', GAMEPAD_BIND_SHIFT,
+        'h', 'i', 'j',
         'u', 's', 'f',
         '7', '8', '9',
         '4', INPUT_BIND_CONFIRM, '6',
@@ -2638,13 +2732,13 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'M', 'h', '\t',
     };
     static const int second_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
-        TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, GAMEPAD_BIND_SHIFT,
-        '0', '-', 'q',
-        'r', 'S', 'F',
+        TOUCH_PANE_BIND_INHERIT, 'X', GAMEPAD_BIND_SHIFT,
+        '\t', 'e', '-',
+        'r', '0', 'F',
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
         TOUCH_PANE_BIND_INHERIT, 'z', TOUCH_PANE_BIND_INHERIT,
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
-        'L', 'X', 'p',
+        'M', 'q', 'p',
         'w', 'b', 'c',
     };
     static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
@@ -2665,11 +2759,13 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
 
     config->touch_profile = SDL_TOUCH_PROFILE_TOUCH_PANE;
     config->touch_pane_default_open = true;
+    config->touch_pane_key_labels_visible = false;
+    config->touch_pane_inventory_equipment_cycle = true;
     memcpy(config->touch_pane_bindings, main_defaults, sizeof(main_defaults));
     memcpy(config->touch_pane_second_bindings, second_defaults, sizeof(second_defaults));
     SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN], "Main",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN]));
-    SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "Shift",
+    SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "2nd Panel",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND]));
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
         config->touch_menu_command_enabled[i] = true;

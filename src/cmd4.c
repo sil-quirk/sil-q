@@ -19636,12 +19636,12 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
                 ? SDL_TOUCH_PANE_PANEL_MAIN
                 : SDL_TOUCH_PANE_PANEL_SECOND,
             panel_name, sizeof(panel_name));
-        strnfmt(buf, buflen, "Switch to %s panel", panel_name);
+        strnfmt(buf, buflen, "Switch to %s", panel_name);
         return;
     }
 
     if (binding == INPUT_BIND_CONFIRM || binding == ' ') {
-        SDL_strlcpy(buf, "Pick/Confirm", buflen);
+        SDL_strlcpy(buf, "Confirm (pick)", buflen);
         return;
     }
 
@@ -19651,6 +19651,8 @@ static void touch_pane_action_label_for_panel(int panel, int binding, char* buf,
 enum {
     TOUCH_CONTROL_PANE_ENABLED = 0,
     TOUCH_CONTROL_PANE_DEFAULT_OPEN,
+    TOUCH_CONTROL_PANE_KEY_LABELS,
+    TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE,
     TOUCH_CONTROL_PANE_PLACEMENT,
     TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN,
     TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT,
@@ -19946,6 +19948,10 @@ static const char* touch_control_row_name(int row)
         return "Touch Pane";
     case TOUCH_CONTROL_PANE_DEFAULT_OPEN:
         return "Touch Pane Starts";
+    case TOUCH_CONTROL_PANE_KEY_LABELS:
+        return "Touch Pane Key Labels";
+    case TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE:
+        return "Inv/Equip Pane Cycle";
     case TOUCH_CONTROL_PANE_PLACEMENT:
         return "Touch Pane Side";
     case TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN:
@@ -20087,6 +20093,10 @@ static void touch_control_reset_to_default(void)
     set_sdl_touch_pane_enabled(true);
     set_sdl_touch_pane_default_open(
         get_sdl_touch_pane_default_open_default());
+    set_sdl_touch_pane_key_labels_visible(
+        get_sdl_touch_pane_key_labels_default_visible());
+    set_sdl_touch_pane_inventory_equipment_cycle(
+        get_sdl_touch_pane_inventory_equipment_default_cycle());
     set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_RIGHT);
     set_sdl_touch_top_panel_default_open(
         get_sdl_touch_top_panel_default_open_default());
@@ -20279,7 +20289,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         }
         {
             cptr prompt = settings_ui_pick_label(row_width,
-                "p: rename panel   M: reset all panel buttons   Main panel must keep Pick/Confirm",
+                "p: rename panel   M: reset all panel buttons   Main panel must keep Confirm (pick)",
                 "p rename panel   M reset panel   Keep main confirm",
                 "p rename   M reset   Keep confirm");
             int prompt_row = row++;
@@ -20405,7 +20415,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             idx = (choice_count + idx - 1) % choice_count;
 
             if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
-                bell("Bind Pick/Confirm to another main-panel button first.");
+                bell("Bind Confirm (pick) to another main-panel button first.");
                 break;
             }
 
@@ -20435,7 +20445,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             idx = (idx + 1) % choice_count;
 
             if (!touch_pane_main_confirm_change_allowed(panel, button_index, choices[idx])) {
-                bell("Bind Pick/Confirm to another main-panel button first.");
+                bell("Bind Confirm (pick) to another main-panel button first.");
                 break;
             }
 
@@ -20533,7 +20543,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
 
                 if (!touch_pane_main_confirm_change_allowed(panel, button_index,
                         get_sdl_touch_pane_default_binding_for_panel(panel, button_index))) {
-                    bell("Bind Pick/Confirm to another main-panel button first.");
+                    bell("Bind Confirm (pick) to another main-panel button first.");
                     break;
                 }
 
@@ -21190,6 +21200,14 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 SDL_strlcpy(action_buf,
                     get_sdl_touch_pane_default_open() ? "Open" : "Hidden",
                     sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_PANE_KEY_LABELS) {
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_pane_key_labels_visible() ? "Shown" : "Hidden",
+                    sizeof(action_buf));
+            } else if (i == TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE) {
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_pane_inventory_equipment_cycle() ? "On" : "Off",
+                    sizeof(action_buf));
             } else if (i == TOUCH_CONTROL_PANE_PLACEMENT) {
                 SDL_strlcpy(action_buf,
                     touch_pane_placement_label(get_sdl_touch_pane_placement()),
@@ -21336,6 +21354,10 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 sdl_apply_config();
             } else if (highlight == TOUCH_CONTROL_PANE_DEFAULT_OPEN) {
                 set_sdl_touch_pane_default_open(false);
+            } else if (highlight == TOUCH_CONTROL_PANE_KEY_LABELS) {
+                set_sdl_touch_pane_key_labels_visible(false);
+            } else if (highlight == TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE) {
+                set_sdl_touch_pane_inventory_equipment_cycle(false);
             } else if (highlight == TOUCH_CONTROL_PANE_PLACEMENT) {
                 set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_LEFT);
                 sdl_apply_config();
@@ -21372,6 +21394,12 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_PANE_DEFAULT_OPEN) {
                 set_sdl_touch_pane_default_open(
                     !get_sdl_touch_pane_default_open());
+            } else if (highlight == TOUCH_CONTROL_PANE_KEY_LABELS) {
+                set_sdl_touch_pane_key_labels_visible(
+                    !get_sdl_touch_pane_key_labels_visible());
+            } else if (highlight == TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE) {
+                set_sdl_touch_pane_inventory_equipment_cycle(
+                    !get_sdl_touch_pane_inventory_equipment_cycle());
             } else if (highlight == TOUCH_CONTROL_PANE_PLACEMENT) {
                 int placement = get_sdl_touch_pane_placement();
                 set_sdl_touch_pane_placement(
@@ -21414,6 +21442,12 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_PANE_DEFAULT_OPEN) {
                 set_sdl_touch_pane_default_open(
                     get_sdl_touch_pane_default_open_default());
+            } else if (highlight == TOUCH_CONTROL_PANE_KEY_LABELS) {
+                set_sdl_touch_pane_key_labels_visible(
+                    get_sdl_touch_pane_key_labels_default_visible());
+            } else if (highlight == TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE) {
+                set_sdl_touch_pane_inventory_equipment_cycle(
+                    get_sdl_touch_pane_inventory_equipment_default_cycle());
             } else if (highlight == TOUCH_CONTROL_PANE_PLACEMENT) {
                 set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_RIGHT);
                 sdl_apply_config();
