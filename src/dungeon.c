@@ -5254,6 +5254,8 @@ PlayResult play_game(void)
         }
         /* NAV_OK falls through */
 
+        sdl_pointer_attack_reset_to_melee();
+
         // Reset the autoinscriptions
         autoinscribe_clean();
         autoinscribe_init();

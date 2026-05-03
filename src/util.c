@@ -122,6 +122,11 @@ bool ui_menu_click_outside_cancel_enabled(void)
     return ui_menu_click_active && ui_menu_click_cancel_outside_enabled;
 }
 
+bool ui_menu_click_is_active(void)
+{
+    return ui_menu_click_active;
+}
+
 void ui_menu_click_set_touch_category(int category)
 {
     if (category < 0 || category >= SDL_TOUCH_MENU_CATEGORY_COUNT)

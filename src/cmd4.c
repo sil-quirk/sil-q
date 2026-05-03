@@ -18041,7 +18041,7 @@ static const char* pane_type_short_name(enum pane_type type);
 
 static bool pane_settings_exposes_pane(enum pane_type type)
 {
-    return type != PANE_MAIN && type != PANE_TOUCH;
+    return type != PANE_MAIN;
 }
 
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
@@ -18840,8 +18840,8 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
     {
         Term_clear();
         ui_menu_click_begin();
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Fonts");
-        Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Pane Fonts");
+        Term_putstr(2, 3, -1, TERM_WHITE, "No configurable panes are configured.");
         Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
         ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
         Term_fresh();
@@ -18870,8 +18870,8 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             row_width = settings_ui_line_width(2);
             settings_menu_begin_scroll_area(y0,
                 MIN(pane_count, settings_menu_visible_rows(y0, 4)));
-            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Fonts");
-            settings_ui_put_fitted(2, 2, TERM_WHITE, "=====================");
+            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Pane Fonts");
+            settings_ui_put_fitted(2, 2, TERM_WHITE, "==========");
 
             for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
             {
@@ -19170,8 +19170,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     {
         Term_clear();
         ui_menu_click_begin();
-        Term_putstr(2, 1, -1, TERM_L_BLUE, "Supporting Pane Layout");
-        Term_putstr(2, 3, -1, TERM_WHITE, "No supporting panes are configured.");
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "Pane Layout");
+        Term_putstr(2, 3, -1, TERM_WHITE, "No configurable panes are configured.");
         Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
         ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
         Term_fresh();
@@ -19201,8 +19201,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         row_width = settings_ui_line_width(2);
         settings_menu_begin_scroll_area(y0,
             MIN(pane_count, settings_menu_visible_rows(y0, 4)));
-        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Supporting Pane Layout");
-        settings_ui_put_fitted(2, 2, TERM_WHITE, "======================");
+        settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Pane Layout");
+        settings_ui_put_fitted(2, 2, TERM_WHITE, "===========");
 
         for (int i = 0; i < pane_count && (y0 + i) < Term->hgt - 5; i++)
         {
