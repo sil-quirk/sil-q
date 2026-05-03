@@ -96,12 +96,11 @@ static void init_stuff(void)
      * SDL_GetBasePath() returns the bundle's resource directory, and
      * our CMake packaging places assets under Resources/lib/. */
     {
-        char* base = SDL_GetBasePath();
+        const char* base = SDL_GetBasePath();
         if (base)
         {
             SDL_strlcpy(path, base, sizeof(path));
             SDL_strlcat(path, "lib/", sizeof(path));
-            SDL_free(base);
             tail = path;   /* mark as resolved so we skip the default */
         }
     }
