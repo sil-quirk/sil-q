@@ -808,6 +808,7 @@ extern void id_everything(void);
 extern PlayResult play_game(void);
 extern void death_spectator_view(void);
 extern bool death_spectator_active(void);
+extern void death_spectator_request_exit(void);
 extern void reset_dungeon_state(void);
 
 /* files.c */
@@ -1633,6 +1634,7 @@ extern void ui_key_wait_dismiss_begin(int key);
 extern void ui_key_wait_dismiss_clear(void);
 extern bool ui_key_wait_dismiss_is_active(void);
 extern int ui_key_wait_dismiss_get_key(void);
+extern void ui_reset_transient_state_for_new_session(void);
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
 extern void pause_line(int row);

@@ -12847,7 +12847,8 @@ static cptr main_menu_title(int choice)
     case MAIN_MENU_HELP: return "Help";
     case MAIN_MENU_ABOUT: return "About";
     case MAIN_MENU_SAVE: return "Save";
-    case MAIN_MENU_SAVE_QUIT: return "Quit with save";
+    case MAIN_MENU_SAVE_QUIT:
+        return death_spectator_active() ? "Quit" : "Quit with save";
     case MAIN_MENU_RETURN_GAME: return "Return to game";
     default: return "";
     }
@@ -13115,8 +13116,7 @@ static void main_menu_erase_footprint_row(int col_main, int row, int menu_w)
 
 static bool main_menu_choice_is_disabled(int choice)
 {
-    return (choice == MAIN_MENU_SAVE)
-        || (choice == MAIN_MENU_SAVE_QUIT);
+    return (choice == MAIN_MENU_SAVE);
 }
 
 static int main_menu_about_count_rows(int indent, int wrap_right,
@@ -13583,12 +13583,8 @@ int main_menu_aux(int* highlight)
             *highlight = MAIN_MENU_SAVE;
             return (*highlight); // Save
         case 'q':
-            if (death_view) {
-                msg_print("You can no longer take that action.");
-                break;
-            }
             *highlight = MAIN_MENU_SAVE_QUIT;
-            return (*highlight); // Quit with save
+            return (*highlight); // Quit with save, or leave final look after death
         case 'r':
             *highlight = MAIN_MENU_RETURN_GAME;
             return (*highlight); // Return to game
@@ -13783,6 +13779,13 @@ void do_cmd_main_menu(void)
         }
         case MAIN_MENU_SAVE_QUIT: // Quit with save (q)
         {
+            if (death_spectator_active())
+            {
+                death_spectator_request_exit();
+                leave_menu = true;
+                break;
+            }
+
             do_cmd_save_game();
 
             /* Stop playing */

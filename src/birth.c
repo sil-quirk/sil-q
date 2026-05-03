@@ -3250,6 +3250,7 @@ static bool get_character_profile(void)
     /* No selection? */
     if (character_choice == INVALID_CHOICE)
     {
+        character_menu = mem_free(character_menu);
         return (false);
     }
 
@@ -3636,6 +3637,9 @@ NavResult character_creation(void)
     int i;
 
     int phase = 1;
+    NavResult result = NAV_OK;
+
+    screen_push_touch_pane_proto();
 
     /*** Instructions ***/
 
@@ -3686,7 +3690,8 @@ NavResult character_creation(void)
             /* Choose the player's race */
             if (!get_player_race())
             {
-                return NAV_TO_MAIN; /* Esc at first screen -> back to main menu */
+                result = NAV_TO_MAIN; /* Esc at first screen -> back to main menu */
+                goto cleanup;
             }
 
             /* Clean up */
@@ -3722,7 +3727,12 @@ NavResult character_creation(void)
     finalize_character_creation_selection();
 
     /* Done */
-    return NAV_OK;
+    result = NAV_OK;
+
+cleanup:
+    ui_menu_click_clear();
+    screen_pop_touch_pane_proto();
+    return result;
 
 }
 

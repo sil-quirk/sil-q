@@ -7588,7 +7588,7 @@ void do_cmd_quest_status(void)
     quest_status_reset_page(col, &row);
 
     /* Check Tulkas quest */
-    if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED) {
+    if (p_ptr->tulkas_quest > TULKAS_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr tulkas_status;
         byte color;
@@ -7658,7 +7658,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Aule quest */
-    if (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED) {
+    if (p_ptr->aule_quest > AULE_QUEST_FORGE_PRESENT) {
         any_quests = true;
         cptr aule_status;
         byte color;
@@ -7708,7 +7708,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Mandos quest */
-    if (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
+    if (p_ptr->mandos_quest > MANDOS_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr mandos_status;
         byte color;
@@ -7760,7 +7760,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Niena quest */
-    if (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED) {
+    if (p_ptr->niena_quest > NIENA_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr niena_status;
         byte color;
@@ -7822,7 +7822,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Orome quest */
-    if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED) {
+    if (p_ptr->orome_quest > OROME_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr orome_status;
         byte color;
@@ -7892,7 +7892,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Varda quest */
-    if (p_ptr->varda_quest > VARDA_QUEST_NOT_STARTED) {
+    if (p_ptr->varda_quest > VARDA_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr varda_status;
         byte color;

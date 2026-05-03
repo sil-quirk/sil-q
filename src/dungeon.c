@@ -947,6 +947,7 @@ static bool first_entry_to_dungeon = true;
 
 /* True while the post-mortem spectator viewport is active. */
 static bool death_spectator_mode = false;
+static bool death_spectator_exit_requested = false;
 
 /*
  * Reset all dungeon-related static state for a new game.
@@ -961,6 +962,7 @@ void reset_dungeon_state(void)
     was_in_morgoth_vault = false;
     morgoth_entry_preconfirmed = false;
     death_spectator_mode = false;
+    death_spectator_exit_requested = false;
     g_active_partition_banner_text[0] = '\0';
 
     /* Reset music/sound tracking */
@@ -2538,6 +2540,7 @@ static void death_spectator_prepare_display(void)
 void death_spectator_view(void)
 {
     death_spectator_mode = true;
+    death_spectator_exit_requested = false;
 
     /* Clear any queued commands from the main loop. */
     p_ptr->command_cmd = 0;
@@ -2574,6 +2577,9 @@ void death_spectator_view(void)
         process_command();
         handle_stuff();
 
+        if (death_spectator_exit_requested)
+            break;
+
         /* Reset command state for the next iteration. */
         p_ptr->command_cmd = 0;
         p_ptr->command_new = 0;
@@ -2583,6 +2589,7 @@ void death_spectator_view(void)
     }
 
     death_spectator_mode = false;
+    death_spectator_exit_requested = false;
 
     /* Ensure no residual actions are pending. */
     p_ptr->energy_use = 0;
@@ -2596,6 +2603,12 @@ void death_spectator_view(void)
 bool death_spectator_active(void)
 {
     return death_spectator_mode;
+}
+
+void death_spectator_request_exit(void)
+{
+    if (death_spectator_mode)
+        death_spectator_exit_requested = true;
 }
 
 static bool auto_pickup_okay(const object_type* o_ptr)
@@ -5026,6 +5039,8 @@ PlayResult play_game(void)
     bool new_game = false;
 
     log_info("play_game: FUNCTION ENTERED");
+
+    ui_reset_transient_state_for_new_session();
 
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)

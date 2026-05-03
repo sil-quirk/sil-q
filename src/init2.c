@@ -2208,6 +2208,7 @@ extern void re_init_some_things(void)
     int i;
 
     run_mode_reset();
+    ui_reset_transient_state_for_new_session();
     screen_set_startup_supporting_panes_hidden(true);
 
     // wipe the whole player structure

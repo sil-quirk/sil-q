@@ -3086,6 +3086,30 @@ bool screen_touch_pane_proto_active(void)
     return (touch_pane_proto_depth > 0);
 }
 
+void ui_reset_transient_state_for_new_session(void)
+{
+    bool pane_depth_changed = supporting_panes_hidden_depth
+        || touch_pane_hidden_depth || touch_pane_proto_depth;
+
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+    ui_key_wait_dismiss_clear();
+    sdl_mouse_path_cancel();
+
+    supporting_panes_hidden_depth = 0;
+    touch_pane_hidden_depth = 0;
+    touch_pane_proto_depth = 0;
+    if (pane_depth_changed)
+        sdl_refresh_supporting_panes_layout();
+
+    item_tester_full = false;
+    item_tester_tval = 0;
+    item_tester_hook = NULL;
+
+    hide_cursor = false;
+    sdl_story_font_reset();
+}
+
 void screen_clear_all_terms_no_fresh(void)
 {
     term* old = Term;

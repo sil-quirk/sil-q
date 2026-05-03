@@ -8580,6 +8580,9 @@ static void show_info(void)
 {
     int term_wid = 80;
     int term_hgt = 24;
+    bool old_item_tester_full = item_tester_full;
+    byte old_item_tester_tval = item_tester_tval;
+    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
 
     Term_get_size(&term_wid, &term_hgt);
 
@@ -8592,7 +8595,7 @@ static void show_info(void)
 
     /* Allow abort at this point */
     if (inkey() == ESCAPE)
-        return;
+        goto cleanup;
 
     /* Show equipment and inventory */
 
@@ -8606,7 +8609,7 @@ static void show_info(void)
         Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
             "(press any key)");
         if (inkey() == ESCAPE)
-            return;
+            goto cleanup;
         item_tester_full = false;
     }
 
@@ -8620,12 +8623,17 @@ static void show_info(void)
         Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
             -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
-            return;
+            goto cleanup;
         item_tester_full = false;
     }
 
     // Display notes
     do_cmd_knowledge_notes();
+
+cleanup:
+    item_tester_hook = old_item_tester_hook;
+    item_tester_tval = old_item_tester_tval;
+    item_tester_full = old_item_tester_full;
 }
 
 
