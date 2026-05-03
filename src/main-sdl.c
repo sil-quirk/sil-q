@@ -816,7 +816,10 @@ static bool g_unified_look_map_hover_pending = false;
 static bool g_unified_look_map_hover_wake_pending = false;
 static int g_unified_look_map_hover_y = 0;
 static int g_unified_look_map_hover_x = 0;
-static bool g_status_line_main_menu_hint_hovered = false;
+static int g_main_screen_status_selected_action = SDL_STATUS_CLICK_NONE;
+static int g_main_screen_status_selected_col = -1;
+static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
+static int g_main_screen_panel_selected_row = -1;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
 static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
@@ -986,17 +989,24 @@ static void sdl_touch_pane_load_default_bindings(void);
 static bool sdl_touch_pane_is_config_enabled(void);
 static bool sdl_touch_pane_is_left_placement(void);
 static bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action);
-static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y);
+static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y,
+    bool primary);
 static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y);
 static bool sdl_main_screen_menu_pointer_hits_cell(float x, float y);
+static bool sdl_main_screen_menu_outside_armor_cycle_pointer(int col, int row);
+static void sdl_main_screen_touch_zone_selection_set(int status_action,
+    int status_col, int panel_action, int panel_row, bool redraw);
 static void sdl_enqueue_bypassed_command(int command);
+static int sdl_inventory_equipment_cycle_binding(int binding);
 static void sdl_unified_look_clear_map_hover(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y);
+static bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y);
 static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
     int start_col, int width, int hit_col, cptr needle);
+static unsigned char sdl_screen_char_at(const term* t, int row, int col);
 static bool sdl_welcome_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
@@ -6281,6 +6291,27 @@ static void sdl_pointer_attack_set_mode(int mode)
     sdl_pointer_attack_refresh_mode_display(true);
 }
 
+static void sdl_pointer_attack_preview_mode(int mode)
+{
+    if (mode == SDL_POINTER_ATTACK_NONE)
+        return;
+    if (!sdl_pointer_attack_input_context_active())
+        return;
+    if (g_pointer_attack.mode == mode)
+    {
+        sdl_pointer_attack_refresh_mode_display(false);
+        return;
+    }
+
+    g_pointer_attack.mode = mode;
+    sdl_pointer_attack_clear_pending();
+    sdl_pointer_attack_clear_hover();
+    sdl_pointer_attack_clear_touch_selection();
+    sdl_pointer_attack_cancel_touch_press();
+    sdl_mouse_path_cancel();
+    sdl_pointer_attack_refresh_mode_display(true);
+}
+
 static bool sdl_pointer_attack_toggle_binding(int binding)
 {
     int mode = sdl_pointer_attack_binding_mode(binding);
@@ -9162,10 +9193,12 @@ static bool sdl_main_screen_menu_pointer_hits_cell(float x, float y)
         && ui_menu_click_has_cell(col, row);
 }
 
-static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y)
+static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y,
+    bool primary)
 {
     int col = 0;
     int row = 0;
+    bool hit_main_cell = false;
 
     if (!ui_menu_click_outside_cancel_enabled()
         && ui_menu_click_get_touch_category()
@@ -9174,17 +9207,44 @@ static bool sdl_main_screen_handle_menu_outside_pointer(float x, float y)
         return false;
     }
 
-    if (sdl_main_view_point_to_cell(x, y, &col, &row)
-        && ui_menu_click_has_cell(col, row))
+    hit_main_cell = sdl_main_view_point_to_cell(x, y, &col, &row);
+    if (hit_main_cell && ui_menu_click_has_cell(col, row))
     {
         return false;
     }
     if (sdl_menu_pointer_hits_non_main_pane(x, y))
         return false;
+    if (primary
+        && hit_main_cell
+        && sdl_main_screen_menu_outside_armor_cycle_pointer(col, row))
+    {
+        return true;
+    }
 
     ui_menu_click_clear_pending_hover();
     sdl_unified_look_clear_map_hover();
     Term_keypress(ESCAPE);
+    return true;
+}
+
+static bool sdl_main_screen_menu_outside_armor_cycle_pointer(int col, int row)
+{
+    if (ui_menu_click_get_touch_category()
+        != SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT)
+    {
+        return false;
+    }
+    if (!p_ptr || character_icky <= 0)
+        return false;
+    if (get_sdl_hide_left_panel())
+        return false;
+    if (row != ROW_EVN || col < 0 || col >= COL_MAP)
+        return false;
+
+    ui_menu_click_clear_pending_hover();
+    sdl_unified_look_clear_map_hover();
+    sdl_enqueue_bypassed_command(
+        sdl_inventory_equipment_cycle_binding('i'));
     return true;
 }
 
@@ -9197,6 +9257,8 @@ static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y)
     if (g_touch_pane_yes_no_prompt_active)
     {
         ui_menu_click_clear_pending_hover();
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, true);
         return true;
     }
 
@@ -9210,6 +9272,8 @@ static bool sdl_main_screen_handle_menu_hover_pointer(float x, float y)
     }
 
     sdl_unified_look_clear_map_hover();
+    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+        SDL_PANEL_CLICK_NONE, -1, true);
     if (wake)
         Term_keypress(UI_MENU_CLICK_WAKE_KEY);
     return true;
@@ -9277,22 +9341,128 @@ static bool sdl_status_line_partition_label_at_col(int row, int col)
                short_label);
 }
 
-bool sdl_status_line_main_menu_hint_hovered(void)
+static bool sdl_status_line_song_label_at_col(int row, int col)
 {
-    return g_status_line_main_menu_hint_hovered;
+    char song_long[32] = "";
+    char song_short[12] = "";
+
+    if (!Term || !p_ptr)
+        return false;
+    if (sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+        "Singing"))
+    {
+        return true;
+    }
+    if (p_ptr->song1 == SNG_NOTHING && p_ptr->song2 == SNG_NOTHING)
+        return false;
+
+    if (p_ptr->song1 != SNG_NOTHING && p_ptr->song2 != SNG_NOTHING)
+    {
+        char* song1_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
+        char* song2_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
+
+        strnfmt(song_long, sizeof(song_long), "%s+%s", song1_name + 8,
+            song2_name + 8);
+    }
+    else if (p_ptr->song1 != SNG_NOTHING)
+    {
+        char* song1_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
+
+        SDL_strlcpy(song_long, song1_name + 8, sizeof(song_long));
+    }
+    else if (p_ptr->song2 != SNG_NOTHING)
+    {
+        char* song2_name
+            = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
+
+        SDL_strlcpy(song_long, song2_name + 8, sizeof(song_long));
+    }
+
+    if (song_long[0])
+        strnfmt(song_short, sizeof(song_short), "S:%.*s", 6, song_long);
+
+    return (song_long[0]
+            && sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+                song_long))
+        || (song_short[0]
+            && sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+                song_short));
 }
 
-static void sdl_status_line_main_menu_hint_set_hovered(bool hovered,
-    bool redraw)
+static bool sdl_status_line_depth_label_at_col(int row, int col)
 {
-    if (g_status_line_main_menu_hint_hovered == hovered)
-        return;
+    char depth_long[16] = "";
+    char depth_short[16] = "";
 
-    g_status_line_main_menu_hint_hovered = hovered;
+    if (!Term || !p_ptr)
+        return false;
+
+    if (!p_ptr->depth)
+    {
+        SDL_strlcpy(depth_long, "Surface", sizeof(depth_long));
+        SDL_strlcpy(depth_short, "0'", sizeof(depth_short));
+    }
+    else
+    {
+        int feet = p_ptr->depth * 50;
+
+        strnfmt(depth_long, sizeof(depth_long), "%d ft", feet);
+        strnfmt(depth_short, sizeof(depth_short), "%d'", feet);
+    }
+
+    return sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+            depth_long)
+        || sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
+            depth_short);
+}
+
+bool sdl_status_line_touch_zone_selected(int action, int col, int width)
+{
+    if (action == SDL_STATUS_CLICK_NONE)
+        return false;
+    if (g_main_screen_status_selected_action != action)
+        return false;
+    if (col < 0 || width <= 0)
+        return true;
+
+    return g_main_screen_status_selected_col >= col
+        && g_main_screen_status_selected_col < col + width;
+}
+
+bool sdl_character_panel_touch_zone_selected(int action, int row)
+{
+    if (action == SDL_PANEL_CLICK_NONE)
+        return false;
+    if (g_main_screen_panel_selected_action != action)
+        return false;
+    if (row >= 0 && g_main_screen_panel_selected_row != row)
+        return false;
+
+    return true;
+}
+
+static void sdl_main_screen_touch_zone_selection_set(int status_action,
+    int status_col, int panel_action, int panel_row, bool redraw)
+{
+    if (status_action == g_main_screen_status_selected_action
+        && status_col == g_main_screen_status_selected_col
+        && panel_action == g_main_screen_panel_selected_action
+        && panel_row == g_main_screen_panel_selected_row)
+    {
+        return;
+    }
+
+    g_main_screen_status_selected_action = status_action;
+    g_main_screen_status_selected_col = status_col;
+    g_main_screen_panel_selected_action = panel_action;
+    g_main_screen_panel_selected_row = panel_row;
 
     if (redraw && p_ptr && character_generated && character_icky == 0)
     {
-        p_ptr->redraw |= PR_STATE;
+        p_ptr->redraw |= PR_MISC | PR_BASIC | PR_EXTRA | PR_STATE | PR_DEPTH;
         handle_stuff();
         if (Term)
             Term_fresh();
@@ -9301,28 +9471,46 @@ static void sdl_status_line_main_menu_hint_set_hovered(bool hovered,
     g_state.need_present = true;
 }
 
+static int sdl_status_line_click_action_at_cell(int col, int row)
+{
+    if (!Term || row != ROW_STATUS)
+        return SDL_STATUS_CLICK_NONE;
+    if (sdl_status_line_song_label_at_col(row, col))
+        return SDL_STATUS_CLICK_SONG;
+    if (sdl_status_line_partition_label_at_col(row, col))
+        return SDL_STATUS_CLICK_MAP;
+    if (sdl_status_line_depth_label_at_col(row, col))
+        return SDL_STATUS_CLICK_MAP;
+    if (sdl_screen_char_at(Term, row, col) != ' ')
+        return SDL_STATUS_CLICK_MAIN_MENU;
+
+    return SDL_STATUS_CLICK_NONE;
+}
+
 static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y)
 {
     int col = 0;
     int row = 0;
     bool active = sdl_main_screen_click_shortcuts_active();
-    bool hovered = false;
+    int action = SDL_STATUS_CLICK_NONE;
 
     if (active && Term && sdl_main_view_point_to_cell(x, y, &col, &row)
         && row == ROW_STATUS)
     {
-        hovered = sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid,
-            col, "main menu");
+        action = sdl_status_line_click_action_at_cell(col, row);
     }
 
-    sdl_status_line_main_menu_hint_set_hovered(hovered, active);
-    return hovered;
+    sdl_main_screen_touch_zone_selection_set(action,
+        action != SDL_STATUS_CLICK_NONE ? col : -1,
+        SDL_PANEL_CLICK_NONE, -1, active);
+    return action != SDL_STATUS_CLICK_NONE;
 }
 
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
 {
     int col = 0;
     int row = 0;
+    int action = SDL_STATUS_CLICK_NONE;
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
@@ -9333,14 +9521,17 @@ static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
     if (row != ROW_STATUS)
         return false;
 
-    if (sdl_screen_segment_col_hits_ci(Term, row, 0, Term->wid, col,
-        "Singing"))
+    action = sdl_status_line_click_action_at_cell(col, row);
+    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+        SDL_PANEL_CLICK_NONE, -1, false);
+
+    if (action == SDL_STATUS_CLICK_SONG)
     {
         sdl_enqueue_bypassed_command('s');
         return true;
     }
 
-    if (sdl_status_line_partition_label_at_col(row, col))
+    if (action == SDL_STATUS_CLICK_MAP)
     {
         sdl_enqueue_bypassed_command('M');
         return true;
@@ -11436,6 +11627,28 @@ static int sdl_left_panel_quiver_attack_mode_at_col(int col)
     return SDL_POINTER_ATTACK_NONE;
 }
 
+static int sdl_visible_character_panel_attack_mode_at_cell(int col, int row)
+{
+    bool melee_uses_two_rows;
+
+    if (col < 0 || row < 0 || get_sdl_hide_left_panel())
+        return SDL_POINTER_ATTACK_NONE;
+    if (col >= COL_MAP)
+        return SDL_POINTER_ATTACK_NONE;
+
+    melee_uses_two_rows = inventory[INVEN_ARM].k_idx
+        && inventory[INVEN_ARM].tval != TV_SHIELD;
+
+    if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1))
+        return SDL_POINTER_ATTACK_MELEE;
+    if (row == ROW_ARC)
+        return SDL_POINTER_ATTACK_RANGED_1;
+    if (row == ROW_QUIVER)
+        return sdl_left_panel_quiver_attack_mode_at_col(col);
+
+    return SDL_POINTER_ATTACK_NONE;
+}
+
 static void sdl_enqueue_bypassed_command(int command)
 {
     if (character_icky > 0)
@@ -11542,7 +11755,7 @@ static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
     if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Singing"))
         return SDL_PANEL_CLICK_SONG;
 
-    if (row == ROW_LIGHT && inventory[INVEN_LITE].k_idx)
+    if (row == ROW_LIGHT)
         return SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
 
     if (row == ROW_EVN
@@ -11581,7 +11794,8 @@ static bool sdl_handle_character_panel_click_action(int click_action)
         sdl_enqueue_bypassed_command('H');
         return true;
     case SDL_PANEL_CLICK_INVENTORY:
-        sdl_enqueue_bypassed_command('i');
+        sdl_enqueue_bypassed_command(
+            sdl_inventory_equipment_cycle_binding('i'));
         return true;
     case SDL_PANEL_CLICK_ABILITIES:
         sdl_enqueue_bypassed_command('\t');
@@ -11592,6 +11806,47 @@ static bool sdl_handle_character_panel_click_action(int click_action)
     default:
         return false;
     }
+}
+
+static bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    bool active = sdl_main_screen_click_shortcuts_active();
+    int attack_mode = SDL_POINTER_ATTACK_NONE;
+    int click_action = SDL_PANEL_CLICK_NONE;
+
+    if (active
+        && !sdl_touch_zone_controls_active()
+        && sdl_main_view_point_to_cell(x, y, &col, &row)
+        && sdl_main_screen_cell_hits_character_panel(col, row))
+    {
+        if (get_sdl_hide_left_panel())
+        {
+            attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+            click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
+        }
+        else
+        {
+            attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col,
+                row);
+            click_action = sdl_visible_character_panel_click_action_at_cell(col,
+                row);
+        }
+    }
+
+    if (attack_mode != SDL_POINTER_ATTACK_NONE)
+    {
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, active);
+        sdl_pointer_attack_preview_mode(attack_mode);
+        return true;
+    }
+
+    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+        click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, active);
+
+    return click_action != SDL_PANEL_CLICK_NONE;
 }
 
 static bool sdl_binding_opens_pane_menu(int binding)
@@ -11638,29 +11893,25 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
         click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
     } else {
-        bool melee_uses_two_rows = inventory[INVEN_ARM].k_idx
-            && inventory[INVEN_ARM].tval != TV_SHIELD;
-
-        if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1)) {
-            attack_mode = SDL_POINTER_ATTACK_MELEE;
-        } else if (row == ROW_ARC) {
-            attack_mode = SDL_POINTER_ATTACK_RANGED_1;
-        } else if (row == ROW_QUIVER) {
-            attack_mode = sdl_left_panel_quiver_attack_mode_at_col(col);
-        }
-
+        attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col, row);
         click_action = sdl_visible_character_panel_click_action_at_cell(col, row);
     }
 
     if (attack_mode != SDL_POINTER_ATTACK_NONE
         && sdl_pointer_attack_input_context_active())
     {
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, false);
         sdl_pointer_attack_set_mode(attack_mode);
         return true;
     }
 
     if (sdl_handle_character_panel_click_action(click_action))
+    {
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, false);
         return true;
+    }
 
     return true;
 }
@@ -11774,7 +12025,7 @@ static void sdl_touch_pane_send_binding(int binding, bool second_panel, bool lon
     sdl_gamepad_send_key(binding, false);
 }
 
-static int sdl_touch_pane_cycle_inventory_equipment_binding(int binding)
+static int sdl_inventory_equipment_cycle_binding(int binding)
 {
     if (!config.touch_pane_inventory_equipment_cycle)
         return binding;
@@ -11810,7 +12061,7 @@ static void sdl_touch_pane_send_slot(int panel, int index, bool long_press)
         return;
 
     binding = sdl_touch_pane_effective_binding_for_panel(panel, index);
-    binding = sdl_touch_pane_cycle_inventory_equipment_binding(binding);
+    binding = sdl_inventory_equipment_cycle_binding(binding);
     sdl_touch_pane_send_binding(binding, panel == SDL_TOUCH_PANE_PANEL_SECOND,
         long_press);
 }
@@ -16453,6 +16704,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_main_screen_handle_character_panel_hover_pointer(
+            (float)ev->motion.x, (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_touch_pane_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, true, 0))
         {
@@ -16528,7 +16784,7 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_main_screen_handle_menu_outside_pointer((float)ev->button.x,
-                (float)ev->button.y))
+                (float)ev->button.y, true))
             {
                 return;
             }
@@ -16591,7 +16847,7 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_main_screen_handle_menu_outside_pointer((float)ev->button.x,
-                (float)ev->button.y))
+                (float)ev->button.y, false))
             {
                 return;
             }
@@ -16774,7 +17030,7 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID,
             false))
             return;
-        if (sdl_main_screen_handle_menu_outside_pointer(x, y))
+        if (sdl_main_screen_handle_menu_outside_pointer(x, y, true))
             return;
         if (ui_scroll_area_get_tap_key()
             && sdl_menu_scroll_handle_pointer_down(x, y, ev->tfinger.fingerID))
@@ -18410,7 +18666,7 @@ static void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             float margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
                 18.0f, 36.0f);
             cptr body =
-                "Tap: use the command printed on the button. Tap 2nd Panel to swap panes, then tap it again to return.\nSecond panel: Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the f key.\nConfirm (pick): confirms prompts, picks up, enters, or waits depending on context.\nArrows: step in one of eight directions; long-touch movement uses the active profile's alternate movement behavior.\nPresets: change this layout any time in Options > Input Options > Touch Settings.";
+                "Tap: use the command printed on the button. Tap 2nd Panel to swap panes, then tap it again to return.\nSecond panel: Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the f key.\nConfirm (pick): confirms prompts, picks up, enters, or waits depending on context.\nArrows: step in one of eight directions; long-touch movement uses the active profile's alternate movement behavior.\nPresets: change this layout any time in Options > Input Options > Touch Settings.";
 
             if (pane.x < screen->x + screen->w / 2) {
                 panel_x = (float)(pane.x + pane.w) + margin;

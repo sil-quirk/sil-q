@@ -1553,6 +1553,10 @@ extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_PANEL_CLICK_INVENTORY 5
 #define SDL_PANEL_CLICK_ABILITIES 6
 #define SDL_PANEL_CLICK_SMITHING 7
+#define SDL_STATUS_CLICK_NONE 0
+#define SDL_STATUS_CLICK_MAIN_MENU 1
+#define SDL_STATUS_CLICK_SONG 2
+#define SDL_STATUS_CLICK_MAP 3
 extern int sdl_pointer_attack_current_mode(void);
 extern bool sdl_pointer_attack_take_command(int* command, int* dir);
 extern void sdl_pointer_attack_reset_to_melee(void);
@@ -1561,7 +1565,8 @@ extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
-extern bool sdl_status_line_main_menu_hint_hovered(void);
+extern bool sdl_status_line_touch_zone_selected(int action, int col, int width);
+extern bool sdl_character_panel_touch_zone_selected(int action, int row);
 extern bool sdl_display_pixel_map(int* cy, int* cx);
 extern void sdl_minimap_begin(void);
 extern void sdl_minimap_end(void);

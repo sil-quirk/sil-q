@@ -1963,6 +1963,10 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     SDL_TOUCH_PANE_PANEL_MAIN, 1, GAMEPAD_BIND_CTRL, 'S',
                     "Migrated default touch pane Ctrl button to Stealth");
             sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 0, TOUCH_PANE_BIND_INHERIT,
+                GAMEPAD_BIND_CTRL,
+                "Migrated default touch pane Esc second-panel button to Ctrl");
+            sdl_config_migrate_touch_pane_binding(config,
                 SDL_TOUCH_PANE_PANEL_MAIN, 3, 'e', 'h',
                 "Migrated default touch pane Equip button to Char");
             sdl_config_migrate_touch_pane_binding(config,
@@ -2732,7 +2736,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'M', 'h', '\t',
     };
     static const int second_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
-        TOUCH_PANE_BIND_INHERIT, 'X', GAMEPAD_BIND_SHIFT,
+        GAMEPAD_BIND_CTRL, 'X', GAMEPAD_BIND_SHIFT,
         '\t', 'e', '-',
         'r', '0', 'F',
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
