@@ -12112,6 +12112,106 @@ static int sdl_touch_swipe_direction_for_delta(float dx, float dy, float thresho
     return (dy >= 0.0f) ? 2 : 8;
 }
 
+static float sdl_touch_swipe_edge_px(const SDL_Rect* screen)
+{
+    float inset;
+    int min_dim;
+
+    if (!screen || !sdl_rect_has_area(screen))
+        return 56.0f;
+
+    min_dim = (screen->w < screen->h) ? screen->w : screen->h;
+    inset = (float)min_dim * 0.055f;
+    if (inset < 56.0f)
+        inset = 56.0f;
+    if (inset > 96.0f)
+        inset = 96.0f;
+
+    return inset;
+}
+
+static bool sdl_touch_swipe_point_near_top_edge(float x, float y)
+{
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+    float inset;
+
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    inset = sdl_touch_swipe_edge_px(&screen);
+    return x >= (float)screen.x
+        && x < (float)(screen.x + screen.w)
+        && y >= (float)screen.y
+        && y < (float)screen.y + inset;
+}
+
+static bool sdl_touch_swipe_point_near_touch_pane_edge(float x, float y)
+{
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+    float inset;
+    bool left_side;
+
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    inset = sdl_touch_swipe_edge_px(&screen);
+    left_side = sdl_touch_pane_is_left_placement();
+    if (y < (float)screen.y || y >= (float)(screen.y + screen.h))
+        return false;
+
+    if (left_side) {
+        return x >= (float)screen.x
+            && x < (float)screen.x + inset;
+    }
+
+    return x <= (float)(screen.x + screen.w)
+        && x > (float)(screen.x + screen.w) - inset;
+}
+
+static bool sdl_touch_swipe_round_layer_start_allowed(float x, float y)
+{
+    if (!sdl_touch_round_layer_controls_active())
+        return true;
+    if (sdl_touch_top_panel_point_to_slot(x, y, NULL))
+        return true;
+    if (sdl_touch_pane_point_to_slot(x, y, NULL))
+        return true;
+    if (sdl_touch_top_panel_layout_visible()
+        && sdl_touch_swipe_point_near_top_edge(x, y))
+    {
+        return true;
+    }
+    if (sdl_touch_pane_uses_mobile_toggle()
+        && sdl_touch_swipe_point_near_touch_pane_edge(x, y))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static bool sdl_touch_swipe_start_can_toggle_touch_pane(void)
+{
+    return sdl_touch_pane_point_to_slot(g_touch_swipe.start_x,
+            g_touch_swipe.start_y, NULL)
+        || sdl_touch_swipe_point_near_touch_pane_edge(g_touch_swipe.start_x,
+            g_touch_swipe.start_y);
+}
+
+static bool sdl_touch_swipe_start_can_toggle_top_panel(void)
+{
+    return sdl_touch_top_panel_point_to_slot(g_touch_swipe.start_x,
+            g_touch_swipe.start_y, NULL)
+        || sdl_touch_swipe_point_near_top_edge(g_touch_swipe.start_x,
+            g_touch_swipe.start_y);
+}
+
+static bool sdl_touch_swipe_binding_is_top_panel_action(int binding)
+{
+    return binding == TOUCH_BIND_TOP_PANEL_OPEN
+        || binding == TOUCH_BIND_TOP_PANEL_CLOSE;
+}
+
 static void sdl_touch_swipe_cancel(void)
 {
     g_touch_swipe.active = false;
@@ -12130,9 +12230,7 @@ static bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID f
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
-    if (sdl_touch_round_layer_controls_active()
-        && !mobile_toggle
-        && !sdl_touch_top_panel_point_to_slot(x, y, NULL))
+    if (!sdl_touch_swipe_round_layer_start_allowed(x, y))
     {
         return false;
     }
@@ -12190,6 +12288,12 @@ static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID
             ? (dir == 6)
             : (dir == 4);
 
+        if (sdl_touch_round_layer_controls_active()
+            && !sdl_touch_swipe_start_can_toggle_touch_pane())
+        {
+            sdl_touch_swipe_cancel();
+            return false;
+        }
         sdl_touch_pane_set_mobile_open(open);
         g_touch_swipe.triggered = true;
         return true;
@@ -12205,6 +12309,13 @@ static bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID
         return true;
 
     binding = config.touch_swipe_bindings[swipe_index];
+    if (sdl_touch_round_layer_controls_active()
+        && sdl_touch_swipe_binding_is_top_panel_action(binding)
+        && !sdl_touch_swipe_start_can_toggle_top_panel())
+    {
+        sdl_touch_swipe_cancel();
+        return false;
+    }
     if (binding != GAMEPAD_BIND_NONE)
         sdl_touch_pane_send_binding(binding, false, false);
     g_touch_swipe.triggered = true;
