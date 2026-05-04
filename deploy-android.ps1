@@ -52,12 +52,12 @@ if ($LaunchApp) {
         throw "adb not found for launch step: $adb"
     }
 
-    & $adb shell am start -n com.silqh.silmore/com.silqh.silmore.SilMoreActivity
+    & $adb shell am start -n com.silmore.myapp/com.silqh.silmore.SilMoreActivity
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to launch app via adb (exit code $LASTEXITCODE)"
     }
 
-    Write-Host 'Launched com.silqh.silmore.' -ForegroundColor Green
+    Write-Host 'Launched com.silmore.myapp.' -ForegroundColor Green
 }
 
 Write-Host "Deploy complete for $Config." -ForegroundColor Green

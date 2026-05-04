@@ -62,7 +62,7 @@ if ((hasAnyReleaseSigningValue || requireReleaseSigning) && !hasReleaseSigning) 
 }
 
 android {
-    namespace 'com.silqh.silmore'
+    namespace 'com.silmore.myapp'
     compileSdk androidCompileSdk
 
     signingConfigs {
@@ -77,7 +77,7 @@ android {
     }
 
     defaultConfig {
-        applicationId 'com.silqh.silmore'
+        applicationId 'com.silmore.myapp'
         minSdk 21
         targetSdk androidTargetSdk
         versionCode gameVersionCode
