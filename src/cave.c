@@ -3044,6 +3044,17 @@ void do_cmd_view_map(void)
                 char ch = inkey();
                 int pan_dx = 0;
                 int pan_dy = 0;
+                int hint_index = -1;
+
+                if (ch == UI_MENU_CLICK_WAKE_KEY
+                    && sdl_minimap_take_hint_click(&hint_index))
+                {
+                    if (hint_index >= 0)
+                        show_hint_message_screen(hint_index);
+                    (void)sdl_display_pixel_map(&cy, &cx);
+                    Term_fresh();
+                    continue;
+                }
 
                 if (ch == '+' || ch == '=')
                 {

@@ -26,6 +26,7 @@ compile_commands.json
 /sil-more-release*
 /sil-more-windows-sdl3-portable
 /build*
+!/build-android-bundle.ps1
 /lib/xtra/sound/packs
 /scripts/output
 /sil-more-0.91
@@ -46,3 +47,4 @@ compile_commands.json
 /web/ui8-demo/samples
 /sil-more-portable-release
 *.apk
+*.aab

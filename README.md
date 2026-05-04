@@ -234,6 +234,12 @@ For APK build and install helpers:
 .\deploy-android.ps1 -Config Release -LaunchApp
 ```
 
+For a Play Store app bundle, configure a release/upload keystore through `SIL_MORE_RELEASE_*` environment variables and run:
+
+```powershell
+.\build-android-bundle.ps1 -CompileSdk 35
+```
+
 For more Android-specific details, see [android/README.md](android/README.md).
 
 # Steam Deck installation

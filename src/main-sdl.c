@@ -596,6 +596,8 @@ typedef struct minimap_state {
     SDL_FRect close_rect;
     bool zoom_out_enabled;
     bool zoom_in_enabled;
+    bool pending_hint_open;
+    int pending_hint_index;
     bool drag_active;
     bool drag_mouse;
     SDL_FingerID drag_finger_id;
@@ -1049,6 +1051,7 @@ static bool sdl_minimap_handle_gamepad_button(SDL_GamepadButton button,
     bool down);
 static bool sdl_minimap_handle_gamepad_axis(const SDL_GamepadAxisEvent* ev);
 static bool sdl_minimap_redraw(void);
+static bool sdl_minimap_has_hint_source_at(int y, int x);
 static bool sdl_minimap_hint_source_valid(const hint_message_meta* meta);
 static bool sdl_main_screen_click_shortcuts_active(void);
 static bool sdl_mouse_gameplay_context_active(void);
@@ -1188,6 +1191,7 @@ static void sdl_restore_render_target(sdl_view* d);
 static void sdl_touch_tutorial_maybe_show_deferred(void);
 static void sdl_input_tutorial_maybe_show_deferred(void);
 static void sdl_touch_tutorial_run(bool full, bool mouse);
+static void sdl_touch_tutorial_run_with_profile_choice(void);
 void sdl_touch_show_tutorial(void);
 void sdl_mouse_show_tutorial(void);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);
@@ -10696,6 +10700,33 @@ static bool sdl_minimap_focus_point_valid(int y, int x)
         && y < p_ptr->cur_map_hgt && x < p_ptr->cur_map_wid;
 }
 
+static bool sdl_minimap_hint_source_in_bounds(const hint_message_meta* meta)
+{
+    return meta && sdl_minimap_focus_point_valid(meta->source_y,
+        meta->source_x);
+}
+
+static bool sdl_minimap_has_hint_source_at(int y, int x)
+{
+    byte count;
+
+    if (!sdl_minimap_focus_point_valid(y, x))
+        return false;
+
+    count = hint_messages_count_for_save();
+    for (int i = 0; i < count; i++) {
+        hint_message_meta meta;
+
+        hint_messages_message_meta(i, &meta);
+        if (!sdl_minimap_hint_source_in_bounds(&meta))
+            continue;
+        if (meta.source_y == y && meta.source_x == x)
+            return true;
+    }
+
+    return false;
+}
+
 static bool sdl_minimap_grid_opened(int y, int x)
 {
     int m_idx;
@@ -10716,8 +10747,11 @@ void sdl_minimap_focus(int y, int x)
     if (!p_ptr->is_dead && g_labyrinth_view_active)
         return;
 
-    if (!sdl_minimap_grid_opened(y, x))
+    if (!sdl_minimap_grid_opened(y, x)
+        && !sdl_minimap_has_hint_source_at(y, x))
+    {
         return;
+    }
 
     g_minimap_pending_focus_active = true;
     g_minimap_pending_focus_y = y;
@@ -10809,10 +10843,13 @@ void sdl_minimap_begin(void)
     memset(&g_minimap, 0, sizeof(g_minimap));
     g_minimap.active = true;
     g_minimap.zoom_step = 0;
+    g_minimap.pending_hint_index = -1;
     g_minimap.default_zoom_pending = true;
     if (g_minimap_pending_focus_active
-        && sdl_minimap_grid_opened(g_minimap_pending_focus_y,
-            g_minimap_pending_focus_x))
+        && (sdl_minimap_grid_opened(g_minimap_pending_focus_y,
+                g_minimap_pending_focus_x)
+            || sdl_minimap_has_hint_source_at(g_minimap_pending_focus_y,
+                g_minimap_pending_focus_x)))
     {
         g_minimap.focus_active = true;
         g_minimap.focus_y = g_minimap_pending_focus_y;
@@ -11073,13 +11110,13 @@ static bool sdl_minimap_grid_at_canvas_point(float x, float y,
 }
 
 static bool sdl_minimap_hint_source_at_canvas_point(float x, float y,
-    int* out_y, int* out_x)
+    int* out_index, int* out_y, int* out_x)
 {
     byte count;
     int grid_y = -1;
     int grid_x = -1;
 
-    if (!g_minimap.map_layout_valid || !out_y || !out_x)
+    if (!g_minimap.map_layout_valid)
         return false;
 
     count = hint_messages_count_for_save();
@@ -11099,8 +11136,12 @@ static bool sdl_minimap_hint_source_at_canvas_point(float x, float y,
         if (!sdl_minimap_point_in_rect_expanded(x, y, &marker, 6.0f))
             continue;
 
-        *out_y = meta.source_y;
-        *out_x = meta.source_x;
+        if (out_index)
+            *out_index = i;
+        if (out_y)
+            *out_y = meta.source_y;
+        if (out_x)
+            *out_x = meta.source_x;
         return true;
     }
 
@@ -11116,8 +11157,12 @@ static bool sdl_minimap_hint_source_at_canvas_point(float x, float y,
         if (meta.source_y != grid_y || meta.source_x != grid_x)
             continue;
 
-        *out_y = meta.source_y;
-        *out_x = meta.source_x;
+        if (out_index)
+            *out_index = i;
+        if (out_y)
+            *out_y = meta.source_y;
+        if (out_x)
+            *out_x = meta.source_x;
         return true;
     }
 
@@ -11129,11 +11174,51 @@ static bool sdl_minimap_focus_hint_source_at_canvas_point(float x, float y)
     int map_y = -1;
     int map_x = -1;
 
-    if (!sdl_minimap_hint_source_at_canvas_point(x, y, &map_y, &map_x))
+    if (!sdl_minimap_hint_source_at_canvas_point(x, y, NULL, &map_y,
+            &map_x))
+    {
         return false;
+    }
 
     sdl_minimap_focus(map_y, map_x);
     (void)sdl_minimap_redraw();
+    return true;
+}
+
+static bool sdl_minimap_queue_hint_source_at_canvas_point(float x, float y)
+{
+    int index = -1;
+    int map_y = -1;
+    int map_x = -1;
+
+    if (!sdl_minimap_hint_source_at_canvas_point(x, y, &index, &map_y,
+            &map_x))
+    {
+        return false;
+    }
+
+    g_minimap.focus_active = true;
+    g_minimap.focus_y = map_y;
+    g_minimap.focus_x = map_x;
+    g_minimap_pending_focus_active = true;
+    g_minimap_pending_focus_y = map_y;
+    g_minimap_pending_focus_x = map_x;
+    g_minimap.pending_hint_open = true;
+    g_minimap.pending_hint_index = index;
+    (void)sdl_minimap_redraw();
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+bool sdl_minimap_take_hint_click(int* out_index)
+{
+    if (!g_minimap.pending_hint_open)
+        return false;
+
+    if (out_index)
+        *out_index = g_minimap.pending_hint_index;
+    g_minimap.pending_hint_open = false;
+    g_minimap.pending_hint_index = -1;
     return true;
 }
 
@@ -11342,6 +11427,9 @@ static bool sdl_minimap_handle_touch_down(float x, float y,
         return true;
     }
 
+    if (sdl_minimap_focus_hint_source_at_canvas_point(canvas_x, canvas_y))
+        return true;
+
     sdl_minimap_add_or_update_finger(finger_id, canvas_x, canvas_y);
     if (sdl_minimap_active_finger_count() >= 2) {
         sdl_minimap_cancel_drag();
@@ -11414,7 +11502,11 @@ static bool sdl_minimap_handle_mouse_button(const SDL_MouseButtonEvent* button)
         if (has_canvas_point
             && !sdl_minimap_handle_control_point(canvas_x, canvas_y))
         {
-            sdl_minimap_begin_drag(true, 0, canvas_x, canvas_y);
+            if (!sdl_minimap_focus_hint_source_at_canvas_point(canvas_x,
+                    canvas_y))
+            {
+                sdl_minimap_begin_drag(true, 0, canvas_x, canvas_y);
+            }
         }
         return true;
     }
@@ -11429,7 +11521,7 @@ static bool sdl_minimap_handle_mouse_button(const SDL_MouseButtonEvent* button)
     if (button->down && button->button == SDL_BUTTON_RIGHT)
     {
         if (has_canvas_point
-            && sdl_minimap_focus_hint_source_at_canvas_point(canvas_x,
+            && sdl_minimap_queue_hint_source_at_canvas_point(canvas_x,
                 canvas_y))
         {
             return true;
@@ -19118,12 +19210,51 @@ static void sdl_touch_tutorial_draw_compact_zone_legend(
     }
 }
 
-static void sdl_touch_tutorial_draw_zone_callout(const SDL_Rect* screen,
+enum {
+    SDL_TOUCH_TUTORIAL_MAX_ZONE_CALLOUTS = 8
+};
+
+typedef struct sdl_touch_tutorial_zone_callout {
+    SDL_FRect zone;
+    cptr title;
+    cptr detail;
+} sdl_touch_tutorial_zone_callout;
+
+static void sdl_touch_tutorial_queue_zone_callout(
+    sdl_touch_tutorial_zone_callout* callouts, int* count,
+    const SDL_FRect* zone, cptr title, cptr detail)
+{
+    if (!callouts || !count || !zone)
+        return;
+    if (*count < 0 || *count >= SDL_TOUCH_TUTORIAL_MAX_ZONE_CALLOUTS)
+        return;
+
+    callouts[*count].zone = *zone;
+    callouts[*count].title = title;
+    callouts[*count].detail = detail;
+    (*count)++;
+}
+
+static void sdl_touch_tutorial_draw_zone_highlight(const SDL_FRect* zone)
+{
+    SDL_Color border_color = g_state.palette[TERM_L_WHITE];
+
+    if (!zone || zone->w <= 1.0f || zone->h <= 1.0f)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 18, 96, 156, 82);
+    SDL_RenderFillRect(g_state.renderer, zone);
+    SDL_SetRenderDrawColor(g_state.renderer, border_color.r,
+        border_color.g, border_color.b, 235);
+    SDL_RenderRect(g_state.renderer, zone);
+}
+
+static void sdl_touch_tutorial_draw_zone_prompt(const SDL_Rect* screen,
     const SDL_FRect* zone, cptr title, cptr detail, float min_y)
 {
     SDL_Color title_color = g_state.palette[TERM_YELLOW];
     SDL_Color detail_color = g_state.palette[TERM_L_WHITE];
-    SDL_Color border_color = g_state.palette[TERM_L_WHITE];
     SDL_FRect box;
     SDL_FRect shadow;
     float pad;
@@ -19138,13 +19269,6 @@ static void sdl_touch_tutorial_draw_zone_callout(const SDL_Rect* screen,
 
     if (!screen || !zone || zone->w <= 1.0f || zone->h <= 1.0f)
         return;
-
-    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 18, 96, 156, 82);
-    SDL_RenderFillRect(g_state.renderer, zone);
-    SDL_SetRenderDrawColor(g_state.renderer, border_color.r,
-        border_color.g, border_color.b, 235);
-    SDL_RenderRect(g_state.renderer, zone);
 
     title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.042f,
         26.0f, 38.0f);
@@ -19192,6 +19316,7 @@ static void sdl_touch_tutorial_draw_zone_callout(const SDL_Rect* screen,
     shadow.x += 3.0f;
     shadow.y += 3.0f;
 
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 168);
     SDL_RenderFillRect(g_state.renderer, &shadow);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 222);
@@ -19355,7 +19480,9 @@ static void sdl_touch_tutorial_draw_main_screen_zones_compact(
 static void sdl_touch_tutorial_draw_main_screen_zones(
     const SDL_Rect* screen, bool mouse, float min_callout_y)
 {
+    sdl_touch_tutorial_zone_callout callouts[SDL_TOUCH_TUTORIAL_MAX_ZONE_CALLOUTS];
     SDL_FRect rect;
+    int callout_count = 0;
     int term_w;
     int term_h;
     int map_cols;
@@ -19371,21 +19498,19 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
     if (ROW_STATUS != 0
         && sdl_touch_tutorial_cell_rect(0, 0, term_w, 1, &rect))
     {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Message history",
             mouse
                 ? "Click: open the full message history.\nUse when: combat text, warnings, prompts, or sound cues disappear before you finish reading them."
-                : "Tap: open the full message history.\nUse when: combat text, warnings, prompts, or sound cues disappear before you finish reading them.",
-            min_callout_y);
+                : "Tap: open the full message history.\nUse when: combat text, warnings, prompts, or sound cues disappear before you finish reading them.");
     }
 
     if (sdl_touch_tutorial_cell_rect(0, ROW_STATUS, term_w, 1, &rect)) {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Status line",
             mouse
                 ? "Click: open the main menu.\nContext clicks: depth, partition, map, and song text open their matching screens when those labels are visible."
-                : "Tap: open the main touch menu.\nContext taps: depth, partition, map, and song text open their matching screens when those labels are visible.",
-            min_callout_y);
+                : "Tap: open the main touch menu.\nContext taps: depth, partition, map, and song text open their matching screens when those labels are visible.");
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -19395,57 +19520,58 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
         && sdl_touch_tutorial_cell_rect(0, ROW_MAP, COL_MAP,
             panel_rows, &rect))
     {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Character panel",
             mouse
                 ? "Click rows: character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\nUse when: you want the relevant screen without opening the full menu."
-                : "Tap rows: character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\nUse when: you want the relevant screen without opening the full menu.",
-            min_callout_y);
+                : "Tap rows: character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\nUse when: you want the relevant screen without opening the full menu.");
     }
 
     if (SCREEN_HGT > 0 && map_cols > 0
         && sdl_touch_tutorial_cell_rect(COL_MAP, ROW_MAP, map_cols,
             SCREEN_HGT, &rect))
     {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Map / player",
             mouse
                 ? "Left-click: path to an explored or open square, or select a target.\nRight-click: open contextual actions, look, or special movement choices.\nMouse Movement: choose On, Off, or Right-click only in Mouse Input."
-                : "Tap: path to an explored or open square, or select a target.\nHold/right-click: open contextual actions, look, or special movement choices.\nPlayer square: action wheel; Use/Desc act on the floor item, hold/right-click them for full item menus.",
-            min_callout_y);
+                : "Tap: path to an explored or open square, or select a target.\nHold/right-click: open contextual actions, look, or special movement choices.\nPlayer square: action wheel; Use/Desc act on the floor item, hold/right-click them for full item menus.");
     }
 
     if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Inventory pane",
             mouse
                 ? "Click: open inventory.\nUse for: inspecting, using, dropping, or managing carried items without going through the main menu."
-                : "Tap: open inventory.\nUse for: inspecting, using, dropping, or managing carried items without going through the main menu.",
-            min_callout_y);
+                : "Tap: open inventory.\nUse for: inspecting, using, dropping, or managing carried items without going through the main menu.");
     }
     if (sdl_touch_tutorial_view_rect(PANE_WORN, &rect)) {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Equipment pane",
             mouse
                 ? "Click: open equipment.\nUse for: inspecting worn gear, comparing equipment, taking items off, and checking current loadout."
-                : "Tap: open equipment.\nUse for: inspecting worn gear, comparing equipment, taking items off, and checking current loadout.",
-            min_callout_y);
+                : "Tap: open equipment.\nUse for: inspecting worn gear, comparing equipment, taking items off, and checking current loadout.");
     }
     if (sdl_touch_tutorial_view_rect(PANE_LOG, &rect)) {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Messages pane",
             mouse
                 ? "Click: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions."
-                : "Tap: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions.",
-            min_callout_y);
+                : "Tap: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions.");
     }
     if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
-        sdl_touch_tutorial_draw_zone_callout(screen, &rect,
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Combat rolls",
             mouse
                 ? "Click: open combat history.\nShows: attack rolls, protection rolls, criticals, modifiers, and the details behind recent melee exchanges."
-                : "Tap: open combat history.\nShows: attack rolls, protection rolls, criticals, modifiers, and the details behind recent melee exchanges.",
-            min_callout_y);
+                : "Tap: open combat history.\nShows: attack rolls, protection rolls, criticals, modifiers, and the details behind recent melee exchanges.");
+    }
+
+    for (int i = 0; i < callout_count; i++)
+        sdl_touch_tutorial_draw_zone_highlight(&callouts[i].zone);
+    for (int i = 0; i < callout_count; i++) {
+        sdl_touch_tutorial_draw_zone_prompt(screen, &callouts[i].zone,
+            callouts[i].title, callouts[i].detail, min_callout_y);
     }
 }
 
@@ -19964,6 +20090,573 @@ static void sdl_touch_tutorial_run(bool full, bool mouse)
     sdl_touch_cancel_all_inputs();
 }
 
+enum {
+    SDL_TOUCH_TUTORIAL_CHOICE_TOUCH_PANE = 0,
+    SDL_TOUCH_TUTORIAL_CHOICE_CORNERS,
+    SDL_TOUCH_TUTORIAL_CHOICE_ROUND_WHEEL,
+    SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,
+    SDL_TOUCH_TUTORIAL_CHOICE_COUNT,
+    SDL_TOUCH_TUTORIAL_CHOICE_CANCEL = -1
+};
+
+typedef struct sdl_touch_tutorial_choice {
+    int result;
+    cptr title;
+    cptr body;
+} sdl_touch_tutorial_choice;
+
+static const sdl_touch_tutorial_choice sdl_touch_tutorial_choices[] = {
+    {
+        SDL_TOUCH_PROFILE_TOUCH_PANE,
+        "Touch pane + touch screen",
+        "Visible command pad with movement and common actions on screen. Best for phones and first touch games."
+    },
+    {
+        SDL_TOUCH_PROFILE_CORNERS,
+        "Corners + top widget",
+        "Side corner movement zones and a short top command widget. Best when you want more map space."
+    },
+    {
+        SDL_TOUCH_PROFILE_ROUND_WHEEL,
+        "Round wheel + top widget",
+        "Radial movement with a longer top command widget. Best for one-thumb movement once you know the layout."
+    },
+    {
+        SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,
+        "Start tutorial again",
+        "Replay the touch tutorial before choosing a preset."
+    },
+};
+
+static int sdl_touch_tutorial_current_choice_index(void)
+{
+    int profile = get_sdl_touch_profile();
+
+    for (int i = 0; i < (int)N_ELEMENTS(sdl_touch_tutorial_choices); i++) {
+        if (sdl_touch_tutorial_choices[i].result == profile)
+            return i;
+    }
+
+    return SDL_TOUCH_TUTORIAL_CHOICE_TOUCH_PANE;
+}
+
+static void sdl_touch_tutorial_choice_layout(const SDL_Rect* screen,
+    SDL_FRect choice_rects[SDL_TOUCH_TUTORIAL_CHOICE_COUNT])
+{
+    bool grid;
+    float margin;
+    float max_w;
+    float x;
+    float top;
+    float bottom;
+    float gap;
+    float card_w;
+    float card_h;
+
+    if (!screen || !choice_rects)
+        return;
+
+    margin = sdl_touch_pane_clampf((float)screen->w * 0.045f,
+        18.0f, 54.0f);
+    max_w = (float)screen->w - margin * 2.0f;
+    if (max_w > 980.0f)
+        max_w = 980.0f;
+    x = (float)screen->x + ((float)screen->w - max_w) * 0.5f;
+
+    top = (float)screen->y + sdl_touch_pane_clampf(
+        (float)screen->h * 0.245f, 118.0f, 190.0f)
+        + sdl_touch_tutorial_top_reserved_height(screen);
+    bottom = (float)(screen->y + screen->h)
+        - sdl_touch_pane_clampf((float)screen->h * 0.115f, 62.0f, 92.0f);
+    if (bottom <= top + 80.0f)
+        bottom = (float)(screen->y + screen->h) - 46.0f;
+    if (bottom <= top + 80.0f)
+        top = (float)screen->y + 88.0f;
+
+    gap = sdl_touch_pane_clampf((float)screen->h * 0.018f, 8.0f, 16.0f);
+    grid = (screen->w >= 760 && screen->h >= 430);
+
+    if (grid) {
+        card_w = (max_w - gap) * 0.5f;
+        card_h = (bottom - top - gap) * 0.5f;
+        for (int i = 0; i < SDL_TOUCH_TUTORIAL_CHOICE_COUNT; i++) {
+            int row = i / 2;
+            int col = i % 2;
+
+            choice_rects[i] = (SDL_FRect){
+                .x = x + (card_w + gap) * (float)col,
+                .y = top + (card_h + gap) * (float)row,
+                .w = card_w,
+                .h = card_h,
+            };
+        }
+    } else {
+        card_w = max_w;
+        card_h = (bottom - top
+            - gap * (float)(SDL_TOUCH_TUTORIAL_CHOICE_COUNT - 1))
+            / (float)SDL_TOUCH_TUTORIAL_CHOICE_COUNT;
+
+        for (int i = 0; i < SDL_TOUCH_TUTORIAL_CHOICE_COUNT; i++) {
+            choice_rects[i] = (SDL_FRect){
+                .x = x,
+                .y = top + (card_h + gap) * (float)i,
+                .w = card_w,
+                .h = card_h,
+            };
+        }
+    }
+}
+
+static void sdl_touch_tutorial_draw_choice_card(const SDL_FRect* rect,
+    const sdl_touch_tutorial_choice* choice, int index, bool highlighted,
+    bool current)
+{
+    SDL_Color title_color = g_state.palette[TERM_YELLOW];
+    SDL_Color body_color = g_state.palette[TERM_L_WHITE];
+    SDL_Color border_color = highlighted
+        ? g_state.palette[TERM_L_BLUE]
+        : (current ? g_state.palette[TERM_YELLOW]
+                   : g_state.palette[TERM_L_WHITE]);
+    SDL_FRect shadow;
+    float pad;
+    float text_x;
+    float text_w;
+    float y;
+    int title_px;
+    int body_px;
+    char title[96];
+
+    if (!rect || !choice || rect->w <= 1.0f || rect->h <= 1.0f)
+        return;
+
+    pad = sdl_touch_pane_clampf(rect->h * 0.13f, 8.0f, 17.0f);
+    title_px = (int)sdl_touch_pane_clampf(rect->h * 0.205f, 17.0f, 28.0f);
+    body_px = (int)sdl_touch_pane_clampf(rect->h * 0.148f, 13.0f, 21.0f);
+
+    shadow = *rect;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 150);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    if (highlighted)
+        SDL_SetRenderDrawColor(g_state.renderer, 24, 84, 138, 218);
+    else
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 222);
+    SDL_RenderFillRect(g_state.renderer, rect);
+    SDL_SetRenderDrawColor(g_state.renderer, border_color.r, border_color.g,
+        border_color.b, 238);
+    SDL_RenderRect(g_state.renderer, rect);
+
+    if (current && choice->result >= 0)
+        strnfmt(title, sizeof(title), "%d. %s (Current)", index + 1,
+            choice->title);
+    else
+        strnfmt(title, sizeof(title), "%d. %s", index + 1, choice->title);
+    text_x = rect->x + pad;
+    text_w = rect->w - pad * 2.0f;
+    y = rect->y + pad;
+
+    (void)sdl_touch_tutorial_draw_text_line(title, text_x, y, text_w,
+        title_px, title_color, false);
+
+    if (rect->h >= pad * 2.0f + (float)title_px * 1.25f
+            + (float)body_px * 1.55f)
+    {
+        y += (float)title_px * 1.35f;
+        (void)sdl_touch_tutorial_draw_wrapped(choice->body, text_x, y,
+            text_w, body_px, body_color);
+    }
+}
+
+static bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
+    SDL_FRect choice_rects[SDL_TOUCH_TUTORIAL_CHOICE_COUNT])
+{
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+    SDL_Color title_color = g_state.palette[TERM_YELLOW];
+    SDL_Color text_color = g_state.palette[TERM_L_WHITE];
+    sdl_view* d = sdl_view_from_term(Term);
+    bool old_suppress_top_panel;
+    bool rendered;
+    float x;
+    float y;
+    float max_w;
+    int title_px;
+    int body_px;
+    int footer_px;
+    int current_index;
+
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    old_suppress_top_panel = g_touch_tutorial_suppress_runtime_top_panel;
+    g_touch_tutorial_suppress_runtime_top_panel = true;
+    rendered = sdl_render_current_window_frame();
+    g_touch_tutorial_suppress_runtime_top_panel = old_suppress_top_panel;
+    if (!rendered)
+        return false;
+
+    sdl_touch_tutorial_draw_screen_dim(&screen, 172);
+    x = (float)screen.x + (float)screen.w * 0.5f;
+    y = sdl_touch_tutorial_default_header_y(&screen);
+    max_w = (float)screen.w * 0.86f;
+    title_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.050f,
+        28.0f, 46.0f);
+    body_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.030f,
+        18.0f, 28.0f);
+    footer_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.028f,
+        16.0f, 24.0f);
+
+    y += sdl_touch_tutorial_draw_text_line("Choose Touch Preset", x, y,
+        max_w, title_px, title_color, true);
+    y += 5.0f;
+    (void)sdl_touch_tutorial_draw_wrapped_centered(
+        "Pick the control layout to use now, or replay the tutorial before choosing.",
+        x, y, max_w, body_px, text_color);
+
+    sdl_touch_tutorial_choice_layout(&screen, choice_rects);
+    current_index = sdl_touch_tutorial_current_choice_index();
+    for (int i = 0; i < (int)N_ELEMENTS(sdl_touch_tutorial_choices); i++) {
+        sdl_touch_tutorial_draw_choice_card(&choice_rects[i],
+            &sdl_touch_tutorial_choices[i], i, highlighted == i,
+            current_index == i);
+    }
+
+    y = (float)(screen.y + screen.h)
+        - sdl_touch_pane_clampf((float)screen.h * 0.076f, 42.0f, 62.0f);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 185);
+    SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+        .x = (float)screen.x,
+        .y = y - 8.0f,
+        .w = (float)screen.w,
+        .h = (float)(screen.y + screen.h) - y + 8.0f,
+    });
+    (void)sdl_touch_tutorial_draw_text_line(
+        "Tap/click a choice   Up/Down selects   Enter applies   Esc keeps current",
+        x, y, (float)screen.w * 0.92f, footer_px, text_color, true);
+
+    SDL_RenderPresent(g_state.renderer);
+    sdl_restore_render_target(d);
+    g_state.need_present = false;
+    return true;
+}
+
+static int sdl_touch_tutorial_choice_hit(
+    const SDL_FRect choice_rects[SDL_TOUCH_TUTORIAL_CHOICE_COUNT],
+    float x, float y)
+{
+    if (!choice_rects)
+        return -1;
+
+    for (int i = 0; i < SDL_TOUCH_TUTORIAL_CHOICE_COUNT; i++) {
+        if (sdl_point_in_frect(&choice_rects[i], x, y))
+            return i;
+    }
+
+    return -1;
+}
+
+static int sdl_touch_tutorial_choose_profile(void)
+{
+    SDL_Event ev;
+    SDL_FRect choice_rects[SDL_TOUCH_TUTORIAL_CHOICE_COUNT] = { 0 };
+    int highlighted = sdl_touch_tutorial_current_choice_index();
+    int pressed_choice = -1;
+    SDL_FingerID active_finger = 0;
+    bool finger_pressed = false;
+    bool mouse_pressed = false;
+    bool redraw = true;
+    Uint64 accept_after_ns = SDL_GetTicksNS() + 250000000ULL;
+
+    sdl_touch_cancel_all_inputs();
+
+    for (;;) {
+        Uint64 now_ns;
+
+        if (redraw) {
+            if (!sdl_touch_tutorial_draw_profile_choice_screen(highlighted,
+                    choice_rects))
+            {
+                return SDL_TOUCH_TUTORIAL_CHOICE_CANCEL;
+            }
+            redraw = false;
+        }
+
+        sdl_music_update();
+        if (!SDL_WaitEvent(&ev))
+            continue;
+        now_ns = SDL_GetTicksNS();
+
+        if (sdl_sound_try_handle_event(&ev))
+            continue;
+#if SIL_SDL_MOBILE_BUILD
+        if (sdl_mobile_lifecycle_handle_event(&ev))
+            continue;
+#endif
+
+        if (ev.type == SDL_EVENT_QUIT) {
+            Term_keypress(ESCAPE);
+            return SDL_TOUCH_TUTORIAL_CHOICE_CANCEL;
+        }
+
+        if (ev.type == SDL_EVENT_KEY_DOWN) {
+            SDL_Keycode key = ev.key.key;
+
+            if (now_ns < accept_after_ns)
+                continue;
+            if (key == SDLK_ESCAPE || key == 'q' || key == 'Q')
+                return SDL_TOUCH_TUTORIAL_CHOICE_CANCEL;
+            if (key == SDLK_UP || key == SDLK_LEFT
+                || key == SDLK_PAGEUP || key == SDLK_KP_8
+                || key == SDLK_KP_4)
+            {
+                highlighted = (SDL_TOUCH_TUTORIAL_CHOICE_COUNT
+                    + highlighted - 1) % SDL_TOUCH_TUTORIAL_CHOICE_COUNT;
+                redraw = true;
+                continue;
+            }
+            if (key == SDLK_DOWN || key == SDLK_RIGHT
+                || key == SDLK_PAGEDOWN || key == SDLK_KP_2
+                || key == SDLK_KP_6)
+            {
+                highlighted = (highlighted + 1)
+                    % SDL_TOUCH_TUTORIAL_CHOICE_COUNT;
+                redraw = true;
+                continue;
+            }
+            if (key == SDLK_SPACE || key == SDLK_RETURN
+                || key == SDLK_KP_ENTER)
+            {
+                return sdl_touch_tutorial_choices[highlighted].result;
+            }
+            if (key == '1')
+                return sdl_touch_tutorial_choices[0].result;
+            if (key == '2')
+                return sdl_touch_tutorial_choices[1].result;
+            if (key == '3')
+                return sdl_touch_tutorial_choices[2].result;
+            if (key == '4' || key == 'r' || key == 'R')
+            {
+                return SDL_TOUCH_TUTORIAL_CHOICE_REPLAY;
+            }
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+            int hit;
+
+            if (now_ns < accept_after_ns)
+                continue;
+            if (ev.button.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            if (ev.button.button != SDL_BUTTON_LEFT)
+                continue;
+
+            hit = sdl_touch_tutorial_choice_hit(choice_rects,
+                ev.button.x, ev.button.y);
+            if (hit >= 0) {
+                pressed_choice = hit;
+                highlighted = hit;
+                mouse_pressed = true;
+                redraw = true;
+            }
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+            int hit;
+
+            if (now_ns < accept_after_ns)
+                continue;
+            if (ev.button.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            if (ev.button.button != SDL_BUTTON_LEFT)
+                continue;
+
+            hit = sdl_touch_tutorial_choice_hit(choice_rects,
+                ev.button.x, ev.button.y);
+            if (mouse_pressed && hit >= 0 && hit == pressed_choice)
+                return sdl_touch_tutorial_choices[hit].result;
+            mouse_pressed = false;
+            pressed_choice = -1;
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_FINGER_DOWN) {
+            int window_w = 0;
+            int window_h = 0;
+            float x;
+            float y;
+            int hit;
+
+            if (ev.tfinger.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            sdl_note_touch_event_device(ev.tfinger.touchID);
+            if (now_ns < accept_after_ns)
+                continue;
+            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+            if (window_w <= 0 || window_h <= 0)
+                continue;
+
+            x = ev.tfinger.x * (float)window_w;
+            y = ev.tfinger.y * (float)window_h;
+            hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
+            if (hit >= 0) {
+                pressed_choice = hit;
+                highlighted = hit;
+                active_finger = ev.tfinger.fingerID;
+                finger_pressed = true;
+                redraw = true;
+            }
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_FINGER_MOTION) {
+            int window_w = 0;
+            int window_h = 0;
+            float x;
+            float y;
+            int hit;
+
+            if (ev.tfinger.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            sdl_note_touch_event_device(ev.tfinger.touchID);
+            if (!finger_pressed
+                || ev.tfinger.fingerID != active_finger)
+            {
+                continue;
+            }
+
+            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+            if (window_w <= 0 || window_h <= 0)
+                continue;
+            x = ev.tfinger.x * (float)window_w;
+            y = ev.tfinger.y * (float)window_h;
+            hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
+            if (hit != highlighted && hit >= 0) {
+                highlighted = hit;
+                redraw = true;
+            }
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_FINGER_UP) {
+            int window_w = 0;
+            int window_h = 0;
+            float x;
+            float y;
+            int hit;
+
+            if (ev.tfinger.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            sdl_note_touch_event_device(ev.tfinger.touchID);
+            if (now_ns < accept_after_ns)
+                continue;
+            if (!finger_pressed || ev.tfinger.fingerID != active_finger)
+                continue;
+
+            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+            if (window_w <= 0 || window_h <= 0)
+                continue;
+
+            x = ev.tfinger.x * (float)window_w;
+            y = ev.tfinger.y * (float)window_h;
+            hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
+            if (hit >= 0 && hit == pressed_choice)
+                return sdl_touch_tutorial_choices[hit].result;
+            finger_pressed = false;
+            pressed_choice = -1;
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_FINGER_CANCELED) {
+            if (ev.tfinger.windowID != SDL_GetWindowID(g_state.window))
+                continue;
+            sdl_note_touch_event_device(ev.tfinger.touchID);
+            finger_pressed = false;
+            pressed_choice = -1;
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+            if (now_ns < accept_after_ns)
+                continue;
+            switch (ev.gbutton.button) {
+            case SDL_GAMEPAD_BUTTON_DPAD_UP:
+            case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
+            case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
+                highlighted = (SDL_TOUCH_TUTORIAL_CHOICE_COUNT
+                    + highlighted - 1) % SDL_TOUCH_TUTORIAL_CHOICE_COUNT;
+                redraw = true;
+                break;
+            case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+            case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
+            case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
+                highlighted = (highlighted + 1)
+                    % SDL_TOUCH_TUTORIAL_CHOICE_COUNT;
+                redraw = true;
+                break;
+            case SDL_GAMEPAD_BUTTON_SOUTH:
+            case SDL_GAMEPAD_BUTTON_START:
+                return sdl_touch_tutorial_choices[highlighted].result;
+            case SDL_GAMEPAD_BUTTON_EAST:
+            case SDL_GAMEPAD_BUTTON_BACK:
+                return SDL_TOUCH_TUTORIAL_CHOICE_CANCEL;
+            default:
+                break;
+            }
+            continue;
+        }
+
+        if (ev.type == SDL_EVENT_WINDOW_RESIZED
+            || ev.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED
+            || ev.type == SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED
+            || ev.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED
+            || ev.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED
+            || ev.type == SDL_EVENT_RENDER_DEVICE_RESET
+            || ev.type == SDL_EVENT_RENDER_TARGETS_RESET
+            || ev.type == SDL_EVENT_WINDOW_RESTORED
+            || ev.type == SDL_EVENT_WINDOW_EXPOSED)
+        {
+            sdl_handle_event(&g_state, &ev);
+            redraw = true;
+            continue;
+        }
+    }
+}
+
+static void sdl_touch_tutorial_save_profile_choice(int profile)
+{
+    if (profile < 0)
+        return;
+
+    sdl_touch_apply_profile(profile);
+    if (config_file_path[0] != '\0') {
+        sdl_store_active_pane_profile(config.min_terminal_mode);
+        sdl_config_save(config_file_path, &config, g_pane_profiles,
+            SDL_PANE_PROFILE_COUNT);
+    }
+}
+
+static void sdl_touch_tutorial_run_with_profile_choice(void)
+{
+    bool full = sdl_touch_tutorial_full_mode();
+
+    for (;;) {
+        int choice;
+
+        sdl_touch_tutorial_run(full, false);
+        choice = sdl_touch_tutorial_choose_profile();
+        if (choice == SDL_TOUCH_TUTORIAL_CHOICE_REPLAY)
+            continue;
+        if (choice >= 0)
+            sdl_touch_tutorial_save_profile_choice(choice);
+        break;
+    }
+}
+
 static void sdl_touch_mark_tutorial_seen_and_save(void)
 {
     if (sdl_config_touch_tutorial_seen())
@@ -20058,7 +20751,7 @@ static void sdl_input_tutorial_maybe_show_deferred(void)
 
 void sdl_touch_show_tutorial(void)
 {
-    sdl_touch_tutorial_run(sdl_touch_tutorial_full_mode(), false);
+    sdl_touch_tutorial_run_with_profile_choice();
     sdl_touch_mark_tutorial_seen_and_save();
 }
 
@@ -20075,7 +20768,7 @@ void sdl_touch_maybe_show_first_game_tutorial(void)
     if (sdl_config_touch_tutorial_seen())
         return;
 
-    sdl_touch_tutorial_run(sdl_touch_tutorial_full_mode(), false);
+    sdl_touch_tutorial_run_with_profile_choice();
     sdl_touch_mark_tutorial_seen_and_save();
 }
 
@@ -20687,10 +21380,7 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
 
 static bool sdl_minimap_hint_source_valid(const hint_message_meta* meta)
 {
-    return meta && p_ptr && meta->source_y >= 0 && meta->source_x >= 0
-        && meta->source_y < p_ptr->cur_map_hgt
-        && meta->source_x < p_ptr->cur_map_wid
-        && sdl_minimap_grid_opened(meta->source_y, meta->source_x);
+    return sdl_minimap_hint_source_in_bounds(meta);
 }
 
 static void sdl_minimap_expand_bounds_for_hint_sources(int* min_y, int* min_x,
