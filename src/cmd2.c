@@ -2436,6 +2436,279 @@ void hint_messages_message_meta(int index, hint_message_meta* out)
     hint_message_meta_copy(out, &g_hint_message_state.meta[index]);
 }
 
+static void hint_messages_trim_copy(const char* src, char* out, size_t out_sz)
+{
+    const char* start = src ? src : "";
+    size_t len;
+
+    if (!out || out_sz == 0)
+        return;
+
+    while (*start == ' ')
+        start++;
+
+    len = strlen(start);
+    while (len > 0 && start[len - 1] == ' ')
+        len--;
+
+    if (len >= out_sz)
+        len = out_sz - 1;
+
+    memcpy(out, start, len);
+    out[len] = '\0';
+}
+
+static bool hint_messages_contains_ci(const char* haystack, const char* needle)
+{
+    size_t needle_len;
+
+    if (!haystack || !needle || !needle[0])
+        return false;
+
+    needle_len = strlen(needle);
+    for (const char* p = haystack; *p; p++)
+    {
+        if (SDL_strncasecmp(p, needle, needle_len) == 0)
+            return true;
+    }
+
+    return false;
+}
+
+static bool hint_messages_title_part_is_tutorial(const char* part)
+{
+    return hint_messages_contains_ci(part, "Survival Tip")
+        || hint_messages_contains_ci(part, "Tutorial");
+}
+
+static void hint_messages_append_part(char* out, size_t out_sz,
+    const char* part)
+{
+    size_t cur;
+
+    if (!out || out_sz == 0 || !part || !part[0])
+        return;
+
+    cur = strlen(out);
+    if (cur >= out_sz - 1)
+        return;
+
+    if (cur > 0)
+        cur += strnfmt(out + cur, out_sz - cur, " & ");
+    if (cur < out_sz - 1)
+        (void)strnfmt(out + cur, out_sz - cur, "%s", part);
+}
+
+static void hint_messages_filtered_title(int index, char* out, size_t out_sz)
+{
+    char work[128];
+    char* title;
+    char* segment;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    work[0] = '\0';
+    if (hint_messages_message_line_count(index) <= 0)
+        return;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        const char* line = hint_messages_message_line(index, li);
+
+        if (line && line[0])
+        {
+            strnfmt(work, sizeof(work), "%s", line);
+            break;
+        }
+
+        if (li + 1 >= hint_messages_message_line_count(index))
+            return;
+    }
+
+    title = work;
+    while (*title == ' ')
+        title++;
+    if (SDL_strncasecmp(title, "Hint:", 5) == 0)
+        title += 5;
+
+    segment = title;
+    while (segment && *segment)
+    {
+        char part[80];
+        char* next = strchr(segment, '&');
+
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        hint_messages_trim_copy(segment, part, sizeof(part));
+        if (part[0] && !hint_messages_title_part_is_tutorial(part))
+            hint_messages_append_part(out, out_sz, part);
+
+        segment = next;
+    }
+}
+
+static bool hint_messages_first_title_is_tutorial(int index)
+{
+    if (hint_messages_message_line_count(index) <= 0)
+        return false;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        char title[128];
+        const char* line = hint_messages_message_line(index, li);
+
+        hint_messages_trim_copy(line, title, sizeof(title));
+        if (!title[0])
+            continue;
+
+        return hint_messages_contains_ci(title, "Survival Tip")
+            || hint_messages_contains_ci(title, "Tutorial");
+    }
+
+    return false;
+}
+
+static void hint_messages_first_body_line(int index, char* out, size_t out_sz)
+{
+    bool skipped_title = false;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    if (hint_messages_message_line_count(index) <= 0)
+        return;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        char line[128];
+
+        hint_messages_trim_copy(
+            hint_messages_message_line(index, li), line, sizeof(line));
+        if (!line[0])
+            continue;
+
+        if (!skipped_title && SDL_strncasecmp(line, "Hint:", 5) == 0)
+        {
+            skipped_title = true;
+            continue;
+        }
+
+        strnfmt(out, out_sz, "%s", line);
+        return;
+    }
+}
+
+static void hint_messages_format_cues(const hint_message_meta* meta, char* out,
+    size_t out_sz)
+{
+    size_t cur = 0;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    if (!meta)
+        return;
+
+    for (int cue = 0; cue < meta->cue_count; ++cue)
+    {
+        const char* dist = meta->cue_dists[cue];
+        const char* dir = meta->cue_dirs[cue];
+
+        if ((!dist || !dist[0]) && (!dir || !dir[0]))
+            continue;
+
+        if (cur > 0)
+            cur += strnfmt(out + cur, out_sz - cur, "; ");
+        if (cur >= out_sz - 1)
+            return;
+
+        if (dist && dist[0] && dir && dir[0])
+            cur += strnfmt(out + cur, out_sz - cur, "%s %s", dist, dir);
+        else if (dist && dist[0])
+            cur += strnfmt(out + cur, out_sz - cur, "%s", dist);
+        else
+            cur += strnfmt(out + cur, out_sz - cur, "%s", dir);
+
+        if (cur >= out_sz - 1)
+            return;
+    }
+}
+
+bool hint_messages_short_tip(int index, char* out, size_t out_sz)
+{
+    hint_message_meta meta;
+    char title[96];
+    char cues[128];
+
+    if (!out || out_sz == 0)
+        return false;
+
+    out[0] = '\0';
+    hint_messages_ensure_level_state();
+    if (index < 0 || index >= g_hint_message_state.message_count)
+        return false;
+
+    hint_messages_filtered_title(index, title, sizeof(title));
+    hint_messages_message_meta(index, &meta);
+    hint_messages_format_cues(&meta, cues, sizeof(cues));
+    if (!title[0])
+    {
+        char body[96];
+
+        hint_messages_first_body_line(index, body, sizeof(body));
+        if (body[0])
+        {
+            if (hint_messages_first_title_is_tutorial(index))
+                strnfmt(title, sizeof(title), "Survival Tip: %s", body);
+            else
+                strnfmt(title, sizeof(title), "%s", body);
+        }
+    }
+
+    if (!title[0] && !cues[0])
+        return false;
+
+    if (title[0] && cues[0])
+        strnfmt(out, out_sz, "%s - %s", title, cues);
+    else if (title[0])
+        strnfmt(out, out_sz, "%s", title);
+    else
+        strnfmt(out, out_sz, "%s", cues);
+
+    return out[0] != '\0';
+}
+
+bool hint_messages_short_tip_for_source(int y, int x, char* out, size_t out_sz)
+{
+    if (!out || out_sz == 0)
+        return false;
+
+    out[0] = '\0';
+    hint_messages_ensure_level_state();
+
+    for (int i = g_hint_message_state.message_count - 1; i >= 0; --i)
+    {
+        hint_message_meta meta;
+
+        hint_messages_message_meta(i, &meta);
+        if (meta.source_y != y || meta.source_x != x)
+            continue;
+
+        if (hint_messages_short_tip(i, out, out_sz))
+            return true;
+    }
+
+    return false;
+}
+
 void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt)
 {
     hint_messages_clear_for_level(level_depth, map_wid, map_hgt);

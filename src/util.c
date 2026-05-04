@@ -3989,7 +3989,66 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
  *
  * Allow "p_ptr->command_arg" to specify a quantity
  */
-s16b get_quantity(cptr prompt, int max)
+#define QUANTITY_CLICK_DECREASE -1001
+#define QUANTITY_CLICK_CONFIRM  -1002
+#define QUANTITY_CLICK_INCREASE -1003
+#define QUANTITY_CLICK_ALL      -1004
+#define QUANTITY_CLICK_ZERO     -1005
+#define QUANTITY_CLICK_CANCEL   -1006
+
+static void quantity_prompt_draw(cptr prompt, int current, int max,
+    int touch_category)
+{
+    char header[180];
+    char actions[120];
+    char pick_token[32];
+    cptr cancel_token = "[Cancel]";
+    int term_wid = 80;
+
+    if (Term)
+    {
+        int term_hgt = 0;
+        Term_get_size(&term_wid, &term_hgt);
+        (void)term_hgt;
+    }
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+    ui_menu_click_set_touch_category(touch_category);
+
+    strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
+    prt(header, 0, 0);
+
+    strnfmt(pick_token, sizeof(pick_token), "[Pick %d]", current);
+    strnfmt(actions, sizeof(actions), "[-] %s [+] [All] [0] [Cancel]",
+        pick_token);
+
+    if ((int)strlen(actions) > term_wid)
+    {
+        SDL_strlcpy(pick_token, "[OK]", sizeof(pick_token));
+        SDL_strlcpy(actions, "[-] [OK] [+] [All] [0] [Esc]",
+            sizeof(actions));
+        cancel_token = "[Esc]";
+    }
+
+    prt(actions, 1, 0);
+    ui_menu_click_add_text_token(QUANTITY_CLICK_DECREASE, 0, 1, actions,
+        "[-]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_CONFIRM, 0, 1, actions,
+        pick_token);
+    ui_menu_click_add_text_token(QUANTITY_CLICK_INCREASE, 0, 1, actions,
+        "[+]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_ALL, 0, 1, actions, "[All]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_ZERO, 0, 1, actions, "[0]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_CANCEL, 0, 1, actions,
+        cancel_token);
+
+    Term_fresh();
+}
+
+static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
+    bool force_prompt)
 {
     int amt = (max > 0) ? max : 1;
 
@@ -4002,14 +4061,14 @@ s16b get_quantity(cptr prompt, int max)
 
 #ifdef ALLOW_REPEAT
 
-    else if ((max != 1) && repeat_pull(&amt))
+    else if (!force_prompt && (max != 1) && repeat_pull(&amt))
     {
         /* use repeated value */
     }
 
 #endif /* ALLOW_REPEAT */
 
-    else if (max != 1)
+    else if (force_prompt || max != 1)
     {
         char prompt_buf[80];
         char entry_buf[16] = "";
@@ -4032,15 +4091,56 @@ s16b get_quantity(cptr prompt, int max)
 
         while (!done)
         {
-            char header[120];
-            strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
-            prt(header, 0, 0);
-            prt("Use arrows or +/- to adjust, digits type exact value, Enter=OK, Esc=cancel.",
-                1, 0);
+            quantity_prompt_draw(prompt, current, max, touch_category);
 
             ch = inkey();
+
+            {
+                int clicked_choice = 0;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_choice, &click_action))
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    switch (clicked_choice)
+                    {
+                    case QUANTITY_CLICK_DECREASE:
+                        ch = '-';
+                        break;
+                    case QUANTITY_CLICK_CONFIRM:
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_INCREASE:
+                        ch = '+';
+                        break;
+                    case QUANTITY_CLICK_ALL:
+                        current = max;
+                        entry_len = 0;
+                        entry_buf[0] = '\0';
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_ZERO:
+                        current = 0;
+                        entry_len = 0;
+                        entry_buf[0] = '\0';
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_CANCEL:
+                        ch = ESCAPE;
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+
             switch (ch)
             {
+            case UI_MENU_CLICK_WAKE_KEY:
+                break;
+
             case ESCAPE:
                 canceled = true;
                 done = true;
@@ -4172,6 +4272,7 @@ s16b get_quantity(cptr prompt, int max)
 
         prt("", 0, 0);
         prt("", 1, 0);
+        ui_menu_click_clear();
 
         if (canceled)
             return (0);
@@ -4193,6 +4294,22 @@ s16b get_quantity(cptr prompt, int max)
 #endif /* ALLOW_REPEAT */
 
     return (amt);
+}
+
+s16b get_quantity(cptr prompt, int max)
+{
+    return get_quantity_aux(prompt, max, SDL_TOUCH_MENU_CATEGORY_OTHER, false);
+}
+
+s16b get_quantity_touch_category(cptr prompt, int max, int touch_category)
+{
+    return get_quantity_aux(prompt, max, touch_category, false);
+}
+
+s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
+    int touch_category)
+{
+    return get_quantity_aux(prompt, max, touch_category, true);
 }
 
 /*

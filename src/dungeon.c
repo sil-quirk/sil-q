@@ -27,6 +27,7 @@
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 static char g_active_partition_banner_text[1024] = "";
+static int g_active_partition_banner_animation_rows = 0;
 static bool g_active_partition_banner_consumes_input = false;
 /* Banners shown while resolving a command should survive until the next
  * command prompt rather than being consumed by the arrival action itself. */
@@ -78,6 +79,7 @@ static void reset_level_entry_tracking(void)
     g_labyrinth_view_active = false;
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
     greater_vault_xp_name[0] = '\0';
@@ -216,6 +218,9 @@ static int narrative_banner_rows_for_text(cptr text)
 
 int active_narrative_banner_rows(void)
 {
+    if (g_active_partition_banner_animation_rows > 0)
+        return g_active_partition_banner_animation_rows;
+
     if (!g_active_partition_banner_text[0]
         || (g_banner_force_redraw_remaining <= 0))
         return 0;
@@ -393,6 +398,7 @@ void clear_active_narrative_banner(void)
 {
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
 }
@@ -526,6 +532,8 @@ static void display_narrative_text(cptr text, int narrative_mode,
 
     g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows =
+        narrative_banner_rows_for_text(text);
     print_fade_centered_at_row(text, 1, false, line_delay);
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
@@ -536,6 +544,7 @@ static void display_narrative_text(cptr text, int narrative_mode,
     g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
         ? 1
         : narrative_banner_turn_setting();
+    g_active_partition_banner_animation_rows = 0;
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,
@@ -3925,6 +3934,7 @@ static void process_player(void)
         {
             g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
+            g_active_partition_banner_animation_rows = 0;
             do_cmd_redraw();
         }
     }

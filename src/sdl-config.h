@@ -71,7 +71,18 @@
 #define SDL_TOUCH_ZONE_CENTER_RIGHT_TAP 2
 #define SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP 3
 #define SDL_TOUCH_ZONE_CENTER_BINDING_COUNT 4
-#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 4
+#define SDL_TOUCH_CORNER_UP_DOWN_LEFT 0
+#define SDL_TOUCH_CORNER_UP_DOWN_RIGHT 1
+#define SDL_TOUCH_CORNER_ACTION_TOP_TAP 0
+#define SDL_TOUCH_CORNER_ACTION_TOP_LONG_TAP 1
+#define SDL_TOUCH_CORNER_ACTION_BOTTOM_TAP 2
+#define SDL_TOUCH_CORNER_ACTION_BOTTOM_LONG_TAP 3
+#define SDL_TOUCH_CORNER_ACTION_BINDING_COUNT 4
+#define SDL_TOUCH_TOP_PANEL_MODE_SHORT 0
+#define SDL_TOUCH_TOP_PANEL_MODE_LONG 1
+#define SDL_TOUCH_TOP_PANEL_MODE_COUNT 2
+#define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
+#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 6
 #define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
@@ -173,6 +184,9 @@ struct sdl_config {
     bool touch_round_movement_enabled;
     int touch_zone_overlay_mode;
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
+    int touch_corner_up_down_side;
+    int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
+    int touch_top_panel_mode;
     bool touch_top_panel_default_open;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];

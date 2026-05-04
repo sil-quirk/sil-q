@@ -13,6 +13,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "sdl-config.h"
 #include <math.h>
 
 static bool valorous_oath_blocks_auto_attack(monster_type* m_ptr);
@@ -4291,7 +4292,8 @@ void py_pickup_aux(int o_idx)
                         "Your supply cache can only hold %d of %d. Pick up how many? (0-%d): ",
                         max_qty, o_ptr->number, max_qty);
                 
-                int qty = get_quantity(prompt, max_qty);
+                int qty = get_quantity_touch_category_force_prompt(prompt,
+                    max_qty, SDL_TOUCH_MENU_CATEGORY_SUPPLY);
                 
                 if (qty <= 0)
                 {

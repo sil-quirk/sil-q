@@ -901,6 +901,9 @@ extern s16b hint_messages_map_hgt_for_save(void);
 extern byte hint_messages_message_line_count(int index);
 extern const char* hint_messages_message_line(int index, int line);
 extern void hint_messages_message_meta(int index, hint_message_meta* out);
+extern bool hint_messages_short_tip(int index, char* out, size_t out_sz);
+extern bool hint_messages_short_tip_for_source(int y, int x, char* out,
+    size_t out_sz);
 extern void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt);
 extern int hint_messages_add_for_load(
     const char lines[][100], int line_count, const hint_message_meta* meta);
@@ -1588,6 +1591,10 @@ extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
 extern bool term_get_string(cptr prompt, char* buf, size_t len);
 extern s16b get_quantity(cptr prompt, int max);
+extern s16b get_quantity_touch_category(cptr prompt, int max,
+    int touch_category);
+extern s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
+    int touch_category);
 extern int get_check_other(cptr prompt, char other);
 extern bool get_check(cptr prompt);
 extern bool get_check_oath_multiline(cptr prompt);
@@ -2051,6 +2058,15 @@ extern int get_sdl_touch_zone_overlay_default_mode(void);
 extern int get_sdl_touch_zone_center_binding(int index);
 extern void set_sdl_touch_zone_center_binding(int index, int binding);
 extern int get_sdl_touch_zone_center_default_binding(int index);
+extern int get_sdl_touch_corner_up_down_side(void);
+extern void set_sdl_touch_corner_up_down_side(int side);
+extern int get_sdl_touch_corner_up_down_default_side(void);
+extern int get_sdl_touch_corner_action_binding(int index);
+extern void set_sdl_touch_corner_action_binding(int index, int binding);
+extern int get_sdl_touch_corner_action_default_binding(int index);
+extern int get_sdl_touch_top_panel_mode(void);
+extern void set_sdl_touch_top_panel_mode(int mode);
+extern int get_sdl_touch_top_panel_default_mode(void);
 extern bool get_sdl_touch_top_panel_default_open(void);
 extern void set_sdl_touch_top_panel_default_open(bool value);
 extern bool get_sdl_touch_top_panel_default_open_default(void);

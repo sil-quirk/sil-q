@@ -3436,6 +3436,8 @@ static void run_history_show_detail(const run_history_entry* entry)
     int general_total_lines = 0;
     int stats_total_lines = 0;
 
+    screen_save();
+
     while (!done) {
         bool steamdeck = steamdeck_controls_active();
         char confirm_label[16] = "";
@@ -3448,7 +3450,6 @@ static void run_history_show_detail(const run_history_entry* entry)
         int scroll_rows = 0;
         bool enable_scroll_area = false;
 
-        screen_save();
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
@@ -3680,8 +3681,6 @@ static void run_history_show_detail(const run_history_entry* entry)
             ui_scroll_area_clear();
         }
 
-        screen_load();
-
         if (skip_command)
             continue;
 
@@ -3784,4 +3783,6 @@ static void run_history_show_detail(const run_history_entry* entry)
 
     if (have_details)
         score_runs_free_details(&details);
+
+    screen_load();
 }
