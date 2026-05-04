@@ -6124,6 +6124,56 @@ const char ultimate_bug_text[][100]
 
           { "" } };
 
+static int pause_with_text_max_line_width(const char lines[][100])
+{
+    int max_width = 0;
+
+    if (!lines)
+        return 0;
+
+    for (int i = 0; lines[i][0]; ++i)
+    {
+        int width = (int)strlen(lines[i]);
+        if (width > max_width)
+            max_width = width;
+    }
+
+    return max_width;
+}
+
+static int pause_with_text_fit_column(int col, int term_wid, int text_width)
+{
+    int max_col;
+
+    if (col < 0)
+        col = 0;
+    if (term_wid <= 2 || text_width <= 0)
+        return col;
+
+    max_col = term_wid - text_width - 3;
+    if (max_col < 0)
+        max_col = 0;
+
+    if (col > max_col)
+        col = max_col;
+
+    return col;
+}
+
+static cptr pause_with_text_fit_segment_text(cptr text, int max_cols)
+{
+    if (!text)
+        return "";
+
+    while ((*text == ' ') && (max_cols > 0)
+        && ((int)strlen(text) > max_cols))
+    {
+        text++;
+    }
+
+    return text;
+}
+
 static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
                                                  cptr text, int delay_msec)
 {
@@ -6154,6 +6204,7 @@ static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
     if (max_cols < 1)
         max_cols = 1;
 
+    text = pause_with_text_fit_segment_text(text, MAX(1, max_cols - 1));
     wrap_col = col + max_cols;
 
     if (*text)
@@ -6201,6 +6252,7 @@ static int pause_with_text_count_wrapped_segment(int col, cptr text)
     if (max_cols < 1)
         max_cols = 1;
 
+    text = pause_with_text_fit_segment_text(text, MAX(1, max_cols - 1));
     wrap_col = col + max_cols;
 
     if (*text)
@@ -6239,6 +6291,9 @@ void pause_with_text(const char desc[][100], int row, int col,
         term_wid = 80;
     if (term_hgt < 1)
         term_hgt = 24;
+
+    col = pause_with_text_fit_column(col, term_wid,
+        pause_with_text_max_line_width(desc));
 
     sdl_story_font_enable();
     log_debug("Banner: story font enabled");

@@ -33582,7 +33582,7 @@ typedef struct unified_sidebar_compact_entry
 
 static bool unified_sidebar_use_compact_layout(void)
 {
-    return Term && ((Term->hgt <= 18) || (Term->wid <= 60));
+    return Term && (Term->wid <= 60);
 }
 
 static int unified_sidebar_compact_last_row(void)

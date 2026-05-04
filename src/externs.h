@@ -1561,7 +1561,9 @@ extern void sdl_refresh_supporting_panes_layout(void);
 #define SDL_STATUS_CLICK_MAIN_MENU 1
 #define SDL_STATUS_CLICK_SONG 2
 #define SDL_STATUS_CLICK_MAP 3
+#define SDL_STATUS_CLICK_VIEW 4
 extern int sdl_pointer_attack_current_mode(void);
+extern bool sdl_pointer_attack_panel_mode_highlighted(int mode);
 extern bool sdl_pointer_attack_take_command(int* command, int* dir);
 extern void sdl_pointer_attack_reset_to_melee(void);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
@@ -1621,7 +1623,8 @@ extern bool ui_menu_click_clear_hover(bool* wake);
 extern bool ui_menu_click_handle_cell(int col, int row);
 extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_has_pending(void);
-extern void ui_menu_click_clear_pending_hover(void);
+extern bool ui_menu_click_clear_pending_hover(void);
+extern bool ui_menu_click_take_hover_redraw(void);
 extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
 #define UI_MENU_CLICK_PRIMARY 1
@@ -2020,6 +2023,7 @@ extern void set_sdl_touch_pane_binding_for_panel(int panel, int index, int bindi
 extern int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
 extern void sdl_touch_pane_reset_bindings_to_default(void);
 extern void sdl_touch_pane_begin_yes_no_prompt(cptr prompt);
+extern void sdl_touch_pane_begin_yes_no_prompt_lower(cptr prompt);
 extern void sdl_touch_pane_end_yes_no_prompt(void);
 extern cptr get_sdl_touch_pane_slot_name(int index);
 extern void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);

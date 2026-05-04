@@ -95,11 +95,14 @@ bool g_suppress_hidden_left_panel_overlay = false;
 static byte g_hidden_left_panel_topline_rendered_width = 0;
 
 #define STATUS_MAIN_MENU_HINT "main menu"
+#define STATUS_VIEW_LABEL "View"
+#define STATUS_VIEW_LABEL_SHORT "Vw"
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
 static void prt_status_line_top(void);
 static void prt_status_line_main_menu_hint(bool compact_centered);
+static void prt_status_line_view_button(void);
 static void prt_hidden_top_vitals(void);
 static bool status_state_text(char* out_long, size_t out_long_sz,
                               char* out_short, size_t out_short_sz,
@@ -135,15 +138,18 @@ static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
 
 static byte pointer_attack_panel_attr(int mode, byte base_attr)
 {
-    return (sdl_pointer_attack_current_mode() == mode) ? TERM_YELLOW : base_attr;
+    return sdl_pointer_attack_panel_mode_highlighted(mode) ? TERM_YELLOW
+                                                           : base_attr;
 }
 
 static byte pointer_attack_ranged_panel_attr(byte base_attr)
 {
-    int mode = sdl_pointer_attack_current_mode();
+    bool highlighted =
+        sdl_pointer_attack_panel_mode_highlighted(SDL_POINTER_ATTACK_RANGED_1)
+        || sdl_pointer_attack_panel_mode_highlighted(
+            SDL_POINTER_ATTACK_RANGED_2);
 
-    return (mode == SDL_POINTER_ATTACK_RANGED_1
-        || mode == SDL_POINTER_ATTACK_RANGED_2) ? TERM_YELLOW : base_attr;
+    return highlighted ? TERM_YELLOW : base_attr;
 }
 
 static bool pointer_attack_ammo_is_throwing(const object_type* ammo)
@@ -2434,6 +2440,8 @@ static void prt_depth(void)
     c_prt(attr, format("%7s", depths), ROW_DEPTH, COL_DEPTH);
 
     sdl_story_font_disable();
+
+    prt_status_line_view_button();
 }
 
 /*
@@ -3285,6 +3293,109 @@ static void prt_status_line_main_menu_hint(bool compact_centered)
         sdl_story_font_disable();
 }
 
+static bool status_line_choose_view_button(cptr* label, int* col, int* len)
+{
+    cptr labels[] = { STATUS_VIEW_LABEL, STATUS_VIEW_LABEL_SHORT };
+
+    if (!Term || !label || !col || !len)
+        return false;
+    if (ROW_STATUS < 0 || ROW_STATUS >= Term->hgt)
+        return false;
+
+    for (size_t i = 0; i < N_ELEMENTS(labels); i++)
+    {
+        int label_len = (int)strlen(labels[i]);
+        int label_col = Term->wid - label_len;
+        int clear_col = label_col > 0 ? label_col - 1 : label_col;
+        int clear_width = label_len + (label_col > 0 ? 1 : 0);
+
+        if (label_len <= 0 || label_col < 0)
+            continue;
+        if (!status_line_span_blank(ROW_STATUS, clear_col, clear_width))
+            continue;
+
+        *label = labels[i];
+        *col = label_col;
+        *len = label_len;
+        return true;
+    }
+
+    return false;
+}
+
+static bool status_line_right_label_matches(cptr label)
+{
+    int len;
+    int col;
+
+    if (!Term || !Term->scr || !Term->scr->c || !label)
+        return false;
+    if (ROW_STATUS < 0 || ROW_STATUS >= Term->hgt)
+        return false;
+
+    len = (int)strlen(label);
+    col = Term->wid - len;
+    if (len <= 0 || col < 0)
+        return false;
+
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char actual = (unsigned char)Term->scr->c[ROW_STATUS][col + i];
+        unsigned char expected = (unsigned char)label[i];
+
+        if (!actual || actual == (unsigned char)Term->char_blank)
+            actual = ' ';
+        if (actual != expected)
+            return false;
+    }
+
+    return true;
+}
+
+static void prt_status_line_clear_view_button(void)
+{
+    cptr labels[] = { STATUS_VIEW_LABEL, STATUS_VIEW_LABEL_SHORT };
+
+    if (!Term || ui_status_system_compact())
+        return;
+
+    for (size_t i = 0; i < N_ELEMENTS(labels); i++)
+    {
+        int len = (int)strlen(labels[i]);
+        int col = Term->wid - len;
+
+        if (col >= 0 && status_line_right_label_matches(labels[i]))
+            Term_erase(col, ROW_STATUS, len);
+    }
+}
+
+static void prt_status_line_view_button(void)
+{
+    cptr label = NULL;
+    int col = 0;
+    int len = 0;
+    byte attr;
+
+    prt_status_line_clear_view_button();
+
+    if (!status_line_choose_view_button(&label, &col, &len))
+        return;
+
+    attr = status_touch_zone_attr(SDL_STATUS_CLICK_VIEW, col, len,
+        TERM_L_BLUE);
+
+    if (ui_status_system_compact())
+    {
+        Term_putstr(col, ROW_STATUS, len, attr, label);
+    }
+    else
+    {
+        sdl_story_font_enable();
+        c_put_str(attr, label, ROW_STATUS, col);
+        sdl_story_font_disable();
+    }
+}
+
 static void prt_status_line_compact(void)
 {
     if (!Term || !p_ptr)
@@ -3547,6 +3658,7 @@ static void prt_status_line_compact(void)
         first = false;
     }
 
+    prt_status_line_view_button();
     prt_status_line_main_menu_hint(true);
 }
 

@@ -3926,14 +3926,26 @@ static void unified_look_select_sidebar_entity(unified_look_state* state,
     state->current_square_entity = 0;
 }
 
+static bool unified_look_prompt_choice_key(int choice, int* key);
+
 static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
     bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
 {
     int clicked_entity = -1;
     int click_action = UI_MENU_CLICK_PRIMARY;
+    int prompt_key = 0;
 
     if (!ui_menu_click_take_action(&clicked_entity, &click_action))
         return false;
+
+    if (unified_look_prompt_choice_key(clicked_entity, &prompt_key))
+    {
+        if (click_action != UI_MENU_CLICK_HOVER)
+            Term_keypress(prompt_key);
+        else if (need_redraw)
+            *need_redraw = true;
+        return true;
+    }
 
     if (state && state->in_sidebar_mode
         && state->selected_entity == clicked_entity)
@@ -4017,7 +4029,7 @@ static void unified_look_prompt_label(int binding, const char* fallback, char* b
 
 static bool unified_look_use_compact_layout(void)
 {
-    return Term && ((Term->hgt <= 18) || (Term->wid <= 60));
+    return Term && (Term->wid <= 60);
 }
 
 static int unified_look_status_row(void)
@@ -4048,40 +4060,241 @@ static void unified_look_put_status(cptr text)
     prt(buf, row, 0);
 }
 
-static void unified_look_print_prompt3(cptr full_text, cptr compact_text,
-    cptr tiny_text)
+enum
 {
-    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    cptr options[3];
-    cptr shortest = "";
-    int shortest_len = 100000;
+    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 12,
+    UNIFIED_LOOK_CLICK_COMMAND_BASE = -1000
+};
 
-    options[0] = full_text;
-    options[1] = compact_text;
-    options[2] = tiny_text;
+typedef struct unified_look_prompt_button
+{
+    int key;
+    cptr full;
+    cptr medium;
+    cptr compact;
+    cptr tiny;
+} unified_look_prompt_button;
 
-    for (int i = 0; i < 3; i++)
+static int unified_look_prompt_choice(int key)
+{
+    return UNIFIED_LOOK_CLICK_COMMAND_BASE - (key & 0xFF);
+}
+
+static bool unified_look_prompt_choice_key(int choice, int* key)
+{
+    int decoded;
+
+    if (choice > UNIFIED_LOOK_CLICK_COMMAND_BASE
+        || choice < UNIFIED_LOOK_CLICK_COMMAND_BASE - 0xFF)
     {
-        int len;
+        return false;
+    }
 
-        if (!options[i])
+    decoded = UNIFIED_LOOK_CLICK_COMMAND_BASE - choice;
+    if (key)
+        *key = decoded;
+
+    return true;
+}
+
+static cptr unified_look_prompt_button_text(
+    const unified_look_prompt_button* button, int variant)
+{
+    if (!button)
+        return "";
+
+    switch (variant)
+    {
+    case 0: return button->full;
+    case 1: return button->medium;
+    case 2: return button->compact;
+    default: return button->tiny;
+    }
+}
+
+static int unified_look_prompt_buttons_width(
+    const unified_look_prompt_button* buttons, int count, int variant)
+{
+    int width = 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
+
+        if (!text || !text[0])
             continue;
 
-        len = (int)strlen(options[i]);
-        if (len < shortest_len)
-        {
-            shortest = options[i];
-            shortest_len = len;
-        }
+        if (width > 0)
+            width++;
+        width += (int)strlen(text) + 2;
+    }
 
-        if (len <= term_wid)
+    return width;
+}
+
+static void unified_look_print_prompt_buttons(
+    const unified_look_prompt_button* buttons, int count)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    int row = unified_look_status_row();
+    int starts[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int ends[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int keys[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int registered = 0;
+    int variant = 3;
+    char buf[192];
+
+    if (!buttons || count <= 0)
+    {
+        unified_look_put_status("");
+        return;
+    }
+
+    if (count > UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        count = UNIFIED_LOOK_PROMPT_MAX_BUTTONS;
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (unified_look_prompt_buttons_width(buttons, count, i) <= term_wid)
         {
-            unified_look_put_status(options[i]);
-            return;
+            variant = i;
+            break;
         }
     }
 
-    unified_look_put_status(shortest);
+    buf[0] = '\0';
+    for (int i = 0; i < count; i++)
+    {
+        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
+        int start;
+        int end;
+
+        if (!text || !text[0])
+            continue;
+
+        if (buf[0])
+            SDL_strlcat(buf, " ", sizeof(buf));
+
+        start = (int)strlen(buf);
+        SDL_strlcat(buf, "[", sizeof(buf));
+        SDL_strlcat(buf, text, sizeof(buf));
+        SDL_strlcat(buf, "]", sizeof(buf));
+        end = (int)strlen(buf);
+
+        if (registered < UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        {
+            starts[registered] = start;
+            ends[registered] = end;
+            keys[registered] = buttons[i].key;
+            registered++;
+        }
+    }
+
+    unified_look_put_status(buf);
+
+    for (int i = 0; i < registered; i++)
+    {
+        ui_menu_click_add_text_span(unified_look_prompt_choice(keys[i]),
+            0, row, buf, starts[i], ends[i]);
+    }
+}
+
+static void unified_look_print_controller_prompt(
+    bool compact_look_layout, bool cursor_mode)
+{
+    char prev_label[16];
+    char next_label[16];
+    char exam_label[16];
+    char target_label[16];
+    char obj_label[16];
+    char mode_label[16];
+    char back_label[16];
+    char prev_full[32];
+    char next_full[32];
+    char exam_full[32];
+    char target_full[32];
+    char obj_full[32];
+    char mode_full[32];
+    char back_full[32];
+    cptr obj_action = compact_look_layout ? "View" : "Objects";
+    cptr mode_action = cursor_mode ? "Cursor" : "Pan";
+
+    unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+    unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+    unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+    unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+    unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+    unified_look_prompt_label('s', "Y", mode_label, sizeof(mode_label));
+    unified_look_prompt_label(ESCAPE, "Esc", back_label, sizeof(back_label));
+
+    strnfmt(prev_full, sizeof(prev_full), "%s Prev", prev_label);
+    strnfmt(next_full, sizeof(next_full), "%s Next", next_label);
+    strnfmt(exam_full, sizeof(exam_full), "%s Exam", exam_label);
+    strnfmt(target_full, sizeof(target_full), "%s Target", target_label);
+    strnfmt(obj_full, sizeof(obj_full), "%s %s", obj_label, obj_action);
+    strnfmt(mode_full, sizeof(mode_full), "%s %s", mode_label, mode_action);
+    strnfmt(back_full, sizeof(back_full), "%s Back", back_label);
+
+    {
+        const unified_look_prompt_button buttons[] = {
+            { 'e', prev_full, "Prev", "Prev", "Prv" },
+            { 'i', next_full, "Next", "Next", "Nxt" },
+            { ' ', exam_full, "Exam", "Exam", "Ex" },
+            { 'f', target_full, "Target", "Targ", "Tgt" },
+            { 'u', obj_full, obj_action, compact_look_layout ? "View" : "Obj",
+                compact_look_layout ? "View" : "Obj" },
+            { 's', mode_full, mode_action, cursor_mode ? "Curs" : "Pan",
+                cursor_mode ? "Cur" : "Pan" },
+            { ESCAPE, back_full, "Back", "Back", "Esc" },
+        };
+
+        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons));
+    }
+}
+
+static void unified_look_print_keyboard_prompt(bool cursor_mode,
+    cptr filter_action)
+{
+    char filter_full[32];
+    cptr mode_action = cursor_mode ? "Cursor" : "Pan";
+
+    if (!filter_action)
+        filter_action = "";
+
+    strnfmt(filter_full, sizeof(filter_full), "i %s", filter_action);
+
+    {
+        const unified_look_prompt_button buttons[] = {
+            { '\t', "Tab Next", "Next", "Next", "Nxt" },
+            { 'q', "q Prev", "Prev", "Prev", "Prv" },
+            { ' ', "Space Exam", "Exam", "Exam", "Ex" },
+            { 't', "t Target", "Target", "Targ", "Tgt" },
+            { 'i', filter_full, filter_action, filter_action, filter_action },
+            { 'l', "l Display", "Display", "Disp", "Dsp" },
+            { 'm', "m Monsters", "Monsters", "Mon", "Mon" },
+            { 'o', "o Objects", "Objects", "Obj", "Obj" },
+            { 'T', "T Top5", "Top5", "Top", "Top" },
+            { 's', cursor_mode ? "s Cursor" : "s Pan", mode_action,
+                cursor_mode ? "Curs" : "Pan", cursor_mode ? "Cur" : "Pan" },
+            { ESCAPE, "Esc Back", "Back", "Back", "Esc" },
+        };
+
+        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons));
+    }
+}
+
+static void unified_look_update_prompt_buttons(bool controller_controls,
+    bool compact_look_layout, bool cursor_mode, bool nearby_filter)
+{
+    if (controller_controls)
+    {
+        unified_look_print_controller_prompt(compact_look_layout, cursor_mode);
+    }
+    else
+    {
+        unified_look_print_keyboard_prompt(cursor_mode,
+            nearby_filter ? "All" : "Near");
+    }
 }
 
 static void unified_look_pan_player_for_sidebar(bool center_vertical)
@@ -4228,6 +4441,8 @@ void do_cmd_unified_look(void)
     /* Main interaction loop */
     while (!done)
     {
+        compact_look_layout = unified_look_use_compact_layout();
+
         if (need_redraw)
         {
             if (selection_redraw && overlay_saved)
@@ -4387,120 +4602,9 @@ void do_cmd_unified_look(void)
                 else
                 {
                     /* Display help text based on current mode */
-                    if (state.look_mode == 0)
-                    {
-                        if (controller_controls) {
-                            char prev_label[16];
-                            char next_label[16];
-                            char exam_label[16];
-                            char target_label[16];
-                            char obj_label[16];
-                            char pan_label[16];
-                            char back_label[16];
-                            char prompt_buf[160];
-                            char compact_buf[160];
-                            char tiny_buf[128];
-                            const char* obj_action = compact_look_layout ? "View" : "Obj";
-
-                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
-                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
-                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
-                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
-                            unified_look_prompt_label('s', "Y", pan_label, sizeof(pan_label));
-                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Pan [%s]=Back",
-                                next_label, prev_label, exam_label, target_label,
-                                obj_label, obj_action, pan_label, back_label);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Pan",
-                                next_label, prev_label, exam_label,
-                                target_label, obj_label, obj_action,
-                                pan_label);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "%s Pan %s %s %s/%s %s %s", pan_label,
-                                obj_label, obj_action, next_label,
-                                prev_label, exam_label, target_label);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        } else {
-                            char prompt_buf[192];
-                            char compact_buf[160];
-                            char tiny_buf[96];
-                            const char* filter_action = state.nearby_filter ? "All" : "Near";
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
-                                filter_action);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan",
-                                filter_action);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Tab/q s Pan Spc t i%s l/m/o/T",
-                                filter_action);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        }
-                    }
-                    else
-                    {
-                        if (controller_controls) {
-                            char prev_label[16];
-                            char next_label[16];
-                            char exam_label[16];
-                            char target_label[16];
-                            char obj_label[16];
-                            char cursor_label[16];
-                            char back_label[16];
-                            char prompt_buf[160];
-                            char compact_buf[160];
-                            char tiny_buf[128];
-                            const char* obj_action = compact_look_layout ? "View" : "Obj";
-
-                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
-                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
-                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
-                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
-                            unified_look_prompt_label('s', "Y", cursor_label, sizeof(cursor_label));
-                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Curs [%s]=Back",
-                                next_label, prev_label, exam_label, target_label,
-                                obj_label, obj_action, cursor_label, back_label);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Curs",
-                                next_label, prev_label, exam_label,
-                                target_label, obj_label, obj_action,
-                                cursor_label);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "%s Curs %s %s %s/%s %s %s", cursor_label,
-                                obj_label, obj_action, next_label,
-                                prev_label, exam_label, target_label);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        } else {
-                            char prompt_buf[192];
-                            char compact_buf[160];
-                            char tiny_buf[96];
-                            const char* filter_action = state.nearby_filter ? "All" : "Near";
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
-                                filter_action);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs",
-                                filter_action);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Tab/q s Curs Spc t i%s l/m/o/T",
-                                filter_action);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        }
-                    }
+                    unified_look_update_prompt_buttons(controller_controls,
+                        compact_look_layout, state.look_mode != 0,
+                        state.nearby_filter);
                 }
             }
             
@@ -4542,6 +4646,8 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
+                if (ui_menu_click_take_hover_redraw())
+                    need_redraw = true;
                 if (unified_look_apply_sidebar_pointer_action(&state,
                         compact_look_layout, &need_redraw, &selection_redraw))
                     break;
@@ -5597,6 +5703,10 @@ cycle_display_modes:
                 continue;
             }
             
+            case 'f':
+                if (!controller_controls)
+                    goto command_key;
+                /* fall through */
             case 't':
             {
                 /* Target monster at cursor position or selected position */

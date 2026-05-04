@@ -598,8 +598,11 @@ static bool confirm_enter_morgoth_hall(void)
 {
     char ch;
     int wid, hgt;
+    int title_row;
+    int body_row;
+    bool compact;
 
-    static const char* text[] = {
+    static const char* text_wide[] = {
         "Beyond this passage lies the black hall of Morgoth Bauglir,",
         "the Dark Enemy, and the last of the Iron Hells.",
         "",
@@ -607,12 +610,26 @@ static bool confirm_enter_morgoth_hall(void)
         "Steel yourself: to enter is to choose doom or glory.",
         NULL,
     };
+    static const char* text_compact[] = {
+        "Beyond this passage lies the black hall",
+        "of Morgoth Bauglir, the Dark Enemy,",
+        "and the last of the Iron Hells.",
+        "",
+        "Pass within; return only with a Silmaril.",
+        "Steel yourself: enter and choose doom or glory.",
+        NULL,
+    };
+    const char** text;
 
     /* Paranoia */
     message_flush();
 
     /* Get terminal size */
     Term_get_size(&wid, &hgt);
+    compact = (wid < 64) || (hgt <= 18);
+    text = compact ? text_compact : text_wide;
+    title_row = (hgt <= 16) ? 0 : (compact ? 1 : 2);
+    body_row = (hgt <= 16) ? 2 : (compact ? 3 : 6);
 
     /* Save screen */
     screen_save();
@@ -624,12 +641,12 @@ static bool confirm_enter_morgoth_hall(void)
         int col = (wid - (int)strlen(title)) / 2;
         if (col < 1)
             col = 1;
-        Term_putstr(col, 2, -1, TERM_L_RED, title);
+        Term_putstr(col, title_row, -1, TERM_L_RED, title);
     }
 
     /* Body */
     {
-        int row = 6;
+        int row = body_row;
         for (int i = 0; text[i] && row < hgt - 5; ++i)
         {
             const char* line = text[i];
@@ -681,7 +698,7 @@ static bool confirm_enter_morgoth_hall(void)
             col = 1;
         Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
     }
-    sdl_touch_pane_begin_yes_no_prompt("Enter Morgoth's hall?");
+    sdl_touch_pane_begin_yes_no_prompt_lower("Enter Morgoth's hall?");
     Term_fresh();
 
     /* Get an acceptable answer */
