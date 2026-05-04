@@ -515,6 +515,9 @@ static bool thrall_quest_item_available(byte quest_item)
     if (quest_item == THRALL_QUEST_LANTERN)
         return p_ptr && p_ptr->depth >= 6;
 
+    if (quest_item == THRALL_QUEST_MALLORN)
+        return p_ptr && p_ptr->depth >= 3;
+
     return true;
 }
 
