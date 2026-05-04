@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "sdl-config.h"
 
 /* true if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = false;
@@ -2191,7 +2192,7 @@ static bool object_lore_select_segment(cptr raw,
     return (out[0] != '\0');
 }
 
-static cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
+cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
     size_t out_sz)
 {
     cptr raw;
@@ -2799,6 +2800,10 @@ static void object_info_screen_capture_view(
             scroll = max_scroll;
 
         object_info_screen_capture_draw(capture, scroll);
+        ui_scroll_area_begin(0, MAX(0, term_hgt - 1),
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_tap_key(ESCAPE);
 
         ch = inkey();
         dir = target_dir(ch);
@@ -2831,7 +2836,13 @@ static void object_info_screen_capture_view(
         {
             break;
         }
+        else
+        {
+            break;
+        }
     }
+
+    ui_scroll_area_clear();
 }
 
 void object_info_screen_multi(const object_type** objects, const char** headings, int count)

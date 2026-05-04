@@ -21,14 +21,65 @@ def gameVersionCode =
         (gameVersionParts[2] * 100) +
         gameVersionParts[3]
 
+def readOptionalBuildValue = { String name ->
+    def propertyValue = project.findProperty(name)
+    if (propertyValue != null && propertyValue.toString().trim().length() > 0) {
+        return propertyValue.toString()
+    }
+
+    def environmentValue = System.getenv(name)
+    if (environmentValue != null && environmentValue.trim().length() > 0) {
+        return environmentValue
+    }
+
+    return null
+}
+
+def androidCompileSdk = (readOptionalBuildValue('SIL_MORE_COMPILE_SDK') ?: '34') as Integer
+def androidTargetSdk = (readOptionalBuildValue('SIL_MORE_TARGET_SDK') ?: '34') as Integer
+
+def releaseStoreFile = readOptionalBuildValue('SIL_MORE_RELEASE_STORE_FILE')
+def releaseStorePassword = readOptionalBuildValue('SIL_MORE_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = readOptionalBuildValue('SIL_MORE_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = readOptionalBuildValue('SIL_MORE_RELEASE_KEY_PASSWORD')
+def releaseSigningValues = [
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+]
+def hasAnyReleaseSigningValue = releaseSigningValues.any { it != null }
+def hasReleaseSigning = releaseSigningValues.every { it != null }
+def requireReleaseSigning =
+        (readOptionalBuildValue('SIL_MORE_REQUIRE_RELEASE_SIGNING') ?: 'false').toBoolean()
+
+if ((hasAnyReleaseSigningValue || requireReleaseSigning) && !hasReleaseSigning) {
+    throw new GradleException(
+            'Incomplete release signing configuration. Set SIL_MORE_RELEASE_STORE_FILE, ' +
+            'SIL_MORE_RELEASE_STORE_PASSWORD, SIL_MORE_RELEASE_KEY_ALIAS, and ' +
+            'SIL_MORE_RELEASE_KEY_PASSWORD.'
+    )
+}
+
 android {
     namespace 'com.silqh.silmore'
-    compileSdk 34
+    compileSdk androidCompileSdk
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId 'com.silqh.silmore'
         minSdk 21
-        targetSdk 34
+        targetSdk androidTargetSdk
         versionCode gameVersionCode
         versionName gameVersion
 
@@ -48,7 +99,7 @@ android {
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 

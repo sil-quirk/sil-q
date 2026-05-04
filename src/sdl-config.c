@@ -363,6 +363,209 @@ static int parse_min_terminal_mode(const char* value)
     return SDL_MIN_TERMINAL_NORMAL;
 }
 
+static const char* touch_profile_to_string(int profile)
+{
+    switch (profile) {
+        case SDL_TOUCH_PROFILE_CORNERS: return "CORNERS";
+        case SDL_TOUCH_PROFILE_ROUND_WHEEL: return "ROUND_WHEEL";
+        case SDL_TOUCH_PROFILE_TOUCH_PANE:
+        default:
+            return "TOUCH_PANE";
+    }
+}
+
+static int normalize_touch_profile(int profile)
+{
+    if (profile >= SDL_TOUCH_PROFILE_TOUCH_PANE
+        && profile < SDL_TOUCH_PROFILE_COUNT)
+    {
+        return profile;
+    }
+
+    return SDL_TOUCH_PROFILE_TOUCH_PANE;
+}
+
+static int parse_touch_profile(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_PROFILE_TOUCH_PANE;
+    if (strcmp(value, "TOUCH_PANE") == 0) return SDL_TOUCH_PROFILE_TOUCH_PANE;
+    if (strcmp(value, "TOUCH_PANEL") == 0) return SDL_TOUCH_PROFILE_TOUCH_PANE;
+    if (strcmp(value, "CORNERS") == 0) return SDL_TOUCH_PROFILE_CORNERS;
+    if (strcmp(value, "ROUND_WHEEL") == 0) return SDL_TOUCH_PROFILE_ROUND_WHEEL;
+    if (strcmp(value, "ROUND") == 0) return SDL_TOUCH_PROFILE_ROUND_WHEEL;
+    return SDL_TOUCH_PROFILE_TOUCH_PANE;
+}
+
+static const char* touch_top_panel_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_TOUCH_TOP_PANEL_MODE_LONG: return "LONG";
+        case SDL_TOUCH_TOP_PANEL_MODE_SHORT:
+        default:
+            return "SHORT";
+    }
+}
+
+static int normalize_touch_top_panel_mode(int mode)
+{
+    if (mode == SDL_TOUCH_TOP_PANEL_MODE_SHORT
+        || mode == SDL_TOUCH_TOP_PANEL_MODE_LONG)
+    {
+        return mode;
+    }
+
+    return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+}
+
+static int parse_touch_top_panel_mode(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    if (strcmp(value, "LONG") == 0) return SDL_TOUCH_TOP_PANEL_MODE_LONG;
+    if (strcmp(value, "EXTENDED") == 0) return SDL_TOUCH_TOP_PANEL_MODE_LONG;
+    if (strcmp(value, "SHORT") == 0) return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+}
+
+static const char* touch_movement_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_TOUCH_MOVEMENT_OFF: return "OFF";
+        case SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY: return "LONG_PRESS_ONLY";
+        case SDL_TOUCH_MOVEMENT_ON:
+        default:
+            return "ON";
+    }
+}
+
+static int normalize_touch_movement_mode(int mode)
+{
+    if (mode == SDL_TOUCH_MOVEMENT_OFF
+        || mode == SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY)
+    {
+        return mode;
+    }
+
+    return SDL_TOUCH_MOVEMENT_ON;
+}
+
+static int parse_touch_movement_mode(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_MOVEMENT_ON;
+    if (strcmp(value, "ON") == 0) return SDL_TOUCH_MOVEMENT_ON;
+    if (strcmp(value, "OFF") == 0) return SDL_TOUCH_MOVEMENT_OFF;
+    if (strcmp(value, "LONG_PRESS_ONLY") == 0) return SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY;
+    if (strcmp(value, "LONG_CLICK_ONLY") == 0) return SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY;
+    return SDL_TOUCH_MOVEMENT_ON;
+}
+
+static const char* touch_zone_overlay_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_TOUCH_ZONE_OVERLAY_OFF: return "OFF";
+        case SDL_TOUCH_ZONE_OVERLAY_BORDERS: return "BORDERS";
+        case SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS: return "BORDERS_LABELS";
+        case SDL_TOUCH_ZONE_OVERLAY_MARKERS:
+        default:
+            return "MARKERS";
+    }
+}
+
+static int normalize_touch_zone_overlay_mode(int mode)
+{
+    if (mode >= SDL_TOUCH_ZONE_OVERLAY_OFF
+        && mode < SDL_TOUCH_ZONE_OVERLAY_COUNT)
+    {
+        return mode;
+    }
+
+    return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+}
+
+static int parse_touch_zone_overlay_mode(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    if (strcmp(value, "OFF") == 0 || strcmp(value, "NONE") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_OFF;
+    if (strcmp(value, "MARKERS") == 0 || strcmp(value, "SMALL_LINES") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    if (strcmp(value, "BORDERS") == 0 || strcmp(value, "FULL_BORDERS") == 0)
+        return SDL_TOUCH_ZONE_OVERLAY_BORDERS;
+    if (strcmp(value, "BORDERS_LABELS") == 0
+        || strcmp(value, "FULL_BORDERS_LABELS") == 0
+        || strcmp(value, "BORDERS_WITH_NAMES") == 0)
+    {
+        return SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS;
+    }
+    return SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+}
+
+static const char* touch_corner_up_down_side_to_string(int side)
+{
+    switch (side) {
+        case SDL_TOUCH_CORNER_UP_DOWN_LEFT: return "LEFT";
+        case SDL_TOUCH_CORNER_UP_DOWN_RIGHT:
+        default:
+            return "RIGHT";
+    }
+}
+
+static int normalize_touch_corner_up_down_side(int side)
+{
+    if (side == SDL_TOUCH_CORNER_UP_DOWN_LEFT
+        || side == SDL_TOUCH_CORNER_UP_DOWN_RIGHT)
+    {
+        return side;
+    }
+
+    return SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
+}
+
+static int parse_touch_corner_up_down_side(const char* value)
+{
+    if (!value)
+        return SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
+    if (strcmp(value, "LEFT") == 0) return SDL_TOUCH_CORNER_UP_DOWN_LEFT;
+    if (strcmp(value, "RIGHT") == 0) return SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
+    return SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
+}
+
+static const char* mouse_movement_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_MOUSE_MOVEMENT_OFF: return "OFF";
+        case SDL_MOUSE_MOVEMENT_RIGHT_ONLY: return "RIGHT_ONLY";
+        case SDL_MOUSE_MOVEMENT_ON:
+        default:
+            return "ON";
+    }
+}
+
+static int normalize_mouse_movement_mode(int mode)
+{
+    if (mode == SDL_MOUSE_MOVEMENT_OFF
+        || mode == SDL_MOUSE_MOVEMENT_RIGHT_ONLY)
+    {
+        return mode;
+    }
+
+    return SDL_MOUSE_MOVEMENT_ON;
+}
+
+static int parse_mouse_movement_mode(const char* value)
+{
+    if (!value)
+        return SDL_MOUSE_MOVEMENT_ON;
+    if (strcmp(value, "ON") == 0) return SDL_MOUSE_MOVEMENT_ON;
+    if (strcmp(value, "OFF") == 0) return SDL_MOUSE_MOVEMENT_OFF;
+    if (strcmp(value, "RIGHT_ONLY") == 0) return SDL_MOUSE_MOVEMENT_RIGHT_ONLY;
+    if (strcmp(value, "RIGHT_CLICK_ONLY") == 0) return SDL_MOUSE_MOVEMENT_RIGHT_ONLY;
+    return SDL_MOUSE_MOVEMENT_ON;
+}
+
 static const char* hidden_left_panel_mode_to_string(int mode)
 {
     switch (mode) {
@@ -529,6 +732,8 @@ static char* read_file_contents(const char* filename)
 }
 
 static bool g_app_intro_seen = false;
+static bool g_app_touch_tutorial_seen = false;
+static bool g_app_mouse_tutorial_seen = false;
 
 static const byte app_interface_options[] = {
     OPT_quick_messages, OPT_auto_more, OPT_system_beep, OPT_easy_main_menu,
@@ -778,6 +983,8 @@ void sdl_config_load_app_options(const char* filename)
         config_exists = SDL_GetPathInfo(filename, NULL);
 
     g_app_intro_seen = config_exists;
+    g_app_touch_tutorial_seen = false;
+    g_app_mouse_tutorial_seen = false;
 
     if (!filename || !filename[0]) {
         log_warn("sdl_config_load_app_options: no config filename provided");
@@ -812,6 +1019,14 @@ void sdl_config_load_app_options(const char* filename)
     item = cJSON_GetObjectItemCaseSensitive(app_options, "introSeen");
     if (cJSON_IsBool(item))
         g_app_intro_seen = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(app_options, "touchTutorialSeen");
+    if (cJSON_IsBool(item))
+        g_app_touch_tutorial_seen = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(app_options, "mouseTutorialSeen");
+    if (cJSON_IsBool(item))
+        g_app_mouse_tutorial_seen = cJSON_IsTrue(item);
 
     sdl_config_load_app_option_group(app_options, "interface", app_interface_options);
     sdl_config_load_app_option_group(app_options, "text", app_text_options);
@@ -857,6 +1072,26 @@ void sdl_config_mark_intro_seen(void)
     g_app_intro_seen = true;
 }
 
+bool sdl_config_touch_tutorial_seen(void)
+{
+    return g_app_touch_tutorial_seen;
+}
+
+void sdl_config_mark_touch_tutorial_seen(void)
+{
+    g_app_touch_tutorial_seen = true;
+}
+
+bool sdl_config_mouse_tutorial_seen(void)
+{
+    return g_app_mouse_tutorial_seen;
+}
+
+void sdl_config_mark_mouse_tutorial_seen(void)
+{
+    g_app_mouse_tutorial_seen = true;
+}
+
 static void sdl_config_load_touch_binding_array(cJSON* array, int* dst, int max_count)
 {
     int count;
@@ -885,6 +1120,118 @@ static void sdl_config_load_touch_label_array(cJSON* array, char dst[][SDL_TOUCH
         if (cJSON_IsString(label) && label->valuestring) {
             SDL_strlcpy(dst[i], label->valuestring, SDL_TOUCH_PANE_LABEL_LEN);
         }
+    }
+}
+
+static void sdl_config_migrate_touch_pane_binding(struct sdl_config* config,
+    int panel, int index, int old_binding, int new_binding, cptr message)
+{
+    int* bindings;
+    char (*labels)[SDL_TOUCH_PANE_LABEL_LEN];
+
+    if (!config)
+        return;
+    if (panel < 0 || panel >= SDL_TOUCH_PANE_PANEL_COUNT)
+        return;
+    if (index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+        return;
+
+    if (panel == SDL_TOUCH_PANE_PANEL_SECOND) {
+        bindings = config->touch_pane_second_bindings;
+        labels = config->touch_pane_second_labels;
+    } else {
+        bindings = config->touch_pane_bindings;
+        labels = config->touch_pane_labels;
+    }
+
+    if (bindings[index] != old_binding || labels[index][0])
+        return;
+
+    bindings[index] = new_binding;
+    if (message && message[0])
+        log_info("%s", message);
+}
+
+static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
+{
+    static const int top_panel_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        'z', 'h', 'i', 'a', 'l', 'f',
+    };
+    static const int top_panel_long_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        'Z', '\t', 'e', 'p', 'j', 'F',
+    };
+
+    if (!config)
+        return;
+
+    memcpy(config->touch_top_panel_bindings, top_panel_defaults,
+        sizeof(top_panel_defaults));
+    memcpy(config->touch_top_panel_long_bindings, top_panel_long_defaults,
+        sizeof(top_panel_long_defaults));
+}
+
+static void sdl_config_migrate_touch_top_panel_layout(
+    struct sdl_config* config, int tap_count, int long_count)
+{
+    int old_taps[4] = { 0 };
+    int old_longs[4] = { 0 };
+    int saved_taps[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int saved_longs[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    bool old_default_taps;
+    bool old_default_longs;
+
+    if (!config)
+        return;
+
+    memcpy(saved_taps, config->touch_top_panel_bindings, sizeof(saved_taps));
+    memcpy(saved_longs, config->touch_top_panel_long_bindings,
+        sizeof(saved_longs));
+    if (tap_count == 4)
+        memcpy(old_taps, config->touch_top_panel_bindings, sizeof(old_taps));
+    if (long_count == 4)
+        memcpy(old_longs, config->touch_top_panel_long_bindings,
+            sizeof(old_longs));
+
+    old_default_taps = tap_count == 4
+        && config->touch_top_panel_bindings[0] == 'h'
+        && config->touch_top_panel_bindings[1] == 'i'
+        && config->touch_top_panel_bindings[2] == 'j'
+        && config->touch_top_panel_bindings[3] == 'f';
+    old_default_longs = long_count == 4
+        && config->touch_top_panel_long_bindings[0] == '\t'
+        && config->touch_top_panel_long_bindings[1] == 'e'
+        && config->touch_top_panel_long_bindings[2] == 's'
+        && config->touch_top_panel_long_bindings[3] == 'F';
+
+    if (old_default_taps && old_default_longs) {
+        sdl_config_set_default_top_panel_bindings(config);
+        log_info("Migrated default top widget buttons to short/long layout");
+        return;
+    }
+
+    if (tap_count == 4 || long_count == 4) {
+        sdl_config_set_default_top_panel_bindings(config);
+        if (tap_count != 4)
+            memcpy(config->touch_top_panel_bindings, saved_taps,
+                sizeof(saved_taps));
+        if (long_count != 4)
+            memcpy(config->touch_top_panel_long_bindings, saved_longs,
+                sizeof(saved_longs));
+    }
+
+    if (tap_count == 4) {
+        for (int i = 0; i < 4; i++)
+            config->touch_top_panel_bindings[i + 1] = old_taps[i];
+        if (long_count != 4)
+            log_info("Shifted four-button top widget tap bindings into short layout");
+    }
+
+    if (long_count == 4) {
+        for (int i = 0; i < 4; i++)
+            config->touch_top_panel_long_bindings[i + 1] = old_longs[i];
+        log_info((tap_count == 4)
+            ? "Shifted four-button top widget bindings into short layout"
+            : "Shifted four-button top widget long-tap bindings into short layout");
     }
 }
 
@@ -1686,6 +2033,13 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
     }
 
     {
+        cJSON* legacy_swipe_enabled = NULL;
+        cJSON* legacy_swipe_bindings = NULL;
+        bool saw_touch_control_swipe_enabled = false;
+        bool saw_touch_control_swipe_bindings = false;
+        bool saw_touch_control_top_panel_mode = false;
+        int top_panel_bindings_count = -1;
+        int top_panel_long_bindings_count = -1;
         cJSON* touch_pane = cJSON_GetObjectItemCaseSensitive(root, "touchPane");
         if (cJSON_IsObject(touch_pane)) {
             cJSON* bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "bindings");
@@ -1693,8 +2047,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             cJSON* second_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondBindings");
             cJSON* second_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "secondLabels");
             cJSON* panel_names = cJSON_GetObjectItemCaseSensitive(touch_pane, "panelNames");
-            cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeEnabled");
-            cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeBindings");
+            cJSON* show_key_labels = cJSON_GetObjectItemCaseSensitive(touch_pane, "showKeyLabels");
+            cJSON* inv_equip_cycle = cJSON_GetObjectItemCaseSensitive(touch_pane,
+                "inventoryEquipmentCycle");
+            bool old_touch_pane_defaults = !cJSON_IsBool(show_key_labels);
+            legacy_swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeEnabled");
+            legacy_swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_pane, "swipeBindings");
             if (cJSON_IsArray(bindings)) {
                 int count = cJSON_GetArraySize(bindings);
                 if (count == 21) {
@@ -1749,21 +2107,399 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 log_debug("Loaded touchPane.panelNames (%d entries)", count);
             }
 
-            if (cJSON_IsBool(swipe_enabled)) {
-                config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
-                log_debug("Loaded touchPane.swipeEnabled: %s",
-                    config->touch_swipe_enabled ? "true" : "false");
+            if (cJSON_IsBool(show_key_labels)) {
+                config->touch_pane_key_labels_visible =
+                    cJSON_IsTrue(show_key_labels);
+                log_debug("Loaded touchPane.showKeyLabels: %s",
+                    config->touch_pane_key_labels_visible ? "true" : "false");
             }
 
-            if (cJSON_IsArray(swipe_bindings)) {
-                int count = cJSON_GetArraySize(swipe_bindings);
-                sdl_config_load_touch_binding_array(swipe_bindings, config->touch_swipe_bindings,
-                    GAMEPAD_STICK_DIR_COUNT);
-                log_debug("Loaded touchPane.swipeBindings (%d entries)", count);
+            if (cJSON_IsBool(inv_equip_cycle)) {
+                config->touch_pane_inventory_equipment_cycle =
+                    cJSON_IsTrue(inv_equip_cycle);
+                log_debug("Loaded touchPane.inventoryEquipmentCycle: %s",
+                    config->touch_pane_inventory_equipment_cycle ? "true" : "false");
+            }
+
+            if (old_touch_pane_defaults)
+                sdl_config_migrate_touch_pane_binding(config,
+                    SDL_TOUCH_PANE_PANEL_MAIN, 1, GAMEPAD_BIND_CTRL, 'S',
+                    "Migrated default touch pane Ctrl button to Stealth");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 0, TOUCH_PANE_BIND_INHERIT,
+                GAMEPAD_BIND_CTRL,
+                "Migrated default touch pane Esc second-panel button to Ctrl");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_MAIN, 3, 'e', 'h',
+                "Migrated default touch pane Equip button to Char");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_MAIN, 5, '-', 'j',
+                "Migrated default touch pane Fletch button to Supply");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 1, TOUCH_PANE_BIND_INHERIT, 'X',
+                "Migrated default touch pane Stealth second-panel button to Exchange");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 3, '0', '\t',
+                "Migrated default touch pane Char second-panel button to Ability");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 4, '-', 'e',
+                "Migrated default touch pane Inv second-panel button to Equip");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 7, 'S', '0',
+                "Migrated default touch pane Sing second-panel button to Smith");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 5, 'q', '-',
+                "Migrated default touch pane Supply second-panel button to Fletch");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 18, 'L', 'M',
+                "Migrated default touch pane View second-panel button to Map");
+            sdl_config_migrate_touch_pane_binding(config,
+                SDL_TOUCH_PANE_PANEL_SECOND, 19, 'X', 'q',
+                "Migrated default touch pane Desc second-panel button to Quaff");
+
+            if (old_touch_pane_defaults
+                && strcmp(config->touch_pane_panel_names[
+                    SDL_TOUCH_PANE_PANEL_SECOND], "Shift") == 0)
+            {
+                SDL_strlcpy(config->touch_pane_panel_names[
+                        SDL_TOUCH_PANE_PANEL_SECOND], "2nd Panel",
+                    sizeof(config->touch_pane_panel_names[
+                        SDL_TOUCH_PANE_PANEL_SECOND]));
+                log_info("Migrated default touch pane Shift panel name to 2nd Panel");
             }
         } else {
             log_warn("'touchPane' object not found in JSON");
         }
+
+        {
+            cJSON* touch_control = cJSON_GetObjectItemCaseSensitive(root, "touchControl");
+            if (cJSON_IsObject(touch_control)) {
+                cJSON* profile = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "profile");
+                cJSON* touch_pane_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "touchPaneDefaultOpen");
+                cJSON* menu_commands = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "menuCommandsEnabled");
+                cJSON* inventory_menu_commands = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "inventoryEquipmentMenuCommandsEnabled");
+                cJSON* supply_menu_commands = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "supplyMenuCommandsEnabled");
+                cJSON* other_menu_commands = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "otherMenuCommandsEnabled");
+                cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "movementMode");
+                cJSON* round_movement = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "roundMovementLayerEnabled");
+                cJSON* corner_button_overlay = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonOverlayMode");
+                cJSON* corner_button_markers = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonMarkersEnabled");
+                cJSON* corner_button_borders = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonBordersEnabled");
+                cJSON* corner_button_center_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonCenterBindings");
+                cJSON* corner_button_up_down_side = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonUpDownSide");
+                cJSON* corner_button_action_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "cornerButtonActionBindings");
+                cJSON* top_panel_mode = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelMode");
+                cJSON* top_panel_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelDefaultOpen");
+                cJSON* top_panel_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelBindings");
+                cJSON* top_panel_long_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelLongBindings");
+                cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "swipeEnabled");
+                cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "swipeBindings");
+
+                if (cJSON_IsString(profile) && profile->valuestring) {
+                    config->touch_profile =
+                        parse_touch_profile(profile->valuestring);
+                    log_debug("Loaded touchControl.profile: %s",
+                        touch_profile_to_string(config->touch_profile));
+                } else if (cJSON_IsNumber(profile)) {
+                    config->touch_profile =
+                        normalize_touch_profile(profile->valueint);
+                    log_debug("Loaded numeric touchControl.profile: %s",
+                        touch_profile_to_string(config->touch_profile));
+                }
+
+                if (cJSON_IsBool(touch_pane_default_open)) {
+                    config->touch_pane_default_open =
+                        cJSON_IsTrue(touch_pane_default_open);
+                    log_debug("Loaded touchControl.touchPaneDefaultOpen: %s",
+                        config->touch_pane_default_open ? "true" : "false");
+                }
+
+                if (cJSON_IsBool(menu_commands)) {
+                    bool value = cJSON_IsTrue(menu_commands);
+
+                    for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
+                        config->touch_menu_command_enabled[i] = value;
+                    log_debug("Loaded legacy touchControl.menuCommandsEnabled: %s",
+                        value ? "true" : "false");
+                }
+
+                if (cJSON_IsBool(inventory_menu_commands)) {
+                    config->touch_menu_command_enabled[
+                        SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT]
+                        = cJSON_IsTrue(inventory_menu_commands);
+                    log_debug("Loaded touchControl.inventoryEquipmentMenuCommandsEnabled: %s",
+                        config->touch_menu_command_enabled[
+                            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT] ? "true" : "false");
+                }
+
+                if (cJSON_IsBool(supply_menu_commands)) {
+                    config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_SUPPLY]
+                        = cJSON_IsTrue(supply_menu_commands);
+                    log_debug("Loaded touchControl.supplyMenuCommandsEnabled: %s",
+                        config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_SUPPLY]
+                            ? "true" : "false");
+                }
+
+                if (cJSON_IsBool(other_menu_commands)) {
+                    config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]
+                        = cJSON_IsTrue(other_menu_commands);
+                    log_debug("Loaded touchControl.otherMenuCommandsEnabled: %s",
+                        config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]
+                            ? "true" : "false");
+                }
+
+                if (cJSON_IsString(movement_mode) && movement_mode->valuestring) {
+                    config->touch_movement_mode =
+                        parse_touch_movement_mode(movement_mode->valuestring);
+                    log_debug("Loaded touchControl.movementMode: %s",
+                        touch_movement_mode_to_string(config->touch_movement_mode));
+                } else if (cJSON_IsNumber(movement_mode)) {
+                    config->touch_movement_mode =
+                        normalize_touch_movement_mode(movement_mode->valueint);
+                    log_debug("Loaded numeric touchControl.movementMode: %s",
+                        touch_movement_mode_to_string(config->touch_movement_mode));
+                }
+
+                if (cJSON_IsBool(round_movement)) {
+                    config->touch_round_movement_enabled =
+                        cJSON_IsTrue(round_movement);
+                    log_debug("Loaded touchControl.roundMovementLayerEnabled: %s",
+                        config->touch_round_movement_enabled ? "true" : "false");
+                }
+
+                if (cJSON_IsString(corner_button_overlay)
+                    && corner_button_overlay->valuestring)
+                {
+                    config->touch_zone_overlay_mode =
+                        parse_touch_zone_overlay_mode(
+                            corner_button_overlay->valuestring);
+                    log_debug("Loaded touchControl.cornerButtonOverlayMode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                } else if (cJSON_IsNumber(corner_button_overlay)) {
+                    config->touch_zone_overlay_mode =
+                        normalize_touch_zone_overlay_mode(
+                            corner_button_overlay->valueint);
+                    log_debug("Loaded numeric touchControl.cornerButtonOverlayMode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                } else if (cJSON_IsBool(corner_button_borders)
+                    || cJSON_IsBool(corner_button_markers))
+                {
+                    bool borders = cJSON_IsBool(corner_button_borders)
+                        && cJSON_IsTrue(corner_button_borders);
+                    bool markers = !cJSON_IsBool(corner_button_markers)
+                        || cJSON_IsTrue(corner_button_markers);
+
+                    config->touch_zone_overlay_mode = borders
+                        ? SDL_TOUCH_ZONE_OVERLAY_BORDERS
+                        : (markers ? SDL_TOUCH_ZONE_OVERLAY_MARKERS
+                                   : SDL_TOUCH_ZONE_OVERLAY_OFF);
+                    log_debug("Migrated touchControl corner button overlay mode: %s",
+                        touch_zone_overlay_mode_to_string(
+                            config->touch_zone_overlay_mode));
+                }
+
+                if (cJSON_IsArray(corner_button_center_bindings)) {
+                    int count = cJSON_GetArraySize(corner_button_center_bindings);
+                    sdl_config_load_touch_binding_array(
+                        corner_button_center_bindings,
+                        config->touch_zone_center_bindings,
+                        SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
+                    log_debug("Loaded touchControl.cornerButtonCenterBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsString(corner_button_up_down_side)
+                    && corner_button_up_down_side->valuestring)
+                {
+                    config->touch_corner_up_down_side =
+                        parse_touch_corner_up_down_side(
+                            corner_button_up_down_side->valuestring);
+                    log_debug("Loaded touchControl.cornerButtonUpDownSide: %s",
+                        touch_corner_up_down_side_to_string(
+                            config->touch_corner_up_down_side));
+                } else if (cJSON_IsNumber(corner_button_up_down_side)) {
+                    config->touch_corner_up_down_side =
+                        normalize_touch_corner_up_down_side(
+                            corner_button_up_down_side->valueint);
+                    log_debug("Loaded numeric touchControl.cornerButtonUpDownSide: %s",
+                        touch_corner_up_down_side_to_string(
+                            config->touch_corner_up_down_side));
+                }
+
+                if (cJSON_IsArray(corner_button_action_bindings)) {
+                    int count = cJSON_GetArraySize(corner_button_action_bindings);
+                    sdl_config_load_touch_binding_array(
+                        corner_button_action_bindings,
+                        config->touch_corner_action_bindings,
+                        SDL_TOUCH_CORNER_ACTION_BINDING_COUNT);
+                    log_debug("Loaded touchControl.cornerButtonActionBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsString(top_panel_mode)
+                    && top_panel_mode->valuestring)
+                {
+                    saw_touch_control_top_panel_mode = true;
+                    config->touch_top_panel_mode =
+                        parse_touch_top_panel_mode(
+                            top_panel_mode->valuestring);
+                    log_debug("Loaded touchControl.topPanelMode: %s",
+                        touch_top_panel_mode_to_string(
+                            config->touch_top_panel_mode));
+                } else if (cJSON_IsNumber(top_panel_mode)) {
+                    saw_touch_control_top_panel_mode = true;
+                    config->touch_top_panel_mode =
+                        normalize_touch_top_panel_mode(
+                            top_panel_mode->valueint);
+                    log_debug("Loaded numeric touchControl.topPanelMode: %s",
+                        touch_top_panel_mode_to_string(
+                            config->touch_top_panel_mode));
+                }
+
+                if (cJSON_IsBool(top_panel_default_open)) {
+                    config->touch_top_panel_default_open =
+                        cJSON_IsTrue(top_panel_default_open);
+                    log_debug("Loaded touchControl.topPanelDefaultOpen: %s",
+                        config->touch_top_panel_default_open ? "true" : "false");
+                }
+
+                if (cJSON_IsArray(top_panel_bindings)) {
+                    int count = cJSON_GetArraySize(top_panel_bindings);
+                    top_panel_bindings_count = count;
+                    sdl_config_load_touch_binding_array(
+                        top_panel_bindings,
+                        config->touch_top_panel_bindings,
+                        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.topPanelBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsArray(top_panel_long_bindings)) {
+                    int count = cJSON_GetArraySize(top_panel_long_bindings);
+                    top_panel_long_bindings_count = count;
+                    sdl_config_load_touch_binding_array(
+                        top_panel_long_bindings,
+                        config->touch_top_panel_long_bindings,
+                        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.topPanelLongBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsBool(swipe_enabled)) {
+                    saw_touch_control_swipe_enabled = true;
+                    config->touch_swipe_enabled = cJSON_IsTrue(swipe_enabled);
+                    log_debug("Loaded touchControl.swipeEnabled: %s",
+                        config->touch_swipe_enabled ? "true" : "false");
+                }
+
+                if (cJSON_IsArray(swipe_bindings)) {
+                    int count = cJSON_GetArraySize(swipe_bindings);
+                    saw_touch_control_swipe_bindings = true;
+                    sdl_config_load_touch_binding_array(swipe_bindings,
+                        config->touch_swipe_bindings, TOUCH_SWIPE_DIR_COUNT);
+                    log_debug("Loaded touchControl.swipeBindings (%d entries)", count);
+                }
+            }
+        }
+
+        sdl_config_migrate_touch_top_panel_layout(config,
+            top_panel_bindings_count, top_panel_long_bindings_count);
+        if (!saw_touch_control_top_panel_mode) {
+            config->touch_top_panel_mode =
+                (config->touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL
+                    || config->touch_round_movement_enabled)
+                    ? SDL_TOUCH_TOP_PANEL_MODE_LONG
+                    : SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+        }
+
+        if (!saw_touch_control_swipe_enabled && cJSON_IsBool(legacy_swipe_enabled)) {
+            config->touch_swipe_enabled = cJSON_IsTrue(legacy_swipe_enabled);
+            log_debug("Loaded legacy touchPane.swipeEnabled: %s",
+                config->touch_swipe_enabled ? "true" : "false");
+        }
+
+        if (!saw_touch_control_swipe_bindings && cJSON_IsArray(legacy_swipe_bindings)) {
+            int count = cJSON_GetArraySize(legacy_swipe_bindings);
+            sdl_config_load_touch_binding_array(legacy_swipe_bindings,
+                config->touch_swipe_bindings, TOUCH_SWIPE_DIR_COUNT);
+            log_debug("Loaded legacy touchPane.swipeBindings (%d entries)", count);
+        }
+
+        if (config->touch_swipe_bindings[TOUCH_SWIPE_DIR_UP] == '8'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_DOWN] == '2'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_LEFT] == '4'
+            && config->touch_swipe_bindings[TOUCH_SWIPE_DIR_RIGHT] == '6')
+        {
+            config->touch_swipe_bindings[TOUCH_SWIPE_DIR_UP] =
+                TOUCH_BIND_TOP_PANEL_CLOSE;
+            config->touch_swipe_bindings[TOUCH_SWIPE_DIR_DOWN] =
+                TOUCH_BIND_TOP_PANEL_OPEN;
+            log_info("Migrated default touch swipe up/down bindings to top panel actions");
+        }
+
+        config->touch_movement_mode =
+            normalize_touch_movement_mode(config->touch_movement_mode);
+        config->touch_zone_overlay_mode =
+            normalize_touch_zone_overlay_mode(config->touch_zone_overlay_mode);
+        config->touch_corner_up_down_side =
+            normalize_touch_corner_up_down_side(config->touch_corner_up_down_side);
+        config->touch_top_panel_mode =
+            normalize_touch_top_panel_mode(config->touch_top_panel_mode);
+        config->touch_profile =
+            normalize_touch_profile(config->touch_profile);
+    }
+
+    {
+        cJSON* mouse_control = cJSON_GetObjectItemCaseSensitive(root, "mouseControl");
+        if (cJSON_IsObject(mouse_control)) {
+            cJSON* enabled = cJSON_GetObjectItemCaseSensitive(mouse_control,
+                "enabled");
+            cJSON* movement_mode = cJSON_GetObjectItemCaseSensitive(mouse_control,
+                "movementMode");
+
+            if (cJSON_IsBool(enabled)) {
+                config->mouse_enabled = cJSON_IsTrue(enabled);
+                log_debug("Loaded mouseControl.enabled: %s",
+                    config->mouse_enabled ? "true" : "false");
+            }
+
+            if (cJSON_IsString(movement_mode) && movement_mode->valuestring) {
+                config->mouse_movement_mode =
+                    parse_mouse_movement_mode(movement_mode->valuestring);
+                log_debug("Loaded mouseControl.movementMode: %s",
+                    mouse_movement_mode_to_string(config->mouse_movement_mode));
+            } else if (cJSON_IsNumber(movement_mode)) {
+                config->mouse_movement_mode =
+                    normalize_mouse_movement_mode(movement_mode->valueint);
+                log_debug("Loaded numeric mouseControl.movementMode: %s",
+                    mouse_movement_mode_to_string(config->mouse_movement_mode));
+            }
+        }
+
+        config->mouse_movement_mode =
+            normalize_mouse_movement_mode(config->mouse_movement_mode);
     }
     
     cJSON_Delete(root);
@@ -2001,8 +2737,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 SDL_TOUCH_PANE_BUTTON_COUNT);
             cJSON* panel_names = sdl_config_create_string_array(config->touch_pane_panel_names,
                 SDL_TOUCH_PANE_PANEL_COUNT);
-            cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
-                GAMEPAD_STICK_DIR_COUNT);
             if (bindings) {
                 cJSON_AddItemToObject(touch_pane, "bindings", bindings);
             }
@@ -2018,11 +2752,92 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             if (panel_names) {
                 cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
             }
-            cJSON_AddBoolToObject(touch_pane, "swipeEnabled", config->touch_swipe_enabled);
-            if (swipe_bindings) {
-                cJSON_AddItemToObject(touch_pane, "swipeBindings", swipe_bindings);
-            }
+            cJSON_AddBoolToObject(touch_pane, "showKeyLabels",
+                config->touch_pane_key_labels_visible);
+            cJSON_AddBoolToObject(touch_pane, "inventoryEquipmentCycle",
+                config->touch_pane_inventory_equipment_cycle);
             cJSON_AddItemToObject(root, "touchPane", touch_pane);
+        }
+    }
+
+    {
+        cJSON* touch_control = cJSON_CreateObject();
+        if (touch_control) {
+            cJSON* center_bindings = sdl_config_create_int_array(
+                config->touch_zone_center_bindings,
+                SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
+            cJSON* corner_action_bindings = sdl_config_create_int_array(
+                config->touch_corner_action_bindings,
+                SDL_TOUCH_CORNER_ACTION_BINDING_COUNT);
+            cJSON* top_panel_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+            cJSON* top_panel_long_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_long_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+            cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
+                TOUCH_SWIPE_DIR_COUNT);
+
+            cJSON_AddStringToObject(touch_control, "profile",
+                touch_profile_to_string(config->touch_profile));
+            cJSON_AddBoolToObject(touch_control, "touchPaneDefaultOpen",
+                config->touch_pane_default_open);
+            cJSON_AddBoolToObject(touch_control,
+                "inventoryEquipmentMenuCommandsEnabled",
+                config->touch_menu_command_enabled[
+                    SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT]);
+            cJSON_AddBoolToObject(touch_control, "supplyMenuCommandsEnabled",
+                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_SUPPLY]);
+            cJSON_AddBoolToObject(touch_control, "otherMenuCommandsEnabled",
+                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]);
+            cJSON_AddStringToObject(touch_control, "movementMode",
+                touch_movement_mode_to_string(config->touch_movement_mode));
+            cJSON_AddBoolToObject(touch_control,
+                "roundMovementLayerEnabled",
+                config->touch_round_movement_enabled);
+            cJSON_AddStringToObject(touch_control, "cornerButtonOverlayMode",
+                touch_zone_overlay_mode_to_string(
+                    config->touch_zone_overlay_mode));
+            if (center_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "cornerButtonCenterBindings", center_bindings);
+            }
+            cJSON_AddStringToObject(touch_control, "cornerButtonUpDownSide",
+                touch_corner_up_down_side_to_string(
+                    config->touch_corner_up_down_side));
+            if (corner_action_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "cornerButtonActionBindings", corner_action_bindings);
+            }
+            cJSON_AddStringToObject(touch_control, "topPanelMode",
+                touch_top_panel_mode_to_string(config->touch_top_panel_mode));
+            cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
+                config->touch_top_panel_default_open);
+            if (top_panel_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "topPanelBindings", top_panel_bindings);
+            }
+            if (top_panel_long_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "topPanelLongBindings", top_panel_long_bindings);
+            }
+            cJSON_AddBoolToObject(touch_control, "swipeEnabled",
+                config->touch_swipe_enabled);
+            if (swipe_bindings) {
+                cJSON_AddItemToObject(touch_control, "swipeBindings", swipe_bindings);
+            }
+            cJSON_AddItemToObject(root, "touchControl", touch_control);
+        }
+    }
+
+    {
+        cJSON* mouse_control = cJSON_CreateObject();
+        if (mouse_control) {
+            cJSON_AddBoolToObject(mouse_control, "enabled",
+                config->mouse_enabled);
+            cJSON_AddStringToObject(mouse_control, "movementMode",
+                mouse_movement_mode_to_string(config->mouse_movement_mode));
+            cJSON_AddItemToObject(root, "mouseControl", mouse_control);
         }
     }
 
@@ -2035,6 +2850,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
         if (app_options && op_ptr) {
             cJSON_AddBoolToObject(app_options, "introSeen", g_app_intro_seen);
+            cJSON_AddBoolToObject(app_options, "touchTutorialSeen",
+                g_app_touch_tutorial_seen);
+            cJSON_AddBoolToObject(app_options, "mouseTutorialSeen",
+                g_app_mouse_tutorial_seen);
 
             sdl_config_save_app_option_group(app_options, "interface", app_interface_options);
             sdl_config_save_app_option_group(app_options, "text", app_text_options);
@@ -2154,8 +2973,8 @@ void sdl_config_set_default_gamepad_bindings(struct sdl_config* config)
 void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
 {
     static const int main_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
-        ESCAPE, GAMEPAD_BIND_CTRL, GAMEPAD_BIND_SHIFT,
-        'e', 'i', 'j',
+        ESCAPE, 'S', GAMEPAD_BIND_SHIFT,
+        'h', 'i', 'j',
         'u', 's', 'f',
         '7', '8', '9',
         '4', INPUT_BIND_CONFIRM, '6',
@@ -2164,28 +2983,50 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         'M', 'h', '\t',
     };
     static const int second_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
-        TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, GAMEPAD_BIND_SHIFT,
-        '0', '-', 'q',
-        'r', 'S', 'F',
+        GAMEPAD_BIND_CTRL, 'X', GAMEPAD_BIND_SHIFT,
+        '\t', 'e', '-',
+        'r', '0', 'F',
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
         TOUCH_PANE_BIND_INHERIT, 'z', TOUCH_PANE_BIND_INHERIT,
         TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT, TOUCH_PANE_BIND_INHERIT,
-        'L', 'X', 'p',
+        'M', 'q', 'p',
         'w', 'b', 'c',
     };
-    static const int swipe_defaults[GAMEPAD_STICK_DIR_COUNT] = {
-        '8', '2', '4', '6',
+    static const int swipe_defaults[TOUCH_SWIPE_DIR_COUNT] = {
+        TOUCH_BIND_TOP_PANEL_CLOSE, TOUCH_BIND_TOP_PANEL_OPEN, '4', '6',
     };
-
+    static const int center_defaults[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT] = {
+        'z', 'Z', INPUT_BIND_CONFIRM, 'u',
+    };
+    static const int corner_action_defaults[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT] = {
+        'f', 'F', 'S', 's',
+    };
     if (!config)
         return;
 
+    config->touch_profile = SDL_TOUCH_PROFILE_TOUCH_PANE;
+    config->touch_pane_default_open = true;
+    config->touch_pane_key_labels_visible = false;
+    config->touch_pane_inventory_equipment_cycle = true;
     memcpy(config->touch_pane_bindings, main_defaults, sizeof(main_defaults));
     memcpy(config->touch_pane_second_bindings, second_defaults, sizeof(second_defaults));
     SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN], "Main",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_MAIN]));
-    SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "Shift",
+    SDL_strlcpy(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND], "2nd Panel",
         sizeof(config->touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_SECOND]));
+    for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
+        config->touch_menu_command_enabled[i] = true;
+    config->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
+    config->touch_round_movement_enabled = false;
+    config->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
+    memcpy(config->touch_zone_center_bindings, center_defaults,
+        sizeof(center_defaults));
+    config->touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
+    memcpy(config->touch_corner_action_bindings, corner_action_defaults,
+        sizeof(corner_action_defaults));
+    config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    config->touch_top_panel_default_open = false;
+    sdl_config_set_default_top_panel_bindings(config);
     config->touch_swipe_enabled = true;
     memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }
@@ -2259,6 +3100,8 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->gamepad_use_left_stick = true;
     config->gamepad_deadzone = 12000;
     config->gamepad_trigger_threshold = 16000;
+    config->mouse_enabled = true;
+    config->mouse_movement_mode = SDL_MOUSE_MOVEMENT_ON;
     sdl_config_set_default_gamepad_bindings(config);
     sdl_config_set_default_touch_pane_bindings(config);
     sdl_config_clear_touch_pane_labels(config);

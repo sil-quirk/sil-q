@@ -13,6 +13,7 @@
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-config.h"
 #include "supplies.h"
 #include "item_set.h"
 #include "cJSON.h"
@@ -23,6 +24,7 @@
 static bool inventory_menu_include_equip = false;
 static bool inventory_menu_expand_supplies = false;
 static bool inventory_choice_debug_logging = false;
+static int inventory_menu_scroll_offset = 0;
 
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
@@ -134,6 +136,75 @@ static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
             dest[--len] = '\0';
         }
     }
+}
+
+static bool menu_prompt_fits_one_row(cptr prompt, int term_wid,
+    bool use_story_font)
+{
+    size_t len;
+
+    if (!prompt)
+        return true;
+
+    if (term_wid <= 1)
+        return false;
+
+    len = strlen(prompt);
+
+    if (len >= (size_t)term_wid)
+        return false;
+
+    if (use_story_font && sdl_is_story_font_enabled())
+    {
+        int cell_width = sdl_get_cell_width();
+        int max_pixels;
+
+        if (cell_width <= 0)
+            return true;
+
+        max_pixels = (term_wid - 1) * cell_width;
+        return sdl_story_font_text_width(prompt, (int)len) <= max_pixels;
+    }
+
+    return true;
+}
+
+static bool menu_prompt_drop_suffix_if_wrapped(char* prompt, cptr suffix,
+    int term_wid, bool use_story_font)
+{
+    size_t prompt_len;
+    size_t suffix_len;
+
+    if (!prompt || !suffix || !suffix[0])
+        return false;
+
+    if (menu_prompt_fits_one_row(prompt, term_wid, use_story_font))
+        return true;
+
+    prompt_len = strlen(prompt);
+    suffix_len = strlen(suffix);
+
+    if (prompt_len >= suffix_len
+        && streq(prompt + prompt_len - suffix_len, suffix))
+    {
+        prompt[prompt_len - suffix_len] = '\0';
+        prompt_len -= suffix_len;
+        while (prompt_len > 0 && isspace((unsigned char)prompt[prompt_len - 1]))
+            prompt[--prompt_len] = '\0';
+    }
+
+    while (prompt[0] && !menu_prompt_fits_one_row(prompt, term_wid,
+               use_story_font))
+    {
+        size_t len = strlen(prompt);
+
+        if (len == 0)
+            break;
+
+        prompt[len - 1] = '\0';
+    }
+
+    return false;
 }
 
 static bool death_spectator_allow_menu_action(void)
@@ -2717,8 +2788,9 @@ s16b label_to_equip(int c)
     if ((i < INVEN_WIELD) || (i >= INVEN_TOTAL))
         return (-1);
 
-    /* Empty slots can never be chosen */
-    if (!inventory[i].k_idx)
+    /* Empty slots can normally never be chosen, except explicit slot prompts. */
+    if (!inventory[i].k_idx
+        && !(throw_slot_menu_active && throw_slot_enabled[i]))
         return (-1);
 
     /* Return the index */
@@ -4005,6 +4077,74 @@ static int menu_term_width(void)
     return 80;
 }
 
+static int menu_term_height(void)
+{
+    if (Term && Term->hgt > 0)
+        return Term->hgt;
+
+    return 24;
+}
+
+static int inventory_menu_visible_rows_for_height(int term_hgt)
+{
+    int rows = term_hgt - 1;
+
+    if (rows < 0)
+        rows = 0;
+
+    if (rows > ENHANCED_MAX_LIST)
+        rows = ENHANCED_MAX_LIST;
+
+    return rows;
+}
+
+static int inventory_menu_clamp_scroll(int scroll, int total_rows,
+    int visible_rows)
+{
+    int max_scroll;
+
+    if (total_rows <= 0 || visible_rows <= 0 || total_rows <= visible_rows)
+        return 0;
+
+    max_scroll = total_rows - visible_rows;
+
+    if (scroll < 0)
+        return 0;
+    if (scroll > max_scroll)
+        return max_scroll;
+
+    return scroll;
+}
+
+static int inventory_menu_scroll_to_selection(int scroll, int selected_row,
+    int total_rows, int visible_rows, int extra_rows_after_selection)
+{
+    int bottom_slack;
+
+    scroll = inventory_menu_clamp_scroll(scroll, total_rows, visible_rows);
+
+    if (selected_row < 0 || total_rows <= 0 || visible_rows <= 0)
+        return scroll;
+
+    if (extra_rows_after_selection < 0)
+        extra_rows_after_selection = 0;
+    if (extra_rows_after_selection >= visible_rows)
+        extra_rows_after_selection = visible_rows - 1;
+
+    if (selected_row < scroll)
+    {
+        scroll = selected_row;
+    }
+    else
+    {
+        bottom_slack = visible_rows - 1 - extra_rows_after_selection;
+        if ((selected_row - scroll) > bottom_slack)
+            scroll = selected_row - bottom_slack;
+    }
+
+    return inventory_menu_clamp_scroll(scroll, total_rows, visible_rows);
+}
+
 static int menu_weight_col_for_width(int term_wid)
 {
     /* Reserve 8 columns for weight and 4 columns for the trailing label. */
@@ -4306,7 +4446,8 @@ void show_inven(void)
     int i, j, k, l;
     int col, len, lim;
     int term_wid = menu_term_width();
-    int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
+    int term_hgt = menu_term_height();
+    int display_rows = inventory_menu_visible_rows_for_height(term_hgt);
     int weight_col = menu_weight_col_for_width(term_wid);
     int label_col = menu_label_col_for_width(term_wid, show_weights);
 
@@ -4348,17 +4489,10 @@ void show_inven(void)
 
     bool include_supplies = supplies_visible_for_current_filter();
 
-    /* Avoid exceeding the available rows in the vanilla inventory view. */
-    int max_rows = term_hgt - 1;
-    if (max_rows < 1)
-        max_rows = ENHANCED_MAX_LIST;
-    if (max_rows > ENHANCED_MAX_LIST)
-        max_rows = ENHANCED_MAX_LIST;
-
     k = 0;
 
     if (include_supplies && !inventory_menu_uses_expanded_supplies()
-        && k < max_rows)
+        && k < ENHANCED_MAX_LIST)
     {
         char supply_desc[80];
         format_supply_summary(supply_desc, sizeof(supply_desc));
@@ -4377,7 +4511,7 @@ void show_inven(void)
 
     if (include_supplies && inventory_menu_uses_expanded_supplies())
     {
-        for (i = 0; i < supplies_entry_count() && k < max_rows; i++)
+        for (i = 0; i < supplies_entry_count() && k < ENHANCED_MAX_LIST; i++)
         {
             int item = SUPPLIES_INDEX + i;
 
@@ -4405,7 +4539,7 @@ void show_inven(void)
         }
     }
 
-    for (i = 0; i < INVEN_PACK && k < max_rows; i++)
+    for (i = 0; i < INVEN_PACK && k < ENHANCED_MAX_LIST; i++)
     {
         o_ptr = &inventory[i];
 
@@ -4448,7 +4582,7 @@ void show_inven(void)
 
     if (inventory_menu_include_equip)
     {
-        for (i = INVEN_WIELD; i < INVEN_TOTAL && k < max_rows; i++)
+        for (i = INVEN_WIELD; i < INVEN_TOTAL && k < ENHANCED_MAX_LIST; i++)
         {
             o_ptr = &inventory[i];
 
@@ -4480,10 +4614,30 @@ void show_inven(void)
     /* Find the column to start in */
     col = menu_center_col_for_len(term_wid, len);
 
-    /* Output each entry */
-    for (j = 0; j < k; j++)
+    int scroll_offset = (p_ptr && p_ptr->get_item_mode != 0)
+        ? inventory_menu_scroll_offset
+        : 0;
+    scroll_offset = inventory_menu_clamp_scroll(scroll_offset, k, display_rows);
+    if (p_ptr && p_ptr->get_item_mode != 0)
+        inventory_menu_scroll_offset = scroll_offset;
+
+    if (display_rows <= 0)
     {
-        int idx = out_index[j];
+        story_font_term_pop(&story_state);
+        return;
+    }
+
+    int visible_count = k - scroll_offset;
+    if (visible_count > display_rows)
+        visible_count = display_rows;
+    if (visible_count < 0)
+        visible_count = 0;
+
+    /* Output each entry */
+    for (j = 0; j < visible_count; j++)
+    {
+        int entry = scroll_offset + j;
+        int idx = out_index[entry];
         bool is_supply_summary = inventory_item_is_supply_summary(idx);
         bool is_supply_entry = inventory_item_is_supply_entry(idx);
         object_type* cur_obj = is_supply_entry ? supplies_entry_at(idx - SUPPLIES_INDEX)
@@ -4521,15 +4675,16 @@ void show_inven(void)
                     inventory_visible_label_for_item(idx));
             }
 
-            story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
-                show_weights, weight_ptr, out_color[j], label_buf, TERM_WHITE,
+            story_render_inventory_entry(j + 1, col, label_col,
+                out_desc[entry], out_color[entry],
+                show_weights, weight_ptr, out_color[entry], label_buf, TERM_WHITE,
                 display_obj, false, story_term_w);
             if (inventory_choice_debug_logging)
             {
                 log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
                     "supply_entry=%d desc='%s'",
                     j + 1, idx, label_buf, is_supply_summary ? 1 : 0,
-                    is_supply_entry ? 1 : 0, out_desc[j]);
+                    is_supply_entry ? 1 : 0, out_desc[entry]);
             }
             continue;
         }
@@ -4543,7 +4698,7 @@ void show_inven(void)
             text_col = draw_item_tile(col, j + 1, display_obj);
         }
 
-        c_put_str(out_color[j], out_desc[j], j + 1, text_col);
+        c_put_str(out_color[entry], out_desc[entry], j + 1, text_col);
 
         if (show_weights)
         {
@@ -4553,7 +4708,7 @@ void show_inven(void)
             else
                 wgt = cur_obj->weight * cur_obj->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, weight_col);
+            c_put_str(out_color[entry], tmp_val, j + 1, weight_col);
         }
 
         /* Print the item letter at the end */
@@ -4577,7 +4732,7 @@ void show_inven(void)
             log_debug("show_inven: row=%d idx=%d label='%s' supply_summary=%d "
                 "supply_entry=%d desc='%s'",
                 j + 1, idx, tmp_val, is_supply_summary ? 1 : 0,
-                is_supply_entry ? 1 : 0, out_desc[j]);
+                is_supply_entry ? 1 : 0, out_desc[entry]);
         }
 
         put_str(tmp_val, j + 1, label_col);
@@ -5463,6 +5618,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     int highlight_row = -1; /* row within current visible list */
     bool highlight_active = false;
+    inventory_menu_scroll_offset = 0;
 
     /* Helper lambdas (C89 substitute: static inline style) defined as macros */
 #define DRAW_HIGHLIGHT_STORY_VARS()                                                 \
@@ -5561,6 +5717,25 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             highlight_row = (highlight_row + (vis_floor_cnt) + (dir)) % vis_floor_cnt;\
         }                                                                           \
     } while (0)
+#define CURRENT_ROW_CHOICE(row_idx, out_item, out_valid)                            \
+    do {                                                                            \
+        int _row_idx = (row_idx);                                                    \
+        (out_valid) = false;                                                        \
+        if (p_ptr->command_wrk == (USE_INVEN)                                      \
+            && _row_idx >= 0 && _row_idx < vis_inven_cnt) {                         \
+            (out_item) = vis_inven[_row_idx];                                       \
+            (out_valid) = true;                                                     \
+        } else if (p_ptr->command_wrk == (USE_EQUIP)                               \
+            && _row_idx >= 0 && _row_idx < vis_equip_cnt) {                         \
+            (out_item) = vis_equip[_row_idx];                                       \
+            (out_valid) = true;                                                     \
+        } else if (p_ptr->command_wrk == (USE_FLOOR)                               \
+            && _row_idx >= 0 && _row_idx < vis_floor_cnt) {                         \
+            int _obj_idx = floor_list[vis_floor[_row_idx]];                         \
+            (out_item) = 0 - _obj_idx;                                              \
+            (out_valid) = true;                                                     \
+        }                                                                           \
+    } while (0)
 
     /* Draw highlight: re-render the line with reversed attr marker */
 #define DRAW_HIGHLIGHT()                                                             \
@@ -5572,6 +5747,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int term_wid = menu_term_width();                                           \
         int weight_col = menu_weight_col_for_width(term_wid);                       \
         int label_col_base = menu_label_col_for_width(term_wid, show_weights);      \
+        int visible_rows = inventory_menu_visible_rows_for_height(menu_term_height());\
         int len = 29;                                                                \
         int lim = term_wid - 3;                                                     \
         char tmp[80];                                                               \
@@ -5613,7 +5789,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Determine row and item */                                                \
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
-            row = highlight_row; item_index = vis_inven[highlight_row];             \
+            row = highlight_row - inventory_menu_scroll_offset;                     \
+            if (row < 0 || row >= visible_rows) break;                              \
+            item_index = vis_inven[highlight_row];                                  \
             prt("", row+1, col);                                                    \
             int label_col = label_col_base;                                         \
             if (inventory_item_is_supply_summary(item_index)) {                     \
@@ -5773,6 +5951,18 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     BUILD_VISIBLE_LIST();
     if (p_ptr->command_wrk == (USE_INVEN))
     {
+        int display_rows = inventory_menu_visible_rows_for_height(menu_term_height());
+        inventory_menu_scroll_offset = inventory_menu_scroll_to_selection(
+            inventory_menu_scroll_offset, highlight_row, vis_inven_cnt,
+            display_rows, 0);
+    }
+    else
+    {
+        inventory_menu_scroll_offset = 0;
+    }
+
+    if (p_ptr->command_wrk == (USE_INVEN))
+    {
         log_inventory_selector_state("visible-list", pmt, vis_inven, vis_inven_cnt);
     }
 
@@ -5918,8 +6108,113 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     /* Draw current highlight overlay if any */
     DRAW_HIGHLIGHT();
 
-    /* Get a key */
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+
+        if (p_ptr->command_see)
+        {
+            int click_rows = 0;
+            int display_rows = inventory_menu_visible_rows_for_height(
+                menu_term_height());
+
+            if (p_ptr->command_wrk == (USE_INVEN))
+            {
+                int first_row = inventory_menu_scroll_offset;
+                click_rows = vis_inven_cnt - first_row;
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                if (click_rows < 0)
+                    click_rows = 0;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(first_row + click_row,
+                        click_row + 1);
+            }
+            else if (p_ptr->command_wrk == (USE_EQUIP))
+            {
+                click_rows = vis_equip_cnt;
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(click_row, click_row + 1);
+            }
+            else if (p_ptr->command_wrk == (USE_FLOOR))
+            {
+                click_rows = vis_floor_cnt;
+                if (click_rows > display_rows)
+                    click_rows = display_rows;
+                for (int click_row = 0; click_row < click_rows; click_row++)
+                    ui_menu_click_add_full_row(click_row, click_row + 1);
+            }
+        }
+
+        /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken)
+            {
+                int clicked_item = 0;
+                bool have_selection = false;
+
+                CURRENT_ROW_CHOICE(clicked_row, clicked_item, have_selection);
+
+                if (have_selection)
+                {
+                    object_type* clicked_obj = inventory_item_to_object_ptr(
+                        clicked_item);
+                    bool legal_channel =
+                        (inventory_item_uses_inven_channel(clicked_item)
+                            && allow_inven)
+                        || (clicked_item >= INVEN_WIELD
+                            && clicked_item < INVEN_TOTAL && allow_equip)
+                        || (clicked_item < 0 && allow_floor);
+
+                    highlight_row = clicked_row;
+                    highlight_active = true;
+
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY
+                        && !inventory_item_is_supply_summary(clicked_item)
+                        && clicked_obj && clicked_obj->k_idx)
+                    {
+                        describe_item_with_comparisons(clicked_item, true);
+                        continue;
+                    }
+
+                    if (!legal_channel || !get_item_okay(clicked_item))
+                    {
+                        bell("Illegal object choice (click)!");
+                        continue;
+                    }
+
+                    if (!get_item_allow(clicked_item))
+                    {
+                        done = true;
+                        continue;
+                    }
+
+                    (*cp) = clicked_item;
+                    item = true;
+                    done = true;
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+            }
+
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
 
         /* Parse it */
         switch (which)
@@ -6459,12 +6754,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
 #undef BUILD_VISIBLE_LIST
 #undef MOVE_HIGHLIGHT
+#undef CURRENT_ROW_CHOICE
 #undef DRAW_HIGHLIGHT
 #undef DRAW_HIGHLIGHT_STORY_VARS
 #undef DRAW_HIGHLIGHT_STORY_UPDATE
 #undef DRAW_HIGHLIGHT_IF_STORY
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)
@@ -6478,6 +6775,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     story_inventory_list_active = false;
     story_equipment_list_active = false;
+    inventory_menu_scroll_offset = 0;
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
@@ -6535,11 +6833,34 @@ int enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
 char current_menu_command = 0;     /* 'u', 'x', etc. - which command opened the menu */
 int current_menu_state = 0;        /* 0=inventory, 1=equipment */
 
+static int enhanced_menu_primary_select_action(void)
+{
+    return (current_menu_command == 'x') ? ENHANCED_ACTION_EXAMINE
+                                         : ENHANCED_ACTION_USE;
+}
+
 /*
  * Enhanced inventory display with scrolling and navigation
  * EXACTLY replicates show_inven() algorithm then adds highlighting
  */
 #define MAX_COMPARE_LINES 2
+#define ENHANCED_MENU_CLICK_SWITCH (-1000000)
+#define ENHANCED_MENU_CLICK_DROP (-1000001)
+
+static void enhanced_menu_highlight_prompt_token(cptr text, cptr token,
+    byte attr)
+{
+    cptr match;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    Term_putstr((int)(match - text), 0, (int)strlen(token), attr, token);
+}
 
 static void append_compare_slot(int* slots, int* count, int slot)
 {
@@ -6670,7 +6991,11 @@ void show_inven_enhanced(void)
     int previous_total_rows = 0;
     int previous_compare_count = 0;
     int previous_highlight_row = -1; /* track last frame highlight for surgical clears */
+    int scroll_top = 0;
+    int previous_scroll_top = 0;
+    int visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
     bool first_render = true;
+    bool drop_click_mode = false;
     
     /* Floor items variables */
     int floor_list[MAX_FLOOR_STACK];
@@ -6825,12 +7150,17 @@ void show_inven_enhanced(void)
     while (!done)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        term_hgt = menu_term_height();
+        visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         bool square_selection = inventory_selection_uses_square();
 
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        const bool portable_controls = portable_controls_active();
-        if (portable_controls) {
+        const bool controller_controls = steamdeck_controls_active();
+        if (controller_controls) {
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
@@ -6860,15 +7190,21 @@ void show_inven_enhanced(void)
                     confirm_label, desc_label);
             }
         } else if (current_menu_command == 'u') {
-            sprintf(out_val, "Space-Use, -> description, %c again-cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Use, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
         }
         else if (current_menu_command == 'x') {
-            sprintf(out_val, "Space-Examine, -> description, %c again - cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Examine, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
         }
         else {
             sprintf(out_val, "Space-Use, -> description, <- drop  (Inventory)");
         }
         prt(out_val, 0, 0);
+        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
+            out_val, "drop");
+        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+            out_val, "Inventory");
+        if (drop_click_mode)
+            enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
 
         bool allow_compare = (current_menu_command == 'u' || current_menu_command == 'x');
         
@@ -6909,10 +7245,12 @@ void show_inven_enhanced(void)
             /* Clear previous highlight block */
             if (previous_highlight_row >= 0 && previous_highlight_row < k)
             {
-                int base = 1 + previous_highlight_row;
-                for (int r = 0; r <= previous_compare_count; ++r)
+                int base = 1 + previous_highlight_row - previous_scroll_top;
+                for (int r = 0; base >= 1 && r <= previous_compare_count; ++r)
                 {
                     int rr = base + r;
+                    if (rr > visible_rows)
+                        break;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
                     if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
@@ -6922,10 +7260,12 @@ void show_inven_enhanced(void)
             /* Clear current highlight prospective block */
             if (highlight_active && highlight_row >= 0 && highlight_row < k)
             {
-                int base = 1 + highlight_row;
-                for (int r = 0; r <= MAX_COMPARE_LINES; ++r)
+                int base = 1 + highlight_row - scroll_top;
+                for (int r = 0; base >= 1 && r <= MAX_COMPARE_LINES; ++r)
                 {
                     int rr = base + r;
+                    if (rr > visible_rows)
+                        break;
                     if (erase_w > 0) Term_erase(col, rr, erase_w);
                     if (show_weights) Term_erase(weight_col, rr, 9);
                     if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
@@ -7032,9 +7372,57 @@ void show_inven_enhanced(void)
             }
         }
 
+        scroll_top = inventory_menu_scroll_to_selection(scroll_top,
+            highlight_row, k, visible_rows, allow_compare ? compare_count : 0);
+
+        int clear_rows = 0;
+        for (int row_idx = scroll_top; row_idx < k && clear_rows < visible_rows;
+             row_idx++)
+        {
+            clear_rows++;
+            if (allow_compare && compare_count > 0 && row_idx == highlight_row)
+            {
+                int compare_rows = compare_count;
+                if (clear_rows + compare_rows > visible_rows)
+                    compare_rows = visible_rows - clear_rows;
+                if (compare_rows > 0)
+                    clear_rows += compare_rows;
+            }
+        }
+        if (previous_total_rows > clear_rows)
+            clear_rows = previous_total_rows;
+        if (clear_rows > visible_rows)
+            clear_rows = visible_rows;
+
+        if (clear_rows > 0)
+        {
+            for (int clear_row = 1; clear_row <= clear_rows; clear_row++)
+            {
+                if (use_story_font)
+                {
+                    int erase_w = 255;
+                    int weight_erase_w = 9;
+                    if (story_term_w > 80)
+                    {
+                        erase_w = (erase_w * story_term_w) / 80;
+                        weight_erase_w = (weight_erase_w * story_term_w) / 80;
+                    }
+                    Term_erase(col, clear_row, erase_w);
+                    if (show_weights)
+                        Term_erase(weight_col, clear_row, weight_erase_w);
+                }
+                else
+                {
+                    prt("", clear_row, col);
+                    if (show_weights)
+                        prt("", clear_row, weight_col);
+                }
+            }
+        }
+
         /* Render combined list with floor entries first */
         int next_row = 1;
-        for (int j = 0; j < k; j++)
+        for (int j = scroll_top; j < k && next_row <= visible_rows; j++)
         {
             bool is_floor_item = out_is_floor[j];
             bool is_supply_item = out_is_supply[j];
@@ -7054,6 +7442,8 @@ void show_inven_enhanced(void)
                 : line_obj;
 
             int label_col = label_col_base;
+
+            ui_menu_click_add(j, col, row, term_wid - col);
 
             if (use_story_font)
             {
@@ -7175,7 +7565,7 @@ void show_inven_enhanced(void)
                 log_trace(">>> INSIDE IF BLOCK: About to render %d comparison lines at next_row=%d", 
                     compare_count, next_row);
                     
-                for (int idx = 0; idx < compare_count; idx++)
+                for (int idx = 0; idx < compare_count && next_row <= visible_rows; idx++)
                 {
                     int compare_row = next_row;
                     
@@ -7270,9 +7660,13 @@ void show_inven_enhanced(void)
         {
             if (compare_count > 0 && highlight_row >= 0 && highlight_row < k)
             {
-                int base = 1 + highlight_row;
+                int base = 1 + highlight_row - scroll_top;
                 /* Redraw all items from highlighted row to end, since comparison lines shift everything down */
                 int last = total_rows;
+                if (base < 1)
+                    base = 1;
+                if (last > visible_rows)
+                    last = visible_rows;
                 if (redraw_y1 < 0 || base < redraw_y1) redraw_y1 = base;
                 if (redraw_y2 < 0 || last > redraw_y2) redraw_y2 = last;
             }
@@ -7292,21 +7686,12 @@ void show_inven_enhanced(void)
             }
         }
 
-        if (total_rows && total_rows < term_hgt - 1)
-        {
-            if (use_story_font) {
-                int erase_w = 255;
-                if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
-                Term_erase(col, total_rows + 1, erase_w);
-            }
-            else
-                prt("", total_rows + 1, col);
-        }
-
         if (total_rows < previous_total_rows)
         {
             int clear_col = col;
-            for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
+            for (int clear_row = total_rows + 1;
+                 clear_row <= previous_total_rows && clear_row <= visible_rows;
+                 clear_row++)
             {
                 if (use_story_font)
                 {
@@ -7332,6 +7717,7 @@ void show_inven_enhanced(void)
     previous_total_rows = total_rows;
     previous_compare_count = compare_count;
     previous_highlight_row = highlight_row;
+    previous_scroll_top = scroll_top;
     first_render = false;  /* subsequent frames use surgical region */
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
@@ -7343,6 +7729,79 @@ void show_inven_enhanced(void)
         
         /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_SWITCH)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                done = true;
+                enhanced_menu_action = ENHANCED_ACTION_SWITCH;
+                continue;
+            }
+
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_DROP)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                drop_click_mode = !drop_click_mode;
+                continue;
+            }
+
+            if (click_taken && clicked_row >= 0 && clicked_row < k)
+            {
+                highlight_row = clicked_row;
+                highlight_active = true;
+                enhanced_inventory_selected_item = out_index[highlight_row];
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                if (click_action == UI_MENU_CLICK_SECONDARY)
+                {
+                    done = true;
+                    enhanced_menu_action = out_is_supply[highlight_row]
+                        ? ENHANCED_ACTION_SUPPLIES
+                        : ENHANCED_ACTION_EXAMINE;
+                }
+                else if (drop_click_mode)
+                {
+                    if (out_is_floor[highlight_row])
+                    {
+                        bell("Cannot drop floor items!");
+                        continue;
+                    }
+                    if (!death_spectator_allow_menu_action())
+                        continue;
+
+                    done = true;
+                    enhanced_menu_action = ENHANCED_ACTION_DROP;
+                }
+                else
+                {
+                    int primary_action = enhanced_menu_primary_select_action();
+
+                    if (primary_action == ENHANCED_ACTION_USE
+                        && !death_spectator_allow_menu_action())
+                        continue;
+
+                    done = true;
+                    enhanced_menu_action = primary_action;
+                }
+
+                continue;
+            }
+            if (click_taken && click_action == UI_MENU_CLICK_HOVER)
+                continue;
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
         
         log_trace("show_inven_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         
@@ -7372,8 +7831,8 @@ void show_inven_enhanced(void)
                 extern char current_menu_command;
                 if (current_menu_command != 0) {
                     /* Command access (u/x pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                         done = true;
                     } else {
@@ -7383,8 +7842,8 @@ void show_inven_enhanced(void)
                     }
                 } else {
                     /* Direct access (i/e pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                         log_trace("show_inven_enhanced: Direct access E key - switching to equipment (action=1)");
                         done = true;
@@ -7413,7 +7872,7 @@ void show_inven_enhanced(void)
                 enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_inven_enhanced: Command cycling (%c) - switching to equipment (action=1)", which);
                 done = true;
-            } else if (portable_controls) {
+            } else if (controller_controls) {
                 if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                     enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
@@ -7496,8 +7955,8 @@ void show_inven_enhanced(void)
                 extern char current_menu_command;
                 bool allow_letters = false;
                 
-                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                allow_letters = !portable_controls;
+                /* Letter selection is hidden/disabled only in controller UI mode. */
+                allow_letters = !controller_controls;
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
@@ -7603,6 +8062,7 @@ void show_inven_enhanced(void)
     }
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
@@ -7625,6 +8085,7 @@ void show_equip_enhanced(void)
     bool saved_hide_cursor = hide_cursor;
     bool saved_cursor = false;
     char out_val[160];
+    bool drop_click_mode = false;
     
     log_debug("show_equip_enhanced: Starting equipment enhanced menu");
     log_debug("show_equip_enhanced: INVEN_BODY=%d, INVEN_FEET=%d, show_weights=%d", 
@@ -7760,6 +8221,9 @@ void show_equip_enhanced(void)
     while (!done)
     {
         (void)Term_set_extra_cursor(false, 0, 0, false);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         bool square_selection = inventory_selection_uses_square();
 
         /* Display equipment list */
@@ -7817,13 +8281,14 @@ void show_equip_enhanced(void)
         
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
-        const bool portable_controls = portable_controls_active();
-        if (portable_controls) {
+        const bool controller_controls = steamdeck_controls_active();
+        const char* prompt_suffix = " (Equipped)";
+        bool prompt_context_visible;
+        if (controller_controls) {
             char confirm_label[16];
             char desc_label[16];
             char cycle_label[16];
             bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
-            const char* prompt_suffix = (term_hgt <= 18) ? "" : " (Equipment)";
 
             inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
             inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
@@ -7849,26 +8314,29 @@ void show_equip_enhanced(void)
                     confirm_label, desc_label, prompt_suffix);
             }
         } else if (current_menu_command == 'u') {
-            sprintf(out_val, (term_hgt <= 18)
-                ? "Space-Remove, %c again - cycle"
-                : "Space-Remove, %c again - cycle  (Equipment)",
+            sprintf(out_val,
+                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
                 current_menu_command);
         }
         else if (current_menu_command == 'x') {
-            sprintf(out_val, (term_hgt <= 18)
-                ? "Space-Remove, %c again - cycle"
-                : "Space-Remove, %c again - cycle  (Equipment)",
+            sprintf(out_val,
+                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
                 current_menu_command);
         }
         else {
-            sprintf(out_val, (term_hgt <= 18)
-                ? "Space-Remove, -> description, <- drop"
-                : "Space-Remove, -> description, <- drop  (Equipment)");
+            sprintf(out_val,
+                "Space-Remove, -> description, <- drop  (Equipped)");
         }
-        if (use_story_font)
-            story_print_text(0, 0, 0, TERM_WHITE, out_val);
-        else
-            prt(out_val, 0, 0);
+        prompt_context_visible = menu_prompt_drop_suffix_if_wrapped(out_val,
+            prompt_suffix, term_wid, use_story_font);
+        prt(out_val, 0, 0);
+        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
+            out_val, "drop");
+        if (prompt_context_visible)
+            ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+                out_val, "Equipped");
+        if (drop_click_mode)
+            enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
         
         /* Highlight current selection - find the display row for this equipped item */
         if (!use_story_font && highlight_active && highlight_index >= 0 && highlight_index < k)
@@ -7936,9 +8404,76 @@ void show_equip_enhanced(void)
                 log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
             }
         }
+
+        for (int click_i = 0; click_i < k; click_i++)
+        {
+            int click_slot = out_index[click_i];
+            if (click_slot >= INVEN_WIELD && click_slot < INVEN_TOTAL
+                && inventory[click_slot].k_idx)
+            {
+                ui_menu_click_add(click_i, col, click_i + 1, term_wid - col);
+            }
+        }
         
         /* Get a key */
         which = inkey();
+
+        {
+            int clicked_row = -1;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            bool click_taken =
+                ui_menu_click_take_action(&clicked_row, &click_action);
+
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_SWITCH)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                done = true;
+                enhanced_equip_action = ENHANCED_ACTION_SWITCH;
+                continue;
+            }
+
+            if (click_taken && clicked_row == ENHANCED_MENU_CLICK_DROP)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                drop_click_mode = !drop_click_mode;
+                continue;
+            }
+
+            if (click_taken && clicked_row >= 0 && clicked_row < k)
+            {
+                int clicked_slot = out_index[clicked_row];
+                if (clicked_slot >= INVEN_WIELD && clicked_slot < INVEN_TOTAL
+                    && inventory[clicked_slot].k_idx)
+                {
+                    highlight_index = clicked_row;
+                    highlight_active = true;
+                    enhanced_equipment_selected_item = clicked_slot;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    done = true;
+                    enhanced_equip_action = (click_action == UI_MENU_CLICK_SECONDARY)
+                        ? ENHANCED_ACTION_EXAMINE
+                        : (drop_click_mode ? ENHANCED_ACTION_DROP
+                                           : enhanced_menu_primary_select_action());
+                    if ((enhanced_equip_action == ENHANCED_ACTION_USE
+                            || enhanced_equip_action == ENHANCED_ACTION_DROP)
+                        && !death_spectator_allow_menu_action())
+                    {
+                        done = false;
+                        enhanced_equip_action = ENHANCED_ACTION_NONE;
+                    }
+                    continue;
+                }
+            }
+            if (click_taken && click_action == UI_MENU_CLICK_HOVER)
+                continue;
+            if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
         
         log_trace("show_equip_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         
@@ -7968,8 +8503,8 @@ void show_equip_enhanced(void)
                 extern char current_menu_command;
                 if (current_menu_command != 0) {
                     /* Command access (u/x pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                         done = true;
                     } else {
@@ -7979,8 +8514,8 @@ void show_equip_enhanced(void)
                     }
                 } else {
                     /* Direct access (i/e pressed) */
-                    if (portable_controls) {
-                        /* Portable UI: E/I switch menus */
+                    if (controller_controls) {
+                        /* Controller UI: E/I switch menus */
                         enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                         log_trace("show_equip_enhanced: Direct access I key - switching to inventory (action=1)");
                         done = true;
@@ -8009,7 +8544,7 @@ void show_equip_enhanced(void)
                 enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_equip_enhanced: Command cycling (%c) - switching to inventory (action=1)", which);
                 done = true;
-            } else if (portable_controls) {
+            } else if (controller_controls) {
                 if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                     enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
@@ -8093,8 +8628,8 @@ void show_equip_enhanced(void)
                 extern char current_menu_command;
                 bool allow_letters = false;
                 
-                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                allow_letters = !portable_controls;
+                /* Letter selection is hidden/disabled only in controller UI mode. */
+                allow_letters = !controller_controls;
                 
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");
@@ -8146,6 +8681,7 @@ void show_equip_enhanced(void)
     }
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
+    ui_menu_click_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
@@ -8396,6 +8932,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     int highlight = 0;
     bool done = false;
     bool success = false;
+    bool controller_controls = steamdeck_controls_active();
 
     screen_save();
 
@@ -8411,6 +8948,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
     while (!done)
     {
+        char prompt[96];
+
         Term_erase(0, 0, 255);
 
         for (int row = 1; row <= rows_to_clear && row < term_hgt; row++)
@@ -8420,15 +8959,51 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         log_trace("display_unified_identify_menu: redraw cleared rows 1-%d from col %d width %d",
             MIN(rows_to_clear, term_hgt - 1), clear_start, clear_width);
 
-        char prompt[80];
-        strnfmt(prompt, sizeof(prompt),
-            "Identify: Space, <- Inspect, ESC to cancel");
-        prt(prompt, 0, 0);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(1, term_hgt - 1,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+
+        if (controller_controls)
+        {
+            char confirm_label[16];
+            char inspect_label[16];
+            char back_label[16];
+
+            inventory_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            inventory_prompt_label(steamdeck_info_key(), "RS Right",
+                inspect_label, sizeof(inspect_label));
+            inventory_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt, sizeof(prompt),
+                "Identify: %s, %s Inspect, %s cancel", confirm_label,
+                inspect_label, back_label);
+            prt(prompt, 0, 0);
+            ui_menu_click_add_text_token(-2, 0, 0, prompt, confirm_label);
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, inspect_label);
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, back_label);
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
+        }
+        else
+        {
+            strnfmt(prompt, sizeof(prompt),
+                "Identify: Space, <- Inspect, ESC to cancel");
+            prt(prompt, 0, 0);
+            ui_menu_click_add_text_token(-2, 0, 0, prompt, "Space");
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
+        }
 
         for (int i = 0; i < entry_count; i++)
         {
             draw_ident_line(&entries[i], i + 1, col, weight_col,
                 (i == highlight));
+            ui_menu_click_add_full_row(i, i + 1);
         }
 
         if (entry_count && entry_count < term_hgt - 1)
@@ -8437,9 +9012,57 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         rows_to_clear = base_rows;
 
         int key = inkey();
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < entry_count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                    {
+                        highlight = clicked_choice;
+                        key = '4';
+                    }
+                    else if (clicked_choice != highlight)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    else
+                        key = ' ';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = ' ';
+                else if (clicked_choice == -3)
+                    key = '4';
+            }
+        }
+
+        if (controller_controls && key == steamdeck_back_key())
+            key = ESCAPE;
+        else if (controller_controls && key == steamdeck_confirm_key())
+            key = ' ';
+        else if (controller_controls && key == steamdeck_info_key())
+            key = '4';
 
         switch (key)
         {
+        case UI_MENU_CLICK_WAKE_KEY:
+            break;
+
         case ESCAPE:
             done = true;
             success = false;
@@ -8460,6 +9083,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         case '4':
         case 'h':
         case 'H':
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             (void)player_try_identify_smithing_object_on_examine(
                 entries[highlight].o_ptr,
                 (entries[highlight].type == IDENT_ENTRY_EQUIP));
@@ -8479,6 +9104,8 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         }
     }
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
     screen_load();
 
     if (!success)

@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-config.h"
 #include "sdl-sound.h"
 #include <SDL3/SDL.h>
 
@@ -20,6 +21,560 @@ bool no_light(void)
 {
     /* Consider no special light blocking by default */
     return false;
+}
+
+#define UI_MENU_CLICK_MAX_ENTRIES 256
+
+typedef struct ui_menu_click_entry
+{
+    int choice;
+    int col;
+    int row;
+    int width;
+} ui_menu_click_entry;
+
+static ui_menu_click_entry ui_menu_click_entries[UI_MENU_CLICK_MAX_ENTRIES];
+static int ui_menu_click_entry_count = 0;
+static bool ui_menu_click_active = false;
+static bool ui_menu_click_pending = false;
+static int ui_menu_click_pending_choice = 0;
+static int ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+static bool ui_menu_click_hover_enabled = false;
+static bool ui_menu_click_cancel_outside_enabled = false;
+static bool ui_menu_click_hover_wake_pending = false;
+static bool ui_menu_click_hover_current = false;
+static bool ui_menu_click_preserve_hover_once = false;
+static int ui_menu_click_hover_choice = 0;
+static int ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+static bool ui_scroll_area_active = false;
+static int ui_scroll_area_top_row = 0;
+static int ui_scroll_area_bottom_row = -1;
+static int ui_scroll_area_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+static int ui_scroll_area_positive_y_key = '8';
+static int ui_scroll_area_negative_y_key = '2';
+static int ui_scroll_area_positive_x_key = '6';
+static int ui_scroll_area_negative_x_key = '4';
+static int ui_scroll_area_tap_key = 0;
+static bool ui_key_wait_dismiss_active = false;
+static int ui_key_wait_dismiss_key = '\r';
+
+void ui_menu_click_clear(void)
+{
+    bool preserve_hover = ui_menu_click_preserve_hover_once
+        && ui_menu_click_hover_current;
+    int preserved_hover_choice = ui_menu_click_hover_choice;
+
+    ui_menu_click_active = false;
+    ui_menu_click_entry_count = 0;
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    ui_menu_click_hover_enabled = false;
+    ui_menu_click_cancel_outside_enabled = false;
+    ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_hover_current = preserve_hover;
+    ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
+    ui_menu_click_preserve_hover_once = preserve_hover;
+    ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+}
+
+void ui_menu_click_begin(void)
+{
+    bool preserve_hover = ui_menu_click_preserve_hover_once
+        && ui_menu_click_hover_current;
+    int preserved_hover_choice = ui_menu_click_hover_choice;
+
+    sdl_mouse_path_cancel();
+
+    ui_menu_click_active = true;
+    ui_menu_click_entry_count = 0;
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    ui_menu_click_hover_enabled = false;
+    ui_menu_click_cancel_outside_enabled = false;
+    ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_hover_current = preserve_hover;
+    ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
+    ui_menu_click_preserve_hover_once = false;
+    ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+}
+
+void ui_menu_click_set_hover_enabled(bool enabled)
+{
+    ui_menu_click_hover_enabled = enabled;
+    if (!enabled && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+        ui_menu_click_hover_wake_pending = false;
+    }
+}
+
+void ui_menu_click_set_outside_cancel_enabled(bool enabled)
+{
+    ui_menu_click_cancel_outside_enabled = enabled;
+}
+
+bool ui_menu_click_outside_cancel_enabled(void)
+{
+    return ui_menu_click_active && ui_menu_click_cancel_outside_enabled;
+}
+
+bool ui_menu_click_is_active(void)
+{
+    return ui_menu_click_active;
+}
+
+void ui_menu_click_set_touch_category(int category)
+{
+    if (category < 0 || category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+        category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+
+    ui_menu_click_touch_category = category;
+}
+
+int ui_menu_click_get_touch_category(void)
+{
+    if (ui_menu_click_touch_category < 0
+        || ui_menu_click_touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+    {
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+
+    return ui_menu_click_touch_category;
+}
+
+void ui_menu_click_add(int choice, int col, int row, int width)
+{
+    int term_wid = 0;
+    int term_hgt = 0;
+
+    if (!ui_menu_click_active)
+        return;
+    if (ui_menu_click_entry_count >= UI_MENU_CLICK_MAX_ENTRIES)
+        return;
+    if (width <= 0)
+        return;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_hgt > 0 && (row < 0 || row >= term_hgt))
+        return;
+    if (term_wid > 0)
+    {
+        if (col >= term_wid)
+            return;
+        if (col < 0)
+        {
+            width += col;
+            col = 0;
+        }
+        if (width <= 0)
+            return;
+        if (col + width > term_wid)
+            width = term_wid - col;
+    }
+
+    ui_menu_click_entries[ui_menu_click_entry_count++] = (ui_menu_click_entry){
+        choice, col, row, width
+    };
+}
+
+void ui_menu_click_add_full_row(int choice, int row)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    (void)term_hgt;
+    ui_menu_click_add(choice, 0, row, term_wid);
+}
+
+void ui_menu_click_add_span(int choice, int col, int row, int end_col)
+{
+    int width = end_col - col;
+
+    if (width < 1)
+        width = 1;
+
+    ui_menu_click_add(choice, col, row, width);
+}
+
+void ui_menu_click_add_text_span(int choice, int col, int row, cptr text,
+    int start_offset, int end_offset)
+{
+    int len;
+
+    if (!text)
+        return;
+
+    len = (int)strlen(text);
+    if (start_offset < 0)
+        start_offset = 0;
+    if (end_offset > len)
+        end_offset = len;
+    if (end_offset <= start_offset)
+        return;
+
+    ui_menu_click_add_span(choice, col + start_offset, row, col + end_offset);
+
+    if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)
+    {
+        Term_putstr(col + start_offset, row, end_offset - start_offset,
+            TERM_L_BLUE, text + start_offset);
+    }
+}
+
+void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
+    cptr token)
+{
+    cptr match;
+    int token_col;
+    int token_width;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    token_col = col + (int)(match - text);
+    token_width = (int)strlen(token);
+
+    if (sdl_is_story_font_enabled() && !sdl_is_story_font_grid())
+    {
+        int cell_width = sdl_get_cell_width();
+        int prefix_px = sdl_story_font_text_width(text, (int)(match - text));
+        int token_px = sdl_story_font_text_width(token, token_width);
+
+        if (cell_width > 0 && token_px > 0)
+        {
+            int start = prefix_px / cell_width;
+            int end = (prefix_px + token_px + cell_width - 1) / cell_width;
+
+            token_col = col + start;
+            token_width = end - start;
+            if (token_width < 1)
+                token_width = 1;
+        }
+    }
+
+    ui_menu_click_add(choice, token_col, row, token_width);
+
+    if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)
+    {
+        Term_putstr(col + (int)(match - text), row, (int)strlen(token),
+            TERM_L_BLUE, token);
+    }
+}
+
+static const ui_menu_click_entry* ui_menu_click_find_cell(int col, int row)
+{
+    if (!ui_menu_click_active)
+        return NULL;
+
+    for (int i = 0; i < ui_menu_click_entry_count; i++)
+    {
+        const ui_menu_click_entry* entry = &ui_menu_click_entries[i];
+
+        if (row != entry->row)
+            continue;
+        if (col < entry->col || col >= entry->col + entry->width)
+            continue;
+
+        return entry;
+    }
+
+    return NULL;
+}
+
+bool ui_menu_click_has_cell(int col, int row)
+{
+    return ui_menu_click_find_cell(col, row) != NULL;
+}
+
+bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
+{
+    const ui_menu_click_entry* entry = NULL;
+    bool changed = false;
+
+    if (wake)
+        *wake = false;
+
+    if (!ui_menu_click_hover_enabled)
+        return false;
+
+    entry = ui_menu_click_find_cell(col, row);
+    if (!entry)
+        return false;
+
+    changed = !ui_menu_click_hover_current
+        || ui_menu_click_hover_choice != entry->choice;
+    ui_menu_click_hover_current = true;
+    ui_menu_click_hover_choice = entry->choice;
+
+    if (ui_menu_click_pending && ui_menu_click_pending_action != UI_MENU_CLICK_HOVER)
+        return true;
+
+    ui_menu_click_pending = true;
+    ui_menu_click_pending_choice = entry->choice;
+    ui_menu_click_pending_action = UI_MENU_CLICK_HOVER;
+
+    if (changed)
+    {
+        if (wake)
+            *wake = true;
+        ui_menu_click_hover_wake_pending = true;
+    }
+
+    return true;
+}
+
+bool ui_menu_click_clear_hover(bool* wake)
+{
+    if (wake)
+        *wake = false;
+
+    if (!ui_menu_click_hover_current)
+        return false;
+
+    ui_menu_click_hover_current = false;
+    ui_menu_click_hover_choice = 0;
+    ui_menu_click_preserve_hover_once = false;
+    if (ui_menu_click_pending
+        && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    }
+    ui_menu_click_hover_wake_pending = false;
+
+    if (wake)
+        *wake = true;
+
+    return true;
+}
+
+bool ui_menu_click_handle_cell_action(int col, int row, int action)
+{
+    const ui_menu_click_entry* entry = ui_menu_click_find_cell(col, row);
+
+    if (!entry)
+        return false;
+
+    if (action != UI_MENU_CLICK_SECONDARY && action != UI_MENU_CLICK_HOVER)
+        action = UI_MENU_CLICK_PRIMARY;
+
+    if (action == UI_MENU_CLICK_HOVER && !ui_menu_click_hover_enabled)
+        return false;
+    if (action != UI_MENU_CLICK_HOVER)
+        ui_menu_click_hover_wake_pending = false;
+
+    ui_menu_click_pending = true;
+    ui_menu_click_pending_choice = entry->choice;
+    ui_menu_click_pending_action = action;
+    return true;
+}
+
+bool ui_menu_click_handle_cell(int col, int row)
+{
+    return ui_menu_click_handle_cell_action(col, row, UI_MENU_CLICK_PRIMARY);
+}
+
+bool ui_menu_click_has_pending(void)
+{
+    return ui_menu_click_pending;
+}
+
+void ui_menu_click_clear_pending_hover(void)
+{
+    if (ui_menu_click_pending
+        && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+    {
+        ui_menu_click_pending = false;
+        ui_menu_click_pending_choice = 0;
+        ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    }
+
+    ui_menu_click_hover_current = false;
+    ui_menu_click_hover_choice = 0;
+    ui_menu_click_preserve_hover_once = false;
+    ui_menu_click_hover_wake_pending = false;
+}
+
+bool ui_menu_click_take_action(int* choice, int* action)
+{
+    if (!ui_menu_click_pending)
+        return false;
+
+    if (choice)
+        *choice = ui_menu_click_pending_choice;
+    if (action)
+        *action = ui_menu_click_pending_action;
+    if (ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
+        ui_menu_click_preserve_hover_once = true;
+
+    ui_menu_click_hover_wake_pending = false;
+
+    ui_menu_click_pending = false;
+    ui_menu_click_pending_choice = 0;
+    ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
+    return true;
+}
+
+bool ui_menu_click_take(int* choice)
+{
+    int action = UI_MENU_CLICK_PRIMARY;
+
+    if (!ui_menu_click_take_action(choice, &action))
+        return false;
+
+    return action == UI_MENU_CLICK_PRIMARY;
+}
+
+void ui_scroll_area_clear(void)
+{
+    ui_scroll_area_active = false;
+    ui_scroll_area_top_row = 0;
+    ui_scroll_area_bottom_row = -1;
+    ui_scroll_area_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+    ui_scroll_area_positive_y_key = '8';
+    ui_scroll_area_negative_y_key = '2';
+    ui_scroll_area_positive_x_key = '6';
+    ui_scroll_area_negative_x_key = '4';
+    ui_scroll_area_tap_key = 0;
+}
+
+void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
+{
+    int term_hgt = 0;
+
+    if (Term)
+    {
+        int term_wid = 0;
+        Term_get_size(&term_wid, &term_hgt);
+        (void)term_wid;
+    }
+
+    if (touch_category < 0 || touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+        touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
+
+    if (term_hgt > 0)
+    {
+        if (top_row < 0)
+            top_row = 0;
+        if (bottom_row >= term_hgt)
+            bottom_row = term_hgt - 1;
+    }
+
+    if (bottom_row < top_row)
+    {
+        ui_scroll_area_clear();
+        return;
+    }
+
+    ui_scroll_area_active = true;
+    ui_scroll_area_top_row = top_row;
+    ui_scroll_area_bottom_row = bottom_row;
+    ui_scroll_area_touch_category = touch_category;
+    ui_scroll_area_positive_y_key = '8';
+    ui_scroll_area_negative_y_key = '2';
+    ui_scroll_area_positive_x_key = '6';
+    ui_scroll_area_negative_x_key = '4';
+    ui_scroll_area_tap_key = 0;
+}
+
+bool ui_scroll_area_has_cell(int col, int row)
+{
+    int term_wid = 0;
+    int term_hgt = 0;
+
+    if (!ui_scroll_area_active)
+        return false;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+
+    if (term_wid > 0 && (col < 0 || col >= term_wid))
+        return false;
+    if (term_hgt > 0 && (row < 0 || row >= term_hgt))
+        return false;
+
+    return row >= ui_scroll_area_top_row
+        && row <= ui_scroll_area_bottom_row;
+}
+
+int ui_scroll_area_get_touch_category(void)
+{
+    if (ui_scroll_area_touch_category < 0
+        || ui_scroll_area_touch_category >= SDL_TOUCH_MENU_CATEGORY_COUNT)
+    {
+        return SDL_TOUCH_MENU_CATEGORY_OTHER;
+    }
+
+    return ui_scroll_area_touch_category;
+}
+
+void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
+    int positive_x_key, int negative_x_key)
+{
+    ui_scroll_area_positive_y_key = positive_y_key;
+    ui_scroll_area_negative_y_key = negative_y_key;
+    ui_scroll_area_positive_x_key = positive_x_key;
+    ui_scroll_area_negative_x_key = negative_x_key;
+}
+
+int ui_scroll_area_get_vertical_key(int direction)
+{
+    return (direction >= 0)
+        ? ui_scroll_area_positive_y_key
+        : ui_scroll_area_negative_y_key;
+}
+
+int ui_scroll_area_get_horizontal_key(int direction)
+{
+    return (direction >= 0)
+        ? ui_scroll_area_positive_x_key
+        : ui_scroll_area_negative_x_key;
+}
+
+void ui_scroll_area_set_tap_key(int key)
+{
+    ui_scroll_area_tap_key = key;
+}
+
+int ui_scroll_area_get_tap_key(void)
+{
+    return ui_scroll_area_tap_key;
+}
+
+void ui_key_wait_dismiss_begin(int key)
+{
+    ui_key_wait_dismiss_active = true;
+    ui_key_wait_dismiss_key = key ? key : '\r';
+}
+
+void ui_key_wait_dismiss_clear(void)
+{
+    ui_key_wait_dismiss_active = false;
+    ui_key_wait_dismiss_key = '\r';
+}
+
+bool ui_key_wait_dismiss_is_active(void)
+{
+    return ui_key_wait_dismiss_active;
+}
+
+int ui_key_wait_dismiss_get_key(void)
+{
+    return ui_key_wait_dismiss_key ? ui_key_wait_dismiss_key : '\r';
 }
 
 /*
@@ -1207,6 +1762,7 @@ char inkey(void)
 
         /* Cancel the various "global parameters" */
         inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
+        ui_key_wait_dismiss_clear();
 
         /* Accept result */
         return (ch);
@@ -1385,6 +1941,7 @@ char inkey(void)
 
     /* Cancel the various "global parameters" */
     inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
+    ui_key_wait_dismiss_clear();
 
     /* (no banner countdown updates here; handled per turn) */
 
@@ -2416,12 +2973,37 @@ void message_discard_pending(void)
         restore_top_status_line_after_clear();
 }
 
+bool message_line_has_text(void)
+{
+    int i;
+    int limit;
+
+    if (message_column <= 0 || !Term || !Term->scr || Term->hgt <= 0)
+        return false;
+
+    limit = message_column;
+    if (limit > Term->wid)
+        limit = Term->wid;
+
+    for (i = 0; i < limit; i++)
+    {
+        char ch = Term->scr->c[0][i];
+        if (ch && ch != Term->char_blank)
+            return true;
+    }
+
+    return false;
+}
+
 /*
  * Hack -- prevent "accidents" in "screen_save()" or "screen_load()"
  */
 static int screen_depth = 0;
 static int supporting_panes_hidden_depth = 0;
+static int touch_pane_hidden_depth = 0;
+static int touch_pane_proto_depth = 0;
 static bool startup_supporting_panes_hidden = false;
+static bool startup_touch_pane_hidden = false;
 
 bool screen_saved_fullscreen_active(void)
 {
@@ -2457,6 +3039,77 @@ bool screen_startup_supporting_panes_hidden_active(void)
     return startup_supporting_panes_hidden;
 }
 
+void screen_push_touch_pane_hidden(void)
+{
+    touch_pane_hidden_depth++;
+    sdl_refresh_supporting_panes_layout();
+}
+
+void screen_pop_touch_pane_hidden(void)
+{
+    if (touch_pane_hidden_depth > 0)
+        touch_pane_hidden_depth--;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_touch_pane_hidden_active(void)
+{
+    return (touch_pane_hidden_depth > 0);
+}
+
+void screen_set_startup_touch_pane_hidden(bool hidden)
+{
+    startup_touch_pane_hidden = hidden;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_startup_touch_pane_hidden_active(void)
+{
+    return startup_touch_pane_hidden;
+}
+
+void screen_push_touch_pane_proto(void)
+{
+    touch_pane_proto_depth++;
+    sdl_refresh_supporting_panes_layout();
+}
+
+void screen_pop_touch_pane_proto(void)
+{
+    if (touch_pane_proto_depth > 0)
+        touch_pane_proto_depth--;
+    sdl_refresh_supporting_panes_layout();
+}
+
+bool screen_touch_pane_proto_active(void)
+{
+    return (touch_pane_proto_depth > 0);
+}
+
+void ui_reset_transient_state_for_new_session(void)
+{
+    bool pane_depth_changed = supporting_panes_hidden_depth
+        || touch_pane_hidden_depth || touch_pane_proto_depth;
+
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+    ui_key_wait_dismiss_clear();
+    sdl_mouse_path_cancel();
+
+    supporting_panes_hidden_depth = 0;
+    touch_pane_hidden_depth = 0;
+    touch_pane_proto_depth = 0;
+    if (pane_depth_changed)
+        sdl_refresh_supporting_panes_layout();
+
+    item_tester_full = false;
+    item_tester_tval = 0;
+    item_tester_hook = NULL;
+
+    hide_cursor = false;
+    sdl_story_font_reset();
+}
+
 void screen_clear_all_terms_no_fresh(void)
 {
     term* old = Term;
@@ -2481,6 +3134,7 @@ void screen_clear_all_terms_no_fresh(void)
 void screen_save(void)
 {
     g_term_clear_hook = NULL;
+    sdl_mouse_path_cancel();
 
     /* Hack -- Flush messages */
     message_flush();
@@ -2701,7 +3355,7 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
          * reached the wrap boundary, and carry the current trailing word to
          * the next line when there is a prior break space on this line.
          */
-        if ((x >= wrap_width) && (ch != ' '))
+        if ((x >= wrap_width - 1) && (ch != ' '))
         {
             int moved_chars = 0;
 
@@ -3335,7 +3989,66 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
  *
  * Allow "p_ptr->command_arg" to specify a quantity
  */
-s16b get_quantity(cptr prompt, int max)
+#define QUANTITY_CLICK_DECREASE -1001
+#define QUANTITY_CLICK_CONFIRM  -1002
+#define QUANTITY_CLICK_INCREASE -1003
+#define QUANTITY_CLICK_ALL      -1004
+#define QUANTITY_CLICK_ZERO     -1005
+#define QUANTITY_CLICK_CANCEL   -1006
+
+static void quantity_prompt_draw(cptr prompt, int current, int max,
+    int touch_category)
+{
+    char header[180];
+    char actions[120];
+    char pick_token[32];
+    cptr cancel_token = "[Cancel]";
+    int term_wid = 80;
+
+    if (Term)
+    {
+        int term_hgt = 0;
+        Term_get_size(&term_wid, &term_hgt);
+        (void)term_hgt;
+    }
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+    ui_menu_click_set_touch_category(touch_category);
+
+    strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
+    prt(header, 0, 0);
+
+    strnfmt(pick_token, sizeof(pick_token), "[Pick %d]", current);
+    strnfmt(actions, sizeof(actions), "[-] %s [+] [All] [0] [Cancel]",
+        pick_token);
+
+    if ((int)strlen(actions) > term_wid)
+    {
+        SDL_strlcpy(pick_token, "[OK]", sizeof(pick_token));
+        SDL_strlcpy(actions, "[-] [OK] [+] [All] [0] [Esc]",
+            sizeof(actions));
+        cancel_token = "[Esc]";
+    }
+
+    prt(actions, 1, 0);
+    ui_menu_click_add_text_token(QUANTITY_CLICK_DECREASE, 0, 1, actions,
+        "[-]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_CONFIRM, 0, 1, actions,
+        pick_token);
+    ui_menu_click_add_text_token(QUANTITY_CLICK_INCREASE, 0, 1, actions,
+        "[+]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_ALL, 0, 1, actions, "[All]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_ZERO, 0, 1, actions, "[0]");
+    ui_menu_click_add_text_token(QUANTITY_CLICK_CANCEL, 0, 1, actions,
+        cancel_token);
+
+    Term_fresh();
+}
+
+static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
+    bool force_prompt)
 {
     int amt = (max > 0) ? max : 1;
 
@@ -3348,14 +4061,14 @@ s16b get_quantity(cptr prompt, int max)
 
 #ifdef ALLOW_REPEAT
 
-    else if ((max != 1) && repeat_pull(&amt))
+    else if (!force_prompt && (max != 1) && repeat_pull(&amt))
     {
         /* use repeated value */
     }
 
 #endif /* ALLOW_REPEAT */
 
-    else if (max != 1)
+    else if (force_prompt || max != 1)
     {
         char prompt_buf[80];
         char entry_buf[16] = "";
@@ -3378,15 +4091,56 @@ s16b get_quantity(cptr prompt, int max)
 
         while (!done)
         {
-            char header[120];
-            strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
-            prt(header, 0, 0);
-            prt("Use arrows or +/- to adjust, digits type exact value, Enter=OK, Esc=cancel.",
-                1, 0);
+            quantity_prompt_draw(prompt, current, max, touch_category);
 
             ch = inkey();
+
+            {
+                int clicked_choice = 0;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_choice, &click_action))
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    switch (clicked_choice)
+                    {
+                    case QUANTITY_CLICK_DECREASE:
+                        ch = '-';
+                        break;
+                    case QUANTITY_CLICK_CONFIRM:
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_INCREASE:
+                        ch = '+';
+                        break;
+                    case QUANTITY_CLICK_ALL:
+                        current = max;
+                        entry_len = 0;
+                        entry_buf[0] = '\0';
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_ZERO:
+                        current = 0;
+                        entry_len = 0;
+                        entry_buf[0] = '\0';
+                        ch = '\r';
+                        break;
+                    case QUANTITY_CLICK_CANCEL:
+                        ch = ESCAPE;
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+
             switch (ch)
             {
+            case UI_MENU_CLICK_WAKE_KEY:
+                break;
+
             case ESCAPE:
                 canceled = true;
                 done = true;
@@ -3518,6 +4272,7 @@ s16b get_quantity(cptr prompt, int max)
 
         prt("", 0, 0);
         prt("", 1, 0);
+        ui_menu_click_clear();
 
         if (canceled)
             return (0);
@@ -3539,6 +4294,22 @@ s16b get_quantity(cptr prompt, int max)
 #endif /* ALLOW_REPEAT */
 
     return (amt);
+}
+
+s16b get_quantity(cptr prompt, int max)
+{
+    return get_quantity_aux(prompt, max, SDL_TOUCH_MENU_CATEGORY_OTHER, false);
+}
+
+s16b get_quantity_touch_category(cptr prompt, int max, int touch_category)
+{
+    return get_quantity_aux(prompt, max, touch_category, false);
+}
+
+s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
+    int touch_category)
+{
+    return get_quantity_aux(prompt, max, touch_category, true);
 }
 
 /*
@@ -3587,6 +4358,8 @@ int get_check_other(cptr prompt, char other)
     }
     format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
+    ui_menu_click_clear_pending_hover();
+
     /* Prompt for it */
     prt(buf, 0, 0);
 
@@ -3594,6 +4367,8 @@ int get_check_other(cptr prompt, char other)
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))
@@ -3661,13 +4436,19 @@ bool get_check(cptr prompt)
     }
     format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
+    ui_menu_click_clear_pending_hover();
+
     /* Prompt for it */
     prt(buf, 0, 0);
+    sdl_touch_pane_begin_yes_no_prompt(prompt);
+    Term_fresh();
 
     /* Get an acceptable answer */
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))
@@ -3678,7 +4459,9 @@ bool get_check(cptr prompt)
     }
 
     /* Erase the prompt */
+    sdl_touch_pane_end_yes_no_prompt();
     prt("", 0, 0);
+    Term_fresh();
 
     /* Normal negation */
     if ((ch != 'Y') && (ch != 'y') && !prompt_confirm_key(ch))
@@ -3795,11 +4578,16 @@ bool get_check_oath_multiline(cptr prompt)
     if (prompt_col < 1)
         prompt_col = 1;
     Term_putstr(prompt_col, h - 3, -1, TERM_YELLOW, confirm_prompt);
+    ui_menu_click_clear_pending_hover();
+    sdl_touch_pane_begin_yes_no_prompt("Are you certain?");
+    Term_fresh();
     
     /* Get an acceptable answer */
     while (true)
     {
         ch = inkey();
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
         if (quick_messages)
             break;
         if (prompt_cancel_key(ch))
@@ -3810,6 +4598,7 @@ bool get_check_oath_multiline(cptr prompt)
     }
     
     /* Restore screen */
+    sdl_touch_pane_end_yes_no_prompt();
     screen_load();
     
     /* Normal negation */
@@ -3833,8 +4622,18 @@ int get_menu_choice(s16b max, char* prompt)
     char prompt_buf[160];
 
     if (steamdeck)
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        prompt_controller_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
         strnfmt(prompt_buf, sizeof(prompt_buf),
-            "%s D-pad choose, A/Enter select, B/ESC cancel", prompt);
+            "%s D-pad choose, %s select, %s cancel", prompt, confirm_label,
+            back_label);
+    }
     else
         SDL_strlcpy(prompt_buf, prompt, sizeof(prompt_buf));
 
@@ -3842,6 +4641,11 @@ int get_menu_choice(s16b max, char* prompt)
 
     while (!done)
     {
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        for (int i = 0; i < max; i++)
+            ui_menu_click_add_full_row(i, i + 1);
+
         if (steamdeck && max > 0)
         {
             for (int i = 0; i < max; i++)
@@ -3853,6 +4657,23 @@ int get_menu_choice(s16b max, char* prompt)
         }
 
         ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && clicked_choice >= 0 && clicked_choice < max)
+            {
+                highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                choice = clicked_choice;
+                done = true;
+                continue;
+            }
+        }
 
         /* Letters are used for selection */
         if (!steamdeck && isalpha((unsigned char)ch))
@@ -3920,6 +4741,7 @@ int get_menu_choice(s16b max, char* prompt)
     }
 
     /* Clear the prompt */
+    ui_menu_click_clear();
     prt("", 0, 0);
 
     /* Return */
@@ -4035,6 +4857,28 @@ void request_command(void)
             continue;
         }
 
+        if (sdl_mouse_recall_process_pending())
+            continue;
+
+        {
+            int mouse_command = 0;
+            int mouse_dir = 0;
+
+            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+
+            if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+        }
+
         /* Hack -- auto-commands */
         if (p_ptr->command_new)
         {
@@ -4061,8 +4905,36 @@ void request_command(void)
             ch = inkey();
         }
 
+        if (sdl_mouse_recall_process_pending())
+            continue;
+
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int mouse_command = 0;
+            int mouse_dir = 0;
+
+            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+
+            if (sdl_mouse_path_take_step_command(&mouse_command, &mouse_dir))
+            {
+                p_ptr->command_cmd = (char)mouse_command;
+                p_ptr->command_dir = mouse_dir;
+                break;
+            }
+        }
+        else
+        {
+            sdl_mouse_path_cancel();
+        }
+
         /* Clear top line */
         prt("", 0, 0);
+        message_column = 0;
 
         /* Command Count */
         if (((ch == 'R') && !angband_keyset) || ((ch == '0') && angband_keyset))

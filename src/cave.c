@@ -1586,6 +1586,9 @@ static bool monster_can_see_player_for_stealth_vision(monster_type* m_ptr)
     if (!m_ptr || !m_ptr->r_idx)
         return false;
 
+    if (monster_race_is_vala(m_ptr->r_idx))
+        return true;
+
     /* Sleeping creatures cannot see */
     if (m_ptr->alertness < ALERTNESS_UNWARY)
         return false;
@@ -1785,7 +1788,9 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                         a = da; c = dc;
                                     }
                                     if (rage_active && graphics_are_ascii()) a = TERM_RED;
-                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                    if (!monster_race_is_vala(m_ptr->r_idx)
+                                        && !graphics_are_ascii()
+                                        && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
                                 }
                             }
                             
@@ -1828,7 +1833,9 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                         a = da; c = dc;
                                     }
                                     if (rage_active && graphics_are_ascii()) a = TERM_RED;
-                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                    if (!monster_race_is_vala(m_ptr->r_idx)
+                                        && !graphics_are_ascii()
+                                        && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
                                 }
                             }
                             
@@ -1967,6 +1974,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         {
             byte da;
             char dc;
+            bool is_vala = monster_race_is_vala(m_ptr->r_idx);
 
             /* Hack -- monster hallucination */
             if (image)
@@ -2036,26 +2044,26 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 a = TERM_RED;
             }
 
-            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT)
+            if (!is_vala && hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT)
                 && use_background_colors && graphics_are_ascii())
             {
                 a += (MAX_COLORS * BG_DARK);
             }
-            else if (!graphics_are_ascii()
+            else if (!is_vala && !graphics_are_ascii()
                 && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
             }
 
             /* Sleeping overlay: indicate when this monster is asleep. */
-            if (!graphics_are_ascii() && sleep_icon && tap != ap
+            if (!is_vala && !graphics_are_ascii() && sleep_icon && tap != ap
                 && m_ptr->alertness < ALERTNESS_UNWARY)
             {
                 *tap = (byte)(((byte)(*tap)) | GRAPHICS_SLEEP_MASK);
             }
 
             /* Stealth vision overlay: indicate when this monster can see you. */
-            if (!graphics_are_ascii() && stealth_vision && tcp != cp
+            if (!is_vala && !graphics_are_ascii() && stealth_vision && tcp != cp
                 && monster_can_see_player_for_stealth_vision(m_ptr))
             {
                 *tcp = (char)(((byte)(*tcp)) | GRAPHICS_SEEN_MASK);
@@ -2996,8 +3004,15 @@ void display_map(int* cy, int* cx)
  */
 void do_cmd_view_map(void)
 {
-    int cy, cx;
+    int cy = 0;
+    int cx = 0;
     cptr prompt = "Hit any key to continue";
+
+    if (!p_ptr->is_dead && g_labyrinth_view_active)
+    {
+        msg_print("The labyrinth confounds your map.");
+        return;
+    }
 
     /* Save screen */
     screen_save();
@@ -3013,13 +3028,92 @@ void do_cmd_view_map(void)
     Term_clear();
 
     /* Display the map */
-    display_map(&cy, &cx);
+#ifdef USE_SDL
+    {
+        bool sdl_map = false;
+
+        sdl_minimap_begin();
+        Term_fresh();
+        sdl_map = sdl_display_pixel_map(&cy, &cx);
+        if (sdl_map)
+        {
+            Term_fresh();
+
+            while (true)
+            {
+                char ch = inkey();
+                int pan_dx = 0;
+                int pan_dy = 0;
+                int hint_index = -1;
+
+                if (ch == UI_MENU_CLICK_WAKE_KEY
+                    && sdl_minimap_take_hint_click(&hint_index))
+                {
+                    if (hint_index >= 0)
+                        show_hint_message_screen(hint_index);
+                    (void)sdl_display_pixel_map(&cy, &cx);
+                    Term_fresh();
+                    continue;
+                }
+
+                if (ch == '+' || ch == '=')
+                {
+                    (void)sdl_minimap_adjust_zoom(1);
+                    Term_fresh();
+                    continue;
+                }
+
+                if (ch == '-' || ch == '_')
+                {
+                    (void)sdl_minimap_adjust_zoom(-1);
+                    Term_fresh();
+                    continue;
+                }
+
+                switch (ch)
+                {
+                case '1': pan_dx = -1; pan_dy = 1; break;
+                case '2': pan_dy = 1; break;
+                case '3': pan_dx = 1; pan_dy = 1; break;
+                case '4': pan_dx = -1; break;
+                case '6': pan_dx = 1; break;
+                case '7': pan_dx = -1; pan_dy = -1; break;
+                case '8': pan_dy = -1; break;
+                case '9': pan_dx = 1; pan_dy = -1; break;
+                default: break;
+                }
+
+                if (pan_dx || pan_dy)
+                {
+                    (void)sdl_minimap_pan(pan_dx, pan_dy);
+                    Term_fresh();
+                    continue;
+                }
+
+                break;
+            }
+
+            sdl_minimap_end();
+            screen_pop_supporting_panes_hidden();
+            screen_load();
+            return;
+        }
+
+        sdl_minimap_end();
+    }
+#endif
+    {
+        display_map(&cy, &cx);
+    }
 
     /* Show the prompt */
     put_str(prompt, Term->hgt - 1, Term->wid / 2 - strlen(prompt) / 2);
 
     /* Hilite the player */
     Term_gotoxy(cx, cy);
+
+    /* Flush the pixel map/prompt before waiting for input. */
+    Term_fresh();
 
     /* Get any key */
     (void)inkey();
@@ -6085,6 +6179,9 @@ void disturb(int stop_stealth, int unused_flag)
 {
     /* Unused parameter */
     (void)unused_flag;
+
+    /* Cancel SDL mouse auto-walk paths along with other auto-actions. */
+    sdl_mouse_path_cancel();
 
     /* Cancel auto-commands */
     /* p_ptr->command_new = 0; */

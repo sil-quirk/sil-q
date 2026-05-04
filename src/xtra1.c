@@ -76,16 +76,30 @@ typedef struct hidden_overlay_line {
     bool has_icon;
     byte icon_attr;
     char icon_char;
+    byte pointer_attack_mode;
+    byte click_action;
 } hidden_overlay_line;
 
 byte g_hidden_left_panel_overlay_rows = 0;
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_modes[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_start_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_attack_end_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_actions[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_start_cols[16] = { 0 };
+byte g_hidden_left_panel_overlay_click_end_cols[16] = { 0 };
+byte g_left_panel_quiver_attack_modes[2] = { 0 };
+byte g_left_panel_quiver_attack_start_cols[2] = { 0 };
+byte g_left_panel_quiver_attack_end_cols[2] = { 0 };
 bool g_suppress_hidden_left_panel_overlay = false;
 static byte g_hidden_left_panel_topline_rendered_width = 0;
+
+#define STATUS_MAIN_MENU_HINT "main menu"
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
 static void prt_status_line_top(void);
+static void prt_status_line_main_menu_hint(bool compact_centered);
 static void prt_hidden_top_vitals(void);
 static bool status_state_text(char* out_long, size_t out_long_sz,
                               char* out_short, size_t out_short_sz,
@@ -117,6 +131,187 @@ static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
     return (o_ptr->tval == TV_MAIL)
         && ((o_ptr->sval == SV_MAIL_CORSLET)
             || (o_ptr->sval == SV_LONG_CORSLET));
+}
+
+static byte pointer_attack_panel_attr(int mode, byte base_attr)
+{
+    return (sdl_pointer_attack_current_mode() == mode) ? TERM_YELLOW : base_attr;
+}
+
+static byte pointer_attack_ranged_panel_attr(byte base_attr)
+{
+    int mode = sdl_pointer_attack_current_mode();
+
+    return (mode == SDL_POINTER_ATTACK_RANGED_1
+        || mode == SDL_POINTER_ATTACK_RANGED_2) ? TERM_YELLOW : base_attr;
+}
+
+static bool pointer_attack_ammo_is_throwing(const object_type* ammo)
+{
+    u32b f1 = 0;
+    u32b f2 = 0;
+    u32b f3 = 0;
+    u32b f4 = 0;
+
+    if (!ammo || !ammo->k_idx)
+        return false;
+
+    object_flags4(ammo, &f1, &f2, &f3, &f4);
+    return player_can_treat_as_throwing_flags(ammo, f3);
+}
+
+static byte panel_touch_zone_attr(int action, int row, byte base_attr)
+{
+    return sdl_character_panel_touch_zone_selected(action, row)
+        ? TERM_YELLOW
+        : base_attr;
+}
+
+static byte status_touch_zone_attr(int action, int col, int width,
+    byte base_attr)
+{
+    return sdl_status_line_touch_zone_selected(action, col, width)
+        ? TERM_YELLOW
+        : base_attr;
+}
+
+static const object_type* pointer_attack_ranged_ammo_for_mode(int mode)
+{
+    switch (mode)
+    {
+    case SDL_POINTER_ATTACK_RANGED_1:
+        return &inventory[INVEN_QUIVER1];
+    case SDL_POINTER_ATTACK_RANGED_2:
+        return &inventory[INVEN_QUIVER2];
+    default:
+        return NULL;
+    }
+}
+
+static int pointer_attack_ranged_display_mode(void)
+{
+    int mode = sdl_pointer_attack_current_mode();
+
+    if (mode == SDL_POINTER_ATTACK_RANGED_1
+        || mode == SDL_POINTER_ATTACK_RANGED_2)
+    {
+        const object_type* ammo = pointer_attack_ranged_ammo_for_mode(mode);
+
+        if (ammo && ammo->k_idx)
+            return mode;
+    }
+
+    if (pointer_attack_ammo_is_throwing(&inventory[INVEN_QUIVER1]))
+        return SDL_POINTER_ATTACK_RANGED_1;
+    if (pointer_attack_ammo_is_throwing(&inventory[INVEN_QUIVER2]))
+        return SDL_POINTER_ATTACK_RANGED_2;
+
+    return SDL_POINTER_ATTACK_RANGED_1;
+}
+
+static int pointer_attack_throwing_display_attack(const object_type* o_ptr)
+{
+    const object_type* wield = &inventory[INVEN_WIELD];
+    int attack = p_ptr->skill_use[S_MEL] + o_ptr->att;
+
+    attack -= wield->att;
+    attack -= axe_bonus(wield);
+    attack -= polearm_bonus(wield);
+    attack += axe_bonus(o_ptr);
+    attack += polearm_bonus(o_ptr);
+
+    if (p_ptr->active_ability[S_MEL][MEL_THROWING]
+        || object_grants_ability(o_ptr, S_MEL, MEL_THROWING))
+    {
+        attack += 1;
+    }
+
+    return attack;
+}
+
+static bool pointer_attack_ranged_display_stats(int* attack, int* dd, int* ds,
+    bool* throwing)
+{
+    int mode = pointer_attack_ranged_display_mode();
+    const object_type* ammo = pointer_attack_ranged_ammo_for_mode(mode);
+
+    if (attack)
+        *attack = p_ptr->skill_use[S_ARC];
+    if (dd)
+        *dd = p_ptr->add;
+    if (ds)
+        *ds = p_ptr->ads;
+    if (throwing)
+        *throwing = false;
+
+    if (ammo && ammo->k_idx)
+    {
+        u32b f1 = 0;
+        u32b f2 = 0;
+        u32b f3 = 0;
+        u32b f4 = 0;
+
+        object_flags4(ammo, &f1, &f2, &f3, &f4);
+        if (player_can_treat_as_throwing_flags(ammo, f3))
+        {
+            int throw_ds = strength_modified_ds(ammo, 0);
+
+            if (attack)
+                *attack = pointer_attack_throwing_display_attack(ammo);
+            if (dd)
+                *dd = ammo->dd;
+            if (ds)
+                *ds = MAX(0, throw_ds);
+            if (throwing)
+                *throwing = true;
+            return true;
+        }
+
+        if ((&inventory[INVEN_BOW])->k_idx && ammo->tval == TV_ARROW)
+        {
+            if (attack)
+                *attack += ammo->att;
+            return true;
+        }
+    }
+
+    return (&inventory[INVEN_BOW])->k_idx ? true : false;
+}
+
+static bool pointer_attack_melee_has_offhand(void)
+{
+    return ((&inventory[INVEN_ARM])->k_idx)
+        && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
+}
+
+static void prt_pointer_attack_value_row(cptr label, byte label_attr,
+    byte value_attr, cptr value, int row)
+{
+    int value_len;
+    int value_col;
+
+    if (!label || !value || !value[0])
+        return;
+
+    value_len = strlen(value);
+    value_col = COL_MEL + LEFT_PANEL_CONTENT_WID - value_len;
+    if (value_col < COL_MEL)
+        value_col = COL_MEL;
+
+    if (((int)strlen(label) + 1) <= value_col - COL_MEL)
+    {
+        c_put_str(label_attr, label, row, COL_MEL);
+    }
+    else if (value_col > COL_MEL + 1)
+    {
+        char short_label[2];
+
+        short_label[0] = label[0];
+        short_label[1] = '\0';
+        c_put_str(label_attr, short_label, row, COL_MEL);
+    }
+
+    c_put_str(value_attr, value, row, value_col);
 }
 
 static u32b ability_log_turn_value(void)
@@ -483,21 +678,21 @@ extern byte total_ads(const object_type* j_ptr)
 void cnv_stat(int val, char* out_val) { sprintf(out_val, "%2d", val); }
 
 /*
- * Print character info at given row, column in a 13 char field
+ * Print character info at given row, column in the left panel field.
  */
-static void prt_field(cptr info, int row, int col)
+static void prt_field(cptr info, int row, int col, byte attr)
 {
-    /* Dump 13 spaces to clear */
-    c_put_str(TERM_WHITE, "             ", row, col);
+    /* Dump the full field to clear stale text. */
+    Term_erase(col, row, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
     /* Dump the info itself */
-    c_put_str(TERM_L_BLUE, info, row, col);
+    c_put_str(attr, info, row, col);
     
     sdl_story_font_disable();
 }
 
-enum { PLAYER_PANEL_NAME_MAX = 12 };
+enum { PLAYER_PANEL_NAME_MAX = LEFT_PANEL_CONTENT_WID };
 
 /*
  * Choose the longest whole-word player name prefix that fits the sidebar.
@@ -565,7 +760,9 @@ static void prt_player_name(void)
     char panel_name[PLAYER_PANEL_NAME_MAX + 1];
 
     get_player_panel_name(panel_name, sizeof(panel_name));
-    prt_field(panel_name, ROW_NAME, COL_NAME);
+    prt_field(panel_name, ROW_NAME, COL_NAME,
+        panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER, ROW_NAME,
+            TERM_L_BLUE));
 }
 
 /*
@@ -576,10 +773,16 @@ static void prt_stat(int stat)
     char tmp[32];
     char trimmed_label[32];
     const char* stat_label;
+    int row = ROW_STAT + stat;
+    int click_action = (stat == A_GRA)
+        ? SDL_PANEL_CLICK_SMITHING
+        : SDL_PANEL_CLICK_ABILITIES;
+    byte label_attr = panel_touch_zone_attr(click_action, row, TERM_WHITE);
+    byte value_attr;
     int len;
 
     /* Clear the line */
-    put_str("             ", ROW_STAT + stat, 0);
+    Term_erase(COL_STAT, row, LEFT_PANEL_CONTENT_WID);
 
     /* Get the stat name */
     if (p_ptr->stat_drain[stat] < 0)
@@ -604,8 +807,8 @@ static void prt_stat(int stat)
     log_trace("prt_stat: Enabling story font for stat label");
     sdl_story_font_enable();
 
-    log_trace("prt_stat: Calling put_str('%s', %d, %d)", trimmed_label, ROW_STAT + stat, 0);
-    put_str(trimmed_label, ROW_STAT + stat, 0);
+    log_trace("prt_stat: Calling c_put_str('%s', %d, %d)", trimmed_label, row, 0);
+    c_put_str(label_attr, trimmed_label, row, 0);
 
     int cursor_x, cursor_y;
     Term_locate(&cursor_x, &cursor_y);
@@ -616,25 +819,27 @@ static void prt_stat(int stat)
     /* Display stat value with monospace font */
     cnv_stat(p_ptr->stat_use[stat], tmp);
     len = strlen(tmp);
-    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, ROW_STAT + stat, COL_STAT + 12 - len);
+    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, row, COL_STAT + 12 - len);
     if (p_ptr->stat_drain[stat] < 0)
     {
-        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 12 - len);
+        value_attr = TERM_YELLOW;
     }
     else
     {
-        c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 12 - len);
+        value_attr = TERM_L_GREEN;
     }
+    value_attr = panel_touch_zone_attr(click_action, row, value_attr);
+    c_put_str(value_attr, tmp, row, COL_STAT + 12 - len);
 
     /* Indicate temporary modifiers - clear first, then conditionally display */
     if ((stat == A_STR) && p_ptr->tmp_str)
-        put_str("*", ROW_STAT + stat, 3);
+        c_put_str(label_attr, "*", row, 3);
     else if ((stat == A_DEX) && p_ptr->tmp_dex)
-        put_str("*", ROW_STAT + stat, 3);
+        c_put_str(label_attr, "*", row, 3);
     else if ((stat == A_CON) && p_ptr->tmp_con)
-        put_str("*", ROW_STAT + stat, 3);
+        c_put_str(label_attr, "*", row, 3);
     else if ((stat == A_GRA) && p_ptr->tmp_gra)
-        put_str("*", ROW_STAT + stat, 3);
+        c_put_str(label_attr, "*", row, 3);
 }
 
 /*
@@ -644,9 +849,13 @@ static void prt_exp(void)
 {
     char out_val[32];
     byte attr;
+    byte label_attr;
     int len;
 
-    attr = TERM_L_GREEN;
+    attr = panel_touch_zone_attr(SDL_PANEL_CLICK_SKILL_DISTRIBUTION,
+        ROW_EXP, TERM_L_GREEN);
+    label_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_SKILL_DISTRIBUTION,
+        ROW_EXP, TERM_WHITE);
 
     /* Clear the whole field so shorter values don't leave stale characters */
     Term_erase(COL_EXP, ROW_EXP, 12);
@@ -654,7 +863,7 @@ static void prt_exp(void)
     sdl_story_font_enable();
 
     /*Print experience label*/
-    put_str("Exp", ROW_EXP, 0);
+    c_put_str(label_attr, "Exp", ROW_EXP, 0);
 
     sdl_story_font_disable();
 
@@ -670,34 +879,43 @@ static void prt_exp(void)
 static void prt_mel(void)
 {
     char buf[32];
-    int mod = 0;
+    bool has_offhand = pointer_attack_melee_has_offhand();
+    bool can_use_offhand_row = (ROW_MEL - 1) != ROW_LIGHT;
+    int main_row = ROW_MEL;
 
-    if (((&inventory[INVEN_ARM])->k_idx)
-        && ((&inventory[INVEN_ARM])->tval != TV_SHIELD))
-        mod = -1;
+    if (has_offhand && can_use_offhand_row)
+        main_row = ROW_MEL - 1;
 
-    /* Clear both rows since melee can shift up/down and shrink in width */
-    Term_erase(COL_MEL, ROW_MEL - 1, 12);
+    /*
+     * Clear the secondary melee row only when it is not reserved for the light
+     * display. In compact layouts ROW_MEL - 1 is ROW_LIGHT, so clearing both
+     * rows after prt_light() erases the torch indicator.
+     */
+    if (can_use_offhand_row)
+        Term_erase(COL_MEL, ROW_MEL - 1, 12);
     Term_erase(COL_MEL, ROW_MEL, 12);
 
     /* Melee attacks */
     int meleeColour
         = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
+    meleeColour = pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+        meleeColour);
     strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL],
         p_ptr->mdd, p_ptr->mds);
-    c_put_str(meleeColour, buf, ROW_MEL + mod, COL_MEL + 12 - strlen(buf));
+    prt_pointer_attack_value_row(
+        p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2x" : "Mel",
+        pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+        meleeColour, buf, main_row);
 
-    if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
-    {
-        c_put_str(TERM_WHITE, "2x", ROW_MEL + mod, COL_MEL);
-    }
-
-    if (mod == -1)
+    if (has_offhand && can_use_offhand_row)
     {
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
             p_ptr->mds2);
-        c_put_str(TERM_L_WHITE, buf, ROW_MEL, COL_MEL + 12 - strlen(buf));
+        prt_pointer_attack_value_row("Off",
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            buf, ROW_MEL);
     }
 }
 
@@ -707,31 +925,43 @@ static void prt_mel(void)
 static void prt_arc(void)
 {
     char buf[32];
+    int attack = 0;
+    int dd = 0;
+    int ds = 0;
+    bool throwing = false;
 
     /* Clear the line so shorter values don't leave stale characters */
     Term_erase(COL_ARC, ROW_ARC, 12);
 
     /* Range attacks */
-    if ((&inventory[INVEN_BOW])->k_idx)
+    if (pointer_attack_ranged_display_stats(&attack, &dd, &ds, &throwing))
     {
-        if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
+        byte arc_attr = pointer_attack_ranged_panel_attr(TERM_UMBER);
+        cptr label = throwing ? "Thr" : "Arc";
+
+        if (!throwing && p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
             && p_ptr->killed_enemy_with_arrow)
         {
+            c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), label,
+                ROW_ARC, COL_ARC);
             strnfmt(buf, sizeof(buf), ")");
-            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
-            strnfmt(buf, sizeof(buf), "%dd%d", 2 * p_ptr->add, p_ptr->ads);
+            c_put_str(arc_attr, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
+            strnfmt(buf, sizeof(buf), "%dd%d", 2 * dd, ds);
             c_put_str(TERM_RED, buf, ROW_ARC, COL_ARC + 11 - strlen(buf));
-            strnfmt(buf, sizeof(buf), "(%+d,", p_ptr->skill_use[S_ARC]);
-            if (p_ptr->ads > 9)
-                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 7 - strlen(buf));
+            strnfmt(buf, sizeof(buf), "(%+d,", attack);
+            if (ds > 9)
+                c_put_str(arc_attr, buf, ROW_ARC,
+                    COL_ARC + 7 - strlen(buf));
             else
-                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 8 - strlen(buf));
+                c_put_str(arc_attr, buf, ROW_ARC,
+                    COL_ARC + 8 - strlen(buf));
         }
         else
         {
-            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC],
-                p_ptr->add, p_ptr->ads);
-            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
+            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", attack, dd, ds);
+            prt_pointer_attack_value_row(label,
+                pointer_attack_ranged_panel_attr(TERM_L_WHITE), arc_attr, buf,
+                ROW_ARC);
         }
     }
 
@@ -756,6 +986,17 @@ static void prt_quiver(void)
     bool same_type = false;
     int total_width;
     int start_col;
+    byte q1_text_attr = pointer_attack_panel_attr(
+        SDL_POINTER_ATTACK_RANGED_1, TERM_L_WHITE);
+    byte q2_text_attr = pointer_attack_panel_attr(
+        SDL_POINTER_ATTACK_RANGED_2, TERM_L_WHITE);
+
+    for (int i = 0; i < 2; i++)
+    {
+        g_left_panel_quiver_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_left_panel_quiver_attack_start_cols[i] = 0;
+        g_left_panel_quiver_attack_end_cols[i] = 0;
+    }
 
     /* Clear the entire line (12 characters) */
     Term_erase(COL_QUIVER, ROW_QUIVER, 12);
@@ -814,10 +1055,16 @@ static void prt_quiver(void)
         /* Same type: counts with icon in middle */
         byte attr = object_attr(q1_ptr);
         char icon = object_char(q1_ptr);
+        int q1_start;
+        int q2_start;
         
         /* Q1 count */
-        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+        q1_start = col;
+        Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
         col += strlen(buf1);
+        g_left_panel_quiver_attack_modes[0] = SDL_POINTER_ATTACK_RANGED_1;
+        g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
+        g_left_panel_quiver_attack_end_cols[0] = (byte)col;
         
         /* Icon in middle */
         Term_putch(col, ROW_QUIVER, attr, icon);
@@ -834,7 +1081,12 @@ static void prt_quiver(void)
         }
         
         /* Q2 count */
-        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+        q2_start = col;
+        Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
+        col += strlen(buf2);
+        g_left_panel_quiver_attack_modes[1] = SDL_POINTER_ATTACK_RANGED_2;
+        g_left_panel_quiver_attack_start_cols[1] = (byte)q2_start;
+        g_left_panel_quiver_attack_end_cols[1] = (byte)col;
     }
     else
     {
@@ -844,6 +1096,7 @@ static void prt_quiver(void)
             /* Q1: "[icon][icon]cur/max" */
             byte attr = object_attr(q1_ptr);
             char icon = object_char(q1_ptr);
+            int q1_start;
             Term_putch(col, ROW_QUIVER, attr, icon);
             col++;
             if (use_bigtile)
@@ -857,8 +1110,12 @@ static void prt_quiver(void)
                 col++;
             }
             
-            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+            q1_start = col;
+            Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
             col += strlen(buf1);
+            g_left_panel_quiver_attack_modes[0] = SDL_POINTER_ATTACK_RANGED_1;
+            g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
+            g_left_panel_quiver_attack_end_cols[0] = (byte)col;
         }
         
         if (q2_ptr->k_idx)
@@ -866,6 +1123,7 @@ static void prt_quiver(void)
             /* Q2: "[icon][icon]cur/max" */
             byte attr = object_attr(q2_ptr);
             char icon = object_char(q2_ptr);
+            int q2_start;
             Term_putch(col, ROW_QUIVER, attr, icon);
             col++;
             if (use_bigtile)
@@ -879,7 +1137,12 @@ static void prt_quiver(void)
                 col++;
             }
             
-            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+            q2_start = col;
+            Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
+            col += strlen(buf2);
+            g_left_panel_quiver_attack_modes[1] = SDL_POINTER_ATTACK_RANGED_2;
+            g_left_panel_quiver_attack_start_cols[1] = (byte)q2_start;
+            g_left_panel_quiver_attack_end_cols[1] = (byte)col;
         }
     }
 }
@@ -890,6 +1153,8 @@ static void prt_quiver(void)
 static void prt_evn(void)
 {
     char buf[32];
+    byte attr = panel_touch_zone_attr(SDL_PANEL_CLICK_INVENTORY, ROW_EVN,
+        TERM_SLATE);
 
     /* Clear the line so shorter values don't leave stale characters */
     Term_erase(COL_EVN, ROW_EVN, 12);
@@ -901,7 +1166,7 @@ static void prt_evn(void)
     /* Total Armor */
     strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
         p_min(GF_HURT, true), p_max(GF_HURT, true));
-    c_put_str(TERM_SLATE, buf, ROW_EVN, COL_EVN + 12 - strlen(buf));
+    c_put_str(attr, buf, ROW_EVN, COL_EVN + 12 - strlen(buf));
     p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
 }
 
@@ -912,25 +1177,30 @@ static void prt_hp(void)
 {
     char tmp[32];
     byte color;
+    byte label_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER,
+        ROW_HP, TERM_WHITE);
+    byte max_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER,
+        ROW_HP, TERM_L_GREEN);
 
     /* Clear the line */
-    put_str("             ", ROW_HP, COL_HP);
+    Term_erase(COL_HP, ROW_HP, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
     if (p_ptr->mhp >= 100)
     {
-        put_str("Hth", ROW_HP, COL_HP);
+        c_put_str(label_attr, "Hth", ROW_HP, COL_HP);
     }
     else
     {
-        put_str("Health", ROW_HP, COL_HP);
+        c_put_str(label_attr, "Health", ROW_HP, COL_HP);
     }
 
     sdl_story_font_disable();
 
     /* Get color for current HP */
     color = health_attr(p_ptr->chp, p_ptr->mhp);
+    color = panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER, ROW_HP, color);
 
     /* Calculate lengths for left (current) and right (max) parts */
     int chp_len = sprintf(tmp, "%d", p_ptr->chp);
@@ -942,11 +1212,11 @@ static void prt_hp(void)
     c_put_str(color, tmp, ROW_HP, COL_HP + 12 - total_len);
 
     /* Print slash in green */
-    c_put_str(TERM_L_GREEN, "/", ROW_HP, COL_HP + 12 - total_len + chp_len);
+    c_put_str(max_attr, "/", ROW_HP, COL_HP + 12 - total_len + chp_len);
 
     /* Print max HP in green */
     sprintf(tmp, "%d", p_ptr->mhp);
-    c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - total_len + chp_len + 1);
+    c_put_str(max_attr, tmp, ROW_HP, COL_HP + 12 - total_len + chp_len + 1);
 }
 
 /*
@@ -984,9 +1254,52 @@ static void prt_char_health_graphic(void)
 
     /* Colour according to health */
     color = health_attr(p_ptr->chp, p_ptr->mhp);
+    color = panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER, ROW_NAME + 1,
+        color);
 
     /* Print using a monospace field (no story font) */
     c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
+}
+
+/*
+ * Build the compact monster health bar used by look/target displays.
+ */
+int monster_health_bar_text(
+    const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols)
+{
+    int len;
+    int writable;
+
+    if (buflen == 0)
+        return 0;
+
+    buf[0] = '\0';
+
+    if (!m_ptr || (max_symbols <= 0) || (m_ptr->maxhp <= 0))
+        return 0;
+
+    len = (max_symbols * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+    if (len < 0)
+        len = 0;
+    if (len > max_symbols)
+        len = max_symbols;
+
+    writable = MIN(len, (int)buflen - 1);
+
+    for (int i = 0; i < writable; i++)
+    {
+        if (m_ptr->confused && m_ptr->stunned)
+            buf[i] = (i % 2) ? 's' : 'c';
+        else if (m_ptr->confused)
+            buf[i] = 'c';
+        else if (m_ptr->stunned)
+            buf[i] = 's';
+        else
+            buf[i] = '*';
+    }
+    buf[writable] = '\0';
+
+    return writable;
 }
 
 static bool hidden_left_panel_uses_top_left_layout(void)
@@ -1109,11 +1422,18 @@ static void prt_light(void)
     char icon;
 
     /* Clear the line */
-    Term_erase(icon_col, ROW_LIGHT, 13);
+    Term_erase(icon_col, ROW_LIGHT, LEFT_PANEL_CONTENT_WID);
 
     /* Nothing equipped */
     if (!current_light_status(&infinite, &fuel, &fuel_attr, &attr, &icon))
+    {
+        c_put_str(panel_touch_zone_attr(SDL_PANEL_CLICK_SUPPLIES_LIGHTS,
+            ROW_LIGHT, TERM_SLATE), "Torch", ROW_LIGHT, icon_col);
         return;
+    }
+
+    fuel_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_SUPPLIES_LIGHTS,
+        ROW_LIGHT, fuel_attr);
 
     /* Draw the icon (supporting bigtile visuals) */
     Term_putch(icon_col, ROW_LIGHT, attr, icon);
@@ -1149,23 +1469,27 @@ static void prt_sp(void)
 {
     char tmp[32];
     byte color;
+    byte label_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SP,
+        TERM_WHITE);
+    byte max_attr = panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SP,
+        TERM_L_GREEN);
     int len;
 
     /* Clear the line */
-    put_str("             ", ROW_SP, COL_SP);
+    Term_erase(COL_SP, ROW_SP, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
     if (p_ptr->msp >= 100)
-        put_str("Vce", ROW_SP, COL_SP);
+        c_put_str(label_attr, "Vce", ROW_SP, COL_SP);
     else
-        put_str("Voice", ROW_SP, COL_SP);
+        c_put_str(label_attr, "Voice", ROW_SP, COL_SP);
 
     sdl_story_font_disable();
 
     len = sprintf(tmp, "%d:%d", p_ptr->csp, p_ptr->msp);
 
-    c_put_str(TERM_L_GREEN, tmp, ROW_SP, COL_SP + 12 - len);
+    c_put_str(max_attr, tmp, ROW_SP, COL_SP + 12 - len);
 
     /* Done? */
     if (p_ptr->csp >= p_ptr->msp)
@@ -1183,11 +1507,12 @@ static void prt_sp(void)
     /* Show current mana using another color */
     sprintf(tmp, "%d", p_ptr->csp);
 
+    color = panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SP, color);
     c_put_str(color, tmp, ROW_SP, COL_SP + 12 - len);
 }
 
-static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
-                                       int max_lines, byte attr, cptr text)
+static void hidden_left_panel_add_line_mode(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, int pointer_attack_mode)
 {
     if (!lines || !count || !text || !text[0])
         return;
@@ -1201,12 +1526,21 @@ static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
     lines[*count].has_icon = false;
     lines[*count].icon_attr = TERM_WHITE;
     lines[*count].icon_char = ' ';
+    lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     (*count)++;
 }
 
-static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+static void hidden_left_panel_add_line(hidden_overlay_line* lines, int* count,
+                                       int max_lines, byte attr, cptr text)
+{
+    hidden_left_panel_add_line_mode(lines, count, max_lines, attr, text,
+        SDL_POINTER_ATTACK_NONE);
+}
+
+static void hidden_left_panel_add_icon_line_mode(hidden_overlay_line* lines,
     int* count, int max_lines, byte attr, cptr text, cptr short_text,
-    byte icon_attr, char icon_char)
+    byte icon_attr, char icon_char, int pointer_attack_mode)
 {
     if (!lines || !count || !text || !text[0])
         return;
@@ -1224,21 +1558,48 @@ static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
     lines[*count].has_icon = true;
     lines[*count].icon_attr = icon_attr;
     lines[*count].icon_char = icon_char;
+    lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
+    lines[*count].click_action = SDL_PANEL_CLICK_NONE;
     (*count)++;
 }
 
+static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
+    int* count, int max_lines, byte attr, cptr text, cptr short_text,
+    byte icon_attr, char icon_char)
+{
+    hidden_left_panel_add_icon_line_mode(lines, count, max_lines, attr, text,
+        short_text, icon_attr, icon_char, SDL_POINTER_ATTACK_NONE);
+}
+
 static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
-    int* count, int max_lines, const object_type* q_ptr)
+    int* count, int max_lines, const object_type* q_ptr, int pointer_attack_mode)
 {
     char buf[32];
+    byte attr;
 
     if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
         return;
 
     strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
+    attr = pointer_attack_panel_attr(pointer_attack_mode, TERM_L_WHITE);
 
-    hidden_left_panel_add_icon_line(lines, count, max_lines, TERM_L_WHITE,
-        buf, buf, object_attr(q_ptr), object_char(q_ptr));
+    hidden_left_panel_add_icon_line_mode(lines, count, max_lines, attr,
+        buf, buf, object_attr(q_ptr), object_char(q_ptr),
+        pointer_attack_mode);
+}
+
+static void hidden_left_panel_add_quiver_count_line(hidden_overlay_line* lines,
+    int* count, int max_lines, const object_type* q_ptr, int pointer_attack_mode)
+{
+    char buf[16];
+
+    if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
+        return;
+
+    strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
+    hidden_left_panel_add_line_mode(lines, count, max_lines,
+        pointer_attack_panel_attr(pointer_attack_mode, TERM_L_WHITE), buf,
+        pointer_attack_mode);
 }
 
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
@@ -1286,6 +1647,8 @@ static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
     int col, bool use_short_text, byte* out_chars, int out_chars_max)
 {
     const char* text;
+    byte text_attr;
+    byte icon_attr;
     int written = 0;
 
     if (!line || !Term)
@@ -1296,12 +1659,14 @@ static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
     text = (use_short_text && line->short_text[0])
         ? line->short_text
         : line->text;
+    text_attr = panel_touch_zone_attr(line->click_action, row, line->attr);
+    icon_attr = line->icon_attr;
 
     if (line->has_icon)
     {
         if (col < Term->wid)
         {
-            Term_putch(col, row, line->icon_attr, line->icon_char);
+            Term_putch(col, row, icon_attr, line->icon_char);
             if (out_chars && written < out_chars_max)
                 out_chars[written] = (byte)line->icon_char;
         }
@@ -1320,7 +1685,7 @@ static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
         {
             if (col + 1 < Term->wid)
             {
-                Term_putch(col + 1, row, line->icon_attr, line->icon_char);
+                Term_putch(col + 1, row, icon_attr, line->icon_char);
                 if (out_chars && written < out_chars_max)
                     out_chars[written] = (byte)line->icon_char;
             }
@@ -1345,7 +1710,7 @@ static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
             text_len = Term->wid - col;
 
         if (text_len > 0)
-            Term_putstr(col, row, text_len, line->attr, text);
+            Term_putstr(col, row, text_len, text_attr, text);
         for (int i = 0; i < text_len; i++)
         {
             if (out_chars && written + i < out_chars_max)
@@ -1364,6 +1729,7 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     char short_buf[16];
     byte hp_color;
     byte voice_color;
+    bool topline_layout = hidden_left_panel_uses_topline_layout();
 
     if (!lines || !Term || !p_ptr || max_lines <= 0)
         return 0;
@@ -1377,10 +1743,20 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         voice_color = TERM_RED;
 
     strnfmt(buf, sizeof(buf), "HP %3d", MIN(p_ptr->chp, 999));
-    hidden_left_panel_add_line(lines, &count, max_lines, hp_color, buf);
+    {
+        int old_count = count;
+        hidden_left_panel_add_line(lines, &count, max_lines, hp_color, buf);
+        if (count > old_count)
+            lines[count - 1].click_action = SDL_PANEL_CLICK_CHARACTER;
+    }
 
     strnfmt(buf, sizeof(buf), "VC %3d", MIN(p_ptr->csp, 999));
-    hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
+    {
+        int old_count = count;
+        hidden_left_panel_add_line(lines, &count, max_lines, voice_color, buf);
+        if (count > old_count)
+            lines[count - 1].click_action = SDL_PANEL_CLICK_SONG;
+    }
 
     {
         bool infinite = false;
@@ -1394,15 +1770,113 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
             && !infinite)
         {
             strnfmt(buf, sizeof(buf), "%ld", fuel);
+            int old_count = count;
             hidden_left_panel_add_icon_line(lines, &count, max_lines, light_attr,
                 buf, buf, light_icon_attr, light_icon);
+            if (count > old_count)
+                lines[count - 1].click_action = SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
+        }
+        else if (!inventory[INVEN_LITE].k_idx)
+        {
+            int old_count = count;
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_SLATE,
+                "Torch");
+            if (count > old_count)
+                lines[count - 1].click_action = SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
         }
     }
 
-    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER1]);
-    hidden_left_panel_add_quiver_line(lines, &count, max_lines,
-        &inventory[INVEN_QUIVER2]);
+    if (topline_layout)
+    {
+        hidden_left_panel_add_line_mode(lines, &count, max_lines,
+            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+            "M", SDL_POINTER_ATTACK_MELEE);
+    }
+    else
+    {
+        strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)",
+            p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2" : "M",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        SDL_strlcpy(short_buf, buf, sizeof(short_buf));
+        {
+            int old_count = count;
+            hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
+                buf, SDL_POINTER_ATTACK_MELEE);
+            if (count > old_count)
+                SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                    sizeof(lines[count - 1].short_text));
+        }
+
+        if (pointer_attack_melee_has_offhand())
+        {
+            strnfmt(buf, sizeof(buf), "O(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
+                p_ptr->mds2);
+            SDL_strlcpy(short_buf, buf, sizeof(short_buf));
+            {
+                int old_count = count;
+                hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                    pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                        TERM_L_WHITE),
+                    buf, SDL_POINTER_ATTACK_MELEE);
+                if (count > old_count)
+                    SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                        sizeof(lines[count - 1].short_text));
+            }
+        }
+    }
+
+    {
+        int arc_attack = 0;
+        int arc_dd = 0;
+        int arc_ds = 0;
+        bool arc_throwing = false;
+
+        if (pointer_attack_ranged_display_stats(&arc_attack, &arc_dd, &arc_ds,
+            &arc_throwing))
+        {
+            if (topline_layout)
+            {
+                hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                    pointer_attack_ranged_panel_attr(TERM_UMBER),
+                    arc_throwing ? "T" : "A", SDL_POINTER_ATTACK_RANGED_1);
+            }
+            else
+            {
+                cptr label = arc_throwing ? "T" : "A";
+
+                strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)", label, arc_attack,
+                    arc_dd, arc_ds);
+                strnfmt(short_buf, sizeof(short_buf), "%s(%+d,%dd%d)",
+                    label, arc_attack, arc_dd, arc_ds);
+                {
+                    int old_count = count;
+                    hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                        pointer_attack_ranged_panel_attr(TERM_UMBER),
+                        buf, SDL_POINTER_ATTACK_RANGED_1);
+                    if (count > old_count)
+                        SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                            sizeof(lines[count - 1].short_text));
+                }
+            }
+        }
+    }
+
+    if (topline_layout)
+    {
+        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
+        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    }
+    else
+    {
+        hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
+        hidden_left_panel_add_quiver_line(lines, &count, max_lines,
+            &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    }
 
     if (!ui_compact_status_line_handles_wounds())
     {
@@ -1454,9 +1928,16 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         else
             SDL_strlcpy(short_buf, buf, sizeof(short_buf));
 
-        hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
-        SDL_strlcpy(lines[count - 1].short_text, short_buf,
-            sizeof(lines[count - 1].short_text));
+        {
+            int old_count = count;
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_L_BLUE, buf);
+            if (count > old_count)
+            {
+                lines[count - 1].click_action = SDL_PANEL_CLICK_SONG;
+                SDL_strlcpy(lines[count - 1].short_text, short_buf,
+                    sizeof(lines[count - 1].short_text));
+            }
+        }
     }
 
     if (p_ptr->health_who
@@ -1465,21 +1946,13 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         && (mon_list[p_ptr->health_who].hp > 0))
     {
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
-        int len;
+        char health_bar[10];
         byte attr;
 
         attr = health_attr(m_ptr->hp, m_ptr->maxhp);
-        len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-        if (len < 0)
-            len = 0;
-        if (len > 8)
-            len = 8;
+        monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
 
-        for (int i = 0; i < len; i++)
-            buf[i] = '*';
-        buf[len] = '\0';
-
-        hidden_left_panel_add_line(lines, &count, max_lines, attr, buf);
+        hidden_left_panel_add_line(lines, &count, max_lines, attr, health_bar);
     }
 
     return count;
@@ -1497,22 +1970,57 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
     for (int i = 0; i < max_rows && i < 16; i++)
     {
         byte new_width = 0;
+        byte new_mode = SDL_POINTER_ATTACK_NONE;
+        byte new_start = 0;
+        byte new_end = 0;
+        byte new_click_action = SDL_PANEL_CLICK_NONE;
+        byte new_click_start = 0;
+        byte new_click_end = 0;
 
         if (i < line_count && lines[i].text[0])
         {
             int width = hidden_left_panel_line_width(&lines[i], false);
+            int text_start = lines[i].has_icon ? 3 : 0;
             width = hidden_left_panel_mask_width(width);
             new_width = (byte)width;
+            if (lines[i].click_action != SDL_PANEL_CLICK_NONE
+                && text_start < width)
+            {
+                new_click_action = lines[i].click_action;
+                new_click_start = (byte)text_start;
+                new_click_end = new_width;
+            }
+            if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE
+                && text_start < width)
+            {
+                new_mode = lines[i].pointer_attack_mode;
+                new_start = (byte)text_start;
+                new_end = new_width;
+            }
         }
 
         if (g_hidden_left_panel_overlay_widths[i] != new_width)
             changed = true;
 
         g_hidden_left_panel_overlay_widths[i] = new_width;
+        g_hidden_left_panel_overlay_attack_modes[i] = new_mode;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = new_start;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = new_end;
+        g_hidden_left_panel_overlay_click_actions[i] = new_click_action;
+        g_hidden_left_panel_overlay_click_start_cols[i] = new_click_start;
+        g_hidden_left_panel_overlay_click_end_cols[i] = new_click_end;
     }
 
     for (int i = max_rows; i < 16; i++)
+    {
         g_hidden_left_panel_overlay_widths[i] = 0;
+        g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;
+        g_hidden_left_panel_overlay_click_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_end_cols[i] = 0;
+    }
 
     if (g_hidden_left_panel_overlay_rows != line_count)
         changed = true;
@@ -1529,6 +2037,10 @@ static bool hidden_left_panel_sync_topline_mask(
     int render_width = hidden_left_panel_topline_render_width(lines, line_count);
     int mask_width = hidden_left_panel_mask_width(render_width);
     byte new_rows = (render_width > 0) ? 1 : 0;
+    int col = 0;
+    bool first_entry = true;
+    int attack_index = 0;
+    int click_index = 0;
 
     if (mask_width > 255)
         mask_width = 255;
@@ -1540,6 +2052,78 @@ static bool hidden_left_panel_sync_topline_mask(
 
     g_hidden_left_panel_overlay_rows = new_rows;
     g_hidden_left_panel_overlay_widths[0] = (byte)mask_width;
+
+    for (int i = 0; i < 16; i++)
+    {
+        g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
+        g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;
+        g_hidden_left_panel_overlay_click_start_cols[i] = 0;
+        g_hidden_left_panel_overlay_click_end_cols[i] = 0;
+    }
+
+    if (Term && lines && line_count > 0)
+    {
+        for (int i = 0; i < line_count && attack_index < 16; i++)
+        {
+            int sep = first_entry ? 0 : 1;
+            bool use_short_text = false;
+            int width = hidden_left_panel_line_width(&lines[i], false);
+
+            if (col + sep + width > Term->wid)
+            {
+                width = hidden_left_panel_line_width(&lines[i], true);
+                if (col + sep + width > Term->wid)
+                    break;
+                use_short_text = true;
+            }
+
+            (void)use_short_text;
+            col += sep;
+            if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE)
+            {
+                int start_col = col + (lines[i].has_icon ? 3 : 0);
+                int end_col = col + width;
+
+                if (start_col < end_col)
+                {
+                    if (end_col > 255)
+                        end_col = 255;
+                    g_hidden_left_panel_overlay_attack_modes[attack_index]
+                        = lines[i].pointer_attack_mode;
+                    g_hidden_left_panel_overlay_attack_start_cols[attack_index]
+                        = (byte)MIN(start_col, 255);
+                    g_hidden_left_panel_overlay_attack_end_cols[attack_index]
+                        = (byte)end_col;
+                    attack_index++;
+                }
+            }
+
+            if (lines[i].click_action != SDL_PANEL_CLICK_NONE
+                && click_index < 16)
+            {
+                int start_col = col + (lines[i].has_icon ? 3 : 0);
+                int end_col = col + width;
+
+                if (start_col < end_col)
+                {
+                    if (end_col > 255)
+                        end_col = 255;
+                    g_hidden_left_panel_overlay_click_actions[click_index]
+                        = lines[i].click_action;
+                    g_hidden_left_panel_overlay_click_start_cols[click_index]
+                        = (byte)MIN(start_col, 255);
+                    g_hidden_left_panel_overlay_click_end_cols[click_index]
+                        = (byte)end_col;
+                    click_index++;
+                }
+            }
+
+            col += width;
+            first_entry = false;
+        }
+    }
 
     for (int i = 1; i < 16; i++)
     {
@@ -1744,9 +2328,9 @@ static void prt_song(void)
         = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
 
     // wipe old songs
-    put_str("             ", ROW_SONG, COL_SONG);
+    Term_erase(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID);
     if (!ui_compact_height())
-        put_str("             ", ROW_SONG + 1, COL_SONG);
+        Term_erase(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID);
 
     sdl_story_font_enable();
 
@@ -1762,20 +2346,29 @@ static void prt_song(void)
             SDL_strlcpy(buf, song2_name + 8, sizeof(buf));
 
         if (buf[0])
-            c_put_str(TERM_L_BLUE, buf, ROW_SONG, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID,
+                panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SONG,
+                    TERM_L_BLUE),
+                buf);
     }
     else
     {
         // show the first song
         if (p_ptr->song1 != SNG_NOTHING)
         {
-            c_put_str(TERM_L_BLUE, song1_name + 8, ROW_SONG, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID,
+                panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SONG,
+                    TERM_L_BLUE),
+                song1_name + 8);
         }
 
         // show the second song
         if (p_ptr->song2 != SNG_NOTHING)
         {
-            c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
+            Term_putstr(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID,
+                panel_touch_zone_attr(SDL_PANEL_CLICK_SONG, ROW_SONG + 1,
+                    TERM_BLUE),
+                song2_name + 8);
         }
     }
 
@@ -1832,6 +2425,9 @@ static void prt_depth(void)
             attr = TERM_BLUE;
     }
 
+    attr = status_touch_zone_attr(SDL_STATUS_CLICK_MAP, COL_DEPTH, 7,
+        (byte)attr);
+
     sdl_story_font_enable();
 
     /* Right-Adjust the "depth", and clear old values */
@@ -1856,36 +2452,47 @@ static void prt_hunger(void)
     /* Fainting / Starving */
     if (p_ptr->food < PY_FOOD_STARVE)
     {
-        c_put_str(TERM_RED, "Starving", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_RED), "Starving", ROW_HUNGRY, COL_HUNGRY);
     }
 
     /* Weak */
     else if (p_ptr->food < PY_FOOD_WEAK)
     {
-        c_put_str(TERM_ORANGE, "Weak    ", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_ORANGE), "Weak    ", ROW_HUNGRY,
+            COL_HUNGRY);
     }
 
     /* Hungry */
     else if (p_ptr->food < PY_FOOD_ALERT)
     {
-        c_put_str(TERM_YELLOW, "Hungry  ", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_YELLOW), "Hungry  ", ROW_HUNGRY,
+            COL_HUNGRY);
     }
 
     /* Normal */
     else if (p_ptr->food < PY_FOOD_FULL)
     {
-        c_put_str(TERM_L_GREEN, "        ", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_L_GREEN), "        ", ROW_HUNGRY,
+            COL_HUNGRY);
     }
 
     /* Full */
     else if (p_ptr->food < PY_FOOD_MAX)
     {
-        c_put_str(TERM_L_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_L_GREEN), "Full    ", ROW_HUNGRY,
+            COL_HUNGRY);
     }
 
     else
     {
-        c_put_str(TERM_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_HUNGRY, 8, TERM_GREEN), "Full    ", ROW_HUNGRY,
+            COL_HUNGRY);
     }
 
     sdl_story_font_disable();
@@ -1906,7 +2513,8 @@ static void prt_blind(void)
 
     if (p_ptr->blind)
     {
-        c_put_str(TERM_ORANGE, "Blind", ROW_BLIND, COL_BLIND);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_BLIND, 5, TERM_ORANGE), "Blind", ROW_BLIND, COL_BLIND);
     }
     else
     {
@@ -1933,7 +2541,9 @@ static void prt_confused(void)
     if (p_ptr->confused)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Confused", ROW_CONFUSED, COL_CONFUSED);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_CONFUSED, 8, TERM_ORANGE), "Confused", ROW_CONFUSED,
+            COL_CONFUSED);
         sdl_story_font_disable();
     }
 }
@@ -1955,7 +2565,9 @@ static void prt_afraid(void)
     if (p_ptr->afraid)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Afraid", ROW_AFRAID, COL_AFRAID);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_AFRAID, 6, TERM_ORANGE), "Afraid", ROW_AFRAID,
+            COL_AFRAID);
         sdl_story_font_disable();
     }
 }
@@ -2210,8 +2822,13 @@ static void prt_state(void)
     if (text[0])
     {
         sdl_story_font_enable();
-        c_put_str(attr, text, ROW_STATE, COL_STATE);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_STATE, 10, attr), text, ROW_STATE, COL_STATE);
         sdl_story_font_disable();
+    }
+    else
+    {
+        prt_status_line_main_menu_hint(false);
     }
 }
 
@@ -2252,7 +2869,8 @@ static void prt_speed(void)
     if (buf[0])
     {
         sdl_story_font_enable();
-        c_put_str(attr, buf, ROW_SPEED, COL_SPEED);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_SPEED, 4, attr), buf, ROW_SPEED, COL_SPEED);
         sdl_story_font_disable();
     }
 }
@@ -2297,7 +2915,8 @@ static void prt_partition(void)
         return;
 
     sdl_story_font_enable();
-    c_put_str(TERM_WHITE, label, ROW_PARTITION, COL_PARTITION);
+    c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAP, COL_PARTITION,
+        (int)strlen(label), TERM_WHITE), label, ROW_PARTITION, COL_PARTITION);
     sdl_story_font_disable();
 }
 
@@ -2318,19 +2937,22 @@ static void prt_terrain(void)
     if (cave_pit_bold(p_ptr->py, p_ptr->px))
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Pit", ROW_TERRAIN, COL_TERRAIN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_TERRAIN, 3, TERM_ORANGE), "Pit", ROW_TERRAIN, COL_TERRAIN);
         sdl_story_font_disable();
     }
     else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Web", ROW_TERRAIN, COL_TERRAIN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_TERRAIN, 3, TERM_ORANGE), "Web", ROW_TERRAIN, COL_TERRAIN);
         sdl_story_font_disable();
     }
     else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_YELLOW, "Sun", ROW_TERRAIN, COL_TERRAIN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_TERRAIN, 3, TERM_YELLOW), "Sun", ROW_TERRAIN, COL_TERRAIN);
         sdl_story_font_disable();
     }
 
@@ -2411,19 +3033,22 @@ static void prt_stun(void)
     if (s > 100)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_RED, "Knocked out", ROW_STUN, COL_STUN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_STUN, 11, TERM_RED), "Knocked out", ROW_STUN, COL_STUN);
         sdl_story_font_disable();
     }
     else if (s > 50)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Heavy stun", ROW_STUN, COL_STUN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_STUN, 10, TERM_ORANGE), "Heavy stun", ROW_STUN, COL_STUN);
         sdl_story_font_disable();
     }
     else if (s)
     {
         sdl_story_font_enable();
-        c_put_str(TERM_ORANGE, "Stun", ROW_STUN, COL_STUN);
+        c_put_str(status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+            COL_STUN, 4, TERM_ORANGE), "Stun", ROW_STUN, COL_STUN);
         sdl_story_font_disable();
     }
 }
@@ -2433,6 +3058,7 @@ typedef struct {
     const char* short_text;
     byte attr;
     bool required;
+    int click_action;
 } status_seg;
 
 static int status_line_len(const status_seg* segs, int count, bool use_long,
@@ -2602,6 +3228,63 @@ static const char* status_partition_short(const char* long_label)
     return long_label;
 }
 
+static bool status_line_span_blank(int row, int col, int width)
+{
+    if (!Term || !Term->scr || !Term->scr->c)
+        return false;
+    if (row < 0 || row >= Term->hgt)
+        return false;
+    if (col < 0 || width <= 0 || col + width > Term->wid)
+        return false;
+
+    for (int i = 0; i < width; i++)
+    {
+        unsigned char ch = (unsigned char)Term->scr->c[row][col + i];
+
+        if (ch && ch != (unsigned char)Term->char_blank && ch != ' ')
+            return false;
+    }
+
+    return true;
+}
+
+static void prt_status_line_main_menu_hint(bool compact_centered)
+{
+    const char* label = STATUS_MAIN_MENU_HINT;
+    int len = (int)strlen(label);
+    int row = ROW_STATE;
+    int col = COL_STATE;
+    byte attr = status_touch_zone_attr(SDL_STATUS_CLICK_MAIN_MENU,
+        -1, 0, TERM_SLATE);
+
+    if (!Term || !p_ptr || len <= 0)
+        return;
+    if (row < 0 || row >= Term->hgt)
+        return;
+    if (Term->wid < len)
+        return;
+
+    if (compact_centered)
+    {
+        if (Term->wid < len + 2)
+            return;
+
+        col = (Term->wid - len) / 2;
+        if (!status_line_span_blank(row, col - 1, len + 2))
+            return;
+    }
+    else if (col < 0 || col + len > Term->wid)
+    {
+        return;
+    }
+
+    if (!compact_centered)
+        sdl_story_font_enable();
+    Term_putstr(col, row, len, attr, label);
+    if (!compact_centered)
+        sdl_story_font_disable();
+}
+
 static void prt_status_line_compact(void)
 {
     if (!Term || !p_ptr)
@@ -2768,30 +3451,38 @@ static void prt_status_line_compact(void)
             strnfmt(song_short, sizeof(song_short), "S:%.*s", 6, song_long);
     }
 
-    #define ADD_SEG(LTXT, STXT, ATTR, REQ) \
+    #define ADD_SEG(LTXT, STXT, ATTR, REQ, ACTION) \
         do { \
             if ((LTXT)[0]) { \
                 segs[seg_count].long_text = (LTXT); \
                 segs[seg_count].short_text = (STXT)[0] ? (STXT) : (LTXT); \
                 segs[seg_count].attr = (ATTR); \
                 segs[seg_count].required = (REQ); \
+                segs[seg_count].click_action = (ACTION); \
                 seg_count++; \
             } \
         } while (0)
 
-    ADD_SEG(hunger_long, hunger_short, hunger_attr, hunger_required);
-    ADD_SEG(p_ptr->blind ? "Blind" : "", "Bl", TERM_ORANGE, true);
-    ADD_SEG(p_ptr->confused ? "Confused" : "", "Cn", TERM_ORANGE, true);
-    ADD_SEG(cut_long, cut_short, cut_attr, true);
-    ADD_SEG(pois_long, pois_short, pois_attr, true);
-    ADD_SEG(stun_long, stun_short, stun_attr, true);
-    ADD_SEG(p_ptr->afraid ? "Afraid" : "", "Af", TERM_ORANGE, true);
-    ADD_SEG(song_long, song_short, TERM_L_BLUE, false);
-    ADD_SEG(state_long, state_short, state_attr, state_required);
-    ADD_SEG(speed_long, speed_short, speed_attr, true);
-    ADD_SEG(terrain_long, terrain_short, terrain_attr, true);
-    ADD_SEG(part_long, part_short, TERM_WHITE, false);
-    ADD_SEG(depth_long, depth_short, depth_attr, false);
+    ADD_SEG(hunger_long, hunger_short, hunger_attr, hunger_required,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(p_ptr->blind ? "Blind" : "", "Bl", TERM_ORANGE, true,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(p_ptr->confused ? "Confused" : "", "Cn", TERM_ORANGE, true,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(cut_long, cut_short, cut_attr, true, SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(pois_long, pois_short, pois_attr, true, SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(stun_long, stun_short, stun_attr, true, SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(p_ptr->afraid ? "Afraid" : "", "Af", TERM_ORANGE, true,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(song_long, song_short, TERM_L_BLUE, false, SDL_STATUS_CLICK_SONG);
+    ADD_SEG(state_long, state_short, state_attr, state_required,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(speed_long, speed_short, speed_attr, true,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(terrain_long, terrain_short, terrain_attr, true,
+        SDL_STATUS_CLICK_MAIN_MENU);
+    ADD_SEG(part_long, part_short, TERM_WHITE, false, SDL_STATUS_CLICK_MAP);
+    ADD_SEG(depth_long, depth_short, depth_attr, false, SDL_STATUS_CLICK_MAP);
 
     #undef ADD_SEG
 
@@ -2848,10 +3539,15 @@ static void prt_status_line_compact(void)
         if (n > remaining)
             n = remaining;
         if (n > 0)
-            Term_putstr(x, row, n, segs[i].attr, t);
+            Term_putstr(x, row, n,
+                status_touch_zone_attr(segs[i].click_action, x, n,
+                    segs[i].attr),
+                t);
         x += n;
         first = false;
     }
+
+    prt_status_line_main_menu_hint(true);
 }
 
 static void prt_status_line_top(void)
@@ -3080,6 +3776,7 @@ static void health_redraw(void)
         int len;
         int color;
         char buf[20];
+        char health_bar[10];
 
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
 
@@ -3090,29 +3787,25 @@ static void health_redraw(void)
         // if (m_ptr->stance == STANCE_FLEEING) attr = TERM_VIOLET;
 
         /* Convert into health bar (using ceiling for length) */
-        len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+        len = monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
 
         /* Default to "unknown" */
         Term_putstr(COL_INFO, ROW_INFO, 12, TERM_L_DARK, "  --------  ");
 
         /* Dump the current "health" (handle monster stunning, confusion) */
-
-        if (m_ptr->confused && m_ptr->stunned)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "cscscscs");
-        else if (m_ptr->confused)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "cccccccc");
-        else if (m_ptr->stunned)
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "ssssssss");
-        else
-            Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, "********");
+        Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, health_bar);
 
         Term_erase(COL_INFO, ROW_INFO + 1, 12);
 
         if (!get_alertness_text(m_ptr, sizeof(buf), buf, &color))
             return;
 
-        Term_putstr(COL_INFO + (13 - strlen(buf)) / 2, ROW_INFO + 1,
-            MIN(strlen(buf), 12), color, buf);
+        int buf_len = (int)strlen(buf);
+        int display_len = MIN(buf_len, LEFT_PANEL_CONTENT_WID);
+        int display_col = COL_INFO
+            + MAX(0, (LEFT_PANEL_CONTENT_WID - display_len) / 2);
+
+        Term_putstr(display_col, ROW_INFO + 1, display_len, color, buf);
     }
 }
 
@@ -3128,6 +3821,9 @@ static void prt_frame_basic(void)
         prt_depth();
         return;
     }
+
+    for (i = ROW_MAP; Term && i < ROW_MAP + SCREEN_HGT; i++)
+        Term_erase(0, i, LEFT_PANEL_WID);
 
     /* Name */
     prt_player_name();
@@ -6344,6 +7040,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_MEL);
         if (!ui_hide_left_panel())
             prt_mel();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_ARC))
@@ -6351,13 +7049,18 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_ARC);
         if (!ui_hide_left_panel())
             prt_arc();
+        else
+            hidden_overlay_needs_refresh = true;
     }
 
     if (p_ptr->redraw & (PR_QUIVER))
     {
         p_ptr->redraw &= ~(PR_QUIVER);
         if (!ui_hide_left_panel())
+        {
             prt_quiver();
+            prt_arc();
+        }
         else
             hidden_overlay_needs_refresh = true;
     }

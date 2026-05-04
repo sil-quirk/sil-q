@@ -2208,6 +2208,7 @@ extern void re_init_some_things(void)
     int i;
 
     run_mode_reset();
+    ui_reset_transient_state_for_new_session();
     screen_set_startup_supporting_panes_hidden(true);
 
     // wipe the whole player structure
@@ -2254,6 +2255,7 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
     display_introduction();
     sdl_story_font_reset();
@@ -2801,8 +2803,6 @@ static int welcome_screen_intro_row(int rel_row,
     const welcome_intro_layout* layout);
 static int welcome_screen_intro_last_row(const welcome_intro_layout* layout);
 static int welcome_screen_intro_total_rows(const welcome_intro_layout* layout);
-static void welcome_prompt_label(int binding, const char* fallback,
-    char* buf, size_t buflen);
 static int welcome_screen_footer_rows(bool show_wizard, bool show_sep,
     bool show_blank, bool show_prompt);
 static void welcome_screen_compute_layout(int hgt, bool show_wizard,
@@ -2823,17 +2823,6 @@ extern void display_introduction(void)
     welcome_screen_compute_layout(term_hgt, arg_wizard, &layout,
         NULL, NULL, NULL);
     display_introduction_with_layout(&layout);
-}
-
-static void welcome_prompt_label(int binding, const char* fallback,
-    char* buf, size_t buflen)
-{
-    if (!buf || !buflen)
-        return;
-
-    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
-    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
-        SDL_strlcpy(buf, fallback, buflen);
 }
 
 static int welcome_screen_base_col(void)
@@ -3284,6 +3273,7 @@ static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
     const char *wizard_line = "Resurrecting a character is a form of cheating.";
     const char *sep_line = "- - - - - - - - - - - -";
     char menu_line[96];
+    char quit_token[32];
     bool steamdeck = steamdeck_controls_active();
 
     Term_get_size(&term_wid, &term_hgt);
@@ -3292,25 +3282,20 @@ static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
 
     if (steamdeck)
     {
-        char confirm_label[16];
-        char back_label[16];
-
-        welcome_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        welcome_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
+        SDL_strlcpy(quit_token, "Back/B", sizeof(quit_token));
         strnfmt(menu_line, sizeof(menu_line),
             (metarun_created == true)
-                ? "[%s] Begin    [%s] Quit"
-                : "[%s] Continue  [%s] Quit",
-            confirm_label, back_label);
+                ? "[Any key] Begin    [%s] Quit"
+                : "[Any key] Continue  [%s] Quit",
+            quit_token);
     }
     else
     {
+        SDL_strlcpy(quit_token, "Q/Esc", sizeof(quit_token));
         SDL_strlcpy(menu_line,
             (metarun_created == true)
-                ? "[Space] Begin    [Q/Esc] Quit"
-                : "[Space] Continue  [Q/Esc] Quit",
+                ? "[Any key] Begin    [Q/Esc] Quit"
+                : "[Any key] Continue  [Q/Esc] Quit",
             sizeof(menu_line));
     }
 
@@ -3330,8 +3315,16 @@ static void welcome_screen_draw_footer(bool show_wizard, bool show_sep,
 
     if (show_prompt && row >= 0 && row < term_hgt)
     {
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         Term_putstr(x, row, -1, TERM_SLATE, menu_line);
+        ui_menu_click_add_text_token(ESCAPE, x, row, menu_line, quit_token);
+        ui_menu_click_add_text_token(ESCAPE, x, row, menu_line, "Quit");
         row--;
+    }
+    else
+    {
+        ui_menu_click_clear();
     }
 
     if (show_blank && row >= 0)
@@ -3410,6 +3403,7 @@ void init_angband(void)
 
     /*** Display the introduction ***/
 
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
     display_introduction();
     sdl_story_font_reset();
@@ -3697,7 +3691,7 @@ extern NavResult initial_menu(bool *start_new)
     int ch;
     NavResult result = NAV_BACK;
     bool intro_story_font = true;
-    bool steamdeck = steamdeck_controls_active();
+    screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
 
     int wid, hgt;
@@ -3737,8 +3731,8 @@ extern NavResult initial_menu(bool *start_new)
         const char *sep_line = "- - - - - - - - - - - -";
         const char *menu_line =
             (metarun_created == true)
-                ? "[Space] Begin    [Q/Esc] Quit"
-                : "[Space] Continue  [Q/Esc] Quit";
+                ? "[Any key] Begin    [Q/Esc] Quit"
+                : "[Any key] Continue  [Q/Esc] Quit";
         int row = hgt - 1;
 
         if (show_prompt && row >= 0 && row < hgt)
@@ -3760,37 +3754,55 @@ extern NavResult initial_menu(bool *start_new)
             Term_putstr(x, row, 60, TERM_BLUE, wizard_line);
     }
 
-    Term_fresh();
-
-    /* Prevent inkey() from showing the cursor while waiting on the menu */
-    bool _saved_hide_cursor = hide_cursor;
-    hide_cursor = true;
-    ch = inkey();
-    hide_cursor = _saved_hide_cursor;
-
-    /* direct key choices ------------------------------------------------*/
-
-    /* enter : CONTINUE  */
-    if (ch == '\n' || ch == '\r' || ch == ' '
-        || (steamdeck && ch == steamdeck_confirm_key()))
+    while (true)
     {
-        log_info("initial_menu: User pressed space/enter - starting game");
+        int click_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        Term_fresh();
+
+        /* Prevent inkey() from showing the cursor while waiting on the menu */
+        bool _saved_hide_cursor = hide_cursor;
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = _saved_hide_cursor;
+
+        if (ui_menu_click_take_action(&click_choice, &click_action))
+        {
+            if (click_action == UI_MENU_CLICK_HOVER)
+            {
+                welcome_screen_draw_footer(show_wizard_line, show_sep,
+                    show_blank, show_prompt);
+                continue;
+            }
+
+            ch = click_choice;
+        }
+        else if (ch == UI_MENU_CLICK_WAKE_KEY)
+        {
+            welcome_screen_draw_footer(show_wizard_line, show_sep,
+                show_blank, show_prompt);
+            continue;
+        }
+
+        /* q/Esc : EXIT */
+        if (ch == 'q' || ch == 'Q' || ch == ESCAPE)
+        {
+            result = NAV_QUIT;                /* handled as quit in main-win.c */
+            goto menu_done;
+        }
+
+        /* Any other key : CONTINUE */
+        log_info("initial_menu: User pressed continue key - starting game");
         run_mode_set_pending(RUN_MODE_STORY);
         *start_new = true;
         result = NAV_OK;   /* start new game */
         goto menu_done;
     }
 
-
-    /* q : EXIT      */
-    if (ch == 'q' || ch == ESCAPE
-        || (steamdeck && ch == steamdeck_back_key()))
-    {
-        result = NAV_QUIT;                /* handled as quit in main-win.c */
-        goto menu_done;
-    }
-
 menu_done:
+    ui_menu_click_clear();
+    screen_set_startup_touch_pane_hidden(false);
     log_info("initial_menu: EXITING with result=%d", result);
     if (sdl_config_should_force_intro_flame()) {
         sdl_config_mark_intro_seen();

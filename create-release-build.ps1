@@ -68,6 +68,7 @@ $libSourceRoot = Resolve-ScriptRelativePath "lib"
 $coverArtPath = Resolve-ScriptRelativePath "CoverArt"
 $legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
 $archiveScriptPath = Resolve-ScriptRelativePath "create-distribution-archive.ps1"
+$releaseApkPath = Resolve-ScriptRelativePath "android/app/build/outputs/apk/release/app-release.apk"
 
 # Define game data folders to copy (content only) - edit, pref, xtra, docs
 $libFoldersToCopy = @('edit', 'pref', 'xtra', 'docs')
@@ -378,6 +379,5 @@ Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Test: $(Join-Path $outputFolderPath 'sil-more.exe')"
 Write-Host "  2. Test portable: $(Join-Path $portableOutputFolderPath 'sil-more.exe')"
-Write-Host "  3. Archive standard: $archiveScriptPath -ReleaseFolder $outputFolderPath -Version $Version"
-Write-Host "  4. Archive portable: $archiveScriptPath -ReleaseFolder $portableOutputFolderPath -Version $Version -Portable"
+Write-Host "  3. Package distributions: $archiveScriptPath -ReleaseFolder $outputFolderPath -PortableReleaseFolder $portableOutputFolderPath -Version $Version -ApkPath $releaseApkPath"
 Write-Host ""

@@ -10,6 +10,18 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "sdl-config.h"
+
+static void cmd6_prompt_label(int binding, const char* fallback, char* buf,
+    size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
 
 static void format_staff_prompt_name(char* buf, size_t max,
     const object_type* o_ptr, bool pref)
@@ -251,6 +263,13 @@ static bool sanctity_choose_target_from_entries(
             visible_count = page_size;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(list_row, help_row - 1,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
 
         prt("Cleanse which item?", 0, 0);
         strnfmt(buf, sizeof(buf), "%d eligible sanctity target%s",
@@ -308,6 +327,7 @@ static bool sanctity_choose_target_from_entries(
                 Term_putstr(5, row, -1, label_attr, prefix);
             }
             Term_putstr(desc_col, row, -1, desc_attr, desc);
+            ui_menu_click_add_full_row(top + i, row);
         }
 
         for (int i = list_row + visible_count; i < help_row; i++)
@@ -324,16 +344,69 @@ static bool sanctity_choose_target_from_entries(
             prt("", help_row, 0);
         }
 
-        prt(steamdeck
-                ? "D-pad choose, A/Enter select, B/ESC cancel"
-                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
-            prompt_row, 0);
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[80];
+
+            cmd6_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            cmd6_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad choose, %s select, %s cancel", confirm_label,
+                back_label);
+            prt(prompt_buf, prompt_row, 0);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
+                "select");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
+                "cancel");
+        }
+        else
+        {
+            cptr prompt_text =
+                "Letters/8/2/arrows choose, Enter select, ESC cancel";
+            prt(prompt_text, prompt_row, 0);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "select");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+                "cancel");
+        }
         Term_fresh();
 
         key = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != current)
+                    {
+                        current = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
+
         if (steamdeck && key == steamdeck_back_key())
         {
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
         }
@@ -341,6 +414,8 @@ static bool sanctity_choose_target_from_entries(
         switch (key)
         {
         case ESCAPE:
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
 
@@ -351,6 +426,8 @@ static bool sanctity_choose_target_from_entries(
         case KC_ENTER:
 #endif
             *out_item = entries[current].item;
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return true;
 
@@ -378,6 +455,8 @@ static bool sanctity_choose_target_from_entries(
 
             if (steamdeck && key == steamdeck_back_key())
             {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return false;
             }
@@ -385,6 +464,8 @@ static bool sanctity_choose_target_from_entries(
             if (steamdeck && key == steamdeck_confirm_key())
             {
                 *out_item = entries[current].item;
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }
@@ -399,6 +480,8 @@ static bool sanctity_choose_target_from_entries(
             if (pick >= 0 && pick < visible_count)
             {
                 *out_item = entries[top + pick].item;
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }

@@ -522,6 +522,8 @@ struct monster_lore
     u32b flags2; /* Observed racial flags */
     u32b flags3; /* Observed racial flags */
     u32b flags4; /* Observed racial flags */
+
+    byte song_lore_flags; /* Stats revealed by duel songs */
 };
 
 /*
@@ -736,7 +738,7 @@ struct monster_type
                                          turns */
 
     /* Thrall quest system */
-    byte thrall_quest_item;      /* Item the thrall wants: 0=none, 1=shovel, 2=lantern, 3=herb, 4=mallorn, 5=healing potion, 6=dagger, 7=cloak, 8=boots, 9=herb of sustenance, 10=herb of restoration, 11=potion of clarity */
+    byte thrall_quest_item;      /* Item the thrall wants: see THRALL_QUEST_* */
     byte thrall_quest_requested; /* 1 if the thrall's initial request has been shown to the player */
     byte thrall_quest_completed; /* Thrall quest state: 0=active, 1=reward claimed, 2=reward pending */
 };
@@ -1200,6 +1202,7 @@ struct player_type
     byte morgoth_slain; /* Player has slain Morgoth */
     byte morgoth_second_wind; /* Morgoth revived once at 20% HP */
     byte morgoth_hits; /* Number of big hits against Morgoth */
+    byte morgoth_call_state; /* Packed summons seen/escalation state */
     u16b escaped; /* Player has escaped Angband */
     u16b panic_save; /* Panic save */
 
@@ -1227,6 +1230,7 @@ struct player_type
     byte was_entranced; // stores whether you have just woken up from
                         // entrancement
     byte skip_next_turn; // stores whether you need to skip your next turn
+    s32b morgoth_call_last_stage; /* Runtime duplicate guard for summons */
 
     byte have_ability[S_MAX]
                      [ABILITIES_MAX]; /* Whether or not you have each
@@ -1473,8 +1477,8 @@ struct high_score
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */
-    char uid[8];         /* Player UID (number) */
-    char unused[2];      /* Was sex */
+    char uid[8];         /* Player UID, or linked runs.db record_id in score format 0.9.6.3+ */
+    char unused[2];      /* Link marker for score format 0.9.6.3+ rows */
     char p_r[3];         /* Player Race (number) */
     char p_h[3];         /* Player Character (number) */
     char cur_lev[4];     /* Unique monsters killed (number) */
@@ -1614,7 +1618,8 @@ typedef enum {
     NAV_OK = 0,     /* proceed normally */
     NAV_BACK,       /* step back within current flow */
     NAV_TO_MAIN,    /* abort flow and return to main menu */
-    NAV_QUIT        /* exit program */
+    NAV_QUIT,       /* exit program */
+    NAV_TO_CHARACTER /* return to character selection */
 } NavResult;
 
 /* Result of play_game() */

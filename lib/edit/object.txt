@@ -286,7 +286,7 @@ T:2:27
 I:39:2:0
 W:8:20:1:1000
 P:0:0d0:0:0d0:0
-A:1/0:3/40
+A:3/0:8/40
 F:NOBLE_ITEM
 D:An enchanted glowing jewel, akin to a Silmaril, but much less
 D: powerful.
@@ -706,7 +706,7 @@ W:15:0:35:5000
 P:-1:3d4:1:0d0
 R:ATT:0
 R:DS:5
-A:10:3:15/15
+A:10/3:15/15
 F:IGNORE_ALL | MITHRIL | ACCURATE | NOBLE_ITEM
 D:A blade forged of mithril by the smiths of the Hidden
 D: Kingdoms, whose craft in the Elder Days surpassed all
@@ -1396,7 +1396,7 @@ T:2:29
 I:39:1:0
 W:5:0:30:35
 P:0:0d0:0:0d0:0
-A:1/0:6/50:14/40:16/0
+A:6/0:12/50:16/30
 D:[neutral]A lantern of brass and glass, made to shelter its flame
 D: from draught and dripping dark. Such lamps are prized by scouts,
 D: miners, and all who must work below the sun, for their steadier
@@ -2219,9 +2219,9 @@ I:56:16:0
 W:11:0:5:400
 P:0:0d0:0:0d0
 A:11/20
-D:A gem that can restore the fading power of enchanted staves,
-D: renewing their virtue. It allows you to partially recharge
-D: another staff.
+D:A gem that can restore the fading power of an enchanted staff,
+D: renewing its virtue. It allows you to partially recharge
+D: a staff.
 
 
 N:210:Summoning

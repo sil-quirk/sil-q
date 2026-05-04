@@ -16,6 +16,7 @@
 #include "metarun.h"
 #include "score/score_runs.h"
 #include "score/score_ui.h"
+#include "sdl-config.h"
 #include "sdl-sound.h"
 #include "z-term.h"
 #include <time.h>
@@ -26,6 +27,7 @@
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 static char g_active_partition_banner_text[1024] = "";
+static int g_active_partition_banner_animation_rows = 0;
 static bool g_active_partition_banner_consumes_input = false;
 /* Banners shown while resolving a command should survive until the next
  * command prompt rather than being consumed by the arrival action itself. */
@@ -77,6 +79,7 @@ static void reset_level_entry_tracking(void)
     g_labyrinth_view_active = false;
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
     greater_vault_xp_name[0] = '\0';
@@ -215,6 +218,9 @@ static int narrative_banner_rows_for_text(cptr text)
 
 int active_narrative_banner_rows(void)
 {
+    if (g_active_partition_banner_animation_rows > 0)
+        return g_active_partition_banner_animation_rows;
+
     if (!g_active_partition_banner_text[0]
         || (g_banner_force_redraw_remaining <= 0))
         return 0;
@@ -225,6 +231,8 @@ int active_narrative_banner_rows(void)
 static void keep_player_visible_for_narrative_banner(cptr text)
 {
     int banner_rows;
+    int visible_rows;
+    int target_screen_row;
 
     if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
         return;
@@ -233,10 +241,19 @@ static void keep_player_visible_for_narrative_banner(cptr text)
     if (banner_rows <= 0)
         return;
 
-    if (p_ptr->py >= p_ptr->wy + banner_rows)
-        return;
+    if (banner_rows >= SCREEN_HGT)
+        banner_rows = SCREEN_HGT - 1;
 
-    if (modify_panel(p_ptr->py - banner_rows, p_ptr->wx))
+    visible_rows = SCREEN_HGT - banner_rows;
+    if (visible_rows < 1)
+        visible_rows = 1;
+
+    /* Center the entry view in the map rows that the banner leaves visible. */
+    target_screen_row = banner_rows + visible_rows / 2;
+    if (target_screen_row >= SCREEN_HGT)
+        target_screen_row = SCREEN_HGT - 1;
+
+    if (modify_panel(p_ptr->py - target_screen_row, p_ptr->wx))
     {
         if (p_ptr->redraw)
             redraw_stuff();
@@ -381,6 +398,7 @@ void clear_active_narrative_banner(void)
 {
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
 }
@@ -514,6 +532,8 @@ static void display_narrative_text(cptr text, int narrative_mode,
 
     g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
     g_active_partition_banner_text[0] = '\0';
+    g_active_partition_banner_animation_rows =
+        narrative_banner_rows_for_text(text);
     print_fade_centered_at_row(text, 1, false, line_delay);
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
@@ -524,6 +544,7 @@ static void display_narrative_text(cptr text, int narrative_mode,
     g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
         ? 1
         : narrative_banner_turn_setting();
+    g_active_partition_banner_animation_rows = 0;
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,
@@ -660,6 +681,8 @@ static bool confirm_enter_morgoth_hall(void)
             col = 1;
         Term_putstr(col, hgt - 3, -1, TERM_YELLOW, prompt);
     }
+    sdl_touch_pane_begin_yes_no_prompt("Enter Morgoth's hall?");
+    Term_fresh();
 
     /* Get an acceptable answer */
     while (true)
@@ -675,6 +698,7 @@ static bool confirm_enter_morgoth_hall(void)
     }
 
     /* Restore screen */
+    sdl_touch_pane_end_yes_no_prompt();
     screen_load();
 
     /* Normal negation */
@@ -932,6 +956,7 @@ static bool first_entry_to_dungeon = true;
 
 /* True while the post-mortem spectator viewport is active. */
 static bool death_spectator_mode = false;
+static bool death_spectator_exit_requested = false;
 
 /*
  * Reset all dungeon-related static state for a new game.
@@ -946,6 +971,7 @@ void reset_dungeon_state(void)
     was_in_morgoth_vault = false;
     morgoth_entry_preconfirmed = false;
     death_spectator_mode = false;
+    death_spectator_exit_requested = false;
     g_active_partition_banner_text[0] = '\0';
 
     /* Reset music/sound tracking */
@@ -2352,6 +2378,13 @@ static void process_command(void)
         break;
     }
 
+    /* Show combat rolls */
+    case KTRL('Q'):
+    {
+        do_cmd_combat_history();
+        break;
+    }
+
     /* Redraw the screen */
     case KTRL('R'):
     {
@@ -2385,7 +2418,8 @@ static void process_command(void)
     /* Supplies overview */
     case 'j':
     {
-        do_cmd_knowledge_supplies(NULL);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_NONE, -1,
+            false, false);
         break;
     }
 
@@ -2453,6 +2487,7 @@ static bool death_spectator_command_allowed(int command)
     case KTRL('E'):
     case KTRL('O'):
     case KTRL('P'):
+    case KTRL('Q'):
     case KTRL('R'):
     case ESCAPE:
         return true;
@@ -2514,6 +2549,7 @@ static void death_spectator_prepare_display(void)
 void death_spectator_view(void)
 {
     death_spectator_mode = true;
+    death_spectator_exit_requested = false;
 
     /* Clear any queued commands from the main loop. */
     p_ptr->command_cmd = 0;
@@ -2550,6 +2586,9 @@ void death_spectator_view(void)
         process_command();
         handle_stuff();
 
+        if (death_spectator_exit_requested)
+            break;
+
         /* Reset command state for the next iteration. */
         p_ptr->command_cmd = 0;
         p_ptr->command_new = 0;
@@ -2559,6 +2598,7 @@ void death_spectator_view(void)
     }
 
     death_spectator_mode = false;
+    death_spectator_exit_requested = false;
 
     /* Ensure no residual actions are pending. */
     p_ptr->energy_use = 0;
@@ -2572,6 +2612,12 @@ void death_spectator_view(void)
 bool death_spectator_active(void)
 {
     return death_spectator_mode;
+}
+
+void death_spectator_request_exit(void)
+{
+    if (death_spectator_mode)
+        death_spectator_exit_requested = true;
 }
 
 static bool auto_pickup_okay(const object_type* o_ptr)
@@ -3888,6 +3934,7 @@ static void process_player(void)
         {
             g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
+            g_active_partition_banner_animation_rows = 0;
             do_cmd_redraw();
         }
     }
@@ -3896,6 +3943,8 @@ static void process_player(void)
 
     min_depth_counter += depth_counter_increment > 0 ?
         depth_counter_increment : 0;
+
+    process_morgoth_call_pressure();
 
     /* Window stuff */
 
@@ -4147,6 +4196,9 @@ static void dungeon(void)
             entry_mode = PARTITION_NARRATIVE_MESSAGE;
         handle_partition_entry(true, entry_mode);
     }
+
+    sdl_touch_maybe_show_first_game_tutorial();
+    sdl_mouse_maybe_show_first_game_tutorial();
 
     log_info("Dungeon display setup completed successfully");
 
@@ -4502,11 +4554,52 @@ static bool story_intro_skip_requested(void)
     if (Term_inkey(&check_key, false, false) == 0)
     {
         Term_inkey(&check_key, false, true);
-        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r')
+        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r'
+            || check_key == ' ' || check_key == INPUT_BIND_CONFIRM)
+            return true;
+        if (steamdeck_controls_active()
+            && (check_key == steamdeck_confirm_key()
+                || check_key == steamdeck_back_key()))
             return true;
     }
 
     return false;
+}
+
+static void story_intro_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    morgoth_prompt_controller_label(binding, fallback, buf, buflen);
+}
+
+static bool story_intro_back_key(int ch)
+{
+    return steamdeck_controls_active() && ch == steamdeck_back_key()
+        && ch != steamdeck_confirm_key();
+}
+
+static bool story_intro_difficulty_key(int ch)
+{
+    if (ch == 'c' || ch == 'C')
+        return true;
+
+    return steamdeck_controls_active() && ch == steamdeck_alt_action_key();
+}
+
+static void story_intro_touch_confirm_begin(int h)
+{
+    if (h < 1)
+        return;
+
+    ui_menu_click_begin();
+    ui_menu_click_set_outside_cancel_enabled(true);
+    for (int row = 0; row < h; row++)
+        ui_menu_click_add_full_row('\r', row);
+}
+
+static void story_intro_touch_confirm_end(void)
+{
+    ui_menu_click_clear();
 }
 
 static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
@@ -4679,6 +4772,7 @@ static void print_story_intro(void)
 {
     bool story_intro_story_font = true;
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
     sdl_story_font_enable();
     sdl_music_play_main_full();
     int wid, h;
@@ -4747,11 +4841,30 @@ static void print_story_intro(void)
 
         /* Check if we have enough space for the whole paragraph */
         if (row + lines_needed >= h - 1) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            if (steamdeck_controls_active())
+            {
+                char confirm_label[16];
+                char back_label[16];
+                char prompt_buf[80];
+
+                story_intro_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                story_intro_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "[%s] continue  [%s] skip", confirm_label, back_label);
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+            }
+            else
+            {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            }
             hide_cursor = true;
             {
+                story_intro_touch_confirm_begin(h);
                 char k = inkey();
-                if (k == 'S') { /* Capital S skips the intro entirely */
+                story_intro_touch_confirm_end();
+                if (k == 'S' || story_intro_back_key(k)) { /* Capital S skips the intro entirely */
                     Term_clear();
                     goto cleanup_intro;
                 }
@@ -4760,7 +4873,9 @@ static void print_story_intro(void)
             row = 1;
         }
 
+        story_intro_touch_confirm_begin(h);
         skipped = story_intro_render_paragraph(s, indent, wrap_width, &row);
+        story_intro_touch_confirm_end();
 
         /* Leave one blank line after each paragraph */
         row++;
@@ -4772,17 +4887,38 @@ static void print_story_intro(void)
     }
 
     /* Final "finish" prompt with difficulty option */
-    Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char difficulty_label[16];
+        char prompt_buf[96];
+
+        story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        story_intro_prompt_label(steamdeck_alt_action_key(), "X",
+            difficulty_label, sizeof(difficulty_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "[%s] Change difficulty (experienced players)", difficulty_label);
+        Term_putstr(8, h - 2, -1, TERM_L_WHITE, prompt_buf);
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
+        Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+    }
+    else
+    {
+        Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
+        Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+    }
 
     /* Handle input */
     hide_cursor = true;
+    story_intro_touch_confirm_begin(h);
     char key = inkey();
-    if (key == 'S') {
+    story_intro_touch_confirm_end();
+    if (key == 'S' || story_intro_back_key(key)) {
         Term_clear();
         goto cleanup_intro;
     }
-    if (key == 'c' || key == 'C')
+    if (story_intro_difficulty_key(key))
     {
         Term_clear();
         choose_difficulty_level();
@@ -4795,6 +4931,7 @@ static void print_story_intro(void)
     Term_flush();
 
 cleanup_intro:
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     if (story_intro_story_font)
         sdl_story_font_reset();
@@ -4912,6 +5049,8 @@ PlayResult play_game(void)
     bool new_game = false;
 
     log_info("play_game: FUNCTION ENTERED");
+
+    ui_reset_transient_state_for_new_session();
 
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)
@@ -5141,6 +5280,8 @@ PlayResult play_game(void)
         }
         /* NAV_OK falls through */
 
+        sdl_pointer_attack_reset_to_melee();
+
         // Reset the autoinscriptions
         autoinscribe_clean();
         autoinscribe_init();
@@ -5290,6 +5431,10 @@ PlayResult play_game(void)
     metarun_created = false;
 
     log_info("Game session started - entering play mode");
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    (void)mobile_autosave_game("game session start");
+#endif
     
     /* Any active run, including the Gates at depth 0, uses ambient gameplay music. */
     log_debug("Starting game session at depth=%d - switching to ambient music", p_ptr->depth);
@@ -5304,6 +5449,7 @@ PlayResult play_game(void)
     /* Redraw everything */
     // Sil-y: added to get 'shades' right in extra inventory terms
     screen_set_startup_supporting_panes_hidden(false);
+    screen_set_startup_touch_pane_hidden(false);
     do_cmd_redraw();
 
     // update player noise

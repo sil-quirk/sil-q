@@ -16,6 +16,7 @@
 #include "angband.h"
 #include "blitz.h"
 #include "scorefile.h"
+#include "score/score_io.h"
 #include "score/score_logic.h"
 #include "score/score_runs.h"
 #include "score/score_ui.h"
@@ -1286,6 +1287,24 @@ static void display_skill(int skill, int row, int col)
             col + 28);
 }
 
+static int display_player_standard_skill_row_override = -1;
+static int display_player_standard_history_row_override = -1;
+static bool display_player_standard_layout_override_active = false;
+
+void display_player_standard_layout_set(int skill_row, int history_row)
+{
+    display_player_standard_layout_override_active = true;
+    display_player_standard_skill_row_override = skill_row;
+    display_player_standard_history_row_override = history_row;
+}
+
+void display_player_standard_layout_clear(void)
+{
+    display_player_standard_layout_override_active = false;
+    display_player_standard_skill_row_override = -1;
+    display_player_standard_history_row_override = -1;
+}
+
 
 /* ----- story-font aware helpers ---------------------------------------- */
 
@@ -1657,6 +1676,34 @@ static void display_player_deep_call_line(int x, int y, int line_w)
     value_attr = format_deep_call_value(value_buf, sizeof(value_buf), val_w);
     put_single_right(x, y, line_w, label, value_buf, val_w, value_attr);
 }
+
+static void display_player_trait_putstr_fit(int col, int row, int max_width,
+    byte attr, cptr text)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    if (row < 0 || row >= hgt)
+        return;
+    if (col < 0)
+        col = 0;
+    if (col >= wid)
+        return;
+
+    if (max_width <= 0 || col + max_width > wid)
+        max_width = wid - col;
+    if (max_width <= 0)
+        return;
+
+    Term_erase(col, row, max_width);
+    Term_putstr(col, row, max_width, attr, text ? text : "");
+}
 /* ======================================================================= */
 
 void display_player_xtra_info(int mode)
@@ -1667,6 +1714,9 @@ void display_player_xtra_info(int mode)
     int col_stats;
     int col_flags;
     int col_skills;
+    int flags_width;
+    int skill_first_row = 6;
+    int history_first_row = 15;
     bool compact_overview = (mode == 100);
     bool show_skills = !compact_overview;
 
@@ -1683,17 +1733,32 @@ void display_player_xtra_info(int mode)
         term_wid = 80;
     if (term_hgt < 1)
         term_hgt = 24;
-    (void)term_hgt;
+
+    if (display_player_standard_layout_override_active
+        && display_player_standard_skill_row_override >= 0)
+    {
+        skill_first_row = display_player_standard_skill_row_override;
+    }
+    if (display_player_standard_layout_override_active)
+    {
+        history_first_row = display_player_standard_history_row_override;
+    }
 
     if (term_wid > 80)
         wide_offset = (term_wid - 80) / 2;
 
     col_stats = wide_offset + 1;
-    col_flags = wide_offset + 23;
+    col_flags = wide_offset + 22;
     col_skills = wide_offset + 41;
 
     if (compact_overview)
-        col_flags = col_stats + 22;
+        col_flags = col_stats + 21;
+
+    flags_width = col_skills - col_flags;
+    if (flags_width < 1)
+        flags_width = term_wid - col_flags;
+    if (flags_width < 1)
+        flags_width = 1;
 
     /* -------------------- STATS (col 1..20) ----------------------------- */
 
@@ -1916,13 +1981,17 @@ void display_player_xtra_info(int mode)
     }
     
     for (int i = 0; i < uniq_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            uniq_buf[i].col, uniq_buf[i].txt);
     for (int i = 0; i < ma_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, ma_buf[i].col, ma_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            ma_buf[i].col, ma_buf[i].txt);
     for (int i = 0; i < af_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, af_buf[i].col, af_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            af_buf[i].col, af_buf[i].txt);
     for (int i = 0; i < pen_n; ++i)
-        Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
+        display_player_trait_putstr_fit(col_flags, row_flags++, flags_width,
+            pen_buf[i].col, pen_buf[i].txt);
 
     /* Disable story font after rendering flags/abilities */
     if (story_character_enabled()) {
@@ -1932,11 +2001,15 @@ void display_player_xtra_info(int mode)
     /* -------------------- SKILLS ---------------------------------------- */
     if (show_skills)
     {
+        int skill_row = 0;
+
         /* Skills will manage their own font switching */
         for (skill = 0; skill < S_MAX; skill++) {
             /* Skip Special abilities skill - not meant for display */
             if (skill == S_SPC) continue;
-            display_skill(skill, 6 + skill, col_skills);
+            if (skill_first_row + skill_row < term_hgt)
+                display_skill(skill, skill_first_row + skill_row, col_skills);
+            skill_row++;
         }
     }
 
@@ -1947,15 +2020,16 @@ void display_player_xtra_info(int mode)
     
     /* Use full terminal width for history wrapping */
     log_debug("Character history: terminal width=%d, using wrap=%d", term_wid, term_wid - 1);
-    text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
-    text_out_indent = 1;
-    Term_gotoxy(text_out_indent, 15);
-    text_out_to_screen(history_attr, p_ptr->history);
+    if (history_first_row >= 0 && history_first_row < term_hgt)
+    {
+        text_out_wrap   = term_wid - 1;  /* Leave 1 column margin */
+        text_out_indent = 1;
+        Term_gotoxy(text_out_indent, history_first_row);
+        text_out_to_screen(history_attr, p_ptr->history);
+    }
     text_out_wrap   = 0;
     text_out_indent = 0;
     
-    Term_fresh();  /* Render history */
-
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
@@ -2160,25 +2234,61 @@ static void tutorial_prompt_label(int binding, const char* fallback, char* out, 
         SDL_strlcpy(out, fallback, out_size);
 }
 
-static void tutorial_put_centered(int row, byte attr, const char* text)
+static int tutorial_centered_col(const char* text)
 {
-    if (!text)
-        return;
-
     int wid = 80;
     int hgt = 24;
     Term_get_size(&wid, &hgt);
     if (wid < 1)
         wid = 80;
 
-    int len = (int)strlen(text);
+    int len = text ? (int)strlen(text) : 0;
     int col = 0;
     if (len < wid)
         col = (wid - len) / 2;
     if (col < 0)
         col = 0;
 
+    return col;
+}
+
+static void tutorial_put_centered(int row, byte attr, const char* text)
+{
+    if (!text)
+        return;
+
+    int col = tutorial_centered_col(text);
     Term_putstr(col, row, -1, attr, text);
+}
+
+static void tutorial_add_prompt_segment_click(
+    int choice, int col, int row, const char* text, const char* token)
+{
+    const char* match;
+    const char* start;
+    const char* end;
+
+    if (!text || !token || !token[0])
+        return;
+
+    match = strstr(text, token);
+    if (!match)
+        return;
+
+    start = match;
+    while (start > text && start[-1] != '(' && start[-1] != '[')
+        start--;
+    if (start > text && (start[-1] == '(' || start[-1] == '['))
+        start--;
+
+    end = match + strlen(token);
+    while (*end && *end != ')' && *end != ']')
+        end++;
+    if (*end == ')' || *end == ']')
+        end++;
+
+    ui_menu_click_add_text_span(choice, col, row, text, (int)(start - text),
+        (int)(end - text));
 }
 
 static int tutorial_put_trunc(int col, int row, int max_wid, byte attr, const char* text)
@@ -2476,6 +2586,14 @@ typedef struct {
     const char* txt;
     byte col;
 } tutorial_trait_line;
+
+enum {
+    TUTORIAL_CLICK_PREV = 1,
+    TUTORIAL_CLICK_NEXT,
+    TUTORIAL_CLICK_EXIT,
+    TUTORIAL_CLICK_SCREEN_NEXT,
+    TUTORIAL_CLICK_SCREEN_EXIT
+};
 
 static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
 {
@@ -2965,6 +3083,9 @@ void display_character_tutorial(void)
             page = total_pages - 1;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
 
         /* Header */
         {
@@ -3331,10 +3452,16 @@ void display_character_tutorial(void)
         /* Footer / navigation */
         {
             if (page == total_pages - 1)
+            {
                 tutorial_put_centered(hint_row, TERM_L_GREEN, "Tutorial complete!");
+                ui_menu_click_add_full_row(TUTORIAL_CLICK_EXIT, hint_row);
+            }
             else
+            {
                 tutorial_put_centered(hint_row, TERM_YELLOW,
-                    steamdeck ? "D-pad left/right to navigate" : "Use left/right (or any key) to navigate");
+                    steamdeck ? "D-pad left/right to navigate" : "Use left/right to navigate");
+                ui_menu_click_add_full_row(TUTORIAL_CLICK_NEXT, hint_row);
+            }
 
             if (steamdeck)
             {
@@ -3348,7 +3475,14 @@ void display_character_tutorial(void)
                     strnfmt(nav, sizeof(nav), "(D-Left Prev)   (%s Next)   (%s Exit)", next_label, back_label);
                 else
                     strnfmt(nav, sizeof(nav), "(%s Next)   (%s Exit)", next_label, back_label);
-                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+                int nav_col = tutorial_centered_col(nav);
+                Term_putstr(nav_col, nav_row, -1, TERM_SLATE, nav);
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_PREV, nav_col, nav_row, nav, "Prev");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_NEXT, nav_col, nav_row, nav, "Next");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_EXIT, nav_col, nav_row, nav, "Exit");
             }
             else
             {
@@ -3357,11 +3491,59 @@ void display_character_tutorial(void)
                     strnfmt(nav, sizeof(nav), "(4/<- Prev)   (6/-> Next)   (ESC Exit)");
                 else
                     strnfmt(nav, sizeof(nav), "(6/-> Next)   (ESC Exit)");
-                tutorial_put_centered(nav_row, TERM_SLATE, nav);
+                int nav_col = tutorial_centered_col(nav);
+                Term_putstr(nav_col, nav_row, -1, TERM_SLATE, nav);
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_PREV, nav_col, nav_row, nav, "Prev");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_NEXT, nav_col, nav_row, nav, "Next");
+                tutorial_add_prompt_segment_click(
+                    TUTORIAL_CLICK_EXIT, nav_col, nav_row, nav, "Exit");
             }
         }
 
-        ch = inkey();
+        {
+            int screen_choice = (page == total_pages - 1)
+                ? TUTORIAL_CLICK_SCREEN_EXIT
+                : TUTORIAL_CLICK_SCREEN_NEXT;
+
+            for (int click_row = 0; click_row < hgt; click_row++)
+                ui_menu_click_add_full_row(screen_choice, click_row);
+        }
+
+        {
+            bool saved_hide_cursor = hide_cursor;
+
+            hide_cursor = true;
+            (void)Term_set_cursor(false);
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                if (clicked_choice == TUTORIAL_CLICK_PREV)
+                    ch = '4';
+                else if (clicked_choice == TUTORIAL_CLICK_NEXT
+                    || clicked_choice == TUTORIAL_CLICK_SCREEN_NEXT)
+                    ch = '6';
+                else if (clicked_choice == TUTORIAL_CLICK_EXIT
+                    || clicked_choice == TUTORIAL_CLICK_SCREEN_EXIT)
+                    ch = ESCAPE;
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
+        }
+
         if (steamdeck && ch == steamdeck_back_key())
             ch = ESCAPE;
 
@@ -3389,6 +3571,7 @@ void display_character_tutorial(void)
         }
     }
 
+    ui_menu_click_clear();
     Term_clear();
 }
 
@@ -5195,6 +5378,10 @@ bool show_buffer(cptr main_buffer, int line)
             Term_putstr(67, hgt - 2, -1, TERM_L_WHITE, "");
         }
 
+        ui_scroll_area_begin(0, hgt - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_tap_key(ESCAPE);
+
         /* Get a keypress */
         ch = inkey();
 
@@ -5226,6 +5413,8 @@ bool show_buffer(cptr main_buffer, int line)
         if (ch == ESCAPE)
             break;
     }
+
+    ui_scroll_area_clear();
 
     /* Done */
     return (true);
@@ -5761,6 +5950,12 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case TOUCH_PANE_BIND_INHERIT:
         SDL_strlcpy(buf, "Main panel button", buflen);
         return;
+    case TOUCH_BIND_TOP_PANEL_OPEN:
+        SDL_strlcpy(buf, "Open top panel", buflen);
+        return;
+    case TOUCH_BIND_TOP_PANEL_CLOSE:
+        SDL_strlcpy(buf, "Close top panel", buflen);
+        return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift modifier", buflen);
         return;
@@ -5920,6 +6115,9 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case 'L':
         SDL_strlcpy(buf, "Pan view (L)", buflen);
         return;
+    case KTRL('Q'):
+        SDL_strlcpy(buf, "Combat rolls (^Q)", buflen);
+        return;
     case '0':
         SDL_strlcpy(buf, "Smithing screen (0)", buflen);
         return;
@@ -5973,6 +6171,12 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case TOUCH_PANE_BIND_INHERIT:
         SDL_strlcpy(buf, "Main", buflen);
+        return;
+    case TOUCH_BIND_TOP_PANEL_OPEN:
+        SDL_strlcpy(buf, "Top Open", buflen);
+        return;
+    case TOUCH_BIND_TOP_PANEL_CLOSE:
+        SDL_strlcpy(buf, "Top Close", buflen);
         return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift", buflen);
@@ -6132,6 +6336,9 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case 'L':
         SDL_strlcpy(buf, "Pan", buflen);
+        return;
+    case KTRL('Q'):
+        SDL_strlcpy(buf, "Combat", buflen);
         return;
     case '0':
         SDL_strlcpy(buf, "Smithing", buflen);
@@ -7804,8 +8011,10 @@ void do_cmd_help(void)
             if (steamdeck_controls_active()) {
                 char next_label[16];
                 char back_label[16];
-                help_prompt_label(' ', "A", next_label, sizeof(next_label));
-                help_prompt_label('b', "b", back_label, sizeof(back_label));
+                help_prompt_label(steamdeck_confirm_key(), "A", next_label,
+                    sizeof(next_label));
+                help_prompt_label(steamdeck_back_key(), "B", back_label,
+                    sizeof(back_label));
                 strnfmt(nav, sizeof(nav),
                     "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Back",
                     next_label, back_label);
@@ -7817,7 +8026,7 @@ void do_cmd_help(void)
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
-        if (steamdeck_controls_active() && ch == 'b')
+        if (steamdeck_controls_active() && ch == steamdeck_back_key())
             ch = ESCAPE;
 
         /* Enhanced navigation */
@@ -7963,24 +8172,60 @@ bool get_name(void)
     display_player(0);
 
     /* Prompt */
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, "Enter accept name");
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "  Tab random name");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char random_label[16];
+        char prompt_buf[80];
 
-    /* Hack - highlight the key names */
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
-    Term_putstr(QUESTION_COL + 2, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Tab");
+        tutorial_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        tutorial_prompt_label('\t', "L5", random_label, sizeof(random_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf), "%s accept name",
+            confirm_label);
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+            prompt_buf);
+        strnfmt(prompt_buf, sizeof(prompt_buf), "  %s random name",
+            random_label);
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
+            prompt_buf);
+    }
+    else
+    {
+        Term_putstr(
+            QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, "Enter accept name");
+        Term_putstr(
+            QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "  Tab random name");
+
+        /* Hack - highlight the key names */
+        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
+        Term_putstr(QUESTION_COL + 2, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Tab");
+    }
 
     /* Special Prompt? */
     if (character_dungeon)
     {
-        Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "ESC abort name change                  ");
+        if (steamdeck_controls_active())
+        {
+            char back_label[16];
+            char prompt_buf[80];
 
-        /* Hack - highlight the key names */
-        Term_putstr(
-            QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
+            tutorial_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf), "%s abort name change",
+                back_label);
+            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
+                TERM_SLATE, prompt_buf);
+        }
+        else
+        {
+            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+                "ESC abort name change                  ");
+
+            /* Hack - highlight the key names */
+            Term_putstr(
+                QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
+        }
     }
 
     // use old name as a default
@@ -8259,9 +8504,8 @@ void do_cmd_save_game(void)
             prt("Saving game... done.", 0, 0);
         }
 
-        /* Note: upsert_live_score_on_save() is called from close_game() 
-         * when quitting, not here. This avoids opening the scores file 
-         * multiple times. */
+        /* Desktop quit still upserts from close_game().  Mobile also updates
+         * the live entry here so an OS suspend/terminate can resume cleanly. */
 
         high_score live_score;
         if (build_live_preview_score(&live_score)) {
@@ -8270,6 +8514,10 @@ void do_cmd_save_game(void)
                 log_warn("Failed to persist live run snapshot for '%s'", op_ptr->full_name);
             }
         }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        upsert_live_score_on_save();
+#endif
     }
 
     /* Save failed (oops) */
@@ -8332,6 +8580,9 @@ static void show_info(void)
 {
     int term_wid = 80;
     int term_hgt = 24;
+    bool old_item_tester_full = item_tester_full;
+    byte old_item_tester_tval = item_tester_tval;
+    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
 
     Term_get_size(&term_wid, &term_hgt);
 
@@ -8344,7 +8595,7 @@ static void show_info(void)
 
     /* Allow abort at this point */
     if (inkey() == ESCAPE)
-        return;
+        goto cleanup;
 
     /* Show equipment and inventory */
 
@@ -8358,7 +8609,7 @@ static void show_info(void)
         Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
             "(press any key)");
         if (inkey() == ESCAPE)
-            return;
+            goto cleanup;
         item_tester_full = false;
     }
 
@@ -8372,12 +8623,17 @@ static void show_info(void)
         Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
             -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
-            return;
+            goto cleanup;
         item_tester_full = false;
     }
 
     // Display notes
     do_cmd_knowledge_notes();
+
+cleanup:
+    item_tester_hook = old_item_tester_hook;
+    item_tester_tval = old_item_tester_tval;
+    item_tester_full = old_item_tester_full;
 }
 
 
@@ -8618,6 +8874,12 @@ void atomonth(int number, char* output)
  * Helper: colour fade-in paragraph printer
  * Returns true if completed normally, false if interrupted by Esc
  * ----------------------------------------------------------- */
+static bool story_fast_forward_key(char ch)
+{
+    return (ch == ESCAPE)
+        || (steamdeck_controls_active() && ch == steamdeck_back_key());
+}
+
 /* Return values: 0=completed normally, 1=other key pressed (skip paragraph), 2=ESC pressed (fast-forward) */
 static int print_paragraph_fade(cptr text, int row, int indent,
                                  int wrap_width)
@@ -8644,7 +8906,7 @@ static int print_paragraph_fade(cptr text, int row, int indent,
             text_out_indent = 0;
             Term_fresh();
             /* Return different codes for ESC vs other keys */
-            return (ch == ESCAPE) ? 2 : 1;
+            return story_fast_forward_key(ch) ? 2 : 1;
         }
 
         text_out_indent = indent;
@@ -8664,7 +8926,7 @@ static int print_paragraph_fade(cptr text, int row, int indent,
         /* Consume the key */
         Term_inkey(&ch, false, true); /* Remove the key from queue */
         /* Return different codes for ESC vs other keys */
-        return (ch == ESCAPE) ? 2 : 1;
+        return story_fast_forward_key(ch) ? 2 : 1;
     }
 
     Term_xtra(TERM_XTRA_DELAY, 1000);
@@ -8949,14 +9211,32 @@ static void story_print_hint(int indent, int h)
         char esc_label[16];
         char prompt_buf[80];
 
-        story_prompt_label(' ', "A", next_label, sizeof(next_label));
-        story_prompt_label(ESCAPE, "ESC", esc_label, sizeof(esc_label));
+        story_prompt_label(steamdeck_confirm_key(), "A", next_label,
+            sizeof(next_label));
+        story_prompt_label(steamdeck_back_key(), "B", esc_label,
+            sizeof(esc_label));
 
         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] next  *  [%s] fast forward", next_label, esc_label);
         Term_putstr(indent, h - 1, -1, TERM_SLATE, prompt_buf);
     } else {
         Term_putstr(indent, h - 1, -1, TERM_SLATE, "[Enter] next  *  [Esc] fast forward");
     }
+}
+
+static void story_touch_confirm_begin(int h)
+{
+    if (h < 1)
+        return;
+
+    ui_menu_click_begin();
+    ui_menu_click_set_outside_cancel_enabled(true);
+    for (int row = 0; row < h; row++)
+        ui_menu_click_add_full_row('\r', row);
+}
+
+static void story_touch_confirm_end(void)
+{
+    ui_menu_click_clear();
 }
 
 void print_story(int last_parts, bool fade_in)
@@ -9025,6 +9305,7 @@ void print_story(int last_parts, bool fade_in)
 
     /* Screen prep ------------------------------------------- */
     screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
     Term_get_size(&wid, &h);
     Term_clear();
     /* Hide the cursor during story display and restore it at the end */
@@ -9063,8 +9344,10 @@ void print_story(int last_parts, bool fade_in)
             {
                 show_page_instantly = false;
                 REDRAW_HINT();
+                story_touch_confirm_begin(h);
                 char ch = inkey();
-                if (ch == ESCAPE)
+                story_touch_confirm_end();
+                if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in = false;
@@ -9099,7 +9382,9 @@ void print_story(int last_parts, bool fade_in)
              *   0 = completed normally
              *   1 = other key pressed (skip this paragraph)
              *   2 = ESC pressed (enable fast-forward) */
+            story_touch_confirm_begin(h);
             int fade_result = print_paragraph_fade(text, row, indent, wrap_width);
+            story_touch_confirm_end();
             if (fade_result == 2) {
                 /* ESC pressed - enable fast-forward mode */
                 fast_forward = true;
@@ -9142,8 +9427,10 @@ void print_story(int last_parts, bool fade_in)
                 show_page_instantly = false;
                 
                 REDRAW_HINT();
+                story_touch_confirm_begin(h);
                 char ch = inkey();
-                if (ch == ESCAPE)
+                story_touch_confirm_end();
+                if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in      = false;   /* Disable delays for rest of story */
@@ -9183,19 +9470,23 @@ void print_story(int last_parts, bool fade_in)
     if (steamdeck_controls_active()) {
         char next_label[16];
         char prompt_buf[64];
-        story_prompt_label(' ', "A", next_label, sizeof(next_label));
+        story_prompt_label(steamdeck_confirm_key(), "A", next_label,
+            sizeof(next_label));
         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", next_label);
         Term_putstr(indent, h - 1, -1, TERM_L_WHITE, prompt_buf);
     } else {
         Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
                     "[Press any key to continue]");
     }
+    story_touch_confirm_begin(h);
     (void)inkey();
+    story_touch_confirm_end();
     
     /* Flush any queued keypresses that accumulated during the story */
     Term_flush();
     
     sdl_story_font_disable();  // Disable after story display
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);
@@ -9482,6 +9773,79 @@ bool build_live_preview_score(high_score* out)
 
     return ok;
 }
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+bool mobile_autosave_game(cptr reason)
+{
+    static bool in_progress = false;
+
+    if (in_progress)
+        return false;
+
+    if (!character_generated || !p_ptr || p_ptr->is_dead || !p_ptr->playing)
+        return false;
+
+    if (DEPLOYMENT && p_ptr->game_type != 0)
+    {
+        log_info("mobile autosave skipped during tutorial mode (%s)",
+            reason ? reason : "unspecified");
+        return false;
+    }
+
+    if (!savefile[0] && op_ptr && op_ptr->full_name[0])
+        process_player_name(true);
+
+    if (!savefile[0])
+    {
+        log_warn("mobile autosave skipped: savefile path is empty (%s)",
+            reason ? reason : "unspecified");
+        return false;
+    }
+
+    in_progress = true;
+
+    char saved_how[sizeof(p_ptr->died_from)];
+    SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+
+    log_info("mobile autosave starting (%s) -> '%s'",
+        reason ? reason : "unspecified", savefile);
+    bool ok = save_player();
+
+    SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+
+    if (ok)
+    {
+        upsert_live_score_on_save();
+
+        high_score live_score;
+        if (build_live_preview_score(&live_score))
+        {
+            time_t now = time(NULL);
+            if (!score_runs_record_current_run(&live_score, now, SCORE_RECORD_ALIVE))
+            {
+                log_warn("mobile autosave: failed to persist live run snapshot for '%s'",
+                    op_ptr->full_name);
+            }
+        }
+
+        log_info("mobile autosave completed (%s)", reason ? reason : "unspecified");
+    }
+    else
+    {
+        log_error("mobile autosave failed (%s)", reason ? reason : "unspecified");
+    }
+
+    in_progress = false;
+    return ok;
+}
+#else
+bool mobile_autosave_game(cptr reason)
+{
+    (void)reason;
+    return false;
+}
+#endif
 
 
 
@@ -10123,11 +10487,13 @@ errr file_character(cptr name, bool full)
 static int final_menu(int* highlight)
 {
     char ch;
+    int clicked_choice = 0;
     bool morgoth_victory = (p_ptr->morgoth_slain && !p_ptr->escaped);
     int term_wid = 80;
     int term_hgt = 24;
     int separator_row;
     int option_row;
+    int first_option_row;
     char separator[96];
 
     const char* option_a = morgoth_victory ? "a) Review the Valar's record"
@@ -10147,30 +10513,41 @@ static int final_menu(int* highlight)
     Term_get_size(&term_wid, &term_hgt);
     separator_row = (term_hgt < 20) ? 9 : 10;
     option_row = separator_row + 2;
+    first_option_row = option_row;
     memset(separator, '_', sizeof(separator) - 1);
     separator[MIN((int)sizeof(separator) - 1, MAX(1, term_wid - 6))] = '\0';
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
 
     Term_putstr(3, separator_row, term_wid - 6, TERM_L_DARK, separator);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         option_a);
+    ui_menu_click_add(1, 15, first_option_row + 0, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
         option_b);
+    ui_menu_click_add(2, 15, first_option_row + 1, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         option_c);
+    ui_menu_click_add(3, 15, first_option_row + 2, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         option_d);
+    ui_menu_click_add(4, 15, first_option_row + 3, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         option_e);
+    ui_menu_click_add(5, 15, first_option_row + 4, term_wid - 15);
     Term_putstr(15, option_row++, term_wid - 15,
         (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         option_f);
+    ui_menu_click_add(6, 15, first_option_row + 5, term_wid - 15);
     Term_putstr(15, option_row, term_wid - 15,
         (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
+    ui_menu_click_add(7, 15, first_option_row + 6, term_wid - 15);
 
     /* Flush the prompt */
     Term_fresh();
@@ -10182,6 +10559,19 @@ static int final_menu(int* highlight)
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
+
+    {
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action)
+            && clicked_choice >= 1 && clicked_choice <= 7)
+        {
+            *highlight = clicked_choice;
+            if (click_action != UI_MENU_CLICK_PRIMARY)
+                return (0);
+            return (*highlight);
+        }
+    }
 
     if (ch == 'a')
     {
@@ -10270,6 +10660,7 @@ static void close_game_aux(void)
     }
     death_processing = true;
     clear_postmortem_scores_path();
+    screen_push_supporting_panes_hidden();
 
     log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
@@ -10296,7 +10687,11 @@ static void close_game_aux(void)
     log_info("entering score");
     create_score(&the_score);
     score_record_status final_status = p_ptr->escaped ? SCORE_RECORD_ESCAPED : SCORE_RECORD_DEAD;
-    if (!score_runs_record_current_run(&the_score, death_time, final_status)) {
+    u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+    if (score_runs_record_current_run_with_id(&the_score, death_time,
+        final_status, &run_record_id)) {
+        score_runs_set_legacy_link(&the_score, run_record_id);
+    } else {
         log_warn("Failed to persist run statistics for '%s'", op_ptr->full_name);
     }
     enter_score(&the_score);
@@ -10383,6 +10778,7 @@ static void close_game_aux(void)
     while (!wants_to_quit)
     {
         choice = final_menu(&highlight);
+        ui_menu_click_clear();
 
         switch (choice)
         {
@@ -10497,6 +10893,7 @@ static void close_game_aux(void)
 
     /* Reset death processing flag for next character */
     clear_postmortem_scores_path();
+    screen_pop_supporting_panes_hidden();
     death_processing = false;
 }
 
@@ -10595,7 +10992,18 @@ void close_game(void)
 
         high_score preview;
         if (build_live_preview_score(&preview))
+        {
+            u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+            time_t now = time(NULL);
+            if (score_runs_record_current_run_with_id(&preview, now,
+                SCORE_RECORD_ALIVE, &run_record_id)) {
+                score_runs_set_legacy_link(&preview, run_record_id);
+            } else {
+                log_warn("Failed to persist live run snapshot for '%s'",
+                    op_ptr->full_name);
+            }
             show_scores_interactive_highlight(true, &preview);
+        }
         else
             show_scores_interactive(true);
 
@@ -10608,6 +11016,17 @@ void close_game(void)
             SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
             high_score live_score;
             create_score(&live_score);
+            {
+                u32b run_record_id = SCORE_RUNS_METARUN_UNKNOWN;
+                time_t now = time(NULL);
+                if (score_runs_record_current_run_with_id(&live_score, now,
+                    SCORE_RECORD_ALIVE, &run_record_id)) {
+                    score_runs_set_legacy_link(&live_score, run_record_id);
+                } else {
+                    log_warn("Failed to persist live run snapshot for '%s'",
+                        op_ptr->full_name);
+                }
+            }
 
             /* Restore original (probably redundant during quit) */
             SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));

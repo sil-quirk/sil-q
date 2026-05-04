@@ -484,7 +484,7 @@ M:HUMAN:SIZE:100:This floor is {SIZEWORD}; save your strength for what matters.
 M:HUMAN:SIZE:100:If you're hunting something, know this place is {SIZEWORD}.
 
 # Orc
-M:ORC:SIZE:100:{SIZEWORD} floor. Too much walking.
+M:ORC:SIZE:100:This floor is {SIZEWORD}. Watch for trouble.
 M:ORC:SIZE:100:This place is {SIZEWORD}. Easy to lose snaga.
 M:ORC:SIZE:100:{SIZEWORD} halls. Hard to find way back.
 M:ORC:SIZE:100:If you run, {SIZEWORD} ways make you tired.

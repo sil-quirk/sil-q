@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "supplies.h"
+#include <limits.h>
 
 enum inventory_limit_group
 {
@@ -7205,6 +7206,76 @@ s16b inven_takeoff(int item, int amt)
     return (-1);
 }
 
+/* Dropping an equipped supply-backed light should place it on the floor, not
+ * route it through inven_takeoff(), which returns such lights to supplies. */
+static void inven_drop_equipped_supply_light(int item, int amt, int py, int px)
+{
+    object_type* o_ptr = &inventory[item];
+    object_type drop;
+    char o_name[120];
+    int oil_to_drop = 0;
+
+    object_copy(&drop, o_ptr);
+    drop.number = amt;
+    drop.pickup = false;
+    drop.pickup_slot = -1;
+
+    if (player_light_destroyed_on_drop(&drop))
+    {
+        object_desc(o_name, sizeof(o_name), &drop, true, 3);
+        msg_format("You discard %s; %s too spent to keep.",
+            o_name, (drop.number > 1) ? "they are" : "it is");
+
+        inven_item_increase(item, -amt);
+        inven_item_optimize(item);
+        p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        return;
+    }
+
+    inven_item_increase(item, -amt);
+    inven_item_optimize(item);
+
+    if (player_oil_container_object(&drop))
+    {
+        if (!player_prepare_oil_container_drop_after_removal(&drop, amt,
+                &oil_to_drop, NULL))
+        {
+            return;
+        }
+
+        player_oil_container_set_fuel(&drop, oil_to_drop);
+    }
+
+    object_desc(o_name, sizeof(o_name), &drop, true, 3);
+    msg_format("You drop %s (%c).", o_name, index_to_label(item));
+
+    if (player_oil_container_object(&drop) && oil_to_drop > 0)
+    {
+        int oil_remaining = oil_to_drop;
+        int unit_capacity = player_oil_container_unit_capacity(&drop);
+        for (int n = 0; n < amt; n++)
+        {
+            object_type single_drop;
+            object_wipe(&single_drop);
+            object_copy(&single_drop, &drop);
+            single_drop.number = 1;
+            player_oil_container_set_fuel(&single_drop,
+                MIN(oil_remaining, unit_capacity));
+            oil_remaining -= MIN(oil_remaining, unit_capacity);
+            drop_near(&single_drop, 0, py, px);
+        }
+    }
+    else
+    {
+        drop_near(&drop, 0, py, px);
+    }
+
+    p_ptr->redraw |= (PR_MAP | PR_LIGHT);
+    p_ptr->window |= (PW_MESSAGE | PW_EQUIP | PW_INVEN);
+}
+
 /*
  * Drop (some of) a non-cursed inventory/equipment item
  *
@@ -7223,6 +7294,9 @@ void inven_drop(int item, int amt)
 
     char o_name[120];
 
+    if (!inven_index_valid(item, "inven_drop"))
+        return;
+
     /* Get the original object */
     o_ptr = &inventory[item];
 
@@ -7233,6 +7307,14 @@ void inven_drop(int item, int amt)
     /* Not too many */
     if (amt > o_ptr->number)
         amt = o_ptr->number;
+    if (amt <= 0)
+        return;
+
+    if ((item == INVEN_LITE) && supplies_is_supply_object(o_ptr))
+    {
+        inven_drop_equipped_supply_light(item, amt, py, px);
+        return;
+    }
 
     /* Take off equipment */
     if (item >= INVEN_WIELD)
@@ -7241,6 +7323,9 @@ void inven_drop(int item, int amt)
         item = inven_takeoff(item, amt);
 
         if (item < 0)
+            return;
+
+        if (!inven_index_valid(item, "inven_drop"))
             return;
 
         /* Get the original object */

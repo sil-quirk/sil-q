@@ -621,7 +621,7 @@ T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
 N:129:Reforging
-I:6:9:5
+I:6:9:4
 D:Reworking worn gear as the patient craftsmen of Nogrod straightened bent mail, renewed old edges, and laid fresh virtue on worthy pieces after hard-fought battles. A smith with this art can restore what was marred in the deeps or add new excellence to found gear without remaking it from nothing.
 E:Repair damaged items at a forge, or add a missing prefix to a found item. Reforging difficulty is 1.5x the difficulty increase.
 T:21:8:8   # Hafted (War Hammer only)

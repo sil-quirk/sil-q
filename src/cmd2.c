@@ -22,9 +22,18 @@
 #define MIN_DEPTH_INCREMENT_PER_BONUS 5
 #define MIN_DEPTH_KILL_BONUS_STEP 500
 #define MIN_DEPTH_KILL_BONUS_AMOUNT 5
+#define MORGOTH_CALL_START_DIFFICULTY 10
+#define MORGOTH_CALL_DRAIN_ESCALATION_MAX 7
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
+
+typedef enum
+{
+    MORGOTH_CALL_DRAIN_RESISTED = 0,
+    MORGOTH_CALL_DRAIN_TURIN = 1,
+    MORGOTH_CALL_DRAIN_TAKEN = 2
+} morgoth_call_drain_result;
 
 static int min_depth_counter_step_adjustment(void)
 {
@@ -118,13 +127,22 @@ static int min_depth_timer_base_increment(void)
 
 static int min_depth_timer_additional_increment(void)
 {
-    int depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS * (p_ptr->depth - min_depth());
+    int min_depth_value = min_depth();
+    int current_depth = p_ptr ? p_ptr->depth : min_depth_value;
+    int depth_bonus;
     int item_bonus_units = min_depth_timer_item_bonus_units();
     /* Use half-depth units so carried Deep Call items can be worth 1.5 depths. */
     int item_bonus = (MIN_DEPTH_INCREMENT_PER_BONUS * item_bonus_units
         + (MIN_DEPTH_BONUS_UNITS_PER_DEPTH / 2))
         / MIN_DEPTH_BONUS_UNITS_PER_DEPTH;
     int kill_bonus = min_depth_timer_kill_bonus();
+
+    /* Character creation has not placed the player on depth 1 yet. */
+    if ((playerturn == 0) && (current_depth <= 0))
+        current_depth = min_depth_value;
+
+    depth_bonus = MIN_DEPTH_INCREMENT_PER_BONUS
+        * (current_depth - min_depth_value);
 
     return depth_bonus + item_bonus + kill_bonus;
 }
@@ -180,6 +198,241 @@ int min_depth(void)
     }
 
     return (min_depth_value);
+}
+
+static s32b min_depth_counter_stage(void)
+{
+    int step = min_depth_counter_step();
+
+    if (min_depth_counter <= 0)
+        return 0;
+
+    return min_depth_counter / step;
+}
+
+void morgoth_call_sync_loaded_stage(void)
+{
+    if (!p_ptr)
+        return;
+
+    p_ptr->morgoth_call_last_stage = min_depth_counter_stage();
+}
+
+static int morgoth_call_current_difficulty(void)
+{
+    int escalation =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
+
+    return MORGOTH_CALL_START_DIFFICULTY + escalation;
+}
+
+static void morgoth_call_advance_difficulty(void)
+{
+    int escalation =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
+
+    if (escalation < MORGOTH_CALL_DRAIN_ESCALATION_MAX)
+        escalation++;
+
+    p_ptr->morgoth_call_state =
+        (byte)((p_ptr->morgoth_call_state
+                   & ~SAVEFILE_MORGOTH_CALL_ESCALATION_MASK)
+            | escalation);
+}
+
+static cptr morgoth_call_stat_name(int stat)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return "strength";
+    case A_DEX:
+        return "dexterity";
+    case A_CON:
+        return "constitution";
+    case A_GRA:
+        return "grace";
+    default:
+        return "spirit";
+    }
+}
+
+static int morgoth_call_stat_sustain(int stat)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return p_ptr->sustain_str;
+    case A_DEX:
+        return p_ptr->sustain_dex;
+    case A_CON:
+        return p_ptr->sustain_con;
+    case A_GRA:
+        return p_ptr->sustain_gra;
+    default:
+        return 0;
+    }
+}
+
+static u32b morgoth_call_stat_sustain_flag(int stat)
+{
+    switch (stat)
+    {
+    case A_STR:
+        return TR2_SUST_STR;
+    case A_DEX:
+        return TR2_SUST_DEX;
+    case A_CON:
+        return TR2_SUST_CON;
+    case A_GRA:
+        return TR2_SUST_GRA;
+    default:
+        return 0L;
+    }
+}
+
+static void show_morgoth_call_first_screen(void)
+{
+    const char lines[][100] = {
+        { "Then the hour struck its lowest note," },
+        { "  and all paths under earth bent toward Angband." },
+        { "" },
+        { "Out of the black seat of the North there came a thought," },
+        { "  heavy as iron and cold as the void between stars." },
+        { "" },
+        { "'Come down,' said the Dark Lord, 'for I have marked thee." },
+        { "  Tarry above my throne, and a toll shall be taken.'" },
+        { "" }
+    };
+
+    pause_with_text(lines, 4, 8, NULL, 0);
+}
+
+static void show_morgoth_call_drain_screen(int stat, int difficulty,
+    morgoth_call_drain_result result)
+{
+    char lines[10][100];
+    int n = 0;
+    cptr stat_name = morgoth_call_stat_name(stat);
+
+    strnfmt(lines[n++], sizeof(lines[0]),
+        "Again the summons rose from the foundations of the world.");
+    strnfmt(lines[n++], sizeof(lines[0]),
+        "  The Dark Lord spoke your name in secret thought.");
+    lines[n++][0] = '\0';
+    strnfmt(lines[n++], sizeof(lines[0]),
+        "His hand sought your %s, and the trial was %d.",
+        stat_name, difficulty);
+
+    if (result == MORGOTH_CALL_DRAIN_TURIN)
+    {
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "But a wrathful fire answered within your blood,");
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "  and for this hour the shadow passed over you.");
+    }
+    else if (result == MORGOTH_CALL_DRAIN_RESISTED)
+    {
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "Yet your will held fast against the unseen chain,");
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "  and the word of command broke like spent thunder.");
+    }
+    else
+    {
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "The toll was taken in silence.");
+        strnfmt(lines[n++], sizeof(lines[0]),
+            "  Your %s was diminished by the malice of the throne.",
+            stat_name);
+    }
+
+    lines[n][0] = '\0';
+
+    pause_with_text(lines, 4, 8, NULL, 0);
+}
+
+static morgoth_call_drain_result morgoth_call_try_drain_stat(
+    int stat, int difficulty)
+{
+    int resistance;
+    int adjusted_difficulty;
+    u32b sustain_flag;
+
+    if (turin_resist_bad_effect())
+        return MORGOTH_CALL_DRAIN_TURIN;
+
+    resistance = morgoth_call_stat_sustain(stat);
+    adjusted_difficulty = difficulty - (10 * resistance);
+
+    if (skill_check(NULL, adjusted_difficulty, p_ptr->skill_use[S_WIL],
+            PLAYER)
+        <= 0)
+    {
+        sustain_flag = morgoth_call_stat_sustain_flag(stat);
+        if (sustain_flag)
+            ident_resist(sustain_flag);
+        return MORGOTH_CALL_DRAIN_RESISTED;
+    }
+
+    (void)dec_stat(stat, 1, false);
+    return MORGOTH_CALL_DRAIN_TAKEN;
+}
+
+void process_morgoth_call_pressure(void)
+{
+    s32b stage;
+    const s32b first_morgoth_stage = MORGOTH_DEPTH - 1;
+    int stat;
+    int difficulty;
+    morgoth_call_drain_result result;
+
+    if (!p_ptr || p_ptr->is_dead || p_ptr->game_type != 0)
+        return;
+    if (p_ptr->on_the_run || p_ptr->depth <= 0)
+        return;
+    if (p_ptr->morgoth_call_last_stage < 0)
+        p_ptr->morgoth_call_last_stage = 0;
+    p_ptr->morgoth_call_state &=
+        (SAVEFILE_MORGOTH_CALL_SEEN
+            | SAVEFILE_MORGOTH_CALL_ESCALATION_MASK);
+
+    stage = min_depth_counter_stage();
+    if (stage < first_morgoth_stage)
+        return;
+
+    if (!(p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_SEEN))
+    {
+        p_ptr->morgoth_call_state = SAVEFILE_MORGOTH_CALL_SEEN;
+        p_ptr->morgoth_call_last_stage = stage;
+        do_cmd_note("Heard the summons of the Dark Lord", p_ptr->depth);
+        log_info("Morgoth call: first summons at min-depth stage %d",
+            (int)stage);
+        show_morgoth_call_first_screen();
+        return;
+    }
+
+    if (stage <= p_ptr->morgoth_call_last_stage)
+        return;
+
+    p_ptr->morgoth_call_last_stage = stage;
+
+    stat = rand_int(A_MAX);
+    difficulty = morgoth_call_current_difficulty();
+    result = morgoth_call_try_drain_stat(stat, difficulty);
+    morgoth_call_advance_difficulty();
+
+    if (result == MORGOTH_CALL_DRAIN_TAKEN)
+    {
+        do_cmd_note(format("Dark Lord's summons drained %s",
+                        morgoth_call_stat_name(stat)),
+            p_ptr->depth);
+    }
+
+    log_info("Morgoth call: drain pressure stage=%d stat=%s difficulty=%d "
+             "result=%d",
+        (int)stage, morgoth_call_stat_name(stat), difficulty, (int)result);
+    show_morgoth_call_drain_screen(stat, difficulty, result);
 }
 
 void note_lost_greater_vault(void)
@@ -1344,6 +1597,8 @@ static bool skeleton_damaged_item_allowed(byte skeleton_sval, const object_type*
     return true;
 }
 
+#define SKELETON_GEAR_DIFFICULTY_BONUS 5
+
 static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sval,
     bool* no_item_generated)
 {
@@ -1362,7 +1617,8 @@ static bool generate_skeleton_damaged_item(object_type* o_ptr, byte skeleton_sva
     for (int attempt = 0; attempt < 50; attempt++)
     {
         object_wipe(o_ptr);
-        if (!make_object(o_ptr, DROP_QUALITY_NORMAL, DROP_TYPE_DAMAGED))
+        if (!drop_generate_object_with_bonus(object_level, DROP_QUALITY_NORMAL,
+                DROP_TYPE_DAMAGED, SKELETON_GEAR_DIFFICULTY_BONUS, false, o_ptr))
             continue;
 
         generated_any = true;
@@ -2178,6 +2434,279 @@ void hint_messages_message_meta(int index, hint_message_meta* out)
     }
 
     hint_message_meta_copy(out, &g_hint_message_state.meta[index]);
+}
+
+static void hint_messages_trim_copy(const char* src, char* out, size_t out_sz)
+{
+    const char* start = src ? src : "";
+    size_t len;
+
+    if (!out || out_sz == 0)
+        return;
+
+    while (*start == ' ')
+        start++;
+
+    len = strlen(start);
+    while (len > 0 && start[len - 1] == ' ')
+        len--;
+
+    if (len >= out_sz)
+        len = out_sz - 1;
+
+    memcpy(out, start, len);
+    out[len] = '\0';
+}
+
+static bool hint_messages_contains_ci(const char* haystack, const char* needle)
+{
+    size_t needle_len;
+
+    if (!haystack || !needle || !needle[0])
+        return false;
+
+    needle_len = strlen(needle);
+    for (const char* p = haystack; *p; p++)
+    {
+        if (SDL_strncasecmp(p, needle, needle_len) == 0)
+            return true;
+    }
+
+    return false;
+}
+
+static bool hint_messages_title_part_is_tutorial(const char* part)
+{
+    return hint_messages_contains_ci(part, "Survival Tip")
+        || hint_messages_contains_ci(part, "Tutorial");
+}
+
+static void hint_messages_append_part(char* out, size_t out_sz,
+    const char* part)
+{
+    size_t cur;
+
+    if (!out || out_sz == 0 || !part || !part[0])
+        return;
+
+    cur = strlen(out);
+    if (cur >= out_sz - 1)
+        return;
+
+    if (cur > 0)
+        cur += strnfmt(out + cur, out_sz - cur, " & ");
+    if (cur < out_sz - 1)
+        (void)strnfmt(out + cur, out_sz - cur, "%s", part);
+}
+
+static void hint_messages_filtered_title(int index, char* out, size_t out_sz)
+{
+    char work[128];
+    char* title;
+    char* segment;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    work[0] = '\0';
+    if (hint_messages_message_line_count(index) <= 0)
+        return;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        const char* line = hint_messages_message_line(index, li);
+
+        if (line && line[0])
+        {
+            strnfmt(work, sizeof(work), "%s", line);
+            break;
+        }
+
+        if (li + 1 >= hint_messages_message_line_count(index))
+            return;
+    }
+
+    title = work;
+    while (*title == ' ')
+        title++;
+    if (SDL_strncasecmp(title, "Hint:", 5) == 0)
+        title += 5;
+
+    segment = title;
+    while (segment && *segment)
+    {
+        char part[80];
+        char* next = strchr(segment, '&');
+
+        if (next)
+        {
+            *next = '\0';
+            next++;
+        }
+
+        hint_messages_trim_copy(segment, part, sizeof(part));
+        if (part[0] && !hint_messages_title_part_is_tutorial(part))
+            hint_messages_append_part(out, out_sz, part);
+
+        segment = next;
+    }
+}
+
+static bool hint_messages_first_title_is_tutorial(int index)
+{
+    if (hint_messages_message_line_count(index) <= 0)
+        return false;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        char title[128];
+        const char* line = hint_messages_message_line(index, li);
+
+        hint_messages_trim_copy(line, title, sizeof(title));
+        if (!title[0])
+            continue;
+
+        return hint_messages_contains_ci(title, "Survival Tip")
+            || hint_messages_contains_ci(title, "Tutorial");
+    }
+
+    return false;
+}
+
+static void hint_messages_first_body_line(int index, char* out, size_t out_sz)
+{
+    bool skipped_title = false;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    if (hint_messages_message_line_count(index) <= 0)
+        return;
+
+    for (int li = 0; li < hint_messages_message_line_count(index); ++li)
+    {
+        char line[128];
+
+        hint_messages_trim_copy(
+            hint_messages_message_line(index, li), line, sizeof(line));
+        if (!line[0])
+            continue;
+
+        if (!skipped_title && SDL_strncasecmp(line, "Hint:", 5) == 0)
+        {
+            skipped_title = true;
+            continue;
+        }
+
+        strnfmt(out, out_sz, "%s", line);
+        return;
+    }
+}
+
+static void hint_messages_format_cues(const hint_message_meta* meta, char* out,
+    size_t out_sz)
+{
+    size_t cur = 0;
+
+    if (!out || out_sz == 0)
+        return;
+
+    out[0] = '\0';
+    if (!meta)
+        return;
+
+    for (int cue = 0; cue < meta->cue_count; ++cue)
+    {
+        const char* dist = meta->cue_dists[cue];
+        const char* dir = meta->cue_dirs[cue];
+
+        if ((!dist || !dist[0]) && (!dir || !dir[0]))
+            continue;
+
+        if (cur > 0)
+            cur += strnfmt(out + cur, out_sz - cur, "; ");
+        if (cur >= out_sz - 1)
+            return;
+
+        if (dist && dist[0] && dir && dir[0])
+            cur += strnfmt(out + cur, out_sz - cur, "%s %s", dist, dir);
+        else if (dist && dist[0])
+            cur += strnfmt(out + cur, out_sz - cur, "%s", dist);
+        else
+            cur += strnfmt(out + cur, out_sz - cur, "%s", dir);
+
+        if (cur >= out_sz - 1)
+            return;
+    }
+}
+
+bool hint_messages_short_tip(int index, char* out, size_t out_sz)
+{
+    hint_message_meta meta;
+    char title[96];
+    char cues[128];
+
+    if (!out || out_sz == 0)
+        return false;
+
+    out[0] = '\0';
+    hint_messages_ensure_level_state();
+    if (index < 0 || index >= g_hint_message_state.message_count)
+        return false;
+
+    hint_messages_filtered_title(index, title, sizeof(title));
+    hint_messages_message_meta(index, &meta);
+    hint_messages_format_cues(&meta, cues, sizeof(cues));
+    if (!title[0])
+    {
+        char body[96];
+
+        hint_messages_first_body_line(index, body, sizeof(body));
+        if (body[0])
+        {
+            if (hint_messages_first_title_is_tutorial(index))
+                strnfmt(title, sizeof(title), "Survival Tip: %s", body);
+            else
+                strnfmt(title, sizeof(title), "%s", body);
+        }
+    }
+
+    if (!title[0] && !cues[0])
+        return false;
+
+    if (title[0] && cues[0])
+        strnfmt(out, out_sz, "%s - %s", title, cues);
+    else if (title[0])
+        strnfmt(out, out_sz, "%s", title);
+    else
+        strnfmt(out, out_sz, "%s", cues);
+
+    return out[0] != '\0';
+}
+
+bool hint_messages_short_tip_for_source(int y, int x, char* out, size_t out_sz)
+{
+    if (!out || out_sz == 0)
+        return false;
+
+    out[0] = '\0';
+    hint_messages_ensure_level_state();
+
+    for (int i = g_hint_message_state.message_count - 1; i >= 0; --i)
+    {
+        hint_message_meta meta;
+
+        hint_messages_message_meta(i, &meta);
+        if (meta.source_y != y || meta.source_x != x)
+            continue;
+
+        if (hint_messages_short_tip(i, out, out_sz))
+            return true;
+    }
+
+    return false;
 }
 
 void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt)
@@ -3330,9 +3859,25 @@ static int skeleton_note_append_wrapped_text(
     return idx;
 }
 
+static const char* skeleton_note_body_separator(byte sval)
+{
+    switch (sval)
+    {
+    case SV_SKELETON_ELF:
+        return "A second warning follows:";
+    case SV_SKELETON_HUMAN:
+        return "Another line follows:";
+    case SV_SKELETON_ORC:
+        return "More scratched below:";
+    default:
+        return "Another warning follows:";
+    }
+}
+
 static void skeleton_note_build_lines(const char* opening,
     const skeleton_note_line* body_lines, int body_count, const char* closing,
-    const level_layout_info* layout, char lines[][100], int col)
+    const level_layout_info* layout, char lines[][100], int col,
+    const char* body_separator)
 {
     const int max_lines = 12; /* Reserve final slot for terminator */
     int wrap = skeleton_note_effective_wrap_width(col);
@@ -3341,7 +3886,15 @@ static void skeleton_note_build_lines(const char* opening,
     idx = skeleton_note_append_wrapped_text(opening, lines, idx, max_lines, wrap);
 
     for (int i = 0; i < body_count && idx < max_lines; ++i)
-        idx = skeleton_note_append_expanded_lines(&body_lines[i], layout, lines, idx, max_lines, wrap);
+    {
+        if (i > 0)
+        {
+            idx = skeleton_note_append_wrapped_text(body_separator, lines,
+                idx, max_lines, wrap);
+        }
+        idx = skeleton_note_append_expanded_lines(&body_lines[i], layout,
+            lines, idx, max_lines, wrap);
+    }
 
     idx = skeleton_note_append_wrapped_text(closing, lines, idx, max_lines, wrap);
 
@@ -4672,7 +5225,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
     char note_lines[16][100];
     skeleton_note_build_lines(
-        opening, body_lines, body_count, signoff, &layout, note_lines, 8);
+        opening, body_lines, body_count, signoff, &layout, note_lines, 8,
+        skeleton_note_body_separator(sval));
 
     /* Prepend title */
     char title_buf[100];
@@ -4874,7 +5428,7 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
         /* Success -- May still have traps */
         if (skill_check(PLAYER, score, difficulty, NULL) > 0)
         {
-            msg_print("You have picked the lock.");
+            message(MSG_LOCKPICK_FAIL, 0, "You have picked the lock.");
             flag = true;
         }
 
@@ -10415,7 +10969,8 @@ void do_cmd_throw(bool automatic)
                         {
                             msg_format("%s reels in pain!", m_name);
 
-                            if (!(r_ptr->flags3 & (RF3_NO_CONF)))
+                            if (!monster_race_is_vala(m_ptr->r_idx)
+                                && !(r_ptr->flags3 & (RF3_NO_CONF)))
                                 m_ptr->confused += crit_bonus_dice + 1;
 
                             scare_onlooking_friends(m_ptr, -20);

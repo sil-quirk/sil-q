@@ -52,20 +52,23 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.2"
+#define VERSION_STRING "0.9.6.4"
 /*
- * Version components (0.9.6.2).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.4).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 2   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 4   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
 /* Marker before the serialized supplies block in 0.9.6+ savefiles. */
 #define SAVEFILE_SUPPLY_BLOCK_MAGIC 0x53F6
+/* Packed one-byte Morgoth summons state in 0.9.6.4+ savefiles. */
+#define SAVEFILE_MORGOTH_CALL_SEEN 0x08
+#define SAVEFILE_MORGOTH_CALL_ESCALATION_MASK 0x07
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 
@@ -114,7 +117,10 @@
 #define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
 
 #define ROW_MAP 1
-#define COL_MAP (g_hide_left_panel ? 0 : 13)
+#define LEFT_PANEL_CONTENT_WID 12
+#define LEFT_PANEL_SEPARATOR_WID 1
+#define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
+#define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
 #define ROW_STATUS (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1))
 
 /*
@@ -324,7 +330,9 @@
 #define THRALL_QUEST_HERB_SUSTENANCE 9
 #define THRALL_QUEST_HERB_RESTORATION 10
 #define THRALL_QUEST_POTION_CLARITY 11
-#define THRALL_QUEST_MAX 12
+#define THRALL_QUEST_FLASK_OIL 12
+#define THRALL_QUEST_WOODEN_TORCH 13
+#define THRALL_QUEST_MAX 14
 
 /*
  * Artefact "seen" flags (a_info[].seen).
@@ -692,6 +700,13 @@
 
 #define SNG_NOTHING 100
 #define SNG_EXCHANGE_THEMES 101
+
+/*
+ * Duel songs and monster lore revealed by them
+ */
+#define SONG_DUEL_STACK_LIMIT 3
+#define MONSTER_LORE_SONG_CONTEST 0x01
+#define MONSTER_LORE_SONG_LAMENT 0x02
 
 /*
  * Special abilities (quest rewards etc.)

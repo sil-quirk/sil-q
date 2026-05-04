@@ -1,8 +1,12 @@
+<p align="center">
+  <img src="docs/sil-more-banner.png" alt="Sil-Morë banner" width="100%">
+</p>
+
 # Sil-Morë
 
-Sil-Morë — Shining Darkness is a version of SIL-Q which incorporates two main ideas.
-First, it has real life characters from Tolkien FA and storyline.
-Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
+Sil-Morë — Shining Darkness is a version of SIL-Q built around two main ideas.
+First, it adds characters and story material from Tolkien's First Age.
+Second, it uses metaruns so consecutive runs are connected into one storyline, closer to modern roguelite games.
 
 # Compiling (SDL3)
 
@@ -76,8 +80,8 @@ cmake --build build --parallel
      ```
    - **Arch:**
      ```bash
-      sudo pacman -S base-devel cmake sdl3
-      paru -S sdl3_ttf sdl3_image sdl3_mixer # or use any other AUR helper
+     sudo pacman -S base-devel cmake sdl3
+     paru -S sdl3_ttf sdl3_image sdl3_mixer # or use any other AUR helper
      ```
 
 2. From the repo root, configure and build:
@@ -198,13 +202,16 @@ Use this only if you explicitly want the same source-based SDL path used by Wind
 
 ## Android
 
+These instructions are for personal builds and sideloading. For normal play, prefer the published APK/release artifact when one is available.
+
 ### Prerequisites
 - Git
 - Android Studio
-- Android SDK, NDK, and CMake
+- Android SDK Platform 34 or newer
+- Android NDK, CMake, and Platform-Tools from Android Studio's SDK Manager
 - Java 17 or the Android Studio bundled JBR
 
-### Build Order In Android Studio
+### Personal APK build in Android Studio
 1. Clone the repo and enter it.
    ```bash
    git clone https://github.com/k0rtesss/Sil-More.git
@@ -217,21 +224,47 @@ Use this only if you explicitly want the same source-based SDL path used by Wind
 3. Install Android Studio plus the Android SDK, NDK, and CMake components from SDK Manager.
 4. Open the `android/` folder in Android Studio.
 5. Let Gradle sync complete.
-6. Build or run the `app` configuration. The project targets `arm64-v8a`.
+6. Build or run the `app` configuration. The Gradle project packages the game data from `lib/` into the APK and targets `arm64-v8a`.
+
+### Personal APK build from PowerShell
+From the repo root, build a debug APK:
+
+```powershell
+.\build-android-apk.ps1 -Config Debug
+```
+
+Debug is the simplest choice for personal sideloading because Android signs it with the local debug key automatically. The APK is written to:
+
+```text
+android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+To install it on a connected device, enable Developer options and USB debugging, accept the device authorization prompt, then run:
+
+```powershell
+.\install-android-apk.ps1 -Config Debug
+```
+
+To build, install, and launch in one step:
+
+```powershell
+.\deploy-android.ps1 -Config Debug -LaunchApp
+```
+
+If Android reports a signature mismatch with an older installed copy, uninstall the existing app first or reinstall with the same signing key. If the device has a newer local build installed, `.\install-android-apk.ps1 -Config Debug -AllowDowngrade` can be used for personal testing.
 
 ### Command-line Native Build
-After the steps above, or after separately installing the Android SDK/NDK/CMake toolchain, run from the repo root:
+This builds only the native library through CMake and does not create an installable APK. Use it when debugging the native Android build:
 
 ```powershell
 .\build-android.ps1 -Abi arm64-v8a -Config Release
 ```
 
-For APK build and install helpers:
+### Play Store app bundle
+This is not required for personal sideloading. For a Play Store app bundle, configure a release/upload keystore through `SIL_MORE_RELEASE_*` environment variables and run:
 
 ```powershell
-.\build-android-apk.ps1 -Config Debug
-.\install-android-apk.ps1 -Config Debug
-.\deploy-android.ps1 -Config Release -LaunchApp
+.\build-android-bundle.ps1 -CompileSdk 35
 ```
 
 For more Android-specific details, see [android/README.md](android/README.md).
@@ -248,109 +281,4 @@ For more Android-specific details, see [android/README.md](android/README.md).
 - In Properties -> Compatibility, use the current version of Proton.
 - Optional: if the release includes `SteamDeck-Covers`, open Properties -> Customization and use the PNG files from that folder.
 - Open controller setup. You should see the layout in Community layouts or search. If not, open `Steam-Deck-layout-Sil-More.url` in the game folder; the current link is `steam://controllerconfig/4068119597/3573052583`.
-- Return back to Game mode and enjoy Sil-More!  
-
-# Road Map
-## Done
-- Implement main curses (done)
-- Implement common RHF flags (done)
-  * Cheap cost (done)
-  * Morgoth Curse (done)
-- Add more debugging functions (done)
-- Add unique RHF flags (done)
-  * Feanor (done)
-  * Telchar (done)
-  * Gamil (done)
-  * Melian (done)
-  * Thingol (done)
-  * Tuor (done)
-  * Hurin (done)
-- Figure out last abilities and balance tweaks (done)
-  * All starting abilities (done)
-  * Multiple starting abilities (done)
-
-
-## Release closed alpha 0.5 (done)
-
-- Bug fixes (ongoing)
-- UI fixes (done)
-  * Start menu (done)
-  * Character menu (done)
-- Decriptions update (done)
-
-## Release alpha 0.6 (UI updates) (done)
-
-- Bug fixes (ongoing) 
-- UI updates 
-  * Score menu (done) 
-  * Final menu (done) 
-- Flavor ideas for final menus (done) 
-
-## Release of alpha 0.7 (Storyline updates) (done)
-
-- Balance tweaks
-- Add unique RHF flags
-  * Earendil
-  * Turin (done)
-  * Celeborn
-  * Maedhros (done)
-- New heroes
-  * Eol (done) 
-- Dynamic tile system (done)
--- Wall tiles (done)
--- Floor tiles (done)
--- Doors (done)
-- Unique style for each depth (done)
-- Level entrance message depending on the style (done)
-- Difficulty levels for current run (done) 
-- Automatic load if run is not finished (done)
-## Release of beta 0.8 (Visual update) (done)
-
-- Quest systems 
-  * Tulkas -> kill unique -> get artifact (done) 
-  * Quest vault implementation (done) 
-  * Mandos -> kill specific -> get ability (done) 
-  * Aule -> forge -> get ability (done) 
-  * Niena -> spawn -> get ability (done) 
-  * Orome (done)
-- Update to oath system (done)
-  * After completed quest you get oaths (done)
-- UI
-  * Better oath texts (done)
-  * Better oath menu (done)
-- New oaths
-  * Smith (done)
-  * Valor (done)
-- Bug fixes (ongoing) 
-  * save names (done)
-  * new metarun saves (done)
-  * rubble (done)
-  * speacial monster (done)
-## Release of beta 0.87 (Quests and Oaths update) (done) 
-
-- Fullscreen mode for windows (done) 
-- Combat rolls logs (done) 
-- Help screen update (done) 
-- Combat rolls logs (done) 
-- Steamdeck keybinds, art, etc (done)
-- Bug fixes (ongoing) 
-  * OathBreaking (done)
-## Release of beta 0.88 (Steam Deck update)
-
-- SDL
-## Release of beta 0.9 
-
-
-### Ideas
-
-- More frequent forges for dwarves
-- Calculate the forge probability
-- Pride
-- Greed
-- More Vaults
-- More monsters
-- Change Score to Character database
-- Multiple runs support 
-- New Quests
-  * Manwe
-  * Este
+- Return back to Game mode and enjoy Sil-More!

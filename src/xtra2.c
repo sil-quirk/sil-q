@@ -3287,8 +3287,22 @@ void verify_panel(void)
 
     if (banner_rows >= SCREEN_HGT)
         banner_rows = SCREEN_HGT - 1;
-    if ((banner_rows > 0) && (py < wy + banner_rows))
-        wy = py - banner_rows;
+    if (banner_rows > 0)
+    {
+        int visible_rows = SCREEN_HGT - banner_rows;
+        int target_screen_row;
+
+        if (visible_rows < 1)
+            visible_rows = 1;
+
+        /* Center within the unobscured map rows instead of hugging the banner. */
+        target_screen_row = banner_rows + visible_rows / 2;
+        if (target_screen_row >= SCREEN_HGT)
+            target_screen_row = SCREEN_HGT - 1;
+
+        if (py < wy + target_screen_row)
+            wy = py - target_screen_row;
+    }
 
     /* Scroll screen horizontally when off-center */
     if (center_player && (!p_ptr->running || !run_avoid_center)
@@ -4234,18 +4248,27 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                     /* Recall, but not when raging */
                     if ((recall) && !p_ptr->rage)
                     {
+                        int recall_key;
+
                         /* Save screen */
                         screen_save();
 
                         /* Recall on screen */
-                        screen_roff(m_ptr->r_idx, m_ptr);
+                        recall_key = screen_roff(m_ptr->r_idx, m_ptr);
 
-                        /* Hack -- Complete the prompt (again) */
-                        Term_addstr(
-                            -1, TERM_WHITE, format("  [(r)ecall, %s]", info));
+                        if (recall_key)
+                        {
+                            query = (char)recall_key;
+                        }
+                        else
+                        {
+                            /* Hack -- Complete the prompt (again) */
+                            Term_addstr(-1, TERM_WHITE,
+                                format("  [(r)ecall, %s]", info));
 
-                        /* Command */
-                        query = inkey();
+                            /* Command */
+                            query = inkey();
+                        }
 
                         /* Load screen */
                         screen_load();
@@ -6344,10 +6367,15 @@ void pause_with_text(const char desc[][100], int row, int col,
     log_debug("Banner: story font disabled");
     sdl_story_font_disable();
 
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < term_hgt; click_row++)
+        ui_menu_click_add_full_row(1, click_row);
+
     /* 3. wait for key */
     hide_cursor = true;
     (void)inkey();
     hide_cursor = false;
+    ui_menu_click_clear();
 
     /* 4. wipe the area used */
     int total = banner_lines + main_rows;
@@ -7560,7 +7588,7 @@ void do_cmd_quest_status(void)
     quest_status_reset_page(col, &row);
 
     /* Check Tulkas quest */
-    if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED) {
+    if (p_ptr->tulkas_quest > TULKAS_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr tulkas_status;
         byte color;
@@ -7630,7 +7658,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Aule quest */
-    if (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED) {
+    if (p_ptr->aule_quest > AULE_QUEST_FORGE_PRESENT) {
         any_quests = true;
         cptr aule_status;
         byte color;
@@ -7680,7 +7708,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Mandos quest */
-    if (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
+    if (p_ptr->mandos_quest > MANDOS_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr mandos_status;
         byte color;
@@ -7732,7 +7760,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Niena quest */
-    if (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED) {
+    if (p_ptr->niena_quest > NIENA_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr niena_status;
         byte color;
@@ -7794,7 +7822,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Orome quest */
-    if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED) {
+    if (p_ptr->orome_quest > OROME_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr orome_status;
         byte color;
@@ -7864,7 +7892,7 @@ void do_cmd_quest_status(void)
     }
 
     /* Check Varda quest */
-    if (p_ptr->varda_quest > VARDA_QUEST_NOT_STARTED) {
+    if (p_ptr->varda_quest > VARDA_QUEST_GIVER_PRESENT) {
         any_quests = true;
         cptr varda_status;
         byte color;
@@ -8103,18 +8131,26 @@ static bool quest_typewriter_ensure_row(cptr title, byte title_color, int wid,
 void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
 {
     int wid, h;
+    int wrap_width;
+    int row, col;
     const int indent = 2;
     bool skipped = false;
-    
-    /* Get terminal size */
-    Term_get_size(&wid, &h);
-    int wrap_width = wid - indent * 2;
-    int row = quest_typewriter_text_start_row(h), col = 0;
-    
+
     /* Save screen and start fresh */
     screen_save();
+    screen_push_supporting_panes_hidden();
+
+    /* Get terminal size after any hidden-pane layout change */
+    Term_get_size(&wid, &h);
+    wrap_width = wid - indent * 2;
+    row = quest_typewriter_text_start_row(h);
+    col = 0;
+
     Term_clear();
     Term_flush();
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < h; click_row++)
+        ui_menu_click_add_full_row('\r', click_row);
     
     /* Display title */
     quest_typewriter_draw_title(title, title_color, wid);
@@ -8130,6 +8166,8 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
             if ((idx + 1 < total_texts)
                 && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                 Term_clear();
+                ui_menu_click_clear();
+                screen_pop_supporting_panes_hidden();
                 screen_load();
                 return;
             }
@@ -8150,6 +8188,8 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 i++;
                 if (!quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                     Term_clear();
+                    ui_menu_click_clear();
+                    screen_pop_supporting_panes_hidden();
                     screen_load();
                     return;
                 }
@@ -8181,6 +8221,8 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
                 col = 0;
                 if (!quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
                     Term_clear();
+                    ui_menu_click_clear();
+                    screen_pop_supporting_panes_hidden();
                     screen_load();
                     return;
                 }
@@ -8260,6 +8302,8 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
         if ((idx + 1 < total_texts)
             && !quest_typewriter_ensure_row(title, title_color, wid, h, &row, &col)) {
             Term_clear();
+            ui_menu_click_clear();
+            screen_pop_supporting_panes_hidden();
             screen_load();
             return;
         }
@@ -8273,12 +8317,17 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     
     /* Final prompt */
     Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
+    ui_menu_click_begin();
+    for (int click_row = 0; click_row < h; click_row++)
+        ui_menu_click_add_full_row('\r', click_row);
     inkey();
+    ui_menu_click_clear();
     
     /* Flush any queued keypresses that accumulated during the typewriter effect */
     Term_flush();
     
     Term_clear();
+    screen_pop_supporting_panes_hidden();
     screen_load();
 }
 
@@ -8885,6 +8934,7 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     Term_get_size(&wid, &hgt);
     bool compact = (wid < 60) || (hgt < 20);
     bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
     
     int selection = 0;
     bool done = false;
@@ -8901,6 +8951,8 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
     while (!done) {
         /* Clear screen */
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         
         /* Display title */
         int row = 1;
@@ -8935,22 +8987,58 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             char marker = (i == selection) ? '>' : ' ';
             
             char line_buf[140];
-            if (steamdeck)
+            if (!menu_letters)
                 strnfmt(line_buf, sizeof(line_buf), "%c   %s", marker, desc);
             else
                 strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker,
                     'a' + i, desc);
-            Term_putstr(2, row++, -1, attr, line_buf);
+            Term_putstr(2, row, -1, attr, line_buf);
+            ui_menu_click_add(i, 2, row, wid - 4);
+            row++;
         }
         
         /* Display controls */
         row = hgt - 2;
-        Term_putstr(2, row, -1, TERM_L_DARK,
-            steamdeck
-                ? (compact ? "D-pad move  X inspect  A choose"
-                           : "D-pad navigate   X Inspect   A accept")
-                : (compact ? "8/2 move  x inspect  Enter choose"
-                           : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select"));
+        if (steamdeck)
+        {
+            char inspect_label[16];
+            char confirm_label[16];
+            char prompt_buf[120];
+
+            target_prompt_label(steamdeck_alt_action_key(), "X",
+                inspect_label, sizeof(inspect_label));
+            target_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                compact ? "D-pad move  %s inspect  %s choose"
+                        : "D-pad navigate   %s Inspect   %s accept",
+                inspect_label, confirm_label);
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "inspect");
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "accept");
+        }
+        else if (menu_letters)
+        {
+            cptr prompt_text = compact ? "8/2 move  x inspect  Enter choose"
+                : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select";
+
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "inspect");
+            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
+        }
+        else
+        {
+            cptr prompt_text = compact ? "8/2 move  Enter choose"
+                : "Arrows navigate   Space/Enter accept";
+
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
+        }
         
         /* Position cursor at selection */
         Term_gotoxy(2, MIN(choice_start_row + selection, hgt - 3));
@@ -8958,6 +9046,38 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         
         /* Get input */
         char key = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < choice_count)
+                {
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                    {
+                        selection = clicked_choice;
+                        key = 'x';
+                    }
+                    else if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != selection)
+                    {
+                        selection = clicked_choice;
+                        continue;
+                    }
+                    else
+                        key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = '\r';
+                else if (clicked_choice == -2)
+                    key = 'x';
+            }
+        }
         
         /* Handle input */
         if (key == '\r' || key == '\n' || key == ' ' || key == '6'
@@ -8965,10 +9085,11 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             /* Accept current selection */
             selected_artifact = choices[selection];
             done = true;
-        } else if ((!steamdeck && (key == 'x' || key == 'X'))
+        } else if ((menu_letters && (key == 'x' || key == 'X'))
                    || key == '?'
                    || (steamdeck && key == steamdeck_alt_action_key())) {
             /* Inspect selection */
+            ui_menu_click_clear();
             Term_clear();
             desc_art_fake(choices[selection]);
         } else if (key == '8' || key == 'k' || key == '-') {
@@ -8977,17 +9098,18 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         } else if (key == '2' || key == 'j' || key == '+') {
             /* Move down */
             selection = (selection + 1) % choice_count;
-        } else if (!steamdeck && key >= 'a' && key < 'a' + choice_count) {
+        } else if (menu_letters && key >= 'a' && key < 'a' + choice_count) {
             /* Letter selection */
             selected_artifact = choices[key - 'a'];
             done = true;
-        } else if (!steamdeck && key >= 'A' && key < 'A' + choice_count) {
+        } else if (menu_letters && key >= 'A' && key < 'A' + choice_count) {
             /* Capital letter selection */
             selected_artifact = choices[key - 'A'];
             done = true;
         }
     }
     
+    ui_menu_click_clear();
     screen_load();
     return selected_artifact;
 }

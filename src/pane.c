@@ -28,10 +28,10 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_WORN] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 17, .min_rect.cols = 40},
     [PANE_ROLLS] = {.placement = BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 65},
     [PANE_INFO] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
-    [PANE_CHARACTER] = {.placement = BOTTOM_PLACEMENTS, .min_rect.cols = 60},
+    [PANE_CHARACTER] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.cols = 60},
     [PANE_LOG] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_MONSTERS] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
-    [PANE_TOUCH] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 12, .min_rect.cols = 12},
+    [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
@@ -341,6 +341,21 @@ bool pane_placement_is_side(enum pane_placement where)
     return (pane_placement_is_left(where) || pane_placement_is_right(where));
 }
 
+static bool pane_layout_has_side_touch_pane(const struct pane_config* config,
+    int count)
+{
+    for (int i = 0; i < count; i++) {
+        if (!config[i].enabled)
+            continue;
+        if (config[i].pane != PANE_TOUCH)
+            continue;
+        if (pane_placement_is_side(config[i].where))
+            return true;
+    }
+
+    return false;
+}
+
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where)
 {
     if (type <= PANE_MAIN || type >= PANE_MAX)
@@ -412,11 +427,15 @@ void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
     int margin)
 {
     SDL_Rect main = *window;
+    bool side_first = pane_layout_has_side_touch_pane(config, count);
 
-    layout_bottom_group(PLACE_DOUBLE_BOTTOM, config, count, panes, &main,
-        cell_widths, cell_heights, margin);
-    layout_bottom_group(PLACE_BOTTOM, config, count, panes, &main,
-        cell_widths, cell_heights, margin);
+    if (!side_first) {
+        layout_bottom_group(PLACE_DOUBLE_BOTTOM, config, count, panes, &main,
+            cell_widths, cell_heights, margin);
+        layout_bottom_group(PLACE_BOTTOM, config, count, panes, &main,
+            cell_widths, cell_heights, margin);
+    }
+
     layout_side_group(PLACE_DOUBLE_LEFT, config, count, panes, &main,
         cell_widths, cell_heights, margin);
     layout_side_group(PLACE_LEFT, config, count, panes, &main, cell_widths,
@@ -425,6 +444,13 @@ void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
         cell_widths, cell_heights, margin);
     layout_side_group(PLACE_RIGHT, config, count, panes, &main, cell_widths,
         cell_heights, margin);
+
+    if (side_first) {
+        layout_bottom_group(PLACE_DOUBLE_BOTTOM, config, count, panes, &main,
+            cell_widths, cell_heights, margin);
+        layout_bottom_group(PLACE_BOTTOM, config, count, panes, &main,
+            cell_widths, cell_heights, margin);
+    }
 
     panes[PANE_MAIN] = main;
 }

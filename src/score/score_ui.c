@@ -7,6 +7,7 @@
 #include "score/score_io.h"
 #include "score/score_logic.h"
 #include "score/score_runs.h"
+#include "sdl-config.h"
 #include "metarun.h"
 
 #include <SDL3/SDL.h>
@@ -85,6 +86,8 @@ typedef struct run_detail_text_view {
 } run_detail_text_view;
 
 static void run_history_show_detail(const run_history_entry* entry);
+static int collect_run_history(run_history_entry* out, int capacity);
+static bool show_run_history_detail_for_score(const high_score* score);
 static bool run_history_prepare_artefact_object(
     const score_run_artefact_v1* entry, object_type* out);
 
@@ -479,6 +482,104 @@ static void truncate_with_ellipsis(const char* src, char* dst, size_t dst_size,
     }
 
     strnfmt(dst, dst_size, "%.*s...", max_width - 3, src);
+}
+
+static void score_ui_choose_fit(char* out, size_t out_len, int term_wid,
+                                int col, const char** candidates, int count)
+{
+    int max_width = term_wid - col;
+
+    if (!out || out_len == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (!candidates || count <= 0 || max_width <= 0)
+        return;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (!candidates[i])
+            continue;
+        if ((int)strlen(candidates[i]) <= max_width)
+        {
+            SDL_strlcpy(out, candidates[i], out_len);
+            return;
+        }
+    }
+
+    truncate_with_ellipsis(candidates[count - 1], out, out_len, max_width);
+}
+
+static void score_ui_build_halls_footer(char* footer, size_t footer_len,
+                                        bool steamdeck, int term_wid,
+                                        int page, int total_pages,
+                                        const char* open_label,
+                                        const char* order_label,
+                                        const char* layout_label,
+                                        const char* exit_label)
+{
+    char full[192];
+    char medium[160];
+    char short1[128];
+    char short2[96];
+    char tiny[64];
+    char minimum[32];
+    const char* candidates[6];
+    int count = 0;
+
+    if (!footer || footer_len == 0)
+        return;
+
+    footer[0] = '\0';
+
+    if (steamdeck)
+    {
+        strnfmt(full, sizeof(full),
+            "[%s] Open  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move  N/P Page %d/%d",
+            open_label, order_label, layout_label, exit_label, page + 1,
+            total_pages);
+        strnfmt(medium, sizeof(medium),
+            "[%s] Open  [%s] Order  [%s] Layout  [%s] Exit  D-pad  %d/%d",
+            open_label, order_label, layout_label, exit_label, page + 1,
+            total_pages);
+        strnfmt(short1, sizeof(short1),
+            "[%s] Open  [%s] Ord  [%s] Lay  [%s] Exit  %d/%d",
+            open_label, order_label, layout_label, exit_label, page + 1,
+            total_pages);
+        strnfmt(short2, sizeof(short2), "[%s] Open  [%s] Exit  %d/%d",
+            open_label, exit_label, page + 1, total_pages);
+        strnfmt(tiny, sizeof(tiny), "[%s] Open  %d/%d", open_label, page + 1,
+            total_pages);
+        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
+    }
+    else
+    {
+        strnfmt(full, sizeof(full),
+            "[Enter/Right] Open  [S] Order  [L] Layout  [Esc] Exit  [Up/Down] Move  [N] Next  [P] Prev %d/%d",
+            page + 1, total_pages);
+        strnfmt(medium, sizeof(medium),
+            "Enter Open  S Order  L Layout  Esc Exit  Up/Down Move  N/P Page %d/%d",
+            page + 1, total_pages);
+        strnfmt(short1, sizeof(short1),
+            "Enter Open  S Order  L Layout  Esc Exit  Up/Down  N/P %d/%d",
+            page + 1, total_pages);
+        strnfmt(short2, sizeof(short2),
+            "Enter Open  S Order  L Layout  Esc Exit  %d/%d",
+            page + 1, total_pages);
+        strnfmt(tiny, sizeof(tiny), "Enter Open  Esc Exit  %d/%d", page + 1,
+            total_pages);
+        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
+    }
+
+    candidates[count++] = full;
+    candidates[count++] = medium;
+    candidates[count++] = short1;
+    candidates[count++] = short2;
+    candidates[count++] = tiny;
+    candidates[count++] = minimum;
+
+    score_ui_choose_fit(footer, footer_len, term_wid, 1, candidates, count);
 }
 
 static int run_history_detail_body_rows(int term_hgt, int first_row)
@@ -1029,25 +1130,35 @@ extern void display_single_score(
         c_put_str(TERM_L_DARK, "         V", row + 4, col);
     }
 }
-static char display_scores_pages(const high_score* entries, int count, int highlight_index,
-                                 score_view_order order, bool detailed, int page_size)
+static char display_scores_pages(const high_score* entries, int count,
+                                 int* highlight_index, score_view_order order,
+                                 bool detailed, int page_size)
 {
-    bool steamdeck = get_sdl_steamdeck_mode();
+    enum {
+        SCORE_CLICK_ORDER = -1,
+        SCORE_CLICK_LAYOUT = -2,
+        SCORE_CLICK_EXIT = -3,
+        SCORE_CLICK_OPEN = -4,
+        SCORE_CLICK_PREV = -5,
+        SCORE_CLICK_NEXT = -6
+    };
+    bool steamdeck = steamdeck_controls_active();
     char order_label[16] = "";
     char layout_label[16] = "";
     char exit_label[16] = "";
-    char next_label[16] = "";
+    char open_label[16] = "";
     int term_wid = 80;
     int term_hgt = 24;
     int footer_row;
     bool compact;
+    int start_index = 0;
 
     if (steamdeck) {
-        /* Steam Deck UI: Y=order, X=layout, B=exit, A=next */
+        /* Steam Deck UI: Y=order, X=layout, B=exit, A=open */
         score_prompt_label(steamdeck_secondary_key(), "Y", order_label, sizeof(order_label));
         score_prompt_label(steamdeck_alt_action_key(), "X", layout_label, sizeof(layout_label));
         score_prompt_label(steamdeck_back_key(), "B", exit_label, sizeof(exit_label));
-        score_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
+        score_prompt_label(steamdeck_confirm_key(), "A", open_label, sizeof(open_label));
     }
 
     score_ui_get_term_size(&term_wid, &term_hgt);
@@ -1064,24 +1175,54 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
         if (steamdeck) {
             char hint_buf[48];
-            strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", next_label);
+            strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", exit_label);
             score_ui_put_fit(TERM_L_WHITE, hint_buf, footer_row, 2, term_wid);
         } else {
             score_ui_put_fit(TERM_L_WHITE, "(press any key)", footer_row, 2,
                 term_wid);
         }
-        (void)inkey();
+        ui_menu_click_begin();
+        ui_menu_click_set_outside_cancel_enabled(true);
+        ui_menu_click_add_full_row(SCORE_CLICK_EXIT, footer_row);
+        while (true)
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool saved_hide_cursor = hide_cursor;
+            hide_cursor = true;
+            (void)inkey();
+            hide_cursor = saved_hide_cursor;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                break;
+            }
+
+            ui_menu_click_clear();
+            break;
+        }
+        ui_menu_click_clear();
         return 0;
     }
 
-    int start_index = 0;
-    bool highlight_pending = true;
+    if (!highlight_index)
+        return 0;
+    if (*highlight_index < 0 || *highlight_index >= count)
+        *highlight_index = 0;
 
-    while (start_index < count)
+    while (true)
     {
         int body_rows;
         int entries_per_page;
         int layout_col;
+        int max_start;
+        int page;
+        int total_pages;
+        bool has_more;
+        bool has_prev;
 
         score_ui_get_term_size(&term_wid, &term_hgt);
         footer_row = term_hgt - 1;
@@ -1098,16 +1239,29 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             entries_per_page = page_size;
         if (entries_per_page < 1) entries_per_page = 1;
 
-        if (highlight_pending && highlight_index >= 0)
-        {
-            int max_start = (count - entries_per_page);
-            if (max_start < 0) max_start = 0;
-            start_index = (highlight_index / entries_per_page) * entries_per_page;
-            if (start_index > max_start) start_index = max_start;
-            highlight_pending = false;
-        }
+        max_start = ((count - 1) / entries_per_page) * entries_per_page;
+        if (max_start < 0)
+            max_start = 0;
+        if (start_index > max_start)
+            start_index = max_start;
+        if (*highlight_index < start_index)
+            start_index = (*highlight_index / entries_per_page) * entries_per_page;
+        if (*highlight_index >= start_index + entries_per_page)
+            start_index = (*highlight_index / entries_per_page) * entries_per_page;
+        if (start_index > max_start)
+            start_index = max_start;
+
+        page = (entries_per_page > 0) ? (start_index / entries_per_page) : 0;
+        total_pages = (count + entries_per_page - 1) / entries_per_page;
+        if (total_pages < 1)
+            total_pages = 1;
+        has_more = (start_index + entries_per_page < count);
+        has_prev = (start_index > 0);
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
 
         char order_buf[64];
@@ -1123,48 +1277,114 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         for (int row = 0; row < entries_per_page && (start_index + row) < count; row++)
         {
             int idx = start_index + row;
-            bool is_highlight = (idx == highlight_index);
+            bool is_highlight = (idx == *highlight_index);
             byte attr = score_entry_color(&entries[idx], is_highlight);
 
             if (detailed)
             {
                 display_single_score(attr, row * 4, 0, start_index + row + 1, false, (high_score*)&entries[idx]);
+                ui_menu_click_add_full_row(idx, row * 4 + 3);
+                ui_menu_click_add_full_row(idx, row * 4 + 4);
+                ui_menu_click_add_full_row(idx, row * 4 + 5);
             }
             else
             {
                 display_single_score_short(attr, start_index + row + 1, row, &entries[idx]);
+                ui_menu_click_add_full_row(idx, row + 3);
             }
         }
 
-        bool has_more = (start_index + entries_per_page < count);
-
-        char footer[80];
-        if (steamdeck) {
-            const char* action = has_more ? "Next" : "Close";
-            if (compact) {
-                strnfmt(footer, sizeof(footer),
-                    "[%s]Ord [%s]Lay [%s]Exit [%s]%s", order_label,
-                    layout_label, exit_label, next_label, action);
-            } else {
-                strnfmt(footer, sizeof(footer),
-                    "[%s] Order  [%s] Layout  [%s] Exit  [%s] %s",
-                    order_label, layout_label, exit_label, next_label, action);
-            }
-        } else {
-            if (compact) {
-                strnfmt(footer, sizeof(footer),
-                    "[S] order [L] layout [Esc] exit [any] %s",
-                    has_more ? "next" : "close");
-            } else {
-                strnfmt(footer, sizeof(footer),
-                    "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
-                    has_more ? "continue" : "close");
-            }
-        }
+        char footer[192];
+        score_ui_build_halls_footer(footer, sizeof(footer), steamdeck,
+            term_wid, page, total_pages, open_label, order_label,
+            layout_label, exit_label);
         score_ui_put_fit(TERM_L_WHITE, footer, footer_row, 1, term_wid);
+        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
+            "Open");
+        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
+            "open");
+        ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
+            "Enter");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "Order");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "order");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "Ord");
+        ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
+            "[S]");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "Layout");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "layout");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "Lay");
+        ui_menu_click_add_text_token(SCORE_CLICK_LAYOUT, 1, footer_row, footer,
+            "[L]");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "Exit");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "exit");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "Esc");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 1, footer_row, footer,
+            "ESC");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "Next");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "next");
+        ui_menu_click_add_text_token(SCORE_CLICK_NEXT, 1, footer_row, footer,
+            "[N]");
+        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
+            "Prev");
+        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
+            "prev");
+        ui_menu_click_add_text_token(SCORE_CLICK_PREV, 1, footer_row, footer,
+            "[P]");
 
+        bool saved_hide_cursor = hide_cursor;
+        hide_cursor = true;
         char ch = inkey();
+        hide_cursor = saved_hide_cursor;
         prt("", footer_row, 0);
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    *highlight_index = clicked_choice;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    if (!show_run_history_detail_for_score(&entries[*highlight_index]))
+                        bell("No run history is available for that character.");
+                    continue;
+                }
+
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                switch (clicked_choice)
+                {
+                case SCORE_CLICK_ORDER: ch = 's'; break;
+                case SCORE_CLICK_LAYOUT: ch = 'l'; break;
+                case SCORE_CLICK_EXIT: ch = ESCAPE; break;
+                case SCORE_CLICK_OPEN: ch = '\r'; break;
+                case SCORE_CLICK_PREV: ch = 'p'; break;
+                case SCORE_CLICK_NEXT: ch = 'n'; break;
+                default: break;
+                }
+            }
+            else
+                ui_menu_click_clear();
+        }
+
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
 
         if (steamdeck) {
             int back_key = steamdeck_back_key();
@@ -1174,9 +1394,8 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             
             if (ch == back_key)
                 return ESCAPE;  /* B = back */
-            if (ch == confirm_key || ch == '\r' || ch == '\n') {
-                if (!has_more) return 0;  /* A = continue/close */
-            }
+            if (ch == confirm_key)
+                ch = '\r';  /* A = open */
             if (ch == alt_key)
                 ch = 'l';  /* X = layout toggle */
             if (ch == secondary_key)
@@ -1190,10 +1409,79 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         if (ch == 'l' || ch == 'L')
             return ch;
 
-        if (!has_more)
+        switch (ch)
+        {
+        case '8':
+        case 'k':
+        case 'K':
+#ifdef ARROW_UP
+        case ARROW_UP:
+#endif
+            if (*highlight_index > 0)
+                (*highlight_index)--;
+            else
+                bell("Already at top entry.");
             break;
 
-        start_index += entries_per_page;
+        case '2':
+        case 'j':
+        case 'J':
+#ifdef ARROW_DOWN
+        case ARROW_DOWN:
+#endif
+            if (*highlight_index + 1 < count)
+                (*highlight_index)++;
+            else
+                bell("Already at last entry.");
+            break;
+
+        case '3':
+        case 'n':
+        case 'N':
+            if (has_more)
+            {
+                start_index += entries_per_page;
+                if (start_index > max_start)
+                    start_index = max_start;
+                *highlight_index = start_index;
+            }
+            else
+                bell("Already at last page.");
+            break;
+
+        case '4':
+#ifdef ARROW_LEFT
+        case ARROW_LEFT:
+#endif
+        case '7':
+        case '-':
+        case 'p':
+        case 'P':
+            if (has_prev)
+            {
+                start_index -= entries_per_page;
+                if (start_index < 0)
+                    start_index = 0;
+                *highlight_index = start_index;
+            }
+            else
+                bell("Already at first page.");
+            break;
+
+        case ' ':
+        case '6':
+        case '\r':
+        case '\n':
+#ifdef ARROW_RIGHT
+        case ARROW_RIGHT:
+#endif
+            if (!show_run_history_detail_for_score(&entries[*highlight_index]))
+                bell("No run history is available for that character.");
+            break;
+
+        default:
+            return 0;
+        }
     }
 
     return 0;
@@ -1223,9 +1511,22 @@ static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
     if (!entries || !count || !target || capacity <= 0)
         return false;
 
+    bool score_file_has_links =
+        scores_version_has_run_links(score_file_active_ctx());
     int idx = find_score_index(entries, *count, target);
     if (idx >= 0)
     {
+        u32b target_record_id;
+        if (score_file_has_links
+            && score_runs_get_legacy_link(target, &target_record_id))
+        {
+            u32b existing_record_id;
+            if (!score_runs_get_legacy_link(&entries[idx], &existing_record_id)
+                || existing_record_id != target_record_id)
+            {
+                entries[idx] = *target;
+            }
+        }
         if (highlight_index) *highlight_index = idx;
         return true;
     }
@@ -1340,16 +1641,43 @@ void show_scores(bool longscore)
     {
         const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
         int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
-        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
+        int* highlight = (order == SCORE_VIEW_ORDER_SCORE) ? &highlight_score : &highlight_time;
 
         log_debug("show_scores: rendering page (order=%s count=%d highlight=%d)",
                   (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time",
-                  count, highlight);
+                  count, highlight ? *highlight : -1);
 
         char response = display_scores_pages(list, count, highlight, order, detailed, page_size);
         if (response == 's' || response == 'S' || response == 'o' || response == 'O')
         {
+            high_score selected;
+            bool have_selected = false;
+
+            if (highlight && *highlight >= 0 && *highlight < count)
+            {
+                selected = list[*highlight];
+                have_selected = true;
+            }
+
             order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+
+            if (have_selected)
+            {
+                if (order == SCORE_VIEW_ORDER_SCORE)
+                {
+                    int idx = find_score_index(ordered_by_score, count_score,
+                        &selected);
+                    if (idx >= 0)
+                        highlight_score = idx;
+                }
+                else
+                {
+                    int idx = find_score_index(ordered_by_time, count_time,
+                        &selected);
+                    if (idx >= 0)
+                        highlight_time = idx;
+                }
+            }
             continue;
         }
         if (response == 'l' || response == 'L')
@@ -1679,8 +2007,158 @@ static int collect_run_history(run_history_entry* out, int capacity)
     mem_free(ring);
     return count;
 }
+
+static bool run_history_find_by_record_id(u32b record_id,
+                                          run_history_entry* out)
+{
+    if (!out)
+        return false;
+
+    char path[1024];
+    if (!build_meta_path(path, sizeof(path), SCORE_RUNS_DB_FILENAME))
+        return false;
+
+    safe_setuid_grab();
+    SDL_IOStream* file = SDL_IOFromFile(path, "rb");
+    safe_setuid_drop();
+
+    if (!file)
+        return false;
+
+    score_db_header header;
+    if (SDL_ReadIO(file, &header, sizeof(header)) != sizeof(header) ||
+        memcmp(header.magic, SCORE_DB_MAGIC, sizeof(header.magic)) != 0) {
+        SDL_CloseIO(file);
+        return false;
+    }
+
+    score_record_v1 temp;
+    while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
+        s64b detail_offset = (s64b)SDL_TellIO(file);
+
+        if (temp.record_id == record_id) {
+            out->record = temp;
+            out->detail_offset = detail_offset;
+            out->rating = run_history_compute_rating(&temp);
+            SDL_CloseIO(file);
+            return true;
+        }
+
+        if (!run_history_skip_details(file, &detail_offset))
+            break;
+    }
+
+    SDL_CloseIO(file);
+    return false;
+}
+
+static int score_run_history_match_quality(const high_score* score,
+                                           const run_history_entry* entry)
+{
+    if (!score || !entry)
+        return -1;
+
+    high_score record_score;
+    run_history_build_high_score(&entry->record, &record_score);
+
+    if (score_identity_matches(score, &record_score))
+        return 1000;
+
+    if (!streq(score->who, record_score.who))
+        return -1;
+
+    int quality = 10;
+
+    if (streq(score->how, record_score.how))
+        quality += 200;
+    if (streq(score->day, record_score.day))
+        quality += 100;
+    if (score_points(score) == score_points(&record_score))
+        quality += 60;
+    if (atoi(score->p_h) == atoi(record_score.p_h))
+        quality += 30;
+    if (atoi(score->p_r) == atoi(record_score.p_r))
+        quality += 10;
+    if (atoi(score->turns) == atoi(record_score.turns))
+        quality += 20;
+    if (atoi(score->cur_dun) == atoi(record_score.cur_dun))
+        quality += 10;
+    if (atoi(score->max_dun) == atoi(record_score.max_dun))
+        quality += 10;
+    if (score->escaped[0] == record_score.escaped[0])
+        quality += 10;
+    if (score->morgoth_slain[0] == record_score.morgoth_slain[0])
+        quality += 10;
+
+    return quality;
+}
+
+static bool show_run_history_detail_for_score(const high_score* score)
+{
+    if (!score)
+        return false;
+
+    const int minimum_quality = 150;
+
+    run_history_refresh_active_run();
+
+    u32b linked_record_id;
+    if (scores_version_has_run_links(score_file_active_ctx())
+        && score_runs_get_legacy_link(score, &linked_record_id))
+    {
+        run_history_entry linked_entry;
+        if (run_history_find_by_record_id(linked_record_id, &linked_entry))
+        {
+            int quality = score_run_history_match_quality(score,
+                &linked_entry);
+            if (quality >= minimum_quality)
+            {
+                run_history_show_detail(&linked_entry);
+                return true;
+            }
+        }
+    }
+
+    run_history_entry entries[RUN_HISTORY_MAX];
+    int count = collect_run_history(entries, RUN_HISTORY_MAX);
+    int best = -1;
+    int best_quality = -1;
+
+    for (int i = 0; i < count; i++)
+    {
+        int quality = score_run_history_match_quality(score, &entries[i]);
+        if (quality < 0)
+            continue;
+
+        if (quality > best_quality
+            || (quality == best_quality
+                && entries[i].rating > entries[best].rating)
+            || (quality == best_quality
+                && entries[i].rating == entries[best].rating
+                && entries[i].record.completed_utc
+                    > entries[best].record.completed_utc))
+        {
+            best = i;
+            best_quality = quality;
+        }
+    }
+
+    if (best < 0 || best_quality < minimum_quality)
+        return false;
+
+    run_history_show_detail(&entries[best]);
+    return true;
+}
+
 void do_cmd_run_history(void)
 {
+    enum {
+        RUN_HISTORY_CLICK_SORT = -1,
+        RUN_HISTORY_CLICK_BACK = -2,
+        RUN_HISTORY_CLICK_DETAILS = -3,
+        RUN_HISTORY_CLICK_PREV = -4,
+        RUN_HISTORY_CLICK_NEXT = -5
+    };
     run_history_refresh_active_run();
 
     run_history_entry entries[RUN_HISTORY_MAX];
@@ -1725,6 +2203,9 @@ void do_cmd_run_history(void)
         int page_label_row = 1;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_scroll_area_clear();
 
         if (steamdeck) {
             score_prompt_label(steamdeck_confirm_key(), "A",
@@ -1790,6 +2271,7 @@ void do_cmd_run_history(void)
                     format("Sort: %s [R]", run_history_sort_label(sort_order)),
                     page_label_row, 2, term_wid);
             }
+            ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
             c_prt(TERM_L_UMBER, "Date", 2, 2);
             c_prt(TERM_L_UMBER, "S", 2, col_status);
             c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
@@ -1852,6 +2334,7 @@ void do_cmd_run_history(void)
                         run_history_sort_label(sort_order)),
                     page_label_row, 2, term_wid);
             }
+            ui_menu_click_add_full_row(RUN_HISTORY_CLICK_SORT, page_label_row);
             c_prt(TERM_L_UMBER, "Date", 2, col_date);
             c_prt(TERM_L_UMBER, "Status", 2, col_status);
             c_prt(TERM_L_UMBER, "Depth", 2, col_depth);
@@ -1892,6 +2375,7 @@ void do_cmd_run_history(void)
                            (rec->silmarils > 0) ? TERM_VIOLET : TERM_WHITE;
 
             c_prt(row_color, selected ? ">" : " ", row_y, 0);
+            ui_menu_click_add_full_row(idx, row_y);
             c_prt(row_color, date, row_y, 2);
             if (compact) {
                 char summary[160];
@@ -1938,18 +2422,89 @@ void do_cmd_run_history(void)
         }
 
         if (steamdeck) {
-            score_ui_put_fit(TERM_L_DARK,
-                format("[%s] details  [%s] sort  [%s] back  [Up/Down] move  [Left/Right] page",
-                    confirm_label, sort_label, back_label),
-                footer_row, 0, term_wid);
+            char footer[160];
+
+            strnfmt(footer, sizeof(footer),
+                "[%s] details  [%s] sort  [%s] back  [Up/Down] move  [Left/Right] page",
+                confirm_label, sort_label, back_label);
+            score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
+                footer_row, footer, "details");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_SORT, 0,
+                footer_row, footer, "sort");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_BACK, 0,
+                footer_row, footer, "back");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_PREV, 0,
+                footer_row, footer, "Left");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
+                footer_row, footer, "Right");
         } else {
-            score_ui_put_fit(TERM_L_DARK,
-                "[Space/Enter/Right] details  [R] sort  [Esc] back  [Up/Down] move  [N/P/3/7] page",
-                footer_row, 0, term_wid);
+            const char *footer =
+                "[Space/Enter/Right] details  [R] sort  [Esc] back  [Up/Down] move  [N/P/3/7] page";
+
+            score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
+                footer_row, footer, "details");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_SORT, 0,
+                footer_row, footer, "sort");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_BACK, 0,
+                footer_row, footer, "back");
+            ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
+                footer_row, footer, "N/P");
         }
 
+        ui_scroll_area_begin(3, footer_row - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', 'n', 'p');
+
+        (void)Term_set_cursor(false);
         Term_fresh();
+        bool saved_hide_cursor = hide_cursor;
+        hide_cursor = true;
         int ch = inkey();
+        hide_cursor = saved_hide_cursor;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    if (highlight != clicked_choice)
+                    {
+                        highlight = clicked_choice;
+                        continue;
+                    }
+                    ch = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else
+                {
+                    switch (clicked_choice)
+                    {
+                    case RUN_HISTORY_CLICK_SORT: ch = 'r'; break;
+                    case RUN_HISTORY_CLICK_BACK: ch = ESCAPE; break;
+                    case RUN_HISTORY_CLICK_DETAILS: ch = '\r'; break;
+                    case RUN_HISTORY_CLICK_PREV: ch = 'p'; break;
+                    case RUN_HISTORY_CLICK_NEXT: ch = 'n'; break;
+                    default: break;
+                    }
+                }
+            }
+            else {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
+            }
+        }
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())
@@ -2051,6 +2606,8 @@ void do_cmd_run_history(void)
     }
 
     screen_pop_supporting_panes_hidden();
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
     screen_load();
 }
 static bool run_history_prepare_artefact_object(
@@ -2112,6 +2669,37 @@ static const char* run_detail_panel_names_compact[RUN_PANEL_COUNT] = {
     "Gen", "Stat", "Abil", "Mile", "Art", "Mon"
 };
 
+enum {
+    RUN_DETAIL_CLICK_BACK = -1,
+    RUN_DETAIL_CLICK_PREV_PANEL = -2,
+    RUN_DETAIL_CLICK_NEXT_PANEL = -3,
+    RUN_DETAIL_CLICK_INSPECT = -4,
+    RUN_DETAIL_CLICK_SORT = -5,
+    RUN_DETAIL_CLICK_TAB_BASE = -100
+};
+
+static int run_history_detail_tab_choice(run_detail_panel panel)
+{
+    return RUN_DETAIL_CLICK_TAB_BASE - (int)panel;
+}
+
+static bool run_history_detail_choice_to_tab(int choice,
+                                             run_detail_panel* panel)
+{
+    int idx;
+
+    if (choice > RUN_DETAIL_CLICK_TAB_BASE)
+        return false;
+
+    idx = RUN_DETAIL_CLICK_TAB_BASE - choice;
+    if (idx < 0 || idx >= RUN_PANEL_COUNT)
+        return false;
+
+    if (panel)
+        *panel = (run_detail_panel)idx;
+    return true;
+}
+
 static void run_history_draw_panel_tabs(run_detail_panel active,
                                         const bool available[RUN_PANEL_COUNT])
 {
@@ -2134,9 +2722,15 @@ static void run_history_draw_panel_tabs(run_detail_panel active,
         if (i == active_idx)
             color = available[i] ? TERM_WHITE : TERM_SLATE;
         score_ui_put_fit(color, buffer, 0, col, term_wid);
+        ui_menu_click_add(run_history_detail_tab_choice((run_detail_panel)i),
+            col, 0, (int)strlen(buffer));
         col += (int)strlen(buffer) + 1;
     }
     score_ui_put_fit(TERM_L_DARK, "Left/Right change views", 1, 0, term_wid);
+    ui_menu_click_add_text_token(RUN_DETAIL_CLICK_PREV_PANEL, 0, 1,
+        "Left/Right change views", "Left");
+    ui_menu_click_add_text_token(RUN_DETAIL_CLICK_NEXT_PANEL, 0, 1,
+        "Left/Right change views", "Right");
 }
 
 static const char* run_history_monster_sort_labels[RUN_MON_SORT_COUNT] = {
@@ -2463,6 +3057,48 @@ static bool run_history_handle_list_key(run_detail_list_state* state,
     return true;
 }
 
+static int run_history_detail_panel_total(const score_run_detail_block* details,
+                                          run_detail_panel panel)
+{
+    if (!details)
+        return 0;
+
+    switch (panel) {
+    case RUN_PANEL_ABILITIES:
+        return details->ability_count;
+    case RUN_PANEL_MILESTONES:
+        return details->milestone_count;
+    case RUN_PANEL_ARTEFACTS:
+        return MIN(details->header.artefact_count,
+            details->header.artefact_capacity);
+    case RUN_PANEL_MONSTERS:
+        return MIN(details->header.monster_count,
+            details->header.monster_capacity);
+    default:
+        return 0;
+    }
+}
+
+static run_detail_list_state* run_history_detail_panel_state(
+    run_detail_view_state* view, run_detail_panel panel)
+{
+    if (!view)
+        return NULL;
+
+    switch (panel) {
+    case RUN_PANEL_ABILITIES:
+        return &view->abilities;
+    case RUN_PANEL_MILESTONES:
+        return &view->milestones;
+    case RUN_PANEL_ARTEFACTS:
+        return &view->artefacts;
+    case RUN_PANEL_MONSTERS:
+        return &view->monsters;
+    default:
+        return NULL;
+    }
+}
+
 static const char* run_history_format_depth_label(const score_run_milestone_v1* entry,
                                                   char* buffer, size_t len)
 {
@@ -2512,6 +3148,7 @@ static int run_history_draw_abilities_panel(const score_run_detail_block* detail
         byte color = (idx == state->highlight) ? TERM_L_GREEN : TERM_L_WHITE;
         char depth_buf[16];
         strnfmt(depth_buf, sizeof(depth_buf), "%5d ft", entry->depth * 50);
+        ui_menu_click_add_full_row(idx, 5 + row);
         c_prt(color,
             format("%3u  %7lu  %-7s  %s - %s",
                 entry->order,
@@ -2549,6 +3186,7 @@ static int run_history_draw_milestones_panel(const score_run_detail_block* detai
         char depth_buf[16];
         const char* depth = run_history_format_depth_label(entry, depth_buf, sizeof(depth_buf));
         byte color = (idx == state->highlight) ? TERM_L_GREEN : TERM_L_WHITE;
+        ui_menu_click_add_full_row(idx, 5 + row);
         c_prt(color,
             format("%7lu  %-8s  %-60.60s",
                 (unsigned long)entry->player_turn,
@@ -2597,8 +3235,8 @@ static void run_history_examine_monster(const score_run_detail_block* details,
 
     if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
         screen_save();
-        screen_roff(entry->r_idx, NULL);
-        (void)inkey();
+        if (!screen_roff(entry->r_idx, NULL))
+            (void)inkey();
         screen_load();
     } else {
         bell("Monster information not available.");
@@ -2647,6 +3285,7 @@ static int run_history_draw_artefact_panel(const score_run_detail_block* details
         bool selected = (idx == state->highlight);
         int y = 5 + row;
         c_prt(selected ? TERM_L_GREEN : color, selected ? ">" : " ", y, 0);
+        ui_menu_click_add_full_row(idx, y);
         Term_putch(2, y, pict_attr, pict_char);
         if (use_bigtile)
             Term_putch(3, y, 255, -1);
@@ -2716,6 +3355,7 @@ static int run_history_draw_monster_panel(const score_run_detail_block* details,
         int y = 5 + row;
         bool compact = score_ui_compact_width(term_wid);
         c_prt(display_color, (idx == state->highlight) ? ">" : " ", y, 0);
+        ui_menu_click_add_full_row(idx, y);
         Term_putch(2, y, pic_color, pic_char);
         if (use_bigtile) {
             Term_putch(3, y, 255, -1);
@@ -2796,14 +3436,24 @@ static void run_history_show_detail(const run_history_entry* entry)
     int general_total_lines = 0;
     int stats_total_lines = 0;
 
+    screen_save();
+
     while (!done) {
         bool steamdeck = steamdeck_controls_active();
         char confirm_label[16] = "";
         char back_label[16] = "";
         char sort_label[16] = "";
+        char footer_buf[192] = "";
+        int active_list_rows = 0;
+        int active_list_total = 0;
+        int scroll_first_row = 3;
+        int scroll_rows = 0;
+        bool enable_scroll_area = false;
 
-        screen_save();
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_scroll_area_clear();
 
         if (steamdeck) {
             score_prompt_label(steamdeck_confirm_key(), "A",
@@ -2839,6 +3489,9 @@ static void run_history_show_detail(const run_history_entry* entry)
                 : ((general_total_lines > text_rows)
                     ? "[Up/Down] scroll  [Left/Right] view  [Esc] back"
                     : "[Left/Right] view  [Esc] back");
+            scroll_first_row = 3;
+            scroll_rows = text_rows;
+            enable_scroll_area = true;
             break;
         case RUN_PANEL_STATS:
             c_prt(TERM_L_BLUE, format("=== Run #%u Details ===", rec->record_id), 2, 0);
@@ -2853,24 +3506,42 @@ static void run_history_show_detail(const run_history_entry* entry)
                 : ((stats_total_lines > text_rows)
                     ? "[Up/Down] scroll  [Left/Right] view  [Esc] back"
                     : "[Left/Right] view  [Esc] back");
+            scroll_first_row = 3;
+            scroll_rows = text_rows;
+            enable_scroll_area = true;
             break;
         case RUN_PANEL_ABILITIES:
             ability_rows = run_history_draw_abilities_panel(&details, &view.abilities, term_hgt);
             footer = steamdeck
                 ? "[Up/Down] navigate  [Left/Right] view  [%s] back"
                 : "[Up/Down] navigate  [Left/Right] view  [Esc] back";
+            active_list_rows = ability_rows;
+            active_list_total = run_history_detail_panel_total(&details, panel);
+            scroll_first_row = 5;
+            scroll_rows = ability_rows;
+            enable_scroll_area = active_list_total > 0;
             break;
         case RUN_PANEL_MILESTONES:
             milestone_rows = run_history_draw_milestones_panel(&details, &view.milestones, term_hgt);
             footer = steamdeck
                 ? "[Up/Down] navigate  [Left/Right] view  [%s] back"
                 : "[Up/Down] navigate  [Left/Right] view  [Esc] back";
+            active_list_rows = milestone_rows;
+            active_list_total = run_history_detail_panel_total(&details, panel);
+            scroll_first_row = 5;
+            scroll_rows = milestone_rows;
+            enable_scroll_area = active_list_total > 0;
             break;
         case RUN_PANEL_ARTEFACTS:
             artefact_rows = run_history_draw_artefact_panel(&details, &view.artefacts, term_hgt);
             footer = steamdeck
                 ? "[Up/Down] navigate  [Left/Right] view  [%s] inspect  [%s] back"
                 : "[Up/Down] navigate  [Space/Enter] inspect  [Left/Right] view  [Esc] back";
+            active_list_rows = artefact_rows;
+            active_list_total = run_history_detail_panel_total(&details, panel);
+            scroll_first_row = 5;
+            scroll_rows = artefact_rows;
+            enable_scroll_area = active_list_total > 0;
             break;
         case RUN_PANEL_MONSTERS:
             monster_rows = run_history_draw_monster_panel(&details, &view.monsters,
@@ -2878,32 +3549,140 @@ static void run_history_show_detail(const run_history_entry* entry)
             footer = steamdeck
                 ? "[Up/Down] navigate  [Left/Right] view  [%s] inspect  [%s] sort  [%s] back"
                 : "[Up/Down] navigate  [Space/Enter] inspect  [S] sort  [Left/Right] view  [Esc] back";
+            active_list_rows = monster_rows;
+            active_list_total = run_history_detail_panel_total(&details, panel);
+            scroll_first_row = 5;
+            scroll_rows = monster_rows;
+            enable_scroll_area = active_list_total > 0;
             break;
         default:
             break;
         }
 
-        if (steamdeck && footer) {
-            if (panel == RUN_PANEL_GENERAL || panel == RUN_PANEL_STATS ||
-                panel == RUN_PANEL_ABILITIES || panel == RUN_PANEL_MILESTONES) {
-                score_ui_put_fit(TERM_L_DARK, format(footer, back_label),
-                    term_hgt - 2, 0, term_wid);
-            } else if (panel == RUN_PANEL_ARTEFACTS) {
-                score_ui_put_fit(TERM_L_DARK,
-                    format(footer, confirm_label, back_label),
-                    term_hgt - 2, 0, term_wid);
-            } else if (panel == RUN_PANEL_MONSTERS) {
-                score_ui_put_fit(TERM_L_DARK,
-                    format(footer, confirm_label, sort_label, back_label),
-                    term_hgt - 2, 0, term_wid);
+        if (footer) {
+            if (steamdeck) {
+                if (panel == RUN_PANEL_GENERAL || panel == RUN_PANEL_STATS ||
+                    panel == RUN_PANEL_ABILITIES || panel == RUN_PANEL_MILESTONES) {
+                    strnfmt(footer_buf, sizeof(footer_buf), footer, back_label);
+                } else if (panel == RUN_PANEL_ARTEFACTS) {
+                    strnfmt(footer_buf, sizeof(footer_buf), footer,
+                        confirm_label, back_label);
+                } else if (panel == RUN_PANEL_MONSTERS) {
+                    strnfmt(footer_buf, sizeof(footer_buf), footer,
+                        confirm_label, sort_label, back_label);
+                }
+            } else {
+                SDL_strlcpy(footer_buf, footer, sizeof(footer_buf));
             }
-        } else if (footer) {
-            score_ui_put_fit(TERM_L_DARK, footer, term_hgt - 2, 0, term_wid);
+
+            score_ui_put_fit(TERM_L_DARK, footer_buf, term_hgt - 2, 0,
+                term_wid);
+            ui_menu_click_add_text_token(RUN_DETAIL_CLICK_PREV_PANEL, 0,
+                term_hgt - 2, footer_buf, "Left");
+            ui_menu_click_add_text_token(RUN_DETAIL_CLICK_NEXT_PANEL, 0,
+                term_hgt - 2, footer_buf, "Right");
+            ui_menu_click_add_text_token(RUN_DETAIL_CLICK_BACK, 0,
+                term_hgt - 2, footer_buf, "back");
+            if (panel == RUN_PANEL_ARTEFACTS || panel == RUN_PANEL_MONSTERS) {
+                ui_menu_click_add_text_token(RUN_DETAIL_CLICK_INSPECT, 0,
+                    term_hgt - 2, footer_buf, "inspect");
+            }
+            if (panel == RUN_PANEL_MONSTERS) {
+                ui_menu_click_add_text_token(RUN_DETAIL_CLICK_SORT, 0,
+                    term_hgt - 2, footer_buf, "sort");
+            }
         }
+
+        if (enable_scroll_area) {
+            ui_scroll_area_begin(scroll_first_row,
+                scroll_first_row + scroll_rows - 1,
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('8', '2', '6', '4');
+        }
+        (void)Term_set_cursor(false);
         Term_fresh();
 
+        bool saved_hide_cursor = hide_cursor;
+        hide_cursor = true;
         int ch = inkey();
-        screen_load();
+        hide_cursor = saved_hide_cursor;
+        bool skip_command = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)) {
+                run_detail_panel clicked_panel;
+                run_detail_list_state* clicked_state =
+                    run_history_detail_panel_state(&view, panel);
+
+                if (click_action == UI_MENU_CLICK_HOVER) {
+                    if (clicked_choice >= 0 && clicked_state
+                        && clicked_choice < active_list_total)
+                    {
+                        clicked_state->highlight = clicked_choice;
+                        run_history_clamp_list_state(clicked_state,
+                            active_list_rows, active_list_total);
+                    }
+                    skip_command = true;
+                } else if (run_history_detail_choice_to_tab(clicked_choice,
+                           &clicked_panel)) {
+                    panel = clicked_panel;
+                    skip_command = true;
+                } else if (clicked_choice >= 0 && clicked_state
+                           && clicked_choice < active_list_total) {
+                    if (click_action == UI_MENU_CLICK_SECONDARY
+                        && (panel == RUN_PANEL_ARTEFACTS ||
+                            panel == RUN_PANEL_MONSTERS))
+                    {
+                        clicked_state->highlight = clicked_choice;
+                        run_history_clamp_list_state(clicked_state,
+                            active_list_rows, active_list_total);
+                        ch = '\r';
+                    } else if (clicked_state->highlight != clicked_choice) {
+                        clicked_state->highlight = clicked_choice;
+                        run_history_clamp_list_state(clicked_state,
+                            active_list_rows, active_list_total);
+                        skip_command = true;
+                    } else if (panel == RUN_PANEL_ARTEFACTS ||
+                               panel == RUN_PANEL_MONSTERS) {
+                        ch = '\r';
+                    } else {
+                        skip_command = true;
+                    }
+                } else {
+                    switch (clicked_choice) {
+                    case RUN_DETAIL_CLICK_BACK:
+                        ch = ESCAPE;
+                        break;
+                    case RUN_DETAIL_CLICK_PREV_PANEL:
+                        ch = '4';
+                        break;
+                    case RUN_DETAIL_CLICK_NEXT_PANEL:
+                        ch = '6';
+                        break;
+                    case RUN_DETAIL_CLICK_INSPECT:
+                        ch = '\r';
+                        break;
+                    case RUN_DETAIL_CLICK_SORT:
+                        ch = 's';
+                        break;
+                    default:
+                        skip_command = true;
+                        break;
+                    }
+                }
+            } else if (ch == UI_MENU_CLICK_WAKE_KEY) {
+                skip_command = true;
+            }
+
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
+        }
+
+        if (skip_command)
+            continue;
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())
@@ -2999,6 +3778,11 @@ static void run_history_show_detail(const run_history_entry* entry)
         }
     }
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+
     if (have_details)
         score_runs_free_details(&details);
+
+    screen_load();
 }

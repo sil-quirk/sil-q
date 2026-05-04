@@ -6,6 +6,7 @@
 
 #define GAMEPAD_TRIGGER_COUNT 2
 #define GAMEPAD_STICK_DIR_COUNT 4
+#define TOUCH_SWIPE_DIR_COUNT 4
 #define GAMEPAD_MODIFIER_COUNT 3
 
 #define GAMEPAD_MODIFIER_SHIFT 0
@@ -17,20 +18,71 @@
 #define GAMEPAD_STICK_DIR_LEFT 2
 #define GAMEPAD_STICK_DIR_RIGHT 3
 
+#define TOUCH_SWIPE_DIR_UP 0
+#define TOUCH_SWIPE_DIR_DOWN 1
+#define TOUCH_SWIPE_DIR_LEFT 2
+#define TOUCH_SWIPE_DIR_RIGHT 3
+
+#define SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT 0
+#define SDL_TOUCH_MENU_CATEGORY_SUPPLY 1
+#define SDL_TOUCH_MENU_CATEGORY_OTHER 2
+#define SDL_TOUCH_MENU_CATEGORY_COUNT 3
+
+#define SDL_TOUCH_PROFILE_TOUCH_PANE 0
+#define SDL_TOUCH_PROFILE_CORNERS 1
+#define SDL_TOUCH_PROFILE_ROUND_WHEEL 2
+#define SDL_TOUCH_PROFILE_COUNT 3
+
+#define SDL_TOUCH_MOVEMENT_ON 0
+#define SDL_TOUCH_MOVEMENT_OFF 1
+#define SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY 2
+
+#define SDL_MOUSE_MOVEMENT_ON 0
+#define SDL_MOUSE_MOVEMENT_OFF 1
+#define SDL_MOUSE_MOVEMENT_RIGHT_ONLY 2
+
 #define GAMEPAD_BIND_NONE -1
 #define GAMEPAD_BIND_SHIFT -2
 #define GAMEPAD_BIND_CTRL -3
 #define GAMEPAD_BIND_ALT -4
 #define INPUT_BIND_CONFIRM -5
 #define TOUCH_PANE_BIND_INHERIT -6
+#define TOUCH_BIND_TOP_PANEL_OPEN -7
+#define TOUCH_BIND_TOP_PANEL_CLOSE -8
 
 #define SDL_TOUCH_PANE_BUTTON_COLS 3
 #define SDL_TOUCH_PANE_BUTTON_ROWS 8
 #define SDL_TOUCH_PANE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_BUTTON_ROWS)
+#define SDL_TOUCH_PANE_VISIBLE_BUTTON_ROWS 7
+#define SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT (SDL_TOUCH_PANE_BUTTON_COLS * SDL_TOUCH_PANE_VISIBLE_BUTTON_ROWS)
 #define SDL_TOUCH_PANE_LABEL_LEN 24
 #define SDL_TOUCH_PANE_PANEL_COUNT 2
 #define SDL_TOUCH_PANE_PANEL_MAIN 0
 #define SDL_TOUCH_PANE_PANEL_SECOND 1
+#define SDL_TOUCH_PANE_PLACEMENT_LEFT 0
+#define SDL_TOUCH_PANE_PLACEMENT_RIGHT 1
+#define SDL_TOUCH_ZONE_OVERLAY_OFF 0
+#define SDL_TOUCH_ZONE_OVERLAY_MARKERS 1
+#define SDL_TOUCH_ZONE_OVERLAY_BORDERS 2
+#define SDL_TOUCH_ZONE_OVERLAY_BORDERS_LABELS 3
+#define SDL_TOUCH_ZONE_OVERLAY_COUNT 4
+#define SDL_TOUCH_ZONE_CENTER_LEFT_TAP 0
+#define SDL_TOUCH_ZONE_CENTER_LEFT_LONG_TAP 1
+#define SDL_TOUCH_ZONE_CENTER_RIGHT_TAP 2
+#define SDL_TOUCH_ZONE_CENTER_RIGHT_LONG_TAP 3
+#define SDL_TOUCH_ZONE_CENTER_BINDING_COUNT 4
+#define SDL_TOUCH_CORNER_UP_DOWN_LEFT 0
+#define SDL_TOUCH_CORNER_UP_DOWN_RIGHT 1
+#define SDL_TOUCH_CORNER_ACTION_TOP_TAP 0
+#define SDL_TOUCH_CORNER_ACTION_TOP_LONG_TAP 1
+#define SDL_TOUCH_CORNER_ACTION_BOTTOM_TAP 2
+#define SDL_TOUCH_CORNER_ACTION_BOTTOM_LONG_TAP 3
+#define SDL_TOUCH_CORNER_ACTION_BINDING_COUNT 4
+#define SDL_TOUCH_TOP_PANEL_MODE_SHORT 0
+#define SDL_TOUCH_TOP_PANEL_MODE_LONG 1
+#define SDL_TOUCH_TOP_PANEL_MODE_COUNT 2
+#define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
+#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 6
 #define SDL_PANE_PROFILE_COUNT 2
 
 enum sdl_min_terminal_mode {
@@ -116,13 +168,30 @@ struct sdl_config {
     int gamepad_left_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_right_stick_combo_bindings[GAMEPAD_MODIFIER_COUNT][GAMEPAD_STICK_DIR_COUNT];
     int gamepad_shoulder_combo_binding;   // Binding for L1+R1 combo action
+    bool mouse_enabled;
+    int mouse_movement_mode;
+    int touch_profile;
+    bool touch_pane_default_open;
+    bool touch_pane_key_labels_visible;
+    bool touch_pane_inventory_equipment_cycle;
     int touch_pane_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     int touch_pane_second_bindings[SDL_TOUCH_PANE_BUTTON_COUNT];
     char touch_pane_second_labels[SDL_TOUCH_PANE_BUTTON_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
     char touch_pane_panel_names[SDL_TOUCH_PANE_PANEL_COUNT][SDL_TOUCH_PANE_LABEL_LEN];
+    bool touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_COUNT];
+    int touch_movement_mode;
+    bool touch_round_movement_enabled;
+    int touch_zone_overlay_mode;
+    int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
+    int touch_corner_up_down_side;
+    int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
+    int touch_top_panel_mode;
+    bool touch_top_panel_default_open;
+    int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     bool touch_swipe_enabled;
-    int touch_swipe_bindings[GAMEPAD_STICK_DIR_COUNT];
+    int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };
 
 // Load SDL configuration from JSON file
@@ -161,4 +230,8 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv);
 void sdl_config_load_app_options(const char* filename);
 bool sdl_config_should_force_intro_flame(void);
 void sdl_config_mark_intro_seen(void);
+bool sdl_config_touch_tutorial_seen(void);
+void sdl_config_mark_touch_tutorial_seen(void);
+bool sdl_config_mouse_tutorial_seen(void);
+void sdl_config_mark_mouse_tutorial_seen(void);
 bool option_is_app_persistent(int opt);

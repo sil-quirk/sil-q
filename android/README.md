@@ -86,6 +86,21 @@ The build helper auto-detects Java from Android Studio JBR if `JAVA_HOME` is not
 
 Then launch from the device launcher.
 
+## Play Store app bundle (AAB)
+
+Google Play uploads need a release/upload key, not the local debug key. Keep the keystore and passwords out of the repo and pass them through environment variables:
+
+```powershell
+$env:SIL_MORE_RELEASE_STORE_FILE = 'C:\path\to\upload-keystore.jks'
+$env:SIL_MORE_RELEASE_KEY_ALIAS = 'upload'
+$env:SIL_MORE_RELEASE_STORE_PASSWORD = '<keystore password>'
+$env:SIL_MORE_RELEASE_KEY_PASSWORD = '<key password>'
+
+.\build-android-bundle.ps1 -CompileSdk 35
+```
+
+`SIL_MORE_RELEASE_KEY_PASSWORD` may be omitted if the key password is the same as the keystore password; the script will prompt and lets Enter reuse the keystore password. Install Android SDK Platform 35 before passing `-CompileSdk 35`. The script defaults to `-TargetSdk 35` and writes `sil-more-<version>.aab` in the repo root.
+
 ## Notes
 
 - The game stores saves/config under the app's private storage via SDL user folders.

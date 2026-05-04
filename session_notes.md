@@ -1,5 +1,24 @@
 # Session notes
 
+## 2026-04-27: Touch settings split into panel and control
+- `src/cmd4.c`
+  - Split Input Options into `Touch Panel` and `Touch Control`.
+  - `Touch Panel` now edits only the on-screen button panel, panel names, button labels, and button bindings.
+  - `Touch Control` now owns menu touch commands, touch movement mode, swipe on/off, and swipe bindings.
+- `src/sdl-config.c`, `src/sdl-config.h`, `src/main-sdl.c`, `src/externs.h`
+  - Added persisted `touchControl` config for menu touch commands, touch movement mode, and swipes.
+  - Menu touch commands are now toggled by category: Inventory/Equipped, Supply, and Others.
+  - Old `touchPane.swipeEnabled` and `touchPane.swipeBindings` are still loaded as legacy fallback.
+  - Added `Touch Movement` modes: `On`, `Off`, and `Long click only`.
+  - Menu touch command handling now respects the selected category setting for registered touch menus.
+- `src/util.c`, `src/object1.c`
+  - The shared click registry now tracks a touch-menu category.
+  - Enhanced inventory and equipment register as Inventory/Equipped; supplies registers as Supply; other registered menus stay under Others.
+- `docs/touch_menu_navigation_plan.md`
+  - Added the new Touch Panel / Touch Control split and category-specific menu touch-command requirement to the plan.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File .\build-incremental.ps1` passed.
+
 ## 2026-04-22: Supplies/knowledge menus switch to active-pane layout only when split view does not fit
 - `src/cmd4.c`
   - Replaced the fixed `Term->wid <= 50` cutoff with fit-based checks for grouped knowledge browsers and the supplies menu.

@@ -26,6 +26,7 @@ score_file_ctx* score_file_global_ctx(void);
 
 /* Utility: check if a score file version supports the curse (pts) field. */
 bool scores_version_has_curses(const score_file_ctx* ctx);
+bool scores_version_has_run_links(const score_file_ctx* ctx);
 
 bool score_file_load_header(score_file_ctx* ctx, const char *filepath);
 SDL_IOStream* score_file_open(const char *filepath, int mode);

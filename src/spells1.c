@@ -274,8 +274,23 @@ bool song_revealing_overlay(int m_idx, byte* a, char* c)
     return true;
 }
 
-#define SONG_DUEL_STACK_LIMIT 3
 #define SONG_DUEL_LOCKOUT_TURNS 10
+
+typedef struct song_contest_penalties
+{
+    int will;
+    int stealth;
+    int evasion;
+    int armour_dice;
+} song_contest_penalties;
+
+typedef struct song_lament_penalties
+{
+    int will;
+    int maxhp;
+    int damage_dice;
+    int damage_blows;
+} song_lament_penalties;
 
 static bool song_is_duel(int song)
 {
@@ -372,6 +387,135 @@ static void song_duel_reset_monster_stack(monster_type* m_ptr, int song)
     }
 }
 
+static int song_duel_armour_dice(const monster_type* m_ptr)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int dice = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+
+    if (dice < 0)
+        dice = 0;
+
+    dice += curse_flag_delta_cur(CUR_MON_ARM_DICE);
+
+    if (dice < 0)
+        dice = 0;
+
+    return dice;
+}
+
+static int song_duel_armour_sides(const monster_type* m_ptr, int armour_dice)
+{
+    int sides = monster_base_armour_sides(m_ptr);
+
+    sides += curse_flag_delta_cur(CUR_MON_ARM_SIDE);
+
+    if (sides < 0)
+        sides = 0;
+
+    if (armour_dice > 0 && sides < 1)
+        sides = 1;
+
+    return sides;
+}
+
+static void song_duel_blow_damage_dice(
+    const monster_type* m_ptr, int blow, int* dd, int* ds)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+    *dd = r_ptr->blow[blow].dd;
+    *ds = r_ptr->blow[blow].ds;
+
+    if (*dd > 0 && m_ptr->blow_dd_reduction[blow] > 0)
+        *dd = MAX(1, *dd - m_ptr->blow_dd_reduction[blow]);
+
+    if (*ds > 0 && m_ptr->blow_ds_reduction[blow] > 0)
+        *ds = MAX(1, *ds - m_ptr->blow_ds_reduction[blow]);
+}
+
+static void song_duel_damage_dice_summary(
+    const monster_type* m_ptr, char* buf, size_t buf_size)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    bool any = false;
+
+    buf[0] = '\0';
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        char part[24];
+        int dd;
+        int ds;
+
+        if (!r_ptr->blow[i].method)
+            continue;
+
+        song_duel_blow_damage_dice(m_ptr, i, &dd, &ds);
+
+        if (dd <= 0 || ds <= 0)
+            continue;
+
+        strnfmt(part, sizeof(part), "%s%dd%d", any ? ", " : "", dd, ds);
+        SDL_strlcat(buf, part, buf_size);
+        any = true;
+    }
+
+    if (!any)
+        SDL_strlcpy(buf, "none", buf_size);
+}
+
+static void song_duel_learn_target_stats(monster_type* m_ptr, int song)
+{
+    monster_lore* l_ptr = &l_list[m_ptr->r_idx];
+
+    if (song == SNG_CONTEST)
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_CONTEST;
+    else if (song == SNG_LAMENT)
+        l_ptr->song_lore_flags |= MONSTER_LORE_SONG_LAMENT;
+
+    p_ptr->window |= PW_MONSTER;
+}
+
+static void song_duel_reveal_target_stats(monster_type* m_ptr, int song)
+{
+    char m_name[80];
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    if (song == SNG_CONTEST)
+    {
+        int armour_dice = song_duel_armour_dice(m_ptr);
+        int armour_sides = song_duel_armour_sides(m_ptr, armour_dice);
+
+        if (armour_dice > 0 && armour_sides > 0)
+        {
+            msg_format(
+                "%s's contest stats: Will %d, Stealth %d.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL));
+            msg_format("Evasion %+d, Armour %dd%d.",
+                total_monster_evasion(m_ptr, false), armour_dice, armour_sides);
+        }
+        else
+        {
+            msg_format(
+                "%s's contest stats: Will %d, Stealth %d.",
+                m_name, monster_skill(m_ptr, S_WIL), monster_skill(m_ptr, S_STL));
+            msg_format("Evasion %+d, Armour none.",
+                total_monster_evasion(m_ptr, false));
+        }
+    }
+    else if (song == SNG_LAMENT)
+    {
+        char damage[96];
+
+        song_duel_damage_dice_summary(m_ptr, damage, sizeof(damage));
+        msg_format(
+            "%s's lament stats: Will %d, HP %d/%d.",
+            m_name, monster_skill(m_ptr, S_WIL), m_ptr->hp, m_ptr->maxhp);
+        msg_format("Damage dice %s.", damage);
+    }
+}
+
 static bool song_duel_select_target(int song)
 {
     const char* prompt = (song == SNG_CONTEST)
@@ -435,10 +579,10 @@ static bool song_duel_select_target(int song)
     return true;
 }
 
-static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
+static int song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
 {
     if (steps <= 0)
-        return;
+        return 0;
 
     int old_maxhp = m_ptr->maxhp;
     if (old_maxhp <= 0)
@@ -476,15 +620,24 @@ static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
 
         /* Morgoth's anger state depends on current HP% (and maxHP can change here). */
         maybe_update_morgoth_state_from_hp(m_ptr);
+
+        return hp_loss;
     }
+
+    return 0;
 }
 
-static void song_duel_reduce_monster_damage_dice(monster_type* m_ptr, int penalty)
+static int song_duel_reduce_monster_damage_dice(
+    monster_type* m_ptr, int penalty, int* affected_blows)
 {
     if (penalty <= 0)
-        return;
+        return 0;
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int total_reduction = 0;
+
+    if (affected_blows)
+        *affected_blows = 0;
 
     for (int b = 0; b < MONSTER_BLOW_MAX; b++)
     {
@@ -498,23 +651,41 @@ static void song_duel_reduce_monster_damage_dice(monster_type* m_ptr, int penalt
         int total = m_ptr->blow_dd_reduction[b] + penalty;
         if (total > max_reduction)
             total = max_reduction;
-        m_ptr->blow_dd_reduction[b] = (byte)total;
+
+        int delta = total - m_ptr->blow_dd_reduction[b];
+        if (delta > 0)
+        {
+            total_reduction += delta;
+            if (affected_blows)
+                (*affected_blows)++;
+            m_ptr->blow_dd_reduction[b] = (byte)total;
+        }
     }
+
+    return total_reduction;
 }
 
-static void song_duel_apply_lament_penalties(monster_type* m_ptr, int song_skill)
+static song_lament_penalties song_duel_apply_lament_penalties(
+    monster_type* m_ptr, int song_skill)
 {
+    song_lament_penalties applied = { 0, 0, 0, 0 };
     int will_penalty = MAX(1, song_skill / 2);
     int con_penalty = MAX(1, song_skill / 12);
 
     m_ptr->song_will_penalty += will_penalty;
+    applied.will = will_penalty;
 
-    song_duel_reduce_monster_hp(m_ptr, con_penalty);
-    song_duel_reduce_monster_damage_dice(m_ptr, con_penalty);
+    applied.maxhp = song_duel_reduce_monster_hp(m_ptr, con_penalty);
+    applied.damage_dice = song_duel_reduce_monster_damage_dice(
+        m_ptr, con_penalty, &applied.damage_blows);
+
+    return applied;
 }
 
-static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skill)
+static song_contest_penalties song_duel_apply_contest_penalties(
+    monster_type* m_ptr, int song_skill)
 {
+    song_contest_penalties applied = { 0, 0, 0, 0 };
     int will_penalty = MAX(1, song_skill / 3);
     int stealth_penalty = MAX(1, song_skill / 2);
     int evasion_penalty = MAX(1, song_skill / 5);
@@ -523,6 +694,9 @@ static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skil
     m_ptr->song_will_penalty += will_penalty;
     m_ptr->song_stealth_penalty += stealth_penalty;
     m_ptr->song_evasion_penalty += evasion_penalty;
+    applied.will = will_penalty;
+    applied.stealth = stealth_penalty;
+    applied.evasion = evasion_penalty;
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int max_penalty = r_ptr->pd;
@@ -532,8 +706,11 @@ static void song_duel_apply_contest_penalties(monster_type* m_ptr, int song_skil
         int total = m_ptr->song_armor_dice_penalty + armor_penalty;
         if (total > max_penalty)
             total = max_penalty;
+        applied.armour_dice = total - m_ptr->song_armor_dice_penalty;
         m_ptr->song_armor_dice_penalty = (byte)total;
     }
+
+    return applied;
 }
 
 static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int song_skill)
@@ -547,10 +724,37 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
         msg_format("%s succumbs to your lament!", m_name);
 
     if (song == SNG_CONTEST)
-        song_duel_apply_contest_penalties(m_ptr, song_skill);
+    {
+        song_contest_penalties applied
+            = song_duel_apply_contest_penalties(m_ptr, song_skill);
+        msg_format(
+            "%s is diminished: Will -%d, Stealth -%d.",
+            m_name, applied.will, applied.stealth);
+        msg_format("Evasion -%d, armour dice -%d.", applied.evasion,
+            applied.armour_dice);
+    }
     else
     {
-        song_duel_apply_lament_penalties(m_ptr, song_skill);
+        song_lament_penalties applied
+            = song_duel_apply_lament_penalties(m_ptr, song_skill);
+
+        if (applied.damage_dice > 0)
+        {
+            msg_format(
+                "%s is diminished: Will -%d, max HP -%d.",
+                m_name, applied.will, applied.maxhp);
+            msg_format("Damage dice -%d across %d blow%s.",
+                applied.damage_dice, applied.damage_blows,
+                (applied.damage_blows == 1) ? "" : "s");
+        }
+        else
+        {
+            msg_format(
+                "%s is diminished: Will -%d, max HP -%d.",
+                m_name, applied.will, applied.maxhp);
+            msg_print("Damage dice -0.");
+        }
+
         // Song of Lament always drains Grace - no resistance
         if (dec_stat(A_GRA, 1, false))
             msg_print("You feel drained.");
@@ -619,6 +823,8 @@ static bool song_duel_process_contest(int song_skill)
     char m_name[80];
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
+    song_duel_learn_target_stats(m_ptr, SNG_CONTEST);
+
     int player_skill = song_skill + (p_ptr->skill_use[S_WIL] / 2);
     int monster_will = monster_skill(m_ptr, S_WIL);
 
@@ -682,6 +888,8 @@ static bool song_duel_process_lament(int song_skill)
 
     char m_name[80];
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    song_duel_learn_target_stats(m_ptr, SNG_LAMENT);
 
     int player_skill = song_skill + (p_ptr->skill_use[S_WIL] / 2);
     int monster_will = monster_skill(m_ptr, S_WIL);
@@ -1264,6 +1472,12 @@ void teleport_player_level()
  */
 void stun_monster(monster_type* m_ptr, int stun)
 {
+    if (monster_race_is_vala(m_ptr->r_idx))
+    {
+        monster_clear_vala_state(m_ptr);
+        return;
+    }
+
     int new_stun = m_ptr->stunned + stun;
     m_ptr->stunned = MIN(new_stun, 255);
 }
@@ -1777,6 +1991,12 @@ typedef struct elemental_item_debug_info
     cptr outcome;
 } elemental_item_debug_info;
 
+enum
+{
+    ELEMENTAL_PERCENT_ROLL = 100,
+    ELEMENTAL_ACID_REDUCTION_PERCENT = 70
+};
+
 static cptr elemental_attack_name(int attack_type)
 {
     switch (attack_type)
@@ -1893,6 +2113,9 @@ static double elemental_item_slot_factor(int slot,
 static double elemental_item_material_factor(int attack_type,
     const object_type* o_ptr);
 static void elemental_mark_inventory_item_changed(void);
+static bool acid_can_corrode_object(const object_type* o_ptr);
+static cptr elemental_corrode_candidate(
+    const elemental_item_candidate* candidate, elemental_item_debug_info* debug);
 
 static void elemental_debug_record_candidate(
     elemental_item_debug_info* debug, int attack_type,
@@ -1968,9 +2191,10 @@ static void elemental_debug_emit(const elemental_item_debug_info* debug)
     acid_buf[0] = '\0';
     if (debug->acid_roll_made)
     {
-        strnfmt(acid_buf, sizeof(acid_buf), " acid=%d/2->%s",
+        strnfmt(acid_buf, sizeof(acid_buf), " acid=%d/100->%s",
             debug->acid_roll + 1,
-            (debug->acid_roll == 0) ? "corrode" : "destroy");
+            (debug->acid_roll < ELEMENTAL_ACID_REDUCTION_PERCENT) ? "corrode"
+                                                                   : "destroy");
     }
 
     threshold_pct = (double)debug->threshold / 10000.0;
@@ -2045,6 +2269,21 @@ static double elemental_clamp01(double value)
     if (value > 1.0)
         return 1.0;
     return value;
+}
+
+static double elemental_hurt_scale(int attack_type)
+{
+    switch (attack_type)
+    {
+    case GF_FIRE:
+        return 60.0 / 3.0;
+    case GF_ACID:
+        return 60.0 / 3.0;
+    case GF_COLD:
+        return 50.0 / 3.0;
+    default:
+        return 80.0 / 3.0;
+    }
 }
 
 static double elemental_linear_damage_percentile(int raw_dam, int min_raw,
@@ -2171,13 +2410,14 @@ static double elemental_damage_cdf_percentile(int raw_dam, int min_raw,
     return elemental_clamp01(cdf);
 }
 
-static int elemental_attack_probability_per_million(int raw_dam, int min_raw,
-    int max_raw, int hp_dam, elemental_item_debug_info* debug)
+static int elemental_attack_probability_per_million(int attack_type,
+    int raw_dam, int min_raw, int max_raw, int hp_dam,
+    elemental_item_debug_info* debug)
 {
     double percentile;
     double q;
     double hp = (double)hp_dam;
-    const double hurt_scale = 80.0 / 3.0;
+    const double hurt_scale = elemental_hurt_scale(attack_type);
     double hurt;
     double chance;
     int threshold;
@@ -2627,6 +2867,16 @@ static int elemental_damage_total(int attack_type, int hp_dam)
     return total;
 }
 
+static bool elemental_acid_roll_reduces(int* roll)
+{
+    int value = rand_int(ELEMENTAL_PERCENT_ROLL);
+
+    if (roll)
+        *roll = value;
+
+    return value < ELEMENTAL_ACID_REDUCTION_PERCENT;
+}
+
 static bool elemental_select_size_candidate(int attack_type, int total,
     elemental_item_candidate* out, int* candidate_count, long* total_units,
     int* selection_roll)
@@ -2765,7 +3015,7 @@ static void elemental_attack_affect_multiple_items(int attack_type,
     double q;
     double q_squared;
     double hp = (double)hp_dam;
-    const double hurt_scale = 80.0 / 3.0;
+    const double hurt_scale = elemental_hurt_scale(attack_type);
     double hurt;
     double chance;
     int threshold;
@@ -2773,6 +3023,8 @@ static void elemental_attack_affect_multiple_items(int attack_type,
     int total_budget;
     int destroyed = 0;
     int destroyed_size = 0;
+    int reduced = 0;
+    int reduced_size = 0;
     int resisted = 0;
     int resisted_size = 0;
     char outcome[80];
@@ -2885,14 +3137,34 @@ static void elemental_attack_affect_multiple_items(int attack_type,
             continue;
         }
 
+        if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
+            && elemental_acid_roll_reduces(NULL))
+        {
+            cptr acid_outcome = elemental_corrode_candidate(&candidate, NULL);
+
+            if (streq(acid_outcome, "was destroyed!"))
+            {
+                destroyed++;
+                destroyed_size += candidate.unit_size;
+            }
+            else
+            {
+                reduced++;
+                reduced_size += candidate.unit_size;
+            }
+
+            continue;
+        }
+
         elemental_destroy_candidate_quantity(&candidate, attack_type, amount);
         destroyed++;
         destroyed_size += candidate.unit_size;
     }
 
     strnfmt(outcome, sizeof(outcome),
-        "destroyed=%d(size=%d) resisted=%d(size=%d)",
-        destroyed, destroyed_size, resisted, resisted_size);
+        "destroyed=%d(size=%d) reduced=%d(size=%d) resisted=%d(size=%d)",
+        destroyed, destroyed_size, reduced, reduced_size, resisted,
+        resisted_size);
     elemental_debug_emit_size_summary(attack_type, raw_dam, min_raw, max_raw,
         hp_dam, cdf, q_squared, hurt, chance, total_budget, total, outcome);
 }
@@ -3415,8 +3687,8 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     int gate_roll;
 
     elemental_debug_init(&debug, attack_type, raw_dam, min_raw, max_raw, hp_dam);
-    int threshold = elemental_attack_probability_per_million(raw_dam, min_raw,
-        max_raw, hp_dam, debug.enabled ? &debug : NULL);
+    int threshold = elemental_attack_probability_per_million(attack_type,
+        raw_dam, min_raw, max_raw, hp_dam, debug.enabled ? &debug : NULL);
 
     if (threshold <= 0)
     {
@@ -3459,7 +3731,8 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
     if ((attack_type == GF_ACID) && acid_can_corrode_object(candidate.o_ptr)
         )
     {
-        int acid_roll = rand_int(2);
+        int acid_roll;
+        bool reduce = elemental_acid_roll_reduces(&acid_roll);
 
         if (debug.enabled)
         {
@@ -3467,7 +3740,7 @@ static void elemental_attack_affect_one_item(int attack_type, int raw_dam,
             debug.acid_roll = acid_roll;
         }
 
-        if (acid_roll == 0)
+        if (reduce)
         {
             (void)elemental_corrode_candidate(&candidate,
                 debug.enabled ? &debug : NULL);
@@ -5047,7 +5320,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_SLOW))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_SLOW)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5084,7 +5358,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_SLEEP))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_SLEEP)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5120,7 +5395,8 @@ static bool project_m(
             obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
-        if (r_ptr->flags3 & (RF3_NO_CONF))
+        if (monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_CONF)))
             resistance += 100;
 
         // adjust difficulty by the distance to the monster
@@ -5519,7 +5795,7 @@ static bool project_m(
             note = " is dazed.";
 
         /*some creatures are resistant to stunning*/
-        if (r_ptr->flags3 & RF3_NO_STUN)
+        if (monster_race_is_vala(m_ptr->r_idx) || (r_ptr->flags3 & RF3_NO_STUN))
         {
             /*mark the lore*/
             if (seen)
@@ -5544,16 +5820,24 @@ static bool project_m(
         if (seen)
             obvious = true;
 
-        /* Generate message */
-        if (m_ptr->confused)
-            note = " looks more confused.";
+        if (monster_race_is_vala(m_ptr->r_idx))
+        {
+            monster_clear_vala_state(m_ptr);
+            note = " is unaffected!";
+        }
         else
-            note = " looks confused.";
+        {
+            /* Generate message */
+            if (m_ptr->confused)
+                note = " looks more confused.";
+            else
+                note = " looks confused.";
 
-        tmp = m_ptr->confused + do_conf;
+            tmp = m_ptr->confused + do_conf;
 
-        /* Apply confusion */
-        m_ptr->confused += (tmp < 200) ? tmp : 200;
+            /* Apply confusion */
+            m_ptr->confused += (tmp < 200) ? tmp : 200;
+        }
 
         if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
             p_ptr->redraw |= (PR_HEALTHBAR);
@@ -8123,6 +8407,16 @@ void change_song(int song)
         p_ptr->song2 = song;
     }
 
+    if ((song_to_change == 1) && new_song_is_duel && (song != SNG_NOTHING))
+    {
+        monster_type* m_ptr = song_duel_get_target(song);
+        if (m_ptr)
+        {
+            song_duel_learn_target_stats(m_ptr, song);
+            song_duel_reveal_target_stats(m_ptr, song);
+        }
+    }
+
     // Display synergy message if a woven theme pair is detected
     if (song != SNG_NOTHING && song_to_change == 2)
     {
@@ -8159,6 +8453,80 @@ bool singing(int song)
     }
 
     return (false);
+}
+
+cptr song_voice_cost_desc(int song)
+{
+    switch (song)
+    {
+    case SNG_CHALLENGE:
+    case SNG_FREEDOM:
+    case SNG_SILENCE:
+    case SNG_THRESHOLDS:
+    case SNG_DELVINGS:
+    case SNG_REVEALING:
+    case SNG_TREES:
+        return "1 Voice per 3 turns";
+
+    case SNG_ELBERETH:
+    case SNG_STAUNCHING:
+    case SNG_ELVENESS:
+    case SNG_STAYING:
+    case SNG_SLAYING:
+    case SNG_LORIEN:
+        return "1 Voice per turn";
+
+    case SNG_MASTERY:
+    case SNG_SHATTERING:
+        return "2 Voice per turn";
+
+    case SNG_DISGUISE:
+        return "3 Voice per turn";
+
+    case SNG_CONTEST:
+    case SNG_LAMENT:
+        return "7 Voice per turn";
+
+    default:
+        return NULL;
+    }
+}
+
+static int song_voice_cost_for_turn(int song, int theme_slot, int song_duration)
+{
+    switch (song)
+    {
+    case SNG_CHALLENGE:
+    case SNG_FREEDOM:
+    case SNG_SILENCE:
+    case SNG_THRESHOLDS:
+    case SNG_DELVINGS:
+    case SNG_REVEALING:
+    case SNG_TREES:
+        return ((song_duration % 3) == theme_slot - 1) ? 1 : 0;
+
+    case SNG_ELBERETH:
+    case SNG_STAUNCHING:
+    case SNG_ELVENESS:
+    case SNG_STAYING:
+    case SNG_SLAYING:
+    case SNG_LORIEN:
+        return 1;
+
+    case SNG_MASTERY:
+    case SNG_SHATTERING:
+        return 2;
+
+    case SNG_DISGUISE:
+        return 3;
+
+    case SNG_CONTEST:
+    case SNG_LAMENT:
+        return (theme_slot == 1) ? 7 : 0;
+
+    default:
+        return 0;
+    }
 }
 
 bool known_to_delvings(int y, int x)
@@ -9195,13 +9563,12 @@ void sing(void)
             song = p_ptr->song2;
 
         score = ability_bonus(S_SNG, song);
+        cost += song_voice_cost_for_turn(song, type, p_ptr->song_duration);
 
         switch (song)
         {
         case SNG_ELBERETH:
         {
-            cost += 1;
-
             sing_song_of_elbereth(score);
 
             // Maintain the lingering effect counter while singing
@@ -9215,9 +9582,6 @@ void sing(void)
         }
         case SNG_CHALLENGE:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_challenge(score);
 
             // Maintain the lingering effect counter while singing
@@ -9231,8 +9595,6 @@ void sing(void)
         }
         case SNG_FREEDOM:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
             sing_song_of_freedom(score);
             break;
         }
@@ -9242,7 +9604,6 @@ void sing(void)
             int song_frac = score % 12;
             int bonus_hp = 0;
 
-            cost += 1;
             set_cut(0);
 
             if ((cycle * song_frac) % 12 < song_frac)
@@ -9259,69 +9620,49 @@ void sing(void)
         }
         case SNG_SILENCE:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
             break;
         }
         case SNG_THRESHOLDS:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             break;
         }
         case SNG_DELVINGS:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_delvings(score);
 
             break;
         }
         case SNG_REVEALING:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
             sing_song_of_revealing(score, song == p_ptr->song1);
 
             break;
         }
         case SNG_TREES:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-            
             sing_song_of_trees(song_effective_skill(song));
             
             break;
         }
         case SNG_ELVENESS:
         {
-            cost += 1;
             break;
         }
         case SNG_STAYING:
         {
-            cost += 1;
             break;
         }
         case SNG_DISGUISE:
         {
-            cost += 3;
             sing_song_of_disguise(score);
             break;
         }
         case SNG_SLAYING:
         {
-            cost += 1;
             break;
         }
         case SNG_LORIEN:
         {
-            cost += 1;
-
             sing_song_of_lorien(score);
 
             break;
@@ -9330,7 +9671,6 @@ void sing(void)
         {
             if (type == 1)
             {
-                cost += 7;
                 if (!song_duel_process_contest(score))
                     abort_song = true;
             }
@@ -9340,7 +9680,6 @@ void sing(void)
         {
             if (type == 1)
             {
-                cost += 7;
                 if (!song_duel_process_lament(score))
                     abort_song = true;
             }
@@ -9348,13 +9687,10 @@ void sing(void)
         }
         case SNG_MASTERY:
         {
-            cost += 2;
             break;
         }
         case SNG_SHATTERING:
         {
-            cost += 2;
-
             sing_song_of_shattering(score);
             break;
         }

@@ -13,13 +13,40 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "sdl-config.h"
 #include "supplies.h"
+
+static void spells2_prompt_label(int binding, const char* fallback, char* buf,
+    size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
+}
 
 // Function declarations
 void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[], 
                               bool identify[], int slot, const char* weapon_name);
 void display_attributes(char s[][200], char t[][200], bool good[], int count);
 void identify_revealed_items(bool identify[]);
+
+typedef struct self_knowledge_capture
+{
+    int width;
+    int height;
+    byte* attrs;
+    char* chars;
+    byte* story;
+} self_knowledge_capture;
+
+static void self_knowledge_capture_free(self_knowledge_capture* capture);
+static bool self_knowledge_capture_build(char s[][200], char t[][200],
+    bool good[], int count, self_knowledge_capture* capture);
+static void self_knowledge_capture_view(const self_knowledge_capture* capture);
+static bool render_resistance_summary(const char* text);
 
 #define TR1 0
 #define TR2 1
@@ -34,6 +61,391 @@ void identify_revealed_items(bool identify[]);
 #define UNQ 10
 #define MAX_FLAG_SETS 11
 
+static int self_knowledge_capture_used_rows(term* t)
+{
+    if (!t || !t->scr)
+        return 0;
+
+    for (int y = t->hgt - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < t->wid; x++)
+        {
+            if ((t->scr->c[y][x] != ' ')
+                || (t->scr->a[y][x] != t->attr_blank)
+                || (t->scr->story[y][x] != 0))
+            {
+                return y + 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static void self_knowledge_capture_free(self_knowledge_capture* capture)
+{
+    if (!capture)
+        return;
+
+    mem_free_null(capture->attrs);
+    mem_free_null(capture->chars);
+    mem_free_null(capture->story);
+
+    capture->width = 0;
+    capture->height = 0;
+}
+
+static void self_knowledge_capture_render_body(char s[][200], char t[][200],
+    bool good[], int count)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int line = 0;
+
+    Term_get_size(&term_wid, &term_hgt);
+    (void)term_hgt;
+    if (term_wid < 20)
+        term_wid = 20;
+
+    text_out_hook = text_out_to_screen;
+    text_out_indent = 1;
+    text_out_wrap = term_wid - 4;
+    if (text_out_wrap < 10)
+        text_out_wrap = 10;
+
+    for (int j = 0; j < count; j++)
+    {
+        int cx;
+        int cy;
+
+        if (!Term || line >= Term->hgt - 1)
+            break;
+
+        Term_gotoxy(1, line);
+
+        if (t[j][0] == '\0' && render_resistance_summary(s[j]))
+        {
+            /* handled by helper */
+        }
+        else
+        {
+            text_out_c(TERM_WHITE, s[j]);
+            if (t[j][0] != '\0')
+            {
+                text_out(" ");
+                text_out_c(good[j] ? TERM_GREEN : TERM_L_RED, t[j]);
+            }
+        }
+
+        Term_locate(&cx, &cy);
+        line = cy + 1;
+    }
+}
+
+static bool self_knowledge_capture_build(char s[][200], char t[][200],
+    bool good[], int count, self_knowledge_capture* capture)
+{
+    enum { SELF_KNOWLEDGE_CAPTURE_ROWS = 2048 };
+    term scratch;
+    term* saved_term = Term;
+    void (*old_hook)(byte, cptr) = text_out_hook;
+    int old_wrap = text_out_wrap;
+    int old_indent = text_out_indent;
+    bool scratch_ready = false;
+    bool success = false;
+    int term_wid = 80;
+    int term_hgt = 24;
+    int used_rows;
+
+    if (!capture || !saved_term)
+        return false;
+
+    SDL_memset(capture, 0, sizeof(*capture));
+    SDL_memset(&scratch, 0, sizeof(scratch));
+
+    Term_get_size(&term_wid, &term_hgt);
+    (void)term_hgt;
+    if (term_wid < 20)
+        term_wid = 20;
+
+    if (term_init(&scratch, term_wid, SELF_KNOWLEDGE_CAPTURE_ROWS, 16) != 0)
+        goto cleanup;
+    scratch_ready = true;
+
+    Term_activate(&scratch);
+    Term_clear();
+    self_knowledge_capture_render_body(s, t, good, count);
+
+    used_rows = self_knowledge_capture_used_rows(Term);
+    if (used_rows < 1)
+        used_rows = 1;
+
+    capture->width = term_wid;
+    capture->height = used_rows;
+    capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
+    capture->chars = mem_alloc_array(capture->width * capture->height, char);
+    capture->story = mem_alloc_array(capture->width * capture->height, byte);
+
+    for (int y = 0; y < capture->height; y++)
+    {
+        for (int x = 0; x < capture->width; x++)
+        {
+            int idx = y * capture->width + x;
+            capture->attrs[idx] = scratch.scr->a[y][x];
+            capture->chars[idx] = scratch.scr->c[y][x];
+            capture->story[idx] = scratch.scr->story[y][x];
+        }
+    }
+
+    success = true;
+
+cleanup:
+    text_out_hook = old_hook;
+    text_out_wrap = old_wrap;
+    text_out_indent = old_indent;
+
+    if (saved_term && Term != saved_term)
+        Term_activate(saved_term);
+
+    if (scratch_ready)
+        term_nuke(&scratch);
+
+    if (!success)
+        self_knowledge_capture_free(capture);
+
+    return success;
+}
+
+static void self_knowledge_capture_draw(
+    const self_knowledge_capture* capture, int scroll)
+{
+    int term_wid = 80;
+    int term_hgt = 24;
+    int body_top = 1;
+    int prompt_row;
+    int visible_rows;
+    int max_scroll;
+    char prompt[96];
+    char scroll_buf[32];
+    bool old_story_active = false;
+    bool old_story_grid = false;
+
+    if (!capture || !capture->attrs || !capture->chars || !capture->story)
+        return;
+
+    Term_get_size(&term_wid, &term_hgt);
+    if (term_wid < 1)
+        term_wid = 80;
+    if (term_hgt < 3)
+        term_hgt = 3;
+
+    prompt_row = term_hgt - 1;
+    visible_rows = MAX(1, prompt_row - body_top);
+    max_scroll = MAX(0, capture->height - visible_rows);
+
+    if (scroll < 0)
+        scroll = 0;
+    if (scroll > max_scroll)
+        scroll = max_scroll;
+
+    old_story_active = Term->story_font_active;
+    old_story_grid = Term->story_font_grid;
+
+    Term_clear();
+    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Your Attributes:");
+
+    for (int row = 0; row < visible_rows; row++)
+    {
+        int src_row = row + scroll;
+        int dst_row = body_top + row;
+
+        if (src_row >= capture->height || dst_row >= prompt_row)
+            break;
+
+        for (int col = 0; col < capture->width && col < term_wid; col++)
+        {
+            int idx = src_row * capture->width + col;
+
+            Term->story_font_active =
+                ((capture->story[idx] & STORY_FLAG_USE) != 0);
+            Term->story_font_grid =
+                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
+
+            Term_queue_char(col, dst_row, capture->attrs[idx],
+                capture->chars[idx], 0, 0);
+        }
+    }
+
+    Term->story_font_active = old_story_active;
+    Term->story_font_grid = old_story_grid;
+
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char back_label[16];
+
+        spells2_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        spells2_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+        strnfmt(prompt, sizeof(prompt), "D-pad scroll  %s/%s close",
+            confirm_label, back_label);
+    }
+    else if (term_wid >= 70)
+    {
+        SDL_strlcpy(prompt,
+            "Esc closes  Up/Down, wheel, or touch-drag scroll  Space/PgDn page",
+            sizeof(prompt));
+    }
+    else if (term_wid >= 42)
+    {
+        SDL_strlcpy(prompt, "Esc closes  Up/Down wheel drag scroll",
+            sizeof(prompt));
+    }
+    else
+    {
+        SDL_strlcpy(prompt, "Esc close  Up/Down scroll", sizeof(prompt));
+    }
+
+    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
+
+    if (max_scroll > 0)
+    {
+        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
+            max_scroll + 1);
+        Term_putstr(MAX(0, term_wid - (int)strlen(scroll_buf)), 0, -1,
+            TERM_SLATE, scroll_buf);
+    }
+
+    Term_fresh();
+}
+
+static void self_knowledge_capture_view(const self_knowledge_capture* capture)
+{
+    int scroll = 0;
+    bool done = false;
+    bool saved_hide_cursor = hide_cursor;
+
+    if (!capture)
+        return;
+
+    hide_cursor = true;
+
+    while (!done)
+    {
+        int term_wid = 80;
+        int term_hgt = 24;
+        int prompt_row;
+        int visible_rows;
+        int max_scroll;
+        int page_rows;
+        int dir;
+        char ch;
+
+        Term_get_size(&term_wid, &term_hgt);
+        (void)term_wid;
+        if (term_hgt < 3)
+            term_hgt = 3;
+
+        prompt_row = term_hgt - 1;
+        visible_rows = MAX(1, prompt_row - 1);
+        max_scroll = MAX(0, capture->height - visible_rows);
+        page_rows = (visible_rows > 1) ? visible_rows - 1 : 1;
+
+        if (scroll < 0)
+            scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+
+        self_knowledge_capture_draw(capture, scroll);
+
+        ui_menu_click_begin();
+        ui_menu_click_add_full_row(ESCAPE, prompt_row);
+        ui_scroll_area_begin(1, prompt_row - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_tap_key(UI_MENU_CLICK_WAKE_KEY);
+
+        ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    ch = (char)clicked_choice;
+            }
+        }
+
+        ui_menu_click_clear();
+        ui_scroll_area_clear();
+
+        if (steamdeck_controls_active())
+        {
+            if (ch == steamdeck_back_key() || ch == steamdeck_confirm_key())
+                ch = ESCAPE;
+        }
+
+        dir = target_dir(ch);
+        if (dir >= 1 && dir <= 9)
+            ch = I2D(dir);
+
+        switch (ch)
+        {
+        case UI_MENU_CLICK_WAKE_KEY:
+            break;
+        case ESCAPE:
+        case 'q':
+        case 'Q':
+            done = true;
+            break;
+        case '8':
+        case 'k':
+        case 'K':
+            if (scroll > 0)
+                scroll--;
+            break;
+        case '2':
+        case 'j':
+        case 'J':
+            if (scroll < max_scroll)
+                scroll++;
+            break;
+        case '9':
+        case '-':
+        case 'p':
+        case 'P':
+        case '4':
+            scroll -= page_rows;
+            if (scroll < 0)
+                scroll = 0;
+            break;
+        case '3':
+        case ' ':
+        case 'n':
+        case 'N':
+        case '6':
+            scroll += page_rows;
+            if (scroll > max_scroll)
+                scroll = max_scroll;
+            break;
+        case '7':
+            scroll = 0;
+            break;
+        case '1':
+            scroll = max_scroll;
+            break;
+        default:
+            break;
+        }
+    }
+
+    hide_cursor = saved_hide_cursor;
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+}
+
 // Flags with descriptions
 flag_name info_flags_desc[] = { 
 {"Will Affinity is at 3, and never affected by curses", UNQ, UNQ_EARENDIL}, 
@@ -42,7 +454,7 @@ flag_name info_flags_desc[] = {
 { "Song of Staying is twice effective", UNQ, UNQ_SNG_FIN },
 { "Song of Lorien is 1.5x effective", UNQ, UNQ_SNG_LUT }, 
 { "Horns are twice effective", UNQ, UNQ_WIL_TUOR },
-{ "Song of Threshold and Staff of Warding are twice effective", UNQ, UNQ_SNG_MEL }, 
+{ "Song of Threshold and Gem of Warding are twice effective", UNQ, UNQ_SNG_MEL },
 { "Can create very sharp items, easier to create sharp and accurate items", UNQ, UNQ_SMT_TELCHAR },
 { "Using 3 forge charges can create mithril items without mithril", UNQ, UNQ_SMT_GAMIL }, 
 { "All rings cost 30% less to create and ring slots are treated as major slots", UNQ, UNQ_SMT_CELEBRIMBOR },
@@ -1059,63 +1471,29 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
     *count = i;
 }
 
-// Helper function to display attributes with proper text wrapping and pagination
+// Helper function to display attributes with scrolling.
 void display_attributes(char s[][200], char t[][200], bool good[], int count)
 {
-    screen_save();
-    Term_clear();
-    
-    int line = 2;
-    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Your Attributes:");
-    
-    for (int j = 0; j < count; j++) {
-        // Check if we need to paginate before displaying this entry
-        // Reserve space for potential wrapping (assume up to 3 lines per entry)
-        if (line >= 18 && j + 1 < count) {
-            Term_putstr(1, line + 1, -1, TERM_L_WHITE, "(press any key)");
-            inkey();
-            Term_clear();
-            Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Your Attributes:");
-            line = 2;
-        }
-        
-        // Set up text wrapping with more conservative wrap width
-        text_out_hook = text_out_to_screen;
-        text_out_indent = 1;
-        text_out_wrap = Term->wid - 4;  // More conservative margin
-        
-        // Position cursor at start of line
-        Term_gotoxy(1, line);
-        
-        if (t[j][0] == '\0' && render_resistance_summary(s[j])) {
-            /* handled by helper */
-        } else {
-            // Output main text in white
-            text_out_c(TERM_WHITE, s[j]);
+    self_knowledge_capture capture;
 
-            // Add detail text if it exists
-            if (t[j][0] != '\0') {
-                text_out(" ");  // Add space separator
-                text_out_c(good[j] ? TERM_GREEN : TERM_L_RED, t[j]);
-            }
-        }
-        
-        // Get current cursor position after wrapping
-        int cx, cy;
-        Term_locate(&cx, &cy);
-        line = cy + 1;  // Next available line
-        
-        // Add a small buffer to prevent edge cases
-        if (line >= Term->hgt - 3) {
-            line = Term->hgt - 3;
-        }
-    }
-    
-    // Final pause - make sure we don't go off screen
-    int final_line = (line < Term->hgt - 2) ? line + 1 : Term->hgt - 2;
-    Term_putstr(1, final_line, -1, TERM_L_WHITE, "(press any key)");
-    inkey();
+    SDL_memset(&capture, 0, sizeof(capture));
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+
+    if (!self_knowledge_capture_build(s, t, good, count, &capture))
+        return;
+
+    screen_save();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+    self_knowledge_capture_view(&capture);
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
     screen_load();
+
+    self_knowledge_capture_free(&capture);
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
 }
 
 // Helper function to identify revealed items
@@ -1955,6 +2333,13 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             visible_count = page_size;
 
         Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(list_row, help_row - 1,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
 
         prt("Recharge which staff?", 0, 0);
         strnfmt(buf, sizeof(buf),
@@ -2013,6 +2398,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
                 Term_putstr(5, row, -1, label_attr, prefix);
             }
             Term_putstr(desc_col, row, -1, desc_attr, desc);
+            ui_menu_click_add_full_row(top + i, row);
         }
 
         for (int i = list_row + visible_count; i < help_row; i++)
@@ -2030,16 +2416,69 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             prt("", help_row, 0);
         }
 
-        prt(steamdeck
-                ? "D-pad choose, A/Enter select, B/ESC cancel"
-                : "Letters/8/2/arrows choose, Enter select, ESC cancel",
-            prompt_row, 0);
+        if (steamdeck)
+        {
+            char confirm_label[16];
+            char back_label[16];
+            char prompt_buf[80];
+
+            spells2_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            spells2_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "D-pad choose, %s select, %s cancel", confirm_label,
+                back_label);
+            prt(prompt_buf, prompt_row, 0);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
+                "select");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
+                "cancel");
+        }
+        else
+        {
+            cptr prompt_text =
+                "Letters/8/2/arrows choose, Enter select, ESC cancel";
+            prt(prompt_text, prompt_row, 0);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+                "select");
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+                "cancel");
+        }
         Term_fresh();
 
         key = inkey();
 
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                ui_menu_click_clear();
+                if (clicked_choice >= 0 && clicked_choice < count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || clicked_choice != current)
+                    {
+                        current = clicked_choice;
+                        continue;
+                    }
+                    key = '\r';
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                else if (clicked_choice == -1)
+                    key = ESCAPE;
+                else if (clicked_choice == -2)
+                    key = '\r';
+            }
+        }
+
         if (steamdeck && key == steamdeck_back_key())
         {
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
         }
@@ -2047,6 +2486,8 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
         switch (key)
         {
         case ESCAPE:
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return false;
 
@@ -2057,6 +2498,8 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
         case KC_ENTER:
 #endif
             *out_item = entries[current].item;
+            ui_menu_click_clear();
+            ui_scroll_area_clear();
             screen_load();
             return true;
 
@@ -2084,6 +2527,8 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
 
             if (steamdeck && key == steamdeck_back_key())
             {
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return false;
             }
@@ -2091,6 +2536,8 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             if (steamdeck && key == steamdeck_confirm_key())
             {
                 *out_item = entries[current].item;
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }
@@ -2105,6 +2552,8 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
             if (pick >= 0 && pick < visible_count)
             {
                 *out_item = entries[top + pick].item;
+                ui_menu_click_clear();
+                ui_scroll_area_clear();
                 screen_load();
                 return true;
             }

@@ -315,7 +315,7 @@ C:0:0:0:0:0:0:1:2
 T:34:0:9
 # also valid on helms (helm and great helm)
 T:32:5:6
-A:2/100:10:50/15:33
+A:2/100:10/50:15/33
 F:AGGRAVATE | DIF_ID | LIGHT_CURSE | EVIL_ITEM | WILL | MIN_DEPTH_SPEED
 D:[shield]It goads the bearer toward the harsh answer, as though a shield
 D: were given not for shelter but for driving into the thick of strife. ||
@@ -1515,7 +1515,7 @@ W:0:50:0:0
 C:0:0:0:0:0:0:0
 T:40:0:4
 T:40:6:99
-A:1:0:13:50
+A:1/0:13/50
 F:UNLIGHT | VUL_FIRE | DIF_ID | LIGHT_CURSE | JINX
 D:[amulet]An unwholesome dusk hangs about it, as though the little
 D: thing withheld what light should naturally rest upon it. The eye
@@ -1531,7 +1531,7 @@ N:144:(Tainted)
 W:0:40:0:0
 C:0:0:0:0:0:0:0
 T:45:0:99
-A:1:0:13:50
+A:1/0:13/50
 F:DANGER | HAUNTED | DIF_ID | LIGHT_CURSE | JINX
 D:[ring]Something in it has been secretly marred. Its virtue remains,
 D: yet not cleanly: one feels a lurking warp in the work, as if help

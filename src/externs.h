@@ -632,6 +632,8 @@ extern void run_step(int dir);
 extern int min_depth(void);
 extern void min_depth_timer_status(int* base_increment, int* additional_increment,
     int* total_increment, int* progress, int* threshold);
+extern void morgoth_call_sync_loaded_stage(void);
+extern void process_morgoth_call_pressure(void);
 extern void note_lost_greater_vault(void);
 extern void do_cmd_go_up(void);
 extern void do_cmd_go_down(void);
@@ -806,6 +808,7 @@ extern void id_everything(void);
 extern PlayResult play_game(void);
 extern void death_spectator_view(void);
 extern bool death_spectator_active(void);
+extern void death_spectator_request_exit(void);
 extern void reset_dungeon_state(void);
 
 /* files.c */
@@ -818,6 +821,8 @@ extern errr check_time(void);
 extern errr check_time_init(void);
 extern void display_player_stat_info(int row, int col);
 extern void display_player_xtra_info(int mode);
+extern void display_player_standard_layout_set(int skill_row, int history_row);
+extern void display_player_standard_layout_clear(void);
 extern void display_player(int mode);
 extern void display_player_compact_set_scroll(int scroll);
 extern int display_player_compact_get_max_scroll(void);
@@ -864,6 +869,7 @@ extern void print_fade_line(cptr text, int row, int indent);
 extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
 extern void clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
+extern bool mobile_autosave_game(cptr reason);
 
 /* generate.c */
 extern void place_monster_by_flag(
@@ -895,6 +901,9 @@ extern s16b hint_messages_map_hgt_for_save(void);
 extern byte hint_messages_message_line_count(int index);
 extern const char* hint_messages_message_line(int index, int line);
 extern void hint_messages_message_meta(int index, hint_message_meta* out);
+extern bool hint_messages_short_tip(int index, char* out, size_t out_sz);
+extern bool hint_messages_short_tip_for_source(int y, int x, char* out,
+    size_t out_sz);
 extern void hint_messages_clear_for_load(s16b level_depth, s16b map_wid, s16b map_hgt);
 extern int hint_messages_add_for_load(
     const char lines[][100], int line_count, const hint_message_meta* meta);
@@ -969,7 +978,7 @@ extern void monster_perception(
 extern void describe_monster(
     int r_idx, bool spoilers, const monster_type* m_ptr);
 extern void roff_top(int r_idx);
-extern void screen_roff(int r_idx, const monster_type* m_ptr);
+extern int screen_roff(int r_idx, const monster_type* m_ptr);
 extern void display_roff(int r_idx, const monster_type* m_ptr);
 
 /* monster2.c */
@@ -998,6 +1007,8 @@ extern int monster_base_armour_sides(const monster_type* m_ptr);
 extern int monster_song_hp_loss(const monster_type* m_ptr);
 extern void monster_add_song_hp_loss(monster_type* m_ptr, int amount);
 extern void monster_swap(int y1, int x1, int y2, int x2);
+extern bool monster_race_is_vala(int r_idx);
+extern bool monster_clear_vala_state(monster_type* m_ptr);
 extern s16b player_place(int y, int x);
 extern s16b monster_place(int y, int x, monster_type* n_ptr);
 extern void calc_monster_speed(int y, int x);
@@ -1025,6 +1036,8 @@ extern void message_pain(int m_idx, int dam);
 
 /* obj-info.c */
 extern bool object_info_out(const object_type* o_ptr);
+extern cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
+    size_t out_sz);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
 extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);
@@ -1340,6 +1353,7 @@ extern void song_of_oaths(monster_type* m_ptr);
 extern void hatch_spider(monster_type* m_ptr);
 extern void change_song(int song);
 extern bool singing(int song);
+extern cptr song_voice_cost_desc(int song);
 extern void sing(void);
 extern void song_disguise_new_player_turn(void);
 extern void song_disguise_handle_monster_removed(int m_idx);
@@ -1513,6 +1527,7 @@ extern void screen_save(void);
 extern void screen_load(void);
 extern void screen_clear_all_terms_no_fresh(void);
 extern void message_discard_pending(void);
+extern bool message_line_has_text(void);
 extern void startup_loading_overlay_arm(void);
 extern void startup_loading_overlay_disarm(void);
 extern bool screen_saved_fullscreen_active(void);
@@ -1521,7 +1536,48 @@ extern void screen_pop_supporting_panes_hidden(void);
 extern bool screen_supporting_panes_hidden_active(void);
 extern void screen_set_startup_supporting_panes_hidden(bool hidden);
 extern bool screen_startup_supporting_panes_hidden_active(void);
+extern void screen_push_touch_pane_hidden(void);
+extern void screen_pop_touch_pane_hidden(void);
+extern bool screen_touch_pane_hidden_active(void);
+extern void screen_set_startup_touch_pane_hidden(bool hidden);
+extern bool screen_startup_touch_pane_hidden_active(void);
+extern void screen_push_touch_pane_proto(void);
+extern void screen_pop_touch_pane_proto(void);
+extern bool screen_touch_pane_proto_active(void);
 extern void sdl_refresh_supporting_panes_layout(void);
+#define SDL_POINTER_ATTACK_NONE 0
+#define SDL_POINTER_ATTACK_MELEE 1
+#define SDL_POINTER_ATTACK_RANGED_1 2
+#define SDL_POINTER_ATTACK_RANGED_2 3
+#define SDL_PANEL_CLICK_NONE 0
+#define SDL_PANEL_CLICK_CHARACTER 1
+#define SDL_PANEL_CLICK_SONG 2
+#define SDL_PANEL_CLICK_SUPPLIES_LIGHTS 3
+#define SDL_PANEL_CLICK_SKILL_DISTRIBUTION 4
+#define SDL_PANEL_CLICK_INVENTORY 5
+#define SDL_PANEL_CLICK_ABILITIES 6
+#define SDL_PANEL_CLICK_SMITHING 7
+#define SDL_STATUS_CLICK_NONE 0
+#define SDL_STATUS_CLICK_MAIN_MENU 1
+#define SDL_STATUS_CLICK_SONG 2
+#define SDL_STATUS_CLICK_MAP 3
+extern int sdl_pointer_attack_current_mode(void);
+extern bool sdl_pointer_attack_take_command(int* command, int* dir);
+extern void sdl_pointer_attack_reset_to_melee(void);
+extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
+extern bool sdl_mouse_recall_process_pending(void);
+extern void sdl_mouse_path_cancel(void);
+extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
+extern bool sdl_unified_look_take_map_hover(int* y, int* x);
+extern bool sdl_status_line_touch_zone_selected(int action, int col, int width);
+extern bool sdl_character_panel_touch_zone_selected(int action, int row);
+extern bool sdl_display_pixel_map(int* cy, int* cx);
+extern void sdl_minimap_begin(void);
+extern void sdl_minimap_end(void);
+extern void sdl_minimap_focus(int y, int x);
+extern bool sdl_minimap_adjust_zoom(int delta);
+extern bool sdl_minimap_pan(int dx, int dy);
+extern bool sdl_minimap_take_hint_click(int* out_index);
 extern void c_put_str(byte attr, cptr str, int row, int col);
 extern void put_str(cptr str, int row, int col);
 extern void c_prt(byte attr, cptr str, int row, int col);
@@ -1536,10 +1592,57 @@ extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
 extern bool term_get_string(cptr prompt, char* buf, size_t len);
 extern s16b get_quantity(cptr prompt, int max);
+extern s16b get_quantity_touch_category(cptr prompt, int max,
+    int touch_category);
+extern s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
+    int touch_category);
 extern int get_check_other(cptr prompt, char other);
 extern bool get_check(cptr prompt);
 extern bool get_check_oath_multiline(cptr prompt);
 extern int get_menu_choice(s16b max, char* prompt);
+extern void ui_menu_click_clear(void);
+extern void ui_menu_click_begin(void);
+extern void ui_menu_click_set_hover_enabled(bool enabled);
+extern void ui_menu_click_set_outside_cancel_enabled(bool enabled);
+extern bool ui_menu_click_outside_cancel_enabled(void);
+extern bool ui_menu_click_is_active(void);
+extern void ui_menu_click_set_touch_category(int category);
+extern int ui_menu_click_get_touch_category(void);
+extern void ui_menu_click_add(int choice, int col, int row, int width);
+extern void ui_menu_click_add_full_row(int choice, int row);
+extern void ui_menu_click_add_span(int choice, int col, int row, int end_col);
+extern void ui_menu_click_add_text_span(int choice, int col, int row,
+    cptr text, int start_offset, int end_offset);
+extern void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
+    cptr token);
+extern bool ui_menu_click_has_cell(int col, int row);
+extern bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
+extern bool ui_menu_click_clear_hover(bool* wake);
+extern bool ui_menu_click_handle_cell(int col, int row);
+extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
+extern bool ui_menu_click_has_pending(void);
+extern void ui_menu_click_clear_pending_hover(void);
+extern bool ui_menu_click_take(int* choice);
+extern bool ui_menu_click_take_action(int* choice, int* action);
+#define UI_MENU_CLICK_PRIMARY 1
+#define UI_MENU_CLICK_SECONDARY 2
+#define UI_MENU_CLICK_HOVER 3
+#define UI_MENU_CLICK_WAKE_KEY KTRL('\\')
+extern void ui_scroll_area_clear(void);
+extern void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category);
+extern bool ui_scroll_area_has_cell(int col, int row);
+extern int ui_scroll_area_get_touch_category(void);
+extern void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
+    int positive_x_key, int negative_x_key);
+extern int ui_scroll_area_get_vertical_key(int direction);
+extern int ui_scroll_area_get_horizontal_key(int direction);
+extern void ui_scroll_area_set_tap_key(int key);
+extern int ui_scroll_area_get_tap_key(void);
+extern void ui_key_wait_dismiss_begin(int key);
+extern void ui_key_wait_dismiss_clear(void);
+extern bool ui_key_wait_dismiss_is_active(void);
+extern int ui_key_wait_dismiss_get_key(void);
+extern void ui_reset_transient_state_for_new_session(void);
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
 extern void pause_line(int row);
@@ -1584,6 +1687,8 @@ extern int polearm_bonus(const object_type* o_ptr);
 extern byte total_ads(const object_type* j_ptr);
 extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
+extern int monster_health_bar_text(
+    const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols);
 extern bool get_alertness_text(
     monster_type* m_ptr, int text_size, char* text, int* color);
 extern byte health_attr(int current, int max);
@@ -1640,6 +1745,7 @@ extern bool set_cut(int v);
 extern bool set_food(int v);
 extern void falling_damage(bool stun);
 extern void check_experience(void);
+extern void gain_skills_set_initial_skill(int skill);
 extern s32b adjusted_mon_exp(const monster_race* r_ptr, bool kill);
 extern void gain_exp(s32b amount);
 extern void lose_exp(s32b amount);
@@ -1812,6 +1918,15 @@ extern bool g_hide_left_panel;
 extern bool g_suppress_hidden_left_panel_overlay;
 extern byte g_hidden_left_panel_overlay_rows;
 extern byte g_hidden_left_panel_overlay_widths[16];
+extern byte g_hidden_left_panel_overlay_attack_modes[16];
+extern byte g_hidden_left_panel_overlay_attack_start_cols[16];
+extern byte g_hidden_left_panel_overlay_attack_end_cols[16];
+extern byte g_hidden_left_panel_overlay_click_actions[16];
+extern byte g_hidden_left_panel_overlay_click_start_cols[16];
+extern byte g_hidden_left_panel_overlay_click_end_cols[16];
+extern byte g_left_panel_quiver_attack_modes[2];
+extern byte g_left_panel_quiver_attack_start_cols[2];
+extern byte g_left_panel_quiver_attack_end_cols[2];
 extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
 extern int get_sdl_hidden_left_panel_mode(void);
@@ -1841,6 +1956,7 @@ extern int get_sdl_max_scale(void);
 extern void sdl_apply_config(void);
 extern void sdl_request_redraw(void);
 extern bool steamdeck_controls_active(void);
+extern bool sdl_menu_letters_enabled(void);
 extern bool portable_controls_active(void);
 extern bool get_sdl_gamepad_enabled(void);
 extern void set_sdl_gamepad_enabled(bool value);
@@ -1875,6 +1991,27 @@ extern int get_sdl_gamepad_default_shoulder_combo_binding(void);
 extern void sdl_gamepad_reset_bindings_to_default(void);
 extern void sdl_gamepad_action_binding_label(int binding, char* buf, size_t buflen);
 extern void sdl_gamepad_action_binding_short_label(int binding, char* buf, size_t buflen);
+extern int get_sdl_mouse_movement_mode(void);
+extern void set_sdl_mouse_movement_mode(int mode);
+extern int get_sdl_mouse_movement_default_mode(void);
+extern bool get_sdl_mouse_enabled(void);
+extern void set_sdl_mouse_enabled(bool enabled);
+extern bool get_sdl_mouse_default_enabled(void);
+extern void sdl_screen_back_gesture_begin(void);
+extern void sdl_screen_back_gesture_end(void);
+extern bool get_sdl_touch_pane_enabled(void);
+extern void set_sdl_touch_pane_enabled(bool value);
+extern bool get_sdl_touch_pane_default_open(void);
+extern void set_sdl_touch_pane_default_open(bool value);
+extern bool get_sdl_touch_pane_default_open_default(void);
+extern bool get_sdl_touch_pane_key_labels_visible(void);
+extern void set_sdl_touch_pane_key_labels_visible(bool value);
+extern bool get_sdl_touch_pane_key_labels_default_visible(void);
+extern bool get_sdl_touch_pane_inventory_equipment_cycle(void);
+extern void set_sdl_touch_pane_inventory_equipment_cycle(bool value);
+extern bool get_sdl_touch_pane_inventory_equipment_default_cycle(void);
+extern int get_sdl_touch_pane_placement(void);
+extern void set_sdl_touch_pane_placement(int placement);
 extern int get_sdl_touch_pane_binding(int index);
 extern void set_sdl_touch_pane_binding(int index, int binding);
 extern int get_sdl_touch_pane_default_binding(int index);
@@ -1882,6 +2019,8 @@ extern int get_sdl_touch_pane_binding_for_panel(int panel, int index);
 extern void set_sdl_touch_pane_binding_for_panel(int panel, int index, int binding);
 extern int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
 extern void sdl_touch_pane_reset_bindings_to_default(void);
+extern void sdl_touch_pane_begin_yes_no_prompt(cptr prompt);
+extern void sdl_touch_pane_end_yes_no_prompt(void);
 extern cptr get_sdl_touch_pane_slot_name(int index);
 extern void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_button_label(int index, cptr label);
@@ -1891,6 +2030,50 @@ extern void set_sdl_touch_pane_button_label_for_panel(int panel, int index, cptr
 extern void clear_sdl_touch_pane_button_label_for_panel(int panel, int index);
 extern void get_sdl_touch_pane_panel_name(int panel, char* buf, size_t buflen);
 extern void set_sdl_touch_pane_panel_name(int panel, cptr name);
+extern bool get_sdl_touch_menu_commands_enabled(int category);
+extern void set_sdl_touch_menu_commands_enabled(int category, bool value);
+extern bool get_sdl_touch_menu_commands_default_enabled(int category);
+extern int get_sdl_touch_profile(void);
+extern void set_sdl_touch_profile(int profile);
+extern int get_sdl_touch_profile_default(void);
+extern void sdl_touch_apply_profile(int profile);
+extern void sdl_touch_request_tutorial_from_settings(void);
+extern bool sdl_touch_settings_tutorial_requested(void);
+extern void sdl_touch_show_requested_tutorial(void);
+extern void sdl_touch_show_tutorial(void);
+extern void sdl_touch_maybe_show_first_game_tutorial(void);
+extern void sdl_mouse_request_tutorial_from_settings(void);
+extern bool sdl_mouse_settings_tutorial_requested(void);
+extern void sdl_mouse_show_requested_tutorial(void);
+extern void sdl_mouse_show_tutorial(void);
+extern void sdl_mouse_maybe_show_first_game_tutorial(void);
+extern int get_sdl_touch_movement_mode(void);
+extern void set_sdl_touch_movement_mode(int mode);
+extern int get_sdl_touch_movement_default_mode(void);
+extern bool get_sdl_touch_round_movement_enabled(void);
+extern void set_sdl_touch_round_movement_enabled(bool value);
+extern bool get_sdl_touch_round_movement_default_enabled(void);
+extern int get_sdl_touch_zone_overlay_mode(void);
+extern void set_sdl_touch_zone_overlay_mode(int mode);
+extern int get_sdl_touch_zone_overlay_default_mode(void);
+extern int get_sdl_touch_zone_center_binding(int index);
+extern void set_sdl_touch_zone_center_binding(int index, int binding);
+extern int get_sdl_touch_zone_center_default_binding(int index);
+extern int get_sdl_touch_corner_up_down_side(void);
+extern void set_sdl_touch_corner_up_down_side(int side);
+extern int get_sdl_touch_corner_up_down_default_side(void);
+extern int get_sdl_touch_corner_action_binding(int index);
+extern void set_sdl_touch_corner_action_binding(int index, int binding);
+extern int get_sdl_touch_corner_action_default_binding(int index);
+extern int get_sdl_touch_top_panel_mode(void);
+extern void set_sdl_touch_top_panel_mode(int mode);
+extern int get_sdl_touch_top_panel_default_mode(void);
+extern bool get_sdl_touch_top_panel_default_open(void);
+extern void set_sdl_touch_top_panel_default_open(bool value);
+extern bool get_sdl_touch_top_panel_default_open_default(void);
+extern int get_sdl_touch_top_panel_binding(int index, bool long_press);
+extern void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding);
+extern int get_sdl_touch_top_panel_default_binding(int index, bool long_press);
 extern bool get_sdl_touch_swipe_enabled(void);
 extern void set_sdl_touch_swipe_enabled(bool value);
 extern int get_sdl_touch_swipe_binding(int dir);

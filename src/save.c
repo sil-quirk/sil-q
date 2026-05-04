@@ -699,8 +699,10 @@ static void wr_lore(int r_idx)
     /* Monster limit per level */
     wr_byte(r_ptr->max_num);
 
-    // 8 spare bytes
-    wr_u32b(0L);
+    /* Song-revealed lore plus spare bytes */
+    wr_byte(l_ptr->song_lore_flags);
+    wr_byte(0);
+    wr_u16b(0);
     wr_u32b(0L);
 }
 
@@ -1025,14 +1027,22 @@ static void wr_extra(void)
 
     wr_byte(p_ptr->climbing);
 
-    // 15 spare bytes (was 19, used 4 for song debuff counters)
+    // Reserved block: 7 legacy bytes, 1 summons byte, 7 spare bytes.
     wr_byte(p_ptr->morgoth_hall_entered ? 1 : 0);
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
     wr_byte(p_ptr->discovery_lore_flags);
     wr_s16b(p_ptr->lamp_oil);
     wr_u16b(0U);
+    {
+        byte morgoth_call_state =
+            p_ptr->morgoth_call_state
+            & (SAVEFILE_MORGOTH_CALL_SEEN
+                | SAVEFILE_MORGOTH_CALL_ESCALATION_MASK);
+        wr_byte(morgoth_call_state);
+    }
     wr_u32b(0L);
-    wr_u32b(0L);
+    wr_u16b(0U);
+    wr_byte(0);
 
     /* Save item-quality squelch sub-menu */
     for (i = 0; i < SQUELCH_BYTES; i++)

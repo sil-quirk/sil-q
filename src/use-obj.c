@@ -966,7 +966,10 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
 
     case SV_STAFF_WARDING:
     {
-        msg_print("The base of the staff glows an intense green...");
+        if (is_gem)
+            msg_print("The gem glows an intense green...");
+        else
+            msg_print("The base of the staff glows an intense green...");
 
         if (cave_clean_bold(p_ptr->py, p_ptr->px))
         {
