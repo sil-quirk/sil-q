@@ -5800,8 +5800,8 @@ static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
     }
 }
 
-static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
-    char* command)
+static bool get_aim_com(cptr prompt, bool has_target, int range,
+    bool allow_vertical, char* command)
 {
     char up_key = get_aim_vertical_up_key();
     char ch;
@@ -5812,6 +5812,7 @@ static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    sdl_pointer_aim_begin(range, allow_vertical);
     prt(prompt, 0, 0);
 
     ui_menu_click_add_text_token('f', 0, 0, prompt,
@@ -5826,9 +5827,13 @@ static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
     ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "cancel");
 
     ch = inkey();
-    if (ch == UI_MENU_CLICK_WAKE_KEY && ui_menu_click_take(&clicked_choice))
+    if ((ch == UI_MENU_CLICK_WAKE_KEY || ch == '\r' || ch == '\n')
+        && ui_menu_click_take(&clicked_choice))
+    {
         ch = (char)clicked_choice;
+    }
 
+    sdl_pointer_aim_end();
     ui_menu_click_clear();
     prt("", 0, 0);
 
@@ -5884,7 +5889,7 @@ static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
         get_aim_prompt(prompt, sizeof(prompt), has_target, allow_vertical);
 
         /* Get a command (or Cancel) */
-        if (!get_aim_com(prompt, has_target, allow_vertical, &ch))
+        if (!get_aim_com(prompt, has_target, range, allow_vertical, &ch))
             break;
 
         /* Analyze */
@@ -5954,7 +5959,11 @@ static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
             int mouse_command = 0;
             int mouse_dir = 0;
 
-            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir)
+            if (sdl_pointer_aim_take_direction(&dir))
+            {
+                /* Direction supplied by a mouse or touch map target. */
+            }
+            else if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir)
                 && ((mouse_command == 'f') || (mouse_command == 'F'))
                 && mouse_dir)
             {
