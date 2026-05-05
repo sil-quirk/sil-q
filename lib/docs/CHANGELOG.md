@@ -106,6 +106,7 @@ Changed:
 
 Fixed:
 
+- fix: swapped red/blue channels when loading 24-bit BMP tiles under X11
 - fix: linker warning about `__DATA__` alignment on macOS (fixes #202)
   ([#204](https://github.com/sil-quirk/sil-q/pull/204))
   - thanks @backwardsEric
