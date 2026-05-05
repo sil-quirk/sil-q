@@ -1228,6 +1228,12 @@ static void AngbandUpdateWindowVisibility(void)
 static CGImageRef pict_image;
 
 /**
+ * Pre-tinted (red) tile image, used while `p_ptr->rage` is active.
+ * Created from `pict_image` at load time by `create_rage_tinted_image()`.
+ */
+static CGImageRef pict_image_rage;
+
+/**
  * Numbers of rows and columns in a tileset,
  * calculated by the PICT/PNG loading code
  */
@@ -2853,6 +2859,106 @@ static CGImageRef create_angband_image(NSString *path)
 }
 
 /**
+ * Apply the rage-tint transform to an RGB triple in-place.
+ *
+ * This is used to apply a red tint to tiles to change the visuals when the
+ * player character is raging.
+ *
+ * Preserves the magic transparent color exactly so that compositing-time
+ * transparency continues to work. For all other pixels: convert to luma and
+ * rescale to (luma * R, luma * G, luma * B) using the RAGE_TINT_*_COEFF
+ * defines.
+ */
+static void tint_rgb_for_rage(uint8_t* r, uint8_t* g, uint8_t* b)
+{
+    if (*r == TILESET_BLANK_R && *g == TILESET_BLANK_G && *b == TILESET_BLANK_B)
+        return;
+
+    int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
+    if (luma > 255)
+        luma = 255;
+
+    int nr = (int)(luma * RAGE_TINT_RED_COEFF);
+    int ng = (int)(luma * RAGE_TINT_GREEN_COEFF);
+    int nb = (int)(luma * RAGE_TINT_BLUE_COEFF);
+    if (nr > 255)
+        nr = 255;
+    if (ng > 255)
+        ng = 255;
+    if (nb > 255)
+        nb = 255;
+
+    *r = (uint8_t)nr;
+    *g = (uint8_t)ng;
+    *b = (uint8_t)nb;
+}
+
+/**
+ * Build a rage-tinted variant of a tileset image.
+ *
+ * Draws `src` into a fresh RGBA bitmap context, walks every pixel, and applies
+ * `tint_rgb_for_rage()` to the RGB channels while preserving alpha.
+ *
+ * Returns a new CGImageRef the caller owns, or NULL on failure.
+ */
+static CGImageRef create_rage_tinted_image(CGImageRef src)
+{
+    if (!src)
+        return NULL;
+
+    size_t width = CGImageGetWidth(src);
+    size_t height = CGImageGetHeight(src);
+    if (!width || !height)
+        return NULL;
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    if (!cs)
+        return NULL;
+
+    /* Use 8-bit RGBA, premultiplied last, host byte order. */
+    size_t bytesPerRow = width * 4;
+    CGBitmapInfo info
+        = kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
+    CGContextRef ctx
+        = CGBitmapContextCreate(NULL, width, height, 8, bytesPerRow, cs, info);
+    CGColorSpaceRelease(cs);
+    if (!ctx)
+        return NULL;
+
+    /* Draw the source into our owned context so we get RGBA pixels we can walk
+     * directly. */
+    CGContextSetBlendMode(ctx, kCGBlendModeCopy);
+    CGContextDrawImage(ctx, CGRectMake(0, 0, width, height), src);
+
+    uint8_t* data = (uint8_t*)CGBitmapContextGetData(ctx);
+    if (!data)
+    {
+        CFRelease(ctx);
+        return NULL;
+    }
+
+    for (size_t y = 0; y < height; y++)
+    {
+        uint8_t* row = data + y * bytesPerRow;
+        for (size_t x = 0; x < width; x++)
+        {
+            uint8_t* px = row + x * 4;
+            /* Skip fully-transparent pixels (alpha == 0).
+             * The tileset's PNG has only fully-opaque (alpha=255) and
+             * fully-transparent (alpha=0) pixels, so this approach keeps
+             * transparency intact. */
+            if (px[3] == 0)
+                continue;
+            tint_rgb_for_rage(&px[0], &px[1], &px[2]);
+        }
+    }
+
+    CGImageRef result = CGBitmapContextCreateImage(ctx);
+    CFRelease(ctx);
+    return result;
+}
+
+/**
  * React to changes
  */
 static errr Term_xtra_cocoa_react(void)
@@ -2866,6 +2972,8 @@ static errr Term_xtra_cocoa_react(void)
             /* Get rid of the old image. CGImageRelease is NULL-safe. */
             CGImageRelease(pict_image);
             pict_image = NULL;
+            CGImageRelease(pict_image_rage);
+            pict_image_rage = NULL;
 
             /* Try creating the image if we want one */
             if (arg_graphics == GRAPHICS_MICROCHASM)
@@ -2873,6 +2981,9 @@ static errr Term_xtra_cocoa_react(void)
                 NSString *img_path = [NSString
                     stringWithFormat:@"%s/graf/16x16_microchasm.png", ANGBAND_DIR_XTRA];
                 pict_image = create_angband_image(img_path);
+
+                /* Rage tint shader: build a pre-tinted variant. */
+                pict_image_rage = create_rage_tinted_image(pict_image);
 
                 /* If we failed to create the image, revert to ASCII. */
                 if (! pict_image) {
@@ -3165,8 +3276,14 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 {
     int graf_width, graf_height, alphablend;
 
+    /* Rage shader: pick the pre-tinted tileset while raging.
+     * Falls back to the normal tileset if the tinted variant failed to build at
+     * load time. */
+    CGImageRef tile_src
+        = (p_ptr->rage && pict_image_rage) ? pict_image_rage : pict_image;
+
     if (angbandContext.changes.hasTileChanges) {
-        CGImageAlphaInfo ainfo = CGImageGetAlphaInfo(pict_image);
+        CGImageAlphaInfo ainfo = CGImageGetAlphaInfo(tile_src);
 
         graf_width = pict_cell_width;
         graf_height = pict_cell_height;
@@ -3248,7 +3365,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                             draw_image_tile(
                                 nsContext,
                                 ctx,
-                                pict_image,
+                                tile_src,
                                 terrainRect,
                                 destinationRect,
                                 NSCompositeCopy);
@@ -3264,7 +3381,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                 draw_image_tile(
                                     nsContext,
                                     ctx,
-                                    pict_image,
+                                    tile_src,
                                     glowRect,
                                     destinationRect,
                                     NSCompositeSourceOver);
@@ -3278,7 +3395,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                 draw_image_tile(
                                     nsContext,
                                     ctx,
-                                    pict_image,
+                                    tile_src,
                                     sourceRect,
                                     destinationRect,
                                     NSCompositeSourceOver);
@@ -3295,7 +3412,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                 draw_image_tile(
                                     nsContext,
                                     ctx,
-                                    pict_image,
+                                    tile_src,
                                     alertRect,
                                     destinationRect,
                                     NSCompositeSourceOver);
@@ -3304,7 +3421,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                             draw_image_tile(
                                 nsContext,
                                 ctx,
-                                pict_image,
+                                tile_src,
                                 sourceRect,
                                 destinationRect,
                                 NSCompositeCopy);

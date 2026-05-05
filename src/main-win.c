@@ -373,6 +373,9 @@ static bool can_use_graphics = FALSE;
  */
 static DIBINIT infGraph;
 
+/* Pre-tinted (red) tileset, used while `p_ptr->rage` is active. */
+static DIBINIT infGraph_rage;
+
 #endif /* USE_GRAPHICS */
 
 #ifdef USE_SOUND
@@ -1277,7 +1280,7 @@ static bool init_graphics(void)
         path_build(buf, sizeof(buf), ANGBAND_DIR_XTRA_GRAF, name);
 
         /* Load the bitmap or quit */
-        if (!ReadDIB(data[0].w, buf, &infGraph))
+        if (!ReadDIBNormal(data[0].w, buf, &infGraph))
         {
             plog_fmt("Cannot read bitmap file '%s'", name);
             return (FALSE);
@@ -1286,6 +1289,13 @@ static bool init_graphics(void)
         /* Save the new sizes */
         infGraph.CellWidth = wid;
         infGraph.CellHeight = hgt;
+
+        /* Rage tint shader: load a second, pre-tinted copy. */
+        if (ReadDIBRage(data[0].w, buf, &infGraph_rage))
+        {
+            infGraph_rage.CellWidth = wid;
+            infGraph_rage.CellHeight = hgt;
+        }
 
         /* Activate a palette */
         if (!new_palette())
@@ -1688,6 +1698,7 @@ static errr Term_xtra_win_react(void)
 
         /* Free the bitmap stuff */
         FreeDIB(&infGraph);
+        FreeDIB(&infGraph_rage);
 
         /* Initialize (if needed) */
         if (arg_graphics && !init_graphics())
@@ -2258,9 +2269,14 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
         return (Term_wipe_win(x, y, n));
     }
 
+    /* Rage shader: pick the pre-tinted tileset while raging.
+     * Falls back to the normal tileset if the tinted load failed. */
+    DIBINIT* graph
+        = (p_ptr->rage && infGraph_rage.hBitmap) ? &infGraph_rage : &infGraph;
+
     /* Size of bitmap cell */
-    w1 = infGraph.CellWidth;
-    h1 = infGraph.CellHeight;
+    w1 = graph->CellWidth;
+    h1 = graph->CellHeight;
 
     /* Size of window cell */
     if (td->map_active)
@@ -2290,7 +2306,7 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
 
     /* More info */
     hdcSrc = CreateCompatibleDC(hdc);
-    hbmSrcOld = SelectObject(hdcSrc, infGraph.hBitmap);
+    hbmSrcOld = SelectObject(hdcSrc, graph->hBitmap);
 
     /* Draw attr/char pairs */
     for (i = 0; i < n; i++, x2 += w2)
@@ -3817,6 +3833,7 @@ static void hook_quit(cptr str)
 #ifdef USE_GRAPHICS
     /* Free the bitmap stuff */
     FreeDIB(&infGraph);
+    FreeDIB(&infGraph_rage);
 #endif /* USE_GRAPHICS */
 
 #ifdef USE_SOUND

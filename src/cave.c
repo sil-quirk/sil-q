@@ -993,15 +993,8 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         /* Memorized (or seen) floor */
         if ((info & (CAVE_MARK)) || (info & (CAVE_SEEN)))
         {
-            int feat = FEAT_FLOOR;
-
-            if (rage_active && !graphics_are_ascii())
-            {
-                feat = FEAT_RAGE_FLOOR;
-            }
-
             /* Get the floor feature */
-            f_ptr = &f_info[feat];
+            f_ptr = &f_info[FEAT_FLOOR];
 
             /* Normal attr */
             a = f_ptr->x_attr;
@@ -1035,12 +1028,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         {
             /* Apply "mimic" field */
             feat = f_info[feat].mimic;
-
-            if (rage_active && !graphics_are_ascii()
-                && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL))
-            {
-                feat = FEAT_RAGE_WALL;
-            }
 
             /* Get the feature */
             f_ptr = &f_info[feat];

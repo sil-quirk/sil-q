@@ -230,6 +230,39 @@ static void rd_u32b(FILE* fff, u32b* ip)
     (*ip) |= ((u32b)(get_byte(fff)) << 24);
 }
 
+/// Apply the rage-tint transform to an RGB triple in-place.
+///
+/// This is used to apply a red tint to tiles to change the visuals when the
+/// player character is raging.
+///
+/// Preserves the magic transparent color exactly so that compositing-time
+/// transparency continues to work. For all other pixels: convert to luma and
+/// rescale to (luma * R, luma * G, luma * B) using the RAGE_TINT_*_COEFF
+/// defines.
+static void tint_rgb_for_rage(byte* r, byte* g, byte* b)
+{
+    if (*r == TILESET_BLANK_R && *g == TILESET_BLANK_G && *b == TILESET_BLANK_B)
+        return;
+
+    int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
+    if (luma > 255)
+        luma = 255;
+
+    int nr = (int)(luma * RAGE_TINT_RED_COEFF);
+    int ng = (int)(luma * RAGE_TINT_GREEN_COEFF);
+    int nb = (int)(luma * RAGE_TINT_BLUE_COEFF);
+    if (nr > 255)
+        nr = 255;
+    if (ng > 255)
+        ng = 255;
+    if (nb > 255)
+        nb = 255;
+
+    *r = (byte)nr;
+    *g = (byte)ng;
+    *b = (byte)nb;
+}
+
 /*
  * Read a Win32 BMP file.
  *
@@ -237,8 +270,14 @@ static void rd_u32b(FILE* fff, u32b* ip)
  *
  * Assumes that the bitmap has a size such that no padding is needed in
  * various places.  Currently only handles bitmaps with 3 to 256 colors.
+ *
+ * If `tint_rage` is TRUE, every pixel is run through `tint_rgb_for_rage()`
+ * before being allocated; the returned image is the rage-tinted variant.
+ * We opt for the approach to create a rage-tinted variant of the normal tileset
+ * once on game startup (and then use that variant when/where needed) rather
+ * than dynamically tinting tiles during live gameplay.
  */
-XImage* ReadBMP(Display* dpy, char* Name)
+XImage* ReadBMP(Display* dpy, char* Name, bool tint_rage)
 {
     Visual* visual = DefaultVisual(dpy, DefaultScreen(dpy));
 
@@ -314,6 +353,9 @@ XImage* ReadBMP(Display* dpy, char* Name)
         rd_byte(f, &(clrg.r));
         rd_byte(f, &(clrg.filler));
 
+        if (tint_rage)
+            tint_rgb_for_rage(&clrg.r, &clrg.g, &clrg.b);
+
         /* Analyze the color */
         clr_pixels[i] = create_pixel(dpy, clrg.r, clrg.g, clrg.b);
     }
@@ -371,7 +413,10 @@ XImage* ReadBMP(Display* dpy, char* Name)
                 //  2. `c2` is the second byte (G)
                 //  3. `c3` is the third  byte (R)
                 // create_pixel() takes (red, green, blue).
-                XPutPixel(Res, x, y2, create_pixel(dpy, c3, c2, ch));
+                byte pr = (byte)c3, pg = (byte)c2, pb = (byte)ch;
+                if (tint_rage)
+                    tint_rgb_for_rage(&pr, &pg, &pb);
+                XPutPixel(Res, x, y2, create_pixel(dpy, pr, pg, pb));
             }
             else if (infoheader.biBitCount == 8)
             {
@@ -395,6 +440,18 @@ XImage* ReadBMP(Display* dpy, char* Name)
     fclose(f);
 
     return Res;
+}
+
+/** Convenience wrapper around ReadBMP that reads a BMP file as-is. */
+XImage* ReadBMPNormal(Display* dpy, char* Name)
+{
+    return ReadBMP(dpy, Name, FALSE);
+}
+
+/** Convenience wrapper around ReadBMP that applies a red tint to a BMP file. */
+XImage* ReadBMPRage(Display* dpy, char* Name)
+{
+    return ReadBMP(dpy, Name, TRUE);
 }
 
 /* ========================================================*/

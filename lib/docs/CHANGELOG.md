@@ -94,6 +94,7 @@ Added:
   - thanks @MicroChasm for the suggestion
 - Depleted light sources use depleted version of their tile (fixes #163)
 - Change tile design of The Ring of Barahir to match the lore (fixes #181)
+- When the player rages, tiles turn red (fixes #142)
 
 Changed:
 
