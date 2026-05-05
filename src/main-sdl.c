@@ -10432,22 +10432,15 @@ static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y)
     return action != SDL_STATUS_CLICK_NONE;
 }
 
-static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
+static bool sdl_status_line_action_is_corner_exempt(int action)
 {
-    int col = 0;
-    int row = 0;
-    int action = SDL_STATUS_CLICK_NONE;
+    return action == SDL_STATUS_CLICK_MAIN_MENU
+        || action == SDL_STATUS_CLICK_MAP
+        || action == SDL_STATUS_CLICK_VIEW;
+}
 
-    if (!sdl_main_screen_click_shortcuts_active())
-        return false;
-    if (!Term)
-        return false;
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
-        return false;
-    if (row != ROW_STATUS)
-        return false;
-
-    action = sdl_status_line_click_action_at_cell(col, row);
+static bool sdl_handle_status_line_click_action(int action)
+{
     sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
         SDL_PANEL_CLICK_NONE, -1, false);
 
@@ -10471,6 +10464,50 @@ static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
 
     sdl_enqueue_bypassed_command('m');
     return true;
+}
+
+static bool sdl_main_screen_handle_corner_exempt_status_pointer(float x,
+    float y)
+{
+    int col = 0;
+    int row = 0;
+    int action = SDL_STATUS_CLICK_NONE;
+
+    if (!sdl_touch_zone_controls_active())
+        return false;
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!Term)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row != ROW_STATUS)
+        return false;
+
+    action = sdl_status_line_click_action_at_cell(col, row);
+    if (!sdl_status_line_action_is_corner_exempt(action))
+        return false;
+
+    return sdl_handle_status_line_click_action(action);
+}
+
+static bool sdl_main_screen_handle_status_line_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    int action = SDL_STATUS_CLICK_NONE;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!Term)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row != ROW_STATUS)
+        return false;
+
+    action = sdl_status_line_click_action_at_cell(col, row);
+    return sdl_handle_status_line_click_action(action);
 }
 
 static bool sdl_screen_row_contains_ci(const term* t, int row, cptr needle)
@@ -18804,6 +18841,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             return;
         }
+        if (sdl_main_screen_handle_corner_exempt_status_pointer(x, y))
+            return;
         if (sdl_touch_zone_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_menu_touch_handle_pointer_down(x, y, ev->tfinger.fingerID,
