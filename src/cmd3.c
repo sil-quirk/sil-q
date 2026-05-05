@@ -3926,14 +3926,41 @@ static void unified_look_select_sidebar_entity(unified_look_state* state,
     state->current_square_entity = 0;
 }
 
+enum
+{
+    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 16,
+    UNIFIED_LOOK_CLICK_COMMAND_BASE = -1000,
+    UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND = -1300
+};
+
+static bool unified_look_prompt_choice_key(int choice, int* key);
+
 static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
-    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw,
+    bool* prompt_hover_redraw)
 {
     int clicked_entity = -1;
     int click_action = UI_MENU_CLICK_PRIMARY;
+    int prompt_key = 0;
 
     if (!ui_menu_click_take_action(&clicked_entity, &click_action))
         return false;
+
+    if (unified_look_prompt_choice_key(clicked_entity, &prompt_key))
+    {
+        if (click_action != UI_MENU_CLICK_HOVER)
+            Term_keypress(prompt_key);
+        else if (prompt_hover_redraw)
+            *prompt_hover_redraw = true;
+        return true;
+    }
+
+    if (clicked_entity == UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND)
+    {
+        if (click_action == UI_MENU_CLICK_HOVER && prompt_hover_redraw)
+            *prompt_hover_redraw = true;
+        return true;
+    }
 
     if (state && state->in_sidebar_mode
         && state->selected_entity == clicked_entity)
@@ -3955,26 +3982,25 @@ static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
     return true;
 }
 
-static bool unified_look_apply_map_hover(unified_look_state* state,
-    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+static bool unified_look_apply_map_cell(unified_look_state* state, int map_y,
+    int map_x, bool compact_look_layout, bool* need_redraw,
+    bool* selection_redraw)
 {
-    int hover_y = 0;
-    int hover_x = 0;
     int new_selection;
     bool new_sidebar_mode;
 
-    if (!state || !sdl_unified_look_take_map_hover(&hover_y, &hover_x))
+    if (!state)
         return false;
-    if (hover_y < 0 || hover_y >= p_ptr->cur_map_hgt
-        || hover_x < 0 || hover_x >= p_ptr->cur_map_wid)
+    if (map_y < 0 || map_y >= p_ptr->cur_map_hgt
+        || map_x < 0 || map_x >= p_ptr->cur_map_wid)
     {
         return true;
     }
 
-    new_selection = unified_look_find_cursor_selection(state, hover_y, hover_x);
+    new_selection = unified_look_find_cursor_selection(state, map_y, map_x);
     new_sidebar_mode = (new_selection >= 0);
 
-    if ((state->cursor_y == hover_y) && (state->cursor_x == hover_x)
+    if ((state->cursor_y == map_y) && (state->cursor_x == map_x)
         && (state->selected_entity == new_selection)
         && (state->in_sidebar_mode == new_sidebar_mode))
     {
@@ -3990,8 +4016,8 @@ static bool unified_look_apply_map_hover(unified_look_state* state,
         state->highlighted_entity_type = 0;
     }
 
-    state->cursor_y = hover_y;
-    state->cursor_x = hover_x;
+    state->cursor_y = map_y;
+    state->cursor_x = map_x;
     state->selected_entity = new_selection;
     state->in_sidebar_mode = new_sidebar_mode;
     state->square_cycling_mode = false;
@@ -4017,21 +4043,33 @@ static void unified_look_prompt_label(int binding, const char* fallback, char* b
 
 static bool unified_look_use_compact_layout(void)
 {
-    return Term && ((Term->hgt <= 18) || (Term->wid <= 60));
+    return Term && (Term->wid <= 60);
 }
 
 static int unified_look_status_row(void)
 {
-    if (unified_look_use_compact_layout() && Term && Term->hgt > 0)
-        return Term->hgt - 1;
-
     return 0;
 }
 
-static void unified_look_put_status(cptr text)
+static int unified_look_prompt_row(void)
+{
+    int row;
+
+    if (!Term || Term->hgt <= 0)
+        return 0;
+
+    row = ROW_MAP + SCREEN_HGT - 1;
+    if (row < 0)
+        row = 0;
+    if (row >= Term->hgt)
+        row = Term->hgt - 1;
+
+    return row;
+}
+
+static void unified_look_put_row(cptr text, int row)
 {
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    int row = unified_look_status_row();
     char buf[192];
 
     SDL_strlcpy(buf, text ? text : "", sizeof(buf));
@@ -4048,40 +4086,668 @@ static void unified_look_put_status(cptr text)
     prt(buf, row, 0);
 }
 
-static void unified_look_print_prompt3(cptr full_text, cptr compact_text,
-    cptr tiny_text)
+static void unified_look_put_status(cptr text)
 {
-    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    cptr options[3];
-    cptr shortest = "";
-    int shortest_len = 100000;
+    unified_look_put_row(text, unified_look_status_row());
+}
 
-    options[0] = full_text;
-    options[1] = compact_text;
-    options[2] = tiny_text;
+static void unified_look_put_prompt(cptr text)
+{
+    unified_look_put_row(text, unified_look_prompt_row());
+}
 
-    for (int i = 0; i < 3; i++)
+typedef struct unified_look_prompt_button
+{
+    int key;
+    cptr full;
+    cptr medium;
+    cptr compact;
+    cptr tiny;
+} unified_look_prompt_button;
+
+static int unified_look_prompt_choice(int key)
+{
+    return UNIFIED_LOOK_CLICK_COMMAND_BASE - (key & 0xFF);
+}
+
+static bool unified_look_prompt_choice_key(int choice, int* key)
+{
+    int decoded;
+
+    if (choice > UNIFIED_LOOK_CLICK_COMMAND_BASE
+        || choice < UNIFIED_LOOK_CLICK_COMMAND_BASE - 0xFF)
     {
-        int len;
+        return false;
+    }
 
-        if (!options[i])
+    decoded = UNIFIED_LOOK_CLICK_COMMAND_BASE - choice;
+    if (key)
+        *key = decoded;
+
+    return true;
+}
+
+static bool unified_look_apply_map_hover(unified_look_state* state,
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+{
+    int hover_y = 0;
+    int hover_x = 0;
+
+    if (!sdl_unified_look_take_map_hover(&hover_y, &hover_x))
+        return false;
+
+    return unified_look_apply_map_cell(state, hover_y, hover_x,
+        compact_look_layout, need_redraw, selection_redraw);
+}
+
+static cptr unified_look_prompt_button_text(
+    const unified_look_prompt_button* button, int variant)
+{
+    if (!button)
+        return "";
+
+    switch (variant)
+    {
+    case 0: return button->full;
+    case 1: return button->medium;
+    case 2: return button->compact;
+    default: return button->tiny;
+    }
+}
+
+static int unified_look_prompt_buttons_width(
+    const unified_look_prompt_button* buttons, int count, int variant)
+{
+    int width = 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
+
+        if (!text || !text[0])
             continue;
 
-        len = (int)strlen(options[i]);
-        if (len < shortest_len)
+        if (width > 0)
+            width++;
+        width += (int)strlen(text) + 2;
+    }
+
+    return width;
+}
+
+static void unified_look_print_prompt_buttons(
+    const unified_look_prompt_button* buttons, int count, bool register_clicks)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    int row = unified_look_prompt_row();
+    int starts[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int ends[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int keys[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int registered = 0;
+    int variant = 3;
+    int hover_choice = 0;
+    bool has_hover_choice = ui_menu_click_get_hover_choice(&hover_choice);
+    char buf[192];
+
+    if (!buttons || count <= 0)
+    {
+        unified_look_put_prompt("");
+        return;
+    }
+
+    if (count > UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        count = UNIFIED_LOOK_PROMPT_MAX_BUTTONS;
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (unified_look_prompt_buttons_width(buttons, count, i) <= term_wid)
         {
-            shortest = options[i];
-            shortest_len = len;
+            variant = i;
+            break;
+        }
+    }
+
+    buf[0] = '\0';
+    for (int i = 0; i < count; i++)
+    {
+        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
+        int start;
+        int end;
+
+        if (!text || !text[0])
+            continue;
+
+        if (buf[0])
+            SDL_strlcat(buf, " ", sizeof(buf));
+
+        start = (int)strlen(buf);
+        SDL_strlcat(buf, "[", sizeof(buf));
+        SDL_strlcat(buf, text, sizeof(buf));
+        SDL_strlcat(buf, "]", sizeof(buf));
+        end = (int)strlen(buf);
+
+        if (registered < UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        {
+            starts[registered] = start;
+            ends[registered] = end;
+            keys[registered] = buttons[i].key;
+            registered++;
+        }
+    }
+
+    unified_look_put_prompt(buf);
+
+    for (int i = 0; i < registered; i++)
+    {
+        int choice = unified_look_prompt_choice(keys[i]);
+
+        if (register_clicks)
+        {
+            ui_menu_click_add_text_span(choice, 0, row, buf, starts[i],
+                ends[i]);
+        }
+        else if (has_hover_choice && hover_choice == choice)
+        {
+            Term_putstr(starts[i], row, ends[i] - starts[i], TERM_L_BLUE,
+                buf + starts[i]);
+        }
+    }
+
+    if (register_clicks)
+        ui_menu_click_add_full_row(UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND, row);
+}
+
+static void unified_look_print_controller_prompt(
+    bool compact_look_layout, bool cursor_mode, bool register_clicks)
+{
+    char prev_label[16];
+    char next_label[16];
+    char exam_label[16];
+    char target_label[16];
+    char obj_label[16];
+    char mode_label[16];
+    char back_label[16];
+    char prev_full[32];
+    char next_full[32];
+    char exam_full[32];
+    char target_full[32];
+    char obj_full[32];
+    char mode_full[32];
+    char back_full[32];
+    char zoom_in_full[32];
+    char zoom_out_full[32];
+    char prev_compact[32];
+    char next_compact[32];
+    char exam_compact[32];
+    char target_compact[32];
+    char obj_compact[32];
+    char mode_compact[32];
+    char back_compact[32];
+    char zoom_in_compact[32];
+    char zoom_out_compact[32];
+    cptr obj_action = compact_look_layout ? "View" : "Objects";
+    cptr mode_action = cursor_mode ? "Cursor" : "Pan";
+
+    unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
+    unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+    unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
+    unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
+    unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
+    unified_look_prompt_label('s', "Y", mode_label, sizeof(mode_label));
+    unified_look_prompt_label(ESCAPE, "Esc", back_label, sizeof(back_label));
+
+    strnfmt(prev_full, sizeof(prev_full), "%s Prev", prev_label);
+    strnfmt(next_full, sizeof(next_full), "%s Next", next_label);
+    strnfmt(exam_full, sizeof(exam_full), "%s Exam", exam_label);
+    strnfmt(target_full, sizeof(target_full), "%s Target", target_label);
+    strnfmt(obj_full, sizeof(obj_full), "%s %s", obj_label, obj_action);
+    strnfmt(mode_full, sizeof(mode_full), "%s %s", mode_label, mode_action);
+    strnfmt(back_full, sizeof(back_full), "%s Back", back_label);
+    SDL_strlcpy(zoom_in_full, "Zoom +", sizeof(zoom_in_full));
+    SDL_strlcpy(zoom_out_full, "Zoom -", sizeof(zoom_out_full));
+    strnfmt(prev_compact, sizeof(prev_compact), "%s Prv", prev_label);
+    strnfmt(next_compact, sizeof(next_compact), "%s Nxt", next_label);
+    strnfmt(exam_compact, sizeof(exam_compact), "%s Ex", exam_label);
+    strnfmt(target_compact, sizeof(target_compact), "%s Tgt", target_label);
+    strnfmt(obj_compact, sizeof(obj_compact), "%s %s", obj_label,
+        compact_look_layout ? "Vw" : "Obj");
+    strnfmt(mode_compact, sizeof(mode_compact), "%s %s", mode_label,
+        cursor_mode ? "Cur" : "Pan");
+    strnfmt(back_compact, sizeof(back_compact), "%s Bk", back_label);
+    SDL_strlcpy(zoom_in_compact, "Z+", sizeof(zoom_in_compact));
+    SDL_strlcpy(zoom_out_compact, "Z-", sizeof(zoom_out_compact));
+
+    {
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
+
+        buttons[count++] = (unified_look_prompt_button)
+            { 'e', prev_full, prev_full, prev_compact, prev_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', next_full, next_full, next_compact, next_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', exam_full, exam_full, exam_compact, exam_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'f', target_full, target_full, target_compact, target_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'u', obj_full, obj_full, obj_compact, obj_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', mode_full, mode_full, mode_compact, mode_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { '+', zoom_in_full, zoom_in_full, zoom_in_compact, zoom_in_compact };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', zoom_out_full, zoom_out_full, zoom_out_compact, zoom_out_compact };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, back_full, back_full, back_compact, back_label };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
+    }
+}
+
+static void unified_look_print_touch_prompt(bool compact_look_layout,
+    bool cursor_mode, cptr filter_action, bool register_clicks)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    bool extended = (term_wid >= 90);
+    char filter_full[32];
+    char display_full[32];
+    char display_compact[32];
+    char mode_full[32];
+    char mode_compact[32];
+    cptr display_action = compact_look_layout ? "View" : "Display";
+
+    if (!filter_action)
+        filter_action = "";
+
+    strnfmt(filter_full, sizeof(filter_full), "%s", filter_action);
+    strnfmt(display_full, sizeof(display_full), "%s", display_action);
+    strnfmt(display_compact, sizeof(display_compact), "%s",
+        compact_look_layout ? "View" : "Disp");
+    strnfmt(mode_full, sizeof(mode_full), "%s", cursor_mode ? "Cursor" : "Pan");
+    strnfmt(mode_compact, sizeof(mode_compact), "%s",
+        cursor_mode ? "Cur" : "Pan");
+
+    {
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
+
+        buttons[count++] = (unified_look_prompt_button)
+            { '\t', "Next", "Next", "Nxt", "Nxt" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'q', "Prev", "Prev", "Prv", "Prv" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', "Examine", "Exam", "Ex", "Ex" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 't', "Target", "Target", "Tgt", "Tgt" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', filter_full, filter_full, filter_full, filter_full };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'l', display_full, display_full, display_compact,
+                display_compact };
+        if (extended)
+        {
+            buttons[count++] = (unified_look_prompt_button)
+                { 'm', "Monsters", "Mon", "Mon", "Mon" };
+            buttons[count++] = (unified_look_prompt_button)
+                { 'o', "Objects", "Obj", "Obj", "Obj" };
+            buttons[count++] = (unified_look_prompt_button)
+                { 'T', "Top 5", "Top 5", "Top", "Top" };
+        }
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', mode_full, mode_full, mode_compact, mode_compact };
+        buttons[count++] = (unified_look_prompt_button)
+            { '+', "Zoom +", "Zoom +", "Z+", "Z+" };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', "Zoom -", "Zoom -", "Z-", "Z-" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, "Back", "Back", "Back", "Back" };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
+    }
+}
+
+static void unified_look_print_keyboard_prompt(bool cursor_mode,
+    cptr filter_action, bool register_clicks)
+{
+    char filter_full[32];
+
+    if (!filter_action)
+        filter_action = "";
+
+    strnfmt(filter_full, sizeof(filter_full), "i %s", filter_action);
+
+    {
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
+
+        buttons[count++] = (unified_look_prompt_button)
+            { '\t', "Tab Next", "Tab Next", "Tab N", "Tab" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'q', "q Prev", "q Prev", "q P", "q" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', "Space Exam", "Sp Exam", "Sp Ex", "Sp" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 't', "t Target", "t Target", "t Tgt", "t" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', filter_full, filter_full, filter_full, "i" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'l', "l Display", "l Disp", "l Dsp", "l" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'm', "m Monsters", "m Mon", "m Mon", "m" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'o', "o Objects", "o Obj", "o Obj", "o" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'T', "T Top5", "T Top", "T Top", "T" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', cursor_mode ? "s Cursor" : "s Pan",
+                cursor_mode ? "s Cursor" : "s Pan",
+                cursor_mode ? "s Cur" : "s Pan", "s" };
+        buttons[count++] = (unified_look_prompt_button)
+            { '+', "+ Zoom", "+ Zoom", "+ Zm", "+" };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', "- Zoom", "- Zoom", "- Zm", "-" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, "Esc Back", "Esc Back", "Esc", "Esc" };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
+    }
+}
+
+static void unified_look_update_prompt_buttons_ex(bool controller_controls,
+    bool compact_look_layout, bool cursor_mode, bool nearby_filter,
+    bool register_clicks)
+{
+    if (sdl_touch_only_device_active())
+    {
+        unified_look_print_touch_prompt(compact_look_layout, cursor_mode,
+            nearby_filter ? "All" : "Near", register_clicks);
+    }
+    else if (controller_controls)
+    {
+        unified_look_print_controller_prompt(compact_look_layout, cursor_mode,
+            register_clicks);
+    }
+    else
+    {
+        unified_look_print_keyboard_prompt(cursor_mode,
+            nearby_filter ? "All" : "Near", register_clicks);
+    }
+}
+
+static void unified_look_restore_map_cursor(const unified_look_state* state)
+{
+    if (!state)
+        return;
+
+    move_cursor_relative(state->cursor_y, state->cursor_x);
+}
+
+static bool unified_look_format_monster_status(int m_idx, char* out_val,
+    size_t out_len)
+{
+    monster_type* m_ptr;
+    char m_name[80];
+
+    if (!out_val || !out_len || m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+    strnfmt(out_val, out_len, "You see %s.", m_name);
+    return true;
+}
+
+static bool unified_look_format_object_status(int o_idx, char* out_val,
+    size_t out_len)
+{
+    object_type* o_ptr;
+    char o_name[80];
+    char smith_buf[20];
+
+    if (!out_val || !out_len || o_idx <= 0)
+        return false;
+
+    o_ptr = &o_list[o_idx];
+    if (!o_ptr->k_idx || !o_ptr->marked)
+        return false;
+
+    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+    smith_buf[0] = '\0';
+    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+        && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
+    {
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+    }
+
+    strnfmt(out_val, out_len, "You see %s%s.", o_name, smith_buf);
+    return true;
+}
+
+static bool unified_look_format_feature_status(int y, int x, char* out_val,
+    size_t out_len)
+{
+    int feat;
+    cptr feature_name = NULL;
+
+    if (!out_val || !out_len)
+        return false;
+    if (!grid_info_is_available(y, x) || !(cave_info[y][x] & (CAVE_MARK)))
+        return false;
+
+    feat = cave_feat[y][x];
+
+    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
+        feature_name = f_name + f_info[feat].name;
+    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
+        feature_name = f_name + f_info[feat].name;
+    else if (feat == FEAT_OPEN)
+        feature_name = "open door";
+    else if (feat == FEAT_BROKEN)
+        feature_name = "broken door";
+    else if (feat == FEAT_LESS)
+        feature_name = "up staircase";
+    else if (feat == FEAT_MORE)
+        feature_name = "down staircase";
+    else if (feat == FEAT_LESS_SHAFT)
+        feature_name = "up shaft";
+    else if (feat == FEAT_MORE_SHAFT)
+        feature_name = "down shaft";
+
+    if (!feature_name)
+        return false;
+
+    strnfmt(out_val, out_len, "You see %s.", feature_name);
+    return true;
+}
+
+static void unified_look_format_status(const unified_look_state* state, int y,
+    int x, char* out_val, size_t out_len)
+{
+    if (!out_val || !out_len)
+        return;
+
+    out_val[0] = '\0';
+
+    if (state && state->in_sidebar_mode && state->selected_entity >= 0
+        && state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        int hy = state->highlighted_y;
+        int hx = state->highlighted_x;
+
+        if (state->highlighted_entity_type == 2
+            && unified_look_can_show_marked_object_at(hy, hx)
+            && unified_look_format_object_status(cave_o_idx[hy][hx],
+                out_val, out_len))
+        {
+            return;
         }
 
-        if (len <= term_wid)
+        if (state->highlighted_entity_type == 1
+            && unified_look_can_show_monster_at(hy, hx)
+            && unified_look_format_monster_status(cave_m_idx[hy][hx],
+                out_val, out_len))
         {
-            unified_look_put_status(options[i]);
             return;
         }
     }
 
-    unified_look_put_status(shortest);
+    if (unified_look_can_show_monster_at(y, x)
+        && unified_look_format_monster_status(cave_m_idx[y][x], out_val,
+            out_len))
+    {
+        return;
+    }
+
+    if (unified_look_can_show_marked_object_at(y, x)
+        && unified_look_format_object_status(cave_o_idx[y][x], out_val,
+            out_len))
+    {
+        return;
+    }
+
+    (void)unified_look_format_feature_status(y, x, out_val, out_len);
+}
+
+static void unified_look_redraw_bars(const unified_look_state* state,
+    bool controller_controls, bool compact_look_layout, bool register_clicks)
+{
+    char out_val[256];
+    int y;
+    int x;
+
+    if (!state)
+        return;
+
+    y = state->cursor_y;
+    x = state->cursor_x;
+
+    unified_look_format_status(state, y, x, out_val, sizeof(out_val));
+    unified_look_put_status(out_val);
+    unified_look_update_prompt_buttons_ex(controller_controls,
+        compact_look_layout, state->look_mode != 0, state->nearby_filter,
+        register_clicks);
+}
+
+static void unified_look_pause_pointer_handlers(void)
+{
+    ui_menu_click_clear();
+    sdl_unified_look_set_map_hover_enabled(false);
+}
+
+static void unified_look_resume_pointer_handlers(void)
+{
+    sdl_unified_look_set_map_hover_enabled(true);
+}
+
+static bool unified_look_examine_object_at(int y, int x, bool use_story_font)
+{
+    object_type* o_ptr;
+
+    if (!unified_look_can_show_marked_object_at(y, x))
+        return false;
+
+    o_ptr = &o_list[cave_o_idx[y][x]];
+
+    if (use_story_font)
+        sdl_story_font_disable();
+    unified_look_pause_pointer_handlers();
+
+    (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
+    screen_save();
+
+    if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+    {
+        int slot = wield_slot(o_ptr);
+        const object_type* compare_objects[2];
+        const char* compare_headings[2];
+        char selected_heading[32];
+        char equipped_heading[32];
+
+        strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+        strnfmt(equipped_heading, sizeof(equipped_heading), "%s",
+            mention_use(slot));
+
+        compare_objects[0] = o_ptr;
+        compare_headings[0] = selected_heading;
+        compare_objects[1] = inventory[slot].k_idx ? &inventory[slot] : NULL;
+        compare_headings[1] = equipped_heading;
+
+        object_info_screen_multi(compare_objects, compare_headings, 2);
+    }
+    else
+    {
+        object_info_screen(o_ptr);
+    }
+
+    screen_load();
+    unified_look_resume_pointer_handlers();
+
+    if (use_story_font)
+        sdl_story_font_enable();
+
+    return true;
+}
+
+static bool unified_look_examine_monster_at(int y, int x, bool use_story_font)
+{
+    int m_idx;
+    monster_type* m_ptr;
+
+    if (!unified_look_can_show_monster_at(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    m_ptr = &mon_list[m_idx];
+
+    if (use_story_font)
+        sdl_story_font_disable();
+    unified_look_pause_pointer_handlers();
+
+    monster_race_track(m_ptr->r_idx);
+    health_track(m_idx);
+    handle_stuff();
+
+    screen_save();
+    if (!screen_roff(m_ptr->r_idx, m_ptr))
+        (void)inkey();
+    screen_load();
+
+    unified_look_resume_pointer_handlers();
+
+    if (use_story_font)
+        sdl_story_font_enable();
+
+    return true;
+}
+
+static bool unified_look_target_monster_at(int y, int x)
+{
+    int m_idx;
+    monster_type* m_ptr;
+    char m_name[80];
+
+    if (!unified_look_can_show_monster_at(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if (!target_able(m_idx)) {
+        bell("No clear target.");
+        return false;
+    }
+
+    m_ptr = &mon_list[m_idx];
+    target_set_monster(m_idx);
+    health_track(m_idx);
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+    msg_format("Target set to %s.", m_name);
+    p_ptr->redraw |= PR_BASIC | PR_MAP;
+    handle_stuff();
+    return true;
 }
 
 static void unified_look_pan_player_for_sidebar(bool center_vertical)
@@ -4113,6 +4779,191 @@ static void unified_look_pan_player_for_sidebar(bool center_vertical)
         handle_stuff();
 }
 
+static void unified_look_constrain_viewport(int* wy, int* wx)
+{
+    int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+    int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+
+    if (!wy || !wx)
+        return;
+
+    if (*wy < 0)
+        *wy = 0;
+    if (*wy > max_wy)
+        *wy = max_wy;
+    if (*wx < 0)
+        *wx = 0;
+    if (*wx > max_wx)
+        *wx = max_wx;
+}
+
+static bool unified_look_map_pan_would_move(int pan_dy, int pan_dx)
+{
+    int new_wy;
+    int new_wx;
+
+    if (pan_dy == 0 && pan_dx == 0)
+        return false;
+
+    new_wy = p_ptr->wy + pan_dy;
+    new_wx = p_ptr->wx + pan_dx;
+    unified_look_constrain_viewport(&new_wy, &new_wx);
+
+    return (new_wy != p_ptr->wy || new_wx != p_ptr->wx);
+}
+
+static void unified_look_clear_highlight(unified_look_state* state)
+{
+    if (!state)
+        return;
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+            false);
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+    }
+}
+
+static bool unified_look_apply_map_pan(unified_look_state* state, int pan_dy,
+    int pan_dx, bool* need_redraw, bool* selection_redraw)
+{
+    int old_wy;
+    int old_wx;
+    int new_wy;
+    int new_wx;
+
+    if (!state || (pan_dy == 0 && pan_dx == 0))
+        return false;
+
+    old_wy = p_ptr->wy;
+    old_wx = p_ptr->wx;
+    new_wy = old_wy + pan_dy;
+    new_wx = old_wx + pan_dx;
+    unified_look_constrain_viewport(&new_wy, &new_wx);
+
+    if (!modify_panel(new_wy, new_wx))
+        return true;
+
+    state->cursor_y += p_ptr->wy - old_wy;
+    state->cursor_x += p_ptr->wx - old_wx;
+    if (state->cursor_y < 0)
+        state->cursor_y = 0;
+    if (state->cursor_y >= p_ptr->cur_map_hgt)
+        state->cursor_y = p_ptr->cur_map_hgt - 1;
+    if (state->cursor_x < 0)
+        state->cursor_x = 0;
+    if (state->cursor_x >= p_ptr->cur_map_wid)
+        state->cursor_x = p_ptr->cur_map_wid - 1;
+
+    state->in_sidebar_mode = false;
+    state->selected_entity = -1;
+    state->square_cycling_mode = false;
+    state->current_square_entity = 0;
+    unified_look_clear_highlight(state);
+
+    handle_stuff();
+
+    if (need_redraw)
+        *need_redraw = true;
+    if (selection_redraw)
+        *selection_redraw = false;
+
+    return true;
+}
+
+static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
+{
+    int max_scale = get_sdl_max_scale();
+    int old_scale = get_sdl_main_view_scale();
+
+    if (max_scale < 1)
+        max_scale = 1;
+    if (scale < 1)
+        scale = 1;
+    if (scale > max_scale)
+        scale = max_scale;
+    if (scale == old_scale)
+        return true;
+
+    set_sdl_main_view_scale(scale);
+    if (get_sdl_main_view_scale() == old_scale)
+        return true;
+
+    sdl_apply_config_no_redraw();
+    p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+    p_ptr->window |= (PW_OVERHEAD);
+    handle_stuff();
+
+    if (need_redraw)
+        *need_redraw = true;
+
+    return true;
+}
+
+static void unified_look_track_cursor_health(const unified_look_state* state)
+{
+    int cursor_m_idx;
+
+    if (!state)
+    {
+        health_track(0);
+        handle_stuff();
+        return;
+    }
+
+    cursor_m_idx = cave_m_idx[state->cursor_y][state->cursor_x];
+    if ((cursor_m_idx > 0)
+        && unified_look_can_show_monster_at(state->cursor_y, state->cursor_x))
+    {
+        health_track(cursor_m_idx);
+    }
+    else
+    {
+        health_track(0);
+    }
+
+    handle_stuff();
+}
+
+static void unified_look_redraw_overlay(unified_look_state* state,
+    bool controller_controls, bool compact_look_layout, bool* overlay_saved,
+    bool selection_redraw, bool register_clicks)
+{
+    if (!state || !overlay_saved)
+        return;
+
+    if (selection_redraw && *overlay_saved)
+    {
+        show_unified_sidebar(state);
+    }
+    else
+    {
+        if (*overlay_saved)
+        {
+            (void)Term_set_extra_cursor(false, 0, 0, false);
+            screen_load_quiet();
+            *overlay_saved = false;
+        }
+
+        unified_look_sync_cursor_selection(state);
+
+        /* Save the clean map before painting look-only UI elements. */
+        screen_save();
+        *overlay_saved = true;
+
+        show_unified_sidebar(state);
+    }
+
+    unified_look_track_cursor_health(state);
+    unified_look_redraw_bars(state, controller_controls, compact_look_layout,
+        register_clicks);
+    unified_look_restore_map_cursor(state);
+    Term_fresh();
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -4127,6 +4978,9 @@ void do_cmd_unified_look(void)
     bool original_suppress_hidden_left_panel_overlay
         = g_suppress_hidden_left_panel_overlay;
     bool look_adjusts_left_panel = false;
+    bool look_adjusts_supporting_panes = false;
+    bool original_hide_supporting_panes_fullscreen = op_ptr
+        ? op_ptr->opt[OPT_hide_supporting_panes_fullscreen] : false;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -4155,6 +5009,10 @@ void do_cmd_unified_look(void)
     g_suppress_hidden_left_panel_overlay = true;
     g_hide_left_panel = true;
     look_adjusts_left_panel = true;
+    if (op_ptr)
+        op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = true;
+    screen_push_supporting_panes_hidden();
+    look_adjusts_supporting_panes = true;
     p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
     p_ptr->window |= (PW_OVERHEAD);
     handle_stuff();
@@ -4200,6 +5058,7 @@ void do_cmd_unified_look(void)
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
     const bool controller_controls = steamdeck_controls_active();
+    sdl_unified_look_set_active(true);
     sdl_unified_look_set_map_hover_enabled(true);
 
     if (!g_unified_look_has_start
@@ -4228,285 +5087,13 @@ void do_cmd_unified_look(void)
     /* Main interaction loop */
     while (!done)
     {
+        compact_look_layout = unified_look_use_compact_layout();
+
         if (need_redraw)
         {
-            if (selection_redraw && overlay_saved)
-            {
-                show_unified_sidebar(&state);
-            }
-            else
-            {
-                if (overlay_saved)
-                {
-                    (void)Term_set_extra_cursor(false, 0, 0, false);
-                    screen_load();
-                    overlay_saved = false;
-                }
-
-                unified_look_sync_cursor_selection(&state);
-
-                /* Save screen to preserve underlying display */
-                screen_save();
-                overlay_saved = true;
-
-                /* Show unified sidebar */
-                show_unified_sidebar(&state);
-            }
-
+            unified_look_redraw_overlay(&state, controller_controls,
+                compact_look_layout, &overlay_saved, selection_redraw, true);
             selection_redraw = false;
-            
-            /* Track monster health at current cursor position for left sidebar display */
-            /* This handles Tab cycling and any other cursor position updates */
-            int cursor_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-            if ((cursor_m_idx > 0)
-                && unified_look_can_show_monster_at(state.cursor_y, state.cursor_x))
-            {
-                /* Track this monster for health display */
-                health_track(cursor_m_idx);
-            }
-            else
-            {
-                /* Clear health tracking when cursor is not on a visible monster */
-                health_track(0);
-            }
-            
-            /* Process redraw flags to update health bar immediately */
-            handle_stuff();
-            
-            /* Show cursor position info */
-            y = state.cursor_y;
-            x = state.cursor_x;
-            
-            /* Display entity name in left sidebar if cursor is on something */
-            {
-                char out_val[256];
-                int cursor_m_idx = cave_m_idx[y][x];
-                int cursor_o_idx = cave_o_idx[y][x];
-                int feat = cave_feat[y][x];
-                bool has_visible_monster = unified_look_can_show_monster_at(y, x);
-                bool has_marked_object = unified_look_can_show_marked_object_at(y, x);
-                bool has_known_feature = false;
-                cptr feature_name = NULL;
-                
-                /* Check for known/revealed features (traps, doors, stairs, shafts) */
-                if (grid_info_is_available(y, x) && (cave_info[y][x] & (CAVE_MARK)))
-                {
-                    /* Traps */
-                    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
-                    {
-                        has_known_feature = true;
-                        feature_name = f_name + f_info[feat].name;
-                    }
-                    /* Doors (closed, locked, jammed) */
-                    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
-                    {
-                        has_known_feature = true;
-                        feature_name = f_name + f_info[feat].name;
-                    }
-                    /* Open door */
-                    else if (feat == FEAT_OPEN)
-                    {
-                        has_known_feature = true;
-                        feature_name = "open door";
-                    }
-                    /* Broken door */
-                    else if (feat == FEAT_BROKEN)
-                    {
-                        has_known_feature = true;
-                        feature_name = "broken door";
-                    }
-                    /* Stairs up */
-                    else if (feat == FEAT_LESS)
-                    {
-                        has_known_feature = true;
-                        feature_name = "up staircase";
-                    }
-                    /* Stairs down */
-                    else if (feat == FEAT_MORE)
-                    {
-                        has_known_feature = true;
-                        feature_name = "down staircase";
-                    }
-                    /* Shaft up */
-                    else if (feat == FEAT_LESS_SHAFT)
-                    {
-                        has_known_feature = true;
-                        feature_name = "up shaft";
-                    }
-                    /* Shaft down */
-                    else if (feat == FEAT_MORE_SHAFT)
-                    {
-                        has_known_feature = true;
-                        feature_name = "down shaft";
-                    }
-                }
-                
-                /* Priority: monster first, then object (only if marked), then feature */
-                if (has_visible_monster)
-                {
-                    monster_type* m_ptr = &mon_list[cursor_m_idx];
-                    char m_name[80];
-                    
-                    /* Get the monster name with indefinite article */
-                    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
-                    
-                    /* Display "You see <monster name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
-                    unified_look_put_status(out_val);
-                }
-                else if (has_marked_object)
-                {
-                    object_type* o_ptr = &o_list[cursor_o_idx];
-                    char o_name[80];
-                    char smith_buf[20];
-                    
-                    /* Get the object name with indefinite article */
-                    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
-
-                    smith_buf[0] = '\0';
-                    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
-                        && object_known_p(o_ptr)
-                        && object_uses_smithing_difficulty(o_ptr))
-                    {
-                        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
-                        int sd = object_smithing_difficulty(o_ptr);
-                        int wr = object_weight_rarity(o_ptr, depth);
-                        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
-                    }
-                    
-                    /* Display "You see <object name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s%s.", o_name, smith_buf);
-                    unified_look_put_status(out_val);
-                }
-                else if (has_known_feature)
-                {
-                    /* Display "You see <feature name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", feature_name);
-                    unified_look_put_status(out_val);
-                }
-                else
-                {
-                    /* Display help text based on current mode */
-                    if (state.look_mode == 0)
-                    {
-                        if (controller_controls) {
-                            char prev_label[16];
-                            char next_label[16];
-                            char exam_label[16];
-                            char target_label[16];
-                            char obj_label[16];
-                            char pan_label[16];
-                            char back_label[16];
-                            char prompt_buf[160];
-                            char compact_buf[160];
-                            char tiny_buf[128];
-                            const char* obj_action = compact_look_layout ? "View" : "Obj";
-
-                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
-                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
-                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
-                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
-                            unified_look_prompt_label('s', "Y", pan_label, sizeof(pan_label));
-                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Pan [%s]=Back",
-                                next_label, prev_label, exam_label, target_label,
-                                obj_label, obj_action, pan_label, back_label);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Pan",
-                                next_label, prev_label, exam_label,
-                                target_label, obj_label, obj_action,
-                                pan_label);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "%s Pan %s %s %s/%s %s %s", pan_label,
-                                obj_label, obj_action, next_label,
-                                prev_label, exam_label, target_label);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        } else {
-                            char prompt_buf[192];
-                            char compact_buf[160];
-                            char tiny_buf[96];
-                            const char* filter_action = state.nearby_filter ? "All" : "Near";
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Pan [ESC]",
-                                filter_action);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Pan",
-                                filter_action);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Tab/q s Pan Spc t i%s l/m/o/T",
-                                filter_action);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        }
-                    }
-                    else
-                    {
-                        if (controller_controls) {
-                            char prev_label[16];
-                            char next_label[16];
-                            char exam_label[16];
-                            char target_label[16];
-                            char obj_label[16];
-                            char cursor_label[16];
-                            char back_label[16];
-                            char prompt_buf[160];
-                            char compact_buf[160];
-                            char tiny_buf[128];
-                            const char* obj_action = compact_look_layout ? "View" : "Obj";
-
-                            unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-                            unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
-                            unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
-                            unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
-                            unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
-                            unified_look_prompt_label('s', "Y", cursor_label, sizeof(cursor_label));
-                            unified_look_prompt_label(ESCAPE, "ESC", back_label, sizeof(back_label));
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[%s/%s]=Select [%s]=Exam [%s]=Target [%s]=%s [%s]=Curs [%s]=Back",
-                                next_label, prev_label, exam_label, target_label,
-                                obj_label, obj_action, cursor_label, back_label);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[%s/%s] Sel [%s] Exam [%s] Targ [%s] %s [%s] Curs",
-                                next_label, prev_label, exam_label,
-                                target_label, obj_label, obj_action,
-                                cursor_label);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "%s Curs %s %s %s/%s %s %s", cursor_label,
-                                obj_label, obj_action, next_label,
-                                prev_label, exam_label, target_label);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        } else {
-                            char prompt_buf[192];
-                            char compact_buf[160];
-                            char tiny_buf[96];
-                            const char* filter_action = state.nearby_filter ? "All" : "Near";
-
-                            strnfmt(prompt_buf, sizeof(prompt_buf),
-                                "[Tab/q]=Select [Space]=Exam [t]=Target [i]=%s [l]=Disp [m]=Monst [o]=ObjCat [T]=Top5 [s]=Curs [ESC]",
-                                filter_action);
-                            strnfmt(compact_buf, sizeof(compact_buf),
-                                "[Tab/q] Sel [Space] Exam [t] Targ [i] %s [l] Disp [m] Mon [o] Obj [T] Top5 [s] Curs",
-                                filter_action);
-                            strnfmt(tiny_buf, sizeof(tiny_buf),
-                                "Tab/q s Curs Spc t i%s l/m/o/T",
-                                filter_action);
-                            unified_look_print_prompt3(prompt_buf, compact_buf,
-                                tiny_buf);
-                        }
-                    }
-                }
-            }
-            
-            /* Move cursor to position */
-            move_cursor_relative(state.cursor_y, state.cursor_x);
-            
             need_redraw = false;
         }
         
@@ -4542,12 +5129,134 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
-                if (unified_look_apply_sidebar_pointer_action(&state,
-                        compact_look_layout, &need_redraw, &selection_redraw))
+                int zoom_scale = 0;
+                int pan_dy = 0;
+                int pan_dx = 0;
+                int target_y = 0;
+                int target_x = 0;
+                int describe_y = 0;
+                int describe_x = 0;
+                bool prompt_hover_redraw = false;
+                bool hover_redraw = ui_menu_click_take_hover_redraw();
+
+                if (sdl_unified_look_take_main_zoom(&zoom_scale))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load_quiet();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_main_zoom(zoom_scale,
+                        &need_redraw);
                     break;
+                }
+                if (sdl_unified_look_take_map_pan(&pan_dy, &pan_dx))
+                {
+                    bool pan_moves = unified_look_map_pan_would_move(pan_dy,
+                        pan_dx);
+
+                    if (!pan_moves)
+                    {
+                        if (!overlay_saved)
+                        {
+                            unified_look_redraw_overlay(&state,
+                                controller_controls, compact_look_layout,
+                                &overlay_saved, false, true);
+                        }
+                        break;
+                    }
+
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load_quiet();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    if (unified_look_apply_map_pan(&state, pan_dy, pan_dx,
+                            &need_redraw, &selection_redraw))
+                    {
+                        unified_look_redraw_overlay(&state,
+                            controller_controls, compact_look_layout,
+                            &overlay_saved, false, true);
+                        selection_redraw = false;
+                        need_redraw = false;
+                    }
+                    break;
+                }
+                if (sdl_unified_look_take_map_target(&target_y, &target_x))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_map_cell(&state, target_y,
+                        target_x, compact_look_layout, &need_redraw,
+                        &selection_redraw);
+                    if (unified_look_target_monster_at(target_y, target_x))
+                        done = true;
+                    else
+                        need_redraw = true;
+                    selection_redraw = false;
+                    break;
+                }
+                if (sdl_unified_look_take_map_describe(&describe_y,
+                        &describe_x))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_map_cell(&state, describe_y,
+                        describe_x, compact_look_layout, &need_redraw,
+                        &selection_redraw);
+                    if (!unified_look_examine_monster_at(describe_y,
+                            describe_x, use_story_font)
+                        && !unified_look_examine_object_at(describe_y,
+                            describe_x, use_story_font))
+                    {
+                        bell("Nothing to examine.");
+                    }
+                    need_redraw = true;
+                    selection_redraw = false;
+                    break;
+                }
+                if (unified_look_apply_sidebar_pointer_action(&state,
+                        compact_look_layout, &need_redraw, &selection_redraw,
+                        &prompt_hover_redraw))
+                {
+                    if (prompt_hover_redraw)
+                    {
+                        unified_look_update_prompt_buttons_ex(
+                            controller_controls, compact_look_layout,
+                            state.look_mode != 0, state.nearby_filter, false);
+                        unified_look_restore_map_cursor(&state);
+                    }
+                    break;
+                }
                 if (unified_look_apply_map_hover(&state, compact_look_layout,
                         &need_redraw, &selection_redraw))
                     break;
+
+                if (hover_redraw)
+                {
+                    unified_look_update_prompt_buttons_ex(controller_controls,
+                        compact_look_layout, state.look_mode != 0,
+                        state.nearby_filter, false);
+                    unified_look_restore_map_cursor(&state);
+                }
 
                 break;
             }
@@ -4615,6 +5324,7 @@ void do_cmd_unified_look(void)
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
+                unified_look_pause_pointer_handlers();
                 
                 /* Same logic as Space/Enter for examination */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -4820,7 +5530,25 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: No visible entities at cursor position");
                     }
                 }
+                unified_look_resume_pointer_handlers();
+                if (use_story_font)
+                    sdl_story_font_enable();
+
                 need_redraw = true;
+                break;
+            }
+
+            case '+':
+            {
+                (void)unified_look_apply_main_zoom(
+                    get_sdl_main_view_scale() + 1, &need_redraw);
+                break;
+            }
+
+            case '-':
+            {
+                (void)unified_look_apply_main_zoom(
+                    get_sdl_main_view_scale() - 1, &need_redraw);
                 break;
             }
             
@@ -4839,7 +5567,6 @@ void do_cmd_unified_look(void)
             case 'g':            /* Get/Pickup */
             case 'c':            /* Close */
             case 'j':            /* Jam */
-            case '+':            /* Alter */
             case '*':            /* Target */
             case '@':            /* Center map */
             case '(':            /* Dungeon history */
@@ -5166,7 +5893,8 @@ command_key:
             case ' ':
             {
                 if (unified_look_apply_sidebar_pointer_action(&state,
-                        compact_look_layout, &need_redraw, &selection_redraw))
+                        compact_look_layout, &need_redraw, &selection_redraw,
+                        NULL))
                     break;
 
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
@@ -5174,6 +5902,7 @@ command_key:
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
+                unified_look_pause_pointer_handlers();
                 
                 /* Examine current target */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -5381,6 +6110,7 @@ command_key:
                 }
                 
                 /* Re-enable story font */
+                unified_look_resume_pointer_handlers();
                 if (use_story_font)
                     sdl_story_font_enable();
                 
@@ -5597,6 +6327,10 @@ cycle_display_modes:
                 continue;
             }
             
+            case 'f':
+                if (!controller_controls)
+                    goto command_key;
+                /* fall through */
             case 't':
             {
                 /* Target monster at cursor position or selected position */
@@ -5672,6 +6406,7 @@ cycle_display_modes:
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    sdl_unified_look_set_active(false);
     sdl_unified_look_set_map_hover_enabled(false);
 
     if (overlay_saved)
@@ -5697,6 +6432,15 @@ cycle_display_modes:
         g_hide_left_panel = original_hide_left_panel;
         g_suppress_hidden_left_panel_overlay
             = original_suppress_hidden_left_panel_overlay;
+        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+    }
+    if (look_adjusts_supporting_panes)
+    {
+        screen_pop_supporting_panes_hidden();
+        if (op_ptr)
+            op_ptr->opt[OPT_hide_supporting_panes_fullscreen]
+                = original_hide_supporting_panes_fullscreen;
         p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
         p_ptr->window |= (PW_OVERHEAD);
     }

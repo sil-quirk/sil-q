@@ -2296,8 +2296,8 @@ F:EASY_KNOW
 D:A horn of terrible power, whose voice can crack the works
 D: of stone as the trumpets of the Valar shattered the pillars
 D: of Utumno. Its sound can shatter stone. In addition to the
-D: compass directions, brave souls can aim it up (<) or
-D: down (>).
+D: compass directions, brave souls can aim it up (u, or c with
+D: hjkl movement) or down (d).
 
 
 N:250:Warning

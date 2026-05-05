@@ -28,7 +28,7 @@ struct resolution_profile {
         enum pane_placement where;
         int rows;
         int cols;
-    } panes[8];
+    } panes[MAX_PANE_CONFIGS];
 };
 
 // Resolution profiles database - add new resolutions here!
@@ -303,6 +303,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_CHARACTER: return "CHARACTER";
         case PANE_LOG: return "LOG";
         case PANE_MONSTERS: return "MONSTERS";
+        case PANE_MAP: return "MAP";
         case PANE_TOUCH: return "TOUCH";
         default: return "MAIN";
     }
@@ -320,6 +321,7 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "CHARACTER") == 0) return PANE_CHARACTER;
     if (strcmp(value, "LOG") == 0) return PANE_LOG;
     if (strcmp(value, "MONSTERS") == 0) return PANE_MONSTERS;
+    if (strcmp(value, "MAP") == 0) return PANE_MAP;
     if (strcmp(value, "TOUCH") == 0) return PANE_TOUCH;
     return PANE_MAIN;
 }

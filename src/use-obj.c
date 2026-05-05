@@ -1091,8 +1091,15 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         }
 
         /* Get a direction, allow cancel */
-        if (!get_aim_dir(&dir, 0))
+        if (o_ptr->sval == SV_HORN_BLASTING)
+        {
+            if (!get_aim_dir_vertical(&dir, 0))
+                return (false);
+        }
+        else if (!get_aim_dir(&dir, 0))
+        {
             return (false);
+        }
     }
 
     /* Base chance of success */

@@ -76,7 +76,11 @@ Or use repo helper scripts from root:
 
 - `./build-android-apk.ps1 -Config Debug`
 - `./install-android-apk.ps1 -Config Debug`
-- `./deploy-android.ps1 -Config Release -LaunchApp`
+- `./deploy-android.ps1 -LaunchApp`
+
+`deploy-android.ps1` defaults to `Release` when `-Config` is omitted.
+
+Release APK builds and release deploys use the same upload keystore settings as the Play Store AAB flow below. By default, the scripts load `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1`, then look for `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`; `SIL_MORE_RELEASE_*` environment variables or script parameters can override that.
 
 The install helper can allow downgrade installs when needed:
 
@@ -88,7 +92,7 @@ Then launch from the device launcher.
 
 ## Play Store app bundle (AAB)
 
-Google Play uploads need a release/upload key, not the local debug key. Keep the keystore and passwords out of the repo and pass them through environment variables:
+Google Play uploads need a release/upload key, not the local debug key. By default, the scripts load `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1`, then look for `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`. Keep the keystore and passwords out of the repo; environment variables can override the default path and alias:
 
 ```powershell
 $env:SIL_MORE_RELEASE_STORE_FILE = 'C:\path\to\upload-keystore.jks'

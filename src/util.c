@@ -44,6 +44,7 @@ static bool ui_menu_click_cancel_outside_enabled = false;
 static bool ui_menu_click_hover_wake_pending = false;
 static bool ui_menu_click_hover_current = false;
 static bool ui_menu_click_preserve_hover_once = false;
+static bool ui_menu_click_hover_redraw_pending = false;
 static int ui_menu_click_hover_choice = 0;
 static int ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 static bool ui_scroll_area_active = false;
@@ -75,6 +76,7 @@ void ui_menu_click_clear(void)
     ui_menu_click_hover_current = preserve_hover;
     ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
     ui_menu_click_preserve_hover_once = preserve_hover;
+    ui_menu_click_hover_redraw_pending = false;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
@@ -97,6 +99,7 @@ void ui_menu_click_begin(void)
     ui_menu_click_hover_current = preserve_hover;
     ui_menu_click_hover_choice = preserve_hover ? preserved_hover_choice : 0;
     ui_menu_click_preserve_hover_once = false;
+    ui_menu_click_hover_redraw_pending = false;
     ui_menu_click_touch_category = SDL_TOUCH_MENU_CATEGORY_OTHER;
 }
 
@@ -319,6 +322,9 @@ bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake)
     ui_menu_click_hover_current = true;
     ui_menu_click_hover_choice = entry->choice;
 
+    if (!changed)
+        return true;
+
     if (ui_menu_click_pending && ui_menu_click_pending_action != UI_MENU_CLICK_HOVER)
         return true;
 
@@ -347,6 +353,7 @@ bool ui_menu_click_clear_hover(bool* wake)
     ui_menu_click_hover_current = false;
     ui_menu_click_hover_choice = 0;
     ui_menu_click_preserve_hover_once = false;
+    ui_menu_click_hover_redraw_pending = true;
     if (ui_menu_click_pending
         && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
     {
@@ -393,8 +400,12 @@ bool ui_menu_click_has_pending(void)
     return ui_menu_click_pending;
 }
 
-void ui_menu_click_clear_pending_hover(void)
+bool ui_menu_click_clear_pending_hover(void)
 {
+    bool had_hover = ui_menu_click_hover_current
+        || (ui_menu_click_pending
+            && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER);
+
     if (ui_menu_click_pending
         && ui_menu_click_pending_action == UI_MENU_CLICK_HOVER)
     {
@@ -406,7 +417,30 @@ void ui_menu_click_clear_pending_hover(void)
     ui_menu_click_hover_current = false;
     ui_menu_click_hover_choice = 0;
     ui_menu_click_preserve_hover_once = false;
+    if (had_hover)
+        ui_menu_click_hover_redraw_pending = true;
     ui_menu_click_hover_wake_pending = false;
+
+    return had_hover;
+}
+
+bool ui_menu_click_take_hover_redraw(void)
+{
+    bool pending = ui_menu_click_hover_redraw_pending;
+
+    ui_menu_click_hover_redraw_pending = false;
+    return pending;
+}
+
+bool ui_menu_click_get_hover_choice(int* choice)
+{
+    if (!ui_menu_click_active || !ui_menu_click_hover_current)
+        return false;
+
+    if (choice)
+        *choice = ui_menu_click_hover_choice;
+
+    return true;
 }
 
 bool ui_menu_click_take_action(int* choice, int* action)
@@ -3167,12 +3201,7 @@ void screen_save(void)
     log_debug("screen_save: character_icky incremented to %d, screen_depth=%d", character_icky, screen_depth);
 }
 
-/*
- * Load the screen, and decrease the "icky" depth.
- *
- * This function must match exactly one call to "screen_save()".
- */
-void screen_load(void)
+static void screen_load_impl(bool refresh_restored_screen)
 {
     bool restored_screen = false;
 
@@ -3211,10 +3240,25 @@ void screen_load(void)
 
     /* Push the restored terminal contents immediately. Some overlay exits do
      * not hit another global refresh pass before idling for input. */
-    if (restored_screen)
+    if (restored_screen && refresh_restored_screen)
         Term_fresh();
 
     sdl_refresh_supporting_panes_layout();
+}
+
+/*
+ * Load the screen, and decrease the "icky" depth.
+ *
+ * This function must match exactly one call to "screen_save()".
+ */
+void screen_load(void)
+{
+    screen_load_impl(true);
+}
+
+void screen_load_quiet(void)
+{
+    screen_load_impl(false);
 }
 
 /*

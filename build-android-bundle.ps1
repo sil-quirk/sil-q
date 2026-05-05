@@ -32,6 +32,56 @@ function Resolve-JavaHome {
     return $null
 }
 
+function Get-DefaultReleaseKeystorePath {
+    $homeRoots = @()
+
+    if ($env:USERPROFILE) {
+        $homeRoots += $env:USERPROFILE
+    }
+    if ($HOME) {
+        $homeRoots += $HOME
+    }
+
+    foreach ($homeRoot in ($homeRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        $candidate = Join-Path $homeRoot '.sil-more\play-upload-keystore.jks'
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-DefaultReleaseSigningEnvFilePath {
+    $homeRoots = @()
+
+    if ($env:USERPROFILE) {
+        $homeRoots += $env:USERPROFILE
+    }
+    if ($HOME) {
+        $homeRoots += $HOME
+    }
+
+    foreach ($homeRoot in ($homeRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        $candidate = Join-Path $homeRoot '.sil-more\play-upload-keystore.env.ps1'
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Import-DefaultReleaseSigningEnvironment {
+    $envFile = Get-DefaultReleaseSigningEnvFilePath
+    if (-not $envFile) {
+        return
+    }
+
+    . $envFile
+    Write-Host "Loaded release signing environment: $envFile" -ForegroundColor Cyan
+}
+
 function Resolve-AndroidSdkRoot {
     $roots = @()
 
@@ -191,38 +241,6 @@ if (-not (Test-Path $androidDir)) {
     throw "Android project folder not found: $androidDir"
 }
 
-$keystoreFile = Resolve-RequiredFilePath -PathValue $KeystorePath -Label 'Release keystore'
-if ([string]::IsNullOrWhiteSpace($KeystoreAlias)) {
-    throw 'Keystore alias is required. Pass -KeystoreAlias or set SIL_MORE_RELEASE_KEY_ALIAS.'
-}
-
-$storePassword = Read-SecretValue `
-    -EnvName 'SIL_MORE_RELEASE_STORE_PASSWORD' `
-    -Prompt 'Release keystore password'
-
-$keyPassword = Read-OptionalSecretValue `
-    -EnvName 'SIL_MORE_RELEASE_KEY_PASSWORD' `
-    -Prompt 'Release key password (press Enter to reuse the keystore password)' `
-    -DefaultValue $storePassword
-
-$javaHome = Resolve-JavaHome
-if (-not $javaHome) {
-    throw 'Java 17 not found. Set JAVA_HOME or install Android Studio with its bundled JBR.'
-}
-
-$version = Get-GameVersion
-if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $PSScriptRoot "sil-more-$version.aab"
-} elseif (-not [System.IO.Path]::IsPathRooted($OutputPath)) {
-    $OutputPath = Join-Path (Get-Location) $OutputPath
-}
-$OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
-
-$outputDir = Split-Path -Path $OutputPath -Parent
-if (-not (Test-Path $outputDir)) {
-    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-}
-
 $envNamesToRestore = @(
     'JAVA_HOME',
     'Path',
@@ -237,6 +255,50 @@ foreach ($name in $envNamesToRestore) {
 }
 
 try {
+    Import-DefaultReleaseSigningEnvironment
+
+    if ([string]::IsNullOrWhiteSpace($KeystorePath)) {
+        $KeystorePath = [Environment]::GetEnvironmentVariable('SIL_MORE_RELEASE_STORE_FILE', 'Process')
+    }
+    if ([string]::IsNullOrWhiteSpace($KeystoreAlias)) {
+        $KeystoreAlias = [Environment]::GetEnvironmentVariable('SIL_MORE_RELEASE_KEY_ALIAS', 'Process')
+    }
+    if ([string]::IsNullOrWhiteSpace($KeystorePath)) {
+        $KeystorePath = Get-DefaultReleaseKeystorePath
+    }
+    if ([string]::IsNullOrWhiteSpace($KeystoreAlias)) {
+        $KeystoreAlias = 'upload'
+    }
+
+    $keystoreFile = Resolve-RequiredFilePath -PathValue $KeystorePath -Label 'Release keystore'
+
+    $storePassword = Read-SecretValue `
+        -EnvName 'SIL_MORE_RELEASE_STORE_PASSWORD' `
+        -Prompt 'Release keystore password'
+
+    $keyPassword = Read-OptionalSecretValue `
+        -EnvName 'SIL_MORE_RELEASE_KEY_PASSWORD' `
+        -Prompt 'Release key password (press Enter to reuse the keystore password)' `
+        -DefaultValue $storePassword
+
+    $javaHome = Resolve-JavaHome
+    if (-not $javaHome) {
+        throw 'Java 17 not found. Set JAVA_HOME or install Android Studio with its bundled JBR.'
+    }
+
+    $version = Get-GameVersion
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $OutputPath = Join-Path $PSScriptRoot "sil-more-$version.aab"
+    } elseif (-not [System.IO.Path]::IsPathRooted($OutputPath)) {
+        $OutputPath = Join-Path (Get-Location) $OutputPath
+    }
+    $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+
+    $outputDir = Split-Path -Path $OutputPath -Parent
+    if (-not (Test-Path $outputDir)) {
+        New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+    }
+
     Set-ProcessEnvironmentValue -Name 'JAVA_HOME' -Value $javaHome
     Set-ProcessEnvironmentValue -Name 'Path' -Value "$javaHome\bin;$($previousEnvironment['Path'])"
     Set-ProcessEnvironmentValue -Name 'SIL_MORE_RELEASE_STORE_FILE' -Value $keystoreFile

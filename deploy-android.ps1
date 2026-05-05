@@ -4,6 +4,10 @@ param(
 
     [string]$AdbPath,
 
+    [string]$KeystorePath = $env:SIL_MORE_RELEASE_STORE_FILE,
+
+    [string]$KeystoreAlias = $env:SIL_MORE_RELEASE_KEY_ALIAS,
+
     [switch]$AllowDowngrade,
 
     [switch]$LaunchApp
@@ -22,7 +26,19 @@ if (-not (Test-Path $installScript)) {
     throw "Missing script: $installScript"
 }
 
-& $buildScript -Config $Config
+$buildParams = @{
+    Config = $Config
+}
+if ($Config -eq 'Release') {
+    if ($KeystorePath) {
+        $buildParams['KeystorePath'] = $KeystorePath
+    }
+    if ($KeystoreAlias) {
+        $buildParams['KeystoreAlias'] = $KeystoreAlias
+    }
+}
+
+& $buildScript @buildParams
 
 $installParams = @{
     Config = $Config

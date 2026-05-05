@@ -2693,6 +2693,43 @@ void maybe_update_morgoth_state_from_hp(monster_type* m_ptr)
     anger_morgoth(target_state);
 }
 
+bool morgoth_enter_final_stage(int m_idx)
+{
+    monster_type* m_ptr;
+    int restored;
+
+    if ((m_idx <= 0) || (m_idx >= mon_max))
+        return (false);
+
+    m_ptr = &mon_list[m_idx];
+
+    if (m_ptr->r_idx != R_IDX_MORGOTH)
+        return (false);
+
+    if (p_ptr->morgoth_second_wind)
+        return (false);
+
+    restored = (int)((long)m_ptr->maxhp * 20L / 100L);
+    if (restored < 1)
+        restored = 1;
+
+    m_ptr->hp = restored;
+    p_ptr->morgoth_second_wind = 1;
+
+    if (p_ptr->health_who == m_idx)
+        p_ptr->redraw |= (PR_HEALTHBAR);
+
+    log_info("Morgoth entered final stage at %d/%d HP.",
+             m_ptr->hp, m_ptr->maxhp);
+    anger_morgoth(6);
+    morgoth_second_wind_message();
+    set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
+    m_ptr->mflag |= (MFLAG_ACTV);
+    m_ptr->min_range = 0;
+
+    return (true);
+}
+
 static void fail_niena_quest(void)
 {
     p_ptr->niena_quest = NIENA_QUEST_FAILED;
@@ -3016,21 +3053,8 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
     {
         if (m_ptr->r_idx == R_IDX_MORGOTH && !p_ptr->morgoth_second_wind)
         {
-            int restored = (int)((long)m_ptr->maxhp * 20L / 100L);
-
-            if (restored < 1)
-                restored = 1;
-
-            m_ptr->hp = restored;
-            p_ptr->morgoth_second_wind = 1;
-
-            log_info("Morgoth reached 0 HP; restoring to %d/%d and entering god state.", 
-                     m_ptr->hp, m_ptr->maxhp);
-            anger_morgoth(6);
-            morgoth_second_wind_message();
-            set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
-            m_ptr->mflag |= (MFLAG_ACTV);
-            m_ptr->min_range = 0;
+            log_info("Morgoth reached 0 HP; entering god state.");
+            (void)morgoth_enter_final_stage(m_idx);
 
             return (false);
         }
@@ -5659,53 +5683,160 @@ int rough_direction(int y1, int x1, int y2, int x2)
  *
  * Currently this function applies confusion directly.
  */
-static void get_aim_prompt(char* buf, size_t buflen, bool has_target)
+static char get_aim_vertical_up_key(void)
 {
+    return hjkl_movement ? 'c' : 'u';
+}
+
+static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
+    bool allow_vertical)
+{
+    char up_key;
     char fire_label[24];
+    char confirm_label[24];
     char select_label[24];
+    char up_label[24];
+    char down_label[24];
     char cancel_label[24];
 
     if (!buf || !buflen)
         return;
 
+    up_key = get_aim_vertical_up_key();
+
     if (!steamdeck_controls_active())
     {
-        if (has_target)
+        if (allow_vertical)
         {
-            SDL_strlcpy(buf,
-                "Direction ('f'=target, 's'=select target, ESC)? ", buflen);
+            if (has_target)
+            {
+                strnfmt(buf, buflen,
+                    "Aim: arrows/touch, f/Space target, * select, %c up, d down, Esc? ",
+                    up_key);
+            }
+            else
+            {
+                strnfmt(buf, buflen,
+                    "Aim: arrows/touch, f/Space closest, * select, %c up, d down, Esc? ",
+                    up_key);
+            }
         }
         else
         {
-            SDL_strlcpy(buf,
-                "Direction ('f'=closest, 's'=select target, ESC)? ", buflen);
+            if (has_target)
+            {
+                SDL_strlcpy(buf,
+                    "Aim: arrows/touch, f/Space target, * select, Esc? ",
+                    buflen);
+            }
+            else
+            {
+                SDL_strlcpy(buf,
+                    "Aim: arrows/touch, f/Space closest, * select, Esc? ",
+                    buflen);
+            }
         }
         return;
     }
 
     target_prompt_label('f', "B", fire_label, sizeof(fire_label));
+    target_prompt_label(INPUT_BIND_CONFIRM, "A", confirm_label,
+        sizeof(confirm_label));
     target_prompt_label('s', "Y", select_label, sizeof(select_label));
+    target_prompt_label(up_key, hjkl_movement ? "c" : "u", up_label,
+        sizeof(up_label));
+    target_prompt_label('d', "d", down_label, sizeof(down_label));
     target_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
 
     if (has_target)
     {
-        strnfmt(buf, buflen, "Dir (%s target, %s select target, %s cancel)? ",
-            fire_label, select_label, cancel_label);
-        if (strlen(buf) > 49)
-            strnfmt(buf, buflen, "Dir (%s target, %s select, %s cancel)? ",
-                fire_label, select_label, cancel_label);
+        if (allow_vertical)
+        {
+            strnfmt(buf, buflen,
+                "Aim (%s/%s target, %s select, %s up, %s down, %s cancel)? ",
+                fire_label, confirm_label, select_label, up_label,
+                down_label, cancel_label);
+            if (strlen(buf) > 49)
+                strnfmt(buf, buflen,
+                    "Aim (%s/%s tgt, %s sel, %s up, %s down, %s cancel)? ",
+                    fire_label, confirm_label, select_label, up_label,
+                    down_label, cancel_label);
+        }
+        else
+        {
+            strnfmt(buf, buflen,
+                "Aim (%s/%s target, %s select, %s cancel)? ", fire_label,
+                confirm_label, select_label, cancel_label);
+            if (strlen(buf) > 49)
+                strnfmt(buf, buflen,
+                    "Aim (%s/%s tgt, %s sel, %s cancel)? ", fire_label,
+                    confirm_label, select_label, cancel_label);
+        }
     }
     else
     {
-        strnfmt(buf, buflen, "Dir (%s closest, %s select target, %s cancel)? ",
-            fire_label, select_label, cancel_label);
-        if (strlen(buf) > 49)
-            strnfmt(buf, buflen, "Dir (%s closest, %s select, %s cancel)? ",
-                fire_label, select_label, cancel_label);
+        if (allow_vertical)
+        {
+            strnfmt(buf, buflen,
+                "Aim (%s/%s closest, %s select, %s up, %s down, %s cancel)? ",
+                fire_label, confirm_label, select_label, up_label,
+                down_label, cancel_label);
+            if (strlen(buf) > 49)
+                strnfmt(buf, buflen,
+                    "Aim (%s/%s close, %s sel, %s up, %s down, %s cancel)? ",
+                    fire_label, confirm_label, select_label, up_label,
+                    down_label, cancel_label);
+        }
+        else
+        {
+            strnfmt(buf, buflen,
+                "Aim (%s/%s closest, %s select, %s cancel)? ", fire_label,
+                confirm_label, select_label, cancel_label);
+            if (strlen(buf) > 49)
+                strnfmt(buf, buflen,
+                    "Aim (%s/%s close, %s sel, %s cancel)? ", fire_label,
+                    confirm_label, select_label, cancel_label);
+        }
     }
 }
 
-bool get_aim_dir(int* dp, int range)
+static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
+    char* command)
+{
+    char up_key = get_aim_vertical_up_key();
+    char ch;
+    int clicked_choice = 0;
+
+    message_flush();
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    prt(prompt, 0, 0);
+
+    ui_menu_click_add_text_token('f', 0, 0, prompt,
+        has_target ? "target" : "closest");
+    ui_menu_click_add_text_token('*', 0, 0, prompt, "select");
+    if (allow_vertical)
+    {
+        ui_menu_click_add_text_token(up_key, 0, 0, prompt, "up");
+        ui_menu_click_add_text_token('d', 0, 0, prompt, "down");
+    }
+    ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "Esc");
+    ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "cancel");
+
+    ch = inkey();
+    if (ch == UI_MENU_CLICK_WAKE_KEY && ui_menu_click_take(&clicked_choice))
+        ch = (char)clicked_choice;
+
+    ui_menu_click_clear();
+    prt("", 0, 0);
+
+    *command = ch;
+    return (ch != ESCAPE);
+}
+
+static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
 {
     int dir;
 
@@ -5750,10 +5881,10 @@ bool get_aim_dir(int* dp, int range)
         bool has_target = target_okay(range);
 
         /* Choose a prompt */
-        get_aim_prompt(prompt, sizeof(prompt), has_target);
+        get_aim_prompt(prompt, sizeof(prompt), has_target, allow_vertical);
 
         /* Get a command (or Cancel) */
-        if (!get_com(prompt, &ch))
+        if (!get_aim_com(prompt, has_target, allow_vertical, &ch))
             break;
 
         /* Analyze */
@@ -5774,6 +5905,10 @@ bool get_aim_dir(int* dp, int range)
         case 't':
         case '5':
         case 'z':
+        case ' ':
+        case '\r':
+        case '\n':
+        case INPUT_BIND_CONFIRM:
         {
             if (target_okay(range))
                 dir = 5;
@@ -5789,6 +5924,45 @@ bool get_aim_dir(int* dp, int range)
                     health_track(cave_m_idx[temp_y[0]][temp_x[0]]);
                     dir = 5;
                 }
+            }
+            break;
+        }
+
+        case 'u':
+        case 'U':
+        case 'c':
+        case 'C':
+        {
+            if (allow_vertical
+                && (tolower((unsigned char)ch) == get_aim_vertical_up_key()))
+            {
+                dir = DIRECTION_UP;
+            }
+            break;
+        }
+
+        case 'd':
+        case 'D':
+        {
+            if (allow_vertical)
+                dir = DIRECTION_DOWN;
+            break;
+        }
+
+        case UI_MENU_CLICK_WAKE_KEY:
+        {
+            int mouse_command = 0;
+            int mouse_dir = 0;
+
+            if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir)
+                && ((mouse_command == 'f') || (mouse_command == 'F'))
+                && mouse_dir)
+            {
+                dir = mouse_dir;
+            }
+            else
+            {
+                continue;
             }
             break;
         }
@@ -5858,6 +6032,16 @@ bool get_aim_dir(int* dp, int range)
 
     /* A "valid" direction was entered */
     return (true);
+}
+
+bool get_aim_dir(int* dp, int range)
+{
+    return get_aim_dir_aux(dp, range, false);
+}
+
+bool get_aim_dir_vertical(int* dp, int range)
+{
+    return get_aim_dir_aux(dp, range, true);
 }
 
 /*
@@ -6124,6 +6308,56 @@ const char ultimate_bug_text[][100]
 
           { "" } };
 
+static int pause_with_text_max_line_width(const char lines[][100])
+{
+    int max_width = 0;
+
+    if (!lines)
+        return 0;
+
+    for (int i = 0; lines[i][0]; ++i)
+    {
+        int width = (int)strlen(lines[i]);
+        if (width > max_width)
+            max_width = width;
+    }
+
+    return max_width;
+}
+
+static int pause_with_text_fit_column(int col, int term_wid, int text_width)
+{
+    int max_col;
+
+    if (col < 0)
+        col = 0;
+    if (term_wid <= 2 || text_width <= 0)
+        return col;
+
+    max_col = term_wid - text_width - 3;
+    if (max_col < 0)
+        max_col = 0;
+
+    if (col > max_col)
+        col = max_col;
+
+    return col;
+}
+
+static cptr pause_with_text_fit_segment_text(cptr text, int max_cols)
+{
+    if (!text)
+        return "";
+
+    while ((*text == ' ') && (max_cols > 0)
+        && ((int)strlen(text) > max_cols))
+    {
+        text++;
+    }
+
+    return text;
+}
+
 static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
                                                  cptr text, int delay_msec)
 {
@@ -6154,6 +6388,7 @@ static int pause_with_text_print_wrapped_segment(int row, int col, byte attr,
     if (max_cols < 1)
         max_cols = 1;
 
+    text = pause_with_text_fit_segment_text(text, MAX(1, max_cols - 1));
     wrap_col = col + max_cols;
 
     if (*text)
@@ -6201,6 +6436,7 @@ static int pause_with_text_count_wrapped_segment(int col, cptr text)
     if (max_cols < 1)
         max_cols = 1;
 
+    text = pause_with_text_fit_segment_text(text, MAX(1, max_cols - 1));
     wrap_col = col + max_cols;
 
     if (*text)
@@ -6239,6 +6475,9 @@ void pause_with_text(const char desc[][100], int row, int col,
         term_wid = 80;
     if (term_hgt < 1)
         term_hgt = 24;
+
+    col = pause_with_text_fit_column(col, term_wid,
+        pause_with_text_max_line_width(desc));
 
     sdl_story_font_enable();
     log_debug("Banner: story font enabled");

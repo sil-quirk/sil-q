@@ -6551,38 +6551,69 @@ void py_attack_aux(int y, int x, int attack_type)
                 do_knock_back = true;
             }
 
+            bool skip_take_hit = false;
+
             if (singing(SNG_SLAYING) && crit_bonus_dice > 0)
             {
                 int kill_threshold = ability_bonus(S_SNG, SNG_SLAYING);
                 if (m_ptr->hp <= kill_threshold)
                 {
-                    msg_format("Your song soars as %s falls before you.", m_name);
-
-                    /* Sort out combat rolls window */
-                    total_dice = 0;
-                    mds = 0;
-                    dam = m_ptr->hp;
-                    prt = 0;
-                    prt_percent = 0;
-
-                    /* Generate treasure */
-                    monster_death(m_idx);
-
-                    /* Auto-recall only if visible or unique */
-                    if (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE)))
+                    if ((m_ptr->r_idx == R_IDX_MORGOTH)
+                        && !p_ptr->morgoth_second_wind)
                     {
-                        monster_race_track(m_ptr->r_idx);
+                        int song_dam = m_ptr->hp;
+
+                        msg_format("Your song soars as %s reels at the edge "
+                                   "of doom.", m_name);
+
+                        /* Sort out combat rolls window */
+                        total_dice = 0;
+                        mds = 0;
+                        dam = song_dam;
+                        net_dam = song_dam;
+                        prt = 0;
+                        prt_percent = 0;
+
+                        if (morgoth_enter_final_stage(m_idx))
+                        {
+                            skip_take_hit = true;
+                        }
+                    }
+                    else
+                    {
+                        msg_format("Your song soars as %s falls before you.", m_name);
+
+                        /* Sort out combat rolls window */
+                        total_dice = 0;
+                        mds = 0;
+                        dam = m_ptr->hp;
+                        prt = 0;
+                        prt_percent = 0;
+
+                        /* Generate treasure */
+                        monster_death(m_idx);
+
+                        /* Auto-recall only if visible or unique */
+                        if (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE)))
+                        {
+                            monster_race_track(m_ptr->r_idx);
+                        }
+
+                        /* Delete the monster */
+                        delete_monster_idx(m_idx);
+
+                        fatal_blow = true;
                     }
 
-                    /* Delete the monster */
-                    delete_monster_idx(m_idx);
-                    
-                    fatal_blow = true;
+                    if (skip_take_hit)
+                    {
+                        p_ptr->vengeance = 0;
+                    }
                 }
             }
 
             // Take hit only if monster has not been killed by an ability already
-            if (!fatal_blow)
+            if (!fatal_blow && !skip_take_hit)
             {
                 // damage, check for death
                 fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
@@ -6610,6 +6641,11 @@ void py_attack_aux(int y, int x, int attack_type)
             {
                 ident_weapon_by_use(o_ptr, m_ptr, noticed_flag);
                 noticed_flag = false;
+            }
+
+            if (skip_take_hit)
+            {
+                break;
             }
 
             // deal with killing blows

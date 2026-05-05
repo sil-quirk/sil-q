@@ -99,7 +99,9 @@ android {
         }
         release {
             minifyEnabled false
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
