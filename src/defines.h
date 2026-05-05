@@ -921,6 +921,16 @@
 /// Icon (tile) to use as defined in `lib/pref/graf-tiles.prf`.
 #define ICON_GLOW 0x0C
 
+/// Depleted Brass Lantern tile (replaces the lit tile when timeout reaches 0).
+/// Icon (tile) to use as defined in `lib/pref/graf-tiles.prf`.
+#define ICON_LIGHT_DEPLETED_LANTERN 0x0D
+/// Depleted Wooden Torch tile (replaces the lit tile when timeout reaches 0).
+/// Icon (tile) to use as defined in `lib/pref/graf-tiles.prf`.
+#define ICON_LIGHT_DEPLETED_TORCH 0x0E
+/// Depleted Mallorn Torch tile (replaces the lit tile when timeout reaches 0).
+/// Icon (tile) to use as defined in `lib/pref/graf-tiles.prf`.
+#define ICON_LIGHT_DEPLETED_MALLORN 0x0F
+
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
 
 /* Nothing */
@@ -2699,20 +2709,27 @@
  *
  */
 #define object_attr(T)                                                         \
-    ((p_ptr->image)                                                            \
-            ? ((k_info[(T)->image_k_idx].flavor)                               \
-                      ? (flavor_info[k_info[(T)->image_k_idx].flavor].x_attr)  \
-                      : (k_info[(T)->image_k_idx].x_attr))                     \
-            : ((k_info[(T)->k_idx].flavor)                                     \
-                      ? (flavor_info[k_info[(T)->k_idx].flavor].x_attr)        \
-                      : graphics_are_ascii() ? weapon_glows(T)                 \
-                          ? (TERM_L_BLUE)                                      \
-                          : (((T)->name1 && a_info[(T)->name1].d_attr)         \
-                                    ? (a_info[(T)->name1].d_attr)              \
-                                    : (k_info[(T)->k_idx].x_attr))             \
-                      : weapon_glows(T)                                        \
-                      ? ((k_info[(T)->k_idx].x_attr) | GRAPHICS_GLOW_MASK)     \
-                      : (k_info[(T)->k_idx].x_attr)))
+    ((!p_ptr->image && !graphics_are_ascii() && depleted_light_p(T))           \
+            ? depleted_light_attr(T)                                           \
+            : ((p_ptr->image)                                                  \
+                      ? ((k_info[(T)->image_k_idx].flavor)                     \
+                                ? (flavor_info[k_info[(T)->image_k_idx]        \
+                                                   .flavor]                    \
+                                          .x_attr)                             \
+                                : (k_info[(T)->image_k_idx].x_attr))           \
+                      : ((k_info[(T)->k_idx].flavor)                           \
+                                ? (flavor_info[k_info[(T)->k_idx].flavor]      \
+                                          .x_attr)                             \
+                                : graphics_are_ascii() ? weapon_glows(T)       \
+                                    ? (TERM_L_BLUE)                            \
+                                    : (((T)->name1                             \
+                                           && a_info[(T)->name1].d_attr)       \
+                                              ? (a_info[(T)->name1].d_attr)    \
+                                              : (k_info[(T)->k_idx].x_attr))   \
+                                : weapon_glows(T)                              \
+                                ? ((k_info[(T)->k_idx].x_attr)                 \
+                                      | GRAPHICS_GLOW_MASK)                    \
+                                : (k_info[(T)->k_idx].x_attr))))
 /*
  * Return the "attr" for a k_idx.
  * Use "flavor" if available.
@@ -2728,16 +2745,21 @@
  * Default to user definitions.
  */
 #define object_char(T)                                                         \
-    ((p_ptr->image)                                                            \
-            ? ((k_info[(T)->image_k_idx].flavor)                               \
-                      ? (flavor_info[k_info[(T)->image_k_idx].flavor].x_char)  \
-                      : (k_info[(T)->image_k_idx].x_char))                     \
-            : ((k_info[(T)->k_idx].flavor)                                     \
-                      ? (flavor_info[k_info[(T)->k_idx].flavor].x_char)        \
-                      : (((T)->name1 && a_info[(T)->name1].d_char              \
-                             && graphics_are_ascii())                          \
-                                ? (a_info[(T)->name1].d_char)                  \
-                                : (k_info[(T)->k_idx].x_char))))
+    ((!p_ptr->image && !graphics_are_ascii() && depleted_light_p(T))           \
+            ? depleted_light_char(T)                                           \
+            : ((p_ptr->image)                                                  \
+                      ? ((k_info[(T)->image_k_idx].flavor)                     \
+                                ? (flavor_info[k_info[(T)->image_k_idx]        \
+                                                   .flavor]                    \
+                                          .x_char)                             \
+                                : (k_info[(T)->image_k_idx].x_char))           \
+                      : ((k_info[(T)->k_idx].flavor)                           \
+                                ? (flavor_info[k_info[(T)->k_idx].flavor]      \
+                                          .x_char)                             \
+                                : (((T)->name1 && a_info[(T)->name1].d_char    \
+                                       && graphics_are_ascii())                \
+                                          ? (a_info[(T)->name1].d_char)        \
+                                          : (k_info[(T)->k_idx].x_char)))))
 
 /*
  * Return the "attr" for a given item.

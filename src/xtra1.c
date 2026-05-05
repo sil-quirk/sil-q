@@ -1791,6 +1791,63 @@ bool weapon_glows(object_type* o_ptr)
 }
 
 /*
+ * Whether a TV_LIGHT item should be drawn with its "depleted" tile.
+ * Tiles graphics mode only; the caller is responsible for the mode check.
+ *
+ * Wooden Torches, Mallorn Torches, and Brass Lanterns all have a separate
+ * "depleted" tile that the renderer should swap in once the item has run out of
+ * fuel (i.e. timeout has reached 0).
+ */
+bool depleted_light_p(const object_type* o_ptr)
+{
+    // Ignore if not a light source.
+    if (o_ptr->tval != TV_LIGHT)
+        return (FALSE);
+    // Ignore if light source is not yet depleted.
+    if (o_ptr->timeout != 0)
+        return (FALSE);
+    // Only apply to a subset of light sources.
+    // For example, a Feanorian Lamp never depletes, so it is ignored.
+    return (o_ptr->sval == SV_LIGHT_LANTERN || o_ptr->sval == SV_LIGHT_TORCH
+        || o_ptr->sval == SV_LIGHT_MALLORN);
+}
+
+/*
+ * Tile row (attr) of the depleted-light variant for `o_ptr`.
+ * Coordinates come from `lib/pref/graf-tiles.prf`.
+ */
+byte depleted_light_attr(const object_type* o_ptr)
+{
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_LANTERN:
+        return (misc_to_attr[ICON_LIGHT_DEPLETED_LANTERN]);
+    case SV_LIGHT_TORCH:
+        return (misc_to_attr[ICON_LIGHT_DEPLETED_TORCH]);
+    case SV_LIGHT_MALLORN:
+        return (misc_to_attr[ICON_LIGHT_DEPLETED_MALLORN]);
+    }
+    return (k_info[o_ptr->k_idx].x_attr);
+}
+
+/*
+ * Tile column (char) of the depleted-light variant for `o_ptr`.
+ */
+char depleted_light_char(const object_type* o_ptr)
+{
+    switch (o_ptr->sval)
+    {
+    case SV_LIGHT_LANTERN:
+        return (misc_to_char[ICON_LIGHT_DEPLETED_LANTERN]);
+    case SV_LIGHT_TORCH:
+        return (misc_to_char[ICON_LIGHT_DEPLETED_TORCH]);
+    case SV_LIGHT_MALLORN:
+        return (misc_to_char[ICON_LIGHT_DEPLETED_MALLORN]);
+    }
+    return (k_info[o_ptr->k_idx].x_char);
+}
+
+/*
  * Extract and set the current "lite radius"
  */
 void calc_torch(void)
