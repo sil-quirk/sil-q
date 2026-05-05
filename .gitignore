@@ -7,11 +7,16 @@ build
 *.csv
 log.txt
 *.zip
+*.jks
+*.keystore
+*.env.ps1
 src.code-workspace
 *.bak*
 .clangd
 /sil-more-windows-sdl3
 /.cache
+/.venv/
+/src/.venv/
 # Allow .vscode for team settings, but ignore personal overrides
 .vscode/settings.local.json
 /lib/save

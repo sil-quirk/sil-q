@@ -1573,6 +1573,7 @@ extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
 extern bool sdl_unified_look_take_map_describe(int* y, int* x);
 extern bool sdl_unified_look_take_map_target(int* y, int* x);
+extern bool sdl_unified_look_take_map_pan(int* dy, int* dx);
 extern bool sdl_status_line_touch_zone_selected(int action, int col, int width);
 extern bool sdl_character_panel_touch_zone_selected(int action, int row);
 extern bool sdl_display_pixel_map(int* cy, int* cx);

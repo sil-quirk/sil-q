@@ -4683,6 +4683,86 @@ static void unified_look_pan_player_for_sidebar(bool center_vertical)
         handle_stuff();
 }
 
+static void unified_look_constrain_viewport(int* wy, int* wx)
+{
+    int max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
+    int max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
+
+    if (!wy || !wx)
+        return;
+
+    if (*wy < 0)
+        *wy = 0;
+    if (*wy > max_wy)
+        *wy = max_wy;
+    if (*wx < 0)
+        *wx = 0;
+    if (*wx > max_wx)
+        *wx = max_wx;
+}
+
+static void unified_look_clear_highlight(unified_look_state* state)
+{
+    if (!state)
+        return;
+
+    if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+            false);
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+    }
+}
+
+static bool unified_look_apply_map_pan(unified_look_state* state, int pan_dy,
+    int pan_dx, bool* need_redraw, bool* selection_redraw)
+{
+    int old_wy;
+    int old_wx;
+    int new_wy;
+    int new_wx;
+
+    if (!state || (pan_dy == 0 && pan_dx == 0))
+        return false;
+
+    old_wy = p_ptr->wy;
+    old_wx = p_ptr->wx;
+    new_wy = old_wy + pan_dy;
+    new_wx = old_wx + pan_dx;
+    unified_look_constrain_viewport(&new_wy, &new_wx);
+
+    if (!modify_panel(new_wy, new_wx))
+        return true;
+
+    state->cursor_y += p_ptr->wy - old_wy;
+    state->cursor_x += p_ptr->wx - old_wx;
+    if (state->cursor_y < 0)
+        state->cursor_y = 0;
+    if (state->cursor_y >= p_ptr->cur_map_hgt)
+        state->cursor_y = p_ptr->cur_map_hgt - 1;
+    if (state->cursor_x < 0)
+        state->cursor_x = 0;
+    if (state->cursor_x >= p_ptr->cur_map_wid)
+        state->cursor_x = p_ptr->cur_map_wid - 1;
+
+    state->in_sidebar_mode = false;
+    state->selected_entity = -1;
+    state->square_cycling_mode = false;
+    state->current_square_entity = 0;
+    unified_look_clear_highlight(state);
+
+    handle_stuff();
+
+    if (need_redraw)
+        *need_redraw = true;
+    if (selection_redraw)
+        *selection_redraw = false;
+
+    return true;
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -4899,6 +4979,8 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
+                int pan_dy = 0;
+                int pan_dx = 0;
                 int target_y = 0;
                 int target_x = 0;
                 int describe_y = 0;
@@ -4906,6 +4988,20 @@ void do_cmd_unified_look(void)
                 bool prompt_hover_redraw = false;
                 bool hover_redraw = ui_menu_click_take_hover_redraw();
 
+                if (sdl_unified_look_take_map_pan(&pan_dy, &pan_dx))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_map_pan(&state, pan_dy, pan_dx,
+                        &need_redraw, &selection_redraw);
+                    break;
+                }
                 if (sdl_unified_look_take_map_target(&target_y, &target_x))
                 {
                     if (overlay_saved)
