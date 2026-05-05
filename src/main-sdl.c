@@ -509,13 +509,19 @@ typedef struct unified_look_map_drag_state {
     bool active;
     bool mouse;
     bool dragged;
+    bool pinch_active;
     SDL_FingerID finger_id;
+    SDL_FingerID pinch_finger_id;
     float start_x;
     float start_y;
     float last_x;
     float last_y;
     float accum_x;
     float accum_y;
+    float pinch_x;
+    float pinch_y;
+    float pinch_start_distance;
+    int pinch_start_scale;
 } unified_look_map_drag_state;
 
 enum {
@@ -859,6 +865,9 @@ static bool g_unified_look_map_pan_pending = false;
 static bool g_unified_look_map_pan_wake_pending = false;
 static int g_unified_look_map_pan_dy = 0;
 static int g_unified_look_map_pan_dx = 0;
+static bool g_unified_look_main_zoom_pending = false;
+static bool g_unified_look_main_zoom_wake_pending = false;
+static int g_unified_look_main_zoom_scale = 0;
 static int g_main_screen_status_selected_action = SDL_STATUS_CLICK_NONE;
 static int g_main_screen_status_selected_col = -1;
 static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
@@ -919,6 +928,7 @@ static void sdl_gamepad_send_key_raw(int key);
 static bool sdl_gamepad_action_is_confirm(int binding);
 static void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt);
 static int sdl_keymap_mode(void);
+static int sdl_shifted_ascii_for_key(int key);
 static char sdl_direction_char_for_key(int key);
 static int sdl_direction_for_key_char(char ch);
 static bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift, bool ctrl, bool alt,
@@ -1048,6 +1058,8 @@ static bool sdl_unified_look_handle_map_drag_motion(float x, float y,
     bool mouse, SDL_FingerID finger_id);
 static bool sdl_unified_look_handle_map_drag_up(float x, float y,
     bool mouse, SDL_FingerID finger_id);
+static bool sdl_unified_look_handle_map_zoom_wheel(
+    const SDL_MouseWheelEvent* wheel);
 static void sdl_unified_look_cancel_map_drag(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 static bool sdl_unified_look_handle_map_describe_pointer(float x, float y);
@@ -5173,13 +5185,19 @@ static void sdl_unified_look_cancel_map_drag(void)
     g_unified_look_map_drag.active = false;
     g_unified_look_map_drag.mouse = false;
     g_unified_look_map_drag.dragged = false;
+    g_unified_look_map_drag.pinch_active = false;
     g_unified_look_map_drag.finger_id = 0;
+    g_unified_look_map_drag.pinch_finger_id = 0;
     g_unified_look_map_drag.start_x = 0.0f;
     g_unified_look_map_drag.start_y = 0.0f;
     g_unified_look_map_drag.last_x = 0.0f;
     g_unified_look_map_drag.last_y = 0.0f;
     g_unified_look_map_drag.accum_x = 0.0f;
     g_unified_look_map_drag.accum_y = 0.0f;
+    g_unified_look_map_drag.pinch_x = 0.0f;
+    g_unified_look_map_drag.pinch_y = 0.0f;
+    g_unified_look_map_drag.pinch_start_distance = 0.0f;
+    g_unified_look_map_drag.pinch_start_scale = 0;
 }
 
 static void sdl_unified_look_clear_map_hover(void)
@@ -5198,6 +5216,9 @@ static void sdl_unified_look_clear_map_hover(void)
     g_unified_look_map_pan_wake_pending = false;
     g_unified_look_map_pan_dy = 0;
     g_unified_look_map_pan_dx = 0;
+    g_unified_look_main_zoom_pending = false;
+    g_unified_look_main_zoom_wake_pending = false;
+    g_unified_look_main_zoom_scale = 0;
     sdl_unified_look_cancel_map_drag();
 }
 
@@ -5261,6 +5282,20 @@ bool sdl_unified_look_take_map_pan(int* dy, int* dx)
     return true;
 }
 
+bool sdl_unified_look_take_main_zoom(int* scale)
+{
+    if (!g_unified_look_main_zoom_pending)
+        return false;
+
+    if (scale)
+        *scale = g_unified_look_main_zoom_scale;
+
+    g_unified_look_main_zoom_pending = false;
+    g_unified_look_main_zoom_wake_pending = false;
+    g_unified_look_main_zoom_scale = 0;
+    return true;
+}
+
 static bool sdl_unified_look_point_to_drag_map(float x, float y)
 {
     int col = 0;
@@ -5294,11 +5329,161 @@ static void sdl_unified_look_queue_map_pan(int dy, int dx)
     }
 }
 
+static int sdl_unified_look_effective_zoom_scale(void)
+{
+    return g_unified_look_main_zoom_pending
+        ? g_unified_look_main_zoom_scale
+        : get_sdl_main_view_scale();
+}
+
+static int sdl_unified_look_clamp_zoom_scale(int scale)
+{
+    int max_scale = get_sdl_max_scale();
+
+    if (max_scale < 1)
+        max_scale = 1;
+    if (scale < 1)
+        scale = 1;
+    if (scale > max_scale)
+        scale = max_scale;
+
+    return scale;
+}
+
+static void sdl_unified_look_queue_main_zoom_target(int scale)
+{
+    scale = sdl_unified_look_clamp_zoom_scale(scale);
+    if (scale == sdl_unified_look_effective_zoom_scale())
+        return;
+
+    g_unified_look_main_zoom_scale = scale;
+    g_unified_look_main_zoom_pending = true;
+
+    if (!g_unified_look_main_zoom_wake_pending)
+    {
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        g_unified_look_main_zoom_wake_pending = true;
+    }
+}
+
+static void sdl_unified_look_queue_main_zoom_delta(int delta)
+{
+    if (delta == 0)
+        return;
+
+    sdl_unified_look_queue_main_zoom_target(
+        sdl_unified_look_effective_zoom_scale() + delta);
+}
+
+static float sdl_unified_look_pinch_distance(void)
+{
+    float dx = g_unified_look_map_drag.last_x
+        - g_unified_look_map_drag.pinch_x;
+    float dy = g_unified_look_map_drag.last_y
+        - g_unified_look_map_drag.pinch_y;
+
+    return SDL_sqrtf(dx * dx + dy * dy);
+}
+
+static int sdl_unified_look_zoom_delta_for_pinch_ratio(float ratio)
+{
+    int delta = 0;
+    float threshold = 1.20f;
+
+    if (ratio <= 0.0f)
+        return 0;
+
+    while (ratio >= threshold && delta < 20)
+    {
+        delta++;
+        threshold *= 1.25f;
+    }
+
+    threshold = 1.20f;
+    while (ratio <= 1.0f / threshold && delta > -20)
+    {
+        delta--;
+        threshold *= 1.25f;
+    }
+
+    return delta;
+}
+
+static void sdl_unified_look_update_map_pinch(void)
+{
+    float distance;
+    float ratio;
+    int delta;
+
+    if (!g_unified_look_map_drag.pinch_active)
+        return;
+    if (g_unified_look_map_drag.pinch_start_distance < 8.0f)
+        return;
+
+    distance = sdl_unified_look_pinch_distance();
+    ratio = distance / g_unified_look_map_drag.pinch_start_distance;
+    delta = sdl_unified_look_zoom_delta_for_pinch_ratio(ratio);
+    sdl_unified_look_queue_main_zoom_target(
+        g_unified_look_map_drag.pinch_start_scale + delta);
+}
+
+static bool sdl_unified_look_begin_map_pinch(float x, float y,
+    SDL_FingerID finger_id)
+{
+    if (!g_unified_look_map_drag.active
+        || g_unified_look_map_drag.mouse
+        || g_unified_look_map_drag.finger_id == finger_id)
+    {
+        return false;
+    }
+    if (g_unified_look_map_drag.pinch_active)
+        return true;
+
+    g_unified_look_map_drag.pinch_active = true;
+    g_unified_look_map_drag.dragged = true;
+    g_unified_look_map_drag.pinch_finger_id = finger_id;
+    g_unified_look_map_drag.pinch_x = x;
+    g_unified_look_map_drag.pinch_y = y;
+    g_unified_look_map_drag.pinch_start_distance =
+        sdl_unified_look_pinch_distance();
+    g_unified_look_map_drag.pinch_start_scale =
+        sdl_unified_look_effective_zoom_scale();
+    g_unified_look_map_drag.accum_x = 0.0f;
+    g_unified_look_map_drag.accum_y = 0.0f;
+    return true;
+}
+
+static bool sdl_unified_look_handle_map_zoom_wheel(
+    const SDL_MouseWheelEvent* wheel)
+{
+    float amount;
+
+    if (!wheel)
+        return false;
+    if (!g_unified_look_map_hover_enabled)
+        return false;
+    if (wheel->which == SDL_TOUCH_MOUSEID)
+        return true;
+    if (!sdl_unified_look_point_to_drag_map(wheel->mouse_x, wheel->mouse_y))
+        return false;
+
+    amount = (wheel->y != 0.0f) ? wheel->y : wheel->x;
+    if (amount > 0.0f)
+        sdl_unified_look_queue_main_zoom_delta(1);
+    else if (amount < 0.0f)
+        sdl_unified_look_queue_main_zoom_delta(-1);
+
+    return true;
+}
+
 static bool sdl_unified_look_handle_map_drag_down(float x, float y,
     bool mouse, SDL_FingerID finger_id)
 {
     if (!sdl_unified_look_point_to_drag_map(x, y))
         return false;
+
+    if (!mouse && sdl_unified_look_begin_map_pinch(x, y, finger_id))
+        return true;
 
     sdl_unified_look_cancel_map_drag();
     g_unified_look_map_drag.active = true;
@@ -5333,7 +5518,25 @@ static bool sdl_unified_look_handle_map_drag_motion(float x, float y,
         return false;
     }
     if (!mouse && g_unified_look_map_drag.finger_id != finger_id)
+    {
+        if (g_unified_look_map_drag.pinch_active
+            && g_unified_look_map_drag.pinch_finger_id == finger_id)
+        {
+            g_unified_look_map_drag.pinch_x = x;
+            g_unified_look_map_drag.pinch_y = y;
+            sdl_unified_look_update_map_pinch();
+            return true;
+        }
         return false;
+    }
+
+    if (!mouse && g_unified_look_map_drag.pinch_active)
+    {
+        g_unified_look_map_drag.last_x = x;
+        g_unified_look_map_drag.last_y = y;
+        sdl_unified_look_update_map_pinch();
+        return true;
+    }
 
     dx = x - g_unified_look_map_drag.last_x;
     dy = y - g_unified_look_map_drag.last_y;
@@ -5402,7 +5605,21 @@ static bool sdl_unified_look_handle_map_drag_up(float x, float y,
         return false;
     }
     if (!mouse && g_unified_look_map_drag.finger_id != finger_id)
+    {
+        if (g_unified_look_map_drag.pinch_active
+            && g_unified_look_map_drag.pinch_finger_id == finger_id)
+        {
+            sdl_unified_look_cancel_map_drag();
+            return true;
+        }
         return false;
+    }
+
+    if (!mouse && g_unified_look_map_drag.pinch_active)
+    {
+        sdl_unified_look_cancel_map_drag();
+        return true;
+    }
 
     dragged = g_unified_look_map_drag.dragged;
     sdl_unified_look_cancel_map_drag();
@@ -15795,6 +16012,37 @@ static int sdl_keymap_mode(void)
     return KEYMAP_MODE_ANGBAND_HJKL;
 }
 
+static int sdl_shifted_ascii_for_key(int key)
+{
+    if (key < 0 || key >= 256)
+        return 0;
+
+    switch (key) {
+    case '1': return '!';
+    case '2': return '@';
+    case '3': return '#';
+    case '4': return '$';
+    case '5': return '%';
+    case '6': return '^';
+    case '7': return '&';
+    case '8': return '*';
+    case '9': return '(';
+    case '0': return ')';
+    case '-': return '_';
+    case '=': return '+';
+    case ',': return '<';
+    case '.': return '>';
+    case '/': return '?';
+    case '[': return '{';
+    case ']': return '}';
+    case ';': return ':';
+    case '\'': return '"';
+    case '\\': return '|';
+    case '`': return '~';
+    default: return 0;
+    }
+}
+
 static char sdl_direction_char_for_key(int key)
 {
     switch (key) {
@@ -15905,6 +16153,7 @@ static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_e
     bool ctrl;
     bool gui;
     SDL_Keycode base_key;
+    int shifted_ascii;
 
     if (!key_event)
         return false;
@@ -15914,10 +16163,19 @@ static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_e
     ctrl = key_event->mod & SDL_KMOD_CTRL;
     gui = key_event->mod & SDL_KMOD_GUI;
 
+    base_key = SDL_GetKeyFromScancode(key_event->scancode, SDL_KMOD_NONE, false);
+
+    /* Shifted punctuation is normally a distinct command (<, >, *, ?).
+     * Do not reinterpret it as Shift plus the unshifted key's keymap action. */
+    shifted_ascii = sdl_shifted_ascii_for_key(key_event->key);
+    if (!shifted_ascii && base_key != key_event->key)
+        shifted_ascii = sdl_shifted_ascii_for_key(base_key);
+    if (shift && !ctrl && !alt && !gui && shifted_ascii)
+        return false;
+
     if (sdl_try_send_modified_direction_key(key_event->key, shift, ctrl, alt, gui))
         return true;
 
-    base_key = SDL_GetKeyFromScancode(key_event->scancode, SDL_KMOD_NONE, false);
     if (base_key != key_event->key
         && sdl_try_send_modified_direction_key(base_key, shift, ctrl, alt, gui))
     {
@@ -18107,6 +18365,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         sdl_mouse_path_handle_motion((float)ev->motion.x, (float)ev->motion.y);
     } else if (ev->type == SDL_EVENT_MOUSE_WHEEL) {
+        if (sdl_unified_look_handle_map_zoom_wheel(&ev->wheel))
+            return;
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
             return;
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {

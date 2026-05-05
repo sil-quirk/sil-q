@@ -4763,6 +4763,35 @@ static bool unified_look_apply_map_pan(unified_look_state* state, int pan_dy,
     return true;
 }
 
+static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
+{
+    int max_scale = get_sdl_max_scale();
+    int old_scale = get_sdl_main_view_scale();
+
+    if (max_scale < 1)
+        max_scale = 1;
+    if (scale < 1)
+        scale = 1;
+    if (scale > max_scale)
+        scale = max_scale;
+    if (scale == old_scale)
+        return true;
+
+    set_sdl_main_view_scale(scale);
+    if (get_sdl_main_view_scale() == old_scale)
+        return true;
+
+    sdl_apply_config();
+    p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+    p_ptr->window |= (PW_OVERHEAD);
+    handle_stuff();
+
+    if (need_redraw)
+        *need_redraw = true;
+
+    return true;
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -4777,6 +4806,9 @@ void do_cmd_unified_look(void)
     bool original_suppress_hidden_left_panel_overlay
         = g_suppress_hidden_left_panel_overlay;
     bool look_adjusts_left_panel = false;
+    bool look_adjusts_supporting_panes = false;
+    bool original_hide_supporting_panes_fullscreen = op_ptr
+        ? op_ptr->opt[OPT_hide_supporting_panes_fullscreen] : false;
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
@@ -4805,6 +4837,10 @@ void do_cmd_unified_look(void)
     g_suppress_hidden_left_panel_overlay = true;
     g_hide_left_panel = true;
     look_adjusts_left_panel = true;
+    if (op_ptr)
+        op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = true;
+    screen_push_supporting_panes_hidden();
+    look_adjusts_supporting_panes = true;
     p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
     p_ptr->window |= (PW_OVERHEAD);
     handle_stuff();
@@ -4979,6 +5015,7 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
+                int zoom_scale = 0;
                 int pan_dy = 0;
                 int pan_dx = 0;
                 int target_y = 0;
@@ -4988,6 +5025,20 @@ void do_cmd_unified_look(void)
                 bool prompt_hover_redraw = false;
                 bool hover_redraw = ui_menu_click_take_hover_redraw();
 
+                if (sdl_unified_look_take_main_zoom(&zoom_scale))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_main_zoom(zoom_scale,
+                        &need_redraw);
+                    break;
+                }
                 if (sdl_unified_look_take_map_pan(&pan_dy, &pan_dx))
                 {
                     if (overlay_saved)
@@ -6232,6 +6283,15 @@ cycle_display_modes:
         g_hide_left_panel = original_hide_left_panel;
         g_suppress_hidden_left_panel_overlay
             = original_suppress_hidden_left_panel_overlay;
+        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+    }
+    if (look_adjusts_supporting_panes)
+    {
+        screen_pop_supporting_panes_hidden();
+        if (op_ptr)
+            op_ptr->opt[OPT_hide_supporting_panes_fullscreen]
+                = original_hide_supporting_panes_fullscreen;
         p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
         p_ptr->window |= (PW_OVERHEAD);
     }
