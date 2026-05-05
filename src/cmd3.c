@@ -4053,10 +4053,18 @@ static int unified_look_status_row(void)
 
 static int unified_look_prompt_row(void)
 {
-    if (Term && Term->hgt > 0)
-        return Term->hgt - 1;
+    int row;
 
-    return 0;
+    if (!Term || Term->hgt <= 0)
+        return 0;
+
+    row = ROW_MAP + SCREEN_HGT - 1;
+    if (row < 0)
+        row = 0;
+    if (row >= Term->hgt)
+        row = Term->hgt - 1;
+
+    return row;
 }
 
 static void unified_look_put_row(cptr text, int row)
@@ -4266,6 +4274,13 @@ static void unified_look_print_controller_prompt(
     char obj_full[32];
     char mode_full[32];
     char back_full[32];
+    char prev_compact[32];
+    char next_compact[32];
+    char exam_compact[32];
+    char target_compact[32];
+    char obj_compact[32];
+    char mode_compact[32];
+    char back_compact[32];
     cptr obj_action = compact_look_layout ? "View" : "Objects";
     cptr mode_action = cursor_mode ? "Cursor" : "Pan";
 
@@ -4284,22 +4299,36 @@ static void unified_look_print_controller_prompt(
     strnfmt(obj_full, sizeof(obj_full), "%s %s", obj_label, obj_action);
     strnfmt(mode_full, sizeof(mode_full), "%s %s", mode_label, mode_action);
     strnfmt(back_full, sizeof(back_full), "%s Back", back_label);
+    strnfmt(prev_compact, sizeof(prev_compact), "%s Prv", prev_label);
+    strnfmt(next_compact, sizeof(next_compact), "%s Nxt", next_label);
+    strnfmt(exam_compact, sizeof(exam_compact), "%s Ex", exam_label);
+    strnfmt(target_compact, sizeof(target_compact), "%s Tgt", target_label);
+    strnfmt(obj_compact, sizeof(obj_compact), "%s %s", obj_label,
+        compact_look_layout ? "Vw" : "Obj");
+    strnfmt(mode_compact, sizeof(mode_compact), "%s %s", mode_label,
+        cursor_mode ? "Cur" : "Pan");
+    strnfmt(back_compact, sizeof(back_compact), "%s Bk", back_label);
 
     {
-        const unified_look_prompt_button buttons[] = {
-            { 'e', prev_full, "Prev", "Prev", "Prv" },
-            { 'i', next_full, "Next", "Next", "Nxt" },
-            { ' ', exam_full, "Exam", "Exam", "Ex" },
-            { 'f', target_full, "Target", "Targ", "Tgt" },
-            { 'u', obj_full, obj_action, compact_look_layout ? "View" : "Obj",
-                compact_look_layout ? "View" : "Obj" },
-            { 's', mode_full, mode_action, cursor_mode ? "Curs" : "Pan",
-                cursor_mode ? "Cur" : "Pan" },
-            { ESCAPE, back_full, "Back", "Back", "Esc" },
-        };
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
 
-        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons),
-            register_clicks);
+        buttons[count++] = (unified_look_prompt_button)
+            { 'e', prev_full, prev_full, prev_compact, prev_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', next_full, next_full, next_compact, next_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', exam_full, exam_full, exam_compact, exam_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'f', target_full, target_full, target_compact, target_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'u', obj_full, obj_full, obj_compact, obj_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', mode_full, mode_full, mode_compact, mode_label };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, back_full, back_full, back_compact, back_label };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
     }
 }
 
@@ -4307,7 +4336,6 @@ static void unified_look_print_keyboard_prompt(bool cursor_mode,
     cptr filter_action, bool register_clicks)
 {
     char filter_full[32];
-    cptr mode_action = cursor_mode ? "Cursor" : "Pan";
 
     if (!filter_action)
         filter_action = "";
@@ -4315,23 +4343,35 @@ static void unified_look_print_keyboard_prompt(bool cursor_mode,
     strnfmt(filter_full, sizeof(filter_full), "i %s", filter_action);
 
     {
-        const unified_look_prompt_button buttons[] = {
-            { '\t', "Tab Next", "Next", "Next", "Nxt" },
-            { 'q', "q Prev", "Prev", "Prev", "Prv" },
-            { ' ', "Space Exam", "Exam", "Exam", "Ex" },
-            { 't', "t Target", "Target", "Targ", "Tgt" },
-            { 'i', filter_full, filter_action, filter_action, filter_action },
-            { 'l', "l Display", "Display", "Disp", "Dsp" },
-            { 'm', "m Monsters", "Monsters", "Mon", "Mon" },
-            { 'o', "o Objects", "Objects", "Obj", "Obj" },
-            { 'T', "T Top5", "Top5", "Top", "Top" },
-            { 's', cursor_mode ? "s Cursor" : "s Pan", mode_action,
-                cursor_mode ? "Curs" : "Pan", cursor_mode ? "Cur" : "Pan" },
-            { ESCAPE, "Esc Back", "Back", "Back", "Esc" },
-        };
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
 
-        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons),
-            register_clicks);
+        buttons[count++] = (unified_look_prompt_button)
+            { '\t', "Tab Next", "Tab Next", "Tab N", "Tab" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'q', "q Prev", "q Prev", "q P", "q" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', "Space Exam", "Sp Exam", "Sp Ex", "Sp" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 't', "t Target", "t Target", "t Tgt", "t" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', filter_full, filter_full, filter_full, "i" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'l', "l Display", "l Disp", "l Dsp", "l" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'm', "m Monsters", "m Mon", "m Mon", "m" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'o', "o Objects", "o Obj", "o Obj", "o" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'T', "T Top5", "T Top", "T Top", "T" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', cursor_mode ? "s Cursor" : "s Pan",
+                cursor_mode ? "s Cursor" : "s Pan",
+                cursor_mode ? "s Cur" : "s Pan", "s" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, "Esc Back", "Esc Back", "Esc", "Esc" };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
     }
 }
 
@@ -4356,6 +4396,14 @@ static void unified_look_update_prompt_buttons(bool controller_controls,
 {
     unified_look_update_prompt_buttons_ex(controller_controls,
         compact_look_layout, cursor_mode, nearby_filter, true);
+}
+
+static void unified_look_restore_map_cursor(const unified_look_state* state)
+{
+    if (!state)
+        return;
+
+    move_cursor_relative(state->cursor_y, state->cursor_x);
 }
 
 static bool unified_look_format_monster_status(int m_idx, char* out_val,
@@ -4912,6 +4960,7 @@ void do_cmd_unified_look(void)
                         unified_look_update_prompt_buttons_ex(
                             controller_controls, compact_look_layout,
                             state.look_mode != 0, state.nearby_filter, false);
+                        unified_look_restore_map_cursor(&state);
                     }
                     break;
                 }
@@ -4924,6 +4973,7 @@ void do_cmd_unified_look(void)
                     unified_look_update_prompt_buttons_ex(controller_controls,
                         compact_look_layout, state.look_mode != 0,
                         state.nearby_filter, false);
+                    unified_look_restore_map_cursor(&state);
                 }
 
                 break;

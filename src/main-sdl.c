@@ -20908,6 +20908,11 @@ static void sdl_touch_tutorial_run_with_profile_choice(void)
 {
     bool full = sdl_touch_tutorial_full_mode();
 
+    if (!full) {
+        sdl_touch_tutorial_run(false, false);
+        return;
+    }
+
     for (;;) {
         int choice;
 
