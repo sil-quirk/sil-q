@@ -3928,7 +3928,7 @@ static void unified_look_select_sidebar_entity(unified_look_state* state,
 
 enum
 {
-    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 12,
+    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 16,
     UNIFIED_LOOK_CLICK_COMMAND_BASE = -1000,
     UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND = -1300
 };
@@ -4274,6 +4274,8 @@ static void unified_look_print_controller_prompt(
     char obj_full[32];
     char mode_full[32];
     char back_full[32];
+    char zoom_in_full[32];
+    char zoom_out_full[32];
     char prev_compact[32];
     char next_compact[32];
     char exam_compact[32];
@@ -4281,6 +4283,8 @@ static void unified_look_print_controller_prompt(
     char obj_compact[32];
     char mode_compact[32];
     char back_compact[32];
+    char zoom_in_compact[32];
+    char zoom_out_compact[32];
     cptr obj_action = compact_look_layout ? "View" : "Objects";
     cptr mode_action = cursor_mode ? "Cursor" : "Pan";
 
@@ -4299,6 +4303,8 @@ static void unified_look_print_controller_prompt(
     strnfmt(obj_full, sizeof(obj_full), "%s %s", obj_label, obj_action);
     strnfmt(mode_full, sizeof(mode_full), "%s %s", mode_label, mode_action);
     strnfmt(back_full, sizeof(back_full), "%s Back", back_label);
+    SDL_strlcpy(zoom_in_full, "Zoom +", sizeof(zoom_in_full));
+    SDL_strlcpy(zoom_out_full, "Zoom -", sizeof(zoom_out_full));
     strnfmt(prev_compact, sizeof(prev_compact), "%s Prv", prev_label);
     strnfmt(next_compact, sizeof(next_compact), "%s Nxt", next_label);
     strnfmt(exam_compact, sizeof(exam_compact), "%s Ex", exam_label);
@@ -4308,6 +4314,8 @@ static void unified_look_print_controller_prompt(
     strnfmt(mode_compact, sizeof(mode_compact), "%s %s", mode_label,
         cursor_mode ? "Cur" : "Pan");
     strnfmt(back_compact, sizeof(back_compact), "%s Bk", back_label);
+    SDL_strlcpy(zoom_in_compact, "Z+", sizeof(zoom_in_compact));
+    SDL_strlcpy(zoom_out_compact, "Z-", sizeof(zoom_out_compact));
 
     {
         unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
@@ -4326,7 +4334,73 @@ static void unified_look_print_controller_prompt(
         buttons[count++] = (unified_look_prompt_button)
             { 's', mode_full, mode_full, mode_compact, mode_label };
         buttons[count++] = (unified_look_prompt_button)
+            { '+', zoom_in_full, zoom_in_full, zoom_in_compact, zoom_in_compact };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', zoom_out_full, zoom_out_full, zoom_out_compact, zoom_out_compact };
+        buttons[count++] = (unified_look_prompt_button)
             { ESCAPE, back_full, back_full, back_compact, back_label };
+
+        unified_look_print_prompt_buttons(buttons, count, register_clicks);
+    }
+}
+
+static void unified_look_print_touch_prompt(bool compact_look_layout,
+    bool cursor_mode, cptr filter_action, bool register_clicks)
+{
+    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    bool extended = (term_wid >= 90);
+    char filter_full[32];
+    char display_full[32];
+    char display_compact[32];
+    char mode_full[32];
+    char mode_compact[32];
+    cptr display_action = compact_look_layout ? "View" : "Display";
+
+    if (!filter_action)
+        filter_action = "";
+
+    strnfmt(filter_full, sizeof(filter_full), "%s", filter_action);
+    strnfmt(display_full, sizeof(display_full), "%s", display_action);
+    strnfmt(display_compact, sizeof(display_compact), "%s",
+        compact_look_layout ? "View" : "Disp");
+    strnfmt(mode_full, sizeof(mode_full), "%s", cursor_mode ? "Cursor" : "Pan");
+    strnfmt(mode_compact, sizeof(mode_compact), "%s",
+        cursor_mode ? "Cur" : "Pan");
+
+    {
+        unified_look_prompt_button buttons[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+        int count = 0;
+
+        buttons[count++] = (unified_look_prompt_button)
+            { '\t', "Next", "Next", "Nxt", "Nxt" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'q', "Prev", "Prev", "Prv", "Prv" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ' ', "Examine", "Exam", "Ex", "Ex" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 't', "Target", "Target", "Tgt", "Tgt" };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'i', filter_full, filter_full, filter_full, filter_full };
+        buttons[count++] = (unified_look_prompt_button)
+            { 'l', display_full, display_full, display_compact,
+                display_compact };
+        if (extended)
+        {
+            buttons[count++] = (unified_look_prompt_button)
+                { 'm', "Monsters", "Mon", "Mon", "Mon" };
+            buttons[count++] = (unified_look_prompt_button)
+                { 'o', "Objects", "Obj", "Obj", "Obj" };
+            buttons[count++] = (unified_look_prompt_button)
+                { 'T', "Top 5", "Top 5", "Top", "Top" };
+        }
+        buttons[count++] = (unified_look_prompt_button)
+            { 's', mode_full, mode_full, mode_compact, mode_compact };
+        buttons[count++] = (unified_look_prompt_button)
+            { '+', "Zoom +", "Zoom +", "Z+", "Z+" };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', "Zoom -", "Zoom -", "Z-", "Z-" };
+        buttons[count++] = (unified_look_prompt_button)
+            { ESCAPE, "Back", "Back", "Back", "Back" };
 
         unified_look_print_prompt_buttons(buttons, count, register_clicks);
     }
@@ -4369,6 +4443,10 @@ static void unified_look_print_keyboard_prompt(bool cursor_mode,
                 cursor_mode ? "s Cursor" : "s Pan",
                 cursor_mode ? "s Cur" : "s Pan", "s" };
         buttons[count++] = (unified_look_prompt_button)
+            { '+', "+ Zoom", "+ Zoom", "+ Zm", "+" };
+        buttons[count++] = (unified_look_prompt_button)
+            { '-', "- Zoom", "- Zoom", "- Zm", "-" };
+        buttons[count++] = (unified_look_prompt_button)
             { ESCAPE, "Esc Back", "Esc Back", "Esc", "Esc" };
 
         unified_look_print_prompt_buttons(buttons, count, register_clicks);
@@ -4379,7 +4457,12 @@ static void unified_look_update_prompt_buttons_ex(bool controller_controls,
     bool compact_look_layout, bool cursor_mode, bool nearby_filter,
     bool register_clicks)
 {
-    if (controller_controls)
+    if (sdl_touch_only_device_active())
+    {
+        unified_look_print_touch_prompt(compact_look_layout, cursor_mode,
+            nearby_filter ? "All" : "Near", register_clicks);
+    }
+    else if (controller_controls)
     {
         unified_look_print_controller_prompt(compact_look_layout, cursor_mode,
             register_clicks);
@@ -4781,7 +4864,7 @@ static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
     if (get_sdl_main_view_scale() == old_scale)
         return true;
 
-    sdl_apply_config();
+    sdl_apply_config_no_redraw();
     p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA | PR_HEALTHBAR | PR_MAP);
     p_ptr->window |= (PW_OVERHEAD);
     handle_stuff();
@@ -4886,6 +4969,7 @@ void do_cmd_unified_look(void)
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
     const bool controller_controls = steamdeck_controls_active();
+    sdl_unified_look_set_active(true);
     sdl_unified_look_set_map_hover_enabled(true);
 
     if (!g_unified_look_has_start
@@ -5402,6 +5486,20 @@ void do_cmd_unified_look(void)
                 need_redraw = true;
                 break;
             }
+
+            case '+':
+            {
+                (void)unified_look_apply_main_zoom(
+                    get_sdl_main_view_scale() + 1, &need_redraw);
+                break;
+            }
+
+            case '-':
+            {
+                (void)unified_look_apply_main_zoom(
+                    get_sdl_main_view_scale() - 1, &need_redraw);
+                break;
+            }
             
             case '[':            /* View monsters */
             case ']':            /* View objects */
@@ -5418,7 +5516,6 @@ void do_cmd_unified_look(void)
             case 'g':            /* Get/Pickup */
             case 'c':            /* Close */
             case 'j':            /* Jam */
-            case '+':            /* Alter */
             case '*':            /* Target */
             case '@':            /* Center map */
             case '(':            /* Dungeon history */
@@ -6258,6 +6355,7 @@ cycle_display_modes:
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    sdl_unified_look_set_active(false);
     sdl_unified_look_set_map_hover_enabled(false);
 
     if (overlay_saved)

@@ -103,6 +103,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
     {.pane = PANE_CHARACTER, .where = PLACE_RIGHT, .enabled = false},
+    {.pane = PANE_MAP, .where = PLACE_RIGHT, .enabled = false, .rect.rows = 12},
     {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = false},
     // In the bottom
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
@@ -630,6 +631,27 @@ typedef struct minimap_state {
     int pinch_start_zoom_step;
 } minimap_state;
 
+typedef struct side_map_pane_state {
+    int zoom_step;
+    bool default_zoom_pending;
+    float pan_x;
+    float pan_y;
+    bool drag_active;
+    bool drag_mouse;
+    SDL_FingerID drag_finger_id;
+    float drag_last_x;
+    float drag_last_y;
+    minimap_touch_finger fingers[MINIMAP_MAX_TOUCH_FINGERS];
+    bool pinch_active;
+    int pinch_finger_a;
+    int pinch_finger_b;
+    float pinch_start_distance;
+    int pinch_start_zoom_step;
+    s16b last_depth;
+    byte last_map_hgt;
+    byte last_map_wid;
+} side_map_pane_state;
+
 typedef struct pointer_attack_state {
     int mode;
     int panel_hover_mode;
@@ -842,6 +864,10 @@ static bool g_map_touch_selected = false;
 static int g_map_touch_selected_y = 0;
 static int g_map_touch_selected_x = 0;
 static minimap_state g_minimap;
+static side_map_pane_state g_side_map_pane = {
+    .default_zoom_pending = true,
+    .last_depth = -32768
+};
 static bool g_minimap_pending_focus_active = false;
 static int g_minimap_pending_focus_y = -1;
 static int g_minimap_pending_focus_x = -1;
@@ -849,6 +875,7 @@ static pointer_attack_state g_pointer_attack = {
     .mode = SDL_POINTER_ATTACK_MELEE
 };
 static mouse_path_state g_mouse_path;
+static bool g_unified_look_active = false;
 static bool g_unified_look_map_hover_enabled = false;
 static bool g_unified_look_map_hover_pending = false;
 static bool g_unified_look_map_hover_wake_pending = false;
@@ -882,6 +909,9 @@ static int g_auto_aux_main_cell_h_override = 0;
 #if SIL_SDL_MOBILE_BUILD
 static bool g_mobile_lifecycle_watch_registered = false;
 static bool g_mobile_lifecycle_autosaved = false;
+#endif
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+static bool g_mobile_first_start_auto_scale_pending = false;
 #endif
 
 static sdl_view* sdl_view_from_term(term* t);
@@ -1098,6 +1128,18 @@ static bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
     SDL_FingerID finger_id);
 static bool sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id);
 static void sdl_menu_scroll_cancel(void);
+static bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect);
+static void sdl_side_map_pane_render(void);
+static bool sdl_side_map_pane_handle_mouse_wheel(
+    const SDL_MouseWheelEvent* wheel);
+static bool sdl_side_map_pane_handle_pointer_down(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static bool sdl_side_map_pane_handle_pointer_motion(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static bool sdl_side_map_pane_handle_pointer_up(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static void sdl_side_map_pane_cancel_pointer(SDL_FingerID finger_id,
+    bool mouse);
 static bool sdl_minimap_handle_event(const SDL_Event* ev);
 static bool sdl_minimap_handle_gamepad_button(SDL_GamepadButton button,
     bool down);
@@ -1161,7 +1203,6 @@ static void sdl_mouse_path_handle_motion(float x, float y);
 static bool sdl_mouse_path_handle_left_click(float x, float y);
 static bool sdl_mouse_path_handle_right_movement_click(float x, float y);
 static bool sdl_mouse_recall_handle_right_click(float x, float y);
-static bool sdl_mouse_target_handle_left_click(float x, float y);
 static void sdl_mouse_path_render(void);
 bool sdl_pointer_attack_take_command(int* command, int* dir);
 bool sdl_mouse_path_take_step_command(int* command, int* dir);
@@ -2113,6 +2154,15 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].ratio = 0.0f;
             break;
 
+        case PANE_MAP:
+            configs[i].where = PLACE_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 12;
+            configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
         case PANE_TOUCH:
             configs[i].where = PLACE_DOUBLE_RIGHT;
             configs[i].enabled = false;
@@ -2558,6 +2608,37 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
     log_info("Mobile default right panes: inventory=%s worn=%s",
         inventory_enabled ? "on" : "off",
         worn_enabled ? "on" : "off");
+}
+
+static bool sdl_mobile_maybe_apply_first_start_auto_scale(const char* reason)
+{
+    SDL_Rect screen;
+    int old_scale;
+    int max_scale;
+
+    if (!g_mobile_first_start_auto_scale_pending)
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    old_scale = config.main_view_scale;
+    max_scale = sdl_max_scale_for_rect(&screen);
+    for (int scale = max_scale; scale > old_scale; scale--) {
+        if (!sdl_mobile_layout_fits(&screen, scale, pane_config,
+                pane_config_count, NULL, NULL, NULL, NULL, NULL))
+            continue;
+
+        config.main_view_scale = scale;
+        g_mobile_first_start_auto_scale_pending = false;
+        log_info("%s: raised first-start mobile main_view_scale from %d to %d after window layout settled",
+            reason ? reason : "startup",
+            old_scale, config.main_view_scale);
+        return true;
+    }
+
+    return false;
 }
 #endif
 
@@ -4001,6 +4082,24 @@ static bool sdl_touch_pane_current_rect(SDL_Rect* out_rect)
     return true;
 }
 
+static bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect)
+{
+    const SDL_Rect* pane;
+
+    if (!sdl_should_show_supporting_panes())
+        return false;
+    if (!sdl_layout_matches_supporting_pane_visibility())
+        return false;
+
+    pane = &g_pane_rects[PANE_MAP];
+    if (pane->w <= 0 || pane->h <= 0)
+        return false;
+
+    if (out_rect)
+        *out_rect = *pane;
+    return true;
+}
+
 static float sdl_touch_pane_clampf(float value, float min_value, float max_value)
 {
     if (value < min_value)
@@ -5180,6 +5279,20 @@ void sdl_unified_look_set_map_hover_enabled(bool enabled)
     sdl_unified_look_clear_map_hover();
 }
 
+void sdl_unified_look_set_active(bool active)
+{
+    g_unified_look_active = active;
+    if (!active)
+        sdl_unified_look_set_map_hover_enabled(false);
+    else
+        sdl_unified_look_clear_map_hover();
+}
+
+static bool sdl_unified_look_pointer_input_active(void)
+{
+    return g_unified_look_active && g_unified_look_map_hover_enabled;
+}
+
 static void sdl_unified_look_cancel_map_drag(void)
 {
     g_unified_look_map_drag.active = false;
@@ -5303,7 +5416,7 @@ static bool sdl_unified_look_point_to_drag_map(float x, float y)
     int map_y = 0;
     int map_x = 0;
 
-    if (!g_unified_look_map_hover_enabled)
+    if (!sdl_unified_look_pointer_input_active())
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
@@ -5460,7 +5573,7 @@ static bool sdl_unified_look_handle_map_zoom_wheel(
 
     if (!wheel)
         return false;
-    if (!g_unified_look_map_hover_enabled)
+    if (!sdl_unified_look_pointer_input_active())
         return false;
     if (wheel->which == SDL_TOUCH_MOUSEID)
         return true;
@@ -5647,7 +5760,7 @@ static bool sdl_unified_look_handle_map_hover_pointer(float x, float y)
     int map_y = 0;
     int map_x = 0;
 
-    if (!g_unified_look_map_hover_enabled)
+    if (!sdl_unified_look_pointer_input_active())
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
@@ -8068,7 +8181,7 @@ static bool sdl_unified_look_handle_map_describe_pointer(float x, float y)
     int map_y = 0;
     int map_x = 0;
 
-    if (!g_unified_look_map_hover_enabled)
+    if (!sdl_unified_look_pointer_input_active())
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
@@ -8096,7 +8209,7 @@ static bool sdl_unified_look_handle_map_target_pointer(float x, float y)
     int map_y = 0;
     int map_x = 0;
 
-    if (!g_unified_look_map_hover_enabled)
+    if (!sdl_unified_look_pointer_input_active())
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
@@ -8216,48 +8329,6 @@ static bool sdl_mouse_recall_handle_right_click_if_available(float x, float y)
     g_mouse_path.recall_x = map_x;
     sdl_mouse_path_cancel();
     Term_keypress(UI_MENU_CLICK_WAKE_KEY);
-    return true;
-}
-
-static bool sdl_mouse_target_handle_left_click(float x, float y)
-{
-    int map_y = 0;
-    int map_x = 0;
-    int m_idx = 0;
-    monster_type* m_ptr;
-    char m_name[80];
-
-    if (!sdl_main_screen_click_shortcuts_active())
-        return false;
-    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
-        return false;
-    if (!sdl_mouse_grid_has_visible_monster(map_y, map_x, &m_idx))
-        return false;
-
-    m_ptr = &mon_list[m_idx];
-    monster_race_track(m_ptr->r_idx);
-    health_track(m_idx);
-    sdl_mouse_path_cancel();
-    sdl_pointer_attack_clear_hover();
-    sdl_pointer_attack_clear_touch_selection();
-
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
-    if (!target_able(m_idx)) {
-        bell("No clear target.");
-        handle_stuff();
-        if (Term)
-            Term_fresh();
-        g_state.need_present = true;
-        return true;
-    }
-
-    target_set_monster(m_idx);
-    msg_format("Target set to %s.", m_name);
-    p_ptr->redraw |= PR_BASIC | PR_MAP;
-    handle_stuff();
-    if (Term)
-        Term_fresh();
-    g_state.need_present = true;
     return true;
 }
 
@@ -9948,6 +10019,8 @@ static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
 
     if (pane < PANE_MAIN || pane >= PANE_MAX)
         return false;
+    if ((int)pane >= MAX_TERM_DATA)
+        return false;
 
     view = &g_views[pane];
     if (!view->term_ready || !view->canvas)
@@ -9958,9 +10031,16 @@ static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
 static bool sdl_menu_pointer_hits_non_main_pane(float x, float y)
 {
     SDL_Rect touch_rect;
+    SDL_Rect map_rect;
 
     if (sdl_touch_pane_current_rect(&touch_rect)
         && sdl_point_in_rect(&touch_rect, x, y))
+    {
+        return true;
+    }
+
+    if (sdl_side_map_pane_current_rect(&map_rect)
+        && sdl_point_in_rect(&map_rect, x, y))
     {
         return true;
     }
@@ -18328,6 +18408,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_side_map_pane_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y, true, 0))
+        {
+            return;
+        }
         if (sdl_menu_touch_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, 0, true))
         {
@@ -18367,6 +18452,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_MOUSE_WHEEL) {
         if (sdl_unified_look_handle_map_zoom_wheel(&ev->wheel))
             return;
+        if (sdl_side_map_pane_handle_mouse_wheel(&ev->wheel))
+            return;
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
             return;
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -18389,6 +18476,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_unified_look_handle_map_drag_down(
+                    (float)ev->button.x, (float)ev->button.y, true, 0))
+            {
+                return;
+            }
+            if (sdl_side_map_pane_handle_pointer_down(
                     (float)ev->button.x, (float)ev->button.y, true, 0))
             {
                 return;
@@ -18465,11 +18557,6 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_main_screen_handle_supporting_pane_pointer((float)ev->button.x,
-                (float)ev->button.y))
-            {
-                return;
-            }
-            if (sdl_mouse_target_handle_left_click((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -18553,6 +18640,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
             if (sdl_unified_look_handle_map_drag_up((float)ev->button.x,
+                (float)ev->button.y, true, 0))
+            {
+                return;
+            }
+            if (sdl_side_map_pane_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, true, 0))
             {
                 return;
@@ -18650,6 +18742,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
         if (sdl_unified_look_handle_map_drag_down(x, y, false,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_side_map_pane_handle_pointer_down(x, y, false,
             ev->tfinger.fingerID))
         {
             return;
@@ -18779,6 +18876,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_side_map_pane_handle_pointer_motion(x, y, false,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_touch_round_layer_controls_active()
             || (g_touch_round_press.active
                 && g_touch_round_press.finger_id == ev->tfinger.fingerID))
@@ -18869,6 +18971,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
         if (sdl_unified_look_handle_map_drag_up(x, y, false,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_side_map_pane_handle_pointer_up(x, y, false,
             ev->tfinger.fingerID))
         {
             return;
@@ -18966,6 +19073,7 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             sdl_unified_look_cancel_map_drag();
         }
+        sdl_side_map_pane_cancel_pointer(ev->tfinger.fingerID, false);
         if (g_player_action_menu.press_active
             && !g_player_action_menu.press_mouse
             && g_player_action_menu.press_finger_id == ev->tfinger.fingerID)
@@ -19148,6 +19256,9 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
         sdl_refresh_safe_area();
         (void)sdl_recover_layout_for_current_window("window resize", true, NULL);
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+        (void)sdl_mobile_maybe_apply_first_start_auto_scale("window resize");
+#endif
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
 
@@ -19171,6 +19282,9 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         sdl_refresh_safe_area();
         (void)sdl_recover_layout_for_current_window("display scale change",
             true, NULL);
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+        (void)sdl_mobile_maybe_apply_first_start_auto_scale("display scale change");
+#endif
         {
             SDL_Rect screen = sdl_get_layout_screen_rect();
 
@@ -19312,6 +19426,8 @@ static bool sdl_render_current_window_frame(void)
     bool show_supporting_panes;
     bool layout_matches;
     SDL_Rect layout_screen;
+    SDL_Rect side_map_rect;
+    bool side_map_visible;
     int visible_views = 0;
 
     if (g_suppress_layout_refresh_present)
@@ -19327,6 +19443,7 @@ static bool sdl_render_current_window_frame(void)
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
     layout_screen = sdl_get_layout_screen_rect();
+    side_map_visible = sdl_side_map_pane_current_rect(&side_map_rect);
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         if (!g_views[i].canvas)
@@ -19335,6 +19452,8 @@ static bool sdl_render_current_window_frame(void)
             continue;
         visible_views++;
     }
+    if (side_map_visible)
+        visible_views++;
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         sdl_view* view = &g_views[i];
@@ -19361,6 +19480,7 @@ static bool sdl_render_current_window_frame(void)
         });
     }
 
+    sdl_side_map_pane_render();
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
     sdl_player_exchange_render();
@@ -19389,6 +19509,14 @@ static bool sdl_render_current_window_frame(void)
             sdl_draw_pane_edges(&view->rect,
                 (layout_screen.w > 0 && view->rect.x > layout_screen.x),
                 (layout_screen.h > 0 && view->rect.y > layout_screen.y),
+                false,
+                false);
+        }
+
+        if (side_map_visible) {
+            sdl_draw_pane_edges(&side_map_rect,
+                (layout_screen.w > 0 && side_map_rect.x > layout_screen.x),
+                (layout_screen.h > 0 && side_map_rect.y > layout_screen.y),
                 false,
                 false);
         }
@@ -22513,6 +22641,621 @@ static bool sdl_minimap_known_bounds(int* min_y, int* min_x, int* max_y,
     return (*max_y >= *min_y) && (*max_x >= *min_x);
 }
 
+static void sdl_side_map_pane_note_level(void)
+{
+    if (!p_ptr)
+        return;
+
+    if (g_side_map_pane.last_depth == p_ptr->depth
+        && g_side_map_pane.last_map_hgt == p_ptr->cur_map_hgt
+        && g_side_map_pane.last_map_wid == p_ptr->cur_map_wid)
+    {
+        return;
+    }
+
+    g_side_map_pane.last_depth = p_ptr->depth;
+    g_side_map_pane.last_map_hgt = p_ptr->cur_map_hgt;
+    g_side_map_pane.last_map_wid = p_ptr->cur_map_wid;
+    g_side_map_pane.default_zoom_pending = true;
+    g_side_map_pane.pan_x = 0.0f;
+    g_side_map_pane.pan_y = 0.0f;
+    g_side_map_pane.drag_active = false;
+    g_side_map_pane.pinch_active = false;
+    memset(g_side_map_pane.fingers, 0, sizeof(g_side_map_pane.fingers));
+}
+
+static void sdl_side_map_pane_redraw(void)
+{
+    g_state.need_present = true;
+}
+
+static bool sdl_side_map_pane_content_rect(SDL_FRect* out_rect,
+    SDL_Rect* out_clip)
+{
+    SDL_Rect pane_rect;
+    float pad;
+
+    if (!out_rect)
+        return false;
+    if (!sdl_side_map_pane_current_rect(&pane_rect))
+        return false;
+
+    if (out_clip)
+        *out_clip = pane_rect;
+
+    pad = g_state.system_scale * 2.0f;
+    if (pad < 2.0f)
+        pad = 2.0f;
+    if ((float)pane_rect.w <= pad * 2.0f
+        || (float)pane_rect.h <= pad * 2.0f)
+    {
+        return false;
+    }
+
+    *out_rect = (SDL_FRect){
+        .x = (float)pane_rect.x + pad,
+        .y = (float)pane_rect.y + pad,
+        .w = (float)pane_rect.w - pad * 2.0f,
+        .h = (float)pane_rect.h - pad * 2.0f,
+    };
+    return out_rect->w > 0.0f && out_rect->h > 0.0f;
+}
+
+static void sdl_side_map_pane_draw_player_marker(const SDL_FRect* map_dst,
+    int min_y, int min_x, int max_y, int max_x)
+{
+    int map_rows;
+    int map_cols;
+    float grid_w;
+    float grid_h;
+    SDL_FRect player_dst;
+
+    if (!p_ptr || !map_dst)
+        return;
+    if (p_ptr->py < min_y || p_ptr->py > max_y
+        || p_ptr->px < min_x || p_ptr->px > max_x)
+    {
+        return;
+    }
+
+    map_rows = max_y - min_y + 1;
+    map_cols = max_x - min_x + 1;
+    if (map_rows <= 0 || map_cols <= 0)
+        return;
+
+    grid_w = map_dst->w / (float)map_cols;
+    grid_h = map_dst->h / (float)map_rows;
+    player_dst = (SDL_FRect){
+        .x = map_dst->x + (float)(p_ptr->px - min_x) * grid_w,
+        .y = map_dst->y + (float)(p_ptr->py - min_y) * grid_h,
+        .w = grid_w,
+        .h = grid_h,
+    };
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 70, 240, 120, 72);
+    SDL_RenderFillRect(g_state.renderer, &player_dst);
+    SDL_SetRenderDrawColor(g_state.renderer, 80, 255, 130, 255);
+    SDL_RenderRect(g_state.renderer, &player_dst);
+    if (player_dst.w >= 4.0f && player_dst.h >= 4.0f) {
+        player_dst.x += 1.0f;
+        player_dst.y += 1.0f;
+        player_dst.w -= 2.0f;
+        player_dst.h -= 2.0f;
+        SDL_RenderRect(g_state.renderer, &player_dst);
+    }
+}
+
+static void sdl_side_map_pane_render_empty(const SDL_FRect* content)
+{
+    if (!content)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 5, 7, 8, 255);
+    SDL_RenderFillRect(g_state.renderer, content);
+}
+
+static void sdl_side_map_pane_render(void)
+{
+    SDL_FRect content;
+    SDL_Rect clip;
+    SDL_Texture* map_texture;
+    SDL_Texture* restore_target;
+    int min_y, min_x, max_y, max_x;
+    int map_rows;
+    int map_cols;
+    int source_w;
+    int source_h;
+    float fit_scale;
+    float scale;
+    float base_x = 0.0f;
+    float base_y = 0.0f;
+    SDL_FRect map_dst;
+
+    if (!g_state.renderer || !p_ptr)
+        return;
+    if (!sdl_side_map_pane_content_rect(&content, &clip))
+        return;
+
+    sdl_side_map_pane_note_level();
+    sdl_side_map_pane_render_empty(&content);
+
+    if (!sdl_minimap_known_bounds(&min_y, &min_x, &max_y, &max_x))
+        return;
+
+    map_rows = max_y - min_y + 1;
+    map_cols = max_x - min_x + 1;
+    if (map_rows <= 0 || map_cols <= 0)
+        return;
+
+    source_w = map_cols * TILE_SIZE;
+    source_h = map_rows * TILE_SIZE;
+    if (source_w <= 0 || source_h <= 0)
+        return;
+
+    fit_scale = content.w / (float)source_w;
+    if (content.h / (float)source_h < fit_scale)
+        fit_scale = content.h / (float)source_h;
+    if (fit_scale <= 0.0f)
+        return;
+
+    if (g_side_map_pane.default_zoom_pending) {
+        g_side_map_pane.zoom_step = 0;
+        g_side_map_pane.pan_x = 0.0f;
+        g_side_map_pane.pan_y = 0.0f;
+        g_side_map_pane.default_zoom_pending = false;
+    }
+
+    scale = fit_scale
+        * sdl_minimap_zoom_factor_for_step(g_side_map_pane.zoom_step);
+    if (scale <= 0.0f)
+        return;
+
+    map_dst.w = (float)source_w * scale;
+    map_dst.h = (float)source_h * scale;
+
+    if (p_ptr->py < min_y || p_ptr->py > max_y
+        || p_ptr->px < min_x || p_ptr->px > max_x)
+    {
+        map_dst.x = content.x + (content.w - map_dst.w) * 0.5f;
+        map_dst.y = content.y + (content.h - map_dst.h) * 0.5f;
+        g_side_map_pane.pan_x = 0.0f;
+        g_side_map_pane.pan_y = 0.0f;
+    } else {
+        float player_src_x = ((float)(p_ptr->px - min_x) + 0.5f)
+            * (float)TILE_SIZE * scale;
+        float player_src_y = ((float)(p_ptr->py - min_y) + 0.5f)
+            * (float)TILE_SIZE * scale;
+
+        base_x = content.x + content.w * 0.5f - player_src_x;
+        base_y = content.y + content.h * 0.5f - player_src_y;
+        map_dst.x = base_x + g_side_map_pane.pan_x;
+        map_dst.y = base_y + g_side_map_pane.pan_y;
+
+        if (map_dst.w <= content.w)
+            map_dst.x = content.x + (content.w - map_dst.w) * 0.5f;
+        else
+            map_dst.x = sdl_minimap_clampf(map_dst.x,
+                content.x + content.w - map_dst.w, content.x);
+
+        if (map_dst.h <= content.h)
+            map_dst.y = content.y + (content.h - map_dst.h) * 0.5f;
+        else
+            map_dst.y = sdl_minimap_clampf(map_dst.y,
+                content.y + content.h - map_dst.h, content.y);
+
+        g_side_map_pane.pan_x = map_dst.x - base_x;
+        g_side_map_pane.pan_y = map_dst.y - base_y;
+    }
+
+    map_texture = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET, source_w, source_h);
+    if (!map_texture) {
+        log_warn("sdl_side_map_pane_render: texture %dx%d failed: %s",
+            source_w, source_h, SDL_GetError());
+        return;
+    }
+
+    SDL_SetTextureBlendMode(map_texture, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(map_texture, SDL_SCALEMODE_NEAREST);
+
+    restore_target = SDL_GetRenderTarget(g_state.renderer);
+    SDL_SetRenderTarget(g_state.renderer, map_texture);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    for (int y = min_y; y <= max_y; y++) {
+        for (int x = min_x; x <= max_x; x++) {
+            byte a = TERM_DARK;
+            byte ta = TERM_DARK;
+            char c = ' ';
+            char tc = ' ';
+            SDL_FRect cell_dst = {
+                .x = (float)((x - min_x) * TILE_SIZE),
+                .y = (float)((y - min_y) * TILE_SIZE),
+                .w = TILE_SIZE,
+                .h = TILE_SIZE,
+            };
+
+            map_info(y, x, &a, &c, &ta, &tc);
+            sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+        }
+    }
+
+    SDL_SetRenderTarget(g_state.renderer, restore_target);
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
+    SDL_RenderTexture(g_state.renderer, map_texture, NULL, &map_dst);
+    SDL_DestroyTexture(map_texture);
+
+    sdl_minimap_draw_hint_sources(&map_dst, min_y, min_x, max_y, max_x);
+    sdl_side_map_pane_draw_player_marker(&map_dst, min_y, min_x, max_y,
+        max_x);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+}
+
+static bool sdl_side_map_pane_adjust_zoom(int delta)
+{
+    int new_step;
+
+    if (delta == 0)
+        return false;
+
+    new_step = sdl_minimap_clamp_zoom_step(g_side_map_pane.zoom_step + delta);
+    if (new_step == g_side_map_pane.zoom_step)
+        return false;
+
+    g_side_map_pane.zoom_step = new_step;
+    g_side_map_pane.default_zoom_pending = false;
+    sdl_side_map_pane_redraw();
+    return true;
+}
+
+static bool sdl_side_map_pane_offset_by(float dx, float dy)
+{
+    if (dx == 0.0f && dy == 0.0f)
+        return false;
+
+    g_side_map_pane.pan_x += dx;
+    g_side_map_pane.pan_y += dy;
+    g_side_map_pane.default_zoom_pending = false;
+    sdl_side_map_pane_redraw();
+    return true;
+}
+
+static void sdl_side_map_pane_begin_drag(bool mouse, SDL_FingerID finger_id,
+    float x, float y)
+{
+    g_side_map_pane.drag_active = true;
+    g_side_map_pane.drag_mouse = mouse;
+    g_side_map_pane.drag_finger_id = finger_id;
+    g_side_map_pane.drag_last_x = x;
+    g_side_map_pane.drag_last_y = y;
+}
+
+static bool sdl_side_map_pane_drag_to(bool mouse, SDL_FingerID finger_id,
+    float x, float y)
+{
+    float dx;
+    float dy;
+
+    if (!g_side_map_pane.drag_active || g_side_map_pane.drag_mouse != mouse)
+        return false;
+    if (!mouse && g_side_map_pane.drag_finger_id != finger_id)
+        return false;
+
+    dx = x - g_side_map_pane.drag_last_x;
+    dy = y - g_side_map_pane.drag_last_y;
+    g_side_map_pane.drag_last_x = x;
+    g_side_map_pane.drag_last_y = y;
+
+    (void)sdl_side_map_pane_offset_by(dx, dy);
+    return true;
+}
+
+static void sdl_side_map_pane_cancel_drag(void)
+{
+    g_side_map_pane.drag_active = false;
+    g_side_map_pane.drag_mouse = false;
+    g_side_map_pane.drag_finger_id = 0;
+    g_side_map_pane.drag_last_x = 0.0f;
+    g_side_map_pane.drag_last_y = 0.0f;
+}
+
+static int sdl_side_map_pane_find_finger(SDL_FingerID finger_id)
+{
+    for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
+        if (g_side_map_pane.fingers[i].active
+            && g_side_map_pane.fingers[i].finger_id == finger_id)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static int sdl_side_map_pane_active_finger_count(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
+        if (g_side_map_pane.fingers[i].active)
+            count++;
+    }
+
+    return count;
+}
+
+static bool sdl_side_map_pane_first_two_fingers(int* out_a, int* out_b)
+{
+    int first = -1;
+
+    for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
+        if (!g_side_map_pane.fingers[i].active)
+            continue;
+        if (first < 0) {
+            first = i;
+            continue;
+        }
+        if (out_a) *out_a = first;
+        if (out_b) *out_b = i;
+        return true;
+    }
+
+    return false;
+}
+
+static float sdl_side_map_pane_finger_distance(int a, int b)
+{
+    float dx;
+    float dy;
+
+    if (a < 0 || a >= MINIMAP_MAX_TOUCH_FINGERS
+        || b < 0 || b >= MINIMAP_MAX_TOUCH_FINGERS
+        || !g_side_map_pane.fingers[a].active
+        || !g_side_map_pane.fingers[b].active)
+    {
+        return 0.0f;
+    }
+
+    dx = g_side_map_pane.fingers[a].x - g_side_map_pane.fingers[b].x;
+    dy = g_side_map_pane.fingers[a].y - g_side_map_pane.fingers[b].y;
+    return SDL_sqrtf(dx * dx + dy * dy);
+}
+
+static void sdl_side_map_pane_start_pinch_if_possible(void)
+{
+    int a = -1;
+    int b = -1;
+    float distance;
+
+    if (!sdl_side_map_pane_first_two_fingers(&a, &b)) {
+        g_side_map_pane.pinch_active = false;
+        return;
+    }
+
+    distance = sdl_side_map_pane_finger_distance(a, b);
+    if (distance < 8.0f) {
+        g_side_map_pane.pinch_active = false;
+        return;
+    }
+
+    g_side_map_pane.pinch_active = true;
+    g_side_map_pane.pinch_finger_a = a;
+    g_side_map_pane.pinch_finger_b = b;
+    g_side_map_pane.pinch_start_distance = distance;
+    g_side_map_pane.pinch_start_zoom_step = g_side_map_pane.zoom_step;
+}
+
+static void sdl_side_map_pane_start_drag_from_first_finger(void)
+{
+    for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
+        if (!g_side_map_pane.fingers[i].active)
+            continue;
+
+        sdl_side_map_pane_begin_drag(false,
+            g_side_map_pane.fingers[i].finger_id,
+            g_side_map_pane.fingers[i].x, g_side_map_pane.fingers[i].y);
+        return;
+    }
+
+    sdl_side_map_pane_cancel_drag();
+}
+
+static bool sdl_side_map_pane_update_pinch(void)
+{
+    float distance;
+    float ratio;
+    int delta;
+    int target_step;
+    int new_step;
+
+    if (!g_side_map_pane.pinch_active)
+        return false;
+    if (g_side_map_pane.pinch_finger_a < 0
+        || g_side_map_pane.pinch_finger_b < 0
+        || g_side_map_pane.pinch_start_distance < 8.0f)
+    {
+        return false;
+    }
+
+    distance = sdl_side_map_pane_finger_distance(
+        g_side_map_pane.pinch_finger_a, g_side_map_pane.pinch_finger_b);
+    if (distance < 8.0f)
+        return false;
+
+    ratio = distance / g_side_map_pane.pinch_start_distance;
+    delta = sdl_minimap_zoom_delta_for_pinch_ratio(ratio);
+    target_step = g_side_map_pane.pinch_start_zoom_step + delta;
+    new_step = sdl_minimap_clamp_zoom_step(target_step);
+    if (new_step == g_side_map_pane.zoom_step)
+        return false;
+
+    g_side_map_pane.zoom_step = new_step;
+    g_side_map_pane.default_zoom_pending = false;
+    sdl_side_map_pane_redraw();
+    return true;
+}
+
+static void sdl_side_map_pane_add_or_update_finger(SDL_FingerID finger_id,
+    float x, float y)
+{
+    int index = sdl_side_map_pane_find_finger(finger_id);
+
+    if (index < 0) {
+        for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
+            if (!g_side_map_pane.fingers[i].active) {
+                index = i;
+                g_side_map_pane.fingers[i].active = true;
+                g_side_map_pane.fingers[i].finger_id = finger_id;
+                break;
+            }
+        }
+    }
+
+    if (index < 0)
+        return;
+
+    g_side_map_pane.fingers[index].x = x;
+    g_side_map_pane.fingers[index].y = y;
+}
+
+static bool sdl_side_map_pane_remove_finger(SDL_FingerID finger_id)
+{
+    int index = sdl_side_map_pane_find_finger(finger_id);
+
+    if (index < 0)
+        return false;
+
+    memset(&g_side_map_pane.fingers[index], 0,
+        sizeof(g_side_map_pane.fingers[index]));
+
+    if (g_side_map_pane.drag_active && !g_side_map_pane.drag_mouse
+        && g_side_map_pane.drag_finger_id == finger_id)
+    {
+        sdl_side_map_pane_cancel_drag();
+    }
+
+    if (sdl_side_map_pane_active_finger_count() >= 2)
+        sdl_side_map_pane_start_pinch_if_possible();
+    else {
+        g_side_map_pane.pinch_active = false;
+        if (sdl_side_map_pane_active_finger_count() == 1)
+            sdl_side_map_pane_start_drag_from_first_finger();
+    }
+
+    return true;
+}
+
+static bool sdl_side_map_pane_handle_mouse_wheel(
+    const SDL_MouseWheelEvent* wheel)
+{
+    SDL_Rect pane_rect;
+    float amount;
+
+    if (!wheel)
+        return false;
+    if (wheel->which == SDL_TOUCH_MOUSEID)
+        return false;
+    if (!sdl_side_map_pane_current_rect(&pane_rect))
+        return false;
+    if (!sdl_point_in_rect(&pane_rect, wheel->mouse_x, wheel->mouse_y))
+        return false;
+
+    amount = (wheel->y != 0.0f) ? wheel->y : wheel->x;
+    if (amount > 0.0f)
+        (void)sdl_side_map_pane_adjust_zoom(1);
+    else if (amount < 0.0f)
+        (void)sdl_side_map_pane_adjust_zoom(-1);
+
+    return true;
+}
+
+static bool sdl_side_map_pane_handle_pointer_down(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    SDL_Rect pane_rect;
+
+    if (!sdl_side_map_pane_current_rect(&pane_rect))
+        return false;
+    if (!sdl_point_in_rect(&pane_rect, x, y))
+        return false;
+
+    if (mouse) {
+        sdl_side_map_pane_begin_drag(true, 0, x, y);
+        return true;
+    }
+
+    sdl_side_map_pane_add_or_update_finger(finger_id, x, y);
+    if (sdl_side_map_pane_active_finger_count() >= 2) {
+        sdl_side_map_pane_cancel_drag();
+        sdl_side_map_pane_start_pinch_if_possible();
+    } else {
+        sdl_side_map_pane_begin_drag(false, finger_id, x, y);
+    }
+
+    return true;
+}
+
+static bool sdl_side_map_pane_handle_pointer_motion(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    if (mouse) {
+        if (!g_side_map_pane.drag_active || !g_side_map_pane.drag_mouse)
+            return false;
+        if (!sdl_side_map_pane_current_rect(NULL)) {
+            sdl_side_map_pane_cancel_drag();
+            return true;
+        }
+        return sdl_side_map_pane_drag_to(true, 0, x, y);
+    }
+
+    if (sdl_side_map_pane_find_finger(finger_id) < 0)
+        return false;
+    if (!sdl_side_map_pane_current_rect(NULL)) {
+        (void)sdl_side_map_pane_remove_finger(finger_id);
+        return true;
+    }
+
+    sdl_side_map_pane_add_or_update_finger(finger_id, x, y);
+    if (g_side_map_pane.pinch_active)
+        (void)sdl_side_map_pane_update_pinch();
+    else
+        (void)sdl_side_map_pane_drag_to(false, finger_id, x, y);
+
+    return true;
+}
+
+static bool sdl_side_map_pane_handle_pointer_up(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    (void)x;
+    (void)y;
+
+    if (mouse) {
+        if (!g_side_map_pane.drag_active || !g_side_map_pane.drag_mouse)
+            return false;
+        sdl_side_map_pane_cancel_drag();
+        return true;
+    }
+
+    return sdl_side_map_pane_remove_finger(finger_id);
+}
+
+static void sdl_side_map_pane_cancel_pointer(SDL_FingerID finger_id,
+    bool mouse)
+{
+    if (mouse) {
+        if (g_side_map_pane.drag_active && g_side_map_pane.drag_mouse)
+            sdl_side_map_pane_cancel_drag();
+        return;
+    }
+
+    (void)sdl_side_map_pane_remove_finger(finger_id);
+}
+
 bool sdl_display_pixel_map(int* cy, int* cx)
 {
     sdl_view* d;
@@ -23887,6 +24630,7 @@ errr init_sdl(int argc, char **argv)
         handheld_screen = sdl_get_layout_screen_rect();
         sdl_apply_mobile_default_pane_layout(&handheld_screen,
             handheld_has_controller);
+        g_mobile_first_start_auto_scale_pending = true;
         g_active_side_panes = config.enable_right_panes;
         g_active_bottom_panes = config.enable_bottom_panes;
     }
@@ -23990,6 +24734,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_CHARACTER: type_str = "CHARACTER"; break;
             case PANE_LOG: type_str = "LOG"; break;
             case PANE_MONSTERS: type_str = "MONSTERS"; break;
+            case PANE_MAP: type_str = "MAP"; break;
             case PANE_TOUCH: type_str = "TOUCH"; break;
             default: break;
         }
@@ -24067,8 +24812,12 @@ void set_sdl_min_terminal_mode(int value)
 void set_sdl_main_view_scale(int value)
 {
     int max_scale = get_sdl_max_scale();
-    if (value > 0 && value <= max_scale)
+    if (value > 0 && value <= max_scale) {
         config.main_view_scale = value;
+#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+        g_mobile_first_start_auto_scale_pending = false;
+#endif
+    }
 }
 
 int get_sdl_aux_view_font_size(void)
@@ -24358,7 +25107,9 @@ static int sdl_pane_current_size(int index, bool want_rows)
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return 0;
 
-    if (g_views[type].term_ready && g_pane_rects[type].w > 0 && g_pane_rects[type].h > 0) {
+    if ((int)type < MAX_TERM_DATA && g_views[type].term_ready
+        && g_pane_rects[type].w > 0 && g_pane_rects[type].h > 0)
+    {
         int live = want_rows ? g_views[type].rows : g_views[type].cols;
         if (live > 0)
             return live;
@@ -24686,6 +25437,11 @@ bool sdl_menu_letters_enabled(void)
         return false;
 
     return !steamdeck_controls_active();
+}
+
+bool sdl_touch_only_device_active(void)
+{
+    return sdl_touch_only_mobile_device_active();
 }
 
 bool portable_controls_active(void)
@@ -25862,12 +26618,22 @@ void sdl_refresh_supporting_panes_layout(void)
  * Apply current SDL configuration by triggering a resize.
  * This makes changes to scale, font size, margin, etc. take effect immediately.
  */
-void sdl_apply_config(void)
+static void sdl_apply_config_impl(bool request_redraw)
 {
+    int story_depth;
+    bool story_active;
+    bool story_grid;
+
     if (!g_state.window) {
         log_warn("sdl_apply_config: no window, skipping");
         return;
     }
+
+    story_depth = g_state.story_font_depth;
+    story_active = (story_depth > 0)
+        || (Term && Term->story_font_active);
+    story_grid = g_state.story_font_grid
+        || (Term && Term->story_font_grid);
 
     (void)sdl_recover_layout_for_current_window("settings change", true, NULL);
     sdl_refresh_safe_area();
@@ -25875,9 +26641,28 @@ void sdl_apply_config(void)
     sdl_load_story_fonts();
     sdl_resize_for_current_layout();
     g_auto_aux_main_cell_h_override = 0;
+
+    if (story_active || story_grid) {
+        g_state.story_font_depth = story_active ? MAX(story_depth, 1) : 0;
+        sdl_apply_story_font_state(story_active);
+        g_state.story_font_grid = story_grid;
+        sdl_apply_story_grid_state(story_grid);
+    }
     
-    // Redraw the screen to prevent black empty spaces
-    sdl_request_redraw();
+    if (request_redraw)
+        sdl_request_redraw();
+    else
+        g_state.need_present = true;
+}
+
+void sdl_apply_config(void)
+{
+    sdl_apply_config_impl(true);
+}
+
+void sdl_apply_config_no_redraw(void)
+{
+    sdl_apply_config_impl(false);
 }
 
 void sdl_request_redraw(void)

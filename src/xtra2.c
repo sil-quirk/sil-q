@@ -5683,9 +5683,15 @@ int rough_direction(int y1, int x1, int y2, int x2)
  *
  * Currently this function applies confusion directly.
  */
+static char get_aim_vertical_up_key(void)
+{
+    return hjkl_movement ? 'c' : 'u';
+}
+
 static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
     bool allow_vertical)
 {
+    char up_key;
     char fire_label[24];
     char confirm_label[24];
     char select_label[24];
@@ -5696,21 +5702,23 @@ static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
     if (!buf || !buflen)
         return;
 
+    up_key = get_aim_vertical_up_key();
+
     if (!steamdeck_controls_active())
     {
         if (allow_vertical)
         {
             if (has_target)
             {
-                SDL_strlcpy(buf,
-                    "Aim: arrows/touch, f/Space target, * select, c up, d down, Esc? ",
-                    buflen);
+                strnfmt(buf, buflen,
+                    "Aim: arrows/touch, f/Space target, * select, %c up, d down, Esc? ",
+                    up_key);
             }
             else
             {
-                SDL_strlcpy(buf,
-                    "Aim: arrows/touch, f/Space closest, * select, c up, d down, Esc? ",
-                    buflen);
+                strnfmt(buf, buflen,
+                    "Aim: arrows/touch, f/Space closest, * select, %c up, d down, Esc? ",
+                    up_key);
             }
         }
         else
@@ -5735,7 +5743,8 @@ static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
     target_prompt_label(INPUT_BIND_CONFIRM, "A", confirm_label,
         sizeof(confirm_label));
     target_prompt_label('s', "Y", select_label, sizeof(select_label));
-    target_prompt_label('c', "c", up_label, sizeof(up_label));
+    target_prompt_label(up_key, hjkl_movement ? "c" : "u", up_label,
+        sizeof(up_label));
     target_prompt_label('d', "d", down_label, sizeof(down_label));
     target_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
 
@@ -5794,6 +5803,7 @@ static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
 static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
     char* command)
 {
+    char up_key = get_aim_vertical_up_key();
     char ch;
     int clicked_choice = 0;
 
@@ -5809,7 +5819,7 @@ static bool get_aim_com(cptr prompt, bool has_target, bool allow_vertical,
     ui_menu_click_add_text_token('*', 0, 0, prompt, "select");
     if (allow_vertical)
     {
-        ui_menu_click_add_text_token('c', 0, 0, prompt, "up");
+        ui_menu_click_add_text_token(up_key, 0, 0, prompt, "up");
         ui_menu_click_add_text_token('d', 0, 0, prompt, "down");
     }
     ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "Esc");
@@ -5918,11 +5928,16 @@ static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
             break;
         }
 
+        case 'u':
+        case 'U':
         case 'c':
         case 'C':
         {
-            if (allow_vertical)
+            if (allow_vertical
+                && (tolower((unsigned char)ch) == get_aim_vertical_up_key()))
+            {
                 dir = DIRECTION_UP;
+            }
             break;
         }
 

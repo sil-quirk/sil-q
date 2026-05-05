@@ -18817,6 +18817,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_CHARACTER: return "CHARACTER";
     case PANE_LOG: return "LOG";
     case PANE_MONSTERS: return "MONSTERS";
+    case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
     default: return "UNKNOWN";
     }
@@ -18824,7 +18825,7 @@ static const char* pane_type_name(enum pane_type type)
 
 static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
 {
-    enum { MAX_PANES_LOCAL = 8 };
+    enum { MAX_PANES_LOCAL = MAX_PANE_CONFIGS };
     int pane_indices[MAX_PANES_LOCAL];
     int pane_count = 0;
     int total = get_pane_config_count();
@@ -19036,6 +19037,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_CHARACTER: return "CHAR";
     case PANE_LOG: return "LOG";
     case PANE_MONSTERS: return "MON";
+    case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
     default: return "UNK";
     }
@@ -19148,7 +19150,7 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
 
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 {
-    enum { MAX_PANES_LOCAL = 8 };
+    enum { MAX_PANES_LOCAL = MAX_PANE_CONFIGS };
     int pane_indices[MAX_PANES_LOCAL];
     int pane_count = 0;
     int total = get_pane_config_count();
