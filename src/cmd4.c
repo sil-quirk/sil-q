@@ -33902,7 +33902,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         state->highlighted_entity_type = 0;
     }
 
-    first_row = 0;
+    first_row = 1;
     last_row = unified_sidebar_compact_last_row();
     rows = last_row - first_row + 1;
     if (rows <= 0)
@@ -34003,7 +34003,7 @@ void show_unified_sidebar(unified_look_state* state)
     
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
-    int max_display_line = term_hgt - (SIL_UI_TOP_STATUS_LINE ? 0 : 1);
+    int max_display_line = term_hgt - 1;
     if (max_display_line < 1)
         max_display_line = 1;
     

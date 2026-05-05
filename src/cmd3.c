@@ -3926,10 +3926,18 @@ static void unified_look_select_sidebar_entity(unified_look_state* state,
     state->current_square_entity = 0;
 }
 
+enum
+{
+    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 12,
+    UNIFIED_LOOK_CLICK_COMMAND_BASE = -1000,
+    UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND = -1300
+};
+
 static bool unified_look_prompt_choice_key(int choice, int* key);
 
 static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
-    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw,
+    bool* prompt_hover_redraw)
 {
     int clicked_entity = -1;
     int click_action = UI_MENU_CLICK_PRIMARY;
@@ -3942,8 +3950,15 @@ static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
     {
         if (click_action != UI_MENU_CLICK_HOVER)
             Term_keypress(prompt_key);
-        else if (need_redraw)
-            *need_redraw = true;
+        else if (prompt_hover_redraw)
+            *prompt_hover_redraw = true;
+        return true;
+    }
+
+    if (clicked_entity == UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND)
+    {
+        if (click_action == UI_MENU_CLICK_HOVER && prompt_hover_redraw)
+            *prompt_hover_redraw = true;
         return true;
     }
 
@@ -3967,26 +3982,25 @@ static bool unified_look_apply_sidebar_pointer_action(unified_look_state* state,
     return true;
 }
 
-static bool unified_look_apply_map_hover(unified_look_state* state,
-    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+static bool unified_look_apply_map_cell(unified_look_state* state, int map_y,
+    int map_x, bool compact_look_layout, bool* need_redraw,
+    bool* selection_redraw)
 {
-    int hover_y = 0;
-    int hover_x = 0;
     int new_selection;
     bool new_sidebar_mode;
 
-    if (!state || !sdl_unified_look_take_map_hover(&hover_y, &hover_x))
+    if (!state)
         return false;
-    if (hover_y < 0 || hover_y >= p_ptr->cur_map_hgt
-        || hover_x < 0 || hover_x >= p_ptr->cur_map_wid)
+    if (map_y < 0 || map_y >= p_ptr->cur_map_hgt
+        || map_x < 0 || map_x >= p_ptr->cur_map_wid)
     {
         return true;
     }
 
-    new_selection = unified_look_find_cursor_selection(state, hover_y, hover_x);
+    new_selection = unified_look_find_cursor_selection(state, map_y, map_x);
     new_sidebar_mode = (new_selection >= 0);
 
-    if ((state->cursor_y == hover_y) && (state->cursor_x == hover_x)
+    if ((state->cursor_y == map_y) && (state->cursor_x == map_x)
         && (state->selected_entity == new_selection)
         && (state->in_sidebar_mode == new_sidebar_mode))
     {
@@ -4002,8 +4016,8 @@ static bool unified_look_apply_map_hover(unified_look_state* state,
         state->highlighted_entity_type = 0;
     }
 
-    state->cursor_y = hover_y;
-    state->cursor_x = hover_x;
+    state->cursor_y = map_y;
+    state->cursor_x = map_x;
     state->selected_entity = new_selection;
     state->in_sidebar_mode = new_sidebar_mode;
     state->square_cycling_mode = false;
@@ -4034,16 +4048,20 @@ static bool unified_look_use_compact_layout(void)
 
 static int unified_look_status_row(void)
 {
-    if (unified_look_use_compact_layout() && Term && Term->hgt > 0)
+    return 0;
+}
+
+static int unified_look_prompt_row(void)
+{
+    if (Term && Term->hgt > 0)
         return Term->hgt - 1;
 
     return 0;
 }
 
-static void unified_look_put_status(cptr text)
+static void unified_look_put_row(cptr text, int row)
 {
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    int row = unified_look_status_row();
     char buf[192];
 
     SDL_strlcpy(buf, text ? text : "", sizeof(buf));
@@ -4060,11 +4078,15 @@ static void unified_look_put_status(cptr text)
     prt(buf, row, 0);
 }
 
-enum
+static void unified_look_put_status(cptr text)
 {
-    UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 12,
-    UNIFIED_LOOK_CLICK_COMMAND_BASE = -1000
-};
+    unified_look_put_row(text, unified_look_status_row());
+}
+
+static void unified_look_put_prompt(cptr text)
+{
+    unified_look_put_row(text, unified_look_prompt_row());
+}
 
 typedef struct unified_look_prompt_button
 {
@@ -4095,6 +4117,19 @@ static bool unified_look_prompt_choice_key(int choice, int* key)
         *key = decoded;
 
     return true;
+}
+
+static bool unified_look_apply_map_hover(unified_look_state* state,
+    bool compact_look_layout, bool* need_redraw, bool* selection_redraw)
+{
+    int hover_y = 0;
+    int hover_x = 0;
+
+    if (!sdl_unified_look_take_map_hover(&hover_y, &hover_x))
+        return false;
+
+    return unified_look_apply_map_cell(state, hover_y, hover_x,
+        compact_look_layout, need_redraw, selection_redraw);
 }
 
 static cptr unified_look_prompt_button_text(
@@ -4133,20 +4168,22 @@ static int unified_look_prompt_buttons_width(
 }
 
 static void unified_look_print_prompt_buttons(
-    const unified_look_prompt_button* buttons, int count)
+    const unified_look_prompt_button* buttons, int count, bool register_clicks)
 {
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    int row = unified_look_status_row();
+    int row = unified_look_prompt_row();
     int starts[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
     int ends[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
     int keys[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
     int registered = 0;
     int variant = 3;
+    int hover_choice = 0;
+    bool has_hover_choice = ui_menu_click_get_hover_choice(&hover_choice);
     char buf[192];
 
     if (!buttons || count <= 0)
     {
-        unified_look_put_status("");
+        unified_look_put_prompt("");
         return;
     }
 
@@ -4190,17 +4227,30 @@ static void unified_look_print_prompt_buttons(
         }
     }
 
-    unified_look_put_status(buf);
+    unified_look_put_prompt(buf);
 
     for (int i = 0; i < registered; i++)
     {
-        ui_menu_click_add_text_span(unified_look_prompt_choice(keys[i]),
-            0, row, buf, starts[i], ends[i]);
+        int choice = unified_look_prompt_choice(keys[i]);
+
+        if (register_clicks)
+        {
+            ui_menu_click_add_text_span(choice, 0, row, buf, starts[i],
+                ends[i]);
+        }
+        else if (has_hover_choice && hover_choice == choice)
+        {
+            Term_putstr(starts[i], row, ends[i] - starts[i], TERM_L_BLUE,
+                buf + starts[i]);
+        }
     }
+
+    if (register_clicks)
+        ui_menu_click_add_full_row(UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND, row);
 }
 
 static void unified_look_print_controller_prompt(
-    bool compact_look_layout, bool cursor_mode)
+    bool compact_look_layout, bool cursor_mode, bool register_clicks)
 {
     char prev_label[16];
     char next_label[16];
@@ -4248,12 +4298,13 @@ static void unified_look_print_controller_prompt(
             { ESCAPE, back_full, "Back", "Back", "Esc" },
         };
 
-        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons));
+        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons),
+            register_clicks);
     }
 }
 
 static void unified_look_print_keyboard_prompt(bool cursor_mode,
-    cptr filter_action)
+    cptr filter_action, bool register_clicks)
 {
     char filter_full[32];
     cptr mode_action = cursor_mode ? "Cursor" : "Pan";
@@ -4279,22 +4330,280 @@ static void unified_look_print_keyboard_prompt(bool cursor_mode,
             { ESCAPE, "Esc Back", "Back", "Back", "Esc" },
         };
 
-        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons));
+        unified_look_print_prompt_buttons(buttons, (int)N_ELEMENTS(buttons),
+            register_clicks);
+    }
+}
+
+static void unified_look_update_prompt_buttons_ex(bool controller_controls,
+    bool compact_look_layout, bool cursor_mode, bool nearby_filter,
+    bool register_clicks)
+{
+    if (controller_controls)
+    {
+        unified_look_print_controller_prompt(compact_look_layout, cursor_mode,
+            register_clicks);
+    }
+    else
+    {
+        unified_look_print_keyboard_prompt(cursor_mode,
+            nearby_filter ? "All" : "Near", register_clicks);
     }
 }
 
 static void unified_look_update_prompt_buttons(bool controller_controls,
     bool compact_look_layout, bool cursor_mode, bool nearby_filter)
 {
-    if (controller_controls)
+    unified_look_update_prompt_buttons_ex(controller_controls,
+        compact_look_layout, cursor_mode, nearby_filter, true);
+}
+
+static bool unified_look_format_monster_status(int m_idx, char* out_val,
+    size_t out_len)
+{
+    monster_type* m_ptr;
+    char m_name[80];
+
+    if (!out_val || !out_len || m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+    strnfmt(out_val, out_len, "You see %s.", m_name);
+    return true;
+}
+
+static bool unified_look_format_object_status(int o_idx, char* out_val,
+    size_t out_len)
+{
+    object_type* o_ptr;
+    char o_name[80];
+    char smith_buf[20];
+
+    if (!out_val || !out_len || o_idx <= 0)
+        return false;
+
+    o_ptr = &o_list[o_idx];
+    if (!o_ptr->k_idx || !o_ptr->marked)
+        return false;
+
+    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+
+    smith_buf[0] = '\0';
+    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
+        && object_known_p(o_ptr)
+        && object_uses_smithing_difficulty(o_ptr))
     {
-        unified_look_print_controller_prompt(compact_look_layout, cursor_mode);
+        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
+        int sd = object_smithing_difficulty(o_ptr);
+        int wr = object_weight_rarity(o_ptr, depth);
+        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
+    }
+
+    strnfmt(out_val, out_len, "You see %s%s.", o_name, smith_buf);
+    return true;
+}
+
+static bool unified_look_format_feature_status(int y, int x, char* out_val,
+    size_t out_len)
+{
+    int feat;
+    cptr feature_name = NULL;
+
+    if (!out_val || !out_len)
+        return false;
+    if (!grid_info_is_available(y, x) || !(cave_info[y][x] & (CAVE_MARK)))
+        return false;
+
+    feat = cave_feat[y][x];
+
+    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
+        feature_name = f_name + f_info[feat].name;
+    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
+        feature_name = f_name + f_info[feat].name;
+    else if (feat == FEAT_OPEN)
+        feature_name = "open door";
+    else if (feat == FEAT_BROKEN)
+        feature_name = "broken door";
+    else if (feat == FEAT_LESS)
+        feature_name = "up staircase";
+    else if (feat == FEAT_MORE)
+        feature_name = "down staircase";
+    else if (feat == FEAT_LESS_SHAFT)
+        feature_name = "up shaft";
+    else if (feat == FEAT_MORE_SHAFT)
+        feature_name = "down shaft";
+
+    if (!feature_name)
+        return false;
+
+    strnfmt(out_val, out_len, "You see %s.", feature_name);
+    return true;
+}
+
+static void unified_look_format_status(const unified_look_state* state, int y,
+    int x, char* out_val, size_t out_len)
+{
+    if (!out_val || !out_len)
+        return;
+
+    out_val[0] = '\0';
+
+    if (state && state->in_sidebar_mode && state->selected_entity >= 0
+        && state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        int hy = state->highlighted_y;
+        int hx = state->highlighted_x;
+
+        if (state->highlighted_entity_type == 2
+            && unified_look_can_show_marked_object_at(hy, hx)
+            && unified_look_format_object_status(cave_o_idx[hy][hx],
+                out_val, out_len))
+        {
+            return;
+        }
+
+        if (state->highlighted_entity_type == 1
+            && unified_look_can_show_monster_at(hy, hx)
+            && unified_look_format_monster_status(cave_m_idx[hy][hx],
+                out_val, out_len))
+        {
+            return;
+        }
+    }
+
+    if (unified_look_can_show_monster_at(y, x)
+        && unified_look_format_monster_status(cave_m_idx[y][x], out_val,
+            out_len))
+    {
+        return;
+    }
+
+    if (unified_look_can_show_marked_object_at(y, x)
+        && unified_look_format_object_status(cave_o_idx[y][x], out_val,
+            out_len))
+    {
+        return;
+    }
+
+    (void)unified_look_format_feature_status(y, x, out_val, out_len);
+}
+
+static void unified_look_pause_pointer_handlers(void)
+{
+    ui_menu_click_clear();
+    sdl_unified_look_set_map_hover_enabled(false);
+}
+
+static void unified_look_resume_pointer_handlers(void)
+{
+    sdl_unified_look_set_map_hover_enabled(true);
+}
+
+static bool unified_look_examine_object_at(int y, int x, bool use_story_font)
+{
+    object_type* o_ptr;
+
+    if (!unified_look_can_show_marked_object_at(y, x))
+        return false;
+
+    o_ptr = &o_list[cave_o_idx[y][x]];
+
+    if (use_story_font)
+        sdl_story_font_disable();
+    unified_look_pause_pointer_handlers();
+
+    (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
+    screen_save();
+
+    if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+    {
+        int slot = wield_slot(o_ptr);
+        const object_type* compare_objects[2];
+        const char* compare_headings[2];
+        char selected_heading[32];
+        char equipped_heading[32];
+
+        strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+        strnfmt(equipped_heading, sizeof(equipped_heading), "%s",
+            mention_use(slot));
+
+        compare_objects[0] = o_ptr;
+        compare_headings[0] = selected_heading;
+        compare_objects[1] = inventory[slot].k_idx ? &inventory[slot] : NULL;
+        compare_headings[1] = equipped_heading;
+
+        object_info_screen_multi(compare_objects, compare_headings, 2);
     }
     else
     {
-        unified_look_print_keyboard_prompt(cursor_mode,
-            nearby_filter ? "All" : "Near");
+        object_info_screen(o_ptr);
     }
+
+    screen_load();
+    unified_look_resume_pointer_handlers();
+
+    if (use_story_font)
+        sdl_story_font_enable();
+
+    return true;
+}
+
+static bool unified_look_examine_monster_at(int y, int x, bool use_story_font)
+{
+    int m_idx;
+    monster_type* m_ptr;
+
+    if (!unified_look_can_show_monster_at(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    m_ptr = &mon_list[m_idx];
+
+    if (use_story_font)
+        sdl_story_font_disable();
+    unified_look_pause_pointer_handlers();
+
+    monster_race_track(m_ptr->r_idx);
+    health_track(m_idx);
+    handle_stuff();
+
+    screen_save();
+    if (!screen_roff(m_ptr->r_idx, m_ptr))
+        (void)inkey();
+    screen_load();
+
+    unified_look_resume_pointer_handlers();
+
+    if (use_story_font)
+        sdl_story_font_enable();
+
+    return true;
+}
+
+static bool unified_look_target_monster_at(int y, int x)
+{
+    int m_idx;
+    monster_type* m_ptr;
+    char m_name[80];
+
+    if (!unified_look_can_show_monster_at(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if (!target_able(m_idx)) {
+        bell("No clear target.");
+        return false;
+    }
+
+    m_ptr = &mon_list[m_idx];
+    target_set_monster(m_idx);
+    health_track(m_idx);
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+    msg_format("Target set to %s.", m_name);
+    p_ptr->redraw |= PR_BASIC | PR_MAP;
+    handle_stuff();
+    return true;
 }
 
 static void unified_look_pan_player_for_sidebar(bool center_vertical)
@@ -4492,120 +4801,16 @@ void do_cmd_unified_look(void)
             y = state.cursor_y;
             x = state.cursor_x;
             
-            /* Display entity name in left sidebar if cursor is on something */
+            /* Top line: current hovered/selected name. Bottom line: controls. */
             {
                 char out_val[256];
-                int cursor_m_idx = cave_m_idx[y][x];
-                int cursor_o_idx = cave_o_idx[y][x];
-                int feat = cave_feat[y][x];
-                bool has_visible_monster = unified_look_can_show_monster_at(y, x);
-                bool has_marked_object = unified_look_can_show_marked_object_at(y, x);
-                bool has_known_feature = false;
-                cptr feature_name = NULL;
-                
-                /* Check for known/revealed features (traps, doors, stairs, shafts) */
-                if (grid_info_is_available(y, x) && (cave_info[y][x] & (CAVE_MARK)))
-                {
-                    /* Traps */
-                    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
-                    {
-                        has_known_feature = true;
-                        feature_name = f_name + f_info[feat].name;
-                    }
-                    /* Doors (closed, locked, jammed) */
-                    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
-                    {
-                        has_known_feature = true;
-                        feature_name = f_name + f_info[feat].name;
-                    }
-                    /* Open door */
-                    else if (feat == FEAT_OPEN)
-                    {
-                        has_known_feature = true;
-                        feature_name = "open door";
-                    }
-                    /* Broken door */
-                    else if (feat == FEAT_BROKEN)
-                    {
-                        has_known_feature = true;
-                        feature_name = "broken door";
-                    }
-                    /* Stairs up */
-                    else if (feat == FEAT_LESS)
-                    {
-                        has_known_feature = true;
-                        feature_name = "up staircase";
-                    }
-                    /* Stairs down */
-                    else if (feat == FEAT_MORE)
-                    {
-                        has_known_feature = true;
-                        feature_name = "down staircase";
-                    }
-                    /* Shaft up */
-                    else if (feat == FEAT_LESS_SHAFT)
-                    {
-                        has_known_feature = true;
-                        feature_name = "up shaft";
-                    }
-                    /* Shaft down */
-                    else if (feat == FEAT_MORE_SHAFT)
-                    {
-                        has_known_feature = true;
-                        feature_name = "down shaft";
-                    }
-                }
-                
-                /* Priority: monster first, then object (only if marked), then feature */
-                if (has_visible_monster)
-                {
-                    monster_type* m_ptr = &mon_list[cursor_m_idx];
-                    char m_name[80];
-                    
-                    /* Get the monster name with indefinite article */
-                    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
-                    
-                    /* Display "You see <monster name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
-                    unified_look_put_status(out_val);
-                }
-                else if (has_marked_object)
-                {
-                    object_type* o_ptr = &o_list[cursor_o_idx];
-                    char o_name[80];
-                    char smith_buf[20];
-                    
-                    /* Get the object name with indefinite article */
-                    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
-                    smith_buf[0] = '\0';
-                    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
-                        && object_known_p(o_ptr)
-                        && object_uses_smithing_difficulty(o_ptr))
-                    {
-                        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
-                        int sd = object_smithing_difficulty(o_ptr);
-                        int wr = object_weight_rarity(o_ptr, depth);
-                        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
-                    }
-                    
-                    /* Display "You see <object name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s%s.", o_name, smith_buf);
-                    unified_look_put_status(out_val);
-                }
-                else if (has_known_feature)
-                {
-                    /* Display "You see <feature name>" in left sidebar */
-                    strnfmt(out_val, sizeof(out_val), "You see %s.", feature_name);
-                    unified_look_put_status(out_val);
-                }
-                else
-                {
-                    /* Display help text based on current mode */
-                    unified_look_update_prompt_buttons(controller_controls,
-                        compact_look_layout, state.look_mode != 0,
-                        state.nearby_filter);
-                }
+                unified_look_format_status(&state, y, x, out_val,
+                    sizeof(out_val));
+                unified_look_put_status(out_val);
+                unified_look_update_prompt_buttons(controller_controls,
+                    compact_look_layout, state.look_mode != 0,
+                    state.nearby_filter);
             }
             
             /* Move cursor to position */
@@ -4646,14 +4851,80 @@ void do_cmd_unified_look(void)
         {
             case UI_MENU_CLICK_WAKE_KEY:
             {
-                if (ui_menu_click_take_hover_redraw())
-                    need_redraw = true;
-                if (unified_look_apply_sidebar_pointer_action(&state,
-                        compact_look_layout, &need_redraw, &selection_redraw))
+                int target_y = 0;
+                int target_x = 0;
+                int describe_y = 0;
+                int describe_x = 0;
+                bool prompt_hover_redraw = false;
+                bool hover_redraw = ui_menu_click_take_hover_redraw();
+
+                if (sdl_unified_look_take_map_target(&target_y, &target_x))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_map_cell(&state, target_y,
+                        target_x, compact_look_layout, &need_redraw,
+                        &selection_redraw);
+                    if (unified_look_target_monster_at(target_y, target_x))
+                        done = true;
+                    else
+                        need_redraw = true;
+                    selection_redraw = false;
                     break;
+                }
+                if (sdl_unified_look_take_map_describe(&describe_y,
+                        &describe_x))
+                {
+                    if (overlay_saved)
+                    {
+                        (void)Term_set_extra_cursor(false, 0, 0, false);
+                        screen_load();
+                        overlay_saved = false;
+                        handle_stuff();
+                    }
+
+                    (void)unified_look_apply_map_cell(&state, describe_y,
+                        describe_x, compact_look_layout, &need_redraw,
+                        &selection_redraw);
+                    if (!unified_look_examine_monster_at(describe_y,
+                            describe_x, use_story_font)
+                        && !unified_look_examine_object_at(describe_y,
+                            describe_x, use_story_font))
+                    {
+                        bell("Nothing to examine.");
+                    }
+                    need_redraw = true;
+                    selection_redraw = false;
+                    break;
+                }
+                if (unified_look_apply_sidebar_pointer_action(&state,
+                        compact_look_layout, &need_redraw, &selection_redraw,
+                        &prompt_hover_redraw))
+                {
+                    if (prompt_hover_redraw)
+                    {
+                        unified_look_update_prompt_buttons_ex(
+                            controller_controls, compact_look_layout,
+                            state.look_mode != 0, state.nearby_filter, false);
+                    }
+                    break;
+                }
                 if (unified_look_apply_map_hover(&state, compact_look_layout,
                         &need_redraw, &selection_redraw))
                     break;
+
+                if (hover_redraw)
+                {
+                    unified_look_update_prompt_buttons_ex(controller_controls,
+                        compact_look_layout, state.look_mode != 0,
+                        state.nearby_filter, false);
+                }
 
                 break;
             }
@@ -4721,6 +4992,7 @@ void do_cmd_unified_look(void)
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
+                unified_look_pause_pointer_handlers();
                 
                 /* Same logic as Space/Enter for examination */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -4926,6 +5198,10 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: No visible entities at cursor position");
                     }
                 }
+                unified_look_resume_pointer_handlers();
+                if (use_story_font)
+                    sdl_story_font_enable();
+
                 need_redraw = true;
                 break;
             }
@@ -5272,7 +5548,8 @@ command_key:
             case ' ':
             {
                 if (unified_look_apply_sidebar_pointer_action(&state,
-                        compact_look_layout, &need_redraw, &selection_redraw))
+                        compact_look_layout, &need_redraw, &selection_redraw,
+                        NULL))
                     break;
 
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
@@ -5280,6 +5557,7 @@ command_key:
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
+                unified_look_pause_pointer_handlers();
                 
                 /* Examine current target */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -5487,6 +5765,7 @@ command_key:
                 }
                 
                 /* Re-enable story font */
+                unified_look_resume_pointer_handlers();
                 if (use_story_font)
                     sdl_story_font_enable();
                 

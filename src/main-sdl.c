@@ -835,6 +835,12 @@ static bool g_unified_look_map_hover_pending = false;
 static bool g_unified_look_map_hover_wake_pending = false;
 static int g_unified_look_map_hover_y = 0;
 static int g_unified_look_map_hover_x = 0;
+static bool g_unified_look_map_describe_pending = false;
+static int g_unified_look_map_describe_y = 0;
+static int g_unified_look_map_describe_x = 0;
+static bool g_unified_look_map_target_pending = false;
+static int g_unified_look_map_target_y = 0;
+static int g_unified_look_map_target_x = 0;
 static int g_main_screen_status_selected_action = SDL_STATUS_CLICK_NONE;
 static int g_main_screen_status_selected_col = -1;
 static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
@@ -1019,6 +1025,8 @@ static void sdl_enqueue_bypassed_command(int command);
 static int sdl_inventory_equipment_cycle_binding(int binding);
 static void sdl_unified_look_clear_map_hover(void);
 static bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
+static bool sdl_unified_look_handle_map_describe_pointer(float x, float y);
+static bool sdl_unified_look_handle_map_target_pointer(float x, float y);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y);
@@ -1116,6 +1124,7 @@ static void sdl_mouse_path_handle_motion(float x, float y);
 static bool sdl_mouse_path_handle_left_click(float x, float y);
 static bool sdl_mouse_path_handle_right_movement_click(float x, float y);
 static bool sdl_mouse_recall_handle_right_click(float x, float y);
+static bool sdl_mouse_target_handle_left_click(float x, float y);
 static void sdl_mouse_path_render(void);
 bool sdl_pointer_attack_take_command(int* command, int* dir);
 bool sdl_mouse_path_take_step_command(int* command, int* dir);
@@ -5140,6 +5149,12 @@ static void sdl_unified_look_clear_map_hover(void)
     g_unified_look_map_hover_wake_pending = false;
     g_unified_look_map_hover_y = -1;
     g_unified_look_map_hover_x = -1;
+    g_unified_look_map_describe_pending = false;
+    g_unified_look_map_describe_y = -1;
+    g_unified_look_map_describe_x = -1;
+    g_unified_look_map_target_pending = false;
+    g_unified_look_map_target_y = -1;
+    g_unified_look_map_target_x = -1;
 }
 
 bool sdl_unified_look_take_map_hover(int* y, int* x)
@@ -5154,6 +5169,34 @@ bool sdl_unified_look_take_map_hover(int* y, int* x)
 
     g_unified_look_map_hover_pending = false;
     g_unified_look_map_hover_wake_pending = false;
+    return true;
+}
+
+bool sdl_unified_look_take_map_describe(int* y, int* x)
+{
+    if (!g_unified_look_map_describe_pending)
+        return false;
+
+    if (y)
+        *y = g_unified_look_map_describe_y;
+    if (x)
+        *x = g_unified_look_map_describe_x;
+
+    g_unified_look_map_describe_pending = false;
+    return true;
+}
+
+bool sdl_unified_look_take_map_target(int* y, int* x)
+{
+    if (!g_unified_look_map_target_pending)
+        return false;
+
+    if (y)
+        *y = g_unified_look_map_target_y;
+    if (x)
+        *x = g_unified_look_map_target_x;
+
+    g_unified_look_map_target_pending = false;
     return true;
 }
 
@@ -7532,7 +7575,7 @@ static bool sdl_mouse_grid_has_visible_monster(int y, int x, int* out_m_idx)
 {
     int m_idx;
 
-    if (!in_bounds(y, x) || !grid_info_is_available(y, x))
+    if (!in_bounds(y, x))
         return false;
 
     m_idx = cave_m_idx[y][x];
@@ -7578,6 +7621,59 @@ static bool sdl_mouse_grid_has_marked_object(int y, int x, object_type** out_obj
     return true;
 }
 
+static bool sdl_unified_look_handle_map_describe_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!g_unified_look_map_hover_enabled)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (ui_menu_click_has_cell(col, row))
+        return false;
+    if (!sdl_main_view_point_to_look_map(x, y, &map_y, &map_x))
+        return false;
+    if (!sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL)
+        && !sdl_mouse_grid_has_marked_object(map_y, map_x, NULL))
+    {
+        return false;
+    }
+
+    g_unified_look_map_describe_pending = true;
+    g_unified_look_map_describe_y = map_y;
+    g_unified_look_map_describe_x = map_x;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_unified_look_handle_map_target_pointer(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!g_unified_look_map_hover_enabled)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (ui_menu_click_has_cell(col, row))
+        return false;
+    if (!sdl_main_view_point_to_look_map(x, y, &map_y, &map_x))
+        return false;
+    if (!sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL))
+        return false;
+
+    g_unified_look_map_target_pending = true;
+    g_unified_look_map_target_y = map_y;
+    g_unified_look_map_target_x = map_x;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
 static bool sdl_mouse_grid_has_marked_searched_skeleton(int y, int x,
     object_type** out_obj)
 {
@@ -7601,6 +7697,15 @@ static bool sdl_mouse_grid_has_marked_searched_skeleton(int y, int x,
     }
 
     return false;
+}
+
+static bool sdl_mouse_grid_has_recallable_content(int y, int x)
+{
+    object_type* o_ptr = NULL;
+
+    return sdl_mouse_grid_has_visible_monster(y, x, NULL)
+        || sdl_mouse_grid_has_marked_searched_skeleton(y, x, &o_ptr)
+        || sdl_mouse_grid_has_marked_object(y, x, &o_ptr);
 }
 
 static void sdl_mouse_recall_object(object_type* o_ptr)
@@ -7651,6 +7756,68 @@ static bool sdl_mouse_recall_handle_right_click(float x, float y)
     g_mouse_path.recall_x = map_x;
     sdl_mouse_path_cancel();
     Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_mouse_recall_handle_right_click_if_available(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+    if (!sdl_mouse_grid_has_recallable_content(map_y, map_x))
+        return false;
+
+    g_mouse_path.recall_pending = true;
+    g_mouse_path.recall_y = map_y;
+    g_mouse_path.recall_x = map_x;
+    sdl_mouse_path_cancel();
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_mouse_target_handle_left_click(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+    int m_idx = 0;
+    monster_type* m_ptr;
+    char m_name[80];
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+    if (!sdl_mouse_grid_has_visible_monster(map_y, map_x, &m_idx))
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    monster_race_track(m_ptr->r_idx);
+    health_track(m_idx);
+    sdl_mouse_path_cancel();
+    sdl_pointer_attack_clear_hover();
+    sdl_pointer_attack_clear_touch_selection();
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+    if (!target_able(m_idx)) {
+        bell("No clear target.");
+        handle_stuff();
+        if (Term)
+            Term_fresh();
+        g_state.need_present = true;
+        return true;
+    }
+
+    target_set_monster(m_idx);
+    msg_format("Target set to %s.", m_name);
+    p_ptr->redraw |= PR_BASIC | PR_MAP;
+    handle_stuff();
+    if (Term)
+        Term_fresh();
+    g_state.need_present = true;
     return true;
 }
 
@@ -17733,6 +17900,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_unified_look_handle_map_target_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_main_screen_click_shortcuts_active()) {
                 int map_y = 0;
                 int map_x = 0;
@@ -17804,6 +17976,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_mouse_target_handle_left_click((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_pointer_attack_handle_left_click((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -17825,6 +18002,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (g_player_exchange_target.active) {
                 sdl_player_exchange_cancel();
+                return;
+            }
+            if (sdl_unified_look_handle_map_describe_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
                 return;
             }
             if (sdl_main_screen_menu_pointer_hits_cell((float)ev->button.x,
@@ -17849,6 +18031,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (sdl_mouse_path_handle_right_click((float)ev->button.x,
                 (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_mouse_recall_handle_right_click_if_available(
+                    (float)ev->button.x, (float)ev->button.y))
             {
                 return;
             }

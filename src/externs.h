@@ -1571,6 +1571,8 @@ extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
+extern bool sdl_unified_look_take_map_describe(int* y, int* x);
+extern bool sdl_unified_look_take_map_target(int* y, int* x);
 extern bool sdl_status_line_touch_zone_selected(int action, int col, int width);
 extern bool sdl_character_panel_touch_zone_selected(int action, int row);
 extern bool sdl_display_pixel_map(int* cy, int* cx);
@@ -1625,6 +1627,7 @@ extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_has_pending(void);
 extern bool ui_menu_click_clear_pending_hover(void);
 extern bool ui_menu_click_take_hover_redraw(void);
+extern bool ui_menu_click_get_hover_choice(int* choice);
 extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
 #define UI_MENU_CLICK_PRIMARY 1

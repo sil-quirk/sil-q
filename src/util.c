@@ -432,6 +432,17 @@ bool ui_menu_click_take_hover_redraw(void)
     return pending;
 }
 
+bool ui_menu_click_get_hover_choice(int* choice)
+{
+    if (!ui_menu_click_active || !ui_menu_click_hover_current)
+        return false;
+
+    if (choice)
+        *choice = ui_menu_click_hover_choice;
+
+    return true;
+}
+
 bool ui_menu_click_take_action(int* choice, int* action)
 {
     if (!ui_menu_click_pending)
