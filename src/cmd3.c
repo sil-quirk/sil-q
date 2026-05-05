@@ -4474,13 +4474,6 @@ static void unified_look_update_prompt_buttons_ex(bool controller_controls,
     }
 }
 
-static void unified_look_update_prompt_buttons(bool controller_controls,
-    bool compact_look_layout, bool cursor_mode, bool nearby_filter)
-{
-    unified_look_update_prompt_buttons_ex(controller_controls,
-        compact_look_layout, cursor_mode, nearby_filter, true);
-}
-
 static void unified_look_restore_map_cursor(const unified_look_state* state)
 {
     if (!state)
@@ -4618,6 +4611,26 @@ static void unified_look_format_status(const unified_look_state* state, int y,
     }
 
     (void)unified_look_format_feature_status(y, x, out_val, out_len);
+}
+
+static void unified_look_redraw_bars(const unified_look_state* state,
+    bool controller_controls, bool compact_look_layout, bool register_clicks)
+{
+    char out_val[256];
+    int y;
+    int x;
+
+    if (!state)
+        return;
+
+    y = state->cursor_y;
+    x = state->cursor_x;
+
+    unified_look_format_status(state, y, x, out_val, sizeof(out_val));
+    unified_look_put_status(out_val);
+    unified_look_update_prompt_buttons_ex(controller_controls,
+        compact_look_layout, state->look_mode != 0, state->nearby_filter,
+        register_clicks);
 }
 
 static void unified_look_pause_pointer_handlers(void)
@@ -4784,6 +4797,21 @@ static void unified_look_constrain_viewport(int* wy, int* wx)
         *wx = max_wx;
 }
 
+static bool unified_look_map_pan_would_move(int pan_dy, int pan_dx)
+{
+    int new_wy;
+    int new_wx;
+
+    if (pan_dy == 0 && pan_dx == 0)
+        return false;
+
+    new_wy = p_ptr->wy + pan_dy;
+    new_wx = p_ptr->wx + pan_dx;
+    unified_look_constrain_viewport(&new_wy, &new_wx);
+
+    return (new_wy != p_ptr->wy || new_wx != p_ptr->wx);
+}
+
 static void unified_look_clear_highlight(unified_look_state* state)
 {
     if (!state)
@@ -4873,6 +4901,67 @@ static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
         *need_redraw = true;
 
     return true;
+}
+
+static void unified_look_track_cursor_health(const unified_look_state* state)
+{
+    int cursor_m_idx;
+
+    if (!state)
+    {
+        health_track(0);
+        handle_stuff();
+        return;
+    }
+
+    cursor_m_idx = cave_m_idx[state->cursor_y][state->cursor_x];
+    if ((cursor_m_idx > 0)
+        && unified_look_can_show_monster_at(state->cursor_y, state->cursor_x))
+    {
+        health_track(cursor_m_idx);
+    }
+    else
+    {
+        health_track(0);
+    }
+
+    handle_stuff();
+}
+
+static void unified_look_redraw_overlay(unified_look_state* state,
+    bool controller_controls, bool compact_look_layout, bool* overlay_saved,
+    bool selection_redraw, bool register_clicks)
+{
+    if (!state || !overlay_saved)
+        return;
+
+    if (selection_redraw && *overlay_saved)
+    {
+        show_unified_sidebar(state);
+    }
+    else
+    {
+        if (*overlay_saved)
+        {
+            (void)Term_set_extra_cursor(false, 0, 0, false);
+            screen_load_quiet();
+            *overlay_saved = false;
+        }
+
+        unified_look_sync_cursor_selection(state);
+
+        /* Save the clean map before painting look-only UI elements. */
+        screen_save();
+        *overlay_saved = true;
+
+        show_unified_sidebar(state);
+    }
+
+    unified_look_track_cursor_health(state);
+    unified_look_redraw_bars(state, controller_controls, compact_look_layout,
+        register_clicks);
+    unified_look_restore_map_cursor(state);
+    Term_fresh();
 }
 
 void do_cmd_unified_look(void)
@@ -5002,68 +5091,9 @@ void do_cmd_unified_look(void)
 
         if (need_redraw)
         {
-            if (selection_redraw && overlay_saved)
-            {
-                show_unified_sidebar(&state);
-            }
-            else
-            {
-                if (overlay_saved)
-                {
-                    (void)Term_set_extra_cursor(false, 0, 0, false);
-                    screen_load();
-                    overlay_saved = false;
-                }
-
-                unified_look_sync_cursor_selection(&state);
-
-                /* Save screen to preserve underlying display */
-                screen_save();
-                overlay_saved = true;
-
-                /* Show unified sidebar */
-                show_unified_sidebar(&state);
-            }
-
+            unified_look_redraw_overlay(&state, controller_controls,
+                compact_look_layout, &overlay_saved, selection_redraw, true);
             selection_redraw = false;
-            
-            /* Track monster health at current cursor position for left sidebar display */
-            /* This handles Tab cycling and any other cursor position updates */
-            int cursor_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
-            if ((cursor_m_idx > 0)
-                && unified_look_can_show_monster_at(state.cursor_y, state.cursor_x))
-            {
-                /* Track this monster for health display */
-                health_track(cursor_m_idx);
-            }
-            else
-            {
-                /* Clear health tracking when cursor is not on a visible monster */
-                health_track(0);
-            }
-            
-            /* Process redraw flags to update health bar immediately */
-            handle_stuff();
-            
-            /* Show cursor position info */
-            y = state.cursor_y;
-            x = state.cursor_x;
-            
-            /* Top line: current hovered/selected name. Bottom line: controls. */
-            {
-                char out_val[256];
-
-                unified_look_format_status(&state, y, x, out_val,
-                    sizeof(out_val));
-                unified_look_put_status(out_val);
-                unified_look_update_prompt_buttons(controller_controls,
-                    compact_look_layout, state.look_mode != 0,
-                    state.nearby_filter);
-            }
-            
-            /* Move cursor to position */
-            move_cursor_relative(state.cursor_y, state.cursor_x);
-            
             need_redraw = false;
         }
         
@@ -5114,7 +5144,7 @@ void do_cmd_unified_look(void)
                     if (overlay_saved)
                     {
                         (void)Term_set_extra_cursor(false, 0, 0, false);
-                        screen_load();
+                        screen_load_quiet();
                         overlay_saved = false;
                         handle_stuff();
                     }
@@ -5125,16 +5155,37 @@ void do_cmd_unified_look(void)
                 }
                 if (sdl_unified_look_take_map_pan(&pan_dy, &pan_dx))
                 {
+                    bool pan_moves = unified_look_map_pan_would_move(pan_dy,
+                        pan_dx);
+
+                    if (!pan_moves)
+                    {
+                        if (!overlay_saved)
+                        {
+                            unified_look_redraw_overlay(&state,
+                                controller_controls, compact_look_layout,
+                                &overlay_saved, false, true);
+                        }
+                        break;
+                    }
+
                     if (overlay_saved)
                     {
                         (void)Term_set_extra_cursor(false, 0, 0, false);
-                        screen_load();
+                        screen_load_quiet();
                         overlay_saved = false;
                         handle_stuff();
                     }
 
-                    (void)unified_look_apply_map_pan(&state, pan_dy, pan_dx,
-                        &need_redraw, &selection_redraw);
+                    if (unified_look_apply_map_pan(&state, pan_dy, pan_dx,
+                            &need_redraw, &selection_redraw))
+                    {
+                        unified_look_redraw_overlay(&state,
+                            controller_controls, compact_look_layout,
+                            &overlay_saved, false, true);
+                        selection_redraw = false;
+                        need_redraw = false;
+                    }
                     break;
                 }
                 if (sdl_unified_look_take_map_target(&target_y, &target_x))

@@ -245,11 +245,15 @@ To install it on a connected device, enable Developer options and USB debugging,
 .\install-android-apk.ps1 -Config Debug
 ```
 
-To build, install, and launch in one step:
+To build, install, and launch a release-signed APK in one step:
 
 ```powershell
-.\deploy-android.ps1 -Config Debug -LaunchApp
+.\deploy-android.ps1 -LaunchApp
 ```
+
+`deploy-android.ps1` defaults to `Release` when `-Config` is omitted. Release APK builds and release deploys use the same upload keystore settings as the Play Store app bundle path. By default, the scripts load `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1`, then look for `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`; the `SIL_MORE_RELEASE_*` environment variables or script parameters can override that.
+
+For a debug-signed local build, pass `-Config Debug`.
 
 If Android reports a signature mismatch with an older installed copy, uninstall the existing app first or reinstall with the same signing key. If the device has a newer local build installed, `.\install-android-apk.ps1 -Config Debug -AllowDowngrade` can be used for personal testing.
 
@@ -261,7 +265,7 @@ This builds only the native library through CMake and does not create an install
 ```
 
 ### Play Store app bundle
-This is not required for personal sideloading. For a Play Store app bundle, configure a release/upload keystore through `SIL_MORE_RELEASE_*` environment variables and run:
+This is not required for personal sideloading. For a Play Store app bundle, use the default release/upload env file at `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1` and keystore at `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`, or override it through `SIL_MORE_RELEASE_*` environment variables, then run:
 
 ```powershell
 .\build-android-bundle.ps1 -CompileSdk 35

@@ -1525,6 +1525,7 @@ extern void message_format(u16b message_type, s16b extra, cptr fmt, ...);
 extern void message_flush(void);
 extern void screen_save(void);
 extern void screen_load(void);
+extern void screen_load_quiet(void);
 extern void screen_clear_all_terms_no_fresh(void);
 extern void message_discard_pending(void);
 extern bool message_line_has_text(void);

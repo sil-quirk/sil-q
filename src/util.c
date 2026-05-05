@@ -3201,12 +3201,7 @@ void screen_save(void)
     log_debug("screen_save: character_icky incremented to %d, screen_depth=%d", character_icky, screen_depth);
 }
 
-/*
- * Load the screen, and decrease the "icky" depth.
- *
- * This function must match exactly one call to "screen_save()".
- */
-void screen_load(void)
+static void screen_load_impl(bool refresh_restored_screen)
 {
     bool restored_screen = false;
 
@@ -3245,10 +3240,25 @@ void screen_load(void)
 
     /* Push the restored terminal contents immediately. Some overlay exits do
      * not hit another global refresh pass before idling for input. */
-    if (restored_screen)
+    if (restored_screen && refresh_restored_screen)
         Term_fresh();
 
     sdl_refresh_supporting_panes_layout();
+}
+
+/*
+ * Load the screen, and decrease the "icky" depth.
+ *
+ * This function must match exactly one call to "screen_save()".
+ */
+void screen_load(void)
+{
+    screen_load_impl(true);
+}
+
+void screen_load_quiet(void)
+{
+    screen_load_impl(false);
 }
 
 /*
