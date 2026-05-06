@@ -6090,6 +6090,66 @@ static bool sdl_mouse_path_dirs_sprint_compatible(int newer_dir, int older_dir)
         || (newer_dir == cycle[chome[older_dir] + 1]);
 }
 
+static bool sdl_mouse_path_grid_is_safe_leap_landing(int y, int x)
+{
+    int m_idx;
+
+    if (!sdl_mouse_path_grid_walkable(y, x))
+        return false;
+    if (cave_known_closed_door_bold(y, x))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if ((m_idx > 0) && mon_list[m_idx].ml)
+        return false;
+
+    return true;
+}
+
+static bool sdl_mouse_path_state_has_run_up(int y, int x, int dir, byte state)
+{
+    int previous_dir = sdl_mouse_path_route_state_dir(state);
+
+    if (!previous_dir && y == p_ptr->py && x == p_ptr->px)
+        previous_dir = p_ptr->previous_action[1];
+
+    return sdl_mouse_path_dirs_sprint_compatible(dir, previous_dir);
+}
+
+static bool sdl_mouse_path_can_step_into_chasm(int y, int x, int dir,
+    byte state)
+{
+    int mid_y;
+    int mid_x;
+    int land_y;
+    int land_x;
+
+    if (!p_ptr || !p_ptr->active_ability[S_EVN][EVN_LEAPING])
+        return false;
+    if (p_ptr->confused)
+        return false;
+    if (cave_pit_bold(y, x))
+        return false;
+    if (cave_feat[y][x] == FEAT_TRAP_WEB)
+        return false;
+    if (!sdl_mouse_path_state_has_run_up(y, x, dir, state))
+        return false;
+
+    mid_y = y + ddy[dir];
+    mid_x = x + ddx[dir];
+    land_y = mid_y + ddy[dir];
+    land_x = mid_x + ddx[dir];
+
+    if (!in_bounds(mid_y, mid_x) || !in_bounds(land_y, land_x))
+        return false;
+    if (cave_feat[mid_y][mid_x] != FEAT_CHASM)
+        return false;
+    if (!sdl_mouse_feature_known_for_action(mid_y, mid_x))
+        return false;
+
+    return sdl_mouse_path_grid_is_safe_leap_landing(land_y, land_x);
+}
+
 static byte sdl_mouse_path_initial_route_state(bool sprint_enabled)
 {
     int dir;
@@ -6461,6 +6521,7 @@ static bool sdl_mouse_path_compute_route(int target_y, int target_x,
             int dir = dirs[i];
             int ny = y + ddy[dir];
             int nx = x + ddx[dir];
+            bool chasm_step = false;
             byte next_state;
             u16b next_grid;
             size_t next_idx;
@@ -6469,8 +6530,18 @@ static bool sdl_mouse_path_compute_route(int target_y, int target_x,
 
             if (!in_bounds(ny, nx))
                 continue;
-            if (!sdl_mouse_path_grid_walkable(ny, nx))
-                continue;
+            if (cave_feat[y][x] == FEAT_CHASM) {
+                int previous_dir = sdl_mouse_path_route_state_dir(state);
+
+                if (dir != previous_dir)
+                    continue;
+                if (!sdl_mouse_path_grid_is_safe_leap_landing(ny, nx))
+                    continue;
+            } else if (!sdl_mouse_path_grid_walkable(ny, nx)) {
+                if (!sdl_mouse_path_can_step_into_chasm(y, x, dir, state))
+                    continue;
+                chasm_step = true;
+            }
 
             next_state = sdl_mouse_path_next_route_state(
                 state, dir, sprint_enabled);
@@ -6480,6 +6551,8 @@ static bool sdl_mouse_path_compute_route(int target_y, int target_x,
             next_cost =
                 base_cost + sdl_mouse_path_route_edge_cost(
                     state, dir, sprint_enabled);
+            if (chasm_step)
+                next_cost += SDL_MOUSE_PATH_COST_NORMAL;
 
             if (next_cost >= g_mouse_path_search.cost[next_idx])
                 continue;
@@ -6831,6 +6904,8 @@ static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
     feat = cave_feat[map_y][map_x];
     if (feat == FEAT_OPEN)
         command = 'c';
+    else if (feat == FEAT_QUARTZ)
+        command = 'T';
     else if (feat == FEAT_RUBBLE)
         command = 'T';
     else if (cave_known_closed_door_bold(map_y, map_x))
@@ -8651,6 +8726,8 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
     next_y = GRID_Y(g_mouse_path.path[0]);
     next_x = GRID_X(g_mouse_path.path[0]);
     attack_step = sdl_mouse_grid_has_visible_monster(next_y, next_x, NULL);
+    if (cave_feat[next_y][next_x] == FEAT_CHASM)
+        sdl_mouse_note_feature_for_action(next_y, next_x);
 
     *command = ';';
     *dir = motion_dir(p_ptr->py, p_ptr->px, next_y, next_x);
