@@ -7387,7 +7387,7 @@ static bool twall(int y, int x)
             && ((cave_info[y][x] & CAVE_ROOM) != 0)
             && !in_chasm_area;
         bool allow_mithril = in_cave_loot_quartz;
-        bool allow_star_iron = in_chasm_area;
+        bool allow_star_iron = (part_kind == LEVEL_PART_CHASM) && in_chasm_area;
         
         /* Base 10% chance at depth 10, scaling up to 25% at depth 20+ */
         int special_chance = 10 + depth;

@@ -2976,7 +2976,8 @@ static bool level_has_chasm_partition(void)
 
 /* Normalize CAVE_CHASM_AREA so it only marks the actual chasm footprint and
  * the native platform/bridge floor inside chasm partitions. Tagging whole
- * partition rectangles made non-chasm tiles render and light like chasms. */
+ * partition rectangles or failed chasm fallbacks made non-chasm tiles render
+ * and light like chasms. */
 static void apply_chasm_partition_tags(void)
 {
     if (current_partition_rows <= 0 || current_partition_cols <= 0 || current_partition_count <= 0)
@@ -2984,8 +2985,7 @@ static void apply_chasm_partition_tags(void)
 
     for (int pi = 0; pi < current_partition_count; ++pi)
     {
-        if (current_partition_modes[pi] != QUAD_MODE_CHASM)
-            continue;
+        bool is_chasm_partition = (current_partition_modes[pi] == QUAD_MODE_CHASM);
 
         int y1 = 0, y2 = 0, x1 = 0, x2 = 0;
         if (!compute_partition_bounds(pi, current_partition_rows, current_partition_cols, &y1, &y2, &x1, &x2))
@@ -2998,9 +2998,10 @@ static void apply_chasm_partition_tags(void)
                 if (!in_bounds(y, x))
                     continue;
 
-                if (cave_feat[y][x] == FEAT_CHASM
+                if (is_chasm_partition
+                    && (cave_feat[y][x] == FEAT_CHASM
                     || ((cave_info[y][x] & (CAVE_ROOM | CAVE_CHASM_AREA))
-                        == (CAVE_ROOM | CAVE_CHASM_AREA)))
+                        == (CAVE_ROOM | CAVE_CHASM_AREA))))
                 {
                     cave_info[y][x] |= CAVE_CHASM_AREA;
                 }
@@ -6746,8 +6747,11 @@ static void apply_quadrant_generation_modes(void)
                     partition_bridge_styles[pi] = -1;
                 }
 
-                /* Veins in chasm walls for mining (tagged for metal placement) */
-                scatter_quartz_veins_in_bounds(y1, y2, x1, x2, CAVE_CHASM_AREA);
+                /* Veins in chasm walls for mining (tagged for metal placement).
+                 * If chasm generation fell back to cave terrain, leave these as
+                 * ordinary cave quartz. */
+                scatter_quartz_veins_in_bounds(y1, y2, x1, x2,
+                    chasm_carved ? CAVE_CHASM_AREA : 0);
 
                 /* Place 2 guaranteed chests in chasm partition ONLY if it actually carved */
                 if (chasm_carved)
