@@ -22870,6 +22870,208 @@ static void sdl_draw_ascii_minimap_cell(byte a, char c, byte ta, char tc,
     SDL_RenderFillRect(g_state.renderer, dst);
 }
 
+static bool sdl_rage_grid_filter_active(int y, int x)
+{
+    u16b info;
+
+    if (!p_ptr || p_ptr->is_dead || !p_ptr->rage)
+        return false;
+    if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
+        || (x >= p_ptr->cur_map_wid))
+    {
+        return false;
+    }
+    info = cave_info[y][x];
+    if (!(info & (CAVE_MARK | CAVE_SEEN)))
+        return false;
+    if ((p_ptr->rage || g_labyrinth_view_active) && !(info & CAVE_SEEN))
+        return false;
+
+    return true;
+}
+
+static bool sdl_rage_wall_tint_active(int y, int x)
+{
+    byte feat;
+
+    if (!sdl_rage_grid_filter_active(y, x))
+        return false;
+
+    feat = f_info[cave_feat[y][x]].mimic;
+    return (feat >= FEAT_WALL_HEAD) && (feat <= FEAT_WALL_TAIL)
+        && (feat != FEAT_RUBBLE);
+}
+
+static bool sdl_rage_floor_tint_active(int y, int x)
+{
+    byte feat;
+
+    if (!sdl_rage_grid_filter_active(y, x))
+        return false;
+
+    if (cave_floorlike_bold(y, x))
+        return true;
+
+    feat = f_info[cave_feat[y][x]].mimic;
+    return ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+        || ((feat >= FEAT_STAIR_HEAD) && (feat <= FEAT_STAIR_TAIL))
+        || ((feat >= FEAT_FORGE_HEAD) && (feat <= FEAT_FORGE_TAIL))
+        || (feat == FEAT_SUNLIGHT)
+        || (feat == FEAT_RUBBLE);
+}
+
+static bool sdl_rage_visible_floor_object(int y, int x)
+{
+    object_type* o_ptr;
+    byte feat;
+
+    if (!sdl_rage_grid_filter_active(y, x))
+        return false;
+
+    feat = f_info[cave_feat[y][x]].mimic;
+    if ((feat != FEAT_FLOOR) && (feat != FEAT_SUNLIGHT))
+        return false;
+
+    for (o_ptr = get_first_object(y, x); o_ptr;
+         o_ptr = get_next_object(o_ptr))
+    {
+        if (o_ptr->marked)
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_rage_base_floor_tint_active(int y, int x)
+{
+    if (!sdl_rage_floor_tint_active(y, x))
+        return false;
+
+    return cave_m_idx[y][x] == 0 && !sdl_rage_visible_floor_object(y, x)
+        && cave_floorlike_bold(y, x);
+}
+
+static bool sdl_rage_base_object_tint_active(int y, int x)
+{
+    if (!sdl_rage_visible_floor_object(y, x))
+        return false;
+
+    return cave_m_idx[y][x] == 0;
+}
+
+static u32b sdl_rage_wall_filter_hash(int y, int x, u32b phase)
+{
+    u32b h = (u32b)x * 374761393u;
+
+    h ^= (u32b)y * 668265263u;
+    h ^= phase * 2246822519u;
+    h ^= h >> 13;
+    h *= 3266489917u;
+    h ^= h >> 16;
+    return h;
+}
+
+static void sdl_restore_tileset_mod(void)
+{
+    if (!g_state.tileset)
+        return;
+
+    SDL_SetTextureColorMod(g_state.tileset, 255, 255, 255);
+    SDL_SetTextureAlphaMod(g_state.tileset, 255);
+}
+
+static SDL_Rect sdl_frect_to_clip_rect(const SDL_FRect* rect)
+{
+    SDL_Rect clip = { 0, 0, 0, 0 };
+
+    if (!rect)
+        return clip;
+
+    clip.x = (int)rect->x;
+    clip.y = (int)rect->y;
+    clip.w = (int)(rect->w + 0.5f);
+    clip.h = (int)(rect->h + 0.5f);
+    return clip;
+}
+
+static void sdl_draw_rage_tile_filter(byte a, char c, int y, int x,
+    const SDL_FRect* dst)
+{
+    SDL_Color tint = g_state.palette[TERM_RED];
+    SDL_Rect old_clip;
+    SDL_Rect base_clip;
+    bool had_clip;
+    u32b phase;
+    u32b hash;
+
+    if (!dst)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, tint.r, tint.g, tint.b, 24);
+    SDL_RenderFillRect(g_state.renderer, dst);
+
+    if (!g_state.tileset || !(a & TILE_FLAG) || !(((byte)c) & TILE_FLAG))
+        return;
+
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+
+    base_clip = sdl_frect_to_clip_rect(dst);
+    if (base_clip.w <= 0 || base_clip.h <= 0)
+        return;
+    if (had_clip) {
+        SDL_Rect clipped;
+
+        if (!SDL_GetRectIntersection(&base_clip, &old_clip, &clipped))
+            return;
+        base_clip = clipped;
+    }
+
+    phase = (u32b)(SDL_GetTicks() / 120u);
+    hash = sdl_rage_wall_filter_hash(y, x, phase);
+
+    SDL_SetTextureColorMod(g_state.tileset, 255, 96, 80);
+    SDL_SetTextureAlphaMod(g_state.tileset, 34);
+
+    for (int band = 0; band < 4; band++) {
+        SDL_Rect band_clip = base_clip;
+        SDL_FRect shifted = *dst;
+        SDL_Rect final_clip;
+        int y0 = base_clip.y + (base_clip.h * band) / 4;
+        int y1 = base_clip.y + (base_clip.h * (band + 1)) / 4;
+        int offset_pick = (int)((hash >> (band * 5)) & 0x03);
+        int offset = 0;
+
+        if (offset_pick == 0)
+            offset = -1;
+        else if (offset_pick == 1)
+            offset = 1;
+        else if ((band == 1) || (band == 3))
+            offset = ((hash >> (band + 17)) & 0x01) ? 1 : -1;
+
+        band_clip.y = y0;
+        band_clip.h = y1 - y0;
+        if (band_clip.h <= 0)
+            continue;
+
+        if (had_clip) {
+            if (!SDL_GetRectIntersection(&band_clip, &old_clip, &final_clip))
+                continue;
+        } else {
+            final_clip = band_clip;
+        }
+
+        SDL_SetRenderClipRect(g_state.renderer, &final_clip);
+        shifted.x += (float)offset;
+        sdl_draw_tileset_sprite(a, c, &shifted, false);
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+    sdl_restore_tileset_mod();
+}
+
 static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     char tc, const SDL_FRect* dst)
 {
@@ -22892,6 +23094,10 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
 
     /* Terrain underlay */
     sdl_draw_tileset_sprite(ta, tc, dst, false);
+    if (sdl_rage_wall_tint_active(dy, dx) && (cave_m_idx[dy][dx] != 0))
+        sdl_draw_rage_tile_filter(ta, tc, dy, dx, dst);
+    else if (sdl_rage_floor_tint_active(dy, dx))
+        sdl_draw_rage_tile_filter(ta, tc, dy, dx, dst);
 
     if ((dy >= 0) && (dx >= 0) && p_ptr && (dy < p_ptr->cur_map_hgt)
         && (dx < p_ptr->cur_map_wid))
@@ -22946,8 +23152,13 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
                             byte obj_c = (byte)object_char(o_ptr);
 
                             if ((obj_a & TILE_FLAG) && (obj_c & TILE_FLAG))
+                            {
                                 sdl_draw_tileset_sprite(obj_a, (char)obj_c,
                                     dst, false);
+                                if (sdl_rage_visible_floor_object(dy, dx))
+                                    sdl_draw_rage_tile_filter(obj_a,
+                                        (char)obj_c, dy, dx, dst);
+                            }
 
                             break;
                         }
@@ -22966,6 +23177,13 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
 
     /* Base tile */
     sdl_draw_tileset_sprite(a, c, dst, false);
+
+    if (sdl_rage_wall_tint_active(dy, dx) && (cave_m_idx[dy][dx] == 0))
+        sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
+    else if (sdl_rage_base_object_tint_active(dy, dx))
+        sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
+    else if (sdl_rage_base_floor_tint_active(dy, dx))
+        sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
 
     if (sleep) {
         byte icon_a = misc_to_attr[ICON_SLEEPING];

@@ -534,6 +534,8 @@ extern void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
 extern int styles_get_choice_capacity(void);
 extern void styles_copy_level_door_choices(byte* out_buf, int max_n);
 extern void styles_load_level_door_choices(const byte* in_buf, int n);
+extern void hallucination_randomize_style_transitions(void);
+extern void hallucination_clear_style_transitions(void);
 extern int project_path(
     u16b* gp, int range, int y1, int x1, int* y2, int* x2, u32b flg);
 extern byte projectable(int y1, int x1, int y2, int x2, u32b flg);
