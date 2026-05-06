@@ -495,6 +495,17 @@ typedef struct menu_scroll_drag_state {
     float accum_y;
 } menu_scroll_drag_state;
 
+typedef struct pane_layout_drag_state {
+    bool active;
+    bool dragged;
+    bool changed;
+    int pane_config_index;
+    enum pane_type pane;
+    enum pane_placement where;
+    float start_x;
+    float start_y;
+} pane_layout_drag_state;
+
 typedef struct map_touch_press_state {
     bool active;
     bool repeat_target;
@@ -879,6 +890,7 @@ static screen_back_touch_press_state g_screen_back_touch_press;
 static bool g_screen_back_suppress_touch_up = false;
 static SDL_FingerID g_screen_back_suppress_touch_finger_id = 0;
 static menu_scroll_drag_state g_menu_scroll_drag;
+static pane_layout_drag_state g_pane_layout_drag;
 static map_touch_press_state g_map_touch_press;
 static player_action_menu_state g_player_action_menu;
 static player_exchange_target_state g_player_exchange_target;
@@ -1249,6 +1261,10 @@ static int sdl_map_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_map_touch_flush_pending_press(Uint64 now_ns);
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
+static bool sdl_pane_layout_drag_handle_pointer_down(float x, float y);
+static bool sdl_pane_layout_drag_handle_pointer_motion(float x, float y);
+static bool sdl_pane_layout_drag_handle_pointer_up(float x, float y);
+static void sdl_pane_layout_drag_cancel(void);
 static bool sdl_is_log_pane_active(void);
 static bool sdl_is_bottom_log_pane_active(void);
 static void sdl_handle_log_pane_activation(bool log_was_active, bool bottom_log_was_active);
@@ -13924,6 +13940,261 @@ static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
     return false;
 }
 
+static bool sdl_pane_layout_group_enabled(enum pane_placement where)
+{
+    if (pane_placement_is_side(where))
+        return config.enable_right_panes;
+    if (pane_placement_is_bottom(where))
+        return config.enable_bottom_panes;
+
+    return false;
+}
+
+static bool sdl_pane_layout_config_draggable(int index)
+{
+    enum pane_type type;
+    const SDL_Rect* rect;
+
+    if (index < 0 || index >= pane_config_count)
+        return false;
+    if (!pane_config[index].enabled)
+        return false;
+    if (!sdl_pane_layout_group_enabled(pane_config[index].where))
+        return false;
+
+    type = pane_config[index].pane;
+    if (type <= PANE_MAIN || type >= PANE_MAX)
+        return false;
+    if (type == PANE_TOUCH || type == PANE_MAP)
+        return false;
+    if (!pane_placement_is_side(pane_config[index].where)
+        && !pane_placement_is_bottom(pane_config[index].where))
+    {
+        return false;
+    }
+
+    rect = &g_pane_rects[type];
+    return sdl_rect_has_area(rect);
+}
+
+static int sdl_pane_layout_config_at(float x, float y)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        enum pane_type type;
+
+        if (!sdl_pane_layout_config_draggable(i))
+            continue;
+
+        type = pane_config[i].pane;
+        if (sdl_point_in_rect(&g_pane_rects[type], x, y))
+            return i;
+    }
+
+    return -1;
+}
+
+static float sdl_pane_layout_drag_threshold_px(void)
+{
+    float threshold = g_state.system_scale * 8.0f;
+
+    if (threshold < 8.0f)
+        threshold = 8.0f;
+    if (threshold > 16.0f)
+        threshold = 16.0f;
+
+    return threshold;
+}
+
+static bool sdl_pane_layout_move_config(int from, int insert_before)
+{
+    struct pane_config moved;
+
+    if (from < 0 || from >= pane_config_count)
+        return false;
+    if (insert_before < 0)
+        insert_before = 0;
+    if (insert_before > pane_config_count)
+        insert_before = pane_config_count;
+    if (insert_before == from || insert_before == from + 1)
+        return false;
+
+    moved = pane_config[from];
+    if (from < insert_before) {
+        memmove(&pane_config[from], &pane_config[from + 1],
+            sizeof(pane_config[0]) * (size_t)(insert_before - from - 1));
+        pane_config[insert_before - 1] = moved;
+        g_pane_layout_drag.pane_config_index = insert_before - 1;
+    } else {
+        memmove(&pane_config[insert_before + 1], &pane_config[insert_before],
+            sizeof(pane_config[0]) * (size_t)(from - insert_before));
+        pane_config[insert_before] = moved;
+        g_pane_layout_drag.pane_config_index = insert_before;
+    }
+
+    return true;
+}
+
+static bool sdl_pane_layout_drag_reorder_at(float x, float y)
+{
+    int target = -1;
+    int insert_before;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        const SDL_Rect* rect;
+        enum pane_type type;
+        float axis;
+        float center;
+
+        if (i == g_pane_layout_drag.pane_config_index)
+            continue;
+        if (!sdl_pane_layout_config_draggable(i))
+            continue;
+        if (pane_config[i].where != g_pane_layout_drag.where)
+            continue;
+
+        type = pane_config[i].pane;
+        rect = &g_pane_rects[type];
+        if (!sdl_point_in_rect(rect, x, y))
+            continue;
+
+        axis = pane_placement_is_side(g_pane_layout_drag.where) ? y : x;
+        center = pane_placement_is_side(g_pane_layout_drag.where)
+            ? ((float)rect->y + (float)rect->h * 0.5f)
+            : ((float)rect->x + (float)rect->w * 0.5f);
+        target = i;
+        insert_before = (axis >= center) ? (target + 1) : target;
+
+        if (!sdl_pane_layout_move_config(
+                g_pane_layout_drag.pane_config_index, insert_before))
+        {
+            return false;
+        }
+
+        sdl_store_active_pane_profile(config.min_terminal_mode);
+        sdl_apply_config();
+        g_pane_layout_drag.changed = true;
+        log_debug("Dragged pane %d within %s group",
+            g_pane_layout_drag.pane,
+            pane_placement_name(g_pane_layout_drag.where));
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_pane_layout_drag_send_click(enum pane_type pane)
+{
+    if (!sdl_pane_command_shortcuts_active())
+        return;
+
+    switch (pane) {
+    case PANE_INVENTORY:
+        sdl_enqueue_bypassed_command('i');
+        break;
+    case PANE_WORN:
+        sdl_enqueue_bypassed_command('e');
+        break;
+    case PANE_LOG:
+        sdl_enqueue_bypassed_command(KTRL('P'));
+        break;
+    case PANE_ROLLS:
+        sdl_enqueue_bypassed_command(KTRL('Q'));
+        break;
+    default:
+        break;
+    }
+}
+
+static void sdl_pane_layout_drag_cancel(void)
+{
+    g_pane_layout_drag.active = false;
+    g_pane_layout_drag.dragged = false;
+    g_pane_layout_drag.changed = false;
+    g_pane_layout_drag.pane_config_index = -1;
+    g_pane_layout_drag.pane = PANE_MAIN;
+    g_pane_layout_drag.where = PLACE_RIGHT;
+    g_pane_layout_drag.start_x = 0.0f;
+    g_pane_layout_drag.start_y = 0.0f;
+}
+
+static bool sdl_pane_layout_drag_handle_pointer_down(float x, float y)
+{
+    int index;
+
+    if (!sdl_should_show_supporting_panes())
+        return false;
+
+    index = sdl_pane_layout_config_at(x, y);
+    if (index < 0)
+        return false;
+
+    g_pane_layout_drag.active = true;
+    g_pane_layout_drag.dragged = false;
+    g_pane_layout_drag.changed = false;
+    g_pane_layout_drag.pane_config_index = index;
+    g_pane_layout_drag.pane = pane_config[index].pane;
+    g_pane_layout_drag.where = pane_config[index].where;
+    g_pane_layout_drag.start_x = x;
+    g_pane_layout_drag.start_y = y;
+    return true;
+}
+
+static bool sdl_pane_layout_drag_handle_pointer_motion(float x, float y)
+{
+    float dx;
+    float dy;
+    float threshold;
+
+    if (!g_pane_layout_drag.active)
+        return false;
+
+    if (!sdl_should_show_supporting_panes()
+        || !sdl_pane_layout_config_draggable(
+            g_pane_layout_drag.pane_config_index))
+    {
+        sdl_pane_layout_drag_cancel();
+        return true;
+    }
+
+    dx = x - g_pane_layout_drag.start_x;
+    dy = y - g_pane_layout_drag.start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    threshold = sdl_pane_layout_drag_threshold_px();
+    if (!g_pane_layout_drag.dragged && dx < threshold && dy < threshold)
+        return true;
+
+    g_pane_layout_drag.dragged = true;
+    (void)sdl_pane_layout_drag_reorder_at(x, y);
+    return true;
+}
+
+static bool sdl_pane_layout_drag_handle_pointer_up(float x, float y)
+{
+    enum pane_type pane;
+    bool clicked;
+    bool changed;
+
+    if (!g_pane_layout_drag.active)
+        return false;
+
+    pane = g_pane_layout_drag.pane;
+    clicked = !g_pane_layout_drag.dragged
+        && sdl_point_in_rect(&g_pane_rects[pane], x, y);
+    changed = g_pane_layout_drag.changed;
+    sdl_pane_layout_drag_cancel();
+
+    if (changed)
+        (void)save_pane_config_to_json();
+    if (clicked)
+        sdl_pane_layout_drag_send_click(pane);
+
+    return true;
+}
+
 static void sdl_touch_pane_send_confirm_action(void)
 {
     if (character_dungeon) {
@@ -19058,6 +19329,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         if (ev->motion.which == SDL_TOUCH_MOUSEID)
             return;
+        if (sdl_pane_layout_drag_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_pointer_aim_handle_motion((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -19231,6 +19507,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_pane_layout_drag_handle_pointer_down((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_main_screen_handle_supporting_pane_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -19314,6 +19595,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (ev->button.button == SDL_BUTTON_LEFT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_pane_layout_drag_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_unified_look_handle_map_drag_up((float)ev->button.x,
                 (float)ev->button.y, true, 0))
             {
