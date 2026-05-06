@@ -30,6 +30,18 @@ typedef struct object_info_screen_capture
 static void object_info_screen_multi_body(const object_type** objects,
     const char** headings, int count, bool clear_current_line);
 
+static bool object_info_blocked_by_hallucination(void)
+{
+    if (!p_ptr || !p_ptr->image)
+        return false;
+
+    msg_print("Your vision is too distorted to examine items carefully.");
+    window_stuff();
+    Term_fresh();
+
+    return true;
+}
+
 static void p_text_out(cptr str)
 {
     if (new_paragraph)
@@ -2397,6 +2409,9 @@ static bool screen_out_head(const object_type* o_ptr)
  */
 void note_info_screen(const object_type* o_ptr)
 {
+    if (object_info_blocked_by_hallucination())
+        return;
+
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
 
@@ -2854,6 +2869,9 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     int term_hgt = 24;
 
     if (count <= 0 || objects == NULL)
+        return;
+
+    if (object_info_blocked_by_hallucination())
         return;
 
     if (Term && Term->hgt > 0)

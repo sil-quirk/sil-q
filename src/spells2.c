@@ -145,7 +145,11 @@ static void self_knowledge_capture_render_body(char s[][200], char t[][200],
 static bool self_knowledge_capture_build(char s[][200], char t[][200],
     bool good[], int count, self_knowledge_capture* capture)
 {
-    enum { SELF_KNOWLEDGE_CAPTURE_ROWS = 2048 };
+    /*
+     * term::hgt is a byte, so taller scratch terms wrap to zero and render
+     * as blank. Keep this at the maximum representable terminal height.
+     */
+    enum { SELF_KNOWLEDGE_CAPTURE_ROWS = 255 };
     term scratch;
     term* saved_term = Term;
     void (*old_hook)(byte, cptr) = text_out_hook;

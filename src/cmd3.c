@@ -3672,6 +3672,8 @@ void do_cmd_look(void)
     if (p_ptr->image)
     {
         msg_print("Your vision is too distorted to examine things carefully.");
+        window_stuff();
+        Term_fresh();
         return;
     }
 

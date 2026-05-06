@@ -6183,12 +6183,25 @@ void floor_item_describe(int item)
 
     char o_name[80];
 
+    if (p_ptr->image)
+    {
+        if (!p_ptr->blind)
+        {
+            msg_print("Your vision is too distorted to tell what is there.");
+            window_stuff();
+            Term_fresh();
+        }
+        return;
+    }
+
+    if (p_ptr->blind)
+        return;
+
     /* Get a description */
     object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Print a message */
-    if (!p_ptr->blind)
-        msg_format("You see %s.", o_name);
+    msg_format("You see %s.", o_name);
 }
 
 /*
@@ -7018,11 +7031,16 @@ s16b inven_takeoff(int item, int amt)
 
     /* Modify quantity */
     i_ptr->number = amt;
+    /*
+     * This is an explicit removal from equipment.  Do not let old
+     * auto-recovery metadata carry a quiver item straight back into the slot
+     * that is being cleared for a replacement.
+     */
+    i_ptr->pickup = false;
+    i_ptr->pickup_slot = -1;
 
     object_type drop_obj;
     object_copy(&drop_obj, i_ptr);
-    drop_obj.pickup = false;
-    drop_obj.pickup_slot = -1;
 
     object_type drop_template;
     object_copy(&drop_template, &drop_obj);

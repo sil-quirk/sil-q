@@ -2034,8 +2034,42 @@ void describe_floor_object(void)
     char smith_buf[20];
     bool disturb_for_underfoot_notice = !p_ptr->resting;
 
-    // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
+
+    // skip 'nothings'
+    if (!o_ptr->k_idx)
+    {
+        return;
+    }
+
+    // skip notes
+    else if (o_ptr->tval == TV_NOTE)
+    {
+        return;
+    }
+
+    // skip fired/thrown items
+    else if (o_ptr->pickup)
+    {
+        return;
+    }
+
+    if (p_ptr->image)
+    {
+        if (!p_ptr->blind)
+        {
+            msg_print("Your vision is too distorted to tell what lies here.");
+            window_stuff();
+            Term_fresh();
+        }
+
+        if (disturb_for_underfoot_notice)
+            disturb(0, 0);
+
+        return;
+    }
+
+    // generate the object's name
     object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
 
     smith_buf[0] = '\0';
@@ -2049,26 +2083,8 @@ void describe_floor_object(void)
         strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
     }
 
-    // skip 'nothings'
-    if (!o_ptr->k_idx)
-    {
-        // do nothing
-    }
-
-    // skip notes
-    else if (o_ptr->tval == TV_NOTE)
-    {
-        // do nothing
-    }
-
-    // skip fired/thrown items
-    else if (o_ptr->pickup)
-    {
-        // do nothing
-    }
-
     // arms and armour show weight
-    else if (((wield_slot(o_ptr) >= INVEN_WIELD)
+    if (((wield_slot(o_ptr) >= INVEN_WIELD)
                  && (wield_slot(o_ptr) <= INVEN_STAFF))
         || (wield_slot(o_ptr) == INVEN_HORN)
         || ((wield_slot(o_ptr) >= INVEN_BODY)

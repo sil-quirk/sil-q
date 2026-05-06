@@ -36,6 +36,11 @@ void display_koff(int k_idx)
     if (!k_idx)
         return;
 
+    if (p_ptr && p_ptr->image)
+    {
+        return;
+    }
+
     /* Get local object */
     i_ptr = &object_type_body;
 

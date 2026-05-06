@@ -6159,6 +6159,10 @@ void monster_race_track(int r_idx)
  */
 void object_kind_track(int k_idx)
 {
+    // don't track when hallucinating
+    if (p_ptr->image)
+        return;
+
     /* Save this object ID */
     p_ptr->object_kind_idx = k_idx;
 

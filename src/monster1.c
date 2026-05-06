@@ -1809,6 +1809,18 @@ static void cheat_monster_lore(int r_idx, monster_lore* l_ptr)
  * left edge of the screen, on a cleared line, in which the recall is
  * to take place.  One extra blank line is left after the recall.
  */
+static bool monster_recall_blocked_by_hallucination(void)
+{
+    return (p_ptr && p_ptr->image);
+}
+
+static void monster_recall_show_hallucination_block(void)
+{
+    msg_print("Your vision is too distorted to study monsters carefully.");
+    window_stuff();
+    Term_fresh();
+}
+
 void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
 {
     monster_lore lore;
@@ -2297,6 +2309,12 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
     int term_wid = 80;
     int term_hgt = 24;
 
+    if (monster_recall_blocked_by_hallucination())
+    {
+        monster_recall_show_hallucination_block();
+        return ESCAPE;
+    }
+
     /* Flush messages */
     message_flush();
 
@@ -2326,6 +2344,15 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
 void display_roff(int r_idx, const monster_type* m_ptr)
 {
     int y;
+
+    if (monster_recall_blocked_by_hallucination())
+    {
+        for (y = 0; y < Term->hgt; y++)
+        {
+            Term_erase(0, y, 255);
+        }
+        return;
+    }
 
     bool use_story_font = story_monster_desc_enabled();
     story_font_term_state story_state;
