@@ -94,7 +94,12 @@ Added:
   - thanks @MicroChasm for the suggestion
 - Depleted light sources use depleted version of their tile (fixes #163)
 - Change tile design of The Ring of Barahir to match the lore (fixes #181)
-- When the player rages, tiles turn red (fixes #142)
+- When the player rages, graphical tiles for monsters, items, dungeon features,
+  etc. all turn red (fixes #142). Also, the normal shape/form of monsters is
+  obscured during rage. For example, the rage tile of all orcs are the same, so
+  you can no longer distinguish between an orc warrior or an orc archer while
+  rage is active. This behavior includes unique monsters (e.g., the unique orc
+  Boldog the Merciless), with the exception of Morgoth.
 
 Changed:
 

@@ -1105,6 +1105,17 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Desired char */
             dc = r_ptr->x_char;
 
+            /*
+             * Tiles graphics only: use a rage-specific alternative tile while
+             * the player character is raging. The shader still color-tints
+             * whichever tile is chosen here.
+             */
+            if (rage_active && !graphics_are_ascii() && r_ptr->rage_x_attr)
+            {
+                da = r_ptr->rage_x_attr;
+                dc = r_ptr->rage_x_char;
+            }
+
             /* Special attr/char codes */
             if ((da & 0x80) && (dc & 0x80))
             {

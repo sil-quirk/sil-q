@@ -298,10 +298,13 @@ errr process_pref_file_command(char* buf)
     if (buf[1] != ':')
         return (1);
 
-    /* Process "R:<num>:<a>/<c>" -- attr/char for monster races */
+    /* Process "R:<num>:<a>/<c>"          -- attr/char for monster races */
+    /* and     "R:<num>:rage:<a>/<c>"     -- rage substitute attr/char */
     if (buf[0] == 'R')
     {
-        if (tokenize(buf + 2, 3, zz) == 3)
+        int n = tokenize(buf + 2, 4, zz);
+        // "R:<num>:<a>/<c>" line?
+        if (n == 3)
         {
             monster_race* r_ptr;
             i = strtol(zz[0], NULL, 0);
@@ -314,6 +317,27 @@ errr process_pref_file_command(char* buf)
                 r_ptr->x_attr = (byte)n1;
             if (n2)
                 r_ptr->x_char = (char)n2;
+            return (0);
+        }
+        else if (n == 4 && isalpha((unsigned char)zz[1][0]))
+        {
+            monster_race* r_ptr;
+            i = strtol(zz[0], NULL, 0);
+            n1 = strtol(zz[2], NULL, 0);
+            n2 = strtol(zz[3], NULL, 0);
+            if ((i < 0) || (i >= (long)z_info->r_max))
+                return (1);
+            r_ptr = &r_info[i];
+            // "R:<num>:rage:<a>/<c>" line?
+            if (streq(zz[1], "rage"))
+            {
+                if (n1)
+                    r_ptr->rage_x_attr = (byte)n1;
+                if (n2)
+                    r_ptr->rage_x_char = (char)n2;
+                return (0);
+            }
+            // Unrecognized variant name, ignore silently for forward compat
             return (0);
         }
     }

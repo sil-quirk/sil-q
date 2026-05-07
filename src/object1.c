@@ -246,6 +246,12 @@ void reset_visuals(bool unused)
         /* Default attr/char */
         r_ptr->x_attr = r_ptr->d_attr;
         r_ptr->x_char = r_ptr->d_char;
+
+        // Tiles graphics only: rage-specific attr/char (while the player is
+        // raging). A value of 0 means the regular tile is shown instead of the
+        // alternative.
+        r_ptr->rage_x_attr = 0;
+        r_ptr->rage_x_char = 0;
     }
 
     /* Extract default attr/char code for flavors */

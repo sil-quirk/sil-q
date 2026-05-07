@@ -295,6 +295,11 @@
         max-width: 100%;
       }
 
+      /* Rage swap visualization is active: signal it on the tileset border. */
+      .image-container.rage-mode img {
+        outline: 2px solid #b22222;
+      }
+
       #placeholder {
         width: 512px;
         height: 272px;
@@ -341,8 +346,26 @@
           font-size: 0.8rem;
       }
 
-      .zoom-toggle {
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
         margin-bottom: 1rem;
+      }
+
+      .toggle-row .radio-option {
+        margin-bottom: 0;
+      }
+
+      .rage-status {
+        margin-left: 8px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-family: monospace;
+      }
+
+      .rage-status.has-entries {
+        color: #b22222;
       }
 
       .status-indicator {
@@ -449,6 +472,30 @@
         color: var(--accent);
         font-size: 0.8rem;
         font-family: monospace;
+      }
+
+      .entity-variant {
+        color: #b22222;
+        background: rgba(178, 34, 34, 0.12);
+        border: 1px solid rgba(178, 34, 34, 0.5);
+        border-radius: 3px;
+        padding: 0 4px;
+        font-size: 0.7rem;
+        font-family: monospace;
+        margin-left: 4px;
+      }
+
+      .entity-warnings {
+        margin-top: 8px;
+        border-top: 1px dashed var(--border-color);
+        padding-top: 6px;
+      }
+
+      .entity-warning {
+        color: #d37b3a;
+        font-size: 0.8rem;
+        line-height: 1.35;
+        margin-bottom: 4px;
       }
 
       .entity-list::-webkit-scrollbar {
@@ -765,6 +812,29 @@
 
       // Parsed entity data from PRF files
       var prfEntities = [];
+
+      //// Rage-substitution state.
+      // Normal "0xYY/0xXX" -> rage "0xYY/0xXX" (first wins).
+      var rageByNormal = {};
+      // List of conflicts where two entities share a normal tile, but disagree
+      // on the rage substitute. First-wins resolution; the conflicting entries
+      // are reported here so we can fix them manually.
+      var rageWarnings = [];
+      // Whether the swap visualization is currently active.
+      var rageMode = false;
+      // `originalTilesetSrc` / `rageTilesetSrc`: cached data URLs for the two
+      // render modes; rageTilesetSrc is built lazily on first toggle.
+      var originalTilesetSrc = "";
+      var rageTilesetSrc = "";
+      // Offscreen mirror of the loaded tileset, kept in sync with
+      // `originalTilesetSrc`. `buildRageTilesetSrc` reads pixels from this
+      // rather // than the visible <img> (which may be displaying the rage
+      // variant).
+      var originalImageMirror = new Image();
+      // crossOrigin = "anonymous" is required so that `getImageData()` works on
+      // the canvas after `drawImage()`. Without it, a remote-loaded image
+      // taints the canvas and pixel reads throw a SecurityError.
+      originalImageMirror.crossOrigin = "anonymous";
 
       // Track loaded file sources for tooltips
       var loadedFileSources = {};
@@ -1407,9 +1477,26 @@
         placeholder.classList.add("hidden");
         divImg.classList.remove("hidden");
 
+        // Remember the original src so the rage toggle can flip back to it.
+        // Also feed the offscreen mirror so `buildRageTilesetSrc` has access to
+        // the unmodified pixels even when the visible <img> is showing the
+        // rage variant.
+        originalTilesetSrc = src;
+        rageTilesetSrc = "";
+        originalImageMirror.onload = function () {
+          // If rage mode is on and we now have the mirror, rebuild and apply.
+          if (rageMode && tilesetLoaded) {
+            rageTilesetSrc = "";
+            applyRageMode();
+          }
+        };
+        originalImageMirror.src = src;
+
         var finishLoad = function () {
           tilesetLoaded = true;
           applyZoom();
+          // Reapply current rage mode now that pixel data is available.
+          applyRageMode();
         };
 
         img.onload = finishLoad;
@@ -1444,6 +1531,8 @@
 
         if (urls.length === 0) {
           addPlayerTileEntries();
+          recomputeRageState();
+          if (rageMode) applyRageMode();
           updateEntityList();
           return;
         }
@@ -1462,6 +1551,8 @@
               updatePrfStatus(fileName, "success", "remote", url);
               clearLoadError(fileName);
               addPlayerTileEntries();
+              recomputeRageState();
+              if (rageMode) applyRageMode();
               updateEntityList();
             })
             .catch(function (err) {
@@ -1526,6 +1617,8 @@
             updatePrfStatus(file.name, "success", "local", file.name);
             clearLoadError(file.name);
             addPlayerTileEntries();
+            recomputeRageState();
+            if (rageMode) applyRageMode();
             updateEntityList();
           };
           reader.onerror = function () {
@@ -1603,6 +1696,33 @@
 
           // Parse data lines: L:id:coords, S:id:coords, F:id:coords, K:id:coords, R:id:coords
           // Note: S: entries use hex IDs (0x34), others use decimal IDs
+          // Variant form (monsters only): R:id:rage:coords
+          var rageMatch = line.match(
+            /^R:(\d+):rage:(0x[0-9A-Fa-f]+\/0x[0-9A-Fa-f]+)/i,
+          );
+          if (rageMatch) {
+            var rageId = parseInt(rageMatch[1], 10);
+            var rageHex = rageMatch[2].toUpperCase();
+            var rageEntityName = null;
+            if (entityNames.R && entityNames.R[rageId]) {
+              var rageData = entityNames.R[rageId];
+              rageEntityName =
+                typeof rageData === "object" ? rageData.name : rageData;
+            }
+            prfEntities.push({
+              id: rageId,
+              prefix: "R",
+              variant: "rage",
+              name: rageEntityName || "(unknown #" + rageId + ")",
+              type: "Monster",
+              tval: null,
+              hexCoords: rageHex,
+              sourceFile: fileName,
+            });
+            lastComment = "";
+            continue;
+          }
+
           var match = line.match(
             /^([LSFKR]):(0x[0-9A-Fa-f]+|\d+):(0x[0-9A-Fa-f]+\/0x[0-9A-Fa-f]+)/i,
           );
@@ -1632,6 +1752,9 @@
             var type = getEntityType(prefix, fileName);
 
             prfEntities.push({
+              id: id,
+              prefix: prefix,
+              variant: null,
               name: entityName || "(unknown #" + id + ")",
               type: type,
               tval: entityTval,
@@ -1645,6 +1768,161 @@
             }
           }
         }
+      }
+
+      // Walk `prfEntities` and build the rage-substitution map.
+      // First-wins conflict resolution: if two monsters share the same normal
+      // tile but have different rage substitutes, the first parsed entry sets
+      // the mapping, and subsequent disagreements are recorded in
+      // `rageWarnings`.
+      // Also invalidates the cached rage tileset image so it gets rebuilt on
+      // the next toggle.
+      function recomputeRageState() {
+        rageByNormal = {};
+        rageWarnings = [];
+        rageTilesetSrc = "";
+        var normalById = {};
+        for (var i = 0; i < prfEntities.length; i++) {
+          var e = prfEntities[i];
+          if (e.prefix === "R" && !e.variant && typeof e.id === "number") {
+            if (!(e.id in normalById)) normalById[e.id] = e;
+          }
+        }
+        for (var j = 0; j < prfEntities.length; j++) {
+          var ent = prfEntities[j];
+          if (!(ent.prefix === "R" && ent.variant === "rage")) continue;
+          var normal = normalById[ent.id];
+          if (!normal) {
+            rageWarnings.push({
+              kind: "orphan",
+              entity: ent,
+              message:
+                "Rage variant defined for #" +
+                ent.id +
+                " (" +
+                ent.name +
+                ") but no normal R: line found.",
+            });
+            continue;
+          }
+          var key = normal.hexCoords;
+          if (key in rageByNormal) {
+            if (rageByNormal[key] !== ent.hexCoords) {
+              rageWarnings.push({
+                kind: "conflict",
+                entity: ent,
+                normalHex: key,
+                existing: rageByNormal[key],
+                attempted: ent.hexCoords,
+                message:
+                  "Conflict at " +
+                  key +
+                  ": existing rage substitute " +
+                  rageByNormal[key] +
+                  " kept; #" +
+                  ent.id +
+                  " (" +
+                  ent.name +
+                  ") would have used " +
+                  ent.hexCoords +
+                  ".",
+              });
+            }
+          } else {
+            rageByNormal[key] = ent.hexCoords;
+          }
+        }
+        updateRageStatus();
+      }
+
+      // Surface rage-map size and warning count next to the toggle so you can
+      // tell at a glance whether their PRF actually contains rage lines.
+      function updateRageStatus() {
+        var el = document.getElementById("rageStatus");
+        if (!el) return;
+        var n = Object.keys(rageByNormal).length;
+        var w = rageWarnings.length;
+        if (n === 0 && w === 0) {
+          el.textContent = "(no rage lines loaded)";
+          el.classList.remove("has-entries");
+        } else {
+          el.textContent =
+            "(" +
+            n +
+            " rage line" +
+            (n === 1 ? "" : "s") +
+            (w > 0 ? ", " + w + " warning" + (w === 1 ? "" : "s") : "") +
+            ")";
+          el.classList.toggle("has-entries", n > 0);
+        }
+      }
+
+      // Parse "0xYY/0xXX" -> { row, col } in 0..N. Returns null on parse error.
+      function parseTileHex(hex) {
+        var m = /^0X([0-9A-F]+)\/0X([0-9A-F]+)$/i.exec(hex);
+        if (!m) return null;
+        return {
+          row: parseInt(m[1], 16) - 0x80,
+          col: parseInt(m[2], 16) - 0x80,
+        };
+      }
+
+      // Build a data URL containing the rage-substituted tileset: each cell
+      // that has a rage substitute gets the substitute's pixels copied over
+      // its position. Cells used as rage destinations are unmodified. Returns
+      // empty string if the original image mirror isn't loaded yet.
+      function buildRageTilesetSrc() {
+        if (
+          !originalImageMirror.complete ||
+          !originalImageMirror.naturalWidth
+        ) {
+          return "";
+        }
+        var tw = parseInt(txtTileWidth.value) || 16;
+        var th = parseInt(txtTileHeight.value) || 16;
+        var canvas = document.createElement("canvas");
+        canvas.width = originalImageMirror.naturalWidth;
+        canvas.height = originalImageMirror.naturalHeight;
+        var ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(originalImageMirror, 0, 0);
+        var keys = Object.keys(rageByNormal);
+        for (var i = 0; i < keys.length; i++) {
+          var nrm = parseTileHex(keys[i]);
+          var rg = parseTileHex(rageByNormal[keys[i]]);
+          if (!nrm || !rg) continue;
+          // Read source from rg, paint at nrm. Use putImageData so alpha
+          // (the magic transparent color) round-trips byte-for-byte.
+          var src = ctx.getImageData(rg.col * tw, rg.row * th, tw, th);
+          ctx.putImageData(src, nrm.col * tw, nrm.row * th);
+        }
+        return canvas.toDataURL("image/png");
+      }
+
+      // Apply or remove the rage swap visualization. Persists to localStorage.
+      function applyRageMode() {
+        var checkbox = document.getElementById("chkRage");
+        if (checkbox) rageMode = checkbox.checked;
+        try {
+          localStorage.setItem("rageMode", rageMode ? "1" : "0");
+        } catch (_) {}
+        var container = document.querySelector(".image-container");
+        if (container) container.classList.toggle("rage-mode", rageMode);
+        if (!tilesetLoaded || !originalTilesetSrc) return;
+        if (rageMode) {
+          if (!rageTilesetSrc) rageTilesetSrc = buildRageTilesetSrc();
+          if (rageTilesetSrc && img.src !== rageTilesetSrc) {
+            // Suppress finishLoad re-entry: we don't need applyZoom to rerun
+            // for a same-dimensions swap.
+            img.onload = null;
+            img.src = rageTilesetSrc;
+          }
+        } else if (img.src !== originalTilesetSrc) {
+          img.onload = null;
+          img.src = originalTilesetSrc;
+        }
+        // Refresh tile preview (it reads img.src as a background-image).
+        if (hasSelection) updateTilePreview();
       }
 
       function getEntityType(prefix, fileName) {
@@ -1745,7 +2023,12 @@
         prfEntities = prfEntities.concat(playerEntries);
       }
 
-      // Find entities matching the selected tile's hex coordinates
+      // Find entities matching the selected tile's hex coordinates.
+      // Includes:
+      //   - Entities whose normal tile == hexCoords (legacy behavior).
+      //   - Monster rage variants whose substitute tile == hexCoords; these
+      //     are returned with their `variant` field set to "rage" so the UI
+      //     can label them.
       function findMatchingEntities(hexCoords) {
         if (!hexCoords) return [];
         var normalized = hexCoords.toUpperCase();
@@ -1766,24 +2049,48 @@
 
         var hexCoords = txtHexCode.value;
         var matches = findMatchingEntities(hexCoords);
+        // Surface warnings whose normal-tile or rage-tile coord matches the
+        // current selection; the user clicked a tile involved in a conflict.
+        var relevantWarnings = rageWarnings.filter(function (w) {
+          if (w.kind === "conflict") {
+            return (
+              w.normalHex === hexCoords ||
+              w.existing === hexCoords ||
+              w.attempted === hexCoords
+            );
+          }
+          return w.entity && w.entity.hexCoords === hexCoords;
+        });
 
-        if (matches.length === 0) {
-          list.innerHTML =
+        var html = "";
+        if (matches.length === 0 && relevantWarnings.length === 0) {
+          html =
             '<div class="no-entities">No assigned entities found</div>';
         } else {
-          var html = matches
+          html = matches
             .map(function (entity) {
-              // Build tval display: [TV_AMULET] if available
               var tvalDisplay = "";
-              if (entity.tval !== null && entity.tval !== undefined && tvalNames[entity.tval]) {
-                tvalDisplay = ' <span class="entity-tval">[' + tvalNames[entity.tval] + ']</span>';
+              if (
+                entity.tval !== null &&
+                entity.tval !== undefined &&
+                tvalNames[entity.tval]
+              ) {
+                tvalDisplay =
+                  ' <span class="entity-tval">[' +
+                  tvalNames[entity.tval] +
+                  "]</span>";
               }
+              var variantTag =
+                entity.variant === "rage"
+                  ? ' <span class="entity-variant">rage variant</span>'
+                  : "";
               return (
                 '<div class="entity-item">' +
                 '<span class="entity-name">' +
                 escapeHtml(entity.name) +
                 "</span>" +
                 tvalDisplay +
+                variantTag +
                 '<span class="entity-type">(' +
                 entity.type +
                 ")</span>" +
@@ -1794,8 +2101,22 @@
               );
             })
             .join("");
-          list.innerHTML = html;
+          if (relevantWarnings.length > 0) {
+            html +=
+              '<div class="entity-warnings">' +
+              relevantWarnings
+                .map(function (w) {
+                  return (
+                    '<div class="entity-warning">⚠ ' +
+                    escapeHtml(w.message) +
+                    "</div>"
+                  );
+                })
+                .join("") +
+              "</div>";
+          }
         }
+        list.innerHTML = html;
 
         container.classList.remove("hidden");
       }
@@ -1808,6 +2129,16 @@
 
       // Initialize on page load
       document.addEventListener("DOMContentLoaded", function () {
+        // Restore the rage toggle from localStorage before the tileset loads
+        // so `applyRageMode()` (called from finishLoad) sees the right value.
+        try {
+          var stored = localStorage.getItem("rageMode");
+          if (stored === "1") {
+            rageMode = true;
+            var checkbox = document.getElementById("chkRage");
+            if (checkbox) checkbox.checked = true;
+          }
+        } catch (_) {}
         autoLoadTileset();
         // Chain: defines.h -> edit files -> PRF files
         autoLoadDefines();
@@ -2075,10 +2406,17 @@
         </div>
       </div>
 
-      <!-- Zoom toggle -->
-      <div class="radio-option zoom-toggle">
-        <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked>
-        <label for="chkZoom">2x zoom</label>
+      <!-- Zoom + Rage toggles -->
+      <div class="toggle-row">
+        <div class="radio-option zoom-toggle">
+          <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked>
+          <label for="chkZoom">2x zoom</label>
+        </div>
+        <div class="radio-option rage-toggle">
+          <input id="chkRage" type="checkbox" onchange="applyRageMode()">
+          <label for="chkRage">Rage</label>
+          <span id="rageStatus" class="rage-status"></span>
+        </div>
       </div>
 
       <!-- Placeholder (shown before tileset is loaded) -->
