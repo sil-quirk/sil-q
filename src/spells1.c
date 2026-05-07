@@ -2280,7 +2280,7 @@ static double elemental_hurt_scale(int attack_type)
     case GF_ACID:
         return 60.0 / 3.0;
     case GF_COLD:
-        return 50.0 / 3.0;
+        return 35.0 / 3.0;
     default:
         return 80.0 / 3.0;
     }

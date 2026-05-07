@@ -6774,6 +6774,8 @@ void update_lore_aux(object_type* o_ptr)
 {
     bool is_floor_object = (o_ptr >= o_list) && (o_ptr < (o_list + o_max));
 
+    metarun_try_identify_remembered_artefact(o_ptr);
+
     /* Auto-identify easy smithing items when seen (distance penalty applies). */
     if (is_floor_object)
         player_auto_identify_smithing_object(o_ptr, false);
@@ -6797,6 +6799,9 @@ void update_lore_aux(object_type* o_ptr)
 
             if (a_ptr->found_num == 0)
             {
+                if (a_ptr->flags3 & TR3_EASY_ID)
+                    metarun_record_artefact_identification(o_ptr->name1);
+
                 // mark
                 a_ptr->found_num = 1;
 

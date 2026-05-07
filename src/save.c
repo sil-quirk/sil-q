@@ -1200,6 +1200,8 @@ static void wr_extra(void)
         wr_s16b(sn_state.map_wid);
         wr_s16b(sn_state.map_hgt);
         wr_u32b(sn_state.hint_used_mask);
+        for (i = 0; i < SKEL_HINT_MAX; i++)
+            wr_byte(sn_state.hint_use_counts[i]);
         wr_byte(sn_state.seen_count);
         for (i = 0; i < SKELETON_NOTE_SEEN_MAX; i++)
             wr_s16b(sn_state.seen_ids[i]);

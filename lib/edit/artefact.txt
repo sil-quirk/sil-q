@@ -2583,7 +2583,7 @@ Q:7c3f4a89d2e617b5
 I:30:2:1
 W:10:25:80:30000
 P:0:0d0:-1:1d3
-F:STR | RES_FIRE | NOBLE_ITEM
+F:STR | RES_FIRE | NOBLE_ITEM | PERMA_CURSE
 B:0/5
 D:Heavy greaves forged for Caranthir the Dark in Thargelion, the harshest
 D: and most quick-tempered of Feanor's sons. His face burned red with fury
@@ -2724,7 +2724,7 @@ Q:e91d2b56a8f03c47
 I:31:2:1
 W:10:25:50:35000
 P:0:0d0:-1:1d2
-F:STR | RES_FIRE | NOBLE_ITEM
+F:STR | RES_FIRE | NOBLE_ITEM | PERMA_CURSE
 B:0/0
 D:The iron gauntlets of Caranthir the Dark, Lord of Thargelion, whose fiery
 D: temper was feared even among his own brothers. He grew rich from trade

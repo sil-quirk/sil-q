@@ -1749,12 +1749,12 @@ void display_player_xtra_info(int mode)
 
     col_stats = wide_offset + 1;
     col_flags = wide_offset + 22;
-    col_skills = wide_offset + 41;
+    col_skills = wide_offset + 42;
 
     if (compact_overview)
         col_flags = col_stats + 21;
 
-    flags_width = col_skills - col_flags;
+    flags_width = col_skills - col_flags - 1;
     if (flags_width < 1)
         flags_width = term_wid - col_flags;
     if (flags_width < 1)
@@ -5208,7 +5208,7 @@ void display_player(int mode)
     }
 
     /* All Modes Use Stat info */
-    display_player_stat_info(1, 41 + wide_offset);
+    display_player_stat_info(1, 42 + wide_offset);
 
     if ((mode) < 2)
     {

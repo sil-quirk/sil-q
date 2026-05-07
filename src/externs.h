@@ -96,6 +96,7 @@ typedef struct skeleton_note_state_save {
     s16b map_wid;
     s16b map_hgt;
     u32b hint_used_mask;
+    byte hint_use_counts[SKEL_HINT_MAX];
     byte seen_count;
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state_save;
@@ -104,7 +105,7 @@ typedef struct skeleton_note_state_save {
 #ifndef HINT_MESSAGE_META_DEFINED
 #define HINT_MESSAGE_META_DEFINED
 #define HINT_MESSAGE_CUE_MAX 2
-#define HINT_MESSAGE_CUE_TEXT_MAX 32
+#define HINT_MESSAGE_CUE_TEXT_MAX 64
 typedef struct hint_message_meta {
     s16b source_y;
     s16b source_x;

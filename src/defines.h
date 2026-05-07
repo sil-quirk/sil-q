@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.5"
+#define VERSION_STRING "0.9.6.6"
 /*
- * Version components (0.9.6.5).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.6).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 5   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 6   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -341,6 +341,7 @@
  */
 #define ART_SEEN_PHYSICAL 0x01 /* Player has actually seen the artefact */
 #define ART_SEEN_REVEALED 0x02 /* Revealed via lore/quests (knowledge menu) */
+#define ART_SEEN_METARUN_EASY_ID 0x04 /* Remembered EASY_ID artefact this metarun */
 
 /*
  * Run-wide discovery lore flags (player_type.discovery_lore_flags).

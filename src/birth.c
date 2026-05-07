@@ -426,6 +426,8 @@ void player_wipe(void)
         a_ptr->found_num = 0;
         a_ptr->seen = 0;
     }
+
+    metarun_apply_artefact_memory();
     
     /* Initialize Valar artifact reservation array */
     if (!valar_reserved_artifacts)
@@ -5708,7 +5710,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
     int i;
 
     int row = 1;
-    int col = 42;
+    int col = 43;
 
     int stat = 0;
 
@@ -6188,7 +6190,7 @@ extern NavResult gain_skills(void)
     int i;
 
     int row = 6;
-    int col = 42;
+    int col = 43;
 
     int skill = ((gain_skills_initial_skill >= 0
         && gain_skills_initial_skill < S_MAX
