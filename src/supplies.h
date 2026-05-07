@@ -14,10 +14,16 @@ typedef enum supply_group
     SUPPLY_GROUP_POTIONS,
     SUPPLY_GROUP_GEMS,
     SUPPLY_GROUP_LIGHTS,
+    SUPPLY_GROUP_JEWELRY_PRESETS,
     SUPPLY_GROUP_MAX
 } supply_group;
 
 #define SUPPLIES_INDEX 1000
+#define JEWELRY_PRESET_MAX 5
+#define JEWELRY_PRESET_SLOT_LEFT 0
+#define JEWELRY_PRESET_SLOT_RIGHT 1
+#define JEWELRY_PRESET_SLOT_NECK 2
+#define JEWELRY_PRESET_SLOT_MAX 3
 #define PLAYER_TORCH_CAP 5
 #define PLAYER_OIL_CONTAINER_SLOT_CAP 4
 #define PLAYER_BRASS_LAMP_SLOT_COST 2
@@ -145,6 +151,15 @@ bool supplies_has_pending_action(void);
 supply_menu_action supplies_pending_action(void);
 int supplies_pending_group(void);
 bool supplies_pending_hotkey(void);
+
+void jewelry_presets_reset(void);
+bool jewelry_preset_is_set(int preset);
+int jewelry_preset_count(void);
+bool jewelry_preset_store_current(int preset);
+void jewelry_preset_clear(int preset);
+const struct object_type* jewelry_preset_object(int preset, int slot);
+bool jewelry_preset_set_object(int preset, int slot,
+    const struct object_type* o_ptr);
 
 /* Damage supply items (similar to inven_damage) */
 int supplies_damage(int (*typ)(const struct object_type*), int perc, int resistance);

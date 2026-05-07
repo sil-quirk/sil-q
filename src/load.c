@@ -3260,6 +3260,53 @@ static errr rd_inventory(void)
     if (savefile_version_at_least(0, 9, 6, 0))
         supplies_ingest_pack();
 
+    jewelry_presets_reset();
+    if (savefile_version_at_least(0, 9, 6, 7))
+    {
+        u16b preset_magic = 0;
+        byte preset_count = 0;
+
+        log_trace("[load:%06u] === BEGIN JEWELRY PRESETS ===",
+            (unsigned)load_byte_offset);
+        rd_u16b(&preset_magic);
+        if (preset_magic != SAVEFILE_JEWELRY_PRESET_BLOCK_MAGIC)
+        {
+            log_warn("Invalid jewelry preset block marker 0x%04X",
+                (unsigned)preset_magic);
+            note("Error reading jewelry presets");
+            return (-1);
+        }
+
+        rd_byte(&preset_count);
+        for (byte preset = 0; preset < preset_count; preset++)
+        {
+            byte is_set = 0;
+            rd_byte(&is_set);
+
+            for (byte slot_idx = 0; slot_idx < JEWELRY_PRESET_SLOT_MAX;
+                 slot_idx++)
+            {
+                object_type preset_obj;
+                object_wipe(&preset_obj);
+
+                if (rd_item(&preset_obj))
+                {
+                    log_warn("Error reading jewelry preset entry");
+                    note("Error reading jewelry presets");
+                    return (-1);
+                }
+
+                if (is_set && preset < JEWELRY_PRESET_MAX
+                    && preset_obj.k_idx)
+                {
+                    jewelry_preset_set_object(preset, slot_idx, &preset_obj);
+                }
+            }
+        }
+        log_trace("[load:%06u] === END JEWELRY PRESETS ===",
+            (unsigned)load_byte_offset);
+    }
+
     /* Success */
     return (0);
 }

@@ -190,6 +190,7 @@ struct supply_list_entry
     int total;      /* Displayed quantity for this row */
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
     int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
+    int preset_idx; /* Jewelry preset row (-1 for normal supply rows) */
     bool equipped;  /* This supply-kind is currently equipped */
     bool single_item_display; /* Display one item even if the source stack is larger */
 };
@@ -285,6 +286,9 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
     if (!entry)
         return false;
 
+    if (entry->preset_idx >= 0)
+        return do_cmd_jewelry_preset_apply(entry->preset_idx);
+
     if (entry->supply_idx < 0)
     {
         if (entry->equipped && entry->equip_idx == INVEN_LITE)
@@ -336,6 +340,13 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     if (!entry)
         return false;
 
+    if (entry->preset_idx >= 0)
+    {
+        bell("Nothing to drop here.");
+        msg_print("Use c to clear a jewelry set.");
+        return false;
+    }
+
     if (entry->supply_idx < 0)
     {
         if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
@@ -371,6 +382,45 @@ static bool supplies_menu_recall_entry(supply_list_entry* entry)
 {
     if (!entry)
         return false;
+
+    if (entry->preset_idx >= 0)
+    {
+        const object_type* objects[JEWELRY_PRESET_SLOT_MAX];
+        const char* headings[JEWELRY_PRESET_SLOT_MAX] = {
+            "Left ring", "Right ring", "Amulet"
+        };
+        int count = 0;
+
+        if (!jewelry_preset_is_set(entry->preset_idx))
+        {
+            bell("That jewelry set is empty.");
+            msg_print("That jewelry set is empty.");
+            return false;
+        }
+
+        for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+        {
+            const object_type* o_ptr =
+                jewelry_preset_object(entry->preset_idx, slot);
+
+            if (!o_ptr || !o_ptr->k_idx)
+                continue;
+
+            objects[count] = o_ptr;
+            headings[count] = headings[slot];
+            count++;
+        }
+
+        if (count > 0)
+        {
+            object_info_screen_multi(objects, headings, count);
+            return true;
+        }
+
+        bell("That jewelry set is empty.");
+        msg_print("That jewelry set is empty.");
+        return false;
+    }
 
     if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
     {
@@ -423,6 +473,7 @@ static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Potions",
     "Gems",
     "Lights/Oil",
+    "Jewelry Sets",
     NULL
 };
 
@@ -27823,7 +27874,8 @@ static int supply_group_uniform_weight(int group_idx)
     return weight;
 }
 
-static void describe_supply_group_status(int group_idx, char* buf, size_t len)
+static void describe_supply_group_status(int group_idx, int term_wid,
+    char* buf, size_t len)
 {
     int weight;
 
@@ -27860,6 +27912,16 @@ static void describe_supply_group_status(int group_idx, char* buf, size_t len)
         SDL_strlcpy(buf,
             "Oil slots: lamp 2, flask 1 (max 4).",
             len);
+        break;
+    case SUPPLY_GROUP_JEWELRY_PRESETS:
+        if (term_wid <= 42)
+            SDL_strlcpy(buf, "s save, u equip, c clear, Alt+1-5", len);
+        else if (term_wid <= 62)
+            SDL_strlcpy(buf, "s save, u/Space equip, c clear, Alt+1-5", len);
+        else
+            SDL_strlcpy(buf,
+                "Use s to save current jewelry, u/Space or Alt+1-5 to equip, c to clear.",
+                len);
         break;
     default:
         break;
@@ -28150,6 +28212,203 @@ static void supply_entry_display_name(char* buf, size_t buflen,
     }
 }
 
+static const object_type* jewelry_preset_first_object(int preset)
+{
+    for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+    {
+        const object_type* o_ptr = jewelry_preset_object(preset, slot);
+        if (o_ptr && o_ptr->k_idx)
+            return o_ptr;
+    }
+
+    return NULL;
+}
+
+static int jewelry_preset_icon_kind(int preset)
+{
+    const object_type* o_ptr = jewelry_preset_first_object(preset);
+
+    if (o_ptr && o_ptr->k_idx)
+        return o_ptr->k_idx;
+
+    return lookup_kind(TV_RING, SV_RING_ACCURACY);
+}
+
+static void jewelry_preset_append_object_name(char* buf, size_t buflen,
+    cptr label, const object_type* o_ptr)
+{
+    char name[80];
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (buf[0])
+        SDL_strlcat(buf, " | ", buflen);
+
+    SDL_strlcat(buf, label, buflen);
+    SDL_strlcat(buf, ": ", buflen);
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        SDL_strlcat(buf, "-", buflen);
+        return;
+    }
+
+    object_desc(name, sizeof(name), o_ptr, false, 0);
+    SDL_strlcat(buf, name, buflen);
+}
+
+static void jewelry_preset_summary(char* buf, size_t buflen, int preset)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!jewelry_preset_is_set(preset))
+    {
+        SDL_strlcpy(buf, "<empty>", buflen);
+        return;
+    }
+
+    jewelry_preset_append_object_name(buf, buflen, "L",
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_LEFT));
+    jewelry_preset_append_object_name(buf, buflen, "R",
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_RIGHT));
+    jewelry_preset_append_object_name(buf, buflen, "N",
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_NECK));
+}
+
+static void jewelry_preset_object_name(char* buf, size_t buflen,
+    const object_type* o_ptr)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        SDL_strlcpy(buf, "-", buflen);
+        return;
+    }
+
+    object_desc(buf, buflen, o_ptr, false, 0);
+}
+
+static int jewelry_preset_display_rows(const knowledge_browser_layout* layout,
+    const supply_list_columns* cols)
+{
+    int name_w = cols ? cols->name_w : 0;
+    int rows;
+
+    if (name_w <= 0 && layout)
+        name_w = layout->list_w;
+
+    if (name_w >= 120)
+        rows = 1;
+    else if (name_w >= 80)
+        rows = 2;
+    else
+        rows = 3;
+
+    if (layout && layout->list_rows > 0 && rows > layout->list_rows)
+        rows = layout->list_rows;
+    if (rows < 1)
+        rows = 1;
+
+    return rows;
+}
+
+static int jewelry_preset_entries_per_page(const knowledge_browser_layout* layout,
+    const supply_list_columns* cols)
+{
+    int rows_per_entry = jewelry_preset_display_rows(layout, cols);
+    int list_rows = (layout && layout->list_rows > 0) ? layout->list_rows : 1;
+    int entries = list_rows / rows_per_entry;
+
+    if (entries < 1)
+        entries = 1;
+
+    return entries;
+}
+
+static void jewelry_preset_display_line(char* buf, size_t buflen, int preset,
+    int line, int rows_per_entry)
+{
+    char left[80];
+    char right[80];
+    char neck[80];
+
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    if (!jewelry_preset_is_set(preset))
+    {
+        if (line == 0)
+            SDL_strlcpy(buf, "<empty>", buflen);
+        return;
+    }
+
+    jewelry_preset_object_name(left, sizeof(left),
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_LEFT));
+    jewelry_preset_object_name(right, sizeof(right),
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_RIGHT));
+    jewelry_preset_object_name(neck, sizeof(neck),
+        jewelry_preset_object(preset, JEWELRY_PRESET_SLOT_NECK));
+
+    if (rows_per_entry <= 1)
+    {
+        if (line == 0)
+            strnfmt(buf, buflen, "L: %s | R: %s | N: %s", left, right, neck);
+        return;
+    }
+
+    if (rows_per_entry == 2)
+    {
+        if (line == 0)
+            strnfmt(buf, buflen, "L: %s | R: %s", left, right);
+        else if (line == 1)
+            strnfmt(buf, buflen, "N: %s", neck);
+        return;
+    }
+
+    switch (line)
+    {
+    case 0: strnfmt(buf, buflen, "L: %s", left); break;
+    case 1: strnfmt(buf, buflen, "R: %s", right); break;
+    case 2: strnfmt(buf, buflen, "N: %s", neck); break;
+    default: break;
+    }
+}
+
+static void supply_put_fitted(int col, int row, int width, byte attr, cptr text)
+{
+    char fitted[180];
+    int term_wid = Term ? Term->wid : 80;
+    int term_hgt = Term ? Term->hgt : 24;
+
+    if (row < 0 || row >= term_hgt || width <= 0)
+        return;
+
+    if (col < 0)
+    {
+        width += col;
+        col = 0;
+    }
+
+    if (col >= term_wid || width <= 0)
+        return;
+
+    if (col + width > term_wid)
+        width = term_wid - col;
+    if (width <= 0)
+        return;
+
+    settings_ui_fit_text(fitted, sizeof(fitted), text, width);
+    Term_putstr(col, row, width, attr, fitted);
+}
+
 static int supply_entry_turns(const supply_list_entry* entry,
     const object_type* o_ptr)
 {
@@ -28231,6 +28490,9 @@ static int supply_group_fixed_icon_kind(int group)
         break;
     case SUPPLY_GROUP_LIGHTS:
         k_idx = lookup_kind(TV_LIGHT, SV_LIGHT_TORCH);
+        break;
+    case SUPPLY_GROUP_JEWELRY_PRESETS:
+        k_idx = lookup_kind(TV_RING, SV_RING_ACCURACY);
         break;
     default:
         break;
@@ -28384,6 +28646,13 @@ static void supply_init_columns(const knowledge_browser_layout* layout,
         || (current_group == SUPPLY_GROUP_LIGHTS);
     cols->show_turns = (current_group == SUPPLY_GROUP_LIGHTS);
 
+    if (current_group == SUPPLY_GROUP_JEWELRY_PRESETS)
+    {
+        cols->show_qty = false;
+        cols->show_weight = false;
+        cols->show_turns = false;
+    }
+
     col = layout->term_wid;
 
     if (cols->show_qty)
@@ -28435,6 +28704,18 @@ static int supply_max_name_len(int current_group, supply_list_entry entries[],
         char name[128];
         int len;
 
+        if (current_group == SUPPLY_GROUP_JEWELRY_PRESETS)
+        {
+            if (entry->preset_idx < 0)
+                continue;
+
+            jewelry_preset_summary(name, sizeof(name), entry->preset_idx);
+            len = (int)strlen(name);
+            if (len > max_len)
+                max_len = len;
+            continue;
+        }
+
         if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
             continue;
 
@@ -28465,6 +28746,8 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
 
     for (i = 0; i < SUPPLY_GROUP_MAX; i++)
         totals[i] = 0;
+
+    totals[SUPPLY_GROUP_JEWELRY_PRESETS] = jewelry_preset_count();
 
     for (i = 0; i < INVEN_PACK; i++)
     {
@@ -28542,8 +28825,43 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         entries[i].item_idx = -1;
         entries[i].supply_idx = -1;
         entries[i].equip_idx = -1;
+        entries[i].preset_idx = -1;
         entries[i].k_idx = -1;
         entries[i].single_item_display = false;
+    }
+
+    if (group_idx == SUPPLY_GROUP_JEWELRY_PRESETS)
+    {
+        int fallback = lookup_kind(TV_RING, SV_RING_ACCURACY);
+
+        for (i = 0; i < JEWELRY_PRESET_MAX && count < capacity; i++)
+        {
+            int icon_kind = jewelry_preset_icon_kind(i);
+
+            entries[count].k_idx = (icon_kind > 0) ? icon_kind : fallback;
+            entries[count].item_idx = -1;
+            entries[count].total = jewelry_preset_is_set(i) ? 1 : 0;
+            entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].preset_idx = i;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
+            count++;
+        }
+
+        if (count < capacity)
+        {
+            entries[count].k_idx = -1;
+            entries[count].item_idx = -1;
+            entries[count].total = 0;
+            entries[count].supply_idx = -1;
+            entries[count].equip_idx = -1;
+            entries[count].preset_idx = -1;
+            entries[count].equipped = false;
+            entries[count].single_item_display = false;
+        }
+
+        return count;
     }
 
     if (group_idx == SUPPLY_GROUP_LIGHTS)
@@ -28935,6 +29253,7 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     int i;
     int total_col = col + wid - 3;
     int text_col = col + (use_bigtile ? 2 : 1);
+    int text_w = total_col - text_col;
 
     for (i = 0; i < per_page; i++)
     {
@@ -28957,6 +29276,8 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
             case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
             case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
             case SUPPLY_GROUP_LIGHTS:  base_color = TERM_YELLOW;  break;
+            case SUPPLY_GROUP_JEWELRY_PRESETS:
+                                      base_color = TERM_L_BLUE; break;
             default:                   base_color = TERM_WHITE;   break;
         }
 
@@ -28975,10 +29296,13 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
             if (active && grp_top + i == grp_cur)
                 draw_supply_icon_frame(col, row + i, &icons[grp].obj);
         }
-        c_put_str(attr, supply_group_text[grp], row + i, text_col);
+        if (text_w > 0)
+            supply_put_fitted(text_col, row + i, text_w, attr,
+                supply_group_text[grp]);
 
         strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
-        c_put_str(attr, buf, row + i, total_col);
+        if (wid >= 3)
+            supply_put_fitted(total_col, row + i, 3, attr, buf);
     }
 }
 
@@ -28988,6 +29312,87 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
     const supply_list_columns* cols, bool compact_names)
 {
     int i;
+
+    if (current_group == SUPPLY_GROUP_JEWELRY_PRESETS)
+    {
+        int rows_per_entry = jewelry_preset_display_rows(layout, cols);
+        int visible_entries = jewelry_preset_entries_per_page(layout, cols);
+        int list_end = row + per_page;
+        int name_w = cols ? cols->name_w : (layout ? layout->list_w : 1);
+
+        for (i = 0; i < per_page; i++)
+            Term_erase(layout->list_col, row + i, 255);
+
+        for (i = 0; i < visible_entries; i++)
+        {
+            int idx = entry_top + i;
+            int y = row + (i * rows_per_entry);
+            supply_list_entry* entry;
+            object_type fake;
+            const object_type* icon_obj;
+            object_type* draw_obj = NULL;
+            byte attr;
+            bool selected;
+            bool set;
+
+            if (idx >= entry_cnt || y >= list_end)
+                break;
+
+            entry = &entries[idx];
+            if (entry->preset_idx < 0)
+                continue;
+
+            selected = (column == 1 && idx == entry_cur);
+            set = jewelry_preset_is_set(entry->preset_idx);
+            attr = selected ? TERM_L_WHITE : (set ? TERM_L_BLUE : TERM_L_DARK);
+
+            object_wipe(&fake);
+            icon_obj = jewelry_preset_first_object(entry->preset_idx);
+            if (icon_obj && icon_obj->k_idx)
+            {
+                object_copy(&fake, icon_obj);
+                draw_obj = &fake;
+            }
+            else if (entry->k_idx > 0 && entry->k_idx < z_info->k_max)
+            {
+                object_prep(&fake, entry->k_idx);
+                fake.ident |= IDENT_KNOWN;
+                draw_obj = &fake;
+            }
+
+            if (cols->show_sym && draw_obj)
+            {
+                draw_supply_icon(cols->sym_col, y, draw_obj);
+                if (selected)
+                    draw_supply_icon_frame(cols->sym_col, y, draw_obj);
+            }
+
+            for (int line = 0; line < rows_per_entry && y + line < list_end;
+                 line++)
+            {
+                char prefix[8];
+                char line_buf[160];
+                char text_buf[180];
+
+                jewelry_preset_display_line(line_buf, sizeof(line_buf),
+                    entry->preset_idx, line, rows_per_entry);
+                if (!line_buf[0] && line > 0)
+                    continue;
+
+                if (line == 0)
+                    strnfmt(prefix, sizeof(prefix), "%d  ",
+                        entry->preset_idx + 1);
+                else
+                    SDL_strlcpy(prefix, "   ", sizeof(prefix));
+
+                strnfmt(text_buf, sizeof(text_buf), "%s%s", prefix, line_buf);
+                supply_put_fitted(cols->name_col, y + line, name_w, attr,
+                    text_buf);
+            }
+        }
+
+        return;
+    }
 
     for (i = 0; i < per_page; i++)
     {
@@ -31925,6 +32330,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int max_name_len;
         bool compact_width;
         bool compact_draw_names;
+        int entry_page_rows;
+        int entry_row_stride;
 
         prepare_supply_group_icons(group_icons, group_icon_kinds);
         compute_supply_group_totals(group_totals);
@@ -31993,6 +32400,23 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             split_name_w, full_name_w, max_name_len);
         draw_layout = single_column ? full_layout : layout;
         draw_cols = single_column ? full_cols : split_cols;
+        entry_row_stride = (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            ? jewelry_preset_display_rows(&draw_layout, &draw_cols)
+            : 1;
+        entry_page_rows = (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            ? jewelry_preset_entries_per_page(&draw_layout, &draw_cols)
+            : draw_layout.list_rows;
+        if (entry_page_rows < 1)
+            entry_page_rows = 1;
+        if (entry_cnt > 0)
+        {
+            if (entry_cur < entry_top)
+                entry_top = entry_cur;
+            if (entry_cur >= entry_top + entry_page_rows)
+                entry_top = entry_cur - entry_page_rows + 1;
+            if (entry_top < 0)
+                entry_top = 0;
+        }
         build_supply_weight_summary(weight_buf, sizeof(weight_buf),
             draw_layout.term_wid, used_weight, max_weight, light_weight,
             light_item_weight, light_oil_weight, lamp_oil,
@@ -32010,8 +32434,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 ? supply_group_text[grp_idx[grp_cur]]
                 : "Name";
             cptr title_label = (draw_layout.term_wid <= 50)
-                ? "Supplies - H/F/P/G/Oil"
-                : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil";
+                ? "Supplies - H/F/P/G/Oil/Jewelry"
+                : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil, Jewelry Sets";
+
+            if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+                list_label = "Set";
 
             Term_clear();
             Term_putstr(0, draw_layout.title_row, draw_layout.term_wid,
@@ -32099,22 +32526,27 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 draw_layout.list_rows, entries, entry_cnt, entry_cur, entry_top,
                 grp_idx[grp_cur], column, &draw_cols, compact_draw_names);
 
-            for (i = 0; i < draw_layout.list_rows; i++)
+            for (i = 0; i < entry_page_rows; i++)
             {
                 int entry_pos = entry_top + i;
+                int entry_y = draw_layout.list_row + (i * entry_row_stride);
                 if (entry_pos >= entry_cnt)
                     break;
 
-                ui_menu_click_add(SUPPLY_CLICK_ENTRY_BASE + entry_pos,
-                    draw_layout.list_col, draw_layout.list_row + i,
-                    draw_layout.list_w);
+                for (int line = 0; line < entry_row_stride
+                    && entry_y + line < draw_layout.list_row + draw_layout.list_rows;
+                    line++)
+                {
+                    ui_menu_click_add(SUPPLY_CLICK_ENTRY_BASE + entry_pos,
+                        draw_layout.list_col, entry_y + line, draw_layout.list_w);
+                }
             }
         }
 
         if (draw_layout.status_row != draw_layout.prompt_row)
         {
-            describe_supply_group_status(grp_idx[grp_cur], status_buf,
-                sizeof(status_buf));
+            describe_supply_group_status(grp_idx[grp_cur],
+                draw_layout.term_wid, status_buf, sizeof(status_buf));
             Term_erase(0, draw_layout.status_row, 255);
             if (status_buf[0] != '\0')
                 Term_putstr(0, draw_layout.status_row, draw_layout.term_wid,
@@ -32160,9 +32592,25 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
                     TERM_YELLOW);
         } else {
-            cptr prompt = (draw_layout.term_wid <= 50)
-                ? "Dir move  u/Space use  d drop  Esc"
-                : "Dir move  r/-> recall  u/Space use  d drop  Esc";
+            cptr prompt;
+
+            if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            {
+                if (draw_layout.term_wid <= 34)
+                    prompt = "u equip  s save  c clear";
+                else if (draw_layout.term_wid <= 50)
+                    prompt = "Dir move  u equip  s save  c clear  Esc";
+                else if (draw_layout.term_wid <= 70)
+                    prompt = "Dir move  u equip  s save  c clear  Alt+1-5  Esc";
+                else
+                    prompt = "Dir move  r/-> recall  u/Space equip  s save  c clear  Alt+1-5  Esc";
+            }
+            else
+            {
+                prompt = (draw_layout.term_wid <= 50)
+                    ? "Dir move  u/Space use  d drop  Esc"
+                    : "Dir move  r/-> recall  u/Space use  d drop  Esc";
+            }
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_SLATE, prompt);
             supply_register_prompt_clicks(&draw_layout, prompt,
@@ -32177,7 +32625,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 draw_layout.list_row + (grp_cur - grp_top));
         else if (entry_cnt)
             Term_gotoxy(draw_layout.list_col,
-                draw_layout.list_row + (entry_cur - entry_top));
+                draw_layout.list_row + ((entry_cur - entry_top)
+                    * entry_row_stride));
         else
             Term_gotoxy(draw_layout.group_col,
                 draw_layout.list_row + (grp_cur - grp_top));
@@ -32400,9 +32849,61 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             break;
 
+        case 's':
+        case 'S':
+            if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            {
+                if (!column && entry_cnt)
+                {
+                    column = 1;
+                }
+                else if (column && entry_cnt)
+                {
+                    supply_list_entry* entry = &entries[entry_cur];
+
+                    if (entry->preset_idx >= 0
+                        && do_cmd_jewelry_preset_store(entry->preset_idx))
+                    {
+                        redraw = true;
+                    }
+                }
+            }
+            else
+            {
+                    browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt,
+                        &entry_cur, entry_cnt, entry_page_rows, true);
+            }
+            break;
+
+        case 'c':
+        case 'C':
+            if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            {
+                if (!column && entry_cnt)
+                {
+                    column = 1;
+                }
+                else if (column && entry_cnt)
+                {
+                    supply_list_entry* entry = &entries[entry_cur];
+
+                    if (entry->preset_idx >= 0
+                        && do_cmd_jewelry_preset_clear(entry->preset_idx))
+                    {
+                        redraw = true;
+                    }
+                }
+            }
+            else
+            {
+                    browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt,
+                        &entry_cur, entry_cnt, entry_page_rows, true);
+            }
+            break;
+
         default:
             browser_cursor_with_rows(ch, &column, &grp_cur, grp_cnt, &entry_cur,
-                entry_cnt, layout.list_rows, true);
+                entry_cnt, entry_page_rows, true);
             break;
         }
     }

@@ -2440,6 +2440,13 @@ static void process_command(void)
         break;
     }
 
+    /* Jewelry preset shortcut */
+    case 'J':
+    {
+        do_cmd_jewelry_preset_shortcut();
+        break;
+    }
+
     /* Check knowledge */
     case '~':
     {

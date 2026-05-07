@@ -133,6 +133,7 @@ static bool item_tester_hook_ring_slots(const object_type* o_ptr)
 
 bool throw_slot_menu_active = false;
 bool throw_slot_enabled[INVEN_TOTAL];
+static int forced_wield_slot = -1;
 
 static bool item_tester_hook_throw_slots(const object_type* o_ptr)
 {
@@ -1048,6 +1049,34 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Check the slot */
     slot = wield_slot(o_ptr);
+    if (forced_wield_slot >= INVEN_WIELD && forced_wield_slot < INVEN_TOTAL)
+    {
+        bool forced_slot_ok = false;
+
+        if (o_ptr->tval == TV_RING
+            && ((forced_wield_slot == INVEN_LEFT)
+                || (forced_wield_slot == INVEN_RIGHT)))
+        {
+            forced_slot_ok = true;
+        }
+        else if (o_ptr->tval == TV_AMULET
+            && forced_wield_slot == INVEN_NECK)
+        {
+            forced_slot_ok = true;
+        }
+
+        if (!forced_slot_ok)
+        {
+            if (item < 0)
+                object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+            else
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            msg_format("You cannot put %s there.", o_name);
+            return;
+        }
+
+        slot = forced_wield_slot;
+    }
     if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
     {
         if (item < 0)
@@ -1085,7 +1114,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     }
 
     /* Ask for ring to replace */
-    if ((o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx
+    if ((forced_wield_slot < 0) && (o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx
         && inventory[INVEN_RIGHT].k_idx)
     {
         item_tester_tval = TV_RING;
@@ -1401,6 +1430,15 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
                 slot = INVEN_ARM;
             }
         }
+    }
+
+    if ((item >= INVEN_WIELD) && (item < INVEN_TOTAL) && (item != slot)
+        && cursed_p(o_ptr))
+    {
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+        msg_format("You cannot bear to move the %s you are %s.", o_name,
+            describe_use(item));
+        return;
     }
 
     /* Prevent wielding into a cursed slot */
@@ -1950,6 +1988,367 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Ensure the newly-identified item (and any resulting bonuses) display immediately. */
         handle_stuff();
     }
+}
+
+void do_cmd_wield_to_slot(
+    object_type* default_o_ptr, int default_item, int forced_slot)
+{
+    int old_forced_slot = forced_wield_slot;
+
+    forced_wield_slot = forced_slot;
+    do_cmd_wield(default_o_ptr, default_item);
+    forced_wield_slot = old_forced_slot;
+}
+
+static int jewelry_preset_inventory_slot(int preset_slot)
+{
+    switch (preset_slot)
+    {
+    case JEWELRY_PRESET_SLOT_LEFT:
+        return INVEN_LEFT;
+    case JEWELRY_PRESET_SLOT_RIGHT:
+        return INVEN_RIGHT;
+    case JEWELRY_PRESET_SLOT_NECK:
+        return INVEN_NECK;
+    default:
+        return -1;
+    }
+}
+
+static int jewelry_preset_slot_for_inventory(int inventory_slot)
+{
+    switch (inventory_slot)
+    {
+    case INVEN_LEFT:
+        return JEWELRY_PRESET_SLOT_LEFT;
+    case INVEN_RIGHT:
+        return JEWELRY_PRESET_SLOT_RIGHT;
+    case INVEN_NECK:
+        return JEWELRY_PRESET_SLOT_NECK;
+    default:
+        return -1;
+    }
+}
+
+static bool jewelry_preset_objects_match(const object_type* a,
+    const object_type* b)
+{
+    if (!a || !b || !a->k_idx || !b->k_idx)
+        return false;
+
+    if (a->k_idx != b->k_idx || a->tval != b->tval || a->sval != b->sval)
+        return false;
+    if (a->pval != b->pval || a->weight != b->weight)
+        return false;
+    if (a->name1 != b->name1)
+        return false;
+    if (object_ego_prefix(a) != object_ego_prefix(b)
+        || object_ego_suffix(a) != object_ego_suffix(b))
+        return false;
+    if (a->att != b->att || a->evn != b->evn)
+        return false;
+    if (a->dd != b->dd || a->ds != b->ds
+        || a->pd != b->pd || a->ps != b->ps)
+        return false;
+    if (a->abilities != b->abilities)
+        return false;
+    if (memcmp(a->stat_bonus, b->stat_bonus, sizeof(a->stat_bonus)) != 0)
+        return false;
+    if (memcmp(a->skill_bonus, b->skill_bonus, sizeof(a->skill_bonus)) != 0)
+        return false;
+    if (memcmp(a->skilltype, b->skilltype, sizeof(a->skilltype)) != 0)
+        return false;
+    if (memcmp(a->abilitynum, b->abilitynum, sizeof(a->abilitynum)) != 0)
+        return false;
+    if (memcmp(a->bane_type, b->bane_type, sizeof(a->bane_type)) != 0)
+        return false;
+    if (a->unused1 != b->unused1)
+        return false;
+
+    return true;
+}
+
+static bool jewelry_preset_current_slot_is_settled(int inventory_slot,
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX],
+    const bool target_present[JEWELRY_PRESET_SLOT_MAX])
+{
+    int preset_slot = jewelry_preset_slot_for_inventory(inventory_slot);
+
+    if (preset_slot < 0 || !target_present[preset_slot])
+        return false;
+
+    return jewelry_preset_objects_match(&inventory[inventory_slot],
+        targets[preset_slot]);
+}
+
+static bool jewelry_preset_targets_available(
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX],
+    const bool target_present[JEWELRY_PRESET_SLOT_MAX])
+{
+    bool used[INVEN_TOTAL];
+    int jewelry_slots[JEWELRY_PRESET_SLOT_MAX] = {
+        INVEN_LEFT, INVEN_RIGHT, INVEN_NECK
+    };
+
+    memset(used, 0, sizeof(used));
+
+    for (int preset_slot = 0; preset_slot < JEWELRY_PRESET_SLOT_MAX;
+         preset_slot++)
+    {
+        const object_type* target = targets[preset_slot];
+        int preferred = jewelry_preset_inventory_slot(preset_slot);
+        bool found = false;
+
+        if (!target_present[preset_slot])
+            continue;
+
+        if (preferred >= 0 && !used[preferred]
+            && jewelry_preset_objects_match(&inventory[preferred], target))
+        {
+            used[preferred] = true;
+            continue;
+        }
+
+        for (int i = 0; i < JEWELRY_PRESET_SLOT_MAX && !found; i++)
+        {
+            int item = jewelry_slots[i];
+
+            if (used[item])
+                continue;
+            if (jewelry_preset_objects_match(&inventory[item], target))
+            {
+                used[item] = true;
+                found = true;
+            }
+        }
+
+        for (int item = 0; item < INVEN_PACK && !found; item++)
+        {
+            if (used[item])
+                continue;
+            if (jewelry_preset_objects_match(&inventory[item], target))
+            {
+                used[item] = true;
+                found = true;
+            }
+        }
+
+        if (!found)
+            return false;
+    }
+
+    return true;
+}
+
+static int jewelry_preset_find_source_for_target(int preset_slot,
+    const object_type* target,
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX],
+    const bool target_present[JEWELRY_PRESET_SLOT_MAX])
+{
+    int jewelry_slots[JEWELRY_PRESET_SLOT_MAX] = {
+        INVEN_LEFT, INVEN_RIGHT, INVEN_NECK
+    };
+    int dest = jewelry_preset_inventory_slot(preset_slot);
+
+    if (dest >= 0 && jewelry_preset_objects_match(&inventory[dest], target))
+        return dest;
+
+    for (int i = 0; i < JEWELRY_PRESET_SLOT_MAX; i++)
+    {
+        int item = jewelry_slots[i];
+
+        if (item == dest)
+            continue;
+        if (jewelry_preset_current_slot_is_settled(item, targets,
+                target_present))
+            continue;
+        if (jewelry_preset_objects_match(&inventory[item], target))
+            return item;
+    }
+
+    for (int item = 0; item < INVEN_PACK; item++)
+    {
+        if (jewelry_preset_objects_match(&inventory[item], target))
+            return item;
+    }
+
+    return -1;
+}
+
+static bool jewelry_preset_current_jewelry_can_move(
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX],
+    const bool target_present[JEWELRY_PRESET_SLOT_MAX])
+{
+    int jewelry_slots[JEWELRY_PRESET_SLOT_MAX] = {
+        INVEN_LEFT, INVEN_RIGHT, INVEN_NECK
+    };
+
+    for (int i = 0; i < JEWELRY_PRESET_SLOT_MAX; i++)
+    {
+        int item = jewelry_slots[i];
+        object_type* o_ptr = &inventory[item];
+        char o_name[80];
+
+        if (!o_ptr->k_idx)
+            continue;
+        if (jewelry_preset_current_slot_is_settled(item, targets,
+                target_present))
+            continue;
+        if (!cursed_p(o_ptr))
+            continue;
+
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+        msg_format("You cannot bear to give up the %s you are %s.", o_name,
+            describe_use(item));
+        return false;
+    }
+
+    return true;
+}
+
+bool do_cmd_jewelry_preset_apply(int preset)
+{
+    const object_type* targets[JEWELRY_PRESET_SLOT_MAX];
+    bool target_present[JEWELRY_PRESET_SLOT_MAX];
+    bool changed = false;
+
+    if (death_spectator_active())
+    {
+        msg_print("You can no longer take that action.");
+        return false;
+    }
+
+    if (preset < 0 || preset >= JEWELRY_PRESET_MAX
+        || !jewelry_preset_is_set(preset))
+    {
+        msg_format("Jewelry set %d is empty.", preset + 1);
+        return false;
+    }
+
+    for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+    {
+        targets[slot] = jewelry_preset_object(preset, slot);
+        target_present[slot] = targets[slot] && targets[slot]->k_idx;
+    }
+
+    if (!target_present[JEWELRY_PRESET_SLOT_LEFT]
+        || !target_present[JEWELRY_PRESET_SLOT_RIGHT]
+        || !target_present[JEWELRY_PRESET_SLOT_NECK])
+    {
+        msg_format("Jewelry set %d is incomplete.", preset + 1);
+        return false;
+    }
+
+    if (!jewelry_preset_targets_available(targets, target_present))
+    {
+        msg_format("You no longer have all the items for jewelry set %d.",
+            preset + 1);
+        return false;
+    }
+
+    if (!jewelry_preset_current_jewelry_can_move(targets, target_present))
+        return false;
+
+    for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+    {
+        int dest = jewelry_preset_inventory_slot(slot);
+        int source;
+
+        if (dest < 0 || !target_present[slot])
+            continue;
+
+        if (jewelry_preset_objects_match(&inventory[dest], targets[slot]))
+            continue;
+
+        source = jewelry_preset_find_source_for_target(slot, targets[slot],
+            targets, target_present);
+        if (source < 0)
+        {
+            msg_format("You no longer have all the items for jewelry set %d.",
+                preset + 1);
+            return changed;
+        }
+
+        do_cmd_wield_to_slot(&inventory[source], source, dest);
+
+        if (!jewelry_preset_objects_match(&inventory[dest], targets[slot]))
+        {
+            msg_format("Jewelry set %d could not be completed.", preset + 1);
+            return changed;
+        }
+
+        changed = true;
+    }
+
+    if (changed)
+        msg_format("Jewelry set %d equipped.", preset + 1);
+    else
+        msg_format("Jewelry set %d is already equipped.", preset + 1);
+
+    return true;
+}
+
+bool do_cmd_jewelry_preset_store(int preset)
+{
+    if (preset < 0 || preset >= JEWELRY_PRESET_MAX)
+        return false;
+
+    if (death_spectator_active())
+    {
+        msg_print("You can no longer take that action.");
+        return false;
+    }
+
+    if (jewelry_preset_is_set(preset)
+        && !get_check(format("Replace jewelry set %d? ", preset + 1)))
+    {
+        return false;
+    }
+
+    if (!jewelry_preset_store_current(preset))
+    {
+        msg_print("Wear two rings and an amulet before saving a jewelry set.");
+        return false;
+    }
+
+    msg_format("Jewelry set %d saved.", preset + 1);
+    return true;
+}
+
+bool do_cmd_jewelry_preset_clear(int preset)
+{
+    if (preset < 0 || preset >= JEWELRY_PRESET_MAX)
+        return false;
+
+    if (!jewelry_preset_is_set(preset))
+    {
+        msg_format("Jewelry set %d is already empty.", preset + 1);
+        return false;
+    }
+
+    if (!get_check(format("Clear jewelry set %d? ", preset + 1)))
+        return false;
+
+    jewelry_preset_clear(preset);
+    msg_format("Jewelry set %d cleared.", preset + 1);
+    return true;
+}
+
+void do_cmd_jewelry_preset_shortcut(void)
+{
+    char ch;
+
+    if (!get_com("Jewelry set (1-5): ", &ch))
+        return;
+
+    if (ch < '1' || ch > ('0' + JEWELRY_PRESET_MAX))
+    {
+        bell("Invalid jewelry set.");
+        msg_print("Choose jewelry set 1-5.");
+        return;
+    }
+
+    (void)do_cmd_jewelry_preset_apply(D2I(ch) - 1);
 }
 
 /*

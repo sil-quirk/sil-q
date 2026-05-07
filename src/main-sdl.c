@@ -17808,6 +17808,30 @@ static void sdl_cycle_left_panel_layout(void)
         Term_keypress(KTRL('R'));
 }
 
+static bool sdl_handle_jewelry_preset_shortcut(
+    const SDL_KeyboardEvent* key_event)
+{
+    SDL_Keycode key;
+
+    if (!key_event || !character_dungeon)
+        return false;
+
+    if (!(key_event->mod & SDL_KMOD_ALT)
+        || (key_event->mod & (SDL_KMOD_SHIFT | SDL_KMOD_CTRL | SDL_KMOD_GUI)))
+    {
+        return false;
+    }
+
+    key = SDL_GetKeyFromScancode(key_event->scancode, SDL_KMOD_NONE, false);
+    if (key < '1' || key > ('0' + JEWELRY_PRESET_MAX))
+        return false;
+
+    Term_keypress('\\');
+    Term_keypress('J');
+    Term_keypress(key);
+    return true;
+}
+
 static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event)
 {
     SDL_Keycode key;
@@ -20776,6 +20800,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
 
         if (character_dungeon) {
+            if (sdl_handle_jewelry_preset_shortcut(&ev->key))
+                return;
             if (sdl_try_send_modified_direction_event(&ev->key))
                 return;
         }

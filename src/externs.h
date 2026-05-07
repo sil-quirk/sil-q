@@ -684,9 +684,15 @@ extern void do_cmd_inven_direct(void);
 extern void do_cmd_equip(void);
 extern void do_cmd_equip_direct(void);
 extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
+extern void do_cmd_wield_to_slot(
+    object_type* default_o_ptr, int default_item, int forced_slot);
 extern void do_cmd_wield_wrapper(void);
 extern void do_cmd_wield_enhanced(void);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
+extern bool do_cmd_jewelry_preset_apply(int preset);
+extern bool do_cmd_jewelry_preset_store(int preset);
+extern bool do_cmd_jewelry_preset_clear(int preset);
+extern void do_cmd_jewelry_preset_shortcut(void);
 extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);

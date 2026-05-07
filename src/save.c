@@ -1842,6 +1842,34 @@ static bool wr_savefile(void)
     }
     log_trace("[save:%06u] === END SUPPLIES ===", (unsigned)save_byte_offset);
 
+    /* Write jewelry presets */
+    log_trace("[save:%06u] === BEGIN JEWELRY PRESETS ===", (unsigned)save_byte_offset);
+    {
+        wr_u16b(SAVEFILE_JEWELRY_PRESET_BLOCK_MAGIC);
+        wr_byte(JEWELRY_PRESET_MAX);
+        for (byte preset = 0; preset < JEWELRY_PRESET_MAX; preset++)
+        {
+            bool set = jewelry_preset_is_set(preset);
+            wr_byte(set ? 1 : 0);
+            for (byte slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+            {
+                const object_type* preset_obj =
+                    jewelry_preset_object(preset, slot);
+                if (preset_obj && preset_obj->k_idx)
+                {
+                    wr_item(preset_obj);
+                }
+                else
+                {
+                    object_type blank;
+                    object_wipe(&blank);
+                    wr_item(&blank);
+                }
+            }
+        }
+    }
+    log_trace("[save:%06u] === END JEWELRY PRESETS ===", (unsigned)save_byte_offset);
+
     /* Player is not dead, write the dungeon */
     log_debug("save: p_ptr->is_dead = %d, will %s dungeon", 
              p_ptr->is_dead, p_ptr->is_dead ? "SKIP" : "write");

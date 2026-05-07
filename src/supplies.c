@@ -10,10 +10,18 @@ typedef struct supply_entry
     object_type obj;
 } supply_entry;
 
+typedef struct jewelry_preset
+{
+    bool set;
+    object_type slot[JEWELRY_PRESET_SLOT_MAX];
+} jewelry_preset;
+
 static supply_entry* g_supply_entries = NULL;
 static int g_supply_count = 0;
 static int g_supply_capacity = 0;
 static bool g_supply_initialized = false;
+
+static jewelry_preset g_jewelry_presets[JEWELRY_PRESET_MAX];
 
 static int g_active_supply_action = -1;
 
@@ -177,6 +185,129 @@ bool supplies_is_carried_object_pointer(const object_type* o_ptr)
     const object_type* last = &g_supply_entries[g_supply_count - 1].obj;
 
     return (o_ptr >= first) && (o_ptr <= last);
+}
+
+static bool jewelry_preset_index_ok(int preset)
+{
+    return preset >= 0 && preset < JEWELRY_PRESET_MAX;
+}
+
+static bool jewelry_preset_slot_ok(int slot)
+{
+    return slot >= 0 && slot < JEWELRY_PRESET_SLOT_MAX;
+}
+
+static void jewelry_preset_copy_object(object_type* dest,
+    const object_type* src)
+{
+    object_copy(dest, src);
+    dest->image_k_idx = 0;
+    dest->iy = 0;
+    dest->ix = 0;
+    dest->pickup = false;
+    dest->pickup_slot = -1;
+    dest->number = 1;
+    dest->marked = false;
+    dest->next_o_idx = 0;
+    dest->held_m_idx = 0;
+}
+
+void jewelry_presets_reset(void)
+{
+    for (int preset = 0; preset < JEWELRY_PRESET_MAX; preset++)
+    {
+        g_jewelry_presets[preset].set = false;
+        for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+            object_wipe(&g_jewelry_presets[preset].slot[slot]);
+    }
+}
+
+bool jewelry_preset_is_set(int preset)
+{
+    if (!jewelry_preset_index_ok(preset))
+        return false;
+
+    return g_jewelry_presets[preset].set;
+}
+
+int jewelry_preset_count(void)
+{
+    int count = 0;
+
+    for (int preset = 0; preset < JEWELRY_PRESET_MAX; preset++)
+    {
+        if (g_jewelry_presets[preset].set)
+            count++;
+    }
+
+    return count;
+}
+
+bool jewelry_preset_store_current(int preset)
+{
+    if (!jewelry_preset_index_ok(preset))
+        return false;
+
+    if (!inventory[INVEN_LEFT].k_idx || inventory[INVEN_LEFT].tval != TV_RING)
+        return false;
+    if (!inventory[INVEN_RIGHT].k_idx || inventory[INVEN_RIGHT].tval != TV_RING)
+        return false;
+    if (!inventory[INVEN_NECK].k_idx || inventory[INVEN_NECK].tval != TV_AMULET)
+        return false;
+
+    jewelry_preset_copy_object(
+        &g_jewelry_presets[preset].slot[JEWELRY_PRESET_SLOT_LEFT],
+        &inventory[INVEN_LEFT]);
+    jewelry_preset_copy_object(
+        &g_jewelry_presets[preset].slot[JEWELRY_PRESET_SLOT_RIGHT],
+        &inventory[INVEN_RIGHT]);
+    jewelry_preset_copy_object(
+        &g_jewelry_presets[preset].slot[JEWELRY_PRESET_SLOT_NECK],
+        &inventory[INVEN_NECK]);
+    g_jewelry_presets[preset].set = true;
+
+    return true;
+}
+
+void jewelry_preset_clear(int preset)
+{
+    if (!jewelry_preset_index_ok(preset))
+        return;
+
+    g_jewelry_presets[preset].set = false;
+    for (int slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+        object_wipe(&g_jewelry_presets[preset].slot[slot]);
+}
+
+const object_type* jewelry_preset_object(int preset, int slot)
+{
+    if (!jewelry_preset_index_ok(preset)
+        || !jewelry_preset_slot_ok(slot)
+        || !g_jewelry_presets[preset].set)
+    {
+        return NULL;
+    }
+
+    if (!g_jewelry_presets[preset].slot[slot].k_idx)
+        return NULL;
+
+    return &g_jewelry_presets[preset].slot[slot];
+}
+
+bool jewelry_preset_set_object(int preset, int slot, const object_type* o_ptr)
+{
+    if (!jewelry_preset_index_ok(preset) || !jewelry_preset_slot_ok(slot))
+        return false;
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        object_wipe(&g_jewelry_presets[preset].slot[slot]);
+        return true;
+    }
+
+    jewelry_preset_copy_object(&g_jewelry_presets[preset].slot[slot], o_ptr);
+    g_jewelry_presets[preset].set = true;
+    return true;
 }
 
 static bool player_lamp_pointer_uses_pool(const object_type* o_ptr)
@@ -911,6 +1042,7 @@ void supplies_dispose(void)
     g_pending_hotkey = false;
     g_supply_limit_warned = false;
     player_light_clear_incoming_reservation();
+    jewelry_presets_reset();
 }
 
 void supplies_reset_store(void)
@@ -927,6 +1059,7 @@ void supplies_reset_store(void)
     g_pending_hotkey = false;
     g_supply_limit_warned = false;
     player_light_clear_incoming_reservation();
+    jewelry_presets_reset();
 }
 
 bool supplies_is_supply_object(const object_type* o_ptr)
