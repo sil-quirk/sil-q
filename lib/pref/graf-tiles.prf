@@ -352,9 +352,8 @@ K:23:0x85/0x8C
 # Studded Leather~
 K:26:0x85/0x8D
 
-#-----------------------No sprite
-# Hard Leather Armour~
-K:25:0x80/0x80
+# Hard Leather Armour~ (unused) - was never included in object.txt
+#K:25:0x80/0x80
 
 # Galvorn Armour
 K:27:0x89/0x91
