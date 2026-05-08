@@ -2,6 +2,9 @@ param(
     [ValidateSet('Debug','Release')]
     [string]$Config = 'Debug',
 
+    [ValidateSet('Sideload','Play')]
+    [string]$Delivery = 'Sideload',
+
     [string]$KeystorePath = $env:SIL_MORE_RELEASE_STORE_FILE,
 
     [string]$KeystoreAlias = $env:SIL_MORE_RELEASE_KEY_ALIAS
@@ -167,6 +170,38 @@ function Set-ProcessEnvironmentValue {
     [Environment]::SetEnvironmentVariable($Name, $Value, 'Process')
 }
 
+function Get-AndroidAssembleTaskName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Delivery,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Config
+    )
+
+    $flavor = if ($Delivery -eq 'Play') { 'Play' } else { 'Sideload' }
+    $buildType = if ($Config -eq 'Release') { 'Release' } else { 'Debug' }
+
+    return "assemble$flavor$buildType"
+}
+
+function Get-AndroidApkPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AndroidDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Delivery,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Config
+    )
+
+    $flavor = $Delivery.ToLowerInvariant()
+    $buildType = $Config.ToLowerInvariant()
+    return Join-Path $AndroidDir "app\build\outputs\apk\$flavor\$buildType\app-$flavor-$buildType.apk"
+}
+
 $androidDir = Join-Path $PSScriptRoot 'android'
 if (-not (Test-Path $androidDir)) {
     throw "Android project folder not found: $androidDir"
@@ -226,7 +261,7 @@ try {
     Push-Location $androidDir
     $pushedLocation = $true
 
-    $task = if ($Config -eq 'Release') { 'assembleRelease' } else { 'assembleDebug' }
+    $task = Get-AndroidAssembleTaskName -Delivery $Delivery -Config $Config
 
     $javaHome = Resolve-JavaHome
     if ($javaHome) {
@@ -252,11 +287,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Gradle wrapper failed with exit code $LASTEXITCODE"
         }
-        $apkPath = if ($Config -eq 'Release') {
-            Join-Path $androidDir 'app\build\outputs\apk\release\app-release.apk'
-        } else {
-            Join-Path $androidDir 'app\build\outputs\apk\debug\app-debug.apk'
-        }
+        $apkPath = Get-AndroidApkPath -AndroidDir $androidDir -Delivery $Delivery -Config $Config
         Write-Host "APK build completed via gradlew ($task)." -ForegroundColor Green
         if (Test-Path $apkPath) {
             Write-Host "APK: $apkPath" -ForegroundColor Green
@@ -269,11 +300,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Gradle CLI failed with exit code $LASTEXITCODE"
         }
-        $apkPath = if ($Config -eq 'Release') {
-            Join-Path $androidDir 'app\build\outputs\apk\release\app-release.apk'
-        } else {
-            Join-Path $androidDir 'app\build\outputs\apk\debug\app-debug.apk'
-        }
+        $apkPath = Get-AndroidApkPath -AndroidDir $androidDir -Delivery $Delivery -Config $Config
         Write-Host "APK build completed via gradle CLI ($task)." -ForegroundColor Green
         if (Test-Path $apkPath) {
             Write-Host "APK: $apkPath" -ForegroundColor Green
@@ -290,7 +317,7 @@ Use Android Studio to build the APK:
 3) Build > Build APK(s).
 
 Then install with:
-  .\install-android-apk.ps1 -Config $Config
+  .\install-android-apk.ps1 -Config $Config -Delivery $Delivery
 "@
 }
 finally {

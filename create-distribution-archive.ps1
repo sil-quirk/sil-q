@@ -245,7 +245,7 @@ if ([string]::IsNullOrWhiteSpace($PortableArchiveName)) {
 $releaseApkFileName = "$defaultArchiveBaseName.apk"
 
 $releaseApkSourcePath = if ([string]::IsNullOrWhiteSpace($ApkPath)) {
-    Get-FullPath "android/app/build/outputs/apk/release/app-release.apk"
+    Get-FullPath "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk"
 } else {
     Get-FullPath $ApkPath
 }

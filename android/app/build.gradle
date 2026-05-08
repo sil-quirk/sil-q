@@ -64,6 +64,7 @@ if ((hasAnyReleaseSigningValue || requireReleaseSigning) && !hasReleaseSigning) 
 android {
     namespace 'com.silmore.myapp'
     compileSdk androidCompileSdk
+    flavorDimensions 'delivery'
 
     signingConfigs {
         release {
@@ -91,6 +92,16 @@ android {
             cmake {
                 arguments '-DSIL_BUILD_WITH_SDL_SOURCES=ON'
             }
+        }
+    }
+
+    productFlavors {
+        play {
+            dimension 'delivery'
+        }
+        sideload {
+            dimension 'delivery'
+            applicationIdSuffix '.sideload'
         }
     }
 

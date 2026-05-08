@@ -54,7 +54,7 @@ $libSourceRoot = Resolve-ScriptRelativePath "lib"
 $coverArtPath = Resolve-ScriptRelativePath "CoverArt"
 $legacyCoverArtPath = Resolve-ScriptRelativePath "sil-more_beta 0.9/CoverArt"
 $archiveScriptPath = Resolve-ScriptRelativePath "create-distribution-archive.ps1"
-$releaseApkPath = Resolve-ScriptRelativePath "android/app/build/outputs/apk/release/app-release.apk"
+$releaseApkPath = Resolve-ScriptRelativePath "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk"
 
 Write-Host "Creating portable release build: $outputFolderPath" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan

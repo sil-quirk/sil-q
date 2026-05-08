@@ -2,6 +2,9 @@ param(
     [ValidateSet('Debug','Release')]
     [string]$Config = 'Debug',
 
+    [ValidateSet('Sideload','Play')]
+    [string]$Delivery = 'Sideload',
+
     [string]$AdbPath,
 
     [string]$Serial,
@@ -284,16 +287,29 @@ function New-AdbInstallFailureMessage {
     return $lines -join "`n"
 }
 
-$adb = Resolve-AdbPath -Provided $AdbPath
+function Get-AndroidApkPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
 
-$apk = if ($Config -eq 'Release') {
-    Join-Path $PSScriptRoot 'android\app\build\outputs\apk\release\app-release.apk'
-} else {
-    Join-Path $PSScriptRoot 'android\app\build\outputs\apk\debug\app-debug.apk'
+        [Parameter(Mandatory = $true)]
+        [string]$Delivery,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Config
+    )
+
+    $flavor = $Delivery.ToLowerInvariant()
+    $buildType = $Config.ToLowerInvariant()
+    return Join-Path $RepoRoot "android\app\build\outputs\apk\$flavor\$buildType\app-$flavor-$buildType.apk"
 }
 
+$adb = Resolve-AdbPath -Provided $AdbPath
+
+$apk = Get-AndroidApkPath -RepoRoot $PSScriptRoot -Delivery $Delivery -Config $Config
+
 if (-not (Test-Path $apk)) {
-    throw "APK not found: $apk`nBuild it first via Android Studio or build-android-apk.ps1"
+    throw "APK not found: $apk`nBuild it first via Android Studio or build-android-apk.ps1 -Config $Config -Delivery $Delivery"
 }
 
 $apkMetadata = Get-ApkMetadata -ApkPath $apk
