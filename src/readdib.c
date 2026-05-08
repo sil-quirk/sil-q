@@ -27,13 +27,19 @@
 /// This is used to apply a red tint to tiles to change the visuals when the
 /// player character is raging.
 ///
-/// Preserves the magic transparent color exactly so that compositing-time
-/// transparency continues to work. For all other pixels: convert to luma and
-/// rescale to (luma * R, luma * G, luma * B) using the RAGE_TINT_*_COEFF
-/// defines.
-static void tint_rgb_for_rage(BYTE* r, BYTE* g, BYTE* b)
+/// Sil-Q has the convention that pixel (0,0) in the BMP tileset defines the
+/// transparent color. The BMP format does not support transparency natively, so
+/// `blank_r/g/b` is discovered from pixel (0,0) at load time and treated as
+/// BMP's transparent color. The tint preserves this exact RGB so that
+/// compositing-time transparency continues to work, regardless of what RGB
+/// value was chosen for it when creating the BMP tileset.
+///
+/// For all other pixels: convert to luma and rescale to (luma * R, luma * G,
+/// luma * B) using the RAGE_TINT_*_COEFF defines.
+static void tint_rgb_for_rage(
+    BYTE* r, BYTE* g, BYTE* b, BYTE blank_r, BYTE blank_g, BYTE blank_b)
 {
-    if (*r == TILESET_BLANK_R && *g == TILESET_BLANK_G && *b == TILESET_BLANK_B)
+    if (*r == blank_r && *g == blank_g && *b == blank_b)
         return;
 
     int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
@@ -64,34 +70,69 @@ static void tint_rgb_for_rage(BYTE* r, BYTE* g, BYTE* b)
 /// For 24-bit BMPs, both the (default) color table and every pixel triple are
 /// tinted in-place.
 ///
+/// The shader's blank-color guard tracks whatever the artist chose for
+/// pixel (0,0), discovered from the loaded DIB. The rage tileset stays
+/// consistent with the compositor's transparency check regardless of what
+/// the BMP magic color is.
+///
 /// The DIB must be locked before this is called.
 static void tint_dib_in_place(LPBITMAPINFOHEADER lpInfo)
 {
     DWORD i;
     RGBQUAD FAR* lpRGB = (RGBQUAD FAR*)((LPSTR)lpInfo + lpInfo->biSize);
+    LPSTR lpBits = ((LPSTR)lpInfo + lpInfo->biSize
+        + lpInfo->biClrUsed * sizeof(RGBQUAD));
 
-    /* Tint the color table. */
+    /*
+     * Discover the blank color for transparency from pixel (0,0). Image pixel
+     * (0,0) is the top-left visual pixel; in BMP storage that's the LAST file
+     * row because BMP is bottom-up.
+     * For 8-bit BMPs we fseek and read one palette-index byte. For 24-bit
+     * BMPs we read three bytes (B, G, R) directly as the blank RGB, since
+     * there's no palette indirection.
+     */
+    int blank_index = -1;
+    BYTE blank_r = 0, blank_g = 0, blank_b = 0;
+    LONG bytesPerRow
+        = (((LONG)lpInfo->biWidth * lpInfo->biBitCount + 31) / 32) * 4;
+    LONG pixel00_offset = (LONG)(lpInfo->biHeight - 1) * bytesPerRow;
+    if (lpInfo->biBitCount == 8)
+    {
+        BYTE idx = ((BYTE*)lpBits)[pixel00_offset];
+        blank_index = (int)idx;
+        blank_r = lpRGB[idx].rgbRed;
+        blank_g = lpRGB[idx].rgbGreen;
+        blank_b = lpRGB[idx].rgbBlue;
+    }
+    else if (lpInfo->biBitCount == 24)
+    {
+        BYTE* p = (BYTE*)lpBits + pixel00_offset;
+        blank_b = p[0];
+        blank_g = p[1];
+        blank_r = p[2];
+    }
+
+    /* Tint the color table (skipping the blank index). */
     for (i = 0; i < lpInfo->biClrUsed; i++)
     {
-        tint_rgb_for_rage(
-            &lpRGB[i].rgbRed, &lpRGB[i].rgbGreen, &lpRGB[i].rgbBlue);
+        if ((int)i == blank_index)
+            continue;
+        tint_rgb_for_rage(&lpRGB[i].rgbRed, &lpRGB[i].rgbGreen,
+            &lpRGB[i].rgbBlue, blank_r, blank_g, blank_b);
     }
 
     /* For 24-bit BMPs the pixels are direct RGB triples; tint them too. */
     if (lpInfo->biBitCount == 24)
     {
-        LPSTR lpBits = ((LPSTR)lpInfo + lpInfo->biSize
-            + lpInfo->biClrUsed * sizeof(RGBQUAD));
         LONG row, col;
-        LONG bytesPerRow
-            = ((lpInfo->biWidth * 3 + 3) & ~3); /* DWORD-aligned */
         for (row = 0; row < lpInfo->biHeight; row++)
         {
             BYTE* p = (BYTE*)(lpBits + row * bytesPerRow);
             for (col = 0; col < lpInfo->biWidth; col++)
             {
                 /* BMP stores B, G, R per pixel. */
-                tint_rgb_for_rage(&p[2], &p[1], &p[0]);
+                tint_rgb_for_rage(
+                    &p[2], &p[1], &p[0], blank_r, blank_g, blank_b);
                 p += 3;
             }
         }

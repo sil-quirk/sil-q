@@ -2864,16 +2864,19 @@ static CGImageRef create_angband_image(NSString *path)
  * This is used to apply a red tint to tiles to change the visuals when the
  * player character is raging.
  *
- * Preserves the magic transparent color exactly so that compositing-time
- * transparency continues to work. For all other pixels: convert to luma and
- * rescale to (luma * R, luma * G, luma * B) using the RAGE_TINT_*_COEFF
- * defines.
+ * Color transparency on this backend comes from the PNG's alpha channel: the
+ * caller skips alpha-zero pixels before invoking this function, so the shader
+ * doesn't need its own RGB-based magic-color guard for transparency. (The X11
+ * and Windows backends require such a guard because the BMP format does not
+ * support transparency. As a workaround, by Sil-Q convention, they derive the
+ * magic blank color that denotes transparency from pixel (0,0). They then use a
+ * guard in the shader to not tint that magic blank color.)
+ *
+ * Convert to luma and rescale to (luma * R, luma * G, luma * B) using the
+ * RAGE_TINT_*_COEFF defines.
  */
 static void tint_rgb_for_rage(uint8_t* r, uint8_t* g, uint8_t* b)
 {
-    if (*r == TILESET_BLANK_R && *g == TILESET_BLANK_G && *b == TILESET_BLANK_B)
-        return;
-
     int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
     if (luma > 255)
         luma = 255;

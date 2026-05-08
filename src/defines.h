@@ -3183,11 +3183,6 @@
  * tileset, is preserved so compositing still works.
  */
 
-/* Reserved tileset color treated as transparent. */
-#define TILESET_BLANK_R 20
-#define TILESET_BLANK_G 20
-#define TILESET_BLANK_B 20
-
 /* tinted = (luma * RED_COEFF, luma * GREEN_COEFF, luma * BLUE_COEFF) */
 #define RAGE_TINT_RED_COEFF 1.0
 #define RAGE_TINT_GREEN_COEFF 0.3

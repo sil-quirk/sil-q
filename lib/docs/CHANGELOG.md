@@ -100,6 +100,10 @@ Added:
   you can no longer distinguish between an orc warrior or an orc archer while
   rage is active. This behavior includes unique monsters (e.g., the unique orc
   Boldog the Merciless), with the exception of Morgoth.
+- Sil-Q has the convention to use pixel (0,0) in a BMP tileset as the magic
+  "blank" color to denote color transparency, because the BMP format does not
+  support transparency natively. The graphics rendering backends now
+  automatically detect the transparency color via pixel (0,0).
 
 Changed:
 

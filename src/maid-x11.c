@@ -235,13 +235,19 @@ static void rd_u32b(FILE* fff, u32b* ip)
 /// This is used to apply a red tint to tiles to change the visuals when the
 /// player character is raging.
 ///
-/// Preserves the magic transparent color exactly so that compositing-time
-/// transparency continues to work. For all other pixels: convert to luma and
-/// rescale to (luma * R, luma * G, luma * B) using the RAGE_TINT_*_COEFF
-/// defines.
-static void tint_rgb_for_rage(byte* r, byte* g, byte* b)
+/// Sil-Q has the convention that pixel (0,0) in the BMP tileset defines the
+/// transparent color. The BMP format does not support transparency natively, so
+/// `blank_r/g/b` is discovered from pixel (0,0) at load time and treated as
+/// BMP's transparent color. The tint preserves this exact RGB so that
+/// compositing-time transparency continues to work, regardless of what RGB
+/// value was chosen for it when creating the BMP tileset.
+///
+/// For all other pixels: convert to luma and rescale to (luma * R, luma * G,
+/// luma * B) using the RAGE_TINT_*_COEFF defines.
+static void tint_rgb_for_rage(
+    byte* r, byte* g, byte* b, byte blank_r, byte blank_g, byte blank_b)
 {
-    if (*r == TILESET_BLANK_R && *g == TILESET_BLANK_G && *b == TILESET_BLANK_B)
+    if (*r == blank_r && *g == blank_g && *b == blank_b)
         return;
 
     int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
@@ -343,21 +349,64 @@ XImage* ReadBMP(Display* dpy, char* Name, bool tint_rage)
     /* Compute number of colors recorded */
     ncol = (fileheader.bfOffBits - 54) / 4;
 
+    /*
+     * Buffer the palette so we can tint it after we've discovered the blank
+     * index from pixel (0,0) (which sits past the palette in the file). Per
+     * the Sil-Q convention, pixel (0,0) defines the BMP's magic transparent
+     * color. The shader skips that palette entry so compositing transparency
+     * keeps working.
+     */
+    RGBQUAD palette[256];
     for (i = 0; i < ncol; i++)
     {
-        RGBQUAD clrg;
+        rd_byte(f, &(palette[i].b));
+        rd_byte(f, &(palette[i].g));
+        rd_byte(f, &(palette[i].r));
+        rd_byte(f, &(palette[i].filler));
+    }
 
-        /* Read an "RGBQUAD" */
-        rd_byte(f, &(clrg.b));
-        rd_byte(f, &(clrg.g));
-        rd_byte(f, &(clrg.r));
-        rd_byte(f, &(clrg.filler));
+    /*
+     * Discover the blank color for transparency from pixel (0,0). Image pixel
+     * (0,0) is the top-left visual pixel; in BMP storage that's the LAST file
+     * row because BMP is bottom-up.
+     * For 8-bit BMPs we fseek and read one palette-index byte. For 24-bit
+     * BMPs we read three bytes (B, G, R) directly as the blank RGB, since
+     * there's no palette indirection.
+     */
+    int blank_index = -1;
+    byte blank_r = 0, blank_g = 0, blank_b = 0;
+    if (tint_rage)
+    {
+        long row_bytes
+            = (((long)infoheader.biWidth * infoheader.biBitCount + 31) / 32)
+            * 4;
+        long pixel00_offset = (long)fileheader.bfOffBits
+            + (long)(infoheader.biHeight - 1) * row_bytes;
+        long saved_pos = ftell(f);
+        (void)fseek(f, pixel00_offset, SEEK_SET);
+        if (infoheader.biBitCount == 8)
+        {
+            blank_index = getc(f);
+            blank_r = palette[blank_index].r;
+            blank_g = palette[blank_index].g;
+            blank_b = palette[blank_index].b;
+        }
+        else if (infoheader.biBitCount == 24)
+        {
+            blank_b = (byte)getc(f);
+            blank_g = (byte)getc(f);
+            blank_r = (byte)getc(f);
+        }
+        (void)fseek(f, saved_pos, SEEK_SET);
+    }
 
-        if (tint_rage)
-            tint_rgb_for_rage(&clrg.r, &clrg.g, &clrg.b);
-
-        /* Analyze the color */
-        clr_pixels[i] = create_pixel(dpy, clrg.r, clrg.g, clrg.b);
+    /* Tint palette entries (skipping the blank index) and build X11 pixels. */
+    for (i = 0; i < ncol; i++)
+    {
+        byte r = palette[i].r, g = palette[i].g, b = palette[i].b;
+        if (tint_rage && i != blank_index)
+            tint_rgb_for_rage(&r, &g, &b, blank_r, blank_g, blank_b);
+        clr_pixels[i] = create_pixel(dpy, r, g, b);
     }
 
     /* Determine total bytes needed for image */
@@ -415,7 +464,7 @@ XImage* ReadBMP(Display* dpy, char* Name, bool tint_rage)
                 // create_pixel() takes (red, green, blue).
                 byte pr = (byte)c3, pg = (byte)c2, pb = (byte)ch;
                 if (tint_rage)
-                    tint_rgb_for_rage(&pr, &pg, &pb);
+                    tint_rgb_for_rage(&pr, &pg, &pb, blank_r, blank_g, blank_b);
                 XPutPixel(Res, x, y2, create_pixel(dpy, pr, pg, pb));
             }
             else if (infoheader.biBitCount == 8)
