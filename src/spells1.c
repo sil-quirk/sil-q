@@ -1603,7 +1603,7 @@ void attempt_to_cheat_death(void)
         /* If player is dead, save them at the cost of the item */
         if (f3 & TR3_CHEAT_DEATH && p_ptr->chp <= 0)
         {
-            p_ptr->chp = 1;
+            p_ptr->chp = MAX(1, (p_ptr->mhp + 3) / 4);
             p_ptr->energy += 100;
             set_blind(0);
             set_confused(0);

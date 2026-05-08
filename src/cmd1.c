@@ -7194,6 +7194,18 @@ void flanking_or_retreat(int y, int x)
  * Note that this routine handles monsters in the destination grid,
  * and also handles attempting to move into walls/doors/rubble/etc.
  */
+static bool move_target_exits_gates(int y, int x)
+{
+    if (!p_ptr || (p_ptr->depth != 0))
+        return false;
+
+    if (!in_bounds(y, x))
+        return true;
+
+    return (y == 0) || (x == 0) || (y == p_ptr->cur_map_hgt - 1)
+        || (x == p_ptr->cur_map_wid - 1);
+}
+
 void move_player(int dir)
 {
     int py = p_ptr->py;
@@ -7204,6 +7216,12 @@ void move_player(int dir)
     /* Find the result of moving */
     y = py + ddy[dir];
     x = px + ddx[dir];
+
+    if (move_target_exits_gates(y, x))
+    {
+        do_cmd_escape(silmarils_possessed());
+        return;
+    }
 
     /* deal with leaving the map */
     if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
@@ -7565,6 +7583,17 @@ void move_player(int dir)
         {
             if (!break_free_of_web())
                 return;
+        }
+
+        if ((p_ptr->depth == MORGOTH_DEPTH) && p_ptr->morgoth_hall_entered
+            && (silmarils_possessed() == 0)
+            && (cave_info[py][px] & CAVE_G_VAULT)
+            && !(cave_info[y][x] & CAVE_G_VAULT))
+        {
+            msg_print("The Shadow bars your way: you cannot flee without a Silmaril.");
+            disturb(0, 0);
+            p_ptr->previous_action[0] = ACTION_MISC;
+            return;
         }
 
         if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered

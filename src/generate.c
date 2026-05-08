@@ -17907,6 +17907,127 @@ static void ensure_sunlight_for_varda(void)
     }
 }
 
+static int morgoth_escape_path_step_cost(monster_type* m_ptr, int y, int x)
+{
+    bool bash = false;
+    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int chance = cave_passable_mon(m_ptr, y, x, &bash);
+    int cost;
+
+    if (chance <= 0)
+        return 0;
+
+    cost = MAX(1, 100 / chance);
+
+    if (cave_any_closed_door_bold(y, x) && !bash)
+    {
+        if (!((r_ptr->flags2 & (RF2_PASS_DOOR))
+                || (r_ptr->flags2 & (RF2_PASS_WALL))))
+        {
+            cost += 1;
+        }
+    }
+    else if (cave_wall_bold(y, x) && (r_ptr->flags2 & (RF2_TUNNEL_WALL)))
+    {
+        cost += (cave_feat[y][x] == FEAT_RUBBLE) ? 1 : 2;
+    }
+    else if (cave_wall_bold(y, x) && (r_ptr->flags2 & (RF2_KILL_WALL)))
+    {
+        cost += 1;
+    }
+
+    return cost;
+}
+
+static void build_morgoth_escape_path_distances(
+    int path_dist[MAX_DUNGEON_HGT][MAX_DUNGEON_WID], int max_path)
+{
+    static int queue[MAX_DUNGEON_HGT * MAX_DUNGEON_WID];
+    static byte in_queue[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+    static const int ddy8[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    static const int ddx8[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    monster_type morgoth;
+    int head = 0;
+    int tail = 0;
+    int queued = 0;
+
+    for (int yy = 0; yy < p_ptr->cur_map_hgt; yy++)
+    {
+        for (int xx = 0; xx < p_ptr->cur_map_wid; xx++)
+        {
+            path_dist[yy][xx] = max_path + 1;
+            in_queue[yy][xx] = false;
+        }
+    }
+
+    if (!in_bounds_fully(p_ptr->py, p_ptr->px))
+        return;
+
+    memset(&morgoth, 0, sizeof(morgoth));
+    morgoth.r_idx = R_IDX_MORGOTH;
+    morgoth.alertness = ALERTNESS_ALERT;
+    morgoth.stance = STANCE_CONFIDENT;
+
+    path_dist[p_ptr->py][p_ptr->px] = 0;
+    queue[tail++] = p_ptr->py * MAX_DUNGEON_WID + p_ptr->px;
+    in_queue[p_ptr->py][p_ptr->px] = true;
+    queued = 1;
+
+    while (queued > 0)
+    {
+        int idx = queue[head++];
+        int cy = idx / MAX_DUNGEON_WID;
+        int cx = idx % MAX_DUNGEON_WID;
+
+        if (head == (int)N_ELEMENTS(queue))
+            head = 0;
+
+        in_queue[cy][cx] = false;
+        queued--;
+
+        for (int d = 0; d < 8; d++)
+        {
+            int ny = cy + ddy8[d];
+            int nx = cx + ddx8[d];
+            int step_cost;
+            int new_dist;
+
+            if (!in_bounds_fully(ny, nx))
+                continue;
+
+            step_cost = morgoth_escape_path_step_cost(&morgoth, ny, nx);
+            if (step_cost <= 0)
+                continue;
+
+            new_dist = path_dist[cy][cx] + step_cost;
+            if (new_dist > max_path)
+                continue;
+            if (new_dist >= path_dist[ny][nx])
+                continue;
+
+            path_dist[ny][nx] = new_dist;
+
+            if (!in_queue[ny][nx] && queued < (int)N_ELEMENTS(queue))
+            {
+                queue[tail++] = ny * MAX_DUNGEON_WID + nx;
+                if (tail == (int)N_ELEMENTS(queue))
+                    tail = 0;
+                in_queue[ny][nx] = true;
+                queued++;
+            }
+        }
+    }
+}
+
+static bool morgoth_escape_spawn_path_ok(int y, int x, int distance_roll,
+    int path_dist[MAX_DUNGEON_HGT][MAX_DUNGEON_WID])
+{
+    if (distance_roll <= 0)
+        return false;
+
+    return path_dist[y][x] <= distance_roll * 3;
+}
+
 /*
  * Generate a new dungeon level
  */
@@ -19069,13 +19190,19 @@ static bool cave_gen(void)
     // place Morgoth if on the run
     if (p_ptr->on_the_run && !p_ptr->morgoth_slain)
     {
+        static int morgoth_path_dist[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
         bool placed = false;
+        int placed_y = 0;
+        int placed_x = 0;
         int sils = silmarils_possessed();
         int max_dist = 50 - (sils * 8);
         int min_dist = 9 - sils;
+        int max_path = 3 * (p_ptr->cur_map_hgt + p_ptr->cur_map_wid);
 
         if (max_dist < min_dist + 2)
             max_dist = min_dist + 2;
+
+        build_morgoth_escape_path_distances(morgoth_path_dist, max_path);
 
         /* Prefer spawning within a chase radius scaled by Silmarils. */
         for (i = 0; i <= 180; i++)
@@ -19096,34 +19223,55 @@ static bool cave_gen(void)
                 continue;
             if (cave_info[y][x] & (CAVE_ICKY))
                 continue;
+            if (!morgoth_escape_spawn_path_ok(y, x, dist, morgoth_path_dist))
+                continue;
 
             if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
             {
                 placed = true;
+                placed_y = y;
+                placed_x = x;
                 break;
             }
         }
 
         if (!placed)
         {
-            for (y = 1; y < p_ptr->cur_map_hgt - 1 && !placed; ++y)
+            for (int pass = 0; pass < 2 && !placed; pass++)
             {
-                for (x = 1; x < p_ptr->cur_map_wid - 1 && !placed; ++x)
+                for (y = 1; y < p_ptr->cur_map_hgt - 1 && !placed; ++y)
                 {
-                    if (!cave_empty_bold(y, x))
-                        continue;
-                    if (cave_info[y][x] & (CAVE_ICKY))
-                        continue;
+                    for (x = 1; x < p_ptr->cur_map_wid - 1 && !placed; ++x)
+                    {
+                        int dist = ABS(y - p_ptr->py) + ABS(x - p_ptr->px);
 
-                    if (place_monster_one(y, x, R_IDX_MORGOTH, false, true, NULL))
-                        placed = true;
+                        if (dist < min_dist)
+                            continue;
+                        if ((pass == 0) && (dist > max_dist))
+                            continue;
+                        if (!cave_empty_bold(y, x))
+                            continue;
+                        if (cave_info[y][x] & (CAVE_ICKY))
+                            continue;
+                        if (!morgoth_escape_spawn_path_ok(
+                                y, x, dist, morgoth_path_dist))
+                            continue;
+
+                        if (place_monster_one(
+                                y, x, R_IDX_MORGOTH, false, true, NULL))
+                        {
+                            placed = true;
+                            placed_y = y;
+                            placed_x = x;
+                        }
+                    }
                 }
             }
         }
 
-        if (placed && cave_m_idx[y][x] > 0)
+        if (placed && cave_m_idx[placed_y][placed_x] > 0)
         {
-            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_type* m_ptr = &mon_list[cave_m_idx[placed_y][placed_x]];
             if (m_ptr->r_idx == R_IDX_MORGOTH)
             {
                 if (m_ptr->alertness < ALERTNESS_ALERT)
@@ -19133,7 +19281,8 @@ static bool cave_gen(void)
         }
         else if (!placed)
         {
-            log_trace("Morgoth spawn: FAILED to place Morgoth while on the run (depth=%d)", p_ptr->depth);
+            log_trace("Morgoth spawn: FAILED to place Morgoth while on the run (depth=%d, min_dist=%d, max_dist=%d)",
+                p_ptr->depth, min_dist, max_dist);
         }
     }
     p_ptr->force_forge = false;

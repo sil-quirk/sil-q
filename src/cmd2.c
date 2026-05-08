@@ -6271,9 +6271,21 @@ void do_cmd_exchange(void)
         return;
     }
 
+    /*
+     * Let the SDL frontend show and handle one-click exchange targets while
+     * the classic direction prompt is active. Keyboard direction input still
+     * follows the normal get_rep_dir() path.
+     */
+    sdl_player_exchange_begin_direction_prompt();
+
     /* Get a direction (or abort) */
     if (!get_rep_dir(&dir))
+    {
+        sdl_player_exchange_cancel_direction_prompt();
         return;
+    }
+
+    sdl_player_exchange_cancel_direction_prompt();
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -8880,8 +8892,29 @@ void do_cmd_alter(void)
 /*
  * Determine if a given grid may be "walked"
  */
+static bool walk_target_exits_gates(int y, int x)
+{
+    if (!p_ptr || (p_ptr->depth != 0))
+        return false;
+
+    if (!in_bounds(y, x))
+        return true;
+
+    return (y == 0) || (x == 0) || (y == p_ptr->cur_map_hgt - 1)
+        || (x == p_ptr->cur_map_wid - 1);
+}
+
 bool do_cmd_walk_test(int y, int x)
 {
+    /* Let the Gates edge hand off to move_player(), which ends the run. */
+    if (walk_target_exits_gates(y, x))
+    {
+        return true;
+    }
+
+    if (!in_bounds(y, x))
+        return false;
+
     /* Hack -- walking obtains knowledge XXX XXX */
     if (!(cave_info[y][x] & (CAVE_MARK)))
         return (true);

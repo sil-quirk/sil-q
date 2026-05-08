@@ -1583,6 +1583,8 @@ extern bool sdl_pointer_aim_take_direction(int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
+extern void sdl_player_exchange_begin_direction_prompt(void);
+extern void sdl_player_exchange_cancel_direction_prompt(void);
 extern void sdl_unified_look_set_active(bool active);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);

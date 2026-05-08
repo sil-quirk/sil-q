@@ -5276,6 +5276,8 @@ static bool sdl_mouse_gameplay_context_active(void)
     return character_generated
         && character_dungeon
         && p_ptr
+        && !p_ptr->is_dead
+        && !death_spectator_active()
         && character_icky == 0
         && !ui_menu_click_is_active()
         && g_views[PANE_MAIN].term_ready;
@@ -9000,7 +9002,7 @@ static bool sdl_mouse_recall_handle_right_click(float x, float y)
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
-    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+    if (!sdl_main_view_point_to_look_map(x, y, &map_y, &map_x))
         return false;
 
     g_mouse_path.recall_pending = true;
@@ -9018,7 +9020,7 @@ static bool sdl_mouse_recall_handle_right_click_if_available(float x, float y)
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
-    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+    if (!sdl_main_view_point_to_look_map(x, y, &map_y, &map_x))
         return false;
     if (!sdl_mouse_grid_has_recallable_content(map_y, map_x))
         return false;
@@ -9271,7 +9273,7 @@ bool sdl_mouse_recall_process_pending(void)
     g_mouse_path.recall_pending = false;
     (void)sdl_mouse_consume_wake_key();
 
-    if (!sdl_mouse_gameplay_context_active())
+    if (!sdl_main_screen_click_shortcuts_active())
         return true;
     if (!in_bounds(y, x))
         return true;
@@ -9997,12 +9999,24 @@ static void sdl_player_exchange_cancel(void)
         g_state.need_present = true;
 }
 
-static bool sdl_player_exchange_begin(void)
+static bool sdl_player_exchange_context_active(void)
+{
+    return g_player_exchange_target.active
+        && character_generated
+        && character_dungeon
+        && p_ptr
+        && character_icky == 0
+        && !ui_menu_click_is_active()
+        && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_player_exchange_begin(bool report_no_target)
 {
     if (!p_ptr || !p_ptr->active_ability[S_STL][STL_EXCHANGE_PLACES])
         return false;
     if (!sdl_player_exchange_has_any_target()) {
-        bell("No adjacent exchange target.");
+        if (report_no_target)
+            bell("No adjacent exchange target.");
         return false;
     }
 
@@ -10020,6 +10034,16 @@ static bool sdl_player_exchange_begin(void)
     sdl_player_exchange_select_default();
     g_state.need_present = true;
     return true;
+}
+
+void sdl_player_exchange_begin_direction_prompt(void)
+{
+    (void)sdl_player_exchange_begin(false);
+}
+
+void sdl_player_exchange_cancel_direction_prompt(void)
+{
+    sdl_player_exchange_cancel();
 }
 
 static void sdl_player_exchange_update_hover(float x, float y)
@@ -10065,7 +10089,8 @@ static void sdl_player_exchange_execute(int y, int x)
 
     sdl_player_exchange_cancel();
     sdl_mouse_path_cancel();
-    sdl_enqueue_bypassed_command('X');
+    if (!p_ptr || p_ptr->command_cmd != 'X')
+        sdl_enqueue_bypassed_command('X');
     Term_keypress('0' + dir);
 }
 
@@ -10159,7 +10184,7 @@ static void sdl_player_action_menu_activate_kind(int kind, bool secondary)
 
     switch (kind) {
     case SDL_PLAYER_ACTION_EXCHANGE:
-        (void)sdl_player_exchange_begin();
+        (void)sdl_player_exchange_begin(true);
         return;
     case SDL_PLAYER_ACTION_WAIT:
         command = secondary ? 'Z' : 'z';
@@ -10283,7 +10308,7 @@ static bool sdl_player_exchange_handle_gamepad_button(
     if (!g_player_exchange_target.active)
         return false;
 
-    if (!sdl_main_screen_click_shortcuts_active()) {
+    if (!sdl_player_exchange_context_active()) {
         sdl_player_exchange_cancel();
         return true;
     }
@@ -10489,7 +10514,7 @@ static bool sdl_player_exchange_handle_pointer_down(float x, float y,
 
     if (!g_player_exchange_target.active)
         return false;
-    if (!sdl_main_screen_click_shortcuts_active()) {
+    if (!sdl_player_exchange_context_active()) {
         sdl_player_exchange_cancel();
         return true;
     }
@@ -10521,7 +10546,7 @@ static bool sdl_player_exchange_handle_pointer_motion(float x, float y,
 
     if (!g_player_exchange_target.active)
         return false;
-    if (!sdl_main_screen_click_shortcuts_active()) {
+    if (!sdl_player_exchange_context_active()) {
         sdl_player_exchange_cancel();
         return true;
     }
@@ -10564,7 +10589,7 @@ static bool sdl_player_exchange_handle_pointer_up(float x, float y,
 
     if (!g_player_exchange_target.active)
         return false;
-    if (!sdl_main_screen_click_shortcuts_active()) {
+    if (!sdl_player_exchange_context_active()) {
         sdl_player_exchange_cancel();
         return true;
     }
@@ -10586,7 +10611,10 @@ static bool sdl_player_exchange_handle_pointer_up(float x, float y,
 
     sdl_player_exchange_cancel_press();
     if (sdl_player_exchange_target_valid(map_y, map_x, &m_idx)) {
-        sdl_player_exchange_select_or_execute(map_y, map_x, m_idx);
+        if (mouse)
+            sdl_player_exchange_execute(map_y, map_x);
+        else
+            sdl_player_exchange_select_or_execute(map_y, map_x, m_idx);
     } else {
         bell("Choose an adjacent monster.");
     }
@@ -10625,7 +10653,7 @@ static void sdl_player_exchange_render(void)
 
     if (!g_player_exchange_target.active)
         return;
-    if (!sdl_main_screen_click_shortcuts_active())
+    if (!sdl_player_exchange_context_active())
         return;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
