@@ -71,8 +71,11 @@ enum {
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
 #define SIDE_PANE_MENU_SCALE 1.5f
 #define SDL_WHEEL_IDLE_RESET_NS (250ULL * 1000000ULL)
-#define SDL_WHEEL_STEP_UNITS 1.0f
-#define SDL_WHEEL_MAX_STEPS_PER_EVENT 8
+#define SDL_WHEEL_DISCRETE_STEP_UNITS 1.0f
+#define SDL_WHEEL_SMOOTH_STEP_UNITS 3.0f
+#define SDL_WHEEL_SMOOTH_MIN_STEP_NS (80ULL * 1000000ULL)
+#define SDL_WHEEL_DISCRETE_MAX_STEPS_PER_EVENT 8
+#define SDL_WHEEL_SMOOTH_MAX_STEPS_PER_EVENT 1
 #define SDL_WHEEL_ACCUM_EPSILON 0.001f
 
 typedef struct sdl_layout_recovery_result {
@@ -503,8 +506,12 @@ typedef struct menu_scroll_drag_state {
 typedef struct sdl_wheel_step_state {
     float accum_x;
     float accum_y;
+    Uint64 last_step_x_timestamp;
+    Uint64 last_step_y_timestamp;
     Uint64 last_timestamp;
     SDL_MouseID last_mouse;
+    bool smooth_x;
+    bool smooth_y;
 } sdl_wheel_step_state;
 
 typedef struct pane_layout_drag_state {
@@ -5684,8 +5691,8 @@ static bool sdl_unified_look_begin_map_pinch(float x, float y,
 }
 
 /* Smooth devices such as macOS touchpads report fractional wheel deltas.
- * Accumulate them into discrete menu/zoom steps instead of treating each
- * wheel event as one click. */
+ * Accumulate and rate-limit them into deliberate menu/zoom steps instead of
+ * treating each wheel event as one click. */
 static void sdl_wheel_step_state_reset(sdl_wheel_step_state* state)
 {
     if (!state)
@@ -5693,6 +5700,10 @@ static void sdl_wheel_step_state_reset(sdl_wheel_step_state* state)
 
     state->accum_x = 0.0f;
     state->accum_y = 0.0f;
+    state->last_step_x_timestamp = 0;
+    state->last_step_y_timestamp = 0;
+    state->smooth_x = false;
+    state->smooth_y = false;
 }
 
 static void sdl_wheel_step_state_prepare(sdl_wheel_step_state* state,
@@ -5713,44 +5724,92 @@ static void sdl_wheel_step_state_prepare(sdl_wheel_step_state* state,
     state->last_mouse = wheel->which;
 }
 
+static bool sdl_wheel_axis_value_looks_smooth(float value)
+{
+    float abs_value;
+    float whole;
+
+    if (!(value > 0.0f || value < 0.0f))
+        return false;
+
+    abs_value = SDL_fabsf(value);
+    if (abs_value < SDL_WHEEL_DISCRETE_STEP_UNITS)
+        return true;
+
+    whole = SDL_floorf(abs_value);
+    return SDL_fabsf(abs_value - whole) > SDL_WHEEL_ACCUM_EPSILON;
+}
+
+static void sdl_wheel_clamp_accum(float* accum, float step_units)
+{
+    if (!accum)
+        return;
+
+    if (*accum >= step_units)
+        *accum = step_units - SDL_WHEEL_ACCUM_EPSILON;
+    else if (*accum <= -step_units)
+        *accum = -step_units + SDL_WHEEL_ACCUM_EPSILON;
+}
+
 static int sdl_wheel_consume_axis_value(sdl_wheel_step_state* state,
-    const SDL_MouseWheelEvent* wheel, float* accum, float value)
+    const SDL_MouseWheelEvent* wheel, float* accum, float value,
+    bool* smooth_axis, Uint64* last_step_timestamp)
 {
     int steps = 0;
+    bool smooth;
+    float step_units;
+    int max_steps;
 
-    if (!state || !wheel || !accum)
+    if (!state || !wheel || !accum || !smooth_axis || !last_step_timestamp)
         return 0;
     if (!(value > 0.0f || value < 0.0f))
         return 0;
 
     sdl_wheel_step_state_prepare(state, wheel);
+    if (sdl_wheel_axis_value_looks_smooth(value))
+        *smooth_axis = true;
+
+    smooth = *smooth_axis;
+    step_units = smooth
+        ? SDL_WHEEL_SMOOTH_STEP_UNITS
+        : SDL_WHEEL_DISCRETE_STEP_UNITS;
+    max_steps = smooth
+        ? SDL_WHEEL_SMOOTH_MAX_STEPS_PER_EVENT
+        : SDL_WHEEL_DISCRETE_MAX_STEPS_PER_EVENT;
 
     if ((*accum > 0.0f && value < 0.0f)
         || (*accum < 0.0f && value > 0.0f))
     {
         *accum = 0.0f;
+        *last_step_timestamp = 0;
     }
 
     *accum += value;
 
-    while (*accum >= SDL_WHEEL_STEP_UNITS
-        && steps < SDL_WHEEL_MAX_STEPS_PER_EVENT)
+    if (smooth && *last_step_timestamp != 0
+        && wheel->timestamp >= *last_step_timestamp
+        && wheel->timestamp - *last_step_timestamp < SDL_WHEEL_SMOOTH_MIN_STEP_NS)
+    {
+        sdl_wheel_clamp_accum(accum, step_units);
+        return 0;
+    }
+
+    while (*accum >= step_units && steps < max_steps)
     {
         steps++;
-        *accum -= SDL_WHEEL_STEP_UNITS;
+        *accum -= step_units;
     }
 
-    while (*accum <= -SDL_WHEEL_STEP_UNITS
-        && steps > -SDL_WHEEL_MAX_STEPS_PER_EVENT)
+    while (*accum <= -step_units && steps > -max_steps)
     {
         steps--;
-        *accum += SDL_WHEEL_STEP_UNITS;
+        *accum += step_units;
     }
 
-    if (*accum >= SDL_WHEEL_STEP_UNITS)
-        *accum = SDL_WHEEL_STEP_UNITS - SDL_WHEEL_ACCUM_EPSILON;
-    else if (*accum <= -SDL_WHEEL_STEP_UNITS)
-        *accum = -SDL_WHEEL_STEP_UNITS + SDL_WHEEL_ACCUM_EPSILON;
+    if (steps != 0 && smooth)
+        *last_step_timestamp = wheel->timestamp;
+
+    sdl_wheel_clamp_accum(accum, step_units);
 
     return steps;
 }
@@ -5763,10 +5822,12 @@ static int sdl_wheel_step_state_consume_axis(sdl_wheel_step_state* state,
 
     if (vertical)
         return sdl_wheel_consume_axis_value(state, wheel, &state->accum_y,
-            wheel ? wheel->y : 0.0f);
+            wheel ? wheel->y : 0.0f, &state->smooth_y,
+            &state->last_step_y_timestamp);
 
     return sdl_wheel_consume_axis_value(state, wheel, &state->accum_x,
-        wheel ? wheel->x : 0.0f);
+        wheel ? wheel->x : 0.0f, &state->smooth_x,
+        &state->last_step_x_timestamp);
 }
 
 static int sdl_wheel_step_state_consume_primary_axis(
