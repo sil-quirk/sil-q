@@ -109,6 +109,7 @@ Changed:
   ([#180](https://github.com/sil-quirk/sil-q/pull/180))
 - Updates to tiles and manual
   ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
+- In debug mode (`Ctrl-a`), the `a` command now also removes the rage effect.
 
 Fixed:
 
