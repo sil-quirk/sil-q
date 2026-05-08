@@ -54,6 +54,45 @@ static bool is_small_cave_partition_kind(level_partition_kind kind);
 static char greater_vault_xp_name[80] = "";
 static bool greater_vault_xp_awarded = false;
 
+static bool restore_player_position_after_denied_move(int y, int x)
+{
+    int old_y;
+    int old_x;
+
+    if (!p_ptr || !in_bounds_fully(y, x))
+        return false;
+
+    old_y = p_ptr->py;
+    old_x = p_ptr->px;
+
+    if ((old_y == y) && (old_x == x))
+        return true;
+
+    if (cave_m_idx[y][x] > 0)
+    {
+        log_warn("restore denied move blocked: destination (%d,%d) has monster idx %d",
+            y, x, cave_m_idx[y][x]);
+        return false;
+    }
+
+    if (in_bounds_fully(old_y, old_x) && (cave_m_idx[old_y][old_x] < 0))
+        cave_m_idx[old_y][old_x] = 0;
+
+    cave_m_idx[y][x] = -1;
+    p_ptr->py = y;
+    p_ptr->px = x;
+
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_DISTANCE | PU_PANEL);
+    p_ptr->redraw |= (PR_MAP);
+    p_ptr->window |= (PW_OVERHEAD);
+
+    if (in_bounds_fully(old_y, old_x))
+        lite_spot(old_y, old_x);
+    lite_spot(y, x);
+
+    return true;
+}
+
 static void snapshot_run_history(const char* reason)
 {
     if (!character_generated || !p_ptr || p_ptr->is_dead)
@@ -2440,6 +2479,13 @@ static void process_command(void)
         break;
     }
 
+    /* Jewelry preset shortcut */
+    case 'J':
+    {
+        do_cmd_jewelry_preset_shortcut();
+        break;
+    }
+
     /* Check knowledge */
     case '~':
     {
@@ -2567,6 +2613,7 @@ void death_spectator_view(void)
 {
     death_spectator_mode = true;
     death_spectator_exit_requested = false;
+    sdl_mouse_path_cancel();
 
     /* Clear any queued commands from the main loop. */
     p_ptr->command_cmd = 0;
@@ -3390,12 +3437,10 @@ static void process_player(void)
                 {
                     clear_vault_name = false;
 
-                    if (in_bounds_fully(last_player_y, last_player_x))
+                    if (restore_player_position_after_denied_move(last_player_y, last_player_x))
                     {
-                        p_ptr->py = last_player_y;
-                        p_ptr->px = last_player_x;
-                        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
-                        p_ptr->redraw |= (PR_MAP);
+                        in_morgoth_vault = (p_ptr->depth == MORGOTH_DEPTH)
+                            && (cave_info[p_ptr->py][p_ptr->px] & (CAVE_G_VAULT));
                     }
                 }
                 else
@@ -3453,12 +3498,8 @@ static void process_player(void)
         {
             msg_print("The Shadow bars your way: you cannot flee without a Silmaril.");
 
-            if (in_bounds_fully(last_player_y, last_player_x))
+            if (restore_player_position_after_denied_move(last_player_y, last_player_x))
             {
-                p_ptr->py = last_player_y;
-                p_ptr->px = last_player_x;
-                p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_PANEL);
-                p_ptr->redraw |= (PR_MAP);
                 in_morgoth_vault = true;
             }
         }

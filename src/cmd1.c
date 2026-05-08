@@ -3386,6 +3386,157 @@ static void format_staff_prompt_name(char* buf, size_t max,
         strnfmt(buf, max, "a %s", staff_of);
 }
 
+static bool staff_channel_target_matches(const object_type* donor,
+                                         const object_type* target)
+{
+    if (!donor || !target)
+        return false;
+
+    if (donor->tval != TV_STAFF)
+        return false;
+
+    if (!target->k_idx || target->tval != TV_STAFF)
+        return false;
+
+    return (target->k_idx == donor->k_idx) || (target->sval == donor->sval);
+}
+
+static object_type* find_staff_channel_target(const object_type* donor,
+                                              int* target_slot)
+{
+    object_type* wielded = &inventory[INVEN_STAFF];
+
+    if (target_slot)
+        *target_slot = -1;
+
+    if (staff_channel_target_matches(donor, wielded))
+    {
+        if (target_slot)
+            *target_slot = INVEN_STAFF;
+        return wielded;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* pack_obj = &inventory[i];
+
+        if (staff_channel_target_matches(donor, pack_obj))
+        {
+            if (target_slot)
+                *target_slot = i;
+            return pack_obj;
+        }
+    }
+
+    return NULL;
+}
+
+bool player_channel_floor_staff(object_type* donor, int floor_o_idx)
+{
+    int target_slot;
+    object_type* target;
+    int mult = CHANNELING_CHARGE_MULTIPLIER;
+    int existing_raw;
+    int donor_raw;
+    int existing_uses;
+    int donor_uses;
+    double existing_term;
+    double donor_term;
+    double sum_terms;
+    double combined_uses_raw = 0.0;
+    int combined_uses;
+    long combined_pval;
+    long max_pval;
+    int gain_uses;
+    char target_name[80];
+    char donor_name[80];
+    char prompt[120];
+
+    if (!donor || !donor->k_idx || floor_o_idx <= 0 || floor_o_idx >= o_max
+        || donor != &o_list[floor_o_idx])
+    {
+        return false;
+    }
+
+    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+        return false;
+
+    if (donor->tval != TV_STAFF || donor->pval <= 0)
+        return false;
+
+    target = find_staff_channel_target(donor, &target_slot);
+    if (!target)
+        return false;
+
+    existing_raw = MAX(target->pval, 0);
+    donor_raw = MAX(donor->pval, 0);
+    existing_uses = existing_raw / mult;
+    donor_uses = donor_raw / mult;
+    if (donor_uses <= 0)
+        return false;
+
+    existing_term = pow((double)existing_uses, 1.5);
+    donor_term = pow((double)donor_uses, 1.5);
+    sum_terms = existing_term + donor_term;
+    if (sum_terms > 0.0)
+        combined_uses_raw = pow(sum_terms, 2.0 / 3.0);
+
+    combined_uses = (int)(combined_uses_raw + 0.5);
+    combined_pval = (long)combined_uses * mult;
+    max_pval = (long)(32767 / mult) * mult;
+    if (combined_pval > max_pval)
+        combined_pval = max_pval;
+
+    combined_uses = (int)(combined_pval / mult);
+    if (combined_uses <= existing_uses
+        && existing_uses < (int)(max_pval / mult))
+    {
+        combined_uses = existing_uses + 1;
+        combined_pval = (long)combined_uses * mult;
+    }
+
+    gain_uses = combined_uses - existing_uses;
+    if (gain_uses <= 0)
+        return false;
+
+    format_staff_prompt_name(target_name, sizeof(target_name), target, false);
+    format_staff_prompt_name(donor_name, sizeof(donor_name), donor, true);
+
+    log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
+              donor->k_idx, donor->pval, donor->number,
+              target_slot, target->k_idx, target->pval, target->number);
+
+    strnfmt(prompt, sizeof(prompt),
+        "Channel %s into your %s (%d charges)?",
+        donor_name, target_name, combined_uses);
+    if (!get_check(prompt))
+        return false;
+
+    target->pval = (s16b)combined_pval;
+    target->ident &= ~(IDENT_EMPTY);
+    donor->pval = 0;
+    donor->ident |= IDENT_EMPTY;
+
+    log_debug("Channeling complete: target now has pval=%d number=%d, donor has pval=%d number=%d",
+              target->pval, target->number, donor->pval, donor->number);
+
+    if (target_slot >= 0 && target_slot < INVEN_TOTAL)
+        inven_item_charges(target_slot);
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+    p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
+    msg_format("You channel %d charge%s into your %s (now %d).",
+        gain_uses, (gain_uses == 1) ? "" : "s",
+        target_name, combined_uses);
+    delete_object_idx(floor_o_idx);
+
+    log_debug("Channeling: deleted floor object idx %d", floor_o_idx);
+
+    p_ptr->previous_action[0] = ACTION_MISC;
+    p_ptr->energy_use = 100;
+
+    return true;
+}
+
 bool is_smithed_by_player(const object_type* o_ptr)
 {
     return (o_ptr->unused1 != 0);
@@ -4240,8 +4391,14 @@ static bool auto_replace_flasks_for_brass_lamp(const object_type* incoming,
  * Delete the object afterwards.
  */
 static bool prepare_floor_object_for_pickup(int o_idx, object_type* o_ptr);
+static void py_pickup_aux_internal(int o_idx, bool allow_channel);
 
 void py_pickup_aux(int o_idx)
+{
+    py_pickup_aux_internal(o_idx, true);
+}
+
+static void py_pickup_aux_internal(int o_idx, bool allow_channel)
 {
     object_type* o_ptr;
     char o_name[120];
@@ -4249,6 +4406,9 @@ void py_pickup_aux(int o_idx)
     o_ptr = &o_list[o_idx];
 
     if (object_is_searched_skeleton(o_ptr))
+        return;
+
+    if (allow_channel && player_channel_floor_staff(o_ptr, o_idx))
         return;
 
     // Remember the floor position even if give_player_item wipes the object
@@ -4824,109 +4984,11 @@ void py_pickup(void)
             continue;
         }
 
-        bool skip_current_item = false;
-
-        if (p_ptr->active_ability[S_WIL][WIL_CHANNELING] && o_ptr->tval == TV_STAFF && o_ptr->pval > 0)
+        if (player_channel_floor_staff(o_ptr, this_o_idx))
         {
-            int target_slot = -1;
-            object_type* target = NULL;
-
-            object_type* wielded = &inventory[INVEN_STAFF];
-            if (wielded->k_idx && wielded->k_idx == o_ptr->k_idx)
-            {
-                target = wielded;
-                target_slot = INVEN_STAFF;
-            }
-
-            if (!target)
-            {
-                for (int i = 0; i < INVEN_PACK; i++)
-                {
-                    object_type* pack_obj = &inventory[i];
-                    if (!pack_obj->k_idx)
-                        continue;
-                    if (pack_obj->tval != TV_STAFF)
-                        continue;
-                    if (pack_obj->k_idx != o_ptr->k_idx)
-                        continue;
-                    target = pack_obj;
-                    target_slot = i;
-                    break;
-                }
-            }
-
-            if (target)
-            {
-                int mult = CHANNELING_CHARGE_MULTIPLIER;
-                int existing_raw = MAX(target->pval, 0);
-                int donor_raw = MAX(o_ptr->pval, 0);
-                int existing_uses = existing_raw / mult;
-                int donor_uses = donor_raw / mult;
-                if (donor_uses > 0)
-                {
-                    double existing_term = pow((double)existing_uses, 1.5);
-                    double donor_term = pow((double)donor_uses, 1.5);
-                    double combined_uses_raw = 0.0;
-                    double sum_terms = existing_term + donor_term;
-                    if (sum_terms > 0.0)
-                        combined_uses_raw = pow(sum_terms, 2.0 / 3.0);
-                    int combined_uses = (int)(combined_uses_raw + 0.5);
-                    long combined_pval = (long)combined_uses * mult;
-                    long max_pval = (long)(32767 / mult) * mult;
-                    if (combined_pval > max_pval)
-                        combined_pval = max_pval;
-                    combined_uses = (int)(combined_pval / mult);
-                    int gain_uses = combined_uses - existing_uses;
-                    if (gain_uses > 0)
-                    {
-                        char target_name[80];
-                        char donor_name[80];
-                        char prompt[120];
-                        format_staff_prompt_name(
-                            target_name, sizeof(target_name), target, false);
-                        format_staff_prompt_name(
-                            donor_name, sizeof(donor_name), o_ptr, true);
-                        
-                        log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
-                                  o_ptr->k_idx, o_ptr->pval, o_ptr->number,
-                                  target_slot, target->k_idx, target->pval, target->number);
-                        
-                        strnfmt(prompt, sizeof(prompt),
-                            "Channel %s into your %s (%d charges)?",
-                            donor_name, target_name, combined_uses);
-                        if (get_check(prompt))
-                        {
-                            target->pval = (s16b)combined_pval;
-                            target->ident &= ~(IDENT_EMPTY);
-                            o_ptr->pval = 0;
-                            o_ptr->ident |= IDENT_EMPTY;
-                            
-                            log_debug("Channeling complete: target now has pval=%d number=%d, donor has pval=%d number=%d",
-                                      target->pval, target->number, o_ptr->pval, o_ptr->number);
-                            
-                            if (target_slot >= 0 && target_slot < INVEN_TOTAL)
-                                inven_item_charges(target_slot);
-                            p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
-                            p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
-                            msg_format("You channel %d charge%s into your %s (now %d).",
-                                gain_uses, (gain_uses == 1) ? "" : "s",
-                                target_name, combined_uses);
-                            delete_object_idx(this_o_idx);
-                            
-                            log_debug("Channeling: deleted floor object idx %d", this_o_idx);
-                            
-                            done_pickup = true;
-                            p_ptr->previous_action[0] = ACTION_MISC;
-                            p_ptr->energy_use = 100;
-                            skip_current_item = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (skip_current_item)
+            done_pickup = true;
             continue;
+        }
 
         // Check whether it would be too heavy
         if (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2)
@@ -4945,7 +5007,7 @@ void py_pickup(void)
         p_ptr->energy_use = 100;
 
         /* Pick up the object */
-        py_pickup_aux(this_o_idx);
+        py_pickup_aux_internal(this_o_idx, false);
 
         done_pickup = true;
     }
@@ -7132,6 +7194,18 @@ void flanking_or_retreat(int y, int x)
  * Note that this routine handles monsters in the destination grid,
  * and also handles attempting to move into walls/doors/rubble/etc.
  */
+static bool move_target_exits_gates(int y, int x)
+{
+    if (!p_ptr || (p_ptr->depth != 0))
+        return false;
+
+    if (!in_bounds(y, x))
+        return true;
+
+    return (y == 0) || (x == 0) || (y == p_ptr->cur_map_hgt - 1)
+        || (x == p_ptr->cur_map_wid - 1);
+}
+
 void move_player(int dir)
 {
     int py = p_ptr->py;
@@ -7142,6 +7216,12 @@ void move_player(int dir)
     /* Find the result of moving */
     y = py + ddy[dir];
     x = px + ddx[dir];
+
+    if (move_target_exits_gates(y, x))
+    {
+        do_cmd_escape(silmarils_possessed());
+        return;
+    }
 
     /* deal with leaving the map */
     if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
@@ -7503,6 +7583,17 @@ void move_player(int dir)
         {
             if (!break_free_of_web())
                 return;
+        }
+
+        if ((p_ptr->depth == MORGOTH_DEPTH) && p_ptr->morgoth_hall_entered
+            && (silmarils_possessed() == 0)
+            && (cave_info[py][px] & CAVE_G_VAULT)
+            && !(cave_info[y][x] & CAVE_G_VAULT))
+        {
+            msg_print("The Shadow bars your way: you cannot flee without a Silmaril.");
+            disturb(0, 0);
+            p_ptr->previous_action[0] = ACTION_MISC;
+            return;
         }
 
         if ((p_ptr->depth == MORGOTH_DEPTH) && !p_ptr->morgoth_hall_entered

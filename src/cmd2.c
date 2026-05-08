@@ -35,6 +35,33 @@ typedef enum
     MORGOTH_CALL_DRAIN_TAKEN = 2
 } morgoth_call_drain_result;
 
+typedef struct
+{
+    int resistance;
+    int adjusted_difficulty;
+    int player_will;
+    int check_result;
+    int stat_drain_before;
+    int stat_drain_after;
+    bool skill_check_rolled;
+    bool dec_stat_succeeded;
+} morgoth_call_drain_log;
+
+static cptr morgoth_call_drain_result_name(morgoth_call_drain_result result)
+{
+    switch (result)
+    {
+    case MORGOTH_CALL_DRAIN_RESISTED:
+        return "resisted";
+    case MORGOTH_CALL_DRAIN_TURIN:
+        return "turin-resisted";
+    case MORGOTH_CALL_DRAIN_TAKEN:
+        return "drained";
+    default:
+        return "unknown";
+    }
+}
+
 static int min_depth_counter_step_adjustment(void)
 {
     if (!op_ptr)
@@ -308,7 +335,7 @@ static void show_morgoth_call_first_screen(void)
     pause_with_text(lines, 4, 8, NULL, 0);
 }
 
-static void show_morgoth_call_drain_screen(int stat, int difficulty,
+static void show_morgoth_call_drain_screen(int stat,
     morgoth_call_drain_result result)
 {
     char lines[10][100];
@@ -316,25 +343,21 @@ static void show_morgoth_call_drain_screen(int stat, int difficulty,
     cptr stat_name = morgoth_call_stat_name(stat);
 
     strnfmt(lines[n++], sizeof(lines[0]),
-        "Again the summons rose from the foundations of the world.");
+        "Again the Dark Lord's summons rose.");
     strnfmt(lines[n++], sizeof(lines[0]),
-        "  The Dark Lord spoke your name in secret thought.");
-    lines[n++][0] = '\0';
-    strnfmt(lines[n++], sizeof(lines[0]),
-        "His hand sought your %s, and the trial was %d.",
-        stat_name, difficulty);
+        "His hand sought your %s.", stat_name);
 
     if (result == MORGOTH_CALL_DRAIN_TURIN)
     {
         strnfmt(lines[n++], sizeof(lines[0]),
-            "But a wrathful fire answered within your blood,");
+            "A wrathful fire answered within your blood,");
         strnfmt(lines[n++], sizeof(lines[0]),
             "  and for this hour the shadow passed over you.");
     }
     else if (result == MORGOTH_CALL_DRAIN_RESISTED)
     {
         strnfmt(lines[n++], sizeof(lines[0]),
-            "Yet your will held fast against the unseen chain,");
+            "Your will held fast against the unseen chain,");
         strnfmt(lines[n++], sizeof(lines[0]),
             "  and the word of command broke like spent thunder.");
     }
@@ -353,21 +376,40 @@ static void show_morgoth_call_drain_screen(int stat, int difficulty,
 }
 
 static morgoth_call_drain_result morgoth_call_try_drain_stat(
-    int stat, int difficulty)
+    int stat, int difficulty, morgoth_call_drain_log* drain_log)
 {
     int resistance;
     int adjusted_difficulty;
+    int check_result;
     u32b sustain_flag;
+
+    if (drain_log)
+    {
+        memset(drain_log, 0, sizeof(*drain_log));
+        drain_log->adjusted_difficulty = difficulty;
+        drain_log->player_will = p_ptr->skill_use[S_WIL];
+        drain_log->stat_drain_before = p_ptr->stat_drain[stat];
+        drain_log->stat_drain_after = p_ptr->stat_drain[stat];
+    }
 
     if (turin_resist_bad_effect())
         return MORGOTH_CALL_DRAIN_TURIN;
 
     resistance = morgoth_call_stat_sustain(stat);
     adjusted_difficulty = difficulty - (10 * resistance);
+    check_result = skill_check(NULL, adjusted_difficulty, p_ptr->skill_use[S_WIL],
+        PLAYER);
 
-    if (skill_check(NULL, adjusted_difficulty, p_ptr->skill_use[S_WIL],
-            PLAYER)
-        <= 0)
+    if (drain_log)
+    {
+        drain_log->resistance = resistance;
+        drain_log->adjusted_difficulty = adjusted_difficulty;
+        drain_log->player_will = p_ptr->skill_use[S_WIL];
+        drain_log->check_result = check_result;
+        drain_log->skill_check_rolled = true;
+    }
+
+    if (check_result <= 0)
     {
         sustain_flag = morgoth_call_stat_sustain_flag(stat);
         if (sustain_flag)
@@ -375,7 +417,18 @@ static morgoth_call_drain_result morgoth_call_try_drain_stat(
         return MORGOTH_CALL_DRAIN_RESISTED;
     }
 
-    (void)dec_stat(stat, 1, false);
+    if (drain_log)
+        drain_log->stat_drain_before = p_ptr->stat_drain[stat];
+
+    if (dec_stat(stat, 1, false))
+    {
+        if (drain_log)
+            drain_log->dec_stat_succeeded = true;
+    }
+
+    if (drain_log)
+        drain_log->stat_drain_after = p_ptr->stat_drain[stat];
+
     return MORGOTH_CALL_DRAIN_TAKEN;
 }
 
@@ -385,7 +438,10 @@ void process_morgoth_call_pressure(void)
     const s32b first_morgoth_stage = MORGOTH_DEPTH - 1;
     int stat;
     int difficulty;
+    int escalation_before;
+    int escalation_after;
     morgoth_call_drain_result result;
+    morgoth_call_drain_log drain_log;
 
     if (!p_ptr || p_ptr->is_dead || p_ptr->game_type != 0)
         return;
@@ -406,8 +462,10 @@ void process_morgoth_call_pressure(void)
         p_ptr->morgoth_call_state = SAVEFILE_MORGOTH_CALL_SEEN;
         p_ptr->morgoth_call_last_stage = stage;
         do_cmd_note("Heard the summons of the Dark Lord", p_ptr->depth);
-        log_info("Morgoth call: first summons at min-depth stage %d",
-            (int)stage);
+        log_info("Morgoth call: first summons stage=%d counter=%d step=%d "
+                 "depth=%d; no drain attempted until next stage",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth);
         show_morgoth_call_first_screen();
         return;
     }
@@ -419,8 +477,12 @@ void process_morgoth_call_pressure(void)
 
     stat = rand_int(A_MAX);
     difficulty = morgoth_call_current_difficulty();
-    result = morgoth_call_try_drain_stat(stat, difficulty);
+    escalation_before =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
+    result = morgoth_call_try_drain_stat(stat, difficulty, &drain_log);
     morgoth_call_advance_difficulty();
+    escalation_after =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
 
     if (result == MORGOTH_CALL_DRAIN_TAKEN)
     {
@@ -429,10 +491,34 @@ void process_morgoth_call_pressure(void)
             p_ptr->depth);
     }
 
-    log_info("Morgoth call: drain pressure stage=%d stat=%s difficulty=%d "
-             "result=%d",
-        (int)stage, morgoth_call_stat_name(stat), difficulty, (int)result);
-    show_morgoth_call_drain_screen(stat, difficulty, result);
+    if (drain_log.skill_check_rolled)
+    {
+        log_info("Morgoth call: drain attempt stage=%d counter=%d step=%d "
+                 "depth=%d stat=%s difficulty=%d resistance=%d "
+                 "adjusted_difficulty=%d player_will=%d check_result=%d "
+                 "outcome=%s stat_drain=%d->%d dec_stat=%s "
+                 "escalation=%d->%d",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth, morgoth_call_stat_name(stat), difficulty,
+            drain_log.resistance, drain_log.adjusted_difficulty,
+            drain_log.player_will, drain_log.check_result,
+            morgoth_call_drain_result_name(result),
+            drain_log.stat_drain_before, drain_log.stat_drain_after,
+            drain_log.dec_stat_succeeded ? "applied" : "not-applied",
+            escalation_before, escalation_after);
+    }
+    else
+    {
+        log_info("Morgoth call: drain attempt stage=%d counter=%d step=%d "
+                 "depth=%d stat=%s difficulty=%d outcome=%s "
+                 "stat_drain=%d->%d escalation=%d->%d; no skill check rolled",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth, morgoth_call_stat_name(stat), difficulty,
+            morgoth_call_drain_result_name(result),
+            drain_log.stat_drain_before, drain_log.stat_drain_after,
+            escalation_before, escalation_after);
+    }
+    show_morgoth_call_drain_screen(stat, result);
 }
 
 void note_lost_greater_vault(void)
@@ -1651,6 +1737,7 @@ typedef struct skeleton_note_state {
     int map_wid;
     int map_hgt;
     u32b hint_used_mask;
+    byte hint_use_counts[SKEL_HINT_MAX];
     byte seen_count;
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state;
@@ -1680,8 +1767,10 @@ static hint_message_state g_hint_message_state = {
 #define SKELETON_NOTE_SMALLER_LEVEL_DELTA 3
 #define SKELETON_NOTE_SMALLER_LEVEL_MIN_BLOCKS 6
 #define SKELETON_NOTE_HOARD_GUARD_RADIUS 10
+#define SKELETON_NOTE_UNBOUNDED_CAP 32767
+#define SKEL_HINT_LIMIT_UNLIMITED -1
 
-static skeleton_note_state g_skeleton_note_state = { -1, 0, 0, 0, 0, 0, 0, {0} };
+static skeleton_note_state g_skeleton_note_state = { .level_depth = -1 };
 static int g_skeleton_note_entry_count = -1;
 static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
     = {
@@ -1706,8 +1795,7 @@ static const int skeleton_hint_base_weight[SKEL_HINT_MAX]
         35  /* PART_CAVEY */
     };
 
-/* Pack repeat-limited per-level counts into the high bits of hint_used_mask. */
-#define SKEL_HINT_REPEAT_LIMIT 3
+/* Legacy count fields kept so old saves can migrate into hint_use_counts. */
 #define SKEL_HINT_STAIRS_COUNT_SHIFT 24
 #define SKEL_HINT_FORGE_COUNT_SHIFT 26
 #define SKEL_HINT_UNIQUE_COUNT_SHIFT 28
@@ -1718,7 +1806,8 @@ static bool skeleton_note_has_unseen_template(
     byte sval, skeleton_note_role role, skeleton_hint_kind hint);
 static int skeleton_note_map_distance(int y1, int x1, int y2, int x2);
 static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to_y, int to_x);
-static const char* skeleton_note_distance_phrase(int dist, const level_layout_info* layout);
+static const char* skeleton_note_distance_phrase(int dist,
+    const level_layout_info* layout, char* buf, size_t buf_sz);
 static int skeleton_note_effective_wrap_width(int col);
 static int skeleton_note_append_wrapped_text(
     const char* text, char lines[][100], int idx, int limit, int wrap);
@@ -1788,17 +1877,35 @@ static u32b skeleton_hint_bit(skeleton_hint_kind kind)
     return ((u32b)1u << (u32b)kind);
 }
 
-static bool skeleton_hint_is_repeat_limited(skeleton_hint_kind kind)
+static int skeleton_hint_limit(skeleton_hint_kind kind)
 {
     switch (kind)
     {
+    case SKEL_HINT_NONE:
+    case SKEL_HINT_TIP:
+        return SKEL_HINT_LIMIT_UNLIMITED;
+    case SKEL_HINT_GREAT_VAULT:
+    case SKEL_HINT_VAULT_ARTIFACT:
+    case SKEL_HINT_QUEST:
+        return SKEL_HINT_LIMIT_UNLIMITED;
     case SKEL_HINT_STAIRS:
     case SKEL_HINT_FORGE:
     case SKEL_HINT_UNIQUE_MONSTER:
-    case SKEL_HINT_VAULT_ARTIFACT:
-        return true;
+    case SKEL_HINT_PART_LABYRINTH:
+    case SKEL_HINT_PART_CHASM:
+    case SKEL_HINT_PART_CAVE:
+    case SKEL_HINT_PART_CAVE_ICE:
+    case SKEL_HINT_PART_CAVE_FIRE:
+    case SKEL_HINT_PART_CAVE_POIS:
+        return 5;
+    case SKEL_HINT_PART_ROOMY:
+    case SKEL_HINT_PART_RUINED:
+    case SKEL_HINT_PART_CAVEY:
+        return 3;
+    case SKEL_HINT_LEVEL_SIZE:
+        return 1;
     default:
-        return false;
+        return 1;
     }
 }
 
@@ -1819,12 +1926,9 @@ static int skeleton_hint_repeat_shift(skeleton_hint_kind kind)
     }
 }
 
-static int skeleton_hint_use_count(skeleton_hint_kind kind, u32b state_mask)
+static int skeleton_hint_count_from_legacy_mask(skeleton_hint_kind kind, u32b state_mask)
 {
     u32b bit = skeleton_hint_bit(kind);
-
-    if (!skeleton_hint_is_repeat_limited(kind))
-        return (state_mask & bit) ? 1 : 0;
 
     int shift = skeleton_hint_repeat_shift(kind);
     int count = (shift >= 0) ? (int)((state_mask >> shift) & 0x3u) : 0;
@@ -1839,40 +1943,50 @@ static int skeleton_hint_use_count(skeleton_hint_kind kind, u32b state_mask)
     return count;
 }
 
-static bool skeleton_hint_reached_limit(skeleton_hint_kind kind, u32b state_mask)
+static int skeleton_hint_use_count(
+    skeleton_hint_kind kind, const byte hint_counts[SKEL_HINT_MAX])
 {
-    if (kind == SKEL_HINT_TIP || kind == SKEL_HINT_NONE)
-        return false;
+    if (!hint_counts || kind <= SKEL_HINT_NONE || kind >= SKEL_HINT_MAX)
+        return 0;
 
-    if (!skeleton_hint_is_repeat_limited(kind))
-        return ((state_mask & skeleton_hint_bit(kind)) != 0);
-
-    return (skeleton_hint_use_count(kind, state_mask) >= SKEL_HINT_REPEAT_LIMIT);
+    return hint_counts[kind];
 }
 
-static u32b skeleton_hint_mark_used(skeleton_hint_kind kind, u32b state_mask)
+static bool skeleton_hint_reached_limit(
+    skeleton_hint_kind kind, const byte hint_counts[SKEL_HINT_MAX])
+{
+    int limit = skeleton_hint_limit(kind);
+
+    if (limit == SKEL_HINT_LIMIT_UNLIMITED)
+        return false;
+
+    if (limit <= 0)
+        return true;
+
+    return (skeleton_hint_use_count(kind, hint_counts) >= limit);
+}
+
+static void skeleton_hint_count_mark_used(
+    skeleton_hint_kind kind, byte hint_counts[SKEL_HINT_MAX])
+{
+    int limit = skeleton_hint_limit(kind);
+
+    if (!hint_counts || limit == SKEL_HINT_LIMIT_UNLIMITED || limit <= 0)
+        return;
+
+    if (hint_counts[kind] < 255)
+        hint_counts[kind]++;
+}
+
+static void skeleton_hint_record_used(skeleton_hint_kind kind)
 {
     if (kind == SKEL_HINT_TIP || kind == SKEL_HINT_NONE)
-        return state_mask;
+        return;
 
-    u32b bit = skeleton_hint_bit(kind);
+    if (skeleton_hint_limit(kind) != SKEL_HINT_LIMIT_UNLIMITED)
+        skeleton_hint_count_mark_used(kind, g_skeleton_note_state.hint_use_counts);
 
-    if (!skeleton_hint_is_repeat_limited(kind))
-        return (state_mask | bit);
-
-    int shift = skeleton_hint_repeat_shift(kind);
-    int count = skeleton_hint_use_count(kind, state_mask);
-    if (count < SKEL_HINT_REPEAT_LIMIT)
-        count++;
-    state_mask |= bit;
-    if (shift >= 0)
-    {
-        u32b field_mask = ((u32b)0x3u << shift);
-        state_mask &= ~field_mask;
-        state_mask |= ((u32b)count << shift);
-    }
-
-    return state_mask;
+    g_skeleton_note_state.hint_used_mask |= skeleton_hint_bit(kind);
 }
 
 static int skeleton_note_generated_side_for_depth_rolls(int depth, int roll1,
@@ -2018,13 +2132,8 @@ static int skeleton_note_size_word_bucket(const level_layout_info* layout)
 
 static int skeleton_note_cap_from_layout(const level_layout_info* layout)
 {
-    int bucket = skeleton_note_size_bucket(layout);
-    int cap = 1 + bucket;
-    if (cap < 1)
-        cap = 1;
-    if (cap > 4)
-        cap = 4;
-    return 10*cap;
+    (void)layout;
+    return SKELETON_NOTE_UNBOUNDED_CAP;
 }
 
 static skeleton_note_profile skeleton_note_profile_for_sval(byte sval)
@@ -2745,21 +2854,42 @@ static bool level_has_greater_vault(void)
     return false;
 }
 
+static bool skeleton_note_artefact_seen_and_identified(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->name1 || !z_info || o_ptr->name1 >= z_info->art_max)
+        return false;
+
+    artefact_type* a_ptr = &a_info[o_ptr->name1];
+    bool seen = ((o_ptr->ident & IDENT_ARTIFACT_SEEN) != 0)
+        || ((a_ptr->seen & ART_SEEN_PHYSICAL) != 0);
+    bool identified = object_known_p(o_ptr) || (a_ptr->found_num > 0);
+
+    return seen && identified;
+}
+
+static bool skeleton_note_artefact_hint_target_ok(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+    if (o_ptr->held_m_idx)
+        return false;
+    if (!artefact_p(o_ptr))
+        return false;
+    if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
+        return false;
+    if (skeleton_note_artefact_seen_and_identified(o_ptr))
+        return false;
+
+    return true;
+}
+
 static bool level_has_artefact_hint_target(void)
 {
     for (int i = 1; i < o_max; i++)
     {
         object_type* o_ptr = &o_list[i];
-        if (!o_ptr->k_idx)
-            continue;
-        if (o_ptr->held_m_idx)
-            continue;
-        if (!artefact_p(o_ptr))
-            continue;
-        if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
-            continue;
-
-        return true;
+        if (skeleton_note_artefact_hint_target_ok(o_ptr))
+            return true;
     }
     return false;
 }
@@ -2933,6 +3063,8 @@ void skeleton_note_level_reset(void)
     g_skeleton_note_state.note_cap = skeleton_note_cap_from_layout(&layout);
     g_skeleton_note_state.notes_shown = 0;
     g_skeleton_note_state.hint_used_mask = 0;
+    memset(g_skeleton_note_state.hint_use_counts, 0,
+        sizeof(g_skeleton_note_state.hint_use_counts));
     g_skeleton_note_entry_count = -1;
 
     if (g_skeleton_note_state.note_cap < 1)
@@ -2958,6 +3090,8 @@ void reset_hint_skeleton_state(void)
     g_skeleton_note_state.note_cap = 0;
     g_skeleton_note_state.notes_shown = 0;
     g_skeleton_note_state.hint_used_mask = 0;
+    memset(g_skeleton_note_state.hint_use_counts, 0,
+        sizeof(g_skeleton_note_state.hint_use_counts));
     skeleton_note_reset_seen();
     g_skeleton_note_entry_count = -1;
 }
@@ -2983,6 +3117,8 @@ void skeleton_note_get_state(skeleton_note_state_save* out)
     out->map_wid = (s16b)g_skeleton_note_state.map_wid;
     out->map_hgt = (s16b)g_skeleton_note_state.map_hgt;
     out->hint_used_mask = g_skeleton_note_state.hint_used_mask;
+    for (int i = 0; i < SKEL_HINT_MAX; ++i)
+        out->hint_use_counts[i] = g_skeleton_note_state.hint_use_counts[i];
     out->seen_count = g_skeleton_note_state.seen_count;
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         out->seen_ids[i] = g_skeleton_note_state.seen_ids[i];
@@ -2997,7 +3133,7 @@ void skeleton_note_set_state(const skeleton_note_state_save* in)
         return;
     }
     g_skeleton_note_state.level_depth = in->level_depth;
-    g_skeleton_note_state.note_cap = (in->note_cap > 0) ? in->note_cap : 1;
+    g_skeleton_note_state.note_cap = SKELETON_NOTE_UNBOUNDED_CAP;
     g_skeleton_note_state.notes_shown = (in->notes_shown >= 0)
         ? in->notes_shown
         : 0;
@@ -3006,6 +3142,24 @@ void skeleton_note_set_state(const skeleton_note_state_save* in)
     g_skeleton_note_state.map_hgt
         = (in->map_hgt > 0) ? in->map_hgt : p_ptr->cur_map_hgt;
     g_skeleton_note_state.hint_used_mask = (u32b)in->hint_used_mask;
+    for (int i = 0; i < SKEL_HINT_MAX; ++i)
+    {
+        skeleton_hint_kind kind = (skeleton_hint_kind)i;
+        int count = in->hint_use_counts[i];
+        int limit = skeleton_hint_limit(kind);
+
+        if (count == 0)
+            count = skeleton_hint_count_from_legacy_mask(
+                kind, g_skeleton_note_state.hint_used_mask);
+        if (limit > 0 && count > limit)
+            count = limit;
+        if (count < 0)
+            count = 0;
+        if (count > 255)
+            count = 255;
+
+        g_skeleton_note_state.hint_use_counts[i] = (byte)count;
+    }
     g_skeleton_note_state.seen_count = MIN(in->seen_count, SKELETON_NOTE_SEEN_MAX);
     for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
         g_skeleton_note_state.seen_ids[i] = in->seen_ids[i];
@@ -3124,7 +3278,8 @@ static bool skeleton_hint_available(skeleton_hint_kind kind,
      * Tutorial tips should be repeatable: don't hide them just because we've
      * recently shown every TIP template.
      */
-    if (kind != SKEL_HINT_TIP)
+    if (kind != SKEL_HINT_TIP
+        && skeleton_hint_limit(kind) != SKEL_HINT_LIMIT_UNLIMITED)
     {
         if (!skeleton_note_has_unseen_template(
                 sval, SKELETON_NOTE_ROLE_HINT, kind))
@@ -3238,8 +3393,8 @@ static skeleton_partition_focus skeleton_pick_partition_presence(
 
 static skeleton_hint_kind skeleton_note_choose_hint(
     const skeleton_note_profile* profile, const level_layout_info* layout,
-    bool vault_present, bool artefact_present, byte sval, u32b state_mask,
-    u32b exclude_mask)
+    bool vault_present, bool artefact_present, byte sval,
+    const byte hint_counts[SKEL_HINT_MAX], u32b exclude_mask)
 {
     int weights[SKEL_HINT_MAX] = {0};
     int total = 0;
@@ -3250,7 +3405,7 @@ static skeleton_hint_kind skeleton_note_choose_hint(
         if (exclude_mask & skeleton_hint_bit(kind))
             continue;
 
-        if (skeleton_hint_reached_limit(kind, state_mask))
+        if (skeleton_hint_reached_limit(kind, hint_counts))
             continue;
 
         if (!skeleton_hint_available(
@@ -3952,23 +4107,56 @@ static const char* skeleton_note_direction_phrase(int from_y, int from_x, int to
 }
 
 static const char* skeleton_note_distance_phrase(int dist,
-    const level_layout_info* layout)
+    const level_layout_info* layout, char* buf, size_t buf_sz)
 {
     int side = layout ? MAX(layout->map_wid, layout->map_hgt) : 0;
     int near_limit = 10;
     int mid_limit = 24;
+    int far_limit = 48;
+    int max_dist = 0;
 
     if (side > 0)
     {
         near_limit = MAX(8, side / 8);
         mid_limit = MAX(near_limit + 8, side / 4);
+        far_limit = MAX(mid_limit + 8, side / 2);
     }
 
-    if (dist <= near_limit)
-        return "a short way";
+    if (layout && layout->map_hgt > 0 && layout->map_wid > 0)
+    {
+        max_dist = skeleton_note_map_distance(
+            0, 0, layout->map_hgt - 1, layout->map_wid - 1);
+    }
+
+    if (!buf || buf_sz == 0)
+        return "";
+    if (dist < 0)
+        dist = 0;
+
+    if (dist < near_limit)
+    {
+        strnfmt(buf, buf_sz, "a short way (less than %d squares)",
+            near_limit);
+        return buf;
+    }
     if (dist <= mid_limit)
-        return "some distance";
-    return "a long way";
+    {
+        int hi = (max_dist > 0) ? MIN(mid_limit, max_dist) : mid_limit;
+        strnfmt(buf, buf_sz, "some distance (%d to %d squares)",
+            near_limit, hi);
+        return buf;
+    }
+    if (dist <= far_limit)
+    {
+        int hi = (max_dist > 0) ? MIN(far_limit, max_dist) : far_limit;
+        strnfmt(buf, buf_sz, "a long way (%d to %d squares)",
+            mid_limit + 1, hi);
+        return buf;
+    }
+
+    strnfmt(buf, buf_sz, "a very long way (more than %d squares)",
+        far_limit);
+    return buf;
 }
 
 static bool skeleton_note_find_nearest_stairs_kind(
@@ -4459,13 +4647,7 @@ static bool skeleton_note_find_nearest_artefact(
     for (int i = 1; i < o_max; i++)
     {
         object_type* o_ptr = &o_list[i];
-        if (!o_ptr->k_idx)
-            continue;
-        if (o_ptr->held_m_idx)
-            continue;
-        if (!artefact_p(o_ptr))
-            continue;
-        if (o_ptr->iy >= p_ptr->cur_map_hgt || o_ptr->ix >= p_ptr->cur_map_wid)
+        if (!skeleton_note_artefact_hint_target_ok(o_ptr))
             continue;
 
         int dist = skeleton_note_map_distance(from_y, from_x, o_ptr->iy, o_ptr->ix);
@@ -4812,8 +4994,6 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     if (g_skeleton_note_state.note_cap <= 0)
         return;
 
-    bool at_cap = (g_skeleton_note_state.notes_shown >= g_skeleton_note_state.note_cap);
-
     skeleton_note_profile profile = skeleton_note_profile_for_sval(sval);
 
     level_layout_info layout;
@@ -4830,25 +5010,20 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     if (!tutorial_note_forced && !percent_chance(profile.note_chance))
         return;
 
-    u32b base_hint_state = g_skeleton_note_state.hint_used_mask;
-
     skeleton_hint_kind hint1 = SKEL_HINT_NONE;
     skeleton_hint_kind hint2 = SKEL_HINT_NONE;
     if (tutorial_note_forced)
     {
         hint1 = SKEL_HINT_TIP;
 
-        if (!at_cap && profile.note_chance > 0 && percent_chance(profile.note_chance))
+        if (profile.note_chance > 0 && percent_chance(profile.note_chance))
         {
             hint2 = skeleton_note_choose_hint(
                 &profile, &layout, vault_present, artefact_present, sval,
-                base_hint_state, skeleton_hint_bit(SKEL_HINT_TIP));
+                g_skeleton_note_state.hint_use_counts,
+                skeleton_hint_bit(SKEL_HINT_TIP));
         }
 
-    }
-    else if (at_cap)
-    {
-        return;
     }
     else
     {
@@ -4863,7 +5038,7 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         {
             hint1 = skeleton_note_choose_hint(
                 &profile, &layout, vault_present, artefact_present, sval,
-                base_hint_state, 0);
+                g_skeleton_note_state.hint_use_counts, 0);
         }
     }
     if (hint1 == SKEL_HINT_NONE)
@@ -4889,12 +5064,16 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
         if (second_chance > 0 && percent_chance(second_chance))
         {
-            u32b state_after_hint1 = skeleton_hint_mark_used(hint1, base_hint_state);
+            byte counts_after_hint1[SKEL_HINT_MAX];
             u32b exclude_mask2 = skeleton_hint_bit(hint1);
+
+            memcpy(counts_after_hint1, g_skeleton_note_state.hint_use_counts,
+                sizeof(counts_after_hint1));
+            skeleton_hint_count_mark_used(hint1, counts_after_hint1);
 
             hint2 = skeleton_note_choose_hint(
                 &profile, &layout, vault_present, artefact_present, sval,
-                state_after_hint1, exclude_mask2);
+                counts_after_hint1, exclude_mask2);
         }
     }
 
@@ -4905,13 +5084,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     if (hint2 == SKEL_HINT_NONE && hint1 == SKEL_HINT_TIP)
         hint2 = SKEL_HINT_TIP;
 
-    /* Don't mark TIP hints as used - they can repeat. */
-    if (hint1 != SKEL_HINT_TIP)
-        g_skeleton_note_state.hint_used_mask
-            = skeleton_hint_mark_used(hint1, g_skeleton_note_state.hint_used_mask);
-    if (hint2 != SKEL_HINT_NONE && hint2 != SKEL_HINT_TIP)
-        g_skeleton_note_state.hint_used_mask
-            = skeleton_hint_mark_used(hint2, g_skeleton_note_state.hint_used_mask);
+    skeleton_hint_record_used(hint1);
+    skeleton_hint_record_used(hint2);
 
     const char* unique_type = NULL;
     int unique_y = 0;
@@ -4980,10 +5154,13 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
     char forge_site_buf[64];
     char artefact_kind_buf[2][64];
+    char distance_buf[2][64];
     char tutorial_tip_buf[2][256];
     forge_site_buf[0] = '\0';
     artefact_kind_buf[0][0] = '\0';
     artefact_kind_buf[1][0] = '\0';
+    distance_buf[0][0] = '\0';
+    distance_buf[1][0] = '\0';
     tutorial_tip_buf[0][0] = '\0';
     tutorial_tip_buf[1][0] = '\0';
 
@@ -5105,7 +5282,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 stairs_feat = feat;
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
                 body_lines[body_count].site = skeleton_note_stair_site(feat);
             }
         }
@@ -5117,7 +5296,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
                 body_lines[body_count].site
                     = skeleton_note_forge_site(feat, forge_site_buf, sizeof(forge_site_buf));
             }
@@ -5134,7 +5315,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
                 body_lines[body_count].site = site;
             }
             else
@@ -5151,7 +5334,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
             }
             else
             {
@@ -5170,7 +5355,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
                 body_lines[body_count].site = site;
                 body_lines[body_count].artefact_kind =
                     artefact_kind_buf[body_count];
@@ -5189,8 +5376,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir = skeleton_note_direction_phrase(
                     skel_y, skel_x, unique_y, unique_x);
-                body_lines[body_count].dist =
-                    skeleton_note_distance_phrase(unique_dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    unique_dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
             }
             else
             {
@@ -5208,7 +5396,9 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
             {
                 body_lines[body_count].dir
                     = skeleton_note_direction_phrase(skel_y, skel_x, ty, tx);
-                body_lines[body_count].dist = skeleton_note_distance_phrase(dist, &layout);
+                body_lines[body_count].dist = skeleton_note_distance_phrase(
+                    dist, &layout, distance_buf[body_count],
+                    sizeof(distance_buf[body_count]));
             }
             else
             {
@@ -6081,9 +6271,21 @@ void do_cmd_exchange(void)
         return;
     }
 
+    /*
+     * Let the SDL frontend show and handle one-click exchange targets while
+     * the classic direction prompt is active. Keyboard direction input still
+     * follows the normal get_rep_dir() path.
+     */
+    sdl_player_exchange_begin_direction_prompt();
+
     /* Get a direction (or abort) */
     if (!get_rep_dir(&dir))
+    {
+        sdl_player_exchange_cancel_direction_prompt();
         return;
+    }
+
+    sdl_player_exchange_cancel_direction_prompt();
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -7387,7 +7589,7 @@ static bool twall(int y, int x)
             && ((cave_info[y][x] & CAVE_ROOM) != 0)
             && !in_chasm_area;
         bool allow_mithril = in_cave_loot_quartz;
-        bool allow_star_iron = in_chasm_area;
+        bool allow_star_iron = (part_kind == LEVEL_PART_CHASM) && in_chasm_area;
         
         /* Base 10% chance at depth 10, scaling up to 25% at depth 20+ */
         int special_chance = 10 + depth;
@@ -8690,8 +8892,29 @@ void do_cmd_alter(void)
 /*
  * Determine if a given grid may be "walked"
  */
+static bool walk_target_exits_gates(int y, int x)
+{
+    if (!p_ptr || (p_ptr->depth != 0))
+        return false;
+
+    if (!in_bounds(y, x))
+        return true;
+
+    return (y == 0) || (x == 0) || (y == p_ptr->cur_map_hgt - 1)
+        || (x == p_ptr->cur_map_wid - 1);
+}
+
 bool do_cmd_walk_test(int y, int x)
 {
+    /* Let the Gates edge hand off to move_player(), which ends the run. */
+    if (walk_target_exits_gates(y, x))
+    {
+        return true;
+    }
+
+    if (!in_bounds(y, x))
+        return false;
+
     /* Hack -- walking obtains knowledge XXX XXX */
     if (!(cave_info[y][x] & (CAVE_MARK)))
         return (true);

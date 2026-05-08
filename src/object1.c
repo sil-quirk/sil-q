@@ -8066,6 +8066,7 @@ void show_inven_enhanced(void)
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
+    story_inventory_list_active = false;
     log_trace("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
 }
 
@@ -8685,6 +8686,7 @@ void show_equip_enhanced(void)
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
+    story_equipment_list_active = false;
     log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }
 

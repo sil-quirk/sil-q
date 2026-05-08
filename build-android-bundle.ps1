@@ -321,7 +321,7 @@ try {
         $gradleArgs += 'clean'
     }
 
-    $gradleArgs += ':app:bundleRelease'
+    $gradleArgs += ':app:bundlePlayRelease'
 
     Write-Host "Building Play Store app bundle..." -ForegroundColor Cyan
     Write-Host "Version: $version" -ForegroundColor Cyan
@@ -345,14 +345,14 @@ try {
         }
 
         if ($LASTEXITCODE -ne 0) {
-            throw "Gradle bundleRelease failed with exit code $LASTEXITCODE"
+            throw "Gradle bundlePlayRelease failed with exit code $LASTEXITCODE"
         }
     }
     finally {
         Pop-Location
     }
 
-    $bundlePath = Join-Path $androidDir 'app\build\outputs\bundle\release\app-release.aab'
+    $bundlePath = Join-Path $androidDir 'app\build\outputs\bundle\playRelease\app-play-release.aab'
     if (-not (Test-Path $bundlePath)) {
         throw "Expected app bundle not found: $bundlePath"
     }

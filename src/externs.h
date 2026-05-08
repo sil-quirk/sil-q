@@ -96,6 +96,7 @@ typedef struct skeleton_note_state_save {
     s16b map_wid;
     s16b map_hgt;
     u32b hint_used_mask;
+    byte hint_use_counts[SKEL_HINT_MAX];
     byte seen_count;
     s16b seen_ids[SKELETON_NOTE_SEEN_MAX];
 } skeleton_note_state_save;
@@ -104,7 +105,7 @@ typedef struct skeleton_note_state_save {
 #ifndef HINT_MESSAGE_META_DEFINED
 #define HINT_MESSAGE_META_DEFINED
 #define HINT_MESSAGE_CUE_MAX 2
-#define HINT_MESSAGE_CUE_TEXT_MAX 32
+#define HINT_MESSAGE_CUE_TEXT_MAX 64
 typedef struct hint_message_meta {
     s16b source_y;
     s16b source_x;
@@ -534,6 +535,8 @@ extern void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
 extern int styles_get_choice_capacity(void);
 extern void styles_copy_level_door_choices(byte* out_buf, int max_n);
 extern void styles_load_level_door_choices(const byte* in_buf, int n);
+extern void hallucination_randomize_style_transitions(void);
+extern void hallucination_clear_style_transitions(void);
 extern int project_path(
     u16b* gp, int range, int y1, int x1, int* y2, int* x2, u32b flg);
 extern byte projectable(int y1, int x1, int y2, int x2, u32b flg);
@@ -602,6 +605,7 @@ extern void search(void);
 extern void do_cmd_pickup_from_pile(void);
 extern void py_pickup_aux(int o_idx);
 extern void py_pickup(void);
+extern bool player_channel_floor_staff(object_type* donor, int floor_o_idx);
 extern bool smith_oath_forbids_object(const object_type* o_ptr);
 extern bool smith_oath_confirm_break(void);
 extern void hit_trap(int y, int x);
@@ -681,9 +685,15 @@ extern void do_cmd_inven_direct(void);
 extern void do_cmd_equip(void);
 extern void do_cmd_equip_direct(void);
 extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
+extern void do_cmd_wield_to_slot(
+    object_type* default_o_ptr, int default_item, int forced_slot);
 extern void do_cmd_wield_wrapper(void);
 extern void do_cmd_wield_enhanced(void);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
+extern bool do_cmd_jewelry_preset_apply(int preset);
+extern bool do_cmd_jewelry_preset_store(int preset);
+extern bool do_cmd_jewelry_preset_clear(int preset);
+extern void do_cmd_jewelry_preset_shortcut(void);
 extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
@@ -1573,6 +1583,8 @@ extern bool sdl_pointer_aim_take_direction(int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
 extern void sdl_mouse_path_cancel(void);
+extern void sdl_player_exchange_begin_direction_prompt(void);
+extern void sdl_player_exchange_cancel_direction_prompt(void);
 extern void sdl_unified_look_set_active(bool active);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);

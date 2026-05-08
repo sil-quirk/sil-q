@@ -8,6 +8,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "mem/alloc.h"
+#include "metarun.h"
 #include "supplies.h"
 #include "thrall_quest.h"
 
@@ -1625,6 +1626,7 @@ bool reveal_random_artifact(void)
 
         /* Reveal in the knowledge menu */
         a_ptr->seen |= ART_SEEN_REVEALED;
+        metarun_record_artefact_revealed(selected[i]);
 
         /* Create a temporary object to get full name */
         object_wipe(&temp_obj);
@@ -1654,7 +1656,8 @@ bool reveal_random_artifact(void)
 
     strnfmt(dialog_text, sizeof(dialog_text),
         "The thrall leans close and speaks in a voice scarcely more than breath.\n\n"
-        "You learn of %d ancient %s:%s",
+        "You learn of %d ancient %s:%s\n\n"
+        "These names will remain known to later heroes in this metarun.",
         reveal_count, reveal_count == 1 ? "thing" : "things", name_list);
 
     quest_typewriter_menu("Ancient Knowledge", texts, text_count, TERM_L_BLUE, TERM_WHITE);

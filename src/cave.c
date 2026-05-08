@@ -125,6 +125,8 @@ static byte g_level_floor_choice[64];  /* index into floor_rowv/colv, 0..count-1
 static byte g_level_door_choice[64];
 static byte g_vault_floor_choice[64];
 static byte g_vault_door_choice[64];
+static byte g_hallucination_style_map[64];
+static bool g_hallucination_style_map_ready = false;
 
 /* Active weighted style lists and selections */
 static style_weight_list g_level_styles;
@@ -133,6 +135,12 @@ static style_weight_list* g_active_styles = &g_level_styles;
 static int g_level_primary_style = -1;
 static int g_vault_primary_style = -1;
 static int g_vault_avoid_style = -1;
+
+static bool style_index_is_valid(int sidx)
+{
+    return z_info && style_info && sidx >= 0 && sidx < z_info->style_max
+        && style_info[sidx].name;
+}
 
 /* Level rules table (indexed by exact depth 0..31) */
 static style_weight_list g_level_rule[32];
@@ -504,6 +512,79 @@ static bool style_color_force_first_variant(byte color_value)
         }
     }
     return false;
+}
+
+static void hallucination_set_identity_style_map(void)
+{
+    for (int i = 0; i < COLOR_STYLE_SLOT_MAX; i++)
+        g_hallucination_style_map[i] = (byte)i;
+}
+
+void hallucination_clear_style_transitions(void)
+{
+    g_hallucination_style_map_ready = false;
+}
+
+void hallucination_randomize_style_transitions(void)
+{
+    int valid[COLOR_STYLE_SLOT_MAX];
+    int valid_count = 0;
+    int limit = COLOR_STYLE_SLOT_MAX;
+
+    hallucination_set_identity_style_map();
+
+    if (z_info && z_info->style_max < limit)
+        limit = z_info->style_max;
+
+    for (int i = 0; i < limit; i++)
+    {
+        if (style_index_is_valid(i))
+            valid[valid_count++] = i;
+    }
+
+    for (int i = 0; i < valid_count; i++)
+    {
+        int source = valid[i];
+        int target = source;
+
+        if (valid_count > 1)
+        {
+            int pick = rand_int(valid_count - 1);
+
+            target = valid[pick];
+            if (target == source)
+                target = valid[valid_count - 1];
+        }
+
+        g_hallucination_style_map[source] = (byte)target;
+    }
+
+    g_hallucination_style_map_ready = true;
+    log_debug("hallucination_randomize_style_transitions: remapped %d styles",
+        valid_count);
+}
+
+static int hallucination_style_for_display(int sidx)
+{
+    int mapped;
+
+    if (!style_index_is_valid(sidx))
+        return sidx;
+
+    if (!p_ptr || !p_ptr->image)
+        return sidx;
+
+    if (sidx >= COLOR_STYLE_SLOT_MAX)
+        return sidx;
+
+    if (!g_hallucination_style_map_ready)
+        hallucination_randomize_style_transitions();
+
+    mapped = g_hallucination_style_map[sidx];
+    if (style_index_is_valid(mapped))
+        return mapped;
+
+    return sidx;
 }
 
 /* Return COLOR_STYLE_BASE + active chosen style (vault if active, else level) */
@@ -1280,12 +1361,15 @@ static bool apply_style_floor_graphics(int y, int x, int feat, int info, byte* a
     int sidx = style_index_for_color(color_value);
     if (sidx >= 0)
     {
+        sidx = hallucination_style_for_display(sidx);
         style_type* s = &style_info[sidx];
         /* Halo can force variant 0 via color flag */
         byte choice = 0;
         if (!style_color_force_first_variant(color_value) && s->floor_count > 1) {
             choice = style_floor_choice(sidx);
         }
+        if (s->floor_count > 0 && choice >= s->floor_count)
+            choice = 0;
         byte fr = (s->floor_count > 0) ? s->floor_rowv[choice] : s->floor_row;
         byte fc = (s->floor_count > 0) ? s->floor_colv[choice] : s->floor_col;
     *a = (byte)(fr | 0x80);
@@ -1312,12 +1396,15 @@ static bool apply_style_door_graphics(int y, int x, int feat, int info, byte* a,
     int sidx = style_index_for_color(color_value);
     if (sidx >= 0)
     {
+        sidx = hallucination_style_for_display(sidx);
         style_type* s = &style_info[sidx];
         /* Respect first-variant override (if ever used for doors) */
         byte choice = 0;
         if (!style_color_force_first_variant(color_value) && s->door_count > 1) {
             choice = style_door_choice(sidx);
         }
+        if (s->door_count > 0 && choice >= s->door_count)
+            choice = 0;
         int row = (s->door_count > 0) ? s->door_rowv[choice] : s->door_row;
         int col = (s->door_count > 0) ? s->door_colv[choice] : s->door_col;
         if (feat == FEAT_OPEN) col += 1; else if (feat == FEAT_BROKEN) col += 2;
@@ -1684,11 +1771,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         {
             int feat = FEAT_FLOOR;
 
-            if (rage_active && !graphics_are_ascii())
-            {
-                feat = FEAT_RAGE_FLOOR;
-            }
-
             /* Get the floor feature */
             f_ptr = &f_info[feat];
 
@@ -1720,12 +1802,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Apply "mimic" field */
             feat = f_info[feat].mimic;
 
-            if (rage_active && !graphics_are_ascii()
-                && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL))
-            {
-                feat = FEAT_RAGE_WALL;
-            }
-
             /* Get the feature */
             f_ptr = &f_info[feat];
 
@@ -1746,7 +1822,8 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 if (feat == FEAT_QUARTZ) {
                     /* Veins */
                     if (sidx2 >= 0) {
-                        style_type* s = &style_info[sidx2];
+                        int display_sidx2 = hallucination_style_for_display(sidx2);
+                        style_type* s = &style_info[display_sidx2];
                         if (s->vein_defined) {
                             /* Full replacement vein tile */
                             a = (byte)(s->vein_row | 0x80);
@@ -1800,7 +1877,8 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                     } else {
                         /* No encoded style in cave_color: fall back to primary style (level or vault). */
                         int fb = (g_vault_primary_style >= 0 && (cave_info[y][x] & CAVE_ICKY)) ? g_vault_primary_style : g_level_primary_style;
-                        if (fb >= 0 && style_info[fb].name) {
+                        fb = hallucination_style_for_display(fb);
+                        if (style_index_is_valid(fb)) {
                             style_type* sfb = &style_info[fb];
                             byte wall_a = (byte)(sfb->wall_row | 0x80);
                             byte wall_c = (byte)(sfb->wall_col | 0x80);
@@ -1850,12 +1928,14 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 } else {
                     /* Walls */
                     if (sidx2 >= 0) {
-                        style_type* s2 = &style_info[sidx2];
+                        int display_sidx2 = hallucination_style_for_display(sidx2);
+                        style_type* s2 = &style_info[display_sidx2];
                         a = (byte)(s2->wall_row | 0x80);
                         c = (char)(s2->wall_col | 0x80);
                     } else {
                         int fb = (g_vault_primary_style >= 0 && (cave_info[y][x] & CAVE_ICKY)) ? g_vault_primary_style : g_level_primary_style;
-                        if (fb >= 0 && style_info[fb].name) {
+                        fb = hallucination_style_for_display(fb);
+                        if (style_index_is_valid(fb)) {
                             style_type* sfb = &style_info[fb];
                             a = (byte)(sfb->wall_row | 0x80);
                             c = (char)(sfb->wall_col | 0x80);
@@ -1917,9 +1997,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
          (feat == FEAT_RUBBLE)))
     {
         int floor_feat = FEAT_FLOOR;
-        if (rage_active && !graphics_are_ascii())
-            floor_feat = FEAT_RAGE_FLOOR;
-
         feature_type* floor_ptr = &f_info[floor_feat];
         feature_visual(floor_ptr, &terrain_a, &terrain_c);
 
@@ -2683,6 +2760,11 @@ void prt_map(void)
     int vy, vx;
     int ty, tx;
     int cell_w = use_bigtile ? 2 : 1;
+    bool rage_map_filter_active = (!graphics_are_ascii() && p_ptr
+        && !p_ptr->is_dead && p_ptr->rage);
+    static bool last_rage_map_filter_active = false;
+    bool force_rage_map_filter_refresh =
+        (rage_map_filter_active != last_rage_map_filter_active);
 
     /* Assume screen */
     ty = p_ptr->wy + SCREEN_HGT;
@@ -2716,10 +2798,13 @@ void prt_map(void)
                         ' ');
             }
 
-            if (!graphics_are_ascii() && (cave_m_idx[y][x] < 0))
+            if (force_rage_map_filter_refresh
+                || (!graphics_are_ascii() && (cave_m_idx[y][x] < 0)))
                 force_term_cell_redraw(vx, vy, cell_w);
         }
     }
+
+    last_rage_map_filter_active = rage_map_filter_active;
 }
 
 /*

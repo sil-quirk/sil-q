@@ -2,7 +2,12 @@ param(
     [ValidateSet('Debug','Release')]
     [string]$Config = 'Release',
 
+    [ValidateSet('Sideload','Play')]
+    [string]$Delivery = 'Sideload',
+
     [string]$AdbPath,
+
+    [string]$Serial,
 
     [string]$KeystorePath = $env:SIL_MORE_RELEASE_STORE_FILE,
 
@@ -26,8 +31,22 @@ if (-not (Test-Path $installScript)) {
     throw "Missing script: $installScript"
 }
 
+function Get-AndroidApplicationId {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Delivery
+    )
+
+    if ($Delivery -eq 'Play') {
+        return 'com.silmore.myapp'
+    }
+
+    return 'com.silmore.myapp.sideload'
+}
+
 $buildParams = @{
     Config = $Config
+    Delivery = $Delivery
 }
 if ($Config -eq 'Release') {
     if ($KeystorePath) {
@@ -42,9 +61,13 @@ if ($Config -eq 'Release') {
 
 $installParams = @{
     Config = $Config
+    Delivery = $Delivery
 }
 if ($AdbPath) {
     $installParams['AdbPath'] = $AdbPath
+}
+if ($Serial) {
+    $installParams['Serial'] = $Serial
 }
 if ($AllowDowngrade) {
     $installParams['AllowDowngrade'] = $true
@@ -68,12 +91,19 @@ if ($LaunchApp) {
         throw "adb not found for launch step: $adb"
     }
 
-    & $adb shell am start -n com.silmore.myapp/com.silqh.silmore.SilMoreActivity
+    $applicationId = Get-AndroidApplicationId -Delivery $Delivery
+    $launchArgs = @()
+    if ($Serial) {
+        $launchArgs += @('-s', $Serial)
+    }
+    $launchArgs += @('shell', 'am', 'start', '-n', "$applicationId/com.silqh.silmore.SilMoreActivity")
+
+    & $adb @launchArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to launch app via adb (exit code $LASTEXITCODE)"
     }
 
-    Write-Host 'Launched com.silmore.myapp.' -ForegroundColor Green
+    Write-Host "Launched $applicationId." -ForegroundColor Green
 }
 
-Write-Host "Deploy complete for $Config." -ForegroundColor Green
+Write-Host "Deploy complete for $Delivery $Config." -ForegroundColor Green

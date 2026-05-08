@@ -68,9 +68,9 @@ It also auto-detects `cmake.exe` from:
 
 ## Deploy to device (ADB)
 
-After Android Studio builds an APK, install with:
+After Android Studio builds the `sideloadDebug` APK, install with:
 
-`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
+`adb install -r android/app/build/outputs/apk/sideload/debug/app-sideload-debug.apk`
 
 Or use repo helper scripts from root:
 
@@ -78,7 +78,9 @@ Or use repo helper scripts from root:
 - `./install-android-apk.ps1 -Config Debug`
 - `./deploy-android.ps1 -LaunchApp`
 
-`deploy-android.ps1` defaults to `Release` when `-Config` is omitted.
+The APK helpers default to the `Sideload` delivery flavor, which uses package ID `com.silmore.myapp.sideload` and launcher label `Sil-More APK`. That package can coexist on the same phone with the Google Play/internal-testing app, which remains `com.silmore.myapp`. Pass `-Delivery Play` only when you intentionally want an APK with the Play package ID.
+
+`deploy-android.ps1` defaults to `Release` when `-Config` is omitted, and to `Sideload` when `-Delivery` is omitted.
 
 Release APK builds and release deploys use the same upload keystore settings as the Play Store AAB flow below. By default, the scripts load `%USERPROFILE%\.sil-more\play-upload-keystore.env.ps1`, then look for `%USERPROFILE%\.sil-more\play-upload-keystore.jks` with alias `upload`; `SIL_MORE_RELEASE_*` environment variables or script parameters can override that.
 
@@ -104,6 +106,8 @@ $env:SIL_MORE_RELEASE_KEY_PASSWORD = '<key password>'
 ```
 
 `SIL_MORE_RELEASE_KEY_PASSWORD` may be omitted if the key password is the same as the keystore password; the script will prompt and lets Enter reuse the keystore password. Install Android SDK Platform 35 before passing `-CompileSdk 35`. The script defaults to `-TargetSdk 35` and writes `sil-more-<version>.aab` in the repo root.
+
+The Play Store AAB script always builds the `Play` delivery flavor, preserving package ID `com.silmore.myapp` for Google Play/internal testing.
 
 ## Notes
 

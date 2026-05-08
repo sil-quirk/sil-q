@@ -937,7 +937,7 @@ static bool use_staff_effects(object_type* o_ptr, bool* ident, bool is_gem)
         msg_print("Your mind turns inward.");
         self_knowledge();
 
-        /* Gem/staff of self knowledge: attempt to identify equipped smithing items. */
+        /* Gem/staff of self knowledge: fixed check for equipped smithing items. */
         for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
             object_type* equip_ptr = &inventory[i];

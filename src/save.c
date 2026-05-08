@@ -1200,6 +1200,8 @@ static void wr_extra(void)
         wr_s16b(sn_state.map_wid);
         wr_s16b(sn_state.map_hgt);
         wr_u32b(sn_state.hint_used_mask);
+        for (i = 0; i < SKEL_HINT_MAX; i++)
+            wr_byte(sn_state.hint_use_counts[i]);
         wr_byte(sn_state.seen_count);
         for (i = 0; i < SKELETON_NOTE_SEEN_MAX; i++)
             wr_s16b(sn_state.seen_ids[i]);
@@ -1839,6 +1841,34 @@ static bool wr_savefile(void)
         }
     }
     log_trace("[save:%06u] === END SUPPLIES ===", (unsigned)save_byte_offset);
+
+    /* Write jewelry presets */
+    log_trace("[save:%06u] === BEGIN JEWELRY PRESETS ===", (unsigned)save_byte_offset);
+    {
+        wr_u16b(SAVEFILE_JEWELRY_PRESET_BLOCK_MAGIC);
+        wr_byte(JEWELRY_PRESET_MAX);
+        for (byte preset = 0; preset < JEWELRY_PRESET_MAX; preset++)
+        {
+            bool set = jewelry_preset_is_set(preset);
+            wr_byte(set ? 1 : 0);
+            for (byte slot = 0; slot < JEWELRY_PRESET_SLOT_MAX; slot++)
+            {
+                const object_type* preset_obj =
+                    jewelry_preset_object(preset, slot);
+                if (preset_obj && preset_obj->k_idx)
+                {
+                    wr_item(preset_obj);
+                }
+                else
+                {
+                    object_type blank;
+                    object_wipe(&blank);
+                    wr_item(&blank);
+                }
+            }
+        }
+    }
+    log_trace("[save:%06u] === END JEWELRY PRESETS ===", (unsigned)save_byte_offset);
 
     /* Player is not dead, write the dungeon */
     log_debug("save: p_ptr->is_dead = %d, will %s dungeon", 

@@ -201,6 +201,11 @@ int get_available_oaths_mask(void);                 /* Get bitmask of oaths avai
 /* ------------------------------------------------------------------ */
 void metarun_save_persistent_settings(void);     /* Save current options to metarun */
 void metarun_load_persistent_settings(void);     /* Load metarun options to current */
+void metarun_apply_artefact_memory(void);        /* Apply remembered artefact lore */
+void metarun_seed_artefact_memory_from_current_state_if_missing(void);
+bool metarun_record_artefact_identification(int a_idx);
+bool metarun_record_artefact_revealed(int a_idx);
+bool metarun_try_identify_remembered_artefact(object_type *o_ptr);
 
 void metarun_apply_runtime_effects(void);        /* Sync blessing effects into runtime systems */
 bool metarun_has_major_blessing_effect(metarun_major_effect effect);

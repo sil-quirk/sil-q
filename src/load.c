@@ -88,6 +88,7 @@ static bool savefile_has_artifact_seen = false;
 static bool savefile_has_skeleton_notes = false;
 static bool savefile_has_skeleton_hint_mask = false;
 static bool savefile_has_skeleton_hint_mask32 = false;
+static bool savefile_has_skeleton_hint_counts = false;
 static bool savefile_has_partition_meta = false;
 static bool savefile_has_partition_meta_types = false;
 static bool savefile_has_cave_info_hi = false;
@@ -1844,6 +1845,7 @@ static errr rd_extra(void)
             return (-1);
         }
         skeleton_note_state_save sn_state;
+        memset(&sn_state, 0, sizeof(sn_state));
         rd_s16b(&sn_state.level_depth);
         rd_s16b(&sn_state.note_cap);
         rd_s16b(&sn_state.notes_shown);
@@ -1862,6 +1864,11 @@ static errr rd_extra(void)
         else
         {
             sn_state.hint_used_mask = 0;
+        }
+        if (savefile_has_skeleton_hint_counts)
+        {
+            for (int i = 0; i < SKEL_HINT_MAX; ++i)
+                rd_byte(&sn_state.hint_use_counts[i]);
         }
         rd_byte(&sn_state.seen_count);
         for (int i = 0; i < SKELETON_NOTE_SEEN_MAX; ++i)
@@ -3253,6 +3260,53 @@ static errr rd_inventory(void)
     if (savefile_version_at_least(0, 9, 6, 0))
         supplies_ingest_pack();
 
+    jewelry_presets_reset();
+    if (savefile_version_at_least(0, 9, 6, 7))
+    {
+        u16b preset_magic = 0;
+        byte preset_count = 0;
+
+        log_trace("[load:%06u] === BEGIN JEWELRY PRESETS ===",
+            (unsigned)load_byte_offset);
+        rd_u16b(&preset_magic);
+        if (preset_magic != SAVEFILE_JEWELRY_PRESET_BLOCK_MAGIC)
+        {
+            log_warn("Invalid jewelry preset block marker 0x%04X",
+                (unsigned)preset_magic);
+            note("Error reading jewelry presets");
+            return (-1);
+        }
+
+        rd_byte(&preset_count);
+        for (byte preset = 0; preset < preset_count; preset++)
+        {
+            byte is_set = 0;
+            rd_byte(&is_set);
+
+            for (byte slot_idx = 0; slot_idx < JEWELRY_PRESET_SLOT_MAX;
+                 slot_idx++)
+            {
+                object_type preset_obj;
+                object_wipe(&preset_obj);
+
+                if (rd_item(&preset_obj))
+                {
+                    log_warn("Error reading jewelry preset entry");
+                    note("Error reading jewelry presets");
+                    return (-1);
+                }
+
+                if (is_set && preset < JEWELRY_PRESET_MAX
+                    && preset_obj.k_idx)
+                {
+                    jewelry_preset_set_object(preset, slot_idx, &preset_obj);
+                }
+            }
+        }
+        log_trace("[load:%06u] === END JEWELRY PRESETS ===",
+            (unsigned)load_byte_offset);
+    }
+
     /* Success */
     return (0);
 }
@@ -4010,6 +4064,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
     savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
     savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
+    savefile_has_skeleton_hint_counts = savefile_version_at_least(0, 9, 6, 6);
     savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
     savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
     savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
@@ -4169,6 +4224,9 @@ static errr rd_savefile_new_aux(void)
         return (-1);
     if (arg_fiddle)
         note("Loaded Random Artefacts");
+
+    metarun_seed_artefact_memory_from_current_state_if_missing();
+    metarun_apply_artefact_memory();
 
     log_debug("Loading notes");
     if (rd_notes())
@@ -4475,6 +4533,7 @@ bool load_player(void)
             savefile_has_skeleton_notes = savefile_version_at_least(0, 9, 1, 5);
             savefile_has_skeleton_hint_mask = savefile_version_at_least(0, 9, 1, 6);
             savefile_has_skeleton_hint_mask32 = savefile_version_at_least(0, 9, 1, 13);
+            savefile_has_skeleton_hint_counts = savefile_version_at_least(0, 9, 6, 6);
             savefile_has_partition_meta = savefile_version_at_least(0, 9, 1, 7);
             savefile_has_partition_meta_types = savefile_version_at_least(0, 9, 1, 9);
             savefile_has_cave_info_hi = savefile_version_at_least(0, 9, 1, 8);
