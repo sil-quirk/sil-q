@@ -70,6 +70,10 @@ enum {
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
 #define SIDE_PANE_MENU_SCALE 1.5f
+#define SDL_WHEEL_IDLE_RESET_NS (250ULL * 1000000ULL)
+#define SDL_WHEEL_STEP_UNITS 1.0f
+#define SDL_WHEEL_MAX_STEPS_PER_EVENT 8
+#define SDL_WHEEL_ACCUM_EPSILON 0.001f
 
 typedef struct sdl_layout_recovery_result {
     bool mode_changed;
@@ -495,6 +499,13 @@ typedef struct menu_scroll_drag_state {
     float last_y;
     float accum_y;
 } menu_scroll_drag_state;
+
+typedef struct sdl_wheel_step_state {
+    float accum_x;
+    float accum_y;
+    Uint64 last_timestamp;
+    SDL_MouseID last_mouse;
+} sdl_wheel_step_state;
 
 typedef struct pane_layout_drag_state {
     bool active;
@@ -5672,10 +5683,116 @@ static bool sdl_unified_look_begin_map_pinch(float x, float y,
     return true;
 }
 
+/* Smooth devices such as macOS touchpads report fractional wheel deltas.
+ * Accumulate them into discrete menu/zoom steps instead of treating each
+ * wheel event as one click. */
+static void sdl_wheel_step_state_reset(sdl_wheel_step_state* state)
+{
+    if (!state)
+        return;
+
+    state->accum_x = 0.0f;
+    state->accum_y = 0.0f;
+}
+
+static void sdl_wheel_step_state_prepare(sdl_wheel_step_state* state,
+    const SDL_MouseWheelEvent* wheel)
+{
+    if (!state || !wheel)
+        return;
+
+    if (state->last_timestamp != 0
+        && (state->last_mouse != wheel->which
+            || wheel->timestamp < state->last_timestamp
+            || wheel->timestamp - state->last_timestamp > SDL_WHEEL_IDLE_RESET_NS))
+    {
+        sdl_wheel_step_state_reset(state);
+    }
+
+    state->last_timestamp = wheel->timestamp;
+    state->last_mouse = wheel->which;
+}
+
+static int sdl_wheel_consume_axis_value(sdl_wheel_step_state* state,
+    const SDL_MouseWheelEvent* wheel, float* accum, float value)
+{
+    int steps = 0;
+
+    if (!state || !wheel || !accum)
+        return 0;
+    if (!(value > 0.0f || value < 0.0f))
+        return 0;
+
+    sdl_wheel_step_state_prepare(state, wheel);
+
+    if ((*accum > 0.0f && value < 0.0f)
+        || (*accum < 0.0f && value > 0.0f))
+    {
+        *accum = 0.0f;
+    }
+
+    *accum += value;
+
+    while (*accum >= SDL_WHEEL_STEP_UNITS
+        && steps < SDL_WHEEL_MAX_STEPS_PER_EVENT)
+    {
+        steps++;
+        *accum -= SDL_WHEEL_STEP_UNITS;
+    }
+
+    while (*accum <= -SDL_WHEEL_STEP_UNITS
+        && steps > -SDL_WHEEL_MAX_STEPS_PER_EVENT)
+    {
+        steps--;
+        *accum += SDL_WHEEL_STEP_UNITS;
+    }
+
+    if (*accum >= SDL_WHEEL_STEP_UNITS)
+        *accum = SDL_WHEEL_STEP_UNITS - SDL_WHEEL_ACCUM_EPSILON;
+    else if (*accum <= -SDL_WHEEL_STEP_UNITS)
+        *accum = -SDL_WHEEL_STEP_UNITS + SDL_WHEEL_ACCUM_EPSILON;
+
+    return steps;
+}
+
+static int sdl_wheel_step_state_consume_axis(sdl_wheel_step_state* state,
+    const SDL_MouseWheelEvent* wheel, bool vertical)
+{
+    if (!state)
+        return 0;
+
+    if (vertical)
+        return sdl_wheel_consume_axis_value(state, wheel, &state->accum_y,
+            wheel ? wheel->y : 0.0f);
+
+    return sdl_wheel_consume_axis_value(state, wheel, &state->accum_x,
+        wheel ? wheel->x : 0.0f);
+}
+
+static int sdl_wheel_step_state_consume_primary_axis(
+    sdl_wheel_step_state* state, const SDL_MouseWheelEvent* wheel)
+{
+    float abs_x;
+    float abs_y;
+
+    if (!state || !wheel)
+        return 0;
+
+    abs_x = SDL_fabsf(wheel->x);
+    abs_y = SDL_fabsf(wheel->y);
+
+    if (abs_y == 0.0f && abs_x == 0.0f)
+        return 0;
+
+    return sdl_wheel_step_state_consume_axis(state, wheel,
+        abs_y >= abs_x);
+}
+
 static bool sdl_unified_look_handle_map_zoom_wheel(
     const SDL_MouseWheelEvent* wheel)
 {
-    float amount;
+    static sdl_wheel_step_state wheel_state;
+    int steps;
 
     if (!wheel)
         return false;
@@ -5686,11 +5803,9 @@ static bool sdl_unified_look_handle_map_zoom_wheel(
     if (!sdl_unified_look_point_to_drag_map(wheel->mouse_x, wheel->mouse_y))
         return false;
 
-    amount = (wheel->y != 0.0f) ? wheel->y : wheel->x;
-    if (amount > 0.0f)
-        sdl_unified_look_queue_main_zoom_delta(1);
-    else if (amount < 0.0f)
-        sdl_unified_look_queue_main_zoom_delta(-1);
+    steps = sdl_wheel_step_state_consume_primary_axis(&wheel_state, wheel);
+    if (steps != 0)
+        sdl_unified_look_queue_main_zoom_delta(steps);
 
     return true;
 }
@@ -12008,32 +12123,9 @@ static void sdl_menu_scroll_send_lines(int lines)
             ui_scroll_area_get_vertical_key(-1), -lines);
 }
 
-static int sdl_menu_scroll_consume_wheel_axis(float* accum, float value)
-{
-    int lines = 0;
-
-    if (!accum || value == 0.0f)
-        return 0;
-
-    *accum += value;
-    while (*accum >= 1.0f)
-    {
-        lines++;
-        *accum -= 1.0f;
-    }
-    while (*accum <= -1.0f)
-    {
-        lines--;
-        *accum += 1.0f;
-    }
-
-    return lines;
-}
-
 static bool sdl_menu_scroll_handle_mouse_wheel(const SDL_MouseWheelEvent* wheel)
 {
-    static float accum_x = 0.0f;
-    static float accum_y = 0.0f;
+    static sdl_wheel_step_state wheel_state;
     int col = 0;
     int row = 0;
     int lines;
@@ -12050,14 +12142,14 @@ static bool sdl_menu_scroll_handle_mouse_wheel(const SDL_MouseWheelEvent* wheel)
     if (!ui_scroll_area_has_cell(col, row))
         return false;
 
-    lines = sdl_menu_scroll_consume_wheel_axis(&accum_y, wheel->y);
+    lines = sdl_wheel_step_state_consume_axis(&wheel_state, wheel, true);
     if (lines != 0)
     {
         sdl_menu_scroll_send_lines(lines);
         return true;
     }
 
-    lines = sdl_menu_scroll_consume_wheel_axis(&accum_x, wheel->x);
+    lines = sdl_wheel_step_state_consume_axis(&wheel_state, wheel, false);
     if (lines > 0)
         sdl_menu_scroll_send_key_repeated(
             ui_scroll_area_get_horizontal_key(1), lines);
@@ -12994,18 +13086,17 @@ static bool sdl_minimap_handle_touch_up(SDL_FingerID finger_id)
 
 static bool sdl_minimap_handle_mouse_wheel(const SDL_MouseWheelEvent* wheel)
 {
-    float amount;
+    static sdl_wheel_step_state wheel_state;
+    int steps;
 
     if (!wheel)
         return false;
     if (wheel->which == SDL_TOUCH_MOUSEID)
         return true;
 
-    amount = (wheel->y != 0.0f) ? wheel->y : wheel->x;
-    if (amount > 0.0f)
-        (void)sdl_minimap_adjust_zoom(1);
-    else if (amount < 0.0f)
-        (void)sdl_minimap_adjust_zoom(-1);
+    steps = sdl_wheel_step_state_consume_primary_axis(&wheel_state, wheel);
+    if (steps != 0)
+        (void)sdl_minimap_adjust_zoom(steps);
 
     return true;
 }
@@ -25147,8 +25238,9 @@ static bool sdl_side_map_pane_remove_finger(SDL_FingerID finger_id)
 static bool sdl_side_map_pane_handle_mouse_wheel(
     const SDL_MouseWheelEvent* wheel)
 {
+    static sdl_wheel_step_state wheel_state;
     SDL_Rect pane_rect;
-    float amount;
+    int steps;
 
     if (!wheel)
         return false;
@@ -25159,11 +25251,9 @@ static bool sdl_side_map_pane_handle_mouse_wheel(
     if (!sdl_point_in_rect(&pane_rect, wheel->mouse_x, wheel->mouse_y))
         return false;
 
-    amount = (wheel->y != 0.0f) ? wheel->y : wheel->x;
-    if (amount > 0.0f)
-        (void)sdl_side_map_pane_adjust_zoom(1);
-    else if (amount < 0.0f)
-        (void)sdl_side_map_pane_adjust_zoom(-1);
+    steps = sdl_wheel_step_state_consume_primary_axis(&wheel_state, wheel);
+    if (steps != 0)
+        (void)sdl_side_map_pane_adjust_zoom(steps);
 
     return true;
 }
@@ -28740,8 +28830,11 @@ void sdl_refresh_supporting_panes_layout(void)
 static void sdl_apply_config_impl(bool request_redraw)
 {
     int story_depth;
-    bool story_active;
-    bool story_grid;
+    bool global_story_active;
+    bool global_story_grid;
+    bool local_story_active = false;
+    bool local_story_grid = false;
+    int local_story_term_index = -1;
 
     if (!g_state.window) {
         log_warn("sdl_apply_config: no window, skipping");
@@ -28749,10 +28842,19 @@ static void sdl_apply_config_impl(bool request_redraw)
     }
 
     story_depth = g_state.story_font_depth;
-    story_active = (story_depth > 0)
-        || (Term && Term->story_font_active);
-    story_grid = g_state.story_font_grid
-        || (Term && Term->story_font_grid);
+    global_story_active = (story_depth > 0);
+    global_story_grid = g_state.story_font_grid;
+    if (!global_story_active && Term
+        && (Term->story_font_active || Term->story_font_grid))
+    {
+        size_t term_index = (size_t)(uintptr_t)Term->data;
+        if (term_index < MAX_TERM_DATA)
+        {
+            local_story_term_index = (int)term_index;
+            local_story_active = Term->story_font_active;
+            local_story_grid = Term->story_font_grid;
+        }
+    }
 
     (void)sdl_recover_layout_for_current_window("settings change", true, NULL);
     sdl_refresh_safe_area();
@@ -28761,11 +28863,15 @@ static void sdl_apply_config_impl(bool request_redraw)
     sdl_resize_for_current_layout();
     g_auto_aux_main_cell_h_override = 0;
 
-    if (story_active || story_grid) {
-        g_state.story_font_depth = story_active ? MAX(story_depth, 1) : 0;
-        sdl_apply_story_font_state(story_active);
-        g_state.story_font_grid = story_grid;
-        sdl_apply_story_grid_state(story_grid);
+    if (global_story_active || global_story_grid) {
+        g_state.story_font_depth = global_story_active ? story_depth : 0;
+        sdl_apply_story_font_state(global_story_active);
+        g_state.story_font_grid = global_story_grid;
+        sdl_apply_story_grid_state(global_story_grid);
+    } else if (local_story_term_index >= 0) {
+        term* local_term = &g_views[local_story_term_index].t;
+        local_term->story_font_active = local_story_active;
+        local_term->story_font_grid = local_story_grid;
     }
     
     if (request_redraw)

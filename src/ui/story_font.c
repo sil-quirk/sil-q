@@ -133,10 +133,10 @@ void story_font_term_pop(story_font_term_state* prev)
     if (!prev)
         return;
 
-    if (prev->t && Term == prev->t)
+    if (prev->t)
     {
-        Term->story_font_active = prev->active;
-        Term->story_font_grid = prev->grid;
+        prev->t->story_font_active = prev->active;
+        prev->t->story_font_grid = prev->grid;
     }
 }
 
