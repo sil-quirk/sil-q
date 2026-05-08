@@ -9357,7 +9357,7 @@ static void shatter_floor_items(int score)
     }
 }
 
-static void song_reveal_items(int range)
+static void song_reveal_items(int score, int range)
 {
     bool marked_anything = false;
 
@@ -9374,62 +9374,55 @@ static void song_reveal_items(int range)
         int y = o_ptr->iy;
         int x = o_ptr->ix;
 
-        if (distance(p_ptr->py, p_ptr->px, y, x) > range)
+        int dist = flow_dist(FLOW_PLAYER_NOISE, y, x);
+        if (dist >= FLOW_MAX_DIST)
+            continue;
+
+        if (dist > range)
             continue;
 
         if (!o_ptr->marked)
         {
+            if (skill_check(PLAYER, score, dist, NULL) <= 0)
+                continue;
+
             o_ptr->marked = true;
             marked_anything = true;
+
+            if (o_ptr->name1)
+            {
+                a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
+                o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+            }
+
+            lite_spot(y, x);
         }
 
-        if (o_ptr->name1)
-        {
-            a_info[o_ptr->name1].seen |= ART_SEEN_PHYSICAL;
-            o_ptr->ident |= IDENT_ARTIFACT_SEEN;
-        }
-
-        /* Revelation reveals easy smithing items (no distance penalty). */
+        /* Revelation helps identify revealed smithing items while in range. */
         (void)player_auto_identify_smithing_object(o_ptr, true);
-
-        lite_spot(y, x);
-    }
-
-    for (int i = 1; i < mon_max; i++)
-    {
-        monster_type* m_ptr = &mon_list[i];
-
-        if (!m_ptr->r_idx)
-            continue;
-
-        monster_race* r_ptr = &r_info[m_ptr->r_idx];
-
-        if (!(strchr("|!?-_=~", r_ptr->d_char)))
-            continue;
-
-        if (distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) > range)
-            continue;
-
-        m_ptr->mflag |= (MFLAG_MARK | MFLAG_SHOW);
-        marked_anything = true;
-
-        repair_mflag_mark = true;
-        repair_mflag_show = true;
-
-        update_mon(i, false);
     }
 
     if (marked_anything)
         p_ptr->redraw |= (PR_MAP);
 }
 
-void sing_song_of_revealing(int score, bool primary_song)
+static void song_reveal_carried_items(void)
 {
-    int effective_skill = p_ptr->skill_use[S_SNG];
-    if (!primary_song)
-        effective_skill /= 2;
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
 
-    if (effective_skill <= 0)
+        if (!o_ptr->k_idx)
+            continue;
+
+        (void)player_try_identify_smithing_object(
+            o_ptr, i >= INVEN_WIELD, 0);
+    }
+}
+
+void sing_song_of_revealing(int score)
+{
+    if (score <= 0)
         return;
 
     int range = (score / 2) + 8;
@@ -9476,7 +9469,7 @@ void sing_song_of_revealing(int score, bool primary_song)
             difficulty += ability_bonus(S_SNG, SNG_SILENCE);
 
         // Make the skill check
-        int result = skill_check(PLAYER, effective_skill, difficulty, m_ptr);
+        int result = skill_check(PLAYER, score, difficulty, m_ptr);
 
         // If detection succeeds, store the detection quality
         // This will determine visualization (full visibility vs hint marker)
@@ -9496,7 +9489,8 @@ void sing_song_of_revealing(int score, bool primary_song)
         }
     }
 
-    song_reveal_items(range);
+    song_reveal_items(score, range);
+    song_reveal_carried_items();
 }
 
 void sing(void)
@@ -9634,7 +9628,7 @@ void sing(void)
         }
         case SNG_REVEALING:
         {
-            sing_song_of_revealing(score, song == p_ptr->song1);
+            sing_song_of_revealing(score);
 
             break;
         }

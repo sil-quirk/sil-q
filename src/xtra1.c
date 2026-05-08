@@ -6532,6 +6532,34 @@ static int smithing_ident_distance_penalty(const object_type* o_ptr)
     return penalty;
 }
 
+static bool song_revealing_ident_bonus_applies(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (!singing(SNG_REVEALING))
+        return false;
+
+    if ((o_ptr >= inventory) && (o_ptr < inventory + INVEN_TOTAL))
+        return true;
+
+    if ((o_ptr >= o_list) && (o_ptr < o_list + o_max))
+    {
+        if (!o_ptr->marked)
+            return false;
+        if (o_ptr->held_m_idx)
+            return false;
+
+        int song_score = ability_bonus(S_SNG, SNG_REVEALING);
+        int range = (song_score / 2) + 8;
+        int dist = flow_dist(FLOW_PLAYER_NOISE, o_ptr->iy, o_ptr->ix);
+
+        return (song_score > 0) && (dist < FLOW_MAX_DIST) && (dist <= range);
+    }
+
+    return false;
+}
+
 static int player_smithing_identify_skill(const object_type* o_ptr,
     bool is_equipped, bool apply_distance_penalty, bool ignore_distance_penalty,
     int bonus)
@@ -6567,6 +6595,9 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     int bonus_equipped = is_equipped ? 3 : 0;
     int bonus_experienced = (o_ptr && (o_ptr->ident & IDENT_EXPERIENCED)) ? 5 : 0;
     int bonus_known_ego = 0;
+    int bonus_revealing = song_revealing_ident_bonus_applies(o_ptr)
+        ? damroll(1, 5)
+        : 0;
     if (o_ptr)
     {
         byte ego_pfx = object_ego_prefix(o_ptr);
@@ -6618,6 +6649,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     skill += bonus_equipped;
     skill += bonus_experienced;
     skill += bonus_known_ego;
+    skill += bonus_revealing;
 
     /* Item identification flags */
     skill += bonus_easy_id;
@@ -6635,7 +6667,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
     }
 
     log_debug(
-        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per_no_gra=%d smt_no_gra=%d gra=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
+        "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per_no_gra=%d smt_no_gra=%d gra=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d revealing=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
         o_ptr ? o_ptr->sval : 0,
@@ -6647,6 +6679,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
         bonus_enchantment, bonus_artifice, bonus_curse_breaking, bonus_quick_study,
         (int)cat, category_bonus,
         bonus_equipped, bonus_experienced, bonus_known_ego,
+        bonus_revealing,
         bonus,
         apply_distance_penalty ? 1 : 0, ignore_distance_penalty ? 1 : 0, distance_penalty, curse_penalty,
         curse_ident_diff_penalty,
@@ -6687,17 +6720,18 @@ bool player_try_identify_smithing_object(
     if (object_known_p(o_ptr))
         return false;
 
-    int skill = player_smithing_identify_skill(o_ptr, is_equipped, false, false, bonus);
+    int skill = player_smithing_identify_skill(
+        o_ptr, is_equipped, false, false, bonus);
     int difficulty = object_smithing_difficulty(o_ptr);
+    bool success = (skill >= difficulty);
 
-    int check = skill_check(PLAYER, skill, difficulty, NULL);
     log_debug(
-        "smithing-ident: try check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d is_equipped=%d bonus=%d skill=%d difficulty=%d result=%d",
+        "smithing-ident: fixed check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d is_equipped=%d bonus=%d skill=%d difficulty=%d success=%d",
         o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
         object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
-        is_equipped ? 1 : 0, bonus, skill, difficulty, check);
+        is_equipped ? 1 : 0, bonus, skill, difficulty, success ? 1 : 0);
 
-    if (check > 0)
+    if (success)
     {
         ident(o_ptr);
         {
@@ -6722,6 +6756,19 @@ bool player_try_identify_smithing_object_on_examine(
         return false;
     if (object_known_p(o_ptr))
         return false;
+
+    bool is_floor_object = false;
+    for (int i = 1; i < o_max; i++)
+    {
+        if (o_ptr == &o_list[i])
+        {
+            is_floor_object = true;
+            break;
+        }
+    }
+
+    if (is_floor_object && !is_equipped)
+        return player_auto_identify_smithing_object(o_ptr, false);
 
     return player_try_identify_smithing_object(o_ptr, is_equipped, 0);
 }

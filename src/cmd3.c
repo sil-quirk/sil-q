@@ -1026,6 +1026,12 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     // remember how many there were
     original_quantity = o_ptr->number;
 
+    if (!from_supplies && item < 0 && o_ptr->tval == TV_STAFF
+        && player_channel_floor_staff(o_ptr, 0 - item))
+    {
+        return;
+    }
+
     // Check whether it would be too heavy
     if ((item < 0)
         && (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2))

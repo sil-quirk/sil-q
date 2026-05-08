@@ -605,6 +605,7 @@ extern void search(void);
 extern void do_cmd_pickup_from_pile(void);
 extern void py_pickup_aux(int o_idx);
 extern void py_pickup(void);
+extern bool player_channel_floor_staff(object_type* donor, int floor_o_idx);
 extern bool smith_oath_forbids_object(const object_type* o_ptr);
 extern bool smith_oath_confirm_break(void);
 extern void hit_trap(int y, int x);

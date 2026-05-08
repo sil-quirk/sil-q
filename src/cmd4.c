@@ -1749,7 +1749,7 @@ static void ability_menu_render_song_bonus_block(const ability_type* b_ptr)
     case SNG_REVEALING:
     {
         strnfmt(bonus_text, sizeof(bonus_text),
-            "\n\nCurrent effect: revealing range %d squares.",
+            "\n\nCurrent effect: rolls to reveal monsters/items within %d squares; revealed, carried, and equipped items get +1d5 identification.",
             (song_skill / 2) + 8);
         break;
     }
@@ -18322,7 +18322,7 @@ void do_cmd_pane_settings(void)
 
         /* Option 5: Tiles */
         a = (k == PANE_SETTING_TILES) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles",
+        settings_ui_format_pair_line(buf, sizeof(buf), "Tiles [Alt+A]",
             get_sdl_tiles() ? "yes" : "no", row_width, 3);
         c_prt(a, buf, y0 + 5, 2);
         ui_menu_click_add(PANE_SETTING_TILES, 2, y0 + 5,

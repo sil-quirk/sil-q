@@ -717,7 +717,7 @@ N:150:Song of Revealing
 I:7:8:7
 P:7/2:7/7
 D:Adapting the piercing notes of the song of wizardry that Sauron wielded upon Tol-in-Gaurhoth, where he sang of revealing and uncovering, of treachery laid bare. You turn these themes against the darkness itself, chanting to cut through shadow and deceit, so that hidden things are brought to light and nothing may remain concealed.
-E:Reveal nearby monsters based on Song skill. Permanently sense nearby items.
+E:Roll Song each turn to reveal nearby monsters and items. Revealed, carried, and equipped items get +1d5 identification.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 

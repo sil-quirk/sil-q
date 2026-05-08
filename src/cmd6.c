@@ -1012,6 +1012,12 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         char prompt[160];
         const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
 
+        if (!from_supplies && item < 0
+            && player_channel_floor_staff(o_ptr, 0 - item))
+        {
+            return;
+        }
+
         format_staff_prompt_name(incoming_name, sizeof(incoming_name), o_ptr, true);
 
         if (from_supplies)

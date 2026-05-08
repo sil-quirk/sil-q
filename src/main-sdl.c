@@ -17894,6 +17894,18 @@ static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event
         return true;
     }
 
+    if ((key == 'a' || key == 'A')
+        && !(key_event->mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)))
+    {
+        bool old_tiles = get_sdl_tiles();
+
+        if (key_event->repeat)
+            return true;
+
+        set_sdl_tiles(!old_tiles);
+        return true;
+    }
+
     return false;
 }
 
@@ -25513,6 +25525,105 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
     return 0;
 }
 
+static bool sdl_load_tileset_texture(void)
+{
+    SDL_Surface* ts;
+    SDL_Texture* texture;
+    int tileset_width;
+
+    if (g_state.tileset)
+        return true;
+
+    ts = IMG_Load("lib/xtra/graf/16x16.png");
+    if (!ts) {
+        log_error("Failed to load tileset PNG: %s", SDL_GetError());
+        return false;
+    }
+
+    tileset_width = ts->w;
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, ts);
+    SDL_DestroySurface(ts);
+    if (!texture) {
+        log_error("Failed to create tileset texture: %s", SDL_GetError());
+        return false;
+    }
+
+    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    g_state.tileset = texture;
+    g_state.tileset_cols = tileset_width / TILE_SIZE;
+    return true;
+}
+
+static void sdl_apply_tiles_to_terms(bool tiles)
+{
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        term* t = &g_views[i].t;
+
+        if (!g_views[i].term_ready)
+            continue;
+
+        t->higher_pict = tiles;
+        t->pict_hook = tiles ? callback_sdl_pict : NULL;
+    }
+}
+
+static void sdl_mark_tiles_mode_game_redraw(void)
+{
+    if (!p_ptr || !character_generated)
+        return;
+
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    p_ptr->update |= (PU_BONUS | PU_HP | PU_MANA
+        | PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
+    p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIPPY | PR_RESIST);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0
+        | PW_MESSAGE | PW_OVERHEAD | PW_MONSTER | PW_OBJECT | PW_MONLIST);
+}
+
+static bool sdl_set_tiles_runtime(bool value)
+{
+    if (value && !sdl_load_tileset_texture()) {
+        log_warn("Tiles mode request ignored because the tileset could not be loaded");
+        return false;
+    }
+
+    config.tiles = value;
+    g_state.use_tiles = value;
+
+    if (value) {
+        ANGBAND_GRAF = "new";
+        arg_graphics = GRAPHICS_MICROCHASM;
+        use_graphics = GRAPHICS_MICROCHASM;
+        use_bigtile = true;
+    } else {
+        ANGBAND_GRAF = "old";
+        arg_graphics = GRAPHICS_PSEUDO;
+        use_graphics = GRAPHICS_PSEUDO;
+        use_bigtile = false;
+    }
+
+    sdl_apply_tiles_to_terms(value);
+    log_info("Tiles mode %s", value ? "enabled" : "disabled");
+    return true;
+}
+
+static void sdl_finish_tiles_mode_change(void)
+{
+    sdl_mark_tiles_mode_game_redraw();
+
+    if (character_dungeon && p_ptr && p_ptr->playing && character_icky == 0) {
+        Term_keypress(KTRL('R'));
+        return;
+    }
+
+    if (Term)
+        Term_xtra(TERM_XTRA_REACT, 0);
+
+    if (Term)
+        sdl_request_redraw();
+}
+
 static void callback_sdl_nuke() {
     log_debug("sdl3_term_nuke");
     sdl_view* d = sdl_view_from_term(Term);
@@ -25913,25 +26024,9 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
     g_state.use_tiles = use_tiles;
     if (g_state.use_tiles) {
         log_debug("preparing tileset");
-        g_state.use_tiles = true;
-        // d->tile_w = 2 * GLYPH_WIDTH;
-        // d->tile_h = GLYPH_HEIGHT;
-        SDL_Surface* ts = IMG_Load("lib/xtra/graf/16x16.png");
-        if (ts) {
+        if (sdl_load_tileset_texture()) {
             log_debug("tileset loaded");
-            int tileset_width = ts->w;
-            g_state.tileset = SDL_CreateTextureFromSurface(g_state.renderer, ts);
-            SDL_DestroySurface(ts);
-            if (!g_state.tileset) {
-                log_error("Failed to create tileset texture: %s", SDL_GetError());
-                quit("could not create tileset texture");
-            } else {
-                SDL_SetTextureScaleMode(g_state.tileset, SDL_SCALEMODE_NEAREST);
-                SDL_SetTextureBlendMode(g_state.tileset, SDL_BLENDMODE_BLEND);
-                g_state.tileset_cols = tileset_width / TILE_SIZE;
-            }
         } else {
-            log_error("Failed to load tileset PNG: %s", SDL_GetError());
             quit("could not load tileset");
         }
     }
@@ -26634,16 +26729,7 @@ errr init_sdl(int argc, char **argv)
     sdl_load_story_fonts();
 
     ANGBAND_SYS = "sdl";
-    if (config.tiles) {
-        ANGBAND_GRAF = "new";
-        arg_graphics = GRAPHICS_MICROCHASM;
-        use_graphics = GRAPHICS_MICROCHASM;
-        use_bigtile = true;
-    } else {
-        ANGBAND_GRAF = "old";
-        arg_graphics = GRAPHICS_PSEUDO;
-        use_graphics = GRAPHICS_PSEUDO;
-    }
+    (void)sdl_set_tiles_runtime(config.tiles);
 
     sdl_refresh_safe_area();
     {
@@ -26922,7 +27008,18 @@ void set_sdl_use_unsafe_area(bool value)
 
 void set_sdl_tiles(bool value)
 {
-    config.tiles = value;
+    if (config.tiles == value && g_state.use_tiles == value)
+        return;
+
+    if (!g_state.renderer) {
+        config.tiles = value;
+        return;
+    }
+
+    if (!sdl_set_tiles_runtime(value))
+        return;
+
+    sdl_finish_tiles_mode_change();
 }
 
 int get_pane_config_count(void)

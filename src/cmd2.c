@@ -35,6 +35,33 @@ typedef enum
     MORGOTH_CALL_DRAIN_TAKEN = 2
 } morgoth_call_drain_result;
 
+typedef struct
+{
+    int resistance;
+    int adjusted_difficulty;
+    int player_will;
+    int check_result;
+    int stat_drain_before;
+    int stat_drain_after;
+    bool skill_check_rolled;
+    bool dec_stat_succeeded;
+} morgoth_call_drain_log;
+
+static cptr morgoth_call_drain_result_name(morgoth_call_drain_result result)
+{
+    switch (result)
+    {
+    case MORGOTH_CALL_DRAIN_RESISTED:
+        return "resisted";
+    case MORGOTH_CALL_DRAIN_TURIN:
+        return "turin-resisted";
+    case MORGOTH_CALL_DRAIN_TAKEN:
+        return "drained";
+    default:
+        return "unknown";
+    }
+}
+
 static int min_depth_counter_step_adjustment(void)
 {
     if (!op_ptr)
@@ -308,7 +335,7 @@ static void show_morgoth_call_first_screen(void)
     pause_with_text(lines, 4, 8, NULL, 0);
 }
 
-static void show_morgoth_call_drain_screen(int stat, int difficulty,
+static void show_morgoth_call_drain_screen(int stat,
     morgoth_call_drain_result result)
 {
     char lines[10][100];
@@ -316,25 +343,21 @@ static void show_morgoth_call_drain_screen(int stat, int difficulty,
     cptr stat_name = morgoth_call_stat_name(stat);
 
     strnfmt(lines[n++], sizeof(lines[0]),
-        "Again the summons rose from the foundations of the world.");
+        "Again the Dark Lord's summons rose.");
     strnfmt(lines[n++], sizeof(lines[0]),
-        "  The Dark Lord spoke your name in secret thought.");
-    lines[n++][0] = '\0';
-    strnfmt(lines[n++], sizeof(lines[0]),
-        "His hand sought your %s, and the trial was %d.",
-        stat_name, difficulty);
+        "His hand sought your %s.", stat_name);
 
     if (result == MORGOTH_CALL_DRAIN_TURIN)
     {
         strnfmt(lines[n++], sizeof(lines[0]),
-            "But a wrathful fire answered within your blood,");
+            "A wrathful fire answered within your blood,");
         strnfmt(lines[n++], sizeof(lines[0]),
             "  and for this hour the shadow passed over you.");
     }
     else if (result == MORGOTH_CALL_DRAIN_RESISTED)
     {
         strnfmt(lines[n++], sizeof(lines[0]),
-            "Yet your will held fast against the unseen chain,");
+            "Your will held fast against the unseen chain,");
         strnfmt(lines[n++], sizeof(lines[0]),
             "  and the word of command broke like spent thunder.");
     }
@@ -353,21 +376,40 @@ static void show_morgoth_call_drain_screen(int stat, int difficulty,
 }
 
 static morgoth_call_drain_result morgoth_call_try_drain_stat(
-    int stat, int difficulty)
+    int stat, int difficulty, morgoth_call_drain_log* drain_log)
 {
     int resistance;
     int adjusted_difficulty;
+    int check_result;
     u32b sustain_flag;
+
+    if (drain_log)
+    {
+        memset(drain_log, 0, sizeof(*drain_log));
+        drain_log->adjusted_difficulty = difficulty;
+        drain_log->player_will = p_ptr->skill_use[S_WIL];
+        drain_log->stat_drain_before = p_ptr->stat_drain[stat];
+        drain_log->stat_drain_after = p_ptr->stat_drain[stat];
+    }
 
     if (turin_resist_bad_effect())
         return MORGOTH_CALL_DRAIN_TURIN;
 
     resistance = morgoth_call_stat_sustain(stat);
     adjusted_difficulty = difficulty - (10 * resistance);
+    check_result = skill_check(NULL, adjusted_difficulty, p_ptr->skill_use[S_WIL],
+        PLAYER);
 
-    if (skill_check(NULL, adjusted_difficulty, p_ptr->skill_use[S_WIL],
-            PLAYER)
-        <= 0)
+    if (drain_log)
+    {
+        drain_log->resistance = resistance;
+        drain_log->adjusted_difficulty = adjusted_difficulty;
+        drain_log->player_will = p_ptr->skill_use[S_WIL];
+        drain_log->check_result = check_result;
+        drain_log->skill_check_rolled = true;
+    }
+
+    if (check_result <= 0)
     {
         sustain_flag = morgoth_call_stat_sustain_flag(stat);
         if (sustain_flag)
@@ -375,7 +417,18 @@ static morgoth_call_drain_result morgoth_call_try_drain_stat(
         return MORGOTH_CALL_DRAIN_RESISTED;
     }
 
-    (void)dec_stat(stat, 1, false);
+    if (drain_log)
+        drain_log->stat_drain_before = p_ptr->stat_drain[stat];
+
+    if (dec_stat(stat, 1, false))
+    {
+        if (drain_log)
+            drain_log->dec_stat_succeeded = true;
+    }
+
+    if (drain_log)
+        drain_log->stat_drain_after = p_ptr->stat_drain[stat];
+
     return MORGOTH_CALL_DRAIN_TAKEN;
 }
 
@@ -385,7 +438,10 @@ void process_morgoth_call_pressure(void)
     const s32b first_morgoth_stage = MORGOTH_DEPTH - 1;
     int stat;
     int difficulty;
+    int escalation_before;
+    int escalation_after;
     morgoth_call_drain_result result;
+    morgoth_call_drain_log drain_log;
 
     if (!p_ptr || p_ptr->is_dead || p_ptr->game_type != 0)
         return;
@@ -406,8 +462,10 @@ void process_morgoth_call_pressure(void)
         p_ptr->morgoth_call_state = SAVEFILE_MORGOTH_CALL_SEEN;
         p_ptr->morgoth_call_last_stage = stage;
         do_cmd_note("Heard the summons of the Dark Lord", p_ptr->depth);
-        log_info("Morgoth call: first summons at min-depth stage %d",
-            (int)stage);
+        log_info("Morgoth call: first summons stage=%d counter=%d step=%d "
+                 "depth=%d; no drain attempted until next stage",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth);
         show_morgoth_call_first_screen();
         return;
     }
@@ -419,8 +477,12 @@ void process_morgoth_call_pressure(void)
 
     stat = rand_int(A_MAX);
     difficulty = morgoth_call_current_difficulty();
-    result = morgoth_call_try_drain_stat(stat, difficulty);
+    escalation_before =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
+    result = morgoth_call_try_drain_stat(stat, difficulty, &drain_log);
     morgoth_call_advance_difficulty();
+    escalation_after =
+        p_ptr->morgoth_call_state & SAVEFILE_MORGOTH_CALL_ESCALATION_MASK;
 
     if (result == MORGOTH_CALL_DRAIN_TAKEN)
     {
@@ -429,10 +491,34 @@ void process_morgoth_call_pressure(void)
             p_ptr->depth);
     }
 
-    log_info("Morgoth call: drain pressure stage=%d stat=%s difficulty=%d "
-             "result=%d",
-        (int)stage, morgoth_call_stat_name(stat), difficulty, (int)result);
-    show_morgoth_call_drain_screen(stat, difficulty, result);
+    if (drain_log.skill_check_rolled)
+    {
+        log_info("Morgoth call: drain attempt stage=%d counter=%d step=%d "
+                 "depth=%d stat=%s difficulty=%d resistance=%d "
+                 "adjusted_difficulty=%d player_will=%d check_result=%d "
+                 "outcome=%s stat_drain=%d->%d dec_stat=%s "
+                 "escalation=%d->%d",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth, morgoth_call_stat_name(stat), difficulty,
+            drain_log.resistance, drain_log.adjusted_difficulty,
+            drain_log.player_will, drain_log.check_result,
+            morgoth_call_drain_result_name(result),
+            drain_log.stat_drain_before, drain_log.stat_drain_after,
+            drain_log.dec_stat_succeeded ? "applied" : "not-applied",
+            escalation_before, escalation_after);
+    }
+    else
+    {
+        log_info("Morgoth call: drain attempt stage=%d counter=%d step=%d "
+                 "depth=%d stat=%s difficulty=%d outcome=%s "
+                 "stat_drain=%d->%d escalation=%d->%d; no skill check rolled",
+            (int)stage, min_depth_counter, min_depth_counter_step(),
+            p_ptr->depth, morgoth_call_stat_name(stat), difficulty,
+            morgoth_call_drain_result_name(result),
+            drain_log.stat_drain_before, drain_log.stat_drain_after,
+            escalation_before, escalation_after);
+    }
+    show_morgoth_call_drain_screen(stat, result);
 }
 
 void note_lost_greater_vault(void)
