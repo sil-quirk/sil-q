@@ -1646,8 +1646,8 @@ F:BASH_DOOR | DRAGON
 S:SPELL_PCT_15
 S:CONF | SCARE | HOLD
 D:A long and sinuous worm, coiling on the floor.
-D: His claws are sharp, and by some force,  cunning or
-D: treachery his hoard is large for a young worm.
+D: His claws are sharp, and by some force, cunning, or
+D: treachery, his hoard is large for a young worm.
 
 
 # Oikeroi only ever appears in the escort of Tevildo.
