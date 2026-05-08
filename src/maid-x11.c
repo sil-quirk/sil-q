@@ -366,7 +366,12 @@ XImage* ReadBMP(Display* dpy, char* Name)
                 if (feof(f))
                     quit_fmt("Unexpected end of file in %s", Name);
 
-                XPutPixel(Res, x, y2, create_pixel(dpy, ch, c2, c3));
+                // 24-bit BMPs store pixels as B, G, R per the BI_RGB spec.
+                //  1. `ch` is the first  byte (B)
+                //  2. `c2` is the second byte (G)
+                //  3. `c3` is the third  byte (R)
+                // create_pixel() takes (red, green, blue).
+                XPutPixel(Res, x, y2, create_pixel(dpy, c3, c2, ch));
             }
             else if (infoheader.biBitCount == 8)
             {
