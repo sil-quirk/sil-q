@@ -1150,6 +1150,7 @@ static void do_cmd_wiz_cure_all(void)
     (void)set_stun(0);
     (void)set_cut(0);
     (void)set_slow(0);
+    (void)set_rage(0);
 
     /* No longer hungry */
     (void)set_food(PY_FOOD_FULL - 1);

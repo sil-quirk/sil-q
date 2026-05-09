@@ -257,8 +257,8 @@ L:129:0x81/0x92
 # Pale herb
 L:130:0x81/0x93
 
-# Leafy herb
-L:131:0x81/0x94
+# Leafy herb (unused) - disabled in flavor.txt since commit ec96f6f (2017)
+#L:131:0x81/0x94
 
 
 ###############################################################################

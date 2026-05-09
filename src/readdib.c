@@ -19,7 +19,125 @@
 
 #include <windows.h>
 
+#include "angband.h"
 #include "readdib.h"
+
+/// Apply the rage-tint transform to an RGB triple in-place.
+///
+/// This is used to apply a red tint to tiles to change the visuals when the
+/// player character is raging.
+///
+/// Sil-Q has the convention that pixel (0,0) in the BMP tileset defines the
+/// transparent color. The BMP format does not support transparency natively, so
+/// `blank_r/g/b` is discovered from pixel (0,0) at load time and treated as
+/// BMP's transparent color. The tint preserves this exact RGB so that
+/// compositing-time transparency continues to work, regardless of what RGB
+/// value was chosen for it when creating the BMP tileset.
+///
+/// For all other pixels: convert to luma and rescale to (luma * R, luma * G,
+/// luma * B) using the RAGE_TINT_*_COEFF defines.
+static void tint_rgb_for_rage(
+    BYTE* r, BYTE* g, BYTE* b, BYTE blank_r, BYTE blank_g, BYTE blank_b)
+{
+    if (*r == blank_r && *g == blank_g && *b == blank_b)
+        return;
+
+    int luma = (299 * (int)*r + 587 * (int)*g + 114 * (int)*b) / 1000;
+    if (luma > 255)
+        luma = 255;
+
+    int nr = (int)(luma * RAGE_TINT_RED_COEFF);
+    int ng = (int)(luma * RAGE_TINT_GREEN_COEFF);
+    int nb = (int)(luma * RAGE_TINT_BLUE_COEFF);
+    if (nr > 255)
+        nr = 255;
+    if (ng > 255)
+        ng = 255;
+    if (nb > 255)
+        nb = 255;
+
+    *r = (BYTE)nr;
+    *g = (BYTE)ng;
+    *b = (BYTE)nb;
+}
+
+/// Walk the loaded DIB in memory and apply the rage tint to every color.
+///
+/// For 8-bit (or smaller) indexed BMPs, only the color table is tinted. The
+/// pixel data is just indices into that table, so tinting the palette is
+/// sufficient.
+///
+/// For 24-bit BMPs, both the (default) color table and every pixel triple are
+/// tinted in-place.
+///
+/// The shader's blank-color guard tracks whatever the artist chose for
+/// pixel (0,0), discovered from the loaded DIB. The rage tileset stays
+/// consistent with the compositor's transparency check regardless of what
+/// the BMP magic color is.
+///
+/// The DIB must be locked before this is called.
+static void tint_dib_in_place(LPBITMAPINFOHEADER lpInfo)
+{
+    DWORD i;
+    RGBQUAD FAR* lpRGB = (RGBQUAD FAR*)((LPSTR)lpInfo + lpInfo->biSize);
+    LPSTR lpBits = ((LPSTR)lpInfo + lpInfo->biSize
+        + lpInfo->biClrUsed * sizeof(RGBQUAD));
+
+    /*
+     * Discover the blank color for transparency from pixel (0,0). Image pixel
+     * (0,0) is the top-left visual pixel; in BMP storage that's the LAST file
+     * row because BMP is bottom-up.
+     * For 8-bit BMPs we fseek and read one palette-index byte. For 24-bit
+     * BMPs we read three bytes (B, G, R) directly as the blank RGB, since
+     * there's no palette indirection.
+     */
+    int blank_index = -1;
+    BYTE blank_r = 0, blank_g = 0, blank_b = 0;
+    LONG bytesPerRow
+        = (((LONG)lpInfo->biWidth * lpInfo->biBitCount + 31) / 32) * 4;
+    LONG pixel00_offset = (LONG)(lpInfo->biHeight - 1) * bytesPerRow;
+    if (lpInfo->biBitCount == 8)
+    {
+        BYTE idx = ((BYTE*)lpBits)[pixel00_offset];
+        blank_index = (int)idx;
+        blank_r = lpRGB[idx].rgbRed;
+        blank_g = lpRGB[idx].rgbGreen;
+        blank_b = lpRGB[idx].rgbBlue;
+    }
+    else if (lpInfo->biBitCount == 24)
+    {
+        BYTE* p = (BYTE*)lpBits + pixel00_offset;
+        blank_b = p[0];
+        blank_g = p[1];
+        blank_r = p[2];
+    }
+
+    /* Tint the color table (skipping the blank index). */
+    for (i = 0; i < lpInfo->biClrUsed; i++)
+    {
+        if ((int)i == blank_index)
+            continue;
+        tint_rgb_for_rage(&lpRGB[i].rgbRed, &lpRGB[i].rgbGreen,
+            &lpRGB[i].rgbBlue, blank_r, blank_g, blank_b);
+    }
+
+    /* For 24-bit BMPs the pixels are direct RGB triples; tint them too. */
+    if (lpInfo->biBitCount == 24)
+    {
+        LONG row, col;
+        for (row = 0; row < lpInfo->biHeight; row++)
+        {
+            BYTE* p = (BYTE*)(lpBits + row * bytesPerRow);
+            for (col = 0; col < lpInfo->biWidth; col++)
+            {
+                /* BMP stores B, G, R per pixel. */
+                tint_rgb_for_rage(
+                    &p[2], &p[1], &p[0], blank_r, blank_g, blank_b);
+                p += 3;
+            }
+        }
+    }
+}
 
 /*
  * Extract the "WIN32" flag from the compiler
@@ -167,16 +285,20 @@ static BOOL NEAR PASCAL MakeBitmapAndPalette(
     return (result);
 }
 
-/*
- * Reads a DIB from a file, obtains a handle to its BITMAPINFO struct, and
- * loads the DIB.  Once the DIB is loaded, the function also creates a bitmap
- * and palette out of the DIB for a device-dependent form.
- *
- * Returns TRUE if the DIB is loaded and the bitmap/palette created, in which
- * case, the DIBINIT structure pointed to by pInfo is filled with the
- * appropriate handles, and FALSE if something went wrong.
- */
-BOOL ReadDIB(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo)
+/// Reads a DIB from a file, obtains a handle to its BITMAPINFO struct, and
+/// loads the DIB.  Once the DIB is loaded, the function also creates a bitmap
+/// and palette out of the DIB for a device-dependent form.
+///
+/// If `tint_rage` is TRUE, every color in the DIB (palette entries and, for
+/// 24-bit BMPs, every pixel triple) is rewritten via `tint_rgb_for_rage()`
+/// before the device-dependent bitmap is created. The returned bitmap is
+/// therefore the rage-tinted variant. Used by the rage tint shader to build a
+/// second tileset that the renderer switches to while the player is raging.
+///
+/// Returns TRUE if the DIB is loaded and the bitmap/palette created, in which
+/// case, the DIBINIT structure pointed to by pInfo is filled with the
+/// appropriate handles, and FALSE if something went wrong.
+BOOL ReadDIB(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo, BOOL tint_rage)
 {
     HFILE fh;
     LPBITMAPINFOHEADER lpbi;
@@ -303,6 +425,11 @@ BOOL ReadDIB(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo)
     if (lpbi->biSizeImage
         == lread(fh, (LPSTR)lpbi + offBits, lpbi->biSizeImage))
     {
+        // Rage tint shader: rewrite colors before the device-dependent bitmap
+        // is created.
+        if (tint_rage)
+            tint_dib_in_place(lpbi);
+
         GlobalUnlock(pInfo->hDIB);
 
         hDC = GetDC(hWnd);
@@ -328,6 +455,16 @@ BOOL ReadDIB(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo)
 
     _lclose(fh);
     return (result);
+}
+
+BOOL ReadDIBNormal(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo)
+{
+    return ReadDIB(hWnd, lpFileName, pInfo, FALSE);
+}
+
+BOOL ReadDIBRage(HWND hWnd, LPSTR lpFileName, DIBINIT* pInfo)
+{
+    return ReadDIB(hWnd, lpFileName, pInfo, TRUE);
 }
 
 /* Free a DIB */

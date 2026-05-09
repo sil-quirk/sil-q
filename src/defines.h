@@ -947,9 +947,6 @@
 #define FEAT_WARDED3 0x08
 #define FEAT_SUNLIGHT 0x09
 
-#define FEAT_RAGE_FLOOR 0x0A
-#define FEAT_RAGE_WALL 0x0B
-
 #define FEAT_CLOSED 0x20 /*door*/
 
 #define FEAT_LESS 0x50
@@ -3174,6 +3171,22 @@
 
 /* mask on attr */
 #define GRAPHICS_GLOW_MASK 0x40
+
+/*
+ * Rage tint shader settings.
+ *
+ * When the player character is raging, tile rendering uses a pre-tinted copy of
+ * the tileset. For each non-transparent pixel, the tint is computed at startup
+ * as luma multiplied by the RGB coefficients below.
+ *
+ * The "blank" color (RGB 20,20,20), which marks the transparent color in the
+ * tileset, is preserved so compositing still works.
+ */
+
+/* tinted = (luma * RED_COEFF, luma * GREEN_COEFF, luma * BLUE_COEFF) */
+#define RAGE_TINT_RED_COEFF 1.0
+#define RAGE_TINT_GREEN_COEFF 0.3
+#define RAGE_TINT_BLUE_COEFF 0.3
 
 /*
  * List of commands that will be auto-repeated

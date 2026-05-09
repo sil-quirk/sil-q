@@ -94,6 +94,16 @@ Added:
   - thanks @MicroChasm for the suggestion
 - Depleted light sources use depleted version of their tile (fixes #163)
 - Change tile design of The Ring of Barahir to match the lore (fixes #181)
+- When the player rages, graphical tiles for monsters, items, dungeon features,
+  etc. all turn red (fixes #142). Also, the normal shape/form of monsters is
+  obscured during rage. For example, the rage tile of all orcs are the same, so
+  you can no longer distinguish between an orc warrior or an orc archer while
+  rage is active. This behavior includes unique monsters (e.g., the unique orc
+  Boldog the Merciless), with the exception of Morgoth.
+- Sil-Q has the convention to use pixel (0,0) in a BMP tileset as the magic
+  "blank" color to denote color transparency, because the BMP format does not
+  support transparency natively. The graphics rendering backends now
+  automatically detect the transparency color via pixel (0,0).
 
 Changed:
 
@@ -103,6 +113,7 @@ Changed:
   ([#180](https://github.com/sil-quirk/sil-q/pull/180))
 - Updates to tiles and manual
   ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
+- In debug mode (`Ctrl-a`), the `a` command now also removes the rage effect.
 
 Fixed:
 

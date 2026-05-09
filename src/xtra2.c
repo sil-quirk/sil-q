@@ -578,6 +578,24 @@ bool set_slow(int v)
     return (TRUE);
 }
 
+/// Force a full repaint of every active terminal.
+///
+/// Used when the rendering layer has changed in a way the model layer can't
+/// see, e.g., when the rage tint shader swithces the source tileset without
+/// altering the `(attr, char)` values returned by `map_info()`.
+static void redraw_all_terms(void)
+{
+    term* old_term = Term;
+    for (int j = 0; j < ANGBAND_TERM_MAX; j++)
+    {
+        if (!angband_term[j])
+            continue;
+        Term_activate(angband_term[j]);
+        Term_redraw();
+    }
+    Term_activate(old_term);
+}
+
 /*
  * Set "p_ptr->rage", notice observable changes
  */
@@ -632,6 +650,15 @@ bool set_rage(int v)
 
     /* Handle stuff */
     handle_stuff();
+
+    // Force a full repaint so `Term_pict_x11()` runs for every cell and
+    // picks the right tileset based on `p_ptr->rage`.
+    // Required because the rage tint shader switches the source tileset at
+    // render time but doesn't change the `(attr, char)` values that
+    // `map_info()` returns, so `Term_queue_char()`'s dedupe against `Term->scr`
+    // (see z-term.c) eats the `PR_MAP` redraw above for cells whose model
+    // didn't change.
+    redraw_all_terms();
 
     /* Result */
     return (TRUE);

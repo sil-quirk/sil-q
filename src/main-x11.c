@@ -1356,6 +1356,10 @@ struct term_data
 
     XImage* tiles;
 
+    /// Pre-tinted (red) tileset, computed from the normal tileset. Used while
+    /// `p_ptr->rage` is active.
+    XImage* tiles_rage;
+
     /* Temporary storage for overlaying tiles. */
     XImage* TmpImage;
 
@@ -2235,7 +2239,11 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 /// Related code:
 /// - `Term_pict_win()` in `main-win.c` for Microsoft Windows.
 ///
-/// @param[in] td    The terminal data, provides tile dimensions and the tileset
+/// @param[in] td    The terminal data, provides tile dimensions and blank color
+/// @param[in] tiles Source tileset to read pixels from. Either the normal
+///                  tileset (`td->tiles`) or the rage-tinted variant
+///                  (`td->tiles_rage`); selected by the caller based on
+///                  `p_ptr->rage`.
 /// @param[in] x1    Pixel x-offset of the foreground tile in the tileset
 /// @param[in] y1    Pixel y-offset of the foreground tile in the tileset
 /// @param[in] x2    Pixel x-offset of the terrain tile in the tileset
@@ -2243,8 +2251,8 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 /// @param[in] alert Whether to composite the alert icon on top of foreground
 /// @param[in] glow  Whether to composite the glow icon behind foreground
 ///
-static void composite_image(
-    term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
+static void composite_image(term_data* td, XImage* tiles, int x1, int y1,
+    int x2, int y2, bool alert, bool glow)
 {
     unsigned long pixel, blank = td->blank;
 
@@ -2281,28 +2289,28 @@ static void composite_image(
             if (alert)
             {
                 /* Output from the alert icon/tile */
-                pixel = XGetPixel(td->tiles, alert_x + k, alert_y + l);
+                pixel = XGetPixel(tiles, alert_x + k, alert_y + l);
             }
 
             // Draw the base tile (e.g., a monster tile)
             if (pixel == blank)
             {
                 /* Output from the base tile */
-                pixel = XGetPixel(td->tiles, x1 + k, y1 + l);
+                pixel = XGetPixel(tiles, x1 + k, y1 + l);
             }
 
             // Draw the glow icon/tile (glow VFX)
             if (glow && pixel == blank)
             {
                 /* Output from the glow icon/tile */
-                pixel = XGetPixel(td->tiles, glow_x + k, glow_y + l);
+                pixel = XGetPixel(tiles, glow_x + k, glow_y + l);
             }
 
             // Draw the terrain tile
             if (pixel == blank)
             {
                 /* Output from the terrain tile */
-                pixel = XGetPixel(td->tiles, x2 + k, y2 + l);
+                pixel = XGetPixel(tiles, x2 + k, y2 + l);
             }
 
             /* Store into the temp storage. */
@@ -2329,6 +2337,10 @@ static errr Term_pict_x11(int x, int y, int n, const byte* ap, const char* cp,
     int x2, y2;
 
     term_data* td = (term_data*)(Term->data);
+
+    // Pick the pre-tinted tileset while raging.
+    XImage* tiles
+        = (p_ptr->rage && td->tiles_rage) ? td->tiles_rage : td->tiles;
 
     y *= Infofnt->hgt;
     x *= Infofnt->wid;
@@ -2365,12 +2377,12 @@ static errr Term_pict_x11(int x, int y, int n, const byte* ap, const char* cp,
             || !(((byte)ta & 0x80) && ((byte)tc & 0x80)))
         {
             /* Draw object / terrain */
-            XPutImage(Metadpy->dpy, td->win->win, clr[0]->gc, td->tiles, x1, y1,
-                x, y, td->fnt->twid, td->fnt->hgt);
+            XPutImage(Metadpy->dpy, td->win->win, clr[0]->gc, tiles, x1, y1, x,
+                y, td->fnt->twid, td->fnt->hgt);
         }
         else
         {
-            composite_image(td, x1, y1, x2, y2, alert, glow);
+            composite_image(td, tiles, x1, y1, x2, y2, alert, glow);
 
             /* Draw to screen */
             XPutImage(Metadpy->dpy, td->win->win, clr[0]->gc, td->TmpImage, 0,
@@ -2799,21 +2811,24 @@ errr init_x11(int argc, char** argv)
         Display* dpy = Metadpy->dpy;
 
         XImage* tiles_raw;
+        XImage* tiles_raw_rage;
 
         /* Initialize */
         for (i = 0; i < num_term; i++)
         {
             term_data* td = &data[i];
             td->tiles = NULL;
+            td->tiles_rage = NULL;
         }
 
         path_build(filename, sizeof(filename), ANGBAND_DIR_XTRA,
             format("graf/%s", bitmap_file));
 
-        /* Load the graphical tiles */
-        tiles_raw = ReadBMP(dpy, filename);
+        // Load the graphical tiles, twice: once normal, once rage-tinted.
+        tiles_raw = ReadBMPNormal(dpy, filename);
+        tiles_raw_rage = ReadBMPRage(dpy, filename);
 
-        if (tiles_raw)
+        if (tiles_raw && tiles_raw_rage)
         {
             /* Initialize the windows */
             for (i = 0; i < num_term; i++)
@@ -2856,16 +2871,20 @@ errr init_x11(int argc, char** argv)
                     /* Resize tiles */
                     td->tiles = ResizeImage(dpy, tiles_raw, pict_wid, pict_hgt,
                         td->fnt->twid, td->fnt->hgt);
+                    td->tiles_rage = ResizeImage(dpy, tiles_raw_rage, pict_wid,
+                        pict_hgt, td->fnt->twid, td->fnt->hgt);
                 }
                 else
                 {
                     /* Use same graphics */
                     td->tiles = o_td->tiles;
+                    td->tiles_rage = o_td->tiles_rage;
                 }
             }
 
             /* Free tiles_raw */
             XDestroyImage(tiles_raw);
+            XDestroyImage(tiles_raw_rage);
         }
 
         /* Initialize the transparency masks */

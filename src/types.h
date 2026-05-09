@@ -439,6 +439,13 @@ struct monster_race
     byte x_attr; /* Desired monster attribute */
     char x_char; /* Desired monster character */
 
+    // Tiles graphics only: optionally, a rage-specific alternative tile can be
+    // shown while the player character is raging. Such rage-specific tile
+    // assignments are optional and configured in `graf-tiles.prf`. A value of 0
+    // means the regular tile is shown instead of the alternative.
+    byte rage_x_attr; /* Rage-specific attr (0 = no override) */
+    char rage_x_char; /* Rage-specific char (0 = no override) */
+
     byte max_num; /* Maximum population allowed per level */
     byte cur_num; /* Monster population on current level */
 };

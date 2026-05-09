@@ -101,16 +101,16 @@ G:+:v
 N:9: patch of sunlight
 G:.:y
 
-# 0x0A --> rage version of open floor
-#          strictly for tileset lookup
+# 0x0A --> unused (formerly the rage version of open floor; retired in v1.5.1+
+#          when we switched to a shader-based approach for rage visuals)
 
-N:10:open floor
+N:10:unused (was the rage variant of open floor in v1.5.0 and earlier)
 G:1:s
 
-# 0x0B --> rage version of walls
-#          strictly for tileset lookup
+# 0x0B --> unused (formerly the rage version of walls; retired in v1.5.1+
+#          when we switched to a shader-based approach for rage visuals)
 
-N:11:wall
+N:11:unused (was the rage variant of walls in v1.5.0 and earlier)
 G:1:s
 
 # 0x0C --> unused
