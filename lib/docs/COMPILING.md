@@ -131,13 +131,13 @@ There are several graphical frontends available for Sil-Q:
 **Step 1**: Install X11 and/or GCU (curses/ncurses) dependencies. You also need
 `cmake` and `ninja`.
 
-> Example for Debian/Ubuntu Linux systems:
+> Debian/Ubuntu Linux:
 > `sudo apt-get install gcc cmake ninja-build libncursesw5-dev libx11-dev`
 >
-> Example for Fedora Linux systems:
+> Fedora Linux:
 > `sudo dnf install -y gcc cmake ninja-build ncurses-devel libX11-devel`
 >
-> Example for macOS systems (with default macOS clang compiler), no X11:
+> macOS systems (with default macOS clang compiler and homebrew, no X11):
 > `brew install cmake ninja ncurses`
 
 **Step 2**: Compile Sil-Q. Open a terminal in the top-level directory of the
