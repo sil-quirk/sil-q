@@ -70,7 +70,7 @@ See detailed information below.
 
 ### Gameplay changes
 
-- TODO (none thus far)
+- None.
 
 ### Breaking changes
 
