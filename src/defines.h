@@ -3953,6 +3953,11 @@
 #define VARDA_QUEST_REWARDED 4       /* Reward given, quest complete */
 #define VARDA_QUEST_FAILED 5         /* Duruin's bastion was left behind */
 
+/* Per-character quest limits */
+#define QUEST_MAX_INITIATED_PER_RUN 3
+#define QUEST_MAX_ACCEPTED_PER_RUN 2
+#define QUEST_REPEAT_TIER_REQUIRED 3
+
 /*
  * Quest Parametric Formula Types (P: field)
  */

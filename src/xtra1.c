@@ -5627,7 +5627,7 @@ static void calc_bonuses(void)
         }
     }
 
-    /* Oath of Light: wearing shadowed gear immediately breaks the vow */
+    /* Oath of Light: wearing light-dimming gear immediately breaks the vow */
     if (p_ptr->oath_type == OATH_LIGHT && !oath_invalid(OATH_LIGHT))
     {
         for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -5637,7 +5637,7 @@ static void calc_bonuses(void)
 
             u32b f1, f2, f3, f4;
             object_flags4(o_ptr, &f1, &f2, &f3, &f4);
-            if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT) || (f3 & TR3_LIGHT_CURSE))
+            if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT))
             {
                 p_ptr->oaths_broken |= OATH_LIGHT_FLAG;
                 p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;

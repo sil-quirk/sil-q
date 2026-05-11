@@ -1609,11 +1609,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         return;
     }
     
-    /* Oath of Light: warn before equipping shadowed items */
+    /* Oath of Light: warn before equipping light-dimming items */
     if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
     {
         object_flags4(o_ptr, &f1, &f2, &f3, &f4);
-        if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT) || (f3 & TR3_LIGHT_CURSE))
+        if ((f2 & TR2_DARKNESS) || (f4 & TR4_UNLIGHT))
         {
             char* prompt = oath_confirmation_prompt(OATH_LIGHT);
             if (!prompt || !prompt[0]) {
@@ -1630,7 +1630,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
             apply_oath_breaking_curse(OATH_LIGHT);
             metarun_ban_oath(OATH_LIGHT);
-            log_trace("do_cmd_wield: Oath of Light broken by equipping shadowed item");
+            log_trace("do_cmd_wield: Oath of Light broken by equipping light-dimming item");
         }
     }
 

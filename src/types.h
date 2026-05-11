@@ -1427,8 +1427,8 @@ struct player_type
     byte varda_reserved;       /* padding */
     s16b varda_level;          /* Depth where bastion was placed (for regen) */
     /* Generic quest/vault tracking */
-    byte quest_vault_used;     /* Has a quest-designated vault generated this game */
-    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); quest_reserved[1..6] mark quest completions recorded this run */
+    byte quest_vault_used;     /* Count of quest-designated vaults generated this game */
+    byte quest_reserved[15];   /* quest_reserved[0] = quest encounters initiated this run; quest_reserved[1..6] mark quest completions recorded this run */
 };
 
 /* scores.raw header version == core game version (no independent bumping) */

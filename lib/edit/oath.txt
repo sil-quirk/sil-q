@@ -119,11 +119,11 @@ O:6:Oath of Light
 T:To bear starlight unsullied
 D:A vow to keep the Kindler's radiance clear, shunning any gear that drinks the light and clouds the path. The stars of Varda are a gift beyond measure, and to bear their light is to walk as a beacon in the darkness. This oath binds you to refuse the tools of shadow.
 P:I swear to wear no shadowed gear that dims my light, and to keep the clear radiance of the stars upon my path.
-F:Wield or wear items that dim or curse your light
+F:Wield or wear items that dim your light
 R:+1 Light radius - Blessing of Varda's starlight
 A:8:9
 S:0:0:0:0
-B:Cannot equip items that bear DARKNESS or reduce light radius
+B:Cannot equip items that bear DARKNESS or UNLIGHT
 U:Complete the Quest of Varda, Lady of the Stars
 C:Your hand closes on a shadowed thing. To take it up is to smother the starlight you swore to bear and turn your back on the Kindler's trust. Are you certain you wish to break your Oath of Light?
 M:The light within you gutters and fades as you embrace the shadowed gear. The stars of Varda withdraw their radiance, leaving your path cold and dim.

@@ -1829,8 +1829,12 @@ static errr rd_extra(void)
         p_ptr->quest_reserved[qi] = 0;
     }
 
-    /* If Varda has claimed this run's quest slot, ensure reservation persists after load. */
-    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
+    if (p_ptr->quest_reserved[0] > QUEST_MAX_INITIATED_PER_RUN) {
+        p_ptr->quest_reserved[0] = QUEST_MAX_INITIATED_PER_RUN;
+    }
+
+    /* Older saves may have an active Varda quest without the initiated counter. */
+    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE && p_ptr->quest_reserved[0] == 0) {
         p_ptr->quest_reserved[0] = 1;
     }
 

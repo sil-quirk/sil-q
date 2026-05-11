@@ -186,6 +186,13 @@ void metarun_restore_quest_states(void);            /* Restore quest states from
 void metarun_seed_quest_counts_from_mask(metarun *m, u32b mask); /* Expand quest mask into counters */
 void metarun_clamp_and_sync_quests(metarun *m);     /* Clamp counters and sync mask */
 int metarun_total_quest_completions(const metarun *m); /* Aggregate quest completion total */
+int metarun_quests_completed_at_least(int minimum_count); /* Count quests completed at least N times */
+bool metarun_repeat_tier_unlocked(int prior_completion_count); /* Is another repeat tier available? */
+int quest_initiated_count_this_run(void);           /* Quest encounters spawned/initiated this character */
+int quest_accepted_count_this_run(void);            /* Active accepted quests this character */
+bool quest_can_initiate_more(void);                 /* Below QUEST_MAX_INITIATED_PER_RUN */
+bool quest_can_accept_more(void);                   /* Below QUEST_MAX_ACCEPTED_PER_RUN */
+void quest_note_initiated(int quest_idx);           /* Record a quest encounter for per-run cap */
 
 /* ------------------------------------------------------------------ */
 /*  Oath system tracking                                              */

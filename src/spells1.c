@@ -3860,6 +3860,17 @@ extern int resist_dark(void)
     return (res);
 }
 
+static int elemental_resisted_damage(int dam, int resistance)
+{
+    if (resistance > 0)
+    {
+        int stacks = resistance - 1;
+        return (dam * 2) / (2 + stacks);
+    }
+
+    return (dam * (-resistance));
+}
+
 static void log_elemental_damage_context(const char* tag, cptr kb_str, int dam,
     int prt, int resistance, int net_dam)
 {
@@ -3915,11 +3926,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     int prt = protection_roll(GF_FIRE, false);
     int resistance = resist_fire();
 
-    if (resistance > 0)
-        net_dam = dam / resistance;
-    else
-        net_dam = dam * (-resistance);
-
+    net_dam = elemental_resisted_damage(dam, resistance);
     net_dam = net_dam > prt ? net_dam - prt : 0;
 
     if (update_rolls)
@@ -3976,11 +3983,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     int prt = protection_roll(GF_COLD, false);
     int resistance = resist_cold();
 
-    if (resistance > 0)
-        net_dam = dam / resistance;
-    else
-        net_dam = dam * (-resistance);
-
+    net_dam = elemental_resisted_damage(dam, resistance);
     net_dam = net_dam > prt ? net_dam - prt : 0;
 
     if (update_rolls)
@@ -4077,11 +4080,7 @@ void pois_dam_pure(int dd, int ds, bool update_rolls)
     int prt = protection_roll(GF_POIS, false);
     int resistance = resist_pois();
 
-    if (resistance > 0)
-        net_dam = dam / resistance;
-    else
-        net_dam = dam * (-resistance);
-
+    net_dam = elemental_resisted_damage(dam, resistance);
     net_dam = net_dam > prt ? net_dam - prt : 0;
 
     if (update_rolls)

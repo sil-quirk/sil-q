@@ -4660,6 +4660,129 @@ static void story_intro_touch_confirm_end(void)
     ui_menu_click_clear();
 }
 
+enum
+{
+    STORY_INTRO_CLICK_FINISH = '\r',
+    STORY_INTRO_CLICK_DIFFICULTY = 'c'
+};
+
+static int story_intro_prompt_hit_width(cptr text)
+{
+    int width = text ? (int)strlen(text) : 0;
+
+    if (width < 1)
+        return 1;
+
+    if (sdl_is_story_font_enabled() && !sdl_is_story_font_grid())
+    {
+        int cell_width = sdl_get_cell_width();
+        int pixel_width = sdl_story_font_text_width(text, width);
+
+        if (cell_width > 0 && pixel_width > 0)
+        {
+            int story_width = (pixel_width + cell_width - 1) / cell_width;
+
+            if (story_width > width)
+                width = story_width;
+        }
+    }
+
+    return width;
+}
+
+static void story_intro_final_prompt_put(int choice, int col, int row,
+    cptr text, bool highlighted)
+{
+    Term_putstr(col, row, -1, highlighted ? TERM_L_BLUE : TERM_L_WHITE, text);
+    ui_menu_click_add(choice, col, row, story_intro_prompt_hit_width(text));
+}
+
+static void story_intro_final_prompt_draw(int h)
+{
+    int difficulty_row = (h >= 2) ? h - 2 : 0;
+    int finish_row = (h >= 1) ? h - 1 : 0;
+    int hover_choice = 0;
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    (void)ui_menu_click_get_hover_choice(&hover_choice);
+
+    Term_erase(0, difficulty_row, 255);
+    if (finish_row != difficulty_row)
+        Term_erase(0, finish_row, 255);
+
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char difficulty_label[16];
+        char prompt_buf[96];
+
+        story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        story_intro_prompt_label(steamdeck_alt_action_key(), "X",
+            difficulty_label, sizeof(difficulty_label));
+        strnfmt(prompt_buf, sizeof(prompt_buf),
+            "[%s] Change difficulty (experienced players)", difficulty_label);
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
+            difficulty_row, prompt_buf,
+            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
+        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
+            prompt_buf, hover_choice == STORY_INTRO_CLICK_FINISH);
+    }
+    else
+    {
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
+            difficulty_row, "[c] Change difficulty (experienced players)",
+            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
+            "(press any key to finish)",
+            hover_choice == STORY_INTRO_CLICK_FINISH);
+    }
+
+    Term_fresh();
+}
+
+static char story_intro_final_prompt_inkey(int h)
+{
+    char key;
+
+    while (true)
+    {
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+        bool saved_hide_cursor = hide_cursor;
+
+        story_intro_final_prompt_draw(h);
+
+        hide_cursor = true;
+        key = inkey();
+        hide_cursor = saved_hide_cursor;
+
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            ui_menu_click_clear();
+            if (click_action == UI_MENU_CLICK_HOVER)
+                continue;
+
+            key = (char)clicked_choice;
+        }
+        else if (key == UI_MENU_CLICK_WAKE_KEY)
+        {
+            ui_menu_click_clear();
+            continue;
+        }
+        else
+        {
+            ui_menu_click_clear();
+        }
+
+        return key;
+    }
+}
+
 static int story_intro_count_paragraph_rows(cptr text, int wrap_width)
 {
     int rows = 0;
@@ -4944,34 +5067,8 @@ static void print_story_intro(void)
         }
     }
 
-    /* Final "finish" prompt with difficulty option */
-    if (steamdeck_controls_active())
-    {
-        char confirm_label[16];
-        char difficulty_label[16];
-        char prompt_buf[96];
-
-        story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        story_intro_prompt_label(steamdeck_alt_action_key(), "X",
-            difficulty_label, sizeof(difficulty_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-            "[%s] Change difficulty (experienced players)", difficulty_label);
-        Term_putstr(8, h - 2, -1, TERM_L_WHITE, prompt_buf);
-        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
-        Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
-    }
-    else
-    {
-        Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
-        Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
-    }
-
-    /* Handle input */
-    hide_cursor = true;
-    story_intro_touch_confirm_begin(h);
-    char key = inkey();
-    story_intro_touch_confirm_end();
+    /* Handle final input */
+    char key = story_intro_final_prompt_inkey(h);
     if (key == 'S' || story_intro_back_key(key)) {
         Term_clear();
         goto cleanup_intro;
