@@ -6,12 +6,12 @@
 
 - macOS version supports high-resolution Retina displays.
 - Windows version:
-  - Windows version is now available as 64-bit and 32-bit applications. This
-    release adds 64-bit Windows support. From this release onwards, we
-    recommend you use the 64-bit version. The 32-bit version is now deprecated
-    and intended only as a fallback option if players should experience bugs
-    specific to the new 64-bit version. Once we are happy with 64-bit, the
-    32-bit variant will be removed in a future release.
+  - Windows version is now available as 64-bit and 32-bit applications. From
+    this release onwards, we recommend you use the new 64-bit version. The
+    32-bit version is now deprecated and intended only as a fallback option if
+    players should experience bugs specific to the new 64-bit version. Once we
+    are happy with 64-bit, the 32-bit variant will be removed in a future
+    release.
   - Added [Spleen fonts](https://github.com/fcambus/spleen) to better support
     high-resolution monitors. Use the Windows application menu and go to
     `Window > Font > Sil`, then select a Spleen font such as `spleen-16x32` in
@@ -30,11 +30,24 @@
     menu to switch between Tiles and ASCII graphics. When `Sil.app` is running,
     use the macOS menu bar and go to `Settings` > `Graphics` and select
     `Tiles by MicroChasm` or `Classic ASCII`.
-  - Linux users: You can use the new `-c` sub-option to switch to Classic ASCII
-    graphics (example: `./sil -mx11  -- -c`) when using X11, or run the game
-    inside a terminal with ncurses (`./sil -mgcu`).
-- _Tiles graphics only_: When Morgoth loses his crown, his tile now reflects the
-  loss. This should make it a bit more satisfying to achieve this milestone.
+  - Linux users: To use Classic ASCII graphics instead of Tiles graphics, use
+    the new `-c` sub-option to switch to Classic ASCII graphics (example: `./sil
+    -mx11  -- -c`) when using X11, or run the game inside a terminal with
+    ncurses (`./sil -mgcu`).
+- _Tiles graphics only_:
+  - When Morgoth loses his crown, his tile now reflects the loss. This should
+    make it a bit more satisfying to achieve this difficult milestone. Enjoy!
+  - When the player rages, graphical tiles for monsters, items, dungeon features,
+    etc. all turn red. Also, the normal shape/form of monsters is obscured
+    during rage. For example, the rage tile of all orcs are the same, so you can
+    no longer distinguish between an orc warrior or an orc archer while rage is
+    active. This behavior includes unique monsters (e.g., the unique orc Boldog
+    the Merciless), with the exception of Morgoth.
+- Added a "minimum depth" field to the game HUD. Both the current depth (e.g.,
+  `150 ft`) and the new minimum depth (e.g., `min 100 ft`) are located in the
+  bottom-left corner of the screen. You already knew you must descend, now you
+  also know when you can't ~~staircase scum~~ ascend anymore.
+  ([#132](https://github.com/sil-quirk/sil-q/pull/132)). To make room for this
 - Fixed all bugs reported since the last release v1.5.0 in 2022.
 
 ### Thanks and appreciation
@@ -49,6 +62,10 @@ in creating this release (in alphabetical order):
 - @MicroChasm
 
 See detailed information below.
+
+### Gameplay changes
+
+- TODO (none thus far)
 
 ### Breaking changes
 
@@ -75,10 +92,6 @@ See detailed information below.
   breaking change does not affect the Windows and native macOS (Cocoa) versions,
   because they never supported this functionality in the first place.
 
-### Gameplay changes
-
-- TODO (none thus far)
-
 ### Details
 
 Added:
@@ -93,14 +106,16 @@ Added:
   which in turn helps us to reduce the necessary development time. These changes
   should not be visible to players, other than (hopefully!) reducing the number
   of bugs they might experience.
+  ([#143](https://github.com/sil-quirk/sil-q/pull/143))
 - When compiled with X11 support, the `sil` binary for Linux and non-Cocoa macOS
   has a new `-c` sub-option to use Classic ASCII graphics, similar to the
   existing `-g` (now the default) sub-option to use Tiles graphics with the
-  MicroChasm tileset.
+  MicroChasm tileset. ([#176](https://github.com/sil-quirk/sil-q/pull/176))
 - Use dedicated tile when Morgoth loses his crown (fixes #170)
   ([#172](https://github.com/sil-quirk/sil-q/pull/172))
   - thanks @MicroChasm for the suggestion
 - Depleted light sources use depleted version of their tile (fixes #163)
+  ([be7ab72](https://github.com/sil-quirk/sil-q/commit/be7ab72))
 - Change tile design of The Ring of Barahir to match the lore (fixes #181)
 - When the player rages, graphical tiles for monsters, items, dungeon features,
   etc. all turn red (fixes #142). Also, the normal shape/form of monsters is
@@ -108,10 +123,12 @@ Added:
   you can no longer distinguish between an orc warrior or an orc archer while
   rage is active. This behavior includes unique monsters (e.g., the unique orc
   Boldog the Merciless), with the exception of Morgoth.
+  ([#207](https://github.com/sil-quirk/sil-q/pull/207))
 - Sil-Q has the convention to use pixel (0,0) in a BMP tileset as the magic
   "blank" color to denote color transparency, because the BMP format does not
   support transparency natively. The graphics rendering backends now
   automatically detect the transparency color via pixel (0,0).
+  ([5d3ebe3](https://github.com/sil-quirk/sil-q/commit/5d3ebe3))
 - Added a "minimum depth" field to the game HUD (partially fixes #82)
   ([#132](https://github.com/sil-quirk/sil-q/pull/132)). To make room for this
   change, the "current depth" field was moved from the last row in the bottom
@@ -133,18 +150,21 @@ Changed:
 - Removed GTK support (fixes #177)
   ([#180](https://github.com/sil-quirk/sil-q/pull/180))
 - Updates to tiles and manual
-  ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
+  ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c) in 2022)
 - In debug mode (`Ctrl-a`), the `a` command now also removes the rage effect.
+  ([42b6494](https://github.com/sil-quirk/sil-q/commit/42b6494))
 - Tiles graphics: better visually distinguish between "open door" vs. "broken
   door" (#175)
 
 Fixed:
 
 - fix: swapped red/blue channels when loading 24-bit BMP tiles under X11
+  ([d6075b0](https://github.com/sil-quirk/sil-q/commit/d6075b0))
 - fix: linker warning about `__DATA__` alignment on macOS (fixes #202)
   ([#204](https://github.com/sil-quirk/sil-q/pull/204))
   - thanks @backwardsEric
 - fix: use `F:` for feature flags of The Leather Armour of Haldad
+  ([3ea2bba](https://github.com/sil-quirk/sil-q/commit/3ea2bba))
 - Fix inconsistent house naming for Falathrim and Haleth (fixes #164)
   ([#173](https://github.com/sil-quirk/sil-q/pull/173))
   - thanks @imraflip
