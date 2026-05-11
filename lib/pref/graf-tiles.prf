@@ -21,6 +21,7 @@
 # F: feature index : attr/char
 # K: object index : attr/char
 # R: monster/player index : attr/char
+# R: monster/player index : rage : attr/char
 #
 # 'S' is for specials (visual effects). The index identifies the specific
 #     effect type (e.g., digits 0-9, arrows, breath effects, spell impacts).
@@ -40,6 +41,12 @@
 #     Edain (3). For monsters (indices 11+), the index corresponds to the
 #     serial number ('N:' line) in `lib/edit/monster.txt`. The attr/char value
 #     specifies the tile position.
+#     You can also add optional 'R:<id>:rage:<attr>/<char>' lines. When the
+#     player is raging, this alternative tile is displayed instead of the
+#     monster's normal tile (the rage shader still tints whichever tile is
+#     chosen). Omitting a line for a given monster means it keeps its regular
+#     tile during rage. Such 'R:<id>:rage:...' lines must always have a
+#     corresponding regular 'R:<id>:' line.
 #
 
 ###############################################################################
@@ -974,11 +981,6 @@ R:253:0x88/0x97
 
 ###############################################################################
 # Rage-specific alternative tiles
-#
-# Optional `R:<id>:rage:<attr>/<char>` lines. When the player is raging, the
-# substitute tile is rendered instead of the monster's normal tile (the rage
-# shader still tints whichever tile is chosen). Omitting a line for a given
-# monster means it keeps its regular tile during rage.
 ###############################################################################
 
 # Thorns (plants)
