@@ -12,10 +12,11 @@
     players should experience bugs specific to the new 64-bit version. Once we
     are happy with 64-bit, the 32-bit variant will be removed in a future
     release.
-  - Added [Spleen fonts](https://github.com/fcambus/spleen) to better support
-    high-resolution monitors. Use the Windows application menu and go to
-    `Window > Font > Sil`, then select a Spleen font such as `spleen-16x32` in
-    the file dialog.
+  - Added larger fonts via the [Spleen font
+    family](https://github.com/fcambus/spleen) to better support high-resolution
+    monitors. Use the Windows application menu and go to `Window > Font > Sil`,
+    then select a Spleen font such as `spleen-16x32` in the file dialog. There's
+    even `spleen-32x64` for the brave and bold 8K monitor owner.
 - Tiles graphics using the MicroChasm tileset are now the default for new Sil-Q
   installations that have graphics enabled (Windows, macOS/Cocoa and Linux/X11).
   The previous default was ASCII graphics (e.g., your player character was an
