@@ -5,11 +5,17 @@
 ### Highlights
 
 - macOS version supports high-resolution Retina displays.
-- Windows version in 64-bit and 32-bit. This release adds 64-bit Windows
-  support. From this release onwards, we recommend you use the 64-bit version.
-  The 32-bit version is now deprecated and intended only as a fallback option if
-  players should experience bugs specific to the new 64-bit version. Once we are
-  happy with 64-bit, the 32-bit variant will be removed in a future release.
+- Windows version:
+  - Windows version is now available as 64-bit and 32-bit applications. This
+    release adds 64-bit Windows support. From this release onwards, we
+    recommend you use the 64-bit version. The 32-bit version is now deprecated
+    and intended only as a fallback option if players should experience bugs
+    specific to the new 64-bit version. Once we are happy with 64-bit, the
+    32-bit variant will be removed in a future release.
+  - Added [Spleen fonts](https://github.com/fcambus/spleen) to better support
+    high-resolution monitors. Use the Windows application menu and go to
+    `Window > Font > Sil`, then select a Spleen font such as `spleen-16x32` in
+    the file dialog.
 - Tiles graphics using the MicroChasm tileset are now the default for new Sil-Q
   installations that have graphics enabled (Windows, macOS/Cocoa and Linux/X11).
   The previous default was ASCII graphics (e.g., your player character was an
@@ -112,6 +118,11 @@ Added:
   Other bottom-row HUD fields like "Confused" and "Stun" where shifted to the
   right. See [minimum depth
   screenshot](https://github.com/sil-quirk/sil-q/pull/132#issue-3830778399).
+- Added [Spleen fonts](https://github.com/fcambus/spleen) for Windows to better
+  support high-resolution monitors (fixes #188). Use the Windows application
+  menu and go to `Window > Font > Sil`, then select a Spleen font such as
+  `spleen-16x32` in the file dialog.
+  ([#212](https://github.com/sil-quirk/sil-q/pull/212))
 
 Changed:
 

@@ -35,6 +35,12 @@ Font        Copyright holder                                  Licence
   12x24     (c) 1987, 1988 Sony Corp.                         [3]
   16x25     (c) 1989 Massachusetts Institute of Technology    [5]
   16x25b    (c) 1989 Massachusetts Institute of Technology    [5]
+  spleen-5x8   (c) 2018-2026, Frederic Cambus                 [6]
+  spleen-6x12  (c) 2018-2026, Frederic Cambus                 [6]
+  spleen-8x16  (c) 2018-2026, Frederic Cambus                 [6]
+  spleen-12x24 (c) 2018-2026, Frederic Cambus                 [6]
+  spleen-16x32 (c) 2018-2026, Frederic Cambus                 [6]
+  spleen-32x64 (c) 2018-2026, Frederic Cambus                 [6]
 
 
 
@@ -225,3 +231,30 @@ Licences
           Larry Wall
          Wyse Technology, Inc.
 
+[6]
+
+https://github.com/fcambus/spleen
+Copyright (c) 2018-2026, Frederic Cambus
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.

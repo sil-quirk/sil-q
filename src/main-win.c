@@ -572,6 +572,9 @@ static void show_win_error(void)
  * Hack -- given a simple filename, extract the "font size" info
  *
  * Return a pointer to a static buffer holding the capitalized base name.
+ *
+ * Filenames may have a non-digit prefix before the WxH dimensions
+ * (e.g. "spleen-5x8.fon"), and we skip such a prefix when parsing.
  */
 static char* analyze_font(char* path, int* wp, int* hp)
 {
@@ -597,11 +600,16 @@ static char* analyze_font(char* path, int* wp, int* hp)
             *s = toupper((unsigned char)*s);
     }
 
-    /* Find first 'X' */
-    s = strchr(p, 'X');
+    /* Skip non-digit prefix (e.g. "SPLEEN-") to find the width digits */
+    char* d;
+    for (d = p; *d && !isdigit((unsigned char)*d); ++d)
+        ;
+
+    /* Find first 'X' after the digits */
+    s = strchr(d, 'X');
 
     /* Extract font width */
-    wid = atoi(p);
+    wid = atoi(d);
 
     /* Extract height */
     hgt = s ? atoi(s + 1) : 0;
@@ -612,6 +620,47 @@ static char* analyze_font(char* path, int* wp, int* hp)
 
     /* Result */
     return (p);
+}
+
+/*
+ * Given a font file's basename on disk (as produced by `analyze_font()`: the
+ * basename uppercased, with the ".FON" suffix still attached), write the
+ * face name string to pass to `CreateFont()` into the caller-managed `out` with
+ * size `out_size`).
+ *
+ * Background: After `AddFontResource()` loads a `.fon` font file from disk,
+ * Windows registers it under the face name embedded inside the file.
+ * `CreateFont()` then resolves its face-name argument by case-insensitive
+ * lookup against those registered names. The caller must therefore know what
+ * the registered name is. This function encodes that knowledge for the fonts
+ * included under `lib/xtra/font/`.
+ *
+ * Two conventions are in play:
+ *
+ *   1. Legacy fonts embed their basename as the face name. The file
+ *      "8x13.fon" (passed in here as "8X13.FON") embeds the face name "8X13",
+ *      so we return "8X13" — the basename with the ".FON" suffix stripped.
+ *
+ *   2. The Spleen family (https://github.com/fcambus/spleen) embeds the single
+ *      face name "Spleen" across every size (verified by inspecting the files
+ *      with dewinfont). Sizes are distinguished only by filename and by the
+ *      height/width arguments we later pass to `CreateFont()`. For any
+ *      "SPLEEN-*.FON" input, we return the literal "Spleen".
+ */
+static void analyze_face_name(const char* basename, char* out, size_t out_size)
+{
+    /* Spleen family: every spleen-*.fon embeds the face name "Spleen" */
+    if (prefix(basename, "SPLEEN-"))
+    {
+        my_strcpy(out, "Spleen", out_size);
+        return;
+    }
+
+    /* Legacy fonts: face name == basename with the ".FON" suffix stripped */
+    my_strcpy(out, basename, out_size);
+    size_t len = strlen(out);
+    if ((len >= 4) && suffix(out, ".FON"))
+        out[len - 4] = '\0';
 }
 
 /*
@@ -1433,13 +1482,14 @@ static errr term_force_font(term_data* td, cptr path)
     /* Save new font name */
     td->font_file = string_make(base);
 
-    /* Remove the "suffix" */
-    base[strlen(base) - 4] = '\0';
+    /* Derive the face name embedded in the .fon (handles prefixed names) */
+    char face[LF_FACESIZE];
+    analyze_face_name(base, face, sizeof(face));
 
-    /* Create the font (using the 'base' of the font file name!) */
+    /* Create the font (matching the face name stored in the .fon) */
     td->font_id = CreateFont(hgt, wid, 0, 0, FW_DONTCARE, 0, 0, 0, ANSI_CHARSET,
         OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-        FIXED_PITCH | FF_DONTCARE, base);
+        FIXED_PITCH | FF_DONTCARE, face);
 
     /* Hack -- Unknown size */
     if (!wid || !hgt)
