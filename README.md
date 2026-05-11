@@ -5,7 +5,7 @@
 [![CI workflow status for macOS](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml)
 [![CI workflow status for Linux](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml)
 
-**Sil-Q is a free, single-player dungeon infiltration game.** It has a strong
+**Sil-Q is a free, single-player dungeon heist game.** It has a strong
 emphasis on exploration and tactical combat. It features a simple but rich
 combat and stealth system which gives players a great variety of choice.
 
