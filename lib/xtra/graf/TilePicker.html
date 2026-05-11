@@ -1500,6 +1500,18 @@
           applyZoom();
           // Reapply current rage mode now that pixel data is available.
           applyRageMode();
+          // Pre-select tile 0x80/0x80 (top-left) so the user has a starting
+          // point for keyboard navigation and the preview is populated.
+          if (!hasSelection) {
+            selectedX = 0;
+            selectedY = 0;
+            hasSelection = true;
+            updateTileIndex();
+            updateTilePreview();
+            updateHexCode();
+            updateSelectionMarker();
+            updateEntityList();
+          }
         };
 
         img.onload = finishLoad;
@@ -2145,7 +2157,103 @@
         autoLoadTileset();
         // Chain: defines.h -> edit files -> PRF files
         autoLoadDefines();
+        document.addEventListener("keydown", handleKeyboardNavigation);
       });
+
+      function handleKeyboardNavigation(event) {
+        if (!tilesetLoaded) return;
+        // Skip when focus is inside a text input so typing still works.
+        var target = event.target;
+        if (
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        var maxX = Math.floor(img.naturalWidth / tw) - 1;
+        var maxY = Math.floor(img.naturalHeight / th) - 1;
+        if (maxX < 0 || maxY < 0) return;
+
+        var dx = 0,
+          dy = 0,
+          absolute = null;
+        switch (event.key) {
+          case "ArrowLeft":
+            dx = -1;
+            break;
+          case "ArrowRight":
+            dx = 1;
+            break;
+          case "ArrowUp":
+            dy = -1;
+            break;
+          case "ArrowDown":
+            dy = 1;
+            break;
+          case "Home":
+            absolute = { x: 0, y: hasSelection ? selectedY : 0 };
+            break;
+          case "End":
+            absolute = { x: maxX, y: hasSelection ? selectedY : 0 };
+            break;
+          case "PageUp":
+            absolute = { x: hasSelection ? selectedX : 0, y: 0 };
+            break;
+          case "PageDown":
+            absolute = { x: hasSelection ? selectedX : 0, y: maxY };
+            break;
+          default:
+            return;
+        }
+
+        event.preventDefault();
+
+        var nextX, nextY;
+        if (absolute) {
+          nextX = absolute.x;
+          nextY = absolute.y;
+        } else if (!hasSelection) {
+          // First arrow press with no selection: anchor to top-left.
+          nextX = 0;
+          nextY = 0;
+        } else {
+          nextX = selectedX + dx;
+          nextY = selectedY + dy;
+        }
+
+        nextX = Math.max(0, Math.min(maxX, nextX));
+        nextY = Math.max(0, Math.min(maxY, nextY));
+
+        selectedX = nextX;
+        selectedY = nextY;
+        hasSelection = true;
+
+        updateTileIndex();
+        updateTilePreview();
+        updateHexCode();
+        updateSelectionMarker();
+        updateEntityList();
+
+        // Move the hover reticule to match and keep the tile on screen.
+        var rect = img.getBoundingClientRect();
+        var displayedTileWidth = (rect.width * tw) / img.naturalWidth;
+        var displayedTileHeight = (rect.height * th) / img.naturalHeight;
+        reticule.style.left = selectedX * displayedTileWidth + "px";
+        reticule.style.top = selectedY * displayedTileHeight + "px";
+        reticule.style.width = displayedTileWidth + "px";
+        reticule.style.height = displayedTileHeight + "px";
+        reticule.style.display = "";
+
+        if (selectionMarker.scrollIntoView) {
+          selectionMarker.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      }
 
       // Legacy loadTileset function - redirects to appropriate loader
       function loadTileset() {
