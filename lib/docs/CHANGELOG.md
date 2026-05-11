@@ -122,6 +122,8 @@ Changed:
 - Updates to tiles and manual
   ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
 - In debug mode (`Ctrl-a`), the `a` command now also removes the rage effect.
+- Tiles graphics: better visually distinguish between "open door" vs. "broken
+  door" (#175)
 
 Fixed:
 
