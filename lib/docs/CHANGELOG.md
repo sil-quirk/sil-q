@@ -60,11 +60,11 @@
 We’d like to thank the following members of the Sil-Q community for their help
 in creating this release (in alphabetical order):
 
-- @backwardsEric
+- @backwardsEric (Angband maintainer)
 - @davidk64fnq
 - @imraflip
 - @joeljpa
-- @MicroChasm
+- @MicroChasm (all artwork for tiles graphics)
 
 See detailed information below.
 
