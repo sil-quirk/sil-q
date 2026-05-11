@@ -530,20 +530,27 @@ static void prt_song(void)
 }
 
 /*
- * Prints depth in stat area
+ * Prints current depth and minimum depth in the left-hand sidebar.
+ *
+ * The two values are rendered on the bottom two rows of the sidebar
+ * (anchored to the terminal bottom), right-aligned within the 12-char
+ * sidebar width. Min depth is muted to distinguish it from current depth.
  */
 static void prt_depth(void)
 {
-    char depths[32];
+    char depths[16];
+    char min_depths[16];
     s16b attr = TERM_WHITE;
 
     if (!p_ptr->depth)
     {
         my_strcpy(depths, "Surface", sizeof(depths));
+        my_strcpy(min_depths, "", sizeof(min_depths));
     }
     else
     {
         strnfmt(depths, sizeof(depths), "%d ft", p_ptr->depth * 50);
+        strnfmt(min_depths, sizeof(min_depths), "min %d ft", min_depth() * 50);
     }
 
     /* Get color of level based on feeling  -JSV- */
@@ -573,8 +580,11 @@ static void prt_depth(void)
             attr = TERM_BLUE;
     }
 
-    /* Right-Adjust the "depth", and clear old values */
-    c_prt(attr, format("%7s", depths), ROW_DEPTH, COL_DEPTH);
+    // Right-aligned within the 12-char sidebar. `c_put_str` avoids clearing the
+    // bottom row's status-effect area to the right.
+    c_put_str(attr, format("%12s", depths), ROW_DEPTH, COL_DEPTH);
+    c_put_str(
+        TERM_L_DARK, format("%12s", min_depths), ROW_MIN_DEPTH, COL_MIN_DEPTH);
 }
 
 /*
@@ -908,19 +918,19 @@ static void prt_stun(void)
 
     if (s > 100)
     {
-        c_put_str(TERM_RED, "Knocked out ", ROW_STUN, COL_STUN);
+        c_put_str(TERM_RED, "Knocked out", ROW_STUN, COL_STUN);
     }
     else if (s > 50)
     {
-        c_put_str(TERM_ORANGE, "Heavy stun  ", ROW_STUN, COL_STUN);
+        c_put_str(TERM_ORANGE, "Heavy stun ", ROW_STUN, COL_STUN);
     }
     else if (s)
     {
-        c_put_str(TERM_ORANGE, "Stun        ", ROW_STUN, COL_STUN);
+        c_put_str(TERM_ORANGE, "Stun       ", ROW_STUN, COL_STUN);
     }
     else
     {
-        put_str("            ", ROW_STUN, COL_STUN);
+        put_str("           ", ROW_STUN, COL_STUN);
     }
 }
 

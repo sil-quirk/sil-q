@@ -11,8 +11,13 @@
 #include "angband.h"
 
 /*
- * Determines the shallowest a player is allowed to go.
- * As time goes on, they are forced deeper and deeper.
+ * Determines the shallowest depth a player is allowed to go. For example, if
+ * min depth is 200 ft, a player may ascend from 300 ft to 200 ft, but not to
+ * 150 ft or higher.
+ *
+ * As time goes on, they are forced deeper and deeper into the dungeon. This
+ * also takes away the option of "staircase scumming", by which the player can
+ * reset/regenerate dungeon levels (e.g., for escaping a group of monsters).
  */
 int min_depth(void)
 {
