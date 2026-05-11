@@ -1471,6 +1471,9 @@
         th = parseInt(txtTileHeight.value);
         reticule.style.width = tw + "px";
         reticule.style.height = th + "px";
+        // Keep the hover reticule hidden until the user moves the mouse over
+        // the tileset or navigates with the keyboard.
+        reticule.style.display = "none";
         tilePreview.style.width = tw * 3 + "px";
         tilePreview.style.height = th * 3 + "px";
         tilePreview.style.backgroundImage = "";
