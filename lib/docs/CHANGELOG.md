@@ -27,7 +27,7 @@
     inside a terminal with ncurses (`./sil -mgcu`).
 - _Tiles graphics only_: When Morgoth loses his crown, his tile now reflects the
   loss. This should make it a bit more satisfying to achieve this milestone.
-- Many bug fixes
+- Fixed all bugs reported since the last release v1.5.0 in 2022.
 
 ### Thanks and appreciation
 
