@@ -20,6 +20,8 @@
   installations that have graphics enabled (Windows, macOS/Cocoa and Linux/X11).
   The previous default was ASCII graphics (e.g., your player character was an
   `@` symbol). Existing Sil-Q installations are not affected.
+  - To increase the size of the tiles (e.g., because you are playing on a
+    high-resolution monitor), you must increase the _font size_.
   - Windows users: Like in previous versions, you can use the Windows
     application menu to switch between Tiles and ASCII graphics. When `sil.exe`
     is running, use the Windows application menu and go to `Options` >
