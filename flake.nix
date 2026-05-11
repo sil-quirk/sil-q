@@ -1,15 +1,11 @@
 # Build sil-q with Nix.
 #
 # This flake provides reproducible builds of sil-q using cmake + ninja.
-# It is intentionally scoped to proving the build works — not packaging for
-# distribution. Distro packaging (install locations, desktop integration,
-# runtime path wrapping, game data management) belongs in downstream package
-# definitions like nixpkgs' package.nix.
+# The default build includes game data and path wrapping so the binary
+# runs immediately.
 #
 # The mkSilQ function parameterizes the X11 frontend. Additional cmake flags
-# can be threaded in as needed. Named packages cover the standard Linux build
-# configurations; others can be built by calling mkSilQ directly from a
-# downstream flake.
+# can be threaded in as needed.
 #
 # Usage:
 #
@@ -36,7 +32,7 @@
 
           src = ./.;
 
-          nativeBuildInputs = with pkgs; [ cmake ninja pkg-config ];
+          nativeBuildInputs = with pkgs; [ cmake ninja pkg-config makeWrapper ];
           buildInputs = with pkgs;
             [ ncurses ]
             ++ pkgs.lib.optionals x11 [ pkgs.libx11 ];
@@ -47,8 +43,10 @@
           ];
 
           installPhase = ''
-            mkdir -p $out/bin
+            mkdir -p $out/bin $out/share/sil-q
             cp sil $out/bin/
+            cp -a $src/lib/* $out/share/sil-q/
+            wrapProgram $out/bin/sil --set ANGBAND_PATH $out/share/sil-q
           '';
         };
     in
