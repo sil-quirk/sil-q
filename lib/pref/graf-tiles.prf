@@ -206,50 +206,50 @@ F:28:0x8A/0x9E
 # door
 F:32:0x80/0x8A
 
-# locked door (power 1)
-F:33:0x82/0x83
+# locked door (power 1) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:33:0x80/0x8A
 
-# locked door (power 2)
-F:34:0x82/0x83
+# locked door (power 2) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:34:0x80/0x8A
 
-# locked door (power 3)
-F:35:0x82/0x83
+# locked door (power 3) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:35:0x80/0x8A
 
-# locked door (power 4)
-F:36:0x82/0x83
+# locked door (power 4) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:36:0x80/0x8A
 
-# locked door (power 5)
-F:37:0x82/0x83
+# locked door (power 5) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:37:0x80/0x8A
 
-# locked door (power 6)
-F:38:0x82/0x83
+# locked door (power 6) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:38:0x80/0x8A
 
-# locked door (power 7)
-F:39:0x82/0x83
+# locked door (power 7) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:39:0x80/0x8A
 
-# jammed door (power 0)
-F:40:0x82/0x83
+# jammed door (power 0) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:40:0x80/0x8A
 
-# jammed door (power 1)
-F:41:0x82/0x83
+# jammed door (power 1) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:41:0x80/0x8A
 
-# jammed door (power 2)
-F:42:0x82/0x83
+# jammed door (power 2) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:42:0x80/0x8A
 
-# jammed door (power 3)
-F:43:0x82/0x83
+# jammed door (power 3) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:43:0x80/0x8A
 
-# jammed door (power 4)
-F:44:0x82/0x83
+# jammed door (power 4) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:44:0x80/0x8A
 
-# jammed door (power 5)
-F:45:0x82/0x83
+# jammed door (power 5) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:45:0x80/0x8A
 
-# jammed door (power 6)
-F:46:0x82/0x83
+# jammed door (power 6) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:46:0x80/0x8A
 
-# jammed door (power 7)
-F:47:0x82/0x83
+# jammed door (power 7) -- inert: terrain.txt sets M:32, so feature F:32's tile is rendered
+# F:47:0x80/0x8A
 
 # secret door (drawn as granite wall)
 F:48:0x80/0x84
