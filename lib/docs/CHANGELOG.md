@@ -51,8 +51,8 @@
 - Added a "minimum depth" field to the game HUD. Both the current depth (e.g.,
   `150 ft`) and the new minimum depth (e.g., `min 100 ft`) are located in the
   bottom-left corner of the screen. You already knew you must descend, now you
-  also know when you can't ~~staircase scum~~ ascend anymore.
-  ([#132](https://github.com/sil-quirk/sil-q/pull/132)). To make room for this
+  also know when you can't ~~stair-scum~~ ascend anymore.
+  ([#132](https://github.com/sil-quirk/sil-q/pull/132)).
 - Fixed all bugs reported since the last release v1.5.0 in 2022.
 
 ### Thanks and appreciation
