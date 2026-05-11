@@ -17,6 +17,10 @@
     monitors. Use the Windows application menu and go to `Window > Font > Sil`,
     then select a Spleen font such as `spleen-16x32` in the file dialog. There's
     even `spleen-32x64` for the brave and bold 8K monitor owner.
+- Linux version:
+  - Updated the `silg` and `silx` startup scripts with inline documentation on
+    how to customize the game windows (positions and sizes) as well as each
+    window's font (font family and size).
 - Tiles graphics using the MicroChasm tileset are now the default for new Sil-Q
   installations that have graphics enabled (Windows, macOS/Cocoa and Linux/X11).
   The previous default was ASCII graphics (e.g., your player character was an
@@ -143,6 +147,8 @@ Added:
   menu and go to `Window > Font > Sil`, then select a Spleen font such as
   `spleen-16x32` in the file dialog.
   ([#212](https://github.com/sil-quirk/sil-q/pull/212))
+- Improve documentation of `silg` and `silx` scripts, notably how to style game
+  windows (fixes #57) ([#210](https://github.com/sil-quirk/sil-q/pull/210))
 
 Changed:
 
