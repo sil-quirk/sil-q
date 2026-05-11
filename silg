@@ -1,46 +1,121 @@
 #!/bin/sh
+#
+# This script sets environment variables to style Sil's game windows.
+# Modify it to match your preferences and what your computer/monitor supports.
+#
+# ===============================
+# Available environment variables
+# ===============================
+# For each game window, you can change the font, location, and size via
+# environment variables.
+#
+#   ---------------------------------------------------------------------------
+#   SIL_X11_FONT_n    Font for window number `n` (e.g., SIL_X11_FONT_3)
+#   ---------------------------------------------------------------------------
+#   SIL_X11_AT_X_n    X position (in pixels) of window number `n`
+#   SIL_X11_AT_Y_n    Y position (in pixels) of window number `n`
+#   ---------------------------------------------------------------------------
+#   SIL_X11_COLS_n    Window size in number of columns (X) of window number `n`
+#   SIL_X11_ROWS_n    Window size in number of rows (Y) of window number `n`
+#   ---------------------------------------------------------------------------
+#
+# Example to set X position of window 1 to pixel 1025:
+#
+#   SIL_X11_AT_X_1=1025
+#
+#
+# ==============================================
+# Using larger fonts on high-resolution monitors
+# ==============================================
+#
+# 1. List the available X11 fonts on your machine:
+#
+#   $ xlsfonts
+#   [...other fonts...]
+#   -misc-liberation mono-bold-r-normal--0-0-0-0-m-0-iso8859-1
+#   [...other fonts...]
+#   12x24
+#   9x15
+#   [...other fonts...]
+#
+# 2. Fonts with a name similar to the `-misc-liberation ...` entry above seem to
+#    follow this pattern:
+#
+#       --0-0-0-0-m-0-iso8859-1
+#
+#       means
+#
+#       --pixelsize-pointsize-resx-resy-spacing-avgwidth-charset
+#
+#   If pixelsize is 0, then X11 will pick a default size. On a 4K screen, this
+#   default is much too small.
+#
+#   You can ask for a larger font size with:
+#
+#       # pixelsize set to 26
+#       -misc-liberation mono-bold-r-normal--26-0-0-0-m-0-iso8859-1
+#
+#   You have to experiment what font sizes are working on your own machine. For
+#   example, with the font above, some users could use a pixelsize of up to 26.
+#   Anything larger than that would cause a game crash. It is unclear if this
+#   limitation is font-dependent, X11-dependent, or something else.
+#
+# 3. Now that you found yourself a nice font, modify the `SIL_X11_FONT_*`
+#    entries in this `silg` script (like `SIL_X11_FONT_0` for the main window)
+#    to use that font.
+#
+#    Again, you must experiment how large the size (here: 26) can be. Try
+#    starting from 24 and then go higher.
+#
+#    Example:
+#
+#       # Main window
+#       SIL_X11_FONT_0="-misc-liberation mono-bold-r-normal--26-0-0-0-m-0-iso10646-1"
+#
+#    See the discussion at https://github.com/sil-quirk/sil-q/issues/57 for
+#    further information and help.
 
 # Describe attempt
 echo "Launching Sil..."
 sleep 2
 
-# Main window
-SIL_X11_FONT_0=12x24;   export SIL_X11_FONT_0
-SIL_X11_AT_X_0=0;       export SIL_X11_AT_X_0
-SIL_X11_AT_Y_0=0;       export SIL_X11_AT_Y_0
+# Main window (#0)
+export SIL_X11_FONT_0=12x24
+export SIL_X11_AT_X_0=0
+export SIL_X11_AT_Y_0=0
 
-# Inventory window
-SIL_X11_FONT_1=7x13;    export SIL_X11_FONT_1
-SIL_X11_AT_X_1=1025;    export SIL_X11_AT_X_1
-SIL_X11_AT_Y_1=268;     export SIL_X11_AT_Y_1
-SIL_X11_COLS_1=70;      export SIL_X11_COLS_1
-SIL_X11_ROWS_1=25;      export SIL_X11_ROWS_1
+# Inventory window (#1)
+export SIL_X11_FONT_1=7x13
+export SIL_X11_AT_X_1=1025
+export SIL_X11_AT_Y_1=268
+export SIL_X11_COLS_1=70
+export SIL_X11_ROWS_1=25
 
-# Equipment window
-SIL_X11_FONT_2=7x13;    export SIL_X11_FONT_2
-SIL_X11_AT_X_2=1025;     export SIL_X11_AT_X_2
-SIL_X11_AT_Y_2=0;       export SIL_X11_AT_Y_2
-SIL_X11_COLS_2=70;      export SIL_X11_COLS_2
-SIL_X11_ROWS_2=16;      export SIL_X11_ROWS_2
+# Equipment window (#2)
+export SIL_X11_FONT_2=7x13
+export SIL_X11_AT_X_2=1025
+export SIL_X11_AT_Y_2=0
+export SIL_X11_COLS_2=70
+export SIL_X11_ROWS_2=16
 
-# Combat Rolls window
-SIL_X11_FONT_3=7x13;    export SIL_X11_FONT_3
-SIL_X11_AT_X_3=1025;     export SIL_X11_AT_X_3
-SIL_X11_AT_Y_3=625;     export SIL_X11_AT_Y_3
-SIL_X11_COLS_3=70;      export SIL_X11_COLS_3
-SIL_X11_ROWS_3=21;      export SIL_X11_ROWS_3
+# Combat Rolls window (#3)
+export SIL_X11_FONT_3=7x13
+export SIL_X11_AT_X_3=1025
+export SIL_X11_AT_Y_3=625
+export SIL_X11_COLS_3=70
+export SIL_X11_ROWS_3=21
 
-# Monster Recall window
-SIL_X11_FONT_4=7x13;    export SIL_X11_FONT_4
-SIL_X11_AT_X_4=0;       export SIL_X11_AT_X_4
-SIL_X11_AT_Y_4=625;     export SIL_X11_AT_Y_4
-SIL_X11_COLS_4=137;     export SIL_X11_COLS_4
-SIL_X11_ROWS_4=21;      export SIL_X11_ROWS_4
+# Monster Recall window (#4)
+export SIL_X11_FONT_4=7x13
+export SIL_X11_AT_X_4=0
+export SIL_X11_AT_Y_4=625
+export SIL_X11_COLS_4=137
+export SIL_X11_ROWS_4=21
 
 # Could add more windows here...
 
 # Gamma correction
-SIL_X11_GAMMA=142;      export SIL_X11_GAMMA
+export SIL_X11_GAMMA=142
 
 # Launch SIL
 ./sil -mx11 -- -g -b -n5 &
