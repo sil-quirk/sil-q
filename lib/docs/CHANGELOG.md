@@ -165,6 +165,8 @@ Changed:
 
 Fixed:
 
+- fix: Windows tile sizing on first launch and for wide fonts
+  ([#217](https://github.com/sil-quirk/sil-q/pull/217))
 - fix: swapped red/blue channels when loading 24-bit BMP tiles under X11
   ([d6075b0](https://github.com/sil-quirk/sil-q/commit/d6075b0))
 - fix: linker warning about `__DATA__` alignment on macOS (fixes #202)
