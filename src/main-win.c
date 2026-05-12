@@ -716,16 +716,31 @@ static bool check_file(cptr s)
     return (TRUE);
 }
 
-int get_tile_height_from_font_height(int font_height)
+/*
+ * Tile cell dimensions for the bigtile rendering mode.
+ *
+ * Assumes `use_bigtile` is TRUE when tiles are active. In that mode, each tile
+ * spans two character cells horizontally (cf. `Term_pict_win()`), so the
+ * rendered tile is `(2 * tile_wid) by tile_hgt`. The cell is sized so that:
+ *
+ *   - tile_hgt == 2 * tile_wid, keeping the rendered tile square to match the
+ *     source bitmap's aspect ratio.
+ *   - tile_wid >= font_wid, so Term_text_win's per-glyph centring
+ *     (`rc.left += (tile_wid - font_wid) / 2`) doesn't go negative and spill
+ *     characters into neighbouring cells.
+ *
+ * A floor of 8 (for font_hgt <= 16) or 16 (otherwise) on tile_wid avoids
+ * shrinking tile bitmaps below a legible size when the font is small.
+ */
+int get_tile_width_from_font(int font_wid, int font_hgt)
 {
-    return font_height > 16 ? 32 : 16;
+    int w = (font_hgt > 16) ? 16 : 8;
+    return (w < font_wid) ? font_wid : w;
 }
 
-int get_tile_width_from_font_height(int font_height)
+int get_tile_height_from_font(int font_wid, int font_hgt)
 {
-    // Assumes that use_bigtile will always be true
-    // when tiles are active.
-    return font_height > 16 ? 16 : 8;
+    return 2 * get_tile_width_from_font(font_wid, font_hgt);
 }
 
 /*
@@ -1559,8 +1574,9 @@ static void term_change_font(term_data* td)
         /* Reset the tile info */
         if (arg_graphics == GRAPHICS_MICROCHASM)
         {
-            td->tile_wid = get_tile_width_from_font_height(td->font_hgt);
-            td->tile_hgt = get_tile_height_from_font_height(td->font_hgt);
+            td->tile_wid = get_tile_width_from_font(td->font_wid, td->font_hgt);
+            td->tile_hgt
+                = get_tile_height_from_font(td->font_wid, td->font_hgt);
         }
         else
         {
@@ -2665,6 +2681,15 @@ static void init_windows(void)
     /* Load prefs */
     load_prefs();
 
+    /* Keep `use_bigtile` in sync with `arg_graphics`. On a fresh install with
+     * no .ini file, `load_prefs()` defaults `arg_graphics` ("Graphics" in the
+     * .ini file) to GRAPHICS_MICROCHASM but `use_bigtile` ("Bigtile" in the
+     * .ini file) to FALSE, which leaves tiles drawn at half-width until the
+     * user toggles tiles graphics off and on. The GRAPHICS_MICROCHASM toggle
+     * handler always pairs these; do the same here so first-run state matches.
+     */
+    use_bigtile = (arg_graphics == GRAPHICS_MICROCHASM);
+
     /* Main window (need these before term_getsize gets called) */
     td = &data[0];
     td->dwStyle = (WS_OVERLAPPED | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX
@@ -2702,6 +2727,20 @@ static void init_windows(void)
             /* Oops */
             td->tile_wid = 8;
             td->tile_hgt = 13;
+        }
+
+        /* Mirror the GRAPHICS_MICROCHASM toggle handler: when `arg_graphics`
+         * is GRAPHICS_MICROCHASM, the main window's `tile_wid`/`tile_hgt`
+         * ("TileWid"/"TileHgt" in the .ini file) are derived from the font
+         * dimensions, not from what was saved in the .ini. Without this, a
+         * fresh install starts with `tile_hgt` == `font_hgt` instead of the
+         * bigtile-derived value, and tiles render at the wrong size until
+         * the user toggles tiles graphics off and on. */
+        if ((i == 0) && (arg_graphics == GRAPHICS_MICROCHASM))
+        {
+            td->tile_wid = get_tile_width_from_font(td->font_wid, td->font_hgt);
+            td->tile_hgt
+                = get_tile_height_from_font(td->font_wid, td->font_hgt);
         }
 
         /* Analyze the font */
@@ -3184,8 +3223,9 @@ static void process_menus(WORD wCmd)
 
             td = &data[0];
 
-            td->tile_wid = get_tile_width_from_font_height(td->font_hgt);
-            td->tile_hgt = get_tile_height_from_font_height(td->font_hgt);
+            td->tile_wid = get_tile_width_from_font(td->font_wid, td->font_hgt);
+            td->tile_hgt
+                = get_tile_height_from_font(td->font_wid, td->font_hgt);
 
             /* Analyze the font */
             term_getsize(td);
