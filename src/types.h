@@ -1222,6 +1222,7 @@ struct player_type
     /*** Temporary fields ***/
 
     bool leaping; // the player is currently in the air
+    byte visual_facing_dir; // cosmetic tile facing direction
     bool knocked_back; // stores whether the player was knocked back last turn
 
     byte ripostes; // number of ripostes since your last turn (should have a max

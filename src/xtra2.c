@@ -5668,6 +5668,52 @@ int rough_direction(int y1, int x1, int y2, int x2)
     return (dir_from_delta(dy, dx));
 }
 
+static bool player_visual_facing_enabled(void)
+{
+    return op_ptr && mirror_player_tile_facing;
+}
+
+void player_set_visual_facing_dir(int dir)
+{
+    if (!p_ptr)
+        return;
+
+    if ((dir >= 1) && (dir <= 9))
+        p_ptr->visual_facing_dir = (byte)dir;
+}
+
+void player_set_visual_facing_target(int y, int x)
+{
+    if (!p_ptr)
+        return;
+
+    player_set_visual_facing_dir(rough_direction(p_ptr->py, p_ptr->px, y, x));
+}
+
+static void player_refresh_visual_facing(void)
+{
+    if (!p_ptr || !character_dungeon || !player_visual_facing_enabled())
+        return;
+    if (!in_bounds(p_ptr->py, p_ptr->px))
+        return;
+
+    lite_spot(p_ptr->py, p_ptr->px);
+    handle_stuff();
+    Term_fresh();
+}
+
+void player_set_visual_facing_dir_immediate(int dir)
+{
+    player_set_visual_facing_dir(dir);
+    player_refresh_visual_facing();
+}
+
+void player_set_visual_facing_target_immediate(int y, int x)
+{
+    player_set_visual_facing_target(y, x);
+    player_refresh_visual_facing();
+}
+
 /*
  * Get an "aiming direction" (1,2,3,4,6,7,8,9 or 5) from the user.
  *
@@ -6035,6 +6081,11 @@ static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
     /* Save direction */
     (*dp) = dir;
 
+    if ((dir == 5) && target_okay(range))
+        player_set_visual_facing_target_immediate(p_ptr->target_row, p_ptr->target_col);
+    else
+        player_set_visual_facing_dir_immediate(dir);
+
 #ifdef ALLOW_REPEAT
 
     repeat_push(dir);
@@ -6115,6 +6166,8 @@ bool get_rep_dir(int* dp)
 
     /* Save direction */
     (*dp) = dir;
+
+    player_set_visual_facing_dir_immediate(dir);
 
 #ifdef ALLOW_REPEAT
 

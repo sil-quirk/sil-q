@@ -16246,10 +16246,11 @@ static const struct option_group_marker visual_option_groups[] = {
     { 0, "Lists" },
     { 2, "Overlay" },
     { 4, "Items" },
-    { 6, "Narrative" },
-    { 11, "ASCII" },
-    { 13, "Cursor" },
-    { 16, "Debug" },
+    { 6, "Animation" },
+    { 7, "Narrative" },
+    { 12, "ASCII" },
+    { 14, "Cursor" },
+    { 17, "Debug" },
     { -1, NULL }
 };
 
@@ -16845,6 +16846,8 @@ static cptr option_menu_label(int opt)
         case OPT_unidentified_items_slate: return narrow ? "Slate unknown items" : "Slate unidentified items";
         case OPT_stealth_vision: return narrow ? "Stealth vision" : "Stealth vision";
         case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
+        case OPT_mirror_player_tile_facing:
+            return narrow ? "Direction anim" : "Directional character animation";
         case OPT_show_smithing_difficulty: return narrow ? "Smith dbg items" : "Debug smithing in items";
         case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
@@ -16927,7 +16930,7 @@ static void option_apply_side_effects(int opt)
     if (opt == OPT_hide_supporting_panes_fullscreen)
         sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
-        || opt == OPT_sleep_icon)
+        || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing)
         p_ptr->redraw |= (PR_MAP);
 }
 

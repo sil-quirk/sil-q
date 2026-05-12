@@ -769,8 +769,8 @@ static const byte app_visual_options[] = {
     OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
     OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
-    OPT_banner_message_stairs, OPT_show_smithing_difficulty,
-    OPT_show_smithing_difficulty_look, OPT_NONE
+    OPT_mirror_player_tile_facing, OPT_banner_message_stairs,
+    OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look, OPT_NONE
 };
 
 static bool option_list_contains(const byte* ids, int opt)

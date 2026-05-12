@@ -10732,6 +10732,11 @@ void do_cmd_throw(bool automatic)
         {
             dir = ddd[rand_int(8)];
         }
+
+        if ((dir == 5) && target_okay(tdis))
+            player_set_visual_facing_target_immediate(p_ptr->target_row, p_ptr->target_col);
+        else
+            player_set_visual_facing_dir_immediate(dir);
     }
 
     // Otherwise get a direction (or cancel) */

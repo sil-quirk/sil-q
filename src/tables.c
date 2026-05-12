@@ -262,7 +262,7 @@ cptr option_text[OPT_MAX] = {
     "supply_menu_random_icons", /* OPT_supply_menu_random_icons */
     "supply_menu_hide_flavor_compact", /* OPT_supply_menu_hide_flavor_compact */
     "load_blitz_by_default", /* OPT_load_blitz_by_default */
-    NULL, /* reserved legacy slot */
+    "mirror_player_tile_facing", /* OPT_mirror_player_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -507,7 +507,7 @@ cptr option_desc[OPT_MAX] = {
     "Use random representative icons for supply groups", /* OPT_supply_menu_random_icons */
     "Hide flavor words in the compact supply list", /* OPT_supply_menu_hide_flavor_compact */
     "Load a living Blitz character by default when one exists", /* OPT_load_blitz_by_default */
-    NULL, /* reserved legacy slot */
+    "Directional character animation", /* OPT_mirror_player_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -751,6 +751,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* reserved legacy slot */
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
+    false, /* OPT_hide_left_panel */
 #if defined(__ANDROID__) || defined(SIL_IOS)
     false, /* OPT_banner_message_stairs */
 #else
@@ -771,7 +772,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_supply_menu_random_icons */
     true, /* OPT_supply_menu_hide_flavor_compact */
     false, /* OPT_load_blitz_by_default */
-    false, /* reserved legacy slot */
+    true, /* OPT_mirror_player_tile_facing */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -912,7 +913,6 @@ const bool option_norm[OPT_MAX] = {
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
-    false, /* reserved legacy slot */
     /* OPT_MAX sentinel uses zero-initialization */
 };
 
@@ -964,12 +964,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_main_combat_rolls, OPT_ability_desc_mode, OPT_stealth_vision,
         OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
-        OPT_show_level_entry_banner, OPT_show_partition_narrative,
+        OPT_mirror_player_tile_facing, OPT_show_level_entry_banner,
+        OPT_show_partition_narrative,
         OPT_narrative_banner_turns, OPT_intro_style, OPT_banner_message_stairs,
         OPT_solid_walls, OPT_hybrid_walls,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
         OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-        OPT_NONE, OPT_NONE },
+        OPT_NONE },
 
     /*** Birth ***/
 

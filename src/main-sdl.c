@@ -929,6 +929,7 @@ static touch_zone_press_state g_touch_zone_press;
 static touch_top_panel_press_state g_touch_top_panel_press;
 static touch_round_press_state g_touch_round_press;
 static int g_touch_round_last_dir = 0;
+static bool g_player_tile_facing_right = false;
 static bool g_touch_top_panel_open = true;
 static int g_touch_top_panel_pressed_slot = -1;
 static int g_touch_top_panel_flash_slot = -1;
@@ -24002,8 +24003,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     return 0;
 }
 
-static void sdl_draw_tileset_sprite(byte a, char c, const SDL_FRect* dst,
-    bool icon)
+static void sdl_draw_tileset_sprite_ex(byte a, char c, const SDL_FRect* dst,
+    bool icon, SDL_FlipMode flip)
 {
     int mask;
     SDL_FRect src;
@@ -24016,7 +24017,71 @@ static void sdl_draw_tileset_sprite(byte a, char c, const SDL_FRect* dst,
     src.y = (float)((a & mask) * TILE_SIZE);
     src.w = TILE_SIZE;
     src.h = TILE_SIZE;
-    SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, dst);
+    if (flip == SDL_FLIP_NONE)
+        SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, dst);
+    else
+        SDL_RenderTextureRotated(g_state.renderer, g_state.tileset, &src,
+            dst, 0.0, NULL, flip);
+}
+
+static void sdl_draw_tileset_sprite(byte a, char c, const SDL_FRect* dst,
+    bool icon)
+{
+    sdl_draw_tileset_sprite_ex(a, c, dst, icon, SDL_FLIP_NONE);
+}
+
+static bool sdl_map_grid_is_player(int y, int x)
+{
+    return p_ptr && (y >= 0) && (x >= 0) && (y < p_ptr->cur_map_hgt)
+        && (x < p_ptr->cur_map_wid) && (cave_m_idx[y][x] < 0);
+}
+
+static bool sdl_player_tile_mirroring_enabled(void)
+{
+    return op_ptr && mirror_player_tile_facing;
+}
+
+static bool sdl_player_tile_apply_horizontal_facing(int dir)
+{
+    switch (dir) {
+    case 1:
+    case 4:
+    case 7:
+        g_player_tile_facing_right = false;
+        return true;
+    case 3:
+    case 6:
+    case 9:
+        g_player_tile_facing_right = true;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_player_tile_flip_horizontal(void)
+{
+    int dir;
+
+    if (!p_ptr || !sdl_player_tile_mirroring_enabled()) {
+        g_player_tile_facing_right = false;
+        return false;
+    }
+
+    if (playerturn <= 1 && p_ptr->previous_action[0] == ACTION_NOTHING
+        && p_ptr->previous_action[1] == ACTION_NOTHING)
+    {
+        g_player_tile_facing_right = false;
+    }
+
+    dir = p_ptr->visual_facing_dir;
+    if (sdl_player_tile_apply_horizontal_facing(dir))
+        return g_player_tile_facing_right;
+
+    dir = p_ptr->previous_action[0];
+    (void)sdl_player_tile_apply_horizontal_facing(dir);
+
+    return g_player_tile_facing_right;
 }
 
 static void sdl_draw_ascii_minimap_cell(byte a, char c, byte ta, char tc,
@@ -24347,7 +24412,10 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     }
 
     /* Base tile */
-    sdl_draw_tileset_sprite(a, c, dst, false);
+    sdl_draw_tileset_sprite_ex(a, c, dst, false,
+        sdl_map_grid_is_player(dy, dx) && sdl_player_tile_flip_horizontal()
+            ? SDL_FLIP_HORIZONTAL
+            : SDL_FLIP_NONE);
 
     if (sdl_rage_wall_tint_active(dy, dx) && (cave_m_idx[dy][dx] == 0))
         sdl_draw_rage_tile_filter(a, c, dy, dx, dst);

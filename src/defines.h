@@ -2852,6 +2852,7 @@
 #define OPT_supply_menu_random_icons 112
 #define OPT_supply_menu_hide_flavor_compact 113
 #define OPT_load_blitz_by_default 114
+#define OPT_mirror_player_tile_facing 115
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
@@ -2940,6 +2941,7 @@
 #define visual_recognition op_ptr->opt[OPT_visual_recognition]
 #define stealth_vision op_ptr->opt[OPT_stealth_vision]
 #define sleep_icon op_ptr->opt[OPT_sleep_icon]
+#define mirror_player_tile_facing op_ptr->opt[OPT_mirror_player_tile_facing]
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
 #define load_blitz_by_default op_ptr->opt[OPT_load_blitz_by_default]
