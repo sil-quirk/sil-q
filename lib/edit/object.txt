@@ -1737,8 +1737,8 @@ D: you could try bashing down the door by holding down Control while you
 D: move into it (or press (/) before moving). Some doors are stuck, in
 D: which case bashing them down is the only way past.
 D:
-D: (Note: if you have vi keys enabled, Control behaves differently -
-D: use the / key instead.)
+D: (Note: If you enabled the option to move with hjkl keys,
+D: Control behaves differently - use the / key instead.)
 
 
 N:453:& Note~
@@ -1873,6 +1873,9 @@ D:
 D: This shortsword is also marked {special}. This means that it bears some
 D: unknown enchantment. You will have to discover what that is. For now
 D: try wielding it (u).
+D:
+D: (Note: If you enabled the option to move with hjkl keys, you must
+D: press Control+(u).)
 
 
 N:463:& Note~
@@ -1916,8 +1919,8 @@ D: disarmed by holding down Control while attempting to move into it
 D: (or pressing (/) before moving). This also has a chance of triggering the trap.
 D: Since it is not too dangerous, try to disarm it until you succeed.
 D:
-D: (Note: if you have vi keys enabled, Control behaves differently -
-D: use the / key instead.)
+D: (Note: If you enabled the option to move with hjkl keys,
+D: Control behaves differently - use the / key instead.)
 
 N:466:& Note~
 G:~:W1
@@ -2016,6 +2019,9 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Sometimes you won't know what a character on the screen represents.
 D: To find out, press (l), which allows you to look at objects.
+D:
+D: (Note: If you enabled the option to move with hjkl keys,
+D: you must press Control+(l).)
 
 
 N:474:& Note~

@@ -165,6 +165,8 @@ Changed:
 
 Fixed:
 
+- fix: add missing tutorial keybind hints for hjkl movement (vi keys)
+  ([#218](https://github.com/sil-quirk/sil-q/pull/218))
 - fix: Windows tile sizing on first launch and for wide fonts
   ([#217](https://github.com/sil-quirk/sil-q/pull/217))
 - fix: swapped red/blue channels when loading 24-bit BMP tiles under X11
