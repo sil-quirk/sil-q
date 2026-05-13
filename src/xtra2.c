@@ -7607,16 +7607,79 @@ static int quest_wrapped_rows(int col, cptr text, int max_width)
     return rows_used;
 }
 
+enum {
+    HINT_QUEST_CLICK_HINTS_TAB = -20101,
+    HINT_QUEST_CLICK_QUESTS_TAB = -20102
+};
+
+static bool quest_status_tabs_active = false;
+static int quest_status_hover_tab = 0;
+
+static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
+    bool hovered, int click_choice)
+{
+    char tab[32];
+    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
+
+    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
+    Term_putstr(col, row, -1, attr, tab);
+    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
+    return col + (int)strlen(tab) + 1;
+}
+
+static void hint_quest_draw_tabs(bool quest_active, int term_wid)
+{
+    int col = 0;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE,
+        "Hints & Quests");
+    Term_erase(0, 1, 255);
+
+    col = hint_quest_draw_tab(1, col, "Hints", !quest_active,
+        quest_status_hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
+        HINT_QUEST_CLICK_HINTS_TAB);
+    (void)hint_quest_draw_tab(1, col, "Quests", quest_active,
+        quest_status_hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
+        HINT_QUEST_CLICK_QUESTS_TAB);
+}
+
+static bool hint_quest_tab_key(char ch)
+{
+    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
+        || (ch == '\t');
+}
+
 static void quest_status_draw_header(int col)
 {
+    int wid = 80;
+    int hgt = 24;
+
+    Term_get_size(&wid, &hgt);
+    (void)hgt;
+
+    if (quest_status_tabs_active)
+    {
+        hint_quest_draw_tabs(true, wid);
+        Term_putstr(col, 2, -1, TERM_YELLOW, "=== Quest Status ===");
+        return;
+    }
+
     Term_putstr(col, 1, -1, TERM_YELLOW, "=== Quest Status ===");
 }
 
 static void quest_status_reset_page(int col, int *row)
 {
     Term_clear();
+    if (quest_status_tabs_active)
+    {
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+    }
     quest_status_draw_header(col);
-    *row = 3;
+    *row = quest_status_tabs_active ? 4 : 3;
 }
 
 static void quest_status_wait_for_next_page(int col, int hgt, int *row)
@@ -7626,7 +7689,38 @@ static void quest_status_wait_for_next_page(int col, int hgt, int *row)
     Term_erase(0, prompt_row, 255);
     Term_putstr(col, prompt_row, -1, TERM_L_WHITE, "Press any key to continue.");
     Term_fresh();
-    (void)inkey();
+    while (true)
+    {
+        char ch = inkey();
+
+        if (quest_status_tabs_active)
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action)
+                && click_action == UI_MENU_CLICK_HOVER)
+            {
+                if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB
+                    || clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB)
+                {
+                    int wid = 80;
+                    int hgt2 = 24;
+
+                    quest_status_hover_tab = clicked_choice;
+                    Term_get_size(&wid, &hgt2);
+                    (void)hgt2;
+                    hint_quest_draw_tabs(true, wid);
+                    Term_fresh();
+                }
+                continue;
+            }
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
+
+        break;
+    }
 
     quest_status_reset_page(col, row);
 }
@@ -7893,13 +7987,14 @@ void free_quest_texts(cptr* texts, int count)
  * Show quest status for current metarun - only active and completed quests
  * Now uses quest.txt data instead of hardcoded values
  */
-void do_cmd_quest_status(void)
+static bool do_cmd_quest_status_internal(bool tabbed)
 {
     char buf[128];
     int row = 1;
     int col = 2;
     bool any_quests = false;
     int wid, hgt;
+    bool switch_to_hints = false;
 
     log_trace("QUEST STATUS: do_cmd_quest_status() called");
 
@@ -7907,7 +8002,7 @@ void do_cmd_quest_status(void)
     if (!p_ptr) {
         log_trace("QUEST STATUS: No player data available");
         msg_print("No character data available.");
-        return;
+        return false;
     }
 
     log_trace("QUEST STATUS: Player exists, quest states - Tulkas: %d, Aule: %d, Mandos: %d",
@@ -7916,6 +8011,8 @@ void do_cmd_quest_status(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    quest_status_tabs_active = tabbed;
+    quest_status_hover_tab = 0;
 
     /* Get terminal size for wrapping */
     Term_get_size(&wid, &hgt);
@@ -8393,11 +8490,69 @@ void do_cmd_quest_status(void)
 
     quest_status_put_line(col, hgt, &row, TERM_WHITE, "");
     quest_status_ensure_rows(col, hgt, &row, 1);
-    Term_putstr(col, row, -1, TERM_L_WHITE, "Press any key to return.");
-    inkey();
+    Term_putstr(col, row, -1, TERM_L_WHITE,
+        tabbed ? "e/i Hints  Esc/any key return." : "Press any key to return.");
+    while (true) {
+        char ch = inkey();
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+
+        if (tabbed && ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    quest_status_hover_tab = clicked_choice;
+                    hint_quest_draw_tabs(true, wid);
+                    Term_fresh();
+                    continue;
+                }
+                switch_to_hints = true;
+                break;
+            }
+            if (clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB
+                && click_action == UI_MENU_CLICK_HOVER)
+            {
+                quest_status_hover_tab = clicked_choice;
+                hint_quest_draw_tabs(true, wid);
+                Term_fresh();
+                continue;
+            }
+            if (click_action == UI_MENU_CLICK_HOVER)
+            {
+                quest_status_hover_tab = 0;
+                continue;
+            }
+            break;
+        }
+        if (tabbed && ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
+        if (tabbed && hint_quest_tab_key(ch))
+        {
+            switch_to_hints = true;
+            break;
+        }
+        break;
+    }
     
+    if (tabbed)
+        ui_menu_click_clear();
+    quest_status_tabs_active = false;
+    quest_status_hover_tab = 0;
     screen_pop_supporting_panes_hidden();
     screen_load();
+    return switch_to_hints;
+}
+
+void do_cmd_quest_status(void)
+{
+    (void)do_cmd_quest_status_internal(false);
+}
+
+bool do_cmd_quest_status_tabs(void)
+{
+    return do_cmd_quest_status_internal(true);
 }
 
 static int quest_typewriter_text_start_row(int hgt)

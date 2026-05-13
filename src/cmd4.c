@@ -12847,23 +12847,20 @@ void create_smithing_item(void)
 
 #define MAIN_MENU_CHARACTER 1
 #define MAIN_MENU_KNOWLEDGE 2
-#define MAIN_MENU_QUEST_STATUS 3
+#define MAIN_MENU_HINTS_QUESTS 3
 #define MAIN_MENU_HALLS_OF_MANDOS 4
-#define MAIN_MENU_RUN_HISTORY 5
-#define MAIN_MENU_MAP 6
-#define MAIN_MENU_LOG 7
-#define MAIN_MENU_COMBAT_HISTORY 8
-#define MAIN_MENU_HINT_MESSAGES 9
-#define MAIN_MENU_STORY 10
-#define MAIN_MENU_STORY_STATS 11
-#define MAIN_MENU_OPTIONS 12
-#define MAIN_MENU_HELP 13
-#define MAIN_MENU_ABOUT 14
-#define MAIN_MENU_SAVE 15
-#define MAIN_MENU_SAVE_QUIT 16
-#define MAIN_MENU_RETURN_GAME 17
+#define MAIN_MENU_MAP 5
+#define MAIN_MENU_LOG_HISTORY 6
+#define MAIN_MENU_STORY 7
+#define MAIN_MENU_STORY_STATS 8
+#define MAIN_MENU_OPTIONS 9
+#define MAIN_MENU_HELP 10
+#define MAIN_MENU_ABOUT 11
+#define MAIN_MENU_SAVE 12
+#define MAIN_MENU_SAVE_QUIT 13
+#define MAIN_MENU_RETURN_GAME 14
 
-#define MAIN_MENU_MAX 17
+#define MAIN_MENU_MAX 14
 #define MAIN_MENU_LABEL_WIDTH 21
 #define MAIN_MENU_SHORTCUT_WIDTH 6
 
@@ -12885,13 +12882,10 @@ static cptr main_menu_title(int choice)
     {
     case MAIN_MENU_CHARACTER: return "Character sheet";
     case MAIN_MENU_KNOWLEDGE: return "Known lore";
-    case MAIN_MENU_QUEST_STATUS: return "Quest status";
+    case MAIN_MENU_HINTS_QUESTS: return "Hints & Quests";
     case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
-    case MAIN_MENU_RUN_HISTORY: return "Run history";
     case MAIN_MENU_MAP: return "Map";
-    case MAIN_MENU_LOG: return "Log";
-    case MAIN_MENU_COMBAT_HISTORY: return "Combat history";
-    case MAIN_MENU_HINT_MESSAGES: return "Hint messages";
+    case MAIN_MENU_LOG_HISTORY: return "Log & combat history";
     case MAIN_MENU_STORY: return "The story so far";
     case MAIN_MENU_STORY_STATS: return "Story statistics";
     case MAIN_MENU_OPTIONS: return "Options and misc";
@@ -12911,13 +12905,10 @@ static int main_menu_keyboard_key(int choice)
     {
     case MAIN_MENU_CHARACTER: return 'c';
     case MAIN_MENU_KNOWLEDGE: return 'a';
-    case MAIN_MENU_QUEST_STATUS: return 't';
+    case MAIN_MENU_HINTS_QUESTS: return 'i';
     case MAIN_MENU_HALLS_OF_MANDOS: return 'd';
-    case MAIN_MENU_RUN_HISTORY: return 'v';
     case MAIN_MENU_MAP: return 'm';
-    case MAIN_MENU_LOG: return 'l';
-    case MAIN_MENU_COMBAT_HISTORY: return 'x';
-    case MAIN_MENU_HINT_MESSAGES: return 'i';
+    case MAIN_MENU_LOG_HISTORY: return 'l';
     case MAIN_MENU_STORY: return 'y';
     case MAIN_MENU_STORY_STATS: return 'g';
     case MAIN_MENU_OPTIONS: return 'o';
@@ -12993,11 +12984,11 @@ static bool main_menu_controller_binding_for_choice(int choice, int* type,
         out_id = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER; /* L1 */
         out_fallback = "L1";
         break;
-    case MAIN_MENU_LOG:
+    case MAIN_MENU_LOG_HISTORY:
         out_id = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER; /* R1 */
         out_fallback = "R1";
         break;
-    case MAIN_MENU_HINT_MESSAGES:
+    case MAIN_MENU_HINTS_QUESTS:
         out_id = SDL_GAMEPAD_BUTTON_NORTH;         /* Y */
         out_fallback = "Y";
         break;
@@ -13446,9 +13437,143 @@ static void main_menu_about(void)
         sdl_music_stop_main();
 }
 
-static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x);
+
+static void do_cmd_log_history_menu(void)
+{
+    do_cmd_messages();
+}
+
+enum {
+    LOG_HISTORY_CLICK_MESSAGE_TAB = -20001,
+    LOG_HISTORY_CLICK_COMBAT_TAB = -20002
+};
+
+static int log_history_draw_tab(int row, int col, cptr label, bool active,
+    bool hovered, int click_choice)
+{
+    char tab[32];
+    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
+
+    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
+    Term_putstr(col, row, -1, attr, tab);
+    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
+    return col + (int)strlen(tab) + 1;
+}
+
+static void log_history_draw_tabs(bool combat_active, int hover_tab, int term_wid)
+{
+    int col = 0;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE, "Logs");
+    Term_erase(0, 1, 255);
+
+    col = log_history_draw_tab(1, col, "Messages", !combat_active,
+        hover_tab == LOG_HISTORY_CLICK_MESSAGE_TAB,
+        LOG_HISTORY_CLICK_MESSAGE_TAB);
+    (void)log_history_draw_tab(1, col, "Combat", combat_active,
+        hover_tab == LOG_HISTORY_CLICK_COMBAT_TAB,
+        LOG_HISTORY_CLICK_COMBAT_TAB);
+}
+
+static bool log_history_tab_key(char ch)
+{
+    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
+        || (ch == '\t');
+}
+
+enum {
+    HINT_QUEST_CLICK_HINTS_TAB = -20101,
+    HINT_QUEST_CLICK_QUESTS_TAB = -20102
+};
+
+static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
+    bool hovered, int click_choice)
+{
+    char tab[32];
+    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
+
+    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
+    Term_putstr(col, row, -1, attr, tab);
+    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
+    return col + (int)strlen(tab) + 1;
+}
+
+static void hint_quest_draw_tabs(bool quest_active, int hover_tab, int term_wid)
+{
+    int col = 0;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE,
+        "Hints & Quests");
+    Term_erase(0, 1, 255);
+
+    col = hint_quest_draw_tab(1, col, "Hints", !quest_active,
+        hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
+        HINT_QUEST_CLICK_HINTS_TAB);
+    (void)hint_quest_draw_tab(1, col, "Quests", quest_active,
+        hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
+        HINT_QUEST_CLICK_QUESTS_TAB);
+}
+
+static bool hint_quest_tab_key(char ch)
+{
+    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
+        || (ch == '\t');
+}
+
+static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
+    int* out_look_x, bool* out_pending_map, int* out_map_y,
+    int* out_map_x)
+{
+    bool quest_tab = false;
+    bool pending_look = false;
+    int look_y = -1;
+    int look_x = -1;
+    bool pending_map = false;
+    int map_y = -1;
+    int map_x = -1;
+
+    while (true)
+    {
+        if (quest_tab)
+        {
+            if (!do_cmd_quest_status_tabs())
+                break;
+            quest_tab = false;
+            continue;
+        }
+
+        if (!do_cmd_hint_messages(&pending_look, &look_y, &look_x,
+                &pending_map, &map_y, &map_x))
+            break;
+
+        if (pending_look || pending_map)
+            break;
+
+        quest_tab = true;
+    }
+
+    if (out_pending_look)
+        *out_pending_look = pending_look;
+    if (out_look_y)
+        *out_look_y = look_y;
+    if (out_look_x)
+        *out_look_x = look_x;
+    if (out_pending_map)
+        *out_pending_map = pending_map;
+    if (out_map_y)
+        *out_map_y = map_y;
+    if (out_map_x)
+        *out_map_x = map_x;
+}
 
 /*
  * Performs the interface and selection work for the main menu.
@@ -13585,34 +13710,26 @@ int main_menu_aux(int* highlight)
         switch (ch)
         {
         case 'c':
-            *highlight = 1;
+            *highlight = MAIN_MENU_CHARACTER;
             return (*highlight);  // Character sheet
         case 'a':
-            *highlight = 2;
+            *highlight = MAIN_MENU_KNOWLEDGE;
             return (*highlight);  // Known lore
         case 't':
-            *highlight = 3;
-            return (*highlight);  // Quest status
+        case 'i':
+            *highlight = MAIN_MENU_HINTS_QUESTS;
+            return (*highlight); // Hints & Quests
         case 'd':
-            *highlight = 4;
+            *highlight = MAIN_MENU_HALLS_OF_MANDOS;
             return (*highlight);  // Halls of Mandos
-        case 'v':
-            *highlight = 5;
-            return (*highlight);  // Run history
         case 'm':
-            *highlight = 6;
+            *highlight = MAIN_MENU_MAP;
             return (*highlight);  // Map
         case 'l':
-            *highlight = 7;
-            return (*highlight);  // Log
-        case 'x':
-            *highlight = 8;
-            return (*highlight); // Combat history
-        case 'i':
-            *highlight = 9;
-            return (*highlight); // Hint messages
+            *highlight = MAIN_MENU_LOG_HISTORY;
+            return (*highlight);  // Log & combat history
         case 'y':
-            *highlight = 10;
+            *highlight = MAIN_MENU_STORY;
             return (*highlight); // The story so far
         case 'g':
             *highlight = MAIN_MENU_STORY_STATS;
@@ -13731,60 +13848,42 @@ void do_cmd_main_menu(void)
         // if an action has been selected...
         switch (actiontype)
         {
-        case 1: // Character sheet (c)
+        case MAIN_MENU_CHARACTER: // Character sheet (c)
         {
             do_cmd_character_sheet();
             leave_menu = true;
             break;
         }
-        case 2: // Known lore (a)
+        case MAIN_MENU_KNOWLEDGE: // Known lore (a)
         {
             do_cmd_knowledge_browser_page(g_knowledge_last_page);
             leave_menu = true;
             break;
         }
-        case 3: // Quest status (t)
+        case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (i/t)
         {
-            do_cmd_quest_status();
+            do_cmd_hint_quest_menu(&pending_hint_look, &pending_hint_look_y,
+                &pending_hint_look_x, &pending_hint_map, &pending_hint_map_y,
+                &pending_hint_map_x);
             leave_menu = true;
             break;
         }
-        case 4: // Halls of Mandos (d)
+        case MAIN_MENU_HALLS_OF_MANDOS: // Halls of Mandos (d)
         {
             log_info("main menu: opening Halls of Mandos view");
             show_scores_interactive(true);
             leave_menu = true;
             break;
         }
-        case 5: // Run history (v)
-        {
-            do_cmd_run_history();
-            leave_menu = true;
-            break;
-        }
-        case 6: // Map (m)
+        case MAIN_MENU_MAP: // Map (m)
         {
             do_cmd_view_map();
             leave_menu = true;
             break;
         }
-        case 7: // Log (l)
+        case MAIN_MENU_LOG_HISTORY: // Log & combat history (l)
         {
-            do_cmd_messages();
-            leave_menu = true;
-            break;
-        }
-        case 8: // Combat history (x)
-        {
-            do_cmd_combat_history();
-            leave_menu = true;
-            break;
-        }
-        case 9: // Hint messages (i)
-        {
-            do_cmd_hint_messages(&pending_hint_look, &pending_hint_look_y,
-                &pending_hint_look_x, &pending_hint_map, &pending_hint_map_y,
-                &pending_hint_map_x);
+            do_cmd_log_history_menu();
             leave_menu = true;
             break;
         }
@@ -14328,23 +14427,23 @@ static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
     static const char* const tip_list_prompts[] = {
-        "[Press '8'/'2' to move, Enter to read, 'h' for level hints, or ESCAPE]",
-        "[8/2 move, Enter read, h=level hints, ESC]",
-        "[8/2 move, Enter, h, ESC]"
+        "[e/i tabs, '8'/'2' move, Enter read, 'h' level hints, ESC]",
+        "[e/i tabs, 8/2 move, Enter read, h=level hints, ESC]",
+        "[e/i, 8/2, Enter, h, ESC]"
     };
     static const char* const level_list_prompts[] = {
-        "[Press '8'/'2' to move, Enter read, 'h' tips, 'l' look, 'm' map, or ESCAPE]",
-        "[8/2 move, Enter read, h tips, l look, m map, ESC]",
-        "[8/2, Enter, h, l, m, ESC]"
+        "[e/i tabs, 8/2 move, Enter read, h tips, l look, m map, ESC]",
+        "[e/i tabs, Enter read, h tips, l look, m map, ESC]",
+        "[e/i, 8/2, Enter, h, l, m, ESC]"
     };
     static const char* const no_level_with_tips_prompts[] = {
-        "[No level hint messages. Press 'h' for all tips, or ESCAPE]",
-        "[No level hints. h=tips, ESC]",
-        "[No hints. h, ESC]"
+        "[No level hint messages. e/i tabs, h all tips, ESC]",
+        "[No level hints. e/i tabs, h=tips, ESC]",
+        "[No hints. e/i, h, ESC]"
     };
     static const char* const no_level_prompts[] = {
-        "[No level hint messages. Press ESCAPE]",
-        "[No level hints. ESC]"
+        "[No level hint messages. e/i tabs, ESC]",
+        "[No level hints. e/i, ESC]"
     };
 
     if (steamdeck_controls_active())
@@ -15400,7 +15499,7 @@ void show_hint_message_screen(int index)
     }
 }
 
-static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x)
 {
@@ -15413,6 +15512,8 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool pending_map = false;
     int map_y = -1;
     int map_x = -1;
+    bool switch_to_quests = false;
+    int hover_tab = 0;
     bool show_all_tips = false;
     bool steamdeck = steamdeck_controls_active();
 
@@ -15445,10 +15546,10 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         Term_get_size(&wid, &hgt);
         Term_clear();
 
-        int rows = hgt - 4;
+        int rows = hgt - 5;
         if (rows < 1)
             rows = 1;
-        body_top = 2;
+        body_top = 3;
         body_bottom = body_top + rows - 1;
         if (body_bottom >= hgt - 1)
             body_bottom = hgt - 2;
@@ -15501,10 +15602,12 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             top = 0;
         }
 
+        hint_quest_draw_tabs(false, hover_tab, wid);
+
         if (show_all_tips)
-            prt(format("All Tutorial Hints (%d)", tip_n), 0, 0);
+            prt(format("All Tutorial Hints (%d)", tip_n), 2, 0);
         else
-            prt(format("Hint Messages (%d)", level_n), 0, 0);
+            prt(format("Hint Messages (%d)", level_n), 2, 0);
 
         {
             const char* prompt = hint_message_list_prompt(show_all_tips,
@@ -15516,7 +15619,7 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
         if (n <= 0)
         {
-            Term_putstr(0, 2, -1, TERM_SLATE,
+            Term_putstr(0, body_top, -1, TERM_SLATE,
                 show_all_tips ? "No tutorial hints are available."
                              : "You recall no hint messages on this level.");
         }
@@ -15557,12 +15660,33 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (clicked_choice >= HINT_MESSAGE_CLICK_ENTRY_BASE)
+                if (clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        continue;
+                    }
+                    switch_to_quests = true;
+                    break;
+                }
+                else if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        continue;
+                    }
+                    continue;
+                }
+                else if (clicked_choice >= HINT_MESSAGE_CLICK_ENTRY_BASE)
                 {
                     int clicked_idx =
                         clicked_choice - HINT_MESSAGE_CLICK_ENTRY_BASE;
                     if (clicked_idx >= 0 && clicked_idx < n)
                     {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            hover_tab = 0;
                         sel = clicked_idx;
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
@@ -15576,7 +15700,10 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                 else
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = 0;
                         continue;
+                    }
 
                     switch (clicked_choice)
                     {
@@ -15604,6 +15731,15 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             {
                 continue;
             }
+        }
+
+        if (switch_to_quests)
+            break;
+
+        if (hint_quest_tab_key(ch))
+        {
+            switch_to_quests = true;
+            break;
         }
 
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
@@ -15744,6 +15880,8 @@ static void do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         *out_map_y = map_y;
     if (out_map_x)
         *out_map_x = map_x;
+
+    return switch_to_quests;
 }
 
 /*
@@ -15768,10 +15906,11 @@ void do_cmd_messages(void)
     int i, j, n, q;
     int wid, hgt;
     cptr prompt =
-        "Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc";
+        "e/i tabs  Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc";
 
     char shower[80];
     char finder[80];
+    int hover_tab = 0;
 
     /* Clear any active banner before opening message history */
     extern int g_banner_force_redraw_remaining;
@@ -15818,11 +15957,11 @@ void do_cmd_messages(void)
         /* Clear screen */
         Term_clear();
 
-        body_top = 2;
+        body_top = 3;
         body_bottom = hgt - 3;
         if (body_bottom < body_top)
         {
-            body_top = 1;
+            body_top = 2;
             body_bottom = hgt - 2;
         }
         if (body_bottom < body_top)
@@ -15844,6 +15983,8 @@ void do_cmd_messages(void)
         page_rows = (visible_rows > 1) ? (visible_rows - 1) : 1;
         ui_scroll_area_begin(body_top, body_bottom,
             SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
 
         /* Dump messages */
         for (j = 0; (j < visible_rows) && (i + j < n); j++)
@@ -15881,20 +16022,22 @@ void do_cmd_messages(void)
         range_first = (n > 0) ? (i + 1) : 0;
         range_last = (n > 0) ? (i + j) : 0;
 
+        log_history_draw_tabs(false, hover_tab, wid);
+
         /* Display header XXX XXX XXX */
         prt(format(
                 "Message Log (%d-%d of %d), Offset %d",
                 range_first, range_last, n, q),
-            0, 0);
+            (body_top > 0) ? body_top - 1 : 0, 0);
 
         /* Display prompt */
         prt(prompt, hgt - 1, 0);
-        ui_menu_click_begin();
-        ui_menu_click_set_hover_enabled(true);
         ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
         ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");
         ui_menu_click_add_text_token('9', 0, hgt - 1, prompt, "PgUp");
         ui_menu_click_add_text_token('3', 0, hgt - 1, prompt, "PgDn");
+        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "tabs");
+        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "e/i");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "/");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
         ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "=");
@@ -15917,15 +16060,43 @@ void do_cmd_messages(void)
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (clicked_choice == LOG_HISTORY_CLICK_COMBAT_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        continue;
+                    }
+                    ch = 'i';
+                }
+                else if (clicked_choice == LOG_HISTORY_CLICK_MESSAGE_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        hover_tab = clicked_choice;
                     continue;
-
-                ch = (char)clicked_choice;
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    hover_tab = 0;
+                    continue;
+                }
+                else
+                    ch = (char)clicked_choice;
             }
             else if (ch == UI_MENU_CLICK_WAKE_KEY)
             {
                 continue;
             }
+        }
+
+        if (log_history_tab_key(ch))
+        {
+            ui_scroll_area_clear();
+            ui_menu_click_clear();
+            screen_pop_supporting_panes_hidden();
+            screen_load();
+            do_cmd_combat_history();
+            return;
         }
 
         /* Exit on Escape */
@@ -16930,8 +17101,45 @@ static void option_apply_side_effects(int opt)
     if (opt == OPT_hide_supporting_panes_fullscreen)
         sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
-        || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing)
+        || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing
+        || opt == OPT_handcrafted_player_tile_facing)
         p_ptr->redraw |= (PR_MAP);
+}
+
+static byte option_player_tile_facing_mode(void)
+{
+    if (!op_ptr || !op_ptr->opt[OPT_mirror_player_tile_facing])
+        return PLAYER_TILE_FACING_OFF;
+
+    return op_ptr->opt[OPT_handcrafted_player_tile_facing]
+        ? PLAYER_TILE_FACING_HANDCRAFTED
+        : PLAYER_TILE_FACING_MIRROR;
+}
+
+static cptr option_player_tile_facing_mode_label(void)
+{
+    switch (option_player_tile_facing_mode())
+    {
+    case PLAYER_TILE_FACING_HANDCRAFTED: return "handcrafted";
+    case PLAYER_TILE_FACING_MIRROR:      return "mirror";
+    default:                             return "off";
+    }
+}
+
+static void option_set_player_tile_facing_mode(byte mode)
+{
+    if (!op_ptr)
+        return;
+
+    if (mode > PLAYER_TILE_FACING_MAX)
+        mode = PLAYER_TILE_FACING_OFF;
+
+    op_ptr->opt[OPT_mirror_player_tile_facing]
+        = (mode != PLAYER_TILE_FACING_OFF);
+    op_ptr->opt[OPT_handcrafted_player_tile_facing]
+        = (mode == PLAYER_TILE_FACING_HANDCRAFTED);
+
+    option_apply_side_effects(OPT_mirror_player_tile_facing);
 }
 
 extern void do_cmd_options_aux(int page, cptr info)
@@ -17282,6 +17490,12 @@ extern void do_cmd_options_aux(int page, cptr info)
                     option_menu_label(opt[i]),
                     op_ptr->opt[opt[i]] ? "Random" : "Fixed");
             }
+            else if (opt[i] == OPT_mirror_player_tile_facing)
+            {
+                option_menu_format_line(buf, sizeof(buf),
+                    option_menu_label(opt[i]),
+                    option_player_tile_facing_mode_label());
+            }
             else
             {
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
@@ -17575,6 +17789,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->narrative_banner_turns + 1
                         : 0;
                 }
+                else if (opt[k] == OPT_mirror_player_tile_facing)
+                {
+                    byte mode = option_player_tile_facing_mode();
+                    option_set_player_tile_facing_mode(
+                        (mode < PLAYER_TILE_FACING_MAX)
+                        ? (byte)(mode + 1)
+                        : PLAYER_TILE_FACING_OFF);
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
@@ -17752,6 +17974,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->narrative_banner_turns + 1
                         : NARRATIVE_BANNER_TURNS_MAX;
                 }
+                else if (opt[k] == OPT_mirror_player_tile_facing)
+                {
+                    byte mode = option_player_tile_facing_mode();
+                    option_set_player_tile_facing_mode(
+                        (mode < PLAYER_TILE_FACING_MAX)
+                        ? (byte)(mode + 1)
+                        : PLAYER_TILE_FACING_MAX);
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -17928,6 +18158,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                         (op_ptr->narrative_banner_turns > 0)
                         ? op_ptr->narrative_banner_turns - 1
                         : 0;
+                }
+                else if (opt[k] == OPT_mirror_player_tile_facing)
+                {
+                    byte mode = option_player_tile_facing_mode();
+                    option_set_player_tile_facing_mode(
+                        (mode > PLAYER_TILE_FACING_OFF)
+                        ? (byte)(mode - 1)
+                        : PLAYER_TILE_FACING_OFF);
                 }
                 else
                 {

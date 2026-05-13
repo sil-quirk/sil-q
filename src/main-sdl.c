@@ -916,8 +916,15 @@ typedef enum {
     SDL_TOUCH_YES_NO_PLACEMENT_CENTER = 0,
     SDL_TOUCH_YES_NO_PLACEMENT_LOWER
 } sdl_touch_yes_no_prompt_placement;
+typedef enum {
+    SDL_TOUCH_YES_NO_HOVER_NONE = -1,
+    SDL_TOUCH_YES_NO_HOVER_YES = 0,
+    SDL_TOUCH_YES_NO_HOVER_NO = 1
+} sdl_touch_yes_no_prompt_hover;
 static sdl_touch_yes_no_prompt_placement g_touch_pane_yes_no_prompt_placement =
     SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
+static sdl_touch_yes_no_prompt_hover g_touch_pane_yes_no_prompt_hover =
+    SDL_TOUCH_YES_NO_HOVER_NONE;
 static bool g_touch_pane_mobile_open = true;
 static touch_pane_press_state g_touch_pane_press;
 static bool g_touch_mouse_fallback_active = false;
@@ -1124,6 +1131,7 @@ static int sdl_touch_pane_wrap_prompt_lines(cptr text, TTF_Font* font,
     float max_w, char lines[][SDL_TOUCH_YES_NO_LINE_LEN], int max_lines);
 static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     SDL_FRect* prompt_rect, SDL_FRect* yes_rect, SDL_FRect* no_rect);
+static bool sdl_touch_pane_handle_yes_no_prompt_hover(float x, float y);
 static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y);
 static bool sdl_touch_pane_binding_is_direction(int binding);
 static bool sdl_touch_pane_slot_uses_long_press(int slot, int binding);
@@ -4575,10 +4583,14 @@ static bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot)
     return false;
 }
 
-static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
+static bool sdl_touch_pane_yes_no_prompt_hit(float x, float y,
+    sdl_touch_yes_no_prompt_hover* button)
 {
     SDL_FRect yes_rect;
     SDL_FRect no_rect;
+
+    if (button)
+        *button = SDL_TOUCH_YES_NO_HOVER_NONE;
 
     if (!sdl_touch_pane_yes_no_prompt_layout(NULL, NULL, &yes_rect, &no_rect))
         return false;
@@ -4586,23 +4598,66 @@ static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
     if (x >= yes_rect.x && x < yes_rect.x + yes_rect.w
         && y >= yes_rect.y && y < yes_rect.y + yes_rect.h)
     {
-        g_touch_pane_yes_no_prompt_active = false;
-        g_touch_pane_yes_no_prompt_text[0] = '\0';
-        g_touch_pane_yes_no_prompt_placement =
-            SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
-        g_state.need_present = true;
-        Term_keypress('y');
+        if (button)
+            *button = SDL_TOUCH_YES_NO_HOVER_YES;
         return true;
     }
 
     if (x >= no_rect.x && x < no_rect.x + no_rect.w
         && y >= no_rect.y && y < no_rect.y + no_rect.h)
     {
-        g_touch_pane_yes_no_prompt_active = false;
-        g_touch_pane_yes_no_prompt_text[0] = '\0';
-        g_touch_pane_yes_no_prompt_placement =
-            SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
+        if (button)
+            *button = SDL_TOUCH_YES_NO_HOVER_NO;
+        return true;
+    }
+
+    return true;
+}
+
+static void sdl_touch_pane_clear_yes_no_prompt(void)
+{
+    g_touch_pane_yes_no_prompt_active = false;
+    g_touch_pane_yes_no_prompt_text[0] = '\0';
+    g_touch_pane_yes_no_prompt_placement = SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
+    g_touch_pane_yes_no_prompt_hover = SDL_TOUCH_YES_NO_HOVER_NONE;
+    g_state.need_present = true;
+}
+
+static bool sdl_touch_pane_handle_yes_no_prompt_hover(float x, float y)
+{
+    sdl_touch_yes_no_prompt_hover button = SDL_TOUCH_YES_NO_HOVER_NONE;
+
+    if (!sdl_touch_pane_yes_no_prompt_hit(x, y, &button))
+        return false;
+
+    if (g_touch_pane_yes_no_prompt_hover != button)
+    {
+        g_touch_pane_yes_no_prompt_hover = button;
         g_state.need_present = true;
+    }
+
+    return true;
+}
+
+static bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y)
+{
+    sdl_touch_yes_no_prompt_hover button = SDL_TOUCH_YES_NO_HOVER_NONE;
+
+    if (!sdl_touch_pane_yes_no_prompt_hit(x, y, &button))
+        return false;
+
+    g_touch_pane_yes_no_prompt_hover = button;
+
+    if (button == SDL_TOUCH_YES_NO_HOVER_YES)
+    {
+        sdl_touch_pane_clear_yes_no_prompt();
+        Term_keypress('y');
+        return true;
+    }
+
+    if (button == SDL_TOUCH_YES_NO_HOVER_NO)
+    {
+        sdl_touch_pane_clear_yes_no_prompt();
         Term_keypress('n');
         return true;
     }
@@ -5023,6 +5078,12 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
     SDL_Color muted = g_state.palette[TERM_SLATE];
     SDL_Color text = g_state.palette[TERM_WHITE];
+    bool yes_highlight;
+    bool no_highlight;
+    SDL_Color yes_fill;
+    SDL_Color no_fill;
+    SDL_Color yes_border;
+    SDL_Color no_border;
     cptr prompt_text = g_touch_pane_yes_no_prompt_text[0]
         ? g_touch_pane_yes_no_prompt_text
         : "Are you sure?";
@@ -5040,6 +5101,16 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
         screen = sdl_get_layout_screen_rect();
     }
     prompt_font_px = sdl_touch_pane_yes_no_prompt_font_px(cell_h, screen.h);
+    yes_highlight =
+        (g_touch_pane_yes_no_prompt_hover != SDL_TOUCH_YES_NO_HOVER_NO);
+    no_highlight =
+        (g_touch_pane_yes_no_prompt_hover == SDL_TOUCH_YES_NO_HOVER_NO);
+    yes_fill = yes_highlight ? (SDL_Color){ 37, 47, 63, 255 }
+                             : (SDL_Color){ 31, 31, 31, 255 };
+    no_fill = no_highlight ? (SDL_Color){ 37, 47, 63, 255 }
+                           : (SDL_Color){ 31, 31, 31, 255 };
+    yes_border = yes_highlight ? accent : muted;
+    no_border = no_highlight ? accent : muted;
 
     shadow = panel_rect;
     shadow.x += 3.0f;
@@ -5052,14 +5123,18 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
     SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 190);
     SDL_RenderRect(g_state.renderer, &panel_rect);
 
-    SDL_SetRenderDrawColor(g_state.renderer, 37, 47, 63, 255);
+    SDL_SetRenderDrawColor(g_state.renderer, yes_fill.r, yes_fill.g,
+        yes_fill.b, yes_fill.a);
     SDL_RenderFillRect(g_state.renderer, &yes_rect);
-    SDL_SetRenderDrawColor(g_state.renderer, 31, 31, 31, 255);
+    SDL_SetRenderDrawColor(g_state.renderer, no_fill.r, no_fill.g,
+        no_fill.b, no_fill.a);
     SDL_RenderFillRect(g_state.renderer, &no_rect);
 
-    SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g, accent.b, 235);
+    SDL_SetRenderDrawColor(g_state.renderer, yes_border.r, yes_border.g,
+        yes_border.b, yes_highlight ? 235 : 220);
     SDL_RenderRect(g_state.renderer, &yes_rect);
-    SDL_SetRenderDrawColor(g_state.renderer, muted.r, muted.g, muted.b, 220);
+    SDL_SetRenderDrawColor(g_state.renderer, no_border.r, no_border.g,
+        no_border.b, no_highlight ? 235 : 220);
     SDL_RenderRect(g_state.renderer, &no_rect);
 
     sdl_touch_pane_draw_wrapped_prompt(&prompt_rect, prompt_text, text,
@@ -20134,6 +20209,12 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         if (ev->motion.which == SDL_TOUCH_MOUSEID)
             return;
+        if (g_touch_pane_yes_no_prompt_active
+            && sdl_touch_pane_handle_yes_no_prompt_hover(
+                (float)ev->motion.x, (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_side_pane_menu_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, 0, true))
         {
@@ -24036,9 +24117,21 @@ static bool sdl_map_grid_is_player(int y, int x)
         && (x < p_ptr->cur_map_wid) && (cave_m_idx[y][x] < 0);
 }
 
-static bool sdl_player_tile_mirroring_enabled(void)
+enum {
+    SDL_PLAYER_TILE_LEFT_ROW_ELF = 13,
+    SDL_PLAYER_TILE_LEFT_ROW_DWARF_MAN = 14,
+    SDL_PLAYER_TILE_RIGHT_ROW_ELF = 24,
+    SDL_PLAYER_TILE_RIGHT_ROW_DWARF_MAN = 25
+};
+
+static bool sdl_player_tile_directional_enabled(void)
 {
     return op_ptr && mirror_player_tile_facing;
+}
+
+static bool sdl_player_tile_handcrafted_enabled(void)
+{
+    return op_ptr && mirror_player_tile_facing && handcrafted_player_tile_facing;
 }
 
 static bool sdl_player_tile_apply_horizontal_facing(int dir)
@@ -24059,11 +24152,11 @@ static bool sdl_player_tile_apply_horizontal_facing(int dir)
     }
 }
 
-static bool sdl_player_tile_flip_horizontal(void)
+static bool sdl_player_tile_facing_right(void)
 {
     int dir;
 
-    if (!p_ptr || !sdl_player_tile_mirroring_enabled()) {
+    if (!p_ptr || !sdl_player_tile_directional_enabled()) {
         g_player_tile_facing_right = false;
         return false;
     }
@@ -24082,6 +24175,18 @@ static bool sdl_player_tile_flip_horizontal(void)
     (void)sdl_player_tile_apply_horizontal_facing(dir);
 
     return g_player_tile_facing_right;
+}
+
+static byte sdl_player_tile_handcrafted_right_attr(byte a)
+{
+    switch (TILE_GET_INDEX(a))
+    {
+    case SDL_PLAYER_TILE_LEFT_ROW_ELF:
+        return TILE_SET_INDEX(a, SDL_PLAYER_TILE_RIGHT_ROW_ELF);
+    case SDL_PLAYER_TILE_LEFT_ROW_DWARF_MAN:
+        return TILE_SET_INDEX(a, SDL_PLAYER_TILE_RIGHT_ROW_DWARF_MAN);
+    default: return a;
+    }
 }
 
 static void sdl_draw_ascii_minimap_cell(byte a, char c, byte ta, char tc,
@@ -24412,10 +24517,20 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     }
 
     /* Base tile */
-    sdl_draw_tileset_sprite_ex(a, c, dst, false,
-        sdl_map_grid_is_player(dy, dx) && sdl_player_tile_flip_horizontal()
-            ? SDL_FLIP_HORIZONTAL
-            : SDL_FLIP_NONE);
+    {
+        byte draw_a = a;
+        SDL_FlipMode flip = SDL_FLIP_NONE;
+
+        if (sdl_map_grid_is_player(dy, dx) && sdl_player_tile_facing_right())
+        {
+            if (sdl_player_tile_handcrafted_enabled())
+                draw_a = sdl_player_tile_handcrafted_right_attr(a);
+            else
+                flip = SDL_FLIP_HORIZONTAL;
+        }
+
+        sdl_draw_tileset_sprite_ex(draw_a, c, dst, false, flip);
+    }
 
     if (sdl_rage_wall_tint_active(dy, dx) && (cave_m_idx[dy][dx] == 0))
         sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
@@ -28731,6 +28846,7 @@ static void sdl_touch_pane_begin_yes_no_prompt_impl(cptr prompt,
     sdl_touch_round_cancel_press();
     sdl_menu_touch_cancel();
     g_touch_pane_yes_no_prompt_placement = placement;
+    g_touch_pane_yes_no_prompt_hover = SDL_TOUCH_YES_NO_HOVER_NONE;
     g_touch_pane_yes_no_prompt_active = true;
     g_state.need_present = true;
 }
@@ -28752,10 +28868,7 @@ void sdl_touch_pane_end_yes_no_prompt(void)
     if (!g_touch_pane_yes_no_prompt_active)
         return;
 
-    g_touch_pane_yes_no_prompt_active = false;
-    g_touch_pane_yes_no_prompt_text[0] = '\0';
-    g_touch_pane_yes_no_prompt_placement = SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
-    g_state.need_present = true;
+    sdl_touch_pane_clear_yes_no_prompt();
 }
 
 cptr get_sdl_touch_pane_slot_name(int index)

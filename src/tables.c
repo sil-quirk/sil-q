@@ -263,7 +263,7 @@ cptr option_text[OPT_MAX] = {
     "supply_menu_hide_flavor_compact", /* OPT_supply_menu_hide_flavor_compact */
     "load_blitz_by_default", /* OPT_load_blitz_by_default */
     "mirror_player_tile_facing", /* OPT_mirror_player_tile_facing */
-    NULL, /* reserved legacy slot */
+    "handcrafted_player_tile_facing", /* OPT_handcrafted_player_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -508,7 +508,7 @@ cptr option_desc[OPT_MAX] = {
     "Hide flavor words in the compact supply list", /* OPT_supply_menu_hide_flavor_compact */
     "Load a living Blitz character by default when one exists", /* OPT_load_blitz_by_default */
     "Directional character animation", /* OPT_mirror_player_tile_facing */
-    NULL, /* reserved legacy slot */
+    "Use handcrafted right-facing player tiles", /* OPT_handcrafted_player_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -773,7 +773,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_supply_menu_hide_flavor_compact */
     false, /* OPT_load_blitz_by_default */
     true, /* OPT_mirror_player_tile_facing */
-    false, /* reserved legacy slot */
+    false, /* OPT_handcrafted_player_tile_facing */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
