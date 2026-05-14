@@ -12888,7 +12888,7 @@ static cptr main_menu_title(int choice)
     case MAIN_MENU_LOG_HISTORY: return "Log & combat history";
     case MAIN_MENU_STORY: return "The story so far";
     case MAIN_MENU_STORY_STATS: return "Story statistics";
-    case MAIN_MENU_OPTIONS: return "Options and misc";
+    case MAIN_MENU_OPTIONS: return "Options";
     case MAIN_MENU_HELP: return "Help";
     case MAIN_MENU_ABOUT: return "About";
     case MAIN_MENU_SAVE: return "Save";
@@ -13736,7 +13736,7 @@ int main_menu_aux(int* highlight)
             return (*highlight); // Story statistics
         case 'o':
             *highlight = MAIN_MENU_OPTIONS;
-            return (*highlight); // Options and misc
+            return (*highlight); // Options
         case 'h':
             *highlight = MAIN_MENU_HELP;
             return (*highlight); // Help
@@ -13903,7 +13903,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_OPTIONS: // Options and misc (o)
+        case MAIN_MENU_OPTIONS: // Options (o)
         {
             do_cmd_options();
             leave_menu = true;
@@ -22498,7 +22498,7 @@ int options_menu(int* highlight)
     list_start_row = row;
     visible_rows = settings_menu_visible_rows(list_start_row, 3);
 
-    Term_putstr(2, title_row, -1, TERM_WHITE, "Options and misc");
+    Term_putstr(2, title_row, -1, TERM_WHITE, "Options");
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     settings_menu_begin_scroll_area(list_start_row,
