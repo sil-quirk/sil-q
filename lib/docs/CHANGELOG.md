@@ -64,7 +64,9 @@ in creating this release (in alphabetical order):
 - @davidk64fnq
 - @imraflip
 - @joeljpa
+- @mes32
 - @MicroChasm (all artwork for tiles graphics)
+- @motemen
 
 See detailed information below.
 
