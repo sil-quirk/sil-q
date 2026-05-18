@@ -164,6 +164,8 @@ Changed:
   ([42b6494](https://github.com/sil-quirk/sil-q/commit/42b6494))
 - Tiles graphics: better visually distinguish between "open door" vs. "broken
   door" (#175)
+- Change Gorthaur (Sauron) tile to look like a Werewolf (fixes #208)
+  ([#219](https://github.com/sil-quirk/sil-q/pull/219))
 
 Fixed:
 
