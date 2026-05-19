@@ -1,5 +1,11 @@
 # Compiling Instructions
 
+> [!NOTE]
+> You can download ready-to-use Sil-Q packages for Windows, macOS, and Linux
+> from the [Releases](https://github.com/sil-quirk/sil-q/releases) page.
+> While you can compile the game from sources, this is no longer needed for most
+> users since release 1.5.1.
+
 ## Preparation (for all platforms)
 
 The initial step is to download the Sil-Q source code. You have two options.
