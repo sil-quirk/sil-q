@@ -11,6 +11,7 @@ param(
     [switch]$Portable
 )
 
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
@@ -153,6 +154,112 @@ function Assert-NoWavFiles {
     }
 }
 
+function ConvertTo-ZipEntryName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    return $PathValue.Replace([System.IO.Path]::DirectorySeparatorChar, '/').Replace([System.IO.Path]::AltDirectorySeparatorChar, '/')
+}
+
+function Get-RelativeZipPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RootPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ItemPath
+    )
+
+    $trimChars = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $rootFullPath = [System.IO.Path]::GetFullPath($RootPath).TrimEnd($trimChars)
+    $itemFullPath = [System.IO.Path]::GetFullPath($ItemPath)
+
+    if ($itemFullPath.Length -le $rootFullPath.Length) {
+        return ""
+    }
+
+    $relativePath = $itemFullPath.Substring($rootFullPath.Length).TrimStart($trimChars)
+    return ConvertTo-ZipEntryName $relativePath
+}
+
+function New-ForwardSlashZipArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceFolderPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ArchivePath
+    )
+
+    $archiveRootName = ConvertTo-ZipEntryName ([System.IO.Path]::GetFileNameWithoutExtension($ArchivePath))
+    $archiveRootName = $archiveRootName.Trim('/')
+    if ([string]::IsNullOrWhiteSpace($archiveRootName)) {
+        throw "Archive file name must not be empty: $ArchivePath"
+    }
+
+    $archiveStream = [System.IO.File]::Open($ArchivePath, [System.IO.FileMode]::CreateNew)
+    $zipArchive = New-Object System.IO.Compression.ZipArchive($archiveStream, [System.IO.Compression.ZipArchiveMode]::Create, $false)
+
+    try {
+        $null = $zipArchive.CreateEntry("$archiveRootName/")
+
+        $directories = @(Get-ChildItem -LiteralPath $SourceFolderPath -Recurse -Directory -Force)
+        foreach ($directory in $directories) {
+            $relativePath = Get-RelativeZipPath -RootPath $SourceFolderPath -ItemPath $directory.FullName
+            if ([string]::IsNullOrWhiteSpace($relativePath)) {
+                continue
+            }
+
+            $entryName = "$archiveRootName/$relativePath/"
+            $null = $zipArchive.CreateEntry($entryName)
+        }
+
+        $files = @(Get-ChildItem -LiteralPath $SourceFolderPath -Recurse -File -Force)
+        foreach ($file in $files) {
+            $relativePath = Get-RelativeZipPath -RootPath $SourceFolderPath -ItemPath $file.FullName
+            if ([string]::IsNullOrWhiteSpace($relativePath)) {
+                continue
+            }
+
+            $entryName = "$archiveRootName/$relativePath"
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zipArchive,
+                $file.FullName,
+                $entryName,
+                [System.IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+        }
+    } finally {
+        if ($zipArchive) {
+            $zipArchive.Dispose()
+        }
+        if ($archiveStream) {
+            $archiveStream.Dispose()
+        }
+    }
+}
+
+function Assert-ZipEntryNamesArePortable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ArchivePath,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        $backslashEntries = @($zipArchive.Entries | Where-Object { $_.FullName.Contains('\') } | Select-Object -First 5 -ExpandProperty FullName)
+        if ($backslashEntries.Count -gt 0) {
+            throw "$Label archive contains Windows-style backslash paths: $($backslashEntries -join ', ')"
+        }
+    } finally {
+        if ($zipArchive) {
+            $zipArchive.Dispose()
+        }
+    }
+}
+
 function New-DistributionArchive {
     param(
         [Parameter(Mandatory = $true)]
@@ -168,45 +275,29 @@ function New-DistributionArchive {
         Remove-Item -LiteralPath $ArchivePath -Force
     }
 
-    $stagingParentPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sil-more-archive-" + [System.Guid]::NewGuid().ToString("N"))
-    $stagingReleasePath = Join-Path $stagingParentPath ([System.IO.Path]::GetFileNameWithoutExtension($ArchivePath))
+    Write-Host "Compressing $Label archive..." -ForegroundColor Yellow
+    New-ForwardSlashZipArchive -SourceFolderPath $SourceFolderPath -ArchivePath $ArchivePath
+    Assert-ZipEntryNamesArePortable -ArchivePath $ArchivePath -Label $Label
 
-    try {
-        New-Item -ItemType Directory -Path $stagingReleasePath -Force | Out-Null
-        Get-ChildItem -LiteralPath $SourceFolderPath -Force | Copy-Item -Destination $stagingReleasePath -Recurse -Force
-
-        Write-Host "Compressing $Label archive..." -ForegroundColor Yellow
-        [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $stagingReleasePath,
-            $ArchivePath,
-            [System.IO.Compression.CompressionLevel]::Optimal,
-            $true
-        )
-
-        $archiveSizeBytes = (Get-Item -LiteralPath $ArchivePath).Length
-        $folderSizeBytes = (Get-ChildItem -LiteralPath $SourceFolderPath -Recurse -File | Measure-Object -Property Length -Sum).Sum
-        if (-not $folderSizeBytes) {
-            $folderSizeBytes = 0
-        }
-
-        $archiveSize = $archiveSizeBytes / 1MB
-        $folderSize = $folderSizeBytes / 1MB
-        if ($folderSizeBytes -gt 0) {
-            $compression = (1 - ($archiveSizeBytes / $folderSizeBytes)) * 100
-        } else {
-            $compression = 0
-        }
-
-        Write-Host "  [OK] $Label archive created" -ForegroundColor Green
-        Write-Host "    Archive: $ArchivePath" -ForegroundColor Cyan
-        Write-Host "    Original size: $([math]::Round($folderSize, 2)) MB"
-        Write-Host "    Archive size: $([math]::Round($archiveSize, 2)) MB"
-        Write-Host "    Compression: $([math]::Round($compression, 1))%"
-    } finally {
-        if (Test-Path -LiteralPath $stagingParentPath) {
-            Remove-Item -LiteralPath $stagingParentPath -Recurse -Force -ErrorAction SilentlyContinue
-        }
+    $archiveSizeBytes = (Get-Item -LiteralPath $ArchivePath).Length
+    $folderSizeBytes = (Get-ChildItem -LiteralPath $SourceFolderPath -Recurse -File | Measure-Object -Property Length -Sum).Sum
+    if (-not $folderSizeBytes) {
+        $folderSizeBytes = 0
     }
+
+    $archiveSize = $archiveSizeBytes / 1MB
+    $folderSize = $folderSizeBytes / 1MB
+    if ($folderSizeBytes -gt 0) {
+        $compression = (1 - ($archiveSizeBytes / $folderSizeBytes)) * 100
+    } else {
+        $compression = 0
+    }
+
+    Write-Host "  [OK] $Label archive created" -ForegroundColor Green
+    Write-Host "    Archive: $ArchivePath" -ForegroundColor Cyan
+    Write-Host "    Original size: $([math]::Round($folderSize, 2)) MB"
+    Write-Host "    Archive size: $([math]::Round($archiveSize, 2)) MB"
+    Write-Host "    Compression: $([math]::Round($compression, 1))%"
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {

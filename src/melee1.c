@@ -3784,6 +3784,47 @@ void add_combat_round_to_history(void)
 /*
  * Display combat history menu similar to message log
  */
+enum {
+    LOG_HISTORY_CLICK_MESSAGE_TAB = -20001,
+    LOG_HISTORY_CLICK_COMBAT_TAB = -20002
+};
+
+static int log_history_draw_tab(int row, int col, cptr label, bool active,
+    bool hovered, int click_choice)
+{
+    char tab[32];
+    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
+
+    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
+    Term_putstr(col, row, -1, attr, tab);
+    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
+    return col + (int)strlen(tab) + 1;
+}
+
+static void log_history_draw_tabs(bool combat_active, int hover_tab, int term_wid)
+{
+    int col = 0;
+
+    if (term_wid < 1)
+        term_wid = 80;
+
+    Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE, "Logs");
+    Term_erase(0, 1, 255);
+
+    col = log_history_draw_tab(1, col, "Messages", !combat_active,
+        hover_tab == LOG_HISTORY_CLICK_MESSAGE_TAB,
+        LOG_HISTORY_CLICK_MESSAGE_TAB);
+    (void)log_history_draw_tab(1, col, "Combat", combat_active,
+        hover_tab == LOG_HISTORY_CLICK_COMBAT_TAB,
+        LOG_HISTORY_CLICK_COMBAT_TAB);
+}
+
+static bool log_history_tab_key(char ch)
+{
+    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
+        || (ch == '\t');
+}
+
 void do_cmd_combat_history(void)
 {
     char ch;
@@ -3791,8 +3832,9 @@ void do_cmd_combat_history(void)
     int wid, hgt;
     char finder[80];
     char buf[120];
+    int hover_tab = 0;
     cptr prompt =
-        "Up/Down line  PgUp/PgDn page  Wheel/drag  / find  Left/Right pan  Esc";
+        "e/i tabs  Up/Down line  PgUp/PgDn page  Wheel/drag  / find  Left/Right pan  Esc";
     
     /* Wipe finder */
     SDL_strlcpy(finder, "", sizeof(finder));
@@ -3831,11 +3873,11 @@ void do_cmd_combat_history(void)
         /* Clear screen */
         Term_clear();
 
-        body_top = 2;
+        body_top = 3;
         body_bottom = hgt - 3;
         if (body_bottom < body_top)
         {
-            body_top = 1;
+            body_top = 2;
             body_bottom = hgt - 2;
         }
         if (body_bottom < body_top)
@@ -3857,6 +3899,8 @@ void do_cmd_combat_history(void)
         page_rows = (visible_rows > 1) ? (visible_rows - 1) : 1;
         ui_scroll_area_begin(body_top, body_bottom,
             SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
         
         /* Display combat rolls */
         for (j = 0; (j < visible_rows) && (i + j < n); j++) {
@@ -4105,18 +4149,21 @@ void do_cmd_combat_history(void)
         range_first = (n > 0) ? (i + 1) : 0;
         range_last = (n > 0) ? (i + j) : 0;
 
+        log_history_draw_tabs(true, hover_tab, wid);
+
         /* Display header */
         prt(format("Combat Log (%d-%d of %d rolls), Offset %d",
-                   range_first, range_last, n, q), 0, 0);
+                   range_first, range_last, n, q),
+            (body_top > 0) ? body_top - 1 : 0, 0);
         
         /* Display prompt */
         prt(prompt, hgt - 1, 0);
-        ui_menu_click_begin();
-        ui_menu_click_set_hover_enabled(true);
         ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
         ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");
         ui_menu_click_add_text_token('9', 0, hgt - 1, prompt, "PgUp");
         ui_menu_click_add_text_token('3', 0, hgt - 1, prompt, "PgDn");
+        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "tabs");
+        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "e/i");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "/");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
         ui_menu_click_add_text_token('4', 0, hgt - 1, prompt, "Left");
@@ -4139,15 +4186,43 @@ void do_cmd_combat_history(void)
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (click_action == UI_MENU_CLICK_HOVER)
+                if (clicked_choice == LOG_HISTORY_CLICK_MESSAGE_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        continue;
+                    }
+                    ch = 'i';
+                }
+                else if (clicked_choice == LOG_HISTORY_CLICK_COMBAT_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        hover_tab = clicked_choice;
                     continue;
-
-                ch = (char)clicked_choice;
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    hover_tab = 0;
+                    continue;
+                }
+                else
+                    ch = (char)clicked_choice;
             }
             else if (ch == UI_MENU_CLICK_WAKE_KEY)
             {
                 continue;
             }
+        }
+
+        if (log_history_tab_key(ch))
+        {
+            ui_scroll_area_clear();
+            ui_menu_click_clear();
+            screen_pop_supporting_panes_hidden();
+            screen_load();
+            do_cmd_messages();
+            return;
         }
         
         /* Exit on Escape */

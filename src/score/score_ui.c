@@ -515,12 +515,13 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
                                         bool steamdeck, int term_wid,
                                         int page, int total_pages,
                                         const char* open_label,
+                                        const char* history_label,
                                         const char* order_label,
                                         const char* layout_label,
                                         const char* exit_label)
 {
-    char full[192];
-    char medium[160];
+    char full[224];
+    char medium[192];
     char short1[128];
     char short2[96];
     char tiny[64];
@@ -536,39 +537,40 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
     if (steamdeck)
     {
         strnfmt(full, sizeof(full),
-            "[%s] Open  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move  N/P Page %d/%d",
-            open_label, order_label, layout_label, exit_label, page + 1,
-            total_pages);
+            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move  N/P Page %d/%d",
+            open_label, history_label, order_label, layout_label, exit_label,
+            page + 1, total_pages);
         strnfmt(medium, sizeof(medium),
-            "[%s] Open  [%s] Order  [%s] Layout  [%s] Exit  D-pad  %d/%d",
-            open_label, order_label, layout_label, exit_label, page + 1,
-            total_pages);
+            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad  %d/%d",
+            open_label, history_label, order_label, layout_label, exit_label,
+            page + 1, total_pages);
         strnfmt(short1, sizeof(short1),
-            "[%s] Open  [%s] Ord  [%s] Lay  [%s] Exit  %d/%d",
-            open_label, order_label, layout_label, exit_label, page + 1,
-            total_pages);
-        strnfmt(short2, sizeof(short2), "[%s] Open  [%s] Exit  %d/%d",
-            open_label, exit_label, page + 1, total_pages);
-        strnfmt(tiny, sizeof(tiny), "[%s] Open  %d/%d", open_label, page + 1,
-            total_pages);
+            "[%s] Open  [%s] Runs  [%s] Ord  [%s] Lay  [%s] Exit  %d/%d",
+            open_label, history_label, order_label, layout_label, exit_label,
+            page + 1, total_pages);
+        strnfmt(short2, sizeof(short2),
+            "[%s] Open  [%s] Runs  [%s] Exit  %d/%d", open_label,
+            history_label, exit_label, page + 1, total_pages);
+        strnfmt(tiny, sizeof(tiny), "[%s] Open  [%s] Runs  %d/%d",
+            open_label, history_label, page + 1, total_pages);
         strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
     }
     else
     {
         strnfmt(full, sizeof(full),
-            "[Enter/Right] Open  [S] Order  [L] Layout  [Esc] Exit  [Up/Down] Move  [N] Next  [P] Prev %d/%d",
+            "[Enter/Right] Open  [R] Run History  [S] Order  [L] Layout  [Esc] Exit  [Up/Down] Move  [N] Next  [P] Prev %d/%d",
             page + 1, total_pages);
         strnfmt(medium, sizeof(medium),
-            "Enter Open  S Order  L Layout  Esc Exit  Up/Down Move  N/P Page %d/%d",
+            "Enter Open  R Runs  S Order  L Layout  Esc Exit  Up/Down Move  N/P Page %d/%d",
             page + 1, total_pages);
         strnfmt(short1, sizeof(short1),
-            "Enter Open  S Order  L Layout  Esc Exit  Up/Down  N/P %d/%d",
+            "Enter Open  R Runs  S Ord  L Lay  Esc Exit  Up/Down  N/P %d/%d",
             page + 1, total_pages);
         strnfmt(short2, sizeof(short2),
-            "Enter Open  S Order  L Layout  Esc Exit  %d/%d",
+            "Enter Open  R Runs  Esc Exit  %d/%d",
             page + 1, total_pages);
-        strnfmt(tiny, sizeof(tiny), "Enter Open  Esc Exit  %d/%d", page + 1,
-            total_pages);
+        strnfmt(tiny, sizeof(tiny), "R Runs  Enter Open  Esc Exit  %d/%d",
+            page + 1, total_pages);
         strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
     }
 
@@ -1140,13 +1142,15 @@ static char display_scores_pages(const high_score* entries, int count,
         SCORE_CLICK_EXIT = -3,
         SCORE_CLICK_OPEN = -4,
         SCORE_CLICK_PREV = -5,
-        SCORE_CLICK_NEXT = -6
+        SCORE_CLICK_NEXT = -6,
+        SCORE_CLICK_HISTORY = -7
     };
     bool steamdeck = steamdeck_controls_active();
     char order_label[16] = "";
     char layout_label[16] = "";
     char exit_label[16] = "";
     char open_label[16] = "";
+    char history_label[16] = "";
     int term_wid = 80;
     int term_hgt = 24;
     int footer_row;
@@ -1159,6 +1163,7 @@ static char display_scores_pages(const high_score* entries, int count,
         score_prompt_label(steamdeck_alt_action_key(), "X", layout_label, sizeof(layout_label));
         score_prompt_label(steamdeck_back_key(), "B", exit_label, sizeof(exit_label));
         score_prompt_label(steamdeck_confirm_key(), "A", open_label, sizeof(open_label));
+        score_prompt_label(steamdeck_info_key(), "RS", history_label, sizeof(history_label));
     }
 
     score_ui_get_term_size(&term_wid, &term_hgt);
@@ -1173,24 +1178,34 @@ static char display_scores_pages(const high_score* entries, int count,
     {
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
         c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
-        if (steamdeck) {
-            char hint_buf[48];
-            strnfmt(hint_buf, sizeof(hint_buf), "(press %s)", exit_label);
-            score_ui_put_fit(TERM_L_WHITE, hint_buf, footer_row, 2, term_wid);
-        } else {
-            score_ui_put_fit(TERM_L_WHITE, "(press any key)", footer_row, 2,
-                term_wid);
-        }
+        char hint_buf[96];
+        if (steamdeck)
+            strnfmt(hint_buf, sizeof(hint_buf), "[%s] Run History  [%s] Exit",
+                history_label, exit_label);
+        else
+            SDL_strlcpy(hint_buf, "[R] Run History  [Esc] Exit",
+                sizeof(hint_buf));
+        score_ui_put_fit(TERM_L_WHITE, hint_buf, footer_row, 2, term_wid);
         ui_menu_click_begin();
         ui_menu_click_set_outside_cancel_enabled(true);
-        ui_menu_click_add_full_row(SCORE_CLICK_EXIT, footer_row);
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
+            hint_buf, "Run");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
+            hint_buf, "History");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 2, footer_row,
+            hint_buf, "[R]");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 2, footer_row,
+            hint_buf, "Exit");
+        ui_menu_click_add_text_token(SCORE_CLICK_EXIT, 2, footer_row,
+            hint_buf, "Esc");
         while (true)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            char ch;
             bool saved_hide_cursor = hide_cursor;
             hide_cursor = true;
-            (void)inkey();
+            ch = inkey();
             hide_cursor = saved_hide_cursor;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
@@ -1198,7 +1213,18 @@ static char display_scores_pages(const high_score* entries, int count,
                 ui_menu_click_clear();
                 if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
+                if (clicked_choice == SCORE_CLICK_HISTORY)
+                    return 'r';
                 break;
+            }
+
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+            if ((steamdeck && ch == steamdeck_info_key())
+                || ch == 'r' || ch == 'R' || ch == 'h' || ch == 'H')
+            {
+                ui_menu_click_clear();
+                return 'r';
             }
 
             ui_menu_click_clear();
@@ -1294,10 +1320,10 @@ static char display_scores_pages(const high_score* entries, int count,
             }
         }
 
-        char footer[192];
+        char footer[224];
         score_ui_build_halls_footer(footer, sizeof(footer), steamdeck,
-            term_wid, page, total_pages, open_label, order_label,
-            layout_label, exit_label);
+            term_wid, page, total_pages, open_label, history_label,
+            order_label, layout_label, exit_label);
         score_ui_put_fit(TERM_L_WHITE, footer, footer_row, 1, term_wid);
         ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
             "Open");
@@ -1305,6 +1331,14 @@ static char display_scores_pages(const high_score* entries, int count,
             "open");
         ui_menu_click_add_text_token(SCORE_CLICK_OPEN, 1, footer_row, footer,
             "Enter");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
+            footer, "Runs");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
+            footer, "Run");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
+            footer, "History");
+        ui_menu_click_add_text_token(SCORE_CLICK_HISTORY, 1, footer_row,
+            footer, "[R]");
         ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
             "Order");
         ui_menu_click_add_text_token(SCORE_CLICK_ORDER, 1, footer_row, footer,
@@ -1374,6 +1408,7 @@ static char display_scores_pages(const high_score* entries, int count,
                 case SCORE_CLICK_LAYOUT: ch = 'l'; break;
                 case SCORE_CLICK_EXIT: ch = ESCAPE; break;
                 case SCORE_CLICK_OPEN: ch = '\r'; break;
+                case SCORE_CLICK_HISTORY: ch = 'r'; break;
                 case SCORE_CLICK_PREV: ch = 'p'; break;
                 case SCORE_CLICK_NEXT: ch = 'n'; break;
                 default: break;
@@ -1396,6 +1431,8 @@ static char display_scores_pages(const high_score* entries, int count,
                 return ESCAPE;  /* B = back */
             if (ch == confirm_key)
                 ch = '\r';  /* A = open */
+            if (ch == steamdeck_info_key())
+                ch = 'r';  /* RS = run history */
             if (ch == alt_key)
                 ch = 'l';  /* X = layout toggle */
             if (ch == secondary_key)
@@ -1404,6 +1441,8 @@ static char display_scores_pages(const high_score* entries, int count,
 
         if (ch == ESCAPE)
             return ESCAPE;
+        if (ch == 'r' || ch == 'R' || ch == 'h' || ch == 'H')
+            return 'r';
         if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
             return ch;
         if (ch == 'l' || ch == 'L')
@@ -1648,6 +1687,12 @@ void show_scores(bool longscore)
                   count, highlight ? *highlight : -1);
 
         char response = display_scores_pages(list, count, highlight, order, detailed, page_size);
+        if (response == 'r' || response == 'R')
+        {
+            log_info("Halls of Mandos: opening Run History");
+            do_cmd_run_history();
+            continue;
+        }
         if (response == 's' || response == 'S' || response == 'o' || response == 'O')
         {
             high_score selected;
