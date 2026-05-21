@@ -3716,6 +3716,15 @@ static void draw_combat_roll_line(int row, int base_col_offset,
     }
 }
 
+void display_combat_roll_line_at(int row, int base_col_offset,
+    const combat_roll* roll)
+{
+    if (!roll)
+        return;
+
+    draw_combat_roll_line(row, base_col_offset, roll);
+}
+
 void display_combat_rolls(void)
 {
 

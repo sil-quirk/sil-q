@@ -4090,6 +4090,206 @@ static void fix_monlist(void)
 /*
  * Hack -- display combat rolls in sub-windows
  */
+typedef enum pane_log_display_entry_kind
+{
+    PANE_LOG_DISPLAY_MESSAGE,
+    PANE_LOG_DISPLAY_COMBAT
+} pane_log_display_entry_kind;
+
+typedef struct pane_log_display_entry
+{
+    pane_log_display_entry_kind kind;
+    u32b sequence;
+    int tie_breaker;
+    s16b message_age;
+    int history_idx;
+    int roll_idx;
+} pane_log_display_entry;
+
+#define PANE_LOG_DISPLAY_MAX_ENTRIES \
+    (MESSAGE_MAX + (MAX_COMBAT_HISTORY * MAX_COMBAT_ROLLS))
+
+static pane_log_display_entry
+    pane_log_display_entries[PANE_LOG_DISPLAY_MAX_ENTRIES];
+
+static bool pane_log_filter_includes_messages(int filter)
+{
+    return filter == LOG_HISTORY_FILTER_ALL
+        || filter == LOG_HISTORY_FILTER_MESSAGES;
+}
+
+static bool pane_log_filter_includes_combat(int filter)
+{
+    return filter == LOG_HISTORY_FILTER_ALL
+        || filter == LOG_HISTORY_FILTER_COMBAT;
+}
+
+static int pane_log_display_entry_compare_newest_first(
+    const void* a, const void* b)
+{
+    const pane_log_display_entry* entry_a = (const pane_log_display_entry*)a;
+    const pane_log_display_entry* entry_b = (const pane_log_display_entry*)b;
+
+    if (entry_a->sequence < entry_b->sequence)
+        return 1;
+    if (entry_a->sequence > entry_b->sequence)
+        return -1;
+
+    if (entry_a->tie_breaker < entry_b->tie_breaker)
+        return 1;
+    if (entry_a->tie_breaker > entry_b->tie_breaker)
+        return -1;
+
+    return (int)entry_a->kind - (int)entry_b->kind;
+}
+
+static int pane_log_display_collect_entries(
+    pane_log_display_entry* entries, int max_entries, int filter)
+{
+    int count = 0;
+
+    if (pane_log_filter_includes_messages(filter))
+    {
+        s16b num = message_num();
+
+        for (s16b age = 0; (age < num) && (count < max_entries); age++)
+        {
+            entries[count].kind = PANE_LOG_DISPLAY_MESSAGE;
+            entries[count].sequence = message_sequence(age);
+            if (entries[count].sequence == 0)
+                entries[count].sequence = (u32b)(num - age);
+            entries[count].tie_breaker = num - age;
+            entries[count].message_age = age;
+            entries[count].history_idx = -1;
+            entries[count].roll_idx = -1;
+            count++;
+        }
+    }
+
+    if (pane_log_filter_includes_combat(filter))
+    {
+        for (int h = 0; (h < combat_history_count) && (count < max_entries);
+             h++)
+        {
+            int hist_idx =
+                (combat_history_head - h + MAX_COMBAT_HISTORY)
+                % MAX_COMBAT_HISTORY;
+            combat_history_round* round = &combat_history[hist_idx];
+            int rolls = round->num_rolls;
+
+            if (rolls > MAX_COMBAT_ROLLS)
+                rolls = MAX_COMBAT_ROLLS;
+
+            for (int r = 0; (r < rolls) && (count < max_entries); r++)
+            {
+                combat_roll* roll = &round->rolls[r];
+
+                if (roll->att_type == COMBAT_ROLL_NONE)
+                    continue;
+
+                entries[count].kind = PANE_LOG_DISPLAY_COMBAT;
+                entries[count].sequence = roll->sequence;
+                if (entries[count].sequence == 0)
+                    entries[count].sequence = (u32b)round->turn_count;
+                entries[count].tie_breaker = r;
+                entries[count].message_age = -1;
+                entries[count].history_idx = hist_idx;
+                entries[count].roll_idx = r;
+                count++;
+            }
+        }
+    }
+
+    qsort(entries, count, sizeof(pane_log_display_entry),
+        pane_log_display_entry_compare_newest_first);
+
+    return count;
+}
+
+static void display_messages_in_pane(void)
+{
+    int i;
+    int w, h;
+    int x, y;
+
+    Term_get_size(&w, &h);
+
+    for (i = 0; i < h; i++)
+    {
+        byte color = message_color((s16b)i);
+
+        Term_putstr(0, (h - 1) - i, -1, color, message_str((s16b)i));
+        Term_locate(&x, &y);
+        Term_erase(x, y, 255);
+    }
+}
+
+static void display_combined_log_in_pane(int filter)
+{
+    int w, h;
+    int count;
+
+    Term_get_size(&w, &h);
+    for (int row = 0; row < h; row++)
+        Term_erase(0, row, 255);
+
+    count = pane_log_display_collect_entries(pane_log_display_entries,
+        PANE_LOG_DISPLAY_MAX_ENTRIES, filter);
+
+    for (int i = 0; (i < h) && (i < count); i++)
+    {
+        pane_log_display_entry* entry = &pane_log_display_entries[i];
+        int row = (h - 1) - i;
+        int x, y;
+
+        if (entry->kind == PANE_LOG_DISPLAY_MESSAGE)
+        {
+            cptr msg = message_str(entry->message_age);
+            byte attr = message_color(entry->message_age);
+
+            Term_putstr(0, row, -1, attr, msg);
+            Term_locate(&x, &y);
+            Term_erase(x, y, 255);
+        }
+        else
+        {
+            combat_roll* roll =
+                &combat_history[entry->history_idx].rolls[entry->roll_idx];
+
+            display_combat_roll_line_at(row, 0, roll);
+            Term_locate(&x, &y);
+            Term_erase(x, y, 255);
+        }
+    }
+}
+
+static bool pane_index_has_log_display_mode(int pane)
+{
+    return pane == WINDOW_MESSAGE || pane == WINDOW_COMBAT_ROLLS;
+}
+
+static void display_log_pane_with_filter(int pane, int default_filter)
+{
+    int filter = default_filter;
+
+    if (pane_index_has_log_display_mode(pane))
+        filter = sdl_log_pane_display_filter(pane);
+
+    if (filter == LOG_HISTORY_FILTER_MESSAGES)
+    {
+        display_messages_in_pane();
+        return;
+    }
+
+    if (filter == LOG_HISTORY_FILTER_COMBAT)
+    {
+        display_combat_rolls();
+        return;
+    }
+
+    display_combined_log_in_pane(filter);
+}
+
 static void fix_combat_rolls(void)
 {
     int j;
@@ -4110,8 +4310,8 @@ static void fix_combat_rolls(void)
         /* Activate */
         Term_activate(angband_term[j]);
 
-        /* Display visible monsters */
-        display_combat_rolls();
+        /* Display the selected log/combat mode for this pane */
+        display_log_pane_with_filter(j, LOG_HISTORY_FILTER_COMBAT);
 
         /* Fresh */
         Term_fresh();
@@ -4196,9 +4396,7 @@ static void fix_player_0(void)
  */
 static void fix_message(void)
 {
-    int j, i;
-    int w, h;
-    int x, y;
+    int j;
 
     /* Scan windows */
     for (j = 0; j < ANGBAND_TERM_MAX; j++)
@@ -4216,23 +4414,8 @@ static void fix_message(void)
         /* Activate */
         Term_activate(angband_term[j]);
 
-        /* Get size */
-        Term_get_size(&w, &h);
-
-        /* Dump messages */
-        for (i = 0; i < h; i++)
-        {
-            byte color = message_color((s16b)i);
-
-            /* Dump the message on the appropriate line */
-            Term_putstr(0, (h - 1) - i, -1, color, message_str((s16b)i));
-
-            /* Cursor */
-            Term_locate(&x, &y);
-
-            /* Clear to end of line */
-            Term_erase(x, y, 255);
-        }
+        /* Display the selected log/combat mode for this pane */
+        display_log_pane_with_filter(j, LOG_HISTORY_FILTER_MESSAGES);
 
         /* Fresh */
         Term_fresh();
@@ -7468,17 +7651,12 @@ void window_stuff(void)
         fix_player_0();
     }
 
-    /* Display combat rolls */
-    if (p_ptr->window & (PW_COMBAT_ROLLS))
+    /* Display message/combat panes.  Either source can feed either pane when
+     * its in-pane filter is set to Combined, Log only, or Combat only. */
+    if (p_ptr->window & (PW_COMBAT_ROLLS | PW_MESSAGE))
     {
-        p_ptr->window &= ~(PW_COMBAT_ROLLS);
+        p_ptr->window &= ~(PW_COMBAT_ROLLS | PW_MESSAGE);
         fix_combat_rolls();
-    }
-
-    /* Display message recall */
-    if (p_ptr->window & (PW_MESSAGE))
-    {
-        p_ptr->window &= ~(PW_MESSAGE);
         fix_message();
     }
 

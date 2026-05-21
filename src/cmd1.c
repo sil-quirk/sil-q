@@ -6681,16 +6681,17 @@ void py_attack_aux(int y, int x, int attack_type)
                 }
             }
 
-            // Take hit only if monster has not been killed by an ability already
+            update_combat_rolls2(total_dice, mds, dam, armor_dice, armor_sides,
+                prt, prt_percent, damage_type, true);
+
+            // Stamp the roll before mon_take_hit() emits a death message, so
+            // combined history reads: hit message, roll, slain/destroyed.
             if (!fatal_blow && !skip_take_hit)
             {
                 // damage, check for death
                 fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
                 p_ptr->vengeance = 0;
             }
-
-            update_combat_rolls2(total_dice, mds, dam, armor_dice, armor_sides,
-                prt, prt_percent, damage_type, true);
 
             // use different colours depending on whether knock back triggered
             if (do_knock_back)

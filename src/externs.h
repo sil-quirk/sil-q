@@ -966,6 +966,8 @@ extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
 extern void display_combat_rolls(void);
 extern void display_main_combat_rolls(void);
 extern void clear_main_combat_rolls_area(void);
+extern void display_combat_roll_line_at(int row, int base_col_offset,
+    const combat_roll* roll);
 extern void add_combat_round_to_history(void);
 extern void do_cmd_combat_history(void);
 extern void display_combat_round_details(combat_history_round* round);
@@ -1587,6 +1589,8 @@ extern void sdl_pointer_aim_end(void);
 extern bool sdl_pointer_aim_take_direction(int* dir);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
+extern bool sdl_log_pane_display_process_pending(void);
+extern int sdl_log_pane_display_filter(int pane);
 extern void sdl_mouse_path_cancel(void);
 extern void sdl_player_exchange_begin_direction_prompt(void);
 extern void sdl_player_exchange_cancel_direction_prompt(void);

@@ -343,6 +343,10 @@ static enum pane_placement parse_pane_placement(const char* value)
         return PLACE_DOUBLE_BOTTOM;
     if (strcmp(value, "RIGHT") == 0) return PLACE_RIGHT;
     if (strcmp(value, "LEFT") == 0) return PLACE_LEFT;
+    if (strcmp(value, "TOP_LEFT") == 0 || strcmp(value, "TOP LEFT") == 0)
+        return PLACE_TOP_LEFT;
+    if (strcmp(value, "TOP_RIGHT") == 0 || strcmp(value, "TOP RIGHT") == 0)
+        return PLACE_TOP_RIGHT;
     if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
         return PLACE_DOUBLE_LEFT;
     if (strcmp(value, "DOUBLE_RIGHT") == 0 || strcmp(value, "DOUBLE RIGHT") == 0)

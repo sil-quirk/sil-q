@@ -106,8 +106,8 @@ char config_file_path[1024];
 
 // Default pane configuration
 static const struct pane_config default_pane_config[] = {
-    {.pane = PANE_LEFT_PANEL, .where = PLACE_LEFT, .enabled = true,
-        .rect.cols = LEFT_PANEL_CONTENT_WID},
+    {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
+        .rect.cols = 0},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
@@ -300,6 +300,20 @@ typedef struct sdl_view {
     term t;
     bool term_ready;
 } sdl_view;
+
+typedef struct sdl_left_panel_metrics {
+    int scale;
+    int cell_w;
+    int cell_h;
+    int content_w;
+    int separator_w;
+    int total_w;
+    int panel_rows;
+    int panel_render_h;
+    int corner_h;
+    int visual_rows;
+    int source_h;
+} sdl_left_panel_metrics;
 
 typedef struct touch_pane_slot_info {
     const char* slot_name;
@@ -552,6 +566,32 @@ typedef struct side_pane_menu_state {
     float long_press_start_y;
     Uint64 long_press_start_time;
 } side_pane_menu_state;
+
+typedef struct log_pane_menu_entry {
+    int filter;
+    const char* label;
+    const char* hint;
+    SDL_FRect rect;
+} log_pane_menu_entry;
+
+typedef struct log_pane_menu_state {
+    bool active;
+    int hover_index;
+    bool press_active;
+    bool press_mouse;
+    SDL_FingerID press_finger_id;
+    int press_index;
+    enum pane_type target_pane;
+    float anchor_x;
+    float anchor_y;
+    bool long_press_active;
+    bool long_press_opened;
+    SDL_FingerID long_press_finger_id;
+    enum pane_type long_press_pane;
+    float long_press_start_x;
+    float long_press_start_y;
+    Uint64 long_press_start_time;
+} log_pane_menu_state;
 
 typedef struct map_touch_press_state {
     bool active;
@@ -960,6 +1000,19 @@ static side_pane_menu_state g_side_pane_menu = {
     .press_index = -1,
     .long_press_pane = PANE_MAIN,
 };
+static log_pane_menu_state g_log_pane_menu = {
+    .hover_index = -1,
+    .press_index = -1,
+    .target_pane = PANE_MAIN,
+    .long_press_pane = PANE_MAIN,
+};
+static int g_log_pane_display_filters[PANE_MAX] = {
+    [PANE_LOG] = LOG_HISTORY_FILTER_MESSAGES,
+    [PANE_ROLLS] = LOG_HISTORY_FILTER_COMBAT,
+};
+static bool g_log_pane_display_pending = false;
+static enum pane_type g_log_pane_pending_pane = PANE_MAIN;
+static int g_log_pane_pending_filter = LOG_HISTORY_FILTER_ALL;
 static map_touch_press_state g_map_touch_press;
 static player_action_menu_state g_player_action_menu;
 static player_exchange_target_state g_player_exchange_target;
@@ -1337,6 +1390,24 @@ static bool sdl_pane_layout_drag_handle_pointer_down(float x, float y);
 static bool sdl_pane_layout_drag_handle_pointer_motion(float x, float y);
 static bool sdl_pane_layout_drag_handle_pointer_up(float x, float y);
 static void sdl_pane_layout_drag_cancel(void);
+static bool sdl_log_pane_menu_open_from_pointer(float x, float y);
+static bool sdl_log_pane_menu_handle_pointer_down(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
+static bool sdl_log_pane_menu_handle_pointer_motion(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
+static bool sdl_log_pane_menu_handle_pointer_up(float x, float y,
+    SDL_FingerID finger_id, bool mouse);
+static bool sdl_log_pane_menu_handle_long_press_down(float x, float y,
+    SDL_FingerID finger_id);
+static bool sdl_log_pane_menu_handle_long_press_motion(float x, float y,
+    SDL_FingerID finger_id);
+static bool sdl_log_pane_menu_handle_long_press_up(float x, float y,
+    SDL_FingerID finger_id);
+static void sdl_log_pane_menu_cancel_long_press(SDL_FingerID finger_id);
+static int sdl_log_pane_menu_pending_timeout_ms(Uint64 now_ns);
+static bool sdl_log_pane_menu_flush_pending_press(Uint64 now_ns);
+static void sdl_log_pane_menu_cancel(void);
+static void sdl_log_pane_menu_render(void);
 static bool sdl_side_pane_menu_open_from_pointer(float x, float y);
 static bool sdl_side_pane_menu_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id, bool mouse);
@@ -1455,8 +1526,12 @@ static int sdl_resolve_aux_view_font_size(int requested_size);
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
 static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static bool sdl_left_panel_pane_layout_enabled(void);
+static bool sdl_left_panel_pane_presentation_active(void);
 static bool sdl_left_panel_pane_runtime_active(void);
-static int sdl_left_panel_pane_cols(void);
+static int sdl_left_panel_pane_scale_for_main_scale(int main_scale);
+static int sdl_left_panel_pane_scale_for_view(const sdl_view* view);
+static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
+    sdl_left_panel_metrics* metrics);
 static int sdl_main_view_visual_cols(const sdl_view* view);
 static int sdl_main_view_visual_rows(const sdl_view* view);
 static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w);
@@ -2087,6 +2162,12 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
                     configs[j].enabled = true;
                     changed = true;
                 }
+                if (pane == PANE_LEFT_PANEL
+                    && configs[j].where != PLACE_TOP_LEFT)
+                {
+                    configs[j].where = PLACE_TOP_LEFT;
+                    changed = true;
+                }
                 found = true;
                 break;
             }
@@ -2171,20 +2252,117 @@ static bool sdl_left_panel_pane_config_enabled(void)
     return pane_config[index].enabled;
 }
 
-static int sdl_left_panel_pane_cols(void)
+static int sdl_left_panel_pane_scale_for_main_scale(int main_scale)
 {
     int index = sdl_left_panel_pane_config_index();
-    int cols = LEFT_PANEL_CONTENT_WID;
+    int scale = 0;
 
-    if (index >= 0 && pane_config[index].rect.cols > 0)
-        cols = pane_config[index].rect.cols;
+    if (main_scale < 1)
+        main_scale = 1;
 
-    if (cols < 6)
-        cols = 6;
-    if (cols > LEFT_PANEL_CONTENT_WID)
-        cols = LEFT_PANEL_CONTENT_WID;
+    if (index >= 0)
+        scale = pane_config[index].rect.cols;
 
-    return cols;
+    if (scale <= 0)
+        return main_scale;
+    if (scale > main_scale)
+        return main_scale;
+
+    return scale;
+}
+
+static int sdl_left_panel_pane_scale_for_view(const sdl_view* view)
+{
+    int main_scale = config.main_view_scale;
+
+    if (view && view->cell_h >= TILE_SIZE
+        && (view->cell_h % TILE_SIZE) == 0)
+    {
+        main_scale = view->cell_h / TILE_SIZE;
+    }
+
+    return sdl_left_panel_pane_scale_for_main_scale(main_scale);
+}
+
+static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
+{
+    bool compact = (view && view->rows > 0 && view->rows < 24);
+    int row_song = compact ? 18 : 21;
+    int row_cut = compact ? 17 : 20;
+    int row_poisoned = compact ? 17 : 20;
+    int row_resist = compact ? 15 : 17;
+    int row_info = compact ? 15 : 17;
+    int row_evn = compact ? 14 : 16;
+    int rows = row_song + 2;
+    int status_row = (op_ptr && op_ptr->opt[OPT_top_status_line])
+        ? 0
+        : ((view && view->rows > 0) ? view->rows - 1 : rows);
+
+    if (rows < row_cut + 1)
+        rows = row_cut + 1;
+    if (rows < row_poisoned + 1)
+        rows = row_poisoned + 1;
+    if (rows < row_resist + 1)
+        rows = row_resist + 1;
+    if (rows < row_info + 1)
+        rows = row_info + 1;
+    if (rows < row_evn + 1)
+        rows = row_evn + 1;
+    if (status_row > 0 && rows > status_row)
+        rows = status_row;
+    if (view && view->rows > 0 && rows > view->rows)
+        rows = view->rows;
+    if (rows < ROW_MAP + 1)
+        rows = ROW_MAP + 1;
+
+    return rows;
+}
+
+static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
+    sdl_left_panel_metrics* metrics)
+{
+    int scale;
+    int panel_rows;
+    int panel_render_h;
+    int corner_h;
+    int source_h;
+
+    if (metrics)
+        *metrics = (sdl_left_panel_metrics){ 0 };
+    if (!view || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    scale = sdl_left_panel_pane_scale_for_view(view);
+    if (scale < 1)
+        scale = 1;
+
+    panel_rows = sdl_left_panel_pane_rows_for_view(view);
+    source_h = sdl_main_view_visual_rows(view) * view->cell_h;
+    panel_render_h = panel_rows * (scale * TILE_SIZE);
+    corner_h = panel_render_h;
+    if (view->cell_h > 0)
+        corner_h = ((corner_h + view->cell_h - 1) / view->cell_h)
+            * view->cell_h;
+    if (corner_h > source_h)
+        corner_h = source_h;
+    if (panel_render_h > corner_h)
+        panel_render_h = corner_h;
+
+    if (metrics) {
+        metrics->scale = scale;
+        metrics->cell_w = scale * TILE_SIZE / 2;
+        metrics->cell_h = scale * TILE_SIZE;
+        metrics->content_w = LEFT_PANEL_CONTENT_WID * metrics->cell_w;
+        metrics->separator_w = view->cell_w;
+        metrics->total_w = metrics->content_w + metrics->separator_w;
+        metrics->panel_rows = panel_rows;
+        metrics->panel_render_h = panel_render_h;
+        metrics->corner_h = corner_h;
+        metrics->visual_rows = sdl_main_view_visual_rows(view);
+        metrics->source_h = source_h;
+    }
+
+    return true;
 }
 
 static bool sdl_left_panel_pane_layout_enabled(void)
@@ -2194,14 +2372,22 @@ static bool sdl_left_panel_pane_layout_enabled(void)
         && sdl_left_panel_pane_config_enabled();
 }
 
-static bool sdl_left_panel_pane_runtime_active(void)
+static bool sdl_left_panel_pane_presentation_active(void)
 {
     return sdl_left_panel_pane_layout_enabled()
         && character_generated
         && character_dungeon
         && p_ptr
-        && !p_ptr->is_dead
         && character_icky == 0;
+}
+
+static bool sdl_left_panel_pane_runtime_active(void)
+{
+    return sdl_left_panel_pane_presentation_active()
+        && p_ptr->playing
+        && !p_ptr->leaving
+        && !p_ptr->is_dead
+        && !death_spectator_active();
 }
 
 static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
@@ -2220,17 +2406,13 @@ static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
 
 static int sdl_main_view_logical_cols_for_visual_cols(int visual_cols)
 {
-    int extra_cols = 0;
-
     if (visual_cols <= 0)
         return 0;
 
-    if (sdl_left_panel_pane_layout_enabled())
-        extra_cols = COL_MAP - sdl_left_panel_pane_cols();
-    if (extra_cols < 0)
-        extra_cols = 0;
+    if (!sdl_left_panel_pane_layout_enabled())
+        return visual_cols;
 
-    return visual_cols + extra_cols;
+    return COL_MAP + visual_cols;
 }
 
 static const char* sdl_startup_device_class_name(sdl_startup_device_class device)
@@ -2424,10 +2606,10 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             break;
 
         case PANE_LEFT_PANEL:
-            configs[i].where = PLACE_LEFT;
+            configs[i].where = PLACE_TOP_LEFT;
             configs[i].enabled = true;
             configs[i].rect.rows = 0;
-            configs[i].rect.cols = LEFT_PANEL_CONTENT_WID;
+            configs[i].rect.cols = 0;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -5522,42 +5704,39 @@ static int sdl_main_view_visual_rows(const sdl_view* view)
 static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
     SDL_FRect* out_rect, float* out_scale)
 {
-    int panel_cols;
     int visual_cols;
-    int visual_rows;
-    float scale;
+    sdl_left_panel_metrics metrics;
 
     if (out_rect)
         *out_rect = (SDL_FRect){ 0 };
     if (out_scale)
         *out_scale = 1.0f;
-    if (!sdl_left_panel_pane_layout_enabled())
+    if (!sdl_left_panel_pane_presentation_active())
         return false;
     if (!view || !view->term_ready || !view->canvas)
         return false;
     if (view->cell_w <= 0 || view->cell_h <= 0)
         return false;
 
-    panel_cols = sdl_left_panel_pane_cols();
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
     visual_cols = sdl_main_view_visual_cols(view);
-    visual_rows = sdl_main_view_visual_rows(view);
-    if (panel_cols <= 0 || visual_cols <= panel_cols || visual_rows <= 0)
+    if (metrics.total_w <= 0 || metrics.corner_h <= 0
+        || visual_cols * view->cell_w <= metrics.total_w)
+    {
         return false;
-
-    scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
-    if (scale <= 0.0f)
-        return false;
+    }
 
     if (out_rect) {
         *out_rect = (SDL_FRect){
             .x = (float)(view->rect.x + view->margin_x),
             .y = (float)(view->rect.y + view->margin_y),
-            .w = (float)(panel_cols * view->cell_w),
-            .h = (float)(visual_rows * view->cell_h),
+            .w = (float)metrics.total_w,
+            .h = (float)metrics.corner_h,
         };
     }
     if (out_scale)
-        *out_scale = scale;
+        *out_scale = (float)metrics.scale;
 
     return true;
 }
@@ -5577,6 +5756,30 @@ static void sdl_update_left_panel_pane_rect(void)
         .w = (int)rect.w,
         .h = (int)rect.h,
     };
+}
+
+static void sdl_merge_frect_bounds(const SDL_FRect* rect, bool* have,
+    float* x1, float* y1, float* x2, float* y2)
+{
+    if (!rect || !have || !x1 || !y1 || !x2 || !y2
+        || rect->w <= 0.0f || rect->h <= 0.0f)
+    {
+        return;
+    }
+
+    if (!*have) {
+        *x1 = rect->x;
+        *y1 = rect->y;
+        *x2 = rect->x + rect->w;
+        *y2 = rect->y + rect->h;
+        *have = true;
+        return;
+    }
+
+    if (rect->x < *x1) *x1 = rect->x;
+    if (rect->y < *y1) *y1 = rect->y;
+    if (rect->x + rect->w > *x2) *x2 = rect->x + rect->w;
+    if (rect->y + rect->h > *y2) *y2 = rect->y + rect->h;
 }
 
 static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
@@ -5611,75 +5814,96 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
     grid_x = (float)(view->rect.x + view->margin_x);
     grid_y = (float)(view->rect.y + view->margin_y);
 
-    if (sdl_left_panel_pane_runtime_active()) {
-        int panel_cols = sdl_left_panel_pane_cols();
+    if (sdl_left_panel_pane_presentation_active()) {
+        sdl_left_panel_metrics metrics;
         int start = col;
         int end = col + cols;
+        int end_row = row + rows;
+        int top_rows;
         bool have = false;
         float x1 = 0.0f;
         float y1 = 0.0f;
         float x2 = 0.0f;
         float y2 = 0.0f;
-        float scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
+
+        if (!sdl_left_panel_metrics_for_view(view, &metrics))
+            return false;
 
         if (end < start)
             end = view->cols;
+        if (end_row < row)
+            end_row = view->rows;
+        if (end_row > visual_rows)
+            end_row = visual_rows;
+        top_rows = (view->cell_h > 0) ? metrics.corner_h / view->cell_h : 0;
+        if (top_rows > visual_rows)
+            top_rows = visual_rows;
 
-        if (start < LEFT_PANEL_CONTENT_WID && end > 0) {
+        if (start < LEFT_PANEL_CONTENT_WID && end > 0
+            && row < metrics.panel_rows)
+        {
             int c0 = MAX(start, 0);
             int c1 = MIN(end, LEFT_PANEL_CONTENT_WID);
-            int r1 = MIN(row + rows, visual_rows);
+            int r1 = MIN(end_row, metrics.panel_rows);
             SDL_FRect r;
 
             if (c1 > c0 && r1 > row) {
                 r = (SDL_FRect){
-                    .x = grid_x + (float)c0 * (float)view->cell_w * scale,
-                    .y = grid_y + (float)row * (float)view->cell_h * scale,
-                    .w = (float)(c1 - c0) * (float)view->cell_w * scale,
-                    .h = (float)(r1 - row) * (float)view->cell_h * scale,
+                    .x = grid_x + (float)(c0 * metrics.cell_w),
+                    .y = grid_y + (float)(row * metrics.cell_h),
+                    .w = (float)((c1 - c0) * metrics.cell_w),
+                    .h = (float)((r1 - row) * metrics.cell_h),
                 };
-                x1 = r.x;
-                y1 = r.y;
-                x2 = r.x + r.w;
-                y2 = r.y + r.h;
-                have = true;
+                sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
             }
         }
 
         if (start < view->cols && end > COL_MAP) {
-            int max_map_cols = visual_cols - panel_cols;
             int c0 = MAX(start, COL_MAP);
             int c1 = MIN(end, view->cols);
             int visible_c0 = c0 - COL_MAP;
             int visible_c1 = c1 - COL_MAP;
-            int r1 = MIN(row + rows, visual_rows);
-            SDL_FRect r;
 
             if (visible_c0 < 0)
                 visible_c0 = 0;
-            if (visible_c1 > max_map_cols)
-                visible_c1 = max_map_cols;
 
-            if (visible_c1 > visible_c0 && r1 > row) {
-                r = (SDL_FRect){
-                    .x = grid_x + (float)(panel_cols + visible_c0)
-                        * (float)view->cell_w,
-                    .y = grid_y + (float)(row * view->cell_h),
-                    .w = (float)(visible_c1 - visible_c0)
-                        * (float)view->cell_w,
-                    .h = (float)(r1 - row) * (float)view->cell_h,
-                };
-                if (!have) {
-                    x1 = r.x;
-                    y1 = r.y;
-                    x2 = r.x + r.w;
-                    y2 = r.y + r.h;
-                    have = true;
-                } else {
-                    if (r.x < x1) x1 = r.x;
-                    if (r.y < y1) y1 = r.y;
-                    if (r.x + r.w > x2) x2 = r.x + r.w;
-                    if (r.y + r.h > y2) y2 = r.y + r.h;
+            if (row < top_rows) {
+                int top_visible_c1 = visible_c1;
+                int top_map_cols =
+                    (visual_cols * view->cell_w - metrics.total_w)
+                    / view->cell_w;
+                int r1 = MIN(end_row, top_rows);
+
+                if (top_visible_c1 > top_map_cols)
+                    top_visible_c1 = top_map_cols;
+                if (top_visible_c1 > visible_c0 && r1 > row) {
+                    SDL_FRect r = {
+                        .x = grid_x + (float)metrics.total_w
+                            + (float)(visible_c0 * view->cell_w),
+                        .y = grid_y + (float)(row * view->cell_h),
+                        .w = (float)(top_visible_c1 - visible_c0)
+                            * (float)view->cell_w,
+                        .h = (float)(r1 - row) * (float)view->cell_h,
+                    };
+                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+                }
+            }
+
+            if (end_row > top_rows) {
+                int r0 = MAX(row, top_rows);
+                int bottom_visible_c1 = visible_c1;
+
+                if (bottom_visible_c1 > visual_cols)
+                    bottom_visible_c1 = visual_cols;
+                if (bottom_visible_c1 > visible_c0 && end_row > r0) {
+                    SDL_FRect r = {
+                        .x = grid_x + (float)(visible_c0 * view->cell_w),
+                        .y = grid_y + (float)(r0 * view->cell_h),
+                        .w = (float)(bottom_visible_c1 - visible_c0)
+                            * (float)view->cell_w,
+                        .h = (float)(end_row - r0) * (float)view->cell_h,
+                    };
+                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
                 }
             }
         }
@@ -5739,30 +5963,46 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
     if (x < grid_x || y < grid_y || x >= grid_x + grid_w || y >= grid_y + grid_h)
         return false;
 
-    if (sdl_left_panel_pane_runtime_active()) {
-        int panel_cols = sdl_left_panel_pane_cols();
-        float panel_w = (float)(panel_cols * view->cell_w);
-        float scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
+    if (sdl_left_panel_pane_presentation_active()) {
+        sdl_left_panel_metrics metrics;
         float local_x = x - grid_x;
         float local_y = y - grid_y;
+        int row;
 
-        if (local_x < panel_w) {
-            float scaled_cell_w = (float)view->cell_w * scale;
-            float scaled_cell_h = (float)view->cell_h * scale;
+        if (!sdl_left_panel_metrics_for_view(view, &metrics))
+            return false;
 
-            if (scaled_cell_w <= 0.0f || scaled_cell_h <= 0.0f)
+        if (local_x < (float)metrics.total_w
+            && local_y < (float)metrics.corner_h)
+        {
+            if (local_x >= (float)metrics.content_w) {
+                *out_col = LEFT_PANEL_CONTENT_WID;
+                *out_row = (int)(local_y / (float)metrics.cell_h);
+                return (*out_row >= 0 && *out_row < metrics.panel_rows);
+            }
+
+            if (metrics.cell_w <= 0 || metrics.cell_h <= 0)
                 return false;
-            if (local_y >= (float)(visual_rows * view->cell_h) * scale)
+            if (local_y >= (float)metrics.panel_render_h)
                 return false;
 
-            *out_col = (int)(local_x / scaled_cell_w);
-            *out_row = (int)(local_y / scaled_cell_h);
+            *out_col = (int)(local_x / (float)metrics.cell_w);
+            *out_row = (int)(local_y / (float)metrics.cell_h);
             return (*out_col >= 0 && *out_col < LEFT_PANEL_CONTENT_WID
-                && *out_row >= 0 && *out_row < view->rows);
+                && *out_row >= 0 && *out_row < metrics.panel_rows);
         }
 
-        *out_col = COL_MAP + (int)((local_x - panel_w) / (float)view->cell_w);
-        *out_row = (int)(local_y / (float)view->cell_h);
+        row = (int)(local_y / (float)view->cell_h);
+        if (local_y < (float)metrics.corner_h) {
+            if (local_x < (float)metrics.total_w)
+                return false;
+            *out_col = COL_MAP
+                + (int)((local_x - (float)metrics.total_w)
+                    / (float)view->cell_w);
+        } else {
+            *out_col = COL_MAP + (int)(local_x / (float)view->cell_w);
+        }
+        *out_row = row;
         return (*out_col >= COL_MAP && *out_col < view->cols
             && *out_row >= 0 && *out_row < view->rows);
     }
@@ -14889,6 +15129,568 @@ static bool sdl_pane_layout_drag_handle_pointer_up(float x, float y)
     return true;
 }
 
+static bool sdl_log_history_filter_is_valid(int filter)
+{
+    return filter >= LOG_HISTORY_FILTER_ALL
+        && filter <= LOG_HISTORY_FILTER_COMBAT;
+}
+
+static bool sdl_log_pane_is_filterable(enum pane_type pane)
+{
+    return pane == PANE_LOG || pane == PANE_ROLLS;
+}
+
+int sdl_log_pane_display_filter(int pane)
+{
+    int filter;
+
+    if (!sdl_log_pane_is_filterable((enum pane_type)pane))
+        return LOG_HISTORY_FILTER_ALL;
+
+    filter = g_log_pane_display_filters[pane];
+    if (!sdl_log_history_filter_is_valid(filter))
+    {
+        filter = (pane == PANE_ROLLS) ? LOG_HISTORY_FILTER_COMBAT
+                                      : LOG_HISTORY_FILTER_MESSAGES;
+    }
+
+    return filter;
+}
+
+static void sdl_log_pane_apply_display_filter(enum pane_type pane, int filter)
+{
+    if (!sdl_log_pane_is_filterable(pane))
+        return;
+    if (!sdl_log_history_filter_is_valid(filter))
+        filter = LOG_HISTORY_FILTER_ALL;
+
+    g_log_pane_display_filters[pane] = filter;
+
+    if (p_ptr)
+    {
+        p_ptr->window |= (PW_MESSAGE | PW_COMBAT_ROLLS);
+        handle_stuff();
+    }
+
+    g_state.need_present = true;
+}
+
+static void sdl_log_pane_queue_display_filter(enum pane_type pane, int filter)
+{
+    if (!sdl_log_history_filter_is_valid(filter))
+        filter = LOG_HISTORY_FILTER_ALL;
+    if (!sdl_log_pane_is_filterable(pane))
+        return;
+
+    g_log_pane_pending_pane = pane;
+    g_log_pane_pending_filter = filter;
+    g_log_pane_display_pending = true;
+
+    if (character_icky > 0)
+        Term_keypress(ESCAPE);
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+}
+
+bool sdl_log_pane_display_process_pending(void)
+{
+    int filter;
+    enum pane_type pane;
+
+    if (!g_log_pane_display_pending)
+        return false;
+
+    pane = g_log_pane_pending_pane;
+    filter = g_log_pane_pending_filter;
+    g_log_pane_display_pending = false;
+    g_log_pane_pending_pane = PANE_MAIN;
+    g_log_pane_pending_filter = LOG_HISTORY_FILTER_ALL;
+    (void)sdl_mouse_consume_wake_key();
+
+    sdl_log_pane_apply_display_filter(pane, filter);
+    return true;
+}
+
+static bool sdl_log_pane_menu_point_to_log_pane(float x, float y,
+    enum pane_type* out_pane)
+{
+    if (out_pane)
+        *out_pane = PANE_MAIN;
+
+    if (!sdl_pane_command_shortcuts_active())
+        return false;
+    if (!sdl_should_show_supporting_panes())
+        return false;
+
+    if (sdl_point_in_view_rect(PANE_LOG, x, y)) {
+        if (out_pane)
+            *out_pane = PANE_LOG;
+        return true;
+    }
+
+    if (sdl_point_in_view_rect(PANE_ROLLS, x, y)) {
+        if (out_pane)
+            *out_pane = PANE_ROLLS;
+        return true;
+    }
+
+    return false;
+}
+
+static int sdl_log_pane_menu_collect(log_pane_menu_entry* entries)
+{
+    static const log_pane_menu_entry defaults[] = {
+        { .filter = LOG_HISTORY_FILTER_ALL, .label = "Combined",
+            .hint = "log + combat",
+            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
+        { .filter = LOG_HISTORY_FILTER_MESSAGES, .label = "Log only",
+            .hint = "messages",
+            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
+        { .filter = LOG_HISTORY_FILTER_COMBAT, .label = "Combat only",
+            .hint = "rolls",
+            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
+    };
+    int count = (int)N_ELEMENTS(defaults);
+
+    if (entries)
+        memcpy(entries, defaults, sizeof(defaults));
+
+    return count;
+}
+
+static bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
+    int* out_count, SDL_FRect* out_panel)
+{
+    SDL_Rect screen = sdl_get_layout_screen_rect();
+    int count;
+    float cell_w = (float)g_views[PANE_MAIN].cell_w;
+    float cell_h = (float)g_views[PANE_MAIN].cell_h;
+    float pad;
+    float header_h;
+    float row_h;
+    float panel_w;
+    float panel_h;
+    float gap;
+    float x;
+    float y;
+
+    if (!entries || !out_count)
+        return false;
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    count = sdl_log_pane_menu_collect(entries);
+    if (count <= 0)
+        return false;
+
+    if (cell_w <= 0.0f)
+        cell_w = 8.0f;
+    if (cell_h <= 0.0f)
+        cell_h = 16.0f;
+
+    pad = sdl_touch_pane_clampf(g_state.system_scale * 7.0f
+        * SIDE_PANE_MENU_SCALE, 9.0f, 18.0f);
+    gap = sdl_touch_pane_clampf(g_state.system_scale * 8.0f
+        * SIDE_PANE_MENU_SCALE, 12.0f, 21.0f);
+    header_h = sdl_touch_pane_clampf(cell_h * 2.0f
+        * SIDE_PANE_MENU_SCALE, 48.0f, 66.0f);
+    row_h = sdl_touch_pane_clampf(cell_h * 2.5f
+        * SIDE_PANE_MENU_SCALE, 58.0f, 78.0f);
+    panel_w = sdl_touch_pane_clampf(cell_w * 26.0f
+        * SIDE_PANE_MENU_SCALE, 270.0f, 390.0f);
+    if (panel_w > (float)screen.w - 8.0f)
+        panel_w = (float)screen.w - 8.0f;
+    if (panel_w < 120.0f)
+        panel_w = 120.0f;
+
+    panel_h = pad * 2.0f + header_h + row_h * (float)count;
+
+    x = g_log_pane_menu.anchor_x + gap;
+    if (g_log_pane_menu.anchor_x > (float)screen.x + (float)screen.w * 0.5f)
+        x = g_log_pane_menu.anchor_x - panel_w - gap;
+    y = g_log_pane_menu.anchor_y - header_h * 0.5f;
+
+    x = sdl_touch_pane_clampf(x, (float)screen.x + 6.0f,
+        (float)(screen.x + screen.w) - panel_w - 6.0f);
+    y = sdl_touch_pane_clampf(y, (float)screen.y + 6.0f,
+        (float)(screen.y + screen.h) - panel_h - 6.0f);
+
+    if (out_panel) {
+        *out_panel = (SDL_FRect){
+            .x = x,
+            .y = y,
+            .w = panel_w,
+            .h = panel_h,
+        };
+    }
+
+    for (int i = 0; i < count; i++) {
+        entries[i].rect = (SDL_FRect){
+            .x = x + pad,
+            .y = y + pad + header_h + row_h * (float)i + 3.0f,
+            .w = panel_w - pad * 2.0f,
+            .h = row_h - 6.0f,
+        };
+    }
+
+    *out_count = count;
+    return true;
+}
+
+static int sdl_log_pane_menu_index_at(float x, float y)
+{
+    log_pane_menu_entry entries[3];
+    int count = 0;
+
+    if (!sdl_log_pane_menu_layout(entries, &count, NULL))
+        return -1;
+
+    for (int i = 0; i < count; i++) {
+        if (sdl_point_in_frect(&entries[i].rect, x, y))
+            return i;
+    }
+
+    return -1;
+}
+
+static void sdl_log_pane_menu_clear_long_press(void)
+{
+    g_log_pane_menu.long_press_active = false;
+    g_log_pane_menu.long_press_opened = false;
+    g_log_pane_menu.long_press_finger_id = 0;
+    g_log_pane_menu.long_press_pane = PANE_MAIN;
+    g_log_pane_menu.long_press_start_x = 0.0f;
+    g_log_pane_menu.long_press_start_y = 0.0f;
+    g_log_pane_menu.long_press_start_time = 0;
+}
+
+static void sdl_log_pane_menu_cancel(void)
+{
+    bool was_active = g_log_pane_menu.active;
+
+    g_log_pane_menu.active = false;
+    g_log_pane_menu.hover_index = -1;
+    g_log_pane_menu.press_active = false;
+    g_log_pane_menu.press_mouse = false;
+    g_log_pane_menu.press_finger_id = 0;
+    g_log_pane_menu.press_index = -1;
+    g_log_pane_menu.target_pane = PANE_MAIN;
+    g_log_pane_menu.anchor_x = 0.0f;
+    g_log_pane_menu.anchor_y = 0.0f;
+    sdl_log_pane_menu_clear_long_press();
+
+    if (was_active)
+        g_state.need_present = true;
+}
+
+static bool sdl_log_pane_menu_open_at(float x, float y, enum pane_type pane)
+{
+    log_pane_menu_entry entries[3];
+
+    if (!sdl_log_pane_is_filterable(pane))
+        return false;
+    if (sdl_log_pane_menu_collect(entries) <= 0)
+        return false;
+
+    sdl_side_pane_menu_cancel();
+    sdl_player_action_menu_cancel();
+    sdl_player_exchange_cancel();
+    sdl_mouse_path_cancel();
+    sdl_pane_layout_drag_cancel();
+
+    g_log_pane_menu.active = true;
+    g_log_pane_menu.press_active = false;
+    g_log_pane_menu.press_mouse = false;
+    g_log_pane_menu.press_finger_id = 0;
+    g_log_pane_menu.press_index = -1;
+    g_log_pane_menu.target_pane = pane;
+    g_log_pane_menu.anchor_x = x;
+    g_log_pane_menu.anchor_y = y;
+    g_log_pane_menu.hover_index = -1;
+    g_state.need_present = true;
+    return true;
+}
+
+static bool sdl_log_pane_menu_open_from_pointer(float x, float y)
+{
+    enum pane_type pane = PANE_MAIN;
+
+    if (!sdl_log_pane_menu_point_to_log_pane(x, y, &pane))
+        return false;
+
+    return sdl_log_pane_menu_open_at(x, y, pane);
+}
+
+static void sdl_log_pane_menu_activate(int menu_index)
+{
+    log_pane_menu_entry entries[3];
+    int count = 0;
+    int filter;
+    enum pane_type target_pane;
+
+    if (!sdl_log_pane_menu_layout(entries, &count, NULL))
+        return;
+    if (menu_index < 0 || menu_index >= count)
+        return;
+
+    filter = entries[menu_index].filter;
+    target_pane = g_log_pane_menu.target_pane;
+    sdl_log_pane_menu_cancel();
+    sdl_log_pane_queue_display_filter(target_pane, filter);
+}
+
+static bool sdl_log_pane_menu_handle_pointer_down(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
+{
+    int index;
+
+    if (!g_log_pane_menu.active)
+        return false;
+
+    index = sdl_log_pane_menu_index_at(x, y);
+    if (index < 0) {
+        sdl_log_pane_menu_cancel();
+        return true;
+    }
+
+    g_log_pane_menu.press_active = true;
+    g_log_pane_menu.press_mouse = mouse;
+    g_log_pane_menu.press_finger_id = finger_id;
+    g_log_pane_menu.press_index = index;
+    g_log_pane_menu.hover_index = index;
+    g_state.need_present = true;
+    return true;
+}
+
+static bool sdl_log_pane_menu_handle_pointer_motion(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
+{
+    int index;
+
+    (void)finger_id;
+    (void)mouse;
+
+    if (!g_log_pane_menu.active)
+        return false;
+
+    index = sdl_log_pane_menu_index_at(x, y);
+    if (g_log_pane_menu.hover_index != index) {
+        g_log_pane_menu.hover_index = index;
+        g_state.need_present = true;
+    }
+
+    return true;
+}
+
+static bool sdl_log_pane_menu_handle_pointer_up(float x, float y,
+    SDL_FingerID finger_id, bool mouse)
+{
+    int index;
+
+    if (!g_log_pane_menu.active)
+        return false;
+    if (!g_log_pane_menu.press_active)
+        return true;
+    if (g_log_pane_menu.press_mouse != mouse
+        || g_log_pane_menu.press_finger_id != finger_id)
+    {
+        return true;
+    }
+
+    index = sdl_log_pane_menu_index_at(x, y);
+    if (index == g_log_pane_menu.press_index)
+        sdl_log_pane_menu_activate(index);
+
+    g_log_pane_menu.press_active = false;
+    g_log_pane_menu.press_index = -1;
+    return true;
+}
+
+static bool sdl_log_pane_menu_handle_long_press_down(float x, float y,
+    SDL_FingerID finger_id)
+{
+    enum pane_type pane = PANE_MAIN;
+
+    if (g_log_pane_menu.active)
+        return false;
+    if (!sdl_log_pane_menu_point_to_log_pane(x, y, &pane))
+        return false;
+
+    sdl_log_pane_menu_clear_long_press();
+    g_log_pane_menu.long_press_active = true;
+    g_log_pane_menu.long_press_finger_id = finger_id;
+    g_log_pane_menu.long_press_pane = pane;
+    g_log_pane_menu.long_press_start_x = x;
+    g_log_pane_menu.long_press_start_y = y;
+    g_log_pane_menu.long_press_start_time = SDL_GetTicksNS();
+    return true;
+}
+
+static bool sdl_log_pane_menu_handle_long_press_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    float dx;
+    float dy;
+
+    if (!g_log_pane_menu.long_press_active
+        || g_log_pane_menu.long_press_finger_id != finger_id)
+    {
+        return false;
+    }
+    if (g_log_pane_menu.long_press_opened)
+        return true;
+
+    dx = x - g_log_pane_menu.long_press_start_x;
+    dy = y - g_log_pane_menu.long_press_start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    if (dx > sdl_touch_swipe_threshold_px()
+        || dy > sdl_touch_swipe_threshold_px())
+    {
+        sdl_log_pane_menu_clear_long_press();
+        return true;
+    }
+
+    return true;
+}
+
+static bool sdl_log_pane_menu_handle_long_press_up(float x, float y,
+    SDL_FingerID finger_id)
+{
+    enum pane_type pane;
+    bool opened;
+    bool clicked;
+
+    if (!g_log_pane_menu.long_press_active
+        || g_log_pane_menu.long_press_finger_id != finger_id)
+    {
+        return false;
+    }
+
+    pane = g_log_pane_menu.long_press_pane;
+    opened = g_log_pane_menu.long_press_opened;
+    clicked = !opened && sdl_point_in_rect(&g_pane_rects[pane], x, y);
+    sdl_log_pane_menu_clear_long_press();
+
+    if (clicked)
+        sdl_pane_layout_drag_send_click(pane);
+
+    return true;
+}
+
+static void sdl_log_pane_menu_cancel_long_press(SDL_FingerID finger_id)
+{
+    if (!g_log_pane_menu.long_press_active)
+        return;
+    if (g_log_pane_menu.long_press_finger_id != finger_id)
+        return;
+
+    sdl_log_pane_menu_clear_long_press();
+}
+
+static int sdl_log_pane_menu_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_log_pane_menu.long_press_active)
+        return -1;
+    if (g_log_pane_menu.long_press_opened)
+        return -1;
+    if (!g_log_pane_menu.long_press_start_time)
+        return -1;
+
+    elapsed = now_ns - g_log_pane_menu.long_press_start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+static bool sdl_log_pane_menu_flush_pending_press(Uint64 now_ns)
+{
+    if (sdl_log_pane_menu_pending_timeout_ms(now_ns) != 0)
+        return false;
+
+    if (!sdl_log_pane_menu_open_from_pointer(
+            g_log_pane_menu.long_press_start_x,
+            g_log_pane_menu.long_press_start_y))
+    {
+        sdl_log_pane_menu_clear_long_press();
+        return false;
+    }
+
+    g_log_pane_menu.long_press_opened = true;
+    return true;
+}
+
+static void sdl_log_pane_menu_render(void)
+{
+    log_pane_menu_entry entries[3];
+    int count = 0;
+    SDL_FRect panel;
+    SDL_FRect shadow;
+    SDL_FRect header;
+    SDL_Color border = g_state.palette[TERM_L_BLUE];
+    SDL_Color hover_border = g_state.palette[TERM_YELLOW];
+    SDL_Color text = g_state.palette[TERM_WHITE];
+    float pad;
+
+    if (!g_log_pane_menu.active)
+        return;
+    if (!sdl_log_pane_menu_layout(entries, &count, &panel))
+        return;
+
+    pad = sdl_touch_pane_clampf(g_state.system_scale * 7.0f
+        * SIDE_PANE_MENU_SCALE, 9.0f, 18.0f);
+    header = (SDL_FRect){
+        .x = panel.x + pad,
+        .y = panel.y + pad,
+        .w = panel.w - pad * 2.0f,
+        .h = entries[0].rect.y - panel.y - pad - 2.0f,
+    };
+    shadow = panel;
+    shadow.x += 4.5f;
+    shadow.y += 4.5f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 142);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 12, 15, 17, 242);
+    SDL_RenderFillRect(g_state.renderer, &panel);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+        210);
+    SDL_RenderRect(g_state.renderer, &panel);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 22, 27, 30, 245);
+    SDL_RenderFillRect(g_state.renderer, &header);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+        150);
+    SDL_RenderRect(g_state.renderer, &header);
+    sdl_touch_pane_draw_button_text_scaled(&header, NULL, "Show In Pane",
+        text, 0.48f, 0.63f);
+
+    for (int i = 0; i < count; i++) {
+        bool hover = (i == g_log_pane_menu.hover_index);
+        bool pressed = g_log_pane_menu.press_active
+            && i == g_log_pane_menu.press_index;
+        SDL_Color line = hover ? hover_border : border;
+        const SDL_FRect* rect = &entries[i].rect;
+
+        SDL_SetRenderDrawColor(g_state.renderer,
+            pressed ? 48 : 32, pressed ? 54 : 38, pressed ? 58 : 42, 238);
+        SDL_RenderFillRect(g_state.renderer, rect);
+        SDL_SetRenderDrawColor(g_state.renderer, line.r, line.g, line.b,
+            hover ? 238 : 166);
+        SDL_RenderRect(g_state.renderer, rect);
+
+        sdl_touch_pane_draw_button_text_scaled(rect, entries[i].label,
+            entries[i].hint, text, 0.31f, 0.40f);
+    }
+}
+
 static const char* sdl_side_pane_menu_label(enum pane_type pane)
 {
     switch (pane) {
@@ -15116,6 +15918,7 @@ static bool sdl_side_pane_menu_open_at(float x, float y)
     if (sdl_side_pane_menu_collect(entries) <= 0)
         return false;
 
+    sdl_log_pane_menu_cancel();
     sdl_player_action_menu_cancel();
     sdl_player_exchange_cancel();
     sdl_mouse_path_cancel();
@@ -20591,6 +21394,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_log_pane_menu_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y, 0, true))
+        {
+            return;
+        }
         if (sdl_side_pane_menu_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, 0, true))
         {
@@ -20670,6 +21478,12 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
             return;
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        if (ev->button.which != SDL_TOUCH_MOUSEID
+            && sdl_log_pane_menu_handle_pointer_down((float)ev->button.x,
+                (float)ev->button.y, 0, true))
+        {
+            return;
+        }
         if (ev->button.which != SDL_TOUCH_MOUSEID
             && sdl_side_pane_menu_handle_pointer_down((float)ev->button.x,
                 (float)ev->button.y, 0, true))
@@ -20813,6 +21627,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 sdl_player_exchange_cancel();
                 return;
             }
+            if (sdl_log_pane_menu_open_from_pointer((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_side_pane_menu_open_from_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -20870,6 +21689,12 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        if (ev->button.which != SDL_TOUCH_MOUSEID
+            && sdl_log_pane_menu_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, 0, true))
+        {
+            return;
+        }
         if (ev->button.which != SDL_TOUCH_MOUSEID
             && sdl_side_pane_menu_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, 0, true))
@@ -20943,8 +21768,18 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         mobile_pane_swipe = sdl_touch_pane_uses_mobile_toggle()
             && g_touch_pane_mobile_open
             && !sdl_touch_round_layer_controls_active();
+        if (sdl_log_pane_menu_handle_pointer_down(x, y,
+            ev->tfinger.fingerID, false))
+        {
+            return;
+        }
         if (sdl_side_pane_menu_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false))
+        {
+            return;
+        }
+        if (sdl_log_pane_menu_handle_long_press_down(x, y,
+            ev->tfinger.fingerID))
         {
             return;
         }
@@ -21115,8 +21950,18 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_log_pane_menu_handle_long_press_motion(x, y,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_side_pane_menu_handle_long_press_motion(x, y,
             ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_log_pane_menu_handle_pointer_motion(x, y,
+            ev->tfinger.fingerID, false))
         {
             return;
         }
@@ -21226,8 +22071,18 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_log_pane_menu_handle_long_press_up(x, y,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_side_pane_menu_handle_long_press_up(x, y,
             ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_log_pane_menu_handle_pointer_up(x, y,
+            ev->tfinger.fingerID, false))
         {
             return;
         }
@@ -21366,6 +22221,15 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             g_side_pane_menu.press_index = -1;
             g_state.need_present = true;
         }
+        sdl_log_pane_menu_cancel_long_press(ev->tfinger.fingerID);
+        if (g_log_pane_menu.press_active
+            && !g_log_pane_menu.press_mouse
+            && g_log_pane_menu.press_finger_id == ev->tfinger.fingerID)
+        {
+            g_log_pane_menu.press_active = false;
+            g_log_pane_menu.press_index = -1;
+            g_state.need_present = true;
+        }
         if (g_player_action_menu.press_active
             && !g_player_action_menu.press_mouse
             && g_player_action_menu.press_finger_id == ev->tfinger.fingerID)
@@ -21420,6 +22284,12 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 g_state.need_present = true;
             }
             return;
+        }
+
+        if (g_log_pane_menu.active) {
+            sdl_log_pane_menu_cancel();
+            if (key == SDLK_ESCAPE)
+                return;
         }
 
         if (g_side_pane_menu.active) {
@@ -21759,18 +22629,11 @@ static bool sdl_left_panel_cell_is_tile(byte a, char c)
         && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
 }
 
-static int sdl_left_panel_right_padding_px(const sdl_view* view)
+static SDL_Color sdl_left_panel_background_color(void)
 {
-    int pad = 1;
+    SDL_Color color = { 0, 0, 0, 255 };
 
-    if (view && view->cell_w > 0)
-        pad = view->cell_w / 4;
-    if (pad < 1)
-        pad = 1;
-    if (pad > 4)
-        pad = 4;
-
-    return pad;
+    return color;
 }
 
 static void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
@@ -21823,44 +22686,39 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     SDL_Rect old_clip;
     bool had_clip;
     bool font_cached = false;
+    sdl_left_panel_metrics metrics;
     int canvas_w;
     int canvas_h;
-    int content_w;
-    int right_pad;
-    int panel_cols;
     int visual_rows;
     int atlas_cell_w;
     int atlas_cell_h;
-    float cell_w;
-    float cell_h;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
         return false;
     if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
         return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+    if (metrics.content_w <= 0 || metrics.total_w <= 0
+        || metrics.corner_h <= 0
+        || metrics.cell_w <= 0 || metrics.cell_h <= 0)
+    {
+        return false;
+    }
 
     t = &view->t;
     scr = t->scr;
     if (!scr || !scr->a || !scr->c)
         return false;
 
-    canvas_w = (int)(dst_left->w + 0.5f);
-    canvas_h = (int)(dst_left->h + 0.5f);
+    canvas_w = metrics.total_w;
+    canvas_h = metrics.corner_h;
     if (!sdl_left_panel_ensure_canvas(canvas_w, canvas_h))
         return false;
 
-    right_pad = sdl_left_panel_right_padding_px(view);
-    content_w = canvas_w - right_pad;
-    if (content_w <= 0)
-        content_w = canvas_w;
-
-    panel_cols = sdl_left_panel_pane_cols();
-    visual_rows = sdl_main_view_visual_rows(view);
-    cell_w = (float)content_w / (float)LEFT_PANEL_CONTENT_WID;
-    cell_h = (float)view->cell_h * (float)panel_cols
-        / (float)LEFT_PANEL_CONTENT_WID;
-    atlas_cell_w = (int)(cell_w + 0.5f);
-    atlas_cell_h = (int)(cell_h + 0.5f);
+    visual_rows = metrics.panel_rows;
+    atlas_cell_w = metrics.cell_w;
+    atlas_cell_h = metrics.cell_h;
     if (atlas_cell_w < 1) atlas_cell_w = 1;
     if (atlas_cell_h < 1) atlas_cell_h = 1;
 
@@ -21879,13 +22737,16 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
     SDL_SetRenderTarget(g_state.renderer, g_left_panel_canvas);
     SDL_SetRenderClipRect(g_state.renderer, NULL);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    {
+        SDL_Color bg = sdl_left_panel_background_color();
+        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
+    }
     SDL_RenderClear(g_state.renderer);
 
     for (int row = 0; row < visual_rows && row < t->hgt; row++) {
         int col = 0;
 
-        if ((float)row * cell_h >= (float)canvas_h)
+        if (row * metrics.cell_h >= canvas_h)
             break;
         if (!scr->a[row] || !scr->c[row])
             continue;
@@ -21911,10 +22772,10 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                     tile_cols = 1;
 
                 SDL_FRect dst = {
-                    (float)col * cell_w,
-                    (float)row * cell_h,
-                    (float)tile_cols * cell_w,
-                    cell_h,
+                    (float)(col * metrics.cell_w),
+                    (float)(row * metrics.cell_h),
+                    (float)(tile_cols * metrics.cell_w),
+                    (float)metrics.cell_h,
                 };
 
                 sdl_draw_map_tile_layers_at(-1, -1, a, c, ta, tc, &dst);
@@ -21948,8 +22809,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                 }
                 buf[len] = '\0';
                 sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
-                    atlas_cell_h, cell_w, cell_h, start, row, len, buf,
-                    text_col);
+                    atlas_cell_h, (float)metrics.cell_w,
+                    (float)metrics.cell_h, start, row, len, buf, text_col);
             }
         }
     }
@@ -21967,68 +22828,108 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
 {
     int visual_cols;
     int visual_rows;
-    int panel_cols;
-    int map_cols;
     int source_h;
+    int visual_w;
+    int canvas_w;
+    int top_h;
+    int bottom_h;
+    sdl_left_panel_metrics metrics;
     SDL_FRect src_left;
-    SDL_FRect src_map;
+    SDL_FRect src_top_map;
+    SDL_FRect src_bottom_map;
     SDL_FRect dst_left;
-    SDL_FRect dst_map;
+    SDL_FRect dst_top_map;
+    SDL_FRect dst_bottom_map;
     float grid_x;
     float grid_y;
 
-    if (!sdl_left_panel_pane_runtime_active())
+    if (!sdl_left_panel_pane_presentation_active())
         return false;
     if (!view || !view->canvas || !view->term_ready)
         return false;
     if (view->cell_w <= 0 || view->cell_h <= 0)
         return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
 
     visual_cols = sdl_main_view_visual_cols(view);
     visual_rows = sdl_main_view_visual_rows(view);
-    panel_cols = sdl_left_panel_pane_cols();
-    if (visual_cols <= panel_cols || visual_rows <= 0)
+    source_h = visual_rows * view->cell_h;
+    visual_w = visual_cols * view->cell_w;
+    canvas_w = view->cols * view->cell_w;
+    if (visual_w <= metrics.total_w || visual_rows <= 0
+        || metrics.corner_h <= 0)
+    {
+        return false;
+    }
+    if (canvas_w <= COL_MAP * view->cell_w)
         return false;
 
-    map_cols = visual_cols - panel_cols;
-    source_h = visual_rows * view->cell_h;
     grid_x = (float)(view->rect.x + view->margin_x);
     grid_y = (float)(view->rect.y + view->margin_y);
+    top_h = metrics.corner_h;
+    if (top_h > source_h)
+        top_h = source_h;
+    bottom_h = source_h - top_h;
 
     src_left = (SDL_FRect){
         .x = 0.0f,
         .y = 0.0f,
-        .w = (float)(LEFT_PANEL_CONTENT_WID * view->cell_w),
-        .h = (float)source_h,
+        .w = (float)(COL_MAP * view->cell_w),
+        .h = (float)top_h,
     };
     dst_left = (SDL_FRect){
         .x = grid_x,
         .y = grid_y,
-        .w = (float)(panel_cols * view->cell_w),
-        .h = (float)source_h,
+        .w = (float)metrics.total_w,
+        .h = (float)top_h,
     };
 
-    if (!sdl_render_left_panel_pane_from_cells(view, &dst_left))
+    if (!sdl_left_panel_pane_runtime_active()
+        || !sdl_render_left_panel_pane_from_cells(view, &dst_left))
+    {
         SDL_RenderTexture(g_state.renderer, view->canvas, &src_left, &dst_left);
+    }
 
-    src_map = (SDL_FRect){
+    src_top_map = (SDL_FRect){
         .x = (float)(COL_MAP * view->cell_w),
         .y = 0.0f,
-        .w = (float)(map_cols * view->cell_w),
-        .h = (float)source_h,
+        .w = (float)(visual_w - metrics.total_w),
+        .h = (float)top_h,
     };
-    if (src_map.x + src_map.w > (float)(view->cols * view->cell_w))
-        src_map.w = (float)(view->cols * view->cell_w) - src_map.x;
-    if (src_map.w <= 0.0f)
-        return true;
+    if (src_top_map.x + src_top_map.w > (float)canvas_w)
+        src_top_map.w = (float)canvas_w - src_top_map.x;
+    if (src_top_map.w > 0.0f && src_top_map.h > 0.0f) {
+        dst_top_map = (SDL_FRect){
+            .x = grid_x + (float)metrics.total_w,
+            .y = grid_y,
+            .w = src_top_map.w,
+            .h = src_top_map.h,
+        };
+        SDL_RenderTexture(g_state.renderer, view->canvas, &src_top_map,
+            &dst_top_map);
+    }
 
-    dst_map = (SDL_FRect){
-        .x = grid_x + (float)(panel_cols * view->cell_w),
-        .y = grid_y,
-        .w = src_map.w,
-        .h = (float)source_h,
-    };
-    SDL_RenderTexture(g_state.renderer, view->canvas, &src_map, &dst_map);
+    if (bottom_h > 0) {
+        src_bottom_map = (SDL_FRect){
+            .x = (float)(COL_MAP * view->cell_w),
+            .y = (float)top_h,
+            .w = (float)visual_w,
+            .h = (float)bottom_h,
+        };
+        if (src_bottom_map.x + src_bottom_map.w > (float)canvas_w)
+            src_bottom_map.w = (float)canvas_w - src_bottom_map.x;
+        if (src_bottom_map.w > 0.0f && src_bottom_map.h > 0.0f) {
+            dst_bottom_map = (SDL_FRect){
+                .x = grid_x,
+                .y = grid_y + (float)top_h,
+                .w = src_bottom_map.w,
+                .h = src_bottom_map.h,
+            };
+            SDL_RenderTexture(g_state.renderer, view->canvas, &src_bottom_map,
+                &dst_bottom_map);
+        }
+    }
 
     return true;
 }
@@ -22064,8 +22965,11 @@ static bool sdl_render_current_window_frame(void)
             continue;
         visible_views++;
     }
-    if (sdl_left_panel_pane_runtime_active())
+    if (sdl_left_panel_pane_presentation_active()
+        && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
+    {
         visible_views++;
+    }
     if (side_map_visible)
         visible_views++;
 
@@ -22151,12 +23055,19 @@ static bool sdl_render_current_window_frame(void)
                 false);
         }
 
-        if (sdl_left_panel_pane_runtime_active()
+        if (sdl_left_panel_pane_presentation_active()
             && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
         {
-            sdl_draw_pane_edges(&g_pane_rects[PANE_LEFT_PANEL], false,
-                false, true, false);
+            SDL_Rect* rect = &g_pane_rects[PANE_LEFT_PANEL];
+            sdl_draw_pane_edges(rect,
+                (layout_screen.w > 0 && rect->x > layout_screen.x),
+                (layout_screen.h > 0 && rect->y > layout_screen.y),
+                (layout_screen.w > 0
+                    && rect->x + rect->w < layout_screen.x + layout_screen.w),
+                (layout_screen.h > 0
+                    && rect->y + rect->h < layout_screen.y + layout_screen.h));
         }
+
     }
 
     sdl_touch_pane_render();
@@ -22166,6 +23077,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_touch_hidden_indicator_render();
     sdl_touch_pane_render_reset_prompt();
     sdl_touch_pane_render_yes_no_prompt();
+    sdl_log_pane_menu_render();
     sdl_side_pane_menu_render();
 
     return true;
@@ -24369,6 +25281,8 @@ static errr callback_sdl_xtra(int n, int v)
             int zone_touch_timeout_ms = sdl_touch_zone_pending_timeout_ms(now_ns);
             int top_panel_touch_timeout_ms =
                 sdl_touch_top_panel_pending_timeout_ms(now_ns);
+            int log_pane_menu_timeout_ms =
+                sdl_log_pane_menu_pending_timeout_ms(now_ns);
             int side_pane_menu_timeout_ms =
                 sdl_side_pane_menu_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
@@ -24400,6 +25314,11 @@ static errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = top_panel_touch_timeout_ms;
             }
+            if (timeout_ms < 0 || (log_pane_menu_timeout_ms >= 0
+                    && log_pane_menu_timeout_ms < timeout_ms))
+            {
+                timeout_ms = log_pane_menu_timeout_ms;
+            }
             if (timeout_ms < 0 || (side_pane_menu_timeout_ms >= 0
                     && side_pane_menu_timeout_ms < timeout_ms))
             {
@@ -24427,6 +25346,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
             sdl_music_update(); /* Update music after handling event */
         } else {
@@ -24450,6 +25370,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
 
             /* Avoid pegging a CPU core when we're repeatedly asked to poll */
@@ -24477,6 +25398,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
         }
         sdl_present_if_needed(d);
@@ -24521,6 +25443,7 @@ static errr callback_sdl_xtra(int n, int v)
                 sdl_map_touch_flush_pending_press(flush_ns);
                 sdl_touch_zone_flush_pending_press(flush_ns);
                 sdl_touch_top_panel_flush_pending_press(flush_ns);
+                sdl_log_pane_menu_flush_pending_press(flush_ns);
                 sdl_side_pane_menu_flush_pending_press(flush_ns);
             }
         }
@@ -28234,7 +29157,7 @@ void set_sdl_pane_where(int index, int where)
     if (index < 0 || index >= pane_config_count)
         return;
     if (pane_config[index].pane == PANE_LEFT_PANEL)
-        placement = PLACE_LEFT;
+        placement = PLACE_TOP_LEFT;
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
     if (!pane_type_allows_placement(pane_config[index].pane, placement))
         placement = pane_first_allowed_placement(pane_config[index].pane);
@@ -28265,6 +29188,15 @@ int get_sdl_pane_cols(int index)
 {
     if (index < 0 || index >= pane_config_count)
         return 0;
+    if (pane_config[index].pane == PANE_LEFT_PANEL) {
+        int scale = pane_config[index].rect.cols;
+
+        if (scale <= 0)
+            return 0;
+        if (scale > config.main_view_scale)
+            return config.main_view_scale;
+        return scale;
+    }
     return pane_config[index].rect.cols;
 }
 
@@ -28294,7 +29226,9 @@ static int sdl_pane_current_size(int index, bool want_rows)
 
     type = pane_config[index].pane;
     if (type == PANE_LEFT_PANEL)
-        return want_rows ? 0 : sdl_left_panel_pane_cols();
+        return want_rows ? 0
+                         : sdl_left_panel_pane_scale_for_main_scale(
+                               config.main_view_scale);
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return 0;
 
@@ -28352,12 +29286,14 @@ void set_sdl_pane_cols(int index, int cols)
     if (index < 0 || index >= pane_config_count)
         return;
     if (pane_config[index].pane == PANE_LEFT_PANEL) {
+        int max_scale = config.main_view_scale;
+
         if (cols < 0)
             cols = 0;
-        if (cols > LEFT_PANEL_CONTENT_WID)
-            cols = LEFT_PANEL_CONTENT_WID;
-        if (cols > 0 && cols < 6)
-            cols = 6;
+        if (max_scale < 1)
+            max_scale = 1;
+        if (cols > max_scale)
+            cols = max_scale;
         pane_config[index].rect.cols = cols;
         return;
     }

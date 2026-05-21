@@ -4989,6 +4989,8 @@ void request_command(void)
 
         if (sdl_mouse_recall_process_pending())
             continue;
+        if (sdl_log_pane_display_process_pending())
+            continue;
 
         {
             int mouse_command = 0;
@@ -5036,6 +5038,8 @@ void request_command(void)
         }
 
         if (sdl_mouse_recall_process_pending())
+            continue;
+        if (sdl_log_pane_display_process_pending())
             continue;
 
         if (ch == UI_MENU_CLICK_WAKE_KEY)
