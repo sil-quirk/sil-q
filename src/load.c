@@ -100,6 +100,7 @@ static bool savefile_has_randart_flags4 = false;
 static bool savefile_has_item_bonuses = false;
 static bool savefile_has_randart_bonuses = false;
 static bool savefile_has_morgoth_call_state = false;
+static bool savefile_has_combat_history = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -3323,6 +3324,7 @@ static void rd_messages(void)
     int i;
     char buf[128];
     u16b tmp16u;
+    u32b sequence;
 
     s16b num;
 
@@ -3339,9 +3341,137 @@ static void rd_messages(void)
         /* Read the message type */
         rd_u16b(&tmp16u);
 
+        /* Read the unified log sequence */
+        sequence = 0;
+        if (savefile_has_combat_history)
+            rd_u32b(&sequence);
+
         /* Save the message */
         message_add(buf, tmp16u);
+        if (sequence)
+            message_set_latest_sequence(sequence);
     }
+}
+
+static void rd_combat_roll(combat_roll* roll)
+{
+    byte tmp8u;
+    s16b tmp16s;
+
+    memset(roll, 0, sizeof(*roll));
+
+    rd_u32b(&roll->sequence);
+    log_history_note_sequence(roll->sequence);
+
+    rd_byte(&tmp8u);
+    roll->att_type = tmp8u;
+    rd_s16b(&tmp16s);
+    roll->dam_type = tmp16s;
+
+    rd_byte(&tmp8u);
+    roll->attacker_char = (char)tmp8u;
+    rd_byte(&roll->attacker_attr);
+    rd_byte(&tmp8u);
+    roll->defender_char = (char)tmp8u;
+    rd_byte(&roll->defender_attr);
+
+    rd_byte(&tmp8u);
+    roll->is_attacker_player = (tmp8u != 0);
+    rd_byte(&tmp8u);
+    roll->is_defender_player = (tmp8u != 0);
+
+    rd_s16b(&tmp16s);
+    roll->att = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->att_roll = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->evn = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->evn_roll = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->dd = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->ds = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->dam = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->pd = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->ps = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->prot = tmp16s;
+    rd_s16b(&tmp16s);
+    roll->prt_percent = tmp16s;
+
+    rd_byte(&tmp8u);
+    roll->melee = (tmp8u != 0);
+}
+
+static void rd_combat_history(void)
+{
+    u16b saved_count;
+    int keep_start;
+
+    memset(combat_history, 0, sizeof(combat_history));
+    combat_history_head = 0;
+    combat_history_count = 0;
+
+    if (!savefile_has_combat_history)
+        return;
+
+    rd_u16b(&saved_count);
+    log_debug("Loading %u combat history rounds", (unsigned)saved_count);
+
+    if (saved_count > MAX_COMBAT_HISTORY)
+        log_warn("Combat history has %u rounds; keeping newest %u",
+            (unsigned)saved_count, (unsigned)MAX_COMBAT_HISTORY);
+
+    keep_start = (saved_count > MAX_COMBAT_HISTORY)
+        ? (saved_count - MAX_COMBAT_HISTORY)
+        : 0;
+    combat_history_head = MAX_COMBAT_HISTORY - 1;
+
+    for (u16b i = 0; i < saved_count; i++)
+    {
+        s32b turn_count;
+        u16b saved_rolls;
+        bool keep_round = (i >= keep_start);
+        combat_history_round* round = NULL;
+
+        rd_s32b(&turn_count);
+        rd_u16b(&saved_rolls);
+
+        if (keep_round)
+        {
+            combat_history_head =
+                (combat_history_head + 1) % MAX_COMBAT_HISTORY;
+            if (combat_history_count < MAX_COMBAT_HISTORY)
+                combat_history_count++;
+
+            round = &combat_history[combat_history_head];
+            memset(round, 0, sizeof(*round));
+            round->turn_count = turn_count;
+            round->num_rolls =
+                (saved_rolls > MAX_COMBAT_ROLLS)
+                    ? MAX_COMBAT_ROLLS
+                    : saved_rolls;
+        }
+
+        if (saved_rolls > MAX_COMBAT_ROLLS)
+            log_warn("Combat history round has %u rolls; keeping first %u",
+                (unsigned)saved_rolls, (unsigned)MAX_COMBAT_ROLLS);
+
+        for (u16b r = 0; r < saved_rolls; r++)
+        {
+            combat_roll roll;
+            rd_combat_roll(&roll);
+            if (round && r < MAX_COMBAT_ROLLS)
+                round->rolls[r] = roll;
+        }
+    }
+
+    if (combat_history_count == 0)
+        combat_history_head = 0;
 }
 
 /*
@@ -4080,6 +4210,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
     savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
     savefile_has_morgoth_call_state = savefile_version_at_least(0, 9, 6, 4);
+    savefile_has_combat_history = savefile_version_at_least(0, 9, 6, 9);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -4128,6 +4259,11 @@ static errr rd_savefile_new_aux(void)
     rd_messages();
     if (arg_fiddle)
         note("Loaded Messages");
+
+    /* Then the combat history */
+    rd_combat_history();
+    if (arg_fiddle && savefile_has_combat_history)
+        note("Loaded Combat History");
 
     /* Monster Memory */
     rd_u16b(&tmp16u);
@@ -4549,6 +4685,7 @@ bool load_player(void)
             savefile_has_item_bonuses = savefile_version_at_least(0, 9, 5, 2);
             savefile_has_randart_bonuses = savefile_version_at_least(0, 9, 5, 3);
             savefile_has_morgoth_call_state = savefile_version_at_least(0, 9, 6, 4);
+            savefile_has_combat_history = savefile_version_at_least(0, 9, 6, 9);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

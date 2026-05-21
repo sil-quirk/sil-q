@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
-#define MAX_PANE_CONFIGS 10
+#define MAX_PANE_CONFIGS 11
 
 // Available pane types in the game.
 enum pane_type {
@@ -17,7 +17,8 @@ enum pane_type {
     PANE_MONSTERS = 7, // - visible monsters window
     PANE_MAP = 8, // interactive side map
     PANE_TOUCH = 9, // touchscreen / mouse action pad
-    PANE_MAX = 10,
+    PANE_LEFT_PANEL = 10, // classic left character panel, rendered as SDL pane
+    PANE_MAX = 11,
 };
 
 // Where the pane is placed.

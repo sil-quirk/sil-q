@@ -13443,27 +13443,215 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
 static void do_cmd_log_history_menu(void)
 {
-    do_cmd_messages();
+    do_cmd_messages_with_filter(LOG_HISTORY_FILTER_ALL);
 }
 
 enum {
-    LOG_HISTORY_CLICK_MESSAGE_TAB = -20001,
-    LOG_HISTORY_CLICK_COMBAT_TAB = -20002
+    LOG_HISTORY_CLICK_FILTER_ALL = -20001,
+    LOG_HISTORY_CLICK_FILTER_MESSAGES = -20002,
+    LOG_HISTORY_CLICK_FILTER_COMBAT = -20003
 };
 
-static int log_history_draw_tab(int row, int col, cptr label, bool active,
-    bool hovered, int click_choice)
+typedef enum log_history_entry_kind
 {
-    char tab[32];
-    byte attr = hovered ? TERM_YELLOW + TERM_SHADE : TERM_YELLOW;
+    LOG_HISTORY_ENTRY_MESSAGE,
+    LOG_HISTORY_ENTRY_COMBAT
+} log_history_entry_kind;
 
-    strnfmt(tab, sizeof(tab), active ? "[%s]" : " %s ", label);
-    Term_putstr(col, row, -1, attr, tab);
-    ui_menu_click_add(click_choice, col, row, (int)strlen(tab));
-    return col + (int)strlen(tab) + 1;
+typedef struct log_history_entry
+{
+    log_history_entry_kind kind;
+    u32b sequence;
+    int tie_breaker;
+    s16b message_age;
+    int history_idx;
+    int roll_idx;
+} log_history_entry;
+
+#define LOG_HISTORY_MAX_ENTRIES \
+    (MESSAGE_MAX + (MAX_COMBAT_HISTORY * MAX_COMBAT_ROLLS))
+
+static log_history_entry log_history_entries[LOG_HISTORY_MAX_ENTRIES];
+
+static int log_history_clamp_filter(int filter)
+{
+    if ((filter < LOG_HISTORY_FILTER_ALL)
+        || (filter > LOG_HISTORY_FILTER_COMBAT))
+    {
+        return LOG_HISTORY_FILTER_ALL;
+    }
+
+    return filter;
 }
 
-static void log_history_draw_tabs(bool combat_active, int hover_tab, int term_wid)
+static cptr log_history_filter_label(int filter)
+{
+    switch (filter)
+    {
+    case LOG_HISTORY_FILTER_MESSAGES:
+        return "Log";
+    case LOG_HISTORY_FILTER_COMBAT:
+        return "Combat";
+    default:
+        return "All";
+    }
+}
+
+static bool log_history_filter_includes_messages(int filter)
+{
+    return (filter == LOG_HISTORY_FILTER_ALL)
+        || (filter == LOG_HISTORY_FILTER_MESSAGES);
+}
+
+static bool log_history_filter_includes_combat(int filter)
+{
+    return (filter == LOG_HISTORY_FILTER_ALL)
+        || (filter == LOG_HISTORY_FILTER_COMBAT);
+}
+
+static int log_history_click_to_filter(int click_choice)
+{
+    switch (click_choice)
+    {
+    case LOG_HISTORY_CLICK_FILTER_MESSAGES:
+        return LOG_HISTORY_FILTER_MESSAGES;
+    case LOG_HISTORY_CLICK_FILTER_COMBAT:
+        return LOG_HISTORY_FILTER_COMBAT;
+    default:
+        return LOG_HISTORY_FILTER_ALL;
+    }
+}
+
+static int log_history_filter_to_click(int filter)
+{
+    switch (filter)
+    {
+    case LOG_HISTORY_FILTER_MESSAGES:
+        return LOG_HISTORY_CLICK_FILTER_MESSAGES;
+    case LOG_HISTORY_FILTER_COMBAT:
+        return LOG_HISTORY_CLICK_FILTER_COMBAT;
+    default:
+        return LOG_HISTORY_CLICK_FILTER_ALL;
+    }
+}
+
+static int log_history_next_filter(int filter)
+{
+    switch (filter)
+    {
+    case LOG_HISTORY_FILTER_ALL:
+        return LOG_HISTORY_FILTER_MESSAGES;
+    case LOG_HISTORY_FILTER_MESSAGES:
+        return LOG_HISTORY_FILTER_COMBAT;
+    default:
+        return LOG_HISTORY_FILTER_ALL;
+    }
+}
+
+static int log_history_entry_compare_newest_first(const void* a, const void* b)
+{
+    const log_history_entry* entry_a = (const log_history_entry*)a;
+    const log_history_entry* entry_b = (const log_history_entry*)b;
+
+    if (entry_a->sequence < entry_b->sequence)
+        return 1;
+    if (entry_a->sequence > entry_b->sequence)
+        return -1;
+
+    if (entry_a->tie_breaker < entry_b->tie_breaker)
+        return 1;
+    if (entry_a->tie_breaker > entry_b->tie_breaker)
+        return -1;
+
+    return (int)entry_a->kind - (int)entry_b->kind;
+}
+
+static int log_history_collect_entries(log_history_entry* entries,
+    int max_entries, int filter)
+{
+    int count = 0;
+
+    if (log_history_filter_includes_messages(filter))
+    {
+        s16b num = message_num();
+
+        for (s16b age = 0; (age < num) && (count < max_entries); age++)
+        {
+            entries[count].kind = LOG_HISTORY_ENTRY_MESSAGE;
+            entries[count].sequence = message_sequence(age);
+            if (entries[count].sequence == 0)
+                entries[count].sequence = (u32b)(num - age);
+            entries[count].tie_breaker = num - age;
+            entries[count].message_age = age;
+            entries[count].history_idx = -1;
+            entries[count].roll_idx = -1;
+            count++;
+        }
+    }
+
+    if (log_history_filter_includes_combat(filter))
+    {
+        for (int h = 0; (h < combat_history_count) && (count < max_entries);
+             h++)
+        {
+            int hist_idx =
+                (combat_history_head - h + MAX_COMBAT_HISTORY)
+                % MAX_COMBAT_HISTORY;
+            combat_history_round* round = &combat_history[hist_idx];
+            int rolls = round->num_rolls;
+
+            if (rolls > MAX_COMBAT_ROLLS)
+                rolls = MAX_COMBAT_ROLLS;
+
+            for (int r = 0; (r < rolls) && (count < max_entries); r++)
+            {
+                combat_roll* roll = &round->rolls[r];
+
+                if (roll->att_type == COMBAT_ROLL_NONE)
+                    continue;
+
+                entries[count].kind = LOG_HISTORY_ENTRY_COMBAT;
+                entries[count].sequence = roll->sequence;
+                if (entries[count].sequence == 0)
+                    entries[count].sequence = (u32b)round->turn_count;
+                entries[count].tie_breaker = r;
+                entries[count].message_age = -1;
+                entries[count].history_idx = hist_idx;
+                entries[count].roll_idx = r;
+                count++;
+            }
+        }
+    }
+
+    qsort(entries, count, sizeof(log_history_entry),
+        log_history_entry_compare_newest_first);
+
+    return count;
+}
+
+static int log_history_draw_filter(int row, int col, cptr label, int filter,
+    int active_filter, int hover_filter)
+{
+    char token[32];
+    int click_choice = log_history_filter_to_click(filter);
+    byte attr = TERM_YELLOW;
+
+    if (filter == active_filter)
+        strnfmt(token, sizeof(token), "[%s]", label);
+    else
+        strnfmt(token, sizeof(token), " %s ", label);
+
+    if (hover_filter == filter)
+        attr = TERM_YELLOW + TERM_SHADE;
+
+    Term_putstr(col, row, -1, attr, token);
+    ui_menu_click_add(click_choice, col, row, (int)strlen(token));
+
+    return col + (int)strlen(token) + 1;
+}
+
+static void log_history_draw_filters(int active_filter, int hover_filter,
+    int term_wid)
 {
     int col = 0;
 
@@ -13473,18 +13661,226 @@ static void log_history_draw_tabs(bool combat_active, int hover_tab, int term_wi
     Term_putstr(0, 0, term_wid, TERM_L_WHITE + TERM_SHADE, "Logs");
     Term_erase(0, 1, 255);
 
-    col = log_history_draw_tab(1, col, "Messages", !combat_active,
-        hover_tab == LOG_HISTORY_CLICK_MESSAGE_TAB,
-        LOG_HISTORY_CLICK_MESSAGE_TAB);
-    (void)log_history_draw_tab(1, col, "Combat", combat_active,
-        hover_tab == LOG_HISTORY_CLICK_COMBAT_TAB,
-        LOG_HISTORY_CLICK_COMBAT_TAB);
+    Term_putstr(0, 1, -1, TERM_WHITE, "Filter: ");
+    col = 8;
+    col = log_history_draw_filter(1, col, "All", LOG_HISTORY_FILTER_ALL,
+        active_filter, hover_filter);
+    col = log_history_draw_filter(1, col, "Log",
+        LOG_HISTORY_FILTER_MESSAGES, active_filter, hover_filter);
+    (void)log_history_draw_filter(1, col, "Combat",
+        LOG_HISTORY_FILTER_COMBAT, active_filter, hover_filter);
 }
 
-static bool log_history_tab_key(char ch)
+static bool log_history_filter_key(char ch)
 {
     return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
-        || (ch == '\t');
+        || (ch == '\t') || (ch == 'f') || (ch == 'F');
+}
+
+static void log_history_putstr_scrolled(int* col, int row, int offset,
+    byte attr, cptr text)
+{
+    int len = (int)strlen(text);
+    int draw_col = *col - offset;
+    int text_offset = 0;
+
+    if (draw_col < 0)
+    {
+        text_offset = -draw_col;
+        draw_col = 0;
+    }
+
+    if (text_offset < len)
+        Term_putstr(draw_col, row, -1, attr, text + text_offset);
+
+    *col += len;
+}
+
+static void log_history_put_tile_scrolled(int* col, int row, int offset,
+    byte attr, char chr)
+{
+    int draw_col = *col - offset;
+
+    if (draw_col >= 0)
+    {
+        Term_queue_char(draw_col, row, attr, chr, 0, 0);
+        if (use_bigtile && !graphics_are_ascii())
+        {
+            if ((attr & 0x80) && ((byte)chr & 0x80))
+                Term_queue_char(draw_col + 1, row, 255, -1, 0, 0);
+            else
+                Term_queue_char(draw_col + 1, row, TERM_WHITE, ' ', 0, 0);
+        }
+    }
+
+    *col += 1;
+    if (use_bigtile && !graphics_are_ascii())
+        *col += 1;
+}
+
+static void log_history_draw_combat_entry(const log_history_entry* entry,
+    int row, int offset)
+{
+    combat_roll* roll =
+        &combat_history[entry->history_idx].rolls[entry->roll_idx];
+    int a_att, a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam;
+    int col = 0;
+    char buf[120];
+    bool is_player_attack = roll->is_attacker_player;
+
+    if (is_player_attack)
+    {
+        a_att = TERM_L_BLUE;
+        a_evn = TERM_WHITE;
+        a_hit = TERM_L_RED;
+        a_dam_roll = TERM_L_BLUE;
+        a_net_dam = TERM_L_RED;
+        if (roll->prt_percent >= 100)
+            a_prot_roll = TERM_WHITE;
+        else if (roll->prt_percent >= 1)
+            a_prot_roll = TERM_SLATE;
+        else
+            a_prot_roll = TERM_DARK;
+    }
+    else
+    {
+        a_att = TERM_WHITE;
+        a_evn = TERM_L_BLUE;
+        a_hit = TERM_L_RED;
+        a_dam_roll = TERM_WHITE;
+        a_net_dam = TERM_L_RED;
+        if (roll->prt_percent >= 100)
+            a_prot_roll = TERM_L_BLUE;
+        else if (roll->prt_percent >= 1)
+            a_prot_roll = TERM_BLUE;
+        else
+            a_prot_roll = TERM_DARK;
+    }
+
+    log_history_putstr_scrolled(&col, row, offset, TERM_WHITE, " ");
+    log_history_put_tile_scrolled(&col, row, offset, roll->attacker_attr,
+        roll->attacker_char);
+
+    if (roll->att_type == COMBAT_ROLL_ROLL)
+    {
+        int net_att;
+
+        if (roll->att < 10)
+            strnfmt(buf, sizeof(buf), "  (%+d)", roll->att);
+        else
+            strnfmt(buf, sizeof(buf), " (%+d)", roll->att);
+        log_history_putstr_scrolled(&col, row, offset, a_att, buf);
+
+        strnfmt(buf, sizeof(buf), "%4d", roll->att + roll->att_roll);
+        log_history_putstr_scrolled(&col, row, offset, a_att, buf);
+
+        net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
+        if (net_att > 0)
+            strnfmt(buf, sizeof(buf), "%4d", net_att);
+        else
+            SDL_strlcpy(buf, "   -", sizeof(buf));
+        log_history_putstr_scrolled(&col, row, offset,
+            (net_att > 0) ? a_hit : TERM_SLATE, buf);
+
+        strnfmt(buf, sizeof(buf), "%4d", roll->evn + roll->evn_roll);
+        log_history_putstr_scrolled(&col, row, offset, a_evn, buf);
+
+        if (roll->evn < 10)
+            strnfmt(buf, sizeof(buf), "   [%+d]", roll->evn);
+        else
+            strnfmt(buf, sizeof(buf), "  [%+d]", roll->evn);
+        log_history_putstr_scrolled(&col, row, offset, a_evn, buf);
+
+        log_history_putstr_scrolled(&col, row, offset, TERM_WHITE, " ");
+        log_history_put_tile_scrolled(&col, row, offset, roll->defender_attr,
+            roll->defender_char);
+
+        if (net_att > 0)
+        {
+            int net_dam = roll->dam - roll->prot;
+            if (net_dam < 0)
+                net_dam = 0;
+
+            log_history_putstr_scrolled(&col, row, offset, TERM_L_DARK,
+                "  ->");
+
+            if (roll->ds < 10)
+                strnfmt(buf, sizeof(buf), "   (%dd%d)", roll->dd, roll->ds);
+            else
+                strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+            log_history_putstr_scrolled(&col, row, offset, a_dam_roll, buf);
+
+            strnfmt(buf, sizeof(buf), "%4d", roll->dam);
+            log_history_putstr_scrolled(&col, row, offset, a_dam_roll, buf);
+
+            if (net_dam > 0)
+                strnfmt(buf, sizeof(buf), "%4d", net_dam);
+            else
+                SDL_strlcpy(buf, "   -", sizeof(buf));
+            log_history_putstr_scrolled(&col, row, offset,
+                (net_dam > 0) ? a_net_dam : TERM_SLATE, buf);
+
+            strnfmt(buf, sizeof(buf), "%4d", roll->prot);
+            log_history_putstr_scrolled(&col, row, offset, a_prot_roll, buf);
+        }
+    }
+    else if (roll->att_type == COMBAT_ROLL_AUTO)
+    {
+        int net_dam = roll->dam - roll->prot;
+        if (net_dam < 0)
+            net_dam = 0;
+
+        log_history_putstr_scrolled(&col, row, offset, TERM_L_DARK,
+            "                         ");
+        log_history_putstr_scrolled(&col, row, offset, TERM_WHITE, " ");
+        log_history_put_tile_scrolled(&col, row, offset, roll->defender_attr,
+            roll->defender_char);
+        log_history_putstr_scrolled(&col, row, offset, TERM_L_DARK, "  ->");
+
+        if (roll->ds < 10)
+            strnfmt(buf, sizeof(buf), "   (%dd%d)", roll->dd, roll->ds);
+        else
+            strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+        log_history_putstr_scrolled(&col, row, offset, a_dam_roll, buf);
+
+        strnfmt(buf, sizeof(buf), "%4d", roll->dam);
+        log_history_putstr_scrolled(&col, row, offset, a_dam_roll, buf);
+
+        if (net_dam > 0)
+            strnfmt(buf, sizeof(buf), "%4d", net_dam);
+        else
+            SDL_strlcpy(buf, "   -", sizeof(buf));
+        log_history_putstr_scrolled(&col, row, offset,
+            (net_dam > 0) ? a_net_dam : TERM_SLATE, buf);
+
+        strnfmt(buf, sizeof(buf), "%4d", roll->prot);
+        log_history_putstr_scrolled(&col, row, offset, a_prot_roll, buf);
+    }
+}
+
+static void log_history_entry_search_text(const log_history_entry* entry,
+    char* out, size_t out_sz)
+{
+    if (entry->kind == LOG_HISTORY_ENTRY_MESSAGE)
+    {
+        SDL_strlcpy(out, message_str(entry->message_age), out_sz);
+    }
+    else
+    {
+        combat_roll* roll =
+            &combat_history[entry->history_idx].rolls[entry->roll_idx];
+        int net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
+        int net_dam = roll->dam - roll->prot;
+
+        if (net_dam < 0)
+            net_dam = 0;
+
+        strnfmt(out, out_sz,
+            "Combat %c to %c att %+d hit %d evn %+d damage %dd%d net %d "
+            "protection %d",
+            roll->attacker_char, roll->defender_char, roll->att, net_att,
+            roll->evn, roll->dd, roll->ds, net_dam, roll->prot);
+    }
 }
 
 enum {
@@ -15899,18 +16295,19 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
  *
  * Attempt to only hilite the matching portions of the string.
  */
-void do_cmd_messages(void)
+void do_cmd_messages_with_filter(int initial_filter)
 {
     char ch;
 
     int i, j, n, q;
     int wid, hgt;
     cptr prompt =
-        "e/i tabs  Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Esc";
+        "e/i filter  Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Left/Right pan  Esc";
 
     char shower[80];
     char finder[80];
-    int hover_tab = 0;
+    int filter = log_history_clamp_filter(initial_filter);
+    int hover_filter = -1;
 
     /* Clear any active banner before opening message history */
     extern int g_banner_force_redraw_remaining;
@@ -15926,7 +16323,7 @@ void do_cmd_messages(void)
     SDL_strlcpy(shower, "", sizeof(shower));
 
     /* Total messages */
-    n = message_num();
+    n = 0;
 
     /* Start on first message */
     i = 0;
@@ -15974,6 +16371,9 @@ void do_cmd_messages(void)
         if (visible_rows < 1)
             visible_rows = 1;
 
+        n = log_history_collect_entries(log_history_entries,
+            LOG_HISTORY_MAX_ENTRIES, filter);
+
         max_i = (n > visible_rows) ? (n - visible_rows) : 0;
         if (i > max_i)
             i = max_i;
@@ -15986,35 +16386,45 @@ void do_cmd_messages(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
 
-        /* Dump messages */
+        /* Dump log entries */
         for (j = 0; (j < visible_rows) && (i + j < n); j++)
         {
-            cptr msg = message_str((s16b)(i + j));
-            byte attr = message_color((s16b)(i + j));
+            log_history_entry* entry = &log_history_entries[i + j];
             int line_y = body_bottom - j;
 
-            /* Apply horizontal scroll */
-            msg = ((int)strlen(msg) >= q) ? (msg + q) : "";
-
-            /* Dump the messages, bottom to top */
-            Term_putstr(0, line_y, -1, attr, msg);
-
-            /* Hilite "shower" */
-            if (shower[0])
+            if (entry->kind == LOG_HISTORY_ENTRY_COMBAT)
             {
-                cptr str = msg;
+                log_history_draw_combat_entry(entry, line_y, q);
+                continue;
+            }
+            else
+            {
+                cptr msg = message_str(entry->message_age);
+                byte attr = message_color(entry->message_age);
 
-                /* Display matches */
-                while ((str = strstr(str, shower)) != NULL)
+                /* Apply horizontal scroll */
+                msg = ((int)strlen(msg) >= q) ? (msg + q) : "";
+
+                /* Dump the messages, bottom to top */
+                Term_putstr(0, line_y, -1, attr, msg);
+
+                /* Hilite "shower" */
+                if (shower[0])
                 {
-                    int len = strlen(shower);
+                    cptr str = msg;
 
-                    /* Display the match */
-                    Term_putstr(
-                        str - msg, line_y, len, TERM_YELLOW, shower);
+                    /* Display matches */
+                    while ((str = strstr(str, shower)) != NULL)
+                    {
+                        int len = strlen(shower);
 
-                    /* Advance */
-                    str += len;
+                        /* Display the match */
+                        Term_putstr(
+                            str - msg, line_y, len, TERM_YELLOW, shower);
+
+                        /* Advance */
+                        str += len;
+                    }
                 }
             }
         }
@@ -16022,12 +16432,13 @@ void do_cmd_messages(void)
         range_first = (n > 0) ? (i + 1) : 0;
         range_last = (n > 0) ? (i + j) : 0;
 
-        log_history_draw_tabs(false, hover_tab, wid);
+        log_history_draw_filters(filter, hover_filter, wid);
 
         /* Display header XXX XXX XXX */
         prt(format(
-                "Message Log (%d-%d of %d), Offset %d",
-                range_first, range_last, n, q),
+                "Log (%s, %d-%d of %d), Offset %d",
+                log_history_filter_label(filter), range_first, range_last, n,
+                q),
             (body_top > 0) ? body_top - 1 : 0, 0);
 
         /* Display prompt */
@@ -16036,12 +16447,14 @@ void do_cmd_messages(void)
         ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");
         ui_menu_click_add_text_token('9', 0, hgt - 1, prompt, "PgUp");
         ui_menu_click_add_text_token('3', 0, hgt - 1, prompt, "PgDn");
-        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "tabs");
+        ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "filter");
         ui_menu_click_add_text_token('i', 0, hgt - 1, prompt, "e/i");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "/");
         ui_menu_click_add_text_token('/', 0, hgt - 1, prompt, "find");
         ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "=");
         ui_menu_click_add_text_token('=', 0, hgt - 1, prompt, "highlight");
+        ui_menu_click_add_text_token('4', 0, hgt - 1, prompt, "Left");
+        ui_menu_click_add_text_token('6', 0, hgt - 1, prompt, "Right");
         ui_menu_click_add_text_token(ESCAPE, 0, hgt - 1, prompt, "Esc");
 
         /* Get a command without showing the terminal cursor */
@@ -16060,24 +16473,26 @@ void do_cmd_messages(void)
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (clicked_choice == LOG_HISTORY_CLICK_COMBAT_TAB)
+                if ((clicked_choice == LOG_HISTORY_CLICK_FILTER_ALL)
+                    || (clicked_choice == LOG_HISTORY_CLICK_FILTER_MESSAGES)
+                    || (clicked_choice == LOG_HISTORY_CLICK_FILTER_COMBAT))
                 {
+                    int clicked_filter =
+                        log_history_click_to_filter(clicked_choice);
+
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
-                        hover_tab = clicked_choice;
+                        hover_filter = clicked_filter;
                         continue;
                     }
-                    ch = 'i';
-                }
-                else if (clicked_choice == LOG_HISTORY_CLICK_MESSAGE_TAB)
-                {
-                    if (click_action == UI_MENU_CLICK_HOVER)
-                        hover_tab = clicked_choice;
+                    filter = clicked_filter;
+                    i = 0;
+                    q = 0;
                     continue;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                 {
-                    hover_tab = 0;
+                    hover_filter = -1;
                     continue;
                 }
                 else
@@ -16089,14 +16504,12 @@ void do_cmd_messages(void)
             }
         }
 
-        if (log_history_tab_key(ch))
+        if (log_history_filter_key(ch))
         {
-            ui_scroll_area_clear();
-            ui_menu_click_clear();
-            screen_pop_supporting_panes_hidden();
-            screen_load();
-            do_cmd_combat_history();
-            return;
+            filter = log_history_next_filter(filter);
+            i = 0;
+            q = 0;
+            continue;
         }
 
         /* Exit on Escape */
@@ -16162,13 +16575,16 @@ void do_cmd_messages(void)
             /* Show it */
             SDL_strlcpy(shower, finder, sizeof(shower));
 
-            /* Scan messages */
+            /* Scan log entries */
             for (z = i + 1; z < n; z++)
             {
-                cptr msg = message_str(z);
+                char search_text[160];
+
+                log_history_entry_search_text(
+                    &log_history_entries[z], search_text, sizeof(search_text));
 
                 /* Search for it */
-                if (strstr(msg, finder))
+                if (strstr(search_text, finder))
                 {
                     /* New location */
                     i = z;
@@ -16265,6 +16681,11 @@ void do_cmd_messages(void)
     /* Load screen */
     screen_pop_supporting_panes_hidden();
     screen_load();
+}
+
+void do_cmd_messages(void)
+{
+    do_cmd_messages_with_filter(LOG_HISTORY_FILTER_ALL);
 }
 
 /*
@@ -18339,6 +18760,11 @@ static bool pane_settings_exposes_pane(enum pane_type type)
     return type != PANE_MAIN;
 }
 
+static bool pane_font_settings_exposes_pane(enum pane_type type)
+{
+    return pane_settings_exposes_pane(type) && type != PANE_LEFT_PANEL;
+}
+
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
     int max_chars)
 {
@@ -19111,6 +19537,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_MONSTERS: return "MONSTERS";
     case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
+    case PANE_LEFT_PANEL: return "LEFT_PANEL";
     default: return "UNKNOWN";
     }
 }
@@ -19125,7 +19552,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
     for (int i = 0; i < total && pane_count < MAX_PANES_LOCAL; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        if (!pane_settings_exposes_pane(type))
+        if (!pane_font_settings_exposes_pane(type))
             continue;
         pane_indices[pane_count++] = i;
     }
@@ -19331,6 +19758,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_MONSTERS: return "MON";
     case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
+    case PANE_LEFT_PANEL: return "LEFT";
     default: return "UNK";
     }
 }
@@ -19370,6 +19798,8 @@ static int supporting_pane_master_idx(const int* pane_indices, int pane_count,
     for (int i = 0; i < pane_count; i++)
     {
         int idx = pane_indices[i];
+        if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
+            continue;
         if ((enum pane_placement)get_sdl_pane_where(idx) != where)
             continue;
         if (fallback < 0)
@@ -19386,13 +19816,29 @@ static bool supporting_pane_rows_locked(const int* pane_indices, int pane_count,
     enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
     int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
+    if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
+        return true;
+
     return (pane_placement_is_bottom(where) && idx != master_idx);
+}
+
+static bool supporting_pane_enabled_locked(int idx)
+{
+    return (enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL;
+}
+
+static bool supporting_pane_where_locked(int idx)
+{
+    return (enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL;
 }
 
 static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count, int idx)
 {
     enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
     int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
+
+    if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
+        return false;
 
     return (pane_placement_is_side(where) && idx != master_idx);
 }
@@ -19406,7 +19852,9 @@ static void supporting_pane_ensure_editable_field(int* field, const int* pane_in
         return;
 
     idx = pane_indices[sel];
-    while ((*field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
+    while ((*field == 0 && supporting_pane_enabled_locked(idx))
+        || (*field == 1 && supporting_pane_where_locked(idx))
+        || (*field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
         || (*field == 3 && supporting_pane_cols_locked(pane_indices, pane_count, idx)))
     {
         *field = (*field + 1) % 4;
@@ -19420,9 +19868,12 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
     for (int i = 0; i < pane_count; i++)
     {
         int idx = pane_indices[i];
+        enum pane_type type = (enum pane_type)get_sdl_pane_type(idx);
         enum pane_placement where = (enum pane_placement)get_sdl_pane_where(idx);
         int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
+        if (type == PANE_LEFT_PANEL)
+            continue;
         if (pane_placement_is_bottom(where) && idx != master_idx
             && get_sdl_pane_rows(idx) != 0)
         {
@@ -19512,6 +19963,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             bool cols_locked = supporting_pane_cols_locked(pane_indices, pane_count, idx);
             int rows = get_sdl_pane_rows(idx);
             int cols = get_sdl_pane_cols(idx);
+            bool enabled_locked = supporting_pane_enabled_locked(idx);
+            bool where_locked = supporting_pane_where_locked(idx);
             byte a = (i == sel) ? TERM_L_BLUE : (enabled ? TERM_WHITE : TERM_SLATE);
             char type_buf[24];
             char enabled_field[12];
@@ -19530,9 +19983,10 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             settings_ui_fit_text(type_buf, sizeof(type_buf), type_label,
                 MAX(4, row_width / 3));
             settings_ui_format_field(enabled_field, sizeof(enabled_field),
-                enabled ? "on" : "off", i == sel && field == 0);
+                enabled ? "on" : "off",
+                !enabled_locked && i == sel && field == 0);
             settings_ui_format_field(where_field, sizeof(where_field), where_label,
-                i == sel && field == 1);
+                !where_locked && i == sel && field == 1);
 
             if (rows_locked)
             {
@@ -19567,10 +20021,12 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 int cols_col = rows_col + (int)strlen(rows_field) + 2;
                 int base = SETTINGS_CLICK_PANE_FIELD_BASE + i * 4;
 
-                ui_menu_click_add(base + 1, where_col, row,
-                    (int)strlen(where_field));
-                ui_menu_click_add(base + 0, enabled_col, row,
-                    (int)strlen(enabled_field));
+                if (!where_locked)
+                    ui_menu_click_add(base + 1, where_col, row,
+                        (int)strlen(where_field));
+                if (!enabled_locked)
+                    ui_menu_click_add(base + 0, enabled_col, row,
+                        (int)strlen(enabled_field));
                 if (!rows_locked)
                     ui_menu_click_add(base + 2, rows_col, row,
                         (int)strlen(rows_field));

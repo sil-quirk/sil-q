@@ -305,6 +305,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_MONSTERS: return "MONSTERS";
         case PANE_MAP: return "MAP";
         case PANE_TOUCH: return "TOUCH";
+        case PANE_LEFT_PANEL: return "LEFT_PANEL";
         default: return "MAIN";
     }
 }
@@ -323,6 +324,8 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "MONSTERS") == 0) return PANE_MONSTERS;
     if (strcmp(value, "MAP") == 0) return PANE_MAP;
     if (strcmp(value, "TOUCH") == 0) return PANE_TOUCH;
+    if (strcmp(value, "LEFT_PANEL") == 0 || strcmp(value, "LEFT PANEL") == 0)
+        return PANE_LEFT_PANEL;
     return PANE_MAIN;
 }
 

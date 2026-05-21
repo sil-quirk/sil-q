@@ -2227,6 +2227,16 @@ static u16b* message__type;
 static u16b* message__count;
 
 /*
+ * The array[MESSAGE_MAX] of sequence ids for unified log ordering
+ */
+static u32b* message__sequence;
+
+/*
+ * Shared sequence id for unified message/combat log ordering
+ */
+static u32b log_history__next_sequence = 1;
+
+/*
  * Table of colors associated to message-types
  */
 static byte message__color[MSG_MAX];
@@ -2322,6 +2332,66 @@ static byte message_type_color(u16b type)
  */
 byte message_color(s16b age) { return message_type_color(message_type(age)); }
 
+void log_history_note_sequence(u32b sequence)
+{
+    if (sequence == 0)
+        return;
+
+    if (sequence >= log_history__next_sequence)
+    {
+        log_history__next_sequence = sequence + 1;
+        if (log_history__next_sequence == 0)
+            log_history__next_sequence = 1;
+    }
+}
+
+/*
+ * Recall the unified log sequence of a saved message
+ */
+u32b message_sequence(s16b age)
+{
+    s16b x;
+
+    /* Paranoia */
+    if (!message__sequence)
+        return (0);
+
+    /* Forgotten messages have no sequence */
+    if ((age < 0) || (age >= message_num()))
+        return (0);
+
+    /* Get the "logical" index */
+    x = message_age2idx(age);
+
+    /* Return the sequence */
+    return (message__sequence[x]);
+}
+
+/*
+ * Allocate the next shared sequence id for unified log ordering
+ */
+u32b log_history_next_sequence(void)
+{
+    u32b sequence = log_history__next_sequence++;
+
+    if (log_history__next_sequence == 0)
+        log_history__next_sequence = 1;
+
+    return (sequence);
+}
+
+void message_set_latest_sequence(u32b sequence)
+{
+    s16b x;
+
+    if (!message__sequence || sequence == 0 || message_num() <= 0)
+        return;
+
+    x = message_age2idx(0);
+    message__sequence[x] = sequence;
+    log_history_note_sequence(sequence);
+}
+
 errr message_color_define(u16b type, byte color)
 {
     /* Ignore illegal types */
@@ -2385,6 +2455,9 @@ void message_add(cptr str, u16b type)
     {
         /* Increase the message count */
         message__count[x]++;
+
+        /* Treat repeated messages as a new occurrence in the unified log */
+        message__sequence[x] = log_history_next_sequence();
 
         /* Success */
         return;
@@ -2457,6 +2530,9 @@ void message_add(cptr str, u16b type)
 
         /* Store the message count */
         message__count[x] = 1;
+
+        /* Store the unified log sequence */
+        message__sequence[x] = log_history_next_sequence();
 
         /* Success */
         return;
@@ -2564,6 +2640,9 @@ void message_add(cptr str, u16b type)
 
     /* Store the message count */
     message__count[x] = 1;
+
+    /* Store the unified log sequence */
+    message__sequence[x] = log_history_next_sequence();
 }
 
 /*
@@ -2576,9 +2655,15 @@ errr messages_init(void)
     message__buf = mem_alloc_array(MESSAGE_BUF, char);
     message__type = mem_alloc_array(MESSAGE_MAX, u16b);
     message__count = mem_alloc_array(MESSAGE_MAX, u16b);
+    message__sequence = mem_alloc_array(MESSAGE_MAX, u32b);
 
     /* Init the message colors to white */
     memset(message__color, TERM_WHITE, sizeof(byte) * MSG_MAX);
+
+    /* Reset the message ring */
+    message__next = 0;
+    message__last = 0;
+    message__head = 0;
 
     /* Hack -- No messages yet */
     message__tail = MESSAGE_BUF;
@@ -2597,6 +2682,7 @@ void messages_free(void)
     mem_free_null(message__buf);
     mem_free_null(message__type);
     mem_free_null(message__count);
+    mem_free_null(message__sequence);
 }
 
 /*

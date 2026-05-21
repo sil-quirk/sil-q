@@ -478,6 +478,82 @@ static void wr_string(cptr str)
     wr_byte(*str);
 }
 
+static void wr_combat_roll(const combat_roll* roll)
+{
+    wr_u32b(roll->sequence);
+    wr_byte((byte)roll->att_type);
+    wr_s16b((s16b)roll->dam_type);
+    wr_byte((byte)roll->attacker_char);
+    wr_byte(roll->attacker_attr);
+    wr_byte((byte)roll->defender_char);
+    wr_byte(roll->defender_attr);
+    wr_byte(roll->is_attacker_player ? 1 : 0);
+    wr_byte(roll->is_defender_player ? 1 : 0);
+    wr_s16b((s16b)roll->att);
+    wr_s16b((s16b)roll->att_roll);
+    wr_s16b((s16b)roll->evn);
+    wr_s16b((s16b)roll->evn_roll);
+    wr_s16b((s16b)roll->dd);
+    wr_s16b((s16b)roll->ds);
+    wr_s16b((s16b)roll->dam);
+    wr_s16b((s16b)roll->pd);
+    wr_s16b((s16b)roll->ps);
+    wr_s16b((s16b)roll->prot);
+    wr_s16b((s16b)roll->prt_percent);
+    wr_byte(roll->melee ? 1 : 0);
+}
+
+static void wr_combat_history(void)
+{
+    bool has_current_round = (combat_number > 0);
+    int history_to_write = combat_history_count;
+    u16b count;
+
+    if (history_to_write > MAX_COMBAT_HISTORY)
+        history_to_write = MAX_COMBAT_HISTORY;
+
+    if (has_current_round && history_to_write >= MAX_COMBAT_HISTORY)
+        history_to_write = MAX_COMBAT_HISTORY - 1;
+
+    count = (u16b)(history_to_write + (has_current_round ? 1 : 0));
+
+    wr_u16b(count);
+    log_trace("Writing %u combat history rounds", (unsigned)count);
+
+    /* Dump the combat history oldest first, matching message history. */
+    for (int h = history_to_write - 1; h >= 0; h--)
+    {
+        int hist_idx =
+            (combat_history_head - h + MAX_COMBAT_HISTORY)
+            % MAX_COMBAT_HISTORY;
+        combat_history_round* round = &combat_history[hist_idx];
+        u16b rolls = (u16b)round->num_rolls;
+
+        if (rolls > MAX_COMBAT_ROLLS)
+            rolls = MAX_COMBAT_ROLLS;
+
+        wr_s32b((s32b)round->turn_count);
+        wr_u16b(rolls);
+
+        for (u16b r = 0; r < rolls; r++)
+            wr_combat_roll(&round->rolls[r]);
+    }
+
+    if (has_current_round)
+    {
+        u16b rolls = (u16b)combat_number;
+
+        if (rolls > MAX_COMBAT_ROLLS)
+            rolls = MAX_COMBAT_ROLLS;
+
+        wr_s32b((s32b)turn);
+        wr_u16b(rolls);
+
+        for (u16b r = 0; r < rolls; r++)
+            wr_combat_roll(&combat_rolls[0][r]);
+    }
+}
+
 /*
  * These functions write info in larger logical records
  */
@@ -1740,7 +1816,11 @@ static bool wr_savefile(void)
     {
         wr_string(message_str((s16b)i));
         wr_u16b(message_type((s16b)i));
+        wr_u32b(message_sequence((s16b)i));
     }
+
+    /* Dump the combat history (oldest first) */
+    wr_combat_history();
 
     /* Dump the monster lore */
     tmp16u = z_info->r_max;

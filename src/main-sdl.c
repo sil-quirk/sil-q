@@ -106,6 +106,8 @@ char config_file_path[1024];
 
 // Default pane configuration
 static const struct pane_config default_pane_config[] = {
+    {.pane = PANE_LEFT_PANEL, .where = PLACE_LEFT, .enabled = true,
+        .rect.cols = LEFT_PANEL_CONTENT_WID},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
@@ -242,6 +244,7 @@ typedef struct story_font_entry {
 typedef struct mono_font_atlas_entry {
     bool valid;
     char font_path[256];
+    int cell_width;
     int cell_height;
     bool bold;
     bool italic;
@@ -854,6 +857,9 @@ enum {
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
 static SDL_Rect g_pane_rects[PANE_MAX];
+static SDL_Texture* g_left_panel_canvas = NULL;
+static int g_left_panel_canvas_w = 0;
+static int g_left_panel_canvas_h = 0;
 static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
@@ -1098,6 +1104,8 @@ static void sdl_story_font_cache_mark_config(void);
 static void sdl_mono_font_cache_clear(void);
 static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path,
     int cell_height, bool* out_cached);
+static SDL_Texture* sdl_acquire_mono_font_atlas_cells(const char* font_path,
+    int cell_width, int cell_height, bool* out_cached);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
@@ -1446,6 +1454,15 @@ static int sdl_auto_aux_view_font_size(void);
 static int sdl_resolve_aux_view_font_size(int requested_size);
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
 static int sdl_effective_pane_font_size_for_type(enum pane_type type);
+static bool sdl_left_panel_pane_layout_enabled(void);
+static bool sdl_left_panel_pane_runtime_active(void);
+static int sdl_left_panel_pane_cols(void);
+static int sdl_main_view_visual_cols(const sdl_view* view);
+static int sdl_main_view_visual_rows(const sdl_view* view);
+static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w);
+static int sdl_main_view_logical_cols_for_visual_cols(int visual_cols);
+static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
+    SDL_FRect* out);
 static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     int count, int* cell_widths, int* cell_heights);
 static bool sdl_prune_unusable_panes(struct pane_config* active,
@@ -1499,10 +1516,13 @@ static errr callback_sdl_wipe(int x, int y, int n);
 static errr callback_sdl_text(int x, int y, int n, byte a, cptr s);
 static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
                        const byte* tap, const char* tcp);
+static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c,
+    byte ta, char tc, const SDL_FRect* dst);
 static void callback_sdl_nuke();
 static void callback_sdl_init(term* t);
 static errr sdl_view_link_term(sdl_view* d, int term_index);
-static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int* actual_font_size);
+static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
+    int cell_width, int cell_height, int* actual_font_size);
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
 static void sdl_window_set_position(int x, int y);
 static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
@@ -2034,6 +2054,16 @@ static void sdl_view_destroy(sdl_view* d)
     d->font_atlas_cached = false;
 }
 
+static void sdl_left_panel_canvas_destroy(void)
+{
+    if (g_left_panel_canvas) {
+        SDL_DestroyTexture(g_left_panel_canvas);
+        g_left_panel_canvas = NULL;
+    }
+    g_left_panel_canvas_w = 0;
+    g_left_panel_canvas_h = 0;
+}
+
 static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
     int* config_count, bool enable_new_panes)
 {
@@ -2053,6 +2083,10 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
 
         for (int j = 0; j < *config_count; j++) {
             if (configs[j].pane == pane) {
+                if (pane == PANE_LEFT_PANEL && !configs[j].enabled) {
+                    configs[j].enabled = true;
+                    changed = true;
+                }
                 found = true;
                 break;
             }
@@ -2069,7 +2103,9 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
 
         configs[*config_count] = default_pane_config[i];
         configs[*config_count].enabled =
-            enable_new_panes && default_pane_config[i].enabled;
+            (pane == PANE_LEFT_PANEL)
+                ? default_pane_config[i].enabled
+                : (enable_new_panes && default_pane_config[i].enabled);
         (*config_count)++;
         changed = true;
     }
@@ -2111,6 +2147,90 @@ static void sdl_ensure_touch_pane_config_present(void)
         .rect = { .rows = 0, .cols = 0 },
         .ratio = 0.0f,
     };
+}
+
+static int sdl_left_panel_pane_config_index(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_LEFT_PANEL)
+            return i;
+    }
+
+    return -1;
+}
+
+static bool sdl_left_panel_pane_config_enabled(void)
+{
+    int index = sdl_left_panel_pane_config_index();
+
+    if (index < 0)
+        return true;
+    if (pane_config[index].pane == PANE_LEFT_PANEL)
+        return true;
+
+    return pane_config[index].enabled;
+}
+
+static int sdl_left_panel_pane_cols(void)
+{
+    int index = sdl_left_panel_pane_config_index();
+    int cols = LEFT_PANEL_CONTENT_WID;
+
+    if (index >= 0 && pane_config[index].rect.cols > 0)
+        cols = pane_config[index].rect.cols;
+
+    if (cols < 6)
+        cols = 6;
+    if (cols > LEFT_PANEL_CONTENT_WID)
+        cols = LEFT_PANEL_CONTENT_WID;
+
+    return cols;
+}
+
+static bool sdl_left_panel_pane_layout_enabled(void)
+{
+    return !config.hide_left_panel
+        && config.min_terminal_mode != SDL_MIN_TERMINAL_COMPACT
+        && sdl_left_panel_pane_config_enabled();
+}
+
+static bool sdl_left_panel_pane_runtime_active(void)
+{
+    return sdl_left_panel_pane_layout_enabled()
+        && character_generated
+        && character_dungeon
+        && p_ptr
+        && !p_ptr->is_dead
+        && character_icky == 0;
+}
+
+static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
+{
+    int cols;
+
+    if (width_px <= 0 || cell_w <= 0)
+        return 0;
+
+    cols = width_px / cell_w;
+    if (cols < 0)
+        cols = 0;
+
+    return cols;
+}
+
+static int sdl_main_view_logical_cols_for_visual_cols(int visual_cols)
+{
+    int extra_cols = 0;
+
+    if (visual_cols <= 0)
+        return 0;
+
+    if (sdl_left_panel_pane_layout_enabled())
+        extra_cols = COL_MAP - sdl_left_panel_pane_cols();
+    if (extra_cols < 0)
+        extra_cols = 0;
+
+    return visual_cols + extra_cols;
 }
 
 static const char* sdl_startup_device_class_name(sdl_startup_device_class device)
@@ -2299,6 +2419,15 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].enabled = false;
             configs[i].rect.rows = 0;
             configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_LEFT_PANEL:
+            configs[i].where = PLACE_LEFT;
+            configs[i].enabled = true;
+            configs[i].rect.rows = 0;
+            configs[i].rect.cols = LEFT_PANEL_CONTENT_WID;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -2532,6 +2661,8 @@ static bool sdl_mobile_enabled_panes_fit(const struct pane_config* configs,
             continue;
         if (configs[i].pane <= PANE_MAIN || configs[i].pane >= PANE_MAX)
             continue;
+        if (configs[i].pane == PANE_LEFT_PANEL)
+            continue;
 
         cols = sdl_mobile_pane_cols(panes, cell_widths, configs[i].pane);
         rows = sdl_mobile_pane_rows(panes, cell_heights, configs[i].pane);
@@ -2561,6 +2692,7 @@ static bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
     int cell_heights[PANE_MAX] = { 0 };
     int margin_px;
     int saved_scale;
+    int active_count;
     int main_cols;
     int main_rows;
     bool fits;
@@ -2571,23 +2703,29 @@ static bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
     if (count > MAX_PANE_CONFIGS)
         count = MAX_PANE_CONFIGS;
 
-    memcpy(active, configs, sizeof(struct pane_config) * count);
+    active_count = 0;
+    for (int i = 0; i < count && active_count < MAX_PANE_CONFIGS; i++) {
+        if (configs[i].pane == PANE_LEFT_PANEL)
+            continue;
+        active[active_count++] = configs[i];
+    }
 
     saved_scale = config.main_view_scale;
     config.main_view_scale = scale;
 
-    sdl_build_supporting_pane_metrics(active, count, cell_widths, cell_heights);
+    sdl_build_supporting_pane_metrics(active, active_count, cell_widths,
+        cell_heights);
     margin_px = (int)(g_state.system_scale * config.margin);
-    sdl_apply_dynamic_auto_pane_sizes(active, count, screen, cell_widths,
+    sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen, cell_widths,
         cell_heights, margin_px);
-    place_panes(active, count, panes, screen, cell_widths, cell_heights,
+    place_panes(active, active_count, panes, screen, cell_widths, cell_heights,
         margin_px);
 
     main_cols = sdl_mobile_pane_cols(panes, cell_widths, PANE_MAIN);
     main_rows = sdl_mobile_pane_rows(panes, cell_heights, PANE_MAIN);
     fits = (main_cols >= sdl_current_min_terminal_cols()
         && main_rows >= sdl_current_min_terminal_rows()
-        && sdl_mobile_enabled_panes_fit(active, count, panes, cell_widths,
+        && sdl_mobile_enabled_panes_fit(active, active_count, panes, cell_widths,
             cell_heights));
 
     config.main_view_scale = saved_scale;
@@ -3061,6 +3199,8 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
         enum pane_placement where = pane_config[i].where;
         bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
 
+        if (pane_config[i].pane == PANE_LEFT_PANEL)
+            continue;
         if (touch_only && !is_touch_pane)
             continue;
         if (is_touch_pane && !proto_touch && sdl_touch_pane_hidden_mode_active())
@@ -3463,7 +3603,8 @@ static void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
         }
 
         if (cell_widths[PANE_MAIN] > 0)
-            cols = panes[PANE_MAIN].w / cell_widths[PANE_MAIN];
+            cols = sdl_main_view_logical_cols_for_visual_cols(
+                panes[PANE_MAIN].w / cell_widths[PANE_MAIN]);
         if (cell_heights[PANE_MAIN] > 0)
             rows = panes[PANE_MAIN].h / cell_heights[PANE_MAIN];
 
@@ -3540,7 +3681,10 @@ static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
     sdl_place_active_panes_fitting_main(screen, target_panes, include_side,
         include_bottom, false, min_cols, min_rows, &include_side,
         &include_bottom);
-    cols = (cell_w > 0) ? target_panes[PANE_MAIN].w / cell_w : 0;
+    cols = (cell_w > 0)
+        ? sdl_main_view_logical_cols_for_visual_cols(
+            target_panes[PANE_MAIN].w / cell_w)
+        : 0;
     rows = (cell_h > 0) ? target_panes[PANE_MAIN].h / cell_h : 0;
 
     config.min_terminal_mode = saved_mode;
@@ -3570,8 +3714,12 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
 
         if (!pane_config[i].enabled)
             continue;
-        if (pane_config[i].pane == PANE_MAIN || pane_config[i].pane == PANE_TOUCH)
+        if (pane_config[i].pane == PANE_MAIN
+            || pane_config[i].pane == PANE_TOUCH
+            || pane_config[i].pane == PANE_LEFT_PANEL)
+        {
             continue;
+        }
         if (pane_placement_is_side(where) && !g_active_side_panes)
             continue;
         if (pane_placement_is_bottom(where) && !g_active_bottom_panes)
@@ -4410,8 +4558,8 @@ static bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
         screen = (SDL_Rect){
             .x = view->rect.x + view->margin_x,
             .y = view->rect.y + view->margin_y,
-            .w = view->cols * view->cell_w,
-            .h = view->rows * view->cell_h,
+            .w = sdl_main_view_visual_cols(view) * view->cell_w,
+            .h = sdl_main_view_visual_rows(view) * view->cell_h,
         };
         cell_w = (float)view->cell_w;
         cell_h = (float)view->cell_h;
@@ -5095,7 +5243,9 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
     }
 
     if (view->term_ready && view->cell_h > 0 && view->rows > 0) {
-        screen = (SDL_Rect){ .h = view->rows * view->cell_h };
+        screen = (SDL_Rect){
+            .h = sdl_main_view_visual_rows(view) * view->cell_h
+        };
         cell_h = (float)view->cell_h;
     } else {
         screen = sdl_get_layout_screen_rect();
@@ -5337,6 +5487,228 @@ static void sdl_touch_pane_display_label_for_slot(int panel, int index, char* bu
     sdl_touch_pane_base_label_for_slot(panel, index, buf, buflen);
 }
 
+static int sdl_main_view_visual_cols(const sdl_view* view)
+{
+    int cols;
+
+    if (!view || view->cell_w <= 0 || view->rect.w <= 0)
+        return 0;
+
+    cols = sdl_main_view_visual_cols_for_width(view->rect.w, view->cell_w);
+    if (view->cols > 0 && cols > view->cols)
+        cols = view->cols;
+    if (cols < 0)
+        cols = 0;
+
+    return cols;
+}
+
+static int sdl_main_view_visual_rows(const sdl_view* view)
+{
+    int rows;
+
+    if (!view || view->cell_h <= 0 || view->rect.h <= 0)
+        return 0;
+
+    rows = view->rect.h / view->cell_h;
+    if (view->rows > 0 && rows > view->rows)
+        rows = view->rows;
+    if (rows < 0)
+        rows = 0;
+
+    return rows;
+}
+
+static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
+    SDL_FRect* out_rect, float* out_scale)
+{
+    int panel_cols;
+    int visual_cols;
+    int visual_rows;
+    float scale;
+
+    if (out_rect)
+        *out_rect = (SDL_FRect){ 0 };
+    if (out_scale)
+        *out_scale = 1.0f;
+    if (!sdl_left_panel_pane_layout_enabled())
+        return false;
+    if (!view || !view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    panel_cols = sdl_left_panel_pane_cols();
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (panel_cols <= 0 || visual_cols <= panel_cols || visual_rows <= 0)
+        return false;
+
+    scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
+    if (scale <= 0.0f)
+        return false;
+
+    if (out_rect) {
+        *out_rect = (SDL_FRect){
+            .x = (float)(view->rect.x + view->margin_x),
+            .y = (float)(view->rect.y + view->margin_y),
+            .w = (float)(panel_cols * view->cell_w),
+            .h = (float)(visual_rows * view->cell_h),
+        };
+    }
+    if (out_scale)
+        *out_scale = scale;
+
+    return true;
+}
+
+static void sdl_update_left_panel_pane_rect(void)
+{
+    SDL_FRect rect;
+
+    if (!sdl_left_panel_pane_rect_for_view(&g_views[PANE_MAIN], &rect, NULL)) {
+        g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
+        return;
+    }
+
+    g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){
+        .x = (int)rect.x,
+        .y = (int)rect.y,
+        .w = (int)rect.w,
+        .h = (int)rect.h,
+    };
+}
+
+static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
+    SDL_FRect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int visual_cols;
+    int visual_rows;
+    float grid_x;
+    float grid_y;
+
+    if (!out)
+        return false;
+    *out = (SDL_FRect){ 0 };
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0
+        || view->cols <= 0 || view->rows <= 0)
+    {
+        return false;
+    }
+    if (col < 0 || row < 0 || cols <= 0 || rows <= 0)
+        return false;
+    if (row >= view->rows || col >= view->cols)
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+
+    if (sdl_left_panel_pane_runtime_active()) {
+        int panel_cols = sdl_left_panel_pane_cols();
+        int start = col;
+        int end = col + cols;
+        bool have = false;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        float x2 = 0.0f;
+        float y2 = 0.0f;
+        float scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
+
+        if (end < start)
+            end = view->cols;
+
+        if (start < LEFT_PANEL_CONTENT_WID && end > 0) {
+            int c0 = MAX(start, 0);
+            int c1 = MIN(end, LEFT_PANEL_CONTENT_WID);
+            int r1 = MIN(row + rows, visual_rows);
+            SDL_FRect r;
+
+            if (c1 > c0 && r1 > row) {
+                r = (SDL_FRect){
+                    .x = grid_x + (float)c0 * (float)view->cell_w * scale,
+                    .y = grid_y + (float)row * (float)view->cell_h * scale,
+                    .w = (float)(c1 - c0) * (float)view->cell_w * scale,
+                    .h = (float)(r1 - row) * (float)view->cell_h * scale,
+                };
+                x1 = r.x;
+                y1 = r.y;
+                x2 = r.x + r.w;
+                y2 = r.y + r.h;
+                have = true;
+            }
+        }
+
+        if (start < view->cols && end > COL_MAP) {
+            int max_map_cols = visual_cols - panel_cols;
+            int c0 = MAX(start, COL_MAP);
+            int c1 = MIN(end, view->cols);
+            int visible_c0 = c0 - COL_MAP;
+            int visible_c1 = c1 - COL_MAP;
+            int r1 = MIN(row + rows, visual_rows);
+            SDL_FRect r;
+
+            if (visible_c0 < 0)
+                visible_c0 = 0;
+            if (visible_c1 > max_map_cols)
+                visible_c1 = max_map_cols;
+
+            if (visible_c1 > visible_c0 && r1 > row) {
+                r = (SDL_FRect){
+                    .x = grid_x + (float)(panel_cols + visible_c0)
+                        * (float)view->cell_w,
+                    .y = grid_y + (float)(row * view->cell_h),
+                    .w = (float)(visible_c1 - visible_c0)
+                        * (float)view->cell_w,
+                    .h = (float)(r1 - row) * (float)view->cell_h,
+                };
+                if (!have) {
+                    x1 = r.x;
+                    y1 = r.y;
+                    x2 = r.x + r.w;
+                    y2 = r.y + r.h;
+                    have = true;
+                } else {
+                    if (r.x < x1) x1 = r.x;
+                    if (r.y < y1) y1 = r.y;
+                    if (r.x + r.w > x2) x2 = r.x + r.w;
+                    if (r.y + r.h > y2) y2 = r.y + r.h;
+                }
+            }
+        }
+
+        if (!have)
+            return false;
+
+        *out = (SDL_FRect){ .x = x1, .y = y1, .w = x2 - x1, .h = y2 - y1 };
+        return out->w > 0.0f && out->h > 0.0f;
+    }
+
+    if (col >= visual_cols)
+        return false;
+    if (cols > visual_cols - col)
+        cols = visual_cols - col;
+    if (rows > visual_rows - row)
+        rows = visual_rows - row;
+    if (cols <= 0 || rows <= 0)
+        return false;
+
+    *out = (SDL_FRect){
+        .x = grid_x + (float)(col * view->cell_w),
+        .y = grid_y + (float)(row * view->cell_h),
+        .w = (float)(cols * view->cell_w),
+        .h = (float)(rows * view->cell_h),
+    };
+    return true;
+}
+
 static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
@@ -5344,6 +5716,8 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
     float grid_y;
     float grid_w;
     float grid_h;
+    int visual_cols;
+    int visual_rows;
 
     if (!out_col || !out_row)
         return false;
@@ -5352,17 +5726,51 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
     if (view->cell_w <= 0 || view->cell_h <= 0 || view->cols <= 0 || view->rows <= 0)
         return false;
 
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
     grid_x = (float)(view->rect.x + view->margin_x);
     grid_y = (float)(view->rect.y + view->margin_y);
-    grid_w = (float)(view->cols * view->cell_w);
-    grid_h = (float)(view->rows * view->cell_h);
+    grid_w = (float)(visual_cols * view->cell_w);
+    grid_h = (float)(visual_rows * view->cell_h);
 
     if (x < grid_x || y < grid_y || x >= grid_x + grid_w || y >= grid_y + grid_h)
         return false;
 
+    if (sdl_left_panel_pane_runtime_active()) {
+        int panel_cols = sdl_left_panel_pane_cols();
+        float panel_w = (float)(panel_cols * view->cell_w);
+        float scale = (float)panel_cols / (float)LEFT_PANEL_CONTENT_WID;
+        float local_x = x - grid_x;
+        float local_y = y - grid_y;
+
+        if (local_x < panel_w) {
+            float scaled_cell_w = (float)view->cell_w * scale;
+            float scaled_cell_h = (float)view->cell_h * scale;
+
+            if (scaled_cell_w <= 0.0f || scaled_cell_h <= 0.0f)
+                return false;
+            if (local_y >= (float)(visual_rows * view->cell_h) * scale)
+                return false;
+
+            *out_col = (int)(local_x / scaled_cell_w);
+            *out_row = (int)(local_y / scaled_cell_h);
+            return (*out_col >= 0 && *out_col < LEFT_PANEL_CONTENT_WID
+                && *out_row >= 0 && *out_row < view->rows);
+        }
+
+        *out_col = COL_MAP + (int)((local_x - panel_w) / (float)view->cell_w);
+        *out_row = (int)(local_y / (float)view->cell_h);
+        return (*out_col >= COL_MAP && *out_col < view->cols
+            && *out_row >= 0 && *out_row < view->rows);
+    }
+
     *out_col = (int)((x - grid_x) / (float)view->cell_w);
     *out_row = (int)((y - grid_y) / (float)view->cell_h);
-    return (*out_col >= 0 && *out_col < view->cols && *out_row >= 0 && *out_row < view->rows);
+    return (*out_col >= 0 && *out_col < visual_cols
+        && *out_row >= 0 && *out_row < visual_rows);
 }
 
 static bool sdl_mouse_gameplay_context_active(void)
@@ -8149,7 +8557,6 @@ static bool sdl_pointer_attack_take_render_target(int* mode, bool* manual,
 static void sdl_pointer_attack_render_cell(int y, int x, SDL_Color color,
     bool target)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
     int cell_cols = use_bigtile ? 2 : 1;
     int term_row;
     int term_col;
@@ -8160,10 +8567,8 @@ static void sdl_pointer_attack_render_cell(int y, int x, SDL_Color color,
 
     term_row = ROW_MAP + (y - p_ptr->wy);
     term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
-    rect.x = (float)(view->rect.x + view->margin_x + term_col * view->cell_w);
-    rect.y = (float)(view->rect.y + view->margin_y + term_row * view->cell_h);
-    rect.w = (float)(view->cell_w * cell_cols);
-    rect.h = (float)view->cell_h;
+    if (!sdl_main_cell_rect(term_col, term_row, cell_cols, 1, &rect))
+        return;
 
     SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
         target ? 96 : 46);
@@ -9566,7 +9971,6 @@ bool sdl_mouse_recall_process_pending(void)
 
 static void sdl_mouse_path_render(void)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
     int cell_cols = use_bigtile ? 2 : 1;
     SDL_Color path_color = g_state.palette[TERM_L_BLUE];
     bool blocked_target;
@@ -9609,10 +10013,8 @@ static void sdl_mouse_path_render(void)
 
         term_row = ROW_MAP + (y - p_ptr->wy);
         term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
-        rect.x = (float)(view->rect.x + view->margin_x + term_col * view->cell_w);
-        rect.y = (float)(view->rect.y + view->margin_y + term_row * view->cell_h);
-        rect.w = (float)(view->cell_w * cell_cols);
-        rect.h = (float)view->cell_h;
+        if (!sdl_main_cell_rect(term_col, term_row, cell_cols, 1, &rect))
+            continue;
 
         SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
             (i == g_mouse_path.path_len - 1) ? 92 : 56);
@@ -9630,12 +10032,8 @@ static void sdl_mouse_path_render(void)
             * cell_cols;
         SDL_FRect rect;
 
-        rect.x = (float)(view->rect.x + view->margin_x
-            + term_col * view->cell_w);
-        rect.y = (float)(view->rect.y + view->margin_y
-            + term_row * view->cell_h);
-        rect.w = (float)(view->cell_w * cell_cols);
-        rect.h = (float)view->cell_h;
+        if (!sdl_main_cell_rect(term_col, term_row, cell_cols, 1, &rect))
+            return;
 
         SDL_SetRenderDrawColor(g_state.renderer, target_color.r,
             target_color.g, target_color.b, 92);
@@ -9649,38 +10047,18 @@ static void sdl_mouse_path_render(void)
 
 static bool sdl_player_map_rect(int y, int x, SDL_FRect* out_rect)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
     int cell_cols = use_bigtile ? 2 : 1;
     int term_row;
     int term_col;
 
     if (!out_rect || !p_ptr)
         return false;
-    if (!view->term_ready || !view->canvas || view->cell_w <= 0
-        || view->cell_h <= 0)
-    {
-        return false;
-    }
     if (!panel_contains(y, x))
         return false;
 
     term_row = ROW_MAP + (y - p_ptr->wy);
     term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
-    if (term_row < 0 || term_col < 0 || term_row >= view->rows
-        || term_col >= view->cols)
-    {
-        return false;
-    }
-
-    *out_rect = (SDL_FRect) {
-        .x = (float)(view->rect.x + view->margin_x
-            + term_col * view->cell_w),
-        .y = (float)(view->rect.y + view->margin_y
-            + term_row * view->cell_h),
-        .w = (float)(view->cell_w * cell_cols),
-        .h = (float)view->cell_h,
-    };
-    return true;
+    return sdl_main_cell_rect(term_col, term_row, cell_cols, 1, out_rect);
 }
 
 static bool sdl_point_in_frect(const SDL_FRect* rect, float x, float y)
@@ -10011,8 +10389,8 @@ static bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     bounds = (SDL_FRect) {
         .x = (float)(view->rect.x + view->margin_x),
         .y = (float)(view->rect.y + view->margin_y),
-        .w = (float)(view->cols * view->cell_w),
-        .h = (float)(view->rows * view->cell_h),
+        .w = (float)(sdl_main_view_visual_cols(view) * view->cell_w),
+        .h = (float)(sdl_main_view_visual_rows(view) * view->cell_h),
     };
     if (bounds.w <= 44.0f || bounds.h <= 44.0f)
         return false;
@@ -10998,6 +11376,9 @@ static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
 
     if (pane < PANE_MAIN || pane >= PANE_MAX)
         return false;
+    if (pane == PANE_LEFT_PANEL)
+        return sdl_left_panel_pane_runtime_active()
+            && sdl_point_in_rect(&g_pane_rects[PANE_LEFT_PANEL], x, y);
     if ((int)pane >= MAX_TERM_DATA)
         return false;
 
@@ -11030,6 +11411,8 @@ static bool sdl_menu_pointer_hits_non_main_pane(float x, float y)
     for (int i = PANE_MAIN + 1; i < PANE_MAX; i++)
     {
         if (i == PANE_TOUCH)
+            continue;
+        if (i == PANE_LEFT_PANEL)
             continue;
         if (sdl_point_in_view_rect((enum pane_type)i, x, y))
             return true;
@@ -14276,7 +14659,7 @@ static bool sdl_pane_layout_config_draggable(int index)
     type = pane_config[index].pane;
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
-    if (type == PANE_TOUCH || type == PANE_MAP)
+    if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL)
         return false;
     if (!pane_placement_is_side(pane_config[index].where)
         && !pane_placement_is_bottom(pane_config[index].where))
@@ -14517,6 +14900,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_MONSTERS: return "Monsters";
     case PANE_MAP: return "Map";
     case PANE_ROLLS: return "Rolls";
+    case PANE_LEFT_PANEL: return "Left Panel";
     default: return "Pane";
     }
 }
@@ -14531,7 +14915,7 @@ static bool sdl_side_pane_menu_config_is_entry(int index)
     type = pane_config[index].pane;
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
-    if (type == PANE_TOUCH)
+    if (type == PANE_TOUCH || type == PANE_LEFT_PANEL)
         return false;
 
     return pane_placement_is_side(pane_config[index].where);
@@ -15711,14 +16095,22 @@ static bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip)
     if (inner_cols <= 0 || inner_rows <= 0)
         return false;
 
-    *out_clip = (SDL_Rect){
-        .x = view->rect.x + view->margin_x
-            + (COL_MAP + tile_cols) * view->cell_w,
-        .y = view->rect.y + view->margin_y
-            + (ROW_MAP + 1) * view->cell_h,
-        .w = inner_cols * view->cell_w,
-        .h = inner_rows * view->cell_h,
-    };
+    {
+        SDL_FRect rect;
+
+        if (!sdl_main_cell_rect(COL_MAP + tile_cols, ROW_MAP + 1,
+                inner_cols, inner_rows, &rect))
+        {
+            return false;
+        }
+
+        *out_clip = (SDL_Rect){
+            .x = (int)rect.x,
+            .y = (int)rect.y,
+            .w = (int)rect.w,
+            .h = (int)rect.h,
+        };
+    }
 
     return sdl_rect_has_area(out_clip);
 }
@@ -15943,7 +16335,6 @@ static void sdl_touch_round_draw_sector_lines(float cx, float cy,
 
 static bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
     int map_y;
     int map_x;
     int map_row;
@@ -15955,10 +16346,6 @@ static bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect)
     if (!out_rect)
         return false;
     if (!p_ptr || dir < 1 || dir > 9 || dir == 5)
-        return false;
-    if (!view->term_ready || !view->canvas)
-        return false;
-    if (view->cell_w <= 0 || view->cell_h <= 0)
         return false;
 
     map_y = p_ptr->py + ddy[dir];
@@ -15978,21 +16365,7 @@ static bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect)
 
     term_row = ROW_MAP + map_row;
     term_col = COL_MAP + map_col * tile_cols;
-    if (term_row < 0 || term_row >= view->rows
-        || term_col < 0 || term_col >= view->cols)
-    {
-        return false;
-    }
-
-    *out_rect = (SDL_FRect){
-        .x = (float)(view->rect.x + view->margin_x
-            + term_col * view->cell_w),
-        .y = (float)(view->rect.y + view->margin_y
-            + term_row * view->cell_h),
-        .w = (float)(view->cell_w * tile_cols),
-        .h = (float)view->cell_h,
-    };
-    return true;
+    return sdl_main_cell_rect(term_col, term_row, tile_cols, 1, out_rect);
 }
 
 static void sdl_touch_round_render_target_square(int dir, bool ctrl)
@@ -19658,7 +20031,8 @@ void resize(const SDL_Rect* screen)
             include_bottom, false, min_main_cols, min_main_rows,
             &include_side, &include_bottom);
 
-        cols = panes[PANE_MAIN].w / cell_w;
+        cols = sdl_main_view_logical_cols_for_visual_cols(
+            panes[PANE_MAIN].w / cell_w);
         rows = panes[PANE_MAIN].h / cell_h;
         log_debug("Main view: %dx%d pixels at (%d,%d) = %dx%d cells (minimum required: %dx%d %s)",
             panes[PANE_MAIN].w, panes[PANE_MAIN].h,
@@ -19710,6 +20084,7 @@ void resize(const SDL_Rect* screen)
         quit("could not create main view");
     }
     sdl_view_link_term(&g_views[0], 0);
+    sdl_update_left_panel_pane_rect();
 
     Term_activate(&g_views[0].t);
 
@@ -19739,6 +20114,7 @@ static void sdl_handle_renderer_reset(void)
         ? config.monospace_font
         : "lib/xtra/font/VictorMono-Medium.ttf";
 
+    sdl_left_panel_canvas_destroy();
     sdl_mono_font_cache_clear();
 
     // Recreate all view canvases
@@ -21350,6 +21726,313 @@ static void sdl_restore_render_target(sdl_view* d)
         SDL_SetRenderTarget(g_state.renderer, NULL);
 }
 
+static bool sdl_left_panel_ensure_canvas(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+        return false;
+
+    if (g_left_panel_canvas && g_left_panel_canvas_w == width
+        && g_left_panel_canvas_h == height)
+    {
+        return true;
+    }
+
+    sdl_left_panel_canvas_destroy();
+    g_left_panel_canvas = SDL_CreateTexture(g_state.renderer,
+        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+    if (!g_left_panel_canvas) {
+        log_warn("Could not create left panel texture %dx%d: %s", width,
+            height, SDL_GetError());
+        return false;
+    }
+
+    SDL_SetTextureBlendMode(g_left_panel_canvas, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(g_left_panel_canvas, SDL_SCALEMODE_NEAREST);
+    g_left_panel_canvas_w = width;
+    g_left_panel_canvas_h = height;
+    return true;
+}
+
+static bool sdl_left_panel_cell_is_tile(byte a, char c)
+{
+    return g_state.use_tiles && g_state.tileset
+        && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
+}
+
+static int sdl_left_panel_right_padding_px(const sdl_view* view)
+{
+    int pad = 1;
+
+    if (view && view->cell_w > 0)
+        pad = view->cell_w / 4;
+    if (pad < 1)
+        pad = 1;
+    if (pad > 4)
+        pad = 4;
+
+    return pad;
+}
+
+static void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
+    int atlas_cell_h, float cell_w, float cell_h, int x, int y, int n,
+    const char* s, SDL_Color col)
+{
+    if (!atlas || atlas_cell_w <= 0 || atlas_cell_h <= 0
+        || cell_w <= 0.0f || cell_h <= 0.0f || n <= 0 || !s)
+    {
+        return;
+    }
+
+    SDL_SetTextureColorMod(atlas, col.r, col.g, col.b);
+    SDL_SetTextureAlphaMod(atlas, 255);
+
+    for (int i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)s[i];
+        SDL_FRect src = {
+            (float)((ch & 15) * atlas_cell_w),
+            (float)((ch >> 4) * atlas_cell_h),
+            (float)atlas_cell_w,
+            (float)atlas_cell_h,
+        };
+        SDL_FRect dst = {
+            ((float)x + (float)i) * cell_w,
+            (float)y * cell_h,
+            cell_w,
+            cell_h,
+        };
+
+        if (use_graphics == GRAPHICS_PSEUDO && solid_walls
+            && (ch == '#' || ch == '%'))
+        {
+            SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b,
+                SDL_ALPHA_OPAQUE);
+            SDL_RenderFillRect(g_state.renderer, &dst);
+        }
+        SDL_RenderTexture(g_state.renderer, atlas, &src, &dst);
+    }
+}
+
+static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
+    const SDL_FRect* dst_left)
+{
+    const term* t;
+    term_win* scr;
+    const char* font_path;
+    SDL_Texture* old_target;
+    SDL_Texture* font_atlas;
+    SDL_Rect old_clip;
+    bool had_clip;
+    bool font_cached = false;
+    int canvas_w;
+    int canvas_h;
+    int content_w;
+    int right_pad;
+    int panel_cols;
+    int visual_rows;
+    int atlas_cell_w;
+    int atlas_cell_h;
+    float cell_w;
+    float cell_h;
+
+    if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
+        return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    t = &view->t;
+    scr = t->scr;
+    if (!scr || !scr->a || !scr->c)
+        return false;
+
+    canvas_w = (int)(dst_left->w + 0.5f);
+    canvas_h = (int)(dst_left->h + 0.5f);
+    if (!sdl_left_panel_ensure_canvas(canvas_w, canvas_h))
+        return false;
+
+    right_pad = sdl_left_panel_right_padding_px(view);
+    content_w = canvas_w - right_pad;
+    if (content_w <= 0)
+        content_w = canvas_w;
+
+    panel_cols = sdl_left_panel_pane_cols();
+    visual_rows = sdl_main_view_visual_rows(view);
+    cell_w = (float)content_w / (float)LEFT_PANEL_CONTENT_WID;
+    cell_h = (float)view->cell_h * (float)panel_cols
+        / (float)LEFT_PANEL_CONTENT_WID;
+    atlas_cell_w = (int)(cell_w + 0.5f);
+    atlas_cell_h = (int)(cell_h + 0.5f);
+    if (atlas_cell_w < 1) atlas_cell_w = 1;
+    if (atlas_cell_h < 1) atlas_cell_h = 1;
+
+    font_path = config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+    font_atlas = sdl_acquire_mono_font_atlas_cells(font_path, atlas_cell_w,
+        atlas_cell_h, &font_cached);
+    if (!font_atlas)
+        return false;
+
+    old_target = SDL_GetRenderTarget(g_state.renderer);
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+
+    SDL_SetRenderTarget(g_state.renderer, g_left_panel_canvas);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    for (int row = 0; row < visual_rows && row < t->hgt; row++) {
+        int col = 0;
+
+        if ((float)row * cell_h >= (float)canvas_h)
+            break;
+        if (!scr->a[row] || !scr->c[row])
+            continue;
+
+        while (col < LEFT_PANEL_CONTENT_WID && col < t->wid) {
+            byte a = scr->a[row][col];
+            char c = scr->c[row][col];
+            byte ta = (scr->ta && scr->ta[row]) ? scr->ta[row][col] : 0;
+            char tc = (scr->tc && scr->tc[row]) ? scr->tc[row][col] : 0;
+
+            if ((a == 255) && ((byte)c == 0xFF)) {
+                col++;
+                continue;
+            }
+
+            if (sdl_left_panel_cell_is_tile(a, c)) {
+                int tile_cols = use_bigtile ? 2 : 1;
+                if (col + tile_cols > LEFT_PANEL_CONTENT_WID)
+                    tile_cols = LEFT_PANEL_CONTENT_WID - col;
+                if (col + tile_cols > t->wid)
+                    tile_cols = t->wid - col;
+                if (tile_cols < 1)
+                    tile_cols = 1;
+
+                SDL_FRect dst = {
+                    (float)col * cell_w,
+                    (float)row * cell_h,
+                    (float)tile_cols * cell_w,
+                    cell_h,
+                };
+
+                sdl_draw_map_tile_layers_at(-1, -1, a, c, ta, tc, &dst);
+                col += tile_cols;
+            } else {
+                char buf[LEFT_PANEL_CONTENT_WID + 1];
+                int start = col;
+                int len = 0;
+                SDL_Color text_col = {
+                    angband_color_table[a][1],
+                    angband_color_table[a][2],
+                    angband_color_table[a][3],
+                    255
+                };
+
+                while (col < LEFT_PANEL_CONTENT_WID && col < t->wid
+                    && len < LEFT_PANEL_CONTENT_WID)
+                {
+                    byte run_a = scr->a[row][col];
+                    char run_c = scr->c[row][col];
+
+                    if (run_a != a)
+                        break;
+                    if ((run_a == 255) && ((byte)run_c == 0xFF))
+                        break;
+                    if (sdl_left_panel_cell_is_tile(run_a, run_c))
+                        break;
+
+                    buf[len++] = run_c ? run_c : ' ';
+                    col++;
+                }
+                buf[len] = '\0';
+                sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
+                    atlas_cell_h, cell_w, cell_h, start, row, len, buf,
+                    text_col);
+            }
+        }
+    }
+
+    SDL_SetRenderTarget(g_state.renderer, old_target);
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+    SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, NULL, dst_left);
+    if (!font_cached)
+        SDL_DestroyTexture(font_atlas);
+
+    return true;
+}
+
+static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
+{
+    int visual_cols;
+    int visual_rows;
+    int panel_cols;
+    int map_cols;
+    int source_h;
+    SDL_FRect src_left;
+    SDL_FRect src_map;
+    SDL_FRect dst_left;
+    SDL_FRect dst_map;
+    float grid_x;
+    float grid_y;
+
+    if (!sdl_left_panel_pane_runtime_active())
+        return false;
+    if (!view || !view->canvas || !view->term_ready)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    panel_cols = sdl_left_panel_pane_cols();
+    if (visual_cols <= panel_cols || visual_rows <= 0)
+        return false;
+
+    map_cols = visual_cols - panel_cols;
+    source_h = visual_rows * view->cell_h;
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+
+    src_left = (SDL_FRect){
+        .x = 0.0f,
+        .y = 0.0f,
+        .w = (float)(LEFT_PANEL_CONTENT_WID * view->cell_w),
+        .h = (float)source_h,
+    };
+    dst_left = (SDL_FRect){
+        .x = grid_x,
+        .y = grid_y,
+        .w = (float)(panel_cols * view->cell_w),
+        .h = (float)source_h,
+    };
+
+    if (!sdl_render_left_panel_pane_from_cells(view, &dst_left))
+        SDL_RenderTexture(g_state.renderer, view->canvas, &src_left, &dst_left);
+
+    src_map = (SDL_FRect){
+        .x = (float)(COL_MAP * view->cell_w),
+        .y = 0.0f,
+        .w = (float)(map_cols * view->cell_w),
+        .h = (float)source_h,
+    };
+    if (src_map.x + src_map.w > (float)(view->cols * view->cell_w))
+        src_map.w = (float)(view->cols * view->cell_w) - src_map.x;
+    if (src_map.w <= 0.0f)
+        return true;
+
+    dst_map = (SDL_FRect){
+        .x = grid_x + (float)(panel_cols * view->cell_w),
+        .y = grid_y,
+        .w = src_map.w,
+        .h = (float)source_h,
+    };
+    SDL_RenderTexture(g_state.renderer, view->canvas, &src_map, &dst_map);
+
+    return true;
+}
+
 static bool sdl_render_current_window_frame(void)
 {
     bool show_supporting_panes;
@@ -21381,6 +22064,8 @@ static bool sdl_render_current_window_frame(void)
             continue;
         visible_views++;
     }
+    if (sdl_left_panel_pane_runtime_active())
+        visible_views++;
     if (side_map_visible)
         visible_views++;
 
@@ -21388,6 +22073,8 @@ static bool sdl_render_current_window_frame(void)
         sdl_view* view = &g_views[i];
         float dst_w;
         float dst_h;
+        int visual_cols;
+        int visual_rows;
 
         if (!view->canvas)
             continue;
@@ -21395,13 +22082,26 @@ static bool sdl_render_current_window_frame(void)
             continue;
         if (!show_supporting_panes && i != PANE_MAIN)
             continue;
+        if (i == PANE_MAIN && sdl_render_main_view_with_left_panel(view))
+            continue;
 
-        dst_w = (float)(view->cols * view->cell_w);
-        dst_h = (float)(view->rows * view->cell_h);
+        visual_cols = (i == PANE_MAIN)
+            ? sdl_main_view_visual_cols(view)
+            : view->cols;
+        visual_rows = (i == PANE_MAIN)
+            ? sdl_main_view_visual_rows(view)
+            : view->rows;
+        dst_w = (float)(visual_cols * view->cell_w);
+        dst_h = (float)(visual_rows * view->cell_h);
         if (dst_w <= 0.0f || dst_h <= 0.0f)
             continue;
 
-        SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
+        SDL_RenderTexture(g_state.renderer, view->canvas, &(SDL_FRect){
+            .x = 0.0f,
+            .y = 0.0f,
+            .w = (float)(visual_cols * view->cell_w),
+            .h = (float)(visual_rows * view->cell_h),
+        }, &(SDL_FRect){
             .x = (float)(view->rect.x + view->margin_x),
             .y = (float)(view->rect.y + view->margin_y),
             .w = dst_w,
@@ -21449,6 +22149,13 @@ static bool sdl_render_current_window_frame(void)
                 (layout_screen.h > 0 && side_map_rect.y > layout_screen.y),
                 false,
                 false);
+        }
+
+        if (sdl_left_panel_pane_runtime_active()
+            && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
+        {
+            sdl_draw_pane_edges(&g_pane_rects[PANE_LEFT_PANEL], false,
+                false, true, false);
         }
     }
 
@@ -21826,6 +22533,8 @@ static bool sdl_touch_tutorial_cell_rect(int col, int row, int cols, int rows,
     SDL_FRect* out)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
+    int visual_cols;
+    int visual_rows;
 
     if (!out)
         return false;
@@ -21840,20 +22549,18 @@ static bool sdl_touch_tutorial_cell_rect(int col, int row, int cols, int rows,
     if (col >= view->cols || row >= view->rows)
         return false;
 
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
     if (cols > view->cols - col)
         cols = view->cols - col;
-    if (rows > view->rows - row)
-        rows = view->rows - row;
+    if (cols > visual_cols - MIN(col, visual_cols))
+        cols = visual_cols - MIN(col, visual_cols);
+    if (rows > visual_rows - row)
+        rows = visual_rows - row;
     if (cols <= 0 || rows <= 0)
         return false;
 
-    *out = (SDL_FRect){
-        .x = (float)(view->rect.x + view->margin_x + col * view->cell_w),
-        .y = (float)(view->rect.y + view->margin_y + row * view->cell_h),
-        .w = (float)(cols * view->cell_w),
-        .h = (float)(rows * view->cell_h),
-    };
-    return true;
+    return sdl_main_cell_rect(col, row, cols, rows, out);
 }
 
 static bool sdl_touch_tutorial_view_rect(enum pane_type pane, SDL_FRect* out)
@@ -26103,6 +26810,7 @@ static void sdl_mono_font_cache_clear(void)
 
         entry->valid = false;
         entry->font_path[0] = '\0';
+        entry->cell_width = 0;
         entry->cell_height = 0;
         entry->bold = false;
         entry->italic = false;
@@ -26117,10 +26825,19 @@ static void sdl_mono_font_cache_clear(void)
 static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path, int cell_height,
     bool* out_cached)
 {
+    return sdl_acquire_mono_font_atlas_cells(font_path, cell_height / 2,
+        cell_height, out_cached);
+}
+
+static SDL_Texture* sdl_acquire_mono_font_atlas_cells(const char* font_path,
+    int cell_width, int cell_height, bool* out_cached)
+{
     mono_font_atlas_entry* free_entry = NULL;
 
     if (out_cached)
         *out_cached = false;
+    if (cell_width < 1)
+        cell_width = 1;
 
     for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
         mono_font_atlas_entry* entry = &g_state.mono_font_atlases[i];
@@ -26131,6 +26848,8 @@ static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path, int cell_
             continue;
         }
 
+        if (entry->cell_width != cell_width)
+            continue;
         if (entry->cell_height != cell_height)
             continue;
         if (entry->bold != config.mono_bold
@@ -26150,17 +26869,20 @@ static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path, int cell_
     }
 
     if (!free_entry) {
-        log_warn("Monospace font atlas cache full; creating uncached atlas for %s at cell height %d",
-            font_path, cell_height);
-        return sdl_load_ttf_font(font_path, cell_height, NULL);
+        log_warn("Monospace font atlas cache full; creating uncached atlas for %s at cell %dx%d",
+            font_path, cell_width, cell_height);
+        return sdl_load_ttf_font_cells(font_path, cell_width, cell_height,
+            NULL);
     }
 
-    free_entry->atlas = sdl_load_ttf_font(font_path, cell_height, NULL);
+    free_entry->atlas = sdl_load_ttf_font_cells(font_path, cell_width,
+        cell_height, NULL);
     if (!free_entry->atlas)
         return NULL;
 
     free_entry->valid = true;
     SDL_strlcpy(free_entry->font_path, font_path, sizeof(free_entry->font_path));
+    free_entry->cell_width = cell_width;
     free_entry->cell_height = cell_height;
     free_entry->bold = config.mono_bold;
     free_entry->italic = config.mono_italic;
@@ -26260,13 +26982,19 @@ static TTF_Font* sdl_story_font_for_view(const sdl_view* d)
 // 1:2 aspect ratio. The font size is expected to take into account any scaling,
 // either HiDPI or user. So on a HiDPI screen to use font size 12, this function
 // would expect 24 given scaling factor of 2.0.
-static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int* actual_font_size)
+static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
+    int cell_width, int cell_height, int* actual_font_size)
 {
-    int cell_height = font_size;
-    int cell_width = font_size / 2;
-    int min_size = font_size / 2;
+    int font_size = cell_height;
+    int min_size = cell_height / 2;
     TTF_Font* font = NULL;
     SDL_Texture* previous_target = NULL;
+    if (cell_width < 1)
+        cell_width = 1;
+    if (cell_height < 1)
+        cell_height = 1;
+    if (min_size < 1)
+        min_size = 1;
     for (; font_size >= min_size; font_size--) {
         log_trace("trying TTF font size %d", font_size);
         if (font == NULL) {
@@ -26442,6 +27170,8 @@ static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 
     d->rect = rect;
     d->cols = rect.w / d->cell_w;
+    if (scale)
+        d->cols = sdl_main_view_logical_cols_for_visual_cols(d->cols);
     d->rows = rect.h / d->cell_h;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     if (scale) {
@@ -26455,7 +27185,9 @@ static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
      * Do not force a minimum margin larger than the available slack; that can
      * shift the term off-center and even partially off-screen. */
     (void)margin;
-    d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
+    d->margin_x = (rect.w
+        - sdl_main_view_visual_cols_for_width(rect.w, d->cell_w) * d->cell_w)
+        / 2;
     if (d->margin_x < 0)
         d->margin_x = 0;
     d->margin_y = sdl_mobile_prefer_safe_edge_alignment()
@@ -26697,6 +27429,7 @@ static void sdl_quit_hook(cptr str)
     
     // Clean up story fonts
     sdl_story_font_cache_clear();
+    sdl_left_panel_canvas_destroy();
     sdl_mono_font_cache_clear();
     
     // Only save if we have a valid window and config file path
@@ -27178,6 +27911,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_MONSTERS: type_str = "MONSTERS"; break;
             case PANE_MAP: type_str = "MAP"; break;
             case PANE_TOUCH: type_str = "TOUCH"; break;
+            case PANE_LEFT_PANEL: type_str = "LEFT_PANEL"; break;
             default: break;
         }
         
@@ -27499,6 +28233,8 @@ void set_sdl_pane_where(int index, int where)
 
     if (index < 0 || index >= pane_config_count)
         return;
+    if (pane_config[index].pane == PANE_LEFT_PANEL)
+        placement = PLACE_LEFT;
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
     if (!pane_type_allows_placement(pane_config[index].pane, placement))
         placement = pane_first_allowed_placement(pane_config[index].pane);
@@ -27557,6 +28293,8 @@ static int sdl_pane_current_size(int index, bool want_rows)
         return 0;
 
     type = pane_config[index].pane;
+    if (type == PANE_LEFT_PANEL)
+        return want_rows ? 0 : sdl_left_panel_pane_cols();
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return 0;
 
@@ -27598,6 +28336,10 @@ void set_sdl_pane_rows(int index, int rows)
 {
     if (index < 0 || index >= pane_config_count)
         return;
+    if (pane_config[index].pane == PANE_LEFT_PANEL) {
+        pane_config[index].rect.rows = 0;
+        return;
+    }
     if (rows < 0)
         rows = 0;
     if (rows > 200)
@@ -27609,6 +28351,16 @@ void set_sdl_pane_cols(int index, int cols)
 {
     if (index < 0 || index >= pane_config_count)
         return;
+    if (pane_config[index].pane == PANE_LEFT_PANEL) {
+        if (cols < 0)
+            cols = 0;
+        if (cols > LEFT_PANEL_CONTENT_WID)
+            cols = LEFT_PANEL_CONTENT_WID;
+        if (cols > 0 && cols < 6)
+            cols = 6;
+        pane_config[index].rect.cols = cols;
+        return;
+    }
     if (cols < 0)
         cols = 0;
     if (cols > 200)
@@ -27637,6 +28389,10 @@ void set_sdl_pane_enabled(int index, bool enabled)
 
     if (index < 0 || index >= pane_config_count)
         return;
+    if (pane_config[index].pane == PANE_LEFT_PANEL) {
+        pane_config[index].enabled = true;
+        return;
+    }
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
     pane_config[index].enabled = enabled;
     if (is_touch_pane) {

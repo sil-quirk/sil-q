@@ -2892,12 +2892,13 @@ void new_combat_round(void)
 
     log_trace("[ROUND] new_combat_round: ENTER turns_since_combat=%d, combat_number=%d, combat_number_old=%d", turns_since_combat, combat_number, combat_number_old);
     if (combat_number != 0)
+    {
+        /* Add the finished round to combat history before we lose it */
+        add_combat_round_to_history();
         combat_number_old = combat_number;
+    }
     combat_number = 0;
     turns_since_combat++;
-
-    /* Add the previous round to combat history before we lose it */
-    add_combat_round_to_history();
 
     log_trace("[ROUND] new_combat_round: after inc, turns_since_combat=%d", turns_since_combat);
     if (turns_since_combat == 1)
@@ -2987,6 +2988,7 @@ void update_combat_rolls1(const monster_type* m_ptr1,
     if (combat_number < MAX_COMBAT_ROLLS)
     {
         combat_rolls[0][combat_number].att_type = COMBAT_ROLL_ROLL;
+        combat_rolls[0][combat_number].sequence = 0;
 
         if (m_ptr1 == NULL)
         {
@@ -3155,6 +3157,7 @@ void update_combat_rolls1b(
     if (combat_number < MAX_COMBAT_ROLLS)
     {
         combat_rolls[0][combat_number].att_type = COMBAT_ROLL_AUTO;
+        combat_rolls[0][combat_number].sequence = 0;
 
         if (m_ptr1 == NULL)
         {
@@ -3269,9 +3272,11 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
     /* Ensure we restore deferred main_combat_rolls before completing roll */
     maybe_restore_main_combat_rolls();
     log_trace("[ROLL2] enter: combat_number=%d old=%d last_index=%d", combat_number, combat_number_old, combat_number - 1);
-    if (combat_number - 1 < MAX_COMBAT_ROLLS)
+    if ((combat_number > 0) && (combat_number - 1 < MAX_COMBAT_ROLLS))
     {
         combat_rolls[0][combat_number - 1].dam_type = dam_type;
+        if (combat_rolls[0][combat_number - 1].sequence == 0)
+            combat_rolls[0][combat_number - 1].sequence = log_history_next_sequence();
         combat_rolls[0][combat_number - 1].dd = dd;
         combat_rolls[0][combat_number - 1].ds = ds;
         combat_rolls[0][combat_number - 1].dam = dam;
@@ -3301,10 +3306,11 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
                 combat_rolls[0][combat_number - 1].pd = p_min(GF_HURT, melee);
                 combat_rolls[0][combat_number - 1].ps = p_max(GF_HURT, melee);
             }
+        }
+
+        log_trace("[ROLL2] exit: index=%d done", combat_number - 1);
     }
-    log_trace("[ROLL2] exit: index=%d done", combat_number - 1);
-    }
-    
+
     /* Window stuff - DO NOT set flag here; defer to main loop to avoid mid-combat updates */
     /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
@@ -3759,7 +3765,7 @@ void add_combat_round_to_history(void)
     int i;
     
     /* Only add if there were actual combat rolls this round */
-    if (combat_number_old == 0) {
+    if (combat_number == 0) {
         return;
     }
 
@@ -3773,11 +3779,13 @@ void add_combat_round_to_history(void)
     
     /* Store the combat round data */
     combat_history[combat_history_head].turn_count = turn;
-    combat_history[combat_history_head].num_rolls = combat_number_old;
+    combat_history[combat_history_head].num_rolls = combat_number;
     
-    /* Copy the combat rolls from the previous round */
-    for (i = 0; i < combat_number_old && i < MAX_COMBAT_ROLLS; i++) {
-        memcpy(&combat_history[combat_history_head].rolls[i], &combat_rolls[1][i], sizeof(combat_roll));
+    /* Copy the finished combat rolls */
+    for (i = 0; i < combat_number && i < MAX_COMBAT_ROLLS; i++) {
+        memcpy(&combat_history[combat_history_head].rolls[i], &combat_rolls[0][i], sizeof(combat_roll));
+        if (combat_history[combat_history_head].rolls[i].sequence == 0)
+            combat_history[combat_history_head].rolls[i].sequence = log_history_next_sequence();
     }
 }
 
@@ -3825,7 +3833,7 @@ static bool log_history_tab_key(char ch)
         || (ch == '\t');
 }
 
-void do_cmd_combat_history(void)
+void do_cmd_combat_history_legacy(void)
 {
     char ch;
     int i, j, n, q;
@@ -3969,15 +3977,6 @@ void do_cmd_combat_history(void)
             
             /* Apply horizontal scroll to starting column */
             col = -q;
-            
-            /* Add turn indicator for first roll of each turn */
-            if (roll_idx == 0) {
-                strnfmt(buf, sizeof(buf), "Turn %d:", round->turn_count);
-                if (col >= 0) Term_putstr(col, line_y, -1, TERM_L_DARK, buf);
-                col += 9; /* "Turn XXXXX:" is about 9-10 chars */
-            } else {
-                col += 9; /* Same spacing for continuation rolls */
-            }
             
             /* Display like combat rolls window - attacker symbol */
             if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
@@ -4267,8 +4266,7 @@ void do_cmd_combat_history(void)
                         
                         /* Create search string for this roll */
                         char search_buf[120];
-                        strnfmt(search_buf, sizeof(search_buf), "Turn %d %c (%+d) (%dd%d)",
-                                combat_history[hist_idx].turn_count,
+                        strnfmt(search_buf, sizeof(search_buf), "%c (%+d) (%dd%d)",
                                 search_roll->attacker_char,
                                 search_roll->att,
                                 search_roll->dd, search_roll->ds);
@@ -4333,6 +4331,11 @@ void do_cmd_combat_history(void)
     /* Restore screen */
     screen_pop_supporting_panes_hidden();
     screen_load();
+}
+
+void do_cmd_combat_history(void)
+{
+    do_cmd_messages_with_filter(LOG_HISTORY_FILTER_COMBAT);
 }
 
 /*

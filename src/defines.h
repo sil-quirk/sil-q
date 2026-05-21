@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.8"
+#define VERSION_STRING "0.9.6.9"
 /*
- * Version components (0.9.6.7).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.6.9).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 6
-#define VERSION_EXTRA 8   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 9   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -420,6 +420,13 @@
  * Number of combat rounds stored in combat history
  */
 #define MAX_COMBAT_HISTORY 100
+
+/*
+ * Filters for the unified message/combat history viewer
+ */
+#define LOG_HISTORY_FILTER_ALL 0
+#define LOG_HISTORY_FILTER_MESSAGES 1
+#define LOG_HISTORY_FILTER_COMBAT 2
 
 // Types of combat roll storage
 #define COMBAT_ROLL_NONE 0
