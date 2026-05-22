@@ -1991,6 +1991,9 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBM_STING:
             case RBM_WHIP:
             case RBM_CRUSH:
+            case RBM_ENGULF:
+            case RBM_CRAWL:
+            case RBM_THORN:
 
                 /* Visible monsters */
                 if (m_ptr->ml && !p_ptr->confused)
@@ -2015,6 +2018,7 @@ bool make_attack_normal(monster_type* m_ptr)
                     {
                         /* Message */
                         msg_format("%^s just misses you.", m_name);
+                        update_combat_rolls_no_damage();
 
                         /* Gender based message */
                         // No female earthquake causers
@@ -2057,6 +2061,7 @@ bool make_attack_normal(monster_type* m_ptr)
                     {
                         /* Message */
                         msg_format("%^s misses you.", m_name);
+                        update_combat_rolls_no_damage();
 
                         // allow for ripostes
                         if (p_ptr->active_ability[S_EVN][EVN_RIPOSTE]
@@ -2987,8 +2992,9 @@ void update_combat_rolls1(const monster_type* m_ptr1,
     log_trace("[ROLL1] enter: combat_number=%d old=%d turns_since_combat=%d", combat_number, combat_number_old, turns_since_combat);
     if (combat_number < MAX_COMBAT_ROLLS)
     {
+        memset(&combat_rolls[0][combat_number], 0, sizeof(combat_roll));
         combat_rolls[0][combat_number].att_type = COMBAT_ROLL_ROLL;
-        combat_rolls[0][combat_number].sequence = 0;
+        combat_rolls[0][combat_number].sequence = log_history_next_sequence();
 
         if (m_ptr1 == NULL)
         {
@@ -3156,8 +3162,9 @@ void update_combat_rolls1b(
     log_trace("[ROLL1B] enter: combat_number=%d old=%d turns_since_combat=%d", combat_number, combat_number_old, turns_since_combat);
     if (combat_number < MAX_COMBAT_ROLLS)
     {
+        memset(&combat_rolls[0][combat_number], 0, sizeof(combat_roll));
         combat_rolls[0][combat_number].att_type = COMBAT_ROLL_AUTO;
-        combat_rolls[0][combat_number].sequence = 0;
+        combat_rolls[0][combat_number].sequence = log_history_next_sequence();
 
         if (m_ptr1 == NULL)
         {
@@ -3275,8 +3282,7 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
     if ((combat_number > 0) && (combat_number - 1 < MAX_COMBAT_ROLLS))
     {
         combat_rolls[0][combat_number - 1].dam_type = dam_type;
-        if (combat_rolls[0][combat_number - 1].sequence == 0)
-            combat_rolls[0][combat_number - 1].sequence = log_history_next_sequence();
+        combat_rolls[0][combat_number - 1].sequence = log_history_next_sequence();
         combat_rolls[0][combat_number - 1].dd = dd;
         combat_rolls[0][combat_number - 1].ds = ds;
         combat_rolls[0][combat_number - 1].dam = dam;
@@ -3316,6 +3322,26 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
 }
 
 /*
+ * Finish an attack roll that has no damage-roll phase, such as a miss.  Call
+ * this after the visible outcome message so combined log order stays:
+ * message, then roll.
+ */
+void update_combat_rolls_no_damage(void)
+{
+    maybe_restore_main_combat_rolls();
+    log_trace("[ROLL0] enter: combat_number=%d old=%d last_index=%d",
+        combat_number, combat_number_old, combat_number - 1);
+
+    if ((combat_number > 0) && (combat_number - 1 < MAX_COMBAT_ROLLS)
+        && (combat_rolls[0][combat_number - 1].att_type != COMBAT_ROLL_NONE))
+    {
+        combat_rolls[0][combat_number - 1].sequence =
+            log_history_next_sequence();
+        log_trace("[ROLL0] stamped index=%d", combat_number - 1);
+    }
+}
+
+/*
  * Display combat rolls in a window
  */
 
@@ -3323,7 +3349,28 @@ typedef struct combat_display_entry
 {
     int round;
     int index;
+    u32b sequence;
+    int tie_breaker;
 } combat_display_entry;
+
+static int combat_display_entry_compare_newest_first(const void* a,
+    const void* b)
+{
+    const combat_display_entry* entry_a = (const combat_display_entry*)a;
+    const combat_display_entry* entry_b = (const combat_display_entry*)b;
+
+    if (entry_a->sequence < entry_b->sequence)
+        return 1;
+    if (entry_a->sequence > entry_b->sequence)
+        return -1;
+
+    if (entry_a->tie_breaker < entry_b->tie_breaker)
+        return 1;
+    if (entry_a->tie_breaker > entry_b->tie_breaker)
+        return -1;
+
+    return entry_a->round - entry_b->round;
+}
 
 static int collect_combat_display_entries(combat_display_entry* ordered, int max_entries)
 {
@@ -3335,42 +3382,24 @@ static int collect_combat_display_entries(combat_display_entry* ordered, int max
         if (combat_num_for_round <= 0)
             continue;
 
-        int player_indices[MAX_COMBAT_ROLLS];
-        int monster_indices[MAX_COMBAT_ROLLS];
-        int player_count = 0;
-        int monster_count = 0;
-
-        for (int idx = combat_num_for_round - 1; idx >= 0; idx--)
+        for (int idx = 0; (idx < combat_num_for_round) && (count < max_entries);
+             idx++)
         {
             if (combat_rolls[round][idx].att_type == COMBAT_ROLL_NONE)
                 continue;
 
-            if (combat_rolls[round][idx].is_attacker_player)
-            {
-                if (player_count < MAX_COMBAT_ROLLS)
-                    player_indices[player_count++] = idx;
-            }
-            else
-            {
-                if (monster_count < MAX_COMBAT_ROLLS)
-                    monster_indices[monster_count++] = idx;
-            }
-        }
-
-        for (int i = 0; (i < player_count) && (count < max_entries); i++)
-        {
             ordered[count].round = round;
-            ordered[count].index = player_indices[i];
-            count++;
-        }
-
-        for (int i = 0; (i < monster_count) && (count < max_entries); i++)
-        {
-            ordered[count].round = round;
-            ordered[count].index = monster_indices[i];
+            ordered[count].index = idx;
+            ordered[count].sequence = combat_rolls[round][idx].sequence;
+            if (ordered[count].sequence == 0)
+                ordered[count].sequence = (round == 0) ? 2 : 1;
+            ordered[count].tie_breaker = idx;
             count++;
         }
     }
+
+    qsort(ordered, count, sizeof(combat_display_entry),
+        combat_display_entry_compare_newest_first);
 
     return count;
 }

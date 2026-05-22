@@ -963,6 +963,7 @@ extern void update_combat_rolls1b(
     const monster_type* m_ptr1, const monster_type* m_ptr2, bool vis);
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
     int prot, int prt_percent, int dam_type, bool melee);
+extern void update_combat_rolls_no_damage(void);
 extern void display_combat_rolls(void);
 extern void display_main_combat_rolls(void);
 extern void clear_main_combat_rolls_area(void);

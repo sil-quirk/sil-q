@@ -4104,10 +4104,11 @@ typedef struct pane_log_display_entry
     s16b message_age;
     int history_idx;
     int roll_idx;
+    combat_roll* roll;
 } pane_log_display_entry;
 
 #define PANE_LOG_DISPLAY_MAX_ENTRIES \
-    (MESSAGE_MAX + (MAX_COMBAT_HISTORY * MAX_COMBAT_ROLLS))
+    (MESSAGE_MAX + ((MAX_COMBAT_HISTORY + 1) * MAX_COMBAT_ROLLS))
 
 static pane_log_display_entry
     pane_log_display_entries[PANE_LOG_DISPLAY_MAX_ENTRIES];
@@ -4162,12 +4163,33 @@ static int pane_log_display_collect_entries(
             entries[count].message_age = age;
             entries[count].history_idx = -1;
             entries[count].roll_idx = -1;
+            entries[count].roll = NULL;
             count++;
         }
     }
 
     if (pane_log_filter_includes_combat(filter))
     {
+        for (int r = 0; (r < combat_number) && (count < max_entries)
+             && (r < MAX_COMBAT_ROLLS); r++)
+        {
+            combat_roll* roll = &combat_rolls[0][r];
+
+            if (roll->att_type == COMBAT_ROLL_NONE)
+                continue;
+
+            entries[count].kind = PANE_LOG_DISPLAY_COMBAT;
+            entries[count].sequence = roll->sequence;
+            if (entries[count].sequence == 0)
+                entries[count].sequence = (u32b)turn;
+            entries[count].tie_breaker = r;
+            entries[count].message_age = -1;
+            entries[count].history_idx = -1;
+            entries[count].roll_idx = r;
+            entries[count].roll = roll;
+            count++;
+        }
+
         for (int h = 0; (h < combat_history_count) && (count < max_entries);
              h++)
         {
@@ -4195,6 +4217,7 @@ static int pane_log_display_collect_entries(
                 entries[count].message_age = -1;
                 entries[count].history_idx = hist_idx;
                 entries[count].roll_idx = r;
+                entries[count].roll = roll;
                 count++;
             }
         }
@@ -4253,8 +4276,7 @@ static void display_combined_log_in_pane(int filter)
         }
         else
         {
-            combat_roll* roll =
-                &combat_history[entry->history_idx].rolls[entry->roll_idx];
+            combat_roll* roll = entry->roll;
 
             display_combat_roll_line_at(row, 0, roll);
             Term_locate(&x, &y);

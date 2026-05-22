@@ -40,7 +40,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_MONSTERS] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_MAP] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 10, .min_rect.cols = 24},
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
-    [PANE_LEFT_PANEL] = {.placement = PLACE_TOP_LEFT, .min_rect.rows = 1, .min_rect.cols = 1},
+    [PANE_LEFT_PANEL] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
@@ -470,6 +470,12 @@ bool pane_type_allows_placement(enum pane_type type, enum pane_placement where)
 
 enum pane_placement pane_first_allowed_placement(enum pane_type type)
 {
+    if (type == PANE_LEFT_PANEL
+        && pane_type_allows_placement(type, PLACE_TOP_LEFT))
+    {
+        return PLACE_TOP_LEFT;
+    }
+
     for (int i = 0; i < (int)(sizeof(pane_default_order) / sizeof(pane_default_order[0])); i++) {
         if (pane_type_allows_placement(type, pane_default_order[i]))
             return pane_default_order[i];

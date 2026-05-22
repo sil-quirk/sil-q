@@ -5242,6 +5242,7 @@ void hit_trap(int y, int x)
         else
         {
             msg_print("A small dart barely misses you.");
+            update_combat_rolls_no_damage();
         }
 
         /* Make a small amount of noise */
@@ -5523,6 +5524,7 @@ void hit_trap(int y, int x)
             else
             {
                 msg_print("You nimbly dodge the falling rock!");
+                update_combat_rolls_no_damage();
                 net_dam = 0;
             }
 
@@ -6807,6 +6809,7 @@ void py_attack_aux(int y, int x, int attack_type)
 
             /* Message - no additional sound for miss */
             msg_format("You miss %s.", m_name);
+            update_combat_rolls_no_damage();
 
             // Occasional warning about fighting from within a pit
             if (cave_pit_bold(p_ptr->py, p_ptr->px) && one_in_(3))

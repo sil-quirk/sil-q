@@ -6413,6 +6413,8 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
                     msg_print("The web cannot take hold here.");
                 }
             }
+
+            update_combat_rolls_no_damage();
         }
 
         break;

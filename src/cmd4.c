@@ -13466,10 +13466,11 @@ typedef struct log_history_entry
     s16b message_age;
     int history_idx;
     int roll_idx;
+    combat_roll* roll;
 } log_history_entry;
 
 #define LOG_HISTORY_MAX_ENTRIES \
-    (MESSAGE_MAX + (MAX_COMBAT_HISTORY * MAX_COMBAT_ROLLS))
+    (MESSAGE_MAX + ((MAX_COMBAT_HISTORY + 1) * MAX_COMBAT_ROLLS))
 
 static log_history_entry log_history_entries[LOG_HISTORY_MAX_ENTRIES];
 
@@ -13585,12 +13586,33 @@ static int log_history_collect_entries(log_history_entry* entries,
             entries[count].message_age = age;
             entries[count].history_idx = -1;
             entries[count].roll_idx = -1;
+            entries[count].roll = NULL;
             count++;
         }
     }
 
     if (log_history_filter_includes_combat(filter))
     {
+        for (int r = 0; (r < combat_number) && (count < max_entries)
+             && (r < MAX_COMBAT_ROLLS); r++)
+        {
+            combat_roll* roll = &combat_rolls[0][r];
+
+            if (roll->att_type == COMBAT_ROLL_NONE)
+                continue;
+
+            entries[count].kind = LOG_HISTORY_ENTRY_COMBAT;
+            entries[count].sequence = roll->sequence;
+            if (entries[count].sequence == 0)
+                entries[count].sequence = (u32b)turn;
+            entries[count].tie_breaker = r;
+            entries[count].message_age = -1;
+            entries[count].history_idx = -1;
+            entries[count].roll_idx = r;
+            entries[count].roll = roll;
+            count++;
+        }
+
         for (int h = 0; (h < combat_history_count) && (count < max_entries);
              h++)
         {
@@ -13618,6 +13640,7 @@ static int log_history_collect_entries(log_history_entry* entries,
                 entries[count].message_age = -1;
                 entries[count].history_idx = hist_idx;
                 entries[count].roll_idx = r;
+                entries[count].roll = roll;
                 count++;
             }
         }
@@ -13721,8 +13744,7 @@ static void log_history_put_tile_scrolled(int* col, int row, int offset,
 static void log_history_draw_combat_entry(const log_history_entry* entry,
     int row, int offset)
 {
-    combat_roll* roll =
-        &combat_history[entry->history_idx].rolls[entry->roll_idx];
+    combat_roll* roll = entry->roll;
     int a_att, a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam;
     int col = 0;
     char buf[120];
@@ -13867,8 +13889,7 @@ static void log_history_entry_search_text(const log_history_entry* entry,
     }
     else
     {
-        combat_roll* roll =
-            &combat_history[entry->history_idx].rolls[entry->roll_idx];
+        combat_roll* roll = entry->roll;
         int net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
         int net_dam = roll->dam - roll->prot;
 
@@ -19831,7 +19852,8 @@ static bool supporting_pane_enabled_locked(int idx)
 
 static bool supporting_pane_where_locked(int idx)
 {
-    return (enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL;
+    (void)idx;
+    return false;
 }
 
 static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count, int idx)

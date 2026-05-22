@@ -305,6 +305,7 @@ typedef struct sdl_left_panel_metrics {
     int scale;
     int cell_w;
     int cell_h;
+    int content_cols;
     int content_w;
     int separator_w;
     int total_w;
@@ -1528,6 +1529,8 @@ static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static bool sdl_left_panel_pane_layout_enabled(void);
 static bool sdl_left_panel_pane_presentation_active(void);
 static bool sdl_left_panel_pane_runtime_active(void);
+static enum pane_placement sdl_left_panel_pane_placement(void);
+static bool sdl_left_panel_pane_on_right(void);
 static int sdl_left_panel_pane_scale_for_main_scale(int main_scale);
 static int sdl_left_panel_pane_scale_for_view(const sdl_view* view);
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
@@ -2162,12 +2165,6 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
                     configs[j].enabled = true;
                     changed = true;
                 }
-                if (pane == PANE_LEFT_PANEL
-                    && configs[j].where != PLACE_TOP_LEFT)
-                {
-                    configs[j].where = PLACE_TOP_LEFT;
-                    changed = true;
-                }
                 found = true;
                 break;
             }
@@ -2240,6 +2237,24 @@ static int sdl_left_panel_pane_config_index(void)
     return -1;
 }
 
+static enum pane_placement sdl_left_panel_pane_placement(void)
+{
+    int index = sdl_left_panel_pane_config_index();
+    enum pane_placement placement = PLACE_TOP_LEFT;
+
+    if (index >= 0)
+        placement = pane_config[index].where;
+    if (!pane_type_allows_placement(PANE_LEFT_PANEL, placement))
+        placement = PLACE_TOP_LEFT;
+
+    return placement;
+}
+
+static bool sdl_left_panel_pane_on_right(void)
+{
+    return sdl_left_panel_pane_placement() == PLACE_TOP_RIGHT;
+}
+
 static bool sdl_left_panel_pane_config_enabled(void)
 {
     int index = sdl_left_panel_pane_config_index();
@@ -2284,6 +2299,20 @@ static int sdl_left_panel_pane_scale_for_view(const sdl_view* view)
     return sdl_left_panel_pane_scale_for_main_scale(main_scale);
 }
 
+static bool sdl_left_panel_cell_has_visible_content(byte a, char c)
+{
+    if ((a == 255) && ((byte)c == 0xFF))
+        return false;
+
+    if (g_state.use_tiles && g_state.tileset
+        && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG))
+    {
+        return true;
+    }
+
+    return c != '\0' && c != ' ';
+}
+
 static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
 {
     bool compact = (view && view->rows > 0 && view->rows < 24);
@@ -2318,10 +2347,85 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
     return rows;
 }
 
+static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
+    int* out_cols, int* out_rows)
+{
+    const term* t;
+    term_win* scr;
+    int scan_cols;
+    int scan_rows;
+    int max_col = -1;
+    int max_row = -1;
+
+    if (out_cols)
+        *out_cols = 0;
+    if (out_rows)
+        *out_rows = 0;
+    if (!view || !view->term_ready)
+        return false;
+
+    t = &view->t;
+    scr = t->scr;
+    if (!scr || !scr->a || !scr->c)
+        return false;
+
+    scan_cols = MIN(LEFT_PANEL_CONTENT_WID, t->wid);
+    scan_rows = sdl_main_view_visual_rows(view);
+    if (scan_rows <= 0 && view->rows > 0)
+        scan_rows = view->rows;
+    if (scan_rows > t->hgt)
+        scan_rows = t->hgt;
+    if (op_ptr && !op_ptr->opt[OPT_top_status_line] && view->rows > 0
+        && scan_rows > view->rows - 1)
+    {
+        scan_rows = view->rows - 1;
+    }
+
+    if (scan_cols <= 0 || scan_rows <= 0)
+        return false;
+
+    for (int row = 0; row < scan_rows; row++) {
+        if (!scr->a[row] || !scr->c[row])
+            continue;
+
+        for (int col = 0; col < scan_cols; col++) {
+            byte a = scr->a[row][col];
+            char c = scr->c[row][col];
+            int visible_col;
+
+            if (!sdl_left_panel_cell_has_visible_content(a, c))
+                continue;
+
+            visible_col = col;
+            if (g_state.use_tiles && g_state.tileset && use_bigtile
+                && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG)
+                && visible_col + 1 < scan_cols)
+            {
+                visible_col++;
+            }
+
+            if (visible_col > max_col)
+                max_col = visible_col;
+            if (row > max_row)
+                max_row = row;
+        }
+    }
+
+    if (max_col < 0 || max_row < 0)
+        return false;
+
+    if (out_cols)
+        *out_cols = max_col + 1;
+    if (out_rows)
+        *out_rows = max_row + 1;
+    return true;
+}
+
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics)
 {
     int scale;
+    int content_cols = LEFT_PANEL_CONTENT_WID;
     int panel_rows;
     int panel_render_h;
     int corner_h;
@@ -2337,6 +2441,17 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         scale = 1;
 
     panel_rows = sdl_left_panel_pane_rows_for_view(view);
+    (void)sdl_left_panel_content_size_for_view(view, &content_cols,
+        &panel_rows);
+    if (content_cols < 1)
+        content_cols = 1;
+    if (content_cols > LEFT_PANEL_CONTENT_WID)
+        content_cols = LEFT_PANEL_CONTENT_WID;
+    if (panel_rows < 1)
+        panel_rows = 1;
+    if (view && view->rows > 0 && panel_rows > view->rows)
+        panel_rows = view->rows;
+
     source_h = sdl_main_view_visual_rows(view) * view->cell_h;
     panel_render_h = panel_rows * (scale * TILE_SIZE);
     corner_h = panel_render_h;
@@ -2352,7 +2467,8 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         metrics->scale = scale;
         metrics->cell_w = scale * TILE_SIZE / 2;
         metrics->cell_h = scale * TILE_SIZE;
-        metrics->content_w = LEFT_PANEL_CONTENT_WID * metrics->cell_w;
+        metrics->content_cols = content_cols;
+        metrics->content_w = content_cols * metrics->cell_w;
         metrics->separator_w = view->cell_w;
         metrics->total_w = metrics->content_w + metrics->separator_w;
         metrics->panel_rows = panel_rows;
@@ -5705,6 +5821,8 @@ static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
     SDL_FRect* out_rect, float* out_scale)
 {
     int visual_cols;
+    int visual_w;
+    bool place_right;
     sdl_left_panel_metrics metrics;
 
     if (out_rect)
@@ -5721,15 +5839,19 @@ static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
     if (!sdl_left_panel_metrics_for_view(view, &metrics))
         return false;
     visual_cols = sdl_main_view_visual_cols(view);
+    visual_w = visual_cols * view->cell_w;
     if (metrics.total_w <= 0 || metrics.corner_h <= 0
-        || visual_cols * view->cell_w <= metrics.total_w)
+        || visual_w <= metrics.total_w)
     {
         return false;
     }
 
+    place_right = sdl_left_panel_pane_on_right();
+
     if (out_rect) {
         *out_rect = (SDL_FRect){
-            .x = (float)(view->rect.x + view->margin_x),
+            .x = (float)(view->rect.x + view->margin_x
+                + (place_right ? visual_w - metrics.total_w : 0)),
             .y = (float)(view->rect.y + view->margin_y),
             .w = (float)metrics.total_w,
             .h = (float)metrics.corner_h,
@@ -5820,6 +5942,10 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
         int end = col + cols;
         int end_row = row + rows;
         int top_rows;
+        int visual_w;
+        bool place_right;
+        float panel_x;
+        float panel_content_x;
         bool have = false;
         float x1 = 0.0f;
         float y1 = 0.0f;
@@ -5838,18 +5964,25 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
         top_rows = (view->cell_h > 0) ? metrics.corner_h / view->cell_h : 0;
         if (top_rows > visual_rows)
             top_rows = visual_rows;
+        visual_w = visual_cols * view->cell_w;
+        place_right = sdl_left_panel_pane_on_right();
+        panel_x = grid_x + (float)(place_right
+            ? visual_w - metrics.total_w
+            : 0);
+        panel_content_x = panel_x
+            + (float)(place_right ? metrics.separator_w : 0);
 
-        if (start < LEFT_PANEL_CONTENT_WID && end > 0
+        if (start < metrics.content_cols && end > 0
             && row < metrics.panel_rows)
         {
             int c0 = MAX(start, 0);
-            int c1 = MIN(end, LEFT_PANEL_CONTENT_WID);
+            int c1 = MIN(end, metrics.content_cols);
             int r1 = MIN(end_row, metrics.panel_rows);
             SDL_FRect r;
 
             if (c1 > c0 && r1 > row) {
                 r = (SDL_FRect){
-                    .x = grid_x + (float)(c0 * metrics.cell_w),
+                    .x = panel_content_x + (float)(c0 * metrics.cell_w),
                     .y = grid_y + (float)(row * metrics.cell_h),
                     .w = (float)((c1 - c0) * metrics.cell_w),
                     .h = (float)((r1 - row) * metrics.cell_h),
@@ -5860,50 +5993,51 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
 
         if (start < view->cols && end > COL_MAP) {
             int c0 = MAX(start, COL_MAP);
-            int c1 = MIN(end, view->cols);
+            int c1 = MIN(end, MIN(view->cols, COL_MAP + visual_cols));
             int visible_c0 = c0 - COL_MAP;
             int visible_c1 = c1 - COL_MAP;
 
             if (visible_c0 < 0)
                 visible_c0 = 0;
+            if (visible_c1 > visual_cols)
+                visible_c1 = visual_cols;
+            if (visible_c1 > visible_c0) {
+                int map_x0 = visible_c0 * view->cell_w;
+                int map_x1 = visible_c1 * view->cell_w;
 
-            if (row < top_rows) {
-                int top_visible_c1 = visible_c1;
-                int top_map_cols =
-                    (visual_cols * view->cell_w - metrics.total_w)
-                    / view->cell_w;
-                int r1 = MIN(end_row, top_rows);
+                if (row < top_rows) {
+                    int r1 = MIN(end_row, top_rows);
+                    int clip_x0 = place_right ? 0 : metrics.total_w;
+                    int clip_x1 = place_right
+                        ? visual_w - metrics.total_w
+                        : visual_w;
+                    int px0 = MAX(map_x0, clip_x0);
+                    int px1 = MIN(map_x1, clip_x1);
 
-                if (top_visible_c1 > top_map_cols)
-                    top_visible_c1 = top_map_cols;
-                if (top_visible_c1 > visible_c0 && r1 > row) {
-                    SDL_FRect r = {
-                        .x = grid_x + (float)metrics.total_w
-                            + (float)(visible_c0 * view->cell_w),
-                        .y = grid_y + (float)(row * view->cell_h),
-                        .w = (float)(top_visible_c1 - visible_c0)
-                            * (float)view->cell_w,
-                        .h = (float)(r1 - row) * (float)view->cell_h,
-                    };
-                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+                    if (px1 > px0 && r1 > row) {
+                        SDL_FRect r = {
+                            .x = grid_x + (float)px0,
+                            .y = grid_y + (float)(row * view->cell_h),
+                            .w = (float)(px1 - px0),
+                            .h = (float)(r1 - row) * (float)view->cell_h,
+                        };
+                        sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+                    }
                 }
-            }
 
-            if (end_row > top_rows) {
-                int r0 = MAX(row, top_rows);
-                int bottom_visible_c1 = visible_c1;
+                if (end_row > top_rows) {
+                    int r0 = MAX(row, top_rows);
 
-                if (bottom_visible_c1 > visual_cols)
-                    bottom_visible_c1 = visual_cols;
-                if (bottom_visible_c1 > visible_c0 && end_row > r0) {
-                    SDL_FRect r = {
-                        .x = grid_x + (float)(visible_c0 * view->cell_w),
-                        .y = grid_y + (float)(r0 * view->cell_h),
-                        .w = (float)(bottom_visible_c1 - visible_c0)
-                            * (float)view->cell_w,
-                        .h = (float)(end_row - r0) * (float)view->cell_h,
-                    };
-                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+                    if (end_row > r0) {
+                        SDL_FRect r = {
+                            .x = grid_x + (float)map_x0,
+                            .y = grid_y + (float)(r0 * view->cell_h),
+                            .w = (float)(map_x1 - map_x0),
+                            .h = (float)(end_row - r0)
+                                * (float)view->cell_h,
+                        };
+                        sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+                    }
                 }
             }
         }
@@ -5967,15 +6101,31 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
         sdl_left_panel_metrics metrics;
         float local_x = x - grid_x;
         float local_y = y - grid_y;
+        float panel_x;
+        float panel_local_x;
+        bool place_right;
         int row;
 
         if (!sdl_left_panel_metrics_for_view(view, &metrics))
             return false;
+        if (grid_w <= (float)metrics.total_w)
+            return false;
 
-        if (local_x < (float)metrics.total_w
+        place_right = sdl_left_panel_pane_on_right();
+        panel_x = place_right
+            ? grid_w - (float)metrics.total_w
+            : 0.0f;
+
+        if (local_x >= panel_x
+            && local_x < panel_x + (float)metrics.total_w
             && local_y < (float)metrics.corner_h)
         {
-            if (local_x >= (float)metrics.content_w) {
+            panel_local_x = local_x - panel_x;
+            if ((!place_right
+                    && panel_local_x >= (float)metrics.content_w)
+                || (place_right
+                    && panel_local_x < (float)metrics.separator_w))
+            {
                 *out_col = LEFT_PANEL_CONTENT_WID;
                 *out_row = (int)(local_y / (float)metrics.cell_h);
                 return (*out_row >= 0 && *out_row < metrics.panel_rows);
@@ -5986,22 +6136,16 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
             if (local_y >= (float)metrics.panel_render_h)
                 return false;
 
-            *out_col = (int)(local_x / (float)metrics.cell_w);
+            if (place_right)
+                panel_local_x -= (float)metrics.separator_w;
+            *out_col = (int)(panel_local_x / (float)metrics.cell_w);
             *out_row = (int)(local_y / (float)metrics.cell_h);
-            return (*out_col >= 0 && *out_col < LEFT_PANEL_CONTENT_WID
+            return (*out_col >= 0 && *out_col < metrics.content_cols
                 && *out_row >= 0 && *out_row < metrics.panel_rows);
         }
 
         row = (int)(local_y / (float)view->cell_h);
-        if (local_y < (float)metrics.corner_h) {
-            if (local_x < (float)metrics.total_w)
-                return false;
-            *out_col = COL_MAP
-                + (int)((local_x - (float)metrics.total_w)
-                    / (float)view->cell_w);
-        } else {
-            *out_col = COL_MAP + (int)(local_x / (float)view->cell_w);
-        }
+        *out_col = COL_MAP + (int)(local_x / (float)view->cell_w);
         *out_row = row;
         return (*out_col >= COL_MAP && *out_col < view->cols
             && *out_row >= 0 && *out_row < view->rows);
@@ -20891,13 +21035,17 @@ void resize(const SDL_Rect* screen)
 
     Term_activate(&g_views[0].t);
 
-    /* Ensure the dungeon panel still contains the player after a resize/scale
-     * change. Otherwise the player can end up off-screen until something else
-     * triggers PU_PANEL. */
+    /* Ensure the dungeon panel matches the resized main term before the
+     * freshly-created canvas is presented. Corner-pane layouts present the
+     * map through a shifted SDL projection, so leaving PU_PANEL for a later
+     * game update can show one frame, or sometimes a whole idle screen, with
+     * the old horizontal panel origin. */
     if (character_dungeon && p_ptr)
     {
         p_ptr->update |= PU_PANEL;
         p_ptr->redraw |= PR_MAP;
+        if (character_generated && !character_icky && p_ptr->playing)
+            handle_stuff();
     }
 
     // Don't strictly need this as `sdl_view_create` already sets this flag.
@@ -22637,8 +22785,8 @@ static SDL_Color sdl_left_panel_background_color(void)
 }
 
 static void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
-    int atlas_cell_h, float cell_w, float cell_h, int x, int y, int n,
-    const char* s, SDL_Color col)
+    int atlas_cell_h, float cell_w, float cell_h, float origin_x, int x,
+    int y, int n, const char* s, SDL_Color col)
 {
     if (!atlas || atlas_cell_w <= 0 || atlas_cell_h <= 0
         || cell_w <= 0.0f || cell_h <= 0.0f || n <= 0 || !s)
@@ -22658,7 +22806,7 @@ static void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
             (float)atlas_cell_h,
         };
         SDL_FRect dst = {
-            ((float)x + (float)i) * cell_w,
+            origin_x + ((float)x + (float)i) * cell_w,
             (float)y * cell_h,
             cell_w,
             cell_h,
@@ -22692,6 +22840,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     int visual_rows;
     int atlas_cell_w;
     int atlas_cell_h;
+    bool place_right;
+    float content_x;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
         return false;
@@ -22705,6 +22855,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     {
         return false;
     }
+    place_right = sdl_left_panel_pane_on_right();
+    content_x = (float)(place_right ? metrics.separator_w : 0);
 
     t = &view->t;
     scr = t->scr;
@@ -22751,7 +22903,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
         if (!scr->a[row] || !scr->c[row])
             continue;
 
-        while (col < LEFT_PANEL_CONTENT_WID && col < t->wid) {
+        while (col < metrics.content_cols && col < t->wid) {
             byte a = scr->a[row][col];
             char c = scr->c[row][col];
             byte ta = (scr->ta && scr->ta[row]) ? scr->ta[row][col] : 0;
@@ -22764,15 +22916,15 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
             if (sdl_left_panel_cell_is_tile(a, c)) {
                 int tile_cols = use_bigtile ? 2 : 1;
-                if (col + tile_cols > LEFT_PANEL_CONTENT_WID)
-                    tile_cols = LEFT_PANEL_CONTENT_WID - col;
+                if (col + tile_cols > metrics.content_cols)
+                    tile_cols = metrics.content_cols - col;
                 if (col + tile_cols > t->wid)
                     tile_cols = t->wid - col;
                 if (tile_cols < 1)
                     tile_cols = 1;
 
                 SDL_FRect dst = {
-                    (float)(col * metrics.cell_w),
+                    content_x + (float)(col * metrics.cell_w),
                     (float)(row * metrics.cell_h),
                     (float)(tile_cols * metrics.cell_w),
                     (float)metrics.cell_h,
@@ -22791,7 +22943,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                     255
                 };
 
-                while (col < LEFT_PANEL_CONTENT_WID && col < t->wid
+                while (col < metrics.content_cols && col < t->wid
                     && len < LEFT_PANEL_CONTENT_WID)
                 {
                     byte run_a = scr->a[row][col];
@@ -22810,7 +22962,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                 buf[len] = '\0';
                 sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
                     atlas_cell_h, (float)metrics.cell_w,
-                    (float)metrics.cell_h, start, row, len, buf, text_col);
+                    (float)metrics.cell_h, content_x, start, row, len, buf,
+                    text_col);
             }
         }
     }
@@ -22832,16 +22985,14 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     int visual_w;
     int canvas_w;
     int top_h;
-    int bottom_h;
     sdl_left_panel_metrics metrics;
+    SDL_FRect src_map;
     SDL_FRect src_left;
-    SDL_FRect src_top_map;
-    SDL_FRect src_bottom_map;
+    SDL_FRect dst_map;
     SDL_FRect dst_left;
-    SDL_FRect dst_top_map;
-    SDL_FRect dst_bottom_map;
     float grid_x;
     float grid_y;
+    bool place_right;
 
     if (!sdl_left_panel_pane_presentation_active())
         return false;
@@ -22870,7 +23021,26 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     top_h = metrics.corner_h;
     if (top_h > source_h)
         top_h = source_h;
-    bottom_h = source_h - top_h;
+    place_right = sdl_left_panel_pane_on_right();
+
+    src_map = (SDL_FRect){
+        .x = (float)(COL_MAP * view->cell_w),
+        .y = 0.0f,
+        .w = (float)visual_w,
+        .h = (float)source_h,
+    };
+    if (src_map.x + src_map.w > (float)canvas_w)
+        src_map.w = (float)canvas_w - src_map.x;
+    if (src_map.w <= 0.0f || src_map.h <= 0.0f)
+        return false;
+
+    dst_map = (SDL_FRect){
+        .x = grid_x,
+        .y = grid_y,
+        .w = src_map.w,
+        .h = src_map.h,
+    };
+    SDL_RenderTexture(g_state.renderer, view->canvas, &src_map, &dst_map);
 
     src_left = (SDL_FRect){
         .x = 0.0f,
@@ -22879,7 +23049,9 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
         .h = (float)top_h,
     };
     dst_left = (SDL_FRect){
-        .x = grid_x,
+        .x = grid_x + (float)(place_right
+            ? visual_w - metrics.total_w
+            : 0),
         .y = grid_y,
         .w = (float)metrics.total_w,
         .h = (float)top_h,
@@ -22889,46 +23061,6 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
         || !sdl_render_left_panel_pane_from_cells(view, &dst_left))
     {
         SDL_RenderTexture(g_state.renderer, view->canvas, &src_left, &dst_left);
-    }
-
-    src_top_map = (SDL_FRect){
-        .x = (float)(COL_MAP * view->cell_w),
-        .y = 0.0f,
-        .w = (float)(visual_w - metrics.total_w),
-        .h = (float)top_h,
-    };
-    if (src_top_map.x + src_top_map.w > (float)canvas_w)
-        src_top_map.w = (float)canvas_w - src_top_map.x;
-    if (src_top_map.w > 0.0f && src_top_map.h > 0.0f) {
-        dst_top_map = (SDL_FRect){
-            .x = grid_x + (float)metrics.total_w,
-            .y = grid_y,
-            .w = src_top_map.w,
-            .h = src_top_map.h,
-        };
-        SDL_RenderTexture(g_state.renderer, view->canvas, &src_top_map,
-            &dst_top_map);
-    }
-
-    if (bottom_h > 0) {
-        src_bottom_map = (SDL_FRect){
-            .x = (float)(COL_MAP * view->cell_w),
-            .y = (float)top_h,
-            .w = (float)visual_w,
-            .h = (float)bottom_h,
-        };
-        if (src_bottom_map.x + src_bottom_map.w > (float)canvas_w)
-            src_bottom_map.w = (float)canvas_w - src_bottom_map.x;
-        if (src_bottom_map.w > 0.0f && src_bottom_map.h > 0.0f) {
-            dst_bottom_map = (SDL_FRect){
-                .x = grid_x,
-                .y = grid_y + (float)top_h,
-                .w = src_bottom_map.w,
-                .h = src_bottom_map.h,
-            };
-            SDL_RenderTexture(g_state.renderer, view->canvas, &src_bottom_map,
-                &dst_bottom_map);
-        }
     }
 
     return true;
@@ -22956,6 +23088,7 @@ static bool sdl_render_current_window_frame(void)
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
     layout_screen = sdl_get_layout_screen_rect();
+    sdl_update_left_panel_pane_rect();
     side_map_visible = sdl_side_map_pane_current_rect(&side_map_rect);
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
@@ -23053,19 +23186,6 @@ static bool sdl_render_current_window_frame(void)
                 (layout_screen.h > 0 && side_map_rect.y > layout_screen.y),
                 false,
                 false);
-        }
-
-        if (sdl_left_panel_pane_presentation_active()
-            && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
-        {
-            SDL_Rect* rect = &g_pane_rects[PANE_LEFT_PANEL];
-            sdl_draw_pane_edges(rect,
-                (layout_screen.w > 0 && rect->x > layout_screen.x),
-                (layout_screen.h > 0 && rect->y > layout_screen.y),
-                (layout_screen.w > 0
-                    && rect->x + rect->w < layout_screen.x + layout_screen.w),
-                (layout_screen.h > 0
-                    && rect->y + rect->h < layout_screen.y + layout_screen.h));
         }
 
     }
@@ -29156,8 +29276,6 @@ void set_sdl_pane_where(int index, int where)
 
     if (index < 0 || index >= pane_config_count)
         return;
-    if (pane_config[index].pane == PANE_LEFT_PANEL)
-        placement = PLACE_TOP_LEFT;
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
     if (!pane_type_allows_placement(pane_config[index].pane, placement))
         placement = pane_first_allowed_placement(pane_config[index].pane);
