@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
-#define MAX_PANE_CONFIGS 11
+#define MAX_PANE_CONFIGS 12
 
 // Available pane types in the game.
 enum pane_type {
@@ -18,7 +18,8 @@ enum pane_type {
     PANE_MAP = 8, // interactive side map
     PANE_TOUCH = 9, // touchscreen / mouse action pad
     PANE_LEFT_PANEL = 10, // classic left character panel, rendered as SDL pane
-    PANE_MAX = 11,
+    PANE_STATUS = 11, // current character statuses, rendered as SDL overlay
+    PANE_MAX = 12,
 };
 
 // Where the pane is placed.
@@ -31,6 +32,8 @@ enum pane_placement {
     PLACE_DOUBLE_BOTTOM = 1u << 5,
     PLACE_TOP_LEFT = 1u << 6,
     PLACE_TOP_RIGHT = 1u << 7,
+    PLACE_BOTTOM_LEFT = 1u << 8,
+    PLACE_BOTTOM_RIGHT = 1u << 9,
 };
 
 struct rect {

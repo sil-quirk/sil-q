@@ -19559,6 +19559,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT_PANEL";
+    case PANE_STATUS: return "STATUS";
     default: return "UNKNOWN";
     }
 }
@@ -19780,6 +19781,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_MAP: return "MAP";
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT";
+    case PANE_STATUS: return "STAT";
     default: return "UNK";
     }
 }
@@ -19792,6 +19794,8 @@ static const char* pane_where_short_name(enum pane_placement where)
     case PLACE_LEFT: return "L";
     case PLACE_TOP_RIGHT: return "TR";
     case PLACE_TOP_LEFT: return "TL";
+    case PLACE_BOTTOM_RIGHT: return "BR";
+    case PLACE_BOTTOM_LEFT: return "BL";
     case PLACE_DOUBLE_RIGHT: return "DR";
     case PLACE_DOUBLE_LEFT: return "DL";
     case PLACE_BOTTOM: return "BOT";

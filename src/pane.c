@@ -3,7 +3,7 @@
 #define BOTTOM_PLACEMENTS \
     (PLACE_BOTTOM | PLACE_DOUBLE_BOTTOM)
 #define CORNER_PLACEMENTS \
-    (PLACE_TOP_LEFT | PLACE_TOP_RIGHT)
+    (PLACE_TOP_LEFT | PLACE_TOP_RIGHT | PLACE_BOTTOM_LEFT | PLACE_BOTTOM_RIGHT)
 #define SIDE_PLACEMENTS \
     (PLACE_LEFT | PLACE_RIGHT | PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT \
         | CORNER_PLACEMENTS)
@@ -13,6 +13,8 @@ static const enum pane_placement pane_placement_order[] = {
     PLACE_RIGHT,
     PLACE_TOP_LEFT,
     PLACE_TOP_RIGHT,
+    PLACE_BOTTOM_LEFT,
+    PLACE_BOTTOM_RIGHT,
     PLACE_DOUBLE_LEFT,
     PLACE_DOUBLE_RIGHT,
     PLACE_BOTTOM,
@@ -24,6 +26,8 @@ static const enum pane_placement pane_default_order[] = {
     PLACE_LEFT,
     PLACE_TOP_RIGHT,
     PLACE_TOP_LEFT,
+    PLACE_BOTTOM_RIGHT,
+    PLACE_BOTTOM_LEFT,
     PLACE_DOUBLE_RIGHT,
     PLACE_DOUBLE_LEFT,
     PLACE_BOTTOM,
@@ -41,18 +45,19 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_MAP] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 10, .min_rect.cols = 24},
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
     [PANE_LEFT_PANEL] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
+    [PANE_STATUS] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 24},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
 {
     return (where == PLACE_LEFT || where == PLACE_DOUBLE_LEFT
-        || where == PLACE_TOP_LEFT);
+        || where == PLACE_TOP_LEFT || where == PLACE_BOTTOM_LEFT);
 }
 
 static bool pane_placement_is_right(enum pane_placement where)
 {
     return (where == PLACE_RIGHT || where == PLACE_DOUBLE_RIGHT
-        || where == PLACE_TOP_RIGHT);
+        || where == PLACE_TOP_RIGHT || where == PLACE_BOTTOM_RIGHT);
 }
 
 bool pane_placement_is_bottom(enum pane_placement where)
@@ -62,7 +67,13 @@ bool pane_placement_is_bottom(enum pane_placement where)
 
 bool pane_placement_is_corner(enum pane_placement where)
 {
-    return (where == PLACE_TOP_LEFT || where == PLACE_TOP_RIGHT);
+    return (where == PLACE_TOP_LEFT || where == PLACE_TOP_RIGHT
+        || where == PLACE_BOTTOM_LEFT || where == PLACE_BOTTOM_RIGHT);
+}
+
+static bool pane_placement_is_bottom_corner(enum pane_placement where)
+{
+    return (where == PLACE_BOTTOM_LEFT || where == PLACE_BOTTOM_RIGHT);
 }
 
 static int pane_primary_cell_px(enum pane_type type, enum pane_placement where,
@@ -394,6 +405,7 @@ static void layout_corner_group(enum pane_placement where,
     int split_px;
     int pane_x;
     int coord;
+    bool bottom_corner;
 
     if (active_count <= 0 || !area || area->w <= 0 || area->h <= 0)
         return;
@@ -408,32 +420,40 @@ static void layout_corner_group(enum pane_placement where,
     pane_x = pane_placement_is_left(where)
         ? area->x
         : area->x + area->w - split_px;
-    coord = area->y;
+    bottom_corner = pane_placement_is_bottom_corner(where);
+    coord = bottom_corner ? area->y + area->h : area->y;
 
     for (int i = 0; i < count; i++) {
         SDL_Rect* pane;
         int pane_px;
         int remaining_px;
+        int pane_y;
 
         if (!config[i].enabled || config[i].where != where)
             continue;
 
         pane_px = pane_corner_secondary_pixels(&config[i], where, cell_widths,
             cell_heights, margin_px, area);
-        remaining_px = area->y + area->h - coord;
+        remaining_px = bottom_corner
+            ? coord - area->y
+            : area->y + area->h - coord;
         if (remaining_px < 0)
             remaining_px = 0;
         if (pane_px > remaining_px)
             pane_px = remaining_px;
+        pane_y = bottom_corner ? coord - pane_px : coord;
 
         pane = &panes[config[i].pane];
         *pane = (SDL_Rect){
             .x = pane_x,
-            .y = coord,
+            .y = pane_y,
             .w = split_px,
             .h = pane_px,
         };
-        coord += pane_px;
+        if (bottom_corner)
+            coord -= pane_px;
+        else
+            coord += pane_px;
 
         if (remaining_px <= pane_px)
             break;
@@ -474,6 +494,11 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type)
         && pane_type_allows_placement(type, PLACE_TOP_LEFT))
     {
         return PLACE_TOP_LEFT;
+    }
+    if (type == PANE_STATUS
+        && pane_type_allows_placement(type, PLACE_BOTTOM_RIGHT))
+    {
+        return PLACE_BOTTOM_RIGHT;
     }
 
     for (int i = 0; i < (int)(sizeof(pane_default_order) / sizeof(pane_default_order[0])); i++) {
@@ -527,6 +552,10 @@ const char* pane_placement_name(enum pane_placement where)
         return "TOP_LEFT";
     case PLACE_TOP_RIGHT:
         return "TOP_RIGHT";
+    case PLACE_BOTTOM_LEFT:
+        return "BOTTOM_LEFT";
+    case PLACE_BOTTOM_RIGHT:
+        return "BOTTOM_RIGHT";
     case PLACE_DOUBLE_LEFT:
         return "DOUBLE_LEFT";
     case PLACE_DOUBLE_RIGHT:
@@ -569,6 +598,10 @@ void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
     layout_corner_group(PLACE_TOP_LEFT, config, count, panes, &main,
         cell_widths, cell_heights, margin);
     layout_corner_group(PLACE_TOP_RIGHT, config, count, panes, &main,
+        cell_widths, cell_heights, margin);
+    layout_corner_group(PLACE_BOTTOM_LEFT, config, count, panes, &main,
+        cell_widths, cell_heights, margin);
+    layout_corner_group(PLACE_BOTTOM_RIGHT, config, count, panes, &main,
         cell_widths, cell_heights, margin);
 
     panes[PANE_MAIN] = main;

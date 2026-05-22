@@ -55,6 +55,7 @@ enum {
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
     MAX_STORY_FONT_CACHE = 32,
     MAX_MONO_FONT_CACHE = 48,
+    SDL_LEFT_PANEL_COLLAPSED_ROWS = 3,
     TOUCH_PANE_LONG_PRESS_MS = 350,
     TOUCH_SWIPE_MIN_DISTANCE_PX = 24,
     TOUCH_SWIPE_MAX_DISTANCE_PX = 72,
@@ -66,6 +67,7 @@ enum {
     SDL_TOUCH_YES_NO_LINE_LEN = 160,
     SDL_TOUCH_TUTORIAL_MAX_LINES = 14,
     SDL_TOUCH_TUTORIAL_LINE_LEN = 192,
+    SDL_STATUS_PANE_MAX_ENTRIES = 48,
 };
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
@@ -97,6 +99,7 @@ typedef enum sdl_startup_device_class {
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 bool g_hide_left_panel = false;
+static bool g_left_panel_pane_expanded = false;
 
 // Sound configuration (loaded from sound.json)
 struct sound_config g_sound_config;
@@ -108,6 +111,8 @@ char config_file_path[1024];
 static const struct pane_config default_pane_config[] = {
     {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
         .rect.cols = 0},
+    {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
+        .rect.rows = 1, .rect.cols = 24},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
@@ -567,6 +572,12 @@ typedef struct side_pane_menu_state {
     float long_press_start_y;
     Uint64 long_press_start_time;
 } side_pane_menu_state;
+
+typedef struct status_pane_entry {
+    char label[32];
+    char detail[64];
+    byte attr;
+} status_pane_entry;
 
 typedef struct log_pane_menu_entry {
     int filter;
@@ -1403,6 +1414,7 @@ static void sdl_map_touch_cancel_press(void);
 static int sdl_map_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_map_touch_flush_pending_press(Uint64 now_ns);
 static bool sdl_main_screen_handle_character_panel_pointer(float x, float y);
+static bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, float y);
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y);
 static bool sdl_pane_layout_drag_handle_pointer_down(float x, float y);
 static bool sdl_pane_layout_drag_handle_pointer_motion(float x, float y);
@@ -1536,6 +1548,9 @@ static void sdl_draw_pane_edges(const SDL_Rect* rect, bool draw_left,
 static bool sdl_should_show_supporting_panes(void);
 static bool sdl_hide_supporting_panes_mode_effective(void);
 static bool sdl_layout_matches_supporting_pane_visibility(void);
+static bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
+    enum pane_placement* out_where);
+static void sdl_status_pane_render(void);
 static void sdl_present_if_needed(sdl_view* d);
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
     bool include_bottom, bool touch_only);
@@ -1546,12 +1561,15 @@ static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static bool sdl_left_panel_pane_layout_enabled(void);
 static bool sdl_left_panel_pane_presentation_active(void);
 static bool sdl_left_panel_pane_runtime_active(void);
+static bool sdl_left_panel_pane_collapsed(void);
 static enum pane_placement sdl_left_panel_pane_placement(void);
 static bool sdl_left_panel_pane_on_right(void);
 static int sdl_left_panel_pane_scale_for_main_scale(int main_scale);
 static int sdl_left_panel_pane_scale_for_view(const sdl_view* view);
+static int sdl_left_panel_collapsed_source_row(int row);
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics);
+static void sdl_update_left_panel_pane_rect(void);
 static int sdl_main_view_visual_cols(const sdl_view* view);
 static int sdl_main_view_visual_rows(const sdl_view* view);
 static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w);
@@ -2198,7 +2216,7 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
 
         configs[*config_count] = default_pane_config[i];
         configs[*config_count].enabled =
-            (pane == PANE_LEFT_PANEL)
+            (pane == PANE_LEFT_PANEL || pane == PANE_STATUS)
                 ? default_pane_config[i].enabled
                 : (enable_new_panes && default_pane_config[i].enabled);
         (*config_count)++;
@@ -2344,6 +2362,9 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
         ? 0
         : ((view && view->rows > 0) ? view->rows - 1 : rows);
 
+    if (sdl_left_panel_pane_collapsed())
+        return SDL_LEFT_PANEL_COLLAPSED_ROWS;
+
     if (rows < row_cut + 1)
         rows = row_cut + 1;
     if (rows < row_poisoned + 1)
@@ -2458,8 +2479,12 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         scale = 1;
 
     panel_rows = sdl_left_panel_pane_rows_for_view(view);
-    (void)sdl_left_panel_content_size_for_view(view, &content_cols,
-        &panel_rows);
+    if (sdl_left_panel_pane_collapsed()) {
+        content_cols = LEFT_PANEL_CONTENT_WID;
+    } else {
+        (void)sdl_left_panel_content_size_for_view(view, &content_cols,
+            &panel_rows);
+    }
     if (content_cols < 1)
         content_cols = 1;
     if (content_cols > LEFT_PANEL_CONTENT_WID)
@@ -2521,6 +2546,21 @@ static bool sdl_left_panel_pane_runtime_active(void)
         && !p_ptr->leaving
         && !p_ptr->is_dead
         && !death_spectator_active();
+}
+
+static bool sdl_left_panel_pane_collapsed(void)
+{
+    return !g_left_panel_pane_expanded;
+}
+
+static int sdl_left_panel_collapsed_source_row(int row)
+{
+    switch (row) {
+    case 0: return ROW_HP;
+    case 1: return ROW_SP;
+    case 2: return ROW_LIGHT;
+    default: return -1;
+    }
 }
 
 static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
@@ -2743,6 +2783,15 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].enabled = true;
             configs[i].rect.rows = 0;
             configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_STATUS:
+            configs[i].where = PLACE_BOTTOM_RIGHT;
+            configs[i].enabled = true;
+            configs[i].rect.rows = 1;
+            configs[i].rect.cols = 24;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -3513,16 +3562,17 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
     for (int i = 0; i < pane_config_count && active_count < MAX_PANE_CONFIGS; i++) {
         enum pane_placement where = pane_config[i].where;
         bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
+        bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
 
         if (pane_config[i].pane == PANE_LEFT_PANEL)
             continue;
-        if (touch_only && !is_touch_pane)
+        if (touch_only && !is_touch_pane && !is_status_pane)
             continue;
         if (is_touch_pane && !proto_touch && sdl_touch_pane_hidden_mode_active())
             continue;
         if (is_touch_pane && !proto_touch && !sdl_touch_pane_mobile_layout_open())
             continue;
-        if (!is_touch_pane) {
+        if (!is_touch_pane && !is_status_pane) {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
             if (pane_placement_is_bottom(where) && !include_bottom)
@@ -4031,7 +4081,8 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
             continue;
         if (pane_config[i].pane == PANE_MAIN
             || pane_config[i].pane == PANE_TOUCH
-            || pane_config[i].pane == PANE_LEFT_PANEL)
+            || pane_config[i].pane == PANE_LEFT_PANEL
+            || pane_config[i].pane == PANE_STATUS)
         {
             continue;
         }
@@ -4694,6 +4745,47 @@ static bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect)
     return true;
 }
 
+static const struct pane_config* sdl_status_pane_config(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_STATUS)
+            return &pane_config[i];
+    }
+
+    return NULL;
+}
+
+static bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
+    enum pane_placement* out_where)
+{
+    const struct pane_config* pc = sdl_status_pane_config();
+    const SDL_Rect* pane;
+    SDL_Rect fallback;
+
+    if (!pc || !pc->enabled)
+        return false;
+    if (screen_saved_fullscreen_active())
+        return false;
+    if (!sdl_layout_matches_supporting_pane_visibility())
+        return false;
+
+    pane = &g_pane_rects[PANE_STATUS];
+    if (pane->w <= 0 || pane->h <= 0) {
+        fallback = g_pane_rects[PANE_MAIN];
+        if (fallback.w <= 0 || fallback.h <= 0)
+            fallback = sdl_get_layout_screen_rect();
+        pane = &fallback;
+    }
+    if (pane->w <= 0 || pane->h <= 0)
+        return false;
+
+    if (out_rect)
+        *out_rect = *pane;
+    if (out_where)
+        *out_where = pc->where;
+    return true;
+}
+
 static float sdl_touch_pane_clampf(float value, float min_value, float max_value)
 {
     if (value < min_value)
@@ -4712,6 +4804,513 @@ static int sdl_touch_pane_story_text_width(TTF_Font* font, cptr text)
 
     TTF_MeasureString(font, text, strlen(text), 0, &width, NULL);
     return width;
+}
+
+static SDL_Color sdl_status_pane_color(byte attr)
+{
+    SDL_Color color = g_state.palette[attr];
+
+    color.a = 255;
+    return color;
+}
+
+static void sdl_status_pane_format_turns(char* buf, size_t buflen, int turns)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    if (turns <= 0) {
+        buf[0] = '\0';
+        return;
+    }
+
+    strnfmt(buf, buflen, "%d", turns);
+}
+
+static void sdl_status_pane_add(status_pane_entry* entries, int max_entries,
+    int* count, cptr label, cptr detail, byte attr)
+{
+    status_pane_entry* entry;
+
+    if (!entries || !count || *count < 0 || *count >= max_entries)
+        return;
+    if (!label || !label[0])
+        return;
+
+    entry = &entries[*count];
+    SDL_strlcpy(entry->label, label, sizeof(entry->label));
+    SDL_strlcpy(entry->detail, detail ? detail : "", sizeof(entry->detail));
+    entry->attr = attr;
+    (*count)++;
+}
+
+static void sdl_status_pane_add_timed(status_pane_entry* entries,
+    int max_entries, int* count, cptr label, int turns, byte attr)
+{
+    char detail[32];
+
+    sdl_status_pane_format_turns(detail, sizeof(detail), turns);
+    sdl_status_pane_add(entries, max_entries, count, label, detail, attr);
+}
+
+static bool sdl_status_pane_song_name(byte song, char* out, size_t out_sz)
+{
+    int ability;
+    cptr name;
+    cptr label;
+
+    if (!out || out_sz == 0)
+        return false;
+    out[0] = '\0';
+
+    if (song == SNG_NOTHING || !b_info || !b_name)
+        return false;
+
+    ability = ability_index(S_SNG, song);
+    if (ability < 0)
+        return false;
+
+    name = b_name + b_info[ability].name;
+    if (!name || !name[0])
+        return false;
+
+    label = (strncmp(name, "Song of ", 8) == 0) ? name + 8 : name;
+    SDL_strlcpy(out, label, out_sz);
+    return out[0] != '\0';
+}
+
+static bool sdl_status_pane_current_song_detail(char* out, size_t out_sz)
+{
+    char song1[32] = "";
+    char song2[32] = "";
+
+    if (!out || out_sz == 0)
+        return false;
+    out[0] = '\0';
+
+    if (!p_ptr)
+        return false;
+    if (p_ptr->song1 == SNG_NOTHING && p_ptr->song2 == SNG_NOTHING)
+        return false;
+
+    (void)sdl_status_pane_song_name(p_ptr->song1, song1, sizeof(song1));
+    (void)sdl_status_pane_song_name(p_ptr->song2, song2, sizeof(song2));
+
+    if (song1[0] && song2[0])
+        strnfmt(out, out_sz, "%s+%s", song1, song2);
+    else if (song1[0])
+        SDL_strlcpy(out, song1, out_sz);
+    else if (song2[0])
+        SDL_strlcpy(out, song2, out_sz);
+    else
+        SDL_strlcpy(out, "active", out_sz);
+
+    return out[0] != '\0';
+}
+
+static int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
+{
+    int count = 0;
+    char detail[64];
+
+    if (!entries || max_entries <= 0 || !p_ptr || !character_generated
+        || character_icky)
+    {
+        return 0;
+    }
+
+    if (p_ptr->running > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Running",
+            p_ptr->running, TERM_L_BLUE);
+    if (p_ptr->stealth_mode)
+        sdl_status_pane_add(entries, max_entries, &count, "Stealth",
+            "", TERM_L_BLUE);
+    if (p_ptr->focused)
+        sdl_status_pane_add(entries, max_entries, &count, "Focused",
+            "", TERM_L_BLUE);
+    if (sdl_status_pane_current_song_detail(detail, sizeof(detail)))
+        sdl_status_pane_add(entries, max_entries, &count, "Singing",
+            detail, TERM_L_BLUE);
+    if (p_ptr->song_contest_player_stacks > 0) {
+        strnfmt(detail, sizeof(detail), "%d",
+            p_ptr->song_contest_player_stacks);
+        sdl_status_pane_add(entries, max_entries, &count, "Contest",
+            detail, TERM_L_BLUE);
+    }
+    if (p_ptr->smithing > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Smithing",
+            p_ptr->smithing, TERM_WHITE);
+    if (p_ptr->fletching > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Fletching",
+            p_ptr->fletching, TERM_WHITE);
+    if (p_ptr->resting) {
+        if (p_ptr->resting == -1)
+            SDL_strlcpy(detail, "until healed", sizeof(detail));
+        else if (p_ptr->resting == -2)
+            SDL_strlcpy(detail, "until done", sizeof(detail));
+        else
+            sdl_status_pane_format_turns(detail, sizeof(detail),
+                p_ptr->resting);
+        sdl_status_pane_add(entries, max_entries, &count, "Resting",
+            detail, TERM_WHITE);
+    }
+    if (p_ptr->command_rep > 0) {
+        strnfmt(detail, sizeof(detail), "%d left", p_ptr->command_rep);
+        sdl_status_pane_add(entries, max_entries, &count, "Repeat",
+            detail, TERM_WHITE);
+    }
+
+    if (p_ptr->entranced > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Entranced",
+            p_ptr->entranced, TERM_RED);
+    if (p_ptr->afraid > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Afraid",
+            p_ptr->afraid, TERM_ORANGE);
+    if (p_ptr->confused > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Confused",
+            p_ptr->confused, TERM_ORANGE);
+    if (p_ptr->stun > 100)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Knocked out",
+            p_ptr->stun, TERM_RED);
+    else if (p_ptr->stun > 50)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Heavy stun",
+            p_ptr->stun, TERM_ORANGE);
+    else if (p_ptr->stun > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Stunned",
+            p_ptr->stun, TERM_ORANGE);
+    if (p_ptr->blind > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Blind",
+            p_ptr->blind, TERM_ORANGE);
+    if (p_ptr->image > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Hallucinating", p_ptr->image, TERM_VIOLET);
+    if (p_ptr->poisoned > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Poisoned",
+            p_ptr->poisoned, TERM_L_GREEN);
+    if (p_ptr->cut > 100)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Mortal wound", p_ptr->cut, TERM_RED);
+    else if (p_ptr->cut > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Bleeding",
+            p_ptr->cut, (p_ptr->cut > 20) ? TERM_RED : TERM_L_RED);
+    if (p_ptr->darkened > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Darkened",
+            p_ptr->darkened, TERM_SLATE);
+    if (p_ptr->rage > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Rage",
+            p_ptr->rage, TERM_RED);
+
+    if (p_ptr->food < PY_FOOD_STARVE)
+        sdl_status_pane_add(entries, max_entries, &count, "Starving",
+            "", TERM_RED);
+    else if (p_ptr->food < PY_FOOD_WEAK)
+        sdl_status_pane_add(entries, max_entries, &count, "Weak",
+            "", TERM_ORANGE);
+    else if (p_ptr->food < PY_FOOD_ALERT)
+        sdl_status_pane_add(entries, max_entries, &count, "Hungry",
+            "", TERM_YELLOW);
+    else if (p_ptr->food >= PY_FOOD_FULL)
+        sdl_status_pane_add(entries, max_entries, &count, "Full",
+            "", TERM_L_GREEN);
+
+    if (p_ptr->fast > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Fast",
+            p_ptr->fast, TERM_L_GREEN);
+    if (p_ptr->slow > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Slow",
+            p_ptr->slow, TERM_ORANGE);
+    if (!p_ptr->fast && !p_ptr->slow && p_ptr->pspeed > 2)
+        sdl_status_pane_add(entries, max_entries, &count, "Fast",
+            "", TERM_L_GREEN);
+    else if (!p_ptr->fast && !p_ptr->slow && p_ptr->pspeed < 2)
+        sdl_status_pane_add(entries, max_entries, &count, "Slow",
+            "", TERM_ORANGE);
+    if (p_ptr->tmp_str > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Strong",
+            p_ptr->tmp_str, TERM_L_GREEN);
+    if (p_ptr->tmp_dex > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Agile",
+            p_ptr->tmp_dex, TERM_L_GREEN);
+    if (p_ptr->tmp_con > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Resilient",
+            p_ptr->tmp_con, TERM_L_GREEN);
+    if (p_ptr->tmp_gra > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Grace",
+            p_ptr->tmp_gra, TERM_L_GREEN);
+    if (p_ptr->tmp_per > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count, "Perceptive",
+            p_ptr->tmp_per, TERM_L_GREEN);
+    if (p_ptr->tim_invis > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "See invisible", p_ptr->tim_invis, TERM_L_BLUE);
+    if (p_ptr->oppose_fire > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Resist fire", p_ptr->oppose_fire, TERM_L_RED);
+    if (p_ptr->oppose_cold > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Resist cold", p_ptr->oppose_cold, TERM_L_BLUE);
+    if (p_ptr->oppose_pois > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Resist poison", p_ptr->oppose_pois, TERM_L_GREEN);
+    if (p_ptr->song_challenge_effect > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Challenge echo", p_ptr->song_challenge_effect, TERM_ORANGE);
+    if (p_ptr->song_elbereth_effect > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Elbereth echo", p_ptr->song_elbereth_effect, TERM_ORANGE);
+    if (p_ptr->song_lockout_timer > 0)
+        sdl_status_pane_add_timed(entries, max_entries, &count,
+            "Song lockout", p_ptr->song_lockout_timer, TERM_SLATE);
+
+    if (p_ptr->climbing)
+        sdl_status_pane_add(entries, max_entries, &count, "Climbing",
+            "", TERM_WHITE);
+    if (p_ptr->leaping)
+        sdl_status_pane_add(entries, max_entries, &count, "Leaping",
+            "", TERM_WHITE);
+    if (p_ptr->knocked_back)
+        sdl_status_pane_add(entries, max_entries, &count, "Knocked back",
+            "", TERM_ORANGE);
+    if (p_ptr->skip_next_turn)
+        sdl_status_pane_add(entries, max_entries, &count, "Skip turn",
+            "", TERM_ORANGE);
+    if (p_ptr->was_entranced)
+        sdl_status_pane_add(entries, max_entries, &count, "Waking",
+            "", TERM_ORANGE);
+    if (p_ptr->vengeance > 0) {
+        strnfmt(detail, sizeof(detail), "%d", p_ptr->vengeance);
+        sdl_status_pane_add(entries, max_entries, &count, "Vengeance",
+            detail, TERM_L_RED);
+    }
+    if (p_ptr->truce)
+        sdl_status_pane_add(entries, max_entries, &count, "Truce",
+            "", TERM_L_BLUE);
+    if (p_ptr->on_the_run)
+        sdl_status_pane_add(entries, max_entries, &count, "On the run",
+            "", TERM_L_RED);
+    if (p_ptr->cursed)
+        sdl_status_pane_add(entries, max_entries, &count, "Cursed",
+            "", TERM_ORANGE);
+
+    if (in_bounds(p_ptr->py, p_ptr->px)) {
+        if (cave_pit_bold(p_ptr->py, p_ptr->px) && !p_ptr->leaping)
+            sdl_status_pane_add(entries, max_entries, &count, "In pit",
+                "", TERM_ORANGE);
+        else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
+            sdl_status_pane_add(entries, max_entries, &count, "In web",
+                "", TERM_ORANGE);
+        else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
+            sdl_status_pane_add(entries, max_entries, &count, "Sunlight",
+                "", TERM_YELLOW);
+    }
+
+    return count;
+}
+
+static int sdl_status_pane_visible_rows(int count, int panel_max_h, int row_h,
+    int pad_y)
+{
+    int rows;
+
+    if (count <= 0 || panel_max_h <= 0 || row_h <= 0)
+        return 0;
+
+    rows = (panel_max_h - pad_y * 2) / row_h;
+    if (rows < 1)
+        rows = 1;
+    if (rows > count)
+        rows = count;
+
+    return rows;
+}
+
+static void sdl_status_pane_draw_text(TTF_Font* font, cptr text,
+    SDL_Color color, float x, float y, float max_w, float row_h,
+    bool right_align)
+{
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect dst;
+    float scale = 1.0f;
+
+    if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
+        return;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    if (surface->w > 0 && (float)surface->w > max_w)
+        scale = max_w / (float)surface->w;
+
+    dst.w = (float)surface->w * scale;
+    dst.h = (float)surface->h * scale;
+    dst.x = right_align ? x + max_w - dst.w : x;
+    dst.y = y + (row_h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+static void sdl_status_pane_render(void)
+{
+    status_pane_entry entries[SDL_STATUS_PANE_MAX_ENTRIES];
+    SDL_Rect anchor;
+    SDL_Rect screen;
+    enum pane_placement where;
+    TTF_Font* font;
+    int count;
+    int font_px;
+    int row_h;
+    int pad_x;
+    int pad_y;
+    int max_panel_w;
+    int max_panel_h;
+    int render_count;
+    int more_count;
+    int max_line_w = 0;
+    int panel_w;
+    int panel_h;
+    float x;
+    float y;
+    SDL_FRect panel;
+
+    if (!sdl_status_pane_current_rect(&anchor, &where))
+        return;
+
+    count = sdl_status_pane_collect(entries, SDL_STATUS_PANE_MAX_ENTRIES);
+    if (count <= 0)
+        return;
+
+    font_px = sdl_effective_pane_font_size_for_type(PANE_STATUS);
+    if (font_px < 8)
+        font_px = 8;
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return;
+
+    row_h = (int)(g_state.system_scale * (float)font_px * 1.35f);
+    if (row_h < font_px + 2)
+        row_h = font_px + 2;
+    pad_x = (int)(g_state.system_scale * 7.0f);
+    pad_y = (int)(g_state.system_scale * 5.0f);
+    if (pad_x < 5)
+        pad_x = 5;
+    if (pad_y < 4)
+        pad_y = 4;
+
+    screen = sdl_get_layout_screen_rect();
+    max_panel_w = screen.w - pad_x * 2;
+    max_panel_h = screen.h - pad_y * 2;
+    if (max_panel_w <= 0 || max_panel_h <= 0)
+        return;
+
+    render_count = sdl_status_pane_visible_rows(count, max_panel_h, row_h,
+        pad_y);
+    if (render_count <= 0)
+        return;
+    more_count = count - render_count;
+
+    for (int i = 0; i < render_count; i++) {
+        char line[96];
+        int line_w;
+        char more_detail[24];
+
+        if (more_count > 0 && i == render_count - 1) {
+            strnfmt(more_detail, sizeof(more_detail), "+%d", more_count + 1);
+            strnfmt(line, sizeof(line), "More %s", more_detail);
+        } else if (entries[i].detail[0]) {
+            strnfmt(line, sizeof(line), "%s %s", entries[i].label,
+                entries[i].detail);
+        } else {
+            SDL_strlcpy(line, entries[i].label, sizeof(line));
+        }
+
+        line_w = sdl_touch_pane_story_text_width(font, line);
+        if (line_w > max_line_w)
+            max_line_w = line_w;
+    }
+
+    panel_w = pad_x * 2 + max_line_w;
+    if (panel_w < (int)(g_state.system_scale * 78.0f))
+        panel_w = (int)(g_state.system_scale * 78.0f);
+    if (panel_w > max_panel_w)
+        panel_w = max_panel_w;
+
+    panel_h = pad_y * 2 + render_count * row_h;
+    if (panel_h > max_panel_h)
+        panel_h = max_panel_h;
+
+    if (where == PLACE_TOP_RIGHT || where == PLACE_BOTTOM_RIGHT)
+        x = (float)(anchor.x + anchor.w - panel_w);
+    else
+        x = (float)anchor.x;
+    if (where == PLACE_BOTTOM_LEFT || where == PLACE_BOTTOM_RIGHT)
+        y = (float)(anchor.y + anchor.h - panel_h);
+    else
+        y = (float)anchor.y;
+
+    if (x < (float)screen.x)
+        x = (float)screen.x;
+    if (y < (float)screen.y)
+        y = (float)screen.y;
+    if (x + (float)panel_w > (float)(screen.x + screen.w))
+        x = (float)(screen.x + screen.w - panel_w);
+    if (y + (float)panel_h > (float)(screen.y + screen.h))
+        y = (float)(screen.y + screen.h - panel_h);
+
+    panel = (SDL_FRect){
+        .x = x,
+        .y = y,
+        .w = (float)panel_w,
+        .h = (float)panel_h,
+    };
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 5, 7, 9, 222);
+    SDL_RenderFillRect(g_state.renderer, &panel);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 118);
+    SDL_RenderRect(g_state.renderer, &panel);
+
+    {
+        float text_x = panel.x + (float)pad_x;
+        float row_y = panel.y + (float)pad_y;
+        float text_area = panel.w - (float)(pad_x * 2);
+
+        for (int i = 0; i < render_count; i++) {
+            char line[96];
+            byte attr = entries[i].attr;
+            char more_detail[24];
+            SDL_Color color;
+
+            if (more_count > 0 && i == render_count - 1) {
+                strnfmt(more_detail, sizeof(more_detail), "+%d",
+                    more_count + 1);
+                strnfmt(line, sizeof(line), "More %s", more_detail);
+                attr = TERM_SLATE;
+            } else if (entries[i].detail[0]) {
+                strnfmt(line, sizeof(line), "%s %s", entries[i].label,
+                    entries[i].detail);
+            } else {
+                SDL_strlcpy(line, entries[i].label, sizeof(line));
+            }
+
+            color = sdl_status_pane_color(attr);
+            sdl_status_pane_draw_text(font, line, color, text_x, row_y,
+                text_area, (float)row_h, false);
+
+            row_y += (float)row_h;
+        }
+    }
 }
 
 static int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
@@ -10015,6 +10614,27 @@ static bool sdl_object_tooltip_feature_name(int y, int x, cptr* out_name)
     return true;
 }
 
+static void sdl_object_tooltip_monster_morale_text(monster_type* m_ptr,
+    char* out, size_t out_len)
+{
+    int color = TERM_WHITE;
+    int morale_num;
+
+    if (!out || !out_len)
+        return;
+
+    out[0] = '\0';
+    if (!m_ptr)
+        return;
+
+    if (get_alertness_text(m_ptr, (int)out_len, out, &color))
+        return;
+
+    morale_num = (m_ptr->morale >= 0) ? ((m_ptr->morale + 9) / 10)
+                                      : (m_ptr->morale / 10);
+    strnfmt(out, out_len, "%d", morale_num);
+}
+
 static bool sdl_object_tooltip_format_grid(int y, int x, char* out,
     size_t out_len)
 {
@@ -10033,10 +10653,33 @@ static bool sdl_object_tooltip_format_grid(int y, int x, char* out,
         return false;
 
     if (sdl_mouse_grid_has_visible_monster(y, x, &m_idx)) {
+        monster_type* m_ptr = &mon_list[m_idx];
         char m_name[80];
+        char hp_bar[10];
+        char morale_text[24];
+        char m_label[144];
 
-        monster_desc(m_name, sizeof(m_name), &mon_list[m_idx], 0x08);
-        sdl_object_tooltip_append_part(buf, buflen, m_name);
+        monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+        sdl_object_tooltip_monster_morale_text(m_ptr, morale_text,
+            sizeof(morale_text));
+        if (m_ptr->maxhp > 0) {
+            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            if (morale_text[0])
+                strnfmt(m_label, sizeof(m_label), "%s [HP: %s, Morale: %s]",
+                    m_name, hp_bar[0] ? hp_bar : "-", morale_text);
+            else
+                strnfmt(m_label, sizeof(m_label), "%s [HP: %s]", m_name,
+                    hp_bar[0] ? hp_bar : "-");
+            sdl_object_tooltip_append_part(buf, buflen, m_label);
+        } else {
+            if (morale_text[0]) {
+                strnfmt(m_label, sizeof(m_label), "%s [Morale: %s]", m_name,
+                    morale_text);
+                sdl_object_tooltip_append_part(buf, buflen, m_label);
+            } else {
+                sdl_object_tooltip_append_part(buf, buflen, m_name);
+            }
+        }
     }
 
     if (cave_floorlike_bold(y, x) || cave_feat[y][x] == FEAT_SUNLIGHT) {
@@ -12130,6 +12773,26 @@ static bool sdl_point_in_rect(const SDL_Rect* rect, float x, float y)
         && y >= (float)rect->y
         && x < (float)(rect->x + rect->w)
         && y < (float)(rect->y + rect->h);
+}
+
+static bool sdl_left_panel_pane_hit(float x, float y)
+{
+    if (get_sdl_hide_left_panel())
+        return false;
+    if (!sdl_left_panel_pane_runtime_active())
+        return false;
+
+    return sdl_point_in_rect(&g_pane_rects[PANE_LEFT_PANEL], x, y);
+}
+
+static void sdl_left_panel_pane_set_expanded(bool expanded)
+{
+    if (g_left_panel_pane_expanded == expanded)
+        return;
+
+    g_left_panel_pane_expanded = expanded;
+    sdl_update_left_panel_pane_rect();
+    g_state.need_present = true;
 }
 
 static bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
@@ -14989,8 +15652,15 @@ static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
     if (col < 0 || row < 0)
         return false;
 
-    if (!get_sdl_hide_left_panel())
+    if (!get_sdl_hide_left_panel()) {
+        if (sdl_left_panel_pane_presentation_active()
+            && sdl_left_panel_pane_collapsed())
+        {
+            return row < SDL_LEFT_PANEL_COLLAPSED_ROWS && col < COL_MAP;
+        }
+
         return (row > 0 && col < COL_MAP);
+    }
 
     if (g_suppress_hidden_left_panel_overlay)
         return false;
@@ -15334,6 +16004,14 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         return false;
     if (sdl_touch_zone_controls_active())
         return false;
+    if (sdl_left_panel_pane_collapsed()
+        && sdl_left_panel_pane_hit(x, y))
+    {
+        sdl_left_panel_pane_set_expanded(true);
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, false);
+        return true;
+    }
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
     if (!sdl_main_screen_cell_hits_character_panel(col, row))
@@ -15363,6 +16041,23 @@ static bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
         return true;
     }
 
+    return true;
+}
+
+static bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, float y)
+{
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (sdl_touch_zone_controls_active())
+        return false;
+    if (sdl_left_panel_pane_collapsed())
+        return false;
+    if (!sdl_left_panel_pane_hit(x, y))
+        return false;
+
+    sdl_left_panel_pane_set_expanded(false);
+    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+        SDL_PANEL_CLICK_NONE, -1, false);
     return true;
 }
 
@@ -16225,6 +16920,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_MAP: return "Map";
     case PANE_ROLLS: return "Rolls";
     case PANE_LEFT_PANEL: return "Left Panel";
+    case PANE_STATUS: return "Status";
     default: return "Pane";
     }
 }
@@ -22165,6 +22861,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_main_screen_handle_character_panel_secondary_pointer(
+                (float)ev->button.x, (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_unified_look_handle_map_describe_pointer(
                     (float)ev->button.x, (float)ev->button.y))
             {
@@ -23221,6 +23922,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     int atlas_cell_w;
     int atlas_cell_h;
     bool place_right;
+    bool collapsed;
     float content_x;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
@@ -23275,19 +23977,30 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     }
     SDL_RenderClear(g_state.renderer);
 
-    for (int row = 0; row < visual_rows && row < t->hgt; row++) {
+    collapsed = sdl_left_panel_pane_collapsed();
+
+    for (int row = 0; row < visual_rows; row++) {
+        int source_row = collapsed
+            ? sdl_left_panel_collapsed_source_row(row)
+            : row;
         int col = 0;
 
         if (row * metrics.cell_h >= canvas_h)
             break;
-        if (!scr->a[row] || !scr->c[row])
+        if (source_row < 0 || source_row >= t->hgt)
+            continue;
+        if (!scr->a[source_row] || !scr->c[source_row])
             continue;
 
         while (col < metrics.content_cols && col < t->wid) {
-            byte a = scr->a[row][col];
-            char c = scr->c[row][col];
-            byte ta = (scr->ta && scr->ta[row]) ? scr->ta[row][col] : 0;
-            char tc = (scr->tc && scr->tc[row]) ? scr->tc[row][col] : 0;
+            byte a = scr->a[source_row][col];
+            char c = scr->c[source_row][col];
+            byte ta = (scr->ta && scr->ta[source_row])
+                ? scr->ta[source_row][col]
+                : 0;
+            char tc = (scr->tc && scr->tc[source_row])
+                ? scr->tc[source_row][col]
+                : 0;
 
             if ((a == 255) && ((byte)c == 0xFF)) {
                 col++;
@@ -23326,8 +24039,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                 while (col < metrics.content_cols && col < t->wid
                     && len < LEFT_PANEL_CONTENT_WID)
                 {
-                    byte run_a = scr->a[row][col];
-                    char run_c = scr->c[row][col];
+                    byte run_a = scr->a[source_row][col];
+                    char run_c = scr->c[source_row][col];
 
                     if (run_a != a)
                         break;
@@ -23530,6 +24243,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_pointer_aim_render();
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
+    sdl_status_pane_render();
     sdl_object_tooltip_render();
     sdl_player_exchange_render();
     sdl_player_action_menu_render();
@@ -29347,6 +30061,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_MAP: type_str = "MAP"; break;
             case PANE_TOUCH: type_str = "TOUCH"; break;
             case PANE_LEFT_PANEL: type_str = "LEFT_PANEL"; break;
+            case PANE_STATUS: type_str = "STATUS"; break;
             default: break;
         }
         

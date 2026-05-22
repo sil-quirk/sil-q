@@ -306,6 +306,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_MAP: return "MAP";
         case PANE_TOUCH: return "TOUCH";
         case PANE_LEFT_PANEL: return "LEFT_PANEL";
+        case PANE_STATUS: return "STATUS";
         default: return "MAIN";
     }
 }
@@ -326,6 +327,7 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "TOUCH") == 0) return PANE_TOUCH;
     if (strcmp(value, "LEFT_PANEL") == 0 || strcmp(value, "LEFT PANEL") == 0)
         return PANE_LEFT_PANEL;
+    if (strcmp(value, "STATUS") == 0) return PANE_STATUS;
     return PANE_MAIN;
 }
 
@@ -347,6 +349,10 @@ static enum pane_placement parse_pane_placement(const char* value)
         return PLACE_TOP_LEFT;
     if (strcmp(value, "TOP_RIGHT") == 0 || strcmp(value, "TOP RIGHT") == 0)
         return PLACE_TOP_RIGHT;
+    if (strcmp(value, "BOTTOM_LEFT") == 0 || strcmp(value, "BOTTOM LEFT") == 0)
+        return PLACE_BOTTOM_LEFT;
+    if (strcmp(value, "BOTTOM_RIGHT") == 0 || strcmp(value, "BOTTOM RIGHT") == 0)
+        return PLACE_BOTTOM_RIGHT;
     if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
         return PLACE_DOUBLE_LEFT;
     if (strcmp(value, "DOUBLE_RIGHT") == 0 || strcmp(value, "DOUBLE RIGHT") == 0)
