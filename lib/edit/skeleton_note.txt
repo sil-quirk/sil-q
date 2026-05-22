@@ -535,7 +535,7 @@ M:ANY:TIP:100:Your supply is limited by weight.
 M:ANY:TIP:100:Items in your inventory are limited by number in each category.
 M:ANY:TIP:100:Do not forget to use diagonal movement.
 M:ANY:TIP:100:You can reassign controls in the options.
-M:ANY:TIP:100:You can scale your game size by Alt+'+' or Alt+'-'.
+M:ANY:TIP:100:You can zoom the main map by Alt+'+' or Alt+'-'.
 M:ANY:TIP:100:You can hide or unhide the right panel by Alt+'i'.
 M:ANY:TIP:100:You can hide or unhide the bottom panel by Alt+'l'.
 M:ANY:TIP:100:You can hide the left status panel by Alt+'p'.

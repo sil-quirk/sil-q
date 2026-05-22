@@ -64,7 +64,8 @@ struct pane_config {
     bool enabled;
     struct rect rect;
     // Monospace font size for this supporting pane. Zero uses the default aux
-    // font size, which may itself be auto-derived from the main view scale.
+    // font size, which may itself be auto-derived from the configured main
+    // view scale.
     int font_size;
     // Ratio along the secondary axis, so if the pane is on the right, it's part
     // of the height of the whole window it takes, and if the pane is in the

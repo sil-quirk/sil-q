@@ -5283,8 +5283,8 @@ static bool unified_look_apply_map_pan(unified_look_state* state, int pan_dy,
 
 static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
 {
-    int max_scale = get_sdl_max_scale();
-    int old_scale = get_sdl_main_view_scale();
+    int max_scale = get_sdl_max_main_view_zoom_scale();
+    int old_scale = get_sdl_effective_main_view_scale();
 
     if (max_scale < 1)
         max_scale = 1;
@@ -5295,8 +5295,8 @@ static bool unified_look_apply_main_zoom(int scale, bool* need_redraw)
     if (scale == old_scale)
         return true;
 
-    set_sdl_main_view_scale(scale);
-    if (get_sdl_main_view_scale() == old_scale)
+    set_sdl_main_view_zoom_scale(scale);
+    if (get_sdl_effective_main_view_scale() == old_scale)
         return true;
 
     sdl_apply_config_no_redraw();
@@ -5948,14 +5948,14 @@ void do_cmd_unified_look(void)
             case '+':
             {
                 (void)unified_look_apply_main_zoom(
-                    get_sdl_main_view_scale() + 1, &need_redraw);
+                    get_sdl_effective_main_view_scale() + 1, &need_redraw);
                 break;
             }
 
             case '-':
             {
                 (void)unified_look_apply_main_zoom(
-                    get_sdl_main_view_scale() - 1, &need_redraw);
+                    get_sdl_effective_main_view_scale() - 1, &need_redraw);
                 break;
             }
             

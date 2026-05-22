@@ -18966,8 +18966,8 @@ void do_cmd_pane_settings(void)
         strnfmt(value_buf, sizeof(value_buf), "%d", get_sdl_main_view_scale());
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
-                "Main View Scale (1-max) [Alt++/-]",
-                "Main View Scale [Alt++/-]",
+                "Main Terminal Scale (1-max)",
+                "Main Terminal Scale",
                 "View Scale"),
             value_buf, row_width, 3);
         c_prt(a, buf, y0 + 1, 2);

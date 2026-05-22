@@ -108,8 +108,8 @@ struct sdl_pane_profile {
 // SDL-specific configuration structure
 struct sdl_config {
     int main_view_scale;
-    // Default supporting-pane font size. Zero means auto from the main pane's
-    // visible font/cell height.
+    // Default supporting-pane font size. Zero means auto from the configured
+    // main view scale, independent of temporary main-map zoom.
     int aux_view_font_size;
     int margin;
     bool fullscreen;

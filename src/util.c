@@ -3259,6 +3259,8 @@ void screen_save(void)
     /* Hack -- Flush messages */
     message_flush();
 
+    sdl_suspend_main_view_zoom_for_saved_screen();
+
     /* Log line 0 state before save */
     if (Term && Term->scr)
     {
@@ -3329,6 +3331,7 @@ static void screen_load_impl(bool refresh_restored_screen)
     if (restored_screen && refresh_restored_screen)
         Term_fresh();
 
+    sdl_resume_main_view_zoom_for_saved_screen();
     sdl_refresh_supporting_panes_layout();
 }
 
