@@ -1620,6 +1620,7 @@ static void sdl_present_if_needed(sdl_view* d);
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
     bool include_bottom, bool touch_only);
 static int sdl_configured_main_view_scale(void);
+static int sdl_main_view_layout_scale(void);
 static int sdl_current_main_view_scale(void);
 static int sdl_auto_aux_view_font_size(void);
 static int sdl_resolve_aux_view_font_size(int requested_size);
@@ -3752,6 +3753,18 @@ static int sdl_configured_main_view_scale(void)
     return scale;
 }
 
+static int sdl_main_view_layout_scale(void)
+{
+    int scale = g_main_view_layout_scale_override;
+
+    if (scale <= 0)
+        scale = sdl_configured_main_view_scale();
+    if (scale < 1)
+        scale = 1;
+
+    return scale;
+}
+
 static bool sdl_main_view_zoom_keep_for_saved_screen(void)
 {
     return g_unified_look_active;
@@ -3873,8 +3886,14 @@ static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
         cell_heights[i] = default_cell_h;
     }
 
-    cell_widths[PANE_MAIN] = sdl_current_main_view_scale() * TILE_SIZE / 2;
-    cell_heights[PANE_MAIN] = sdl_current_main_view_scale() * TILE_SIZE;
+    {
+        /* Pane placement is part of the persistent layout.  Runtime zoom only
+         * changes how the main term is rendered inside that rectangle. */
+        int main_scale = sdl_main_view_layout_scale();
+
+        cell_widths[PANE_MAIN] = main_scale * TILE_SIZE / 2;
+        cell_heights[PANE_MAIN] = main_scale * TILE_SIZE;
+    }
 
     for (int i = 0; i < count; i++) {
         enum pane_type type = configs[i].pane;
@@ -4212,6 +4231,9 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     int saved_aux_override = g_auto_aux_main_cell_h_override;
     bool include_side = config.enable_right_panes;
     bool include_bottom = config.enable_bottom_panes;
+    int layout_scale;
+    int layout_min_cols;
+    int layout_min_rows;
     int cell_w;
     int cell_h;
     int cols = 0;
@@ -4233,25 +4255,36 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     if (!sdl_min_terminal_mode_is_valid(mode))
         return;
 
+    /* Temporary zoom changes the rendered main view scale, but pane
+     * visibility/layout still follows the saved main scale. */
+    layout_scale = aux_follows_candidate_scale
+        ? scale
+        : sdl_configured_main_view_scale();
+    layout_min_cols = aux_follows_candidate_scale
+        ? min_main_cols
+        : sdl_min_terminal_cols_for_mode(mode);
+    layout_min_rows = aux_follows_candidate_scale
+        ? min_main_rows
+        : sdl_min_terminal_rows_for_mode(mode);
+
     config.min_terminal_mode = mode;
-    g_main_view_layout_scale_override = scale;
+    g_main_view_layout_scale_override = layout_scale;
     if (aux_follows_candidate_scale) {
         config.main_view_scale = scale;
         g_auto_aux_main_cell_h_override = scale * TILE_SIZE;
     } else {
-        g_auto_aux_main_cell_h_override =
-            sdl_configured_main_view_scale() * TILE_SIZE;
+        g_auto_aux_main_cell_h_override = layout_scale * TILE_SIZE;
     }
 
     cell_w = scale * TILE_SIZE / 2;
     cell_h = scale * TILE_SIZE;
-    if (min_main_cols < 1)
-        min_main_cols = 1;
-    if (min_main_rows < 1)
-        min_main_rows = 1;
+    if (layout_min_cols < 1)
+        layout_min_cols = 1;
+    if (layout_min_rows < 1)
+        layout_min_rows = 1;
 
     sdl_place_active_panes_fitting_main(screen, target_panes, include_side,
-        include_bottom, false, min_main_cols, min_main_rows, &include_side,
+        include_bottom, false, layout_min_cols, layout_min_rows, &include_side,
         &include_bottom);
     cols = (cell_w > 0)
         ? sdl_main_view_logical_cols_for_visual_cols(
@@ -23566,6 +23599,7 @@ void resize(const SDL_Rect* screen)
     bool include_side = config.enable_right_panes;
     bool include_bottom = config.enable_bottom_panes;
     int main_view_scale = sdl_current_main_view_scale();
+    int layout_main_view_scale = sdl_main_view_layout_scale();
 
     if (!show_supporting_panes)
     {
@@ -23578,11 +23612,12 @@ void resize(const SDL_Rect* screen)
     // If it doesn't, remove panes along the corresponding axis (or axes).
     // Also remove panes if user has disabled them via settings.
     if (show_supporting_panes) {
-        int cell_w = main_view_scale * TILE_SIZE / 2;
-        int cell_h = main_view_scale * TILE_SIZE;
+        int cell_w = layout_main_view_scale * TILE_SIZE / 2;
+        int cell_h = layout_main_view_scale * TILE_SIZE;
         int min_main_cols = sdl_current_min_terminal_cols();
         int min_main_rows = sdl_current_min_terminal_rows();
-        log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, main_view_scale, TILE_SIZE);
+        log_debug("Layout cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d, render_scale=%d)",
+            cell_w, cell_h, layout_main_view_scale, TILE_SIZE, main_view_scale);
         int cols;
         int rows;
 
