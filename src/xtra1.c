@@ -66,7 +66,11 @@ static bool ui_wound_rows_overlap_status_line(void)
 
 static bool ui_top_status_line(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
     return (op_ptr && op_ptr->opt[OPT_top_status_line]);
+#endif
 }
 
 typedef struct hidden_overlay_line {

@@ -498,7 +498,7 @@ cptr option_desc[OPT_MAX] = {
     "Start look (l) with the nearby-only sidebar filter enabled", /* OPT_look_nearby_filter_default */
     "Debug: Show elemental item break rolls and target probabilities", /* OPT_show_elemental_item_rolls */
     NULL, /* OPT_hidden_left_panel_mode */
-    "Move the bottom status line to the top and hide the main message line", /* OPT_top_status_line */
+    "Hide the main message row; SDL shows depth and partition in a top menu pane", /* OPT_top_status_line */
     "Hide supporting panes on full-screen menus when that frees space", /* OPT_hide_supporting_panes_fullscreen */
     "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
     "Minimum depth pace (0=normal, 1=relaxed [+30000], 2=harsh [-30000])", /* OPT_min_depth_timer_mode */

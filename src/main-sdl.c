@@ -1116,6 +1116,7 @@ static int g_main_screen_status_selected_action = SDL_STATUS_CLICK_NONE;
 static int g_main_screen_status_selected_col = -1;
 static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
 static int g_main_screen_panel_selected_row = -1;
+static bool g_depth_menu_pane_hover = false;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
 static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
@@ -1329,6 +1330,10 @@ static bool sdl_main_map_handle_zoom_wheel(
     const SDL_MouseWheelEvent* wheel);
 static bool sdl_main_screen_adjust_main_view_scale(int delta);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
+static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out);
+static bool sdl_depth_menu_pane_handle_hover_pointer(float x, float y);
+static bool sdl_depth_menu_pane_handle_pointer(float x, float y);
+static void sdl_depth_menu_pane_render(void);
 static bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y);
 static bool sdl_main_screen_handle_status_line_pointer(float x, float y);
@@ -1444,6 +1449,7 @@ static bool sdl_pointer_attack_handle_touch_up(float x, float y,
 static int sdl_pointer_attack_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_pointer_attack_flush_pending_press(Uint64 now_ns);
 static void sdl_pointer_attack_cancel_touch_press(void);
+static void sdl_pointer_attack_set_panel_hover_mode(int mode);
 static void sdl_pointer_attack_render(void);
 static bool sdl_pointer_aim_handle_motion(float x, float y);
 static bool sdl_pointer_aim_handle_left_click(float x, float y);
@@ -5621,6 +5627,249 @@ static void sdl_status_pane_render(void)
             row_y += (float)row_h;
         }
     }
+}
+
+static cptr sdl_depth_menu_partition_label(void)
+{
+    if (!p_ptr || !character_dungeon)
+        return "";
+
+    switch (level_partition_kind_for_point(p_ptr->py, p_ptr->px))
+    {
+    case LEVEL_PART_ROOMY:
+        return "Room";
+    case LEVEL_PART_RUINED:
+        return "Ruin";
+    case LEVEL_PART_CAVEY:
+        return "Cave";
+    case LEVEL_PART_BIG_CAVE:
+        return "Big Cave";
+    case LEVEL_PART_LABYRINTH:
+        return "Labyrinth";
+    case LEVEL_PART_CHASM:
+        return "Chasm";
+    default:
+        return "";
+    }
+}
+
+static void sdl_depth_menu_pane_label(char* out, size_t out_sz)
+{
+    cptr partition;
+    char depth[24];
+
+    if (!out || out_sz == 0)
+        return;
+    out[0] = '\0';
+
+    if (!p_ptr)
+        return;
+
+    if (!p_ptr->depth)
+        SDL_strlcpy(depth, "Surface", sizeof(depth));
+    else
+        strnfmt(depth, sizeof(depth), "%d ft", p_ptr->depth * 50);
+
+    partition = sdl_depth_menu_partition_label();
+    if (partition && partition[0] && p_ptr->depth)
+        strnfmt(out, out_sz, "%s - %s", partition, depth);
+    else
+        SDL_strlcpy(out, depth, out_sz);
+}
+
+static int sdl_depth_menu_pane_font_px(const sdl_view* view)
+{
+    int font_px = (view && view->cell_h > 0)
+        ? view->cell_h - 4
+        : (int)(g_state.system_scale * 16.0f);
+
+    if (font_px < 11)
+        font_px = 11;
+    if (font_px > 22)
+        font_px = 22;
+
+    return font_px;
+}
+
+static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    SDL_Rect screen;
+    SDL_FRect anchor;
+    char label[64];
+    TTF_Font* font;
+    int font_px;
+    int text_w;
+    float pad_x;
+    float pad_y;
+    float panel_w;
+    float panel_h;
+    float max_w;
+    float top_h;
+
+    if (out)
+        *out = (SDL_FRect){ 0 };
+
+    if (!character_generated || !character_dungeon || character_icky)
+        return false;
+    if (!p_ptr || screen_saved_fullscreen_active())
+        return false;
+
+    sdl_depth_menu_pane_label(label, sizeof(label));
+    if (!label[0])
+        return false;
+
+    if (view->term_ready && view->canvas && view->cell_w > 0
+        && view->cell_h > 0 && view->rect.w > 0 && view->rect.h > 0)
+    {
+        int visual_cols = sdl_main_view_visual_cols(view);
+        int visual_rows = sdl_main_view_visual_rows(view);
+
+        anchor = (SDL_FRect){
+            .x = (float)(view->rect.x + view->margin_x),
+            .y = (float)(view->rect.y + view->margin_y),
+            .w = (float)(visual_cols * view->cell_w),
+            .h = (float)(visual_rows * view->cell_h),
+        };
+        top_h = (float)view->cell_h;
+    }
+    else
+    {
+        screen = sdl_get_layout_screen_rect();
+        if (screen.w <= 0 || screen.h <= 0)
+            return false;
+        anchor = (SDL_FRect){
+            .x = (float)screen.x,
+            .y = (float)screen.y,
+            .w = (float)screen.w,
+            .h = (float)screen.h,
+        };
+        top_h = sdl_touch_pane_clampf((float)screen.h * 0.045f, 18.0f,
+            34.0f);
+    }
+
+    if (anchor.w <= 0.0f || anchor.h <= 0.0f)
+        return false;
+
+    font_px = sdl_depth_menu_pane_font_px(view);
+    font = sdl_story_font_for_height(font_px);
+    text_w = font ? sdl_touch_pane_story_text_width(font, label)
+                  : (int)strlen(label) * font_px / 2;
+    if (text_w < 1)
+        return false;
+
+    pad_x = sdl_touch_pane_clampf(g_state.system_scale * 11.0f, 8.0f,
+        18.0f);
+    pad_y = sdl_touch_pane_clampf(g_state.system_scale * 4.0f, 3.0f,
+        7.0f);
+    panel_w = (float)text_w + pad_x * 2.0f;
+    panel_h = (float)font_px + pad_y * 2.0f;
+    max_w = anchor.w * 0.58f;
+    if (max_w < 96.0f)
+        max_w = anchor.w;
+    if (panel_w < 110.0f)
+        panel_w = 110.0f;
+    if (panel_w > max_w)
+        panel_w = max_w;
+    if (panel_w > anchor.w)
+        panel_w = anchor.w;
+
+    if (panel_h < 18.0f)
+        panel_h = 18.0f;
+    if (panel_h > 34.0f)
+        panel_h = 34.0f;
+
+    if (out)
+    {
+        float y_pad = (top_h > panel_h) ? (top_h - panel_h) * 0.5f
+                                        : 2.0f;
+        *out = (SDL_FRect){
+            .x = anchor.x + (anchor.w - panel_w) * 0.5f,
+            .y = anchor.y + y_pad,
+            .w = panel_w,
+            .h = panel_h,
+        };
+    }
+
+    return true;
+}
+
+static void sdl_depth_menu_pane_render(void)
+{
+    SDL_FRect rect;
+    SDL_FRect shadow;
+    char label[64];
+    SDL_Color text;
+    SDL_Color border;
+
+    if (!sdl_depth_menu_pane_current_rect(&rect))
+        return;
+
+    sdl_depth_menu_pane_label(label, sizeof(label));
+    if (!label[0])
+        return;
+
+    text = g_state.palette[TERM_L_WHITE];
+    border = g_depth_menu_pane_hover
+        ? g_state.palette[TERM_YELLOW]
+        : g_state.palette[TERM_L_BLUE];
+
+    shadow = rect;
+    shadow.x += 2.0f;
+    shadow.y += 2.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 126);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+        g_depth_menu_pane_hover ? 235 : 178);
+    SDL_RenderRect(g_state.renderer, &rect);
+
+    sdl_touch_pane_draw_button_text_scaled(&rect, NULL, label, text, 0.54f,
+        0.62f);
+}
+
+static bool sdl_depth_menu_pane_hit(float x, float y, SDL_FRect* out_rect)
+{
+    SDL_FRect rect;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_depth_menu_pane_current_rect(&rect))
+        return false;
+    if (out_rect)
+        *out_rect = rect;
+
+    return x >= rect.x && x < rect.x + rect.w
+        && y >= rect.y && y < rect.y + rect.h;
+}
+
+static bool sdl_depth_menu_pane_handle_hover_pointer(float x, float y)
+{
+    bool hit = sdl_depth_menu_pane_hit(x, y, NULL);
+
+    if (g_depth_menu_pane_hover != hit)
+    {
+        g_depth_menu_pane_hover = hit;
+        g_state.need_present = true;
+    }
+
+    if (hit)
+        sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
+
+    return hit;
+}
+
+static bool sdl_depth_menu_pane_handle_pointer(float x, float y)
+{
+    if (!sdl_depth_menu_pane_hit(x, y, NULL))
+        return false;
+
+    g_depth_menu_pane_hover = false;
+    sdl_enqueue_bypassed_command('m');
+    return true;
 }
 
 static int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
@@ -23951,6 +24200,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_depth_menu_pane_handle_hover_pointer((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_main_screen_handle_status_line_hover_pointer(
             (float)ev->motion.x, (float)ev->motion.y))
         {
@@ -24018,6 +24272,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_pointer_aim_handle_left_click((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_depth_menu_pane_handle_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -24330,6 +24589,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
+            return;
+        if (sdl_depth_menu_pane_handle_pointer(x, y))
             return;
         if ((ev->tfinger.touchID == SDL_MOUSE_TOUCHID
                 || ev->tfinger.fingerID == TOUCH_MOUSE_FALLBACK_FINGER_ID)
@@ -25603,6 +25864,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
     sdl_status_pane_render();
+    sdl_depth_menu_pane_render();
     sdl_narrative_banner_render();
     sdl_object_tooltip_render();
     sdl_player_exchange_render();
@@ -25889,9 +26151,16 @@ static void sdl_touch_tutorial_draw_screen_dim(const SDL_Rect* screen,
 static float sdl_touch_tutorial_top_reserved_height(const SDL_Rect* screen)
 {
     float reserved = 0.0f;
+    SDL_FRect depth_rect;
 
     if (!screen)
         return 0.0f;
+
+    if (sdl_depth_menu_pane_current_rect(&depth_rect))
+    {
+        return depth_rect.h + sdl_touch_pane_clampf((float)screen->h * 0.010f,
+            6.0f, 12.0f);
+    }
 
     if (Term && ROW_STATUS == 0) {
         const sdl_view* view = &g_views[PANE_MAIN];
@@ -26438,7 +26707,6 @@ static void sdl_touch_tutorial_draw_main_screen_zones_compact(
     const SDL_Rect* screen, float header_bottom, bool mouse)
 {
     SDL_FRect rect;
-    int term_w;
     int term_h;
     int map_cols;
     int panel_rows;
@@ -26449,24 +26717,14 @@ static void sdl_touch_tutorial_draw_main_screen_zones_compact(
     if (!screen || !Term)
         return;
 
-    term_w = Term->wid;
     term_h = Term->hgt;
     map_cols = SCREEN_WID * (use_bigtile ? 2 : 1);
 
-    if (ROW_STATUS != 0
-        && sdl_touch_tutorial_cell_rect(0, 0, term_w, 1, &rect))
-    {
-        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Log");
-        legend_lines[legend_n++] = mouse
-            ? "Log: click top row for full message history."
-            : "Log: tap top row for full message history.";
-    }
-
-    if (sdl_touch_tutorial_cell_rect(0, ROW_STATUS, term_w, 1, &rect)) {
+    if (sdl_depth_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Menu");
         legend_lines[legend_n++] = mouse
-            ? "Status: click for main menu and context screens."
-            : "Status: tap for main menu and context screens.";
+            ? "Depth/menu: click for the main menu; it shows partition and depth."
+            : "Depth/menu: tap for the main menu; it shows partition and depth.";
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -26525,7 +26783,6 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
     sdl_touch_tutorial_zone_callout callouts[SDL_TOUCH_TUTORIAL_MAX_ZONE_CALLOUTS];
     SDL_FRect rect;
     int callout_count = 0;
-    int term_w;
     int term_h;
     int map_cols;
     int panel_rows;
@@ -26533,26 +26790,15 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
     if (!screen || !Term)
         return;
 
-    term_w = Term->wid;
     term_h = Term->hgt;
     map_cols = SCREEN_WID * (use_bigtile ? 2 : 1);
 
-    if (ROW_STATUS != 0
-        && sdl_touch_tutorial_cell_rect(0, 0, term_w, 1, &rect))
-    {
+    if (sdl_depth_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
-            "Message history",
+            "Depth menu",
             mouse
-                ? "Click: open the full message history.\nUse when: combat text, warnings, prompts, or sound cues disappear before you finish reading them."
-                : "Tap: open the full message history.\nUse when: combat text, warnings, prompts, or sound cues disappear before you finish reading them.");
-    }
-
-    if (sdl_touch_tutorial_cell_rect(0, ROW_STATUS, term_w, 1, &rect)) {
-        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
-            "Status line",
-            mouse
-                ? "Click: open the main menu.\nContext clicks: depth, partition, map, and song text open their matching screens when those labels are visible."
-                : "Tap: open the main touch menu.\nContext taps: depth, partition, map, and song text open their matching screens when those labels are visible.");
+                ? "Click: open the main menu.\nShows: current partition and dungeon depth."
+                : "Tap: open the main touch menu.\nShows: current partition and dungeon depth.");
     }
 
     panel_rows = term_h - ROW_MAP;

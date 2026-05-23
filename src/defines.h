@@ -116,7 +116,15 @@
 #define PANEL_WID_FIXED 33
 #define PANEL_WID (use_bigtile ? 16 : PANEL_WID_FIXED)
 
+#ifdef USE_SDL
+/*
+ * SDL renders the depth/menu affordance as a top-center overlay instead of
+ * moving the classic status line onto row 0.
+ */
+#define SIL_UI_TOP_STATUS_LINE 0
+#else
 #define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
+#endif
 
 #define ROW_MAP 1
 #define LEFT_PANEL_CONTENT_WID 12

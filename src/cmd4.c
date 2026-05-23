@@ -17361,8 +17361,8 @@ static cptr option_menu_label(int opt)
         return compact ? (narrow ? "Panel place" : "Hidden panel")
                        : "Hidden-panel placement";
     case OPT_top_status_line:
-        return compact ? (narrow ? "Top status" : "Top status line")
-                       : "Top Status Line (No Msg Row)";
+        return compact ? (narrow ? "Hide msg row" : "Hide message row")
+                       : "Hide Main Message Row";
     case OPT_hide_supporting_panes_fullscreen:
         return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
                        : "Hide supporting panes on full-screen screens";
