@@ -1094,10 +1094,12 @@ static int g_left_panel_canvas_h = 0;
 static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
+static int g_inventory_pane_layout_rows = -1;
 static bool g_touch_pane_hidden_layout_active = false;
 static bool g_touch_pane_proto_layout_active = false;
 static bool g_suppress_layout_refresh_present = false;
 static bool g_skip_main_redraw_on_layout_refresh = false;
+static bool g_defer_resize_handle_stuff = false;
 static bool g_touch_tutorial_suppress_runtime_top_panel = false;
 static int g_narrative_banner_line_limit = 0;
 static gamepad_input_state g_gamepad_state;
@@ -2809,12 +2811,6 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
 
 static bool sdl_left_panel_pane_layout_enabled(void)
 {
-    if (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT
-        && sdl_left_panel_pane_requested_scale() <= 0)
-    {
-        return false;
-    }
-
     return !config.hide_left_panel
         && sdl_left_panel_pane_config_enabled();
 }
@@ -3329,10 +3325,8 @@ static bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
 
     main_cols = sdl_mobile_pane_cols(panes, cell_widths, PANE_MAIN);
     main_rows = sdl_mobile_pane_rows(panes, cell_heights, PANE_MAIN);
-    fits = (main_cols >= sdl_current_min_terminal_cols()
-        && main_rows >= sdl_current_min_terminal_rows()
-        && sdl_mobile_enabled_panes_fit(active, active_count, panes, cell_widths,
-            cell_heights));
+    fits = sdl_mobile_enabled_panes_fit(active, active_count, panes,
+        cell_widths, cell_heights);
 
     config.main_view_scale = saved_scale;
     g_main_view_layout_scale_override = saved_layout_scale_override;
@@ -4054,6 +4048,69 @@ static bool sdl_prune_unusable_panes(struct pane_config* active,
     return pruned;
 }
 
+static int sdl_inventory_pane_desired_rows(void)
+{
+    int rows = 0;
+
+    if (!character_generated || !p_ptr || !inventory)
+        return -1;
+
+    for (int i = 0; i < INVEN_PACK; i++) {
+        if (inventory[i].k_idx)
+            rows = i + 1;
+    }
+
+    if (p_ptr->inven_cnt > rows)
+        rows = p_ptr->inven_cnt;
+    if (rows < 1)
+        rows = 1;
+    if (rows > INVEN_PACK)
+        rows = INVEN_PACK;
+
+    return rows;
+}
+
+static bool sdl_inventory_pane_dynamic_configured(void)
+{
+    if (!character_generated || !p_ptr || !inventory)
+        return false;
+    if (!config.enable_right_panes)
+        return false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_INVENTORY)
+            continue;
+        if (!pane_config[i].enabled)
+            continue;
+        if (!pane_placement_is_side(pane_config[i].where))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_apply_dynamic_inventory_pane_size(struct pane_config* active,
+    int active_count)
+{
+    int rows = sdl_inventory_pane_desired_rows();
+
+    if (rows < 1)
+        return;
+
+    for (int i = 0; i < active_count; i++) {
+        if (!active[i].enabled)
+            continue;
+        if (active[i].pane != PANE_INVENTORY)
+            continue;
+        if (!pane_placement_is_side(active[i].where))
+            continue;
+
+        active[i].rect.rows = rows;
+    }
+}
+
 static int sdl_touch_pane_target_width_px(int pane_height_px)
 {
     const int numerator = 40 * SDL_TOUCH_PANE_BUTTON_COLS;
@@ -4082,6 +4139,8 @@ static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
 
     if (!active || active_count <= 0 || !screen || !cell_widths || !cell_heights)
         return;
+
+    sdl_apply_dynamic_inventory_pane_size(active, active_count);
 
     for (int i = 0; i < active_count; i++) {
         if (!active[i].enabled)
@@ -4193,43 +4252,15 @@ static bool sdl_active_group_has_visible(const struct pane_config* active,
     return false;
 }
 
-static bool sdl_skip_last_active_group_pane(const struct pane_config* active,
-    int active_count, bool side, bool* skipped)
-{
-    for (int i = active_count - 1; i >= 0; i--) {
-        if (skipped && skipped[i])
-            continue;
-        if (!active[i].enabled)
-            continue;
-        if (active[i].pane == PANE_TOUCH)
-            continue;
-        if (!side && active[i].pane == PANE_LOG)
-            continue;
-        if (side && !pane_placement_is_side(active[i].where))
-            continue;
-        if (!side && !pane_placement_is_bottom(active[i].where))
-            continue;
-
-        log_info("Skipping pane %d so the main view can keep its minimum %s",
-            active[i].pane, side ? "width" : "height");
-        if (skipped)
-            skipped[i] = true;
-        return true;
-    }
-
-    return false;
-}
-
 static void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
     SDL_Rect* panes, bool include_side, bool include_bottom, bool touch_only,
-    int min_main_cols, int min_main_rows, bool* out_side, bool* out_bottom)
+    bool* out_side, bool* out_bottom)
 {
     struct pane_config base[MAX_PANE_CONFIGS] = { 0 };
     struct pane_config active[MAX_PANE_CONFIGS] = { 0 };
     int active_count;
     int cell_widths[PANE_MAX] = { 0 };
     int cell_heights[PANE_MAX] = { 0 };
-    bool skipped[MAX_PANE_CONFIGS] = { false };
     int margin_px;
 
     if (out_side)
@@ -4244,58 +4275,21 @@ static void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
     margin_px = (int)(g_state.system_scale * config.margin);
     active_count = sdl_build_active_pane_config(base, include_side,
         include_bottom, touch_only);
+    memcpy(active, base, sizeof(struct pane_config) * active_count);
+    sdl_build_supporting_pane_metrics(active, active_count, cell_widths,
+        cell_heights);
+    sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen,
+        cell_widths, cell_heights, margin_px);
 
-    for (;;) {
-        int cols = 0;
-        int rows = 0;
-
-        memcpy(active, base, sizeof(struct pane_config) * active_count);
-        for (int i = 0; i < active_count; i++) {
-            if (skipped[i])
-                active[i].enabled = false;
+    for (int attempt = 0; attempt <= active_count; attempt++) {
+        place_panes(active, active_count, panes, screen, cell_widths,
+            cell_heights, margin_px);
+        if (!sdl_prune_unusable_panes(active, active_count, panes,
+                cell_widths, cell_heights))
+        {
+            break;
         }
-        memset(cell_widths, 0, sizeof(cell_widths));
-        memset(cell_heights, 0, sizeof(cell_heights));
-        sdl_build_supporting_pane_metrics(active, active_count, cell_widths,
-            cell_heights);
-        sdl_apply_dynamic_auto_pane_sizes(active, active_count, screen,
-            cell_widths, cell_heights, margin_px);
-
         memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
-        for (int attempt = 0; attempt <= active_count; attempt++) {
-            place_panes(active, active_count, panes, screen, cell_widths,
-                cell_heights, margin_px);
-            if (!sdl_prune_unusable_panes(active, active_count, panes,
-                    cell_widths, cell_heights))
-            {
-                break;
-            }
-            memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
-        }
-
-        if (cell_widths[PANE_MAIN] > 0)
-            cols = sdl_main_view_logical_cols_for_visual_cols(
-                panes[PANE_MAIN].w / cell_widths[PANE_MAIN]);
-        if (cell_heights[PANE_MAIN] > 0)
-            rows = panes[PANE_MAIN].h / cell_heights[PANE_MAIN];
-
-        if (min_main_cols > 0 && cols < min_main_cols
-            && sdl_skip_last_active_group_pane(active, active_count, true,
-                skipped))
-        {
-            memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
-            continue;
-        }
-
-        if (min_main_rows > 0 && rows < min_main_rows
-            && sdl_skip_last_active_group_pane(active, active_count, false,
-                skipped))
-        {
-            memset(panes, 0, sizeof(SDL_Rect) * PANE_MAX);
-            continue;
-        }
-
-        break;
     }
 
     if (out_side)
@@ -4307,9 +4301,8 @@ static void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
 }
 
 static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
-    int mode, int scale, bool aux_follows_candidate_scale, int min_main_cols,
-    int min_main_rows, SDL_Rect* panes, bool* out_side, bool* out_bottom,
-    int* out_cols, int* out_rows)
+    int mode, int scale, bool aux_follows_candidate_scale, SDL_Rect* panes,
+    bool* out_side, bool* out_bottom, int* out_cols, int* out_rows)
 {
     SDL_Rect local_panes[PANE_MAX] = { 0 };
     SDL_Rect* target_panes = panes ? panes : local_panes;
@@ -4320,8 +4313,6 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     bool include_side = config.enable_right_panes;
     bool include_bottom = config.enable_bottom_panes;
     int layout_scale;
-    int layout_min_cols;
-    int layout_min_rows;
     int cell_w;
     int cell_h;
     int cols = 0;
@@ -4348,13 +4339,6 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     layout_scale = aux_follows_candidate_scale
         ? scale
         : sdl_configured_main_view_scale();
-    layout_min_cols = aux_follows_candidate_scale
-        ? min_main_cols
-        : sdl_min_terminal_cols_for_mode(mode);
-    layout_min_rows = aux_follows_candidate_scale
-        ? min_main_rows
-        : sdl_min_terminal_rows_for_mode(mode);
-
     config.min_terminal_mode = mode;
     g_main_view_layout_scale_override = layout_scale;
     if (aux_follows_candidate_scale) {
@@ -4366,14 +4350,8 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
 
     cell_w = scale * TILE_SIZE / 2;
     cell_h = scale * TILE_SIZE;
-    if (layout_min_cols < 1)
-        layout_min_cols = 1;
-    if (layout_min_rows < 1)
-        layout_min_rows = 1;
-
     sdl_place_active_panes_fitting_main(screen, target_panes, include_side,
-        include_bottom, false, layout_min_cols, layout_min_rows, &include_side,
-        &include_bottom);
+        include_bottom, false, &include_side, &include_bottom);
     cols = (cell_w > 0)
         ? sdl_main_view_logical_cols_for_visual_cols(
             target_panes[PANE_MAIN].w / cell_w)
@@ -4400,8 +4378,27 @@ static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
     bool* out_bottom, int* out_cols, int* out_rows)
 {
     sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, true,
-        sdl_min_terminal_cols_for_mode(mode), sdl_min_terminal_rows_for_mode(mode),
         panes, out_side, out_bottom, out_cols, out_rows);
+}
+
+static void sdl_mark_active_supporting_panes_dirty(const SDL_Rect* panes)
+{
+    u32b flags = 0L;
+
+    if (!panes || !p_ptr || !op_ptr)
+        return;
+
+    for (int i = 1; i < ANGBAND_TERM_MAX && i < PANE_MAX; i++) {
+        if (panes[i].w <= 0 || panes[i].h <= 0)
+            continue;
+        if (!angband_term[i])
+            continue;
+
+        flags |= op_ptr->window_flag[i];
+    }
+
+    if (flags)
+        p_ptr->window |= flags;
 }
 
 static bool sdl_hide_supporting_panes_mode_effective(void)
@@ -4507,9 +4504,22 @@ static bool sdl_should_show_supporting_panes(void)
 
 static bool sdl_layout_matches_supporting_pane_visibility(void)
 {
-    return (g_supporting_panes_layout_visible == sdl_should_show_supporting_panes())
-        && (g_touch_pane_hidden_layout_active == sdl_touch_pane_hidden_mode_active())
-        && (g_touch_pane_proto_layout_active == sdl_touch_pane_proto_mode_active());
+    bool show_supporting_panes = sdl_should_show_supporting_panes();
+
+    if (g_supporting_panes_layout_visible != show_supporting_panes)
+        return false;
+    if (g_touch_pane_hidden_layout_active != sdl_touch_pane_hidden_mode_active())
+        return false;
+    if (g_touch_pane_proto_layout_active != sdl_touch_pane_proto_mode_active())
+        return false;
+    if (show_supporting_panes && sdl_inventory_pane_dynamic_configured()) {
+        int rows = sdl_inventory_pane_desired_rows();
+
+        if (rows > 0 && g_inventory_pane_layout_rows != rows)
+            return false;
+    }
+
+    return true;
 }
 
 static void sdl_compute_display_panes(SDL_Rect* panes)
@@ -4628,18 +4638,10 @@ static int sdl_main_view_map_rows_for_terminal_rows(int rows)
 static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
     int mode)
 {
-    int min_cols;
-    int min_rows;
-
     if (!screen || !sdl_rect_has_area(screen))
         return 1;
     if (!sdl_min_terminal_mode_is_valid(mode))
         return 1;
-
-    min_cols = sdl_main_view_terminal_cols_for_map_squares(
-        SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES);
-    min_rows = sdl_main_view_terminal_rows_for_map_squares(
-        SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES);
 
     for (int scale = 20; scale >= 1; scale--) {
         int cols = 0;
@@ -4648,7 +4650,7 @@ static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
         int map_rows;
 
         sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, false,
-            min_cols, min_rows, NULL, NULL, NULL, &cols, &rows);
+            NULL, NULL, NULL, &cols, &rows);
         map_cols = sdl_main_view_map_cols_for_terminal_cols(cols);
         map_rows = sdl_main_view_map_rows_for_terminal_rows(rows);
         if (map_cols >= SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES
@@ -4664,8 +4666,6 @@ static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
 static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
     int mode)
 {
-    int min_cols;
-    int min_rows;
     int map_wid;
     int map_hgt;
 
@@ -4681,10 +4681,6 @@ static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
 
     map_wid = p_ptr->cur_map_wid;
     map_hgt = p_ptr->cur_map_hgt;
-    min_cols = sdl_main_view_terminal_cols_for_map_squares(
-        SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES);
-    min_rows = sdl_main_view_terminal_rows_for_map_squares(
-        SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES);
 
     for (int scale = 1; scale <= 20; scale++) {
         int cols = 0;
@@ -4693,7 +4689,7 @@ static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
         int map_rows;
 
         sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, false,
-            min_cols, min_rows, NULL, NULL, NULL, &cols, &rows);
+            NULL, NULL, NULL, &cols, &rows);
         map_cols = sdl_main_view_map_cols_for_terminal_cols(cols);
         map_rows = sdl_main_view_map_rows_for_terminal_rows(rows);
         if (map_cols > 0 && map_rows > 0
@@ -23984,9 +23980,9 @@ void resize(const SDL_Rect* screen)
         g_supporting_panes_layout_visible = false;
     }
 
-    // Check whether after splitting the window the main view meets minimum size.
-    // If it doesn't, remove panes along the corresponding axis (or axes).
-    // Also remove panes if user has disabled them via settings.
+    // Split the window according to enabled pane settings. Supporting panes
+    // keep their own minimum sizes, but no longer get removed solely to
+    // preserve a minimum main terminal size.
     if (show_supporting_panes) {
         int cell_w = layout_main_view_scale * TILE_SIZE / 2;
         int cell_h = layout_main_view_scale * TILE_SIZE;
@@ -24003,13 +23999,12 @@ void resize(const SDL_Rect* screen)
             log_info("bottom panes disabled by user setting");
 
         sdl_place_active_panes_fitting_main(screen, panes, include_side,
-            include_bottom, false, min_main_cols, min_main_rows,
-            &include_side, &include_bottom);
+            include_bottom, false, &include_side, &include_bottom);
 
         cols = sdl_main_view_logical_cols_for_visual_cols(
             panes[PANE_MAIN].w / cell_w);
         rows = panes[PANE_MAIN].h / cell_h;
-        log_debug("Main view: %dx%d pixels at (%d,%d) = %dx%d cells (minimum required: %dx%d %s)",
+        log_debug("Main view: %dx%d pixels at (%d,%d) = %dx%d cells (configured minimum reference: %dx%d %s)",
             panes[PANE_MAIN].w, panes[PANE_MAIN].h,
             panes[PANE_MAIN].x, panes[PANE_MAIN].y,
             cols, rows,
@@ -24019,6 +24014,13 @@ void resize(const SDL_Rect* screen)
         g_active_side_panes = include_side;
         g_active_bottom_panes = include_bottom;
         g_supporting_panes_layout_visible = true;
+    }
+
+    g_inventory_pane_layout_rows = -1;
+    if (show_supporting_panes && panes[PANE_INVENTORY].w > 0
+        && panes[PANE_INVENTORY].h > 0)
+    {
+        g_inventory_pane_layout_rows = sdl_inventory_pane_desired_rows();
     }
 
     for (int i = 0; i < PANE_MAX; i++) {
@@ -24060,6 +24062,7 @@ void resize(const SDL_Rect* screen)
     }
     sdl_view_link_term(&g_views[0], 0);
     sdl_update_left_panel_pane_rect();
+    sdl_mark_active_supporting_panes_dirty(panes);
 
     Term_activate(&g_views[0].t);
 
@@ -24072,8 +24075,11 @@ void resize(const SDL_Rect* screen)
     {
         p_ptr->update |= PU_PANEL;
         p_ptr->redraw |= PR_MAP;
-        if (character_generated && !character_icky && p_ptr->playing)
+        if (character_generated && !character_icky && p_ptr->playing
+            && !g_defer_resize_handle_stuff)
+        {
             handle_stuff();
+        }
     }
 
     // Don't strictly need this as `sdl_view_create` already sets this flag.
@@ -34373,6 +34379,15 @@ void sdl_refresh_supporting_panes_layout(void)
     if (g_skip_main_redraw_on_layout_refresh)
         g_state.need_present = false;
     g_skip_main_redraw_on_layout_refresh = false;
+}
+
+void sdl_refresh_supporting_panes_layout_deferred(void)
+{
+    bool old_defer = g_defer_resize_handle_stuff;
+
+    g_defer_resize_handle_stuff = true;
+    sdl_refresh_supporting_panes_layout();
+    g_defer_resize_handle_stuff = old_defer;
 }
 
 /*

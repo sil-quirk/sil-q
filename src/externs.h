@@ -1574,6 +1574,7 @@ extern void screen_push_touch_pane_proto(void);
 extern void screen_pop_touch_pane_proto(void);
 extern bool screen_touch_pane_proto_active(void);
 extern void sdl_refresh_supporting_panes_layout(void);
+extern void sdl_refresh_supporting_panes_layout_deferred(void);
 #define SDL_POINTER_ATTACK_NONE 0
 #define SDL_POINTER_ATTACK_MELEE 1
 #define SDL_POINTER_ATTACK_RANGED_1 2

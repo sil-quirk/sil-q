@@ -3579,6 +3579,12 @@ static void screen_load_impl(bool refresh_restored_screen)
 
     sdl_resume_main_view_zoom_for_saved_screen();
     sdl_refresh_supporting_panes_layout();
+
+    if (character_generated && !character_icky && p_ptr && p_ptr->playing
+        && p_ptr->window)
+    {
+        handle_stuff();
+    }
 }
 
 /*

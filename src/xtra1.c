@@ -7682,6 +7682,11 @@ void window_stuff(void)
     /* Display inventory */
     if (p_ptr->window & (PW_INVEN))
     {
+        sdl_refresh_supporting_panes_layout_deferred();
+        if (p_ptr->update)
+            update_stuff();
+        if (p_ptr->redraw)
+            redraw_stuff();
         p_ptr->window &= ~(PW_INVEN);
         fix_inven();
     }

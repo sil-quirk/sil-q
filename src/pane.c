@@ -35,7 +35,7 @@ static const enum pane_placement pane_default_order[] = {
 };
 
 static struct pane_specs pane_specs[PANE_MAX] = {
-    [PANE_INVENTORY] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 22, .min_rect.cols = 40},
+    [PANE_INVENTORY] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_WORN] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 17, .min_rect.cols = 40},
     [PANE_ROLLS] = {.placement = BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 65},
     [PANE_INFO] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
