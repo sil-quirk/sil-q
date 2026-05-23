@@ -73,6 +73,24 @@ static bool ui_top_status_line(void)
 #endif
 }
 
+static bool ui_status_pane_owns_left_panel_statuses(void)
+{
+#ifdef USE_SDL
+    return true;
+#else
+    return false;
+#endif
+}
+
+static bool ui_depth_menu_owns_left_panel_depth(void)
+{
+#ifdef USE_SDL
+    return true;
+#else
+    return false;
+#endif
+}
+
 typedef struct hidden_overlay_line {
     char text[32];
     char short_text[16];
@@ -1914,7 +1932,8 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         }
     }
 
-    if (!ui_compact_status_line_handles_song()
+    if (!ui_status_pane_owns_left_panel_statuses()
+        && !ui_compact_status_line_handles_song()
         && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING))
     {
         char* song1_name
@@ -2329,15 +2348,18 @@ static void prt_song(void)
         return;
     }
 
-    char* song1_name
-        = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
-    char* song2_name
-        = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
-
     // wipe old songs
     Term_erase(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID);
     if (!ui_compact_height())
         Term_erase(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID);
+
+    if (ui_status_pane_owns_left_panel_statuses())
+        return;
+
+    char* song1_name
+        = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
+    char* song2_name
+        = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
 
     sdl_story_font_enable();
 
@@ -2392,6 +2414,9 @@ static void prt_depth(void)
         prt_status_line_compact();
         return;
     }
+
+    if (ui_depth_menu_owns_left_panel_depth())
+        return;
 
     char depths[32];
     s16b attr = TERM_WHITE;
@@ -2598,6 +2623,13 @@ static void prt_cut(void)
     if (ui_hide_left_panel())
         return;
 
+    if (ui_status_pane_owns_left_panel_statuses())
+    {
+        Term_erase(COL_CUT, ROW_CUT - 1, 12);
+        Term_erase(COL_CUT, ROW_CUT, 12);
+        return;
+    }
+
     if (ui_status_system_compact() && ui_wound_rows_overlap_status_line())
         return;
 
@@ -2657,6 +2689,12 @@ static void prt_poisoned(void)
 
     if (ui_hide_left_panel())
         return;
+
+    if (ui_status_pane_owns_left_panel_statuses())
+    {
+        Term_erase(COL_POISONED, ROW_POISONED, 12);
+        return;
+    }
 
     if (ui_status_system_compact() && ui_wound_rows_overlap_status_line())
         return;

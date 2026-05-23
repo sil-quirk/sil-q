@@ -1570,8 +1570,8 @@ errr Term_set_extra_cursor(bool v, int x, int y, bool big)
 
     Term->extra_cursor = v;
     Term->extra_cursor_big = v ? big : false;
-    Term->extra_cursor_x = v ? (byte)x : 0;
-    Term->extra_cursor_y = v ? (byte)y : 0;
+    Term->extra_cursor_x = v ? x : 0;
+    Term->extra_cursor_y = v ? y : 0;
 
     /* Success */
     return (0);
@@ -2324,8 +2324,8 @@ errr Term_resize(int w, int h)
 
     int wid, hgt;
 
-    byte* hold_x1;
-    byte* hold_x2;
+    int* hold_x1;
+    int* hold_x2;
 
     term_win* hold_old;
     term_win* hold_scr;
@@ -2365,8 +2365,8 @@ errr Term_resize(int w, int h)
     hold_tmp = Term->tmp;
 
     /* Create new scanners */
-    Term->x1 = mem_alloc_array(h, byte);
-    Term->x2 = mem_alloc_array(h, byte);
+    Term->x1 = mem_alloc_array(h, int);
+    Term->x2 = mem_alloc_array(h, int);
 
     /* Create new window */
     Term->old = mem_alloc(term_win);
@@ -2628,8 +2628,8 @@ errr term_init(term* t, int w, int h, int k)
     t->hgt = h;
 
     /* Allocate change arrays */
-    t->x1 = mem_alloc_array(h, byte);
-    t->x2 = mem_alloc_array(h, byte);
+    t->x1 = mem_alloc_array(h, int);
+    t->x2 = mem_alloc_array(h, int);
 
     /* Allocate "displayed" */
     t->old = mem_alloc(term_win);

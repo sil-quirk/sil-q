@@ -55,7 +55,7 @@ enum {
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
     MAX_STORY_FONT_CACHE = 32,
     MAX_MONO_FONT_CACHE = 48,
-    SDL_OBJECT_TOOLTIP_FONT_SIZE = 24,
+    SDL_OBJECT_TOOLTIP_FONT_SIZE = 16,
     SDL_LEFT_PANEL_COLLAPSED_ROWS = 3,
     TOUCH_PANE_LONG_PRESS_MS = 350,
     TOUCH_SWIPE_MIN_DISTANCE_PX = 24,
@@ -69,6 +69,7 @@ enum {
     SDL_TOUCH_TUTORIAL_MAX_LINES = 14,
     SDL_TOUCH_TUTORIAL_LINE_LEN = 192,
     SDL_STATUS_PANE_MAX_ENTRIES = 48,
+    SDL_STATUS_PANE_ROWS = 2,
     SDL_NARRATIVE_BANNER_MAX_LINES = 8,
     SDL_NARRATIVE_BANNER_LINE_LEN = 220,
     SDL_LOG_PANE_DEFAULT_ROWS = 4,
@@ -119,7 +120,7 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
         .rect.cols = 0},
     {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
-        .rect.rows = 1, .rect.cols = 24},
+        .rect.rows = SDL_STATUS_PANE_ROWS, .rect.cols = 24},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
@@ -708,6 +709,16 @@ typedef struct status_pane_entry {
     char detail[64];
     byte attr;
 } status_pane_entry;
+
+typedef struct status_pane_layout_item {
+    int entry_index;
+    bool tall;
+    int row;
+    int x;
+    int w;
+    char line[96];
+    byte attr;
+} status_pane_layout_item;
 
 typedef enum log_pane_menu_action {
     LOG_PANE_MENU_FILTER,
@@ -2408,6 +2419,13 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
                     configs[j].enabled = true;
                     changed = true;
                 }
+                if (pane == PANE_STATUS
+                    && configs[j].rect.rows > 0
+                    && configs[j].rect.rows < SDL_STATUS_PANE_ROWS)
+                {
+                    configs[j].rect.rows = SDL_STATUS_PANE_ROWS;
+                    changed = true;
+                }
                 found = true;
                 break;
             }
@@ -2522,12 +2540,10 @@ static int sdl_left_panel_pane_requested_scale(void)
 
 static int sdl_left_panel_main_scale_for_view(const sdl_view* view)
 {
-    int scale = 0;
+    int scale;
 
-    if (view && view->cell_h > 0)
-        scale = (view->cell_h + TILE_SIZE / 2) / TILE_SIZE;
-    if (scale < 1)
-        scale = sdl_current_main_view_scale();
+    (void)view;
+    scale = sdl_configured_main_view_scale();
     if (scale < 1)
         scale = 1;
     return scale;
@@ -2564,7 +2580,7 @@ static int sdl_left_panel_pane_max_configured_scale(void)
 
     if (g_state.window) {
         SDL_Rect screen = sdl_get_layout_screen_rect();
-        int scale = sdl_current_main_view_scale();
+        int scale = sdl_configured_main_view_scale();
         int separator_w;
         int available_w;
         int max_scale;
@@ -3071,7 +3087,7 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
         case PANE_STATUS:
             configs[i].where = PLACE_BOTTOM_RIGHT;
             configs[i].enabled = true;
-            configs[i].rect.rows = 1;
+            configs[i].rect.rows = SDL_STATUS_PANE_ROWS;
             configs[i].rect.cols = 24;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
@@ -5556,21 +5572,177 @@ static int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
     return count;
 }
 
-static int sdl_status_pane_visible_rows(int count, int panel_max_h, int row_h,
-    int pad_y)
+static void sdl_status_pane_entry_line(const status_pane_entry* entry,
+    char* out, size_t out_sz)
 {
-    int rows;
+    if (!out || out_sz == 0)
+        return;
+    out[0] = '\0';
 
-    if (count <= 0 || panel_max_h <= 0 || row_h <= 0)
+    if (!entry || !entry->label[0])
+        return;
+
+    if (entry->detail[0])
+        strnfmt(out, out_sz, "%s %s", entry->label, entry->detail);
+    else
+        SDL_strlcpy(out, entry->label, out_sz);
+}
+
+static int sdl_status_pane_text_width(TTF_Font* font, cptr text)
+{
+    int width = sdl_touch_pane_story_text_width(font, text);
+
+    if (width < 0)
+        width = 0;
+    return width;
+}
+
+static bool sdl_status_pane_entry_is_tall(TTF_Font* font,
+    const status_pane_entry* entry, int font_px)
+{
+    char line[96];
+    int line_w;
+    int split_w;
+
+    if (!entry || !entry->label[0] || !entry->detail[0])
+        return false;
+
+    if (strcmp(entry->label, "Singing") == 0)
+        return true;
+
+    sdl_status_pane_entry_line(entry, line, sizeof(line));
+    line_w = sdl_status_pane_text_width(font, line);
+    split_w = MAX(sdl_status_pane_text_width(font, entry->label),
+        sdl_status_pane_text_width(font, entry->detail));
+
+    return line_w > font_px * 13 && split_w < line_w;
+}
+
+static int sdl_status_pane_entry_width(TTF_Font* font,
+    const status_pane_entry* entry, bool tall, int item_pad_x,
+    int min_item_w, int max_item_w)
+{
+    char line[96];
+    int width;
+
+    if (!entry)
         return 0;
 
-    rows = (panel_max_h - pad_y * 2) / row_h;
-    if (rows < 1)
-        rows = 1;
-    if (rows > count)
-        rows = count;
+    if (tall) {
+        width = MAX(sdl_status_pane_text_width(font, entry->label),
+            sdl_status_pane_text_width(font, entry->detail));
+    } else {
+        sdl_status_pane_entry_line(entry, line, sizeof(line));
+        width = sdl_status_pane_text_width(font, line);
+    }
 
-    return rows;
+    width += item_pad_x * 2;
+    if (width < min_item_w)
+        width = min_item_w;
+    if (max_item_w > 0 && width > max_item_w)
+        width = max_item_w;
+
+    return width;
+}
+
+static bool sdl_status_pane_place_item(status_pane_layout_item* item,
+    int row_x[SDL_STATUS_PANE_ROWS], int max_content_w, int gap_x)
+{
+    int row;
+    int x;
+
+    if (!item || max_content_w <= 0 || item->w <= 0)
+        return false;
+
+    if (item->tall) {
+        x = MAX(row_x[0], row_x[1]);
+        if (x + item->w > max_content_w)
+            return false;
+
+        item->row = 0;
+        item->x = x;
+        row_x[0] = x + item->w + gap_x;
+        row_x[1] = x + item->w + gap_x;
+        return true;
+    }
+
+    row = (row_x[0] <= row_x[1]) ? 0 : 1;
+    if (row_x[row] + item->w > max_content_w) {
+        int other = 1 - row;
+
+        if (row_x[other] + item->w > max_content_w)
+            return false;
+        row = other;
+    }
+
+    item->row = row;
+    item->x = row_x[row];
+    row_x[row] += item->w + gap_x;
+    return true;
+}
+
+static int sdl_status_pane_layout_entries(TTF_Font* font,
+    const status_pane_entry* entries, int visible_count, int more_count,
+    status_pane_layout_item* items, int max_items, int max_content_w,
+    int item_pad_x, int gap_x, int min_item_w, int font_px,
+    int* out_content_w)
+{
+    int row_x[SDL_STATUS_PANE_ROWS] = { 0, 0 };
+    int item_count = 0;
+    int used_w;
+
+    if (out_content_w)
+        *out_content_w = 0;
+    if (!font || !items || max_items <= 0 || max_content_w <= 0)
+        return -1;
+
+    for (int i = 0; i < visible_count; i++) {
+        status_pane_layout_item item = { 0 };
+
+        item.entry_index = i;
+        item.tall = sdl_status_pane_entry_is_tall(font, &entries[i], font_px);
+        item.attr = entries[i].attr;
+        sdl_status_pane_entry_line(&entries[i], item.line,
+            sizeof(item.line));
+        item.w = sdl_status_pane_entry_width(font, &entries[i], item.tall,
+            item_pad_x, min_item_w, max_content_w);
+
+        if (!sdl_status_pane_place_item(&item, row_x, max_content_w, gap_x))
+            return -1;
+        items[item_count++] = item;
+        if (item_count >= max_items)
+            break;
+    }
+
+    if (more_count > 0 && item_count < max_items) {
+        status_pane_layout_item item = { 0 };
+        int line_w;
+
+        item.entry_index = -1;
+        item.tall = false;
+        item.attr = TERM_SLATE;
+        strnfmt(item.line, sizeof(item.line), "More +%d", more_count);
+        line_w = sdl_status_pane_text_width(font, item.line);
+        item.w = line_w + item_pad_x * 2;
+        if (item.w < min_item_w)
+            item.w = min_item_w;
+        if (item.w > max_content_w)
+            item.w = max_content_w;
+
+        if (!sdl_status_pane_place_item(&item, row_x, max_content_w, gap_x))
+            return -1;
+        items[item_count++] = item;
+    }
+
+    used_w = MAX(row_x[0], row_x[1]);
+    if (used_w > 0)
+        used_w -= gap_x;
+    if (used_w < 0)
+        used_w = 0;
+    if (out_content_w)
+        *out_content_w = used_w;
+
+    return item_count;
 }
 
 static void sdl_status_pane_draw_text(TTF_Font* font, cptr text,
@@ -5613,6 +5785,7 @@ static void sdl_status_pane_draw_text(TTF_Font* font, cptr text,
 static void sdl_status_pane_render(void)
 {
     status_pane_entry entries[SDL_STATUS_PANE_MAX_ENTRIES];
+    status_pane_layout_item items[SDL_STATUS_PANE_MAX_ENTRIES];
     SDL_Rect anchor;
     SDL_Rect screen;
     enum pane_placement where;
@@ -5622,11 +5795,16 @@ static void sdl_status_pane_render(void)
     int row_h;
     int pad_x;
     int pad_y;
+    int item_pad_x;
+    int gap_x;
+    int min_item_w;
     int max_panel_w;
     int max_panel_h;
-    int render_count;
+    int max_content_w;
+    int visible_count;
     int more_count;
-    int max_line_w = 0;
+    int layout_count;
+    int content_w = 0;
     int panel_w;
     int panel_h;
     float x;
@@ -5656,6 +5834,11 @@ static void sdl_status_pane_render(void)
         pad_x = 5;
     if (pad_y < 4)
         pad_y = 4;
+    item_pad_x = pad_x / 2;
+    if (item_pad_x < 4)
+        item_pad_x = 4;
+    gap_x = item_pad_x;
+    min_item_w = font_px * 3;
 
     screen = sdl_get_layout_screen_rect();
     max_panel_w = screen.w - pad_x * 2;
@@ -5663,39 +5846,39 @@ static void sdl_status_pane_render(void)
     if (max_panel_w <= 0 || max_panel_h <= 0)
         return;
 
-    render_count = sdl_status_pane_visible_rows(count, max_panel_h, row_h,
-        pad_y);
-    if (render_count <= 0)
+    max_content_w = max_panel_w - pad_x * 2;
+    if (max_content_w <= 0)
         return;
-    more_count = count - render_count;
 
-    for (int i = 0; i < render_count; i++) {
-        char line[96];
-        int line_w;
-        char more_detail[24];
+    visible_count = count;
+    for (;;) {
+        more_count = count - visible_count;
+        layout_count = sdl_status_pane_layout_entries(font, entries,
+            visible_count, more_count, items, SDL_STATUS_PANE_MAX_ENTRIES,
+            max_content_w, item_pad_x, gap_x, min_item_w, font_px,
+            &content_w);
 
-        if (more_count > 0 && i == render_count - 1) {
-            strnfmt(more_detail, sizeof(more_detail), "+%d", more_count + 1);
-            strnfmt(line, sizeof(line), "More %s", more_detail);
-        } else if (entries[i].detail[0]) {
-            strnfmt(line, sizeof(line), "%s %s", entries[i].label,
-                entries[i].detail);
-        } else {
-            SDL_strlcpy(line, entries[i].label, sizeof(line));
-        }
-
-        line_w = sdl_touch_pane_story_text_width(font, line);
-        if (line_w > max_line_w)
-            max_line_w = line_w;
+        if (layout_count >= 0)
+            break;
+        if (visible_count <= 0)
+            return;
+        visible_count--;
     }
 
-    panel_w = pad_x * 2 + max_line_w;
-    if (panel_w < font_px * 6)
-        panel_w = font_px * 6;
+    if (layout_count <= 0)
+        return;
+
+    panel_w = pad_x * 2 + content_w;
+    if (panel_w < anchor.w)
+        panel_w = anchor.w;
+    if (panel_w < font_px * 8)
+        panel_w = font_px * 8;
     if (panel_w > max_panel_w)
         panel_w = max_panel_w;
 
-    panel_h = pad_y * 2 + render_count * row_h;
+    panel_h = pad_y * 2 + SDL_STATUS_PANE_ROWS * row_h;
+    if (panel_h < anchor.h)
+        panel_h = anchor.h;
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
@@ -5730,32 +5913,36 @@ static void sdl_status_pane_render(void)
 
     {
         float text_x = panel.x + (float)pad_x;
-        float row_y = panel.y + (float)pad_y;
-        float text_area = panel.w - (float)(pad_x * 2);
+        float row_y[SDL_STATUS_PANE_ROWS];
 
-        for (int i = 0; i < render_count; i++) {
-            char line[96];
-            byte attr = entries[i].attr;
-            char more_detail[24];
+        for (int row = 0; row < SDL_STATUS_PANE_ROWS; row++)
+            row_y[row] = panel.y + (float)pad_y + (float)(row * row_h);
+
+        for (int i = 0; i < layout_count; i++) {
+            status_pane_layout_item* item = &items[i];
             SDL_Color color;
+            float item_x = text_x + (float)item->x;
+            float item_text_x = item_x + (float)item_pad_x;
+            float item_text_w = (float)item->w - (float)(item_pad_x * 2);
 
-            if (more_count > 0 && i == render_count - 1) {
-                strnfmt(more_detail, sizeof(more_detail), "+%d",
-                    more_count + 1);
-                strnfmt(line, sizeof(line), "More %s", more_detail);
-                attr = TERM_SLATE;
-            } else if (entries[i].detail[0]) {
-                strnfmt(line, sizeof(line), "%s %s", entries[i].label,
-                    entries[i].detail);
+            if (item_text_w <= 0.0f)
+                continue;
+
+            color = sdl_status_pane_color(item->attr);
+            if (item->entry_index >= 0 && item->tall) {
+                status_pane_entry* entry = &entries[item->entry_index];
+
+                sdl_status_pane_draw_text(font, entry->label, color,
+                    item_text_x, row_y[0], item_text_w, (float)row_h,
+                    false);
+                sdl_status_pane_draw_text(font, entry->detail, color,
+                    item_text_x, row_y[1], item_text_w, (float)row_h,
+                    false);
             } else {
-                SDL_strlcpy(line, entries[i].label, sizeof(line));
+                sdl_status_pane_draw_text(font, item->line, color,
+                    item_text_x, row_y[item->row], item_text_w,
+                    (float)row_h, false);
             }
-
-            color = sdl_status_pane_color(attr);
-            sdl_status_pane_draw_text(font, line, color, text_x, row_y,
-                text_area, (float)row_h, false);
-
-            row_y += (float)row_h;
         }
     }
 }
@@ -32640,6 +32827,12 @@ void set_sdl_pane_rows(int index, int rows)
     }
     if (rows < 0)
         rows = 0;
+    if (pane_config[index].pane == PANE_STATUS
+        && rows > 0
+        && rows < SDL_STATUS_PANE_ROWS)
+    {
+        rows = SDL_STATUS_PANE_ROWS;
+    }
     if (rows > 200)
         rows = 200;
     pane_config[index].rect.rows = rows;

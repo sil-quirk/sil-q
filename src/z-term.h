@@ -38,7 +38,7 @@ typedef struct term_win term_win;
 struct term_win
 {
     bool cu, cv;
-    byte cx, cy;
+    int cx, cy;
 
     byte** a;
     char** c;
@@ -124,8 +124,8 @@ struct term_win
  *	- Keypress Queue -- pending keys
  *
  *
- *	- Window Width (max 255)
- *	- Window Height (max 255)
+ *	- Window Width
+ *	- Window Height
  *
  *	- Minimum modified row
  *	- Maximum modified row
@@ -197,16 +197,16 @@ struct term
     u16b key_xtra;
     u16b key_size;
 
-    byte wid;
-    byte hgt;
+    int wid;
+    int hgt;
 
-    byte y1;
-    byte y2;
-    byte extra_cursor_x;
-    byte extra_cursor_y;
+    int y1;
+    int y2;
+    int extra_cursor_x;
+    int extra_cursor_y;
 
-    byte* x1;
-    byte* x2;
+    int* x1;
+    int* x2;
 
     term_win* old;
     term_win* scr;
