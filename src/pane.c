@@ -45,7 +45,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_MAP] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 10, .min_rect.cols = 24},
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
     [PANE_LEFT_PANEL] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
-    [PANE_STATUS] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 2, .min_rect.cols = 24},
+    [PANE_STATUS] = {.placement = CORNER_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 24},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
