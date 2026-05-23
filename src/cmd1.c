@@ -7632,7 +7632,7 @@ void move_player(int dir)
         /* Check for Mandos quest interaction after movement */
         check_mandos_quest_interaction();
         
-        /* Check for Niena quest completion after movement */
+        /* Check for Nienna quest completion after movement */
         check_niena_quest_completion();
 
         if (cave_feat[y][x] == FEAT_SUNLIGHT

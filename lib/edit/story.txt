@@ -21,11 +21,11 @@ O:0
 R:*
 D:A cold, empty darkness surrounds you. Your memories scatter like ashes on the wind, leaving only faint sparks of courage within. You sense deep sorrow, gentle and unseen-Nienna's quiet weeping steadies your uncertain heart.
 
-N:1:Chapter 1. Whisper of Manwe
+N:1:Chapter 1. Whisper of Manwë
 T:0
 O:1
 R:*
-D:A faint, distant echo stirs a forgotten defiance within you. You feel you once stood against darkness, but details slip away. A cool breeze brushes your spirit, the breath of Manwe, offering comfort and guiding you forward.
+D:A faint, distant echo stirs a forgotten defiance within you. You feel you once stood against darkness, but details slip away. A cool breeze brushes your spirit, the breath of Manwë, offering comfort and guiding you forward.
 
 N:2:Chapter 2. Stars of Varda
 T:0
@@ -51,11 +51,11 @@ O:5
 R:*
 D:A haunting song, older and deeper than you can comprehend, drifts past. You sense an ancient melancholy, stirring hidden memories of endless seas. Far away, waves whisper-Ulmo calling softly, pulling your heart toward truth.
 
-N:6:Chapter 6. Weaving of Vaire
+N:6:Chapter 6. Weaving of Vairë
 T:0
 O:6
 R:*
-D:Your fingers trace flowing runes carved gently into stone walls. The symbols resonate with warmth, though you cannot yet read them clearly. Delicate threads of silver glimmer faintly-Vaire, the Weaver, slowly restoring your fractured memories.
+D:Your fingers trace flowing runes carved gently into stone walls. The symbols resonate with warmth, though you cannot yet read them clearly. Delicate threads of silver glimmer faintly-Vairë, the Weaver, slowly restoring your fractured memories.
 
 N:7:Chapter 7. Doom of Mandos
 T:0
@@ -75,11 +75,11 @@ O:9
 R:*
 D:Soft words rise clearly within your mind: "Estel brillies teni mornie canta." Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt-a comforting gift from gentle Este.
 
-N:10:Chapter 10. Horn of Orome
+N:10:Chapter 10. Horn of Oromë
 T:0
 O:10
 R:*
-D:You sense a hidden city-gleaming towers, secret valleys, beautiful yet fragile. Your heart fills with a fierce protective instinct. Far off, a hunting horn sounds urgently, boldly-Orome, calling your spirit to reclaim its path.
+D:You sense a hidden city-gleaming towers, secret valleys, beautiful yet fragile. Your heart fills with a fierce protective instinct. Far off, a hunting horn sounds urgently, boldly-Oromë, calling your spirit to reclaim its path.
 
 N:11:Chapter 11. Steps of Nessa
 T:0
@@ -87,17 +87,17 @@ O:11
 R:*
 D:A sudden pulse of self-sacrifice fills your heart-a moment when you willingly traded your life for others. Your spirit trembles at the strength of that choice. Quick, joyful steps echo beside you, invisible yet clear-Nessa's fleet encouragement.
 
-N:12:Chapter 12. Strength of Aule
+N:12:Chapter 12. Strength of Aulë
 T:0
 O:12
 R:*
-D:A towering shadow engulfed in flame looms in memory-fearsome, roaring, yet you faced it bravely, unyielding. Solid ground firms beneath your feet, rock and stone reinforced by the mighty hand of Aule, grounding your courage.
+D:A towering shadow engulfed in flame looms in memory-fearsome, roaring, yet you faced it bravely, unyielding. Solid ground firms beneath your feet, rock and stone reinforced by the mighty hand of Aulë, grounding your courage.
 
-N:13:Chapter 13. Light of Varda and Manwe
+N:13:Chapter 13. Light of Varda and Manwë
 T:0
 O:13
 R:*
-D:Your spirit recalls death, sacrifice-but also purpose beyond defeat. Gentle yet majestic voices whisper in harmony: "Even death cannot silence your courage. Rise once more." Radiance pierces darkness-starlight and sky, blessings of Varda and Manwe.
+D:Your spirit recalls death, sacrifice-but also purpose beyond defeat. Gentle yet majestic voices whisper in harmony: "Even death cannot silence your courage. Rise once more." Radiance pierces darkness-starlight and sky, blessings of Varda and Manwë.
 
 N:14:Chapter 14. Dreams of Irmo
 T:0
@@ -109,129 +109,129 @@ N:15:Chapter 15. Mandate of the Valar
 T:0
 O:15
 R:*
-D:You stand now amid the ruined stones of a hidden city-Gondolin. Memory rushes fully clear: you fell here, defeating a Balrog, your life sacrificed to protect your people. Three powerful voices- Varda, Manwe, and Mandos-call to you clearly: "Rise again, Glorfindel, hero reborn. Morgoth's shadow stirs once more-your light must stand against it."
+D:You stand now amid the ruined stones of a hidden city-Gondolin. Memory rushes fully clear: you fell here, defeating a Balrog, your life sacrificed to protect your people. Three powerful voices- Varda, Manwë, and Mandos-call to you clearly: "Rise again, Glorfindel, hero reborn. Morgoth's shadow stirs once more-your light must stand against it."
 
-N:16:Ash and Iron  
-T:1  
-O:1  
-R:*  
-D: Darkness absolute, yet far off the ringing of hammers upon iron-echoes from Morgoth's forge. 
-D: A stern whisper, chill as Angband's stone: 
+N:16:Ash and Iron
+T:1
+O:1
+R:*
+D: Darkness absolute, yet far off the ringing of hammers upon iron-echoes from Morgoth's forge.
+D: A stern whisper, chill as Angband's stone:
 D: "Once has thy courage faltered."
 
-N:17:Chain Rattle  
-T:1  
-O:2  
-R:*  
-D: Iron links scrape upon stone, mourning your failure. 
-D: A voice vast and mocking speaks from above, dreadful in authority: 
+N:17:Chain Rattle
+T:1
+O:2
+R:*
+D: Iron links scrape upon stone, mourning your failure.
+D: A voice vast and mocking speaks from above, dreadful in authority:
 D: "Thy return is woven into fate itself."
 
-N:18:Tarnished Star  
-T:1  
-O:3  
-R:*  
-D: Amid bitter smoke, one pale star-Varda's grace dimmed by shadow. 
+N:18:Tarnished Star
+T:1
+O:3
+R:*
+D: Amid bitter smoke, one pale star-Varda's grace dimmed by shadow.
 D: Courage flickers within, shrouded yet not extinguished, fading as it retreats from your grasp.
 
-N:19:The Mocking Wind  
-T:1  
-O:4  
-R:*  
-D: A cruel wind whispers falsely in Manwe's voice, bringing neither comfort nor counsel. 
-D: Grim banners flutter, black as despair. 
+N:19:The Mocking Wind
+T:1
+O:4
+R:*
+D: A cruel wind whispers falsely in Manwë's voice, bringing neither comfort nor counsel.
+D: Grim banners flutter, black as despair.
 D: Once you walked taller than this fall.
 
-N:20:Unwatered Seeds  
-T:1  
-O:5  
-R:*  
-D: Within your palm, a seedling withers to dust. 
-D: Fragments of friendship drift past, their warmth drowned by barren earth turned slag. 
+N:20:Unwatered Seeds
+T:1
+O:5
+R:*
+D: Within your palm, a seedling withers to dust.
+D: Fragments of friendship drift past, their warmth drowned by barren earth turned slag.
 D: Hope falters, vanishing into ashes.
 
-N:21:Drowned Hymn  
-T:1  
-O:6  
-R:*  
-D: An ancient song rises, deep and mournful-Ulmo's lament silenced beneath Angband's stone. 
+N:21:Drowned Hymn
+T:1
+O:6
+R:*
+D: An ancient song rises, deep and mournful-Ulmo's lament silenced beneath Angband's stone.
 D: Black water drips, relentless and cold, drowning melody and memory alike.
 
-N:22:Unwoven  
-T:1  
-O:7  
-R:*  
-D: Silver threads unravel before your eyes, gentle runes blurring like tears. 
-D: A weaver's unseen hand draws back sorrowfully-Vaire's tapestry frays, memories lost once more.
+N:22:Unwoven
+T:1
+O:7
+R:*
+D: Silver threads unravel before your eyes, gentle runes blurring like tears.
+D: A weaver's unseen hand draws back sorrowfully-Vairë's tapestry frays, memories lost once more.
 
-N:23:Bell of Doom  
-T:1  
-O:8  
-R:*  
-D: A bell tolls in distant halls, solemn as Mandos' judgment. 
-D: He condemns not, yet neither does he comfort. 
+N:23:Bell of Doom
+T:1
+O:8
+R:*
+D: A bell tolls in distant halls, solemn as Mandos' judgment.
+D: He condemns not, yet neither does he comfort.
 D: His memory endures, marking well each failure.
 
-N:24:Petals in Soot  
-T:1  
-O:9  
-R:*  
-D: A pale blossom floats downward, scorched by unseen flame. 
-D: As it lands softly upon your armor, it crumbles into ash. 
-D: Far away, joy dances still-but here lies ruin. 
+N:24:Petals in Soot
+T:1
+O:9
+R:*
+D: A pale blossom floats downward, scorched by unseen flame.
+D: As it lands softly upon your armor, it crumbles into ash.
+D: Far away, joy dances still-but here lies ruin.
 
-N:25:Spent Breath  
-T:1  
-O:10  
-R:*  
-D: Words stir within you-Estel brillies...-yet your breath freezes in your lungs. 
+N:25:Spent Breath
+T:1
+O:10
+R:*
+D: Words stir within you-Estel brillies...-yet your breath freezes in your lungs.
 D: No rest comes; your spirit is compelled once more into torment, or oblivion.
 
-N:26:Far Horn, Near Chains  
-T:1  
-O:11  
-R:*  
-D: Orome's horn echoes distant and bold, a summons you cannot answer. 
+N:26:Far Horn, Near Chains
+T:1
+O:11
+R:*
+D: Oromë's horn echoes distant and bold, a summons you cannot answer.
 D: Chains bind tighter with each futile struggle, mocking your imprisoned valor.
 
-N:27:Stilled Steps  
-T:1  
-O:12  
-R:*  
-D: You rush to protect, but find neither footing nor strength. 
-D: Heroism unrewarded; your sacrifice hollow. 
+N:27:Stilled Steps
+T:1
+O:12
+R:*
+D: You rush to protect, but find neither footing nor strength.
+D: Heroism unrewarded; your sacrifice hollow.
 D: A heavy voice intones your failure, each fall a deeper wound.
 
-N:28:Broken Stone  
-T:1  
-O:13  
-R:*  
-D: You face fire and shadow, defiant-but the earth betrays you. 
-D: Stone shatters beneath your feet, and Aule's strength recedes. 
+N:28:Broken Stone
+T:1
+O:13
+R:*
+D: You face fire and shadow, defiant-but the earth betrays you.
+D: Stone shatters beneath your feet, and Aulë's strength recedes.
 D: Yet deep stone remembers courage still.
 
-N:29:false Dawn  
-T:1  
-O:14  
-R:*  
-D: A pale light rises, false and cold-a mockery of Varda's starlit grace. 
+N:29:false Dawn
+T:1
+O:14
+R:*
+D: A pale light rises, false and cold-a mockery of Varda's starlit grace.
 D: Morgoth laughs within the cruel dawn, yet even false light hints at true radiance hidden far beyond your reach.
 
-N:30:The Shut Gate  
-T:1  
-O:15  
-R:*  
+N:30:The Shut Gate
+T:1
+O:15
+R:*
 D: Great iron doors clang shut, a sound of dreadful judgment.
 D: Three voices fall silent, their disappointment a heavy weight.
 D: Your path grows darker still, the light of hope a distant memory.
 
-N:31:Gift of Iluvatar
+N:31:Gift of Ilúvatar
 T:1
 O:0
 R:*
-D:Warm darkness embraces you-not Morgoth's chains, but a gentle silence. 
-D:This death is no defeat, but the Gift of Iluvatar itself. 
-D:Your spirit passes briefly beyond the Circles of the World- 
+D:Warm darkness embraces you-not Morgoth's chains, but a gentle silence.
+D:This death is no defeat, but the Gift of Ilúvatar itself.
+D:Your spirit passes briefly beyond the Circles of the World-
 D:returning untouched by Mandos' count.
 
 N:32:Echo of Silence

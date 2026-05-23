@@ -2976,7 +2976,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
             victory_text = "You escape triumphant, two Silmarils blazing fiercely in your hands. Morgoth roars in wrath; his pride is wounded deeply. Your spirit exults, yet your heart begins to feel their burning weight.";
             break;
         case 3:
-            victory_text = "All three stolen stars blaze now in your hands; Morgoth's crown lies darkened. Such triumph has not been known since Feanor himself dreamed it-but even as victory soars, your heart trembles beneath their burning glory.";
+            victory_text = "All three stolen stars blaze now in your hands; Morgoth's crown lies darkened. Such triumph has not been known since Fëanor himself dreamed it-but even as victory soars, your heart trembles beneath their burning glory.";
             break;
         default:
             victory_text = "You have achieved the impossible, claiming more Silmarils than should exist. Reality itself bends before your triumph.";
@@ -3111,8 +3111,8 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
             switch (k)
             {
                 case 0: echo_text = fail ?
-                    "\"Alqualonde's Grief\"\nBlood stains starlit waves. Your hand remembers the swords at Alqualonde-first grief, first guilt." :
-                    "The sorrow of Alqualonde passes over you-your spirit holds fast, blood unstained.";
+                    "\"Alqualondë's Grief\"\nBlood stains starlit waves. Your hand remembers the swords at Alqualondë-first grief, first guilt." :
+                    "The sorrow of Alqualondë passes over you-your spirit holds fast, blood unstained.";
                     break;
                 case 1: echo_text = fail ?
                     "\"Ruin of Doriath\"\nAgain your hand recalls tragedy-fallen halls of Menegroth, Dior's blood shed beneath stolen starlight." :

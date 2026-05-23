@@ -1919,7 +1919,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         o_ptr->ident |= (IDENT_SENSE);
     }
 
-    /* Items with BREAKS_PERMA_CURSE can break the Oath of Feanor on all equipped items */
+    /* Items with BREAKS_PERMA_CURSE can break the Oath of Fëanor on all equipped items */
     {
         u32b o_f1, o_f2, o_f3, o_f4;
         object_flags4(o_ptr, &o_f1, &o_f2, &o_f3, &o_f4);
@@ -1929,7 +1929,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             int j;
             bool oath_broken = false;
 
-            /* Check all equipped items for the Oath of Feanor (perma-curse) */
+            /* Check all equipped items for the Oath of Fëanor (perma-curse) */
             for (j = INVEN_WIELD; j < INVEN_TOTAL; j++)
             {
                 object_type *eq_ptr = &inventory[j];
@@ -1949,7 +1949,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
             if (oath_broken)
             {
-                msg_print("The holy light breaks the Oath of Feanor!");
+                msg_print("The holy light breaks the Oath of Fëanor!");
             }
         }
     }

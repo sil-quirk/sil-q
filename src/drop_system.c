@@ -207,7 +207,7 @@ static drop_category drop_category_for_kind(const object_kind* k_ptr)
     case TV_AMULET:
         return DROP_CAT_JEWELRY;
     case TV_LIGHT:
-        /* All non-Feanorian light sources are treated as supply. */
+        /* All non-Fëanorian light sources are treated as supply. */
         if (k_ptr->sval == SV_LIGHT_FEANORIAN || k_ptr->sval == SV_LIGHT_SILMARIL)
             return DROP_CAT_JEWELRY;
         if (k_ptr->sval == SV_LIGHT_TORCH || k_ptr->sval == SV_LIGHT_MALLORN
@@ -749,7 +749,7 @@ bool object_uses_smithing_difficulty(const object_type* o_ptr)
         return true;
 
     case TV_LIGHT:
-        /* Non-Feanorian lights are treated as supply, except Grace lesser jewels. */
+        /* Non-Fëanorian lights are treated as supply, except Grace lesser jewels. */
         if (o_ptr->sval == SV_LIGHT_FEANORIAN || o_ptr->sval == SV_LIGHT_SILMARIL)
             return true;
         if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL && object_has_ego_idx(o_ptr, EGO_GRACE))

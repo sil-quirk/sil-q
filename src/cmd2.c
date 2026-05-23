@@ -625,10 +625,10 @@ void do_cmd_go_up(void)
         }
     }
 
-    // warn player if they have an active Niena quest and are trying to leave
+    // warn player if they have an active Nienna quest and are trying to leave
     if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE)
     {
-        msg_print("Niena's voice echoes in your mind:");
+        msg_print("Nienna's voice echoes in your mind:");
         msg_print("'If you leave now, you will have failed the mercy quest.'");
         msg_print("'All the compassion you have shown will be for naught.'");
         if (!get_check("Are you sure you wish to abandon the quest and ascend? "))
@@ -637,11 +637,11 @@ void do_cmd_go_up(void)
         }
     }
 
-    // warn player if they have an active Aule quest and are trying to leave
+    // warn player if they have an active Aulë quest and are trying to leave
     if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
     {
         msg_print("The forge fires dim as you prepare to leave...");
-        msg_print("Abandoning Aule's forge will mean failure of the quest.");
+        msg_print("Abandoning Aulë's forge will mean failure of the quest.");
         if (!get_check("Are you sure you wish to abandon the forge and ascend? "))
         {
             return;
@@ -897,14 +897,14 @@ void do_cmd_go_up(void)
     if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT)
     {
         p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
-        msg_print("You have failed Niena's mercy quest by leaving the level.");
+        msg_print("You have failed Nienna's mercy quest by leaving the level.");
     }
 
     /* Reset aule quest if active */
     if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
     {
         p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
-        msg_print("You have abandoned Aule's forge. The quest is lost.");
+        msg_print("You have abandoned Aulë's forge. The quest is lost.");
     }
     else if (p_ptr->aule_quest == AULE_QUEST_FORGE_PRESENT)
     {
@@ -977,10 +977,10 @@ void do_cmd_go_down(void)
         return;
     }
 
-    // warn player if they have an active Niena quest and are trying to leave
+    // warn player if they have an active Nienna quest and are trying to leave
     if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE)
     {
-        msg_print("Niena's voice echoes in your mind:");
+        msg_print("Nienna's voice echoes in your mind:");
         msg_print("'If you leave now, you will have failed the mercy quest.'");
         msg_print("'All the compassion you have shown will be for naught.'");
         if (!get_check("Are you sure you wish to abandon the quest and descend? "))
@@ -989,11 +989,11 @@ void do_cmd_go_down(void)
         }
     }
 
-    // warn player if they have an active Aule quest and are trying to leave
+    // warn player if they have an active Aulë quest and are trying to leave
     if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
     {
         msg_print("The forge fires dim as you prepare to leave...");
-        msg_print("Abandoning Aule's forge will mean failure of the quest.");
+        msg_print("Abandoning Aulë's forge will mean failure of the quest.");
         if (!get_check("Are you sure you wish to abandon the forge and descend? "))
         {
             return;
@@ -1120,7 +1120,7 @@ void do_cmd_go_down(void)
     if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
     {
         p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
-        msg_print("You have abandoned Aule's forge. The quest is lost.");
+        msg_print("You have abandoned Aulë's forge. The quest is lost.");
     }
     else if (p_ptr->aule_quest == AULE_QUEST_FORGE_PRESENT)
     {
@@ -1142,7 +1142,7 @@ void do_cmd_go_down(void)
     if (p_ptr->niena_quest >= NIENA_QUEST_ACTIVE && p_ptr->niena_quest < NIENA_QUEST_REWARDED)
     {
         p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
-        msg_print("You have abandoned Niena's mercy quest. The quest is lost.");
+        msg_print("You have abandoned Nienna's mercy quest. The quest is lost.");
     }
     else if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT)
     {

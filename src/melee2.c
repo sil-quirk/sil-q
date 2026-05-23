@@ -4879,7 +4879,7 @@ static void process_monster(monster_type* m_ptr)
     if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->on_the_run)
         m_ptr->mflag |= (MFLAG_ACTV);
 
-    // do this before Mastery and Lorien effects kick in...
+    // do this before Mastery and Lórien effects kick in...
     maybe_update_morgoth_state_from_hp(m_ptr);
 
     // assume we are not under the influence of the Song of Mastery

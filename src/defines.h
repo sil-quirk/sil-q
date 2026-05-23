@@ -2101,7 +2101,7 @@
 #define TR3_TWO_HANDED 0x10000000L /* Item is a two handed weapon */
 #define TR3_LIGHT_CURSE 0x20000000L /* Item has Light Curse */
 #define TR3_HEAVY_CURSE 0x40000000L /* Item has Heavy Curse */
-#define TR3_PERMA_CURSE 0x80000000L /* Item bound by Oath of Feanor (broken by items with BREAKS_PERMA_CURSE) */
+#define TR3_PERMA_CURSE 0x80000000L /* Item bound by Oath of Fëanor (broken by items with BREAKS_PERMA_CURSE) */
 
 /*TR3 Uber-Flags*/
 #define TR3_IGNORE_ALL                                                         \
@@ -2113,7 +2113,7 @@
 #define TR4_DEPTH_SCALE_PS 0x00000004L /* Protection sides scale with depth */
 #define TR4_PAIRED      0x00000008L /* Part of a matched weapon pair (no off-hand penalty) */
 #define TR4_SUBTLETY_THROW 0x00000010L /* Allows Subtlety ability to work when throwing this weapon */
-#define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Feanor (PERMA_CURSE) */
+#define TR4_BREAKS_PERMA_CURSE 0x00000020L /* Can break items bound by Oath of Fëanor (PERMA_CURSE) */
 #define TR4_LESS_SPECIAL    0x00000040L /* Item reduces ego rarity weighting (-20 flat) */
 #define TR4_NOBLE_ITEM      0x00000080L /* Noble-aligned item with source gating handled by generation rules */
 #define TR4_EVIL_ITEM       0x00000100L /* Item belongs to evil alignment for ego/chest composition rules */
@@ -2882,12 +2882,12 @@
 #define PLAYER_TILE_FACING_MAX         PLAYER_TILE_FACING_HANDCRAFTED
 
 /* Intro screen style constants */
-#define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindale) */
-#define INTRO_STYLE_FEANOR      1   /* Oath of Feanor */
+#define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindalë) */
+#define INTRO_STYLE_FEANOR      1   /* Oath of Fëanor */
 #define INTRO_STYLE_TWILIGHT    2   /* Twilight of Valinor */
-#define INTRO_STYLE_LUTHIEN     3   /* Song of Luthien */
-#define INTRO_STYLE_HURIN       4   /* Words of Hurin */
-#define INTRO_STYLE_STARLIGHT   5   /* Starlight on Cuivienen */
+#define INTRO_STYLE_LUTHIEN     3   /* Song of Lúthien */
+#define INTRO_STYLE_HURIN       4   /* Words of Húrin */
+#define INTRO_STYLE_STARLIGHT   5   /* Starlight on Cuiviénen */
 #define INTRO_STYLE_NOLDOLANTE  6   /* Lament of the Noldor */
 #define INTRO_STYLE_RANDOM      7   /* Random each launch */
 #define INTRO_STYLE_MAX         7   /* Highest fixed variant index (6) + 1 for random */
@@ -3936,15 +3936,15 @@
 #define TULKAS_QUEST_COMPLETE 3
 #define TULKAS_QUEST_REWARDED 4
 
-/* States for the Aule forging quest */
+/* States for the Aulë forging quest */
 #define AULE_QUEST_NOT_STARTED 0
-#define AULE_QUEST_FORGE_PRESENT 1  /* Entered Aule's forge vault */
+#define AULE_QUEST_FORGE_PRESENT 1  /* Entered Aulë's forge vault */
 #define AULE_QUEST_ACTIVE 2         /* Accepted quest: must forge qualifying artifact at this forge */
 #define AULE_QUEST_SUCCESS 3        /* Forged qualifying artifact (reward granted) */
 /* Retain old value 4 for save compatibility (quest no longer fails) */
 #define AULE_QUEST_FAILED 4         /* Legacy: previously used for failure; now unused */
 #define AULE_QUEST_REWARDED 5       /* Reward has been granted to prevent repeated interactions */
-/* Minimum smithing skill required for Aule quest vault to spawn */
+/* Minimum smithing skill required for Aulë quest vault to spawn */
 #define AULE_SMITH_REQ 10
 
 /* States for the Mandos clearing quest */
@@ -3954,22 +3954,22 @@
 #define MANDOS_QUEST_SUCCESS 3        /* Cleared all monsters (reward granted) */
 #define MANDOS_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
-/* States for the Niena mercy quest */
+/* States for the Nienna mercy quest */
 #define NIENA_QUEST_NOT_STARTED 0
-#define NIENA_QUEST_GIVER_PRESENT 1  /* Niena spawned on maximum-size level */
+#define NIENA_QUEST_GIVER_PRESENT 1  /* Nienna spawned on maximum-size level */
 #define NIENA_QUEST_ACTIVE 2         /* Accepted quest: must reach stairs down without killing */
 #define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
 #define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 #define NIENA_QUEST_FAILED 5         /* Failed by taking a life during the quest */
 
-/* Orome quest states */
+/* Oromë quest states */
 #define OROME_QUEST_NOT_STARTED 0
-#define OROME_QUEST_GIVER_PRESENT 1  /* Orome spawned on hunting grounds level */
+#define OROME_QUEST_GIVER_PRESENT 1  /* Oromë spawned on hunting grounds level */
 #define OROME_QUEST_ACTIVE 2         /* Accepted quest: must hunt specified monsters */
 #define OROME_QUEST_SUCCESS 3        /* Completed hunt (reward granted) */
 #define OROME_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
-/* Orome quest monster types */
+/* Oromë quest monster types */
 #define OROME_TARGET_WOLF 1
 #define OROME_TARGET_SPIDER 2
 #define OROME_TARGET_SERPENT 3
@@ -4011,19 +4011,19 @@ typedef struct quest_mapping {
 
 /* Quest ID mappings - modify this to add new quests */
 #define QUEST_ID_TULKAS  1  /* Tulkas quest in quest.txt */
-#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */
+#define QUEST_ID_AULE    2  /* Aulë quest in quest.txt */
 #define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
-#define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
-#define QUEST_ID_OROME   5  /* Orome quest in quest.txt */
+#define QUEST_ID_NIENA   4  /* Nienna quest in quest.txt */
+#define QUEST_ID_OROME   5  /* Oromë quest in quest.txt */
 #define QUEST_ID_VARDA   6  /* Varda quest in quest.txt */
 
 /* Quest mapping table - used by extract_quest_init_texts() and related functions */
 static const quest_mapping quest_id_map[] = {
     { QUEST_ID_TULKAS, "Tulkas the Strong" },
-    { QUEST_ID_AULE,   "Aule the Smith" },
+    { QUEST_ID_AULE,   "Aulë the Smith" },
     { QUEST_ID_MANDOS, "Mandos the Doomsman" },
-    { QUEST_ID_NIENA,  "Niena, Lady of Pity" },
-    { QUEST_ID_OROME,  "Orome the Hunter" },
+    { QUEST_ID_NIENA,  "Nienna, Lady of Pity" },
+    { QUEST_ID_OROME,  "Oromë the Hunter" },
     { QUEST_ID_VARDA,  "Varda, Lady of the Stars" }
 };
 

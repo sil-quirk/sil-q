@@ -7731,7 +7731,7 @@ void song_of_binding(monster_type* m_ptr)
 
     // determine the player's resistance
     // Sil-y: might want to add in the same +5 bonus as against Mastery and
-    // Lorien
+    // Lórien
     resistance = p_ptr->skill_use[S_WIL] + (p_ptr->free_act * 10)
         + flow_dist(FLOW_MONSTER_NOISE, p_ptr->py, p_ptr->px);
 

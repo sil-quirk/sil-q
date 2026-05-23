@@ -75,9 +75,9 @@ A:17173e277d13b237
 # shortsword of Amras
 
 
-## Panoply of Earendil (6-piece war-gear set: +1 GRA, +5 WIL)
+## Panoply of Eärendil (6-piece war-gear set: +1 GRA, +5 WIL)
 
-N:5:Panoply of Earendil
+N:5:Panoply of Eärendil
 Q:e3a7b1d5f9c20486
 A:7e3a91f4c6b20d58  
 # 'Falchrist'
@@ -95,12 +95,12 @@ M:GRA:1
 M:WIL:5
 
 
-## Treasures of Finwe (corslet and lamp: +1 GRA)
+## Treasures of Finwë (corslet and lamp: +1 GRA)
 
-N:6:Treasures of Finwe
+N:6:Treasures of Finwë
 Q:f4c8e1a6d9b20573
 A:d1921f00bca8218e  
-# corslet of Finwe
+# corslet of Finwë
 A:a7c3d925e8f14b62  
-# lamp of Finwe
+# lamp of Finwë
 M:GRA:1

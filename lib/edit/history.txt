@@ -49,7 +49,7 @@ D:You are one of two children
 N:1:2:95:0
 D:You are the only child
 N:1:50:100:0
-D:You awoke on the shores of lake Cuivienen.
+D:You awoke on the shores of lake Cuiviénen.
 
 N:2:3:20:0
 D:of an archer
@@ -63,7 +63,7 @@ N:2:3:100:0
 D:of a prince
 
 N:3:50:100:1
-D:from the house of Feanor.
+D:from the house of Fëanor.
 N:3:50:100:2
 D:from the house of Fingolfin.
 N:3:50:100:3
@@ -79,7 +79,7 @@ D:You are one of two children
 N:4:5:95:0
 D:You are the only child
 N:4:54:100:0
-D:You awoke on the shores of lake Cuivienen.
+D:You awoke on the shores of lake Cuiviénen.
 
 N:5:54:35:0
 D:of a Sindar archer.

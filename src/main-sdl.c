@@ -1706,7 +1706,8 @@ static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     const int* cell_heights, int margin_px);
 static void sdl_touch_pane_send_confirm_action(void);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
-static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
+static void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
     float cell_h, float origin_x, int x, int y, int n, const char* s,
     SDL_Color col);
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
@@ -25755,7 +25756,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                 buf[len] = '\0';
                 if (mono_font && utf8_has_non_ascii_n(buf, len))
                 {
-                    sdl_render_mono_utf8_text_cells(mono_font,
+                    sdl_render_mono_utf8_text_cells(font_atlas,
+                        atlas_cell_w, atlas_cell_h, mono_font,
                         (float)metrics.cell_w, (float)metrics.cell_h,
                         content_x, start, row, len, buf, text_col);
                 }
@@ -28627,7 +28629,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                             d->cell_w, d->cell_h);
 
                         if (mono_font)
-                            sdl_render_mono_utf8_text_cells(mono_font,
+                            sdl_render_mono_utf8_text_cells(d->font_atlas,
+                                d->cell_w, d->cell_h, mono_font,
                                 (float)d->cell_w, (float)d->cell_h, 0.0f,
                                 render_col, y, render_run, render_text, col);
                         else
@@ -28663,7 +28666,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                 d->cell_w, d->cell_h);
 
             if (mono_font)
-                sdl_render_mono_utf8_text_cells(mono_font, (float)d->cell_w,
+                sdl_render_mono_utf8_text_cells(d->font_atlas, d->cell_w,
+                    d->cell_h, mono_font, (float)d->cell_w,
                     (float)d->cell_h, 0.0f, x, y, n, s, col);
             else
                 sdl_render_mono_text(d, x, y, n, s, col);
@@ -34163,28 +34167,24 @@ static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s
     }
 }
 
-static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
-    float cell_h, float origin_x, int x, int y, int n, const char* s,
-    SDL_Color col)
+static void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, int x, int y, int cell_offset,
+    int cell_span, const char* s, int len, SDL_Color col)
 {
-    char text_buf[256];
-    int len;
+    char text_buf[8];
     SDL_Surface* text_surface;
     SDL_Texture* text_texture;
 
-    if (!font || !s || n <= 0 || cell_w <= 0.0f || cell_h <= 0.0f)
-        return;
-
-    len = (n < 255) ? n : 255;
-    len = utf8_safe_prefix_len(s, len);
-    if (len <= 0)
-        return;
-
-    for (int i = 0; i < len; i++)
+    if (!font || !s || len <= 0 || len >= (int)sizeof(text_buf)
+        || cell_w <= 0.0f || cell_h <= 0.0f)
     {
-        unsigned char ch = (unsigned char)s[i];
-        text_buf[i] = (ch ? (char)ch : ' ');
+        return;
     }
+
+    if (cell_span < 1)
+        cell_span = 1;
+
+    memcpy(text_buf, s, (size_t)len);
     text_buf[len] = '\0';
 
     text_surface = TTF_RenderText_Blended(font, text_buf, 0, col);
@@ -34194,18 +34194,21 @@ static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
     text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
     if (text_texture)
     {
+        float surf_w_f = (float)text_surface->w;
         float surf_h_f = (float)text_surface->h;
         float scale = (surf_h_f > 0.0f) ? (cell_h / surf_h_f) : 1.0f;
-        SDL_FRect dst = {
-            origin_x + ((float)x * cell_w),
-            (float)y * cell_h,
-            (float)text_surface->w * scale,
-            cell_h
-        };
-        float max_w = (float)n * cell_w;
+        float render_w = surf_w_f * scale;
+        float max_w = (float)cell_span * cell_w;
+        SDL_FRect dst;
 
-        if (dst.w > max_w)
-            dst.w = max_w;
+        if (render_w > max_w)
+            render_w = max_w;
+
+        dst.x = origin_x + ((float)(x + cell_offset) * cell_w)
+            + ((max_w - render_w) * 0.5f);
+        dst.y = (float)y * cell_h;
+        dst.w = render_w;
+        dst.h = cell_h;
 
         SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
         SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
@@ -34213,6 +34216,84 @@ static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
     }
 
     SDL_DestroySurface(text_surface);
+}
+
+static void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, int x, int y, int n, const char* s,
+    SDL_Color col)
+{
+    int byte_pos = 0;
+    int cell_offset = 0;
+
+    if (!s || n <= 0 || cell_w <= 0.0f || cell_h <= 0.0f)
+        return;
+
+    if (atlas)
+    {
+        SDL_SetTextureColorMod(atlas, col.r, col.g, col.b);
+        SDL_SetTextureAlphaMod(atlas, 255);
+    }
+
+    while (byte_pos < n && s[byte_pos] && cell_offset < n)
+    {
+        unsigned char ch = (unsigned char)s[byte_pos];
+        int remaining = n - byte_pos;
+        int char_len = utf8_sequence_len_n(s + byte_pos, remaining);
+        int char_width;
+
+        if (char_len <= 0)
+            break;
+
+        if (ch < 0x80 || char_len == 1)
+        {
+            if (atlas)
+            {
+                SDL_FRect src = {
+                    (float)((ch & 15) * atlas_cell_w),
+                    (float)((ch >> 4) * atlas_cell_h),
+                    (float)atlas_cell_w,
+                    (float)atlas_cell_h,
+                };
+                SDL_FRect dst = {
+                    origin_x + ((float)(x + cell_offset) * cell_w),
+                    (float)y * cell_h,
+                    cell_w,
+                    cell_h,
+                };
+
+                if (use_graphics == GRAPHICS_PSEUDO && solid_walls
+                    && (ch == '#' || ch == '%'))
+                {
+                    SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g,
+                        col.b, SDL_ALPHA_OPAQUE);
+                    SDL_RenderFillRect(g_state.renderer, &dst);
+                }
+
+                SDL_RenderTexture(g_state.renderer, atlas, &src, &dst);
+            }
+
+            byte_pos++;
+            cell_offset++;
+            continue;
+        }
+
+        char_width = utf8_display_width_n(s + byte_pos, char_len);
+        if (char_width <= 0)
+        {
+            int overlay_offset = (cell_offset > 0) ? (cell_offset - 1) : 0;
+            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x, x, y,
+                overlay_offset, 1, s + byte_pos, char_len, col);
+        }
+        else
+        {
+            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x, x, y,
+                cell_offset, char_width, s + byte_pos, char_len, col);
+            cell_offset += char_width;
+        }
+
+        byte_pos += char_len;
+    }
 }
 
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
@@ -34380,7 +34461,22 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
                 255
             };
             if (utf8_has_non_ascii_n(row_chars + run_start, run_len))
-                sdl_render_story_text_free(d, font, run_start, y, run_len, row_chars + run_start, col);
+            {
+                const char* font_path = config.monospace_font[0] != '\0'
+                    ? config.monospace_font
+                    : "lib/xtra/font/VictorMono-Medium.ttf";
+                TTF_Font* mono_font = sdl_acquire_mono_font_cells(font_path,
+                    d->cell_w, d->cell_h);
+
+                if (mono_font)
+                    sdl_render_mono_utf8_text_cells(d->font_atlas, d->cell_w,
+                        d->cell_h, mono_font, (float)d->cell_w,
+                        (float)d->cell_h, 0.0f, run_start, y, run_len,
+                        row_chars + run_start, col);
+                else
+                    sdl_render_mono_text(d, run_start, y, run_len,
+                        row_chars + run_start, col);
+            }
             else
                 sdl_render_mono_text(d, run_start, y, run_len, row_chars + run_start, col);
             continue;

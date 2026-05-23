@@ -2360,7 +2360,7 @@ static cptr legacy_supply_kind_name(int kind, int count)
     case LEGACY_SUPPLY_KIND_LESSER_JEWELS:
         return plural ? "lesser jewels" : "lesser jewel";
     case LEGACY_SUPPLY_KIND_FEANORIAN_LAMPS:
-        return plural ? "Feanorian lamps" : "Feanorian lamp";
+        return plural ? "Fëanorian lamps" : "Fëanorian lamp";
     case LEGACY_SUPPLY_KIND_OIL_FLASKS:
         return plural ? "oil flasks" : "oil flask";
     default:

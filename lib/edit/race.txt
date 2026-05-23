@@ -47,7 +47,7 @@
 
 V:0.9.6
 
-N:0:Feanorians
+N:0:Fëanorians
 Q:2444d18db905ccd7
 S:0:1:2:2
 I:1:20:4865

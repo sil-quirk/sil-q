@@ -1182,7 +1182,7 @@ D: and distant slaughter, where the archer need not hear the cry of what
 D: he strikes.
 
 
-# Modelled on Earendil's bow
+# Modelled on Eärendil's bow
 
 N:112:& Dragon-horn Bow~
 G:}:U1
@@ -1416,7 +1416,7 @@ D: flask uses one slot and holds up to 2,500 turns.
 
 # Mallorn Torch is at index 411
 
-N:130:& Feanorian Lamp~
+N:130:& Fëanorian Lamp~
 G:~:B
 T:2:31
 I:39:8:0
@@ -1424,7 +1424,7 @@ W:12:0:10:1000
 P:0:0d0:0:0d0:0
 A:14/5:18/10
 F:MITHRIL | NOBLE_ITEM
-D:A lamp wrought in the manner of Feanor, the most gifted
+D:A lamp wrought in the manner of Fëanor, the most gifted
 D: of all the smiths of the Noldor. It is set with lesser
 D: jewels that hold a captured radiance, and shines with a
 D: light that no wind may quench.
@@ -1440,14 +1440,14 @@ W:25:0:1:100000
 P:0:0d0:0:0d0
 F:SEE_INVIS | SUST_GRA | EASY_KNOW
 F:IGNORE_ALL | NO_SMITHING | INSTA_ART | BREAKS_PERMA_CURSE
-D:One of the three great jewels wrought by Feanor in the
+D:One of the three great jewels wrought by Fëanor in the
 D: Blessed Realm, in which he captured the mingled light of
 D: the Two Trees of Valinor before their darkening. Morgoth
 D: stole the Silmarils and set them in his Iron Crown, and for
 D: their recovery the Noldor waged their long and ruinous war.
 D: Their radiance is holy, and no mortal hand may hold them
 D: without pain unless their cause be just. Its holy light can break
-D: the Oath of Feanor that binds cursed items.
+D: the Oath of Fëanor that binds cursed items.
 D: You can equip it as a light source with a radius of 7 squares.
 D: It will shine forever.
 
@@ -1499,7 +1499,7 @@ D: poise to thought and bearing, as though the heart had been taught to
 D: answer the world with less confusion. ||
 D:[noble]An amulet of fair and lucid making, in which grace seems not
 D: merely sharpened but ennobled. It heightens the inward light by which
-D: the Children of Iluvatar perceive what is hidden, and gives the sense
+D: the Children of Ilúvatar perceive what is hidden, and gives the sense
 D: of a spirit more nearly attuned to clean song and truth.
 
 
@@ -2032,7 +2032,7 @@ P:0:0d0:0:0d0
 R:PVAL:3
 A:15/10
 F:DEX | SUST_DEX | RES_CONFU | NOBLE_ITEM
-D:Wrought by Curufin son of Feanor, greatest smith among
+D:Wrought by Curufin son of Fëanor, greatest smith among
 D: the living Noldor, for the hunters who guarded the Pass
 D: of Aglon under his brother Celegorm the Fair. Those
 D: scouts tracked Morgoth's servants through the tangled

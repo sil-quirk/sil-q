@@ -353,12 +353,12 @@ D: iron, and patience into one strength without boast.
 
 # Daggers
 
-N:20:of Cuivienen
+N:20:of Cuiviénen
 W:0:20:0:6000
 C:0:0:0:0:0:0:3
 T:23:4:4
 F:LIGHT | SUST_GRA | SUST_DEX | SONG | NOBLE_ITEM
-D:[dagger]A memory of the first starlight of Cuivienen rests in this
+D:[dagger]A memory of the first starlight of Cuiviénen rests in this
 D: small blade, making it seem fitter for a swift and graceful hand than
 D: for any coarse work of butchery.
 
@@ -521,18 +521,18 @@ D: it may find wrath answering sooner than wisdom.
 
 # Swords only
 
-N:31:of the Feanorians
+N:31:of the Fëanorians
 W:12:30:0:1000
 C:0:0:0:0:0:0:1
 T:23:10:99
 F:GRA | DEX | DANGER | NOBLE_ITEM
 D:[short_sword]It answers the hand with a bright fierce quickness, like
-D: one of those lesser blades that still carried the proud fire of Feanor's
+D: one of those lesser blades that still carried the proud fire of Fëanor's
 D: house. ||
 D:[great_sword]Even in so great a blade there is a perilous swiftness,
-D: splendid and a little terrible, after the manner of the Feanorians. ||
+D: splendid and a little terrible, after the manner of the Fëanorians. ||
 D:[sword]A bright and restless mastery is remembered in it, noble in
-D: craft yet shadowed by the dangerous fire of Feanor's line.
+D: craft yet shadowed by the dangerous fire of Fëanor's line.
 
 
 # Daggers, curved swords, and short swords only
@@ -721,14 +721,14 @@ D: free folk, not for any honest proving of arms. ||
 D:[short_sword]The short black blade seems made for killing Men and Elves
 D: in the crush, where malice profits from closeness. ||
 D:[great_sword]Its long black edge carries the old hatred of Angband for
-D: the Children of Iluvatar. ||
+D: the Children of Ilúvatar. ||
 D:[spear]This spear's point is set with a grim purpose toward the free
 D: peoples, as if black iron itself had learned enmity. ||
 D:[glaive]Along its edge there runs a hatred broad as the stroke it
 D: makes, cruelly bent toward Men and Elves alike. ||
 D:[axe]A black killing-tool for butcher's work among the free peoples. ||
 D:[default]Black iron and old malice are joined in it, and the Children
-D: of Iluvatar are its favoured prey.
+D: of Ilúvatar are its favoured prey.
 
 
 # Daggers, curved swords, short swords, hand axes, and glaives
@@ -1609,7 +1609,7 @@ D: to wake again, as though the forge itself had judged the blow.
 
 # Daggers and hand axes only
 # (ability 0/3 is Throwing)
-# The Gaurwaith were the outlaw band of Turin, living by their wits and weapons in the wild.
+# The Gaurwaith were the outlaw band of Túrin, living by their wits and weapons in the wild.
 
 N:149:of the Gaurwaith
 W:4:75:0:1500
@@ -1710,7 +1710,7 @@ D: sundered outright than merely held at bay.
 
 # Warhammers, hand axes, battle-axes, great-axes
 
-N:154:of Aule's Warding
+N:154:of Aulë's Warding
 W:12:30:0:3000
 C:0:0:0:0:0:0:0
 T:21:8:8
@@ -1723,7 +1723,7 @@ D:[hand_axe]Though small, it carries a stern hallowing, as if made to
 D: bite truly upon the deathless and the blood-drinking things that
 D: mock the works of living hands. ||
 D:[battle_axe]Its broad edge has in it a lawful wrath against the
-D: walking dead, as though the craft of Aule denied them any lasting
+D: walking dead, as though the craft of Aulë denied them any lasting
 D: place in the world of stone and iron. ||
 D:[great_axe]A deep protective virtue abides in it, and even its vast
 D: stroke feels set not only to destroy, but to cast down what should
@@ -1960,7 +1960,7 @@ D: black hunts of the Enemy, when free folk or web-spawn were driven
 D: from cover by pain, shouting, and the promise of worse behind.
 
 
-# Feanorian Lamp only
+# Fëanorian Lamp only
 # (ability 7/7 is Song of the Trees)
 
 N:170:of Laurelin

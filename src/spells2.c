@@ -28,7 +28,7 @@ static void spells2_prompt_label(int binding, const char* fallback, char* buf,
 }
 
 // Function declarations
-void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[], 
+void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[],
                               bool identify[], int slot, const char* weapon_name);
 void display_attributes(char s[][200], char t[][200], bool good[], int count);
 void identify_revealed_items(bool identify[]);
@@ -451,29 +451,29 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
 }
 
 // Flags with descriptions
-flag_name info_flags_desc[] = { 
-{"Will Affinity is at 3, and never affected by curses", UNQ, UNQ_EARENDIL}, 
+flag_name info_flags_desc[] = {
+{"Will Affinity is at 3, and never affected by curses", UNQ, UNQ_EARENDIL},
 { "Artifacts take only 1 charge of forge, easier to make fire and light items", UNQ, UNQ_SMT_FEANOR },
 { "Majesty ability is 1.5x effective", UNQ, UNQ_WIL_FIN },
 { "Song of Staying is twice effective", UNQ, UNQ_SNG_FIN },
-{ "Song of Lorien is 1.5x effective", UNQ, UNQ_SNG_LUT }, 
+{ "Song of Lórien is 1.5x effective", UNQ, UNQ_SNG_LUT },
 { "Horns are twice effective", UNQ, UNQ_WIL_TUOR },
 { "Song of Threshold and Gem of Warding are twice effective", UNQ, UNQ_SNG_MEL },
 { "Can create very sharp items, easier to create sharp and accurate items", UNQ, UNQ_SMT_TELCHAR },
-{ "Using 3 forge charges can create mithril items without mithril", UNQ, UNQ_SMT_GAMIL }, 
+{ "Using 3 forge charges can create mithril items without mithril", UNQ, UNQ_SMT_GAMIL },
 { "All rings cost 30% less to create and ring slots are treated as major slots", UNQ, UNQ_SMT_CELEBRIMBOR },
 { "Song of Slaying is twice effective", UNQ, UNQ_SNG_HURIN },
-{ "Song of Mastery is 1.75x effective", UNQ, UNQ_SNG_THINGOL }, 
+{ "Song of Mastery is 1.75x effective", UNQ, UNQ_SNG_THINGOL },
 { "Starts with all stealth skills", UNQ, UNQ_MIM },
 { "Melee abilities are twice effective, better at one-handed combat", UNQ, UNQ_MEL_MAEDHROS },
 { "Will abilities are twice effective, can break fate-cursed items", UNQ, UNQ_WIL_TURIN },
 { "Song of Disguise checks add your Perception skill", UNQ, UNQ_SNG_TURGON },
 { "Song skill is not reduced for woven minor themes", UNQ, UNQ_WOVEN_MASTER },
-{ "If you die story death counter is not increased", RHF, RHF_GIFTERU }, 
+{ "If you die story death counter is not increased", RHF, RHF_GIFTERU },
 { "Deppending on the number of Silmarils retrieved there is a chance to murder your kin", RHF, RHF_KINSLAYER },
-{ "You get more complex curses", RHF, RHF_CURSE }, 
+{ "You get more complex curses", RHF, RHF_CURSE },
 { "Can steal a Silmaril in the end", RHF, RHF_TREACHERY },
-{ "Decreased ability price", RHF, RHF_FREE }, 
+{ "Decreased ability price", RHF, RHF_FREE },
 { "Encounter more dangerous creatures", RHF, RHF_MOR_CURSE },
 { "Kheled-zaram gives +30 bonus to identification", RHF, RHF_KHELED_ZARAM }
 };
@@ -583,7 +583,7 @@ bool do_dec_stat(int stat, monster_type* m_ptr)
 {
     bool resistance = false; // default to soothe compiler warnings
 
-    /* Turin character resistance check first */
+    /* Túrin character resistance check first */
     if (turin_resist_bad_effect())
         return (true);
 
@@ -763,7 +763,7 @@ void uncurse_object(object_type* o_ptr)
 /*
  * Removes curses from items in inventory.
  *
- * Note that Items bound by the Oath of Feanor (TR3_PERMA_CURSE)
+ * Note that Items bound by the Oath of Fëanor (TR3_PERMA_CURSE)
  * can NEVER be uncursed by normal means - only the holy light
  * of items with the BREAKS_PERMA_CURSE flag can break such an oath.
  *
@@ -797,7 +797,7 @@ static int remove_curse_aux(bool star_curse)
         if (!star_curse && (f3 & (TR3_HEAVY_CURSE)))
             continue;
 
-        /* Items bound by the Oath of Feanor can only be freed by a Silmaril */
+        /* Items bound by the Oath of Fëanor can only be freed by a Silmaril */
         if (f3 & (TR3_PERMA_CURSE))
             continue;
 
@@ -937,7 +937,7 @@ static bool render_resistance_summary(const char* text)
  *
  * Use the "show_file()" method, perhaps.  XXX XXX XXX
  *
- * This function uses page wrapping and column management to ensure content 
+ * This function uses page wrapping and column management to ensure content
  * stays within screen bounds. Long descriptions wrap to the next line.
  */
 void self_knowledge(void)
@@ -945,12 +945,12 @@ void self_knowledge(void)
     int i = 0, j, k;
     u32b f1 = 0L, f2 = 0L, f3 = 0L;
     object_type* o_ptr;
-    
+
     char s[100][200];
     char t[100][200];
     bool good[100];
     bool identify[INVEN_TOTAL];
-    
+
     int light = 0, mel = 0, arc = 0, stl = 0, medic = 0;
 
     if (p_ptr->update)
@@ -976,7 +976,7 @@ void self_knowledge(void)
         t[j][0] = '\0';
         good[j] = true;
     }
-    
+
     for (j = 0; j < INVEN_TOTAL; j++) {
         identify[j] = false;
     }
@@ -1013,35 +1013,35 @@ void self_knowledge(void)
 
     // Add curse information
     int active_ids[64], n_active = 0;
-    
+
     for (int id = 0; id < (int)z_info->cu_max && id < 64; id++) {
         if (CURSE_GET(id) > 0) active_ids[n_active++] = id;
     }
-    
+
     // Add race/character trait information
     u32b rhf_bits = p_info[p_ptr->prace].flags | c_info[p_ptr->pcharacter].flags;
     u32b unq_bits = c_info[p_ptr->pcharacter].flags_u;
     int cand[64], n = 0;
-    
+
     for (size_t idx = 0; idx < info_flags_desc_n && n < 64; idx++) {
         const flag_name *d = &info_flags_desc[idx];
-        if ((d->set == RHF && (rhf_bits & d->flag)) || 
+        if ((d->set == RHF && (rhf_bits & d->flag)) ||
             (d->set == UNQ && (unq_bits & d->flag))) {
             cand[n++] = (int)idx;
         }
     }
-    
+
     // Show either curse or flag information, not both
     bool show_curse = (n_active > 0) && one_in_(6);
     bool show_flag = (n > 0) && one_in_(6);
-    
+
     if (show_curse) {
         int pick = active_ids[rand_int(n_active)];
         curse_type *c = &cu_info[pick];
         cptr cname = cu_name + c->name;
         cptr cdesc = cu_text + c->text;
         cptr cpower = cu_text + c->power;
-        
+
         strnfmt(s[i], 200, "A shadow upon you: %s", cname);
         strnfmt(t[i], 200, "%s  %s", cdesc, cpower);
         good[i] = false;
@@ -1062,25 +1062,25 @@ void self_knowledge(void)
         strnfmt(t[i], 80, "(you will be betrayed)");
         good[i] = false; i++;
     }
-    
+
     if (f3 & TR3_CHEAT_DEATH) {
         strnfmt(s[i], 80, "You are protected from serious harm");
         strnfmt(t[i], 80, "(you will survive a killing blow)");
         good[i] = true; i++;
     }
-    
+
     if (f3 & TR3_AVOID_TRAPS) {
         strnfmt(s[i], 80, "Your feet do not trigger traps");
         strnfmt(t[i], 80, "(does not protect from webs, roosts and pits)");
         good[i] = true; i++;
     }
-    
+
     if (medic > 0) {
         strnfmt(s[i], 80, "You gain extra health from healing items");
         strnfmt(t[i], 80, "(%d%%)", 33 * medic);
         good[i] = true; i++;
     }
-    
+
     if (f3 & TR3_STAND_FAST) {
         strnfmt(s[i], 80, "You stand fast against your foes");
         strnfmt(t[i], 80, "(you cannot be moved by enemy abilities)");
@@ -1234,7 +1234,7 @@ void self_knowledge(void)
         strnfmt(t[i], 80, "(speed %d)", p_ptr->pspeed);
         good[i] = true; i++;
     }
-    
+
     if (p_ptr->stealth_mode) {
         strnfmt(s[i], 80, "You are moving carefully");
         strnfmt(t[i], 80, "(+5 Stealth)");
@@ -1263,7 +1263,7 @@ void self_knowledge(void)
         {p_ptr->rage, "You are in a dark rage", "", false},
         {0, NULL, NULL, false} // Sentinel
     };
-    
+
     for (int idx = 0; status_effects[idx].text; idx++) {
         if (status_effects[idx].condition) {
             strnfmt(s[i], 80, "%s", status_effects[idx].text);
@@ -1272,7 +1272,7 @@ void self_knowledge(void)
             i++;
         }
     }
-    
+
     // Stun with special handling
     if (p_ptr->stun) {
         strnfmt(s[i], 80, "You are %sstunned", (p_ptr->stun <= 50) ? "heavily " : "");
@@ -1289,7 +1289,7 @@ void self_knowledge(void)
         {p_ptr->tmp_per, "Your perceptions are heightened", "(+10 Perception)"},
         {0, NULL, NULL} // Sentinel
     };
-    
+
     for (int idx = 0; temp_stats[idx].text; idx++) {
         if (temp_stats[idx].condition) {
             strnfmt(s[i], 80, "%s", temp_stats[idx].text);
@@ -1303,8 +1303,8 @@ void self_knowledge(void)
     const char* stat_names[] = {"Strength", "Dexterity", "Constitution", "Grace"};
     for (int stat = 0; stat < 4; stat++) {
         if (p_ptr->stat_equip_mod[stat] != 0) {
-            strnfmt(s[i], 80, "Your %s is affected by your equipment", 
-                    (stat == A_STR) ? "strength" : (stat == A_DEX) ? "dexterity" : 
+            strnfmt(s[i], 80, "Your %s is affected by your equipment",
+                    (stat == A_STR) ? "strength" : (stat == A_DEX) ? "dexterity" :
                     (stat == A_CON) ? "constitution" : "grace");
             strnfmt(t[i], 80, "(%+d %s)", p_ptr->stat_equip_mod[stat], stat_names[stat]);
             good[i] = (p_ptr->stat_equip_mod[stat] > 0);
@@ -1362,22 +1362,22 @@ void self_knowledge(void)
 
     // Display the information
     display_attributes(s, t, good, i);
-    
+
     // Identify items that revealed information
     identify_revealed_items(identify);
 }
 
 // Helper function to analyze weapon properties
-void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[], 
+void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[],
                               bool identify[], int slot, const char* weapon_name)
 {
     object_type* o_ptr = &inventory[slot];
     if (!o_ptr->k_idx) return;
-    
+
     u32b f1, f2, f3, f4;
     object_flags4(o_ptr, &f1, &f2, &f3, &f4);
     int i = *count;
-    
+
     // Special attack bonuses
     if (f1 & TR1_SHARPNESS) {
         identify[slot] = true;
@@ -1385,29 +1385,29 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
         strnfmt(t[i], 200, "(ignore 50%% of protection)");
         good[i] = true; i++;
     }
-    
+
     if (f1 & TR1_SHARPNESS2) {
         identify[slot] = true;
         strnfmt(s[i], 200, "Your %s cuts exceptionally easily through armour", weapon_name);
         strnfmt(t[i], 200, "(ignore 100%% of protection)");
         good[i] = true; i++;
     }
-    
+
     if (f1 & TR1_VAMPIRIC) {
         identify[slot] = true;
         strnfmt(s[i], 200, "Your %s drains life from your enemies", weapon_name);
         strnfmt(t[i], 200, "(+7 health per kill)");
         good[i] = true; i++;
     }
-    
+
     if (f3 & TR3_ACCURATE) {
         identify[slot] = true;
-        strnfmt(s[i], 200, "Your %s %s", weapon_name, 
+        strnfmt(s[i], 200, "Your %s %s", weapon_name,
                 (slot == INVEN_BOW) ? "fires with unerring precision" : "is unusually well balanced");
         strnfmt(t[i], 200, "(reroll missed attacks)");
         good[i] = true; i++;
     }
-    
+
     if (f3 & TR3_CUMBERSOME) {
         identify[slot] = true;
         strnfmt(s[i], 200, "Your %s is cumbersome", weapon_name);
@@ -1418,7 +1418,7 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
     // Brand effects
     const char* brand_names[] = {"shocks", "burns", "freezes", "poisons"};
     u32b brand_flags[] = {TR1_BRAND_ELEC, TR1_BRAND_FIRE, TR1_BRAND_COLD, TR1_BRAND_POIS};
-    
+
     for (int b = 0; b < 4; b++) {
         if (f1 & brand_flags[b]) {
             identify[slot] = true;
@@ -1471,7 +1471,7 @@ void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool go
         strnfmt(t[i], 80, "(+1 damage die)");
         good[i] = true; i++;
     }
-    
+
     *count = i;
 }
 

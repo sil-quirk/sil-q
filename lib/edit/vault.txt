@@ -3035,8 +3035,8 @@ D:###################################
 
 #Quest Vaults
 
-# Quest vault: Aule's Forge (small)
-N:460:Aule's Forge (Small)
+# Quest vault: Aulë's Forge (small)
+N:460:Aulë's Forge (Small)
 X:6:5:5
 S:57:1
 F:QUEST | LIGHT

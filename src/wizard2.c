@@ -1994,7 +1994,7 @@ static void do_cmd_wiz_unlock_all_oaths(void)
     int i;
     int count = 0;
     int already_unlocked = 0;
-    
+
     /* Unlock oaths 1 through oath_max-1 (OATH_MERCY, OATH_SILENCE, OATH_IRON, OATH_SMITH, OATH_VALOROUS) */
     for (i = 1; z_info && i < z_info->oath_max; i++)
     {
@@ -2008,13 +2008,13 @@ static void do_cmd_wiz_unlock_all_oaths(void)
             already_unlocked++;
         }
     }
-    
+
     /* Give feedback to the user */
     if (count > 0)
     {
         if (already_unlocked > 0)
         {
-            msg_format("Unlocked %d oath%s (%d already unlocked).", 
+            msg_format("Unlocked %d oath%s (%d already unlocked).",
                       count, (count == 1) ? "" : "s", already_unlocked);
         }
         else
@@ -2043,11 +2043,11 @@ void do_cmd_wiz_look(void)
 static void do_cmd_debug_complete_quest(void)
 {
     bool quest_found = false;
-    
+
     /* Check for active quests and complete them */
     if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED && p_ptr->tulkas_quest < TULKAS_QUEST_REWARDED) {
         msg_print("Completing Tulkas quest...");
-        
+
         /* If quest is already in COMPLETE state, just give reward */
         if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE) {
             /* Tulkas is spawn-based (Y:1) - spawn quest giver near player for reward */
@@ -2069,49 +2069,49 @@ static void do_cmd_debug_complete_quest(void)
                 }
             }
             /* Trigger proper quest interaction instead of just applying rewards */
-            tulkas_quest_interaction(); 
+            tulkas_quest_interaction();
             quest_found = true;
             log_debug("Debug: Completed Tulkas quest with full interaction");
         }
     }
-    
+
     if (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED && p_ptr->aule_quest < AULE_QUEST_REWARDED) {
-        msg_print("Completing Aule quest...");
-        
+        msg_print("Completing Aulë quest...");
+
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->aule_quest == AULE_QUEST_SUCCESS) {
-            /* Aule is vault-based (Y:0) - check if quest giver is present */
+            /* Aulë is vault-based (Y:0) - check if quest giver is present */
             if (!is_quest_giver_present(R_IDX_AULE)) {
-                msg_print("Warning: Aule is not present in this vault. Go to Aule's forge vault to receive your reward.");
+                msg_print("Warning: Aulë is not present in this vault. Go to Aulë's forge vault to receive your reward.");
                 quest_found = true;
-                log_debug("Debug: Aule quest ready for reward but Aule not present - go to vault");
+                log_debug("Debug: Aulë quest ready for reward but Aulë not present - go to vault");
             } else {
                 /* Trigger quest interaction to give reward */
                 aule_quest_interaction();
                 quest_found = true;
-                log_debug("Debug: Triggered Aule quest reward interaction");
+                log_debug("Debug: Triggered Aulë quest reward interaction");
             }
         } else {
             /* Quest not completed yet - mark as complete and check for giver */
             if (!is_quest_giver_present(R_IDX_AULE)) {
-                msg_print("Warning: Aule is not present in this vault. Go to Aule's forge vault to receive your reward.");
+                msg_print("Warning: Aulë is not present in this vault. Go to Aulë's forge vault to receive your reward.");
                 /* Still mark quest as complete for the challenge completion */
                 p_ptr->aule_quest = AULE_QUEST_SUCCESS;
                 quest_found = true;
-                log_debug("Debug: Marked Aule quest complete but Aule not present - go to vault for reward");
+                log_debug("Debug: Marked Aulë quest complete but Aulë not present - go to vault for reward");
             } else {
                 p_ptr->aule_quest = AULE_QUEST_SUCCESS;
                 /* Trigger proper quest interaction instead of just applying rewards */
                 aule_quest_interaction();
                 quest_found = true;
-                log_debug("Debug: Completed Aule quest with full interaction");
+                log_debug("Debug: Completed Aulë quest with full interaction");
             }
         }
     }
-    
+
     if (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED && p_ptr->mandos_quest < MANDOS_QUEST_REWARDED) {
         msg_print("Completing Mandos quest...");
-        
+
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->mandos_quest == MANDOS_QUEST_SUCCESS) {
             /* Mandos is vault-based (Y:0) - check if quest giver is present */
@@ -2142,52 +2142,52 @@ static void do_cmd_debug_complete_quest(void)
             }
         }
     }
-    
+
     if (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED && p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
-        msg_print("Completing Niena quest...");
-        
+        msg_print("Completing Nienna quest...");
+
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->niena_quest == NIENA_QUEST_SUCCESS) {
-            /* Niena is spawn-based (Y:1) - spawn quest giver near player for reward */
+            /* Nienna is spawn-based (Y:1) - spawn quest giver near player for reward */
             if (!is_quest_giver_present(R_IDX_NIENA)) {
                 if (!spawn_quest_giver_near_player(R_IDX_NIENA)) {
-                    msg_print("Warning: Could not spawn Niena for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Nienna for reward - completing anyway.");
                 }
             }
             /* Trigger quest interaction to give reward */
             niena_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Triggered Niena quest reward interaction");
+            log_debug("Debug: Triggered Nienna quest reward interaction");
         } else {
             /* Quest not completed yet - mark as complete and spawn giver */
             p_ptr->niena_quest = NIENA_QUEST_SUCCESS;
             if (!is_quest_giver_present(R_IDX_NIENA)) {
                 if (!spawn_quest_giver_near_player(R_IDX_NIENA)) {
-                    msg_print("Warning: Could not spawn Niena for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Nienna for reward - completing anyway.");
                 }
             }
             /* Trigger proper quest interaction */
             niena_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Completed Niena quest with full interaction");
+            log_debug("Debug: Completed Nienna quest with full interaction");
         }
     }
-    
+
     if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED && p_ptr->orome_quest < OROME_QUEST_REWARDED) {
-        msg_print("Completing Orome quest...");
-        
+        msg_print("Completing Oromë quest...");
+
         /* If quest is already in SUCCESS state, just give reward */
         if (p_ptr->orome_quest == OROME_QUEST_SUCCESS) {
-            /* Orome is spawn-based (Y:1) - spawn quest giver near player for reward */
+            /* Oromë is spawn-based (Y:1) - spawn quest giver near player for reward */
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
                 }
             }
             /* Trigger quest interaction to give reward */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Triggered Orome quest reward interaction");
+            log_debug("Debug: Triggered Oromë quest reward interaction");
         } else {
             /* Quest not completed yet - mark as complete and spawn giver */
             p_ptr->orome_quest = OROME_QUEST_SUCCESS;
@@ -2195,16 +2195,16 @@ static void do_cmd_debug_complete_quest(void)
             p_ptr->orome_killed_count = p_ptr->orome_target_count;
             if (!is_quest_giver_present(R_IDX_OROME)) {
                 if (!spawn_quest_giver_near_player(R_IDX_OROME)) {
-                    msg_print("Warning: Could not spawn Orome for reward - completing anyway.");
+                    msg_print("Warning: Could not spawn Oromë for reward - completing anyway.");
                 }
             }
             /* Trigger proper quest interaction */
             orome_quest_interaction();
             quest_found = true;
-            log_debug("Debug: Completed Orome quest with full interaction");
+            log_debug("Debug: Completed Oromë quest with full interaction");
         }
     }
-    
+
     if (!quest_found) {
         msg_print("No active quests found to complete.");
     } else {
@@ -2213,42 +2213,42 @@ static void do_cmd_debug_complete_quest(void)
 }
 
 /*
- * Debug function: Show Orome quest status and spawn probability
+ * Debug function: Show Oromë quest status and spawn probability
  */
 static void do_cmd_debug_orome_status(void)
 {
     char buf[1024];
-    quest_type *q_ptr = &quest_info[5]; /* Orome is quest 5 */
-    
-    /* Show Orome quest state */
-    strnfmt(buf, sizeof(buf), "Orome Quest Status: %d (0=NOT_STARTED, 1=GIVEN, 2=ACTIVE, 3=COMPLETE, 4=REWARDED)", 
+    quest_type *q_ptr = &quest_info[5]; /* Oromë is quest 5 */
+
+    /* Show Oromë quest state */
+    strnfmt(buf, sizeof(buf), "Oromë Quest Status: %d (0=NOT_STARTED, 1=GIVEN, 2=ACTIVE, 3=COMPLETE, 4=REWARDED)",
             p_ptr->orome_quest);
     msg_print(buf);
-    
+
     /* Show current depth */
-    strnfmt(buf, sizeof(buf), "Current depth: %d (Orome depth range: %d-%d)", 
+    strnfmt(buf, sizeof(buf), "Current depth: %d (Oromë depth range: %d-%d)",
             p_ptr->depth, q_ptr->depth_min, q_ptr->depth_max);
     msg_print(buf);
-    
+
     /* Show formula details */
     strnfmt(buf, sizeof(buf), "Formula type: %d (4=LINEAR_INTERPOLATE), params=[%.3f, %.3f, %.3f, %.3f]",
             q_ptr->formula_type,
-            q_ptr->formula_params[0], q_ptr->formula_params[1], 
+            q_ptr->formula_params[0], q_ptr->formula_params[1],
             q_ptr->formula_params[2], q_ptr->formula_params[3]);
     msg_print(buf);
-    
-    /* Check if we're at the right depth for Orome */
+
+    /* Check if we're at the right depth for Oromë */
     if (p_ptr->depth >= q_ptr->depth_min && p_ptr->depth <= q_ptr->depth_max) {
-        msg_print("Depth is in valid range for Orome spawning.");
+        msg_print("Depth is in valid range for Oromë spawning.");
     } else {
-        msg_print("Depth is NOT in valid range for Orome spawning.");
+        msg_print("Depth is NOT in valid range for Oromë spawning.");
     }
-    
+
     /* Manually trigger quest lottery to see what happens */
     msg_print("Triggering quest lottery manually...");
     debug_run_quest_roulette();
     int winner = debug_get_quest_lottery_winner();
-    strnfmt(buf, sizeof(buf), "Quest lottery result: %d (0=none, 1=Tulkas, 4=Niena, 5=Orome)", winner);
+    strnfmt(buf, sizeof(buf), "Quest lottery result: %d (0=none, 1=Tulkas, 4=Nienna, 5=Oromë)", winner);
     msg_print(buf);
 }
 
@@ -2259,27 +2259,27 @@ static void do_cmd_debug_identify_all_items(void)
 {
     int i;
     int count = 0;
-    
+
     /* Iterate through all floor objects */
     for (i = 1; i < o_max; i++)
     {
         object_type* o_ptr = &o_list[i];
-        
+
         /* Skip dead objects */
         if (!o_ptr->k_idx)
             continue;
-        
+
         /* Skip held objects (in monster inventory) */
         if (o_ptr->held_m_idx)
             continue;
-        
+
         /* Identify the object */
         object_aware(o_ptr);
         object_known(o_ptr);
-        
+
         count++;
     }
-    
+
     /* Report result */
     if (count > 0)
     {
@@ -2289,10 +2289,10 @@ static void do_cmd_debug_identify_all_items(void)
     {
         msg_print("No items found on the dungeon floor.");
     }
-    
+
     /* Redraw map to show identified items */
     p_ptr->redraw |= (PR_MAP);
-    
+
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 }
@@ -2583,7 +2583,7 @@ void do_cmd_debug(void)
         break;
     }
 
-    /* Check Orome quest status */
+    /* Check Oromë quest status */
     case '3':
     {
         do_cmd_debug_orome_status();

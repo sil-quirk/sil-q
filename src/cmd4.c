@@ -59,6 +59,11 @@ static void indexed_menu_entry_label(char* buf, size_t buflen, int index, cptr t
         strnfmt(buf, buflen, "%s", text ? text : "");
 }
 
+static int menu_text_display_width(cptr text)
+{
+    return text ? utf8_display_width_n(text, (int)strlen(text)) : 0;
+}
+
 static void keyed_menu_entry_label(char* buf, size_t buflen, char key, cptr text)
 {
     if (!buf || !buflen)
@@ -1330,7 +1335,7 @@ static int ability_menu_description_wrap(int desc_col)
 static int ability_menu_click_width(int text_col, int next_col, cptr label)
 {
     int prefix_col = indexed_menu_prefix_col(text_col);
-    int text_width = (int)strlen(label ? label : "") + text_col - prefix_col;
+    int text_width = menu_text_display_width(label) + text_col - prefix_col;
     int column_width = next_col - prefix_col - 1;
 
     if (text_width < 1)
@@ -2212,7 +2217,7 @@ void do_cmd_change_song()
     // Check for song lockout timer first
     if (p_ptr->song_lockout_timer > 0)
     {
-        msg_format("You cannot sing for %d more turn%s.", 
+        msg_format("You cannot sing for %d more turn%s.",
             p_ptr->song_lockout_timer,
             (p_ptr->song_lockout_timer == 1) ? "" : "s");
         return;
@@ -2227,7 +2232,7 @@ void do_cmd_change_song()
         msg_print("You do not know any songs of power.");
         return;
     }
-    
+
     log_debug("Player has %d songs available", song_count);
 
     /* Flush the prompt */
@@ -2365,7 +2370,7 @@ void do_cmd_change_song()
             {
                 song_choice =
                     song_menu_choice_from_highlight(highlight, songs, song_count);
-                
+
                 if (song_choice >= 0)
                 {
                     done = true;
@@ -2412,7 +2417,7 @@ void do_cmd_change_song()
             {
                 song_choice =
                     song_menu_choice_from_highlight(highlight, songs, song_count);
-                
+
                 if (song_choice >= 0)
                 {
                     done = true;
@@ -2458,7 +2463,7 @@ void do_cmd_change_song()
             {
                 song_choice =
                     song_menu_choice_from_highlight(highlight, songs, song_count);
-                
+
                 if (song_choice >= 0)
                 {
                     done = true;
@@ -2563,17 +2568,17 @@ void do_cmd_change_song()
                 /* Use oath-specific confirmation prompt */
                 char* prompt = oath_confirmation_prompt(OATH_SILENCE);
                 if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of Silence?";
-                
+
                 if (get_check_oath_multiline(prompt))
                 {
                     log_info("Player broke oath of silence to sing");
-                    
+
                     /* Curse message and selection handled by apply_oath_breaking_curse */
                     do_cmd_note("Broke your oath", p_ptr->depth);
-                    
+
                     /* Apply oath breaking consequences */
                     apply_oath_breaking_curse(OATH_SILENCE);
-                    
+
                     /* Only mark oath as broken if player actually has it */
                     p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
                 }
@@ -2585,7 +2590,7 @@ void do_cmd_change_song()
             }
         }
 
-        log_info("Player changed song to %s", song_choice == SNG_NOTHING ? "silence" : 
+        log_info("Player changed song to %s", song_choice == SNG_NOTHING ? "silence" :
                  song_choice == SNG_EXCHANGE_THEMES ? "exchange themes" : "new song");
         change_song(song_choice);
         if (song_menu_is_singable(song_choice) && singing(song_choice))
@@ -2897,7 +2902,7 @@ int unique_bane_bonus(monster_type* m_ptr)
     {
         // Calculate bonus using the same formula as normal bane
         int uniques_killed = unique_bane_type_killed();
-        
+
         // Use same scaling as bane_bonus_aux: 1, 2, 4, 8, 16, etc.
         int threshold = 2;
         bonus = 0;
@@ -2916,20 +2921,20 @@ int unique_bane_type_killed(void)
 {
     int uniques_killed = 0;
     int i;
-    
+
     // Count all unique monsters that have been killed
     for (i = 1; i < z_info->r_max; i++) {
         monster_race* check_r_ptr = &r_info[i];
-        
+
         // Skip if not unique
         if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
-        
+
         // Check if this unique has been killed (max_num is set to 0 when killed)
         if (check_r_ptr->max_num == 0) {
             uniques_killed++;
         }
     }
-    
+
     return uniques_killed;
 }
 
@@ -3297,12 +3302,12 @@ int oath_menu(int* highlight)
     int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
     byte attr;
-    
+
     /* Tolkien-themed descriptions for better immersion */
     char* oath_tolkien_desc[] = {
         "",
         "\"Let no blood of the Children stain thy blade in these halls of sorrow\"",
-        "\"In silence came I, and in silence shall I depart, as befits the wise\"", 
+        "\"In silence came I, and in silence shall I depart, as befits the wise\"",
         "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\"",
         "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\"",
         "\"Valor guards the fallen foe; the honorable blade stays when terror takes them\"",
@@ -3322,9 +3327,9 @@ int oath_menu(int* highlight)
     {
         if (visible_count >= (int)N_ELEMENTS(visible_oaths)) break;
 
-        // Map this visible oath to its position  
+        // Map this visible oath to its position
         visible_oaths[visible_count] = i;
-        
+
         // Determine display color based on oath status
         if (oath_invalid(i))
         {
@@ -3334,11 +3339,11 @@ int oath_menu(int* highlight)
         {
             attr = (*highlight == visible_count + 1) ? TERM_L_BLUE : TERM_WHITE;
         }
-        
+
         // Format oath name with status indicator
         indexed_menu_entry_label(buf, sizeof(buf), visible_count,
             oath_name_short(i));
-        
+
         // Display in abilities column with proper spacing
         Term_putstr(ability_col, 4 + visible_count, -1, attr, buf);
         ui_menu_click_add(visible_count + 1,
@@ -3351,15 +3356,15 @@ int oath_menu(int* highlight)
     if (*highlight >= 1 && *highlight <= visible_count)
     {
         int oath_idx = visible_oaths[*highlight - 1];
-        
+
         // Clear description area first
         int row = 4;
 
         wipe_screen_from(desc_col);
-        
+
         // Oath title
         Term_putstr(desc_col, 2, -1, TERM_WHITE, "Oath Details");
-        
+
         if (oath_invalid(oath_idx))
         {
             // Menacing text for broken oaths
@@ -3383,7 +3388,7 @@ int oath_menu(int* highlight)
             Term_putstr(desc_col, row++, term_wid - desc_col, TERM_YELLOW,
                 "Quote:");
             row = oath_menu_put_wrapped(desc_col, row, TERM_SLATE, quote);
-            
+
             // Oath vow
             Term_putstr(desc_col, row++, term_wid - desc_col, TERM_WHITE,
                 "Vow:");
@@ -3391,7 +3396,7 @@ int oath_menu(int* highlight)
                 (oath_idx >= 0 && oath_idx < (int)N_ELEMENTS(oath_desc1))
                     ? oath_desc1[oath_idx]
                     : "");
-            
+
             // Restriction
             if (row < nav_row_1)
             {
@@ -3400,7 +3405,7 @@ int oath_menu(int* highlight)
                 row = oath_menu_put_wrapped(desc_col, row, TERM_L_RED,
                     oath_desc2_short(oath_idx));
             }
-            
+
             // Reward
             if (row < nav_row_1)
             {
@@ -3410,7 +3415,7 @@ int oath_menu(int* highlight)
                     oath_reward_short(oath_idx));
             }
         }
-        
+
         // Navigation instructions at bottom
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
             compact_layout ? "8/2 - Navigate" : "2/8 - Navigate");
@@ -3674,12 +3679,12 @@ int abilities_menu2(int skilltype, int* highlight)
     {
         int temp_visible_count = 0;
         int temp_first_visible = -1;
-        
+
         for (i = 0; i < z_info->b_max; i++)
         {
             b_ptr = &b_info[i];
             if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
-            
+
             if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
             {
                 if (temp_first_visible == -1)
@@ -3689,26 +3694,26 @@ int abilities_menu2(int skilltype, int* highlight)
                 temp_visible_count++;
             }
         }
-        
+
         /* Adjust highlight before display if needed */
         if (temp_visible_count > 0 && temp_first_visible != -1)
         {
             /* Check if current highlight corresponds to a visible ability */
             int current_ability_num = *highlight - 1; /* Convert 1-based to 0-based */
             bool highlight_is_visible = false;
-            
+
             for (i = 0; i < z_info->b_max; i++)
             {
                 b_ptr = &b_info[i];
                 if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
-                
+
                 if (b_ptr->abilitynum == current_ability_num && p_ptr->have_ability[skilltype][b_ptr->abilitynum])
                 {
                     highlight_is_visible = true;
                     break;
                 }
             }
-            
+
             if (!highlight_is_visible)
             {
                 *highlight = temp_first_visible + 1; /* Convert back to 1-based */
@@ -3781,7 +3786,7 @@ int abilities_menu2(int skilltype, int* highlight)
 
         // Map this visible ability to its position
         visible_abilities[visible_count] = b_ptr->abilitynum;
-        
+
         // Track first visible ability for highlight adjustment
         if (first_visible_ability == -1) {
             first_visible_ability = b_ptr->abilitynum;
@@ -3903,10 +3908,10 @@ int abilities_menu2(int skilltype, int* highlight)
                 /* Check if this is a broken oath ability and use Q: text instead */
                 char* description_text = NULL;
                 bool use_death_message = false;
-                
-                if (skilltype == S_SPC && 
-                    (b_ptr->abilitynum == SPC_OATH_MERCY || 
-                     b_ptr->abilitynum == SPC_OATH_SILENCE || 
+
+                if (skilltype == S_SPC &&
+                    (b_ptr->abilitynum == SPC_OATH_MERCY ||
+                     b_ptr->abilitynum == SPC_OATH_SILENCE ||
                      b_ptr->abilitynum == SPC_OATH_IRON ||
                      b_ptr->abilitynum == SPC_OATH_SMITH ||
                      b_ptr->abilitynum == SPC_OATH_VALOROUS ||
@@ -3920,27 +3925,27 @@ int abilities_menu2(int skilltype, int* highlight)
                     else if (b_ptr->abilitynum == SPC_OATH_SMITH) oath_id = OATH_SMITH;
                     else if (b_ptr->abilitynum == SPC_OATH_VALOROUS) oath_id = OATH_VALOROUS;
                     else if (b_ptr->abilitynum == SPC_OATH_LIGHT) oath_id = OATH_LIGHT;
-                    
+
                     if (oath_id > 0 && oath_invalid(oath_id))
                     {
                         description_text = oath_death_message(oath_id);
                         use_death_message = true;
                     }
                 }
-                
+
                 /* Clear description area first */
                 wipe_screen_from(desc_col);
-                
+
                 /* Display ability name in description area with appropriate color */
                 Term_putstr(desc_col, 1, -1, TERM_YELLOW, b_name + b_ptr->name);
-                
+
                 /* Wrap to the active terminal width so compact layouts do not overflow. */
                 text_out_wrap = ability_menu_description_wrap(desc_col);
                 text_out_indent = desc_col;
 
                 /* Description starts at row 3 for more space */
                 Term_gotoxy(text_out_indent, 3);
-                
+
                 if (use_death_message && description_text && description_text[0])
                 {
                     /* Display Q: text in red for broken oaths */
@@ -4034,35 +4039,35 @@ int abilities_menu2(int skilltype, int* highlight)
                         ability_menu_render_song_bonus_block(b_ptr);
 
                     /* For Nienna's Gift of Mercy, show current bonus */
-                    if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
+                    if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY &&
                         p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
                     {
                         /* Calculate current stealth bonus (same logic as in xtra1.c) */
                         int total_monsters_seen = 0;
                         int total_monsters_killed = 0;
-                        
+
                         /* Sum up global monster tracking (excluding uniques) */
                         for (int i = 1; i < z_info->r_max; i++)
                         {
                             monster_lore *l_ptr = &l_list[i];
                             monster_race *r_ptr = &r_info[i];
-                            
+
                             if (r_ptr->flags1 & RF1_UNIQUE) continue;
-                            
+
                             total_monsters_seen += l_ptr->psights;
                             total_monsters_killed += l_ptr->pkills;
                         }
-                        
+
                         if (total_monsters_seen > 0)
                         {
                             /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
                             int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
                             int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen;
-                            
+
                             char bonus_text[100];
-                            strnfmt(bonus_text, sizeof(bonus_text), 
+                            strnfmt(bonus_text, sizeof(bonus_text),
                                    "\n\nCurrent bonus: +%d stealth (%d seen, %d spared)",
-                                   stealth_bonus, total_monsters_seen, 
+                                   stealth_bonus, total_monsters_seen,
                                    total_monsters_seen - total_monsters_killed);
                             text_out_to_screen(TERM_L_GREEN, bonus_text);
                         }
@@ -4113,7 +4118,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 int killed = bane_type_killed(p_ptr->bane_type);
                 int current_bonus = bane_bonus_aux();
                 int next_threshold = 2;
-                
+
                 // Calculate next threshold using same formula as bane
                 int threshold = 2;
                 while (threshold <= killed)
@@ -4121,14 +4126,14 @@ int abilities_menu2(int skilltype, int* highlight)
                     threshold *= 2;
                 }
                 next_threshold = threshold;  // This is the next power of 2
-                
+
                 /* Place bane stats dynamically after description text */
                 int bane_row = post_desc_row + (compact_mode ? 1 : 2);
                 Term_putstr(desc_col, bane_row, -1, TERM_WHITE,
                     format("%s-Bane:", bane_name[p_ptr->bane_type]));
                 Term_putstr(desc_col, bane_row + 2, -1, TERM_WHITE,
                     format("  %d slain, giving a %+d bonus", killed, current_bonus));
-                    
+
                 if (current_bonus == 0 && killed < 2) {
                     Term_putstr(desc_col, bane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d slain)", next_threshold));
@@ -4175,7 +4180,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 int uniques_killed = unique_bane_type_killed();
                 int current_bonus = 0;
                 int next_threshold = 2;
-                
+
                 // Calculate current bonus using same formula as bane
                 int threshold = 2;
                 while (threshold <= uniques_killed)
@@ -4183,21 +4188,21 @@ int abilities_menu2(int skilltype, int* highlight)
                     threshold *= 2;
                     current_bonus++;
                 }
-                
+
                 // Calculate next threshold
                 if (current_bonus == 0) {
                     next_threshold = 2;
                 } else {
                     next_threshold = threshold;  // This is the next power of 2
                 }
-                
+
                 /* Place unique bane stats dynamically after description text */
                 int ubane_row = post_desc_row + (compact_mode ? 1 : 2);
                 Term_putstr(desc_col, ubane_row, -1, TERM_WHITE, "Unique Bane:");
                 Term_putstr(desc_col, ubane_row + 2, -1, TERM_WHITE,
-                    format("  %d uniques slain, giving a %+d bonus", 
+                    format("  %d uniques slain, giving a %+d bonus",
                            uniques_killed, current_bonus));
-                           
+
                 if (current_bonus == 0 && uniques_killed < 2) {
                     Term_putstr(desc_col, ubane_row + 3, -1, TERM_SLATE,
                         format("  (next bonus at %d uniques)", next_threshold));
@@ -4209,7 +4214,7 @@ int abilities_menu2(int skilltype, int* highlight)
         }
 
     }
-    
+
     /* Flush the prompt */
     Term_fresh();
 
@@ -4320,7 +4325,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     break;
                 }
             }
-            
+
             /* Move to previous visible ability */
             if (current_visible_index > 0) {
                 *highlight = visible_abilities[current_visible_index - 1] + 1;
@@ -4346,7 +4351,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     break;
                 }
             }
-            
+
             /* Move to next visible ability */
             if (current_visible_index >= 0 && current_visible_index < visible_count - 1) {
                 *highlight = visible_abilities[current_visible_index + 1] + 1;
@@ -4430,10 +4435,10 @@ void do_cmd_ability_screen(void)
         if ((skilltype >= 0) && (skilltype < S_MAX))
         {
             log_trace("ABILITY_SCREEN: Valid skill selected (%d), entering abilities loop", skilltype);
-            
+
             /* Reset highlight2 to 1 when entering a new skill category */
             highlight2 = 1;
-            
+
             while (!return_to_skills)
             {
                 int menu2_choice;
@@ -4563,9 +4568,9 @@ void do_cmd_ability_screen(void)
                                     return_to_abilities = false;
                                 }
 
-                                // Block purchasing Masterpiece if Aule's Forge already owned
+                                // Block purchasing Masterpiece if Aulë's Forge already owned
                                 if (skilltype == S_SMT && abilitynum == SMT_MASTERPIECE && p_ptr->have_ability[S_SPC][SPC_AULE]) {
-                                    bell("Aule's Forge supersedes Masterpiece; you cannot purchase it.");
+                                    bell("Aulë's Forge supersedes Masterpiece; you cannot purchase it.");
                                     skip_purchase = true;
                                 }
 
@@ -4619,7 +4624,7 @@ void do_cmd_ability_screen(void)
                                         {
                                             // set the new bane type
                                             p_ptr->oath_type = oathchoice;
-                                            
+
                                             /* Activate the matching oath ability */
                                             int oath_special = -1;
                                             switch (oathchoice) {
@@ -4675,8 +4680,8 @@ void do_cmd_ability_screen(void)
                     else
                     {
                         // Prevent oath special abilities from being deactivated or reactivated when broken
-                        if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY || 
-                                                   abilitynum == SPC_OATH_SILENCE || 
+                        if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY ||
+                                                   abilitynum == SPC_OATH_SILENCE ||
                                                    abilitynum == SPC_OATH_IRON ||
                                                    abilitynum == SPC_OATH_SMITH ||
                                                    abilitynum == SPC_OATH_VALOROUS ||
@@ -4690,7 +4695,7 @@ void do_cmd_ability_screen(void)
                             if (abilitynum == SPC_OATH_SMITH && oath_invalid(OATH_SMITH)) oath_broken = true;
                             if (abilitynum == SPC_OATH_VALOROUS && oath_invalid(OATH_VALOROUS)) oath_broken = true;
                             if (abilitynum == SPC_OATH_LIGHT && oath_invalid(OATH_LIGHT)) oath_broken = true;
-                            
+
                             if (p_ptr->active_ability[skilltype][abilitynum])
                             {
                                 Term_putstr(0, 0, -1, TERM_WHITE,
@@ -5176,7 +5181,7 @@ static void smith_ui_register_menu_row(int choice, int col, int row, cptr label)
 {
     int start_col = indexed_menu_prefix_col(col);
     int width = smith_ui_term_wid() - start_col;
-    int min_width = label ? (int)strlen(label) + (col - start_col) : 0;
+    int min_width = menu_text_display_width(label) + (col - start_col);
 
     if (width < min_width)
         width = min_width;
@@ -7252,26 +7257,26 @@ int object_difficulty(object_type* o_ptr)
     if ((o_ptr->tval == TV_ARROW) && (o_ptr->name1))
         dif /= 2;
 
-    // Deal with masterpiece and Aule's Forge
+    // Deal with masterpiece and Aulë's Forge
     int effective_skill = p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px);
-    
+
     if (p_ptr->have_ability[S_SPC][SPC_AULE]) {
-        // Aule's Forge: supersedes Masterpiece, allows burning base skill for 2x difficulty allowance
+        // Aulë's Forge: supersedes Masterpiece, allows burning base skill for 2x difficulty allowance
         int max_aule_difficulty = effective_skill + (p_ptr->skill_base[S_SMT] * 2);
         if (dif > effective_skill) {
             if (dif <= max_aule_difficulty) {
-                // Can craft this with Aule's Forge - drain base skill efficiently
+                // Can craft this with Aulë's Forge - drain base skill efficiently
                 int excess = dif - effective_skill;
                 smithing_cost.drain += (excess + 1) / 2; // drain 1 skill for every 2 excess points
-                log_trace("ABILITY DEBUG: Aule's Forge drain - base_skill: %d, skill_use: %d, effective: %d, max_aule: %d, difficulty: %d, excess: %d, drain: %d", 
+                log_trace("ABILITY DEBUG: Aulë's Forge drain - base_skill: %d, skill_use: %d, effective: %d, max_aule: %d, difficulty: %d, excess: %d, drain: %d",
                          p_ptr->skill_base[S_SMT], p_ptr->skill_use[S_SMT], effective_skill, max_aule_difficulty, dif, excess, (excess + 1) / 2);
             } else {
-                // Too difficult even with Aule's Forge
+                // Too difficult even with Aulë's Forge
                 smithing_cost.drain += p_ptr->skill_base[S_SMT] + (dif - max_aule_difficulty);
-                log_trace("ABILITY DEBUG: Aule's Forge insufficient - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
+                log_trace("ABILITY DEBUG: Aulë's Forge insufficient - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
             }
         } else {
-            log_trace("ABILITY DEBUG: Aule's Forge active - no drain needed (difficulty %d <= effective skill %d)", dif, effective_skill);
+            log_trace("ABILITY DEBUG: Aulë's Forge active - no drain needed (difficulty %d <= effective skill %d)", dif, effective_skill);
         }
     } else if (p_ptr->active_ability[S_SMT][SMT_MASTERPIECE]) {
         // Regular Masterpiece ability - allows burning base skill for 1x difficulty allowance
@@ -7487,9 +7492,9 @@ int too_difficult(object_type* o_ptr)
     int dif = object_difficulty(o_ptr);
 
     if (p_ptr->have_ability[S_SPC][SPC_AULE]) {
-        // Aule's Forge: can craft up to skill_use + (skill_base * 2)
+        // Aulë's Forge: can craft up to skill_use + (skill_base * 2)
         int max_aule_difficulty = ability + (p_ptr->skill_base[S_SMT] * 2);
-        log_trace("ABILITY DEBUG: Aule's Forge too_difficult check - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
+        log_trace("ABILITY DEBUG: Aulë's Forge too_difficult check - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
         if (max_aule_difficulty >= dif)
             return (false);
         else
@@ -8427,14 +8432,14 @@ int create_sval_menu_aux(int tval, int* highlight)
             if (k_ptr->flags3 & (TR3_NO_SMITHING))
             {
                 bool allow_override = false;
-                
+
                 /* Check for specific character unique flag and sval overrides */
-                if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_EOL) && 
+                if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_EOL) &&
                     (k_ptr->tval == TV_SOFT_ARMOR) && (k_ptr->sval == SV_ARMOUR_OF_GALVORN))
                 {
                     allow_override = true;
                 }
-                
+
                 if (!allow_override)
                     continue;
             }
@@ -10615,7 +10620,7 @@ void add_artefact_flag(u32b f, int flagset)
     u32b f1_after;
 
     log_trace("Adding artifact flag %u in flagset %d", f, flagset);
-    
+
     // prepare the artefact and object for modification
     prepare_artefact();
 
@@ -10644,7 +10649,7 @@ void remove_artefact_flag(u32b f, int flagset)
     u32b f1_after;
 
     log_trace("Removing artifact flag %u from flagset %d", f, flagset);
-    
+
     // prepare the artefact and object for modification
     prepare_artefact();
 
@@ -11133,13 +11138,13 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     char buf[80];
     ability_type* b_ptr;
     byte attr;
-    
+
     /* Allocate arrays dynamically based on actual max abilities */
     bool* ability_present = mem_alloc_array(z_info->b_max, bool);
     bool* ability_valid = mem_alloc_array(z_info->b_max, bool);
     bool* ability_affordable = mem_alloc_array(z_info->b_max, bool);
     int* ability_nums = mem_alloc_array(z_info->b_max, int);
-    
+
     /* Initialize arrays to zero/false */
     memset(ability_present, 0, z_info->b_max * sizeof(bool));
     memset(ability_valid, 0, z_info->b_max * sizeof(bool));
@@ -11538,7 +11543,7 @@ int artefact_menu_aux(int* highlight)
     {
         /* Skip Special abilities - they cannot be smithed onto items */
         if (i == S_SPC) continue;
-        
+
         indexed_menu_entry_label(buf, sizeof(buf), MAX_CATS + display_idx,
             skill_names_full[i]);
         smith_ui_put_menu_label(COL_SMT2,
@@ -11771,7 +11776,7 @@ int melt_menu_aux(int* highlight)
         o_ptr = &inventory[i];
 
         object_flags(o_ptr, &f1, &f2, &f3);
-        
+
         /* ignore metal items that carry the "can't melt" tag */
         if ((f3 & (TR3_MITHRIL | TR3_STAR_IRON)) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
@@ -12770,7 +12775,7 @@ void create_smithing_item(void)
 
         // Store the depth at which it was created
         smith_o_ptr->xtra1 = p_ptr->depth;
-        
+
         log_debug("Artifact #%d created at depth %d", p_ptr->self_made_arts, p_ptr->depth);
     }
 
@@ -12816,10 +12821,10 @@ void create_smithing_item(void)
         // Drop it on the floor instead
         log_debug("Smithed item couldn't fit in inventory, dropping to floor");
         drop_near(smith_o_ptr, 0, p_ptr->py, p_ptr->px);
-        
+
         // Describe the object
         object_desc(o_name, sizeof(o_name), smith_o_ptr, true, 3);
-        
+
         // Message
         msg_format("You have forged %s, but it falls to the floor.", o_name);
         log_info("Created smithing item (dropped): %s", o_name);
@@ -12828,7 +12833,7 @@ void create_smithing_item(void)
     {
         // Get the item itself
         o_ptr = &inventory[slot];
-        
+
         // Mark the item as smithed by the player (using unused1 field)
         o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
 
@@ -16960,6 +16965,33 @@ static int settings_ui_line_width(int col)
     return width;
 }
 
+static int settings_utf8_prefix_len(cptr text, int max_cols)
+{
+    int bytes = 0;
+    int cols = 0;
+
+    if (!text || max_cols <= 0)
+        return 0;
+
+    while (text[bytes])
+    {
+        int char_len = utf8_sequence_len(text + bytes);
+        int char_width;
+
+        if (char_len <= 0)
+            break;
+
+        char_width = utf8_display_width_n(text + bytes, char_len);
+        if (char_width > 0 && cols + char_width > max_cols)
+            break;
+
+        cols += char_width;
+        bytes += char_len;
+    }
+
+    return bytes;
+}
+
 static void settings_ui_fit_text(char* buf, size_t buflen, cptr text,
     int max_chars)
 {
@@ -16975,17 +17007,26 @@ static void settings_ui_fit_text(char* buf, size_t buflen, cptr text,
         return;
     }
 
-    if ((int)strlen(text) <= max_chars)
+    if (utf8_display_width_n(text, (int)strlen(text)) <= max_chars)
     {
         SDL_strlcpy(buf, text, buflen);
     }
     else if (max_chars <= 3)
     {
-        strnfmt(buf, buflen, "%.*s", max_chars, text);
+        int copy_len = settings_utf8_prefix_len(text, max_chars);
+        if (copy_len >= (int)buflen)
+            copy_len = utf8_safe_prefix_len(text, (int)buflen - 1);
+        SDL_memcpy(buf, text, (size_t)copy_len);
+        buf[copy_len] = '\0';
     }
     else
     {
-        strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
+        int copy_len = settings_utf8_prefix_len(text, max_chars - 3);
+        if (copy_len >= (int)buflen)
+            copy_len = utf8_safe_prefix_len(text, (int)buflen - 1);
+        SDL_memcpy(buf, text, (size_t)copy_len);
+        buf[copy_len] = '\0';
+        SDL_strlcat(buf, "...", buflen);
     }
 }
 
@@ -16996,7 +17037,8 @@ static cptr settings_ui_pick_label(int max_chars, cptr long_label,
 
     for (int i = 0; i < 3; i++)
     {
-        if (labels[i] && labels[i][0] && (int)strlen(labels[i]) <= max_chars)
+        if (labels[i] && labels[i][0]
+            && utf8_display_width_n(labels[i], (int)strlen(labels[i])) <= max_chars)
             return labels[i];
     }
 
@@ -17057,7 +17099,7 @@ static void settings_ui_format_pair_line(char* buf, size_t buflen, cptr label,
         return;
     }
 
-    desired_value = (int)strlen(value);
+    desired_value = utf8_display_width_n(value, (int)strlen(value));
     value_budget = MIN(max_chars - 4,
         MAX(min_value_chars, MIN(desired_value, (max_chars * 3) / 5)));
 
@@ -17065,7 +17107,8 @@ static void settings_ui_format_pair_line(char* buf, size_t buflen, cptr label,
         value_budget = MIN(max_chars, MAX(1, max_chars / 2));
 
     settings_ui_fit_text(value_buf, sizeof(value_buf), value, value_budget);
-    label_budget = max_chars - (int)strlen(value_buf) - 2;
+    label_budget = max_chars
+        - utf8_display_width_n(value_buf, (int)strlen(value_buf)) - 2;
 
     if (label_budget < 4)
     {
@@ -17596,7 +17639,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     char buf[160];
 
     int dir;
-    
+
     bool is_sound_page = (page == SOUND_PAGE);
     bool app_page = option_page_uses_app_config(page);
     bool metarun_page = !app_page && !is_sound_page;
@@ -17615,7 +17658,7 @@ extern void do_cmd_options_aux(int page, cptr info)
             opt[n++] = option_page[page][i];
         }
     }
-    
+
     /* Special case: Sound page uses custom display instead of standard options */
     if (is_sound_page)
     {
@@ -17894,9 +17937,9 @@ extern void do_cmd_options_aux(int page, cptr info)
             else if (opt[i] == OPT_intro_style)
             {
                 const char *is_names[] = {
-                    "Flame Imperishable", "Oath of Feanor",
-                    "Twilight of Valinor", "Song of Luthien",
-                    "Words of Hurin", "Starlight on Cuivienen",
+                    "Flame Imperishable", "Oath of Fëanor",
+                    "Twilight of Valinor", "Song of Lúthien",
+                    "Words of Húrin", "Starlight on Cuiviénen",
                     "Lament of the Noldor", "Random"
                 };
                 byte m = op_ptr->intro_style;
@@ -18920,10 +18963,10 @@ void do_cmd_pane_settings(void)
     int dir;
     const char* config_path = get_sdl_config_path();
     const char* config_label = (config_path && config_path[0]) ? config_path : "sil_sdl.json";
-    
+
     /* Save screen */
     screen_save();
-    
+
     while (!done)
     {
         int row_width;
@@ -19177,12 +19220,12 @@ void do_cmd_pane_settings(void)
                 }
             }
         }
-        
+
         /* Try to translate the key into a direction */
         dir = target_dir(ch);
         if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
             ch = I2D(dir);
-        
+
         /* Process input */
         switch (ch)
         {
@@ -19237,7 +19280,7 @@ void do_cmd_pane_settings(void)
             done = true;
             break;
         }
-        
+
         case '-':
         case '8':
         {
@@ -19245,7 +19288,7 @@ void do_cmd_pane_settings(void)
             k = (n + k - 1) % n;
             break;
         }
-        
+
         case '2':
         {
             /* Move down */
@@ -19270,7 +19313,7 @@ void do_cmd_pane_settings(void)
             }
             break;
         }
-        
+
         case 't':
         case '5':
         case ' ':
@@ -19353,13 +19396,13 @@ void do_cmd_pane_settings(void)
             }
             break;
         }
-        
+
         case 'y':
         case '6':
         {
             /* Increase value or set to yes */
             int val;
-            
+
             if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
@@ -19437,13 +19480,13 @@ void do_cmd_pane_settings(void)
             }
             break;
         }
-        
+
         case 'n':
         case '4':
         {
             /* Decrease value or set to no */
             int val;
-            
+
             if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
@@ -19528,7 +19571,7 @@ void do_cmd_pane_settings(void)
             sdl_open_config_file();
             break;
         }
-        
+
         default:
         {
             bell("Illegal command for pane settings!");
@@ -19536,7 +19579,7 @@ void do_cmd_pane_settings(void)
         }
         }
     }
-    
+
     /* Restore screen */
     ui_menu_click_clear();
     ui_scroll_area_clear();
@@ -23831,7 +23874,7 @@ void do_cmd_keybinds(void)
         {'T', NULL, "Tunnel / dig", "T", false},
         {'b', NULL, "Bash door", "b", false},
     };
-    
+
     static const struct keybind_entry secondary_keybinds[] = {
         {'j', NULL, "Supplies overview", "j", false},
         {'.', NULL, "Run (also shift)", ".", false},
@@ -23870,15 +23913,15 @@ void do_cmd_keybinds(void)
         {'[', NULL, "Monster list", "[", false},
         {']', NULL, "Object list", "]", false},
     };
-    
+
     Term_get_size(&term_w, &term_h);
     visible_rows = term_h - list_start_row - 6;
     if (visible_rows < 5)
         visible_rows = 5;
-    
+
     int primary_count = (int)N_ELEMENTS(primary_keybinds);
     int secondary_count = (int)N_ELEMENTS(secondary_keybinds);
-    
+
     /* Determine the keyset mode */
     if (!hjkl_movement && !angband_keyset)
         mode = KEYMAP_MODE_SIL;
@@ -23888,10 +23931,10 @@ void do_cmd_keybinds(void)
         mode = KEYMAP_MODE_ANGBAND;
     else
         mode = KEYMAP_MODE_ANGBAND_HJKL;
-    
+
     /* Save screen */
     screen_save();
-    
+
     while (!done)
     {
         const struct keybind_entry* keybinds;
@@ -23923,7 +23966,7 @@ void do_cmd_keybinds(void)
         if (visible_rows < 5)
             visible_rows = 5;
         row_width = settings_ui_line_width(2);
-        
+
         if (showing_primary)
         {
             keybinds = primary_keybinds;
@@ -23938,12 +23981,12 @@ void do_cmd_keybinds(void)
             highlight_ptr = &highlight_secondary;
             top_ptr = &top_secondary;
         }
-        
+
         if (*highlight_ptr >= num_keybinds)
             *highlight_ptr = num_keybinds - 1;
         if (*highlight_ptr < 0)
             *highlight_ptr = 0;
-        
+
         if (*top_ptr > *highlight_ptr)
             *top_ptr = *highlight_ptr;
         if (*top_ptr + visible_rows <= *highlight_ptr)
@@ -23960,9 +24003,9 @@ void do_cmd_keybinds(void)
         {
             *top_ptr = 0;
         }
-        
+
         highlight = *highlight_ptr;
-        
+
         /* Clear screen */
         Term_clear();
         ui_menu_click_begin();
@@ -23999,7 +24042,7 @@ void do_cmd_keybinds(void)
                 showing_primary ? "Primary Commands: Essential for the gameplay"
                                 : "Supplementary Commands");
         }
-        
+
         /* List visible keybinds */
         display_end = *top_ptr + visible_rows;
         if (display_end > num_keybinds)
@@ -24029,7 +24072,7 @@ void do_cmd_keybinds(void)
             }
             ui_menu_click_add_full_row(i, entry_row);
         }
-        
+
         /* Clear any leftover rows */
         for (i = display_end; i < *top_ptr + visible_rows; i++)
         {
@@ -24048,7 +24091,7 @@ void do_cmd_keybinds(void)
             settings_ui_draw_wrapped_block(detail_row, 2, row_width,
                 detail_rows, TERM_SLATE, detail_buf);
         }
-        
+
         /* Instructions at bottom */
         if (compact_width)
         {
@@ -24090,7 +24133,7 @@ void do_cmd_keybinds(void)
         else
             Term_erase(2, info_row + 2,
                 term_w > 2 ? term_w - 2 : 0);
-        
+
         /* Get input */
         ch = inkey();
 
@@ -24134,7 +24177,7 @@ void do_cmd_keybinds(void)
                 }
             }
         }
-        
+
         /* Handle input */
         if (ch == ESCAPE || ch == 'q' || ch == 'Q')
         {
@@ -24189,7 +24232,7 @@ void do_cmd_keybinds(void)
 
             /* Clear the action area */
             Term_erase(2, entry_row, 255);
-            
+
             /* Prompt for new binding */
             strnfmt(prompt_long, sizeof(prompt_long),
                 "Press key to use for %s (Escape to cancel):",
@@ -24201,20 +24244,20 @@ void do_cmd_keybinds(void)
                     prompt_short));
             settings_ui_put_fitted(entry_row, 2, TERM_YELLOW, prompt);
             Term_fresh();
-            
+
             /* Get the key to bind */
             flush();
             char bind_key = inkey();
-            
+
             if (bind_key != ESCAPE && bind_key != 0)
             {
                 byte new_key = (byte)bind_key;
-                
+
                 /* Clear any existing action on the chosen key */
                 keymap_act[mode][new_key] = str_free(keymap_act[mode][new_key]);
                 keymap_act[mode][new_key] = str_dup(action);
                 dirty = true;
-                
+
                 describe_keycode(new_key, key_label, sizeof(key_label));
                 msg_format("Key %s now performs %s", key_label, keybinds[highlight].key_name);
                 message_flush();
@@ -24229,14 +24272,14 @@ void do_cmd_keybinds(void)
 
             /* Remove the action from any custom keys */
             unbind_action(mode, action);
-            
+
             /* Restore default action */
             keymap_act[mode][target_key] = str_free(keymap_act[mode][target_key]);
             if (keybinds[highlight].requires_keymap)
                 keymap_act[mode][target_key] = str_dup(action);
-            
+
             dirty = true;
-            
+
             describe_keycode(target_key, key_label, sizeof(key_label));
             msg_format("Reset %s to default key %s", keybinds[highlight].key_name, key_label);
             message_flush();
@@ -24246,16 +24289,16 @@ void do_cmd_keybinds(void)
 #ifdef ALLOW_MACROS
             /* Save keybinds to file */
             char ftmp[80];
-            
+
             /* Default filename */
             strnfmt(ftmp, sizeof(ftmp), "%s", default_file);
-            
+
             /* Clear prompt area */
             Term_erase(2, info_row, term_w > 2 ? term_w - 2 : 0);
             prt("File: ", info_row, 2);
             ui_menu_click_clear();
             ui_scroll_area_clear();
-            
+
             /* Ask for a file */
             if (askfor_aux(ftmp, sizeof(ftmp)))
             {
@@ -24276,11 +24319,11 @@ void do_cmd_keybinds(void)
             message_flush();
 #endif
         }
-        
+
         /* Store updated highlight for the active group */
         *highlight_ptr = highlight;
     }
-    
+
     /* Load screen */
     ui_menu_click_clear();
     ui_scroll_area_clear();
@@ -28254,7 +28297,7 @@ void do_cmd_knowledge_oaths(void)
 {
     SDL_IOStream* fff;
     char file_name[1024];
-    
+
     /* Temporary file */
     if (!path_temp(file_name, sizeof(file_name)))
         return;
@@ -28267,7 +28310,7 @@ void do_cmd_knowledge_oaths(void)
 
     /* Scan the oaths */
     SDL_IOprintf(fff, "Oath Status\n\n");
-    
+
     /* Check current character oath */
     if (p_ptr->have_ability[S_SPC][SPC_OATH_MERCY])
     {
@@ -28308,13 +28351,13 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "Current Oath: None\n\n");
     }
-    
+
     /* Display metarun oath status */
     SDL_IOprintf(fff, "Metarun Oath Status:\n");
-    
+
     /* Check unlocked oaths */
     bool has_unlocked = false;
-    if (oath_unlocked(OATH_MERCY)) 
+    if (oath_unlocked(OATH_MERCY))
     {
         SDL_IOprintf(fff, "  Oath of Mercy: Unlocked");
         if (oath_banned(OATH_MERCY))
@@ -28322,8 +28365,8 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
-    
-    if (oath_unlocked(OATH_SILENCE)) 
+
+    if (oath_unlocked(OATH_SILENCE))
     {
         SDL_IOprintf(fff, "  Oath of Silence: Unlocked");
         if (oath_banned(OATH_SILENCE))
@@ -28331,8 +28374,8 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
-    
-    if (oath_unlocked(OATH_IRON)) 
+
+    if (oath_unlocked(OATH_IRON))
     {
         SDL_IOprintf(fff, "  Oath of Iron: Unlocked");
         if (oath_banned(OATH_IRON))
@@ -28340,8 +28383,8 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
-    
-    if (oath_unlocked(OATH_SMITH)) 
+
+    if (oath_unlocked(OATH_SMITH))
     {
         SDL_IOprintf(fff, "  Oath of the Smith: Unlocked");
         if (oath_banned(OATH_SMITH))
@@ -28349,8 +28392,8 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
-    
-    if (oath_unlocked(OATH_VALOROUS)) 
+
+    if (oath_unlocked(OATH_VALOROUS))
     {
         SDL_IOprintf(fff, "  Oath of Valorous Heart: Unlocked");
         if (oath_banned(OATH_VALOROUS))
@@ -28358,13 +28401,13 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
-    
+
     if (!has_unlocked)
     {
         SDL_IOprintf(fff, "  No oaths unlocked yet.\n");
         SDL_IOprintf(fff, "  Complete Valar quests to unlock new oaths.\n");
     }
-    
+
     /* Close the file */
     sdl_fclose(fff);
 
@@ -33972,7 +34015,7 @@ void show_nearby_monsters(bool line_of_sight_only)
     int longest_direction_length = 0;
     int longest_stance_length = 0;
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    
+
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
     int max_lines = MIN(MAX_VIEW_LINES, term_hgt - 3); /* Leave space for header and footer */
@@ -34101,7 +34144,7 @@ void show_nearby_objects(bool line_of_sight_only)
     int longest_name_length = 0;
     int longest_direction_length = 0;
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    
+
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
     int max_lines = MIN(MAX_VIEW_LINES, term_hgt - 3); /* Leave space for header and footer */
@@ -34577,19 +34620,19 @@ static void sidebar_trim_spaces(char* s)
 static int sidebar_find_stats_pos(const char* s)
 {
     if (!s) return -1;
-    
+
     /* Stats section typically appears after the item name, preceded by a space.
      * Format: "Item Name (dice) [bonus] <pval> {inscription}"
      * We search for the first space-delimited bracket that looks like stats.
      */
-    
+
     int first_stats_pos = -1;
-    
+
     /* Look for the first bracket that follows a space or starts the string */
     for (int i = 0; s[i]; ++i)
     {
         char c = s[i];
-        
+
         /* Found a potential stats delimiter */
         if (c == '(' || c == '[' || c == '<' || c == '{')
         {
@@ -34604,7 +34647,7 @@ static int sidebar_find_stats_pos(const char* s)
             /* Keep searching */
         }
     }
-    
+
     /* If we found stats position at start (i==0), that means NO base name!
      * This shouldn't happen with properly formatted object_desc output.
      * If it does, we should treat the whole thing as base name, not stats.
@@ -34614,203 +34657,156 @@ static int sidebar_find_stats_pos(const char* s)
         log_trace("sidebar_find_stats_pos: stats at position 0 for '%s' - treating as name", s);
         return -1;
     }
-    
+
     return first_stats_pos;
 }
 
 static void sidebar_compact_name(const char* src, int max_len, char* dest, size_t dest_sz)
 {
-    if (!dest_sz) return;
+    int src_len;
+    int src_width;
+    int stats_pos;
+
+    if (!dest_sz)
+        return;
+
     dest[0] = 0;
 
-    if (!src) return;
+    if (!src || max_len < 1)
+        return;
 
-    int src_len = (int)strlen(src);
-    if (max_len < 1)
+    src_len = (int)strlen(src);
+    src_width = utf8_display_width_n(src, src_len);
+    if (src_width <= max_len)
     {
-        log_trace("sidebar_compact_name: max_len < 1 for src='%s'", src);
+        SDL_strlcpy(dest, src, dest_sz);
         return;
     }
 
-    if (src_len <= max_len)
-    {
-        strnfmt(dest, dest_sz, "%s", src);
-        log_trace("sidebar_compact_name: no shortening needed src='%s' len=%d max=%d", src, src_len, max_len);
-        return;
-    }
-
-    int stats_pos = sidebar_find_stats_pos(src);
-    log_trace("sidebar_compact_name: shortening src='%s' len=%d max=%d stats_pos=%d", src, src_len, max_len, stats_pos);
-
+    stats_pos = sidebar_find_stats_pos(src);
     if (stats_pos < 0)
     {
-        strnfmt(dest, dest_sz, "%.*s", max_len, src);
+        int copy_len = settings_utf8_prefix_len(src, max_len);
+
+        if (copy_len >= (int)dest_sz)
+            copy_len = (int)dest_sz - 1;
+        if (copy_len < 0)
+            copy_len = 0;
+
+        SDL_memcpy(dest, src, (size_t)copy_len);
+        dest[copy_len] = '\0';
         sidebar_trim_spaces(dest);
-        log_trace("sidebar_compact_name: no stats segment, result='%s'", dest);
         return;
     }
 
-    int stats_len = src_len - stats_pos;
-    
-    /* If stats are very long and would fill the whole space,
-     * prioritize showing at least SOME of the base name rather than stats-only.
-     */
-    if (stats_len >= max_len)
     {
-        /* Try to show at least a portion of the base name, even if truncated */
-        int base_space = max_len / 2; /* Give half space to name */
-        if (base_space < 3) base_space = 3; /* Minimum name chars */
-        if (base_space > stats_pos) base_space = stats_pos; /* Don't exceed available name */
-        
-        int stats_space = max_len - base_space;
-        if (stats_space < 3) stats_space = 3; /* Minimum stats chars */
-        
-        /* Extract truncated base name */
-        char base_truncated[64];
-        strnfmt(base_truncated, sizeof(base_truncated), "%.*s", base_space, src);
-        sidebar_trim_spaces(base_truncated);
-        
-        /* Extract beginning of stats */
-        char stats_truncated[64];
-        strnfmt(stats_truncated, sizeof(stats_truncated), "%.*s", stats_space, src + stats_pos);
-        
-        /* Combine them */
-        if (base_truncated[0])
-        {
-            strnfmt(dest, dest_sz, "%s %s", base_truncated, stats_truncated);
-        }
-        else
-        {
-            strnfmt(dest, dest_sz, "%s", stats_truncated);
-        }
-        sidebar_trim_spaces(dest);
-        log_trace("sidebar_compact_name: long stats, showing truncated name+stats result='%s'", dest);
-        return;
-    }
+        char base_full[128];
+        char stats_text[128];
+        int base_copy_len;
+        int base_width;
+        int stats_width;
+        int base_budget;
 
-    int base_space = max_len - stats_len;
-    if (base_space < 0) base_space = 0;
+        base_copy_len = stats_pos;
+        if (base_copy_len >= (int)sizeof(base_full))
+            base_copy_len = (int)sizeof(base_full) - 1;
+        base_copy_len = utf8_safe_prefix_len(src, base_copy_len);
+        if (base_copy_len < 0)
+            base_copy_len = 0;
 
-    char base_full[128];
-    char base_compact[128];
-    base_full[0] = 0;
-    base_compact[0] = 0;
-
-    if (stats_pos > 0)
-    {
-        strnfmt(base_full, sizeof(base_full), "%.*s", stats_pos, src);
+        SDL_memcpy(base_full, src, (size_t)base_copy_len);
+        base_full[base_copy_len] = '\0';
         sidebar_trim_spaces(base_full);
-    }
 
-    if (base_space > 0 && base_full[0])
-    {
-        int base_full_len = (int)strlen(base_full);
-        if (base_full_len <= base_space)
+        SDL_strlcpy(stats_text, src + stats_pos, sizeof(stats_text));
+        sidebar_trim_spaces(stats_text);
+
+        base_width = utf8_display_width_n(base_full, (int)strlen(base_full));
+        stats_width = utf8_display_width_n(stats_text, (int)strlen(stats_text));
+
+        if (max_len <= 6)
         {
-            SDL_strlcpy(base_compact, base_full, sizeof(base_compact));
+            int copy_len = settings_utf8_prefix_len(src, max_len);
+
+            if (copy_len >= (int)dest_sz)
+                copy_len = (int)dest_sz - 1;
+            if (copy_len < 0)
+                copy_len = 0;
+
+            SDL_memcpy(dest, src, (size_t)copy_len);
+            dest[copy_len] = '\0';
+            sidebar_trim_spaces(dest);
+            return;
         }
-        else
+
+        if (stats_width >= max_len)
         {
-            const char* word_start[16];
-            int word_len[16];
-            int word_count = 0;
-            const char* p = base_full;
+            int base_share = MAX(3, max_len / 2);
+            int stats_share = max_len - base_share;
+            char base_buf[64];
+            char stats_buf[64];
+            int copy_len;
 
-            while (*p && word_count < 16)
-            {
-                while (*p && isspace((unsigned char)*p))
-                    ++p;
-                if (!*p)
-                    break;
+            if (stats_share < 3)
+                stats_share = 3;
+            if (base_share > max_len - 3)
+                base_share = max_len - 3;
 
-                word_start[word_count] = p;
-                const char* q = p;
-                while (*q && !isspace((unsigned char)*q))
-                    ++q;
-                word_len[word_count] = (int)(q - p);
-                ++word_count;
-                p = q;
-            }
+            copy_len = settings_utf8_prefix_len(base_full, base_share);
+            if (copy_len >= (int)sizeof(base_buf))
+                copy_len = (int)sizeof(base_buf) - 1;
+            if (copy_len < 0)
+                copy_len = 0;
+            SDL_memcpy(base_buf, base_full, (size_t)copy_len);
+            base_buf[copy_len] = '\0';
+            sidebar_trim_spaces(base_buf);
 
-            int remaining = base_space;
-            bool first_word = true;
+            copy_len = settings_utf8_prefix_len(stats_text, stats_share);
+            if (copy_len >= (int)sizeof(stats_buf))
+                copy_len = (int)sizeof(stats_buf) - 1;
+            if (copy_len < 0)
+                copy_len = 0;
+            SDL_memcpy(stats_buf, stats_text, (size_t)copy_len);
+            stats_buf[copy_len] = '\0';
+            sidebar_trim_spaces(stats_buf);
 
-            for (int i = 0; i < word_count && remaining > 0; ++i)
-            {
-                int needed_space = first_word ? 0 : 1;
-                if (remaining <= needed_space)
-                    break;
+            if (base_buf[0] && stats_buf[0])
+                strnfmt(dest, dest_sz, "%s %s", base_buf, stats_buf);
+            else if (base_buf[0])
+                SDL_strlcpy(dest, base_buf, dest_sz);
+            else
+                SDL_strlcpy(dest, stats_buf, dest_sz);
 
-                if (!first_word)
-                {
-                    SDL_strlcat(base_compact, " ", sizeof(base_compact));
-                    --remaining;
-                }
-
-                int take = word_len[i];
-                if (take > remaining)
-                {
-                    if (first_word)
-                    {
-                        take = remaining;
-                        if (take > 0)
-                        {
-                            char temp[64];
-                            strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
-                            SDL_strlcat(base_compact, temp, sizeof(base_compact));
-                            remaining -= take;
-                        }
-                    }
-                    else if (remaining > 1)
-                    {
-                        char temp[64];
-                        int partial = remaining;
-                        strnfmt(temp, sizeof(temp), "%.*s", partial, word_start[i]);
-                        SDL_strlcat(base_compact, temp, sizeof(base_compact));
-                        remaining = 0;
-                    }
-                    else
-                    {
-                        size_t len = strlen(base_compact);
-                        if (len && base_compact[len - 1] == ' ')
-                            base_compact[len - 1] = '\0';
-                        break;
-                    }
-                }
-                else
-                {
-                    char temp[64];
-                    strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
-                    SDL_strlcat(base_compact, temp, sizeof(base_compact));
-                    remaining -= take;
-                }
-
-                first_word = false;
-            }
-
-            sidebar_trim_spaces(base_compact);
-
-            if (!base_compact[0] && base_space > 0)
-            {
-                int take = (base_space < base_full_len) ? base_space : base_full_len;
-                strnfmt(base_compact, sizeof(base_compact), "%.*s", take, base_full);
-                sidebar_trim_spaces(base_compact);
-            }
+            sidebar_trim_spaces(dest);
+            return;
         }
-    }
 
-    dest[0] = 0;
-    if (base_compact[0])
-    {
-        SDL_strlcpy(dest, base_compact, dest_sz);
-        size_t len = strlen(dest);
-        if (len && dest[len - 1] != ' ')
-            SDL_strlcat(dest, " ", dest_sz);
-    }
+        base_budget = max_len - stats_width;
+        if (base_budget < 0)
+            base_budget = 0;
 
-    SDL_strlcat(dest, src + stats_pos, dest_sz);
-    sidebar_trim_spaces(dest);
-    log_trace("sidebar_compact_name: combined result='%s'", dest);
+        if (base_full[0] && base_width > 0)
+        {
+            int copy_len = base_width <= base_budget
+                ? (int)strlen(base_full)
+                : settings_utf8_prefix_len(base_full, base_budget);
+
+            if (copy_len >= (int)dest_sz)
+                copy_len = (int)dest_sz - 1;
+            if (copy_len < 0)
+                copy_len = 0;
+
+            SDL_memcpy(dest, base_full, (size_t)copy_len);
+            dest[copy_len] = '\0';
+            sidebar_trim_spaces(dest);
+
+            if (dest[0] && dest[strlen(dest) - 1] != ' ')
+                SDL_strlcat(dest, " ", dest_sz);
+        }
+
+        SDL_strlcat(dest, stats_text, dest_sz);
+        sidebar_trim_spaces(dest);
+    }
 }
 
 typedef struct unified_sidebar_compact_entry
@@ -34841,24 +34837,7 @@ static int unified_sidebar_compact_last_row(void)
 static void unified_sidebar_fit_text(char* buf, size_t buflen, cptr text,
     int max_chars)
 {
-    if (!buf || !buflen)
-        return;
-
-    if (!text)
-        text = "";
-
-    if (max_chars <= 0)
-    {
-        buf[0] = '\0';
-        return;
-    }
-
-    if ((int)strlen(text) <= max_chars)
-        SDL_strlcpy(buf, text, buflen);
-    else if (max_chars <= 3)
-        strnfmt(buf, buflen, "%.*s", max_chars, text);
-    else
-        strnfmt(buf, buflen, "%.*s...", max_chars - 3, text);
+    settings_ui_fit_text(buf, buflen, text, max_chars);
 }
 
 static int unified_sidebar_story_text_cols(cptr text)
@@ -35189,15 +35168,11 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         bool highlight_this = has_sidebar_selection
             && (state->selected_entity == entry->entity_index);
         byte text_attr = highlight_this ? TERM_L_BLUE : entry->text_attr;
-        int text_len = (int)strlen(entry->text);
-
-        if (Term && text_len > Term->wid - text_col)
-            text_len = Term->wid - text_col;
-        if (text_len < 0)
-            text_len = 0;
+        int text_width = utf8_display_width_n(entry->text,
+            (int)strlen(entry->text));
 
         int hit_width = unified_sidebar_text_hit_width(pictogram_col, text_col,
-            entry->text, MAX(1, text_col + text_len - pictogram_col));
+            entry->text, MAX(1, text_col + text_width - pictogram_col));
         if (Term)
             hit_width = MAX(hit_width, Term->wid - pictogram_col);
         ui_menu_click_add(entry->entity_index, pictogram_col, row, hit_width);
@@ -35206,7 +35181,7 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         if (use_bigtile)
             Term_putch(pictogram_col + 1, row, 255, -1);
 
-        Term_putstr(text_col, row, text_len, text_attr, entry->text);
+        Term_putstr(text_col, row, -1, text_attr, entry->text);
 
         if (highlight_this)
         {
@@ -35245,25 +35220,25 @@ void show_unified_sidebar(unified_look_state* state)
     const int prev_array_capacity = (int)(sizeof(prev_name_len) / sizeof(prev_name_len[0]));
     bool has_sidebar_selection;
 
-    
+
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
     int max_display_line = term_hgt - 1;
     if (max_display_line < 1)
         max_display_line = 1;
-    
+
     /* Calculate layout positions once for both monsters and objects */
     int term_wid = Term->wid;
     int available_width = term_wid - sidebar_col - 3;
     int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
-    
+
     /* Adjust for bigtile mode - pictogram takes extra space */
     if (use_bigtile) {
         name_width = name_width - 1;  /* Reduce name width by 1 for bigtile */
     }
-    
+
     if (name_width < 4) name_width = 4; /* minimum name width */
-    
+
     /* Calculate exact positions */
     int pictogram_col = sidebar_col;
     int name_col = sidebar_col + 2;  /* Name starts right after pictogram (at column 2) */
@@ -35276,12 +35251,12 @@ void show_unified_sidebar(unified_look_state* state)
 
     if (sidebar_hit_width < 1)
         sidebar_hit_width = 1;
-    
-    log_trace("show_unified_sidebar: previous_line_count=%d, term_hgt=%d, max_display_line=%d", 
+
+    log_trace("show_unified_sidebar: previous_line_count=%d, term_hgt=%d, max_display_line=%d",
               previous_line_count, term_hgt, max_display_line);
     log_trace("show_unified_sidebar: sidebar_col=%d, Term->wid=%d",
               sidebar_col, Term->wid);
-    log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d", 
+    log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d",
               state->show_monsters ? 1 : 0, state->show_objects ? 1 : 0);
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
@@ -35310,10 +35285,10 @@ void show_unified_sidebar(unified_look_state* state)
         && (state->in_sidebar_mode || (state->look_mode == 0));
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
-    
+
     /* Full overlay restoration comes from screen_save/screen_load; rows are
      * cleared only to their dynamic rendered width as they are drawn. */
-    
+
     /* Show monsters section */
     if (state->show_monsters)
     {
@@ -35321,10 +35296,10 @@ void show_unified_sidebar(unified_look_state* state)
         unified_sidebar_clear_row(line, unified_sidebar_text_hit_width(
             sidebar_col, sidebar_col, "MONSTERS:    ", 13));
         c_put_str(TERM_WHITE, "MONSTERS:    ", line++, sidebar_col);
-        
+
         /* Get monster list */
         get_sorted_target_list(TARGET_LIST_MONSTER, 0);
-        
+
         for (i = 0; i < temp_n && line < max_display_line; i++)
         {
             int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
@@ -35332,7 +35307,7 @@ void show_unified_sidebar(unified_look_state* state)
             monster_race* r_ptr = &r_info[m_ptr->r_idx];
             char m_name[40];
             char morale_text[8];
-            
+
             /* Show only visible monsters on screen (like the [ monsters menu) */
             /* Skip empty monster slots */
             if (!m_idx) continue;
@@ -35342,18 +35317,18 @@ void show_unified_sidebar(unified_look_state* state)
             /* Skip monsters that are not visible to the player */
             if (!m_ptr->ml) continue;
             if (!unified_look_sidebar_in_radius(state, temp_y[i], temp_x[i])) continue;
-            
+
             /* Generate monster name without articles using race name function */
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
-            
+
             /* Create compact HP bar */
             char hp_bar[10];
             monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
-            
+
             /* Create morale number with proper color */
             int morale_color = TERM_WHITE;
             int morale_num = 0;
-            
+
             if (m_ptr->alertness < ALERTNESS_UNWARY)
             {
                 morale_color = TERM_BLUE;
@@ -35373,53 +35348,67 @@ void show_unified_sidebar(unified_look_state* state)
                     /* Fallback if stance not initialized - use white and calculate from morale */
                     morale_color = TERM_WHITE;
                 }
-                
+
                 /* Calculate morale number */
                 if (m_ptr->morale >= 0)
                     morale_num = (m_ptr->morale + 9) / 10;
                 else
                     morale_num = m_ptr->morale / 10;
             }
-            
+
             strnfmt(morale_text, sizeof(morale_text), "%d", morale_num);
-            
+
             /* Use pictogram (tile) appropriate for graphics mode */
             entity_char[0] = monster_char(r_ptr);
-            
+
             /* Build the complete display string: name + health + morale */
             char display_name[128];
             char hp_display[12];
             char morale_display[12];
-            
+
             /* Format health and morale as compact strings */
             strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
             strnfmt(morale_display, sizeof(morale_display), " %s", morale_text);
-            
+
             /* Calculate available width for the whole line */
             int available_width = term_wid - name_col - 2;
             if (available_width < 10) available_width = 10;
-            
+
             int hp_display_len = (int)strlen(hp_display);
             int morale_display_len = (int)strlen(morale_display);
-            int max_name_len = available_width - hp_display_len - morale_display_len;
+            int hp_display_width = utf8_display_width_n(hp_display,
+                hp_display_len);
+            int morale_display_width = utf8_display_width_n(morale_display,
+                morale_display_len);
+            int max_name_len = available_width - hp_display_width
+                - morale_display_width;
             if (max_name_len < 4) max_name_len = 4;
-            if (max_name_len > (int)sizeof(display_name) - hp_display_len - morale_display_len - 1)
-                max_name_len = (int)sizeof(display_name) - hp_display_len - morale_display_len - 1;
-            
+            if (max_name_len > (int)sizeof(display_name) - hp_display_len
+                - morale_display_len - 1)
+            {
+                max_name_len = (int)sizeof(display_name) - hp_display_len
+                    - morale_display_len - 1;
+            }
+
             /* Truncate monster name if needed */
             char truncated_name[80];
-            memset(truncated_name, 0, sizeof(truncated_name));
-            SDL_strlcpy(truncated_name, m_name, sizeof(truncated_name));
-            if (strlen(truncated_name) > (size_t)max_name_len) {
-                truncated_name[max_name_len] = '\0';
-            }
-            
+            int truncated_name_len = settings_utf8_prefix_len(m_name,
+                max_name_len);
+            if (truncated_name_len >= (int)sizeof(truncated_name))
+                truncated_name_len = (int)sizeof(truncated_name) - 1;
+            if (truncated_name_len < 0)
+                truncated_name_len = 0;
+            SDL_memcpy(truncated_name, m_name, (size_t)truncated_name_len);
+            truncated_name[truncated_name_len] = '\0';
+
             /* Build complete display string: name + health (without morale) */
             SDL_strlcpy(display_name, truncated_name, sizeof(display_name));
             SDL_strlcat(display_name, hp_display, sizeof(display_name));
-            
+
             int name_hp_len = (int)strlen(display_name);
-            int total_span = name_hp_len + morale_display_len;
+            int name_hp_width = utf8_display_width_n(display_name,
+                name_hp_len);
+            int total_span = name_hp_width + morale_display_width;
             if (use_bigtile)
             {
                 const int min_sidebar_span = 13;
@@ -35427,21 +35416,25 @@ void show_unified_sidebar(unified_look_state* state)
                 {
                     int pad_needed = min_sidebar_span - total_span;
 
-                    while (pad_needed > 0 && name_hp_len + 1 < (int)sizeof(display_name))
+                    while (pad_needed > 0
+                        && name_hp_len + 1 < (int)sizeof(display_name))
                     {
                         display_name[name_hp_len++] = ' ';
+                        name_hp_width++;
                         pad_needed--;
                     }
                     display_name[name_hp_len] = '\0';
-                    total_span = name_hp_len + morale_display_len;
+                    total_span = name_hp_width + morale_display_width;
 
-                    while (pad_needed > 0 && morale_display_len + 1 < (int)sizeof(morale_display))
+                    while (pad_needed > 0
+                        && morale_display_len + 1 < (int)sizeof(morale_display))
                     {
                         morale_display[morale_display_len++] = ' ';
+                        morale_display_width++;
                         pad_needed--;
                     }
                     morale_display[morale_display_len] = '\0';
-                    total_span = name_hp_len + morale_display_len;
+                    total_span = name_hp_width + morale_display_width;
                 }
 
                 if ((total_span % 2) == 0)
@@ -35450,49 +35443,51 @@ void show_unified_sidebar(unified_look_state* state)
                     {
                         morale_display[morale_display_len++] = ' ';
                         morale_display[morale_display_len] = '\0';
+                        morale_display_width++;
                     }
                     else if (name_hp_len + 1 < (int)sizeof(display_name))
                     {
                         display_name[name_hp_len++] = ' ';
                         display_name[name_hp_len] = '\0';
+                        name_hp_width++;
                     }
-                    total_span = name_hp_len + morale_display_len;
+                    total_span = name_hp_width + morale_display_width;
                 }
             }
-            
+
             /* Calculate column for morale display */
-            int morale_col = name_col + name_hp_len;
+            int morale_col = name_col + name_hp_width;
             int monster_hit_width = unified_sidebar_text_pair_hit_width(
                 pictogram_col, name_col, display_name, morale_display,
                 MAX(sidebar_hit_width, name_col - pictogram_col + total_span));
             unified_sidebar_clear_row(line, monster_hit_width);
             ui_menu_click_add(monster_count, pictogram_col, line,
                 monster_hit_width);
-            
+
             /* Highlight if selected with cursor-style highlighting only */
             bool highlight_this_monster = (has_sidebar_selection
                 && (state->selected_entity == monster_count));
-            
+
             if (highlight_this_monster)
             {
                 log_trace("Highlighting monster %d at (%d,%d)", monster_count, temp_y[i], temp_x[i]);
-                
+
                 /* Clear only the exact area where text will be displayed */
                 Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
-                
+
                 /* Show pictogram in natural color */
                 c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-                
-                Term_putstr(name_col, line, name_hp_len, TERM_L_BLUE,
+
+                Term_putstr(name_col, line, -1, TERM_L_BLUE,
                     display_name);
-                Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE,
+                Term_putstr(morale_col, line, -1, TERM_L_BLUE,
                     morale_display);
                 (void)Term_set_extra_cursor(true, pictogram_col, line, use_bigtile);
-                
+
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
@@ -35505,26 +35500,26 @@ void show_unified_sidebar(unified_look_state* state)
             {
                 /* Clear only the exact area where text will be displayed */
                 Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
-                
+
                 /* Normal display - show pictogram and name with proper colors */
                 c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-                
+
                 /* Display name+health in white */
-                Term_putstr(name_col, line, name_hp_len, TERM_WHITE, display_name);
-                
+                Term_putstr(name_col, line, -1, TERM_WHITE, display_name);
+
                 /* Display morale in its proper color */
-                Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
+                Term_putstr(morale_col, line, -1, morale_color, morale_display);
             }
-            
+
             line++;
             monster_count++;
         }
     }
-    
+
     /* Show objects section */
     if (state->show_objects)
     {
@@ -35548,7 +35543,7 @@ void show_unified_sidebar(unified_look_state* state)
         unified_sidebar_clear_row(line, unified_sidebar_text_hit_width(
             sidebar_col, sidebar_col, header_buf, (int)strlen(header_buf)));
         c_put_str(TERM_WHITE, header_buf, line++, sidebar_col);
-        
+
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
         int object_capacity = (temp_n > 0) ? temp_n : 1;
         unified_sidebar_sorted_object objects[object_capacity];
@@ -35570,7 +35565,7 @@ void show_unified_sidebar(unified_look_state* state)
 
             group_display_counts[entry->group]++;
 
-            /* Generate object name with stats but without articles (mode 4) 
+            /* Generate object name with stats but without articles (mode 4)
              * Mode 4 applies shortening logic that sidebar_compact_name expects.
              * Fixed mode 4 to never produce stats-only output.
              */
@@ -35588,8 +35583,8 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
 
-            base_color = weapon_glows(o_ptr) 
-                ? object_display_color(o_ptr, TERM_L_BLUE) 
+            base_color = weapon_glows(o_ptr)
+                ? object_display_color(o_ptr, TERM_L_BLUE)
                 : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
             entity_char[0] = object_char(o_ptr);
@@ -35613,18 +35608,18 @@ void show_unified_sidebar(unified_look_state* state)
             /* Calculate available width for name + weight (+ optional smithing debug) */
             int available_name_width = term_wid - name_col - 2; /* Leave some margin */
             if (available_name_width < 10) available_name_width = 10;
-            
+
             int weight_len = (int)strlen(weight_buf);
             int smith_len = (int)strlen(smith_buf);
             int max_name_len = available_name_width - weight_len - smith_len - 1; /* Reserve space for suffixes */
             if (max_name_len < 4) max_name_len = 4;
 
             char display_name[128];
-            if (max_name_len > (int)sizeof(display_name) - weight_len - 1) 
+            if (max_name_len > (int)sizeof(display_name) - weight_len - 1)
                 max_name_len = (int)sizeof(display_name) - weight_len - 1;
 
             sidebar_compact_name(name_source, max_name_len, display_name, sizeof(display_name));
-            
+
             /* Append weight right after name */
             SDL_strlcat(display_name, weight_buf, sizeof(display_name));
 
@@ -35632,29 +35627,39 @@ void show_unified_sidebar(unified_look_state* state)
             if (smith_buf[0])
                 SDL_strlcat(display_name, smith_buf, sizeof(display_name));
             int final_name_len = (int)strlen(display_name);
+            int final_name_width = utf8_display_width_n(display_name,
+                final_name_len);
             int original_name_len = (int)strlen(name_source);
-            bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
+            int original_name_width = utf8_display_width_n(name_source,
+                original_name_len);
+            bool shortened = (original_name_width != final_name_width)
+                || (original_name_width > max_name_len);
             log_trace("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
-                entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, name_col, weight_len, shortened ? 1 : 0);
+                entry->o_idx, name_source, display_name, base_color,
+                original_name_len, final_name_len, max_name_len, name_col,
+                weight_len, shortened ? 1 : 0);
 
             if (use_bigtile)
             {
                 const int min_sidebar_span = 13;
-                if (final_name_len < min_sidebar_span)
+                if (final_name_width < min_sidebar_span)
                 {
-                    int pad_needed = min_sidebar_span - final_name_len;
+                    int pad_needed = min_sidebar_span - final_name_width;
                     while (pad_needed > 0 && final_name_len + 1 < (int)sizeof(display_name))
                     {
                         display_name[final_name_len++] = ' ';
+                        final_name_width++;
                         pad_needed--;
                     }
                     display_name[final_name_len] = '\0';
                 }
 
-                if ((final_name_len % 2) == 0 && (final_name_len + 1 < (int)sizeof(display_name)))
+                if ((final_name_width % 2) == 0
+                    && (final_name_len + 1 < (int)sizeof(display_name)))
                 {
                     display_name[final_name_len++] = ' ';
                     display_name[final_name_len] = '\0';
+                    final_name_width++;
                 }
             }
 
@@ -35664,22 +35669,23 @@ void show_unified_sidebar(unified_look_state* state)
             int object_hit_width = unified_sidebar_text_hit_width(
                 pictogram_col, name_col, display_name,
                 MAX(sidebar_hit_width, name_col - pictogram_col
-                    + final_name_len));
+                    + final_name_width));
             unified_sidebar_clear_row(line, object_hit_width);
             ui_menu_click_add(object_start + object_count, pictogram_col, line,
                 object_hit_width);
 
             int old_name_len = prev_name_len[row_index];
-            if (old_name_len > final_name_len)
+            if (old_name_len > final_name_width)
             {
-                int diff = old_name_len - final_name_len;
+                int diff = old_name_len - final_name_width;
                 if (diff > 0)
                 {
                     char blank[128];
                     if (diff >= (int)sizeof(blank)) diff = (int)sizeof(blank) - 1;
                     memset(blank, ' ', diff);
                     blank[diff] = '\0';
-                    Term_putstr(name_col + final_name_len, line, diff, TERM_WHITE, blank);
+                    Term_putstr(name_col + final_name_width, line, diff,
+                        TERM_WHITE, blank);
                 }
             }
 
@@ -35693,14 +35699,14 @@ void show_unified_sidebar(unified_look_state* state)
                 log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, entry->y, entry->x);
 
                 Term_erase(pictogram_col, line, 2);
-                
+
                 c_put_str(object_attr(o_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-                
-                Term_putstr(name_col, line, final_name_len, name_attr, display_name);
+
+                Term_putstr(name_col, line, -1, name_attr, display_name);
                 (void)Term_set_extra_cursor(true, pictogram_col, line, use_bigtile);
 
                 state->highlighted_y = entry->y;
@@ -35713,17 +35719,17 @@ void show_unified_sidebar(unified_look_state* state)
             else
             {
                 Term_erase(pictogram_col, line, 2);
-                
+
                 c_put_str(object_attr(o_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
                     Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-                
-                Term_putstr(name_col, line, final_name_len, name_attr, display_name);
+
+                Term_putstr(name_col, line, -1, name_attr, display_name);
             }
 
-            prev_name_len[row_index] = final_name_len;
+            prev_name_len[row_index] = final_name_width;
 
             line++;
             object_count++;
@@ -35737,17 +35743,17 @@ void show_unified_sidebar(unified_look_state* state)
 
     /* Save current line count for next clearing operation */
     int current_line_count = line - 1;
-    
-    log_trace("show_unified_sidebar: current_line_count=%d, previous_line_count=%d", 
+
+    log_trace("show_unified_sidebar: current_line_count=%d, previous_line_count=%d",
               current_line_count, previous_line_count);
-    
+
     /* If the new display is shorter than the previous one, don't clear - let screen_load handle it */
     if (previous_line_count > current_line_count)
     {
-        log_trace("show_unified_sidebar: display got shorter (%d->%d) but not clearing - screen_load will restore", 
+        log_trace("show_unified_sidebar: display got shorter (%d->%d) but not clearing - screen_load will restore",
                   previous_line_count, current_line_count);
     }
-    
+
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }

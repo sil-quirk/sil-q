@@ -845,8 +845,8 @@ struct player_race
  */
 struct character_profile
 {
-    u32b name;         /* Name (offset) eg 'Feanor' */
-    u32b alt_name;     /* Alternate Name (offset) eg 'Character of Feanor' */
+    u32b name;         /* Name (offset) eg 'Fëanor' */
+    u32b alt_name;     /* Alternate Name (offset) eg 'Character of Fëanor' */
     u32b start_string; /* Short Name (offset) */
     u32b text;         /* Description (offset) */
     guid64 guid;       /* Stable identifier for score plumbing */
@@ -1390,10 +1390,10 @@ struct player_type
     s16b tulkas_target_r_idx; /* Target unique monster for Tulkas quest */
     s16b tulkas_prize_a_idx; /* Artifact prize for Tulkas quest */
     byte tulkas_quest_complete; /* Whether quest is completed but reward not given */
-    /* Aule quest tracking */
-    byte aule_quest;           /* Aule quest state (AULE_QUEST_*) */
-    byte aule_forge_y;         /* Y coord of Aule's forge (for validation) */
-    byte aule_forge_x;         /* X coord of Aule's forge */
+    /* Aulë quest tracking */
+    byte aule_quest;           /* Aulë quest state (AULE_QUEST_*) */
+    byte aule_forge_y;         /* Y coord of Aulë's forge (for validation) */
+    byte aule_forge_x;         /* X coord of Aulë's forge */
     byte aule_reserved;        /* padding */
     s16b aule_level;           /* Dungeon depth where forge resides */
     s16b aule_last_object_diff;/* Difficulty of last forged object (for logging) */
@@ -1404,19 +1404,19 @@ struct player_type
     byte mandos_monsters_remaining; /* Number of monsters left to clear */
     s16b mandos_level;         /* Dungeon depth where vault resides */
     s16b mandos_reserved;      /* padding */
-    /* Niena quest tracking */
-    byte niena_quest;          /* Niena quest state (NIENA_QUEST_*) */
+    /* Nienna quest tracking */
+    byte niena_quest;          /* Nienna quest state (NIENA_QUEST_*) */
     byte niena_monsters_seen;  /* Number of monsters seen during quest */
     byte niena_monsters_killed; /* Number of monsters killed during quest */
     byte niena_reserved;       /* padding */
     s16b niena_level;          /* Dungeon depth where quest is active */
     s16b niena_reserved2;      /* padding */
-    /* Orome quest tracking */
-    byte orome_quest;          /* Orome quest state (OROME_QUEST_*) */
+    /* Oromë quest tracking */
+    byte orome_quest;          /* Oromë quest state (OROME_QUEST_*) */
     byte orome_target_type;    /* Monster type to hunt (1=wolf, 2=spider, 3=serpent, 4=vampire) */
     s16b orome_killed_count;   /* Number of target monsters killed */
     s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
-    /* New global monster type counters for Orome quest */
+    /* New global monster type counters for Oromë quest */
     s16b orome_wolves_killed;  /* Total wolves killed (any type) */
     s16b orome_spiders_killed; /* Total spiders killed (any type) */
     s16b orome_serpents_killed; /* Total serpents killed (any type) */

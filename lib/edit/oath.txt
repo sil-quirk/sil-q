@@ -30,16 +30,16 @@ S:0:0:0:0
 
 # Oath of Mercy
 O:1:Oath of Mercy  
-T:To spare the Children of Iluvatar
+T:To spare the Children of Ilúvatar
 D:A solemn vow to leave Angband without shedding the blood of Man or Elf, showing mercy even to those who might oppose you. This oath reflects the compassion of Nienna, Lady of Pity.
-P:I swear to leave Angband without shedding blood of Man or Elf, showing mercy to all Children of Iluvatar I encounter.
+P:I swear to leave Angband without shedding blood of Man or Elf, showing mercy to all Children of Ilúvatar I encounter.
 F:Attack or harm Men or Elves in any way
 R:+1 Grace - Divine favor for your merciful heart
 A:8:2
 S:0:0:0:1
 B:Cannot attack creatures with RF3_MAN or RF3_ELF flags
 U:Complete the Quest of Nienna, Lady of Pity
-C:Your hand stays its course. The life before you is one of the Children of Iluvatar. To strike them down is to stain your very soul and forsake the compassion you swore to uphold. Are you certain you wish to break your Oath of Mercy?
+C:Your hand stays its course. The life before you is one of the Children of Ilúvatar. To strike them down is to stain your very soul and forsake the compassion you swore to uphold. Are you certain you wish to break your Oath of Mercy?
 M:The light of pity leaves your eyes, replaced by the shadow of wrath. The weight of this life taken settles upon you, a curse of your own making.
 E:The echo of your mercy is now a mockery. Your Oath of Mercy is forever broken, a testament to the compassion you have cast aside in this age.
 Q:You passed from the world, but the memory of your final deeds remains. You will be remembered as one who swore compassion, yet chose cruelty.
@@ -55,7 +55,7 @@ R:+1 Dexterity - Stoic fortitude and inner resilience
 A:8:3
 S:0:1:0:0
 B:Cannot use any singing abilities or songs
-U:Complete the Quest of Orome, the Great Hunter
+U:Complete the Quest of Oromë, the Great Hunter
 C:A word forms on your lips. To give it voice is to shatter the solemn vow you have sworn and lose the strength found in stillness. Are you certain you wish to break your Oath of Silence?
 M:The quiet strength you held is lost in a cacophony of your own making. Your voice, once held in check, now feels alien and weak.
 E:The profound stillness you swore to keep is drowned by a single sound. Your Oath of Silence is forever broken, lost to a moment of weakness in this age.
@@ -82,7 +82,7 @@ Z:OATH OF IRON SHATTERED - Thy will is broken, thy purpose abandoned in the dark
 # Oath of the Smith
 O:4:Oath of the Smith
 T:To craft all gear by your own hand
-D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and armor not forged by your own skill. This oath honors Aule's mastery of all crafts.
+D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and armor not forged by your own skill. This oath honors Aulë's mastery of all crafts.
 P:I swear to craft all blades and armor by my own hand, taking up no weapon or protection wrought by others.
 F:Pick up, wield, or wear weapons or armor crafted by others
 R:+5 Smithing - Divine inspiration in all crafts
@@ -90,7 +90,7 @@ A:8:6:0
 S:0:0:0:0
 K:6:5
 B:Cannot equip weapons or armor not self-crafted
-U:Complete the Quest of Aule the Smith
+U:Complete the Quest of Aulë the Smith
 C:Your hand reaches for a tool not of your own making. To take it up is to scorn your own craft and admit the weakness of your skill. Are you certain you wish to break your Oath of the Smith?
 M:As you grasp the foreign craft, the fire of your own forge grows dim within you. A shadow of doubt now clouds your eye and makes your own hands feel clumsy.
 E:You have cast aside self-reliance for the fleeting ease of another's work. Your Oath of the Smith is forever broken, a tribute to the craft you forsook in this age.

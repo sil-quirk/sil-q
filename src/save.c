@@ -1223,7 +1223,7 @@ static void wr_extra(void)
     wr_s16b(p_ptr->tulkas_target_r_idx);
     wr_s16b(p_ptr->tulkas_prize_a_idx);
     wr_byte(p_ptr->tulkas_quest_complete);
-    /* Aule quest fields */
+    /* Aulë quest fields */
     wr_byte(p_ptr->aule_quest);
     wr_byte(p_ptr->aule_forge_y);
     wr_byte(p_ptr->aule_forge_x);
@@ -1237,14 +1237,14 @@ static void wr_extra(void)
     wr_byte(p_ptr->mandos_monsters_remaining);
     wr_s16b(p_ptr->mandos_level);
     wr_s16b(p_ptr->mandos_reserved);
-    /* Niena quest fields */
+    /* Nienna quest fields */
     wr_byte(p_ptr->niena_quest);
     wr_byte(p_ptr->niena_monsters_seen);
     wr_byte(p_ptr->niena_monsters_killed);
     wr_byte(p_ptr->niena_reserved);
     wr_s16b(p_ptr->niena_level);
     wr_s16b(p_ptr->niena_reserved2);
-    /* Orome quest fields */
+    /* Oromë quest fields */
     wr_byte(p_ptr->orome_quest);
     wr_byte(p_ptr->orome_target_type);
     wr_s16b(p_ptr->orome_target_count);

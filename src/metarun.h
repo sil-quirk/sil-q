@@ -29,10 +29,10 @@ extern curse_type* cu_info;
 /*  Quest completion tracking                                         */
 /* ------------------------------------------------------------------ */
 #define METARUN_QUEST_TULKAS   (1UL << 0)   /* Tulkas quest completed */
-#define METARUN_QUEST_AULE     (1UL << 1)   /* Aule quest completed   */
+#define METARUN_QUEST_AULE     (1UL << 1)   /* Aulë quest completed   */
 #define METARUN_QUEST_MANDOS   (1UL << 2)   /* Mandos quest completed */
-#define METARUN_QUEST_NIENA    (1UL << 3)   /* Niena quest completed  */
-#define METARUN_QUEST_OROME    (1UL << 4)   /* Orome quest completed  */
+#define METARUN_QUEST_NIENA    (1UL << 3)   /* Nienna quest completed  */
+#define METARUN_QUEST_OROME    (1UL << 4)   /* Oromë quest completed  */
 #define METARUN_QUEST_VARDA    (1UL << 5)   /* Varda quest completed  */
 #define METARUN_QUEST_SLOT_MAX 8            /* Max quest slots tracked in metarun */
 #define METARUN_QUEST_COMPLETION_CAP 7      /* Max times a quest counts per metarun */
@@ -111,7 +111,7 @@ typedef struct metarun
     byte persistent_options_initialized; /* Flag to track if persistent options are set */
 
     /* ----- quest completion tracking --------------------------- */
-    u32b completed_quests;      /* Bitmask of completed quests (bit 0=Tulkas, bit 1=Aule, etc.) */
+    u32b completed_quests;      /* Bitmask of completed quests (bit 0=Tulkas, bit 1=Aulë, etc.) */
     byte quest_completion_counts[METARUN_QUEST_SLOT_MAX]; /* Times each quest has been completed this metarun (capped) */
     
     /* ----- oath system tracking -------------------------------- */

@@ -48,10 +48,10 @@ W:"A glorious fight! I felt the earth shake with the fall of your foe!"
 W:"You have proven your might and shown courage worthy of the songs of old."
 W:"Take this prize-wrought ere the Sun and Moon first rose-and wield it well!"
 
-# Quest of Aule the Smith
-Q:2:Aule the Smith
+# Quest of Aulë the Smith
+Q:2:Aulë the Smith
 T:The Maker challenges you to prove your craft
-C:At Aule's forge, craft a work of true worth and mastery
+C:At Aulë's forge, craft a work of true worth and mastery
 O:4
 Y:0
 R:aule_quest
@@ -61,7 +61,7 @@ S:0:0:0:0
 K:SMT:2
 A:8:1
 I:The air grows warm with the heat of a distant forge, and a voice like the ringing of hammer upon anvil speaks.
-I:Aule the Smith, the Maker, regards you with a deep and knowing gaze.
+I:Aulë the Smith, the Maker, regards you with a deep and knowing gaze.
 I:
 I:"I have seen your works, mortal. I have marked the stone you have hewn and the metal you have shaped.
 I:There is a spark of the fire of creation within you."
@@ -70,7 +70,7 @@ I:"But a spark is not a flame. Skill must be honed by trial,
 I:and the substance of the earth does not yield its secrets gladly."
 I:"Here is my forge. Its fires burn with the heat of the world's heart.
 I:Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
-W:You lay your finished work before the Smith. Aule takes it in his mighty hands, his gaze missing no detail.
+W:You lay your finished work before the Smith. Aulë takes it in his mighty hands, his gaze missing no detail.
 W:He turns it over, feeling its weight, its balance, its very spirit.
 W:
 W:"It is well-wrought. You have not merely forced the shape, but listened to the substance and persuaded it to your will.
@@ -92,7 +92,7 @@ I:A chill presence fills the chamber, and the air grows still. Before you stands
 I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
 I:
 I:"Child of Middle-earth, here lingers a spirit that should long ago have departed the circles of the world."
-I:"The hand of Turin brought justice upon Brodda the Easterling, as was his doom.
+I:"The hand of Túrin brought justice upon Brodda the Easterling, as was his doom.
 I:Yet the malice of Morgoth does not end with death."
 I:
 I:"His black power has kept this spirit bound, far from my halls, and lent it a mockery of life."
@@ -131,8 +131,8 @@ W:Such a deed is a light in the deepest darkness."
 W:
 W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."
 
-# Quest of Orome, the Great Hunter  
-Q:5:Orome, the Great Hunter
+# Quest of Oromë, the Great Hunter
+Q:5:Oromë, the Great Hunter
 T:The Great Hunter tests your skill in the hunt
 C:Hunt down the foul kindreds throughout your journey: 100 wolves, 80 spiders, 60 serpents, or 30 vampires
 O:2
@@ -144,10 +144,10 @@ P:LINEAR_INTERPOLATE:0.05:0.125:0:0
 S:0:1:0:0
 A:8:8
 I:The air grows wild and clean, smelling of ancient forests under a starlit sky.
-I:The clear, mighty blast of a great horn, the Valaroma, echoes from the walls, shaking the very stones
+I:The clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones
 I:and sending a tremor of fear through all evil things.
 I:Before you stands a majestic lord upon a great white steed, his face filled with the vigour of the chase.
-I:It is Orome, the Huntsman of the Valar.
+I:It is Oromë, the Huntsman of the Valar.
 I:
 I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep.
 I:The foulest kindreds of the Enemy have made their lairs throughout this realm:
@@ -157,8 +157,8 @@ I:
 I:"I call upon you to cleanse this darkness throughout your journey! Hunt any of these monstrous broods without pity:
 I:slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires, and let their numbers be broken.
 I:When your great hunt reaches its end, I shall return to bestow my blessing upon you."
-W:As the last of your chosen prey falls, the triumphant sound of the Valaroma rings out once more.
-W:Orome appears, his eyes bright with approval.
+W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more.
+W:Oromë appears, his eyes bright with approval.
 W:
 W:"A mighty hunt! The foul things of the dark have learned to fear your name.
 W:You have the eye of a true hunter and a spirit that does not quail before the beasts of night."

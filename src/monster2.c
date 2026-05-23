@@ -1280,15 +1280,15 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         int song_skill = ability_bonus(S_SNG, SNG_CHALLENGE);
     int full_penalty = song_skill / 5;
     if (full_penalty < 1) full_penalty = 1;
-        
+
         // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
         int max_duration = (song_skill * 3) / 4;
         if (max_duration < 3) max_duration = 3;
-        
+
         // Scale the penalty based on remaining duration
         int penalty = (full_penalty * p_ptr->song_challenge_effect) / max_duration;
         if (penalty < 1 && p_ptr->song_challenge_effect > 0) penalty = 1;
-        
+
         if (penalty > 0)
         {
             int before = skill;
@@ -1296,7 +1296,7 @@ int monster_skill(monster_type* m_ptr, int skill_type)
             log_debug(
                 "Song of Challenge penalty applied (r_idx=%d skill=%d -> %d, "
                 "delta=%d, effect=%d/%d)",
-                (int)m_ptr->r_idx, before, skill, penalty, 
+                (int)m_ptr->r_idx, before, skill, penalty,
                 p_ptr->song_challenge_effect, max_duration);
         }
     }
@@ -1308,15 +1308,15 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         int song_skill = ability_bonus(S_SNG, SNG_ELBERETH);
     int full_penalty = song_skill / 5;
     if (full_penalty < 1) full_penalty = 1;
-        
+
         // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
         int max_duration = (song_skill * 3) / 4;
         if (max_duration < 3) max_duration = 3;
-        
+
         // Scale the penalty based on remaining duration
         int penalty = (full_penalty * p_ptr->song_elbereth_effect) / max_duration;
         if (penalty < 1 && p_ptr->song_elbereth_effect > 0) penalty = 1;
-        
+
         if (penalty > 0)
         {
             int before = skill;
@@ -1726,10 +1726,10 @@ void update_mon(int m_idx, bool full)
             /* Mark as visible */
             m_ptr->ml = true;
 
-            /* Track monster visibility for Niena mercy quest */
+            /* Track monster visibility for Nienna mercy quest */
             if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE && m_ptr->r_idx != R_IDX_NIENA) {
                 p_ptr->niena_monsters_seen++;
-                log_trace("Niena quest: Monster seen (total seen=%d, killed=%d)", 
+                log_trace("Nienna quest: Monster seen (total seen=%d, killed=%d)",
                          p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
             }
 
@@ -3213,10 +3213,10 @@ bool quest_monster_spawn_okay(int r_idx)
             /* Tulkas only spawns through quest logic */
             return false;
         case R_IDX_NIENA:
-            /* Niena only spawns through quest logic at depth 14+ */
+            /* Nienna only spawns through quest logic at depth 14+ */
             return false;
         case R_IDX_AULE:
-            /* Aule only spawns in special vaults/quest contexts */
+            /* Aulë only spawns in special vaults/quest contexts */
             return false;
         case R_IDX_MANDOS:
             /* Mandos only spawns in special vaults/quest contexts */

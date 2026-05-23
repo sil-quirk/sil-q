@@ -182,7 +182,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
         [SNG_ELVENESS]      = "Song of Elveness",
         [SNG_STAYING]       = "Song of Staying",
         [SNG_DISGUISE]      = "Song of Disguise",
-        [SNG_LORIEN]        = "Song of Lorien",
+        [SNG_LORIEN]        = "Song of Lórien",
         [SNG_SHATTERING]    = "Song of Shattering",
         [SNG_MASTERY]       = "Song of Mastery",
         [SNG_CONTEST]       = "Song of Contest",
@@ -191,11 +191,11 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
     },
     [S_SPC] = {
         [SPC_MANDOS] = "Mandos' Doom", /* immunity reward */
-        [SPC_AULE] = "Aule's Forge", /* improved masterpiece forging */
+        [SPC_AULE] = "Aulë's Forge", /* improved masterpiece forging */
         [SPC_OATH_MERCY] = "Oath of Mercy",
         [SPC_OATH_SILENCE] = "Oath of Silence",
         [SPC_OATH_IRON] = "Oath of Iron",
-        [SPC_NIENA_MERCY] = "Niena's Gift of Mercy", /* Enhanced stealth from mercy quest */
+        [SPC_NIENA_MERCY] = "Nienna's Gift of Mercy", /* Enhanced stealth from mercy quest */
         [SPC_OATH_SMITH] = "Oath of the Smith",
         [SPC_OATH_VALOROUS] = "Oath of the Valorous Heart",
         [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
@@ -506,7 +506,7 @@ void player_wipe(void)
     p_ptr->tulkas_prize_a_idx = 0;
     p_ptr->tulkas_quest_complete = 0;
 
-    /* Aule quest init */
+    /* Aulë quest init */
     p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
     p_ptr->aule_forge_y = 0;
     p_ptr->aule_forge_x = 0;
@@ -522,11 +522,11 @@ void player_wipe(void)
     p_ptr->mandos_level = 0;
     p_ptr->mandos_reserved = 0;
     
-    /* Niena quest init */
+    /* Nienna quest init */
     p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
     p_ptr->niena_level = 0;
     
-    /* Orome quest init */
+    /* Oromë quest init */
     p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
     p_ptr->orome_killed_count = 0;
     p_ptr->orome_target_type = 0;
@@ -715,7 +715,7 @@ static void replace_start_food(start_item list[MAX_START_ITEMS], byte from_sval,
  * 
  * Matches artifacts with "of {CharacterName}" in their name.
  * For example: "Ring of Barahir" matches character "Barahir",
- *              "Crown of Feanor" matches character "Feanor".
+ *              "Crown of Fëanor" matches character "Fëanor".
  */
 static int find_named_artifact_for_character(void)
 {
@@ -1282,6 +1282,33 @@ static int birth_wrap_col(int indent)
     return wid - 1;
 }
 
+static int birth_utf8_prefix_len(cptr text, int max_cols)
+{
+    int bytes = 0;
+    int cols = 0;
+
+    if (!text || max_cols <= 0)
+        return 0;
+
+    while (text[bytes])
+    {
+        int char_len = utf8_sequence_len(text + bytes);
+        int char_width;
+
+        if (char_len <= 0)
+            break;
+
+        char_width = utf8_display_width_n(text + bytes, char_len);
+        if (char_width > 0 && cols + char_width > max_cols)
+            break;
+
+        cols += char_width;
+        bytes += char_len;
+    }
+
+    return bytes;
+}
+
 static int birth_wrapped_line_count(cptr text, int indent)
 {
     if (!text || !text[0])
@@ -1309,6 +1336,8 @@ static void birth_put_str_fit(byte attr, cptr text, int row, int col)
     int hgt = 24;
     int max_len;
     char buf[256];
+    int text_width;
+    int copy_len;
 
     if (!text || !text[0])
         return;
@@ -1326,9 +1355,24 @@ static void birth_put_str_fit(byte attr, cptr text, int row, int col)
     if (max_len < 1)
         return;
 
-    SDL_strlcpy(buf, text, sizeof(buf));
-    if ((int)strlen(buf) > max_len)
-        buf[max_len] = '\0';
+    text_width = utf8_display_width_n(text, (int)strlen(text));
+    if (text_width <= max_len)
+    {
+        SDL_strlcpy(buf, text, sizeof(buf));
+    }
+    else
+    {
+        copy_len = birth_utf8_prefix_len(text, (max_len > 3) ? (max_len - 3) : max_len);
+        if (copy_len < 0)
+            copy_len = 0;
+        if (copy_len >= (int)sizeof(buf))
+            copy_len = (int)sizeof(buf) - 1;
+
+        SDL_memcpy(buf, text, (size_t)copy_len);
+        buf[copy_len] = '\0';
+        if (max_len > 3)
+            SDL_strlcat(buf, "...", sizeof(buf));
+    }
 
     Term_putstr(col, row, -1, attr, buf);
 }
@@ -1339,6 +1383,7 @@ static cptr birth_wrap_line(cptr text, int width, char *buf, size_t buflen)
     cptr end;
     cptr last_space = NULL;
     cptr next;
+    int cols = 0;
     size_t copy_len;
 
     if (!buf || buflen == 0)
@@ -1361,11 +1406,22 @@ static cptr birth_wrap_line(cptr text, int width, char *buf, size_t buflen)
     start = text;
     end = start;
 
-    while (*end && *end != '\n' && (end - start) < width)
+    while (*end && *end != '\n')
     {
+        int char_len = utf8_sequence_len(end);
+        int char_width;
+
+        if (char_len <= 0)
+            break;
+
+        char_width = utf8_display_width_n(end, char_len);
+        if (char_width > 0 && cols + char_width > width)
+            break;
+
         if (*end == ' ')
             last_space = end;
-        end++;
+        cols += char_width;
+        end += char_len;
     }
 
     if (*end == '\n' || !*end)
@@ -1388,6 +1444,7 @@ static cptr birth_wrap_line(cptr text, int width, char *buf, size_t buflen)
     copy_len = (size_t)(end - start);
     if (copy_len >= buflen)
         copy_len = buflen - 1;
+    copy_len = (size_t)utf8_safe_prefix_len(start, (int)copy_len);
 
     memcpy(buf, start, copy_len);
     buf[copy_len] = '\0';
@@ -1606,8 +1663,12 @@ static void display_character_description_screen(birth_menu choice)
         strnfmt(full_name, sizeof(full_name), "%s", choice.name ? choice.name : "");
     }
 
-    if ((int)strlen(full_name) < wid)
-        name_col = (wid - (int)strlen(full_name)) / 2;
+    {
+        int full_name_width = utf8_display_width_n(full_name, (int)strlen(full_name));
+
+        if (full_name_width < wid)
+            name_col = (wid - full_name_width) / 2;
+    }
     if (name_col < 2)
         name_col = 2;
 
@@ -2287,7 +2348,7 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
     HANDLE_UNIQUE_U_EX("Hidden city", "Hidden City", UNQ_SNG_TURGON, TERM_VIOLET);
     HANDLE_UNIQUE_U_EX("Chosen of Ulmo", "Ulmo's Chosen", UNQ_WIL_TUOR, TERM_VIOLET);
     HANDLE_UNIQUE_U_EX("Indominable Will", "Indom. Will", UNQ_EARENDIL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Orome Himself", "Orome", UNQ_WIL_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Oromë Himself", "Oromë", UNQ_WIL_FIN, TERM_VIOLET);
     HANDLE_UNIQUE_U_EX("Songs of Power", "Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
     HANDLE_UNIQUE_U_EX("Elven Dance", "Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
     HANDLE_UNIQUE_U_EX("Girdle of Melian", "Melian's Girdle", UNQ_SNG_MEL, TERM_VIOLET);
@@ -2448,7 +2509,7 @@ static void print_rh_flags(int race, int character, int col, int row)
     HANDLE_UNIQUE_U("Hidden city",   UNQ_SNG_TURGON,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Oromë Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
@@ -3088,17 +3149,25 @@ static void character_aux_hook(birth_menu c_str)
             break;         /* Default to average */
     }
     
-    fallback_name_col = QUESTION_COL + (int)strlen(character_selection_header_text(true)) + 1;
+    fallback_name_col = QUESTION_COL
+        + utf8_display_width_n(character_selection_header_text(true),
+            (int)strlen(character_selection_header_text(true)))
+        + 1;
     if (fallback_name_col < 0)
         fallback_name_col = 0;
     Term_erase(fallback_name_col, HEADER_ROW, 255);
 
     aligned_name_fits =
-        (TOTAL_AUX_COL + (int)strlen(pretty_name) + (int)strlen(power_stars) < term_wid);
+        (TOTAL_AUX_COL
+            + utf8_display_width_n(pretty_name, (int)strlen(pretty_name))
+            + utf8_display_width_n(power_stars, (int)strlen(power_stars))
+            < term_wid);
     name_col = aligned_name_fits ? TOTAL_AUX_COL : fallback_name_col;
 
     Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    Term_putstr(name_col + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
+    Term_putstr(name_col
+        + utf8_display_width_n(pretty_name, (int)strlen(pretty_name)),
+        HEADER_ROW, -1, star_attr, power_stars);
     
     {
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
@@ -3843,7 +3912,7 @@ static void oath_center_putstr(int row, byte attr, cptr text)
     if (wid < 1)
         wid = 80;
 
-    col = (wid - (int)strlen(text)) / 2;
+    col = (wid - utf8_display_width_n(text, (int)strlen(text))) / 2;
     if (col < 0)
         col = 0;
 
@@ -3869,7 +3938,8 @@ static void oath_draw_page_indicator(int page, int page_count, int wid, int row)
 static void oath_putstr_fit(int col, int row, int max_width, byte attr, cptr text)
 {
     char buf[256];
-    int len;
+    int text_width;
+    int copy_len;
 
     if (max_width <= 0)
         return;
@@ -3877,17 +3947,30 @@ static void oath_putstr_fit(int col, int row, int max_width, byte attr, cptr tex
     if (!text)
         text = "";
 
-    len = (int)strlen(text);
-    if (len <= max_width)
+    text_width = utf8_display_width_n(text, (int)strlen(text));
+    if (text_width <= max_width)
     {
         Term_putstr(col, row, -1, attr, text);
         return;
     }
 
     if (max_width <= 3)
-        strnfmt(buf, sizeof(buf), "%.*s", max_width, text);
+    {
+        copy_len = birth_utf8_prefix_len(text, max_width);
+        if (copy_len >= (int)sizeof(buf))
+            copy_len = (int)sizeof(buf) - 1;
+        SDL_memcpy(buf, text, (size_t)copy_len);
+        buf[copy_len] = '\0';
+    }
     else
-        strnfmt(buf, sizeof(buf), "%.*s...", max_width - 3, text);
+    {
+        copy_len = birth_utf8_prefix_len(text, max_width - 3);
+        if (copy_len >= (int)sizeof(buf))
+            copy_len = (int)sizeof(buf) - 1;
+        SDL_memcpy(buf, text, (size_t)copy_len);
+        buf[copy_len] = '\0';
+        SDL_strlcat(buf, "...", sizeof(buf));
+    }
 
     Term_putstr(col, row, -1, attr, buf);
 }
@@ -3913,7 +3996,6 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
     byte color, bool render)
 {
     char line_buffer[512];
-    int line_pos = 0;
     const char* text_ptr = text;
 
     if (!text || !text[0])
@@ -3936,63 +4018,76 @@ static void oath_render_virtual_wrapped_text(cptr text, int col, int max_width,
 
     while (*text_ptr)
     {
-        while (*text_ptr == ' ' && line_pos == 0)
+        const char* line_start;
+        const char* line_end;
+        const char* last_space = NULL;
+        cptr next_ptr;
+        int cols = 0;
+        int copy_len;
+
+        while (*text_ptr == ' ')
             text_ptr++;
 
         if (*text_ptr == '\n')
         {
-            line_buffer[line_pos] = '\0';
-            if (line_pos > 0)
-                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
-                    skip_lines, color, line_buffer, render);
-            else
-                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
-                    skip_lines, color, "", render);
-
-            line_pos = 0;
+            oath_render_virtual_line(col, max_width, draw_row, row_limit,
+                virtual_row, skip_lines, color, "", render);
             text_ptr++;
             continue;
         }
 
-        if ((line_pos >= max_width) || (line_pos >= (int)sizeof(line_buffer) - 1))
+        line_start = text_ptr;
+        line_end = text_ptr;
+
+        while (*line_end && *line_end != '\n')
         {
-            int wrap_pos = line_pos - 1;
+            int char_len = utf8_sequence_len(line_end);
+            int char_width;
 
-            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ')
-                wrap_pos--;
+            if (char_len <= 0)
+                break;
 
-            if (wrap_pos > 0)
-            {
-                int remaining = line_pos - wrap_pos - 1;
+            char_width = utf8_display_width_n(line_end, char_len);
+            if (char_width > 0 && cols + char_width > max_width)
+                break;
 
-                line_buffer[wrap_pos] = '\0';
-                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
-                    skip_lines, color, line_buffer, render);
+            if (*line_end == ' ')
+                last_space = line_end;
 
-                for (int i = 0; i < remaining; i++)
-                    line_buffer[i] = line_buffer[wrap_pos + 1 + i];
-
-                line_pos = remaining;
-            }
-            else
-            {
-                line_buffer[line_pos] = '\0';
-                oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
-                    skip_lines, color, line_buffer, render);
-                line_pos = 0;
-            }
-
-            continue;
+            cols += char_width;
+            line_end += char_len;
         }
 
-        line_buffer[line_pos++] = *text_ptr++;
-    }
+        if (*line_end == '\n')
+        {
+            next_ptr = line_end + 1;
+        }
+        else if (*line_end && last_space && last_space > line_start)
+        {
+            next_ptr = last_space;
+            line_end = last_space;
+        }
+        else
+        {
+            next_ptr = line_end;
+        }
 
-    if (line_pos > 0)
-    {
-        line_buffer[line_pos] = '\0';
-        oath_render_virtual_line(col, max_width, draw_row, row_limit, virtual_row,
-            skip_lines, color, line_buffer, render);
+        while (line_end > line_start && line_end[-1] == ' ')
+            line_end--;
+
+        copy_len = (int)(line_end - line_start);
+        if (copy_len >= (int)sizeof(line_buffer))
+            copy_len = (int)sizeof(line_buffer) - 1;
+        copy_len = utf8_safe_prefix_len(line_start, copy_len);
+        if (copy_len < 0)
+            copy_len = 0;
+
+        SDL_memcpy(line_buffer, line_start, (size_t)copy_len);
+        line_buffer[copy_len] = '\0';
+        oath_render_virtual_line(col, max_width, draw_row, row_limit,
+            virtual_row, skip_lines, color, line_buffer, render);
+
+        text_ptr = next_ptr;
     }
 }
 
@@ -5220,6 +5315,7 @@ static void birth_draw_allocation_confirm_status(int row, int col, int end_col,
     int controls_col;
     int confirm_col;
     int status_width;
+    int status_copy_len;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
@@ -5248,9 +5344,18 @@ static void birth_draw_allocation_confirm_status(int row, int col, int end_col,
 
     if (status && status[0] && status_width > 0)
     {
+        status_copy_len = birth_utf8_prefix_len(status, status_width);
+        if (status_copy_len < 0)
+            status_copy_len = 0;
+        if (status_copy_len >= (int)sizeof(status_buf))
+            status_copy_len = (int)sizeof(status_buf) - 1;
+
         SDL_strlcpy(status_buf, status, sizeof(status_buf));
-        if ((int)strlen(status_buf) > status_width)
-            status_buf[status_width] = '\0';
+        if (utf8_display_width_n(status_buf, (int)strlen(status_buf)) > status_width)
+        {
+            SDL_memcpy(status_buf, status, (size_t)status_copy_len);
+            status_buf[status_copy_len] = '\0';
+        }
         Term_putstr(col, row, status_width, TERM_L_BLUE, status_buf);
     }
 

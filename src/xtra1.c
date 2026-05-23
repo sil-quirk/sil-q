@@ -549,7 +549,7 @@ extern bool two_handed_melee(void)
     {
         return (true);
     }
-    
+
     /* For Maedhros character, hand-and-a-half weapons count as two-handed for ability purposes */
     if ((c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
         && (k_info[o_ptr->k_idx].flags3 & (TR3_HAND_AND_A_HALF))
@@ -557,7 +557,7 @@ extern bool two_handed_melee(void)
     {
         return (true);
     }
-    
+
     return (false);
 }
 
@@ -800,7 +800,7 @@ static void prt_stat(int stat)
     {
         stat_label = stat_names[stat];
     }
-    
+
     /* Trim trailing spaces for story font rendering */
     SDL_strlcpy(trimmed_label, stat_label, sizeof(trimmed_label));
     len = strlen(trimmed_label);
@@ -1034,7 +1034,7 @@ static void prt_quiver(void)
     /* Format the count strings */
     strnfmt(buf1, sizeof(buf1), "%d/%d", q1_current, q1_max);
     strnfmt(buf2, sizeof(buf2), "%d/%d", q2_current, q2_max);
-    
+
     /* Calculate total width */
     if (same_type)
     {
@@ -1050,11 +1050,11 @@ static void prt_quiver(void)
         if (q2_ptr->k_idx)
             total_width += (use_bigtile ? 2 : 2) + strlen(buf2);
     }
-    
+
     /* Right-align: start at column that makes it end at column 11 */
     start_col = COL_QUIVER + 12 - total_width;
     if (start_col < COL_QUIVER) start_col = COL_QUIVER;
-    
+
     int col = start_col;
 
     if (same_type)
@@ -1064,7 +1064,7 @@ static void prt_quiver(void)
         char icon = object_char(q1_ptr);
         int q1_start;
         int q2_start;
-        
+
         /* Q1 count */
         q1_start = col;
         Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
@@ -1072,7 +1072,7 @@ static void prt_quiver(void)
         g_left_panel_quiver_attack_modes[0] = SDL_POINTER_ATTACK_RANGED_1;
         g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
         g_left_panel_quiver_attack_end_cols[0] = (byte)col;
-        
+
         /* Icon in middle */
         Term_putch(col, ROW_QUIVER, attr, icon);
         col++;
@@ -1086,7 +1086,7 @@ static void prt_quiver(void)
             Term_putch(col, ROW_QUIVER, attr, icon);
             col++;
         }
-        
+
         /* Q2 count */
         q2_start = col;
         Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
@@ -1116,7 +1116,7 @@ static void prt_quiver(void)
                 Term_putch(col, ROW_QUIVER, attr, icon);
                 col++;
             }
-            
+
             q1_start = col;
             Term_putstr(col, ROW_QUIVER, -1, q1_text_attr, buf1);
             col += strlen(buf1);
@@ -1124,7 +1124,7 @@ static void prt_quiver(void)
             g_left_panel_quiver_attack_start_cols[0] = (byte)q1_start;
             g_left_panel_quiver_attack_end_cols[0] = (byte)col;
         }
-        
+
         if (q2_ptr->k_idx)
         {
             /* Q2: "[icon][icon]cur/max" */
@@ -1143,7 +1143,7 @@ static void prt_quiver(void)
                 Term_putch(col, ROW_QUIVER, attr, icon);
                 col++;
             }
-            
+
             q2_start = col;
             Term_putstr(col, ROW_QUIVER, -1, q2_text_attr, buf2);
             col += strlen(buf2);
@@ -5146,7 +5146,7 @@ int song_effective_skill(int abilitynum)
     }
 
     // Song of Silence dampens other songs when woven together
-    // EXCEPT for Disguise and Lorien (its synergy pairs)
+    // EXCEPT for Disguise and Lórien (its synergy pairs)
     // This dampening is applied BEFORE synergy bonus
     if (singing(SNG_SILENCE) && (abilitynum != SNG_SILENCE)
         && (abilitynum != SNG_DISGUISE) && (abilitynum != SNG_LORIEN))
@@ -5260,7 +5260,7 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_STAYING:
         {
-            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill; 
+            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill;
             break;
         }
         case SNG_SLAYING:
@@ -5766,7 +5766,7 @@ static void calc_bonuses(void)
         /* Apply the bonus to hit */
         p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
         p_ptr->skill_equip_mod[S_ARC] += o_ptr->att;
-        
+
         /* Apply the evasion bonus */
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
@@ -5782,7 +5782,7 @@ static void calc_bonuses(void)
     {
         /* Skip special abilities - they persist once granted */
         if (i == S_SPC) continue;
-        
+
         for (j = 0; j < ABILITIES_MAX; j++)
         {
             if (!p_ptr->have_ability[i][j])
@@ -6126,20 +6126,20 @@ static void calc_bonuses(void)
         total_monsters_killed += l_ptr->pkills;
     }
 
-    // Niena's Gift of Mercy special ability grants enhanced stealth proportional to mercy shown
+    // Nienna's Gift of Mercy special ability grants enhanced stealth proportional to mercy shown
     if (p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY]) {
         if (total_monsters_seen > 0) {
             /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
             int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
             int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen; /* Ceiling division */
-            
+
             if (stealth_bonus > 0) {
                 p_ptr->skill_misc_mod[S_STL] += stealth_bonus;
-                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active - granting +%d stealth (global: seen=%d, killed=%d, ratio=%.2f)", 
+                log_trace("ABILITY DEBUG: Nienna's Gift of Mercy active - granting +%d stealth (global: seen=%d, killed=%d, ratio=%.2f)",
                          stealth_bonus, total_monsters_seen, total_monsters_killed,
                          (float)(total_monsters_seen - total_monsters_killed) / total_monsters_seen);
             } else {
-                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active but no bonus (global: seen=%d, killed=%d)", 
+                log_trace("ABILITY DEBUG: Nienna's Gift of Mercy active but no bonus (global: seen=%d, killed=%d)",
                          total_monsters_seen, total_monsters_killed);
             }
         }
@@ -7265,7 +7265,7 @@ void update_stuff(void)
         p_ptr->update &= ~(PU_UPDATE_VIEW);
         log_trace("update_stuff: updating view");
         update_view();
-        
+
         /* Check artifact visibility after view update */
         check_artifact_visibility();
     }
@@ -7317,7 +7317,7 @@ void redraw_stuff(void)
     if (!character_generated)
         return;
 
-    // log_trace("redraw_stuff: character_icky=%d, character_generated=%s", 
+    // log_trace("redraw_stuff: character_icky=%d, character_generated=%s",
             //   character_icky, character_generated ? "true" : "false");
 
     /* Character is in "icky" mode, no screen updates */
@@ -7662,7 +7662,7 @@ void window_stuff(void)
         p_ptr->window &= ~(PW_EQUIP);
         fix_equip();
         log_trace("window_stuff: fix_equip() completed");
-        
+
         /* Also trigger quiver redraw since quiver is part of equipment */
         p_ptr->redraw |= (PR_QUIVER);
     }
@@ -7698,7 +7698,7 @@ void window_stuff(void)
  */
 void handle_stuff(void)
 {
-    log_trace("handle_stuff: starting (update=0x%08X, redraw=0x%08X, window=0x%08X)", 
+    log_trace("handle_stuff: starting (update=0x%08X, redraw=0x%08X, window=0x%08X)",
               p_ptr->update, p_ptr->redraw, p_ptr->window);
 
     /* Update stuff */

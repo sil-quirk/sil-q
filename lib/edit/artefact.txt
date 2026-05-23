@@ -84,11 +84,11 @@
 #
 # === Ideas for Artefacts ===
 #
-# Regarding the dating and cut-offs for the items, Beren and Luthien stole a
+# Regarding the dating and cut-offs for the items, Beren and Lúthien stole a
 # Silmaril in FA 465, so I'd like to keep roughly to this date.
 #
 # Elves
-# * Feanor		(crown - smithing, fire, will, aggravate) [Implemented]
+# * Fëanor		(crown - smithing, fire, will, aggravate) [Implemented]
 #   * Maedhros		(hauberk - combat bonuses, res fire, res poison) [Implemented]
 #                       (crown - will, Majesty, res fear, danger) [Implemented]
 #   * Maglor		(cloak - song, restore voice) [Implemented]
@@ -103,7 +103,7 @@
 #     * Gil-galad	('aeglos' - cold) [Implemented]
 #   * Turgon		('glamdring' - will, slay orc/troll/rauko/dragon) [Implemented]
 #     * Idril		(robe - speed)	[Implemented]
-#       * Earendil	(elessar - con, regenerate, heal) [Implemented] (bow - dex, slay dragon) [Bow implemented as 'of Avernien']
+#       * Eärendil	(elessar - con, regenerate, heal) [Implemented] (bow - dex, slay dragon) [Bow implemented as 'of Avernien']
 #   * Aredhel		(robe - sustain grace, free action, res dark) [Implemented]
 #     * Maeglin	        (galvorn armour - hunger, channelling, res poison) [Implemented]
 # - Finarfin
@@ -113,7 +113,7 @@
 #   * Aegnor		(armour - concentration) [Implemented]
 #   * Galadriel     [Shortsword Implemented]
 # * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger) [Both Implemented]
-#   * Luthien		(shadow cloak - res dark, sust gra, stealth) [Implemented]
+#   * Lúthien		(shadow cloak - res dark, sust gra, stealth) [Implemented]
 # * also...
 #   * Daeron		(? - song, hunger) [Implemented]
 #   - Celeborn
@@ -131,8 +131,8 @@
 #   * Tuor		(Dramborleg - slay orc/troll/rauko) [Implemented]
 # - Marach
 #   * Hador		(shield - res cold, res lightning) [Implemented]
-#   * Hurin		(battle axe - con, will, resist fear, slay troll, rage)
-#     * Turin		(dragon helm - str, will, rfear, rstun) [Implemented] (Anglachel - sharp, danger)
+#   * Húrin		(battle axe - con, will, resist fear, slay troll, rage)
+#     * Túrin		(dragon helm - str, will, rfear, rstun) [Implemented] (Anglachel - sharp, danger)
 #   - Gloredhel
 # * Halmir		(staff - sustain str/con, res poison) [Implemented]
 # * Haldad		(leather armour - str, free act, res fear) [Implemented]
@@ -223,7 +223,7 @@ F:PERCEPTION | NOBLE_ITEM
 F:INSTA_ART
 B:5/1:4/5/5
 D:A ring that once graced the hand of Melian, a Maia who dwelt in
-D: the gardens of Lorien before she came to Middle-earth and wedded
+D: the gardens of Lórien before she came to Middle-earth and wedded
 D: Thingol in Doriath. Her power wove the Girdle that kept the realm
 D: hidden from all evil, and the ring holds an echo of her foresight.
 
@@ -286,7 +286,7 @@ B:7/5
 D:A green jewel made by Enerdhil the smith in Gondolin, filled with the
 D: light of the Sun. Those who look through it see withered things as young
 D: once more, and the hands of one who wears it bring healing. Idril gave it
-D: to her son Earendil, and through him it passed out of the Elder Days. It
+D: to her son Eärendil, and through him it passed out of the Elder Days. It
 D: is called 'Elessar', the Elfstone, and great destiny lies upon it in ages
 D: yet to come.
 
@@ -346,7 +346,7 @@ F:SONG | INSTA_ART | NOBLE_ITEM
 B:7/9
 D:The crown of Daeron the Minstrel, loremaster of Doriath and inventor
 D: of the Cirth, the runes of Middle-earth. His songs were reckoned second
-D: only to those of the Ainur, though his love for Luthien was unrequited.
+D: only to those of the Ainur, though his love for Lúthien was unrequited.
 D: '...Daeron the Dark with ferny crown played with bewildering wizard's art
 D: music for breaking of the heart.'
 
@@ -387,7 +387,7 @@ F:DANGER | INSTA_ART | PERMA_CURSE
 M:CON:3
 D:The crown of Maedhros, High King of the Noldor, who was captured by Morgoth
 D: and hung by his right hand from Thangorodrim. The weight of the Oath of
-D: Feanor rests heavily upon it, a curse that drives its wearer to doom
+D: Fëanor rests heavily upon it, a curse that drives its wearer to doom
 D: even as it grants them kingly will. When worn with his hauberk, one
 D: feels the full measure of his endurance.
 
@@ -476,7 +476,7 @@ D: Gondolin and only child of King Turgon. She alone foresaw the city's doom
 D: and prepared the secret way of escape that saved the survivors. Celebrindal
 D: means 'Silverfoot', for she went barefoot even in the snows. The soft folds
 D: invigorate the wearer and fill the heart with thoughts of the swift eagles
-D: of Manwe, who watched over the Hidden City from afar.
+D: of Manwë, who watched over the Hidden City from afar.
 
 
 ## The Leather Armour of Gorlim
@@ -655,10 +655,10 @@ I:37:6:2
 W:13:20:330:105000
 P:-1:0d0:-3:2d6
 F:RES_FIRE | RES_POIS | CON | PERMA_CURSE | NOBLE_ITEM
-D:A suit of mail once worn by Maedhros, eldest son of Feanor. Stripped from
+D:A suit of mail once worn by Maedhros, eldest son of Fëanor. Stripped from
 D: him when he was hung from Thangorodrim, it was stored in Morgoth's iron
 D: vaults. It is stained with the memory of torment and the unbreakable
-D: Oath that drives Feanor's kin. When worn with his crown, one feels
+D: Oath that drives Fëanor's kin. When worn with his crown, one feels
 D: the full measure of his endurance.
 
 
@@ -674,25 +674,25 @@ W:13:30:300:25000
 P:-1:0d0:-3:2d6
 F:STAND_FAST | WILL
 D:A heavy coat of mail from the hill of Amon Rudh, where the Petty-dwarves
-D: once dwelt in their hidden halls. Turin Turambar sheltered there with
+D: once dwelt in their hidden halls. Túrin Turambar sheltered there with
 D: his outlaws, until treachery brought ruin. The armour carries the
 D: stubbornness of that doomed hill, where defiance outlasted hope.
 
 
-## The Mithril Corslet of Finwe
+## The Mithril Corslet of Finwë
 ## 1st age (Valinor)
 
 # Smithing difficulty: 50
 
-N:38:of Finwe
+N:38:of Finwë
 Q:d1921f00bca8218e
 I:37:20:3
 W:18:12:150:70000
 P:0:0d0:0:2d5
 F:GRA | ENCHANTABLE | NOBLE_ITEM
-D:The shining mail of Finwe, first High King of the Noldor, wrought in
+D:The shining mail of Finwë, first High King of the Noldor, wrought in
 D: Valinor before the Darkening. When Morgoth came to Formenos with Ungoliant,
-D: Finwe alone stood against him and was slain - the first of the Eldar to
+D: Finwë alone stood against him and was slain - the first of the Eldar to
 D: die in Aman. The Dark Lord took this corslet along with the Silmarils.
 D: It still gleams with the light of the Blessed Realm, untouched by the
 D: Shadow that claimed its bearer.
@@ -1008,7 +1008,7 @@ F:THROWING
 D:Forged from meteoric iron by Telchar of Nogrod, this dagger slices through
 D: iron as easily as flesh, earning its name: 'Iron Cleaver'. Curufin bore it
 D: until Beren wrested it from him. In Angband, while Morgoth slumbered under
-D: Luthien's enchantment, Beren cut a Silmaril from the Iron Crown with this
+D: Lúthien's enchantment, Beren cut a Silmaril from the Iron Crown with this
 D: blade. When he reached for a second jewel, the knife snapped upon the crown
 D: and Morgoth stirred. Even broken, it remains peerless among daggers.
 
@@ -1027,7 +1027,7 @@ P:0:2d6:1:0d0
 F:STR | NEG_GRA | SLAY_MAN_OR_ELF | AGGRAVATE | EVIL_ITEM | MIN_DEPTH_SPEED
 D:A cruel curved blade of black iron, forged in the pits of Orodruth in the
 D: years when Morgoth's power was unchallenged and the Elves yet slumbered
-D: by Cuivienen. It is famed among the orcs as a slayer of Elves and Men,
+D: by Cuiviénen. It is famed among the orcs as a slayer of Elves and Men,
 D: and chieftains have fought and murdered for the right to bear it. Its
 D: edge drains the wielder's spirit even as it grants fell strength.
 
@@ -1065,7 +1065,7 @@ F:BRAND_POIS | STEALTH | LIGHT_CURSE | EVIL_ITEM
 B:3/1
 D:A rune-etched knife of Mim, last of the Petty-dwarves who dwelt on Amon
 D: Rudh. His folk were the first Dwarves to enter Beleriand, exiled by their
-D: own kin, and they hated all others. When Turin sheltered with him, Mim
+D: own kin, and they hated all others. When Túrin sheltered with him, Mim
 D: betrayed him to Morgoth's orcs for gold. The runes upon this blade exude
 D: venom, and a curse clings to it still - the bitterness of a diminished
 D: people and the treachery that brought their line to ruin.
@@ -1083,9 +1083,9 @@ W:8:30:15:15000
 P:1:1d7:1:0d0
 B:1/5
 F:STEALTH | PERCEPTION | PAIRED | NOBLE_ITEM
-D:The hunting blade of Amrod, youngest son of Feanor along with his twin
-D: Amras. In Valinor, the brothers hunted with Orome and Celegorm beneath
-D: the light of the Trees. Of all Feanor's sons, they were the least eager
+D:The hunting blade of Amrod, youngest son of Fëanor along with his twin
+D: Amras. In Valinor, the brothers hunted with Oromë and Celegorm beneath
+D: the light of the Trees. Of all Fëanor's sons, they were the least eager
 D: for the Oath, yet they followed their father into exile. This blade
 D: carries the skill of those hunts, sharpening the senses and silencing
 D: the hunter's step.
@@ -1124,8 +1124,8 @@ P:0:1d8:3:0d0
 F:SUST_GRA | NOBLE_ITEM
 B:2/8
 D:This blade was taken up by Galadriel, daughter of Finarfin and mightiest
-D: of the Noldorin women, when Feanor's host turned upon the Teleri at
-D: Alqualonde to seize their white ships. She fought fiercely against the
+D: of the Noldorin women, when Fëanor's host turned upon the Teleri at
+D: Alqualondë to seize their white ships. She fought fiercely against the
 D: Kinslayers in defence of her mother's kin, yet the Doom of Mandos fell
 D: upon her nonetheless when she crossed the sea in pride, seeking a realm
 D: of her own to rule. The blade remembers both her valour and her sorrow.
@@ -1477,7 +1477,7 @@ P:3:1d15:0:0d0
 F:THROWING | LIGHT | MITHRIL | NOBLE_ITEM
 D:The gleaming spear of Ingwe, High King of the Vanyar. Forged of mithril
 D: in Valinor, it is light as a feather yet stronger than steel. Though Ingwe
-D: sits forever at the feet of Manwe, this spear was borne by his son Ingwion
+D: sits forever at the feet of Manwë, this spear was borne by his son Ingwion
 D: in the War of Wrath, where it pierced the hearts of balrogs and cast down
 D: the dark towers of Thangorodrim.
 
@@ -1543,7 +1543,7 @@ F:EASY_ID | INSTA_ART
 D:The iron spear of Boldog, a name borne by the mightiest orc-captains of
 D: Angband. Some say 'Boldog' was a title given to fell spirits who took
 D: orc-shape to lead Morgoth's hosts. This one led raids against the marches
-D: of Doriath, hunting for Luthien at his master's command. The spear is
+D: of Doriath, hunting for Lúthien at his master's command. The spear is
 D: heavy and brutal, forged in the dark pits, and wolves flee before it
 D: remembering their dread captain's wrath.
 
@@ -1687,7 +1687,7 @@ D:The great axe of Tuor, son of Huor, wrought for him by the smiths of
 D: Gondolin. Its name is 'Thudder-sharp' for it strikes with the force of
 D: a club but cuts like a sword. Tuor wielded it in the Fall of Gondolin,
 D: where he slew Maeglin and cast him from the walls, and clove through
-D: countless orcs and trolls defending Idril and his son Earendil.
+D: countless orcs and trolls defending Idril and his son Eärendil.
 
 
 ## The Battle Axe of Mothers' Woe
@@ -1906,17 +1906,17 @@ D: equally well upon orc-shields when Morgoth's hosts descended upon the
 D: halls of the Dwarves.
 
 
-## The War Hammer of Aule's Wrath
+## The War Hammer of Aulë's Wrath
 
 # Smithing difficulty: 59
 
-N:108:of Aule's Wrath
+N:108:of Aulë's Wrath
 Q:64071707c6c71002
 I:21:8:2
 W:20:20:70:250000
 P:0:4d2:0:0d0
 F:STR | SLAY_RAUKO | DANGER | AGGRAVATE | ARMOR_SHATTER | NOBLE_ITEM
-D:A hammer wrought by Aule himself in the days following the destruction
+D:A hammer wrought by Aulë himself in the days following the destruction
 D: of the Two Trees, and carried from Valinor by mighty Rog, Lord of the
 D: House of the Hammer of Wrath. It has a haft and head of black iron
 D: banded about with red gold and strikes with earth-shattering force,
@@ -1979,7 +1979,7 @@ P:0:0d0:0:1d2
 F:STEALTH | DANGER | PERMA_CURSE
 M:SMITHING:1
 B:3/1:3/2
-D:A helm worn by Curufin, fifth son of Feanor and most like his father
+D:A helm worn by Curufin, fifth son of Fëanor and most like his father
 D: in skill of hand and cunning of mind. He was a master smith, yet his
 D: scheming brought ruin to Finrod's realm. The helm sharpens the wearer's
 D: craft and guile, but its treacherous whispers can never be silenced.
@@ -2000,7 +2000,7 @@ D:A helm wrought of grey metal and set with the bones of an orc who dared
 D: raise his blade against his own master. In Angband, such treachery was
 D: punished with torments beyond imagining, yet this one's defiance was
 D: preserved in mockery. The helm carries the stain of betrayal, but also
-D: the power to break bonds - even the dread Oath of Feanor holds less
+D: the power to break bonds - even the dread Oath of Fëanor holds less
 D: sway over one who wears it.
 
 ## The Great Helm of Dor-Lomin
@@ -2017,7 +2017,7 @@ F:STR | RES_FEAR | RES_STUN | NOBLE_ITEM
 M:WILL:3
 D:The Dragon-helm of Dor-lomin, forged by Telchar of Nogrod for Azaghal
 D: and given to Maedhros, who bestowed it upon Fingon. It passed to the
-D: House of Hador, and Turin wore it when he was called the Dragon-helm.
+D: House of Hador, and Túrin wore it when he was called the Dragon-helm.
 D: The servants of Morgoth fled before its terrible visage, for they deemed
 D: the spirit of the great worm Glaurung looked out from its eyes.
 
@@ -2101,12 +2101,12 @@ D: swan's feathers, and wore it when he came at last to the Hidden City.
 D: It greatens the heart and clarifies the purpose of the one who wears it,
 D: for it was touched by the will of Ulmo himself.
 
-##### Panoply of Earendil #####
+##### Panoply of Eärendil #####
 
 
 ## The Longsword 'Falchrist' (Foam-cleaver)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 
 # Smithing difficulty: 33
 
@@ -2118,7 +2118,7 @@ P:1:2d6:2:0d0
 F:SLAY_DRAGON | RES_FEAR | WILL | NOBLE_ITEM
 D:'His sword of steel was valiant.' A keen-edged longsword from the Havens
 D: of Sirion, whose name means 'Foam-cleaver' in the tongue of the Sindar.
-D: When Earendil armed himself for the great voyage, this was the blade
+D: When Eärendil armed himself for the great voyage, this was the blade
 D: girded at his side. It sheds a faint light and grows eager in the hand
 D: when the shadow of dragons falls near, as though it remembers the ruin of
 D: Ancalagon the Black above the towers of Thangorodrim.
@@ -2126,7 +2126,7 @@ D: Ancalagon the Black above the towers of Thangorodrim.
 
 ## The Kite Shield 'Tirthand' (Warding Shield)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 ## 2/1 Blocking
 
 # Smithing difficulty: 54
@@ -2144,13 +2144,13 @@ D: and inscribed with runes of warding by the loremasters of the Havens of
 D: Sirion. The mithril was brought from Khazad-dum, traded westward by the
 D: Dwarves through Ered Luin. Its name means 'Warding Shield' in Sindarin.
 D: The runes are words of staying and protection drawn from the deep lore
-D: the Noldor brought out of the West. Earendil bore it when he sailed in
+D: the Noldor brought out of the West. Eärendil bore it when he sailed in
 D: Vingilot to plead before the Valar.
 
 
 ## The Mithril Corslet 'Gilceleb' (Star-silver)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 
 # Smithing difficulty: 54
 
@@ -2164,13 +2164,13 @@ D:'Of silver was his habergeon.' A corslet of mithril chain, the true silver
 D: of the Eldar, light and supple as water yet proof against any edge. Its
 D: rings shine like stars upon the sea, and the Eldar of Avernien named it
 D: 'Gilceleb', Star-silver. It was part of the panoply of ancient kings that
-D: Earendil donned when he armed himself for his great voyage, bearing the
+D: Eärendil donned when he armed himself for his great voyage, bearing the
 D: craft of both Gondolin and Doriath in its making.
 
 
 ## The Great Helm 'Thoronthaul' (Eagle-helm)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 ## 4/2 Keen Senses, 5/2 Strength in Adversity
 
 # Smithing difficulty: 39
@@ -2186,13 +2186,13 @@ D:'Of adamant his helmet tall, an eagle-plume upon his crest.' A great helm
 D: wrought of adamant, so hard that no blade could mar its surface. Upon its
 D: crest rises a plume fashioned in the likeness of an eagle's wing, in
 D: honour of Thorondor, King of Eagles, who aided the Noldor and the Edain
-D: against Morgoth. When Earendil wore it upon the deck of Vingilot, the
+D: against Morgoth. When Eärendil wore it upon the deck of Vingilot, the
 D: servants of the Enemy quailed before its terrible visage.
 
 
 ## The Arrows 'Mornpilin' (Dark Arrows)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 
 # Smithing difficulty: 25
 
@@ -2229,7 +2229,7 @@ W:15:10:20:35000
 P:0:0d0:2:0d0
 F:SONG | PERMA_CURSE | NOBLE_ITEM
 B:7/19
-D:A cloak worn by Maglor, second son of Feanor and mightiest singer of the
+D:A cloak worn by Maglor, second son of Fëanor and mightiest singer of the
 D: Noldor. Though bound by the Oath, he was the gentlest of his brothers and
 D: fostered Elrond and Elros after the sack of Sirion. When at last he held
 D: a Silmaril, it burned his hand, and he cast it into the sea. He wanders
@@ -2251,7 +2251,7 @@ F:RES_FIRE | RES_COLD | FREE_ACT | CON | NOBLE_ITEM
 D:The grey cloak of Elu Thingol, tallest of all the Eldar and King of
 D: Doriath, who ruled beneath the enchantments of his queen Melian in the
 D: hidden realm of Menegroth. Before even the Sun rose, Thingol heard the
-D: music of Ulmo by the waters of Cuivienen and was moved to a wonder none
+D: music of Ulmo by the waters of Cuiviénen and was moved to a wonder none
 D: could match. How this cloak passed from Doriath into the wider world, none
 D: can say. It bears the silver-grey of the beech forests beneath the Girdle,
 D: and its folds ward against flame and frost alike.
@@ -2331,7 +2331,7 @@ B:3/0
 F:STEALTH
 F:EASY_ID | INSTA_ART | EVIL_ITEM | MIN_DEPTH_SPEED
 D:The winged cloak of Thuringwethil, the vampire-messenger of Sauron who
-D: flew between Angband and Tol-in-Gaurhoth. Luthien wore this fell garment
+D: flew between Angband and Tol-in-Gaurhoth. Lúthien wore this fell garment
 D: to enter the throne room of Morgoth himself. Its great black wings still
 D: hold dark power, and servants of the Enemy may mistake its wearer for kin.
 
@@ -2350,8 +2350,8 @@ W:10:25:20:9000
 P:2:1d9:0:0d0
 F:GRA | PERMA_CURSE | NEG_DEX
 B:1/3:4/8
-D:The bow of Celegorm the Fair, third son of Feanor, who in the days of
-D: Valinor hunted with Orome the Great. The Vala gifted him Huan, the
+D:The bow of Celegorm the Fair, third son of Fëanor, who in the days of
+D: Valinor hunted with Oromë the Great. The Vala gifted him Huan, the
 D: Hound of Valinor. But the Oath drove Celegorm to terrible deeds, and
 D: the bow clings to its bearer as the curse clung to him.
 
@@ -2391,7 +2391,7 @@ W:16:20:40:35000
 P:2:2d6:0:0d0
 F:ARCHERY | PERCEPTION | NOBLE_ITEM
 D:The great bow of Beleg Cuthalion, mightiest archer among all the
-D: Children of Iluvatar. Made of black yew and strung with Beleg's own
+D: Children of Ilúvatar. Made of black yew and strung with Beleg's own
 D: hair, which shimmers a pale gold. With this bow he guarded the marches
 D: of Doriath, until treachery and darkness brought his doom at his friend's
 D: own hand. When paired with Dailir, the bow's power awakens fully.
@@ -2435,7 +2435,7 @@ D: steady, and each shot flies where a deft will sends it.
 
 ## The Dragon-horn Bow 'Amlugrist' (Dragon-cleaver)
 ## 1st age
-## Part of the Panoply of Earendil
+## Part of the Panoply of Eärendil
 ## 4/5/8 Dragon Bane
 
 # Smithing difficulty: 53
@@ -2547,7 +2547,7 @@ W:10:20:70:12000
 P:0:0d0:0:1d2
 F:DEX | RES_FIRE | NOBLE_ITEM
 D:Greaves forged for Orodreth, who became King of Nargothrond after Finrod
-D: Felagund perished in Tol-in-Gaurhoth. Turin's counsel led his realm to
+D: Felagund perished in Tol-in-Gaurhoth. Túrin's counsel led his realm to
 D: ruin, and Orodreth fell in the Battle of Tumhalad when Glaurung came
 D: against his host. These greaves were made to ward against dragonfire,
 D: though they could not save their bearer from the doom that the Father
@@ -2567,7 +2567,7 @@ F:RES_COLD | REGEN
 F:SUST_STR | SUST_CON | SUST_DEX | SUST_GRA | NOBLE_ITEM
 D:Greaves forged by the host of Fingolfin during the dreadful crossing of
 D: the Helcaraxe, the Grinding Ice between Araman and Middle-earth. When
-D: Feanor burned the ships at Losgar and abandoned them, Fingolfin's people
+D: Fëanor burned the ships at Losgar and abandoned them, Fingolfin's people
 D: walked the ice rather than return in shame. Many perished in that crossing,
 D: but those who survived became hardened beyond breaking. These greaves
 D: carry the endurance of that terrible journey.
@@ -2586,7 +2586,7 @@ P:0:0d0:-1:1d3
 F:STR | RES_FIRE | NOBLE_ITEM | PERMA_CURSE
 B:0/5
 D:Heavy greaves forged for Caranthir the Dark in Thargelion, the harshest
-D: and most quick-tempered of Feanor's sons. His face burned red with fury
+D: and most quick-tempered of Fëanor's sons. His face burned red with fury
 D: at the Mereth Aderthad when he nearly came to blows with the sons of
 D: Finarfin, and his wrath only grew through the long wars. These iron-shod
 D: greaves are made for charging headlong into the enemy, and they carry
@@ -2629,7 +2629,7 @@ W:10:10:5:36000
 P:0:0d0:0:1d0
 B:6/4
 F:SMITHING | NOBLE_ITEM
-D:Gloves worn by Celebrimbor, son of Curufin and grandson of Feanor, who
+D:Gloves worn by Celebrimbor, son of Curufin and grandson of Fëanor, who
 D: inherited his forefather's skill at the forge yet rejected the Oath that
 D: cursed his house. In Nargothrond he crafted wonders of silver and gem,
 D: and he alone of his kin fought for Finrod against his own father and
@@ -2650,7 +2650,7 @@ P:0:0d0:0:1d0
 F:GRA | DEX | ENCHANTABLE | NOBLE_ITEM
 B:0/8
 D:Gloves that once belonged to Rumil, lore-master of Tirion in Valinor, who
-D: first devised letters and writing among the Elves. Before even Feanor
+D: first devised letters and writing among the Elves. Before even Fëanor
 D: perfected the Tengwar, Rumil created the Sarati to record the words and
 D: wisdom of the Eldar. These gloves guided his hand in that delicate work,
 D: lending precision and subtlety to the wearer's every motion.
@@ -2670,7 +2670,7 @@ F:STR | UNLIGHT EVIL_ITEM | MIN_DEPTH_SPEED
 B:0/2
 D:Brutal gauntlets forged in Angband for the orc-chieftain Gorgdaz, who led
 D: Morgoth's host against the newly-arrived Noldor. He fell in the Dagor-
-D: nuin-Giliath, the Battle under Stars, when Feanor's fury drove the orcs
+D: nuin-Giliath, the Battle under Stars, when Fëanor's fury drove the orcs
 D: back to the very gates of Angband. The gauntlets are heavy with black
 D: iron and malice, crushing anything in their grasp, and they swallow light
 D: as if hungering for the darkness of the pits where they were forged.
@@ -2750,29 +2750,29 @@ P:0:0d0:0:0d0
 F:LIGHT | NOBLE_ITEM
 B:5/4
 D:A jewel once woven into the silver embroideries of Miriel Therinde,
-D: first wife of Finwe and mother of Feanor. Serinde, the Broideress,
+D: first wife of Finwë and mother of Fëanor. Serinde, the Broideress,
 D: she was called, for none could match her skill with needle and thread.
-D: So greatly did she spend herself in bearing Feanor that her spirit
+D: So greatly did she spend herself in bearing Fëanor that her spirit
 D: departed to Mandos, never to return. This gem still holds the warmth
 D: of her hands and the light of the Trees under which she laboured.
 
 
-## The Feanorian Lamp of Finwe
+## The Fëanorian Lamp of Finwë
 ## 1st age (Valinor)
 
 # Smithing difficulty: 42
 
-N:171:of Finwe
+N:171:of Finwë
 Q:a7c3d925e8f14b62
 G:~:B
 I:39:8:2
 W:10:20:10:25000
 P:0:0d0:0:0d0
 F:LIGHT | FREE_ACT | BREAKS_PERMA_CURSE | GRA | ENCHANTABLE | NOBLE_ITEM
-D:A lamp wrought by Feanor himself for his father Finwe, High King of
+D:A lamp wrought by Fëanor himself for his father Finwë, High King of
 D: the Noldor. Set with crystals that captured the mingled light of
 D: Laurelin and Telperion, it was among the treasures kept at Formenos
-D: during Feanor's exile. When Morgoth came with Ungoliant, Finwe fell
+D: during Fëanor's exile. When Morgoth came with Ungoliant, Finwë fell
 D: defending his son's hoard, but this lamp escaped the Unlight. Its
 D: radiance pierces shadow and frees the bearer from ensnaring bonds,
 D: and its holy light unravels even the darkest curses laid upon the
@@ -2811,9 +2811,9 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. Two sockets are empty and dark, but in the third burns
-D: still a Silmaril - a jewel of Feanor, containing the imperishable light of
+D: still a Silmaril - a jewel of Fëanor, containing the imperishable light of
 D: the Two Trees of Valinor. It is the greatest treasure remaining in
-D: Middle-earth, and the Oath of Feanor binds his sons to claim it.
+D: Middle-earth, and the Oath of Fëanor binds his sons to claim it.
 
 
 ## The Massive Iron Crown of Morgoth (two Silmarils)
@@ -2828,7 +2828,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. One socket gapes empty and dark, but in the other two
-D: burn still two Silmarils - jewels of Feanor, containing the imperishable
+D: burn still two Silmarils - jewels of Fëanor, containing the imperishable
 D: light of the Two Trees. They are the greatest treasures remaining in
 D: Middle-earth, and war and ruin have followed in their wake.
 
@@ -2844,9 +2844,9 @@ W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, in which burn the three Silmarils -
-D: jewels of Feanor, stolen from Formenos and set here by the Dark Lord
+D: jewels of Fëanor, stolen from Formenos and set here by the Dark Lord
 D: himself. In them burns the imperishable light of the Two Trees of Valinor,
-D: and the Oath of Feanor compels his sons to claim them, even unto the ruin
+D: and the Oath of Fëanor compels his sons to claim them, even unto the ruin
 D: of the world. To cut a Silmaril from the crown, stand over it and use it (u),
 D: or press (k).
 

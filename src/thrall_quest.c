@@ -335,7 +335,7 @@ static const char* human_thanks_texts[] = {
 };
 
 static const char* elf_thanks_texts[] = {
-    "Elen sila lumenn' omentielvo! You have my deepest thanks.\n"
+    "Elen síla lúmenn' omentielvo! You have my deepest thanks.\n"
     "\n"
     "Long have I lacked such kindness in this forsaken place. May the stars shine upon your road, and may your hand be swift and your heart steadfast.\n"
     "\n"
@@ -359,7 +359,7 @@ static const char* elf_thanks_texts[] = {
     "\n"
     "Come - let me share what lore I have. It is poor coin for such a gift, but it is all I possess.",
 
-    "Gi nathlam h\xc3\xad. You honour me beyond all deserving.\n"
+    "Gi nathlam hí. You honour me beyond all deserving.\n"
     "\n"
     "In the long dark I have felt my fea diminish, a candle guttering in a gale. Yet your gift has steadied the flame, if only for a breath.\n"
     "\n"

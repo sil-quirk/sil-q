@@ -194,7 +194,8 @@ void blitz_show_end_summary(byte sil_count)
         strnfmt(result_line, sizeof(result_line), "%u Silmarils were stolen.",
             (unsigned)sil_count);
 
-    c_put_str(TERM_L_WHITE, result_line, row, MAX((wid - (int)strlen(result_line)) / 2, 0));
+    c_put_str(TERM_L_WHITE, result_line, row,
+        MAX((wid - utf8_display_width_n(result_line, (int)strlen(result_line))) / 2, 0));
     c_put_str(TERM_L_BLUE, "Press any key to continue.", MIN(row + 3, hgt - 1), 2);
     Term_fresh();
     (void)inkey();

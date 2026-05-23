@@ -3026,7 +3026,7 @@ static void display_introduction_with_layout(
 
     switch (intro_style)
     {
-    /* ===== Variant 0  "Flame Imperishable" (Ainulindale) =============== */
+    /* ===== Variant 0  "Flame Imperishable" (Ainulindalë) =============== */
     case 0:
     default:
         Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
@@ -3036,7 +3036,7 @@ static void display_introduction_with_layout(
         Term_putstr(intro_col, INTRO_ROW(3), -1, TERM_L_BLUE,
             "  and they sang, and he was glad.\"");
         Term_putstr(quote_attr_col, INTRO_ROW(4), -1, TERM_SLATE,
-            "-- Ainulindale");
+            "-- Ainulindalë");
 
         Term_putstr(title_col, INTRO_ROW(6), -1, TERM_WHITE,
             "S I L - M O R E");
@@ -3060,7 +3060,7 @@ static void display_introduction_with_layout(
             "await in the First Age reborn.");
         break;
 
-    /* ===== Variant 1  "Oath of Feanor" ================================= */
+    /* ===== Variant 1  "Oath of Fëanor" ================================= */
     case 1:
         Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
             "\"Be he foe or friend,");
@@ -3069,7 +3069,7 @@ static void display_introduction_with_layout(
         Term_putstr(intro_col, INTRO_ROW(3), -1, TERM_L_BLUE,
             "  he shall defend, shall be held mine.\"");
         Term_putstr(quote_attr_col, INTRO_ROW(4), -1, TERM_SLATE,
-            "-- Oath of Feanor");
+            "-- Oath of Fëanor");
 
         Term_putstr(title_col, INTRO_ROW(6), -1, TERM_WHITE,
             "S I L - M O R E");
@@ -3126,7 +3126,7 @@ static void display_introduction_with_layout(
             "-- Of the Silmarils");
         break;
 
-    /* ===== Variant 3  "Song of Luthien" ================================ */
+    /* ===== Variant 3  "Song of Lúthien" ================================ */
     case 3:
         Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
             "\"The leaves were long, the grass was green,");
@@ -3137,7 +3137,7 @@ static void display_introduction_with_layout(
         Term_putstr(intro_col, INTRO_ROW(4), -1, TERM_L_BLUE,
             "  of stars in shadow shimmering.\"");
         Term_putstr(song_attr_col, INTRO_ROW(5), -1, TERM_SLATE,
-            "-- Of Beren and Luthien");
+            "-- Of Beren and Lúthien");
 
         Term_putstr(title_col, INTRO_ROW(7), -1, TERM_WHITE,
             "S I L - M O R E");
@@ -3159,14 +3159,14 @@ static void display_introduction_with_layout(
             "await in the First Age reborn.");
         break;
 
-    /* ===== Variant 4  "Words of Hurin" ================================= */
+    /* ===== Variant 4  "Words of Húrin" ================================= */
     case 4:
         Term_putstr(intro_col, INTRO_ROW(1), -1, TERM_L_BLUE,
             "\"The day shall come again when you");
         Term_putstr(intro_col, INTRO_ROW(2), -1, TERM_L_BLUE,
             "  shall see the Sun once more.\"");
         Term_putstr(quote_attr_col, INTRO_ROW(3), -1, TERM_SLATE,
-            "-- Words of Hurin");
+            "-- Words of Húrin");
 
         Term_putstr(title_col, INTRO_ROW(5), -1, TERM_WHITE,
             "S I L - M O R E");
@@ -3193,7 +3193,7 @@ static void display_introduction_with_layout(
             "\"Aure entuluva!\"");
         break;
 
-    /* ===== Variant 5  "Starlight on Cuivienen" ========================= */
+    /* ===== Variant 5  "Starlight on Cuiviénen" ========================= */
     case 5:
         Term_putstr(title_col, INTRO_ROW(1), -1, TERM_WHITE, "S I L - M O R E");
         Term_putstr(subtitle_col, INTRO_ROW(2), -1, TERM_L_BLUE,
@@ -3217,7 +3217,7 @@ static void display_introduction_with_layout(
         Term_putstr(intro_col, INTRO_ROW(14), -1, TERM_L_BLUE,
             "\"...the starlight glittered");
         Term_putstr(intro_col, INTRO_ROW(15), -1, TERM_L_BLUE,
-            "  on the waters of Cuivienen.\"");
+            "  on the waters of Cuiviénen.\"");
         Term_putstr(quote_attr_col, INTRO_ROW(16), -1, TERM_SLATE,
             "-- Of the Coming of the Elves");
         break;

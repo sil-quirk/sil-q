@@ -1634,13 +1634,13 @@ static void process_world(void)
     /* Check for Tulkas quest interaction every turn */
     check_tulkas_quest_interaction();
 
-    /* Check for Aule quest interaction every turn */
+    /* Check for Aulë quest interaction every turn */
     check_aule_quest_interaction();
 
-    /* Check for Niena quest interaction every turn */
+    /* Check for Nienna quest interaction every turn */
     check_niena_quest_interaction();
 
-    /* Check for Orome quest interaction every turn */
+    /* Check for Oromë quest interaction every turn */
     check_orome_quest_interaction();
 
     /* Check for Varda quest interaction every turn */
@@ -3240,16 +3240,16 @@ static void process_player(void)
 
                 create_smithing_item();
 
-                /* Aule quest: check for success condition during forging */
+                /* Aulë quest: check for success condition during forging */
                 {
                     int diff = object_difficulty(smith_o_ptr);
                     p_ptr->aule_last_object_diff = diff;
                     if (diff > 20 && p_ptr->aule_quest == AULE_QUEST_ACTIVE) {
                         p_ptr->aule_quest = AULE_QUEST_SUCCESS;
-                        log_trace("Aule quest: state -> SUCCESS (diff=%d)", diff);
+                        log_trace("Aulë quest: state -> SUCCESS (diff=%d)", diff);
                         msg_print("Your forging radiates unparalleled craft!");
-                        msg_print("You sense that Aule would be pleased with this work...");
-                        msg_print("Seek out Aule to receive his blessing.");
+                        msg_print("You sense that Aulë would be pleased with this work...");
+                        msg_print("Seek out Aulë to receive his blessing.");
                     }
                 }
             }
@@ -3269,7 +3269,7 @@ static void process_player(void)
             /* Redraw the state */
             p_ptr->redraw |= (PR_STATE);
         }
-    /* Aule quest: no longer requires standing at special forge; acceptance handled during forging */
+    /* Aulë quest: no longer requires standing at special forge; acceptance handled during forging */
 
         /* Fletching */
         else if (p_ptr->fletching)
@@ -5031,7 +5031,7 @@ static void print_story_intro(void)
         "even as your soul grows thinner,\n"
         "your strength fading with every triumph.\n",
 
-        "You envy the Edain, whose Gift from Iluvatar\n"
+        "You envy the Edain, whose Gift from Ilúvatar\n"
         "frees them from the bonds of Mandos and the world.\n"
         "Yet you do not know if such release can ever be yours.\n"
         "You do not know who-or even what-you truly are.\n",
@@ -5527,7 +5527,7 @@ PlayResult play_game(void)
     }
 
     log_debug("Game initialization complete, starting main game loop");
-    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d",
+    log_trace("QUEST DEBUG: Quest states loaded - Aulë: %d, Mandos: %d, Tulkas: %d",
              p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->tulkas_quest);
     log_trace("QUEST DEBUG: Special abilities - have_ability[S_SPC][SPC_MANDOS]=%d, have_ability[S_SPC][SPC_AULE]=%d",
              p_ptr->have_ability[S_SPC][SPC_MANDOS], p_ptr->have_ability[S_SPC][SPC_AULE]);

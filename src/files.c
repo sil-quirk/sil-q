@@ -1,4 +1,4 @@
-﻿/* File: files.c */
+/* File: files.c */
 
 /*
  * Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
@@ -225,7 +225,7 @@ static const int race_priority[] = {
     1, //Fingolfin
     5, //Dwarve
     6, //Edain
-    0 //Feanor
+    0 //Fëanor
 };
 
 s16b tokenize(char* buf, s16b num, char** tokens)
@@ -1954,7 +1954,7 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
-    HANDLE_UNIQUE_U("Orome Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Oromë Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Songs of Power",     UNQ_SNG_FIN,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Elven Dance",        UNQ_SNG_LUT,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL,      TERM_VIOLET);
@@ -2661,7 +2661,7 @@ static int tutorial_collect_traits(tutorial_trait_line* out, int max_out)
     CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
     CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
     CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
-    CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
+    CHECK_UNIQUE_U("Oromë Himself", UNQ_WIL_FIN, TERM_VIOLET);
     CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
     CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
     CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
@@ -3972,7 +3972,7 @@ static int collect_compact_trait_lines(compact_trait_line* out, int out_max)
     HANDLE_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
-    HANDLE_UNIQUE_U("Orome Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
+    HANDLE_UNIQUE_U("Oromë Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Songs of Power",     UNQ_SNG_FIN,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Elven Dance",        UNQ_SNG_LUT,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL,      TERM_VIOLET);
@@ -7186,7 +7186,7 @@ static void show_help_screen_legacy(int i, bool include_header)
 
         help_emit_heading("HEROES OF LEGEND", row, col); row++;
         put_role(ROLE_BODY, "- Choose a fixed hero: ", row, col);
-        put_role(ROLE_TERM, "Feanor, Fingolfin, Beren, Luthien", row, col + 23);
+        put_role(ROLE_TERM, "Fëanor, Fingolfin, Beren, Lúthien", row, col + 23);
         put_role(ROLE_BODY, ", and others.", row, col + 56);
         row++;
         put_role(ROLE_BODY, "- Each bears a signature trait: ", row, col);
@@ -11998,7 +11998,7 @@ void backup_and_clear_saves(void)
     
     /* Fast check: Try to open a few common save file patterns to see if anything exists */
     bool has_files = false;
-    char test_patterns[][32] = {"*.sav", "*.dat", "*.txt", "character.sav", "save.dat", "Feanor", "player"};
+    char test_patterns[][32] = {"*.sav", "*.dat", "*.txt", "character.sav", "save.dat", "Fëanor", "player"};
     
     for (int i = 0; i < 7 && !has_files; i++) {
         char test_path[1024];
