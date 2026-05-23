@@ -55,6 +55,7 @@ enum {
     MAX_TERM_DATA = ANGBAND_TERM_MAX,
     MAX_STORY_FONT_CACHE = 32,
     MAX_MONO_FONT_CACHE = 48,
+    SDL_OBJECT_TOOLTIP_FONT_SIZE = 24,
     SDL_LEFT_PANEL_COLLAPSED_ROWS = 3,
     TOUCH_PANE_LONG_PRESS_MS = 350,
     TOUCH_SWIPE_MIN_DISTANCE_PX = 24,
@@ -70,6 +71,10 @@ enum {
     SDL_STATUS_PANE_MAX_ENTRIES = 48,
     SDL_NARRATIVE_BANNER_MAX_LINES = 8,
     SDL_NARRATIVE_BANNER_LINE_LEN = 220,
+    SDL_LOG_PANE_DEFAULT_ROWS = 4,
+    SDL_LOG_PANE_MIN_ROWS = 1,
+    SDL_LOG_PANE_MAX_ROWS = 8,
+    SDL_LOG_PANE_MENU_MAX_ENTRIES = 5,
 };
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
@@ -123,8 +128,8 @@ static const struct pane_config default_pane_config[] = {
     {.pane = PANE_MAP, .where = PLACE_RIGHT, .enabled = false, .rect.rows = 12},
     {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = false},
     // In the bottom
-    {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .enabled = true, .rect.rows = 4},
-    {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true},
+    {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true,
+        .rect.rows = SDL_LOG_PANE_DEFAULT_ROWS},
 };
 const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struct pane_config);
 
@@ -200,6 +205,100 @@ static void sdl_seed_all_pane_profiles_from_active(void)
         sdl_store_active_pane_profile(mode);
 }
 
+static int sdl_pane_config_index_in_array(const struct pane_config* configs,
+    int count, enum pane_type pane)
+{
+    if (!configs)
+        return -1;
+
+    for (int i = 0; i < count; i++) {
+        if (configs[i].pane == pane)
+            return i;
+    }
+
+    return -1;
+}
+
+static bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
+    int* config_count, bool enable_added_log)
+{
+    int log_idx;
+    int rolls_idx;
+    bool changed = false;
+
+    if (!configs || !config_count)
+        return false;
+
+    if (*config_count < 0)
+        *config_count = 0;
+    if (*config_count > MAX_PANE_CONFIGS)
+        *config_count = MAX_PANE_CONFIGS;
+
+    log_idx = sdl_pane_config_index_in_array(configs, *config_count, PANE_LOG);
+    rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
+        PANE_ROLLS);
+
+    if (log_idx < 0 && *config_count < MAX_PANE_CONFIGS) {
+        log_idx = *config_count;
+        configs[(*config_count)++] = (struct pane_config){
+            .pane = PANE_LOG,
+            .where = PLACE_BOTTOM,
+            .enabled = enable_added_log,
+            .rect = { .rows = SDL_LOG_PANE_DEFAULT_ROWS, .cols = 0 },
+            .font_size = 0,
+            .ratio = 0.0f,
+        };
+        changed = true;
+    }
+
+    if (log_idx >= 0) {
+        struct pane_config* log = &configs[log_idx];
+
+        if (log->where == 0 || !pane_type_allows_placement(PANE_LOG, log->where)) {
+            log->where = PLACE_BOTTOM;
+            changed = true;
+        }
+        if (pane_placement_is_bottom(log->where)
+            && log->rect.rows <= 0)
+        {
+            log->rect.rows = SDL_LOG_PANE_DEFAULT_ROWS;
+            changed = true;
+        }
+        if (rolls_idx >= 0 && configs[rolls_idx].enabled && !log->enabled) {
+            log->enabled = true;
+            changed = true;
+        }
+    }
+
+    if (rolls_idx >= 0 && pane_placement_is_bottom(configs[rolls_idx].where)) {
+        struct pane_config* rolls = &configs[rolls_idx];
+
+        if (rolls->enabled || rolls->rect.rows != 0 || rolls->rect.cols != 0
+            || rolls->where != PLACE_BOTTOM)
+        {
+            rolls->enabled = false;
+            rolls->where = PLACE_BOTTOM;
+            rolls->rect.rows = 0;
+            rolls->rect.cols = 0;
+            rolls->ratio = 0.0f;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+static void sdl_normalize_unified_log_pane_profiles(bool enable_added_log)
+{
+    for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++) {
+        (void)sdl_normalize_unified_log_pane_config(
+            g_pane_profiles[mode].pane_configs,
+            &g_pane_profiles[mode].pane_count, enable_added_log);
+    }
+}
+
+static void sdl_log_pane_sync_display_filter_from_config(void);
+
 static void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height)
 {
@@ -215,7 +314,10 @@ static void sdl_reset_config_to_resolution_defaults(int screen_width,
         }
     }
 
+    (void)sdl_normalize_unified_log_pane_config(pane_config,
+        &pane_config_count, true);
     sdl_seed_all_pane_profiles_from_active();
+    sdl_log_pane_sync_display_filter_from_config();
 }
 
 static int sdl_min_terminal_cols_for_mode(int mode)
@@ -607,10 +709,17 @@ typedef struct status_pane_entry {
     byte attr;
 } status_pane_entry;
 
+typedef enum log_pane_menu_action {
+    LOG_PANE_MENU_FILTER,
+    LOG_PANE_MENU_ROWS
+} log_pane_menu_action;
+
 typedef struct log_pane_menu_entry {
+    log_pane_menu_action action;
     int filter;
-    const char* label;
-    const char* hint;
+    int row_delta;
+    char label[32];
+    char hint[32];
     SDL_FRect rect;
 } log_pane_menu_entry;
 
@@ -1081,7 +1190,7 @@ static log_pane_menu_state g_log_pane_menu = {
     .long_press_pane = PANE_MAIN,
 };
 static int g_log_pane_display_filters[PANE_MAX] = {
-    [PANE_LOG] = LOG_HISTORY_FILTER_MESSAGES,
+    [PANE_LOG] = LOG_HISTORY_FILTER_ALL,
     [PANE_ROLLS] = LOG_HISTORY_FILTER_COMBAT,
 };
 static bool g_log_pane_display_pending = false;
@@ -1503,6 +1612,8 @@ static bool sdl_pane_layout_drag_handle_pointer_motion(float x, float y);
 static bool sdl_pane_layout_drag_handle_pointer_up(float x, float y);
 static void sdl_pane_layout_drag_cancel(void);
 static bool sdl_log_pane_menu_open_from_pointer(float x, float y);
+static bool sdl_log_history_filter_is_valid(int filter);
+static void sdl_log_pane_sync_display_filter_from_config(void);
 static bool sdl_log_pane_menu_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id, bool mouse);
 static bool sdl_log_pane_menu_handle_pointer_motion(float x, float y,
@@ -3033,22 +3144,13 @@ static void sdl_mobile_disable_bottom_panes(struct pane_config* configs,
 static void sdl_mobile_configure_bottom_wide(struct pane_config* configs,
     int count, int rows)
 {
-    struct pane_config* rolls;
     struct pane_config* log;
 
     sdl_mobile_disable_bottom_panes(configs, count);
     if (rows <= 0)
         return;
 
-    rolls = sdl_find_pane_config_entry(configs, count, PANE_ROLLS);
     log = sdl_find_pane_config_entry(configs, count, PANE_LOG);
-
-    if (rolls) {
-        rolls->enabled = true;
-        rolls->where = PLACE_BOTTOM;
-        rolls->rect.rows = rows;
-        rolls->rect.cols = 65;
-    }
 
     if (log) {
         log->enabled = true;
@@ -3061,60 +3163,19 @@ static void sdl_mobile_configure_bottom_wide(struct pane_config* configs,
 static void sdl_mobile_configure_bottom_narrow(struct pane_config* configs,
     int count, int total_rows)
 {
-    struct pane_config* rolls;
     struct pane_config* log;
-    int log_rows = 0;
-    int rolls_rows = 0;
 
     sdl_mobile_disable_bottom_panes(configs, count);
     if (total_rows <= 0)
         return;
 
-    /* Narrow mobile layouts prioritize combat rolls until there is enough
-     * height to stack a message log strip above them. */
-    switch (total_rows) {
-    case 1:
-    case 2:
-    case 3:
-        rolls_rows = total_rows;
-        break;
-
-    case 4:
-        log_rows = 2;
-        rolls_rows = 2;
-        break;
-
-    case 5:
-        log_rows = 2;
-        rolls_rows = 3;
-        break;
-
-    case 6:
-        log_rows = 2;
-        rolls_rows = 4;
-        break;
-
-    default:
-        log_rows = 3;
-        rolls_rows = 4;
-        break;
-    }
-
-    rolls = sdl_find_pane_config_entry(configs, count, PANE_ROLLS);
     log = sdl_find_pane_config_entry(configs, count, PANE_LOG);
 
-    if (log_rows > 0 && log) {
+    if (log) {
         log->enabled = true;
         log->where = PLACE_BOTTOM;
-        log->rect.rows = log_rows;
+        log->rect.rows = total_rows;
         log->rect.cols = 0;
-    }
-
-    if (rolls_rows > 0 && rolls) {
-        rolls->enabled = true;
-        rolls->where = (log_rows > 0) ? PLACE_DOUBLE_BOTTOM : PLACE_BOTTOM;
-        rolls->rect.rows = rolls_rows;
-        rolls->rect.cols = 0;
     }
 }
 
@@ -3310,7 +3371,6 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
     int cell_heights[PANE_MAX] = { 0 };
     bool touch_enabled;
     bool have_bottom = false;
-    bool wide_bottom = false;
     bool inventory_enabled = false;
     bool worn_enabled = false;
     bool allow_right_panes = has_controller;
@@ -3341,14 +3401,11 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
                 pane_config_count, panes, cell_widths, cell_heights, NULL,
                 NULL))
             continue;
-        if (sdl_mobile_pane_cols(panes, cell_widths, PANE_ROLLS) < 65)
-            continue;
         if (sdl_mobile_pane_cols(panes, cell_widths, PANE_LOG) < 50)
             continue;
 
         memcpy(selected, candidate, sizeof(selected));
         have_bottom = true;
-        wide_bottom = true;
         bottom_rows = rows;
         break;
     }
@@ -3406,11 +3463,10 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
         touch_enabled ? "on" : "off",
         config.main_view_scale, final_main_cols, final_main_rows);
     if (have_bottom) {
-        log_info("Mobile default bottom panes: %s layout, %d row%s",
-            wide_bottom ? "split" : "stacked",
+        log_info("Mobile default bottom pane: combined log, %d row%s",
             bottom_rows, (bottom_rows == 1) ? "" : "s");
     } else {
-        log_info("Mobile default bottom panes: off");
+        log_info("Mobile default bottom pane: off");
     }
     log_info("Mobile default right panes: inventory=%s worn=%s",
         inventory_enabled ? "on" : "off",
@@ -4138,6 +4194,8 @@ static bool sdl_skip_last_active_group_pane(const struct pane_config* active,
         if (!active[i].enabled)
             continue;
         if (active[i].pane == PANE_TOUCH)
+            continue;
+        if (!side && active[i].pane == PANE_LOG)
             continue;
         if (side && !pane_placement_is_side(active[i].where))
             continue;
@@ -5669,8 +5727,6 @@ static void sdl_status_pane_render(void)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 5, 7, 9, 222);
     SDL_RenderFillRect(g_state.renderer, &panel);
-    SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 118);
-    SDL_RenderRect(g_state.renderer, &panel);
 
     {
         float text_x = panel.x + (float)pad_x;
@@ -5876,7 +5932,6 @@ static void sdl_depth_menu_pane_render(void)
     SDL_FRect shadow;
     char label[64];
     SDL_Color text;
-    SDL_Color border;
 
     if (!sdl_depth_menu_pane_current_rect(&rect))
         return;
@@ -5885,10 +5940,7 @@ static void sdl_depth_menu_pane_render(void)
     if (!label[0])
         return;
 
-    text = g_state.palette[TERM_L_WHITE];
-    border = g_depth_menu_pane_hover
-        ? g_state.palette[TERM_YELLOW]
-        : g_state.palette[TERM_L_BLUE];
+    text = g_state.palette[g_depth_menu_pane_hover ? TERM_YELLOW : TERM_L_WHITE];
 
     shadow = rect;
     shadow.x += 2.0f;
@@ -5897,11 +5949,11 @@ static void sdl_depth_menu_pane_render(void)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 126);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
+    if (g_depth_menu_pane_hover)
+        SDL_SetRenderDrawColor(g_state.renderer, 22, 24, 18, 238);
+    else
+        SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
     SDL_RenderFillRect(g_state.renderer, &rect);
-    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
-        g_depth_menu_pane_hover ? 235 : 178);
-    SDL_RenderRect(g_state.renderer, &rect);
 
     sdl_touch_pane_draw_button_text_scaled(&rect, NULL, label, text, 0.54f,
         0.62f);
@@ -12184,6 +12236,40 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     return true;
 }
 
+static int sdl_object_tooltip_font_px(void)
+{
+    float system_scale = (g_state.system_scale > 0.0f)
+        ? g_state.system_scale
+        : 1.0f;
+    int font_px = (int)((float)SDL_OBJECT_TOOLTIP_FONT_SIZE * system_scale
+        + 0.5f);
+
+    return (font_px > 0) ? font_px : SDL_OBJECT_TOOLTIP_FONT_SIZE;
+}
+
+static SDL_Surface* sdl_object_tooltip_render_text_surface(TTF_Font* font,
+    cptr text, SDL_Color color, float max_text_w)
+{
+    SDL_Surface* surface;
+    int wrap_w;
+
+    if (!font || !text || !text[0])
+        return NULL;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return NULL;
+    if (max_text_w <= 0.0f || (float)surface->w <= max_text_w)
+        return surface;
+
+    SDL_DestroySurface(surface);
+    wrap_w = (int)(max_text_w + 0.5f);
+    if (wrap_w < 1)
+        wrap_w = 1;
+
+    return TTF_RenderText_Blended_Wrapped(font, text, 0, color, wrap_w);
+}
+
 static void sdl_object_tooltip_handle_mouse_motion(float x, float y)
 {
     int map_y = 0;
@@ -12236,7 +12322,6 @@ static bool sdl_object_tooltip_flush_expired(Uint64 now_ns)
 
 static void sdl_object_tooltip_render(void)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
     char current[sizeof(g_object_tooltip.text)];
     SDL_FRect cell_rect;
     SDL_Rect screen;
@@ -12248,8 +12333,9 @@ static void sdl_object_tooltip_render(void)
     SDL_Color text_color = g_state.palette[TERM_WHITE];
     float pad;
     float gap;
-    float max_w;
-    float scale = 1.0f;
+    float screen_margin;
+    float max_box_w;
+    float max_text_w;
     int font_px;
 
     if (!g_object_tooltip.active)
@@ -12277,14 +12363,22 @@ static void sdl_object_tooltip_render(void)
     if (!sdl_rect_has_area(&screen))
         return;
 
-    font_px = (int)sdl_touch_pane_clampf((float)view->cell_h * 0.88f,
-        12.0f, 20.0f);
+    font_px = sdl_object_tooltip_font_px();
     font = sdl_story_font_for_height(font_px);
     if (!font)
         return;
 
-    surface = TTF_RenderText_Blended(font, g_object_tooltip.text, 0,
-        text_color);
+    pad = sdl_touch_pane_clampf((float)font_px * 0.36f, 7.0f, 14.0f);
+    gap = sdl_touch_pane_clampf((float)font_px * 0.28f, 6.0f, 12.0f);
+    screen_margin = sdl_touch_pane_clampf(g_state.system_scale * 4.0f,
+        4.0f, 10.0f);
+    max_box_w = (float)screen.w - screen_margin * 2.0f;
+    if (max_box_w <= pad * 2.0f)
+        return;
+
+    max_text_w = max_box_w - pad * 2.0f;
+    surface = sdl_object_tooltip_render_text_surface(font,
+        g_object_tooltip.text, text_color, max_text_w);
     if (!surface)
         return;
 
@@ -12294,34 +12388,33 @@ static void sdl_object_tooltip_render(void)
         return;
     }
 
-    pad = sdl_touch_pane_clampf((float)view->cell_h * 0.22f, 4.0f, 8.0f);
-    gap = sdl_touch_pane_clampf((float)view->cell_h * 0.18f, 3.0f, 7.0f);
-    max_w = sdl_touch_pane_clampf((float)screen.w - 16.0f, 40.0f,
-        (float)view->cell_w * 34.0f);
-    if ((float)surface->w + pad * 2.0f > max_w && surface->w > 0)
-        scale = (max_w - pad * 2.0f) / (float)surface->w;
-    if (scale < 0.35f)
-        scale = 0.35f;
-    if (scale > 1.0f)
-        scale = 1.0f;
-
-    box.w = (float)surface->w * scale + pad * 2.0f;
-    box.h = (float)surface->h * scale + pad * 2.0f;
+    box.w = (float)surface->w + pad * 2.0f;
+    box.h = (float)surface->h + pad * 2.0f;
     box.x = cell_rect.x + (cell_rect.w - box.w) * 0.5f;
     box.y = cell_rect.y - box.h - gap;
 
-    if (box.y < (float)screen.y + 4.0f)
+    if (box.y < (float)screen.y + screen_margin)
         box.y = cell_rect.y + cell_rect.h + gap;
-    box.x = sdl_touch_pane_clampf(box.x, (float)screen.x + 4.0f,
-        (float)(screen.x + screen.w) - box.w - 4.0f);
-    box.y = sdl_touch_pane_clampf(box.y, (float)screen.y + 4.0f,
-        (float)(screen.y + screen.h) - box.h - 4.0f);
+    if (box.w + screen_margin * 2.0f <= (float)screen.w) {
+        box.x = sdl_touch_pane_clampf(box.x,
+            (float)screen.x + screen_margin,
+            (float)(screen.x + screen.w) - box.w - screen_margin);
+    } else {
+        box.x = (float)screen.x + screen_margin;
+    }
+    if (box.h + screen_margin * 2.0f <= (float)screen.h) {
+        box.y = sdl_touch_pane_clampf(box.y,
+            (float)screen.y + screen_margin,
+            (float)(screen.y + screen.h) - box.h - screen_margin);
+    } else {
+        box.y = (float)screen.y + screen_margin;
+    }
 
     text_dst = (SDL_FRect){
         .x = box.x + pad,
         .y = box.y + pad,
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
+        .w = (float)surface->w,
+        .h = (float)surface->h,
     };
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
@@ -17938,6 +18031,19 @@ static bool sdl_log_history_filter_is_valid(int filter)
         && filter <= LOG_HISTORY_FILTER_COMBAT;
 }
 
+static void sdl_log_pane_sync_display_filter_from_config(void)
+{
+    int filter = config.log_pane_display_filter;
+
+    if (!sdl_log_history_filter_is_valid(filter))
+        filter = LOG_HISTORY_FILTER_ALL;
+
+    config.log_pane_display_filter = filter;
+    g_log_pane_display_filters[PANE_LOG] = filter;
+    if (!sdl_log_history_filter_is_valid(g_log_pane_display_filters[PANE_ROLLS]))
+        g_log_pane_display_filters[PANE_ROLLS] = LOG_HISTORY_FILTER_COMBAT;
+}
+
 static bool sdl_log_pane_is_filterable(enum pane_type pane)
 {
     return pane == PANE_LOG || pane == PANE_ROLLS;
@@ -17954,7 +18060,7 @@ int sdl_log_pane_display_filter(int pane)
     if (!sdl_log_history_filter_is_valid(filter))
     {
         filter = (pane == PANE_ROLLS) ? LOG_HISTORY_FILTER_COMBAT
-                                      : LOG_HISTORY_FILTER_MESSAGES;
+                                      : LOG_HISTORY_FILTER_ALL;
     }
 
     return filter;
@@ -17968,6 +18074,8 @@ static void sdl_log_pane_apply_display_filter(enum pane_type pane, int filter)
         filter = LOG_HISTORY_FILTER_ALL;
 
     g_log_pane_display_filters[pane] = filter;
+    if (pane == PANE_LOG)
+        config.log_pane_display_filter = filter;
 
     if (p_ptr)
     {
@@ -17976,6 +18084,9 @@ static void sdl_log_pane_apply_display_filter(enum pane_type pane, int filter)
     }
 
     g_state.need_present = true;
+
+    if (pane == PANE_LOG)
+        (void)save_pane_config_to_json();
 }
 
 static void sdl_log_pane_queue_display_filter(enum pane_type pane, int filter)
@@ -18039,23 +18150,88 @@ static bool sdl_log_pane_menu_point_to_log_pane(float x, float y,
     return false;
 }
 
-static int sdl_log_pane_menu_collect(log_pane_menu_entry* entries)
+static int sdl_log_pane_config_index(enum pane_type pane)
 {
-    static const log_pane_menu_entry defaults[] = {
-        { .filter = LOG_HISTORY_FILTER_ALL, .label = "Combined",
-            .hint = "log + combat",
-            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
-        { .filter = LOG_HISTORY_FILTER_MESSAGES, .label = "Log only",
-            .hint = "messages",
-            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
-        { .filter = LOG_HISTORY_FILTER_COMBAT, .label = "Combat only",
-            .hint = "rolls",
-            .rect = { 0.0f, 0.0f, 0.0f, 0.0f } },
-    };
-    int count = (int)N_ELEMENTS(defaults);
+    return sdl_pane_config_index_in_array(pane_config, pane_config_count,
+        pane);
+}
 
-    if (entries)
-        memcpy(entries, defaults, sizeof(defaults));
+static int sdl_log_pane_current_rows(enum pane_type pane)
+{
+    int index = sdl_log_pane_config_index(pane);
+    int rows;
+
+    if (index < 0)
+        return SDL_LOG_PANE_DEFAULT_ROWS;
+
+    rows = get_sdl_pane_current_rows(index);
+    if (rows <= 0)
+        rows = pane_config[index].rect.rows;
+    if (rows <= 0)
+        rows = SDL_LOG_PANE_DEFAULT_ROWS;
+
+    return rows;
+}
+
+static void sdl_log_pane_set_rows(enum pane_type pane, int rows)
+{
+    int index = sdl_log_pane_config_index(pane);
+
+    if (index < 0)
+        return;
+    if (rows < SDL_LOG_PANE_MIN_ROWS)
+        rows = SDL_LOG_PANE_MIN_ROWS;
+    if (rows > SDL_LOG_PANE_MAX_ROWS)
+        rows = SDL_LOG_PANE_MAX_ROWS;
+    if (pane_config[index].rect.rows == rows)
+        return;
+
+    pane_config[index].rect.rows = rows;
+    sdl_apply_config();
+    (void)save_pane_config_to_json();
+
+    if (p_ptr)
+        p_ptr->window |= (PW_MESSAGE | PW_COMBAT_ROLLS);
+}
+
+static void sdl_log_pane_menu_add_entry(log_pane_menu_entry* entries,
+    int* count, log_pane_menu_action action, int filter, int row_delta,
+    cptr label, cptr hint)
+{
+    log_pane_menu_entry* entry;
+
+    if (!entries || !count || *count >= SDL_LOG_PANE_MENU_MAX_ENTRIES)
+        return;
+
+    entry = &entries[*count];
+    memset(entry, 0, sizeof(*entry));
+    entry->action = action;
+    entry->filter = filter;
+    entry->row_delta = row_delta;
+    SDL_strlcpy(entry->label, label ? label : "", sizeof(entry->label));
+    SDL_strlcpy(entry->hint, hint ? hint : "", sizeof(entry->hint));
+    (*count)++;
+}
+
+static int sdl_log_pane_menu_collect(enum pane_type pane,
+    log_pane_menu_entry* entries)
+{
+    int count = 0;
+    int rows = sdl_log_pane_current_rows(pane);
+    char rows_hint[32];
+
+    strnfmt(rows_hint, sizeof(rows_hint), "currently %d", rows);
+
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_FILTER,
+        LOG_HISTORY_FILTER_ALL, 0, "Combined", "log + combat");
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_FILTER,
+        LOG_HISTORY_FILTER_MESSAGES, 0, "Log only", "messages");
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_FILTER,
+        LOG_HISTORY_FILTER_COMBAT, 0, "Combat only", "rolls");
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_ROWS,
+        LOG_HISTORY_FILTER_ALL, -1, "Rows -", rows_hint);
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_ROWS,
+        LOG_HISTORY_FILTER_ALL, 1, "Rows +", rows_hint);
 
     return count;
 }
@@ -18081,7 +18257,7 @@ static bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
     if (!sdl_rect_has_area(&screen))
         return false;
 
-    count = sdl_log_pane_menu_collect(entries);
+    count = sdl_log_pane_menu_collect(g_log_pane_menu.target_pane, entries);
     if (count <= 0)
         return false;
 
@@ -18141,7 +18317,7 @@ static bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
 
 static int sdl_log_pane_menu_index_at(float x, float y)
 {
-    log_pane_menu_entry entries[3];
+    log_pane_menu_entry entries[SDL_LOG_PANE_MENU_MAX_ENTRIES];
     int count = 0;
 
     if (!sdl_log_pane_menu_layout(entries, &count, NULL))
@@ -18187,11 +18363,11 @@ static void sdl_log_pane_menu_cancel(void)
 
 static bool sdl_log_pane_menu_open_at(float x, float y, enum pane_type pane)
 {
-    log_pane_menu_entry entries[3];
+    log_pane_menu_entry entries[SDL_LOG_PANE_MENU_MAX_ENTRIES];
 
     if (!sdl_log_pane_is_filterable(pane))
         return false;
-    if (sdl_log_pane_menu_collect(entries) <= 0)
+    if (sdl_log_pane_menu_collect(pane, entries) <= 0)
         return false;
 
     sdl_side_pane_menu_cancel();
@@ -18225,9 +18401,9 @@ static bool sdl_log_pane_menu_open_from_pointer(float x, float y)
 
 static void sdl_log_pane_menu_activate(int menu_index)
 {
-    log_pane_menu_entry entries[3];
+    log_pane_menu_entry entries[SDL_LOG_PANE_MENU_MAX_ENTRIES];
     int count = 0;
-    int filter;
+    log_pane_menu_entry entry;
     enum pane_type target_pane;
 
     if (!sdl_log_pane_menu_layout(entries, &count, NULL))
@@ -18235,10 +18411,14 @@ static void sdl_log_pane_menu_activate(int menu_index)
     if (menu_index < 0 || menu_index >= count)
         return;
 
-    filter = entries[menu_index].filter;
+    entry = entries[menu_index];
     target_pane = g_log_pane_menu.target_pane;
     sdl_log_pane_menu_cancel();
-    sdl_log_pane_queue_display_filter(target_pane, filter);
+    if (entry.action == LOG_PANE_MENU_ROWS)
+        sdl_log_pane_set_rows(target_pane,
+            sdl_log_pane_current_rows(target_pane) + entry.row_delta);
+    else
+        sdl_log_pane_queue_display_filter(target_pane, entry.filter);
 }
 
 static bool sdl_log_pane_menu_handle_pointer_down(float x, float y,
@@ -18430,7 +18610,7 @@ static bool sdl_log_pane_menu_flush_pending_press(Uint64 now_ns)
 
 static void sdl_log_pane_menu_render(void)
 {
-    log_pane_menu_entry entries[3];
+    log_pane_menu_entry entries[SDL_LOG_PANE_MENU_MAX_ENTRIES];
     int count = 0;
     SDL_FRect panel;
     SDL_FRect shadow;
@@ -18472,7 +18652,7 @@ static void sdl_log_pane_menu_render(void)
     SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
         150);
     SDL_RenderRect(g_state.renderer, &header);
-    sdl_touch_pane_draw_button_text_scaled(&header, NULL, "Show In Pane",
+    sdl_touch_pane_draw_button_text_scaled(&header, NULL, "Log Pane",
         text, 0.48f, 0.63f);
 
     for (int i = 0; i < count; i++) {
@@ -31612,11 +31792,15 @@ errr init_sdl(int argc, char **argv)
                   config.fullscreen, config.tiles);
     }
 
+    sdl_normalize_unified_log_pane_profiles(true);
     sdl_ensure_default_pane_profiles_present(false);
+    sdl_normalize_unified_log_pane_profiles(true);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
     sdl_ensure_default_pane_configs_present(false);
+    (void)sdl_normalize_unified_log_pane_config(pane_config,
+        &pane_config_count, true);
     sdl_ensure_touch_pane_config_present();
 #endif
 
@@ -31636,6 +31820,7 @@ errr init_sdl(int argc, char **argv)
     log_debug("After command-line: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
               config.main_view_scale, config.aux_view_font_size, config.margin,
               config.fullscreen, config.tiles);
+    sdl_log_pane_sync_display_filter_from_config();
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
     if (config_exists) {

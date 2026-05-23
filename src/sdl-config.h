@@ -121,6 +121,7 @@ struct sdl_config {
     bool hide_left_panel;
     int hidden_left_panel_mode;
     int min_terminal_mode;
+    int log_pane_display_filter;
     
     // Window position and size for windowed mode
     int window_x;

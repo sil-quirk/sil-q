@@ -4392,6 +4392,7 @@ void do_cmd_ability_screen(void)
 
     /* Save screen */
     screen_save();
+    screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
     sdl_screen_back_gesture_begin();
 
@@ -4774,6 +4775,7 @@ void do_cmd_ability_screen(void)
     ui_menu_click_clear();
     sdl_screen_back_gesture_end();
     screen_pop_touch_pane_proto();
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     handle_stuff();

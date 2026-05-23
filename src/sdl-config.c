@@ -43,9 +43,7 @@ struct resolution_profile {
 // 4. Right pane: if we can fit >=40 columns (using aux_font_size / 2 char width), add right pane
 //    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
 //    - Right pane width: 40-50 columns depending on available space
-// 5. Bottom pane: if we can fit >=1 row below main terminal, add bottom pane
-//    - Bottom pane contains: Rolls (half) and Log (half), rows=0 on second pane means auto-split
-//    - Maximum 4 rows for bottom pane
+// 5. Bottom pane: add one combined Log pane (messages + combat), defaulting to 4 rows
 // 6. Main terminal expands to use all remaining space
 //
 // To add a new resolution:
@@ -1699,6 +1697,21 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
             log_debug("Loaded numeric minTerminalMode: %s", min_terminal_mode_to_string(config->min_terminal_mode));
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "logPaneDisplayFilter");
+        if (cJSON_IsNumber(item)) {
+            if (item->valueint >= LOG_HISTORY_FILTER_ALL
+                && item->valueint <= LOG_HISTORY_FILTER_COMBAT)
+            {
+                config->log_pane_display_filter = item->valueint;
+            }
+            else
+            {
+                config->log_pane_display_filter = LOG_HISTORY_FILTER_ALL;
+            }
+            log_debug("Loaded logPaneDisplayFilter: %d",
+                config->log_pane_display_filter);
+        }
         
         // Window position and size for windowed mode
         item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
@@ -2555,6 +2568,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddStringToObject(sdl, "hiddenLeftPanelPlacement",
         hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
+    cJSON_AddNumberToObject(sdl, "logPaneDisplayFilter",
+        config->log_pane_display_filter);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -3078,6 +3093,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
 #else
     config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
 #endif
+    config->log_pane_display_filter = LOG_HISTORY_FILTER_ALL;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered
