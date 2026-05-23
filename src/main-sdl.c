@@ -263,6 +263,21 @@ typedef struct mono_font_atlas_entry {
     SDL_Texture* atlas;
 } mono_font_atlas_entry;
 
+typedef struct mono_font_entry {
+    bool valid;
+    char font_path[256];
+    int cell_width;
+    int cell_height;
+    bool bold;
+    bool italic;
+    bool underline;
+    bool strikethrough;
+    int hinting;
+    bool kerning;
+    int outline;
+    TTF_Font* font;
+} mono_font_entry;
+
 typedef struct sdl_state {
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -289,6 +304,7 @@ typedef struct sdl_state {
     bool story_font_cache_kerning;
     int story_font_cache_outline;
     mono_font_atlas_entry mono_font_atlases[MAX_MONO_FONT_CACHE];
+    mono_font_entry mono_fonts[MAX_MONO_FONT_CACHE];
     
 } sdl_state;
 
@@ -1224,6 +1240,8 @@ static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path,
     int cell_height, bool* out_cached);
 static SDL_Texture* sdl_acquire_mono_font_atlas_cells(const char* font_path,
     int cell_width, int cell_height, bool* out_cached);
+static TTF_Font* sdl_acquire_mono_font_cells(const char* font_path,
+    int cell_width, int cell_height);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
@@ -1688,6 +1706,9 @@ static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
     const int* cell_heights, int margin_px);
 static void sdl_touch_pane_send_confirm_action(void);
 static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
+static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, int x, int y, int n, const char* s,
+    SDL_Color col);
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col);
 static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
@@ -25588,6 +25609,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     const char* font_path;
     SDL_Texture* old_target;
     SDL_Texture* font_atlas;
+    TTF_Font* mono_font;
     SDL_Rect old_clip;
     bool had_clip;
     bool font_cached = false;
@@ -25639,6 +25661,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
         atlas_cell_h, &font_cached);
     if (!font_atlas)
         return false;
+    mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
+        atlas_cell_h);
 
     old_target = SDL_GetRenderTarget(g_state.renderer);
     had_clip = SDL_RenderClipEnabled(g_state.renderer);
@@ -25729,10 +25753,19 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                     col++;
                 }
                 buf[len] = '\0';
-                sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
-                    atlas_cell_h, (float)metrics.cell_w,
-                    (float)metrics.cell_h, content_x, start, row, len, buf,
-                    text_col);
+                if (mono_font && utf8_has_non_ascii_n(buf, len))
+                {
+                    sdl_render_mono_utf8_text_cells(mono_font,
+                        (float)metrics.cell_w, (float)metrics.cell_h,
+                        content_x, start, row, len, buf, text_col);
+                }
+                else
+                {
+                    sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
+                        atlas_cell_h, (float)metrics.cell_w,
+                        (float)metrics.cell_h, content_x, start, row, len,
+                        buf, text_col);
+                }
             }
         }
     }
@@ -28449,7 +28482,7 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             }
         }
     }
-    
+
     bool story_mode = (chunk_story_font && story_font);
 
     if (!story_mode) {
@@ -28586,7 +28619,23 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                     else
                         sdl_render_story_text_free(d, story_font, render_col, y, render_run, render_text, col);
                 } else {
-                    sdl_render_mono_text(d, render_col, y, render_run, render_text, col);
+                    if (utf8_has_non_ascii_n(render_text, render_run)) {
+                        const char* font_path = config.monospace_font[0] != '\0'
+                            ? config.monospace_font
+                            : "lib/xtra/font/VictorMono-Medium.ttf";
+                        TTF_Font* mono_font = sdl_acquire_mono_font_cells(font_path,
+                            d->cell_w, d->cell_h);
+
+                        if (mono_font)
+                            sdl_render_mono_utf8_text_cells(mono_font,
+                                (float)d->cell_w, (float)d->cell_h, 0.0f,
+                                render_col, y, render_run, render_text, col);
+                        else
+                            sdl_render_mono_text(d, render_col, y, render_run,
+                                render_text, col);
+                    } else {
+                        sdl_render_mono_text(d, render_col, y, render_run, render_text, col);
+                    }
                 }
 
                 offset += chunk_run;
@@ -28606,7 +28655,21 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         if (y == 1 || y == 2) {
             log_trace("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
         }
-        sdl_render_mono_text(d, x, y, n, s, col);
+        if (utf8_has_non_ascii_n(s, n)) {
+            const char* font_path = config.monospace_font[0] != '\0'
+                ? config.monospace_font
+                : "lib/xtra/font/VictorMono-Medium.ttf";
+            TTF_Font* mono_font = sdl_acquire_mono_font_cells(font_path,
+                d->cell_w, d->cell_h);
+
+            if (mono_font)
+                sdl_render_mono_utf8_text_cells(mono_font, (float)d->cell_w,
+                    (float)d->cell_h, 0.0f, x, y, n, s, col);
+            else
+                sdl_render_mono_text(d, x, y, n, s, col);
+        } else {
+            sdl_render_mono_text(d, x, y, n, s, col);
+        }
     }
 
     g_state.need_present = true;
@@ -30624,6 +30687,7 @@ static void sdl_mono_font_cache_clear(void)
 {
     for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
         mono_font_atlas_entry* entry = &g_state.mono_font_atlases[i];
+        mono_font_entry* font_entry = &g_state.mono_fonts[i];
 
         if (entry->atlas) {
             SDL_DestroyTexture(entry->atlas);
@@ -30641,7 +30705,118 @@ static void sdl_mono_font_cache_clear(void)
         entry->hinting = 0;
         entry->kerning = false;
         entry->outline = 0;
+
+        if (font_entry->font) {
+            TTF_CloseFont(font_entry->font);
+            font_entry->font = NULL;
+        }
+
+        font_entry->valid = false;
+        font_entry->font_path[0] = '\0';
+        font_entry->cell_width = 0;
+        font_entry->cell_height = 0;
+        font_entry->bold = false;
+        font_entry->italic = false;
+        font_entry->underline = false;
+        font_entry->strikethrough = false;
+        font_entry->hinting = 0;
+        font_entry->kerning = false;
+        font_entry->outline = 0;
     }
+}
+
+static TTF_Font* sdl_load_mono_font_cells(const char* font_path, int cell_width,
+    int cell_height)
+{
+    int font_size = cell_height;
+    int min_size = cell_height / 2;
+
+    if (!font_path || !font_path[0] || cell_width <= 0 || cell_height <= 0)
+        return NULL;
+    if (min_size < 1)
+        min_size = 1;
+
+    for (; font_size >= min_size; font_size--) {
+        int measured_w = 0;
+        TTF_Font* font = TTF_OpenFont(font_path, font_size);
+
+        if (!font) {
+            log_error("could not load TTF font '%s': %s", font_path, SDL_GetError());
+            return NULL;
+        }
+
+        sdl_apply_font_settings(font, false);
+        TTF_MeasureString(font, "M", 1, 0, &measured_w, NULL);
+        if (measured_w <= cell_width)
+            return font;
+
+        TTF_CloseFont(font);
+    }
+
+    return NULL;
+}
+
+static TTF_Font* sdl_acquire_mono_font_cells(const char* font_path,
+    int cell_width, int cell_height)
+{
+    mono_font_entry* free_entry = NULL;
+
+    if (!font_path || !font_path[0] || cell_height <= 0)
+        return NULL;
+    if (cell_width < 1)
+        cell_width = 1;
+
+    for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
+        mono_font_entry* entry = &g_state.mono_fonts[i];
+
+        if (!entry->valid) {
+            if (!free_entry)
+                free_entry = entry;
+            continue;
+        }
+
+        if (entry->cell_width != cell_width)
+            continue;
+        if (entry->cell_height != cell_height)
+            continue;
+        if (entry->bold != config.mono_bold
+            || entry->italic != config.mono_italic
+            || entry->underline != config.mono_underline
+            || entry->strikethrough != config.mono_strikethrough
+            || entry->hinting != config.mono_hinting
+            || entry->kerning != config.mono_kerning
+            || entry->outline != config.mono_outline)
+            continue;
+        if (!streq(entry->font_path, font_path))
+            continue;
+
+        return entry->font;
+    }
+
+    if (!free_entry)
+    {
+        log_warn("Monospace font cache full; cannot cache font for %s at cell %dx%d",
+            font_path, cell_width, cell_height);
+        return NULL;
+    }
+
+    free_entry->font = sdl_load_mono_font_cells(font_path, cell_width, cell_height);
+    if (!free_entry->font)
+        return NULL;
+
+    free_entry->valid = true;
+    SDL_strlcpy(free_entry->font_path, font_path, sizeof(free_entry->font_path));
+    free_entry->cell_width = cell_width;
+    free_entry->cell_height = cell_height;
+    free_entry->bold = config.mono_bold;
+    free_entry->italic = config.mono_italic;
+    free_entry->underline = config.mono_underline;
+    free_entry->strikethrough = config.mono_strikethrough;
+    free_entry->hinting = config.mono_hinting;
+    free_entry->kerning = config.mono_kerning;
+    free_entry->outline = config.mono_outline;
+
+    return free_entry->font;
 }
 
 static SDL_Texture* sdl_acquire_mono_font_atlas(const char* font_path, int cell_height,
@@ -31205,6 +31380,12 @@ void sdl_story_font_reset(void)
 int sdl_story_font_text_width(cptr text, int len)
 {
     if (!text)
+        return 0;
+    if (len <= 0)
+        return 0;
+
+    len = utf8_safe_prefix_len(text, len);
+    if (len <= 0)
         return 0;
 
     sdl_view* d = NULL;
@@ -33982,14 +34163,69 @@ static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s
     }
 }
 
+static void sdl_render_mono_utf8_text_cells(TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, int x, int y, int n, const char* s,
+    SDL_Color col)
+{
+    char text_buf[256];
+    int len;
+    SDL_Surface* text_surface;
+    SDL_Texture* text_texture;
+
+    if (!font || !s || n <= 0 || cell_w <= 0.0f || cell_h <= 0.0f)
+        return;
+
+    len = (n < 255) ? n : 255;
+    len = utf8_safe_prefix_len(s, len);
+    if (len <= 0)
+        return;
+
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char ch = (unsigned char)s[i];
+        text_buf[i] = (ch ? (char)ch : ' ');
+    }
+    text_buf[len] = '\0';
+
+    text_surface = TTF_RenderText_Blended(font, text_buf, 0, col);
+    if (!text_surface)
+        return;
+
+    text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
+    if (text_texture)
+    {
+        float surf_h_f = (float)text_surface->h;
+        float scale = (surf_h_f > 0.0f) ? (cell_h / surf_h_f) : 1.0f;
+        SDL_FRect dst = {
+            origin_x + ((float)x * cell_w),
+            (float)y * cell_h,
+            (float)text_surface->w * scale,
+            cell_h
+        };
+        float max_w = (float)n * cell_w;
+
+        if (dst.w > max_w)
+            dst.w = max_w;
+
+        SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+        SDL_DestroyTexture(text_texture);
+    }
+
+    SDL_DestroySurface(text_surface);
+}
+
 static void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col)
 {
-    if (!d || !font || n <= 0)
+    if (!d || !font || !s || n <= 0)
         return;
 
     char text_buf[256];
     int len = (n < 255) ? n : 255;
+    len = utf8_safe_prefix_len(s, len);
+    if (len <= 0)
+        return;
     memcpy(text_buf, s, len);
     text_buf[len] = '\0';
 
@@ -34029,6 +34265,9 @@ static int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px
 
     char text_buf[256];
     int len = (n < 255) ? n : 255;
+    len = utf8_safe_prefix_len(s, len);
+    if (len <= 0)
+        return 0;
     for (int i = 0; i < len; i++)
     {
         unsigned char ch = (unsigned char)s[i];
@@ -34140,7 +34379,10 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
                 angband_color_table[attr][3],
                 255
             };
-            sdl_render_mono_text(d, run_start, y, run_len, row_chars + run_start, col);
+            if (utf8_has_non_ascii_n(row_chars + run_start, run_len))
+                sdl_render_story_text_free(d, font, run_start, y, run_len, row_chars + run_start, col);
+            else
+                sdl_render_mono_text(d, run_start, y, run_len, row_chars + run_start, col);
             continue;
         }
 
@@ -34244,8 +34486,14 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
 static void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col)
 {
-    if (!d || !font || n <= 0)
+    if (!d || !font || !s || n <= 0)
         return;
+
+    if (utf8_has_non_ascii_n(s, n))
+    {
+        sdl_render_story_text_free(d, font, x, y, n, s, col);
+        return;
+    }
 
     float cell_w_f = (float)d->cell_w;
     float cell_h_f = (float)d->cell_h;

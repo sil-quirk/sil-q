@@ -123,6 +123,12 @@ errr sdl_fgets(SDL_IOStream* stream, char* buf, size_t n)
     }
 
     buf[i] = '\0';
+    if (i >= 3 && (unsigned char)buf[0] == 0xEF
+        && (unsigned char)buf[1] == 0xBB
+        && (unsigned char)buf[2] == 0xBF)
+    {
+        memmove(buf, buf + 3, (size_t)i - 2);
+    }
     return 0;
 }
 

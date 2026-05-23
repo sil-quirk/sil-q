@@ -23,6 +23,225 @@ bool no_light(void)
     return false;
 }
 
+static bool utf8_is_continuation(unsigned char c)
+{
+    return ((c & 0xC0) == 0x80);
+}
+
+int utf8_sequence_len_n(cptr str, int len)
+{
+    unsigned char c0;
+
+    if (!str || len <= 0 || !str[0])
+        return 0;
+
+    c0 = (unsigned char)str[0];
+    if (c0 < 0x80)
+        return 1;
+
+    if (c0 >= 0xC2 && c0 <= 0xDF)
+    {
+        if (len >= 2 && utf8_is_continuation((unsigned char)str[1]))
+            return 2;
+        return 1;
+    }
+
+    if (c0 == 0xE0)
+    {
+        if (len >= 3 && ((unsigned char)str[1] >= 0xA0)
+            && ((unsigned char)str[1] <= 0xBF)
+            && utf8_is_continuation((unsigned char)str[2]))
+            return 3;
+        return 1;
+    }
+
+    if ((c0 >= 0xE1 && c0 <= 0xEC) || (c0 >= 0xEE && c0 <= 0xEF))
+    {
+        if (len >= 3 && utf8_is_continuation((unsigned char)str[1])
+            && utf8_is_continuation((unsigned char)str[2]))
+            return 3;
+        return 1;
+    }
+
+    if (c0 == 0xED)
+    {
+        if (len >= 3 && ((unsigned char)str[1] >= 0x80)
+            && ((unsigned char)str[1] <= 0x9F)
+            && utf8_is_continuation((unsigned char)str[2]))
+            return 3;
+        return 1;
+    }
+
+    if (c0 == 0xF0)
+    {
+        if (len >= 4 && ((unsigned char)str[1] >= 0x90)
+            && ((unsigned char)str[1] <= 0xBF)
+            && utf8_is_continuation((unsigned char)str[2])
+            && utf8_is_continuation((unsigned char)str[3]))
+            return 4;
+        return 1;
+    }
+
+    if (c0 >= 0xF1 && c0 <= 0xF3)
+    {
+        if (len >= 4 && utf8_is_continuation((unsigned char)str[1])
+            && utf8_is_continuation((unsigned char)str[2])
+            && utf8_is_continuation((unsigned char)str[3]))
+            return 4;
+        return 1;
+    }
+
+    if (c0 == 0xF4)
+    {
+        if (len >= 4 && ((unsigned char)str[1] >= 0x80)
+            && ((unsigned char)str[1] <= 0x8F)
+            && utf8_is_continuation((unsigned char)str[2])
+            && utf8_is_continuation((unsigned char)str[3]))
+            return 4;
+        return 1;
+    }
+
+    return 1;
+}
+
+int utf8_sequence_len(cptr str)
+{
+    int len = 0;
+
+    if (!str)
+        return 0;
+
+    while (len < 4 && str[len])
+        len++;
+
+    return utf8_sequence_len_n(str, len);
+}
+
+static u32b utf8_decode_codepoint_n(cptr str, int len, int* out_len)
+{
+    unsigned char c0;
+    int n;
+
+    if (!str || len <= 0 || !str[0])
+    {
+        if (out_len)
+            *out_len = 0;
+        return 0;
+    }
+
+    c0 = (unsigned char)str[0];
+    n = utf8_sequence_len_n(str, len);
+    if (out_len)
+        *out_len = n;
+
+    if (n == 1)
+        return c0;
+    if (n == 2)
+        return (u32b)(((c0 & 0x1F) << 6) | ((unsigned char)str[1] & 0x3F));
+    if (n == 3)
+        return (u32b)(((c0 & 0x0F) << 12)
+            | (((unsigned char)str[1] & 0x3F) << 6)
+            | ((unsigned char)str[2] & 0x3F));
+    if (n == 4)
+        return (u32b)(((c0 & 0x07) << 18)
+            | (((unsigned char)str[1] & 0x3F) << 12)
+            | (((unsigned char)str[2] & 0x3F) << 6)
+            | ((unsigned char)str[3] & 0x3F));
+
+    return c0;
+}
+
+static bool utf8_codepoint_is_combining(u32b cp)
+{
+    return ((cp >= 0x0300 && cp <= 0x036F)
+        || (cp >= 0x1AB0 && cp <= 0x1AFF)
+        || (cp >= 0x1DC0 && cp <= 0x1DFF)
+        || (cp >= 0x20D0 && cp <= 0x20FF)
+        || (cp >= 0xFE20 && cp <= 0xFE2F));
+}
+
+bool utf8_has_non_ascii(cptr str)
+{
+    if (!str)
+        return false;
+
+    while (*str)
+    {
+        if ((unsigned char)*str >= 0x80)
+            return true;
+        str++;
+    }
+
+    return false;
+}
+
+bool utf8_has_non_ascii_n(cptr str, int len)
+{
+    if (!str || len <= 0)
+        return false;
+
+    for (int i = 0; i < len && str[i]; i++)
+    {
+        if ((unsigned char)str[i] >= 0x80)
+            return true;
+    }
+
+    return false;
+}
+
+int utf8_display_width_n(cptr str, int len)
+{
+    int width = 0;
+    int i = 0;
+
+    if (!str || len <= 0)
+        return 0;
+
+    while (i < len && str[i])
+    {
+        int char_len = 0;
+        u32b cp = utf8_decode_codepoint_n(str + i, len - i, &char_len);
+
+        if (char_len <= 0)
+            break;
+
+        if (cp == '\n')
+        {
+            i += char_len;
+            continue;
+        }
+
+        if (!utf8_codepoint_is_combining(cp))
+            width++;
+
+        i += char_len;
+    }
+
+    return width;
+}
+
+int utf8_safe_prefix_len(cptr str, int len)
+{
+    int safe = 0;
+    int i = 0;
+
+    if (!str || len <= 0)
+        return 0;
+
+    while (i < len && str[i])
+    {
+        int char_len = utf8_sequence_len_n(str + i, len - i);
+
+        if (char_len <= 0 || i + char_len > len)
+            break;
+
+        safe = i + char_len;
+        i += char_len;
+    }
+
+    return safe;
+}
+
 #define UI_MENU_CLICK_MAX_ENTRIES 256
 
 typedef struct ui_menu_click_entry
@@ -3495,9 +3714,14 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
     int chars_since_space = 0;
     cptr s;
 
-    for (s = str; *s; s++)
+    if (!str)
+        return lines;
+
+    for (s = str; *s; )
     {
-        char ch;
+        int char_len;
+        int char_width;
+        bool is_space;
 
         if (*s == '\n')
         {
@@ -3505,17 +3729,23 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
             lines++;
             have_space_on_line = false;
             chars_since_space = 0;
+            s++;
             continue;
         }
 
-        ch = isprint((unsigned char)*s) ? *s : ' ';
+        char_len = utf8_sequence_len(s);
+        if (char_len <= 0)
+            break;
+
+        char_width = utf8_display_width_n(s, char_len);
+        is_space = (*s == ' ');
 
         /*
          * Mirror text_out_to_screen(): wrap on a non-space once we have
          * reached the wrap boundary, and carry the current trailing word to
          * the next line when there is a prior break space on this line.
          */
-        if ((x >= wrap_width - 1) && (ch != ' '))
+        if ((x >= wrap_width - 1) && !is_space && (char_width > 0))
         {
             int moved_chars = 0;
 
@@ -3528,17 +3758,19 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
             chars_since_space = moved_chars;
         }
 
-        x++;
+        x += char_width;
 
-        if (ch == ' ')
+        if (is_space)
         {
             have_space_on_line = true;
             chars_since_space = 0;
         }
-        else
+        else if (char_width > 0)
         {
-            chars_since_space++;
+            chars_since_space += char_width;
         }
+
+        s += char_len;
     }
 
     return lines;
@@ -3546,16 +3778,38 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
 
 void text_out_to_screen(byte a, cptr str)
 {
-    /* If story font is enabled, use pixel-based wrapping */
+    bool has_utf8;
+    bool story_enabled;
+    bool story_grid;
+
+    if (!str)
+        str = "";
+
+    has_utf8 = utf8_has_non_ascii(str);
+
+    /* If story font is enabled, use pixel-based wrapping.  Grid-aligned story
+     * text falls back to free rendering for UTF-8 so SDL_ttf sees intact
+     * multibyte sequences.  Normal UI UTF-8 stays on the monospace path. */
     extern bool sdl_is_story_font_enabled(void);
-    if (sdl_is_story_font_enabled()
-        && !(Term && Term->story_font_grid))
+    story_enabled = sdl_is_story_font_enabled();
+    story_grid = (story_enabled && Term && Term->story_font_grid);
+    if (story_enabled && (!story_grid || has_utf8))
     {
-        text_out_to_screen_story(a, str);
+        if (story_grid && has_utf8)
+        {
+            story_font_term_state prev;
+            story_font_term_push(true, false, &prev);
+            text_out_to_screen_story(a, str);
+            story_font_term_pop(&prev);
+        }
+        else
+        {
+            text_out_to_screen_story(a, str);
+        }
         return;
     }
 
-    if (sdl_is_story_font_enabled() && Term && Term->story_font_grid)
+    if (story_enabled && Term && Term->story_font_grid)
     {
         log_debug("text_out_to_screen: grid story text using cell wrapping "
             "at row=%d col=%d wrap=%d text='%.50s'",
@@ -3605,7 +3859,7 @@ void text_out_to_screen(byte a, cptr str)
         }
 
         /* Clean up the char */
-        ch = (isprint((unsigned char)*s) ? *s : ' ');
+        ch = (((unsigned char)*s >= 0x80) || isprint((unsigned char)*s)) ? *s : ' ';
 
         /* Wrap words as needed */
         if ((x >= wrap - 1) && (ch != ' '))
@@ -3760,7 +4014,7 @@ void text_out_to_file(byte a, cptr str)
         for (n = 0; n < len; n++)
         {
             /* Ensure the character is printable */
-            ch = (isprint(s[n]) ? s[n] : ' ');
+            ch = (((unsigned char)s[n] >= 0x80) || isprint((unsigned char)s[n])) ? s[n] : ' ';
 
             /* Write out the character */
             unsigned char byte = ch;

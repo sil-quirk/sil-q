@@ -57,19 +57,21 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         if (!*s)
             break;
 
-        /* Find the end of the current word */
+        /* Find the end of the current word.  The length is in bytes because
+         * SDL_ttf expects UTF-8 byte strings and the terminal grid still
+         * stores one byte per cell. */
         cptr word_start = s;
-        int word_chars = 0;
-        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
-            word_chars++;
+        int word_bytes = 0;
+        while (s[word_bytes] && s[word_bytes] != ' ' && s[word_bytes] != '\n')
+            word_bytes++;
 
-        if (word_chars == 0)
+        if (word_bytes == 0)
             continue;
 
         /* Measure the word in pixels */
-        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+        int word_pixels = sdl_story_font_text_width(word_start, word_bytes);
         bool exceeds_pixels = (x > indent && (x_pixels + word_pixels) > wrap_pixels);
-        bool exceeds_columns = (x + word_chars >= term_wid);
+        bool exceeds_columns = (x + word_bytes >= term_wid);
 
         if (exceeds_pixels || exceeds_columns)
         {
@@ -79,11 +81,11 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
         }
 
         /* Advance by the word's pixel width */
-        x += word_chars;
+        x += word_bytes;
         x_pixels += word_pixels;
 
         /* Move past the word */
-        s += word_chars;
+        s += word_bytes;
     }
 
     return lines;
@@ -191,21 +193,21 @@ void text_out_to_screen_story(byte a, cptr str)
         }
 
         cptr word_start = s;
-        int word_chars = 0;
-        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
-            word_chars++;
+        int word_bytes = 0;
+        while (s[word_bytes] && s[word_bytes] != ' ' && s[word_bytes] != '\n')
+            word_bytes++;
 
-        if (word_chars == 0)
+        if (word_bytes == 0)
             continue;
 
-        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+        int word_pixels = sdl_story_font_text_width(word_start, word_bytes);
 
         bool exceeds_pixels = (x > text_out_indent && (current_x_pixels + word_pixels) > wrap_pixels);
-        bool exceeds_columns = (x + word_chars >= wid);
+        bool exceeds_columns = (x + word_bytes >= wid);
 
         log_trace(
-            "Word: '%.*s' (%d chars), pixels=%d, current_x_pixels=%d, current_term_col=%d, exceeds_pixels=%s, exceeds_columns=%s",
-            word_chars, word_start, word_chars, word_pixels, current_x_pixels, x,
+            "Word: '%.*s' (%d bytes), pixels=%d, current_x_pixels=%d, current_term_col=%d, exceeds_pixels=%s, exceeds_columns=%s",
+            word_bytes, word_start, word_bytes, word_pixels, current_x_pixels, x,
             exceeds_pixels ? "YES" : "NO", exceeds_columns ? "YES" : "NO");
 
         if (exceeds_pixels || exceeds_columns)
@@ -217,18 +219,14 @@ void text_out_to_screen_story(byte a, cptr str)
             log_trace("Wrapped to next line, x=%d, current_x_pixels=%d", x, current_x_pixels);
         }
 
-        for (int i = 0; i < word_chars; i++)
-        {
-            char ch = (isprint((unsigned char)word_start[i]) ? word_start[i] : ' ');
-            Term_addch(a, ch);
-            x++;
-        }
+        Term_addstr(word_bytes, a, word_start);
+        x += word_bytes;
 
         log_trace("After word output: term_col=%d, pixel_pos=%d, word_pixels=%d, new_pixel_pos=%d", x,
             current_x_pixels, word_pixels, current_x_pixels + word_pixels);
 
         current_x_pixels += word_pixels;
-        s += word_chars;
+        s += word_bytes;
     }
 
     log_trace("=== text_out_to_screen_story END === Final term_col=%d, final_pixel_pos=%d", x, current_x_pixels);

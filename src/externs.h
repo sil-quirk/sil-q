@@ -1510,6 +1510,12 @@ extern errr check_modification_date_sdl(cptr raw_path, cptr txt_path);
 
 extern void text_to_ascii(char* buf, size_t len, cptr str);
 extern void ascii_to_text(char* buf, size_t len, cptr str);
+extern bool utf8_has_non_ascii(cptr str);
+extern bool utf8_has_non_ascii_n(cptr str, int len);
+extern int utf8_sequence_len(cptr str);
+extern int utf8_sequence_len_n(cptr str, int len);
+extern int utf8_display_width_n(cptr str, int len);
+extern int utf8_safe_prefix_len(cptr str, int len);
 extern int macro_find_exact(cptr pat);
 extern errr macro_add(cptr pat, cptr act);
 extern errr macro_init(void);

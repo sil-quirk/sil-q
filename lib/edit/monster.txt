@@ -2801,7 +2801,7 @@ D:Lo! the golden dragon of the God of Hell, Father of Dragons, first
 D: of the Uruloki to issue from Angband. Glaurung led the assault in
 D: the Dagor Bragollach and wrought ruin upon Nargothrond. His gaze
 D: can bind the will and cloud the memory, and through such dark arts
-D: he brought doom upon Turin Turambar and fair Nienor. His malice is
+D: he brought doom upon Túrin Turambar and fair Niënor. His malice is
 D: matched only by his cunning, and his hoard is vast beyond measure.
 
 
@@ -2973,7 +2973,7 @@ D: full of both sorrow and hope, as if she has a task requiring mercy.
 ##### Hallucinatory #####
 
 
-N:301:Feanor, High King of the Noldor
+N:301:Fëanor, High King of the Noldor
 Q:41c24a29269bd07d
 W:30:5
 G:@:b1
@@ -2981,7 +2981,7 @@ T:10:19
 F:UNIQUE | MALE
 
 
-N:302:Luthien Tinuviel
+N:302:Lúthien Tinúviel
 Q:3ee15c4b2037e8bd
 W:30:5
 G:@:b

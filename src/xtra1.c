@@ -695,11 +695,8 @@ static void prt_field(cptr info, int row, int col, byte attr)
     /* Dump the full field to clear stale text. */
     Term_erase(col, row, LEFT_PANEL_CONTENT_WID);
 
-    sdl_story_font_enable();
     /* Dump the info itself */
     c_put_str(attr, info, row, col);
-    
-    sdl_story_font_disable();
 }
 
 enum { PLAYER_PANEL_NAME_MAX = LEFT_PANEL_CONTENT_WID };

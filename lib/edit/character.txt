@@ -72,16 +72,16 @@ P:1
 #Should be big stats but some flaw
 #Stats +5 +7 =12, Skills +5 +0 =8, Ability 1;
 
-N:1:Feanor
+N:1:Fëanor
 Q:b19021820c53b215
 A:, Spirit of Fire
-B:You rise aflame-spirit of fire, maker of Silmarils, whose oath kindled wrath undying. 
+B:You rise aflame-spirit of fire, maker of Silmarils, whose fëa kindled wrath undying.
 F:KINSLAYER | SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | SNG_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
 P:4
-D:Mighty spirit aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow.
+D:Mighty fëa aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow.
 
 #Very powerful in melee and evasion, wounded Morgoth
 #Stats +5 +8 =13, Skills +5 +1 =6, Ability 1;
@@ -247,16 +247,16 @@ C:0:11 # Smite
 P:1
 D: Brave huntsman, faithful captain of Thingol's guard beneath starlit woods, whose spear guarded borders of Doriath, steadfast amid darkness growing. Witness of grief and ruin, whose noble heart wept silent tears unshed, burdened by tragedies foreseen yet helplessly endured in shadowed hours. Doomed yet unwavering companion to mortal heroes, bonds forged in sorrow, foresight dimmed by loss yet eyes reflecting courage amid despair, destined to fall loyal, remembered in lament beneath darkening trees.
 
-N:15:Luthien
+N:15:Lúthien
 Q:ada9da157479fe7a
-A: Tinuviel
+A: Tinúviel
 B:You sing fearlessly-fairest daughter of twilight, whose love defied Morgoth.
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
 C:7:14:5:0   # Curse Breaking #Lorien
 P:3
-D: Fairest daughter of twilight, song and star blended beneath woodland leaves, whose voice defied Morgoth himself, beauty challenging darkness eternal. Love binding mortal heart to immortal soul, weaving fate unforeseen, foreshadowing hope and sorrow entwined, the world's destiny reshaped. Brave in love, daring paths forbidden, setting aside her timeless grace, destined to fade willingly from Eldar's light, mortal fate chosen bravely, remembered ever as brightest jewel in Arda's song, grief and joy entwined.
+D: Fairest daughter of twilight, song and star blended beneath woodland leaves, whose voice defied Morgoth himself, beauty challenging darkness eternal. Love binding mortal heart to immortal soul, weaving fate unforeseen, foreshadowing hope and sorrow entwined, the world's destiny reshaped. Brave in love, daring paths forbidden, setting aside her timeless grace, destined to fade willingly from Eldar's light, mortal fate chosen bravely, remembered ever as Tinúviel, brightest jewel in Arda's song, grief and joy entwined.
 
 N:16:Voronwe
 Q:bb2fc7adb814028b
@@ -383,7 +383,7 @@ C:0:11:0:5:0:2  # Charge # Smite # Knock Back
 P:1
 D: Noble lord, golden-haired leader beloved among Edain's bravest houses, whose banner shone proudly upon battlefield, courage bright in darkness. Heart generous yet fierce, bound in friendship and honor with Eldar lords, destined to fall bravely, leaving legacy borne by blood of heroes. His line foreshadows valor undimmed, sorrow mingled with future glory, memory cherished in halls of Men and Elves, defying shadow's power; emblem of mortal bravery, whose blood shapes Arda's hidden fate.
 
-N:28:Turin Turambar
+N:28:Túrin Turambar
 Q:a1860c8b017a6daa
 A:, Master of Fate
 B:You struggle grimly-tragic hero whose black blade cleaves fate and sorrow.
@@ -392,7 +392,7 @@ U:WIL_TURIN
 S:2:3:2:-1
 C:5:2:0:11:0:6  # Follow-Through  # Smite # Strength in Adversity
 P:2
-D: Dark-haired warrior, tragic son of doom, shadow-haunted mortal hero, whose blade, black and shining, cleaves fate amid relentless sorrow. Driven by pride and grief, defying Morgoth's curse yet bound within it, friend and foe entwined in tragic deeds, shadows deepening ever. Foreshadowing final despair, heroism tarnished by doom inevitable, yet courage undaunted, destined to slay dragon and darkness alike; memory forever mingled with glory and grief, Turambar-master of fate.
+D: Dark-haired warrior, tragic son of doom, shadow-haunted mortal hero, whose blade, black and shining, cleaves fate amid relentless sorrow. Driven by pride and grief, defying Morgoth's curse yet bound within it, friend and foe entwined in tragic deeds, shadows deepening ever. Foreshadowing final despair, heroism tarnished by doom inevitable, yet courage undaunted, destined to slay dragon and darkness alike; memory forever mingled with glory and grief, Túrin Turambar-master of fate.
 
 N:29:Tuor
 Q:372282fe5bf0b106

@@ -351,13 +351,13 @@ D: '...Daeron the Dark with ferny crown played with bewildering wizard's art
 D: music for breaking of the heart.'
 
 
-## The Crown of Feanor
+## The Crown of Fëanor
 ## (ability 6/3 is Enchantment)
 ## (ability 6/6 is Masterpiece)
 
 # Smithing difficulty: 59
 
-N:9:of Feanor
+N:9:of Fëanor
 Q:9c8638ee3bc2e0cd
 I:33:11:3
 W:20:20:35:300000
@@ -365,7 +365,7 @@ P:0:0d0:0:1d1
 F:WILL | RES_FIRE | SEE_INVIS | LIGHT | SMITHING | NOBLE_ITEM
 F:AGGRAVATE | INSTA_ART | PERMA_CURSE
 B:6/3:6/6
-D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
+D:The crown of Fëanor, greatest of the Noldor. It is beautifully wrought
 D: with many shining jewels of Valinor, whose light is a challenge to those born
 D: of darkness. Though his flaws ran deep, this crown is a reminder of his
 D: greatness, and of the terrible Oath that binds his sons to darkness.
@@ -936,13 +936,13 @@ D: belly - the first wound Glaurung ever suffered. Azaghal died crushed
 D: beneath the wyrm, but Glaurung fled in agony. The blade is still black
 D: with dragon-blood and burns with the wrath of Belegost.
 
-# Turin's Elf-wrought Knife (birthday-gift from Hurin)
+# Túrin's Elf-wrought Knife (birthday-gift from Húrin)
 # Design: noble heirloom tool-weapon; survivability/utility over raw damage.
 # Ability 5/5 Indomitable
 
 # Smithing difficulty: 28
 
-N:51:of Turin
+N:51:of Túrin
 Q:2e2f01e1c4bb7031
 I:23:4:3
 W:7:30:5:15000
@@ -950,7 +950,7 @@ P:+1:1d5:0:0d0
 F:FREE_ACT | WILL | NOBLE_ITEM
 B:5/5
 D:An Elf-wrought knife, finely balanced and keen. It was a birthday-gift
-D: that Hurin Thalion gave to his son Turin, and Turin bore it through
+D: that Húrin Thalion gave to his son Túrin, and Túrin bore it through
 D: many hard years. It lends steadiness of heart and a stubborn refusal
 D: to be ensnared or held.
 
@@ -1286,7 +1286,7 @@ D: Cuthalion. Its edge is dreadful keen, and a cold will seems to wake
 D: when it is drawn. Many have found that mischance follows where this
 D: blade passes - as though it remembers every death it has dealt.
 
-# Gurthang (Black Sword of Turin)
+# Gurthang (Black Sword of Túrin)
 # Smithing difficulty: 60
 
 N:70:'Gurthang'
@@ -1296,7 +1296,7 @@ W:20:15:50:80000
 P:0:3d7:1:0d0
 F:SLAY_DRAGON | VAMPIRIC | DANGER | HUNGER | LIGHT_CURSE | TRAITOR | WILL_DRAIN
 B:4/5/8
-D:The sable sword reforged from Anglachel, wielded by Turin. Its blade can 
+D:The sable sword reforged from Anglachel, wielded by Túrin. Its blade can
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
 D: lies upon it: once unsheathed, it must taste blood. The sword's grim will 
 D: fills its master with fearless despair, drawing mighty foes nigh - and 
@@ -2274,20 +2274,20 @@ D: currents, hiding the wearer from searching eyes and warding against the
 D: cold of deep places.
 
 
-## The Shadow Cloak of Luthien
+## The Shadow Cloak of Lúthien
 ## 1st age
 ## (ability 7/13 is Song of Disguise)
 
 # Smithing difficulty: 50
 
-N:134:of Luthien
+N:134:of Lúthien
 Q:c3b8dbdc3f360c7d
 I:35:6:4
 W:13:25:10:45000
 P:0:0d0:4:0d0
 F:STEALTH | SUST_GRA | NOBLE_ITEM
 B:7/13
-D:A shadowy cloak woven by Luthien Tinuviel from her own dark hair, which
+D:A shadowy cloak woven by Lúthien Tinúviel from her own dark hair, which
 D: grew past her heels. With this garment and her enchanting song she cast
 D: Morgoth himself into slumber in the depths of Angband. Its folds deepen
 D: the shadows around the wearer and lull the watchful into sleep.

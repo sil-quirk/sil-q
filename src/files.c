@@ -8097,40 +8097,52 @@ void do_cmd_help(void)
  */
 void process_player_name(bool sf)
 {
-    int i;
+    size_t src = 0;
+    size_t dst = 0;
 
     /* Process the player name */
-    for (i = 0; op_ptr->full_name[i]; i++)
+    while (op_ptr->full_name[src] && dst + 1 < sizeof(op_ptr->base_name))
     {
-        char c = op_ptr->full_name[i];
+        unsigned char c = (unsigned char)op_ptr->full_name[src];
+        int len = utf8_sequence_len(op_ptr->full_name + src);
 
         /* No control characters */
-        if (iscntrl((unsigned char)c))
+        if (iscntrl(c))
         {
             /* Illegal characters */
             quit(format("Illegal control char (0x%02X) in player name", c));
         }
 
+        if (len <= 0)
+            break;
+
         /* Convert illegal file system characters but preserve some readability */
-        if (iscntrl((unsigned char)c) || c == '/' || c == '\\' || c == ':' || 
-            c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+        if (c < 0x80 && (iscntrl(c) || c == '/' || c == '\\' || c == ':' ||
+            c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|'))
         {
             /* Convert illegal characters to underscore */
-            c = '_';
+            op_ptr->base_name[dst++] = '_';
+            src++;
         }
         else if (c == ' ')
         {
             /* Convert spaces to underscores for file system compatibility */
-            c = '_';
+            op_ptr->base_name[dst++] = '_';
+            src++;
         }
-        /* Keep all other characters (letters, digits, punctuation) */
-
-        /* Build "base_name" */
-        op_ptr->base_name[i] = c;
+        else
+        {
+            /* Keep all other characters, preserving complete UTF-8 sequences. */
+            if (dst + (size_t)len >= sizeof(op_ptr->base_name))
+                break;
+            for (int j = 0; j < len; j++)
+                op_ptr->base_name[dst++] = op_ptr->full_name[src + (size_t)j];
+            src += (size_t)len;
+        }
     }
 
     /* Terminate */
-    op_ptr->base_name[i] = '\0';
+    op_ptr->base_name[dst] = '\0';
 
     /* Require a "base" name */
     if (!op_ptr->base_name[0])
