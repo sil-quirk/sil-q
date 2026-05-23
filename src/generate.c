@@ -11582,6 +11582,9 @@ static bool player_start_fits_entry_banner_view(int y)
         return true;
     }
 
+    if (sdl_narrative_banner_overlay_enabled())
+        return true;
+
     min_y = MIN((SCREEN_HGT / 2) + 2, p_ptr->cur_map_hgt / 2);
     if (min_y < 5)
         min_y = 5;

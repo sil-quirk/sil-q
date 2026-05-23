@@ -68,6 +68,8 @@ enum {
     SDL_TOUCH_TUTORIAL_MAX_LINES = 14,
     SDL_TOUCH_TUTORIAL_LINE_LEN = 192,
     SDL_STATUS_PANE_MAX_ENTRIES = 48,
+    SDL_NARRATIVE_BANNER_MAX_LINES = 8,
+    SDL_NARRATIVE_BANNER_LINE_LEN = 220,
 };
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
@@ -962,6 +964,7 @@ static bool g_touch_pane_proto_layout_active = false;
 static bool g_suppress_layout_refresh_present = false;
 static bool g_skip_main_redraw_on_layout_refresh = false;
 static bool g_touch_tutorial_suppress_runtime_top_panel = false;
+static int g_narrative_banner_line_limit = 0;
 static gamepad_input_state g_gamepad_state;
 static bool g_gamepad_auto_ui = false;
 static int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];
@@ -1606,6 +1609,7 @@ static bool sdl_layout_matches_supporting_pane_visibility(void);
 static bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     enum pane_placement* out_where);
 static void sdl_status_pane_render(void);
+static void sdl_narrative_banner_render(void);
 static void sdl_present_if_needed(sdl_view* d);
 static int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
     bool include_bottom, bool touch_only);
@@ -5654,6 +5658,368 @@ static void sdl_touch_pane_append_ellipsis(char* line, size_t line_size)
         line[line_size - 2] = '.';
         line[line_size - 1] = '\0';
     }
+}
+
+bool sdl_narrative_banner_overlay_enabled(void)
+{
+    return g_state.window && g_state.renderer
+        && g_views[PANE_MAIN].term_ready;
+}
+
+static bool sdl_narrative_banner_base_rect(SDL_Rect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    SDL_Rect rect;
+
+    if (!out)
+        return false;
+
+    if (view->term_ready && view->cell_w > 0 && view->cell_h > 0
+        && view->cols > 0 && view->rows > 0)
+    {
+        int reserved_top = view->cell_h * ROW_MAP;
+
+        rect = (SDL_Rect){
+            .x = view->rect.x + view->margin_x,
+            .y = view->rect.y + view->margin_y + reserved_top,
+            .w = sdl_main_view_visual_cols(view) * view->cell_w,
+            .h = sdl_main_view_visual_rows(view) * view->cell_h
+                - reserved_top,
+        };
+        if (rect.h < view->cell_h)
+            rect.h = view->cell_h;
+    }
+    else
+    {
+        rect = sdl_get_layout_screen_rect();
+    }
+
+    if (rect.w <= 0 || rect.h <= 0)
+        return false;
+
+    *out = rect;
+    return true;
+}
+
+static int sdl_narrative_banner_font_px(const SDL_Rect* rect)
+{
+    float font_px;
+
+    if (!rect || rect->h <= 0)
+        return 0;
+
+    font_px = (float)rect->h * 0.040f;
+    font_px = sdl_touch_pane_clampf(font_px, 18.0f, 38.0f);
+    if (rect->h < 420 && font_px > 24.0f)
+        font_px = 24.0f;
+    if (rect->h < 300 && font_px > 20.0f)
+        font_px = 20.0f;
+
+    return (int)(font_px + 0.5f);
+}
+
+static float sdl_narrative_banner_max_text_w(const SDL_Rect* rect, int font_px)
+{
+    float max_w;
+    float cap_w;
+
+    if (!rect || rect->w <= 0)
+        return 0.0f;
+
+    max_w = (float)rect->w * 0.76f;
+    cap_w = (float)font_px * 50.0f;
+    if (max_w > cap_w)
+        max_w = cap_w;
+    if (max_w > (float)rect->w - 12.0f)
+        max_w = (float)rect->w - 12.0f;
+    if (max_w < 80.0f)
+        max_w = (float)rect->w;
+
+    return max_w;
+}
+
+static int sdl_narrative_banner_wrap_lines(cptr text, TTF_Font* font,
+    float max_w, char lines[][SDL_NARRATIVE_BANNER_LINE_LEN], int max_lines)
+{
+    const char* p;
+    char current[SDL_NARRATIVE_BANNER_LINE_LEN];
+    int line_count = 0;
+    bool truncated = false;
+
+    if (!lines || max_lines <= 0)
+        return 0;
+
+    p = (text && text[0]) ? text : "";
+    current[0] = '\0';
+
+    while (*p) {
+        char word[SDL_NARRATIVE_BANNER_LINE_LEN];
+        char candidate[SDL_NARRATIVE_BANNER_LINE_LEN];
+        size_t word_len = 0;
+
+        while (*p && *p != '\n' && isspace((unsigned char)*p))
+            p++;
+
+        if (*p == '\n') {
+            p++;
+            if (current[0]) {
+                if (line_count >= max_lines) {
+                    truncated = true;
+                    break;
+                }
+                SDL_strlcpy(lines[line_count++], current,
+                    SDL_NARRATIVE_BANNER_LINE_LEN);
+                current[0] = '\0';
+            }
+            continue;
+        }
+
+        if (!*p)
+            break;
+
+        while (*p && *p != '\n' && !isspace((unsigned char)*p)) {
+            if (word_len < sizeof(word) - 1)
+                word[word_len++] = *p;
+            p++;
+        }
+        word[word_len] = '\0';
+        if (!word[0])
+            continue;
+
+        if (!current[0]) {
+            SDL_strlcpy(current, word, sizeof(current));
+            continue;
+        }
+
+        strnfmt(candidate, sizeof(candidate), "%s %s", current, word);
+        if (max_w > 1.0f
+            && sdl_touch_pane_story_text_width(font, candidate) > (int)max_w)
+        {
+            if (line_count >= max_lines) {
+                truncated = true;
+                break;
+            }
+            SDL_strlcpy(lines[line_count++], current,
+                SDL_NARRATIVE_BANNER_LINE_LEN);
+            SDL_strlcpy(current, word, sizeof(current));
+        }
+        else
+        {
+            SDL_strlcpy(current, candidate, sizeof(current));
+        }
+    }
+
+    if (!truncated && current[0]) {
+        if (line_count < max_lines)
+            SDL_strlcpy(lines[line_count++], current,
+                SDL_NARRATIVE_BANNER_LINE_LEN);
+        else
+            truncated = true;
+    }
+
+    if (truncated && line_count > 0)
+        sdl_touch_pane_append_ellipsis(lines[line_count - 1],
+            SDL_NARRATIVE_BANNER_LINE_LEN);
+
+    return line_count;
+}
+
+static int sdl_narrative_banner_line_count(void)
+{
+    SDL_Rect rect;
+    int font_px;
+    TTF_Font* font;
+    char lines[SDL_NARRATIVE_BANNER_MAX_LINES][SDL_NARRATIVE_BANNER_LINE_LEN];
+
+    if (!active_narrative_banner_visible())
+        return 0;
+    if (!sdl_narrative_banner_base_rect(&rect))
+        return 0;
+
+    font_px = sdl_narrative_banner_font_px(&rect);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return 0;
+
+    return sdl_narrative_banner_wrap_lines(active_narrative_banner_text(),
+        font, sdl_narrative_banner_max_text_w(&rect, font_px), lines,
+        SDL_NARRATIVE_BANNER_MAX_LINES);
+}
+
+static void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text,
+    SDL_Color color, float center_x, float y, float max_w, float line_h)
+{
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect dst;
+    float scale = 1.0f;
+
+    if (!font || !text || !text[0] || max_w <= 0.0f || line_h <= 0.0f)
+        return;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    if (surface->w > 0 && (float)surface->w > max_w)
+        scale = max_w / (float)surface->w;
+
+    dst = (SDL_FRect){
+        .w = (float)surface->w * scale,
+        .h = (float)surface->h * scale,
+    };
+    dst.x = center_x - dst.w * 0.5f;
+    dst.y = y + (line_h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+static void sdl_narrative_banner_render(void)
+{
+    SDL_Rect rect;
+    TTF_Font* font;
+    char lines[SDL_NARRATIVE_BANNER_MAX_LINES][SDL_NARRATIVE_BANNER_LINE_LEN];
+    int font_px;
+    int line_count;
+    int shown_lines;
+    int max_line_w = 0;
+    float max_text_w;
+    float pad_x;
+    float pad_y;
+    float line_h;
+    float panel_w;
+    float panel_h;
+    float top_gap;
+    SDL_FRect panel;
+    SDL_Color text_color;
+
+    if (!sdl_narrative_banner_overlay_enabled())
+        return;
+    if (!active_narrative_banner_visible() || character_icky > 0)
+        return;
+    if (!sdl_narrative_banner_base_rect(&rect))
+        return;
+
+    font_px = sdl_narrative_banner_font_px(&rect);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return;
+
+    max_text_w = sdl_narrative_banner_max_text_w(&rect, font_px);
+    line_count = sdl_narrative_banner_wrap_lines(active_narrative_banner_text(),
+        font, max_text_w, lines, SDL_NARRATIVE_BANNER_MAX_LINES);
+    if (line_count <= 0)
+        return;
+
+    shown_lines = line_count;
+    if (g_narrative_banner_line_limit > 0
+        && shown_lines > g_narrative_banner_line_limit)
+    {
+        shown_lines = g_narrative_banner_line_limit;
+    }
+    if (shown_lines <= 0)
+        return;
+
+    for (int i = 0; i < shown_lines; i++) {
+        int width = sdl_touch_pane_story_text_width(font, lines[i]);
+        if (width > max_line_w)
+            max_line_w = width;
+    }
+
+    pad_x = sdl_touch_pane_clampf((float)font_px * 0.78f, 12.0f, 28.0f);
+    pad_y = sdl_touch_pane_clampf((float)font_px * 0.42f, 7.0f, 17.0f);
+    line_h = sdl_touch_pane_clampf((float)font_px * 1.28f,
+        (float)font_px + 4.0f, (float)font_px * 1.45f);
+
+    panel_w = (float)max_line_w + pad_x * 2.0f;
+    if (panel_w > max_text_w + pad_x * 2.0f)
+        panel_w = max_text_w + pad_x * 2.0f;
+    if (panel_w < (float)font_px * 10.0f)
+        panel_w = (float)font_px * 10.0f;
+    if (panel_w > (float)rect.w - 8.0f)
+        panel_w = (float)rect.w - 8.0f;
+    if (panel_w < 80.0f)
+        panel_w = (float)rect.w;
+
+    panel_h = pad_y * 2.0f + line_h * (float)shown_lines;
+    top_gap = sdl_touch_pane_clampf((float)rect.h * 0.018f, 5.0f, 18.0f);
+
+    panel = (SDL_FRect){
+        .x = (float)rect.x + ((float)rect.w - panel_w) * 0.5f,
+        .y = (float)rect.y + top_gap,
+        .w = panel_w,
+        .h = panel_h,
+    };
+    if (panel.x < (float)rect.x + 4.0f)
+        panel.x = (float)rect.x + 4.0f;
+    if (panel.x + panel.w > (float)(rect.x + rect.w) - 4.0f)
+        panel.x = (float)(rect.x + rect.w) - 4.0f - panel.w;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 4, 5, 7, 212);
+    SDL_RenderFillRect(g_state.renderer, &panel);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 184, 94, 126);
+    SDL_RenderRect(g_state.renderer, &panel);
+
+    text_color = (SDL_Color){
+        angband_color_table[TERM_ORANGE][1],
+        angband_color_table[TERM_ORANGE][2],
+        angband_color_table[TERM_ORANGE][3],
+        255,
+    };
+
+    for (int i = 0; i < shown_lines; i++) {
+        sdl_narrative_banner_draw_line(font, lines[i], text_color,
+            panel.x + panel.w * 0.5f,
+            panel.y + pad_y + line_h * (float)i,
+            panel.w - pad_x * 2.0f, line_h);
+    }
+}
+
+void sdl_narrative_banner_show(bool line_delay)
+{
+    sdl_view* restore_view;
+    int line_count = 1;
+
+    if (!sdl_narrative_banner_overlay_enabled())
+        return;
+    if (!active_narrative_banner_visible())
+        return;
+
+    restore_view = sdl_view_from_term(Term);
+    if (!restore_view)
+        restore_view = &g_views[PANE_MAIN];
+
+    if (line_delay) {
+        line_count = sdl_narrative_banner_line_count();
+        if (line_count < 1)
+            line_count = 1;
+    }
+
+    for (int i = 1; i <= line_count; i++) {
+        g_narrative_banner_line_limit = line_delay ? i : 0;
+        g_state.need_present = true;
+        if (sdl_render_current_window_frame()) {
+            SDL_RenderPresent(g_state.renderer);
+            g_state.need_present = false;
+        }
+        sdl_restore_render_target(restore_view);
+
+        if (line_delay && i < line_count)
+            SDL_Delay(800);
+    }
+
+    g_narrative_banner_line_limit = 0;
 }
 
 static int sdl_touch_pane_wrap_prompt_lines(cptr text, TTF_Font* font,
@@ -20500,7 +20866,7 @@ static bool sdl_touch_top_panel_layout_visible(void)
 {
     return sdl_touch_only_mobile_device_active()
         && sdl_mouse_gameplay_context_active()
-        && active_narrative_banner_rows() <= 0;
+        && !active_narrative_banner_visible();
 }
 
 static void sdl_touch_top_panel_set_open(bool open)
@@ -25237,6 +25603,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
     sdl_status_pane_render();
+    sdl_narrative_banner_render();
     sdl_object_tooltip_render();
     sdl_player_exchange_render();
     sdl_player_action_menu_render();

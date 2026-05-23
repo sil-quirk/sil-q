@@ -257,6 +257,12 @@ static int narrative_banner_rows_for_text(cptr text)
 
 int active_narrative_banner_rows(void)
 {
+    if (sdl_narrative_banner_overlay_enabled()
+        && active_narrative_banner_visible())
+    {
+        return 0;
+    }
+
     if (g_active_partition_banner_animation_rows > 0)
         return g_active_partition_banner_animation_rows;
 
@@ -267,11 +273,27 @@ int active_narrative_banner_rows(void)
     return narrative_banner_rows_for_text(g_active_partition_banner_text);
 }
 
+bool active_narrative_banner_visible(void)
+{
+    return g_active_partition_banner_text[0]
+        && (g_banner_force_redraw_remaining > 0);
+}
+
+cptr active_narrative_banner_text(void)
+{
+    return active_narrative_banner_visible()
+        ? g_active_partition_banner_text
+        : "";
+}
+
 static void keep_player_visible_for_narrative_banner(cptr text)
 {
     int banner_rows;
     int visible_rows;
     int target_screen_row;
+
+    if (sdl_narrative_banner_overlay_enabled())
+        return;
 
     if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
         return;
@@ -440,6 +462,8 @@ void clear_active_narrative_banner(void)
     g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
+    if (g_term_pre_fresh_hook == narrative_banner_pre_fresh_hook)
+        g_term_pre_fresh_hook = NULL;
 }
 
 /*
@@ -566,6 +590,25 @@ static void display_narrative_text(cptr text, int narrative_mode,
 
     if (narrative_mode != PARTITION_NARRATIVE_BANNER)
         return;
+
+    if (sdl_narrative_banner_overlay_enabled())
+    {
+        g_term_pre_fresh_hook = NULL;
+        g_active_partition_banner_text[0] = '\0';
+        SDL_strlcpy(g_active_partition_banner_text, text,
+            sizeof(g_active_partition_banner_text));
+        g_active_partition_banner_animation_rows = 0;
+        g_active_partition_banner_consumes_input =
+            (narrative_banner_turn_setting() == 0);
+        g_active_partition_banner_skip_next_decay =
+            (p_ptr && (p_ptr->command_cmd != 0));
+        g_banner_force_redraw_remaining =
+            g_active_partition_banner_consumes_input
+            ? 1
+            : narrative_banner_turn_setting();
+        sdl_narrative_banner_show(line_delay);
+        return;
+    }
 
     keep_player_visible_for_narrative_banner(text);
 
@@ -3993,6 +4036,8 @@ static void process_player(void)
             g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
             g_active_partition_banner_animation_rows = 0;
+            if (g_term_pre_fresh_hook == narrative_banner_pre_fresh_hook)
+                g_term_pre_fresh_hook = NULL;
             do_cmd_redraw();
         }
     }

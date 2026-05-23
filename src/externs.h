@@ -522,8 +522,12 @@ extern const char* styles_get_style_m2(int sidx);
  * player turns; a 0-turn banner instead consumes the next command input. */
 extern int g_banner_force_redraw_remaining;
 extern int active_narrative_banner_rows(void);
+extern bool active_narrative_banner_visible(void);
+extern cptr active_narrative_banner_text(void);
 extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
+extern bool sdl_narrative_banner_overlay_enabled(void);
+extern void sdl_narrative_banner_show(bool line_delay);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);
