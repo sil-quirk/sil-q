@@ -508,6 +508,16 @@ typedef struct menu_touch_press_state {
     Uint64 start_time;
 } menu_touch_press_state;
 
+typedef struct character_panel_press_state {
+    bool active;
+    bool mouse;
+    SDL_FingerID finger_id;
+    bool secondary_enabled;
+    float start_x;
+    float start_y;
+    Uint64 start_time;
+} character_panel_press_state;
+
 typedef struct screen_back_touch_press_state {
     bool active;
     SDL_FingerID finger_id;
@@ -1032,6 +1042,7 @@ static int g_touch_top_panel_pressed_slot = -1;
 static int g_touch_top_panel_flash_slot = -1;
 static Uint64 g_touch_top_panel_flash_until = 0;
 static menu_touch_press_state g_menu_touch_press;
+static character_panel_press_state g_character_panel_press;
 static int g_screen_back_gesture_depth = 0;
 static bool g_screen_back_right_button_pending = false;
 static screen_back_touch_press_state g_screen_back_touch_press;
@@ -1337,6 +1348,15 @@ static bool sdl_menu_touch_handle_pointer_up(float x, float y,
 static void sdl_menu_touch_cancel(void);
 static int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_menu_touch_flush_pending_press(Uint64 now_ns);
+static bool sdl_character_panel_handle_pointer_down(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static bool sdl_character_panel_handle_pointer_motion(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static bool sdl_character_panel_handle_pointer_up(float x, float y,
+    bool mouse, SDL_FingerID finger_id);
+static void sdl_character_panel_cancel_press(void);
+static int sdl_character_panel_pending_timeout_ms(Uint64 now_ns);
+static bool sdl_character_panel_flush_pending_press(Uint64 now_ns);
 static bool sdl_screen_back_gesture_handle_event(const SDL_Event* ev);
 static int sdl_screen_back_gesture_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_screen_back_gesture_flush_pending_press(Uint64 now_ns);
@@ -1601,7 +1621,8 @@ static bool sdl_left_panel_pane_runtime_active(void);
 static bool sdl_left_panel_pane_collapsed(void);
 static enum pane_placement sdl_left_panel_pane_placement(void);
 static bool sdl_left_panel_pane_on_right(void);
-static int sdl_left_panel_pane_scale_for_main_scale(int main_scale);
+static int sdl_left_panel_pane_max_configured_scale(void);
+static int sdl_left_panel_pane_current_scale(void);
 static int sdl_left_panel_pane_scale_for_view(const sdl_view* view);
 static int sdl_left_panel_collapsed_source_row(int row);
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
@@ -2342,31 +2363,103 @@ static bool sdl_left_panel_pane_config_enabled(void)
     return pane_config[index].enabled;
 }
 
-static int sdl_left_panel_pane_scale_for_main_scale(int main_scale)
+static int sdl_left_panel_pane_requested_scale(void)
 {
     int index = sdl_left_panel_pane_config_index();
+
+    if (index < 0)
+        return 0;
+
+    return pane_config[index].rect.cols;
+}
+
+static int sdl_left_panel_main_scale_for_view(const sdl_view* view)
+{
     int scale = 0;
 
-    if (main_scale < 1)
-        main_scale = 1;
-
-    if (index >= 0)
-        scale = pane_config[index].rect.cols;
-
-    if (scale <= 0)
-        return main_scale;
-    if (scale > main_scale)
-        return main_scale;
-
+    if (view && view->cell_h > 0)
+        scale = (view->cell_h + TILE_SIZE / 2) / TILE_SIZE;
+    if (scale < 1)
+        scale = sdl_current_main_view_scale();
+    if (scale < 1)
+        scale = 1;
     return scale;
+}
+
+static int sdl_left_panel_pane_max_scale_for_view(const sdl_view* view)
+{
+    int max_scale = 20;
+
+    if (view && view->rect.w > 0 && view->cell_w > 0) {
+        int visual_cols = sdl_main_view_visual_cols_for_width(view->rect.w,
+            view->cell_w);
+        int visual_w = visual_cols * view->cell_w;
+        int separator_w = view->cell_w;
+        int available_w = visual_w - separator_w - 1;
+
+        if (available_w > 0) {
+            int by_width = (available_w * 2)
+                / (LEFT_PANEL_CONTENT_WID * TILE_SIZE);
+            if (by_width < max_scale)
+                max_scale = by_width;
+        }
+    }
+
+    if (max_scale < 1)
+        max_scale = 1;
+    return max_scale;
+}
+
+static int sdl_left_panel_pane_max_configured_scale(void)
+{
+    if (g_views[PANE_MAIN].term_ready && g_views[PANE_MAIN].cell_w > 0)
+        return sdl_left_panel_pane_max_scale_for_view(&g_views[PANE_MAIN]);
+
+    if (g_state.window) {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+        int scale = sdl_current_main_view_scale();
+        int separator_w;
+        int available_w;
+        int max_scale;
+
+        if (scale < 1)
+            scale = 1;
+        separator_w = scale * TILE_SIZE / 2;
+        available_w = screen.w - separator_w - 1;
+        max_scale = (available_w > 0)
+            ? (available_w * 2) / (LEFT_PANEL_CONTENT_WID * TILE_SIZE)
+            : 1;
+        if (max_scale < 1)
+            max_scale = 1;
+        if (max_scale > 20)
+            max_scale = 20;
+        return max_scale;
+    }
+
+    return 20;
 }
 
 static int sdl_left_panel_pane_scale_for_view(const sdl_view* view)
 {
-    int main_scale = sdl_configured_main_view_scale();
+    int scale = sdl_left_panel_pane_requested_scale();
+    int max_scale = sdl_left_panel_pane_max_scale_for_view(view);
 
-    (void)view;
-    return sdl_left_panel_pane_scale_for_main_scale(main_scale);
+    if (scale <= 0)
+        scale = sdl_left_panel_main_scale_for_view(view);
+    if (scale > max_scale)
+        scale = max_scale;
+    if (scale < 1)
+        scale = 1;
+
+    return scale;
+}
+
+static int sdl_left_panel_pane_current_scale(void)
+{
+    return sdl_left_panel_pane_scale_for_view(
+        (g_views[PANE_MAIN].term_ready && g_views[PANE_MAIN].cell_w > 0)
+            ? &g_views[PANE_MAIN]
+            : NULL);
 }
 
 static bool sdl_left_panel_cell_has_visible_content(byte a, char c)
@@ -2560,8 +2653,13 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
 
 static bool sdl_left_panel_pane_layout_enabled(void)
 {
+    if (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT
+        && sdl_left_panel_pane_requested_scale() <= 0)
+    {
+        return false;
+    }
+
     return !config.hide_left_panel
-        && config.min_terminal_mode != SDL_MIN_TERMINAL_COMPACT
         && sdl_left_panel_pane_config_enabled();
 }
 
@@ -14350,13 +14448,6 @@ static bool sdl_menu_touch_handle_pointer_down(float x, float y,
     if (!ui_menu_click_has_cell(col, row))
         return false;
 
-    if (ui_menu_click_outside_cancel_enabled())
-    {
-        sdl_menu_touch_cancel();
-        return sdl_main_screen_handle_menu_text_pointer(
-            x, y, UI_MENU_CLICK_PRIMARY);
-    }
-
     if (!mouse
         && !ui_menu_click_outside_cancel_enabled()
         && !config.touch_menu_command_enabled[ui_menu_click_get_touch_category()])
@@ -16704,6 +16795,165 @@ static bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, fl
     sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
         SDL_PANEL_CLICK_NONE, -1, false);
     return true;
+}
+
+static bool sdl_main_screen_character_panel_pointer_hit(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (sdl_touch_zone_controls_active())
+        return false;
+    if (sdl_left_panel_pane_hit(x, y))
+        return true;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+
+    return sdl_main_screen_cell_hits_character_panel(col, row);
+}
+
+static void sdl_character_panel_cancel_press(void)
+{
+    g_character_panel_press.active = false;
+    g_character_panel_press.mouse = false;
+    g_character_panel_press.finger_id = 0;
+    g_character_panel_press.secondary_enabled = false;
+    g_character_panel_press.start_x = 0.0f;
+    g_character_panel_press.start_y = 0.0f;
+    g_character_panel_press.start_time = 0;
+}
+
+static bool sdl_character_panel_press_matches(bool mouse,
+    SDL_FingerID finger_id)
+{
+    return g_character_panel_press.active
+        && g_character_panel_press.mouse == mouse
+        && g_character_panel_press.finger_id == finger_id;
+}
+
+static bool sdl_character_panel_handle_pointer_down(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    if (!sdl_main_screen_character_panel_pointer_hit(x, y))
+        return false;
+
+    sdl_character_panel_cancel_press();
+    g_character_panel_press.active = true;
+    g_character_panel_press.mouse = mouse;
+    g_character_panel_press.finger_id = finger_id;
+    g_character_panel_press.secondary_enabled =
+        !sdl_left_panel_pane_collapsed() && sdl_left_panel_pane_hit(x, y);
+    g_character_panel_press.start_x = x;
+    g_character_panel_press.start_y = y;
+    g_character_panel_press.start_time = SDL_GetTicksNS();
+    return true;
+}
+
+static bool sdl_character_panel_handle_pointer_motion(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    float dx;
+    float dy;
+    float threshold;
+
+    if (!sdl_character_panel_press_matches(mouse, finger_id))
+        return false;
+
+    dx = x - g_character_panel_press.start_x;
+    dy = y - g_character_panel_press.start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    threshold = sdl_touch_swipe_threshold_px();
+    if (dx > threshold || dy > threshold
+        || !sdl_main_screen_character_panel_pointer_hit(x, y))
+    {
+        sdl_character_panel_cancel_press();
+        return true;
+    }
+
+    return true;
+}
+
+static bool sdl_character_panel_handle_pointer_up(float x, float y,
+    bool mouse, SDL_FingerID finger_id)
+{
+    Uint64 elapsed = 0;
+    bool long_press = false;
+    bool secondary_enabled;
+    float start_x;
+    float start_y;
+
+    if (!sdl_character_panel_press_matches(mouse, finger_id))
+        return false;
+
+    if (g_character_panel_press.start_time)
+        elapsed = SDL_GetTicksNS() - g_character_panel_press.start_time;
+    long_press = !mouse
+        && elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL;
+    secondary_enabled = g_character_panel_press.secondary_enabled;
+    start_x = g_character_panel_press.start_x;
+    start_y = g_character_panel_press.start_y;
+
+    sdl_character_panel_cancel_press();
+    if (!sdl_main_screen_character_panel_pointer_hit(x, y))
+        return true;
+
+    if (long_press && secondary_enabled) {
+        (void)sdl_main_screen_handle_character_panel_secondary_pointer(
+            start_x, start_y);
+        return true;
+    }
+    if (long_press)
+        return true;
+
+    (void)sdl_main_screen_handle_character_panel_pointer(x, y);
+    return true;
+}
+
+static int sdl_character_panel_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_character_panel_press.active)
+        return -1;
+    if (g_character_panel_press.mouse)
+        return -1;
+    if (!g_character_panel_press.secondary_enabled)
+        return -1;
+
+    elapsed = now_ns - g_character_panel_press.start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+static bool sdl_character_panel_flush_pending_press(Uint64 now_ns)
+{
+    float x;
+    float y;
+
+    if (!g_character_panel_press.active)
+        return false;
+    if (g_character_panel_press.mouse)
+        return false;
+    if (!g_character_panel_press.secondary_enabled)
+        return false;
+    if (now_ns - g_character_panel_press.start_time
+        < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return false;
+    }
+
+    x = g_character_panel_press.start_x;
+    y = g_character_panel_press.start_y;
+    sdl_character_panel_cancel_press();
+    return sdl_main_screen_handle_character_panel_secondary_pointer(x, y);
 }
 
 static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
@@ -23325,6 +23575,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_character_panel_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y, true, 0))
+        {
+            return;
+        }
         if (sdl_main_screen_handle_menu_hover_pointer((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -23482,8 +23737,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
-            if (sdl_main_screen_handle_character_panel_pointer((float)ev->button.x,
-                (float)ev->button.y))
+            if (sdl_character_panel_handle_pointer_down((float)ev->button.x,
+                (float)ev->button.y, true, 0))
             {
                 return;
             }
@@ -23637,6 +23892,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_character_panel_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, true, 0))
+            {
+                return;
+            }
             sdl_touch_pane_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, true, 0);
         }
@@ -23773,8 +24033,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                     return;
                 if (sdl_main_screen_handle_message_line_pointer(x, y))
                     return;
-                if (sdl_main_screen_handle_character_panel_pointer(x, y))
+                if (sdl_character_panel_handle_pointer_down(x, y, false,
+                        ev->tfinger.fingerID))
+                {
                     return;
+                }
                 if (sdl_pointer_attack_handle_touch_down(x, y,
                         ev->tfinger.fingerID))
                 {
@@ -23830,8 +24093,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         if (sdl_main_screen_handle_message_line_pointer(x, y))
             return;
-        if (sdl_main_screen_handle_character_panel_pointer(x, y))
+        if (sdl_character_panel_handle_pointer_down(x, y, false,
+                ev->tfinger.fingerID))
+        {
             return;
+        }
         if (sdl_main_screen_handle_supporting_pane_pointer(x, y))
             return;
         if (sdl_pointer_dismiss_any_key_prompt())
@@ -23929,6 +24195,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_character_panel_handle_pointer_motion(x, y, false,
+                    ev->tfinger.fingerID))
+            {
+                return;
+            }
             if (sdl_pointer_attack_handle_touch_motion(x, y,
                     ev->tfinger.fingerID))
             {
@@ -23954,6 +24225,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_touch_handle_pointer_motion(x, y, ev->tfinger.fingerID,
             false))
             return;
+        if (sdl_character_panel_handle_pointer_motion(x, y, false,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_touch_pane_handle_pointer_motion(x, y, false,
             ev->tfinger.fingerID))
         {
@@ -24055,6 +24331,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_character_panel_handle_pointer_up(x, y, false,
+                    ev->tfinger.fingerID))
+            {
+                return;
+            }
             if (sdl_pointer_attack_handle_touch_up(x, y,
                     ev->tfinger.fingerID))
             {
@@ -24082,6 +24363,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_touch_handle_pointer_up(x, y, ev->tfinger.fingerID,
             false))
             return;
+        if (sdl_character_panel_handle_pointer_up(x, y, false,
+            ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_touch_top_panel_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_touch_zone_handle_pointer_up(x, y, ev->tfinger.fingerID))
@@ -24114,6 +24400,12 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             && g_menu_touch_press.finger_id == ev->tfinger.fingerID)
         {
             sdl_menu_touch_cancel();
+        }
+        if (g_character_panel_press.active
+            && !g_character_panel_press.mouse
+            && g_character_panel_press.finger_id == ev->tfinger.fingerID)
+        {
+            sdl_character_panel_cancel_press();
         }
         if (g_menu_scroll_drag.active
             && g_menu_scroll_drag.finger_id == ev->tfinger.fingerID)
@@ -27187,6 +27479,8 @@ static errr callback_sdl_xtra(int n, int v)
             int timeout_ms = sdl_gamepad_pending_timeout_ms(now_ns);
             int touch_timeout_ms = sdl_touch_pane_pending_timeout_ms(now_ns);
             int menu_touch_timeout_ms = sdl_menu_touch_pending_timeout_ms(now_ns);
+            int character_panel_touch_timeout_ms =
+                sdl_character_panel_pending_timeout_ms(now_ns);
             int screen_back_timeout_ms =
                 sdl_screen_back_gesture_pending_timeout_ms(now_ns);
             int player_action_timeout_ms =
@@ -27208,6 +27502,11 @@ static errr callback_sdl_xtra(int n, int v)
                 timeout_ms = touch_timeout_ms;
             if (timeout_ms < 0 || (menu_touch_timeout_ms >= 0 && menu_touch_timeout_ms < timeout_ms))
                 timeout_ms = menu_touch_timeout_ms;
+            if (timeout_ms < 0 || (character_panel_touch_timeout_ms >= 0
+                    && character_panel_touch_timeout_ms < timeout_ms))
+            {
+                timeout_ms = character_panel_touch_timeout_ms;
+            }
             if (timeout_ms < 0 || (screen_back_timeout_ms >= 0
                     && screen_back_timeout_ms < timeout_ms))
             {
@@ -27264,6 +27563,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_screen_back_gesture_flush_pending_press(flush_ns);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_character_panel_flush_pending_press(flush_ns);
             sdl_player_action_menu_flush_pending_press(flush_ns);
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
@@ -27289,6 +27589,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_screen_back_gesture_flush_pending_press(flush_ns);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_character_panel_flush_pending_press(flush_ns);
             sdl_player_action_menu_flush_pending_press(flush_ns);
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
@@ -27318,6 +27619,7 @@ static errr callback_sdl_xtra(int n, int v)
             sdl_screen_back_gesture_flush_pending_press(flush_ns);
             sdl_touch_pane_flush_pending_press(flush_ns);
             sdl_menu_touch_flush_pending_press(flush_ns);
+            sdl_character_panel_flush_pending_press(flush_ns);
             sdl_player_action_menu_flush_pending_press(flush_ns);
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
@@ -27364,6 +27666,7 @@ static errr callback_sdl_xtra(int n, int v)
                 sdl_screen_back_gesture_flush_pending_press(flush_ns);
                 sdl_touch_pane_flush_pending_press(flush_ns);
                 sdl_menu_touch_flush_pending_press(flush_ns);
+                sdl_character_panel_flush_pending_press(flush_ns);
                 sdl_player_action_menu_flush_pending_press(flush_ns);
                 sdl_pointer_attack_flush_pending_press(flush_ns);
                 sdl_map_touch_flush_pending_press(flush_ns);
@@ -31213,11 +31516,12 @@ int get_sdl_pane_cols(int index)
         return 0;
     if (pane_config[index].pane == PANE_LEFT_PANEL) {
         int scale = pane_config[index].rect.cols;
+        int max_scale = sdl_left_panel_pane_max_configured_scale();
 
         if (scale <= 0)
             return 0;
-        if (scale > config.main_view_scale)
-            return config.main_view_scale;
+        if (scale > max_scale)
+            return max_scale;
         return scale;
     }
     return pane_config[index].rect.cols;
@@ -31249,9 +31553,7 @@ static int sdl_pane_current_size(int index, bool want_rows)
 
     type = pane_config[index].pane;
     if (type == PANE_LEFT_PANEL)
-        return want_rows ? 0
-                         : sdl_left_panel_pane_scale_for_main_scale(
-                               config.main_view_scale);
+        return want_rows ? 0 : sdl_left_panel_pane_current_scale();
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return 0;
 
@@ -31309,7 +31611,7 @@ void set_sdl_pane_cols(int index, int cols)
     if (index < 0 || index >= pane_config_count)
         return;
     if (pane_config[index].pane == PANE_LEFT_PANEL) {
-        int max_scale = config.main_view_scale;
+        int max_scale = sdl_left_panel_pane_max_configured_scale();
 
         if (cols < 0)
             cols = 0;
@@ -32204,6 +32506,7 @@ static void sdl_touch_cancel_all_inputs(void)
     sdl_touch_zone_cancel_press();
     sdl_touch_top_panel_cancel_press();
     sdl_touch_round_cancel_press();
+    sdl_character_panel_cancel_press();
     sdl_map_touch_cancel_press();
     sdl_main_map_cancel_drag();
     sdl_pointer_attack_cancel_touch_press();
