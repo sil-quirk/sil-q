@@ -1625,6 +1625,9 @@ static int sdl_auto_aux_view_font_size(void);
 static int sdl_resolve_aux_view_font_size(int requested_size);
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
 static int sdl_effective_pane_font_size_for_type(enum pane_type type);
+static int sdl_aux_cell_height_for_font_size(int font_size);
+static int sdl_effective_pane_cell_height_for_config(const struct pane_config* pc);
+static int sdl_effective_pane_cell_height_for_type(enum pane_type type);
 static bool sdl_left_panel_pane_layout_enabled(void);
 static bool sdl_left_panel_pane_presentation_active(void);
 static bool sdl_left_panel_pane_runtime_active(void);
@@ -2496,9 +2499,10 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
     int row_info = compact ? 15 : 17;
     int row_evn = compact ? 14 : 16;
     int rows = row_song + 2;
-    int status_row = (op_ptr && op_ptr->opt[OPT_top_status_line])
-        ? 0
-        : ((view && view->rows > 0) ? view->rows - 1 : rows);
+    int status_row = SIL_UI_STATUS_ROW_COUNT
+        ? ((SIL_UI_TOP_STATUS_LINE) ? 0
+            : ((view && view->rows > 0) ? view->rows - 1 : rows))
+        : ((view && view->rows > 0) ? view->rows : rows);
 
     if (sdl_left_panel_pane_collapsed())
         return SDL_LEFT_PANEL_COLLAPSED_ROWS;
@@ -2551,8 +2555,8 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
         scan_rows = view->rows;
     if (scan_rows > t->hgt)
         scan_rows = t->hgt;
-    if (op_ptr && !op_ptr->opt[OPT_top_status_line] && view->rows > 0
-        && scan_rows > view->rows - 1)
+    if (SIL_UI_STATUS_ROW_COUNT && !SIL_UI_TOP_STATUS_LINE
+        && view->rows > 0 && scan_rows > view->rows - 1)
     {
         scan_rows = view->rows - 1;
     }
@@ -3826,11 +3830,33 @@ static int sdl_effective_pane_font_size_for_type(enum pane_type type)
     return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
 }
 
+static int sdl_aux_cell_height_for_font_size(int font_size)
+{
+    int cell_h = (int)(g_state.system_scale * (float)font_size + 0.5f);
+
+    if (cell_h < 1)
+        cell_h = 1;
+
+    return cell_h;
+}
+
+static int sdl_effective_pane_cell_height_for_config(const struct pane_config* pc)
+{
+    return sdl_aux_cell_height_for_font_size(
+        sdl_effective_pane_font_size_for_config(pc));
+}
+
+static int sdl_effective_pane_cell_height_for_type(enum pane_type type)
+{
+    return sdl_aux_cell_height_for_font_size(
+        sdl_effective_pane_font_size_for_type(type));
+}
+
 static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     int count, int* cell_widths, int* cell_heights)
 {
     int default_font_size = sdl_resolve_aux_view_font_size(config.aux_view_font_size);
-    int default_cell_h = (int)(g_state.system_scale * default_font_size);
+    int default_cell_h = sdl_aux_cell_height_for_font_size(default_font_size);
     int default_cell_w;
 
     if (!cell_widths || !cell_heights)
@@ -3852,16 +3878,12 @@ static void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
 
     for (int i = 0; i < count; i++) {
         enum pane_type type = configs[i].pane;
-        int font_size;
         int cell_h;
 
         if (type <= PANE_MAIN || type >= PANE_MAX)
             continue;
 
-        font_size = sdl_effective_pane_font_size_for_config(&configs[i]);
-        cell_h = (int)(g_state.system_scale * font_size);
-        if (cell_h < 1)
-            cell_h = 1;
+        cell_h = sdl_effective_pane_cell_height_for_config(&configs[i]);
         cell_heights[type] = cell_h;
         cell_widths[type] = cell_h / 2;
         if (cell_widths[type] < 1)
@@ -4458,13 +4480,12 @@ static int sdl_main_view_terminal_cols_for_map_squares(int map_cols)
 
 static int sdl_main_view_terminal_rows_for_map_squares(int map_rows)
 {
-    int status_rows = SIL_UI_TOP_STATUS_LINE ? 0 : 1;
     int combat_rows = op_ptr ? op_ptr->main_combat_rolls : 0;
 
     if (map_rows < 1)
         map_rows = 1;
 
-    return ROW_MAP + status_rows + combat_rows + map_rows;
+    return ROW_MAP + SIL_UI_STATUS_ROW_COUNT + combat_rows + map_rows;
 }
 
 static int sdl_main_view_map_cols_for_terminal_cols(int cols)
@@ -4477,9 +4498,8 @@ static int sdl_main_view_map_cols_for_terminal_cols(int cols)
 
 static int sdl_main_view_map_rows_for_terminal_rows(int rows)
 {
-    int status_rows = SIL_UI_TOP_STATUS_LINE ? 0 : 1;
     int combat_rows = op_ptr ? op_ptr->main_combat_rolls : 0;
-    int map_rows = rows - ROW_MAP - status_rows - combat_rows;
+    int map_rows = rows - ROW_MAP - SIL_UI_STATUS_ROW_COUNT - combat_rows;
 
     return (map_rows > 0) ? map_rows : 0;
 }
@@ -5507,18 +5527,18 @@ static void sdl_status_pane_render(void)
     if (count <= 0)
         return;
 
-    font_px = sdl_effective_pane_font_size_for_type(PANE_STATUS);
+    font_px = sdl_effective_pane_cell_height_for_type(PANE_STATUS);
     if (font_px < 8)
         font_px = 8;
     font = sdl_story_font_for_height(font_px);
     if (!font)
         return;
 
-    row_h = (int)(g_state.system_scale * (float)font_px * 1.35f);
+    row_h = (int)((float)font_px * 1.35f + 0.5f);
     if (row_h < font_px + 2)
         row_h = font_px + 2;
-    pad_x = (int)(g_state.system_scale * 7.0f);
-    pad_y = (int)(g_state.system_scale * 5.0f);
+    pad_x = (int)((float)font_px * 0.45f + 0.5f);
+    pad_y = (int)((float)font_px * 0.32f + 0.5f);
     if (pad_x < 5)
         pad_x = 5;
     if (pad_y < 4)
@@ -5557,8 +5577,8 @@ static void sdl_status_pane_render(void)
     }
 
     panel_w = pad_x * 2 + max_line_w;
-    if (panel_w < (int)(g_state.system_scale * 78.0f))
-        panel_w = (int)(g_state.system_scale * 78.0f);
+    if (panel_w < font_px * 6)
+        panel_w = font_px * 6;
     if (panel_w > max_panel_w)
         panel_w = max_panel_w;
 
@@ -5679,14 +5699,13 @@ static void sdl_depth_menu_pane_label(char* out, size_t out_sz)
 
 static int sdl_depth_menu_pane_font_px(const sdl_view* view)
 {
-    int font_px = (view && view->cell_h > 0)
-        ? view->cell_h - 4
-        : (int)(g_state.system_scale * 16.0f);
+    int font_px;
 
-    if (font_px < 11)
-        font_px = 11;
-    if (font_px > 22)
-        font_px = 22;
+    (void)view;
+
+    font_px = sdl_effective_pane_cell_height_for_type(PANE_STATUS);
+    if (font_px < 8)
+        font_px = 8;
 
     return font_px;
 }
@@ -5731,7 +5750,7 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
             .w = (float)(visual_cols * view->cell_w),
             .h = (float)(visual_rows * view->cell_h),
         };
-        top_h = (float)view->cell_h;
+        top_h = (float)view->cell_h * 1.65f;
     }
     else
     {
@@ -5744,8 +5763,8 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
             .w = (float)screen.w,
             .h = (float)screen.h,
         };
-        top_h = sdl_touch_pane_clampf((float)screen.h * 0.045f, 18.0f,
-            34.0f);
+        top_h = sdl_touch_pane_clampf((float)screen.h * 0.070f, 24.0f,
+            (float)screen.h * 0.16f);
     }
 
     if (anchor.w <= 0.0f || anchor.h <= 0.0f)
@@ -5758,26 +5777,28 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     if (text_w < 1)
         return false;
 
-    pad_x = sdl_touch_pane_clampf(g_state.system_scale * 11.0f, 8.0f,
-        18.0f);
-    pad_y = sdl_touch_pane_clampf(g_state.system_scale * 4.0f, 3.0f,
-        7.0f);
+    pad_x = (float)font_px * 0.82f;
+    pad_y = (float)font_px * 0.34f;
+    if (pad_x < 9.0f)
+        pad_x = 9.0f;
+    if (pad_y < 4.0f)
+        pad_y = 4.0f;
     panel_w = (float)text_w + pad_x * 2.0f;
-    panel_h = (float)font_px + pad_y * 2.0f;
-    max_w = anchor.w * 0.58f;
+    panel_h = (float)font_px * 1.16f + pad_y * 2.0f;
+    max_w = anchor.w * 0.72f;
     if (max_w < 96.0f)
         max_w = anchor.w;
-    if (panel_w < 110.0f)
-        panel_w = 110.0f;
+    if (panel_w < (float)font_px * 8.5f)
+        panel_w = (float)font_px * 8.5f;
     if (panel_w > max_w)
         panel_w = max_w;
     if (panel_w > anchor.w)
         panel_w = anchor.w;
 
-    if (panel_h < 18.0f)
-        panel_h = 18.0f;
-    if (panel_h > 34.0f)
-        panel_h = 34.0f;
+    if (panel_h < (float)font_px * 1.45f)
+        panel_h = (float)font_px * 1.45f;
+    if (panel_h > anchor.h * 0.24f)
+        panel_h = anchor.h * 0.24f;
 
     if (out)
     {

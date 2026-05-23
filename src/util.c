@@ -2736,6 +2736,7 @@ void messages_free(void)
 void move_cursor(int row, int col) { Term_gotoxy(col, row); }
 
 static bool ui_top_status_line_enabled(void);
+static bool ui_message_line_enabled(void);
 static void restore_top_status_line_after_clear(void);
 
 /*
@@ -2744,6 +2745,9 @@ static void restore_top_status_line_after_clear(void);
 static void msg_flush(int x)
 {
     byte a = TERM_L_BLUE;
+
+    if (!ui_message_line_enabled())
+        return;
 
     /* Pause for response */
     Term_putstr(x, 0, -1, a, "-more-");
@@ -2777,7 +2781,20 @@ static void msg_flush(int x)
 
 static bool ui_top_status_line_enabled(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
     return (op_ptr && op_ptr->opt[OPT_top_status_line]);
+#endif
+}
+
+static bool ui_message_line_enabled(void)
+{
+#ifdef USE_SDL
+    return false;
+#else
+    return !ui_top_status_line_enabled();
+#endif
 }
 
 static void restore_top_status_line_after_clear(void)
@@ -2880,7 +2897,7 @@ static void msg_print_aux(u16b type, cptr msg)
     /* Window stuff */
     p_ptr->window |= (PW_MESSAGE);
 
-    if (ui_top_status_line_enabled())
+    if (!ui_message_line_enabled())
     {
         msg_flag = false;
         message_column = 0;
@@ -3055,7 +3072,7 @@ void message_format(u16b message_type, s16b extra, cptr fmt, ...)
  */
 void message_flush(void)
 {
-    if (ui_top_status_line_enabled())
+    if (!ui_message_line_enabled())
     {
         msg_flag = false;
         message_column = 0;
@@ -3088,6 +3105,13 @@ void message_discard_pending(void)
     if (!Term)
         return;
 
+    if (!ui_message_line_enabled())
+    {
+        if (ui_top_status_line_enabled())
+            restore_top_status_line_after_clear();
+        return;
+    }
+
     Term_erase(0, 0, 255);
     if (ui_top_status_line_enabled())
         restore_top_status_line_after_clear();
@@ -3097,6 +3121,9 @@ bool message_line_has_text(void)
 {
     int i;
     int limit;
+
+    if (!ui_message_line_enabled())
+        return false;
 
     if (message_column <= 0 || !Term || !Term->scr || Term->hgt <= 0)
         return false;
@@ -4984,7 +5011,8 @@ void request_command(void)
             msg_flag = false;
             inkey_flag = true;
             (void)inkey();
-            prt("", 0, 0);
+            if (ui_message_line_enabled())
+                prt("", 0, 0);
             clear_active_narrative_banner();
             do_cmd_redraw();
             continue;
@@ -5258,7 +5286,7 @@ void request_command(void)
     /* Hack -- erase the message line. */
     if (ui_top_status_line_enabled())
         restore_top_status_line_after_clear();
-    else
+    else if (ui_message_line_enabled())
         prt("", 0, 0);
 }
 

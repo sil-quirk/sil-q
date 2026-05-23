@@ -118,25 +118,31 @@
 
 #ifdef USE_SDL
 /*
- * SDL renders the depth/menu affordance as a top-center overlay instead of
- * moving the classic status line onto row 0.
+ * SDL renders messages, status, and the depth/menu affordance through panes or
+ * overlays.  The main terminal does not reserve classic message/status rows,
+ * so row 0 is available for map rendering.
  */
+#define SIL_UI_MESSAGE_ROW_COUNT 0
+#define SIL_UI_STATUS_ROW_COUNT 0
 #define SIL_UI_TOP_STATUS_LINE 0
 #else
+#define SIL_UI_MESSAGE_ROW_COUNT 1
 #define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
+#define SIL_UI_STATUS_ROW_COUNT (SIL_UI_TOP_STATUS_LINE ? 0 : 1)
 #endif
 
-#define ROW_MAP 1
+#define ROW_MAP SIL_UI_MESSAGE_ROW_COUNT
 #define LEFT_PANEL_CONTENT_WID 12
 #define LEFT_PANEL_SEPARATOR_WID 1
 #define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
 #define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
-#define ROW_STATUS (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1))
+#define ROW_STATUS \
+    (SIL_UI_STATUS_ROW_COUNT ? (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1)) : Term->hgt)
 
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - (SIL_UI_TOP_STATUS_LINE ? 0 : 1) - (op_ptr ? op_ptr->main_combat_rolls : 0))
+#define SCREEN_HGT (Term->hgt - ROW_MAP - SIL_UI_STATUS_ROW_COUNT - (op_ptr ? op_ptr->main_combat_rolls : 0))
 
 /*
  * Number of grids in each screen (horizontally)
