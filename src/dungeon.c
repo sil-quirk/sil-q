@@ -39,6 +39,23 @@ static int last_player_x = 0;
 static bool was_in_morgoth_vault = false;
 static bool morgoth_entry_preconfirmed = false;
 
+static void play_game_pop_startup_icky(bool* startup_icky_active,
+    cptr reason)
+{
+    if (!startup_icky_active || !*startup_icky_active)
+        return;
+
+    if (character_icky > 0)
+        character_icky--;
+    else
+        log_warn("play_game: startup character_icky pop requested while value is %d",
+            character_icky);
+
+    *startup_icky_active = false;
+    log_debug("play_game: character_icky decremented to %d (%s)",
+        character_icky, reason ? reason : "startup complete");
+}
+
 static int last_partition_pi = -1;
 static level_partition_kind last_partition_kind = LEVEL_PART_NONE;
 
@@ -3428,6 +3445,12 @@ static void process_player(void)
 
                 /* Get a command (normal) */
                 request_command();
+                if (p_ptr->leaving)
+                {
+                    log_debug("process_player: leaving set while waiting for command; command=%d playing=%d",
+                        (int)p_ptr->command_cmd, p_ptr->playing ? 1 : 0);
+                    break;
+                }
 
                 /* Process the command */
                 process_command();
@@ -5222,6 +5245,7 @@ static bool startup_try_autoload_current_mode(cptr mode_name)
 PlayResult play_game(void)
 {
     bool new_game = false;
+    bool startup_icky_active = false;
 
     log_info("play_game: FUNCTION ENTERED");
 
@@ -5236,6 +5260,7 @@ PlayResult play_game(void)
 
     /* Hack -- Increase "icky" depth */
     character_icky++;
+    startup_icky_active = true;
     log_debug("play_game: character_icky incremented to %d", character_icky);
 
     /* Verify main term */
@@ -5367,10 +5392,14 @@ PlayResult play_game(void)
             log_info("Returning to main menu from character creation");
             sdl_music_stop_main();
             sdl_music_stop_ambient();
+            play_game_pop_startup_icky(&startup_icky_active,
+                "returning to main menu from character creation");
             return PLAY_DONE;
         }
         if (cr == NAV_QUIT) {
             log_info("Quitting from character creation");
+            play_game_pop_startup_icky(&startup_icky_active,
+                "quitting from character creation");
             return PLAY_QUIT;
         }
 
@@ -5447,10 +5476,14 @@ PlayResult play_game(void)
             log_info("Returning to main menu from character birth");
             sdl_music_stop_main();
             sdl_music_stop_ambient();
+            play_game_pop_startup_icky(&startup_icky_active,
+                "returning to main menu from character birth");
             return PLAY_DONE;
         }
         if (br == NAV_QUIT) {
             log_info("Quitting from character birth");
+            play_game_pop_startup_icky(&startup_icky_active,
+                "quitting from character birth");
             return PLAY_QUIT;
         }
         /* NAV_OK falls through */
@@ -5637,9 +5670,9 @@ PlayResult play_game(void)
     p_ptr->leaping = false;
     p_ptr->knocked_back = false;
 
-    /* Hack -- Decrease "icky" depth before entering main game loop */
-    character_icky--;
-    log_debug("play_game: character_icky decremented to %d (entering main game loop)", character_icky);
+    /* Startup is complete; normal saved screens now own character_icky. */
+    play_game_pop_startup_icky(&startup_icky_active,
+        "entering main game loop");
 
     /* Process */
     while (true)
@@ -5793,9 +5826,7 @@ PlayResult play_game(void)
     /* Close stuff */
     log_info("Player '%s' has left the game.", op_ptr->base_name);
 
-    /* Hack -- Decrease "icky" depth */
-    character_icky--;
-    log_debug("play_game: character_icky decremented to %d (function exit)", character_icky);
+    play_game_pop_startup_icky(&startup_icky_active, "function exit");
 
     close_game();
     if (!p_ptr->is_dead && !p_ptr->playing)

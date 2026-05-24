@@ -14300,7 +14300,9 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     case MAIN_MENU_HALLS_OF_MANDOS: // Halls of Mandos (d)
     {
         log_info("main menu: opening Halls of Mandos view");
+        screen_save();
         show_scores_interactive(true);
+        screen_load();
         return true;
     }
     case MAIN_MENU_MAP: // Map (m)
@@ -14351,20 +14353,32 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     {
         if (death_spectator_active())
         {
+            log_info("main menu: death spectator quit requested");
             death_spectator_request_exit();
             return true;
         }
 
-        do_cmd_save_game();
-
-        /* Stop playing */
-        p_ptr->playing = false;
+        log_info("main menu: quit with save requested (playing=%d leaving=%d icky=%d)",
+            p_ptr->playing ? 1 : 0, p_ptr->leaving ? 1 : 0,
+            character_icky);
 
         /* Exit the application after the save/score screen. */
         p_ptr->quit_to_menu = false;
 
-        /* Leaving */
+        /* Stop accepting normal gameplay/menu input while the quit completes. */
         p_ptr->leaving = true;
+        p_ptr->playing = false;
+        log_debug("main menu: quit state armed before save (playing=%d leaving=%d quit_to_menu=%d)",
+            p_ptr->playing ? 1 : 0, p_ptr->leaving ? 1 : 0,
+            p_ptr->quit_to_menu ? 1 : 0);
+        (void)Term_flush();
+
+        do_cmd_save_game();
+        (void)Term_flush();
+        log_debug("main menu: quit save completed (playing=%d leaving=%d saved=%d)",
+            p_ptr->playing ? 1 : 0, p_ptr->leaving ? 1 : 0,
+            character_saved ? 1 : 0);
+
         return true;
     }
     case MAIN_MENU_RETURN_GAME: // Return to game (r)

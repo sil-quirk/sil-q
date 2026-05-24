@@ -350,7 +350,7 @@ static void sdl_reset_config_to_resolution_defaults(int screen_width,
     sdl_seed_all_pane_profiles_from_active();
     sdl_log_pane_sync_display_filter_from_config();
 
-    log_info("Default main view scale: %d for %dx%d minimum terminal (%s), selected without supporting panes; default log pane rows=%d",
+    log_info("Default main view scale: %d for %dx%d minimum terminal (%s), selected without side panes; default log pane rows=%d",
         config.main_view_scale,
         (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 50 : 80,
         (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 18 : 24,
@@ -1518,6 +1518,7 @@ static bool sdl_main_menu_pane_current_rect(SDL_FRect* out);
 static bool sdl_main_menu_pane_handle_hover_pointer(float x, float y);
 static bool sdl_main_menu_pane_handle_pointer(float x, float y);
 static void sdl_main_menu_pane_render(void);
+static bool sdl_quit_transition_active(void);
 static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out);
 static bool sdl_depth_menu_pane_handle_hover_pointer(float x, float y);
 static bool sdl_depth_menu_pane_handle_pointer(float x, float y);
@@ -1847,9 +1848,6 @@ static bool sdl_prune_unusable_panes(struct pane_config* active,
     const int* cell_heights);
 static void sdl_place_active_panes(const SDL_Rect* screen, SDL_Rect* panes,
     bool include_side, bool include_bottom, bool touch_only);
-static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
-    int mode, int scale, SDL_Rect* panes, bool* out_side,
-    bool* out_bottom, int* out_cols, int* out_rows);
 static void sdl_compute_display_panes(SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
 static int sdl_max_scale_for_rect_mode(const SDL_Rect* rect, int mode);
@@ -4579,9 +4577,51 @@ static void sdl_place_active_panes_fitting_main(const SDL_Rect* screen,
             false);
 }
 
+static int sdl_bottom_pane_group_rows_for_minimum(const SDL_Rect* panes,
+    enum pane_placement where)
+{
+    int rows = 0;
+
+    if (!panes)
+        return 0;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        const struct pane_config* pc = &pane_config[i];
+        const SDL_Rect* rect;
+        int cell_h;
+        int pane_rows;
+
+        if (!pc->enabled || pc->where != where)
+            continue;
+        if (pc->pane <= PANE_MAIN || pc->pane >= PANE_MAX)
+            continue;
+
+        rect = &panes[pc->pane];
+        if (rect->w <= 0 || rect->h <= 0)
+            continue;
+
+        cell_h = sdl_effective_pane_cell_height_for_config(pc);
+        if (cell_h <= 0)
+            continue;
+
+        pane_rows = rect->h / cell_h;
+        if (pane_rows > rows)
+            rows = pane_rows;
+    }
+
+    return rows;
+}
+
+static int sdl_bottom_pane_rows_for_minimum(const SDL_Rect* panes)
+{
+    return sdl_bottom_pane_group_rows_for_minimum(panes, PLACE_DOUBLE_BOTTOM)
+        + sdl_bottom_pane_group_rows_for_minimum(panes, PLACE_BOTTOM);
+}
+
 static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
     int mode, int scale, bool aux_follows_candidate_scale, SDL_Rect* panes,
-    bool* out_side, bool* out_bottom, int* out_cols, int* out_rows)
+    bool* out_side, bool* out_bottom, int* out_cols, int* out_rows,
+    int* out_rows_with_bottom)
 {
     SDL_Rect local_panes[PANE_MAX] = { 0 };
     SDL_Rect* target_panes = panes ? panes : local_panes;
@@ -4607,6 +4647,8 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
         *out_cols = 0;
     if (out_rows)
         *out_rows = 0;
+    if (out_rows_with_bottom)
+        *out_rows_with_bottom = 0;
 
     if (!screen || !sdl_rect_has_area(screen) || scale <= 0)
         return;
@@ -4636,6 +4678,9 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
             target_panes[PANE_MAIN].w / cell_w)
         : 0;
     rows = (cell_h > 0) ? target_panes[PANE_MAIN].h / cell_h : 0;
+    if (out_rows_with_bottom)
+        *out_rows_with_bottom = rows
+            + sdl_bottom_pane_rows_for_minimum(target_panes);
 
     config.min_terminal_mode = saved_mode;
     config.main_view_scale = saved_scale;
@@ -4650,14 +4695,6 @@ static void sdl_compute_pruned_split_panes_for_mode_ex(const SDL_Rect* screen,
         *out_cols = cols;
     if (out_rows)
         *out_rows = rows;
-}
-
-static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
-    int mode, int scale, SDL_Rect* panes, bool* out_side,
-    bool* out_bottom, int* out_cols, int* out_rows)
-{
-    sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, true,
-        panes, out_side, out_bottom, out_cols, out_rows);
 }
 
 static void sdl_mark_active_supporting_panes_dirty(const SDL_Rect* panes)
@@ -4865,7 +4902,7 @@ static bool sdl_apply_default_main_scale_for_layout(const char* reason)
         return false;
 
     old_scale = config.main_view_scale;
-    new_scale = sdl_max_scale_for_rect_mode(&screen, config.min_terminal_mode);
+    new_scale = sdl_max_scale_for_layout(&screen, config.min_terminal_mode);
     if (new_scale < 1)
         new_scale = 1;
 
@@ -4886,7 +4923,6 @@ static bool sdl_apply_default_main_scale_for_layout(const char* reason)
 
 static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode)
 {
-    int max_scale;
     int min_cols;
     int min_rows;
 
@@ -4895,17 +4931,17 @@ static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode)
     if (!sdl_min_terminal_mode_is_valid(mode))
         return 1;
 
-    max_scale = sdl_max_scale_for_rect_mode(screen, mode);
     min_cols = sdl_min_terminal_cols_for_mode(mode);
     min_rows = sdl_min_terminal_rows_for_mode(mode);
 
-    for (int scale = max_scale; scale >= 1; scale--) {
+    for (int scale = 20; scale >= 1; scale--) {
         int cols = 0;
         int rows = 0;
+        int rows_with_bottom = 0;
 
-        sdl_compute_pruned_split_panes_for_mode(screen, mode, scale, NULL,
-            NULL, NULL, &cols, &rows);
-        if (cols >= min_cols && rows >= min_rows)
+        sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, true,
+            NULL, NULL, NULL, &cols, &rows, &rows_with_bottom);
+        if (cols >= min_cols && rows_with_bottom >= min_rows)
             return scale;
     }
 
@@ -4962,7 +4998,7 @@ static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
         int map_rows;
 
         sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, false,
-            NULL, NULL, NULL, &cols, &rows);
+            NULL, NULL, NULL, &cols, &rows, NULL);
         map_cols = sdl_main_view_map_cols_for_terminal_cols(cols);
         map_rows = sdl_main_view_map_rows_for_terminal_rows(rows);
         if (map_cols >= SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES
@@ -5001,7 +5037,7 @@ static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
         int map_rows;
 
         sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, false,
-            NULL, NULL, NULL, &cols, &rows);
+            NULL, NULL, NULL, &cols, &rows, NULL);
         map_cols = sdl_main_view_map_cols_for_terminal_cols(cols);
         map_rows = sdl_main_view_map_rows_for_terminal_rows(rows);
         if (map_cols > 0 && map_rows > 0
@@ -5049,6 +5085,7 @@ static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
     int saved_pane_count = pane_config_count;
     int local_cols = 0;
     int local_rows = 0;
+    int local_rows_with_bottom = 0;
     bool fits = false;
 
     if (!screen || !sdl_rect_has_area(screen) || scale <= 0)
@@ -5059,10 +5096,10 @@ static bool sdl_mode_scale_fits_window(const SDL_Rect* screen, int mode,
     config.min_terminal_mode = mode;
     sdl_apply_stored_pane_profile(mode);
     config.min_terminal_mode = mode;
-    sdl_compute_pruned_split_panes_for_mode(screen, mode, scale, panes, NULL,
-        NULL, &local_cols, &local_rows);
+    sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, true,
+        panes, NULL, NULL, &local_cols, &local_rows, &local_rows_with_bottom);
     fits = (local_cols >= sdl_min_terminal_cols_for_mode(mode)
-        && local_rows >= sdl_min_terminal_rows_for_mode(mode));
+        && local_rows_with_bottom >= sdl_min_terminal_rows_for_mode(mode));
 
     config = saved_config;
     pane_config_count = saved_pane_count;
@@ -6419,6 +6456,12 @@ typedef struct main_menu_pane_layout {
     int font_px;
 } main_menu_pane_layout;
 
+typedef enum main_menu_text_align {
+    MAIN_MENU_TEXT_LEFT = 0,
+    MAIN_MENU_TEXT_RIGHT,
+    MAIN_MENU_TEXT_CENTER
+} main_menu_text_align;
+
 static bool sdl_main_menu_pane_context_visible(void)
 {
     const struct pane_config* pc = sdl_main_menu_pane_config();
@@ -6430,6 +6473,11 @@ static bool sdl_main_menu_pane_context_visible(void)
         return false;
     if (!p_ptr || screen_saved_fullscreen_active())
         return false;
+    if (!death_spectator_active()
+        && (!p_ptr->playing || p_ptr->leaving || p_ptr->is_dead))
+    {
+        return false;
+    }
 
     screen = sdl_get_layout_screen_rect();
     if (screen.w <= 0 || screen.h <= 0)
@@ -6438,8 +6486,38 @@ static bool sdl_main_menu_pane_context_visible(void)
     return true;
 }
 
+static const char* sdl_main_menu_mono_font_path(void)
+{
+    return config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+}
+
+static TTF_Font* sdl_main_menu_font_for_height(int font_px)
+{
+    const char* fallback = "lib/xtra/font/VictorMono-Medium.ttf";
+    const char* font_path;
+    TTF_Font* font;
+    int cell_w;
+
+    if (font_px <= 0)
+        return NULL;
+
+    cell_w = (font_px + 1) / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    font_path = sdl_main_menu_mono_font_path();
+    font = sdl_acquire_mono_font_cells(font_path, cell_w, font_px);
+    if (!font && !streq(font_path, fallback))
+        font = sdl_acquire_mono_font_cells(fallback, cell_w, font_px);
+
+    return font;
+}
+
 static void sdl_main_menu_draw_text(cptr text, float x, float y,
-    float max_w, float row_h, int font_px, SDL_Color color, bool right_align)
+    float max_w, float row_h, int font_px, SDL_Color color,
+    main_menu_text_align align)
 {
     TTF_Font* font;
     SDL_Surface* surface;
@@ -6451,7 +6529,7 @@ static void sdl_main_menu_draw_text(cptr text, float x, float y,
     if (!text || !text[0] || max_w <= 0.0f || row_h <= 0.0f || font_px <= 0)
         return;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_main_menu_font_for_height(font_px);
     if (!font)
         return;
 
@@ -6467,7 +6545,7 @@ static void sdl_main_menu_draw_text(cptr text, float x, float y,
 
     if (surface->w > 0 && (float)surface->w > max_w)
         scale = max_w / (float)surface->w;
-    max_h = row_h * 0.70f;
+    max_h = row_h * 0.86f;
     if (surface->h > 0 && (float)surface->h * scale > max_h)
         scale = max_h / (float)surface->h;
     if (scale > 1.0f)
@@ -6475,7 +6553,12 @@ static void sdl_main_menu_draw_text(cptr text, float x, float y,
 
     dst.w = (float)surface->w * scale;
     dst.h = (float)surface->h * scale;
-    dst.x = right_align ? x + max_w - dst.w : x;
+    if (align == MAIN_MENU_TEXT_RIGHT)
+        dst.x = x + max_w - dst.w;
+    else if (align == MAIN_MENU_TEXT_CENTER)
+        dst.x = x + (max_w - dst.w) * 0.5f;
+    else
+        dst.x = x;
     dst.y = y + (row_h - dst.h) * 0.5f;
 
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
@@ -6510,7 +6593,7 @@ static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_main_menu_font_for_height(font_px);
     text_w = font ? sdl_touch_pane_story_text_width(font, label)
                   : (int)strlen(label) * font_px / 2;
     if (text_w < 1)
@@ -6570,7 +6653,7 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_main_menu_font_for_height(font_px);
     if (!font)
         return false;
 
@@ -6588,17 +6671,17 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
         }
     }
 
-    pad_x = (float)font_px * 0.84f;
-    pad_y = (float)font_px * 0.50f;
-    row_h = (float)font_px * 1.50f;
+    pad_x = (float)font_px * 0.64f;
+    pad_y = (float)font_px * 0.22f;
+    row_h = (float)font_px * 1.12f;
     if (pad_x < 11.0f)
         pad_x = 11.0f;
-    if (pad_y < 7.0f)
-        pad_y = 7.0f;
-    if (row_h < (float)font_px + 8.0f)
-        row_h = (float)font_px + 8.0f;
+    if (pad_y < 5.0f)
+        pad_y = 5.0f;
+    if (row_h < (float)font_px + 3.0f)
+        row_h = (float)font_px + 3.0f;
 
-    shortcut_gap = shortcut_w > 0 ? (float)font_px * 1.45f : 0.0f;
+    shortcut_gap = shortcut_w > 0 ? (float)font_px * 1.10f : 0.0f;
     panel_w = pad_x * 2.0f + (float)title_w
         + (float)shortcut_w + shortcut_gap;
     if (panel_w < (float)font_px * 15.0f)
@@ -6728,6 +6811,8 @@ static void sdl_main_menu_overlay_move(int delta)
 
 static void sdl_main_menu_overlay_choose(int choice)
 {
+    bool executed;
+
     if (choice < 1 || choice > MAIN_MENU_MAX)
         return;
 
@@ -6739,7 +6824,15 @@ static void sdl_main_menu_overlay_choose(int choice)
     }
 
     sdl_main_menu_overlay_close();
-    (void)do_cmd_main_menu_execute_choice(choice);
+    log_debug("sdl main menu overlay: executing choice %d", choice);
+    executed = do_cmd_main_menu_execute_choice(choice);
+
+    if (executed && choice == MAIN_MENU_SAVE_QUIT
+        && (sdl_quit_transition_active() || death_spectator_active()))
+    {
+        log_info("sdl main menu overlay: quit choice completed; waking command loop with escape");
+        Term_keypress(ESCAPE);
+    }
 }
 
 static void sdl_main_menu_pane_render(void)
@@ -6760,10 +6853,8 @@ static void sdl_main_menu_pane_render(void)
         SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 154);
         SDL_RenderFillRect(g_state.renderer, &shadow);
-        SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 238);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 242);
         SDL_RenderFillRect(g_state.renderer, &layout.panel);
-        SDL_SetRenderDrawColor(g_state.renderer, 126, 142, 150, 178);
-        SDL_RenderRect(g_state.renderer, &layout.panel);
 
         for (int i = 1; i <= MAIN_MENU_MAX; i++) {
             SDL_FRect row = layout.rows[i];
@@ -6771,36 +6862,26 @@ static void sdl_main_menu_pane_render(void)
             bool disabled = sdl_main_menu_choice_disabled_now(i);
             SDL_Color row_text = disabled
                 ? g_state.palette[TERM_L_DARK]
-                : g_state.palette[selected ? TERM_YELLOW : TERM_L_WHITE];
-            SDL_Color shortcut = disabled
-                ? g_state.palette[TERM_L_DARK]
-                : g_state.palette[selected ? TERM_YELLOW : TERM_SLATE];
+                : g_state.palette[selected ? TERM_L_BLUE : TERM_WHITE];
+            SDL_Color shortcut = row_text;
             char shortcut_label[32];
             float inner = layout.pad_x * 0.42f;
             float shortcut_box_w = layout.shortcut_w
                 + (layout.shortcut_w > 0.0f ? layout.pad_x * 0.75f : 0.0f);
             float title_w = row.w - inner * 2.0f - shortcut_box_w;
 
-            SDL_SetRenderDrawColor(g_state.renderer,
-                selected ? 44 : 18, selected ? 50 : 22,
-                selected ? 54 : 25, selected ? 238 : 118);
-            SDL_RenderFillRect(g_state.renderer, &row);
-            if (selected) {
-                SDL_SetRenderDrawColor(g_state.renderer, row_text.r,
-                    row_text.g, row_text.b, 226);
-                SDL_RenderRect(g_state.renderer, &row);
-            }
-
             if (title_w < row.w * 0.55f)
                 title_w = row.w * 0.55f;
             sdl_main_menu_draw_text(main_menu_title(i), row.x + inner, row.y,
-                title_w, row.h, layout.font_px, row_text, false);
+                title_w, row.h, layout.font_px, row_text,
+                MAIN_MENU_TEXT_LEFT);
 
             main_menu_shortcut_label(i, shortcut_label, sizeof(shortcut_label));
             if (shortcut_label[0] && shortcut_box_w > 0.0f) {
                 sdl_main_menu_draw_text(shortcut_label,
                     row.x + row.w - inner - shortcut_box_w, row.y,
-                    shortcut_box_w, row.h, layout.font_px, shortcut, true);
+                    shortcut_box_w, row.h, layout.font_px, shortcut,
+                    MAIN_MENU_TEXT_RIGHT);
             }
         }
         return;
@@ -6825,8 +6906,9 @@ static void sdl_main_menu_pane_render(void)
         SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
     SDL_RenderFillRect(g_state.renderer, &rect);
 
-    sdl_touch_pane_draw_button_text_scaled(&rect, NULL, "Menu", text, 0.50f,
-        0.62f);
+    sdl_main_menu_draw_text("Menu", rect.x + rect.w * 0.10f, rect.y,
+        rect.w * 0.80f, rect.h, sdl_main_menu_pane_font_px(), text,
+        MAIN_MENU_TEXT_CENTER);
 }
 
 static bool sdl_main_menu_pane_hit(float x, float y, SDL_FRect* out_rect)
@@ -9273,6 +9355,8 @@ static bool sdl_mouse_gameplay_context_active(void)
     return character_generated
         && character_dungeon
         && p_ptr
+        && p_ptr->playing
+        && !p_ptr->leaving
         && !p_ptr->is_dead
         && !death_spectator_active()
         && character_icky == 0
@@ -25740,6 +25824,64 @@ static void sdl_normalize_event_to_render_coords(SDL_Event* ev)
     }
 }
 
+static bool sdl_quit_transition_active(void)
+{
+    return character_generated
+        && character_dungeon
+        && p_ptr
+        && character_icky == 0
+        && !screen_saved_fullscreen_active()
+        && !death_spectator_active()
+        && (p_ptr->leaving || !p_ptr->playing);
+}
+
+static bool sdl_quit_transition_input_event(const SDL_Event* ev)
+{
+    if (!ev)
+        return false;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_MOTION:
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_quit_transition_consume_event(const SDL_Event* ev)
+{
+    if (!sdl_quit_transition_active()
+        || !sdl_quit_transition_input_event(ev))
+    {
+        return false;
+    }
+
+    sdl_main_menu_overlay_close();
+    sdl_player_action_menu_cancel();
+    sdl_player_exchange_cancel();
+    sdl_mouse_path_cancel();
+    ui_menu_click_clear_pending_hover();
+    ui_menu_click_clear();
+    g_main_menu_pane_hover = false;
+    g_depth_pane_hover_action = SDL_DEPTH_PANE_HOVER_NONE;
+    g_state.need_present = true;
+
+    return true;
+}
+
 static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
@@ -25759,6 +25901,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 
     if (ev->type == SDL_EVENT_QUIT) {
         Term_keypress(27); // ESC or define a quit signal
+    } else if (sdl_quit_transition_consume_event(ev)) {
+        return;
     } else if (g_touch_pane_reset_confirm_active) {
         if (ev->type == SDL_EVENT_KEY_DOWN) {
             if (ev->key.key == SDLK_ESCAPE) {
@@ -32812,9 +32956,21 @@ static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
             ? sdl_main_view_terminal_rows_for_map_squares(
                 SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES)
             : sdl_current_min_terminal_rows();
+        int bottom_rows_for_minimum = 0;
         int max_scale_for_min_cols = (rect.w / min_cols) * 2 / TILE_SIZE;
         int max_scale_for_min_rows = rect.h / min_rows / TILE_SIZE;
         int effective_scale = requested_scale;
+
+        if (!runtime_zoom) {
+            bottom_rows_for_minimum =
+                sdl_bottom_pane_rows_for_minimum(g_pane_rects);
+            if (bottom_rows_for_minimum > 0) {
+                min_rows -= bottom_rows_for_minimum;
+                if (min_rows < 1)
+                    min_rows = 1;
+                max_scale_for_min_rows = rect.h / min_rows / TILE_SIZE;
+            }
+        }
 
         if (max_scale_for_min_cols < 1)
             max_scale_for_min_cols = 1;

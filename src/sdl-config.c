@@ -1607,8 +1607,8 @@ static void sdl_config_migrate_default_log_pane(struct sdl_config* config,
 {
     bool changed = false;
 
-    if (config)
-        config->enable_bottom_panes = true;
+    if (!config || !config->enable_bottom_panes)
+        return;
 
     if (!pane_profiles || profile_count <= 0)
         return;
@@ -1674,6 +1674,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
 {
     struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
     int legacy_pane_count = 0;
+    bool saw_enable_bottom_panes = false;
     bool saw_left_panel_expanded_on_launch = false;
 
     /* Loaders overlay JSON onto defaults so old configs inherit new settings. */
@@ -1764,6 +1765,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "enableBottomPanes");
+        saw_enable_bottom_panes = (item != NULL);
         if (cJSON_IsBool(item)) {
             config->enable_bottom_panes = cJSON_IsTrue(item);
             log_debug("Loaded enableBottomPanes: %s", config->enable_bottom_panes ? "true" : "false");
@@ -2002,7 +2004,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         }
     }
 
-    if (!saw_left_panel_expanded_on_launch)
+    if (!saw_left_panel_expanded_on_launch && saw_enable_bottom_panes)
         sdl_config_migrate_default_log_pane(config, pane_profiles, profile_count);
 
     // Parse gamepad settings
