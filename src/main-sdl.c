@@ -428,7 +428,6 @@ typedef struct sdl_view {
 } sdl_view;
 
 typedef struct sdl_left_panel_metrics {
-    int scale;
     int cell_w;
     int cell_h;
     int content_cols;
@@ -1776,9 +1775,8 @@ static bool sdl_left_panel_pane_runtime_active(void);
 static bool sdl_left_panel_pane_collapsed(void);
 static enum pane_placement sdl_left_panel_pane_placement(void);
 static bool sdl_left_panel_pane_on_right(void);
-static int sdl_left_panel_pane_max_configured_scale(void);
-static int sdl_left_panel_pane_current_scale(void);
-static int sdl_left_panel_pane_scale_for_view(const sdl_view* view);
+static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
+    int* out_cell_w, int* out_cell_h);
 static int sdl_left_panel_collapsed_source_row(int row);
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics);
@@ -2416,9 +2414,16 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
 
         for (int j = 0; j < *config_count; j++) {
             if (configs[j].pane == pane) {
-                if (pane == PANE_LEFT_PANEL && !configs[j].enabled) {
-                    configs[j].enabled = true;
-                    changed = true;
+                if (pane == PANE_LEFT_PANEL) {
+                    if (!configs[j].enabled) {
+                        configs[j].enabled = true;
+                        changed = true;
+                    }
+                    if (configs[j].rect.rows != 0 || configs[j].rect.cols != 0) {
+                        configs[j].rect.rows = 0;
+                        configs[j].rect.cols = 0;
+                        changed = true;
+                    }
                 }
                 found = true;
                 break;
@@ -2522,103 +2527,6 @@ static bool sdl_left_panel_pane_config_enabled(void)
     return pane_config[index].enabled;
 }
 
-static int sdl_left_panel_pane_requested_scale(void)
-{
-    int index = sdl_left_panel_pane_config_index();
-
-    if (index < 0)
-        return 0;
-
-    return pane_config[index].rect.cols;
-}
-
-static int sdl_left_panel_main_scale_for_view(const sdl_view* view)
-{
-    int scale;
-
-    (void)view;
-    scale = sdl_configured_main_view_scale();
-    if (scale < 1)
-        scale = 1;
-    return scale;
-}
-
-static int sdl_left_panel_pane_max_scale_for_view(const sdl_view* view)
-{
-    int max_scale = 20;
-
-    if (view && view->rect.w > 0 && view->cell_w > 0) {
-        int visual_cols = sdl_main_view_visual_cols_for_width(view->rect.w,
-            view->cell_w);
-        int visual_w = visual_cols * view->cell_w;
-        int separator_w = view->cell_w;
-        int available_w = visual_w - separator_w - 1;
-
-        if (available_w > 0) {
-            int by_width = (available_w * 2)
-                / (LEFT_PANEL_CONTENT_WID * TILE_SIZE);
-            if (by_width < max_scale)
-                max_scale = by_width;
-        }
-    }
-
-    if (max_scale < 1)
-        max_scale = 1;
-    return max_scale;
-}
-
-static int sdl_left_panel_pane_max_configured_scale(void)
-{
-    if (g_views[PANE_MAIN].term_ready && g_views[PANE_MAIN].cell_w > 0)
-        return sdl_left_panel_pane_max_scale_for_view(&g_views[PANE_MAIN]);
-
-    if (g_state.window) {
-        SDL_Rect screen = sdl_get_layout_screen_rect();
-        int scale = sdl_configured_main_view_scale();
-        int separator_w;
-        int available_w;
-        int max_scale;
-
-        if (scale < 1)
-            scale = 1;
-        separator_w = scale * TILE_SIZE / 2;
-        available_w = screen.w - separator_w - 1;
-        max_scale = (available_w > 0)
-            ? (available_w * 2) / (LEFT_PANEL_CONTENT_WID * TILE_SIZE)
-            : 1;
-        if (max_scale < 1)
-            max_scale = 1;
-        if (max_scale > 20)
-            max_scale = 20;
-        return max_scale;
-    }
-
-    return 20;
-}
-
-static int sdl_left_panel_pane_scale_for_view(const sdl_view* view)
-{
-    int scale = sdl_left_panel_pane_requested_scale();
-    int max_scale = sdl_left_panel_pane_max_scale_for_view(view);
-
-    if (scale <= 0)
-        scale = sdl_left_panel_main_scale_for_view(view);
-    if (scale > max_scale)
-        scale = max_scale;
-    if (scale < 1)
-        scale = 1;
-
-    return scale;
-}
-
-static int sdl_left_panel_pane_current_scale(void)
-{
-    return sdl_left_panel_pane_scale_for_view(
-        (g_views[PANE_MAIN].term_ready && g_views[PANE_MAIN].cell_w > 0)
-            ? &g_views[PANE_MAIN]
-            : NULL);
-}
-
 static bool sdl_left_panel_cell_has_visible_content(byte a, char c)
 {
     if ((a == 255) && ((byte)c == 0xFF))
@@ -2631,6 +2539,42 @@ static bool sdl_left_panel_cell_has_visible_content(byte a, char c)
     }
 
     return c != '\0' && c != ' ';
+}
+
+static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
+    int* out_cell_w, int* out_cell_h)
+{
+    int cell_h = sdl_effective_pane_cell_height_for_type(PANE_LEFT_PANEL);
+    int cell_w = cell_h / 2;
+
+    if (cell_h < 1)
+        cell_h = 1;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    if (view && view->rect.w > 0 && view->cell_w > 0) {
+        int visual_cols = sdl_main_view_visual_cols_for_width(view->rect.w,
+            view->cell_w);
+        int visual_w = visual_cols * view->cell_w;
+        int available_w = visual_w - view->cell_w - 1;
+        int max_cell_w = (available_w > 0)
+            ? available_w / LEFT_PANEL_CONTENT_WID
+            : 1;
+
+        if (max_cell_w < 1)
+            max_cell_w = 1;
+        if (cell_w > max_cell_w) {
+            cell_w = max_cell_w;
+            cell_h = cell_w * 2;
+            if (cell_h < 1)
+                cell_h = 1;
+        }
+    }
+
+    if (out_cell_w)
+        *out_cell_w = cell_w;
+    if (out_cell_h)
+        *out_cell_h = cell_h;
 }
 
 static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
@@ -2748,7 +2692,8 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
 static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics)
 {
-    int scale;
+    int cell_w;
+    int cell_h;
     int content_cols = LEFT_PANEL_CONTENT_WID;
     int panel_rows;
     int panel_render_h;
@@ -2760,9 +2705,9 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     if (!view || view->cell_w <= 0 || view->cell_h <= 0)
         return false;
 
-    scale = sdl_left_panel_pane_scale_for_view(view);
-    if (scale < 1)
-        scale = 1;
+    sdl_left_panel_pane_cell_size_for_view(view, &cell_w, &cell_h);
+    if (cell_w < 1 || cell_h < 1)
+        return false;
 
     panel_rows = sdl_left_panel_pane_rows_for_view(view);
     if (sdl_left_panel_pane_collapsed()) {
@@ -2781,7 +2726,7 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         panel_rows = view->rows;
 
     source_h = sdl_main_view_visual_rows(view) * view->cell_h;
-    panel_render_h = panel_rows * (scale * TILE_SIZE);
+    panel_render_h = panel_rows * cell_h;
     corner_h = panel_render_h;
     if (view->cell_h > 0)
         corner_h = ((corner_h + view->cell_h - 1) / view->cell_h)
@@ -2792,9 +2737,8 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         panel_render_h = corner_h;
 
     if (metrics) {
-        metrics->scale = scale;
-        metrics->cell_w = scale * TILE_SIZE / 2;
-        metrics->cell_h = scale * TILE_SIZE;
+        metrics->cell_w = cell_w;
+        metrics->cell_h = cell_h;
         metrics->content_cols = content_cols;
         metrics->content_w = content_cols * metrics->cell_w;
         metrics->separator_w = view->cell_w;
@@ -7653,7 +7597,7 @@ static int sdl_main_view_visual_rows(const sdl_view* view)
 }
 
 static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
-    SDL_FRect* out_rect, float* out_scale)
+    SDL_FRect* out_rect)
 {
     int visual_cols;
     int visual_w;
@@ -7662,8 +7606,6 @@ static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
 
     if (out_rect)
         *out_rect = (SDL_FRect){ 0 };
-    if (out_scale)
-        *out_scale = 1.0f;
     if (!sdl_left_panel_pane_presentation_active())
         return false;
     if (!view || !view->term_ready || !view->canvas)
@@ -7692,9 +7634,6 @@ static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
             .h = (float)metrics.corner_h,
         };
     }
-    if (out_scale)
-        *out_scale = (float)metrics.scale;
-
     return true;
 }
 
@@ -7702,7 +7641,7 @@ static void sdl_update_left_panel_pane_rect(void)
 {
     SDL_FRect rect;
 
-    if (!sdl_left_panel_pane_rect_for_view(&g_views[PANE_MAIN], &rect, NULL)) {
+    if (!sdl_left_panel_pane_rect_for_view(&g_views[PANE_MAIN], &rect)) {
         g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
         return;
     }
@@ -32733,16 +32672,6 @@ int get_sdl_pane_cols(int index)
 {
     if (index < 0 || index >= pane_config_count)
         return 0;
-    if (pane_config[index].pane == PANE_LEFT_PANEL) {
-        int scale = pane_config[index].rect.cols;
-        int max_scale = sdl_left_panel_pane_max_configured_scale();
-
-        if (scale <= 0)
-            return 0;
-        if (scale > max_scale)
-            return max_scale;
-        return scale;
-    }
     return pane_config[index].rect.cols;
 }
 
@@ -32771,8 +32700,14 @@ static int sdl_pane_current_size(int index, bool want_rows)
         return 0;
 
     type = pane_config[index].pane;
-    if (type == PANE_LEFT_PANEL)
-        return want_rows ? 0 : sdl_left_panel_pane_current_scale();
+    if (type == PANE_LEFT_PANEL) {
+        sdl_left_panel_metrics metrics;
+
+        if (sdl_left_panel_metrics_for_view(&g_views[PANE_MAIN], &metrics))
+            return want_rows ? metrics.panel_rows : metrics.content_cols;
+
+        return 0;
+    }
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return 0;
 
@@ -32830,15 +32765,7 @@ void set_sdl_pane_cols(int index, int cols)
     if (index < 0 || index >= pane_config_count)
         return;
     if (pane_config[index].pane == PANE_LEFT_PANEL) {
-        int max_scale = sdl_left_panel_pane_max_configured_scale();
-
-        if (cols < 0)
-            cols = 0;
-        if (max_scale < 1)
-            max_scale = 1;
-        if (cols > max_scale)
-            cols = max_scale;
-        pane_config[index].rect.cols = cols;
+        pane_config[index].rect.cols = 0;
         return;
     }
     if (cols < 0)

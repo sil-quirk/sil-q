@@ -18828,7 +18828,7 @@ static bool pane_settings_exposes_pane(enum pane_type type)
 
 static bool pane_font_settings_exposes_pane(enum pane_type type)
 {
-    return pane_settings_exposes_pane(type) && type != PANE_LEFT_PANEL;
+    return pane_settings_exposes_pane(type);
 }
 
 static void format_font_size_value(char* buf, size_t buflen, int raw, int effective,
@@ -19911,7 +19911,7 @@ static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count,
     int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
     if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
-        return false;
+        return true;
 
     return (pane_placement_is_side(where) && idx != master_idx);
 }
@@ -20085,8 +20085,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 !cols_locked && i == sel && field == 3);
 
             if (left_panel)
-                strnfmt(line_buf, sizeof(line_buf), "%s %s %s scale%s",
-                    type_buf, where_field, enabled_field, cols_field);
+                strnfmt(line_buf, sizeof(line_buf), "%s %s %s",
+                    type_buf, where_field, enabled_field);
             else
                 strnfmt(line_buf, sizeof(line_buf), "%s %s %s r%s c%s",
                     type_buf, where_field, enabled_field, rows_field,
@@ -20106,13 +20106,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                 if (!enabled_locked)
                     ui_menu_click_add(base + 0, enabled_col, row,
                         (int)strlen(enabled_field));
-                if (left_panel)
-                {
-                    cols_col = enabled_col + (int)strlen(enabled_field) + 6;
-                    ui_menu_click_add(base + 3, cols_col, row,
-                        (int)strlen(cols_field));
-                }
-                else if (!rows_locked)
+                if (!left_panel && !rows_locked)
                     ui_menu_click_add(base + 2, rows_col, row,
                         (int)strlen(rows_field));
                 if (!left_panel && !cols_locked)
@@ -20131,7 +20125,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "Up/Down select   Space field"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
-                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols/scale to auto",
+                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto",
                     "4/6 or y/n: toggle, cycle, or +/- value   0: auto",
                     "4/6 cycle/set   0 auto"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
@@ -20297,12 +20291,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     bell("Cols are shared within each side/corner slot");
                     break;
                 }
-                if (type == PANE_LEFT_PANEL)
-                {
-                    int scale = cols ? cols : get_sdl_pane_current_cols(idx);
-                    set_sdl_pane_cols(idx, scale + delta);
-                }
-                else if (cols == 0)
+                if (cols == 0)
                     set_sdl_pane_cols(idx, get_sdl_pane_current_cols(idx));
                 else
                     set_sdl_pane_cols(idx, cols + delta);
