@@ -2006,6 +2006,8 @@ extern void set_sdl_pane_enabled(int index, bool enabled);
 extern int  get_sdl_intro_style(void);
 extern void set_sdl_intro_style(int style);
 extern void sdl_config_load_app_options(const char* filename);
+extern void sdl_config_reset_app_options_to_defaults(void);
+extern void sdl_reset_interface_settings_to_defaults_for_migration(void);
 extern bool sdl_config_should_force_intro_flame(void);
 extern void sdl_config_mark_intro_seen(void);
 extern bool option_is_app_persistent(int opt);

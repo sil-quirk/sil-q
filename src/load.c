@@ -147,6 +147,18 @@ static bool savefile_version_supported(void)
 
     return true;
 }
+
+static void clear_obsolete_interface_options_097(void)
+{
+    if (!op_ptr)
+        return;
+
+#define CLEAR_OBSOLETE_OPTION(slot) op_ptr->opt[(slot)] = false;
+    SIL_OBSOLETE_OPTION_097_SLOTS(CLEAR_OBSOLETE_OPTION)
+#undef CLEAR_OBSOLETE_OPTION
+
+    op_ptr->main_combat_rolls = 0;
+}
 /* For backward-compatible reading: if the door-choices block is absent,
  * we prefetch the next u16 (objects count) here after probing. */
 static u16b objects_count_prefetch = 0xFFFF;
@@ -1362,6 +1374,9 @@ static void rd_options(void)
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
         op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
     }
+
+    if (!savefile_version_at_least(0, 9, 7, 0))
+        clear_obsolete_interface_options_097();
 
     /*** Window Options ***/
 
@@ -4749,8 +4764,17 @@ bool load_player(void)
     if (!err)
     {
         /* App-wide settings live in the SDL JSON config, so they must win over
-         * any copies serialized in the savefile. */
-        sdl_config_load_app_options(get_sdl_config_path());
+         * any copies serialized in the savefile. Older interface layouts are
+         * discarded entirely because 0.9.7 removed/reworked those settings. */
+        if (!savefile_version_at_least(0, 9, 7, 0))
+        {
+            clear_obsolete_interface_options_097();
+            sdl_reset_interface_settings_to_defaults_for_migration();
+        }
+        else
+        {
+            sdl_config_load_app_options(get_sdl_config_path());
+        }
 
         // if Morgoth has lost his crown...
         if ((&a_info[ART_MORGOTH_3])->cur_num == 1)

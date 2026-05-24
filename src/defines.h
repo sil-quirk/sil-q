@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.6.9"
+#define VERSION_STRING "0.9.7"
 /*
- * Version components (0.9.6.9).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.7).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
-#define VERSION_PATCH 6
-#define VERSION_EXTRA 9   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_PATCH 7
+#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -2744,7 +2744,7 @@
  * These values are hard-coded by savefiles.
  */
 #define OPT_hjkl_movement 0
-#define OPT_quick_messages 1
+#define OPT_quick_messages 1 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_angband_keyset 2
 // reserved legacy slot: carry_query
 #define OPT_stop_singing_on_rest 4
@@ -2752,7 +2752,7 @@
 #define OPT_forgo_attacking_unwary 6
 #define OPT_delay_factor 10
 #define OPT_hitpoint_warning 11
-#define OPT_main_combat_rolls 12
+#define OPT_main_combat_rolls 12 /* obsolete 0.9.7: reusable setting slot */
 // reserved legacy slot: always_repeat
 // reserved legacy slot: depth_in_feet
 // reserved legacy slot: stack_force_notes
@@ -2761,7 +2761,7 @@
 // reserved legacy slot: show_weights
 // reserved legacy slot: show_choices
 // reserved legacy slot: show_details
-#define OPT_system_beep 14
+#define OPT_system_beep 14 /* obsolete 0.9.7: reusable setting slot */
 // reserved legacy slot: show_flavors
 #define OPT_run_ignore_stairs 16
 #define OPT_run_ignore_doors 17
@@ -2827,7 +2827,7 @@
 #define OPT_center_player 68
 #define OPT_run_avoid_center 69
 // reserved legacy slot: scroll_target
-#define OPT_auto_more 71
+#define OPT_auto_more 71 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_know_monster_info 72
 // reserved legacy slot: auto_display_lists
 #define OPT_artifact_unique_color 74
@@ -2845,7 +2845,7 @@
 #define OPT_smaller_level_size 86
 #define OPT_more_stairs 87
 #define OPT_unidentified_items_slate 88
-#define OPT_space_acts_as_comma 89
+#define OPT_space_acts_as_comma 89 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_show_level_entry_banner 90
 #define OPT_ability_desc_mode 91
 #define OPT_vault_drop_frequency 92
@@ -2861,8 +2861,8 @@
 #define OPT_look_objects_sort_by_difficulty 102
 #define OPT_look_nearby_filter_default 103
 #define OPT_show_elemental_item_rolls 104
-#define OPT_hidden_left_panel_mode 105
-#define OPT_top_status_line 106
+#define OPT_hidden_left_panel_mode 105 /* obsolete 0.9.7: reusable setting slot */
+#define OPT_top_status_line 106 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_hide_supporting_panes_fullscreen 107
 #define OPT_narrative_banner_turns 108
 #define OPT_min_depth_timer_mode 109
@@ -2873,6 +2873,19 @@
 #define OPT_load_blitz_by_default 114
 #define OPT_mirror_player_tile_facing 115
 #define OPT_handcrafted_player_tile_facing 116
+
+/*
+ * Settings retired by the 0.9.7 interface refactor. These are not legacy
+ * reserves; keep the names only long enough to clear old saves/metasaves.
+ */
+#define SIL_OBSOLETE_OPTION_097_SLOTS(X) \
+    X(OPT_quick_messages) \
+    X(OPT_main_combat_rolls) \
+    X(OPT_system_beep) \
+    X(OPT_auto_more) \
+    X(OPT_space_acts_as_comma) \
+    X(OPT_hidden_left_panel_mode) \
+    X(OPT_top_status_line)
 
 #define PLAYER_TILE_FACING_OFF         0
 #define PLAYER_TILE_FACING_MIRROR      1
@@ -2953,7 +2966,7 @@
     true // Sil: we might want to change this for a handheld version
 
 #define hjkl_movement op_ptr->opt[OPT_hjkl_movement]
-#define quick_messages op_ptr->opt[OPT_quick_messages]
+#define quick_messages false
 #define angband_keyset op_ptr->opt[OPT_angband_keyset]
 // reserved legacy slot: carry_query
 #define stop_singing_on_rest op_ptr->opt[OPT_stop_singing_on_rest]
@@ -2975,7 +2988,7 @@
 // reserved legacy slot: show_labels
 // reserved legacy slot: show_choices
 #define show_details op_ptr->opt[OPT_show_details]
-#define system_beep op_ptr->opt[OPT_system_beep]
+#define system_beep false
 #define show_flavors op_ptr->opt[OPT_show_flavors]
 #define run_ignore_stairs op_ptr->opt[OPT_run_ignore_stairs]
 #define run_ignore_doors op_ptr->opt[OPT_run_ignore_doors]
@@ -3032,7 +3045,7 @@
 #define center_player op_ptr->opt[OPT_center_player]
 #define run_avoid_center op_ptr->opt[OPT_run_avoid_center]
 // reserved legacy slot: scroll_target
-#define auto_more op_ptr->opt[OPT_auto_more]
+#define auto_more false
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
@@ -3058,7 +3071,7 @@
 #define more_stairs op_ptr->opt[OPT_more_stairs]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
-#define space_acts_as_comma op_ptr->opt[OPT_space_acts_as_comma]
+#define space_acts_as_comma false
 /* Level entry narrative display modes. Keep 0 as banner for old save compatibility. */
 #define LEVEL_ENTRY_NARRATIVE_BANNER_DELAY    0
 #define LEVEL_ENTRY_NARRATIVE_BANNER          1

@@ -58,7 +58,7 @@
 
 # Version stamp (required)
 
-V:0.9.6
+V:0.9.7
 
 N:0:Houseless
 Q:beb6128db2d417c1

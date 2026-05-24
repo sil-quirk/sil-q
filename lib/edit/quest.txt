@@ -17,7 +17,7 @@
 # W: Completion/reward text lines
 
 # Version stamp (required)
-V:0.9.6
+V:0.9.7
 
 # Quest of Tulkas the Strong
 Q:1:Tulkas the Strong

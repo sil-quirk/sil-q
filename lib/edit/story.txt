@@ -13,7 +13,7 @@
 
 # Version stamp (required)
 
-V:0.9.6
+V:0.9.7
 
 N:0:Nienna's Mercy
 T:0

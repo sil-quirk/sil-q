@@ -69,7 +69,7 @@
 #
 # Defaults below define the current partition behavior.
 
-V:0.9.6
+V:0.9.7
 
 #w:a:j:s:potion:herb:gem:staff:light:arrows:tunneling:allow_damaged
 

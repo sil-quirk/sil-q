@@ -1,6 +1,6 @@
 # File: style-levels.txt
 # Version header
-V:0.9.6
+V:0.9.7
 
 # Level style rules (exact depths 1..20). Each line:
 # L:<depth>: <style_index>:<weight> [<style_index>:<weight> ...]

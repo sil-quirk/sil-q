@@ -16831,13 +16831,12 @@ struct option_group_marker
 };
 
 static const struct option_group_marker interface_option_groups[] = {
-    { 0, "Messages" },
-    { 3, "Look" },
-    { 6, "Panels" },
-    { 9, "Warnings" },
-    { 10, "Input" },
-    { 14, "Items" },
-    { 17, "Debug" },
+    { 0, "Look" },
+    { 3, "Panels" },
+    { 4, "Warnings" },
+    { 5, "Input" },
+    { 8, "Items" },
+    { 11, "Debug" },
     { -1, NULL }
 };
 
@@ -17458,13 +17457,9 @@ static cptr option_menu_label(int opt)
     {
         switch (opt)
         {
-        case OPT_system_beep: return narrow ? "Beep" : "Error beep";
-        case OPT_quick_messages: return narrow ? "Quick prompts" : "Quick prompts";
-        case OPT_auto_more: return narrow ? "Auto more" : "Auto -more-";
         case OPT_easy_main_menu: return narrow ? "Esc menu" : "Esc main menu";
         case OPT_hjkl_movement: return narrow ? "hjkl move" : "hjkl movement";
         case OPT_angband_keyset: return narrow ? "Angband keys" : "Angband keyset";
-        case OPT_space_acts_as_comma: return narrow ? "Space = comma" : "Space acts as comma";
         case OPT_story_lists: return narrow ? "Story look" : "Story font: look/target";
         case OPT_story_lists_inven: return narrow ? "Story inv" : "Story font: inv menu";
         case OPT_story_lists_equip: return narrow ? "Story equip" : "Story font: equip menu";

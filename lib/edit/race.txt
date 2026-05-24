@@ -45,7 +45,7 @@
 
 # Version stamp (required)
 
-V:0.9.6
+V:0.9.7
 
 N:0:Fëanorians
 Q:2444d18db905ccd7

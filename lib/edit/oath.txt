@@ -17,7 +17,7 @@
 # U: Unlock conditions
 
 # Version stamp (required)
-V:0.9.6
+V:0.9.7
 
 # No Oath (default state)
 O:0:None

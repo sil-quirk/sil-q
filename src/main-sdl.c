@@ -5029,6 +5029,10 @@ static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
         return false;
 
     sdl_reset_config_to_resolution_defaults(screen_width, screen_height);
+    sdl_ensure_default_pane_profiles_present(false);
+    sdl_apply_stored_pane_profile(config.min_terminal_mode);
+    sdl_ensure_touch_pane_config_present();
+    sdl_touch_pane_ensure_main_panel_confirm();
     sdl_config_save(config_file_path, &config, g_pane_profiles,
         SDL_PANE_PROFILE_COUNT);
     log_info("Startup recovery: reset SDL config to defaults at %s",
@@ -32687,6 +32691,123 @@ void set_sdl_tiles(bool value)
         return;
 
     sdl_finish_tiles_mode_change();
+}
+
+static void sdl_current_default_dimensions(int* out_w, int* out_h)
+{
+    SDL_Rect window_pixels = sdl_get_window_pixel_rect();
+    int width = window_pixels.w;
+    int height = window_pixels.h;
+
+    if (width <= 0 || height <= 0)
+    {
+        SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+        const SDL_DisplayMode* desktop_mode = primary
+            ? SDL_GetDesktopDisplayMode(primary)
+            : NULL;
+
+        if (desktop_mode)
+        {
+            float density = (desktop_mode->pixel_density > 0.0f)
+                ? desktop_mode->pixel_density
+                : 1.0f;
+            width = (int)(desktop_mode->w * density + 0.5f);
+            height = (int)(desktop_mode->h * density + 0.5f);
+        }
+    }
+
+    if (width <= 0)
+        width = 1280;
+    if (height <= 0)
+        height = 720;
+
+    if (out_w)
+        *out_w = width;
+    if (out_h)
+        *out_h = height;
+}
+
+static void sdl_show_interface_settings_reset_notice(void)
+{
+    SDL_MessageBoxButtonData button = {
+        SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT
+            | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT,
+        0,
+        "OK",
+    };
+    SDL_MessageBoxData messagebox = {
+        .flags = SDL_MESSAGEBOX_INFORMATION,
+        .window = g_state.window,
+        .title = "Interface Settings Reset",
+        .message = "Due to major interface changes, all interface settings were reset to defaults.",
+        .numbuttons = 1,
+        .buttons = &button,
+        .colorScheme = NULL,
+    };
+    int button_id = 0;
+
+    if (!g_state.window)
+    {
+        log_info("Due to major interface changes, all interface settings were reset to defaults.");
+        return;
+    }
+
+    if (!SDL_ShowMessageBox(&messagebox, &button_id))
+    {
+        log_warn("SDL_ShowMessageBox failed for interface reset notice: %s",
+            SDL_GetError());
+    }
+}
+
+void sdl_reset_interface_settings_to_defaults_for_migration(void)
+{
+    static bool reset_done = false;
+    int screen_w;
+    int screen_h;
+    bool old_fullscreen;
+    bool old_tiles;
+    bool desired_fullscreen;
+    bool desired_tiles;
+
+    if (reset_done)
+        return;
+    reset_done = true;
+
+    sdl_current_default_dimensions(&screen_w, &screen_h);
+    old_fullscreen = config.fullscreen;
+    old_tiles = config.tiles;
+
+    sdl_reset_config_to_resolution_defaults(screen_w, screen_h);
+    sdl_ensure_default_pane_profiles_present(false);
+    sdl_apply_stored_pane_profile(config.min_terminal_mode);
+    sdl_config_reset_app_options_to_defaults();
+
+    desired_fullscreen = config.fullscreen;
+    desired_tiles = config.tiles;
+    config.fullscreen = old_fullscreen;
+    config.tiles = old_tiles;
+
+    set_sdl_fullscreen(desired_fullscreen);
+    set_sdl_tiles(desired_tiles);
+
+    g_hide_left_panel = config.hide_left_panel;
+    g_left_panel_pane_expanded = config.left_panel_expanded_on_launch;
+    sdl_ensure_touch_pane_config_present();
+    sdl_touch_pane_ensure_main_panel_confirm();
+    sdl_store_active_pane_profile(config.min_terminal_mode);
+
+    if (g_state.window)
+        sdl_apply_config();
+
+    if (config_file_path[0] != '\0')
+    {
+        sdl_config_save(config_file_path, &config, g_pane_profiles,
+            SDL_PANE_PROFILE_COUNT);
+        log_info("Reset SDL/interface settings to defaults for 0.9.7 migration: %s",
+            config_file_path);
+    }
+
+    sdl_show_interface_settings_reset_notice();
 }
 
 int get_pane_config_count(void)

@@ -229,6 +229,7 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv);
 
 // Load/save app-wide game options from/to the SDL JSON config file.
 void sdl_config_load_app_options(const char* filename);
+void sdl_config_reset_app_options_to_defaults(void);
 bool sdl_config_should_force_intro_flame(void);
 void sdl_config_mark_intro_seen(void);
 bool sdl_config_touch_tutorial_seen(void);

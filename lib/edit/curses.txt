@@ -12,7 +12,7 @@
 # Version stamp (required)
 # Note: V: is reserved for version stamps only; use Y: for blessing CUR flags.
 
-V:0.9.6
+V:0.9.7
 
 
 N:0:Burden of Ancient Stone

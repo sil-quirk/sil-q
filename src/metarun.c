@@ -1067,6 +1067,31 @@ static void reset_defaults(metarun *m)
     log_debug("After init: curses_seen = 0x%016llX", (unsigned long long)m->curses_seen);
 }
 
+static bool metarun_header_before(const meta_file_header* header,
+    byte major, byte minor, byte patch, byte extra)
+{
+    if (!header)
+        return false;
+    if (header->version_major != major)
+        return header->version_major < major;
+    if (header->version_minor != minor)
+        return header->version_minor < minor;
+    if (header->version_patch != patch)
+        return header->version_patch < patch;
+    return header->version_extra < extra;
+}
+
+static void metarun_clear_obsolete_interface_options_097(metarun* m)
+{
+    if (!m)
+        return;
+
+#define CLEAR_OBSOLETE_METARUN_OPTION(slot) \
+    m->persistent_options[(slot) / 32] &= ~(1UL << ((slot) % 32));
+    SIL_OBSOLETE_OPTION_097_SLOTS(CLEAR_OBSOLETE_METARUN_OPTION)
+#undef CLEAR_OBSOLETE_METARUN_OPTION
+}
+
 static bool ensure_default_metarun_slot(const char *reason)
 {
     if (metarun_max > 0 && metaruns) return false;
@@ -1460,6 +1485,7 @@ errr load_metaruns(bool create_if_missing)
     const char *recovery_reason = NULL;
 
     meta_file_header header;
+    bool interface_settings_migrated = false;
     sdl_seek(fd, 0);
     if (sdl_read(fd, (char*)&header, sizeof(header)) != 0) {
         log_error("Failed to read metarun header");
@@ -1470,6 +1496,7 @@ errr load_metaruns(bool create_if_missing)
     log_info("Loading versioned meta file v%d.%d.%d.%d (%u entries)",
              header.version_major, header.version_minor,
              header.version_patch, header.version_extra, header.entry_count);
+    interface_settings_migrated = metarun_header_before(&header, 0, 9, 7, 0);
 
     bool header_matches_current = (header.version_major == METARUN_FILE_VERSION_MAJOR &&
                                    header.version_minor == METARUN_FILE_VERSION_MINOR &&
@@ -1559,9 +1586,14 @@ errr load_metaruns(bool create_if_missing)
 
     if (metaruns) {
         for (s16b i = 0; i < metarun_max; i++) {
+            if (interface_settings_migrated)
+                metarun_clear_obsolete_interface_options_097(&metaruns[i]);
             metaruns[i].score = compute_metarun_score(&metaruns[i]);
         }
     }
+
+    if (interface_settings_migrated)
+        sdl_reset_interface_settings_to_defaults_for_migration();
 
     sdl_fclose(fd);
 
@@ -1631,6 +1663,10 @@ errr load_metaruns(bool create_if_missing)
     {
         apply_difficulty_curses(&metar);
         save_metaruns(); /* persist the changes */
+    }
+    else if (interface_settings_migrated)
+    {
+        save_metaruns(); /* rewrite header and cleared obsolete option bits */
     }
     
     log_debug("Loaded metarun %d with %d silmarils, %d deaths", metar.id, metar.silmarils, metar.deaths);
