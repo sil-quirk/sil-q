@@ -39,7 +39,8 @@ struct resolution_profile {
 // LAYOUT CALCULATION LOGIC:
 // 1. Normal minimum main terminal: 80x24 cells
 // 2. Try maximum scale (up to 4) that fits: scale 4 = 2560x1536, scale 3 = 1920x1152, scale 2 = 1280x768, scale 1 = 640x384
-// 3. Aux view font size: auto-derived from scale (scale 4 = 48px, scale 3 = 36px, scale 2 = 24px, scale 1 = 12px)
+// 3. Aux view font size: auto-derived from scale at 2/3 main size
+//    (left panel uses 3/4 main size)
 // 4. Right pane: if we can fit >=40 columns (using aux_font_size / 2 char width), add right pane
 //    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
 //    - Right pane width: 40-50 columns depending on available space

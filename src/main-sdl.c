@@ -1762,8 +1762,11 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
 static int sdl_configured_main_view_scale(void);
 static int sdl_main_view_layout_scale(void);
 static int sdl_current_main_view_scale(void);
+static int sdl_auto_font_size_from_main(int numerator, int denominator);
 static int sdl_auto_aux_view_font_size(void);
+static int sdl_auto_pane_font_size(enum pane_type type);
 static int sdl_resolve_aux_view_font_size(int requested_size);
+static int sdl_resolve_pane_font_size(enum pane_type type, int requested_size);
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc);
 static int sdl_effective_pane_font_size_for_type(enum pane_type type);
 static int sdl_aux_cell_height_for_font_size(int font_size);
@@ -3811,7 +3814,7 @@ static int sdl_current_main_view_scale(void)
     return scale;
 }
 
-static int sdl_auto_aux_view_font_size(void)
+static int sdl_auto_font_size_from_main(int numerator, int denominator)
 {
     float system_scale = (g_state.system_scale > 0.0f) ? g_state.system_scale : 1.0f;
     int main_cell_h_px = sdl_configured_main_view_scale() * TILE_SIZE;
@@ -3822,7 +3825,7 @@ static int sdl_auto_aux_view_font_size(void)
         main_cell_h_px = g_auto_aux_main_cell_h_override;
 
     main_font_size = (int)((float)main_cell_h_px / system_scale + 0.5f);
-    size = (main_font_size * 3 + 3) / 4;
+    size = (main_font_size * numerator + denominator - 1) / denominator;
 
     if (size >= main_font_size && main_font_size > 8)
         size = main_font_size - 1;
@@ -3833,6 +3836,19 @@ static int sdl_auto_aux_view_font_size(void)
         size = 48;
 
     return size;
+}
+
+static int sdl_auto_aux_view_font_size(void)
+{
+    return sdl_auto_font_size_from_main(2, 3);
+}
+
+static int sdl_auto_pane_font_size(enum pane_type type)
+{
+    if (type == PANE_LEFT_PANEL)
+        return sdl_auto_font_size_from_main(3, 4);
+
+    return sdl_auto_aux_view_font_size();
 }
 
 static int sdl_resolve_aux_view_font_size(int requested_size)
@@ -3849,10 +3865,26 @@ static int sdl_resolve_aux_view_font_size(int requested_size)
     return size;
 }
 
+static int sdl_resolve_pane_font_size(enum pane_type type, int requested_size)
+{
+    int size = requested_size;
+
+    if (size <= 0)
+        size = sdl_auto_pane_font_size(type);
+    if (size < 8)
+        size = 8;
+    if (size > 48)
+        size = 48;
+
+    return size;
+}
+
 static int sdl_effective_pane_font_size_for_config(const struct pane_config* pc)
 {
     if (pc && pc->font_size > 0)
         return sdl_resolve_aux_view_font_size(pc->font_size);
+    if (pc)
+        return sdl_resolve_pane_font_size(pc->pane, config.aux_view_font_size);
 
     return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
 }
@@ -3864,7 +3896,7 @@ static int sdl_effective_pane_font_size_for_type(enum pane_type type)
             return sdl_effective_pane_font_size_for_config(&pane_config[i]);
     }
 
-    return sdl_resolve_aux_view_font_size(config.aux_view_font_size);
+    return sdl_resolve_pane_font_size(type, config.aux_view_font_size);
 }
 
 static int sdl_aux_cell_height_for_font_size(int font_size)
