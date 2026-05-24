@@ -245,7 +245,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* reserved legacy slot */
     "partition_narrative_mode", /* OPT_show_partition_narrative */
     "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
-    NULL, /* OPT_hide_left_panel */
+    NULL, /* obsolete 0.9.7: hide_left_panel */
     "banner_message_stairs", /* OPT_banner_message_stairs */
     "show_level_generation_debug", /* OPT_show_level_generation_debug */
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
@@ -490,7 +490,7 @@ cptr option_desc[OPT_MAX] = {
     "Welcome screen (0-6=fixed, 7=random)", /* OPT_intro_style */
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
-    "Hide the classic left panel and use the compact overlay", /* OPT_hide_left_panel */
+    NULL, /* obsolete 0.9.7: hide_left_panel */
     "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
     "Debug: Show detailed level-generation screen info and pause before play", /* OPT_show_level_generation_debug */
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
@@ -751,7 +751,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* reserved legacy slot */
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
-    false, /* OPT_hide_left_panel */
+    false, /* obsolete 0.9.7: hide_left_panel */
 #if defined(__ANDROID__) || defined(SIL_IOS)
     false, /* OPT_banner_message_stairs */
 #else
@@ -924,14 +924,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     { OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
         OPT_song_list_sort_by_recent,
-        OPT_hide_left_panel,
         OPT_hitpoint_warning,
         OPT_easy_main_menu, OPT_hjkl_movement, OPT_angband_keyset,
         OPT_inventory_selection_square, OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 

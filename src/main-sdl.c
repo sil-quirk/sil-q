@@ -76,6 +76,10 @@ enum {
     SDL_LOG_PANE_MIN_ROWS = 1,
     SDL_LOG_PANE_MAX_ROWS = 8,
     SDL_LOG_PANE_MENU_MAX_ENTRIES = 5,
+    SDL_DEPTH_PANE_HOVER_NONE = 0,
+    SDL_DEPTH_PANE_HOVER_LABEL = 1,
+    SDL_DEPTH_PANE_HOVER_ZOOM_OUT = 2,
+    SDL_DEPTH_PANE_HOVER_ZOOM_IN = 3,
 };
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
@@ -120,8 +124,10 @@ char config_file_path[1024];
 static const struct pane_config default_pane_config[] = {
     {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
         .rect.cols = 0},
-    {.pane = PANE_MAIN_MENU, .where = PLACE_TOP_RIGHT, .enabled = true,
-        .rect.rows = 1, .rect.cols = 12},
+    {.pane = PANE_MAIN_MENU, .where = PLACE_TOP_CENTER, .enabled = true,
+        .rect.rows = 1, .rect.cols = 6},
+    {.pane = PANE_DEPTH, .where = PLACE_TOP_RIGHT, .enabled = true,
+        .rect.rows = 2, .rect.cols = 12},
     {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
         .rect.rows = 1, .rect.cols = 24},
     // On the right
@@ -1290,7 +1296,8 @@ static int g_main_screen_status_selected_action = SDL_STATUS_CLICK_NONE;
 static int g_main_screen_status_selected_col = -1;
 static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
 static int g_main_screen_panel_selected_row = -1;
-static bool g_depth_menu_pane_hover = false;
+static bool g_main_menu_pane_hover = false;
+static int g_depth_pane_hover_action = 0;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
 static const byte g_mouse_path_route_dirs[SDL_MOUSE_PATH_ROUTE_DIRS] =
@@ -1504,6 +1511,10 @@ static bool sdl_main_map_handle_zoom_wheel(
     const SDL_MouseWheelEvent* wheel);
 static bool sdl_main_screen_adjust_main_view_scale(int delta);
 static bool sdl_main_screen_handle_message_line_pointer(float x, float y);
+static bool sdl_main_menu_pane_current_rect(SDL_FRect* out);
+static bool sdl_main_menu_pane_handle_hover_pointer(float x, float y);
+static bool sdl_main_menu_pane_handle_pointer(float x, float y);
+static void sdl_main_menu_pane_render(void);
 static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out);
 static bool sdl_depth_menu_pane_handle_hover_pointer(float x, float y);
 static bool sdl_depth_menu_pane_handle_pointer(float x, float y);
@@ -1584,6 +1595,7 @@ static bool sdl_mouse_stuck_door_bash_queue_prompt(int map_y, int map_x);
 static bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir);
 static int sdl_mouse_movement_normalized_mode(int mode);
 static bool sdl_main_screen_cell_hits_character_panel(int col, int row);
+static int sdl_visible_character_panel_click_action_at_cell(int col, int row);
 static void sdl_player_confirm_at_player(void);
 static bool sdl_player_action_menu_open(void);
 static void sdl_player_action_menu_activate_kind(int kind, bool secondary);
@@ -2439,7 +2451,37 @@ static void sdl_left_panel_canvas_destroy(void)
 static bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_LEFT_PANEL || pane == PANE_STATUS
-        || pane == PANE_MAIN_MENU;
+        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU;
+}
+
+static bool sdl_migrate_legacy_main_menu_depth_pane(
+    struct pane_config* configs, int count)
+{
+    int legacy_idx = -1;
+    bool has_depth = false;
+
+    if (!configs || count <= 0)
+        return false;
+
+    for (int i = 0; i < count; i++) {
+        if (configs[i].pane == PANE_DEPTH) {
+            has_depth = true;
+            break;
+        }
+        if (configs[i].pane == PANE_MAIN_MENU && legacy_idx < 0)
+            legacy_idx = i;
+    }
+
+    if (has_depth || legacy_idx < 0)
+        return false;
+
+    configs[legacy_idx].pane = PANE_DEPTH;
+    if (configs[legacy_idx].rect.rows < 2)
+        configs[legacy_idx].rect.rows = 2;
+    if (configs[legacy_idx].rect.cols < 12)
+        configs[legacy_idx].rect.cols = 12;
+    log_info("Migrated legacy MAIN_MENU pane config to DEPTH pane");
+    return true;
 }
 
 static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
@@ -2454,6 +2496,9 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
         *config_count = 0;
     if (*config_count > MAX_PANE_CONFIGS)
         *config_count = MAX_PANE_CONFIGS;
+
+    if (sdl_migrate_legacy_main_menu_depth_pane(configs, *config_count))
+        changed = true;
 
     for (int i = 0; i < default_pane_config_count; i++) {
         bool found = false;
@@ -2973,7 +3018,7 @@ static bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
 
 static bool sdl_left_panel_pane_layout_enabled(void)
 {
-    return !config.hide_left_panel
+    return !g_hide_left_panel
         && sdl_left_panel_pane_config_enabled();
 }
 
@@ -3250,11 +3295,20 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].ratio = 0.0f;
             break;
 
-        case PANE_MAIN_MENU:
+        case PANE_DEPTH:
             configs[i].where = PLACE_TOP_RIGHT;
             configs[i].enabled = true;
-            configs[i].rect.rows = 1;
+            configs[i].rect.rows = 2;
             configs[i].rect.cols = 12;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_MAIN_MENU:
+            configs[i].where = PLACE_TOP_CENTER;
+            configs[i].enabled = true;
+            configs[i].rect.rows = 1;
+            configs[i].rect.cols = 6;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -3977,10 +4031,11 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
         bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
         bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
         bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
+        bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
         bool is_main_menu_pane = (pane_config[i].pane == PANE_MAIN_MENU);
 
         if (touch_only && !is_touch_pane && !is_status_pane
-            && !is_left_panel && !is_main_menu_pane)
+            && !is_left_panel && !is_depth_pane && !is_main_menu_pane)
         {
             continue;
         }
@@ -3989,6 +4044,7 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
         if (is_touch_pane && !proto_touch && !sdl_touch_pane_mobile_layout_open())
             continue;
         if (!is_touch_pane && !is_status_pane && !is_left_panel
+            && !is_depth_pane
             && !is_main_menu_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
@@ -4084,7 +4140,7 @@ static int sdl_auto_aux_view_font_size(void)
 
 static int sdl_auto_pane_font_size(enum pane_type type)
 {
-    if (type == PANE_LEFT_PANEL)
+    if (type == PANE_LEFT_PANEL || type == PANE_MAIN_MENU)
         return sdl_auto_font_size_from_main(3, 4);
 
     return sdl_auto_aux_view_font_size();
@@ -4633,6 +4689,7 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU)
         {
             continue;
@@ -5511,6 +5568,16 @@ static const struct pane_config* sdl_status_pane_config(void)
     return NULL;
 }
 
+static const struct pane_config* sdl_depth_pane_config(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_DEPTH)
+            return &pane_config[i];
+    }
+
+    return NULL;
+}
+
 static const struct pane_config* sdl_main_menu_pane_config(void)
 {
     for (int i = 0; i < pane_config_count; i++) {
@@ -6276,6 +6343,199 @@ static void sdl_status_pane_render(void)
     }
 }
 
+static bool sdl_overlay_pane_anchor_rect(enum pane_type pane_type,
+    SDL_Rect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    SDL_Rect anchor;
+    SDL_Rect screen;
+
+    if (!out)
+        return false;
+    *out = (SDL_Rect){ 0 };
+
+    if (pane_type > PANE_MAIN && pane_type < PANE_MAX
+        && sdl_rect_has_area(&g_pane_rects[pane_type]))
+    {
+        *out = g_pane_rects[pane_type];
+        return true;
+    }
+
+    screen = sdl_get_layout_screen_rect();
+    if (view->term_ready && view->canvas && view->cell_w > 0
+        && view->cell_h > 0 && view->rect.w > 0 && view->rect.h > 0)
+    {
+        int visual_cols = sdl_main_view_visual_cols(view);
+        int visual_rows = sdl_main_view_visual_rows(view);
+
+        anchor = (SDL_Rect){
+            .x = view->rect.x + view->margin_x,
+            .y = view->rect.y + view->margin_y,
+            .w = visual_cols * view->cell_w,
+            .h = visual_rows * view->cell_h,
+        };
+    }
+    else
+    {
+        anchor = (SDL_Rect){
+            .x = screen.x,
+            .y = screen.y,
+            .w = screen.w,
+            .h = screen.h,
+        };
+    }
+
+    if (!sdl_rect_has_area(&anchor))
+        return false;
+
+    *out = anchor;
+    return true;
+}
+
+static int sdl_main_menu_pane_font_px(void)
+{
+    int font_px = sdl_effective_pane_cell_height_for_type(PANE_MAIN_MENU);
+
+    if (font_px < 8)
+        font_px = 8;
+
+    return font_px;
+}
+
+static bool sdl_main_menu_pane_current_rect(SDL_FRect* out)
+{
+    const struct pane_config* pc = sdl_main_menu_pane_config();
+    SDL_Rect anchor;
+    SDL_Rect screen;
+    TTF_Font* font;
+    int font_px;
+    int text_w;
+    float pad_x;
+    float pad_y;
+    float panel_w;
+    float panel_h;
+    cptr label = "Menu";
+
+    if (out)
+        *out = (SDL_FRect){ 0 };
+
+    if (!pc || !pc->enabled)
+        return false;
+    if (!character_generated || !character_dungeon || character_icky)
+        return false;
+    if (!p_ptr || screen_saved_fullscreen_active())
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (screen.w <= 0 || screen.h <= 0)
+        return false;
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN_MENU, &anchor))
+        return false;
+
+    font_px = sdl_main_menu_pane_font_px();
+    font = sdl_story_font_for_height(font_px);
+    text_w = font ? sdl_touch_pane_story_text_width(font, label)
+                  : (int)strlen(label) * font_px / 2;
+    if (text_w < 1)
+        return false;
+
+    pad_x = (float)font_px * 0.78f;
+    pad_y = (float)font_px * 0.34f;
+    if (pad_x < 8.0f)
+        pad_x = 8.0f;
+    if (pad_y < 4.0f)
+        pad_y = 4.0f;
+
+    panel_w = (float)text_w + pad_x * 2.0f;
+    if (panel_w < (float)font_px * 4.4f)
+        panel_w = (float)font_px * 4.4f;
+    if (panel_w > (float)screen.w)
+        panel_w = (float)screen.w;
+
+    panel_h = (float)font_px * 1.16f + pad_y * 2.0f;
+    if (panel_h < (float)font_px * 1.45f)
+        panel_h = (float)font_px * 1.45f;
+    if (panel_h > (float)screen.h * 0.18f)
+        panel_h = (float)screen.h * 0.18f;
+
+    if (out)
+        *out = sdl_overlay_panel_rect(&anchor, pc->where, (int)panel_w,
+            (int)panel_h, &screen);
+
+    return true;
+}
+
+static void sdl_main_menu_pane_render(void)
+{
+    SDL_FRect rect;
+    SDL_FRect shadow;
+    SDL_Color text;
+
+    if (!sdl_main_menu_pane_current_rect(&rect))
+        return;
+
+    text = g_state.palette[g_main_menu_pane_hover
+        ? TERM_YELLOW : TERM_L_WHITE];
+
+    shadow = rect;
+    shadow.x += 2.0f;
+    shadow.y += 2.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 126);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    if (g_main_menu_pane_hover)
+        SDL_SetRenderDrawColor(g_state.renderer, 22, 24, 18, 238);
+    else
+        SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+
+    sdl_touch_pane_draw_button_text_scaled(&rect, NULL, "Menu", text, 0.50f,
+        0.62f);
+}
+
+static bool sdl_main_menu_pane_hit(float x, float y, SDL_FRect* out_rect)
+{
+    SDL_FRect rect;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_menu_pane_current_rect(&rect))
+        return false;
+    if (out_rect)
+        *out_rect = rect;
+
+    return x >= rect.x && x < rect.x + rect.w
+        && y >= rect.y && y < rect.y + rect.h;
+}
+
+static bool sdl_main_menu_pane_handle_hover_pointer(float x, float y)
+{
+    bool hit = sdl_main_menu_pane_hit(x, y, NULL);
+
+    if (g_main_menu_pane_hover != hit)
+    {
+        g_main_menu_pane_hover = hit;
+        g_state.need_present = true;
+    }
+
+    if (hit)
+        sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
+
+    return hit;
+}
+
+static bool sdl_main_menu_pane_handle_pointer(float x, float y)
+{
+    if (!sdl_main_menu_pane_hit(x, y, NULL))
+        return false;
+
+    g_main_menu_pane_hover = false;
+    g_state.need_present = true;
+    sdl_enqueue_bypassed_command('m');
+    return true;
+}
+
 static cptr sdl_depth_menu_partition_label(void)
 {
     if (!p_ptr || !character_dungeon)
@@ -6324,24 +6584,27 @@ static void sdl_depth_menu_pane_label(char* out, size_t out_sz)
         SDL_strlcpy(out, depth, out_sz);
 }
 
-static int sdl_depth_menu_pane_font_px(const sdl_view* view)
+typedef struct depth_pane_layout {
+    SDL_FRect panel;
+    SDL_FRect label;
+    SDL_FRect zoom_out;
+    SDL_FRect zoom_in;
+} depth_pane_layout;
+
+static int sdl_depth_menu_pane_font_px(void)
 {
     int font_px;
 
-    (void)view;
-
-    font_px = sdl_effective_pane_cell_height_for_type(PANE_STATUS);
+    font_px = sdl_effective_pane_cell_height_for_type(PANE_DEPTH);
     if (font_px < 8)
         font_px = 8;
 
     return font_px;
 }
 
-static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
+static bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
-    const struct pane_config* pc = sdl_main_menu_pane_config();
-    SDL_Rect pane_anchor;
+    const struct pane_config* pc = sdl_depth_pane_config();
     SDL_Rect screen;
     SDL_Rect anchor;
     char label[64];
@@ -6352,10 +6615,12 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     float pad_y;
     float panel_w;
     float panel_h;
+    float row_h;
+    float gap;
     float max_w;
 
     if (out)
-        *out = (SDL_FRect){ 0 };
+        *out = (depth_pane_layout){ 0 };
 
     if (!pc || !pc->enabled)
         return false;
@@ -6371,38 +6636,10 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     screen = sdl_get_layout_screen_rect();
     if (screen.w <= 0 || screen.h <= 0)
         return false;
-
-    pane_anchor = g_pane_rects[PANE_MAIN_MENU];
-    if (pane_anchor.w > 0 && pane_anchor.h > 0) {
-        anchor = pane_anchor;
-    }
-    else if (view->term_ready && view->canvas && view->cell_w > 0
-        && view->cell_h > 0 && view->rect.w > 0 && view->rect.h > 0)
-    {
-        int visual_cols = sdl_main_view_visual_cols(view);
-        int visual_rows = sdl_main_view_visual_rows(view);
-
-        anchor = (SDL_Rect){
-            .x = view->rect.x + view->margin_x,
-            .y = view->rect.y + view->margin_y,
-            .w = visual_cols * view->cell_w,
-            .h = visual_rows * view->cell_h,
-        };
-    }
-    else
-    {
-        anchor = (SDL_Rect){
-            .x = screen.x,
-            .y = screen.y,
-            .w = screen.w,
-            .h = screen.h,
-        };
-    }
-
-    if (anchor.w <= 0 || anchor.h <= 0)
+    if (!sdl_overlay_pane_anchor_rect(PANE_DEPTH, &anchor))
         return false;
 
-    font_px = sdl_depth_menu_pane_font_px(view);
+    font_px = sdl_depth_menu_pane_font_px();
     font = sdl_story_font_for_height(font_px);
     text_w = font ? sdl_touch_pane_story_text_width(font, label)
                   : (int)strlen(label) * font_px / 2;
@@ -6416,7 +6653,11 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     if (pad_y < 4.0f)
         pad_y = 4.0f;
     panel_w = (float)text_w + pad_x * 2.0f;
-    panel_h = (float)font_px * 1.16f + pad_y * 2.0f;
+    row_h = (float)font_px * 1.16f + pad_y * 2.0f;
+    if (row_h < (float)font_px * 1.45f)
+        row_h = (float)font_px * 1.45f;
+    gap = 1.0f;
+    panel_h = row_h * 2.0f + gap;
     max_w = (float)screen.w * 0.72f;
     if (max_w < 96.0f)
         max_w = (float)screen.w;
@@ -6426,92 +6667,197 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
         panel_w = max_w;
     if (panel_w > (float)screen.w)
         panel_w = (float)screen.w;
-
-    if (panel_h < (float)font_px * 1.45f)
-        panel_h = (float)font_px * 1.45f;
-    if (panel_h > (float)screen.h * 0.24f)
-        panel_h = (float)screen.h * 0.24f;
+    if (panel_h > (float)screen.h * 0.32f) {
+        panel_h = (float)screen.h * 0.32f;
+        row_h = (panel_h - gap) * 0.5f;
+        if (row_h < 1.0f)
+            row_h = 1.0f;
+    }
 
     if (out)
     {
-        *out = sdl_overlay_panel_rect(&anchor, pc->where, (int)panel_w,
-            (int)panel_h, &screen);
+        float button_w;
+
+        out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
+            (int)panel_w, (int)panel_h, &screen);
+        out->label = (SDL_FRect){
+            .x = out->panel.x,
+            .y = out->panel.y,
+            .w = out->panel.w,
+            .h = row_h,
+        };
+        button_w = (out->panel.w - gap) * 0.5f;
+        if (button_w < 1.0f)
+            button_w = out->panel.w * 0.5f;
+        out->zoom_out = (SDL_FRect){
+            .x = out->panel.x,
+            .y = out->panel.y + row_h + gap,
+            .w = button_w,
+            .h = row_h,
+        };
+        out->zoom_in = (SDL_FRect){
+            .x = out->zoom_out.x + out->zoom_out.w + gap,
+            .y = out->zoom_out.y,
+            .w = out->panel.x + out->panel.w
+                - (out->zoom_out.x + out->zoom_out.w + gap),
+            .h = row_h,
+        };
+        if (out->zoom_in.w < 1.0f)
+            out->zoom_in.w = button_w;
     }
 
     return true;
 }
 
+static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
+{
+    depth_pane_layout layout;
+
+    if (out)
+        *out = (SDL_FRect){ 0 };
+    if (!sdl_depth_menu_pane_layout(&layout))
+        return false;
+    if (out)
+        *out = layout.panel;
+    return true;
+}
+
 static void sdl_depth_menu_pane_render(void)
 {
-    SDL_FRect rect;
+    depth_pane_layout layout;
     SDL_FRect shadow;
+    SDL_FRect divider;
+    SDL_FRect center_divider;
     char label[64];
-    SDL_Color text;
+    SDL_Color label_text;
+    SDL_Color zoom_out_text;
+    SDL_Color zoom_in_text;
 
-    if (!sdl_depth_menu_pane_current_rect(&rect))
+    if (!sdl_depth_menu_pane_layout(&layout))
         return;
 
     sdl_depth_menu_pane_label(label, sizeof(label));
     if (!label[0])
         return;
 
-    text = g_state.palette[g_depth_menu_pane_hover ? TERM_YELLOW : TERM_L_WHITE];
+    label_text = g_state.palette[
+        g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_LABEL
+            ? TERM_YELLOW : TERM_L_WHITE];
+    zoom_out_text = g_state.palette[
+        g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_ZOOM_OUT
+            ? TERM_YELLOW : TERM_L_WHITE];
+    zoom_in_text = g_state.palette[
+        g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_ZOOM_IN
+            ? TERM_YELLOW : TERM_L_WHITE];
 
-    shadow = rect;
+    shadow = layout.panel;
     shadow.x += 2.0f;
     shadow.y += 2.0f;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 126);
     SDL_RenderFillRect(g_state.renderer, &shadow);
-    if (g_depth_menu_pane_hover)
+    if (g_depth_pane_hover_action != SDL_DEPTH_PANE_HOVER_NONE)
         SDL_SetRenderDrawColor(g_state.renderer, 22, 24, 18, 238);
     else
         SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
-    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_RenderFillRect(g_state.renderer, &layout.panel);
 
-    sdl_touch_pane_draw_button_text_scaled(&rect, NULL, label, text, 0.54f,
+    if (g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_ZOOM_OUT) {
+        SDL_SetRenderDrawColor(g_state.renderer, 34, 38, 34, 210);
+        SDL_RenderFillRect(g_state.renderer, &layout.zoom_out);
+    }
+    else if (g_depth_pane_hover_action == SDL_DEPTH_PANE_HOVER_ZOOM_IN) {
+        SDL_SetRenderDrawColor(g_state.renderer, 34, 38, 34, 210);
+        SDL_RenderFillRect(g_state.renderer, &layout.zoom_in);
+    }
+
+    divider = (SDL_FRect){
+        .x = layout.panel.x,
+        .y = layout.zoom_out.y - 1.0f,
+        .w = layout.panel.w,
+        .h = 1.0f,
+    };
+    center_divider = (SDL_FRect){
+        .x = layout.zoom_in.x - 1.0f,
+        .y = layout.zoom_out.y,
+        .w = 1.0f,
+        .h = layout.zoom_out.h,
+    };
+    SDL_SetRenderDrawColor(g_state.renderer, 95, 105, 112, 104);
+    SDL_RenderFillRect(g_state.renderer, &divider);
+    SDL_RenderFillRect(g_state.renderer, &center_divider);
+
+    sdl_touch_pane_draw_button_text_scaled(&layout.label, NULL, label,
+        label_text, 0.54f,
         0.62f);
+    sdl_touch_pane_draw_button_text_scaled(&layout.zoom_out, NULL, "-",
+        zoom_out_text, 0.42f, 0.58f);
+    sdl_touch_pane_draw_button_text_scaled(&layout.zoom_in, NULL, "+",
+        zoom_in_text, 0.42f, 0.58f);
 }
 
-static bool sdl_depth_menu_pane_hit(float x, float y, SDL_FRect* out_rect)
+static int sdl_depth_menu_pane_hit_action(float x, float y,
+    SDL_FRect* out_rect)
 {
-    SDL_FRect rect;
+    depth_pane_layout layout;
 
     if (!sdl_main_screen_click_shortcuts_active())
-        return false;
-    if (!sdl_depth_menu_pane_current_rect(&rect))
-        return false;
+        return SDL_DEPTH_PANE_HOVER_NONE;
+    if (!sdl_depth_menu_pane_layout(&layout))
+        return SDL_DEPTH_PANE_HOVER_NONE;
     if (out_rect)
-        *out_rect = rect;
+        *out_rect = layout.panel;
 
-    return x >= rect.x && x < rect.x + rect.w
-        && y >= rect.y && y < rect.y + rect.h;
+    if (x < layout.panel.x || x >= layout.panel.x + layout.panel.w
+        || y < layout.panel.y || y >= layout.panel.y + layout.panel.h)
+    {
+        return SDL_DEPTH_PANE_HOVER_NONE;
+    }
+    if (x >= layout.zoom_out.x && x < layout.zoom_out.x + layout.zoom_out.w
+        && y >= layout.zoom_out.y && y < layout.zoom_out.y + layout.zoom_out.h)
+    {
+        return SDL_DEPTH_PANE_HOVER_ZOOM_OUT;
+    }
+    if (x >= layout.zoom_in.x && x < layout.zoom_in.x + layout.zoom_in.w
+        && y >= layout.zoom_in.y && y < layout.zoom_in.y + layout.zoom_in.h)
+    {
+        return SDL_DEPTH_PANE_HOVER_ZOOM_IN;
+    }
+    return SDL_DEPTH_PANE_HOVER_LABEL;
 }
 
 static bool sdl_depth_menu_pane_handle_hover_pointer(float x, float y)
 {
-    bool hit = sdl_depth_menu_pane_hit(x, y, NULL);
+    int action = sdl_depth_menu_pane_hit_action(x, y, NULL);
 
-    if (g_depth_menu_pane_hover != hit)
+    if (g_depth_pane_hover_action != action)
     {
-        g_depth_menu_pane_hover = hit;
+        g_depth_pane_hover_action = action;
         g_state.need_present = true;
     }
 
-    if (hit)
+    if (action != SDL_DEPTH_PANE_HOVER_NONE)
         sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
 
-    return hit;
+    return action != SDL_DEPTH_PANE_HOVER_NONE;
 }
 
 static bool sdl_depth_menu_pane_handle_pointer(float x, float y)
 {
-    if (!sdl_depth_menu_pane_hit(x, y, NULL))
+    int action = sdl_depth_menu_pane_hit_action(x, y, NULL);
+
+    if (action == SDL_DEPTH_PANE_HOVER_NONE)
         return false;
 
-    g_depth_menu_pane_hover = false;
-    sdl_enqueue_bypassed_command('m');
+    g_depth_pane_hover_action = SDL_DEPTH_PANE_HOVER_NONE;
+    g_state.need_present = true;
+    if (action == SDL_DEPTH_PANE_HOVER_ZOOM_OUT)
+        return sdl_main_screen_adjust_main_view_scale(-1);
+    if (action == SDL_DEPTH_PANE_HOVER_ZOOM_IN)
+        return sdl_main_screen_adjust_main_view_scale(1);
+
+    sdl_enqueue_bypassed_command('M');
     return true;
 }
 
@@ -8021,7 +8367,7 @@ static void sdl_update_left_panel_pane_rect(void)
 {
     SDL_FRect rect;
 
-    if (config.hide_left_panel) {
+    if (g_hide_left_panel) {
         g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
         return;
     }
@@ -18288,7 +18634,8 @@ static bool sdl_pane_layout_config_draggable(int index)
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
     if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL
-        || type == PANE_STATUS || type == PANE_MAIN_MENU)
+        || type == PANE_STATUS || type == PANE_DEPTH
+        || type == PANE_MAIN_MENU)
     {
         return false;
     }
@@ -19182,6 +19529,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_ROLLS: return "Rolls";
     case PANE_LEFT_PANEL: return "Left Panel";
     case PANE_STATUS: return "Status";
+    case PANE_DEPTH: return "Depth";
     case PANE_MAIN_MENU: return "Main Menu";
     default: return "Pane";
     }
@@ -19198,7 +19546,7 @@ static bool sdl_side_pane_menu_config_is_entry(int index)
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
     if (type == PANE_TOUCH || type == PANE_LEFT_PANEL || type == PANE_STATUS
-        || type == PANE_MAIN_MENU)
+        || type == PANE_DEPTH || type == PANE_MAIN_MENU)
     {
         return false;
     }
@@ -22730,16 +23078,6 @@ static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_e
     return false;
 }
 
-static void sdl_cycle_left_panel_layout(void)
-{
-    set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
-
-    sdl_request_redraw();
-    save_pane_config_to_json();
-    if (character_dungeon)
-        Term_keypress(KTRL('R'));
-}
-
 static bool sdl_handle_jewelry_preset_shortcut(
     const SDL_KeyboardEvent* key_event)
 {
@@ -22803,11 +23141,6 @@ static bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event
         sdl_apply_config();
         if (character_dungeon)
             Term_keypress(KTRL('R'));
-        return true;
-    }
-
-    if (key == 'p' || key == 'P') {
-        sdl_cycle_left_panel_layout();
         return true;
     }
 
@@ -24961,6 +25294,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_main_menu_pane_handle_hover_pointer((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_depth_menu_pane_handle_hover_pointer((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -25033,6 +25371,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 return;
             }
             if (sdl_pointer_aim_handle_left_click((float)ev->button.x,
+                (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_main_menu_pane_handle_pointer((float)ev->button.x,
                 (float)ev->button.y))
             {
                 return;
@@ -25350,6 +25693,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
+            return;
+        if (sdl_main_menu_pane_handle_pointer(x, y))
             return;
         if (sdl_depth_menu_pane_handle_pointer(x, y))
             return;
@@ -26285,6 +26630,27 @@ static void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
     }
 }
 
+static byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
+    int source_row, byte attr)
+{
+    int action;
+
+    if (!sdl_left_panel_pane_presentation_active())
+        return attr;
+    if (source_col < 0 || source_col >= COL_MAP || source_row < 0)
+        return attr;
+
+    action = sdl_visible_character_panel_click_action_at_cell(source_col,
+        source_row);
+    if (action != SDL_PANEL_CLICK_NONE
+        && sdl_character_panel_touch_zone_selected(action, source_row))
+    {
+        return TERM_YELLOW;
+    }
+
+    return attr;
+}
+
 static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     term_win* scr, int source_row, int source_col, int width, int dest_col,
     int dest_row, float content_x, int cell_w, int cell_h,
@@ -26352,7 +26718,10 @@ static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
             int start = col;
             int start_out = out_col;
             int len = 0;
-            SDL_Color text_col = {
+            SDL_Color text_col;
+
+            a = sdl_left_panel_pane_render_attr_for_cell(col, source_row, a);
+            text_col = (SDL_Color){
                 angband_color_table[a][1],
                 angband_color_table[a][2],
                 angband_color_table[a][3],
@@ -26363,11 +26732,13 @@ static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
                 byte run_a = scr->a[source_row][col];
                 char run_c = scr->c[source_row][col];
 
-                if (run_a != a)
-                    break;
                 if ((run_a == 255) && ((byte)run_c == 0xFF))
                     break;
                 if (sdl_left_panel_cell_is_tile(run_a, run_c))
+                    break;
+                run_a = sdl_left_panel_pane_render_attr_for_cell(col,
+                    source_row, run_a);
+                if (run_a != a)
                     break;
 
                 buf[len++] = run_c ? run_c : ' ';
@@ -26657,6 +27028,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
     sdl_status_pane_render();
+    sdl_main_menu_pane_render();
     sdl_depth_menu_pane_render();
     sdl_narrative_banner_render();
     sdl_object_tooltip_render();
@@ -26944,15 +27316,25 @@ static void sdl_touch_tutorial_draw_screen_dim(const SDL_Rect* screen,
 static float sdl_touch_tutorial_top_reserved_height(const SDL_Rect* screen)
 {
     float reserved = 0.0f;
+    SDL_FRect main_menu_rect;
     SDL_FRect depth_rect;
 
     if (!screen)
         return 0.0f;
 
+    if (sdl_main_menu_pane_current_rect(&main_menu_rect)
+        && main_menu_rect.h > reserved)
+    {
+        reserved = main_menu_rect.h;
+    }
     if (sdl_depth_menu_pane_current_rect(&depth_rect))
     {
-        return depth_rect.h + sdl_touch_pane_clampf((float)screen->h * 0.010f,
-            6.0f, 12.0f);
+        if (depth_rect.h > reserved)
+            reserved = depth_rect.h;
+    }
+    if (reserved > 0.0f) {
+        return reserved + sdl_touch_pane_clampf(
+            (float)screen->h * 0.010f, 6.0f, 12.0f);
     }
 
     if (Term && ROW_STATUS == 0) {
@@ -27513,11 +27895,18 @@ static void sdl_touch_tutorial_draw_main_screen_zones_compact(
     term_h = Term->hgt;
     map_cols = SCREEN_WID * (use_bigtile ? 2 : 1);
 
-    if (sdl_depth_menu_pane_current_rect(&rect)) {
+    if (sdl_main_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Menu");
         legend_lines[legend_n++] = mouse
-            ? "Depth/menu: click for the main menu; it shows partition and depth."
-            : "Depth/menu: tap for the main menu; it shows partition and depth.";
+            ? "Menu: click for the main menu."
+            : "Menu: tap for the main menu.";
+    }
+
+    if (sdl_depth_menu_pane_current_rect(&rect)) {
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Depth");
+        legend_lines[legend_n++] = mouse
+            ? "Depth: click for the map; use +/- for temporary zoom."
+            : "Depth: tap for the map; use +/- for temporary zoom.";
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -27586,12 +27975,20 @@ static void sdl_touch_tutorial_draw_main_screen_zones(
     term_h = Term->hgt;
     map_cols = SCREEN_WID * (use_bigtile ? 2 : 1);
 
+    if (sdl_main_menu_pane_current_rect(&rect)) {
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Main menu",
+            mouse
+                ? "Click: open the main menu."
+                : "Tap: open the main touch menu.");
+    }
+
     if (sdl_depth_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
-            "Depth menu",
+            "Depth pane",
             mouse
-                ? "Click: open the main menu.\nShows: current partition and dungeon depth."
-                : "Tap: open the main touch menu.\nShows: current partition and dungeon depth.");
+                ? "Click depth: open the map.\n+/-: change temporary zoom."
+                : "Tap depth: open the map.\n+/-: change temporary zoom.");
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -32333,7 +32730,7 @@ errr init_sdl(int argc, char **argv)
     g_active_side_panes = config.enable_right_panes;
     g_active_bottom_panes = config.enable_bottom_panes;
 
-    g_hide_left_panel = config.hide_left_panel;
+    g_hide_left_panel = false;
     g_left_panel_pane_expanded = config.left_panel_expanded_on_launch;
     
     // Apply command-line overrides
@@ -32600,8 +32997,6 @@ void get_sdl_config_info(char* buf, size_t size)
         config.use_unsafe_area ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Pane Borders: %s\n",
         config.show_pane_borders ? "White" : "Black");
-    offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n",
-        config.hide_left_panel ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset,
         "Left Panel Launch State: %s\n",
         config.left_panel_expanded_on_launch ? "Full" : "Compact");
@@ -32639,6 +33034,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_TOUCH: type_str = "TOUCH"; break;
             case PANE_LEFT_PANEL: type_str = "LEFT_PANEL"; break;
             case PANE_STATUS: type_str = "STATUS"; break;
+            case PANE_DEPTH: type_str = "DEPTH"; break;
             case PANE_MAIN_MENU: type_str = "MAIN_MENU"; break;
             default: break;
         }
@@ -33018,7 +33414,7 @@ void sdl_reset_interface_settings_to_defaults_for_migration(void)
     set_sdl_fullscreen(desired_fullscreen);
     set_sdl_tiles(desired_tiles);
 
-    g_hide_left_panel = config.hide_left_panel;
+    g_hide_left_panel = false;
     g_left_panel_pane_expanded = config.left_panel_expanded_on_launch;
     sdl_ensure_touch_pane_config_present();
     sdl_touch_pane_ensure_main_panel_confirm();
@@ -33264,6 +33660,7 @@ static void sdl_enable_default_panes_for_empty_group(bool side)
         if (pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU)
         {
             continue;
@@ -33278,6 +33675,7 @@ static void sdl_enable_default_panes_for_empty_group(bool side)
         if (pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU)
         {
             continue;
@@ -33328,14 +33726,6 @@ void set_sdl_show_pane_borders(bool value)
 bool get_sdl_hide_left_panel(void)
 {
     return g_hide_left_panel;
-}
-
-void set_sdl_hide_left_panel(bool value)
-{
-    g_hide_left_panel = value;
-    config.hide_left_panel = value;
-    sdl_update_left_panel_pane_rect();
-    g_state.need_present = true;
 }
 
 bool get_sdl_left_panel_expanded_on_launch(void)

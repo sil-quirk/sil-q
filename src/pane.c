@@ -59,7 +59,8 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
     [PANE_LEFT_PANEL] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
     [PANE_STATUS] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 24},
-    [PANE_MAIN_MENU] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 12},
+    [PANE_DEPTH] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 2, .min_rect.cols = 12},
+    [PANE_MAIN_MENU] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 6},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
@@ -565,10 +566,15 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type)
     {
         return PLACE_BOTTOM_RIGHT;
     }
-    if (type == PANE_MAIN_MENU
+    if (type == PANE_DEPTH
         && pane_type_allows_placement(type, PLACE_TOP_RIGHT))
     {
         return PLACE_TOP_RIGHT;
+    }
+    if (type == PANE_MAIN_MENU
+        && pane_type_allows_placement(type, PLACE_TOP_CENTER))
+    {
+        return PLACE_TOP_CENTER;
     }
 
     for (int i = 0; i < (int)(sizeof(pane_default_order) / sizeof(pane_default_order[0])); i++) {

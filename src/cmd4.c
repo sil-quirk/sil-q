@@ -14501,7 +14501,6 @@ static const tutorial_highlight_rule tutorial_highlight_rules[] = {
     { "Alt+'-'", TERM_WHITE },
     { "Alt+'i'", TERM_WHITE },
     { "Alt+'l'", TERM_WHITE },
-    { "Alt+'p'", TERM_WHITE },
     { "'S'", TERM_WHITE },
     { "critical hit", TERM_L_BLUE },
     { "damage dice", TERM_L_BLUE },
@@ -14513,7 +14512,6 @@ static const tutorial_highlight_rule tutorial_highlight_rules[] = {
     { "light radius", TERM_YELLOW },
     { "right panel", TERM_UMBER },
     { "bottom panel", TERM_UMBER },
-    { "left status panel", TERM_UMBER },
     { "status panel", TERM_UMBER },
     { "bright star rating", TERM_L_GREEN },
     { "mixed elemental", TERM_L_BLUE },
@@ -17395,9 +17393,6 @@ static cptr option_menu_label(int opt)
     case OPT_hitpoint_warning:
         return compact ? (narrow ? "HP warn" : "HP warning")
                        : "Hitpoint warning threshold (0% to 90%)";
-    case OPT_hide_left_panel:
-        return compact ? (narrow ? "Panel layout" : "Left panel layout")
-                       : "Left Panel Layout [Alt+P]";
     case OPT_hide_supporting_panes_fullscreen:
         return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
                        : "Hide supporting panes on full-screen screens";
@@ -17806,11 +17801,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     value_str);
             }
-            else if (opt[i] == OPT_hide_left_panel)
-            {
-                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
-                    get_sdl_hide_left_panel() ? "yes" : "no ");
-            }
             else if (opt[i] == OPT_show_level_entry_banner)
             {
                 const char *mode_str;
@@ -18160,11 +18150,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->hitpoint_warn + 1
                         : 0;
                 }
-                else if (opt[k] == OPT_hide_left_panel)
-                {
-                    set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
-                    sdl_request_redraw();
-                }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
                     op_ptr->level_entry_narrative_mode =
@@ -18327,11 +18312,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->hitpoint_warn + 1
                         : 9;
                 }
-                else if (opt[k] == OPT_hide_left_panel)
-                {
-                    set_sdl_hide_left_panel(true);
-                    sdl_request_redraw();
-                }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
                     op_ptr->level_entry_narrative_mode =
@@ -18492,11 +18472,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->hitpoint_warn = (op_ptr->hitpoint_warn > 0)
                         ? op_ptr->hitpoint_warn - 1
                         : 0;
-                }
-                else if (opt[k] == OPT_hide_left_panel)
-                {
-                    set_sdl_hide_left_panel(false);
-                    sdl_request_redraw();
                 }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
@@ -19582,6 +19557,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT_PANEL";
     case PANE_STATUS: return "STATUS";
+    case PANE_DEPTH: return "DEPTH";
     case PANE_MAIN_MENU: return "MAIN_MENU";
     default: return "UNKNOWN";
     }
@@ -19805,6 +19781,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT";
     case PANE_STATUS: return "STAT";
+    case PANE_DEPTH: return "DEPTH";
     case PANE_MAIN_MENU: return "MENU";
     default: return "UNK";
     }

@@ -538,7 +538,6 @@ M:ANY:TIP:100:You can reassign controls in the options.
 M:ANY:TIP:100:You can zoom the main map by Alt+'+' or Alt+'-'.
 M:ANY:TIP:100:You can hide or unhide the right panel by Alt+'i'.
 M:ANY:TIP:100:You can hide or unhide the bottom panel by Alt+'l'.
-M:ANY:TIP:100:You can hide the left status panel by Alt+'p'.
 M:ANY:TIP:100:Monsters that surround you get a bonus to attack.
 M:ANY:TIP:100:Your character's special traits and curses descriptions can be seen by a Gem of Knowledge, if you are lucky.
 M:ANY:TIP:100:Removal of a curse or jinx via a Gem of Sanctity is roll-based.

@@ -318,6 +318,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_TOUCH: return "TOUCH";
         case PANE_LEFT_PANEL: return "LEFT_PANEL";
         case PANE_STATUS: return "STATUS";
+        case PANE_DEPTH: return "DEPTH";
         case PANE_MAIN_MENU: return "MAIN_MENU";
         default: return "MAIN";
     }
@@ -340,6 +341,9 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "LEFT_PANEL") == 0 || strcmp(value, "LEFT PANEL") == 0)
         return PANE_LEFT_PANEL;
     if (strcmp(value, "STATUS") == 0) return PANE_STATUS;
+    if (strcmp(value, "DEPTH") == 0 || strcmp(value, "DEPTH_PANE") == 0
+        || strcmp(value, "DEPTH PANE") == 0)
+        return PANE_DEPTH;
     if (strcmp(value, "MAIN_MENU") == 0 || strcmp(value, "MAIN MENU") == 0)
         return PANE_MAIN_MENU;
     return PANE_MAIN;
@@ -828,8 +832,7 @@ bool option_is_app_persistent(int opt)
         || opt == OPT_ability_desc_mode
         || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
         || opt == OPT_show_partition_narrative
-        || opt == OPT_narrative_banner_turns
-        || opt == OPT_hide_left_panel)
+        || opt == OPT_narrative_banner_turns)
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
@@ -1772,12 +1775,6 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded showPaneBorders: %s", config->show_pane_borders ? "true" : "false");
         }
 
-        item = cJSON_GetObjectItemCaseSensitive(sdl, "hideLeftPanel");
-        if (cJSON_IsBool(item)) {
-            config->hide_left_panel = cJSON_IsTrue(item);
-            log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
-        }
-
         item = cJSON_GetObjectItemCaseSensitive(sdl, "leftPanelExpandedOnLaunch");
         saw_left_panel_expanded_on_launch = (item != NULL);
         if (cJSON_IsBool(item)) {
@@ -2684,7 +2681,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
-    cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
     cJSON_AddBoolToObject(sdl, "leftPanelExpandedOnLaunch",
         config->left_panel_expanded_on_launch);
     cJSON_AddStringToObject(sdl, "leftPanelCompactMode",
@@ -3207,7 +3203,6 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->enable_right_panes = false;
     config->enable_bottom_panes = true;
     config->show_pane_borders = true;
-    config->hide_left_panel = false;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->left_panel_expanded_on_launch = false;
 #else

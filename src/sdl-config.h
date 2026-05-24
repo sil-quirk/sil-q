@@ -121,7 +121,6 @@ struct sdl_config {
     bool enable_right_panes;
     bool enable_bottom_panes;
     bool show_pane_borders;
-    bool hide_left_panel;
     bool left_panel_expanded_on_launch;
     int left_panel_compact_mode;
     int min_terminal_mode;

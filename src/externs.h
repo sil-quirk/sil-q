@@ -1985,7 +1985,6 @@ extern byte g_left_panel_quiver_attack_modes[2];
 extern byte g_left_panel_quiver_attack_start_cols[2];
 extern byte g_left_panel_quiver_attack_end_cols[2];
 extern bool get_sdl_hide_left_panel(void);
-extern void set_sdl_hide_left_panel(bool value);
 extern bool get_sdl_left_panel_expanded_on_launch(void);
 extern void set_sdl_left_panel_expanded_on_launch(bool value);
 extern int get_sdl_left_panel_compact_mode(void);

@@ -2854,7 +2854,7 @@
 #define OPT_intro_style 95
 #define OPT_show_partition_narrative 96
 #define OPT_noble_item_spawn_mode 97
-#define OPT_hide_left_panel 98
+#define OPT_hide_left_panel 98 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_banner_message_stairs 99
 #define OPT_show_level_generation_debug 100
 #define OPT_unlock_blitz_mode 101
