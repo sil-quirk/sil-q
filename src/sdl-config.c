@@ -402,6 +402,24 @@ static int parse_min_terminal_mode(const char* value)
     return SDL_MIN_TERMINAL_NORMAL;
 }
 
+static const char* left_panel_compact_mode_to_string(int mode)
+{
+    switch (mode) {
+        case SDL_LEFT_PANEL_COMPACT_ROW: return "ROW";
+        case SDL_LEFT_PANEL_COMPACT_COLUMN: return "COLUMN";
+        default: return "COLUMN";
+    }
+}
+
+static int parse_left_panel_compact_mode(const char* value)
+{
+    if (!value)
+        return SDL_LEFT_PANEL_COMPACT_COLUMN;
+    if (strcmp(value, "ROW") == 0) return SDL_LEFT_PANEL_COMPACT_ROW;
+    if (strcmp(value, "COLUMN") == 0) return SDL_LEFT_PANEL_COMPACT_COLUMN;
+    return SDL_LEFT_PANEL_COMPACT_COLUMN;
+}
+
 static const char* touch_profile_to_string(int profile)
 {
     switch (profile) {
@@ -1768,6 +1786,23 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 config->left_panel_expanded_on_launch ? "true" : "false");
         }
 
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "leftPanelCompactMode");
+        if (cJSON_IsString(item)) {
+            config->left_panel_compact_mode =
+                parse_left_panel_compact_mode(item->valuestring);
+            log_debug("Loaded leftPanelCompactMode: %s",
+                left_panel_compact_mode_to_string(
+                    config->left_panel_compact_mode));
+        } else if (cJSON_IsNumber(item)) {
+            config->left_panel_compact_mode =
+                (item->valueint == SDL_LEFT_PANEL_COMPACT_ROW)
+                    ? SDL_LEFT_PANEL_COMPACT_ROW
+                    : SDL_LEFT_PANEL_COMPACT_COLUMN;
+            log_debug("Loaded numeric leftPanelCompactMode: %s",
+                left_panel_compact_mode_to_string(
+                    config->left_panel_compact_mode));
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "minTerminalMode");
         if (cJSON_IsString(item)) {
             config->min_terminal_mode = parse_min_terminal_mode(item->valuestring);
@@ -2652,6 +2687,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
     cJSON_AddBoolToObject(sdl, "leftPanelExpandedOnLaunch",
         config->left_panel_expanded_on_launch);
+    cJSON_AddStringToObject(sdl, "leftPanelCompactMode",
+        left_panel_compact_mode_to_string(config->left_panel_compact_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     cJSON_AddNumberToObject(sdl, "logPaneDisplayFilter",
         config->log_pane_display_filter);
@@ -3176,6 +3213,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
 #else
     config->left_panel_expanded_on_launch = true;
 #endif
+    config->left_panel_compact_mode = SDL_LEFT_PANEL_COMPACT_COLUMN;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
 #else

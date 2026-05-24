@@ -84,6 +84,9 @@
 #define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 6
 #define SDL_PANE_PROFILE_COUNT 2
+#define SDL_LEFT_PANEL_COMPACT_COLUMN 0
+#define SDL_LEFT_PANEL_COMPACT_ROW 1
+#define SDL_LEFT_PANEL_COMPACT_COUNT 2
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
@@ -120,6 +123,7 @@ struct sdl_config {
     bool show_pane_borders;
     bool hide_left_panel;
     bool left_panel_expanded_on_launch;
+    int left_panel_compact_mode;
     int min_terminal_mode;
     int log_pane_display_filter;
     

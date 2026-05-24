@@ -1988,6 +1988,8 @@ extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
 extern bool get_sdl_left_panel_expanded_on_launch(void);
 extern void set_sdl_left_panel_expanded_on_launch(bool value);
+extern int get_sdl_left_panel_compact_mode(void);
+extern void set_sdl_left_panel_compact_mode(int mode);
 extern void redraw_hidden_left_panel_overlay(void);
 extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
