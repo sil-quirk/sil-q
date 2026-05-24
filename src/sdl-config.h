@@ -119,6 +119,7 @@ struct sdl_config {
     bool enable_bottom_panes;
     bool show_pane_borders;
     bool hide_left_panel;
+    bool left_panel_expanded_on_launch;
     int hidden_left_panel_mode;
     int min_terminal_mode;
     int log_pane_display_filter;
@@ -216,7 +217,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config);
 // Clear custom touch pane labels (does not touch other fields)
 void sdl_config_clear_touch_pane_labels(struct sdl_config* config);
 
-// Set default configuration values based on screen resolution
+// Set first-run configuration values. Resolution presets are not applied.
 bool sdl_config_set_defaults_for_resolution(struct sdl_config* config,
                                             struct pane_config* pane_configs,
                                             int* pane_count,

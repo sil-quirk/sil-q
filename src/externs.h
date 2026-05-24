@@ -1986,6 +1986,8 @@ extern byte g_left_panel_quiver_attack_start_cols[2];
 extern byte g_left_panel_quiver_attack_end_cols[2];
 extern bool get_sdl_hide_left_panel(void);
 extern void set_sdl_hide_left_panel(bool value);
+extern bool get_sdl_left_panel_expanded_on_launch(void);
+extern void set_sdl_left_panel_expanded_on_launch(bool value);
 extern int get_sdl_hidden_left_panel_mode(void);
 extern void set_sdl_hidden_left_panel_mode(int value);
 extern void redraw_hidden_left_panel_topline_suffix(void);

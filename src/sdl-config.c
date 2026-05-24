@@ -10,6 +10,13 @@
 
 // JSON-based configuration system using cJSON library
 
+/*
+ * Legacy resolution preset data.
+ *
+ * First-run defaults are now computed dynamically from the display size and
+ * the platform minimum terminal size, so no resolution preset table is used.
+ */
+#if 0
 // Resolution-specific default configuration profile
 // Only includes values that differ per resolution
 struct resolution_profile {
@@ -290,6 +297,11 @@ static const struct resolution_profile resolution_profiles[] = {
 };
 
 #define NUM_RESOLUTION_PROFILES (sizeof(resolution_profiles) / sizeof(resolution_profiles[0]))
+#endif
+
+enum {
+    SDL_CONFIG_DEFAULT_LOG_PANE_ROWS = 4,
+};
 
 static const char* pane_type_to_string(enum pane_type type)
 {
@@ -1522,6 +1534,120 @@ static void sdl_config_load_pane_profile(cJSON* profile_obj,
     }
 }
 
+static int sdl_config_profile_find_pane(struct sdl_pane_profile* profile,
+    enum pane_type pane)
+{
+    if (!profile)
+        return -1;
+
+    for (int i = 0; i < profile->pane_count && i < MAX_PANE_CONFIGS; i++) {
+        if (profile->pane_configs[i].pane == pane)
+            return i;
+    }
+
+    return -1;
+}
+
+static bool sdl_config_profile_has_enabled_bottom_pane(
+    const struct sdl_pane_profile* profile)
+{
+    if (!profile)
+        return false;
+
+    for (int i = 0; i < profile->pane_count && i < MAX_PANE_CONFIGS; i++) {
+        const struct pane_config* pane = &profile->pane_configs[i];
+
+        if (pane->pane == PANE_TOUCH)
+            continue;
+        if (pane->enabled && pane_placement_is_bottom(pane->where))
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_config_profile_enable_default_log_pane(
+    struct sdl_pane_profile* profile)
+{
+    struct pane_config* log_pane;
+    int index;
+    bool changed = false;
+
+    if (!profile)
+        return false;
+
+    if (profile->pane_count < 0)
+        profile->pane_count = 0;
+    if (profile->pane_count > MAX_PANE_CONFIGS)
+        profile->pane_count = MAX_PANE_CONFIGS;
+
+    index = sdl_config_profile_find_pane(profile, PANE_LOG);
+    if (index < 0) {
+        if (profile->pane_count >= MAX_PANE_CONFIGS)
+            return false;
+
+        index = profile->pane_count++;
+        memset(&profile->pane_configs[index], 0,
+            sizeof(profile->pane_configs[index]));
+        profile->pane_configs[index].pane = PANE_LOG;
+        changed = true;
+    }
+
+    log_pane = &profile->pane_configs[index];
+    if (log_pane->where != PLACE_BOTTOM) {
+        log_pane->where = PLACE_BOTTOM;
+        changed = true;
+    }
+    if (!log_pane->enabled) {
+        log_pane->enabled = true;
+        changed = true;
+    }
+    if (log_pane->rect.rows <= 0) {
+        log_pane->rect.rows = SDL_CONFIG_DEFAULT_LOG_PANE_ROWS;
+        changed = true;
+    }
+    if (log_pane->rect.cols != 0) {
+        log_pane->rect.cols = 0;
+        changed = true;
+    }
+    if (!profile->enable_bottom_panes) {
+        profile->enable_bottom_panes = true;
+        changed = true;
+    }
+
+    return changed;
+}
+
+static void sdl_config_migrate_default_log_pane(struct sdl_config* config,
+    struct sdl_pane_profile* pane_profiles, int profile_count)
+{
+    bool changed = false;
+
+    if (config)
+        config->enable_bottom_panes = true;
+
+    if (!pane_profiles || profile_count <= 0)
+        return;
+
+    for (int mode = 0; mode < profile_count; mode++) {
+        if (sdl_config_profile_has_enabled_bottom_pane(&pane_profiles[mode])) {
+            if (!pane_profiles[mode].enable_bottom_panes) {
+                pane_profiles[mode].enable_bottom_panes = true;
+                changed = true;
+            }
+            continue;
+        }
+
+        if (sdl_config_profile_enable_default_log_pane(&pane_profiles[mode]))
+            changed = true;
+    }
+
+    if (changed) {
+        log_info("Migrated SDL config to default %d-row log pane",
+            SDL_CONFIG_DEFAULT_LOG_PANE_ROWS);
+    }
+}
+
 static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_configs, int pane_count)
 {
     cJSON* panes = cJSON_CreateArray();
@@ -1564,6 +1690,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
 {
     struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
     int legacy_pane_count = 0;
+    bool saw_left_panel_expanded_on_launch = false;
 
     /* Loaders overlay JSON onto defaults so old configs inherit new settings. */
     sdl_config_set_defaults(config);
@@ -1668,6 +1795,14 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         if (cJSON_IsBool(item)) {
             config->hide_left_panel = cJSON_IsTrue(item);
             log_debug("Loaded hideLeftPanel: %s", config->hide_left_panel ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "leftPanelExpandedOnLaunch");
+        saw_left_panel_expanded_on_launch = (item != NULL);
+        if (cJSON_IsBool(item)) {
+            config->left_panel_expanded_on_launch = cJSON_IsTrue(item);
+            log_debug("Loaded leftPanelExpandedOnLaunch: %s",
+                config->left_panel_expanded_on_launch ? "true" : "false");
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelPlacement");
@@ -1888,6 +2023,9 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             }
         }
     }
+
+    if (!saw_left_panel_expanded_on_launch)
+        sdl_config_migrate_default_log_pane(config, pane_profiles, profile_count);
 
     // Parse gamepad settings
     cJSON* gamepad = cJSON_GetObjectItemCaseSensitive(root, "gamepad");
@@ -2566,6 +2704,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
     cJSON_AddBoolToObject(sdl, "showPaneBorders", config->show_pane_borders);
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
+    cJSON_AddBoolToObject(sdl, "leftPanelExpandedOnLaunch",
+        config->left_panel_expanded_on_launch);
     cJSON_AddStringToObject(sdl, "hiddenLeftPanelPlacement",
         hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
@@ -3084,10 +3224,15 @@ void sdl_config_set_defaults(struct sdl_config* config)
 #else
     config->use_unsafe_area = false;
 #endif
-    config->enable_right_panes = true;
+    config->enable_right_panes = false;
     config->enable_bottom_panes = true;
     config->show_pane_borders = true;
     config->hide_left_panel = false;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    config->left_panel_expanded_on_launch = false;
+#else
+    config->left_panel_expanded_on_launch = true;
+#endif
     config->hidden_left_panel_mode = HIDDEN_LEFT_PANEL_TOP_LEFT;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
@@ -3147,55 +3292,18 @@ bool sdl_config_set_defaults_for_resolution(struct sdl_config* config,
                                             int screen_width,
                                             int screen_height)
 {
+    (void)pane_configs;
+    (void)max_panes;
+
     // Start with base defaults
     sdl_config_set_defaults(config);
-    *pane_count = 0;
-    
-    log_info("Setting resolution-specific defaults for %dx%d", screen_width, screen_height);
-    
-    // Search for matching resolution profile
-    const struct resolution_profile* profile = NULL;
-    for (size_t i = 0; i < NUM_RESOLUTION_PROFILES; i++) {
-        if (resolution_profiles[i].width == screen_width && 
-            resolution_profiles[i].height == screen_height) {
-            profile = &resolution_profiles[i];
-            break;
-        }
-    }
-    
-    if (profile) {
-        // Apply resolution-specific settings
-        log_info("Detected %s resolution - applying optimized defaults", profile->name);
-        
-        config->main_view_scale = profile->main_view_scale;
-        config->aux_view_font_size = 0;
-        // Note: margin, fullscreen, tiles, and window position/size use base defaults
-        
-        // Apply pane configuration
-        *pane_count = profile->pane_count;
-        if (*pane_count > max_panes) {
-            log_warn("Profile has %d panes but max_panes is %d, truncating", 
-                     *pane_count, max_panes);
-            *pane_count = max_panes;
-        }
-        
-        for (int i = 0; i < *pane_count; i++) {
-            pane_configs[i].pane = profile->panes[i].type;
-            pane_configs[i].where = profile->panes[i].where;
-            pane_configs[i].enabled = true;
-            pane_configs[i].rect.rows = profile->panes[i].rows;
-            pane_configs[i].rect.cols = profile->panes[i].cols;
-            pane_configs[i].font_size = 0;
-            pane_configs[i].ratio = 0.0f;
-        }
-    } else {
-        // Unknown resolution - use generic defaults
-        log_info("Using generic defaults for %dx%d resolution", screen_width, screen_height);
-        // The config already has base defaults from sdl_config_set_defaults()
-        // pane_count is 0, so default_pane_config will be used by caller
-    }
+    if (pane_count)
+        *pane_count = 0;
 
-    return (profile != NULL);
+    log_info("Using dynamic SDL defaults for %dx%d; resolution presets are disabled",
+        screen_width, screen_height);
+
+    return false;
 }
 
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)

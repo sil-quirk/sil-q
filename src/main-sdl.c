@@ -34,7 +34,7 @@
 #define SIL_SDL_MOBILE_BUILD 0
 #endif
 
-#if defined(SDL_PLATFORM_WINDOWS) || defined(SDL_PLATFORM_LINUX)
+#if defined(SDL_PLATFORM_WINDOWS) || defined(SDL_PLATFORM_LINUX) || defined(SDL_PLATFORM_MACOS)
 #define SIL_SDL_DESKTOP_HANDHELD_BUILD 1
 #else
 #define SIL_SDL_DESKTOP_HANDHELD_BUILD 0
@@ -99,6 +99,7 @@ typedef struct sdl_layout_recovery_result {
 
 typedef enum sdl_startup_device_class {
     SDL_STARTUP_DEVICE_DESKTOP = 0,
+    SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER,
     SDL_STARTUP_DEVICE_DESKTOP_HANDHELD,
     SDL_STARTUP_DEVICE_ANDROID_HANDHELD,
     SDL_STARTUP_DEVICE_MOBILE_TOUCH,
@@ -300,25 +301,53 @@ static void sdl_normalize_unified_log_pane_profiles(bool enable_added_log)
 
 static void sdl_log_pane_sync_display_filter_from_config(void);
 
+static int sdl_default_main_scale_for_screen_size(int screen_width,
+    int screen_height, int mode)
+{
+    int min_cols = (mode == SDL_MIN_TERMINAL_COMPACT) ? 50 : 80;
+    int min_rows = (mode == SDL_MIN_TERMINAL_COMPACT) ? 18 : 24;
+    int max_scale_w;
+    int max_scale_h;
+    int max_scale;
+
+    if (screen_width <= 0 || screen_height <= 0)
+        return 1;
+
+    max_scale_w = (screen_width / min_cols) * 2 / TILE_SIZE;
+    max_scale_h = screen_height / min_rows / TILE_SIZE;
+    max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
+
+    if (max_scale < 1)
+        max_scale = 1;
+    if (max_scale > 20)
+        max_scale = 20;
+
+    return max_scale;
+}
+
 static void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height)
 {
-    bool matched_profile = sdl_config_set_defaults_for_resolution(&config, pane_config,
+    (void)sdl_config_set_defaults_for_resolution(&config, pane_config,
         &pane_config_count, MAX_PANE_CONFIGS, screen_width, screen_height);
 
-    if (!matched_profile && pane_config_count == 0) {
-        pane_config_count = default_pane_config_count;
-        for (int i = 0; i < default_pane_config_count
-            && i < MAX_PANE_CONFIGS; i++)
-        {
-            pane_config[i] = default_pane_config[i];
-        }
-    }
+    config.main_view_scale = sdl_default_main_scale_for_screen_size(screen_width,
+        screen_height, config.min_terminal_mode);
+    config.aux_view_font_size = 0;
+    config.enable_right_panes = false;
+    config.enable_bottom_panes = true;
 
     (void)sdl_normalize_unified_log_pane_config(pane_config,
         &pane_config_count, true);
     sdl_seed_all_pane_profiles_from_active();
     sdl_log_pane_sync_display_filter_from_config();
+
+    log_info("Default main view scale: %d for %dx%d minimum terminal (%s), selected without supporting panes; default log pane rows=%d",
+        config.main_view_scale,
+        (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 50 : 80,
+        (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? 18 : 24,
+        (config.min_terminal_mode == SDL_MIN_TERMINAL_COMPACT) ? "compact" : "normal",
+        SDL_LOG_PANE_DEFAULT_ROWS);
 }
 
 static int sdl_min_terminal_cols_for_mode(int mode)
@@ -1364,12 +1393,10 @@ static TTF_Font* sdl_acquire_mono_font_cells(const char* font_path,
     int cell_width, int cell_height);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
 static TTF_Font* sdl_story_font_for_view(const sdl_view* d);
+#if SIL_SDL_MOBILE_BUILD
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes);
-static void sdl_ensure_default_pane_profiles_present(bool enable_new_panes);
-#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
-    bool has_controller);
 #endif
+static void sdl_ensure_default_pane_profiles_present(bool enable_new_panes);
 static void sdl_ensure_touch_pane_config_present(void);
 static bool sdl_touch_only_mobile_device_active(void);
 static bool sdl_touch_pane_uses_mobile_toggle(void);
@@ -1803,6 +1830,7 @@ static void sdl_compute_pruned_split_panes_for_mode(const SDL_Rect* screen,
 static void sdl_compute_display_panes(SDL_Rect* panes);
 static int sdl_max_scale_for_rect(const SDL_Rect* rect);
 static int sdl_max_scale_for_rect_mode(const SDL_Rect* rect, int mode);
+static bool sdl_apply_default_main_scale_for_layout(const char* reason);
 static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode);
 static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen, int mode);
 static int sdl_max_scale_for_window_mode(int mode);
@@ -1823,6 +1851,8 @@ static bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
     int screen_width, int screen_height);
 #if SIL_SDL_DESKTOP_HANDHELD_BUILD
 static bool sdl_is_desktop_handheld_resolution(int width, int height);
+static sdl_startup_device_class sdl_prompt_desktop_startup_input_device(
+    int screen_width, int screen_height);
 #endif
 static int sdl_touch_pane_target_width_px(int pane_height_px);
 static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
@@ -2454,11 +2484,13 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
     return changed;
 }
 
+#if SIL_SDL_MOBILE_BUILD
 static void sdl_ensure_default_pane_configs_present(bool enable_new_panes)
 {
     (void)sdl_ensure_default_pane_config_entries(pane_config,
         &pane_config_count, enable_new_panes);
 }
+#endif
 
 static void sdl_ensure_default_pane_profiles_present(bool enable_new_panes)
 {
@@ -2823,6 +2855,8 @@ static int sdl_main_view_logical_cols_for_visual_cols(int visual_cols)
 static const char* sdl_startup_device_class_name(sdl_startup_device_class device)
 {
     switch (device) {
+    case SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER:
+        return "desktop-controller";
     case SDL_STARTUP_DEVICE_DESKTOP_HANDHELD:
         return "desktop-handheld";
     case SDL_STARTUP_DEVICE_ANDROID_HANDHELD:
@@ -2838,7 +2872,8 @@ static const char* sdl_startup_device_class_name(sdl_startup_device_class device
 static bool sdl_startup_device_class_uses_controller_ui(
     sdl_startup_device_class device)
 {
-    return device == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD
+    return device == SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER
+        || device == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD
         || device == SDL_STARTUP_DEVICE_ANDROID_HANDHELD;
 }
 
@@ -2851,10 +2886,11 @@ static void sdl_apply_startup_input_defaults_to_config(
     if (!target)
         return;
 
-    target->gamepad_enabled = !mobile_touch;
+    target->gamepad_enabled = controller_ui;
     target->gamepad_auto_mode = controller_ui;
     target->steamdeck_mode = controller_ui;
-    target->mouse_enabled = (device == SDL_STARTUP_DEVICE_DESKTOP);
+    target->mouse_enabled = !controller_ui
+        && (device == SDL_STARTUP_DEVICE_DESKTOP);
 
     if (mobile_touch) {
         target->touch_profile = SDL_TOUCH_PROFILE_TOUCH_PANE;
@@ -2929,18 +2965,18 @@ static sdl_startup_device_class sdl_detect_startup_device_class(
 #elif defined(SIL_IOS)
     (void)has_gamepad;
     return SDL_STARTUP_DEVICE_MOBILE_TOUCH;
-#elif SIL_SDL_DESKTOP_HANDHELD_BUILD
-    if (has_gamepad
-        && sdl_is_desktop_handheld_resolution(screen_width, screen_height))
-    {
-        return SDL_STARTUP_DEVICE_DESKTOP_HANDHELD;
-    }
 #endif
 
+    (void)has_gamepad;
+    (void)screen_width;
+    (void)screen_height;
     return SDL_STARTUP_DEVICE_DESKTOP;
 }
 
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
+#if 0
+/* Legacy handheld/mobile pane presets. First-run layouts no longer enable
+ * side or bottom pane presets on any platform. */
 static struct pane_config* sdl_find_pane_config_entry(struct pane_config* configs,
     int count, enum pane_type pane)
 {
@@ -3167,6 +3203,7 @@ static void sdl_mobile_set_right_panes(struct pane_config* configs, int count,
         info->ratio = 0.0f;
     }
 }
+#endif
 
 static int sdl_mobile_pane_cols(const SDL_Rect* panes, const int* cell_widths,
     enum pane_type type)
@@ -3292,6 +3329,7 @@ static bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
     return fits;
 }
 
+#if 0
 static int sdl_mobile_select_default_scale(const SDL_Rect* screen,
     const struct pane_config* configs, int count)
 {
@@ -3421,6 +3459,7 @@ static void sdl_apply_mobile_default_pane_layout(const SDL_Rect* screen,
         inventory_enabled ? "on" : "off",
         worn_enabled ? "on" : "off");
 }
+#endif
 
 static bool sdl_mobile_maybe_apply_first_start_auto_scale(const char* reason)
 {
@@ -4545,6 +4584,40 @@ static int sdl_max_scale_for_rect(const SDL_Rect* rect)
     return sdl_max_scale_for_rect_mode(rect, config.min_terminal_mode);
 }
 
+static bool sdl_apply_default_main_scale_for_layout(const char* reason)
+{
+    SDL_Rect screen;
+    int old_scale;
+    int new_scale;
+
+    if (!g_state.window)
+        return false;
+
+    sdl_refresh_safe_area();
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    old_scale = config.main_view_scale;
+    new_scale = sdl_max_scale_for_rect_mode(&screen, config.min_terminal_mode);
+    if (new_scale < 1)
+        new_scale = 1;
+
+    config.main_view_scale = new_scale;
+    g_main_view_zoom_scale = 0;
+
+    if (old_scale != new_scale) {
+        log_info("%s: default main_view_scale changed from %d to %d for layout %dx%d without supporting panes",
+            reason ? reason : "startup", old_scale, new_scale,
+            screen.w, screen.h);
+        return true;
+    }
+
+    log_info("%s: default main_view_scale %d fits layout %dx%d without supporting panes",
+        reason ? reason : "startup", new_scale, screen.w, screen.h);
+    return false;
+}
+
 static int sdl_max_scale_for_layout(const SDL_Rect* screen, int mode)
 {
     int max_scale;
@@ -4967,6 +5040,58 @@ static bool sdl_is_desktop_handheld_resolution(int width, int height)
         || sdl_resolution_matches_pair(width, height, 1920, 1080)
         || sdl_resolution_matches_pair(width, height, 1920, 1200)
         || sdl_resolution_matches_pair(width, height, 2560, 1600);
+}
+
+static sdl_startup_device_class sdl_prompt_desktop_startup_input_device(
+    int screen_width, int screen_height)
+{
+    enum {
+        SDL_STARTUP_INPUT_MOUSE_KEYBOARD = 0,
+        SDL_STARTUP_INPUT_CONTROLLER = 1,
+    };
+    bool handheld_resolution =
+        sdl_is_desktop_handheld_resolution(screen_width, screen_height);
+    SDL_MessageBoxButtonData buttons[2];
+    SDL_MessageBoxData messagebox = {
+        .flags = SDL_MESSAGEBOX_INFORMATION
+            | SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT,
+        .window = g_state.window,
+        .title = "Choose Input",
+        .message = "A controller is connected.\n\nUse controller input or mouse + keyboard input?\n\nController is recommended for handhelds. Mouse + keyboard is recommended for everything else.",
+        .numbuttons = 2,
+        .buttons = buttons,
+        .colorScheme = NULL,
+    };
+    int button_id = handheld_resolution
+        ? SDL_STARTUP_INPUT_CONTROLLER
+        : SDL_STARTUP_INPUT_MOUSE_KEYBOARD;
+
+    buttons[0] = (SDL_MessageBoxButtonData){
+        handheld_resolution ? SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT
+                            : 0,
+        SDL_STARTUP_INPUT_CONTROLLER,
+        "Controller",
+    };
+    buttons[1] = (SDL_MessageBoxButtonData){
+        handheld_resolution ? SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT
+                            : (SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT
+                                | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT),
+        SDL_STARTUP_INPUT_MOUSE_KEYBOARD,
+        "Mouse + Keyboard",
+    };
+
+    if (!SDL_ShowMessageBox(&messagebox, &button_id)) {
+        log_warn("SDL_ShowMessageBox failed during input selection: %s",
+            SDL_GetError());
+        return handheld_resolution
+            ? SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER
+            : SDL_STARTUP_DEVICE_DESKTOP;
+    }
+
+    if (button_id == SDL_STARTUP_INPUT_CONTROLLER)
+        return SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER;
+
+    return SDL_STARTUP_DEVICE_DESKTOP;
 }
 #endif
 
@@ -24297,8 +24422,11 @@ static bool sdl_event_is_handheld_touch_fallback_input(const SDL_Event* ev)
 {
     if (!ev || config.mouse_enabled)
         return false;
-    if (g_startup_device_class != SDL_STARTUP_DEVICE_DESKTOP_HANDHELD)
+    if (g_startup_device_class != SDL_STARTUP_DEVICE_DESKTOP_CONTROLLER
+        && g_startup_device_class != SDL_STARTUP_DEVICE_DESKTOP_HANDHELD)
+    {
         return false;
+    }
     if (g_direct_touch_present)
         return false;
 
@@ -31881,7 +32009,6 @@ errr init_sdl(int argc, char **argv)
     bool config_exists = SDL_GetPathInfo(config_file_path, NULL);
     enum sdl_config_load_status config_load_status = SDL_CONFIG_LOAD_OK;
     char startup_issue_summary[SDL_STARTUP_ISSUE_MAX];
-    bool desktop_handheld_first_start = false;
 
     startup_issue_summary[0] = '\0';
 
@@ -31889,12 +32016,11 @@ errr init_sdl(int argc, char **argv)
         // Config file exists - use generic defaults first, then load from file
         log_debug("Config file exists, loading from: %s", config_file_path);
         sdl_config_set_defaults(&config);
-        
-        // Copy default pane configuration
-        pane_config_count = default_pane_config_count;
-        for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
-            pane_config[i] = default_pane_config[i];
-        }
+
+        pane_config_count = 0;
+        memset(pane_config, 0, sizeof(pane_config));
+        (void)sdl_normalize_unified_log_pane_config(pane_config,
+            &pane_config_count, true);
         sdl_seed_all_pane_profiles_from_active();
         config_load_status = sdl_config_load(config_file_path, &config,
             g_pane_profiles, SDL_PANE_PROFILE_COUNT);
@@ -31934,8 +32060,8 @@ errr init_sdl(int argc, char **argv)
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles, g_sound_config.enabled);
     } else {
-        // Config file doesn't exist - use resolution-based defaults
-        log_debug("Config file not found, using resolution-based defaults");
+        // Config file doesn't exist - use dynamic first-run defaults.
+        log_debug("Config file not found, using dynamic defaults");
         sdl_reset_config_to_resolution_defaults(screen_pixels_w, screen_pixels_h);
         
         log_debug("After resolution defaults: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
@@ -31965,6 +32091,7 @@ errr init_sdl(int argc, char **argv)
     g_active_bottom_panes = config.enable_bottom_panes;
 
     g_hide_left_panel = config.hide_left_panel;
+    g_left_panel_pane_expanded = config.left_panel_expanded_on_launch;
     
     // Apply command-line overrides
     sdl_config_apply_cmdline(&config, argc, argv);
@@ -32069,8 +32196,15 @@ errr init_sdl(int argc, char **argv)
 
     g_startup_device_class = sdl_detect_startup_device_class(screen_pixels_w,
         screen_pixels_h);
-    desktop_handheld_first_start =
-        (g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP_HANDHELD);
+#if SIL_SDL_DESKTOP_HANDHELD_BUILD
+    if (!config_exists && g_gamepad_state.pad_count > 0
+        && g_startup_device_class == SDL_STARTUP_DEVICE_DESKTOP)
+    {
+        g_startup_device_class =
+            sdl_prompt_desktop_startup_input_device(screen_pixels_w,
+                screen_pixels_h);
+    }
+#endif
     log_info("Startup device profile: %s (%dx%d, %d gamepad%s detected%s)",
         sdl_startup_device_class_name(g_startup_device_class),
         screen_pixels_w, screen_pixels_h,
@@ -32080,8 +32214,6 @@ errr init_sdl(int argc, char **argv)
 
     if (!config_exists) {
         sdl_apply_first_start_device_defaults(g_startup_device_class);
-        if (sdl_startup_device_class_uses_controller_ui(g_startup_device_class))
-            config.min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
     }
     if (config.touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL
         && sdl_touch_only_mobile_device_active()
@@ -32137,11 +32269,13 @@ errr init_sdl(int argc, char **argv)
     }
 
     sdl_ensure_window_size_for_min_terminal(&screen, &window_width, &window_height);
-    
+
     sdl_window_create(window_width, window_height, config.fullscreen, config.tiles);
 
     sdl_refresh_safe_area();
-    if (config_exists) {
+    if (!config_exists) {
+        (void)sdl_apply_default_main_scale_for_layout("startup");
+    } else {
         sdl_layout_recovery_result startup_recovery;
         char recovery_note[256];
 
@@ -32160,27 +32294,6 @@ errr init_sdl(int argc, char **argv)
         sdl_window_set_position(config.window_x, config.window_y);
     }
 
-#if SIL_SDL_HANDHELD_DEFAULTS_BUILD
-    if (!config_exists && (SIL_SDL_MOBILE_BUILD || desktop_handheld_first_start)) {
-        SDL_Rect handheld_screen;
-        bool handheld_has_controller =
-            sdl_startup_device_class_uses_controller_ui(g_startup_device_class);
-
-#if SIL_SDL_DESKTOP_HANDHELD_BUILD
-        if (desktop_handheld_first_start)
-            handheld_has_controller = true;
-#endif
-        sdl_ensure_default_pane_configs_present(false);
-        sdl_refresh_safe_area();
-        handheld_screen = sdl_get_layout_screen_rect();
-        sdl_apply_mobile_default_pane_layout(&handheld_screen,
-            handheld_has_controller);
-        g_mobile_first_start_auto_scale_pending = true;
-        g_active_side_panes = config.enable_right_panes;
-        g_active_bottom_panes = config.enable_bottom_panes;
-    }
-#endif
-    
     // Load story and banner fonts
     sdl_load_story_fonts();
 
@@ -32242,8 +32355,11 @@ void get_sdl_config_info(char* buf, size_t size)
         config.use_unsafe_area ? "Yes" : "No");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Pane Borders: %s\n",
         config.show_pane_borders ? "White" : "Black");
-    offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n\n",
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Hide Left Panel: %s\n",
         config.hide_left_panel ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset,
+        "Left Panel Launch State: %s\n\n",
+        config.left_panel_expanded_on_launch ? "Full" : "Compact");
     
     // Pane configurations
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
@@ -32944,6 +33060,17 @@ void set_sdl_hide_left_panel(bool value)
 {
     g_hide_left_panel = value;
     config.hide_left_panel = value;
+}
+
+bool get_sdl_left_panel_expanded_on_launch(void)
+{
+    return config.left_panel_expanded_on_launch;
+}
+
+void set_sdl_left_panel_expanded_on_launch(bool value)
+{
+    config.left_panel_expanded_on_launch = value;
+    sdl_left_panel_pane_set_expanded(value);
 }
 
 int get_sdl_hidden_left_panel_mode(void)

@@ -18954,6 +18954,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_AUX_VIEW_FONT_SIZE,
         PANE_SETTING_VIEW_PANE_CONFIGURATION,
         PANE_SETTING_PANE_FONT_SIZES,
+        PANE_SETTING_LEFT_PANEL_LAUNCH_STATE,
         PANE_SETTING_OPEN_CONFIG_FILE,
         PANE_SETTING_SAVE_RETURN,
         PANE_SETTING_COUNT
@@ -19144,7 +19145,20 @@ void do_cmd_pane_settings(void)
         ui_menu_click_add(PANE_SETTING_PANE_FONT_SIZES, 2, y0 + 11,
             (int)strlen(buf));
 
-        /* Option 12: Open SDL Config File */
+        /* Option 12: Left Panel Launch State */
+        a = (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Left Panel Launch State",
+                "Left Panel Launch",
+                "Panel Launch"),
+            get_sdl_left_panel_expanded_on_launch() ? "full" : "compact",
+            row_width, 7);
+        c_prt(a, buf, y0 + 12, 2);
+        ui_menu_click_add(PANE_SETTING_LEFT_PANEL_LAUNCH_STATE, 2, y0 + 12,
+            (int)strlen(buf));
+
+        /* Option 13: Open SDL Config File */
         a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -19152,18 +19166,18 @@ void do_cmd_pane_settings(void)
                 "Open SDL Config",
                 "Open Config"),
             sdl_config_path_leaf(config_label), row_width, 12);
-        c_prt(a, buf, y0 + 12, 2);
-        ui_menu_click_add(PANE_SETTING_OPEN_CONFIG_FILE, 2, y0 + 12,
+        c_prt(a, buf, y0 + 13, 2);
+        ui_menu_click_add(PANE_SETTING_OPEN_CONFIG_FILE, 2, y0 + 13,
             (int)strlen(buf));
 
-        /* Option 13: Save/Return */
+        /* Option 14: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 13, 2);
-        ui_menu_click_add(PANE_SETTING_SAVE_RETURN, 2, y0 + 13,
+        c_prt(a, buf, y0 + 14, 2);
+        ui_menu_click_add(PANE_SETTING_SAVE_RETURN, 2, y0 + 14,
             (int)strlen(buf));
 
         for (int click_i = 0; click_i < n; click_i++)
@@ -19361,6 +19375,13 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
             }
+            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
+            {
+                set_sdl_left_panel_expanded_on_launch(
+                    !get_sdl_left_panel_expanded_on_launch());
+                settings_changed = true;
+                sdl_request_redraw();
+            }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
@@ -19455,6 +19476,12 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
             }
+            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
+            {
+                set_sdl_left_panel_expanded_on_launch(true);
+                settings_changed = true;
+                sdl_request_redraw();
+            }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 0)
@@ -19537,6 +19564,12 @@ void do_cmd_pane_settings(void)
                 op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = false;
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
+            }
+            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
+            {
+                set_sdl_left_panel_expanded_on_launch(false);
+                settings_changed = true;
+                sdl_request_redraw();
             }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
