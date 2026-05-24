@@ -3646,8 +3646,7 @@ static void finalize_character_creation_selection(void)
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
     }
 
-    if (op_ptr->main_combat_rolls > 4)
-        op_ptr->main_combat_rolls = 0;
+    op_ptr->main_combat_rolls = 0;
     if (op_ptr->ability_desc_mode > 2)
         op_ptr->ability_desc_mode = 0;
     if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)

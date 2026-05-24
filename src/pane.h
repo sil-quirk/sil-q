@@ -17,9 +17,10 @@ enum pane_type {
     PANE_MONSTERS = 7, // - visible monsters window
     PANE_MAP = 8, // interactive side map
     PANE_TOUCH = 9, // touchscreen / mouse action pad
-    PANE_LEFT_PANEL = 10, // classic left character panel, rendered as SDL pane
+    PANE_LEFT_PANEL = 10, // classic/compact character panel overlay
     PANE_STATUS = 11, // current character statuses, rendered as SDL overlay
-    PANE_MAX = 12,
+    PANE_MAIN_MENU = 12, // depth/main-menu affordance overlay
+    PANE_MAX = 13,
 };
 
 // Where the pane is placed.
@@ -34,6 +35,10 @@ enum pane_placement {
     PLACE_TOP_RIGHT = 1u << 7,
     PLACE_BOTTOM_LEFT = 1u << 8,
     PLACE_BOTTOM_RIGHT = 1u << 9,
+    PLACE_TOP_CENTER = 1u << 10,
+    PLACE_BOTTOM_CENTER = 1u << 11,
+    PLACE_LEFT_CENTER = 1u << 12,
+    PLACE_RIGHT_CENTER = 1u << 13,
 };
 
 struct rect {
@@ -84,6 +89,8 @@ struct pane {
 bool pane_placement_is_bottom(enum pane_placement where);
 bool pane_placement_is_side(enum pane_placement where);
 bool pane_placement_is_corner(enum pane_placement where);
+bool pane_placement_is_center_border(enum pane_placement where);
+bool pane_placement_is_overlay(enum pane_placement where);
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where);
 int pane_secondary_min_cells(enum pane_type type, enum pane_placement where);

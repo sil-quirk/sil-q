@@ -863,8 +863,8 @@ static void wr_options(void)
     /* Write "hitpoint_warn" */
     wr_byte(op_ptr->hitpoint_warn);
 
-    /* Write "main_combat_rolls" */
-    wr_byte(op_ptr->main_combat_rolls);
+    /* Legacy main-terminal combat row count; panes own combat display now. */
+    wr_byte(0);
 
     /* Write "ability_desc_mode" */
     wr_byte(op_ptr->ability_desc_mode);

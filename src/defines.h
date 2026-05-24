@@ -124,11 +124,9 @@
  */
 #define SIL_UI_MESSAGE_ROW_COUNT 0
 #define SIL_UI_STATUS_ROW_COUNT 0
-#define SIL_UI_TOP_STATUS_LINE 0
 #else
 #define SIL_UI_MESSAGE_ROW_COUNT 1
-#define SIL_UI_TOP_STATUS_LINE (op_ptr && op_ptr->opt[OPT_top_status_line])
-#define SIL_UI_STATUS_ROW_COUNT (SIL_UI_TOP_STATUS_LINE ? 0 : 1)
+#define SIL_UI_STATUS_ROW_COUNT 1
 #endif
 
 #define ROW_MAP SIL_UI_MESSAGE_ROW_COUNT
@@ -137,12 +135,12 @@
 #define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
 #define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
 #define ROW_STATUS \
-    (SIL_UI_STATUS_ROW_COUNT ? (SIL_UI_TOP_STATUS_LINE ? 0 : (Term->hgt - 1)) : Term->hgt)
+    (SIL_UI_STATUS_ROW_COUNT ? (Term->hgt - 1) : Term->hgt)
 
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - SIL_UI_STATUS_ROW_COUNT - (op_ptr ? op_ptr->main_combat_rolls : 0))
+#define SCREEN_HGT (Term->hgt - ROW_MAP - SIL_UI_STATUS_ROW_COUNT)
 
 /*
  * Number of grids in each screen (horizontally)
@@ -2897,8 +2895,6 @@
 #define MIN_DEPTH_TIMER_MODE_HARSH    2
 #define MIN_DEPTH_TIMER_MODE_MAX      MIN_DEPTH_TIMER_MODE_HARSH
 
-#define HIDDEN_LEFT_PANEL_TOP_LEFT 0
-#define HIDDEN_LEFT_PANEL_TOPLINE  1
 // reserved legacy slot: birth_point_based
 // reserved legacy slot: birth_auto_roller
 // reserved legacy slot: birth_maximize

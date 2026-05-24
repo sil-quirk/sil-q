@@ -2954,9 +2954,7 @@ void messages_free(void)
  */
 void move_cursor(int row, int col) { Term_gotoxy(col, row); }
 
-static bool ui_top_status_line_enabled(void);
 static bool ui_message_line_enabled(void);
-static void restore_top_status_line_after_clear(void);
 
 /*
  * Hack -- flush
@@ -2998,38 +2996,13 @@ static void msg_flush(int x)
     Term_erase(0, 0, 255);
 }
 
-static bool ui_top_status_line_enabled(void)
-{
-#ifdef USE_SDL
-    return false;
-#else
-    return (op_ptr && op_ptr->opt[OPT_top_status_line]);
-#endif
-}
-
 static bool ui_message_line_enabled(void)
 {
 #ifdef USE_SDL
     return false;
 #else
-    return !ui_top_status_line_enabled();
+    return true;
 #endif
-}
-
-static void restore_top_status_line_after_clear(void)
-{
-    if (!ui_top_status_line_enabled())
-        return;
-    if (!character_generated || !character_dungeon || !p_ptr)
-        return;
-    if (character_icky > 0)
-        return;
-
-    if (Term)
-        Term_erase(0, 0, 255);
-
-    p_ptr->redraw |= (PR_EXTRA | PR_DEPTH | PR_SONG);
-    handle_stuff();
 }
 
 static int message_column = 0;
@@ -3093,15 +3066,11 @@ static void msg_print_aux(u16b type, cptr msg)
         /* Reset */
         message_column = 0;
 
-        if (!msg)
-            restore_top_status_line_after_clear();
     }
 
     /* No message */
     if (!msg)
     {
-        if (ui_top_status_line_enabled())
-            restore_top_status_line_after_clear();
         return;
     }
 
@@ -3326,14 +3295,10 @@ void message_discard_pending(void)
 
     if (!ui_message_line_enabled())
     {
-        if (ui_top_status_line_enabled())
-            restore_top_status_line_after_clear();
         return;
     }
 
     Term_erase(0, 0, 255);
-    if (ui_top_status_line_enabled())
-        restore_top_status_line_after_clear();
 }
 
 bool message_line_has_text(void)
@@ -5544,9 +5509,7 @@ void request_command(void)
     }
 
     /* Hack -- erase the message line. */
-    if (ui_top_status_line_enabled())
-        restore_top_status_line_after_clear();
-    else if (ui_message_line_enabled())
+    if (ui_message_line_enabled())
         prt("", 0, 0);
 }
 

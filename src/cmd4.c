@@ -17396,18 +17396,9 @@ static cptr option_menu_label(int opt)
     case OPT_hitpoint_warning:
         return compact ? (narrow ? "HP warn" : "HP warning")
                        : "Hitpoint warning threshold (0% to 90%)";
-    case OPT_main_combat_rolls:
-        return compact ? (narrow ? "Combat lines" : "Combat roll lines")
-                       : "Main terminal combat roll lines (0=off, 1-4=lines)";
     case OPT_hide_left_panel:
         return compact ? (narrow ? "Panel layout" : "Left panel layout")
                        : "Left Panel Layout [Alt+P]";
-    case OPT_hidden_left_panel_mode:
-        return compact ? (narrow ? "Panel place" : "Hidden panel")
-                       : "Hidden-panel placement";
-    case OPT_top_status_line:
-        return compact ? (narrow ? "Hide msg row" : "Hide message row")
-                       : "Hide Main Message Row";
     case OPT_hide_supporting_panes_fullscreen:
         return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
                        : "Hide supporting panes on full-screen screens";
@@ -17581,10 +17572,6 @@ static void option_apply_side_effects(int opt)
         redraw_inven_equip_subwindows();
     if (opt == OPT_story_monster_desc_pane)
         redraw_monster_subwindows();
-    if (opt == OPT_top_status_line && p_ptr) {
-        p_ptr->update |= (PU_PANEL);
-        p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
-    }
     if (opt == OPT_hide_supporting_panes_fullscreen)
         sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
@@ -17828,22 +17815,6 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     get_sdl_hide_left_panel() ? "yes" : "no ");
-            }
-            else if (opt[i] == OPT_hidden_left_panel_mode)
-            {
-                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
-                    (get_sdl_hidden_left_panel_mode()
-                        == HIDDEN_LEFT_PANEL_TOPLINE)
-                    ? "Second row"
-                    : "Top left");
-            }
-            else if (opt[i] == OPT_main_combat_rolls)
-            {
-                char value_str[32];
-                strnfmt(value_str, sizeof(value_str), "%d",
-                    op_ptr->main_combat_rolls);
-                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
-                    value_str);
             }
             else if (opt[i] == OPT_show_level_entry_banner)
             {
@@ -18199,27 +18170,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                     set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
                     sdl_request_redraw();
                 }
-                else if (opt[k] == OPT_hidden_left_panel_mode)
-                {
-                    set_sdl_hidden_left_panel_mode(
-                        (get_sdl_hidden_left_panel_mode()
-                            == HIDDEN_LEFT_PANEL_TOPLINE)
-                        ? HIDDEN_LEFT_PANEL_TOP_LEFT
-                        : HIDDEN_LEFT_PANEL_TOPLINE);
-                    if (p_ptr)
-                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
-                            | PR_HEALTHBAR | PR_MAP);
-                }
-                else if (opt[k] == OPT_main_combat_rolls)
-                {
-                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
-                        ? op_ptr->main_combat_rolls + 1
-                        : 0;
-
-                    clear_main_combat_rolls_area();
-                    display_main_combat_rolls();
-                    p_ptr->redraw |= (PR_MAP);
-                }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
                     op_ptr->level_entry_narrative_mode =
@@ -18387,25 +18337,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                     set_sdl_hide_left_panel(true);
                     sdl_request_redraw();
                 }
-                else if (opt[k] == OPT_hidden_left_panel_mode)
-                {
-                    set_sdl_hidden_left_panel_mode(
-                        HIDDEN_LEFT_PANEL_TOPLINE);
-                    if (p_ptr)
-                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
-                            | PR_HEALTHBAR | PR_MAP);
-                }
-                else if (opt[k] == OPT_main_combat_rolls)
-                {
-                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
-                        ? op_ptr->main_combat_rolls + 1
-                        : 4;
-
-                    /* Clear all 4 lines and refresh display when option changes */
-                    clear_main_combat_rolls_area();
-                    display_main_combat_rolls();
-                    p_ptr->redraw |= (PR_MAP);
-                }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
                     op_ptr->level_entry_narrative_mode =
@@ -18571,25 +18502,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     set_sdl_hide_left_panel(false);
                     sdl_request_redraw();
-                }
-                else if (opt[k] == OPT_hidden_left_panel_mode)
-                {
-                    set_sdl_hidden_left_panel_mode(
-                        HIDDEN_LEFT_PANEL_TOP_LEFT);
-                    if (p_ptr)
-                        p_ptr->redraw |= (PR_BASIC | PR_LIGHT | PR_EXTRA
-                            | PR_HEALTHBAR | PR_MAP);
-                }
-                else if (opt[k] == OPT_main_combat_rolls)
-                {
-                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls > 0)
-                        ? op_ptr->main_combat_rolls - 1
-                        : 0;
-
-                    /* Clear all 4 lines and refresh display when option changes */
-                    clear_main_combat_rolls_area();
-                    display_main_combat_rolls();
-                    p_ptr->redraw |= (PR_MAP);
                 }
                 else if (opt[k] == OPT_show_level_entry_banner)
                 {
@@ -19638,6 +19550,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT_PANEL";
     case PANE_STATUS: return "STATUS";
+    case PANE_MAIN_MENU: return "MAIN_MENU";
     default: return "UNKNOWN";
     }
 }
@@ -19860,6 +19773,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_TOUCH: return "TOUCH";
     case PANE_LEFT_PANEL: return "LEFT";
     case PANE_STATUS: return "STAT";
+    case PANE_MAIN_MENU: return "MENU";
     default: return "UNK";
     }
 }
@@ -19871,9 +19785,13 @@ static const char* pane_where_short_name(enum pane_placement where)
     case PLACE_RIGHT: return "R";
     case PLACE_LEFT: return "L";
     case PLACE_TOP_RIGHT: return "TR";
+    case PLACE_TOP_CENTER: return "TC";
     case PLACE_TOP_LEFT: return "TL";
     case PLACE_BOTTOM_RIGHT: return "BR";
+    case PLACE_BOTTOM_CENTER: return "BC";
     case PLACE_BOTTOM_LEFT: return "BL";
+    case PLACE_LEFT_CENTER: return "LC";
+    case PLACE_RIGHT_CENTER: return "RC";
     case PLACE_DOUBLE_RIGHT: return "DR";
     case PLACE_DOUBLE_LEFT: return "DL";
     case PLACE_BOTTOM: return "BOT";
@@ -19923,6 +19841,8 @@ static bool supporting_pane_rows_locked(const int* pane_indices, int pane_count,
 
     if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
         return true;
+    if (pane_placement_is_overlay(where))
+        return false;
 
     return (pane_placement_is_bottom(where) && idx != master_idx);
 }
@@ -19945,6 +19865,8 @@ static bool supporting_pane_cols_locked(const int* pane_indices, int pane_count,
 
     if ((enum pane_type)get_sdl_pane_type(idx) == PANE_LEFT_PANEL)
         return true;
+    if (pane_placement_is_overlay(where))
+        return false;
 
     return (pane_placement_is_side(where) && idx != master_idx);
 }
@@ -19979,6 +19901,8 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
         int master_idx = supporting_pane_master_idx(pane_indices, pane_count, where);
 
         if (type == PANE_LEFT_PANEL)
+            continue;
+        if (pane_placement_is_overlay(where))
             continue;
         if (pane_placement_is_bottom(where) && idx != master_idx
             && get_sdl_pane_rows(idx) != 0)
@@ -20163,9 +20087,9 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "4/6 cycle/set   0 auto"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
-                    "Each side/corner slot shares cols with its first pane; each bottom slot shares rows",
-                    "Side/corner slots share cols; bottom slots share rows",
-                    "Side/corner cols; bottom rows"));
+                    "Each side/overlay slot shares cols with its first pane; each bottom slot shares rows",
+                    "Side/overlay slots share cols; bottom slots share rows",
+                    "Side/overlay cols; bottom rows"));
             settings_ui_put_return_prompt(y++, 2, TERM_SLATE,
                 "ESC/Enter: return (changes apply immediately)",
                 "ESC/Enter: return",
@@ -23574,8 +23498,6 @@ void do_cmd_options(void)
     screen_load();
     if (p_ptr && p_ptr->playing)
         sdl_music_stop_main();
-    if (p_ptr && op_ptr && op_ptr->opt[OPT_top_status_line] && Term)
-        Term_erase(0, 0, 255);
     if (p_ptr)
         handle_stuff();
     if (sdl_touch_settings_tutorial_requested()

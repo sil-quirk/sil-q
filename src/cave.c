@@ -18,28 +18,41 @@
 #include <math.h>
 #include <stddef.h>
 
-static int hidden_left_panel_mask_width_at(int vy)
+static bool hidden_left_panel_mask_span_at(int vy, int* start_col,
+    int* width)
 {
     int row_index;
 
+    if (start_col)
+        *start_col = 0;
+    if (width)
+        *width = 0;
+
     if (!g_hide_left_panel)
-        return 0;
+        return false;
 
-    row_index = vy - ROW_NAME;
+    row_index = vy - g_hidden_left_panel_overlay_start_row;
     if (row_index < 0 || row_index >= g_hidden_left_panel_overlay_rows)
-        return 0;
+        return false;
 
-    return g_hidden_left_panel_overlay_widths[row_index];
+    if (start_col)
+        *start_col = g_hidden_left_panel_overlay_start_cols[row_index];
+    if (width)
+        *width = g_hidden_left_panel_overlay_widths[row_index];
+    return g_hidden_left_panel_overlay_widths[row_index] > 0;
 }
 
 static bool hidden_left_panel_masked_span(int vy, int vx, int width)
 {
-    int mask_width = hidden_left_panel_mask_width_at(vy);
+    int mask_start = 0;
+    int mask_width = 0;
 
-    if (width <= 0 || mask_width <= 0)
+    if (width <= 0)
+        return false;
+    if (!hidden_left_panel_mask_span_at(vy, &mask_start, &mask_width))
         return false;
 
-    return (vx < mask_width) && (vx + width > 0);
+    return (vx < mask_start + mask_width) && (vx + width > mask_start);
 }
 
 /* SDL map underlays can change even when the terminal glyph is unchanged. */

@@ -318,6 +318,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_TOUCH: return "TOUCH";
         case PANE_LEFT_PANEL: return "LEFT_PANEL";
         case PANE_STATUS: return "STATUS";
+        case PANE_MAIN_MENU: return "MAIN_MENU";
         default: return "MAIN";
     }
 }
@@ -339,6 +340,8 @@ static enum pane_type parse_pane_type(const char* value)
     if (strcmp(value, "LEFT_PANEL") == 0 || strcmp(value, "LEFT PANEL") == 0)
         return PANE_LEFT_PANEL;
     if (strcmp(value, "STATUS") == 0) return PANE_STATUS;
+    if (strcmp(value, "MAIN_MENU") == 0 || strcmp(value, "MAIN MENU") == 0)
+        return PANE_MAIN_MENU;
     return PANE_MAIN;
 }
 
@@ -360,10 +363,20 @@ static enum pane_placement parse_pane_placement(const char* value)
         return PLACE_TOP_LEFT;
     if (strcmp(value, "TOP_RIGHT") == 0 || strcmp(value, "TOP RIGHT") == 0)
         return PLACE_TOP_RIGHT;
+    if (strcmp(value, "TOP_CENTER") == 0 || strcmp(value, "TOP CENTER") == 0)
+        return PLACE_TOP_CENTER;
     if (strcmp(value, "BOTTOM_LEFT") == 0 || strcmp(value, "BOTTOM LEFT") == 0)
         return PLACE_BOTTOM_LEFT;
     if (strcmp(value, "BOTTOM_RIGHT") == 0 || strcmp(value, "BOTTOM RIGHT") == 0)
         return PLACE_BOTTOM_RIGHT;
+    if (strcmp(value, "BOTTOM_CENTER") == 0
+        || strcmp(value, "BOTTOM CENTER") == 0)
+        return PLACE_BOTTOM_CENTER;
+    if (strcmp(value, "LEFT_CENTER") == 0 || strcmp(value, "LEFT CENTER") == 0)
+        return PLACE_LEFT_CENTER;
+    if (strcmp(value, "RIGHT_CENTER") == 0
+        || strcmp(value, "RIGHT CENTER") == 0)
+        return PLACE_RIGHT_CENTER;
     if (strcmp(value, "DOUBLE_LEFT") == 0 || strcmp(value, "DOUBLE LEFT") == 0)
         return PLACE_DOUBLE_LEFT;
     if (strcmp(value, "DOUBLE_RIGHT") == 0 || strcmp(value, "DOUBLE RIGHT") == 0)
@@ -592,26 +605,6 @@ static int parse_mouse_movement_mode(const char* value)
     return SDL_MOUSE_MOVEMENT_ON;
 }
 
-static const char* hidden_left_panel_mode_to_string(int mode)
-{
-    switch (mode) {
-        case HIDDEN_LEFT_PANEL_TOPLINE: return "SECOND_ROW";
-        case HIDDEN_LEFT_PANEL_TOP_LEFT:
-        default:
-            return "TOP_LEFT";
-    }
-}
-
-static int parse_hidden_left_panel_mode(const char* value)
-{
-    if (!value)
-        return HIDDEN_LEFT_PANEL_TOP_LEFT;
-    if (strcmp(value, "SECOND_ROW") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
-    if (strcmp(value, "TOP_STRING") == 0) return HIDDEN_LEFT_PANEL_TOPLINE;
-    if (strcmp(value, "TOP_LEFT") == 0) return HIDDEN_LEFT_PANEL_TOP_LEFT;
-    return HIDDEN_LEFT_PANEL_TOP_LEFT;
-}
-
 static int sdl_config_gamepad_action_binding_count(const struct sdl_config* config,
     int binding)
 {
@@ -766,8 +759,8 @@ static const byte app_interface_options[] = {
     OPT_hjkl_movement, OPT_angband_keyset, OPT_space_acts_as_comma,
     OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-    OPT_top_status_line, OPT_inventory_selection_square,
-    OPT_supply_menu_random_icons, OPT_supply_menu_hide_flavor_compact,
+    OPT_inventory_selection_square, OPT_supply_menu_random_icons,
+    OPT_supply_menu_hide_flavor_compact,
     OPT_NONE
 };
 
@@ -815,12 +808,11 @@ bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
     if (opt == OPT_delay_factor || opt == OPT_hitpoint_warning
-        || opt == OPT_main_combat_rolls || opt == OPT_ability_desc_mode
+        || opt == OPT_ability_desc_mode
         || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
         || opt == OPT_show_partition_narrative
         || opt == OPT_narrative_banner_turns
-        || opt == OPT_hide_left_panel
-        || opt == OPT_hidden_left_panel_mode)
+        || opt == OPT_hide_left_panel)
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
@@ -829,41 +821,10 @@ bool option_is_app_persistent(int opt)
         || option_list_contains(app_visual_options, opt);
 }
 
-static bool sdl_config_should_default_top_status_line(void)
-{
-    int pane_count;
-
-    if (!get_sdl_enable_bottom_panes())
-        return false;
-
-    pane_count = get_pane_config_count();
-    for (int i = 0; i < pane_count; i++) {
-        enum pane_placement where;
-
-        if (get_sdl_pane_type(i) != PANE_LOG)
-            continue;
-        if (!get_sdl_pane_enabled(i))
-            continue;
-
-        where = (enum pane_placement)get_sdl_pane_where(i);
-        if (!pane_placement_is_bottom(where))
-            continue;
-        if (get_sdl_pane_current_rows(i) <= 0)
-            continue;
-
-        return true;
-    }
-
-    return false;
-}
-
 static bool sdl_config_default_app_bool(int opt)
 {
     if (opt == OPT_hide_supporting_panes_fullscreen)
         return true;
-
-    if (opt == OPT_top_status_line)
-        return sdl_config_should_default_top_status_line();
 
     if (opt >= 0 && opt < OPT_MAX)
         return option_norm[opt];
@@ -1070,8 +1031,6 @@ void sdl_config_load_app_options(const char* filename)
         9, 5);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
-    sdl_config_load_byte_value(item, "mainCombatRolls",
-        &op_ptr->main_combat_rolls, 4, 0);
     sdl_config_load_byte_value(item, "abilityDescMode",
         &op_ptr->ability_desc_mode, 2, sdl_config_default_ability_desc_mode());
     sdl_config_load_byte_value(item, "introStyle", &op_ptr->intro_style,
@@ -1803,23 +1762,6 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             config->left_panel_expanded_on_launch = cJSON_IsTrue(item);
             log_debug("Loaded leftPanelExpandedOnLaunch: %s",
                 config->left_panel_expanded_on_launch ? "true" : "false");
-        }
-
-        item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelPlacement");
-        if (!item)
-            item = cJSON_GetObjectItemCaseSensitive(sdl, "hiddenLeftPanelLightMode");
-        if (cJSON_IsString(item)) {
-            config->hidden_left_panel_mode
-                = parse_hidden_left_panel_mode(item->valuestring);
-            log_debug("Loaded hiddenLeftPanelPlacement: %s",
-                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
-        } else if (cJSON_IsNumber(item)) {
-            config->hidden_left_panel_mode
-                = (item->valueint == HIDDEN_LEFT_PANEL_TOPLINE)
-                ? HIDDEN_LEFT_PANEL_TOPLINE
-                : HIDDEN_LEFT_PANEL_TOP_LEFT;
-            log_debug("Loaded numeric hiddenLeftPanelPlacement: %s",
-                hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "minTerminalMode");
@@ -2706,8 +2648,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "hideLeftPanel", config->hide_left_panel);
     cJSON_AddBoolToObject(sdl, "leftPanelExpandedOnLaunch",
         config->left_panel_expanded_on_launch);
-    cJSON_AddStringToObject(sdl, "hiddenLeftPanelPlacement",
-        hidden_left_panel_mode_to_string(config->hidden_left_panel_mode));
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     cJSON_AddNumberToObject(sdl, "logPaneDisplayFilter",
         config->log_pane_display_filter);
@@ -3045,7 +2985,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
             visual = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
             if (cJSON_IsObject(visual)) {
-                cJSON_AddNumberToObject(visual, "mainCombatRolls", op_ptr->main_combat_rolls);
                 cJSON_AddNumberToObject(visual, "abilityDescMode", op_ptr->ability_desc_mode);
                 cJSON_AddNumberToObject(visual, "introStyle", op_ptr->intro_style);
                 cJSON_AddNumberToObject(visual, "levelEntryNarrativeMode",
@@ -3233,7 +3172,6 @@ void sdl_config_set_defaults(struct sdl_config* config)
 #else
     config->left_panel_expanded_on_launch = true;
 #endif
-    config->hidden_left_panel_mode = HIDDEN_LEFT_PANEL_TOP_LEFT;
 #if defined(__ANDROID__) || defined(SIL_IOS)
     config->min_terminal_mode = SDL_MIN_TERMINAL_COMPACT;
 #else

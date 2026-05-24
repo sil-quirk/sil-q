@@ -12,27 +12,29 @@
 #include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
+#include "pane.h"
 #include "supplies.h"
 #include "item_set.h"
-
-static bool ui_compact_width(void)
-{
-    return (Term && (Term->wid < 80));
-}
 
 static bool ui_hide_left_panel(void)
 {
     return get_sdl_hide_left_panel();
 }
 
+#ifndef USE_SDL
+static bool ui_compact_width(void)
+{
+    return (Term && (Term->wid < 80));
+}
+#endif
+
 static bool ui_status_system_compact(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
     return ui_compact_width() || ui_hide_left_panel();
-}
-
-static bool ui_status_bar_nominal_compact(void)
-{
-    return ui_compact_width();
+#endif
 }
 
 static bool ui_compact_height(void)
@@ -42,35 +44,36 @@ static bool ui_compact_height(void)
 
 static bool ui_compact_status_line_handles_song(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
+    bool nominal_compact = ui_compact_width();
+
     /*
      * When only the left panel is compact, keep song out of the overlay and
      * let the packed status line carry it.  On genuinely compact status bars,
      * song belongs to the panel when the panel is compact, and to the classic
      * left panel otherwise.
      */
-    return ui_hide_left_panel() && !ui_status_bar_nominal_compact();
+    return ui_hide_left_panel() && !nominal_compact;
+#endif
 }
 
 static bool ui_compact_status_line_handles_wounds(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
     /* Poison and bleeding move to the packed status line only when the left
      * panel is compact.  The full left panel owns them in all other layouts.
      */
     return ui_hide_left_panel();
+#endif
 }
 
 static bool ui_wound_rows_overlap_status_line(void)
 {
     return (ROW_CUT == ROW_STATE) || (ROW_POISONED == ROW_STATE);
-}
-
-static bool ui_top_status_line(void)
-{
-#ifdef USE_SDL
-    return false;
-#else
-    return (op_ptr && op_ptr->opt[OPT_top_status_line]);
-#endif
 }
 
 static bool ui_status_pane_owns_left_panel_statuses(void)
@@ -103,6 +106,8 @@ typedef struct hidden_overlay_line {
 } hidden_overlay_line;
 
 byte g_hidden_left_panel_overlay_rows = 0;
+byte g_hidden_left_panel_overlay_start_row = 0;
+byte g_hidden_left_panel_overlay_start_cols[16] = { 0 };
 byte g_hidden_left_panel_overlay_widths[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_modes[16] = { 0 };
 byte g_hidden_left_panel_overlay_attack_start_cols[16] = { 0 };
@@ -114,7 +119,6 @@ byte g_left_panel_quiver_attack_modes[2] = { 0 };
 byte g_left_panel_quiver_attack_start_cols[2] = { 0 };
 byte g_left_panel_quiver_attack_end_cols[2] = { 0 };
 bool g_suppress_hidden_left_panel_overlay = false;
-static byte g_hidden_left_panel_topline_rendered_width = 0;
 
 #define STATUS_MAIN_MENU_HINT "main menu"
 #define STATUS_VIEW_LABEL "View"
@@ -122,7 +126,6 @@ static byte g_hidden_left_panel_topline_rendered_width = 0;
 
 static void prt_status_line_compact(void);
 static void prt_cut_poisoned_compact(void);
-static void prt_status_line_top(void);
 static void prt_status_line_main_menu_hint(bool compact_centered);
 static void prt_status_line_view_button(void);
 static void prt_hidden_top_vitals(void);
@@ -131,10 +134,9 @@ static bool status_state_text(char* out_long, size_t out_long_sz,
                               byte* out_attr);
 static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
                                  byte* icon_attr, char* icon);
-static bool hidden_left_panel_uses_top_left_layout(void);
-static bool hidden_left_panel_uses_topline_layout(void);
-static int hidden_left_panel_topline_render_width(
-    const hidden_overlay_line* lines, int line_count);
+static bool hidden_left_panel_visible(void);
+static int hidden_left_panel_start_row_for_count(int line_count);
+static int hidden_left_panel_start_col_for_width(int width);
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     bool use_short_text);
 static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
@@ -146,10 +148,6 @@ static void hidden_left_panel_add_icon_line(hidden_overlay_line* lines,
     byte icon_attr, char icon_char);
 static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines);
 static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int line_count);
-static bool hidden_left_panel_sync_topline_mask(
-    const hidden_overlay_line* lines, int line_count);
-static void hidden_left_panel_restore_topline_map_span(int start_col,
-    int end_col);
 
 static bool heavy_armour_evasion_bonus_applies(const object_type* o_ptr)
 {
@@ -1327,51 +1325,103 @@ int monster_health_bar_text(
     return writable;
 }
 
-static bool hidden_left_panel_uses_top_left_layout(void)
+static enum pane_placement hidden_left_panel_placement(void)
 {
-    return ui_hide_left_panel()
-        && !g_suppress_hidden_left_panel_overlay
-        && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOP_LEFT);
-}
+    int count = get_pane_config_count();
 
-static bool hidden_left_panel_uses_topline_layout(void)
-{
-    return ui_hide_left_panel()
-        && !g_suppress_hidden_left_panel_overlay
-        && (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE);
-}
-
-static int hidden_left_panel_topline_render_width(
-    const hidden_overlay_line* lines, int line_count)
-{
-    int width = 0;
-    bool first_entry = true;
-
-    if (!Term || !lines || line_count <= 0)
-        return 0;
-
-    for (int i = 0; i < line_count; i++)
+    for (int i = 0; i < count; i++)
     {
-        int sep = first_entry ? 0 : 1;
-        int entry_width = hidden_left_panel_line_width(&lines[i], false);
+        if ((enum pane_type)get_sdl_pane_type(i) != PANE_LEFT_PANEL)
+            continue;
 
-        if (width + sep + entry_width > Term->wid)
-        {
-            entry_width = hidden_left_panel_line_width(&lines[i], true);
-            if (width + sep + entry_width > Term->wid)
-                break;
-        }
-
-        width += sep + entry_width;
-        first_entry = false;
+        return (enum pane_placement)get_sdl_pane_where(i);
     }
 
-    return width;
+    return PLACE_TOP_LEFT;
 }
 
-static int hidden_left_panel_horizontal_row(void)
+static bool hidden_left_panel_visible(void)
 {
+    return ui_hide_left_panel() && !g_suppress_hidden_left_panel_overlay;
+}
+
+static bool hidden_left_panel_placement_is_right(enum pane_placement where)
+{
+    return where == PLACE_TOP_RIGHT || where == PLACE_RIGHT_CENTER
+        || where == PLACE_BOTTOM_RIGHT;
+}
+
+static bool hidden_left_panel_placement_is_horizontal_center(
+    enum pane_placement where)
+{
+    return where == PLACE_TOP_CENTER || where == PLACE_BOTTOM_CENTER;
+}
+
+static bool hidden_left_panel_placement_is_bottom(enum pane_placement where)
+{
+    return where == PLACE_BOTTOM_LEFT || where == PLACE_BOTTOM_CENTER
+        || where == PLACE_BOTTOM_RIGHT;
+}
+
+static bool hidden_left_panel_placement_is_vertical_center(
+    enum pane_placement where)
+{
+    return where == PLACE_LEFT_CENTER || where == PLACE_RIGHT_CENTER;
+}
+
+static int hidden_left_panel_start_row_for_count(int line_count)
+{
+    enum pane_placement where = hidden_left_panel_placement();
+    int available_rows;
+    int start;
+
+    if (!Term || line_count <= 0)
+        return ROW_NAME;
+
+    if (line_count > Term->hgt)
+        line_count = Term->hgt;
+
+    if (hidden_left_panel_placement_is_bottom(where))
+        return MAX(0, Term->hgt - line_count);
+
+    if (hidden_left_panel_placement_is_vertical_center(where))
+    {
+        available_rows = Term->hgt - ROW_NAME;
+        if (available_rows < line_count)
+            available_rows = line_count;
+        start = ROW_NAME + (available_rows - line_count) / 2;
+        if (start + line_count > Term->hgt)
+            start = Term->hgt - line_count;
+        if (start < 0)
+            start = 0;
+        return start;
+    }
+
     return ROW_NAME;
+}
+
+static int hidden_left_panel_start_col_for_width(int width)
+{
+    enum pane_placement where = hidden_left_panel_placement();
+    int start = 0;
+
+    if (!Term)
+        return 0;
+    if (width < 0)
+        width = 0;
+    if (width > Term->wid)
+        width = Term->wid;
+
+    if (hidden_left_panel_placement_is_right(where))
+        start = Term->wid - width;
+    else if (hidden_left_panel_placement_is_horizontal_center(where))
+        start = (Term->wid - width) / 2;
+
+    if (start < 0)
+        start = 0;
+    if (start > Term->wid)
+        start = Term->wid;
+    return start;
 }
 
 static bool current_light_status(bool* infinite, long* fuel, byte* fuel_attr,
@@ -1613,20 +1663,6 @@ static void hidden_left_panel_add_quiver_line(hidden_overlay_line* lines,
         pointer_attack_mode);
 }
 
-static void hidden_left_panel_add_quiver_count_line(hidden_overlay_line* lines,
-    int* count, int max_lines, const object_type* q_ptr, int pointer_attack_mode)
-{
-    char buf[16];
-
-    if (!q_ptr || !q_ptr->k_idx || q_ptr->number <= 0)
-        return;
-
-    strnfmt(buf, sizeof(buf), "%d", q_ptr->number);
-    hidden_left_panel_add_line_mode(lines, count, max_lines,
-        pointer_attack_panel_attr(pointer_attack_mode, TERM_L_WHITE), buf,
-        pointer_attack_mode);
-}
-
 static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     bool use_short_text)
 {
@@ -1646,16 +1682,20 @@ static int hidden_left_panel_line_width(const hidden_overlay_line* line,
     return width;
 }
 
-static int hidden_left_panel_mask_width(int width)
+static int hidden_left_panel_mask_width(int start_col, int width)
 {
+    int end_col;
+
     if (width < 0)
         width = 0;
 
     if (Term && width > Term->wid)
         width = Term->wid;
 
-    if (Term && use_bigtile && width > COL_MAP && width < Term->wid
-        && (((width - COL_MAP) & 1) != 0))
+    end_col = start_col + width;
+
+    if (Term && use_bigtile && end_col > COL_MAP && end_col < Term->wid
+        && (((end_col - COL_MAP) & 1) != 0))
     {
         /*
          * Compact left-panel overlays sit over the map. If the text ends on
@@ -1664,6 +1704,11 @@ static int hidden_left_panel_mask_width(int width)
          */
         width++;
     }
+
+    if (Term && start_col + width > Term->wid)
+        width = Term->wid - start_col;
+    if (width < 0)
+        width = 0;
 
     return width;
 }
@@ -1754,7 +1799,6 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     char short_buf[16];
     byte hp_color;
     byte voice_color;
-    bool topline_layout = hidden_left_panel_uses_topline_layout();
 
     if (!lines || !Term || !p_ptr || max_lines <= 0)
         return 0;
@@ -1811,13 +1855,6 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         }
     }
 
-    if (topline_layout)
-    {
-        hidden_left_panel_add_line_mode(lines, &count, max_lines,
-            pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-            "M", SDL_POINTER_ATTACK_MELEE);
-    }
-    else
     {
         strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)",
             p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2" : "M",
@@ -1861,13 +1898,6 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         if (pointer_attack_ranged_display_stats(&arc_attack, &arc_dd, &arc_ds,
             &arc_throwing))
         {
-            if (topline_layout)
-            {
-                hidden_left_panel_add_line_mode(lines, &count, max_lines,
-                    pointer_attack_ranged_panel_attr(TERM_UMBER),
-                    arc_throwing ? "T" : "A", SDL_POINTER_ATTACK_RANGED_1);
-            }
-            else
             {
                 cptr label = arc_throwing ? "T" : "A";
 
@@ -1888,14 +1918,6 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         }
     }
 
-    if (topline_layout)
-    {
-        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
-            &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
-        hidden_left_panel_add_quiver_count_line(lines, &count, max_lines,
-            &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
-    }
-    else
     {
         hidden_left_panel_add_quiver_line(lines, &count, max_lines,
             &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
@@ -1903,7 +1925,8 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
             &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
     }
 
-    if (!ui_compact_status_line_handles_wounds())
+    if (!ui_status_pane_owns_left_panel_statuses()
+        && !ui_compact_status_line_handles_wounds())
     {
         if (p_ptr->cut > 100)
         {
@@ -1989,12 +2012,21 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
     bool changed = false;
     int old_rows = g_hidden_left_panel_overlay_rows;
     int max_rows = old_rows;
+    int start_row = 0;
 
     if (line_count > max_rows)
         max_rows = line_count;
+    if (line_count > 16)
+        line_count = 16;
+    if (line_count > 0)
+        start_row = hidden_left_panel_start_row_for_count(line_count);
+    if (g_hidden_left_panel_overlay_start_row != (byte)start_row)
+        changed = true;
+    g_hidden_left_panel_overlay_start_row = (byte)start_row;
 
     for (int i = 0; i < max_rows && i < 16; i++)
     {
+        byte new_start_col = 0;
         byte new_width = 0;
         byte new_mode = SDL_POINTER_ATTACK_NONE;
         byte new_start = 0;
@@ -2007,27 +2039,39 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
         {
             int width = hidden_left_panel_line_width(&lines[i], false);
             int text_start = lines[i].has_icon ? 3 : 0;
-            width = hidden_left_panel_mask_width(width);
+            int start_col = hidden_left_panel_start_col_for_width(width);
+            width = hidden_left_panel_mask_width(start_col, width);
+            start_col = hidden_left_panel_start_col_for_width(width);
+            width = hidden_left_panel_mask_width(start_col, width);
+            if (width > 255)
+                width = 255;
+            if (start_col > 255)
+                start_col = 255;
+            new_start_col = (byte)start_col;
             new_width = (byte)width;
             if (lines[i].click_action != SDL_PANEL_CLICK_NONE
                 && text_start < width)
             {
                 new_click_action = lines[i].click_action;
-                new_click_start = (byte)text_start;
-                new_click_end = new_width;
+                new_click_start = (byte)MIN(start_col + text_start, 255);
+                new_click_end = (byte)MIN(start_col + width, 255);
             }
             if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE
                 && text_start < width)
             {
                 new_mode = lines[i].pointer_attack_mode;
-                new_start = (byte)text_start;
-                new_end = new_width;
+                new_start = (byte)MIN(start_col + text_start, 255);
+                new_end = (byte)MIN(start_col + width, 255);
             }
         }
 
-        if (g_hidden_left_panel_overlay_widths[i] != new_width)
+        if (g_hidden_left_panel_overlay_start_cols[i] != new_start_col
+            || g_hidden_left_panel_overlay_widths[i] != new_width)
+        {
             changed = true;
+        }
 
+        g_hidden_left_panel_overlay_start_cols[i] = new_start_col;
         g_hidden_left_panel_overlay_widths[i] = new_width;
         g_hidden_left_panel_overlay_attack_modes[i] = new_mode;
         g_hidden_left_panel_overlay_attack_start_cols[i] = new_start;
@@ -2039,6 +2083,7 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
 
     for (int i = max_rows; i < 16; i++)
     {
+        g_hidden_left_panel_overlay_start_cols[i] = 0;
         g_hidden_left_panel_overlay_widths[i] = 0;
         g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
         g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
@@ -2056,285 +2101,45 @@ static bool hidden_left_panel_sync_mask(const hidden_overlay_line* lines, int li
     return changed;
 }
 
-static bool hidden_left_panel_sync_topline_mask(
-    const hidden_overlay_line* lines, int line_count)
-{
-    bool changed = false;
-    int render_width = hidden_left_panel_topline_render_width(lines, line_count);
-    int mask_width = hidden_left_panel_mask_width(render_width);
-    byte new_rows = (render_width > 0) ? 1 : 0;
-    int col = 0;
-    bool first_entry = true;
-    int attack_index = 0;
-    int click_index = 0;
-
-    if (mask_width > 255)
-        mask_width = 255;
-
-    if (g_hidden_left_panel_overlay_rows != new_rows)
-        changed = true;
-    if (g_hidden_left_panel_overlay_widths[0] != (byte)mask_width)
-        changed = true;
-
-    g_hidden_left_panel_overlay_rows = new_rows;
-    g_hidden_left_panel_overlay_widths[0] = (byte)mask_width;
-
-    for (int i = 0; i < 16; i++)
-    {
-        g_hidden_left_panel_overlay_attack_modes[i] = SDL_POINTER_ATTACK_NONE;
-        g_hidden_left_panel_overlay_attack_start_cols[i] = 0;
-        g_hidden_left_panel_overlay_attack_end_cols[i] = 0;
-        g_hidden_left_panel_overlay_click_actions[i] = SDL_PANEL_CLICK_NONE;
-        g_hidden_left_panel_overlay_click_start_cols[i] = 0;
-        g_hidden_left_panel_overlay_click_end_cols[i] = 0;
-    }
-
-    if (Term && lines && line_count > 0)
-    {
-        for (int i = 0; i < line_count && attack_index < 16; i++)
-        {
-            int sep = first_entry ? 0 : 1;
-            bool use_short_text = false;
-            int width = hidden_left_panel_line_width(&lines[i], false);
-
-            if (col + sep + width > Term->wid)
-            {
-                width = hidden_left_panel_line_width(&lines[i], true);
-                if (col + sep + width > Term->wid)
-                    break;
-                use_short_text = true;
-            }
-
-            (void)use_short_text;
-            col += sep;
-            if (lines[i].pointer_attack_mode != SDL_POINTER_ATTACK_NONE)
-            {
-                int start_col = col + (lines[i].has_icon ? 3 : 0);
-                int end_col = col + width;
-
-                if (start_col < end_col)
-                {
-                    if (end_col > 255)
-                        end_col = 255;
-                    g_hidden_left_panel_overlay_attack_modes[attack_index]
-                        = lines[i].pointer_attack_mode;
-                    g_hidden_left_panel_overlay_attack_start_cols[attack_index]
-                        = (byte)MIN(start_col, 255);
-                    g_hidden_left_panel_overlay_attack_end_cols[attack_index]
-                        = (byte)end_col;
-                    attack_index++;
-                }
-            }
-
-            if (lines[i].click_action != SDL_PANEL_CLICK_NONE
-                && click_index < 16)
-            {
-                int start_col = col + (lines[i].has_icon ? 3 : 0);
-                int end_col = col + width;
-
-                if (start_col < end_col)
-                {
-                    if (end_col > 255)
-                        end_col = 255;
-                    g_hidden_left_panel_overlay_click_actions[click_index]
-                        = lines[i].click_action;
-                    g_hidden_left_panel_overlay_click_start_cols[click_index]
-                        = (byte)MIN(start_col, 255);
-                    g_hidden_left_panel_overlay_click_end_cols[click_index]
-                        = (byte)end_col;
-                    click_index++;
-                }
-            }
-
-            col += width;
-            first_entry = false;
-        }
-    }
-
-    for (int i = 1; i < 16; i++)
-    {
-        if (g_hidden_left_panel_overlay_widths[i] != 0)
-            changed = true;
-        g_hidden_left_panel_overlay_widths[i] = 0;
-    }
-
-    return changed;
-}
-
-static void hidden_left_panel_restore_topline_map_span(int start_col,
-    int end_col)
-{
-    int y, x;
-    int tx;
-    byte a;
-    char c;
-    byte ta;
-    char tc;
-
-    if (!Term || !p_ptr)
-        return;
-    if (!hidden_left_panel_uses_topline_layout())
-        return;
-    if (start_col < 0)
-        start_col = 0;
-    if (use_bigtile && (start_col > COL_MAP)
-        && (((start_col - COL_MAP) & 1) != 0))
-    {
-        /*
-         * Bigtile map cells occupy two terminal columns.  If the exposed
-         * suffix starts on the trailing half of a tile, leave that column
-         * blank rather than redrawing the overlapped tile through the
-         * compact overlay boundary.
-         */
-        start_col++;
-    }
-    if (end_col <= start_col)
-        return;
-
-    y = p_ptr->wy;
-    tx = p_ptr->wx + SCREEN_WID;
-
-    for (x = p_ptr->wx; x < tx; x++)
-    {
-        int kx = x - p_ptr->wx;
-        int vx = kx + COL_MAP;
-
-        if (use_bigtile)
-            vx += kx;
-
-        if (vx >= end_col)
-            break;
-        if (vx < start_col)
-            continue;
-        if (!in_bounds(y, x))
-            continue;
-
-        map_info(y, x, &a, &c, &ta, &tc);
-        Term_queue_char(vx, ROW_MAP, a, c, ta, tc);
-
-        if (use_bigtile)
-        {
-            if (a & 0x80)
-                Term_queue_char(vx + 1, ROW_MAP, 255, -1, 0, 0);
-            else
-                Term_queue_char(vx + 1, ROW_MAP, TERM_WHITE, ' ',
-                    TERM_WHITE, ' ');
-        }
-    }
-}
-
 static void prt_hidden_top_vitals(void)
 {
     hidden_overlay_line lines[16];
     int line_count;
+    int start_row;
 
-    if (!Term || !p_ptr || !hidden_left_panel_uses_top_left_layout())
-        return;
-
-    line_count = hidden_left_panel_build_lines(lines, 16);
-
-    for (int i = 0; i < line_count && (ROW_NAME + i) < Term->hgt - 1; i++)
-    {
-        int row = ROW_NAME + i;
-        int width = hidden_left_panel_line_width(&lines[i], false);
-        int erase_width = hidden_left_panel_mask_width(width);
-
-        if (erase_width <= 0)
-            continue;
-
-        Term_erase(0, row, erase_width);
-        hidden_left_panel_draw_line(&lines[i], row, 0, false, NULL, 0);
-    }
-}
-
-void redraw_hidden_left_panel_topline_suffix(void)
-{
-    hidden_overlay_line lines[16];
-    int line_count = 0;
-    int row = hidden_left_panel_horizontal_row();
-    int col = 0;
-    int current_width = 0;
-    int current_mask_width = 0;
-    int previous_width = g_hidden_left_panel_topline_rendered_width;
-    int previous_mask_width = hidden_left_panel_mask_width(previous_width);
-    bool first_entry = true;
-
-    if (!Term || !Term->scr || !ui_hide_left_panel())
-        return;
-    if (row < 0 || row >= Term->hgt)
-        return;
-    if (!hidden_left_panel_uses_topline_layout())
+    if (!Term || !p_ptr || !hidden_left_panel_visible())
         return;
 
     line_count = hidden_left_panel_build_lines(lines, 16);
     if (line_count <= 0)
-    {
-        if (previous_mask_width > 0)
-        {
-            Term_erase(0, row, previous_mask_width);
-            hidden_left_panel_restore_topline_map_span(0, previous_mask_width);
-        }
-        g_hidden_left_panel_topline_rendered_width = 0;
         return;
-    }
 
-    current_width = hidden_left_panel_topline_render_width(lines, line_count);
-    current_mask_width = hidden_left_panel_mask_width(current_width);
+    start_row = hidden_left_panel_start_row_for_count(line_count);
 
-    if (previous_mask_width > current_width)
+    for (int i = 0; i < line_count && i < 16; i++)
     {
-        Term_erase(current_width, row, previous_mask_width - current_width);
-        hidden_left_panel_restore_topline_map_span(current_mask_width,
-            previous_mask_width);
-    }
-
-    col = 0;
-
-    for (int i = 0; i < line_count; i++)
-    {
-        int sep = first_entry ? 0 : 1;
-        bool use_short_text = false;
         int width = hidden_left_panel_line_width(&lines[i], false);
+        int start_col = hidden_left_panel_start_col_for_width(width);
+        int erase_width;
+        int row = start_row + i;
 
-        if (col + sep + width > Term->wid)
-        {
-            width = hidden_left_panel_line_width(&lines[i], true);
-            if (col + sep + width > Term->wid)
-                break;
-            use_short_text = true;
-        }
+        erase_width = hidden_left_panel_mask_width(start_col, width);
+        start_col = hidden_left_panel_start_col_for_width(erase_width);
+        erase_width = hidden_left_panel_mask_width(start_col, width);
 
-        if (sep > 0)
-        {
-            Term_putch(col, row, TERM_WHITE, ' ');
-            col++;
-        }
+        if (erase_width <= 0)
+            continue;
+        if (row < 0 || row >= Term->hgt)
+            continue;
 
-        hidden_left_panel_draw_line(&lines[i], row, col,
-            use_short_text,
-            NULL, 0);
-        col += width;
-        first_entry = false;
+        Term_erase(start_col, row, erase_width);
+        hidden_left_panel_draw_line(&lines[i], row, start_col, false, NULL, 0);
     }
+}
 
-    if (col <= 0)
-    {
-        g_hidden_left_panel_topline_rendered_width = 0;
-        return;
-    }
-
-    if (current_mask_width > col)
-    {
-        /*
-         * Keep the rendered text packed, but blank any covered trailing
-         * bigtile half-cell so the next map redraw cannot show through it.
-         */
-        Term_erase(col, row, current_mask_width - col);
-    }
-
-    hidden_left_panel_restore_topline_map_span(current_mask_width, Term->wid);
-
-    g_hidden_left_panel_topline_rendered_width = (byte)MIN(col, 255);
+void redraw_hidden_left_panel_overlay(void)
+{
+    prt_hidden_top_vitals();
 }
 
 /*
@@ -2342,6 +2147,17 @@ void redraw_hidden_left_panel_topline_suffix(void)
  */
 static void prt_song(void)
 {
+    if (ui_status_pane_owns_left_panel_statuses())
+    {
+        if (!ui_hide_left_panel())
+        {
+            Term_erase(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID);
+            if (!ui_compact_height())
+                Term_erase(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID);
+        }
+        return;
+    }
+
     if (ui_compact_status_line_handles_song())
     {
         prt_status_line_compact();
@@ -2352,9 +2168,6 @@ static void prt_song(void)
     Term_erase(COL_SONG, ROW_SONG, LEFT_PANEL_CONTENT_WID);
     if (!ui_compact_height())
         Term_erase(COL_SONG, ROW_SONG + 1, LEFT_PANEL_CONTENT_WID);
-
-    if (ui_status_pane_owns_left_panel_statuses())
-        return;
 
     char* song1_name
         = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
@@ -3699,35 +3512,6 @@ static void prt_status_line_compact(void)
 
     prt_status_line_view_button();
     prt_status_line_main_menu_hint(true);
-}
-
-static void prt_status_line_top(void)
-{
-    if (!Term || !p_ptr || !ui_top_status_line())
-        return;
-
-    Term_erase(0, 0, 255);
-
-    if (ui_status_system_compact())
-    {
-        if (!ui_compact_status_line_handles_wounds())
-        {
-            prt_poisoned();
-            prt_cut();
-        }
-        prt_status_line_compact();
-        return;
-    }
-
-    prt_stun();
-    prt_hunger();
-    prt_blind();
-    prt_confused();
-    prt_afraid();
-    prt_terrain();
-    prt_state();
-    prt_speed();
-    prt_depth();
 }
 
 /*
@@ -7370,18 +7154,11 @@ void redraw_stuff(void)
         int hidden_line_count = 0;
         bool hidden_mask_changed = false;
 
-        if (hidden_left_panel_uses_top_left_layout())
+        if (hidden_left_panel_visible())
         {
             hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
             hidden_mask_changed
                 = hidden_left_panel_sync_mask(hidden_lines, hidden_line_count);
-        }
-        else if (hidden_left_panel_uses_topline_layout())
-        {
-            hidden_line_count = hidden_left_panel_build_lines(hidden_lines, 16);
-            hidden_mask_changed
-                = hidden_left_panel_sync_topline_mask(hidden_lines,
-                    hidden_line_count);
         }
         else
             hidden_mask_changed = hidden_left_panel_sync_mask(NULL, 0);
@@ -7636,10 +7413,7 @@ void redraw_stuff(void)
     if (ui_hide_left_panel() && hidden_overlay_needs_refresh)
         prt_hidden_top_vitals();
 
-    if (ui_top_status_line())
-        prt_status_line_top();
-
-    redraw_hidden_left_panel_topline_suffix();
+    redraw_hidden_left_panel_overlay();
 
     // log_trace("redraw_stuff: completed all redraws");
 }

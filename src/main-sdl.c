@@ -120,6 +120,8 @@ char config_file_path[1024];
 static const struct pane_config default_pane_config[] = {
     {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
         .rect.cols = 0},
+    {.pane = PANE_MAIN_MENU, .where = PLACE_TOP_RIGHT, .enabled = true,
+        .rect.rows = 1, .rect.cols = 12},
     {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
         .rect.rows = 1, .rect.cols = 24},
     // On the right
@@ -1687,9 +1689,6 @@ static int sdl_side_pane_menu_pending_timeout_ms(Uint64 now_ns);
 static bool sdl_side_pane_menu_flush_pending_press(Uint64 now_ns);
 static void sdl_side_pane_menu_cancel(void);
 static void sdl_side_pane_menu_render(void);
-static bool sdl_is_log_pane_active(void);
-static bool sdl_is_bottom_log_pane_active(void);
-static void sdl_handle_log_pane_activation(bool log_was_active, bool bottom_log_was_active);
 static int sdl_touch_swipe_index_for_keypad_dir(int dir);
 static float sdl_touch_swipe_threshold_px(void);
 static int sdl_touch_swipe_direction_for_delta(float dx, float dy, float threshold);
@@ -2428,6 +2427,12 @@ static void sdl_left_panel_canvas_destroy(void)
     g_left_panel_canvas_h = 0;
 }
 
+static bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
+{
+    return pane == PANE_LEFT_PANEL || pane == PANE_STATUS
+        || pane == PANE_MAIN_MENU;
+}
+
 static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
     int* config_count, bool enable_new_panes)
 {
@@ -2474,7 +2479,7 @@ static bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
 
         configs[*config_count] = default_pane_config[i];
         configs[*config_count].enabled =
-            (pane == PANE_LEFT_PANEL || pane == PANE_STATUS)
+            sdl_pane_default_enabled_on_migration(pane)
                 ? default_pane_config[i].enabled
                 : (enable_new_panes && default_pane_config[i].enabled);
         (*config_count)++;
@@ -2547,7 +2552,14 @@ static enum pane_placement sdl_left_panel_pane_placement(void)
 
 static bool sdl_left_panel_pane_on_right(void)
 {
-    return sdl_left_panel_pane_placement() == PLACE_TOP_RIGHT;
+    switch (sdl_left_panel_pane_placement()) {
+    case PLACE_TOP_RIGHT:
+    case PLACE_RIGHT_CENTER:
+    case PLACE_BOTTOM_RIGHT:
+        return true;
+    default:
+        return false;
+    }
 }
 
 static bool sdl_left_panel_pane_config_enabled(void)
@@ -2622,10 +2634,6 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
     int row_info = compact ? 15 : 17;
     int row_evn = compact ? 14 : 16;
     int rows = row_song + 2;
-    int status_row = SIL_UI_STATUS_ROW_COUNT
-        ? ((SIL_UI_TOP_STATUS_LINE) ? 0
-            : ((view && view->rows > 0) ? view->rows - 1 : rows))
-        : ((view && view->rows > 0) ? view->rows : rows);
 
     if (sdl_left_panel_pane_collapsed())
         return SDL_LEFT_PANEL_COLLAPSED_ROWS;
@@ -2640,8 +2648,6 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
         rows = row_info + 1;
     if (rows < row_evn + 1)
         rows = row_evn + 1;
-    if (status_row > 0 && rows > status_row)
-        rows = status_row;
     if (view && view->rows > 0 && rows > view->rows)
         rows = view->rows;
     if (rows < ROW_MAP + 1)
@@ -2678,11 +2684,6 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
         scan_rows = view->rows;
     if (scan_rows > t->hgt)
         scan_rows = t->hgt;
-    if (SIL_UI_STATUS_ROW_COUNT && !SIL_UI_TOP_STATUS_LINE
-        && view->rows > 0 && scan_rows > view->rows - 1)
-    {
-        scan_rows = view->rows - 1;
-    }
 
     if (scan_cols <= 0 || scan_rows <= 0)
         return false;
@@ -3060,6 +3061,15 @@ static void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].enabled = true;
             configs[i].rect.rows = 1;
             configs[i].rect.cols = 24;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_MAIN_MENU:
+            configs[i].where = PLACE_TOP_RIGHT;
+            configs[i].enabled = true;
+            configs[i].rect.rows = 1;
+            configs[i].rect.cols = 12;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -3781,16 +3791,21 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
         enum pane_placement where = pane_config[i].where;
         bool is_touch_pane = (pane_config[i].pane == PANE_TOUCH);
         bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
+        bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
+        bool is_main_menu_pane = (pane_config[i].pane == PANE_MAIN_MENU);
 
-        if (pane_config[i].pane == PANE_LEFT_PANEL)
+        if (touch_only && !is_touch_pane && !is_status_pane
+            && !is_left_panel && !is_main_menu_pane)
+        {
             continue;
-        if (touch_only && !is_touch_pane && !is_status_pane)
-            continue;
+        }
         if (is_touch_pane && !proto_touch && sdl_touch_pane_hidden_mode_active())
             continue;
         if (is_touch_pane && !proto_touch && !sdl_touch_pane_mobile_layout_open())
             continue;
-        if (!is_touch_pane && !is_status_pane) {
+        if (!is_touch_pane && !is_status_pane && !is_left_panel
+            && !is_main_menu_pane)
+        {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
             if (pane_placement_is_bottom(where) && !include_bottom)
@@ -4432,7 +4447,8 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
         if (pane_config[i].pane == PANE_MAIN
             || pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_LEFT_PANEL
-            || pane_config[i].pane == PANE_STATUS)
+            || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_MAIN_MENU)
         {
             continue;
         }
@@ -4660,12 +4676,10 @@ static int sdl_main_view_terminal_cols_for_map_squares(int map_cols)
 
 static int sdl_main_view_terminal_rows_for_map_squares(int map_rows)
 {
-    int combat_rows = op_ptr ? op_ptr->main_combat_rolls : 0;
-
     if (map_rows < 1)
         map_rows = 1;
 
-    return ROW_MAP + SIL_UI_STATUS_ROW_COUNT + combat_rows + map_rows;
+    return map_rows;
 }
 
 static int sdl_main_view_map_cols_for_terminal_cols(int cols)
@@ -4678,8 +4692,7 @@ static int sdl_main_view_map_cols_for_terminal_cols(int cols)
 
 static int sdl_main_view_map_rows_for_terminal_rows(int rows)
 {
-    int combat_rows = op_ptr ? op_ptr->main_combat_rolls : 0;
-    int map_rows = rows - ROW_MAP - SIL_UI_STATUS_ROW_COUNT - combat_rows;
+    int map_rows = rows;
 
     return (map_rows > 0) ? map_rows : 0;
 }
@@ -5309,6 +5322,74 @@ static const struct pane_config* sdl_status_pane_config(void)
     return NULL;
 }
 
+static const struct pane_config* sdl_main_menu_pane_config(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_MAIN_MENU)
+            return &pane_config[i];
+    }
+
+    return NULL;
+}
+
+static float sdl_overlay_panel_x(const SDL_Rect* anchor,
+    enum pane_placement where, int panel_w)
+{
+    switch (where) {
+    case PLACE_TOP_RIGHT:
+    case PLACE_RIGHT_CENTER:
+    case PLACE_BOTTOM_RIGHT:
+        return (float)(anchor->x + anchor->w - panel_w);
+    case PLACE_TOP_CENTER:
+    case PLACE_BOTTOM_CENTER:
+        return (float)anchor->x + ((float)anchor->w - (float)panel_w) * 0.5f;
+    default:
+        return (float)anchor->x;
+    }
+}
+
+static float sdl_overlay_panel_y(const SDL_Rect* anchor,
+    enum pane_placement where, int panel_h)
+{
+    switch (where) {
+    case PLACE_BOTTOM_LEFT:
+    case PLACE_BOTTOM_CENTER:
+    case PLACE_BOTTOM_RIGHT:
+        return (float)(anchor->y + anchor->h - panel_h);
+    case PLACE_LEFT_CENTER:
+    case PLACE_RIGHT_CENTER:
+        return (float)anchor->y + ((float)anchor->h - (float)panel_h) * 0.5f;
+    default:
+        return (float)anchor->y;
+    }
+}
+
+static SDL_FRect sdl_overlay_panel_rect(const SDL_Rect* anchor,
+    enum pane_placement where, int panel_w, int panel_h,
+    const SDL_Rect* screen)
+{
+    float x = sdl_overlay_panel_x(anchor, where, panel_w);
+    float y = sdl_overlay_panel_y(anchor, where, panel_h);
+
+    if (screen) {
+        if (x < (float)screen->x)
+            x = (float)screen->x;
+        if (y < (float)screen->y)
+            y = (float)screen->y;
+        if (x + (float)panel_w > (float)(screen->x + screen->w))
+            x = (float)(screen->x + screen->w - panel_w);
+        if (y + (float)panel_h > (float)(screen->y + screen->h))
+            y = (float)(screen->y + screen->h - panel_h);
+    }
+
+    return (SDL_FRect){
+        .x = x,
+        .y = y,
+        .w = (float)panel_w,
+        .h = (float)panel_h,
+    };
+}
+
 static bool sdl_status_pane_current_rect(SDL_Rect* out_rect,
     enum pane_placement* out_where)
 {
@@ -5908,8 +5989,6 @@ static void sdl_status_pane_render(void)
     int row_count = 0;
     int panel_w;
     int panel_h;
-    float x;
-    float y;
     SDL_FRect panel;
 
     if (!sdl_status_pane_current_rect(&anchor, &where))
@@ -5980,30 +6059,7 @@ static void sdl_status_pane_render(void)
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
-    if (where == PLACE_TOP_RIGHT || where == PLACE_BOTTOM_RIGHT)
-        x = (float)(anchor.x + anchor.w - panel_w);
-    else
-        x = (float)anchor.x;
-    if (where == PLACE_BOTTOM_LEFT || where == PLACE_BOTTOM_RIGHT)
-        y = (float)(anchor.y + anchor.h - panel_h);
-    else
-        y = (float)anchor.y;
-
-    if (x < (float)screen.x)
-        x = (float)screen.x;
-    if (y < (float)screen.y)
-        y = (float)screen.y;
-    if (x + (float)panel_w > (float)(screen.x + screen.w))
-        x = (float)(screen.x + screen.w - panel_w);
-    if (y + (float)panel_h > (float)(screen.y + screen.h))
-        y = (float)(screen.y + screen.h - panel_h);
-
-    panel = (SDL_FRect){
-        .x = x,
-        .y = y,
-        .w = (float)panel_w,
-        .h = (float)panel_h,
-    };
+    panel = sdl_overlay_panel_rect(&anchor, where, panel_w, panel_h, &screen);
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 5, 7, 9, 222);
@@ -6095,8 +6151,10 @@ static int sdl_depth_menu_pane_font_px(const sdl_view* view)
 static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
+    const struct pane_config* pc = sdl_main_menu_pane_config();
+    SDL_Rect pane_anchor;
     SDL_Rect screen;
-    SDL_FRect anchor;
+    SDL_Rect anchor;
     char label[64];
     TTF_Font* font;
     int font_px;
@@ -6106,11 +6164,12 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     float panel_w;
     float panel_h;
     float max_w;
-    float top_h;
 
     if (out)
         *out = (SDL_FRect){ 0 };
 
+    if (!pc || !pc->enabled)
+        return false;
     if (!character_generated || !character_dungeon || character_icky)
         return false;
     if (!p_ptr || screen_saved_fullscreen_active())
@@ -6120,36 +6179,38 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
     if (!label[0])
         return false;
 
-    if (view->term_ready && view->canvas && view->cell_w > 0
+    screen = sdl_get_layout_screen_rect();
+    if (screen.w <= 0 || screen.h <= 0)
+        return false;
+
+    pane_anchor = g_pane_rects[PANE_MAIN_MENU];
+    if (pane_anchor.w > 0 && pane_anchor.h > 0) {
+        anchor = pane_anchor;
+    }
+    else if (view->term_ready && view->canvas && view->cell_w > 0
         && view->cell_h > 0 && view->rect.w > 0 && view->rect.h > 0)
     {
         int visual_cols = sdl_main_view_visual_cols(view);
         int visual_rows = sdl_main_view_visual_rows(view);
 
-        anchor = (SDL_FRect){
-            .x = (float)(view->rect.x + view->margin_x),
-            .y = (float)(view->rect.y + view->margin_y),
-            .w = (float)(visual_cols * view->cell_w),
-            .h = (float)(visual_rows * view->cell_h),
+        anchor = (SDL_Rect){
+            .x = view->rect.x + view->margin_x,
+            .y = view->rect.y + view->margin_y,
+            .w = visual_cols * view->cell_w,
+            .h = visual_rows * view->cell_h,
         };
-        top_h = (float)view->cell_h * 1.65f;
     }
     else
     {
-        screen = sdl_get_layout_screen_rect();
-        if (screen.w <= 0 || screen.h <= 0)
-            return false;
-        anchor = (SDL_FRect){
-            .x = (float)screen.x,
-            .y = (float)screen.y,
-            .w = (float)screen.w,
-            .h = (float)screen.h,
+        anchor = (SDL_Rect){
+            .x = screen.x,
+            .y = screen.y,
+            .w = screen.w,
+            .h = screen.h,
         };
-        top_h = sdl_touch_pane_clampf((float)screen.h * 0.070f, 24.0f,
-            (float)screen.h * 0.16f);
     }
 
-    if (anchor.w <= 0.0f || anchor.h <= 0.0f)
+    if (anchor.w <= 0 || anchor.h <= 0)
         return false;
 
     font_px = sdl_depth_menu_pane_font_px(view);
@@ -6167,31 +6228,25 @@ static bool sdl_depth_menu_pane_current_rect(SDL_FRect* out)
         pad_y = 4.0f;
     panel_w = (float)text_w + pad_x * 2.0f;
     panel_h = (float)font_px * 1.16f + pad_y * 2.0f;
-    max_w = anchor.w * 0.72f;
+    max_w = (float)screen.w * 0.72f;
     if (max_w < 96.0f)
-        max_w = anchor.w;
+        max_w = (float)screen.w;
     if (panel_w < (float)font_px * 8.5f)
         panel_w = (float)font_px * 8.5f;
     if (panel_w > max_w)
         panel_w = max_w;
-    if (panel_w > anchor.w)
-        panel_w = anchor.w;
+    if (panel_w > (float)screen.w)
+        panel_w = (float)screen.w;
 
     if (panel_h < (float)font_px * 1.45f)
         panel_h = (float)font_px * 1.45f;
-    if (panel_h > anchor.h * 0.24f)
-        panel_h = anchor.h * 0.24f;
+    if (panel_h > (float)screen.h * 0.24f)
+        panel_h = (float)screen.h * 0.24f;
 
     if (out)
     {
-        float y_pad = (top_h > panel_h) ? (top_h - panel_h) * 0.5f
-                                        : 2.0f;
-        *out = (SDL_FRect){
-            .x = anchor.x + (anchor.w - panel_w) * 0.5f,
-            .y = anchor.y + y_pad,
-            .w = panel_w,
-            .h = panel_h,
-        };
+        *out = sdl_overlay_panel_rect(&anchor, pc->where, (int)panel_w,
+            (int)panel_h, &screen);
     }
 
     return true;
@@ -7797,6 +7852,9 @@ static bool sdl_left_panel_pane_rect_for_view(const sdl_view* view,
 static void sdl_update_left_panel_pane_rect(void)
 {
     SDL_FRect rect;
+
+    if (config.hide_left_panel)
+        return;
 
     if (!sdl_left_panel_pane_rect_for_view(&g_views[PANE_MAIN], &rect)) {
         g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
@@ -17451,14 +17509,13 @@ static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
     if (g_suppress_hidden_left_panel_overlay)
         return false;
 
-    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE)
-        return (row == ROW_NAME && col < g_hidden_left_panel_overlay_widths[0]);
-
-    row -= ROW_NAME;
+    row -= g_hidden_left_panel_overlay_start_row;
     if (row < 0 || row >= g_hidden_left_panel_overlay_rows || row >= 16)
         return false;
 
-    return (col < g_hidden_left_panel_overlay_widths[row]);
+    return (col >= g_hidden_left_panel_overlay_start_cols[row]
+        && col < g_hidden_left_panel_overlay_start_cols[row]
+            + g_hidden_left_panel_overlay_widths[row]);
 }
 
 static int sdl_hidden_left_panel_attack_mode_at_cell(int col, int row)
@@ -17468,26 +17525,8 @@ static int sdl_hidden_left_panel_attack_mode_at_cell(int col, int row)
     if (!get_sdl_hide_left_panel())
         return SDL_POINTER_ATTACK_NONE;
 
-    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE) {
-        if (row != ROW_NAME)
-            return SDL_POINTER_ATTACK_NONE;
-
-        for (int i = 0; i < 16; i++) {
-            if (g_hidden_left_panel_overlay_attack_modes[i]
-                    == SDL_POINTER_ATTACK_NONE)
-                continue;
-            if (col >= g_hidden_left_panel_overlay_attack_start_cols[i]
-                && col < g_hidden_left_panel_overlay_attack_end_cols[i])
-            {
-                return g_hidden_left_panel_overlay_attack_modes[i];
-            }
-        }
-
-        return SDL_POINTER_ATTACK_NONE;
-    }
-
-    row -= ROW_NAME;
-    if (row < 0 || row >= 16)
+    row -= g_hidden_left_panel_overlay_start_row;
+    if (row < 0 || row >= g_hidden_left_panel_overlay_rows || row >= 16)
         return SDL_POINTER_ATTACK_NONE;
     if (g_hidden_left_panel_overlay_attack_modes[row]
             == SDL_POINTER_ATTACK_NONE)
@@ -17569,28 +17608,8 @@ static int sdl_hidden_left_panel_click_action_at_cell(int col, int row)
     if (!get_sdl_hide_left_panel())
         return SDL_PANEL_CLICK_NONE;
 
-    if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOPLINE)
-    {
-        if (row != ROW_NAME)
-            return SDL_PANEL_CLICK_NONE;
-
-        for (int i = 0; i < 16; i++)
-        {
-            if (g_hidden_left_panel_overlay_click_actions[i]
-                    == SDL_PANEL_CLICK_NONE)
-                continue;
-            if (col >= g_hidden_left_panel_overlay_click_start_cols[i]
-                && col < g_hidden_left_panel_overlay_click_end_cols[i])
-            {
-                return g_hidden_left_panel_overlay_click_actions[i];
-            }
-        }
-
-        return SDL_PANEL_CLICK_NONE;
-    }
-
-    row -= ROW_NAME;
-    if (row < 0 || row >= 16)
+    row -= g_hidden_left_panel_overlay_start_row;
+    if (row < 0 || row >= g_hidden_left_panel_overlay_rows || row >= 16)
         return SDL_PANEL_CLICK_NONE;
     if (g_hidden_left_panel_overlay_click_actions[row] == SDL_PANEL_CLICK_NONE)
         return SDL_PANEL_CLICK_NONE;
@@ -18061,8 +18080,11 @@ static bool sdl_pane_layout_config_draggable(int index)
     type = pane_config[index].pane;
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
-    if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL)
+    if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL
+        || type == PANE_STATUS || type == PANE_MAIN_MENU)
+    {
         return false;
+    }
     if (!pane_placement_is_side(pane_config[index].where)
         && !pane_placement_is_bottom(pane_config[index].where))
     {
@@ -18953,6 +18975,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_ROLLS: return "Rolls";
     case PANE_LEFT_PANEL: return "Left Panel";
     case PANE_STATUS: return "Status";
+    case PANE_MAIN_MENU: return "Main Menu";
     default: return "Pane";
     }
 }
@@ -18967,8 +18990,11 @@ static bool sdl_side_pane_menu_config_is_entry(int index)
     type = pane_config[index].pane;
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
-    if (type == PANE_TOUCH || type == PANE_LEFT_PANEL)
+    if (type == PANE_TOUCH || type == PANE_LEFT_PANEL || type == PANE_STATUS
+        || type == PANE_MAIN_MENU)
+    {
         return false;
+    }
 
     return pane_placement_is_side(pane_config[index].where);
 }
@@ -22499,16 +22525,7 @@ static bool sdl_try_send_modified_direction_event(const SDL_KeyboardEvent* key_e
 
 static void sdl_cycle_left_panel_layout(void)
 {
-    if (!get_sdl_hide_left_panel()) {
-        set_sdl_hidden_left_panel_mode(HIDDEN_LEFT_PANEL_TOP_LEFT);
-        set_sdl_hide_left_panel(true);
-    } else if (get_sdl_hidden_left_panel_mode() == HIDDEN_LEFT_PANEL_TOP_LEFT) {
-        set_sdl_hidden_left_panel_mode(HIDDEN_LEFT_PANEL_TOPLINE);
-        set_sdl_hide_left_panel(true);
-    } else {
-        set_sdl_hide_left_panel(false);
-        set_sdl_hidden_left_panel_mode(HIDDEN_LEFT_PANEL_TOP_LEFT);
-    }
+    set_sdl_hide_left_panel(!get_sdl_hide_left_panel());
 
     sdl_request_redraw();
     save_pane_config_to_json();
@@ -32390,6 +32407,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_TOUCH: type_str = "TOUCH"; break;
             case PANE_LEFT_PANEL: type_str = "LEFT_PANEL"; break;
             case PANE_STATUS: type_str = "STATUS"; break;
+            case PANE_MAIN_MENU: type_str = "MAIN_MENU"; break;
             default: break;
         }
         
@@ -32451,9 +32469,6 @@ int get_sdl_min_terminal_mode(void)
 
 void set_sdl_min_terminal_mode(int value)
 {
-    bool log_was_active = sdl_is_log_pane_active();
-    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
-
     if (!sdl_min_terminal_mode_is_valid(value))
         return;
     if (config.min_terminal_mode == value)
@@ -32462,7 +32477,6 @@ void set_sdl_min_terminal_mode(int value)
     sdl_store_active_pane_profile(config.min_terminal_mode);
     config.min_terminal_mode = value;
     sdl_apply_stored_pane_profile(value);
-    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 
     if (config.main_view_scale > get_sdl_max_scale())
         config.main_view_scale = get_sdl_max_scale();
@@ -32698,94 +32712,9 @@ int get_sdl_pane_where(int index)
     return (int)pane_config[index].where;
 }
 
-static bool sdl_is_pane_group_enabled(enum pane_placement where)
-{
-    if (pane_placement_is_side(where))
-        return config.enable_right_panes;
-    if (pane_placement_is_bottom(where))
-        return config.enable_bottom_panes;
-
-    return false;
-}
-
-static bool sdl_is_log_pane_active(void)
-{
-    for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane != PANE_LOG)
-            continue;
-        if (!pane_config[i].enabled)
-            continue;
-        if (!sdl_is_pane_group_enabled(pane_config[i].where))
-            continue;
-
-        return true;
-    }
-
-    return false;
-}
-
-static bool sdl_is_bottom_log_pane_active(void)
-{
-    for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane != PANE_LOG)
-            continue;
-        if (!pane_config[i].enabled)
-            continue;
-        if (!pane_placement_is_bottom(pane_config[i].where))
-            continue;
-        if (!sdl_is_pane_group_enabled(pane_config[i].where))
-            continue;
-
-        return true;
-    }
-
-    return false;
-}
-
-static void sdl_disable_main_combat_rolls_for_log_pane(void)
-{
-    if (!op_ptr || op_ptr->main_combat_rolls == 0)
-        return;
-
-    op_ptr->main_combat_rolls = 0;
-
-    if (Term)
-        clear_main_combat_rolls_area();
-    if (p_ptr)
-        p_ptr->redraw |= PR_MAP;
-}
-
-static void sdl_enable_top_status_line_for_bottom_log_pane(void)
-{
-    if (!op_ptr || op_ptr->opt[OPT_top_status_line])
-        return;
-
-    if (!sdl_is_bottom_log_pane_active())
-        return;
-
-    op_ptr->opt[OPT_top_status_line] = true;
-
-    if (p_ptr) {
-        p_ptr->update |= PU_PANEL;
-        p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_DEPTH);
-    }
-}
-
-static void sdl_handle_log_pane_activation(bool log_was_active,
-    bool bottom_log_was_active)
-{
-    if (!log_was_active && sdl_is_log_pane_active())
-        sdl_disable_main_combat_rolls_for_log_pane();
-
-    if (!bottom_log_was_active)
-        sdl_enable_top_status_line_for_bottom_log_pane();
-}
-
 void set_sdl_pane_where(int index, int where)
 {
     enum pane_placement placement = (enum pane_placement)where;
-    bool log_was_active = sdl_is_log_pane_active();
-    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
     bool is_touch_pane;
 
     if (index < 0 || index >= pane_config_count)
@@ -32799,7 +32728,6 @@ void set_sdl_pane_where(int index, int where)
         sdl_touch_pane_cancel_press();
         sdl_touch_swipe_cancel();
     }
-    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_pane_enabled(int index)
@@ -32938,8 +32866,6 @@ void set_sdl_pane_font_size(int index, int font_size)
 
 void set_sdl_pane_enabled(int index, bool enabled)
 {
-    bool log_was_active = sdl_is_log_pane_active();
-    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
     bool is_touch_pane;
 
     if (index < 0 || index >= pane_config_count)
@@ -32955,7 +32881,6 @@ void set_sdl_pane_enabled(int index, bool enabled)
         sdl_touch_pane_cancel_press();
         sdl_touch_swipe_cancel();
     }
-    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 static bool sdl_pane_group_matches(enum pane_placement where, bool side)
@@ -32987,8 +32912,13 @@ static bool sdl_default_pane_enabled_for_group(enum pane_type type, bool side,
 static void sdl_enable_default_panes_for_empty_group(bool side)
 {
     for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane == PANE_TOUCH)
+        if (pane_config[i].pane == PANE_TOUCH
+            || pane_config[i].pane == PANE_LEFT_PANEL
+            || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_MAIN_MENU)
+        {
             continue;
+        }
         if (!sdl_pane_group_matches(pane_config[i].where, side))
             continue;
         if (pane_config[i].enabled)
@@ -32996,8 +32926,13 @@ static void sdl_enable_default_panes_for_empty_group(bool side)
     }
 
     for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane == PANE_TOUCH)
+        if (pane_config[i].pane == PANE_TOUCH
+            || pane_config[i].pane == PANE_LEFT_PANEL
+            || pane_config[i].pane == PANE_STATUS
+            || pane_config[i].pane == PANE_MAIN_MENU)
+        {
             continue;
+        }
         if (!sdl_pane_group_matches(pane_config[i].where, side))
             continue;
         if (sdl_default_pane_enabled_for_group(pane_config[i].pane, side, NULL))
@@ -33012,15 +32947,10 @@ bool get_sdl_enable_right_panes(void)
 
 void set_sdl_enable_right_panes(bool value)
 {
-    bool log_was_active = sdl_is_log_pane_active();
-    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
-
     config.enable_right_panes = value;
 
     if (value)
         sdl_enable_default_panes_for_empty_group(true);
-
-    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_enable_bottom_panes(void)
@@ -33030,15 +32960,10 @@ bool get_sdl_enable_bottom_panes(void)
 
 void set_sdl_enable_bottom_panes(bool value)
 {
-    bool log_was_active = sdl_is_log_pane_active();
-    bool bottom_log_was_active = sdl_is_bottom_log_pane_active();
-
     config.enable_bottom_panes = value;
 
     if (value)
         sdl_enable_default_panes_for_empty_group(false);
-
-    sdl_handle_log_pane_activation(log_was_active, bottom_log_was_active);
 }
 
 bool get_sdl_show_pane_borders(void)
@@ -33071,19 +32996,6 @@ void set_sdl_left_panel_expanded_on_launch(bool value)
 {
     config.left_panel_expanded_on_launch = value;
     sdl_left_panel_pane_set_expanded(value);
-}
-
-int get_sdl_hidden_left_panel_mode(void)
-{
-    return config.hidden_left_panel_mode;
-}
-
-void set_sdl_hidden_left_panel_mode(int value)
-{
-    if (value != HIDDEN_LEFT_PANEL_TOPLINE)
-        value = HIDDEN_LEFT_PANEL_TOP_LEFT;
-
-    config.hidden_left_panel_mode = value;
 }
 
 /* Intro style: -1 = random (INTRO_STYLE_RANDOM), 0-4 = fixed variant. */

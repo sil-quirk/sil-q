@@ -120,7 +120,6 @@ struct sdl_config {
     bool show_pane_borders;
     bool hide_left_panel;
     bool left_panel_expanded_on_launch;
-    int hidden_left_panel_mode;
     int min_terminal_mode;
     int log_pane_display_filter;
     

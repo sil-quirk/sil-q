@@ -2643,11 +2643,6 @@ static void death_spectator_prepare_display(void)
 
     handle_stuff();
 
-    if (op_ptr->main_combat_rolls > 0)
-    {
-        display_main_combat_rolls();
-    }
-
     msg_print(
         "You linger for a final look. Press Esc, Space, or Enter to continue to the tomb.");
 }
@@ -4239,12 +4234,6 @@ static void dungeon(void)
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MONLIST | PW_COMBAT_ROLLS);
 
-    /* Update main terminal combat rolls if enabled */
-    if (op_ptr->main_combat_rolls > 0)
-    {
-        display_main_combat_rolls();
-    }
-
     /* Window stuff */
     p_ptr->window |= (PW_OVERHEAD);
 
@@ -4409,13 +4398,6 @@ static void dungeon(void)
             process_monsters(p_ptr->energy + 1);
             log_trace("[LOOP] after process_monsters pre-player: combat_number=%d old=%d", combat_number, combat_number_old);
 
-                /* Show newly added monster attacks immediately so they are not perceived as a turn late */
-                if (op_ptr->main_combat_rolls > 0)
-                {
-                    log_trace("[LOOP] interim display_main_combat_rolls pre-player");
-                    display_main_combat_rolls();
-                }
-
             /* If still alive */
             if (!p_ptr->leaving)
             {
@@ -4488,13 +4470,6 @@ static void dungeon(void)
         /* Set combat rolls window flag after all monster actions complete */
         if (combat_number > 0) {
             p_ptr->window |= (PW_COMBAT_ROLLS);
-        }
-
-        /* Update main terminal combat rolls after monster processing */
-        if (op_ptr->main_combat_rolls > 0)
-        {
-            log_trace("[LOOP] display_main_combat_rolls() now");
-            display_main_combat_rolls();
         }
 
         /* Notice stuff */

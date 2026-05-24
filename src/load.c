@@ -1242,12 +1242,10 @@ static void rd_options(void)
     rd_byte(&b);
     op_ptr->hitpoint_warn = b;
 
-    /* Read "main_combat_rolls" */
+    /* Read legacy main-terminal combat row count. */
     rd_byte(&b);
-    op_ptr->main_combat_rolls = b;
-    /* Ensure it's in valid range */
-    if (op_ptr->main_combat_rolls > 3)
-        op_ptr->main_combat_rolls = 0;
+    (void)b;
+    op_ptr->main_combat_rolls = 0;
 
     /* Read "ability_desc_mode" */
     rd_byte(&b);
