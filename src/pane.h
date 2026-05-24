@@ -20,7 +20,7 @@ enum pane_type {
     PANE_LEFT_PANEL = 10, // classic/compact character panel overlay
     PANE_STATUS = 11, // current character statuses, rendered as SDL overlay
     PANE_DEPTH = 12, // dungeon depth/partition and zoom overlay
-    PANE_MAIN_MENU = 13, // main menu affordance overlay
+    PANE_MAIN_MENU = 13, // main menu overlay
     PANE_MAX = 14,
 };
 

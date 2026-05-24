@@ -188,6 +188,11 @@ static bool pointer_attack_ammo_is_throwing(const object_type* ammo)
 
 static byte panel_touch_zone_attr(int action, int row, byte base_attr)
 {
+#ifdef USE_SDL
+    if (sdl_left_panel_pane_renders_character_panel())
+        return base_attr;
+#endif
+
     return sdl_character_panel_touch_zone_selected(action, row)
         ? TERM_YELLOW
         : base_attr;

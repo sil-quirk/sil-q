@@ -767,6 +767,27 @@ extern void do_cmd_ability_screen(void);
 extern int object_difficulty(object_type* o_ptr);
 extern void do_cmd_smithing_screen(void);
 extern void create_smithing_item(void);
+#define MAIN_MENU_CHARACTER 1
+#define MAIN_MENU_KNOWLEDGE 2
+#define MAIN_MENU_HINTS_QUESTS 3
+#define MAIN_MENU_HALLS_OF_MANDOS 4
+#define MAIN_MENU_MAP 5
+#define MAIN_MENU_LOG_HISTORY 6
+#define MAIN_MENU_STORY 7
+#define MAIN_MENU_STORY_STATS 8
+#define MAIN_MENU_OPTIONS 9
+#define MAIN_MENU_HELP 10
+#define MAIN_MENU_ABOUT 11
+#define MAIN_MENU_SAVE 12
+#define MAIN_MENU_SAVE_QUIT 13
+#define MAIN_MENU_RETURN_GAME 14
+#define MAIN_MENU_MAX 14
+extern cptr main_menu_title(int choice);
+extern int main_menu_keyboard_key(int choice);
+extern void main_menu_shortcut_label(int choice, char* buf, size_t buflen);
+extern int main_menu_choice_from_key(int key);
+extern bool main_menu_choice_is_disabled(int choice);
+extern bool do_cmd_main_menu_execute_choice(int choice);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_message_one(void);
 extern void do_cmd_messages(void);
@@ -1985,6 +2006,7 @@ extern byte g_left_panel_quiver_attack_modes[2];
 extern byte g_left_panel_quiver_attack_start_cols[2];
 extern byte g_left_panel_quiver_attack_end_cols[2];
 extern bool get_sdl_hide_left_panel(void);
+extern bool sdl_left_panel_pane_renders_character_panel(void);
 extern bool get_sdl_left_panel_expanded_on_launch(void);
 extern void set_sdl_left_panel_expanded_on_launch(bool value);
 extern int get_sdl_left_panel_compact_mode(void);
@@ -2017,6 +2039,7 @@ extern int get_sdl_max_main_view_zoom_scale(void);
 extern void sdl_apply_config(void);
 extern void sdl_apply_config_no_redraw(void);
 extern void sdl_request_redraw(void);
+extern bool sdl_main_menu_overlay_begin(void);
 extern bool steamdeck_controls_active(void);
 extern bool sdl_menu_letters_enabled(void);
 extern bool portable_controls_active(void);

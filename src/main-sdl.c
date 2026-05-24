@@ -1297,6 +1297,9 @@ static int g_main_screen_status_selected_col = -1;
 static int g_main_screen_panel_selected_action = SDL_PANEL_CLICK_NONE;
 static int g_main_screen_panel_selected_row = -1;
 static bool g_main_menu_pane_hover = false;
+static bool g_main_menu_overlay_active = false;
+static int g_main_menu_overlay_highlight = MAIN_MENU_CHARACTER;
+static int g_main_menu_overlay_hover_choice = 0;
 static int g_depth_pane_hover_action = 0;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
@@ -3029,6 +3032,11 @@ static bool sdl_left_panel_pane_presentation_active(void)
         && character_dungeon
         && p_ptr
         && character_icky == 0;
+}
+
+bool sdl_left_panel_pane_renders_character_panel(void)
+{
+    return sdl_left_panel_pane_presentation_active();
 }
 
 static bool sdl_left_panel_pane_runtime_active(void)
@@ -6402,7 +6410,82 @@ static int sdl_main_menu_pane_font_px(void)
     return font_px;
 }
 
-static bool sdl_main_menu_pane_current_rect(SDL_FRect* out)
+typedef struct main_menu_pane_layout {
+    SDL_FRect panel;
+    SDL_FRect rows[MAIN_MENU_MAX + 1];
+    float pad_x;
+    float row_h;
+    float shortcut_w;
+    int font_px;
+} main_menu_pane_layout;
+
+static bool sdl_main_menu_pane_context_visible(void)
+{
+    const struct pane_config* pc = sdl_main_menu_pane_config();
+    SDL_Rect screen;
+
+    if (!pc || !pc->enabled)
+        return false;
+    if (!character_generated || !character_dungeon || character_icky)
+        return false;
+    if (!p_ptr || screen_saved_fullscreen_active())
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (screen.w <= 0 || screen.h <= 0)
+        return false;
+
+    return true;
+}
+
+static void sdl_main_menu_draw_text(cptr text, float x, float y,
+    float max_w, float row_h, int font_px, SDL_Color color, bool right_align)
+{
+    TTF_Font* font;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect dst;
+    float scale = 1.0f;
+    float max_h;
+
+    if (!text || !text[0] || max_w <= 0.0f || row_h <= 0.0f || font_px <= 0)
+        return;
+
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    if (surface->w > 0 && (float)surface->w > max_w)
+        scale = max_w / (float)surface->w;
+    max_h = row_h * 0.70f;
+    if (surface->h > 0 && (float)surface->h * scale > max_h)
+        scale = max_h / (float)surface->h;
+    if (scale > 1.0f)
+        scale = 1.0f;
+
+    dst.w = (float)surface->w * scale;
+    dst.h = (float)surface->h * scale;
+    dst.x = right_align ? x + max_w - dst.w : x;
+    dst.y = y + (row_h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
 {
     const struct pane_config* pc = sdl_main_menu_pane_config();
     SDL_Rect anchor;
@@ -6419,16 +6502,10 @@ static bool sdl_main_menu_pane_current_rect(SDL_FRect* out)
     if (out)
         *out = (SDL_FRect){ 0 };
 
-    if (!pc || !pc->enabled)
-        return false;
-    if (!character_generated || !character_dungeon || character_icky)
-        return false;
-    if (!p_ptr || screen_saved_fullscreen_active())
+    if (!sdl_main_menu_pane_context_visible())
         return false;
 
     screen = sdl_get_layout_screen_rect();
-    if (screen.w <= 0 || screen.h <= 0)
-        return false;
     if (!sdl_overlay_pane_anchor_rect(PANE_MAIN_MENU, &anchor))
         return false;
 
@@ -6465,11 +6542,269 @@ static bool sdl_main_menu_pane_current_rect(SDL_FRect* out)
     return true;
 }
 
+static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
+{
+    const struct pane_config* pc = sdl_main_menu_pane_config();
+    SDL_Rect anchor;
+    SDL_Rect screen;
+    TTF_Font* font;
+    int font_px;
+    int title_w = 0;
+    int shortcut_w = 0;
+    float pad_x;
+    float pad_y;
+    float row_h;
+    float panel_w;
+    float panel_h;
+    float max_panel_w;
+    float max_panel_h;
+    float shortcut_gap;
+
+    if (out)
+        *out = (main_menu_pane_layout){ 0 };
+    if (!sdl_main_menu_pane_context_visible())
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN_MENU, &anchor))
+        return false;
+
+    font_px = sdl_main_menu_pane_font_px();
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return false;
+
+    for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+        char shortcut[32];
+        int w = sdl_touch_pane_story_text_width(font, main_menu_title(i));
+
+        if (w > title_w)
+            title_w = w;
+        main_menu_shortcut_label(i, shortcut, sizeof(shortcut));
+        if (shortcut[0]) {
+            w = sdl_touch_pane_story_text_width(font, shortcut);
+            if (w > shortcut_w)
+                shortcut_w = w;
+        }
+    }
+
+    pad_x = (float)font_px * 0.84f;
+    pad_y = (float)font_px * 0.50f;
+    row_h = (float)font_px * 1.50f;
+    if (pad_x < 11.0f)
+        pad_x = 11.0f;
+    if (pad_y < 7.0f)
+        pad_y = 7.0f;
+    if (row_h < (float)font_px + 8.0f)
+        row_h = (float)font_px + 8.0f;
+
+    shortcut_gap = shortcut_w > 0 ? (float)font_px * 1.45f : 0.0f;
+    panel_w = pad_x * 2.0f + (float)title_w
+        + (float)shortcut_w + shortcut_gap;
+    if (panel_w < (float)font_px * 15.0f)
+        panel_w = (float)font_px * 15.0f;
+    max_panel_w = (float)screen.w - 12.0f;
+    if (max_panel_w < 1.0f)
+        max_panel_w = (float)screen.w;
+    panel_w = sdl_touch_pane_clampf(panel_w, 1.0f, max_panel_w);
+
+    panel_h = pad_y * 2.0f + row_h * (float)MAIN_MENU_MAX;
+    max_panel_h = (float)screen.h - 12.0f;
+    if (max_panel_h < 1.0f)
+        max_panel_h = (float)screen.h;
+    if (panel_h > max_panel_h && max_panel_h > pad_y * 2.0f)
+    {
+        panel_h = max_panel_h;
+        row_h = (panel_h - pad_y * 2.0f) / (float)MAIN_MENU_MAX;
+    }
+
+    if (out)
+    {
+        out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
+            (int)(panel_w + 0.5f), (int)(panel_h + 0.5f), &screen);
+        out->pad_x = pad_x;
+        out->row_h = row_h;
+        out->shortcut_w = (float)shortcut_w;
+        out->font_px = font_px;
+
+        for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+            out->rows[i] = (SDL_FRect){
+                .x = out->panel.x + pad_x * 0.44f,
+                .y = out->panel.y + pad_y + (float)(i - 1) * row_h,
+                .w = out->panel.w - pad_x * 0.88f,
+                .h = row_h,
+            };
+        }
+    }
+
+    return true;
+}
+
+static bool sdl_main_menu_pane_current_rect(SDL_FRect* out)
+{
+    main_menu_pane_layout layout;
+
+    if (out)
+        *out = (SDL_FRect){ 0 };
+
+    if (g_main_menu_overlay_active) {
+        if (!sdl_main_menu_overlay_layout(&layout))
+            return false;
+        if (out)
+            *out = layout.panel;
+        return true;
+    }
+
+    return sdl_main_menu_pane_button_rect(out);
+}
+
+static bool sdl_main_menu_choice_disabled_now(int choice)
+{
+    return death_spectator_active() && main_menu_choice_is_disabled(choice);
+}
+
+static void sdl_main_menu_overlay_close(void)
+{
+    if (!g_main_menu_overlay_active)
+        return;
+
+    g_main_menu_overlay_active = false;
+    g_main_menu_overlay_hover_choice = 0;
+    g_main_menu_pane_hover = false;
+    g_state.need_present = true;
+}
+
+bool sdl_main_menu_overlay_begin(void)
+{
+    main_menu_pane_layout layout;
+    extern int g_banner_force_redraw_remaining;
+
+    if (!sdl_main_menu_overlay_layout(&layout))
+        return false;
+
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
+    g_main_menu_overlay_active = true;
+    g_main_menu_pane_hover = false;
+    g_main_menu_overlay_hover_choice = 0;
+    if (g_main_menu_overlay_highlight < 1
+        || g_main_menu_overlay_highlight > MAIN_MENU_MAX
+        || sdl_main_menu_choice_disabled_now(g_main_menu_overlay_highlight))
+    {
+        g_main_menu_overlay_highlight = MAIN_MENU_CHARACTER;
+    }
+    if (sdl_main_menu_choice_disabled_now(g_main_menu_overlay_highlight))
+        g_main_menu_overlay_highlight = MAIN_MENU_RETURN_GAME;
+
+    g_state.need_present = true;
+    return true;
+}
+
+static void sdl_main_menu_overlay_move(int delta)
+{
+    int choice = g_main_menu_overlay_highlight;
+
+    if (delta == 0)
+        return;
+    if (choice < 1 || choice > MAIN_MENU_MAX)
+        choice = MAIN_MENU_CHARACTER;
+
+    for (int step = 0; step < MAIN_MENU_MAX; step++) {
+        choice += delta;
+        if (choice < 1)
+            choice = MAIN_MENU_MAX;
+        else if (choice > MAIN_MENU_MAX)
+            choice = 1;
+        if (!sdl_main_menu_choice_disabled_now(choice)) {
+            g_main_menu_overlay_highlight = choice;
+            g_state.need_present = true;
+            return;
+        }
+    }
+}
+
+static void sdl_main_menu_overlay_choose(int choice)
+{
+    if (choice < 1 || choice > MAIN_MENU_MAX)
+        return;
+
+    g_main_menu_overlay_highlight = choice;
+    if (sdl_main_menu_choice_disabled_now(choice)) {
+        msg_print("You can no longer take that action.");
+        g_state.need_present = true;
+        return;
+    }
+
+    sdl_main_menu_overlay_close();
+    (void)do_cmd_main_menu_execute_choice(choice);
+}
+
 static void sdl_main_menu_pane_render(void)
 {
+    main_menu_pane_layout layout;
     SDL_FRect rect;
     SDL_FRect shadow;
     SDL_Color text;
+
+    if (g_main_menu_overlay_active) {
+        if (!sdl_main_menu_overlay_layout(&layout))
+            return;
+
+        shadow = layout.panel;
+        shadow.x += 3.0f;
+        shadow.y += 3.0f;
+
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 154);
+        SDL_RenderFillRect(g_state.renderer, &shadow);
+        SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 238);
+        SDL_RenderFillRect(g_state.renderer, &layout.panel);
+        SDL_SetRenderDrawColor(g_state.renderer, 126, 142, 150, 178);
+        SDL_RenderRect(g_state.renderer, &layout.panel);
+
+        for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+            SDL_FRect row = layout.rows[i];
+            bool selected = (i == g_main_menu_overlay_highlight);
+            bool disabled = sdl_main_menu_choice_disabled_now(i);
+            SDL_Color row_text = disabled
+                ? g_state.palette[TERM_L_DARK]
+                : g_state.palette[selected ? TERM_YELLOW : TERM_L_WHITE];
+            SDL_Color shortcut = disabled
+                ? g_state.palette[TERM_L_DARK]
+                : g_state.palette[selected ? TERM_YELLOW : TERM_SLATE];
+            char shortcut_label[32];
+            float inner = layout.pad_x * 0.42f;
+            float shortcut_box_w = layout.shortcut_w
+                + (layout.shortcut_w > 0.0f ? layout.pad_x * 0.75f : 0.0f);
+            float title_w = row.w - inner * 2.0f - shortcut_box_w;
+
+            SDL_SetRenderDrawColor(g_state.renderer,
+                selected ? 44 : 18, selected ? 50 : 22,
+                selected ? 54 : 25, selected ? 238 : 118);
+            SDL_RenderFillRect(g_state.renderer, &row);
+            if (selected) {
+                SDL_SetRenderDrawColor(g_state.renderer, row_text.r,
+                    row_text.g, row_text.b, 226);
+                SDL_RenderRect(g_state.renderer, &row);
+            }
+
+            if (title_w < row.w * 0.55f)
+                title_w = row.w * 0.55f;
+            sdl_main_menu_draw_text(main_menu_title(i), row.x + inner, row.y,
+                title_w, row.h, layout.font_px, row_text, false);
+
+            main_menu_shortcut_label(i, shortcut_label, sizeof(shortcut_label));
+            if (shortcut_label[0] && shortcut_box_w > 0.0f) {
+                sdl_main_menu_draw_text(shortcut_label,
+                    row.x + row.w - inner - shortcut_box_w, row.y,
+                    shortcut_box_w, row.h, layout.font_px, shortcut, true);
+            }
+        }
+        return;
+    }
 
     if (!sdl_main_menu_pane_current_rect(&rect))
         return;
@@ -6532,8 +6867,243 @@ static bool sdl_main_menu_pane_handle_pointer(float x, float y)
 
     g_main_menu_pane_hover = false;
     g_state.need_present = true;
-    sdl_enqueue_bypassed_command('m');
+    (void)sdl_main_menu_overlay_begin();
     return true;
+}
+
+static int sdl_main_menu_overlay_choice_at(float x, float y, bool* in_panel)
+{
+    main_menu_pane_layout layout;
+
+    if (in_panel)
+        *in_panel = false;
+    if (!g_main_menu_overlay_active)
+        return 0;
+    if (!sdl_main_menu_overlay_layout(&layout))
+        return 0;
+
+    if (x < layout.panel.x || x >= layout.panel.x + layout.panel.w
+        || y < layout.panel.y || y >= layout.panel.y + layout.panel.h)
+    {
+        return 0;
+    }
+
+    if (in_panel)
+        *in_panel = true;
+    for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+        SDL_FRect row = layout.rows[i];
+
+        if (x >= row.x && x < row.x + row.w
+            && y >= row.y && y < row.y + row.h)
+        {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
+static bool sdl_main_menu_overlay_handle_pointer_motion(float x, float y)
+{
+    bool in_panel = false;
+    int choice = sdl_main_menu_overlay_choice_at(x, y, &in_panel);
+
+    if (!g_main_menu_overlay_active)
+        return false;
+
+    if (choice > 0 && !sdl_main_menu_choice_disabled_now(choice))
+        g_main_menu_overlay_highlight = choice;
+    if (g_main_menu_overlay_hover_choice != choice) {
+        g_main_menu_overlay_hover_choice = choice;
+        g_state.need_present = true;
+    }
+    sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
+    (void)in_panel;
+    return true;
+}
+
+static bool sdl_main_menu_overlay_handle_pointer_down(float x, float y)
+{
+    bool in_panel = false;
+    int choice = sdl_main_menu_overlay_choice_at(x, y, &in_panel);
+
+    if (!g_main_menu_overlay_active)
+        return false;
+
+    if (choice > 0) {
+        sdl_main_menu_overlay_choose(choice);
+        return true;
+    }
+    if (!in_panel)
+        sdl_main_menu_overlay_close();
+    return true;
+}
+
+static bool sdl_main_menu_overlay_handle_key(const SDL_KeyboardEvent* ev)
+{
+    int key;
+    int choice;
+
+    if (!g_main_menu_overlay_active || !ev)
+        return false;
+
+    key = ev->key;
+    if (key == SDLK_ESCAPE || key == SDLK_LEFT || key == SDLK_KP_4) {
+        sdl_main_menu_overlay_close();
+        return true;
+    }
+    if (key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_SPACE
+        || key == SDLK_RIGHT || key == SDLK_KP_6)
+    {
+        sdl_main_menu_overlay_choose(g_main_menu_overlay_highlight);
+        return true;
+    }
+    if (key == SDLK_UP || key == SDLK_KP_8) {
+        sdl_main_menu_overlay_move(-1);
+        return true;
+    }
+    if (key == SDLK_DOWN || key == SDLK_KP_2) {
+        sdl_main_menu_overlay_move(1);
+        return true;
+    }
+
+    if (key > 0 && key < 256) {
+        int ch = key;
+
+        if (SDL_isalpha(ch))
+            ch = tolower((unsigned char)ch);
+        choice = main_menu_choice_from_key(ch);
+        if (choice > 0) {
+            sdl_main_menu_overlay_choose(choice);
+            return true;
+        }
+        if (ch == '8') {
+            sdl_main_menu_overlay_move(-1);
+            return true;
+        }
+        if (ch == '2') {
+            sdl_main_menu_overlay_move(1);
+            return true;
+        }
+        if (ch == '4') {
+            sdl_main_menu_overlay_close();
+            return true;
+        }
+        if (ch == '6') {
+            sdl_main_menu_overlay_choose(g_main_menu_overlay_highlight);
+            return true;
+        }
+    }
+
+    return true;
+}
+
+static bool sdl_main_menu_overlay_handle_gamepad_button(
+    const SDL_GamepadButtonEvent* ev)
+{
+    SDL_GamepadButton button;
+    int binding;
+    int choice;
+
+    if (!g_main_menu_overlay_active || !ev)
+        return false;
+    if (!ev->down)
+        return true;
+
+    sdl_gamepad_mark_auto_ui();
+    button = (SDL_GamepadButton)ev->button;
+    binding = sdl_gamepad_capture_binding_for_input(GAMEPAD_CAPTURE_BUTTON,
+        (int)button);
+
+    if (button == SDL_GAMEPAD_BUTTON_DPAD_UP || binding == '8') {
+        sdl_main_menu_overlay_move(-1);
+        return true;
+    }
+    if (button == SDL_GAMEPAD_BUTTON_DPAD_DOWN || binding == '2') {
+        sdl_main_menu_overlay_move(1);
+        return true;
+    }
+    if (button == SDL_GAMEPAD_BUTTON_DPAD_LEFT
+        || binding == steamdeck_back_key())
+    {
+        sdl_main_menu_overlay_close();
+        return true;
+    }
+    if (button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT
+        || binding == steamdeck_confirm_key())
+    {
+        sdl_main_menu_overlay_choose(g_main_menu_overlay_highlight);
+        return true;
+    }
+
+    choice = main_menu_choice_from_key(binding);
+    if (choice > 0) {
+        sdl_main_menu_overlay_choose(choice);
+        return true;
+    }
+
+    if (button == SDL_GAMEPAD_BUTTON_EAST) {
+        sdl_main_menu_overlay_close();
+        return true;
+    }
+    if (button == SDL_GAMEPAD_BUTTON_SOUTH) {
+        sdl_main_menu_overlay_choose(g_main_menu_overlay_highlight);
+        return true;
+    }
+
+    return true;
+}
+
+static bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
+{
+    int window_w = 0;
+    int window_h = 0;
+    float x;
+    float y;
+
+    if (!g_main_menu_overlay_active || !ev)
+        return false;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_KEY_DOWN:
+        return sdl_main_menu_overlay_handle_key(&ev->key);
+    case SDL_EVENT_MOUSE_MOTION:
+        return sdl_main_menu_overlay_handle_pointer_motion(
+            (float)ev->motion.x, (float)ev->motion.y);
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (ev->button.button == SDL_BUTTON_RIGHT) {
+            sdl_main_menu_overlay_close();
+            return true;
+        }
+        if (ev->button.button == SDL_BUTTON_LEFT)
+            return sdl_main_menu_overlay_handle_pointer_down(
+                (float)ev->button.x, (float)ev->button.y);
+        return true;
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        return true;
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_MOTION:
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return true;
+        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+        x = ev->tfinger.x * (float)window_w;
+        y = ev->tfinger.y * (float)window_h;
+        if (ev->type == SDL_EVENT_FINGER_DOWN)
+            return sdl_main_menu_overlay_handle_pointer_down(x, y);
+        return sdl_main_menu_overlay_handle_pointer_motion(x, y);
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED:
+        return true;
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        return sdl_main_menu_overlay_handle_gamepad_button(&ev->gbutton);
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        return true;
+    default:
+        return false;
+    }
 }
 
 static cptr sdl_depth_menu_partition_label(void)
@@ -25219,6 +25789,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         } else if (ev->type == SDL_EVENT_FINGER_UP || ev->type == SDL_EVENT_FINGER_CANCELED) {
             return;
         }
+    } else if (sdl_main_menu_overlay_handle_event(ev)) {
+        return;
     } else if (g_minimap.active && sdl_minimap_handle_event(ev)) {
         return;
     } else if (sdl_screen_back_gesture_handle_event(ev)) {

@@ -12852,22 +12852,6 @@ void create_smithing_item(void)
     smith_clear_alloy_state(&smith_alloy);
 }
 
-#define MAIN_MENU_CHARACTER 1
-#define MAIN_MENU_KNOWLEDGE 2
-#define MAIN_MENU_HINTS_QUESTS 3
-#define MAIN_MENU_HALLS_OF_MANDOS 4
-#define MAIN_MENU_MAP 5
-#define MAIN_MENU_LOG_HISTORY 6
-#define MAIN_MENU_STORY 7
-#define MAIN_MENU_STORY_STATS 8
-#define MAIN_MENU_OPTIONS 9
-#define MAIN_MENU_HELP 10
-#define MAIN_MENU_ABOUT 11
-#define MAIN_MENU_SAVE 12
-#define MAIN_MENU_SAVE_QUIT 13
-#define MAIN_MENU_RETURN_GAME 14
-
-#define MAIN_MENU_MAX 14
 #define MAIN_MENU_LABEL_WIDTH 21
 #define MAIN_MENU_SHORTCUT_WIDTH 6
 
@@ -12883,7 +12867,7 @@ typedef struct main_menu_about_span
     cptr text;
 } main_menu_about_span;
 
-static cptr main_menu_title(int choice)
+cptr main_menu_title(int choice)
 {
     switch (choice)
     {
@@ -12906,7 +12890,7 @@ static cptr main_menu_title(int choice)
     }
 }
 
-static int main_menu_keyboard_key(int choice)
+int main_menu_keyboard_key(int choice)
 {
     switch (choice)
     {
@@ -13068,6 +13052,63 @@ static void main_menu_controller_label(int choice, char* buf, size_t buflen)
     controller_prompt_label(binding, fallback, buf, buflen);
 }
 
+void main_menu_shortcut_label(int choice, char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    if (steamdeck_controls_active())
+    {
+        main_menu_controller_label(choice, buf, buflen);
+        return;
+    }
+
+    if (sdl_menu_letters_enabled())
+    {
+        int key = main_menu_keyboard_key(choice);
+
+        if (key)
+            strnfmt(buf, buflen, "%c", key);
+    }
+}
+
+int main_menu_choice_from_key(int key)
+{
+    int controller_choice;
+
+    controller_choice = main_menu_controller_choice_from_key(key);
+    if (controller_choice > 0)
+        return controller_choice;
+
+    if (!sdl_menu_letters_enabled())
+        return 0;
+
+    key = tolower((unsigned char)key);
+    switch (key)
+    {
+    case 'c': return MAIN_MENU_CHARACTER;
+    case 'a': return MAIN_MENU_KNOWLEDGE;
+    case 't':
+    case 'i': return MAIN_MENU_HINTS_QUESTS;
+    case 'd': return MAIN_MENU_HALLS_OF_MANDOS;
+    case 'm': return MAIN_MENU_MAP;
+    case 'l': return MAIN_MENU_LOG_HISTORY;
+    case 'y': return MAIN_MENU_STORY;
+    case 'g': return MAIN_MENU_STORY_STATS;
+    case 'o': return MAIN_MENU_OPTIONS;
+    case 'h': return MAIN_MENU_HELP;
+    case 'b': return MAIN_MENU_ABOUT;
+    case 's':
+        if (death_spectator_active())
+            return 0;
+        return MAIN_MENU_SAVE;
+    case 'q': return MAIN_MENU_SAVE_QUIT;
+    case 'r': return MAIN_MENU_RETURN_GAME;
+    default: return 0;
+    }
+}
+
 static void main_menu_format_line(int choice, char* buf, size_t buflen)
 {
     char label[24];
@@ -13080,9 +13121,9 @@ static void main_menu_format_line(int choice, char* buf, size_t buflen)
     cur = main_menu_append_fixed(buf, buflen, 0, main_menu_title(choice),
         MAIN_MENU_LABEL_WIDTH);
 
+    main_menu_shortcut_label(choice, label, sizeof(label));
     if (steamdeck_controls_active())
     {
-        main_menu_controller_label(choice, label, sizeof(label));
         if (label[0])
         {
             char shortcut[32];
@@ -13092,9 +13133,9 @@ static void main_menu_format_line(int choice, char* buf, size_t buflen)
         else
             main_menu_append_right_aligned_shortcut(buf, buflen, &cur, "");
     }
-    else if (sdl_menu_letters_enabled())
+    else if (label[0])
     {
-        strnfcat(buf, buflen, &cur, "(%c)", main_menu_keyboard_key(choice));
+        strnfcat(buf, buflen, &cur, "(%s)", label);
     }
     else
         main_menu_append_right_aligned_shortcut(buf, buflen, &cur, "");
@@ -13163,7 +13204,7 @@ static void main_menu_erase_footprint_row(int col_main, int row, int menu_w)
         Term_erase(clear_x, row, clear_w);
 }
 
-static bool main_menu_choice_is_disabled(int choice)
+bool main_menu_choice_is_disabled(int choice)
 {
     return (choice == MAIN_MENU_SAVE);
 }
@@ -14232,11 +14273,161 @@ int main_menu_aux(int* highlight)
     return (0);
 }
 
+static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
+    bool* pending_hint_look, int* pending_hint_look_y,
+    int* pending_hint_look_x, bool* pending_hint_map,
+    int* pending_hint_map_y, int* pending_hint_map_x)
+{
+    switch (actiontype)
+    {
+    case MAIN_MENU_CHARACTER: // Character sheet (c)
+    {
+        do_cmd_character_sheet();
+        return true;
+    }
+    case MAIN_MENU_KNOWLEDGE: // Known lore (a)
+    {
+        do_cmd_knowledge_browser_page(g_knowledge_last_page);
+        return true;
+    }
+    case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (i/t)
+    {
+        do_cmd_hint_quest_menu(pending_hint_look, pending_hint_look_y,
+            pending_hint_look_x, pending_hint_map, pending_hint_map_y,
+            pending_hint_map_x);
+        return true;
+    }
+    case MAIN_MENU_HALLS_OF_MANDOS: // Halls of Mandos (d)
+    {
+        log_info("main menu: opening Halls of Mandos view");
+        show_scores_interactive(true);
+        return true;
+    }
+    case MAIN_MENU_MAP: // Map (m)
+    {
+        do_cmd_view_map();
+        return true;
+    }
+    case MAIN_MENU_LOG_HISTORY: // Log & combat history (l)
+    {
+        do_cmd_log_history_menu();
+        return true;
+    }
+    case MAIN_MENU_STORY: // The story so far (y)
+    {
+        /* Save screen before showing story */
+        screen_save();
+        print_story(15, 1);
+        /* Load screen after story */
+        screen_load();
+        return true;
+    }
+    case MAIN_MENU_STORY_STATS: // Story statistics (g)
+    {
+        print_metarun_stats();
+        return true;
+    }
+    case MAIN_MENU_OPTIONS: // Options (o)
+    {
+        do_cmd_options();
+        return true;
+    }
+    case MAIN_MENU_HELP: // Help (h)
+    {
+        do_cmd_help();
+        return true;
+    }
+    case MAIN_MENU_ABOUT: // About (b)
+    {
+        main_menu_about();
+        return true;
+    }
+    case MAIN_MENU_SAVE: // Save (s)
+    {
+        do_cmd_save_game();
+        return true;
+    }
+    case MAIN_MENU_SAVE_QUIT: // Quit with save (q)
+    {
+        if (death_spectator_active())
+        {
+            death_spectator_request_exit();
+            return true;
+        }
+
+        do_cmd_save_game();
+
+        /* Stop playing */
+        p_ptr->playing = false;
+
+        /* Exit the application after the save/score screen. */
+        p_ptr->quit_to_menu = false;
+
+        /* Leaving */
+        p_ptr->leaving = true;
+        return true;
+    }
+    case MAIN_MENU_RETURN_GAME: // Return to game (r)
+    case -1:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool do_cmd_main_menu_execute_choice(int actiontype)
+{
+    bool pending_hint_look = false;
+    int pending_hint_look_y = -1;
+    int pending_hint_look_x = -1;
+    bool pending_hint_map = false;
+    int pending_hint_map_y = -1;
+    int pending_hint_map_x = -1;
+    bool executed;
+
+    if (death_spectator_active() && main_menu_choice_is_disabled(actiontype))
+    {
+        msg_print("You can no longer take that action.");
+        return false;
+    }
+
+    executed = do_cmd_main_menu_execute_choice_impl(actiontype,
+        &pending_hint_look, &pending_hint_look_y, &pending_hint_look_x,
+        &pending_hint_map, &pending_hint_map_y, &pending_hint_map_x);
+
+    if (pending_hint_map)
+    {
+        do_cmd_redraw();
+#ifdef USE_SDL
+        sdl_minimap_focus(pending_hint_map_y, pending_hint_map_x);
+#endif
+        do_cmd_view_map();
+    }
+    else if (pending_hint_look)
+    {
+        do_cmd_redraw();
+        do_cmd_look_at(pending_hint_look_y, pending_hint_look_x);
+    }
+
+    return executed;
+}
+
 /*
  * Brings up a menu for choosing some of the game's more abstruse options.
  */
 void do_cmd_main_menu(void)
 {
+    /* Clear any active banner before opening main menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
+#ifdef USE_SDL
+    (void)sdl_main_menu_overlay_begin();
+    return;
+#else
     int actiontype = -1;
     int highlight = 1;
     bool leave_menu = false;
@@ -14246,13 +14437,6 @@ void do_cmd_main_menu(void)
     bool pending_hint_map = false;
     int pending_hint_map_y = -1;
     int pending_hint_map_x = -1;
-
-    /* Clear any active banner before opening main menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
-        do_cmd_redraw();
-    }
 
     /* Save screen */
     screen_save();
@@ -14269,125 +14453,11 @@ void do_cmd_main_menu(void)
             continue;
         }
 
-        // if an action has been selected...
-        switch (actiontype)
-        {
-        case MAIN_MENU_CHARACTER: // Character sheet (c)
-        {
-            do_cmd_character_sheet();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_KNOWLEDGE: // Known lore (a)
-        {
-            do_cmd_knowledge_browser_page(g_knowledge_last_page);
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (i/t)
-        {
-            do_cmd_hint_quest_menu(&pending_hint_look, &pending_hint_look_y,
-                &pending_hint_look_x, &pending_hint_map, &pending_hint_map_y,
-                &pending_hint_map_x);
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_HALLS_OF_MANDOS: // Halls of Mandos (d)
-        {
-            log_info("main menu: opening Halls of Mandos view");
-            show_scores_interactive(true);
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_MAP: // Map (m)
-        {
-            do_cmd_view_map();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_LOG_HISTORY: // Log & combat history (l)
-        {
-            do_cmd_log_history_menu();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_STORY: // The story so far (y)
-        {
-            /* Save screen before showing story */
-            screen_save();
-            print_story(15, 1);
-            /* Load screen after story */
-            screen_load();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_STORY_STATS: // Story statistics (g)
-        {
-            print_metarun_stats();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_OPTIONS: // Options (o)
-        {
-            do_cmd_options();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_HELP: // Help (h)
-        {
-            do_cmd_help();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_ABOUT: // About (b)
-        {
-            main_menu_about();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_SAVE: // Save (s)
-        {
-            do_cmd_save_game();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_SAVE_QUIT: // Quit with save (q)
-        {
-            if (death_spectator_active())
-            {
-                death_spectator_request_exit();
-                leave_menu = true;
-                break;
-            }
-
-            do_cmd_save_game();
-
-            /* Stop playing */
-            p_ptr->playing = false;
-
-            /* Exit the application after the save/score screen. */
-            p_ptr->quit_to_menu = false;
-
-            /* Leaving */
-            p_ptr->leaving = true;
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_RETURN_GAME: // Return to game (r)
+        if (do_cmd_main_menu_execute_choice_impl(actiontype,
+            &pending_hint_look, &pending_hint_look_y, &pending_hint_look_x,
+            &pending_hint_map, &pending_hint_map_y, &pending_hint_map_x))
         {
             leave_menu = true;
-            break;
-        }
-        case -1:
-        {
-            leave_menu = true;
-            break;
-        }
-        default:
-        {
-            /* Invalid selection - stay in menu */
-            break;
-        }
         }
     }
 
@@ -14407,6 +14477,7 @@ void do_cmd_main_menu(void)
         do_cmd_redraw();
         do_cmd_look_at(pending_hint_look_y, pending_hint_look_x);
     }
+#endif
 
 }
 
