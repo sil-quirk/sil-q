@@ -276,8 +276,10 @@ struct term
 extern term* Term;
 typedef void (*term_pre_fresh_hook_func)(void);
 typedef void (*term_clear_hook_func)(term* t);
+typedef bool (*term_get_size_hook_func)(term* t, int* w, int* h);
 extern term_pre_fresh_hook_func g_term_pre_fresh_hook;
 extern term_clear_hook_func g_term_clear_hook;
+extern term_get_size_hook_func g_term_get_size_hook;
 
 /**** Available Functions ****/
 

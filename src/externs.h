@@ -1762,6 +1762,7 @@ extern void update_stuff(void);
 extern void redraw_stuff(void);
 extern void window_stuff(void);
 extern void handle_stuff(void);
+extern void prt_frame_basic(void);
 extern int weight_limit(void);
 extern void calc_voice(void);
 extern bool weapon_glows(const object_type* o_ptr);

@@ -2394,7 +2394,8 @@ static void print_rh_flags(int race, int character, int col, int row)
     int flags_right = 0;
     bool compact_layout = character_flags_need_compact_layout();
     int description_row = birth_description_base_row();
-    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+    int term_wid = 80;
+    int term_hgt = 24;
     cptr ability_lines[CHARACTER_ABILITY_MAX];
     int ability_line_n = collect_character_starting_abilities(character,
         ability_lines, N_ELEMENTS(ability_lines));
@@ -2415,6 +2416,12 @@ static void print_rh_flags(int race, int character, int col, int row)
 
     skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[32];
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
+
+    if (Term)
+        Term_get_size(&term_wid, &term_hgt);
+    (void)term_hgt;
+    if (term_wid < 1)
+        term_wid = 80;
 
 /*
  * Show one skill line according to the new +/-2<->mastery / grand-penalty rule.
@@ -5602,8 +5609,13 @@ static bool birth_screen_text_matches(int row, int col, cptr text)
 
 static int birth_screen_find_text(int row, cptr text, int min_col)
 {
-    int wid = Term ? Term->wid : 0;
+    int wid = 0;
+    int hgt = 0;
     int len;
+
+    if (Term)
+        Term_get_size(&wid, &hgt);
+    (void)hgt;
 
     if (!text || !text[0] || wid <= 0)
         return -1;
@@ -6214,7 +6226,12 @@ static bool gain_skills_screen_text_matches(int row, int col, cptr text,
 
 static bool gain_skills_screen_row_has_value(int row, int start_col)
 {
-    int wid = Term ? Term->wid : 0;
+    int wid = 0;
+    int hgt = 0;
+
+    if (Term)
+        Term_get_size(&wid, &hgt);
+    (void)hgt;
 
     for (int col = start_col; col < wid; col++)
     {

@@ -17,6 +17,7 @@
 
 term_pre_fresh_hook_func g_term_pre_fresh_hook = NULL;
 term_clear_hook_func g_term_clear_hook = NULL;
+term_get_size_hook_func g_term_get_size_hook = NULL;
 
 /*
  * This file provides a generic, efficient, terminal window package,
@@ -2006,9 +2007,17 @@ errr Term_get_cursor(bool* v)
  */
 errr Term_get_size(int* w, int* h)
 {
+    if (!Term)
+        return (-1);
+
+    if (g_term_get_size_hook && g_term_get_size_hook(Term, w, h))
+        return (0);
+
     /* Access the cursor */
-    (*w) = Term->wid;
-    (*h) = Term->hgt;
+    if (w)
+        (*w) = Term->wid;
+    if (h)
+        (*h) = Term->hgt;
 
     /* Success */
     return (0);

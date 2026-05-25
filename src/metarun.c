@@ -76,6 +76,21 @@ static void metarun_prompt_label(int binding, const char* fallback, char* buf, s
         SDL_strlcpy(buf, fallback, buflen);
 }
 
+static int metarun_term_width(void)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (Term)
+        Term_get_size(&wid, &hgt);
+    (void)hgt;
+
+    if (wid < 1)
+        wid = 80;
+
+    return wid;
+}
+
 static char metarun_inkey_hidden(void)
 {
     bool old_hide_cursor = hide_cursor;
@@ -2193,7 +2208,7 @@ int menu_choose_one_curse(int n)
     /* dynamic vertical layout - ask util.c to count wrapped lines   */
     int row = 4;                                     /* first free row */
     text_out_hook = text_out_to_screen;
-    text_out_wrap = Term->wid - 2;                   /* full width     */
+    text_out_wrap = metarun_term_width() - 2;        /* full width     */
 
     /* Show each curse one by one with fade-in effect */
     bool fast_forward = false;
@@ -2325,7 +2340,7 @@ int menu_choose_one_curse(int n)
     while (!menu_done) {
         /* Ensure text output settings are consistent */
         text_out_hook = text_out_to_screen;
-        text_out_wrap = Term->wid - 2;
+        text_out_wrap = metarun_term_width() - 2;
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         
@@ -2347,7 +2362,7 @@ int menu_choose_one_curse(int n)
             } else {
                 c_put_str(TERM_L_RED, name_buf, option_rows[i], 2);   /* Normal - light red */
             }
-            ui_menu_click_add(i, 2, option_rows[i], Term->wid - 4);
+            ui_menu_click_add(i, 2, option_rows[i], metarun_term_width() - 4);
         }
         ui_menu_click_add_text_token(-1, 2, row + 1,
             "D-pad to navigate     [A] accept     [B] cancel", "cancel");
@@ -2509,7 +2524,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     
     text_out_hook   = text_out_to_screen;
     text_out_indent = 2;
-    text_out_wrap   = Term->wid - 4;
+    text_out_wrap   = metarun_term_width() - 4;
 
     sdl_story_font_enable();
 
@@ -2545,7 +2560,7 @@ static void print_paragraph(cptr txt, byte attr)
 {
     text_out_hook   = text_out_to_screen;
     text_out_indent = 1;
-    text_out_wrap   = Term->wid - 2;
+    text_out_wrap   = metarun_term_width() - 2;
 
     sdl_story_font_enable();
 
@@ -3834,7 +3849,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
     /* Setup text wrapping */
     text_out_hook = text_out_to_screen;
     text_out_indent = 6;  /* Indent wrapped lines to match description column */
-    int wrap_width = Term->wid - 8;  /* Leave margin for indentation */
+    int wrap_width = metarun_term_width() - 8;  /* Leave margin for indentation */
     text_out_wrap = wrap_width;
     
     while (choice < 0) {
@@ -3846,7 +3861,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
         Term_putstr(2, 1, -1, TERM_YELLOW, "Remove a Curse (cost 1 blessing point)");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Choose which curse to lift:");
 
-        int click_width = (Term && Term->wid > 6) ? Term->wid - 4 : 76;
+        int click_width = (metarun_term_width() > 6) ? metarun_term_width() - 4 : 76;
         int line = 5;
         for (int i = 0; i < count; i++) {
             int id = ids[i];
@@ -4153,7 +4168,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
         Term_putstr(2, 1, -1, TERM_YELLOW, "Receive a Blessing (cost 1 blessing point)");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Select a gift to accept:");
 
-        int click_width = (Term && Term->wid > 6) ? Term->wid - 4 : 76;
+        int click_width = (metarun_term_width() > 6) ? metarun_term_width() - 4 : 76;
         int line = 5;
         for (int i = 0; i < picks; i++) {
             int id = options[i];
@@ -4385,7 +4400,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         /* Recalculate in case something changed (shouldn't happen but safe) */
         available = blessing_points_remaining();
         
-        int click_width = (Term && Term->wid > 6) ? Term->wid - 4 : 76;
+        int click_width = (metarun_term_width() > 6) ? metarun_term_width() - 4 : 76;
         int line = 5;
         for (int i = 0; i < option_count; i++) {
             int idx = options[i].idx;
@@ -4641,7 +4656,7 @@ static void open_blessing_exchange(void)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
-        int click_width = (Term && Term->wid > 6) ? Term->wid - 4 : 76;
+        int click_width = (metarun_term_width() > 6) ? metarun_term_width() - 4 : 76;
 
         Term_putstr(2, 1, -1, TERM_YELLOW, "Blessing Exchange");
         char buf[160];
@@ -6492,7 +6507,7 @@ static void choose_difficulty_menu(void)
     {
         /* Warn if increasing difficulty */
         if (choice > metar.type) {
-            int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
+            int term_wid = metarun_term_width();
             bool portable = portable_controls_active();
             screen_save();
             Term_clear();

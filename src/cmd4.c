@@ -16735,6 +16735,9 @@ bool do_cmd_main_menu_execute_choice(int actiontype)
         &pending_hint_look, &pending_hint_look_y, &pending_hint_look_x,
         &pending_hint_map, &pending_hint_map_y, &pending_hint_map_x);
 
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+
     if (pending_hint_map)
     {
         do_cmd_redraw();
@@ -36019,6 +36022,7 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(object_idx);
     mem_free_null(artefact_idx);
 
+    ui_menu_click_clear();
     sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();

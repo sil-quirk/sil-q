@@ -3752,7 +3752,7 @@ static void health_redraw(void)
 /*
  * Display basic info (mostly left of map)
  */
-static void prt_frame_basic(void)
+void prt_frame_basic(void)
 {
     int i;
 
