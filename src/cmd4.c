@@ -15582,6 +15582,7 @@ static void main_menu_about(void)
         sdl_music_play_death();
 
     screen_save();
+    sdl_push_terminal_menu_scale();
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
@@ -15747,6 +15748,7 @@ static void main_menu_about(void)
     hide_cursor = saved_hide_cursor;
     (void)ch;
 
+    sdl_pop_terminal_menu_scale();
     screen_load();
 
     if (p_ptr && p_ptr->playing)
@@ -16322,6 +16324,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
 
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
 
     while (true)
     {
@@ -16343,6 +16346,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
         quest_tab = true;
     }
 
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -16621,7 +16625,9 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     {
         log_info("main menu: opening Halls of Mandos view");
         screen_save();
+        sdl_push_terminal_menu_scale();
         show_scores_interactive(true);
+        sdl_pop_terminal_menu_scale();
         screen_load();
         return true;
     }
@@ -21861,7 +21867,7 @@ void do_cmd_pane_settings(void)
             if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
-                if (val > SDL_MAIN_VIEW_MIN_SCALE)
+                if (val > get_sdl_min_main_view_scale())
                 {
                     set_sdl_main_view_scale(val - 1);
                     settings_changed = true;
@@ -25836,6 +25842,7 @@ void do_cmd_options(void)
     screen_save();
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
+    sdl_push_terminal_menu_scale();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -25931,6 +25938,7 @@ void do_cmd_options(void)
     message_flush();
 
     /* Load screen */
+    sdl_pop_terminal_menu_scale();
     screen_pop_touch_pane_proto();
     screen_pop_supporting_panes_hidden();
     screen_load();
@@ -37277,7 +37285,9 @@ void do_cmd_knowledge(void)
         /* Scores */
         else if (ch == '3')
         {
+            sdl_push_terminal_menu_scale();
             show_scores_interactive(true);
+            sdl_pop_terminal_menu_scale();
         }
 
         /* Kill counts */

@@ -160,7 +160,7 @@ struct pane_config pane_config[MAX_PANE_CONFIGS];
 int pane_config_count = 0;
 static struct sdl_pane_profile g_pane_profiles[SDL_PANE_PROFILE_COUNT];
 static int g_platform_max_main_view_scale[SDL_PANE_PROFILE_COUNT] = {
-    SDL_MAIN_VIEW_MIN_SCALE, SDL_MAIN_VIEW_MIN_SCALE
+    SDL_MAIN_VIEW_PREFERRED_MIN_SCALE, SDL_MAIN_VIEW_PREFERRED_MIN_SCALE
 };
 static sdl_startup_device_class g_startup_device_class =
     SDL_STARTUP_DEVICE_DESKTOP;
@@ -194,6 +194,67 @@ static bool sdl_min_terminal_mode_is_valid(int mode)
     return (mode == SDL_MIN_TERMINAL_NORMAL || mode == SDL_MIN_TERMINAL_COMPACT);
 }
 
+static int sdl_main_view_scale_floor_for_mode(int mode)
+{
+    int platform_max;
+
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        mode = SDL_MIN_TERMINAL_NORMAL;
+    if (mode >= SDL_PANE_PROFILE_COUNT)
+        mode = SDL_MIN_TERMINAL_NORMAL;
+
+    platform_max = g_platform_max_main_view_scale[mode];
+    if (platform_max <= SDL_MAIN_VIEW_MIN_SCALE)
+        return SDL_MAIN_VIEW_MIN_SCALE;
+
+    return SDL_MAIN_VIEW_PREFERRED_MIN_SCALE;
+}
+
+static int sdl_platform_max_main_view_scale_for_mode(int mode)
+{
+    int scale;
+
+    if (!sdl_min_terminal_mode_is_valid(mode))
+        mode = SDL_MIN_TERMINAL_NORMAL;
+    if (mode >= SDL_PANE_PROFILE_COUNT)
+        mode = SDL_MIN_TERMINAL_NORMAL;
+
+    scale = g_platform_max_main_view_scale[mode];
+    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
+        scale = SDL_MAIN_VIEW_MIN_SCALE;
+    if (scale > SDL_MAIN_VIEW_MAX_SCALE)
+        scale = SDL_MAIN_VIEW_MAX_SCALE;
+
+    return scale;
+}
+
+static int sdl_main_view_scale_floor(void)
+{
+    return sdl_main_view_scale_floor_for_mode(config.min_terminal_mode);
+}
+
+static int sdl_clamp_main_view_scale_floor(int scale, int mode)
+{
+    int floor = sdl_main_view_scale_floor_for_mode(mode);
+
+    return (scale < floor) ? floor : scale;
+}
+
+static int sdl_clamp_main_view_scale_platform_bounds(int scale, int mode)
+{
+    int floor = sdl_main_view_scale_floor_for_mode(mode);
+    int max_scale = sdl_platform_max_main_view_scale_for_mode(mode);
+
+    if (floor > max_scale)
+        floor = max_scale;
+    if (scale < floor)
+        scale = floor;
+    if (scale > max_scale)
+        scale = max_scale;
+
+    return scale;
+}
+
 static void sdl_store_active_pane_profile(int mode)
 {
     if (!sdl_min_terminal_mode_is_valid(mode))
@@ -217,6 +278,8 @@ static void sdl_apply_stored_pane_profile(int mode)
         return;
 
     config.main_view_scale = g_pane_profiles[mode].main_view_scale;
+    config.main_view_scale = sdl_clamp_main_view_scale_platform_bounds(
+        config.main_view_scale, mode);
     config.aux_view_font_size = g_pane_profiles[mode].aux_view_font_size;
     config.enable_right_panes = g_pane_profiles[mode].enable_right_panes;
     config.enable_bottom_panes = g_pane_profiles[mode].enable_bottom_panes;
@@ -4142,10 +4205,8 @@ static int sdl_configured_main_view_scale(void)
 {
     int scale = config.main_view_scale;
 
-    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
-        scale = SDL_MAIN_VIEW_MIN_SCALE;
-
-    return scale;
+    return sdl_clamp_main_view_scale_platform_bounds(scale,
+        config.min_terminal_mode);
 }
 
 static int sdl_main_view_layout_scale(void)
@@ -4156,10 +4217,9 @@ static int sdl_main_view_layout_scale(void)
         scale = g_terminal_menu_scale_override;
     if (scale <= 0)
         scale = sdl_configured_main_view_scale();
-    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
-        scale = SDL_MAIN_VIEW_MIN_SCALE;
 
-    return scale;
+    return sdl_clamp_main_view_scale_platform_bounds(scale,
+        config.min_terminal_mode);
 }
 
 static bool sdl_main_view_zoom_keep_for_saved_screen(void)
@@ -4180,10 +4240,8 @@ static int sdl_current_main_view_scale(void)
     else
         scale = config.main_view_scale;
 
-    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
-        scale = SDL_MAIN_VIEW_MIN_SCALE;
-
-    return scale;
+    return sdl_clamp_main_view_scale_platform_bounds(scale,
+        config.min_terminal_mode);
 }
 
 static int sdl_auto_font_size_from_main(int numerator, int denominator)
@@ -4972,8 +5030,8 @@ static bool sdl_apply_default_main_scale_for_layout(const char* reason)
 
     old_scale = config.main_view_scale;
     new_scale = sdl_max_scale_for_layout(&screen, config.min_terminal_mode);
-    if (new_scale < SDL_MAIN_VIEW_MIN_SCALE)
-        new_scale = SDL_MAIN_VIEW_MIN_SCALE;
+    new_scale = sdl_clamp_main_view_scale_floor(new_scale,
+        config.min_terminal_mode);
 
     config.main_view_scale = new_scale;
     g_main_view_zoom_scale = 0;
@@ -5087,21 +5145,22 @@ static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
 {
     int map_wid;
     int map_hgt;
+    int floor = sdl_main_view_scale_floor_for_mode(mode);
 
     if (!screen || !sdl_rect_has_area(screen))
-        return SDL_MAIN_VIEW_MIN_SCALE;
+        return floor;
     if (!sdl_min_terminal_mode_is_valid(mode))
-        return SDL_MAIN_VIEW_MIN_SCALE;
+        return floor;
     if (!character_dungeon || !p_ptr || p_ptr->cur_map_wid <= 0
         || p_ptr->cur_map_hgt <= 0)
     {
-        return SDL_MAIN_VIEW_MIN_SCALE;
+        return floor;
     }
 
     map_wid = p_ptr->cur_map_wid;
     map_hgt = p_ptr->cur_map_hgt;
 
-    for (int scale = SDL_MAIN_VIEW_MIN_SCALE;
+    for (int scale = floor;
          scale <= SDL_MAIN_VIEW_MAX_SCALE; scale++) {
         int cols = 0;
         int rows = 0;
@@ -5190,14 +5249,16 @@ static void sdl_ensure_window_size_for_min_terminal(const SDL_Rect* screen,
 {
     int min_width;
     int min_height;
+    int min_scale;
 
     if (!screen || !window_width || !window_height || config.fullscreen)
         return;
 
+    min_scale = sdl_main_view_scale_floor();
     min_width = sdl_current_min_terminal_cols()
-        * (SDL_MAIN_VIEW_MIN_SCALE * TILE_SIZE / 2);
+        * (min_scale * TILE_SIZE / 2);
     min_height = sdl_current_min_terminal_rows()
-        * (SDL_MAIN_VIEW_MIN_SCALE * TILE_SIZE);
+        * (min_scale * TILE_SIZE);
 
     if (min_width < 1)
         min_width = 1;
@@ -5320,6 +5381,10 @@ static bool sdl_recover_layout_for_current_window(const char* reason,
             config.main_view_scale, NULL, NULL))
     {
         int max_scale = sdl_max_scale_for_window_mode(config.min_terminal_mode);
+        int min_scale = sdl_main_view_scale_floor();
+
+        if (max_scale < min_scale)
+            max_scale = min_scale;
 
         if (config.main_view_scale > max_scale) {
             log_info("%s: clamping main_view_scale from %d to %d for %s minimum terminal",
@@ -9847,8 +9912,8 @@ static int sdl_unified_look_clamp_zoom_scale(int scale)
         min_scale = SDL_MAIN_VIEW_MIN_SCALE;
     if (max_scale < SDL_MAIN_VIEW_MIN_SCALE)
         max_scale = SDL_MAIN_VIEW_MIN_SCALE;
-    if (min_scale > max_scale)
-        min_scale = max_scale;
+    if (max_scale < min_scale)
+        max_scale = min_scale;
     if (scale < min_scale)
         scale = min_scale;
     if (scale > max_scale)
@@ -10150,8 +10215,8 @@ static int sdl_main_screen_clamp_main_view_scale(int scale)
         min_scale = SDL_MAIN_VIEW_MIN_SCALE;
     if (max_scale < SDL_MAIN_VIEW_MIN_SCALE)
         max_scale = SDL_MAIN_VIEW_MIN_SCALE;
-    if (min_scale > max_scale)
-        min_scale = max_scale;
+    if (max_scale < min_scale)
+        max_scale = min_scale;
     if (scale < min_scale)
         scale = min_scale;
     if (scale > max_scale)
@@ -33818,16 +33883,6 @@ errr init_sdl(int argc, char **argv)
 #endif
     
     // Validate configuration
-    if (config.main_view_scale < SDL_MAIN_VIEW_MIN_SCALE) {
-        log_warn("Invalid main_view_scale %d, using %d",
-            config.main_view_scale, SDL_MAIN_VIEW_MIN_SCALE);
-        if (config_exists) {
-            sdl_append_issue_line(startup_issue_summary,
-                sizeof(startup_issue_summary),
-                "The saved main view scale was below the supported minimum and was raised.");
-        }
-        config.main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
-    }
     if (config.aux_view_font_size < 0) {
         log_warn("Invalid aux_view_font_size %d, using auto", config.aux_view_font_size);
         if (config_exists) {
@@ -33866,6 +33921,35 @@ errr init_sdl(int argc, char **argv)
             sdl_append_issue_line(startup_issue_summary,
                 sizeof(startup_issue_summary),
                 "The saved minimum terminal mode was invalid and was reset.");
+        }
+    }
+    {
+        int min_main_view_scale = sdl_main_view_scale_floor();
+        int max_main_view_scale = get_sdl_platform_max_main_view_scale();
+
+        if (max_main_view_scale < SDL_MAIN_VIEW_MIN_SCALE)
+            max_main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
+        if (min_main_view_scale > max_main_view_scale)
+            min_main_view_scale = max_main_view_scale;
+
+        if (config.main_view_scale < min_main_view_scale) {
+            log_warn("Invalid main_view_scale %d, using %d",
+                config.main_view_scale, min_main_view_scale);
+            if (config_exists) {
+                sdl_append_issue_line(startup_issue_summary,
+                    sizeof(startup_issue_summary),
+                    "The saved main view scale was below the supported minimum and was raised.");
+            }
+            config.main_view_scale = min_main_view_scale;
+        } else if (config.main_view_scale > max_main_view_scale) {
+            log_warn("Invalid main_view_scale %d, using %d",
+                config.main_view_scale, max_main_view_scale);
+            if (config_exists) {
+                sdl_append_issue_line(startup_issue_summary,
+                    sizeof(startup_issue_summary),
+                    "The saved main view scale was too large for this display and was reduced.");
+            }
+            config.main_view_scale = max_main_view_scale;
         }
     }
     config.left_panel_compact_mode = sdl_left_panel_compact_mode_normalized(
@@ -34142,6 +34226,11 @@ int get_sdl_effective_main_view_scale(void)
     return sdl_current_main_view_scale();
 }
 
+int get_sdl_min_main_view_scale(void)
+{
+    return sdl_main_view_scale_floor();
+}
+
 int get_sdl_min_terminal_mode(void)
 {
     return config.min_terminal_mode;
@@ -34160,18 +34249,25 @@ void set_sdl_min_terminal_mode(int value)
 
     if (config.main_view_scale > get_sdl_max_scale())
         config.main_view_scale = get_sdl_max_scale();
-    if (config.main_view_scale < SDL_MAIN_VIEW_MIN_SCALE)
-        config.main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
+    config.main_view_scale = sdl_clamp_main_view_scale_platform_bounds(
+        config.main_view_scale, config.min_terminal_mode);
     g_main_view_zoom_scale = 0;
 }
 
 void set_sdl_main_view_scale(int value)
 {
     int max_scale = get_sdl_max_scale();
-    if (value < SDL_MAIN_VIEW_MIN_SCALE)
-        value = SDL_MAIN_VIEW_MIN_SCALE;
+    int min_scale = sdl_main_view_scale_floor();
+    int platform_max = get_sdl_platform_max_main_view_scale();
+
     if (max_scale < SDL_MAIN_VIEW_MIN_SCALE)
         max_scale = SDL_MAIN_VIEW_MIN_SCALE;
+    if (max_scale > platform_max)
+        max_scale = platform_max;
+    if (max_scale < min_scale)
+        max_scale = min_scale;
+    if (value < min_scale)
+        value = min_scale;
     if (value <= max_scale) {
         config.main_view_scale = value;
         g_main_view_zoom_scale = 0;
@@ -34186,12 +34282,12 @@ bool set_sdl_main_view_zoom_scale(int value)
     int min_scale = get_sdl_min_main_view_zoom_scale();
     int max_scale = get_sdl_max_main_view_zoom_scale();
 
-    if (min_scale < SDL_MAIN_VIEW_MIN_SCALE)
-        min_scale = SDL_MAIN_VIEW_MIN_SCALE;
     if (max_scale < SDL_MAIN_VIEW_MIN_SCALE)
         max_scale = SDL_MAIN_VIEW_MIN_SCALE;
-    if (min_scale > max_scale)
-        min_scale = max_scale;
+    if (min_scale < sdl_main_view_scale_floor())
+        min_scale = sdl_main_view_scale_floor();
+    if (max_scale < min_scale)
+        max_scale = min_scale;
     if (value < min_scale)
         value = min_scale;
     if (value > max_scale)
@@ -36088,6 +36184,8 @@ int get_sdl_max_scale(void)
     sdl_refresh_safe_area();
     screen = sdl_get_layout_screen_rect();
     max_scale = sdl_max_scale_for_layout(&screen, config.min_terminal_mode);
+    if (max_scale < sdl_main_view_scale_floor())
+        max_scale = sdl_main_view_scale_floor();
 
     log_debug("get_sdl_max_scale: layout=(%d,%d %dx%d) min=%dx%d (%s) max_scale=%d",
               screen.x, screen.y, screen.w, screen.h,
@@ -36128,7 +36226,7 @@ int get_sdl_max_main_view_zoom_scale(void)
 static int get_sdl_min_main_view_zoom_scale(void)
 {
     if (!g_state.window)
-        return SDL_MAIN_VIEW_MIN_SCALE;
+        return sdl_main_view_scale_floor();
 
     SDL_Rect screen;
     int min_scale;
@@ -36162,8 +36260,8 @@ static void sdl_clamp_main_view_zoom_to_current_layout(void)
         min_scale = SDL_MAIN_VIEW_MIN_SCALE;
     if (max_scale < SDL_MAIN_VIEW_MIN_SCALE)
         max_scale = SDL_MAIN_VIEW_MIN_SCALE;
-    if (min_scale > max_scale)
-        min_scale = max_scale;
+    if (max_scale < min_scale)
+        max_scale = min_scale;
 
     if (g_main_view_zoom_scale < min_scale)
         g_main_view_zoom_scale = min_scale;
@@ -36277,27 +36375,19 @@ void sdl_apply_config_no_redraw(void)
 
 int get_sdl_platform_max_main_view_scale(void)
 {
-    int mode = config.min_terminal_mode;
-    int scale;
-
-    if (!sdl_min_terminal_mode_is_valid(mode))
-        mode = SDL_MIN_TERMINAL_NORMAL;
-
-    scale = g_platform_max_main_view_scale[mode];
-    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
-        scale = SDL_MAIN_VIEW_MIN_SCALE;
-    if (scale > SDL_MAIN_VIEW_MAX_SCALE)
-        scale = SDL_MAIN_VIEW_MAX_SCALE;
-
-    return scale;
+    return sdl_platform_max_main_view_scale_for_mode(config.min_terminal_mode);
 }
 
 int get_sdl_terminal_menu_scale(void)
 {
-    int scale = get_sdl_platform_max_main_view_scale() - 1;
+    int max_scale = get_sdl_platform_max_main_view_scale();
+    int scale = max_scale - 1;
+    int min_scale = sdl_main_view_scale_floor();
 
-    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
-        scale = SDL_MAIN_VIEW_MIN_SCALE;
+    if (max_scale <= SDL_MAIN_VIEW_MIN_SCALE)
+        return SDL_MAIN_VIEW_MIN_SCALE;
+    if (scale < min_scale)
+        scale = min_scale;
 
     return scale;
 }

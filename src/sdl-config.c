@@ -3197,7 +3197,7 @@ void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
 
 void sdl_config_set_defaults(struct sdl_config* config)
 {
-    config->main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
+    config->main_view_scale = SDL_MAIN_VIEW_PREFERRED_MIN_SCALE;
     config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;

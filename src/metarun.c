@@ -5510,6 +5510,7 @@ void print_metarun_stats(void)
         screen_save();
         screen_push_supporting_panes_hidden();
         screen_push_touch_pane_hidden();
+        sdl_push_terminal_menu_scale();
         Term_clear();
         Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
@@ -5525,6 +5526,7 @@ void print_metarun_stats(void)
         metarun_register_continue_clicks(Term ? Term->hgt : 24);
         metarun_wait_hidden();
         ui_menu_click_clear();
+        sdl_pop_terminal_menu_scale();
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
         screen_load();
@@ -5570,8 +5572,10 @@ void print_metarun_stats(void)
     int available_points = earned_points - spent_points;
     bool startup_scene = (!character_generated || !p_ptr || !p_ptr->playing);
 
-    if (!startup_scene)
+    if (!startup_scene) {
         screen_save();
+        sdl_push_terminal_menu_scale();
+    }
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
 
@@ -6102,15 +6106,19 @@ redraw_story_stats:
             /* B button = exit/back */
             screen_pop_touch_pane_hidden();
             screen_pop_supporting_panes_hidden();
-            if (!startup_scene)
+            if (!startup_scene) {
+                sdl_pop_terminal_menu_scale();
                 screen_load();
+            }
             return;
         } else if (key == confirm_key || key == ' ' || key == '\r' || key == '\n') {
             /* A button = continue (exit) */
             screen_pop_touch_pane_hidden();
             screen_pop_supporting_panes_hidden();
-            if (!startup_scene)
+            if (!startup_scene) {
+                sdl_pop_terminal_menu_scale();
                 screen_load();
+            }
             return;
         } else if (key == alt_key) {
             /* X button = spend blessings */
@@ -6132,23 +6140,29 @@ redraw_story_stats:
     if (key == 'b' || key == 'B') {
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         open_blessing_exchange();
         print_metarun_stats();
         return;
     } else if (key == 'c' || key == 'C') {
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         choose_difficulty_menu();
         return;
     } else if (key == 'f' || key == 'F') {
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         adjust_blessing_threshold_menu();
         print_metarun_stats();
         return;
@@ -6156,8 +6170,10 @@ redraw_story_stats:
         /* Show the full list of active curses/blessings separately */
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         show_all_active_curses();
         print_metarun_stats();
         return;
@@ -6165,16 +6181,20 @@ redraw_story_stats:
         /* Show history only */
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         list_metaruns();
         print_metarun_stats();
         return;
     } else if ((key == 'x' || key == 'X') && blitz_enabled) {
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        if (!startup_scene)
+        if (!startup_scene) {
+            sdl_pop_terminal_menu_scale();
             screen_load();
+        }
         run_mode_set_pending(RUN_MODE_BLITZ);
         run_mode_set_current(RUN_MODE_BLITZ);
         return;
@@ -6182,8 +6202,10 @@ redraw_story_stats:
 
     screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
-    if (!startup_scene)
+    if (!startup_scene) {
+        sdl_pop_terminal_menu_scale();
         screen_load();
+    }
 }
 
 

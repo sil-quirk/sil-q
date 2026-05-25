@@ -7931,6 +7931,7 @@ void do_cmd_help(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -8080,6 +8081,7 @@ void do_cmd_help(void)
     }
 
     /* Load screen */
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)

@@ -2224,6 +2224,7 @@ void do_cmd_run_history(void)
 
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
 
     while (!done) {
         int term_wid = 80;
@@ -2653,6 +2654,7 @@ void do_cmd_run_history(void)
         }
     }
 
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     ui_menu_click_clear();
     ui_scroll_area_clear();
@@ -3485,6 +3487,7 @@ static void run_history_show_detail(const run_history_entry* entry)
     int stats_total_lines = 0;
 
     screen_save();
+    sdl_push_terminal_menu_scale();
 
     while (!done) {
         bool steamdeck = steamdeck_controls_active();
@@ -3832,5 +3835,6 @@ static void run_history_show_detail(const run_history_entry* entry)
     if (have_details)
         score_runs_free_details(&details);
 
+    sdl_pop_terminal_menu_scale();
     screen_load();
 }
