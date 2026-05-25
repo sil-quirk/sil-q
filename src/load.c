@@ -159,6 +159,23 @@ static void clear_obsolete_interface_options_097(void)
 
     op_ptr->main_combat_rolls = 0;
 }
+
+static void apply_loaded_savefile_app_settings(void)
+{
+    /* App-wide settings live in the SDL JSON config, so they must win over
+     * any copies serialized in the savefile. Older interface layouts are
+     * discarded entirely because 0.9.7 removed/reworked those settings. */
+    if (!savefile_version_at_least(0, 9, 7, 0))
+    {
+        clear_obsolete_interface_options_097();
+        sdl_reset_interface_settings_to_defaults_for_migration();
+    }
+    else
+    {
+        sdl_config_load_app_options(get_sdl_config_path());
+    }
+}
+
 /* For backward-compatible reading: if the door-choices block is absent,
  * we prefetch the next u16 (objects count) here after probing. */
 static u16b objects_count_prefetch = 0xFFFF;
@@ -4763,19 +4780,6 @@ bool load_player(void)
     /* Okay */
     if (!err)
     {
-        /* App-wide settings live in the SDL JSON config, so they must win over
-         * any copies serialized in the savefile. Older interface layouts are
-         * discarded entirely because 0.9.7 removed/reworked those settings. */
-        if (!savefile_version_at_least(0, 9, 7, 0))
-        {
-            clear_obsolete_interface_options_097();
-            sdl_reset_interface_settings_to_defaults_for_migration();
-        }
-        else
-        {
-            sdl_config_load_app_options(get_sdl_config_path());
-        }
-
         // if Morgoth has lost his crown...
         if ((&a_info[ART_MORGOTH_3])->cur_num == 1)
         {
@@ -4810,6 +4814,8 @@ bool load_player(void)
                 // Mark savefile
                 p_ptr->noscore |= 0x0001;
 
+                apply_loaded_savefile_app_settings();
+
                 /* Done */
                 return (true);
             }
@@ -4831,6 +4837,8 @@ bool load_player(void)
             /* Done */
             return (false);
         }
+
+        apply_loaded_savefile_app_settings();
 
         /* A character was loaded */
         character_loaded = true;

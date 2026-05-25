@@ -1824,6 +1824,7 @@ extern void apply_quest_rewards(int quest_idx);
 extern bool check_quest_eligibility(int quest_idx, int depth);
 extern void do_cmd_quest_status(void);
 extern bool do_cmd_quest_status_tabs(void);
+extern bool do_cmd_quest_status_tabs_in_place(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
 extern void free_quest_texts(cptr* texts, int count);

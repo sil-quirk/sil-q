@@ -34122,7 +34122,10 @@ void sdl_reset_interface_settings_to_defaults_for_migration(void)
     bool desired_tiles;
 
     if (reset_done)
+    {
+        sdl_config_load_app_options(config_file_path);
         return;
+    }
     reset_done = true;
 
     sdl_current_default_dimensions(&screen_w, &screen_h);

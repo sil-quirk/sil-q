@@ -13487,7 +13487,7 @@ static void main_menu_about(void)
 
 static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
-    int* out_map_x);
+    int* out_map_x, bool manage_screen);
 
 static void do_cmd_log_history_menu(void)
 {
@@ -13994,6 +13994,52 @@ static bool hint_quest_tab_key(char ch)
         || (ch == '\t');
 }
 
+static int hint_quest_tab_cursor_col(bool quest_active)
+{
+    if (!quest_active)
+        return 0;
+
+    return (int)strlen(" Hints ") + 1;
+}
+
+static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
+    bool can_focus_tabs, bool* switch_tabs)
+{
+    int d = target_dir(ch);
+
+    if (!tabs_focus || !switch_tabs)
+        return false;
+
+    if (!*tabs_focus)
+    {
+        if (can_focus_tabs && d && !ddx[d] && (ddy[d] < 0))
+        {
+            *tabs_focus = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    if (d)
+    {
+        if (ddx[d])
+        {
+            *switch_tabs = true;
+            return true;
+        }
+        if (ddy[d] > 0)
+        {
+            *tabs_focus = false;
+            return true;
+        }
+        if (ddy[d] < 0)
+            return true;
+    }
+
+    return false;
+}
+
 static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x)
@@ -14006,18 +14052,21 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
     int map_y = -1;
     int map_x = -1;
 
+    screen_save();
+    screen_push_supporting_panes_hidden();
+
     while (true)
     {
         if (quest_tab)
         {
-            if (!do_cmd_quest_status_tabs())
+            if (!do_cmd_quest_status_tabs_in_place())
                 break;
             quest_tab = false;
             continue;
         }
 
         if (!do_cmd_hint_messages(&pending_look, &look_y, &look_x,
-                &pending_map, &map_y, &map_x))
+                &pending_map, &map_y, &map_x, false))
             break;
 
         if (pending_look || pending_map)
@@ -14025,6 +14074,9 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
 
         quest_tab = true;
     }
+
+    screen_pop_supporting_panes_hidden();
+    screen_load();
 
     if (out_pending_look)
         *out_pending_look = pending_look;
@@ -14934,22 +14986,22 @@ static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
     static const char* const tip_list_prompts[] = {
-        "[e/i tabs, '8'/'2' move, Enter read, 'h' level hints, ESC]",
-        "[e/i tabs, 8/2 move, Enter read, h=level hints, ESC]",
-        "[e/i, 8/2, Enter, h, ESC]"
+        "[e/i tabs, Dir move, Up at top=tabs, Enter read, h level hints, ESC]",
+        "[e/i tabs, 8/2 move, Up=tabs, Enter read, h=level hints, ESC]",
+        "[e/i, 8/2, Up=tabs, Enter, h, ESC]"
     };
     static const char* const level_list_prompts[] = {
-        "[e/i tabs, 8/2 move, Enter read, h tips, l look, m map, ESC]",
-        "[e/i tabs, Enter read, h tips, l look, m map, ESC]",
-        "[e/i, 8/2, Enter, h, l, m, ESC]"
+        "[e/i tabs, Dir move, Up at top=tabs, Enter read, h tips, l look, m map, ESC]",
+        "[e/i tabs, 8/2 move, Up=tabs, Enter, h tips, l look, m map, ESC]",
+        "[e/i, 8/2, Up=tabs, Enter, h, l, m, ESC]"
     };
     static const char* const no_level_with_tips_prompts[] = {
-        "[No level hint messages. e/i tabs, h all tips, ESC]",
-        "[No level hints. e/i tabs, h=tips, ESC]",
+        "[No level hint messages. e/i tabs, Up=tabs, h all tips, ESC]",
+        "[No level hints. e/i tabs, Up=tabs, h=tips, ESC]",
         "[No hints. e/i, h, ESC]"
     };
     static const char* const no_level_prompts[] = {
-        "[No level hint messages. e/i tabs, ESC]",
+        "[No level hint messages. e/i tabs, Up=tabs, ESC]",
         "[No level hints. e/i, ESC]"
     };
 
@@ -16008,7 +16060,7 @@ void show_hint_message_screen(int index)
 
 static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
-    int* out_map_x)
+    int* out_map_x, bool manage_screen)
 {
     char ch;
 
@@ -16022,6 +16074,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool switch_to_quests = false;
     int hover_tab = 0;
     bool show_all_tips = false;
+    bool tabs_focus = false;
     bool steamdeck = steamdeck_controls_active();
 
     /* Clear any active banner before opening hint messages */
@@ -16039,9 +16092,11 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     int top = 0;
     show_all_tips = false;
 
-    /* Save screen */
-    screen_save();
-    screen_push_supporting_panes_hidden();
+    if (manage_screen)
+    {
+        screen_save();
+        screen_push_supporting_panes_hidden();
+    }
 
     while (1)
     {
@@ -16109,7 +16164,8 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             top = 0;
         }
 
-        hint_quest_draw_tabs(false, hover_tab, wid);
+        hint_quest_draw_tabs(false,
+            tabs_focus ? HINT_QUEST_CLICK_HINTS_TAB : hover_tab, wid);
 
         if (show_all_tips)
             prt(format("All Tutorial Hints (%d)", tip_n), 2, 0);
@@ -16158,6 +16214,9 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             draw_row += used;
         }
 
+        if (tabs_focus)
+            Term_gotoxy(hint_quest_tab_cursor_col(false), 1);
+
         Term_fresh();
         ch = inkey();
 
@@ -16172,6 +16231,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
                         hover_tab = clicked_choice;
+                        tabs_focus = false;
                         continue;
                     }
                     switch_to_quests = true;
@@ -16182,6 +16242,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
                         hover_tab = clicked_choice;
+                        tabs_focus = false;
                         continue;
                     }
                     continue;
@@ -16193,7 +16254,10 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     if (clicked_idx >= 0 && clicked_idx < n)
                     {
                         if (click_action == UI_MENU_CLICK_HOVER)
+                        {
                             hover_tab = 0;
+                            tabs_focus = false;
+                        }
                         sel = clicked_idx;
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
@@ -16201,6 +16265,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     }
                     else if (click_action == UI_MENU_CLICK_HOVER)
                     {
+                        tabs_focus = false;
                         continue;
                     }
                 }
@@ -16209,6 +16274,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     if (click_action == UI_MENU_CLICK_HOVER)
                     {
                         hover_tab = 0;
+                        tabs_focus = false;
                         continue;
                     }
 
@@ -16247,6 +16313,14 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         {
             switch_to_quests = true;
             break;
+        }
+
+        if (hint_quest_handle_tab_navigation(ch, &tabs_focus,
+                (n <= 0) || (sel == 0), &switch_to_quests))
+        {
+            if (switch_to_quests)
+                break;
+            continue;
         }
 
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
@@ -16371,9 +16445,11 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     ui_menu_click_clear();
     ui_scroll_area_clear();
 
-    /* Load screen */
-    screen_pop_supporting_panes_hidden();
-    screen_load();
+    if (manage_screen)
+    {
+        screen_pop_supporting_panes_hidden();
+        screen_load();
+    }
 
     if (out_pending_look)
         *out_pending_look = pending_look;
