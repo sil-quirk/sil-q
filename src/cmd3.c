@@ -135,6 +135,39 @@ bool throw_slot_menu_active = false;
 bool throw_slot_enabled[INVEN_TOTAL];
 static int forced_wield_slot = -1;
 
+static bool forced_wield_slot_accepts_object(const object_type* o_ptr,
+    int forced_slot)
+{
+    int natural_slot;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (forced_slot < INVEN_WIELD || forced_slot >= INVEN_TOTAL)
+        return false;
+
+    natural_slot = wield_slot(o_ptr);
+    if (natural_slot == forced_slot)
+        return true;
+
+    switch (forced_slot)
+    {
+    case INVEN_WIELD:
+        return player_can_treat_as_throwing(o_ptr);
+    case INVEN_LEFT:
+    case INVEN_RIGHT:
+        return o_ptr->tval == TV_RING;
+    case INVEN_NECK:
+        return o_ptr->tval == TV_AMULET;
+    case INVEN_QUIVER1:
+    case INVEN_QUIVER2:
+        return (o_ptr->tval == TV_ARROW)
+            || player_can_treat_as_throwing(o_ptr);
+    default:
+        return false;
+    }
+}
+
 static bool item_tester_hook_throw_slots(const object_type* o_ptr)
 {
     if (!throw_slot_menu_active)
@@ -1057,21 +1090,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     slot = wield_slot(o_ptr);
     if (forced_wield_slot >= INVEN_WIELD && forced_wield_slot < INVEN_TOTAL)
     {
-        bool forced_slot_ok = false;
-
-        if (o_ptr->tval == TV_RING
-            && ((forced_wield_slot == INVEN_LEFT)
-                || (forced_wield_slot == INVEN_RIGHT)))
-        {
-            forced_slot_ok = true;
-        }
-        else if (o_ptr->tval == TV_AMULET
-            && forced_wield_slot == INVEN_NECK)
-        {
-            forced_slot_ok = true;
-        }
-
-        if (!forced_slot_ok)
+        if (!forced_wield_slot_accepts_object(o_ptr, forced_wield_slot))
         {
             if (item < 0)
                 object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
@@ -1147,137 +1166,162 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     if (is_throwing)
     {
-        bool any_throw_dest = false;
-        int slot_choice;
-
-        log_debug("do_cmd_wield: Throwing weapon detected, showing slot menu");
-        throw_slot_menu_active = true;
-
-        for (i = 0; i < INVEN_TOTAL; i++)
-            throw_slot_enabled[i] = false;
-
+        if ((forced_wield_slot == INVEN_WIELD
+                || forced_wield_slot == INVEN_QUIVER1
+                || forced_wield_slot == INVEN_QUIVER2)
+            && forced_wield_slot_accepts_object(o_ptr, forced_wield_slot))
         {
-            object_type* wield_ptr = &inventory[INVEN_WIELD];
-            bool allow_wield = true;
-
-            if (wield_ptr->k_idx && cursed_p(wield_ptr)
-                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            slot = forced_wield_slot;
+            if ((slot == INVEN_QUIVER1 || slot == INVEN_QUIVER2)
+                && inventory[slot].k_idx
+                && object_similar(&inventory[slot], o_ptr))
             {
-                allow_wield = false;
-            }
-
-            if (allow_wield)
-            {
-                throw_slot_enabled[INVEN_WIELD] = true;
-                any_throw_dest = true;
+                combine = true;
             }
         }
-
+        else
         {
-            object_type* q1_ptr = &inventory[INVEN_QUIVER1];
-            bool allow_quiver = true;
+            bool any_throw_dest = false;
+            int slot_choice;
 
-            if (q1_ptr->k_idx && cursed_p(q1_ptr)
-                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
-            {
-                allow_quiver = false;
-            }
-
-            if (allow_quiver)
-            {
-                throw_slot_enabled[INVEN_QUIVER1] = true;
-                any_throw_dest = true;
-            }
-        }
-
-        {
-            object_type* q2_ptr = &inventory[INVEN_QUIVER2];
-            bool allow_quiver = true;
-
-            if (q2_ptr->k_idx && cursed_p(q2_ptr)
-                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
-            {
-                allow_quiver = false;
-            }
-
-            if (allow_quiver)
-            {
-                throw_slot_enabled[INVEN_QUIVER2] = true;
-                any_throw_dest = true;
-            }
-        }
-
-        if (!any_throw_dest)
-        {
-            log_debug("do_cmd_wield: No available slot for throwing weapon, returning");
-            msg_print("You have no available slot for that throwing weapon.");
-            throw_slot_menu_active = false;
-            return;
-        }
-
-        slot_choice = slot;
-
-        if (!throw_slot_enabled[slot_choice])
-        {
-            if (throw_slot_enabled[INVEN_QUIVER1])
-                slot_choice = INVEN_QUIVER1;
-            else if (throw_slot_enabled[INVEN_QUIVER2])
-                slot_choice = INVEN_QUIVER2;
-            else
-                slot_choice = INVEN_WIELD;
-        }
-
-        item_tester_hook = item_tester_hook_throw_slots;
-        item_tester_full = false;
-
-        q = "Place throwing weapon where? ";
-        s = "Oops.";
-
-        bool saved_command_see = p_ptr->command_see;
-        byte saved_command_wrk = p_ptr->command_wrk;
-        p_ptr->command_see = true;
-        p_ptr->command_wrk = (USE_EQUIP);
-
-        bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
-
-        p_ptr->command_see = saved_command_see;
-        p_ptr->command_wrk = saved_command_wrk;
-
-        if (!slot_selected)
-        {
-            log_debug("do_cmd_wield: User cancelled slot selection, cleaning up and returning");
-            item_tester_hook = NULL;
-            item_tester_full = false;
+            log_debug("do_cmd_wield: Throwing weapon detected, showing slot menu");
+            throw_slot_menu_active = true;
 
             for (i = 0; i < INVEN_TOTAL; i++)
                 throw_slot_enabled[i] = false;
 
+            {
+                object_type* wield_ptr = &inventory[INVEN_WIELD];
+                bool allow_wield = true;
+
+                if (wield_ptr->k_idx && cursed_p(wield_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_wield = false;
+                }
+
+                if (allow_wield)
+                {
+                    throw_slot_enabled[INVEN_WIELD] = true;
+                    any_throw_dest = true;
+                }
+            }
+
+            {
+                object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+                bool allow_quiver = true;
+
+                if (q1_ptr->k_idx && cursed_p(q1_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER1] = true;
+                    any_throw_dest = true;
+                }
+            }
+
+            {
+                object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+                bool allow_quiver = true;
+
+                if (q2_ptr->k_idx && cursed_p(q2_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER2] = true;
+                    any_throw_dest = true;
+                }
+            }
+
+            if (!any_throw_dest)
+            {
+                log_debug("do_cmd_wield: No available slot for throwing weapon, returning");
+                msg_print("You have no available slot for that throwing weapon.");
+                throw_slot_menu_active = false;
+                return;
+            }
+
+            slot_choice = slot;
+
+            if (!throw_slot_enabled[slot_choice])
+            {
+                if (throw_slot_enabled[INVEN_QUIVER1])
+                    slot_choice = INVEN_QUIVER1;
+                else if (throw_slot_enabled[INVEN_QUIVER2])
+                    slot_choice = INVEN_QUIVER2;
+                else
+                    slot_choice = INVEN_WIELD;
+            }
+
+            item_tester_hook = item_tester_hook_throw_slots;
+            item_tester_full = false;
+
+            q = "Place throwing weapon where? ";
+            s = "Oops.";
+
+            bool saved_command_see = p_ptr->command_see;
+            byte saved_command_wrk = p_ptr->command_wrk;
+            p_ptr->command_see = true;
+            p_ptr->command_wrk = (USE_EQUIP);
+
+            bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+
+            p_ptr->command_see = saved_command_see;
+            p_ptr->command_wrk = saved_command_wrk;
+
+            if (!slot_selected)
+            {
+                log_debug("do_cmd_wield: User cancelled slot selection, cleaning up and returning");
+                item_tester_hook = NULL;
+                item_tester_full = false;
+
+                for (i = 0; i < INVEN_TOTAL; i++)
+                    throw_slot_enabled[i] = false;
+
+                throw_slot_menu_active = false;
+                return;
+            }
+
+            log_debug("do_cmd_wield: User selected slot %d for throwing weapon", slot_choice);
+
+            item_tester_hook = NULL;
+            item_tester_full = false;
             throw_slot_menu_active = false;
-            return;
+
+            slot = slot_choice;
+
+            if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+            {
+                if (inventory[slot].k_idx
+                    && object_similar(&inventory[slot], o_ptr))
+                    combine = true;
+            }
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
         }
-
-        log_debug("do_cmd_wield: User selected slot %d for throwing weapon", slot_choice);
-
-        item_tester_hook = NULL;
-        item_tester_full = false;
-        throw_slot_menu_active = false;
-
-        slot = slot_choice;
-
-        if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
-        {
-            if (inventory[slot].k_idx
-                && object_similar(&inventory[slot], o_ptr))
-                combine = true;
-        }
-
-        for (i = 0; i < INVEN_TOTAL; i++)
-            throw_slot_enabled[i] = false;
     }
     else
     {
         // Special cases for merging arrows
-        if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
+        if (o_ptr->tval == TV_ARROW
+            && ((forced_wield_slot == INVEN_QUIVER1)
+                || (forced_wield_slot == INVEN_QUIVER2))
+            && forced_wield_slot_accepts_object(o_ptr, forced_wield_slot))
+        {
+            slot = forced_wield_slot;
+            if (inventory[slot].k_idx && object_similar(&inventory[slot], o_ptr))
+                combine = true;
+        }
+        else if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
         {
             slot = INVEN_QUIVER1;
             combine = true;
@@ -1395,7 +1439,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     // Check for paired weapons (e.g., Glamdring + Orcrist)
     // Paired weapons can be wielded together without Two Weapon Fighting
     bool paired_weapon_prompt = false;
-    if (o_ptr->name1 && inventory[INVEN_WIELD].k_idx)
+    if ((forced_wield_slot < 0) && o_ptr->name1
+        && inventory[INVEN_WIELD].k_idx)
     {
         int paired_idx = get_paired_artefact(o_ptr->name1);
         if (paired_idx && inventory[INVEN_WIELD].name1 == paired_idx)
@@ -1423,7 +1468,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             grants_two_weapon = true;
         }
     }
-    if (!paired_weapon_prompt
+    if ((forced_wield_slot < 0) && !paired_weapon_prompt
         && (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
         && ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM)
             || (o_ptr->tval == TV_HAFTED) || (o_ptr->tval == TV_DIGGING)))

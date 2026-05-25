@@ -187,6 +187,7 @@ struct object_list_entry
 typedef struct supply_list_entry supply_list_entry;
 typedef struct supply_list_columns supply_list_columns;
 typedef struct supply_group_icon supply_group_icon;
+typedef struct equipment_list_entry equipment_list_entry;
 
 struct supply_list_entry
 {
@@ -221,7 +222,33 @@ struct supply_group_icon
     object_type obj;
 };
 
+struct equipment_list_entry
+{
+    int item_idx;   /* Inventory slot backing this row */
+    int supply_idx; /* Supply cache index backing this row */
+    int equip_idx;  /* Equipment slot backing this row */
+    bool equipped;  /* This row is the item currently in the selected slot */
+};
+
 #define SUPPLY_COMPACT_TERM_WIDTH 80
+
+enum
+{
+    SUPPLY_CLICK_BACK = -1,
+    SUPPLY_CLICK_RECALL = -2,
+    SUPPLY_CLICK_USE = -3,
+    SUPPLY_CLICK_DROP = -4,
+    SUPPLY_CLICK_PAGE_EQUIPMENT = -5,
+    SUPPLY_CLICK_PAGE_SUPPLIES = -6,
+    SUPPLY_CLICK_GROUP_BASE = 1000,
+    SUPPLY_CLICK_ENTRY_BASE = 10000
+};
+
+enum
+{
+    SUPPLY_BROWSER_PAGE_EQUIPMENT = 0,
+    SUPPLY_BROWSER_PAGE_SUPPLIES = 1
+};
 
 struct knowledge_browser_layout
 {
@@ -30489,6 +30516,661 @@ static void browser_cursor_with_rows(char ch, int* column, int* grp_cur,
     (*list_cur) = list;
 }
 
+static cptr supply_browser_page_text(int page)
+{
+    switch (page)
+    {
+    case SUPPLY_BROWSER_PAGE_EQUIPMENT:
+        return "Equipment";
+    case SUPPLY_BROWSER_PAGE_SUPPLIES:
+        return "Supplies";
+    default:
+        return "";
+    }
+}
+
+static int supply_browser_page_tab_col(int page)
+{
+    int col = 0;
+
+    for (int i = SUPPLY_BROWSER_PAGE_EQUIPMENT; i < page; i++)
+        col += (int)strlen(supply_browser_page_text(i)) + 2;
+
+    return col;
+}
+
+static void supply_draw_page_header(const knowledge_browser_layout* layout,
+    int page, cptr title)
+{
+    int col;
+
+    if (!layout)
+        return;
+
+    Term_erase(0, layout->title_row, 255);
+
+    col = 0;
+    for (int i = SUPPLY_BROWSER_PAGE_EQUIPMENT;
+         i <= SUPPLY_BROWSER_PAGE_SUPPLIES; i++)
+    {
+        cptr label = supply_browser_page_text(i);
+        byte attr = (i == page) ? (TERM_L_WHITE + TERM_SHADE) : TERM_SLATE;
+
+        Term_putstr(col, layout->title_row, (int)strlen(label), attr, label);
+        col += (int)strlen(label);
+        if (i != SUPPLY_BROWSER_PAGE_SUPPLIES)
+        {
+            Term_putstr(col, layout->title_row, 2, TERM_L_DARK, "  ");
+            col += 2;
+        }
+    }
+
+    if (title && title[0] && col + 3 < layout->term_wid)
+    {
+        Term_putstr(col, layout->title_row, 3, TERM_L_DARK, " - ");
+        col += 3;
+        supply_put_fitted(col, layout->title_row, layout->term_wid - col,
+            TERM_L_WHITE + TERM_SHADE, title);
+    }
+}
+
+static void supply_register_page_tabs(const knowledge_browser_layout* layout)
+{
+    int equip_col;
+    int supply_col;
+
+    if (!layout)
+        return;
+
+    equip_col = supply_browser_page_tab_col(SUPPLY_BROWSER_PAGE_EQUIPMENT);
+    supply_col = supply_browser_page_tab_col(SUPPLY_BROWSER_PAGE_SUPPLIES);
+
+    ui_menu_click_add(SUPPLY_CLICK_PAGE_EQUIPMENT, equip_col,
+        layout->title_row,
+        (int)strlen(supply_browser_page_text(SUPPLY_BROWSER_PAGE_EQUIPMENT)));
+    ui_menu_click_add(SUPPLY_CLICK_PAGE_SUPPLIES, supply_col,
+        layout->title_row,
+        (int)strlen(supply_browser_page_text(SUPPLY_BROWSER_PAGE_SUPPLIES)));
+}
+
+static const int equipment_menu_slots[] = {
+    INVEN_WIELD,
+    INVEN_BOW,
+    INVEN_STAFF,
+    INVEN_LEFT,
+    INVEN_RIGHT,
+    INVEN_NECK,
+    INVEN_LITE,
+    INVEN_BODY,
+    INVEN_OUTER,
+    INVEN_ARM,
+    INVEN_HEAD,
+    INVEN_HANDS,
+    INVEN_FEET,
+    INVEN_QUIVER1,
+    INVEN_QUIVER2,
+    INVEN_HORN
+};
+
+#define EQUIPMENT_MENU_SLOT_COUNT ((int)N_ELEMENTS(equipment_menu_slots))
+
+static cptr equipment_slot_text(int slot)
+{
+    switch (slot)
+    {
+    case INVEN_WIELD:
+        return "Weapon";
+    case INVEN_BOW:
+        return "Bow";
+    case INVEN_STAFF:
+        return "Walking staff";
+    case INVEN_LEFT:
+        return "Left ring";
+    case INVEN_RIGHT:
+        return "Right ring";
+    case INVEN_NECK:
+        return "Amulet";
+    case INVEN_LITE:
+        return "Light";
+    case INVEN_BODY:
+        return "Body armour";
+    case INVEN_OUTER:
+        return "Cloak";
+    case INVEN_ARM:
+        return "Off-hand";
+    case INVEN_HEAD:
+        return "Head";
+    case INVEN_HANDS:
+        return "Hands";
+    case INVEN_FEET:
+        return "Feet";
+    case INVEN_QUIVER1:
+        return "1st quiver";
+    case INVEN_QUIVER2:
+        return "2nd quiver";
+    case INVEN_HORN:
+        return "Horn";
+    default:
+        return "Slot";
+    }
+}
+
+static int equipment_slot_group_width(void)
+{
+    int width = 0;
+
+    for (int i = 0; i < EQUIPMENT_MENU_SLOT_COUNT; i++)
+    {
+        int len = (int)strlen(equipment_slot_text(equipment_menu_slots[i])) + 5;
+        if (len > width)
+            width = len;
+    }
+
+    return width + 2;
+}
+
+static bool equipment_object_is_wearable(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))
+        return false;
+
+    return wield_slot(o_ptr) >= INVEN_WIELD;
+}
+
+static bool equipment_slot_accepts_object(int slot, const object_type* o_ptr)
+{
+    int natural_slot;
+
+    if (!equipment_object_is_wearable(o_ptr))
+        return false;
+
+    natural_slot = wield_slot(o_ptr);
+    if (natural_slot == slot)
+        return true;
+
+    switch (slot)
+    {
+    case INVEN_WIELD:
+        return player_can_treat_as_throwing(o_ptr);
+    case INVEN_LEFT:
+    case INVEN_RIGHT:
+        return o_ptr->tval == TV_RING;
+    case INVEN_QUIVER1:
+    case INVEN_QUIVER2:
+        return (o_ptr->tval == TV_ARROW)
+            || player_can_treat_as_throwing(o_ptr);
+    default:
+        return false;
+    }
+}
+
+static void equipment_entry_clear(equipment_list_entry* entry)
+{
+    if (!entry)
+        return;
+
+    entry->item_idx = -1;
+    entry->supply_idx = -1;
+    entry->equip_idx = -1;
+    entry->equipped = false;
+}
+
+static object_type* equipment_entry_object(const equipment_list_entry* entry)
+{
+    if (!entry)
+        return NULL;
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+        return &inventory[entry->equip_idx];
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        return &inventory[entry->item_idx];
+
+    if (entry->supply_idx >= 0)
+        return supplies_entry_at(entry->supply_idx);
+
+    return NULL;
+}
+
+static bool equipment_add_entry(equipment_list_entry entries[], int* count,
+    int capacity, int item_idx, int supply_idx, int equip_idx, bool equipped)
+{
+    equipment_list_entry* entry;
+
+    if (!entries || !count || *count >= capacity)
+        return false;
+
+    entry = &entries[*count];
+    entry->item_idx = item_idx;
+    entry->supply_idx = supply_idx;
+    entry->equip_idx = equip_idx;
+    entry->equipped = equipped;
+    (*count)++;
+    return true;
+}
+
+static int collect_equipment_entries_for_slot(int slot,
+    equipment_list_entry entries[], int capacity)
+{
+    int count = 0;
+
+    if (!entries || capacity <= 0)
+        return 0;
+
+    for (int i = 0; i < capacity; i++)
+        equipment_entry_clear(&entries[i]);
+
+    if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
+        && inventory[slot].k_idx)
+    {
+        equipment_add_entry(entries, &count, capacity, -1, -1, slot, true);
+    }
+
+    for (int i = 0; i < INVEN_PACK && count < capacity; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!equipment_slot_accepts_object(slot, o_ptr))
+            continue;
+
+        equipment_add_entry(entries, &count, capacity, i, -1, -1, false);
+    }
+
+    for (int i = 0; i < supplies_entry_count() && count < capacity; i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (!equipment_slot_accepts_object(slot, o_ptr))
+            continue;
+
+        equipment_add_entry(entries, &count, capacity, SUPPLIES_INDEX, i, -1,
+            false);
+    }
+
+    return count;
+}
+
+static int count_equipment_entries_for_slot(int slot)
+{
+    int count = 0;
+
+    if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
+        && inventory[slot].k_idx)
+    {
+        count++;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        if (equipment_slot_accepts_object(slot, &inventory[i]))
+            count++;
+    }
+
+    for (int i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+
+        if (equipment_slot_accepts_object(slot, o_ptr))
+            count++;
+    }
+
+    return count;
+}
+
+static bool equipment_prepare_icon_from_kind(int slot, object_type* icon_obj)
+{
+    if (!icon_obj)
+        return false;
+
+    for (int i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+        object_type fake;
+
+        if (!k_ptr->name)
+            continue;
+
+        object_wipe(&fake);
+        object_prep(&fake, i);
+        fake.ident |= IDENT_KNOWN;
+
+        if (!equipment_slot_accepts_object(slot, &fake))
+            continue;
+
+        object_copy(icon_obj, &fake);
+        return true;
+    }
+
+    return false;
+}
+
+static void prepare_equipment_group_icons(
+    supply_group_icon icons[EQUIPMENT_MENU_SLOT_COUNT])
+{
+    for (int group = 0; group < EQUIPMENT_MENU_SLOT_COUNT; group++)
+    {
+        int slot = equipment_menu_slots[group];
+        object_type* icon_obj = &icons[group].obj;
+
+        object_wipe(icon_obj);
+        icons[group].has_icon = false;
+
+        if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
+            && inventory[slot].k_idx)
+        {
+            object_copy(icon_obj, &inventory[slot]);
+            icons[group].has_icon = true;
+            continue;
+        }
+
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            if (!equipment_slot_accepts_object(slot, &inventory[i]))
+                continue;
+
+            object_copy(icon_obj, &inventory[i]);
+            icons[group].has_icon = true;
+            break;
+        }
+
+        if (icons[group].has_icon)
+            continue;
+
+        for (int i = 0; i < supplies_entry_count(); i++)
+        {
+            object_type* o_ptr = supplies_entry_at(i);
+
+            if (!equipment_slot_accepts_object(slot, o_ptr))
+                continue;
+
+            object_copy(icon_obj, o_ptr);
+            icons[group].has_icon = true;
+            break;
+        }
+
+        if (!icons[group].has_icon
+            && equipment_prepare_icon_from_kind(slot, icon_obj))
+        {
+            icons[group].has_icon = true;
+        }
+    }
+}
+
+static void compute_equipment_group_totals(
+    int totals[EQUIPMENT_MENU_SLOT_COUNT])
+{
+    for (int group = 0; group < EQUIPMENT_MENU_SLOT_COUNT; group++)
+        totals[group] = count_equipment_entries_for_slot(
+            equipment_menu_slots[group]);
+}
+
+static void display_equipment_group_list(int col, int row, int wid,
+    int per_page, int grp_cur, int grp_top,
+    const int totals[EQUIPMENT_MENU_SLOT_COUNT],
+    const supply_group_icon icons[EQUIPMENT_MENU_SLOT_COUNT], bool active)
+{
+    int total_col = col + wid - 3;
+    int text_col = col + (use_bigtile ? 2 : 1);
+    int text_w = total_col - text_col;
+
+    for (int i = 0; i < per_page; i++)
+    {
+        int grp_pos = grp_top + i;
+        int slot;
+        byte attr;
+        char buf[8];
+
+        Term_erase(col, row + i, wid);
+
+        if (grp_pos >= EQUIPMENT_MENU_SLOT_COUNT)
+            continue;
+
+        slot = equipment_menu_slots[grp_pos];
+        if (grp_pos == grp_cur)
+            attr = TERM_L_WHITE;
+        else if (totals[grp_pos] == 0)
+            attr = TERM_L_DARK;
+        else
+            attr = TERM_L_BLUE;
+
+        if (icons && icons[grp_pos].has_icon)
+        {
+            draw_supply_icon(col, row + i, &icons[grp_pos].obj);
+            if (active && grp_pos == grp_cur)
+                draw_supply_icon_frame(col, row + i, &icons[grp_pos].obj);
+        }
+
+        if (text_w > 0)
+            supply_put_fitted(text_col, row + i, text_w, attr,
+                equipment_slot_text(slot));
+
+        strnfmt(buf, sizeof(buf), "%3d", totals[grp_pos]);
+        if (wid >= 3)
+            supply_put_fitted(total_col, row + i, 3, attr, buf);
+    }
+}
+
+static cptr equipment_entry_source_text(const equipment_list_entry* entry,
+    char* buf, size_t buflen)
+{
+    if (!entry)
+        return "";
+
+    if (entry->equipped)
+        return "Equipped";
+
+    if (entry->supply_idx >= 0)
+        return "Supply";
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        if (buf && buflen > 0)
+            strnfmt(buf, buflen, "Pack %c", index_to_label(entry->item_idx));
+        return buf ? buf : "Pack";
+    }
+
+    return "";
+}
+
+static void display_equipment_slot_entries(
+    const knowledge_browser_layout* layout, int row, int per_page,
+    equipment_list_entry entries[], int entry_cnt, int entry_cur,
+    int entry_top, int column)
+{
+    int sym_w = use_bigtile ? 2 : 1;
+    int source_w = (layout->term_wid >= 64) ? 10 : 0;
+    int source_col = layout->term_wid - source_w;
+    int name_col = layout->list_col + sym_w + 1;
+    int name_w = layout->term_wid - name_col - (source_w ? source_w + 1 : 0);
+
+    if (name_w < 1)
+        name_w = 1;
+
+    for (int i = 0; i < per_page; i++)
+    {
+        int idx = entry_top + i;
+        int y = row + i;
+        equipment_list_entry* entry;
+        object_type* o_ptr;
+        byte base_attr;
+        byte attr;
+        char name[160];
+        char source_buf[24];
+        bool selected;
+
+        Term_erase(layout->list_col, y, 255);
+
+        if (idx >= entry_cnt)
+            continue;
+
+        entry = &entries[idx];
+        o_ptr = equipment_entry_object(entry);
+        if (!o_ptr || !o_ptr->k_idx)
+            continue;
+
+        selected = (column == 1 && idx == entry_cur);
+        base_attr = entry->equipped ? TERM_L_BLUE
+            : object_display_color(o_ptr,
+                tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+        attr = selected ? TERM_L_WHITE : base_attr;
+
+        object_desc(name, sizeof(name), o_ptr, false, 0);
+        if (entry->equipped)
+            SDL_strlcat(name, " [equipped]", sizeof(name));
+
+        draw_supply_icon(layout->list_col, y, o_ptr);
+        if (selected)
+            draw_supply_icon_frame(layout->list_col, y, o_ptr);
+
+        supply_put_fitted(name_col, y, name_w, attr, name);
+        if (source_w > 0)
+            supply_put_fitted(source_col, y, source_w, attr,
+                equipment_entry_source_text(entry, source_buf,
+                    sizeof(source_buf)));
+    }
+
+    if (entry_cnt == 0 && per_page > 0)
+    {
+        Term_erase(layout->list_col, row, 255);
+        supply_put_fitted(layout->list_col, row, layout->list_w, TERM_L_DARK,
+            "(nothing available)");
+    }
+}
+
+static bool equipment_menu_recall_entry(equipment_list_entry* entry,
+    int selected_slot)
+{
+    object_type* o_ptr;
+
+    if (!entry)
+        return false;
+
+    o_ptr = equipment_entry_object(entry);
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        bell("Nothing to recall.");
+        msg_print("Nothing to recall.");
+        return false;
+    }
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        (void)player_try_identify_smithing_object_on_examine(o_ptr, true);
+        object_info_screen(o_ptr);
+        return true;
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
+
+    if (selected_slot >= INVEN_WIELD && selected_slot < INVEN_TOTAL
+        && inventory[selected_slot].k_idx)
+    {
+        const object_type* objects[2];
+        const char* headings[2];
+        char selected_heading[32];
+        char equipped_heading[32];
+
+        strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+        strnfmt(equipped_heading, sizeof(equipped_heading), "%s",
+            equipment_slot_text(selected_slot));
+
+        objects[0] = o_ptr;
+        headings[0] = selected_heading;
+        objects[1] = &inventory[selected_slot];
+        headings[1] = equipped_heading;
+        object_info_screen_multi(objects, headings, 2);
+    }
+    else
+    {
+        object_info_screen(o_ptr);
+    }
+
+    return true;
+}
+
+static bool equipment_menu_use_entry(equipment_list_entry* entry,
+    int selected_slot)
+{
+    object_type* o_ptr;
+
+    if (!entry)
+        return false;
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        do_cmd_use_item_by_index(entry->equip_idx);
+        return true;
+    }
+
+    o_ptr = equipment_entry_object(entry);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (entry->supply_idx >= 0)
+    {
+        supplies_begin_action(entry->supply_idx);
+        do_cmd_wield_to_slot(o_ptr, SUPPLIES_INDEX, selected_slot);
+        supplies_end_action();
+        return true;
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        do_cmd_wield_to_slot(o_ptr, entry->item_idx, selected_slot);
+        return true;
+    }
+
+    return false;
+}
+
+static bool equipment_menu_drop_entry(equipment_list_entry* entry)
+{
+    object_type* o_ptr;
+
+    if (!entry)
+        return false;
+
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        do_cmd_drop_item_by_index(entry->equip_idx);
+        return true;
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        do_cmd_drop_item_by_index(entry->item_idx);
+        return true;
+    }
+
+    if (entry->supply_idx < 0)
+        return false;
+
+    o_ptr = supplies_entry_at(entry->supply_idx);
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->number <= 0)
+        return false;
+
+    {
+        int actual_amt = get_quantity(NULL, o_ptr->number);
+        bool dropped;
+
+        if (actual_amt <= 0)
+            return false;
+
+        supplies_begin_action(entry->supply_idx);
+        dropped = supplies_drop_amount(entry->supply_idx, actual_amt);
+        supplies_end_action();
+
+        if (dropped)
+            handle_stuff();
+
+        return dropped;
+    }
+}
+
 /*
  * Hack -- Create a "forged" artefact
  */
@@ -33096,16 +33778,6 @@ void do_cmd_knowledge_browser_page(int page)
 /*
  * Display known objects
  */
-enum
-{
-    SUPPLY_CLICK_BACK = -1,
-    SUPPLY_CLICK_RECALL = -2,
-    SUPPLY_CLICK_USE = -3,
-    SUPPLY_CLICK_DROP = -4,
-    SUPPLY_CLICK_GROUP_BASE = 1000,
-    SUPPLY_CLICK_ENTRY_BASE = 10000
-};
-
 static void supply_register_prompt_clicks(const knowledge_browser_layout* layout,
     cptr prompt, cptr recall_label, cptr use_label, cptr confirm_label,
     cptr drop_label, cptr back_label)
@@ -33122,6 +33794,8 @@ static void supply_register_prompt_clicks(const knowledge_browser_layout* layout
     ui_menu_click_add_text_token(SUPPLY_CLICK_RECALL, 0, row, prompt,
         recall_label);
     ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "use");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "equip");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "take off");
     ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, "u/Space");
     ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt, use_label);
     ui_menu_click_add_text_token(SUPPLY_CLICK_USE, 0, row, prompt,
@@ -33154,16 +33828,25 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
     int i;
     int max = 0;
+    int equip_max = equipment_slot_group_width();
     int grp_cnt = SUPPLY_GROUP_MAX;
     int grp_idx[SUPPLY_GROUP_MAX + 1];
     int group_totals[SUPPLY_GROUP_MAX];
     int group_icon_kinds[SUPPLY_GROUP_MAX];
     supply_group_icon group_icons[SUPPLY_GROUP_MAX];
     supply_list_entry* entries;
+    equipment_list_entry* equip_entries;
+    int equip_capacity = z_info->k_max + INVEN_TOTAL;
     int grp_cur = 0;
     int grp_top = 0;
     int entry_cur = 0;
     int entry_top = 0;
+    int equip_grp_cur = 0;
+    int equip_grp_top = 0;
+    int equip_entry_cur = 0;
+    int equip_entry_top = 0;
+    int equip_column = 0;
+    int page = SUPPLY_BROWSER_PAGE_EQUIPMENT;
     int column = 0;
     bool flag = false;
     bool redraw = true;
@@ -33181,6 +33864,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     if (request)
     {
         forced_action = request->action;
+        if (request->focus_group || forced_action != SUPPLY_MENU_ACTION_NONE)
+            page = SUPPLY_BROWSER_PAGE_SUPPLIES;
         if (request->focus_group && request->group >= 0 && request->group < SUPPLY_GROUP_MAX)
             grp_cur = request->group;
         if (forced_action != SUPPLY_MENU_ACTION_NONE)
@@ -33202,12 +33887,351 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     choose_supply_group_icon_kinds(group_icon_kinds);
 
     entries = mem_alloc_array(z_info->k_max, supply_list_entry);
+    equip_entries = mem_alloc_array(equip_capacity, equipment_list_entry);
 
     screen_save();
     screen_push_supporting_panes_hidden();
 
     while (!flag)
     {
+        if (page == SUPPLY_BROWSER_PAGE_EQUIPMENT)
+        {
+            int equip_entry_cnt;
+            int equip_totals[EQUIPMENT_MENU_SLOT_COUNT];
+            supply_group_icon equip_icons[EQUIPMENT_MENU_SLOT_COUNT];
+            knowledge_browser_layout layout;
+            int selected_slot;
+            char status_buf[120];
+            int entry_page_rows;
+
+            prepare_equipment_group_icons(equip_icons);
+            compute_equipment_group_totals(equip_totals);
+            knowledge_init_layout(&layout, equip_max, true);
+            entry_page_rows = layout.list_rows;
+            if (entry_page_rows < 1)
+                entry_page_rows = 1;
+
+            if (equip_grp_cur >= EQUIPMENT_MENU_SLOT_COUNT)
+                equip_grp_cur = EQUIPMENT_MENU_SLOT_COUNT - 1;
+            if (equip_grp_cur < 0)
+                equip_grp_cur = 0;
+
+            selected_slot = equipment_menu_slots[equip_grp_cur];
+            equip_entry_cnt = collect_equipment_entries_for_slot(selected_slot,
+                equip_entries, equip_capacity);
+
+            if (equip_entry_cnt == 0)
+            {
+                equip_entry_cur = 0;
+                equip_entry_top = 0;
+                if (equip_column)
+                    equip_column = 0;
+            }
+            else
+            {
+                if (equip_entry_cur >= equip_entry_cnt)
+                    equip_entry_cur = equip_entry_cnt - 1;
+                if (equip_entry_cur < 0)
+                    equip_entry_cur = 0;
+                if (equip_entry_cur < equip_entry_top)
+                    equip_entry_top = equip_entry_cur;
+                if (equip_entry_cur >= equip_entry_top + entry_page_rows)
+                    equip_entry_top = equip_entry_cur - entry_page_rows + 1;
+                if (equip_entry_top < 0)
+                    equip_entry_top = 0;
+            }
+
+            if (equip_grp_cur < equip_grp_top)
+                equip_grp_top = equip_grp_cur;
+            if (equip_grp_cur >= equip_grp_top + layout.list_rows)
+                equip_grp_top = equip_grp_cur - layout.list_rows + 1;
+            if (equip_grp_top < 0)
+                equip_grp_top = 0;
+
+            Term_clear();
+            supply_draw_page_header(&layout, page, "Equipment");
+            Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
+                "Slots with equipped items and matching pack/supply choices");
+            Term_erase(0, layout.header_row, 255);
+            Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE,
+                "Slot");
+            Term_putstr(layout.list_col, layout.header_row, layout.list_w,
+                TERM_SLATE, equipment_slot_text(selected_slot));
+            if (layout.term_wid >= 64)
+                Term_putstr(layout.term_wid - 10, layout.header_row, 10,
+                    TERM_SLATE, "Where");
+
+            for (i = 0; i < layout.term_wid; i++)
+                Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
+            for (i = 0; i < layout.list_rows; i++)
+                Term_putch(layout.divider_col, layout.list_row + i,
+                    TERM_L_DARK, '|');
+
+            (void)Term_set_extra_cursor(false, 0, 0, false);
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+            supply_register_page_tabs(&layout);
+
+            display_equipment_group_list(layout.group_col, layout.list_row,
+                layout.group_w, layout.list_rows, equip_grp_cur,
+                equip_grp_top, equip_totals, equip_icons, equip_column == 0);
+
+            for (i = 0; i < layout.list_rows; i++)
+            {
+                int grp_pos = equip_grp_top + i;
+                if (grp_pos >= EQUIPMENT_MENU_SLOT_COUNT)
+                    break;
+
+                ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
+                    layout.group_col, layout.list_row + i, layout.group_w);
+            }
+
+            display_equipment_slot_entries(&layout, layout.list_row,
+                layout.list_rows, equip_entries, equip_entry_cnt,
+                equip_entry_cur, equip_entry_top, equip_column);
+
+            for (i = 0; i < entry_page_rows; i++)
+            {
+                int entry_pos = equip_entry_top + i;
+                if (entry_pos >= equip_entry_cnt)
+                    break;
+
+                ui_menu_click_add(SUPPLY_CLICK_ENTRY_BASE + entry_pos,
+                    layout.list_col, layout.list_row + i, layout.list_w);
+            }
+
+            strnfmt(status_buf, sizeof(status_buf), "%s: %d choice%s.",
+                equipment_slot_text(selected_slot), equip_entry_cnt,
+                (equip_entry_cnt == 1) ? "" : "s");
+            if (layout.status_row != layout.prompt_row)
+            {
+                Term_erase(0, layout.status_row, 255);
+                Term_putstr(0, layout.status_row, layout.term_wid,
+                    TERM_L_BLUE, status_buf);
+            }
+
+            Term_erase(0, layout.prompt_row, 255);
+            if (steamdeck_controls_active())
+            {
+                char use_label[16];
+                char confirm_label[16];
+                char drop_label[16];
+                char back_label[16];
+                char prompt_buf[160];
+
+                controller_prompt_label(steamdeck_alt_action_key(), "X",
+                    use_label, sizeof(use_label));
+                controller_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                controller_prompt_label('f', "B", drop_label,
+                    sizeof(drop_label));
+                controller_prompt_label(ESCAPE, "Start", back_label,
+                    sizeof(back_label));
+                strnfmt(prompt_buf, sizeof(prompt_buf),
+                    "D-pad move  [%s/%s] equip  [%s] drop  [%s] back",
+                    use_label, confirm_label, drop_label, back_label);
+                Term_putstr(0, layout.prompt_row, layout.term_wid,
+                    TERM_L_DARK, prompt_buf);
+                supply_register_prompt_clicks(&layout, prompt_buf, NULL,
+                    use_label, confirm_label, drop_label, back_label);
+            }
+            else
+            {
+                cptr prompt = (layout.term_wid <= 50)
+                    ? "Dir move  u/Space equip  d drop  Tab page  Esc"
+                    : "Dir move  r/-> recall  u/Space equip/take off  d drop  Tab page  Esc";
+
+                Term_putstr(0, layout.prompt_row, layout.term_wid,
+                    TERM_SLATE, prompt);
+                supply_register_prompt_clicks(&layout, prompt, NULL, NULL,
+                    NULL, NULL, NULL);
+                if (drop_click_mode)
+                    supply_highlight_prompt_token(&layout, prompt, "drop",
+                        TERM_YELLOW);
+            }
+
+            if (!equip_column)
+                Term_gotoxy(layout.group_col,
+                    layout.list_row + (equip_grp_cur - equip_grp_top));
+            else if (equip_entry_cnt)
+                Term_gotoxy(layout.list_col,
+                    layout.list_row + (equip_entry_cur - equip_entry_top));
+            else
+                Term_gotoxy(layout.group_col,
+                    layout.list_row + (equip_grp_cur - equip_grp_top));
+
+            char ch = inkey();
+            {
+                int clicked_choice = -1;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&clicked_choice, &click_action))
+                {
+                    if (clicked_choice == SUPPLY_CLICK_PAGE_SUPPLIES)
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        page = SUPPLY_BROWSER_PAGE_SUPPLIES;
+                        redraw = true;
+                        continue;
+                    }
+                    else if (clicked_choice == SUPPLY_CLICK_PAGE_EQUIPMENT)
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        continue;
+                    }
+                    else if (clicked_choice >= SUPPLY_CLICK_ENTRY_BASE)
+                    {
+                        int clicked_entry = clicked_choice
+                            - SUPPLY_CLICK_ENTRY_BASE;
+
+                        if (clicked_entry >= 0
+                            && clicked_entry < equip_entry_cnt)
+                        {
+                            equip_entry_cur = clicked_entry;
+                            equip_column = 1;
+                            if (click_action == UI_MENU_CLICK_HOVER)
+                                continue;
+                            ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
+                                : (drop_click_mode ? 'd' : 'u');
+                        }
+                    }
+                    else if (clicked_choice >= SUPPLY_CLICK_GROUP_BASE)
+                    {
+                        int clicked_group = clicked_choice
+                            - SUPPLY_CLICK_GROUP_BASE;
+
+                        if (clicked_group >= 0
+                            && clicked_group < EQUIPMENT_MENU_SLOT_COUNT)
+                        {
+                            equip_grp_cur = clicked_group;
+                            equip_entry_cur = 0;
+                            equip_entry_top = 0;
+                            equip_column = 0;
+                            if (click_action == UI_MENU_CLICK_HOVER)
+                                continue;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+
+                        switch (clicked_choice)
+                        {
+                        case SUPPLY_CLICK_BACK:   ch = ESCAPE; break;
+                        case SUPPLY_CLICK_RECALL: ch = 'r'; break;
+                        case SUPPLY_CLICK_USE:    ch = 'u'; break;
+                        case SUPPLY_CLICK_DROP:
+                            drop_click_mode = !drop_click_mode;
+                            continue;
+                        default: break;
+                        }
+                    }
+                }
+            }
+
+            if (steamdeck_controls_active() && ch == 'f')
+                ch = 'd';
+
+            if ((ch == '\r' || ch == '\n'
+                    || (steamdeck_controls_active()
+                        && ch == steamdeck_confirm_key()))
+                && equip_column && equip_entry_cnt)
+            {
+                ch = (forced_action == SUPPLY_MENU_ACTION_DROP) ? 'd' : 'u';
+            }
+
+            switch (ch)
+            {
+            case ESCAPE:
+                flag = true;
+                break;
+
+            case KTRL('I'):
+                page = SUPPLY_BROWSER_PAGE_SUPPLIES;
+                redraw = true;
+                break;
+
+            case 'R':
+            case 'r':
+            case 'X':
+            case 'x':
+            case '6':
+#ifdef ARROW_RIGHT
+            case ARROW_RIGHT:
+#endif
+                if (!equip_column && equip_entry_cnt)
+                {
+                    equip_column = 1;
+                }
+                else if (equip_column && equip_entry_cnt)
+                {
+                    (void)equipment_menu_recall_entry(
+                        &equip_entries[equip_entry_cur], selected_slot);
+                }
+                break;
+
+            case 'u':
+            case 'U':
+            case ' ':
+                if (!equip_column && equip_entry_cnt)
+                {
+                    equip_column = 1;
+                }
+                else if (equip_column && equip_entry_cnt)
+                {
+                    if (death_spectator_active())
+                    {
+                        msg_print("You can no longer take that action.");
+                        break;
+                    }
+
+                    if (equipment_menu_use_entry(&equip_entries[equip_entry_cur],
+                            selected_slot))
+                    {
+                        acted = true;
+                        refresh_after_close = true;
+                        flag = true;
+                    }
+                }
+                break;
+
+            case 'd':
+            case 'D':
+                if (!equip_column && equip_entry_cnt)
+                {
+                    equip_column = 1;
+                }
+                else if (equip_column && equip_entry_cnt)
+                {
+                    if (death_spectator_active())
+                    {
+                        msg_print("You can no longer take that action.");
+                        break;
+                    }
+
+                    if (equipment_menu_drop_entry(&equip_entries[equip_entry_cur]))
+                    {
+                        acted = true;
+                        refresh_after_close = true;
+                        flag = true;
+                    }
+                }
+                break;
+
+            default:
+                browser_cursor_with_rows(ch, &equip_column, &equip_grp_cur,
+                    EQUIPMENT_MENU_SLOT_COUNT, &equip_entry_cur,
+                    equip_entry_cnt, entry_page_rows, true);
+                break;
+            }
+            continue;
+        }
+
         int entry_cnt;
         knowledge_browser_layout layout;
         knowledge_browser_layout draw_layout;
@@ -33342,8 +34366,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 list_label = "Set";
 
             Term_clear();
-            Term_putstr(0, draw_layout.title_row, draw_layout.term_wid,
-                TERM_L_WHITE + TERM_SHADE, title_label);
+            supply_draw_page_header(&draw_layout, page, title_label);
             Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
                 weight_buf);
             Term_erase(0, draw_layout.header_row, 255);
@@ -33400,6 +34423,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+        supply_register_page_tabs(&draw_layout);
 
         if (!single_column || !column)
         {
@@ -33500,17 +34524,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (draw_layout.term_wid <= 34)
                     prompt = "u equip  s save  c clear";
                 else if (draw_layout.term_wid <= 50)
-                    prompt = "Dir move  u equip  s save  c clear  Esc";
+                    prompt = "Dir move  u equip  s save  c clear  Tab  Esc";
                 else if (draw_layout.term_wid <= 70)
-                    prompt = "Dir move  u equip  s save  c clear  Alt+1-5  Esc";
+                    prompt = "Dir move  u equip  s save  c clear  Tab  Alt+1-5  Esc";
                 else
-                    prompt = "Dir move  r/-> recall  u/Space equip  s save  c clear  Alt+1-5  Esc";
+                    prompt = "Dir move  r/-> recall  u/Space equip  s save  c clear  Tab page  Alt+1-5  Esc";
             }
             else
             {
                 prompt = (draw_layout.term_wid <= 50)
-                    ? "Dir move  u/Space use  d drop  Esc"
-                    : "Dir move  r/-> recall  u/Space use  d drop  Esc";
+                    ? "Dir move  u/Space use  d drop  Tab  Esc"
+                    : "Dir move  r/-> recall  u/Space use  d drop  Tab page  Esc";
             }
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_SLATE, prompt);
@@ -33539,7 +34563,20 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (clicked_choice >= SUPPLY_CLICK_ENTRY_BASE)
+                if (clicked_choice == SUPPLY_CLICK_PAGE_EQUIPMENT)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    page = SUPPLY_BROWSER_PAGE_EQUIPMENT;
+                    continue;
+                }
+                else if (clicked_choice == SUPPLY_CLICK_PAGE_SUPPLIES)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    continue;
+                }
+                else if (clicked_choice >= SUPPLY_CLICK_ENTRY_BASE)
                 {
                     int clicked_entry = clicked_choice - SUPPLY_CLICK_ENTRY_BASE;
 
@@ -33601,6 +34638,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
         case ESCAPE:
             flag = true;
+            break;
+
+        case KTRL('I'):
+            page = SUPPLY_BROWSER_PAGE_EQUIPMENT;
             break;
 
         case 'R':
@@ -33810,6 +34851,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     }
 
     mem_free_null(entries);
+    mem_free_null(equip_entries);
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
     screen_pop_supporting_panes_hidden();
