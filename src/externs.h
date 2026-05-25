@@ -2192,5 +2192,7 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
+extern int sdl_main_view_visible_col0(void);
+extern int sdl_main_view_visible_cols(void);
 extern void binding_action_label(int binding, char* buf, size_t buflen);
 extern void binding_action_short(int binding, char* buf, size_t buflen);

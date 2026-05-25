@@ -46,6 +46,18 @@
 #define SIL_SDL_HANDHELD_DEFAULTS_BUILD 0
 #endif
 
+static bool sdl_key_is_escape_or_back(SDL_Keycode key)
+{
+    if (key == SDLK_ESCAPE)
+        return true;
+#ifdef SDLK_AC_BACK
+    if (key == SDLK_AC_BACK)
+        return true;
+#endif
+
+    return false;
+}
+
 const char help_sdl[] = "SDL3";
 
 static const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
@@ -918,6 +930,9 @@ typedef struct player_exchange_target_entry {
 typedef struct minimap_touch_finger {
     bool active;
     SDL_FingerID finger_id;
+    bool moved;
+    float start_x;
+    float start_y;
     float x;
     float y;
 } minimap_touch_finger;
@@ -4515,8 +4530,6 @@ static bool sdl_active_group_has_visible(const struct pane_config* active,
 
         if (!active[i].enabled)
             continue;
-        if (active[i].pane == PANE_TOUCH)
-            continue;
         matches = side ? pane_placement_is_side(active[i].where)
                        : pane_placement_is_bottom(active[i].where);
         if (!matches)
@@ -7138,7 +7151,9 @@ static bool sdl_main_menu_overlay_handle_key(const SDL_KeyboardEvent* ev)
         return false;
 
     key = ev->key;
-    if (key == SDLK_ESCAPE || key == SDLK_LEFT || key == SDLK_KP_4) {
+    if (sdl_key_is_escape_or_back(key) || key == SDLK_LEFT
+        || key == SDLK_KP_4)
+    {
         sdl_main_menu_overlay_close();
         return true;
     }
@@ -14383,14 +14398,15 @@ static bool sdl_map_touch_handle_pointer_up(float x, float y, SDL_FingerID finge
         return true;
     }
 
-    (void)sdl_object_tooltip_show_grid(map_y, map_x, true);
-
     sdl_map_touch_cancel_press();
     if (map_y == p_ptr->py && map_x == p_ptr->px)
     {
+        sdl_object_tooltip_clear();
         sdl_player_confirm_at_player();
         return true;
     }
+
+    (void)sdl_object_tooltip_show_grid(map_y, map_x, true);
 
     if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_OFF)
         return true;
@@ -14646,6 +14662,19 @@ static void sdl_player_confirm_at_player(void)
     sdl_player_exchange_cancel();
     sdl_mouse_path_cancel();
     sdl_touch_pane_send_confirm_action();
+}
+
+static bool sdl_main_view_point_is_player_grid(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+        return false;
+
+    return map_y == p_ptr->py && map_x == p_ptr->px;
 }
 
 static bool sdl_player_has_equipped_staff(void)
@@ -17669,6 +17698,39 @@ static void sdl_minimap_begin_drag(bool mouse, SDL_FingerID finger_id,
     g_minimap.drag_last_y = y;
 }
 
+static float sdl_minimap_tap_threshold_px(void)
+{
+    float threshold = sdl_touch_swipe_threshold_px() * 0.5f;
+
+    if (threshold < 8.0f)
+        threshold = 8.0f;
+    if (threshold > 32.0f)
+        threshold = 32.0f;
+
+    return threshold;
+}
+
+static bool sdl_minimap_finger_moved_from_start(
+    const minimap_touch_finger* finger, float x, float y)
+{
+    float dx;
+    float dy;
+    float threshold;
+
+    if (!finger || !finger->active)
+        return true;
+
+    dx = x - finger->start_x;
+    dy = y - finger->start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    threshold = sdl_minimap_tap_threshold_px();
+    return dx > threshold || dy > threshold;
+}
+
 static bool sdl_minimap_drag_to(bool mouse, SDL_FingerID finger_id, float x,
     float y)
 {
@@ -18094,6 +18156,7 @@ static void sdl_minimap_add_or_update_finger(SDL_FingerID finger_id, float x,
     float y)
 {
     int index = sdl_minimap_find_finger(finger_id);
+    bool added = false;
 
     if (index < 0) {
         for (int i = 0; i < MINIMAP_MAX_TOUCH_FINGERS; i++) {
@@ -18101,6 +18164,10 @@ static void sdl_minimap_add_or_update_finger(SDL_FingerID finger_id, float x,
                 index = i;
                 g_minimap.fingers[i].active = true;
                 g_minimap.fingers[i].finger_id = finger_id;
+                g_minimap.fingers[i].start_x = x;
+                g_minimap.fingers[i].start_y = y;
+                g_minimap.fingers[i].moved = false;
+                added = true;
                 break;
             }
         }
@@ -18108,6 +18175,13 @@ static void sdl_minimap_add_or_update_finger(SDL_FingerID finger_id, float x,
 
     if (index < 0)
         return;
+
+    if (!added
+        && sdl_minimap_finger_moved_from_start(&g_minimap.fingers[index],
+            x, y))
+    {
+        g_minimap.fingers[index].moved = true;
+    }
 
     g_minimap.fingers[index].x = x;
     g_minimap.fingers[index].y = y;
@@ -18181,9 +18255,32 @@ static bool sdl_minimap_handle_touch_motion(float x, float y,
     return true;
 }
 
-static bool sdl_minimap_handle_touch_up(SDL_FingerID finger_id)
+static bool sdl_minimap_handle_touch_up(float x, float y,
+    SDL_FingerID finger_id)
 {
+    int index = sdl_minimap_find_finger(finger_id);
+    bool close_on_tap = false;
+
+    if (index >= 0) {
+        minimap_touch_finger* finger = &g_minimap.fingers[index];
+        bool moved = finger->moved;
+        float canvas_x;
+        float canvas_y;
+
+        if (sdl_minimap_window_to_canvas_point(x, y, &canvas_x, &canvas_y))
+            moved = moved || sdl_minimap_finger_moved_from_start(finger,
+                canvas_x, canvas_y);
+        else
+            moved = true;
+
+        close_on_tap = !moved
+            && !g_minimap.pinch_active
+            && sdl_minimap_active_finger_count() == 1;
+    }
+
     sdl_minimap_remove_finger(finger_id);
+    if (close_on_tap)
+        sdl_minimap_close();
     return true;
 }
 
@@ -18267,6 +18364,11 @@ static bool sdl_minimap_handle_key(const SDL_KeyboardEvent* key_event)
         return true;
 
     key = key_event->key;
+    if (sdl_key_is_escape_or_back(key)) {
+        sdl_minimap_close();
+        return true;
+    }
+
     switch (key)
     {
     case SDLK_LSHIFT:
@@ -18277,10 +18379,6 @@ static bool sdl_minimap_handle_key(const SDL_KeyboardEvent* key_event)
     case SDLK_RCTRL:
     case SDLK_LGUI:
     case SDLK_RGUI:
-        return true;
-
-    case SDLK_ESCAPE:
-        sdl_minimap_close();
         return true;
 
     case SDLK_PLUS:
@@ -18393,8 +18491,12 @@ static bool sdl_minimap_handle_event(const SDL_Event* ev)
         if (ev->type == SDL_EVENT_FINGER_MOTION)
             return sdl_minimap_handle_touch_motion(x, y,
                 ev->tfinger.fingerID);
+        if (ev->type == SDL_EVENT_FINGER_CANCELED) {
+            sdl_minimap_remove_finger(ev->tfinger.fingerID);
+            return true;
+        }
 
-        return sdl_minimap_handle_touch_up(ev->tfinger.fingerID);
+        return sdl_minimap_handle_touch_up(x, y, ev->tfinger.fingerID);
     }
 
     case SDL_EVENT_KEY_DOWN:
@@ -22859,6 +22961,8 @@ static bool sdl_touch_zone_handle_pointer_down(float x, float y,
 
     if (!sdl_touch_zone_controls_active())
         return false;
+    if (sdl_main_view_point_is_player_grid(x, y))
+        return false;
     if (!sdl_touch_zone_point_to_zone(x, y, &zone))
         return false;
     if (zone < 0)
@@ -26013,7 +26117,7 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         return;
     } else if (g_touch_pane_reset_confirm_active) {
         if (ev->type == SDL_EVENT_KEY_DOWN) {
-            if (ev->key.key == SDLK_ESCAPE) {
+            if (sdl_key_is_escape_or_back(ev->key.key)) {
                 sdl_touch_pane_finish_reset_confirm(false);
             } else if (ev->key.key == SDLK_RETURN || ev->key.key == SDLK_KP_ENTER
                 || ev->key.key == SDLK_SPACE)
@@ -27065,18 +27169,18 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 
         if (g_log_pane_menu.active) {
             sdl_log_pane_menu_cancel();
-            if (key == SDLK_ESCAPE)
+            if (sdl_key_is_escape_or_back(key))
                 return;
         }
 
         if (g_side_pane_menu.active) {
             sdl_side_pane_menu_cancel();
-            if (key == SDLK_ESCAPE)
+            if (sdl_key_is_escape_or_back(key))
                 return;
         }
 
         if (g_player_action_menu.active || g_player_exchange_target.active) {
-            if (key == SDLK_ESCAPE) {
+            if (sdl_key_is_escape_or_back(key)) {
                 sdl_player_action_menu_cancel();
                 sdl_player_exchange_cancel();
                 return;
@@ -27084,6 +27188,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 
             sdl_player_action_menu_cancel();
             sdl_player_exchange_cancel();
+        }
+
+        if (sdl_key_is_escape_or_back(key)) {
+            Term_keypress(ESCAPE);
+            return;
         }
 
         /* Handle SDL layout shortcuts before menu/game input routing so they
@@ -29192,7 +29301,7 @@ static int sdl_touch_tutorial_wait_action(Uint64 accept_after_ns)
 
             if (now_ns < accept_after_ns)
                 continue;
-            if (key == SDLK_ESCAPE || key == 'q' || key == 'Q')
+            if (sdl_key_is_escape_or_back(key) || key == 'q' || key == 'Q')
                 return 2;
             if (key == SDLK_LEFT || key == SDLK_BACKSPACE
                 || key == SDLK_PAGEUP)
@@ -29708,7 +29817,7 @@ static int sdl_touch_tutorial_choose_profile(void)
 
             if (now_ns < accept_after_ns)
                 continue;
-            if (key == SDLK_ESCAPE || key == 'q' || key == 'Q')
+            if (sdl_key_is_escape_or_back(key) || key == 'q' || key == 'Q')
                 return SDL_TOUCH_TUTORIAL_CHOICE_CANCEL;
             if (key == SDLK_UP || key == SDLK_LEFT
                 || key == SDLK_PAGEUP || key == SDLK_KP_8
@@ -33369,6 +33478,28 @@ int sdl_get_cell_width(void)
     return 8; /* fallback */
 }
 
+int sdl_main_view_visible_col0(void)
+{
+    if (sdl_left_panel_pane_presentation_active())
+        return COL_MAP;
+
+    return 0;
+}
+
+int sdl_main_view_visible_cols(void)
+{
+    int cols;
+
+    if (!g_views[PANE_MAIN].term_ready)
+        return 0;
+
+    cols = sdl_main_view_visual_cols(&g_views[PANE_MAIN]);
+    if (cols < 0)
+        cols = 0;
+
+    return cols;
+}
+
 // Quit hook to save window configuration on exit
 static void sdl_quit_hook(cptr str)
 {
@@ -33412,6 +33543,10 @@ static void sdl_quit_hook(cptr str)
 errr init_sdl(int argc, char **argv)
 {
     log_debug("init_sdl starting");
+
+#if defined(__ANDROID__) && defined(SDL_HINT_ANDROID_TRAP_BACK_BUTTON)
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+#endif
     
     // Initialize SDL first to get display information
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD)) {
