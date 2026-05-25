@@ -1495,8 +1495,11 @@ static void sdl_config_load_pane_profile(cJSON* profile_obj,
         return;
 
     item = cJSON_GetObjectItemCaseSensitive(profile_obj, "mainViewScale");
-    if (cJSON_IsNumber(item))
+    if (cJSON_IsNumber(item)) {
         profile->main_view_scale = item->valueint;
+        if (profile->main_view_scale < SDL_MAIN_VIEW_MIN_SCALE)
+            profile->main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
+    }
 
     item = cJSON_GetObjectItemCaseSensitive(profile_obj, "auxViewFontSize");
     if (cJSON_IsNumber(item))
@@ -1714,6 +1717,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         item = cJSON_GetObjectItemCaseSensitive(sdl, "mainViewScale");
         if (cJSON_IsNumber(item)) {
             config->main_view_scale = item->valueint;
+            if (config->main_view_scale < SDL_MAIN_VIEW_MIN_SCALE)
+                config->main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
             log_debug("Loaded mainViewScale: %d", config->main_view_scale);
         } else {
             log_warn("mainViewScale not found or not a number");
@@ -3192,7 +3197,7 @@ void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
 
 void sdl_config_set_defaults(struct sdl_config* config)
 {
-    config->main_view_scale = 1;
+    config->main_view_scale = SDL_MAIN_VIEW_MIN_SCALE;
     config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;
@@ -3291,6 +3296,8 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)
                 const char* scale_str = argv[++i];
                 int scale = atoi(scale_str);
                 if (scale > 0) {
+                    if (scale < SDL_MAIN_VIEW_MIN_SCALE)
+                        scale = SDL_MAIN_VIEW_MIN_SCALE;
                     config->main_view_scale = scale;
                     log_info("Command line: main view scale set to %d", scale);
                 }

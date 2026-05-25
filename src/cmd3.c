@@ -766,6 +766,7 @@ void do_cmd_inven(void)
 
     /* Save screen */
     screen_save();
+    sdl_push_terminal_menu_scale();
     log_debug("do_cmd_inven: Screen saved");
 
     /* Hack -- show empty slots */
@@ -781,6 +782,7 @@ void do_cmd_inven(void)
     item_tester_full = false;
 
     /* Load screen */
+    sdl_pop_terminal_menu_scale();
     screen_load();
     log_debug("do_cmd_inven: Screen loaded");
 
@@ -893,6 +895,7 @@ void do_cmd_equip(void)
 
     /* Save screen */
     screen_save();
+    sdl_push_terminal_menu_scale();
     log_debug("do_cmd_equip: Screen saved");
 
     /* Show every equipment slot; the menu navigates only occupied rows. */
@@ -908,6 +911,7 @@ void do_cmd_equip(void)
     item_tester_full = false;
 
     /* Load screen */
+    sdl_pop_terminal_menu_scale();
     screen_load();
     log_debug("do_cmd_equip: Screen loaded");
 

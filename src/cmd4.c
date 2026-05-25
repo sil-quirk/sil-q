@@ -1028,6 +1028,7 @@ void do_cmd_character_sheet(void)
     screen_save();
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
+    sdl_push_terminal_menu_scale();
     sdl_screen_back_gesture_begin();
 
     /* Forever */
@@ -1306,6 +1307,7 @@ void do_cmd_character_sheet(void)
 
     /* Load screen */
     ui_menu_click_clear();
+    sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
     screen_pop_touch_pane_proto();
     screen_pop_supporting_panes_hidden();
@@ -5024,6 +5026,7 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
 {
     char title[96];
     char summary[160];
+    char visible_summary[160];
     char next_skill[32];
     char ability_price[32];
 
@@ -5056,8 +5059,31 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
         (skilltype >= 0 && skilltype < S_MAX) ? p_ptr->skill_base[skilltype] : 0,
         (skilltype >= 0 && skilltype < S_MAX) ? p_ptr->skill_use[skilltype] : 0,
         next_skill, ability_price);
+
+    ability_browser_fit_text(visible_summary, sizeof(visible_summary),
+        summary, layout->visible_w);
     ability_browser_draw_colored_text_line_ex(layout->visible_col,
-        layout->summary_row, layout->visible_w, TERM_L_WHITE, summary, false);
+        layout->summary_row, layout->visible_w, TERM_L_WHITE,
+        visible_summary, false);
+    if (skilltype >= 0 && skilltype < S_MAX && skilltype != S_SPC)
+    {
+        cptr skill_start = strstr(visible_summary, " | ");
+        cptr ability_start;
+        int start_offset = 0;
+        int end_offset = (int)strlen(visible_summary);
+
+        if (skill_start)
+            start_offset = (int)(skill_start - visible_summary) + 3;
+
+        ability_start = strstr(visible_summary + start_offset,
+            " | ability price");
+        if (ability_start)
+            end_offset = (int)(ability_start - visible_summary);
+
+        ui_menu_click_add_text_span(ABILITY_MENU_CLICK_TRAIN,
+            layout->visible_col, layout->summary_row, visible_summary,
+            start_offset, end_offset);
+    }
 
     for (int i = layout->visible_col;
         i < layout->visible_col + layout->visible_w; i++)
@@ -6238,6 +6264,7 @@ void do_cmd_ability_screen(void)
     screen_save();
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
+    sdl_push_terminal_menu_scale();
     sdl_screen_back_gesture_begin();
 
     while (!done)
@@ -6304,8 +6331,6 @@ void do_cmd_ability_screen(void)
         if (desc_top < 0)
             desc_top = 0;
 
-        ability_browser_draw_frame(&layout, skilltype);
-
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
@@ -6314,6 +6339,8 @@ void do_cmd_ability_screen(void)
             MAX(layout.list_row, layout.status_row - 1),
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
+
+        ability_browser_draw_frame(&layout, skilltype);
 
         if (ui_menu_click_get_hover_choice(&hover_choice)
             && hover_choice >= ABILITY_MENU_CLICK_SKILL_BASE
@@ -6596,6 +6623,7 @@ void do_cmd_ability_screen(void)
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
     ui_scroll_area_clear();
+    sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
     screen_pop_touch_pane_proto();
     screen_pop_supporting_panes_hidden();
@@ -21833,7 +21861,7 @@ void do_cmd_pane_settings(void)
             if (k == PANE_SETTING_MAIN_VIEW_SCALE) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
-                if (val > 1)
+                if (val > SDL_MAIN_VIEW_MIN_SCALE)
                 {
                     set_sdl_main_view_scale(val - 1);
                     settings_changed = true;
@@ -35381,6 +35409,7 @@ void do_cmd_knowledge_browser_page(int page)
 
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
@@ -35982,6 +36011,7 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(object_idx);
     mem_free_null(artefact_idx);
 
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)
@@ -36104,6 +36134,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
 
     while (!flag)
     {
@@ -37067,6 +37098,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     mem_free_null(equip_entries);
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
 

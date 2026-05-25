@@ -436,6 +436,22 @@ static int pane_corner_secondary_pixels(const struct pane_config* config,
         cell_heights) + margin_px;
 }
 
+static int pane_overlay_edge_gap(int area_px, int content_px, int margin_px)
+{
+    int requested_gap;
+    int max_gap;
+
+    if (margin_px <= 0 || area_px <= content_px)
+        return 0;
+
+    requested_gap = margin_px * 5;
+    max_gap = (area_px - content_px) / 2;
+    if (max_gap <= 0)
+        return 0;
+
+    return (requested_gap < max_gap) ? requested_gap : max_gap;
+}
+
 static void layout_overlay_group(enum pane_placement where,
     const struct pane_config* config, int count, SDL_Rect* panes,
     const SDL_Rect* area, const int* cell_widths, const int* cell_heights,
@@ -447,6 +463,8 @@ static void layout_overlay_group(enum pane_placement where,
     int pane_x;
     int start_y;
     int total_h = 0;
+    int edge_gap_x;
+    int edge_gap_y;
     bool bottom_edge;
 
     if (active_count <= 0 || !area || area->w <= 0 || area->h <= 0)
@@ -482,22 +500,25 @@ static void layout_overlay_group(enum pane_placement where,
     if (total_h <= 0)
         return;
 
+    edge_gap_x = pane_overlay_edge_gap(area->w, split_px, margin_px);
+    edge_gap_y = pane_overlay_edge_gap(area->h, total_h, margin_px);
+
     if (pane_placement_is_left(where))
-        pane_x = area->x;
+        pane_x = area->x + edge_gap_x;
     else if (pane_placement_is_right(where))
-        pane_x = area->x + area->w - split_px;
+        pane_x = area->x + area->w - split_px - edge_gap_x;
     else if (pane_placement_is_horizontal_center(where))
         pane_x = area->x + (area->w - split_px) / 2;
     else
-        pane_x = area->x;
+        pane_x = area->x + edge_gap_x;
 
     bottom_edge = pane_placement_is_bottom_edge(where);
     if (bottom_edge)
-        start_y = area->y + area->h;
+        start_y = area->y + area->h - edge_gap_y;
     else if (pane_placement_is_vertical_center(where))
         start_y = area->y + (area->h - total_h) / 2;
     else
-        start_y = area->y;
+        start_y = area->y + edge_gap_y;
 
     for (int i = 0; i < count; i++) {
         SDL_Rect* pane;
