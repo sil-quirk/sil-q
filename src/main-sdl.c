@@ -1231,6 +1231,7 @@ static SDL_Rect g_pane_rects[PANE_MAX];
 static SDL_Texture* g_left_panel_canvas = NULL;
 static int g_left_panel_canvas_w = 0;
 static int g_left_panel_canvas_h = 0;
+static bool g_left_panel_debug_dump_rows = true;
 static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
@@ -2780,11 +2781,70 @@ static bool sdl_left_panel_cell_has_visible_content(byte a, char c)
     return c != '\0' && c != ' ';
 }
 
+static void sdl_left_panel_debug_log_cell_size(int content_cols,
+    int initial_cell_w, int initial_cell_h, int final_cell_w,
+    int final_cell_h, int visual_cols, int visual_w, int border_cols,
+    int available_w, int max_cell_w)
+{
+    static bool have_last = false;
+    static int last_content_cols;
+    static int last_initial_cell_w;
+    static int last_initial_cell_h;
+    static int last_final_cell_w;
+    static int last_final_cell_h;
+    static int last_visual_cols;
+    static int last_visual_w;
+    static int last_border_cols;
+    static int last_available_w;
+    static int last_max_cell_w;
+
+    if (have_last
+        && last_content_cols == content_cols
+        && last_initial_cell_w == initial_cell_w
+        && last_initial_cell_h == initial_cell_h
+        && last_final_cell_w == final_cell_w
+        && last_final_cell_h == final_cell_h
+        && last_visual_cols == visual_cols
+        && last_visual_w == visual_w
+        && last_border_cols == border_cols
+        && last_available_w == available_w
+        && last_max_cell_w == max_cell_w)
+    {
+        return;
+    }
+
+    have_last = true;
+    last_content_cols = content_cols;
+    last_initial_cell_w = initial_cell_w;
+    last_initial_cell_h = initial_cell_h;
+    last_final_cell_w = final_cell_w;
+    last_final_cell_h = final_cell_h;
+    last_visual_cols = visual_cols;
+    last_visual_w = visual_w;
+    last_border_cols = border_cols;
+    last_available_w = available_w;
+    last_max_cell_w = max_cell_w;
+
+    log_debug("left-panel cell-size: content_cols=%d border_cols=%d "
+        "initial_cell=%dx%d final_cell=%dx%d visual_cols=%d visual_w=%d "
+        "available_w=%d max_cell_w=%d",
+        content_cols, border_cols, initial_cell_w, initial_cell_h,
+        final_cell_w, final_cell_h, visual_cols, visual_w, available_w,
+        max_cell_w);
+}
+
 static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
     int content_cols, int* out_cell_w, int* out_cell_h)
 {
     int cell_h = sdl_effective_pane_cell_height_for_type(PANE_LEFT_PANEL);
     int cell_w = cell_h / 2;
+    int initial_cell_h = cell_h;
+    int initial_cell_w = cell_w;
+    int visual_cols = 0;
+    int visual_w = 0;
+    int border_cols = sdl_left_panel_pane_collapsed() ? 0 : 2;
+    int available_w = 0;
+    int max_cell_w = 0;
 
     if (content_cols < 1)
         content_cols = LEFT_PANEL_CONTENT_WID;
@@ -2792,17 +2852,18 @@ static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
         cell_h = 1;
     if (cell_w < 1)
         cell_w = 1;
+    if (initial_cell_h < 1)
+        initial_cell_h = 1;
+    if (initial_cell_w < 1)
+        initial_cell_w = 1;
 
     if (view && view->rect.w > 0 && view->cell_w > 0) {
-        int visual_cols = sdl_main_view_visual_cols_for_width(view->rect.w,
+        visual_cols = sdl_main_view_visual_cols_for_width(view->rect.w,
             view->cell_w);
-        int visual_w = visual_cols * view->cell_w;
-        int reserved_w = sdl_left_panel_pane_collapsed()
-            ? 0
-            : view->cell_w * 2;
-        int available_w = visual_w - reserved_w - 1;
-        int max_cell_w = (available_w > 0)
-            ? available_w / content_cols
+        visual_w = visual_cols * view->cell_w;
+        available_w = visual_w - 1;
+        max_cell_w = (available_w > 0)
+            ? available_w / (content_cols + border_cols)
             : 1;
 
         if (max_cell_w < 1)
@@ -2814,6 +2875,10 @@ static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
                 cell_h = 1;
         }
     }
+
+    sdl_left_panel_debug_log_cell_size(content_cols, initial_cell_w,
+        initial_cell_h, cell_w, cell_h, visual_cols, visual_w, border_cols,
+        available_w, max_cell_w);
 
     if (out_cell_w)
         *out_cell_w = cell_w;
@@ -2851,13 +2916,51 @@ static int sdl_left_panel_pane_rows_for_view(const sdl_view* view)
     return rows;
 }
 
-static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
-    int* out_cols, int* out_rows)
+static void sdl_left_panel_debug_log_content_size(int term_w, int term_h,
+    int scan_cols, int scan_rows, int measured_cols, int measured_rows)
 {
-    const term* t;
+    enum { LEFT_PANEL_CONTENT_LOG_CACHE = 8 };
+    static int next_slot = 0;
+    static bool have_last[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_term_w[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_term_h[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_scan_cols[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_scan_rows[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_measured_cols[LEFT_PANEL_CONTENT_LOG_CACHE];
+    static int last_measured_rows[LEFT_PANEL_CONTENT_LOG_CACHE];
+
+    for (int i = 0; i < LEFT_PANEL_CONTENT_LOG_CACHE; i++) {
+        if (have_last[i]
+            && last_term_w[i] == term_w
+            && last_term_h[i] == term_h
+            && last_scan_cols[i] == scan_cols
+            && last_scan_rows[i] == scan_rows
+            && last_measured_cols[i] == measured_cols
+            && last_measured_rows[i] == measured_rows)
+        {
+            return;
+        }
+    }
+
+    have_last[next_slot] = true;
+    last_term_w[next_slot] = term_w;
+    last_term_h[next_slot] = term_h;
+    last_scan_cols[next_slot] = scan_cols;
+    last_scan_rows[next_slot] = scan_rows;
+    last_measured_cols[next_slot] = measured_cols;
+    last_measured_rows[next_slot] = measured_rows;
+    next_slot = (next_slot + 1) % LEFT_PANEL_CONTENT_LOG_CACHE;
+
+    log_debug("left-panel measured content: term=%dx%d scan=%dx%d "
+        "measured=%dx%d",
+        term_w, term_h, scan_cols, scan_rows, measured_cols, measured_rows);
+}
+
+static bool sdl_left_panel_content_size_for_term(const term* t,
+    int scan_rows, int* out_cols, int* out_rows)
+{
     term_win* scr;
     int scan_cols;
-    int scan_rows;
     int max_col = -1;
     int max_row = -1;
 
@@ -2865,18 +2968,13 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
         *out_cols = 0;
     if (out_rows)
         *out_rows = 0;
-    if (!view || !view->term_ready)
+    if (!t)
         return false;
-
-    t = &view->t;
     scr = t->scr;
     if (!scr || !scr->a || !scr->c)
         return false;
 
     scan_cols = MIN(LEFT_PANEL_CONTENT_WID, t->wid);
-    scan_rows = sdl_main_view_visual_rows(view);
-    if (scan_rows <= 0 && view->rows > 0)
-        scan_rows = view->rows;
     if (scan_rows > t->hgt)
         scan_rows = t->hgt;
 
@@ -2917,7 +3015,85 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
         *out_cols = max_col + 1;
     if (out_rows)
         *out_rows = max_row + 1;
+    sdl_left_panel_debug_log_content_size(t->wid, t->hgt, scan_cols,
+        scan_rows, max_col + 1, max_row + 1);
     return true;
+}
+
+static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
+    int* out_cols, int* out_rows)
+{
+    int scan_rows;
+
+    if (out_cols)
+        *out_cols = 0;
+    if (out_rows)
+        *out_rows = 0;
+    if (!view || !view->term_ready)
+        return false;
+
+    scan_rows = sdl_main_view_visual_rows(view);
+    if (scan_rows <= 0 && view->rows > 0)
+        scan_rows = view->rows;
+
+    return sdl_left_panel_content_size_for_term(&view->t, scan_rows,
+        out_cols, out_rows);
+}
+
+static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
+    int source_rows, int* out_cols, int* out_rows)
+{
+    term panel_term;
+    term* old_term;
+    int source_w;
+    int source_h;
+    bool measured = false;
+    static bool have_last_log = false;
+    static int last_source_w;
+    static int last_source_h;
+    static int last_cols;
+    static int last_rows;
+
+    if (out_cols)
+        *out_cols = 0;
+    if (out_rows)
+        *out_rows = 0;
+    if (!view || !view->term_ready || source_rows <= 0)
+        return false;
+
+    source_w = MAX(view->t.wid, LEFT_PANEL_WID);
+    source_h = source_rows;
+    if (source_h >= 23)
+        source_h = MAX(source_h, 24);
+
+    if (term_init(&panel_term, source_w, source_h, 16) != 0)
+        return false;
+
+    old_term = Term;
+    Term_activate(&panel_term);
+    prt_frame_basic();
+    measured = sdl_left_panel_content_size_for_term(&panel_term,
+        source_h, out_cols, out_rows);
+    Term_activate(old_term);
+    term_nuke(&panel_term);
+
+    if (measured
+        && (!have_last_log
+            || last_source_w != source_w
+            || last_source_h != source_h
+            || last_cols != (out_cols ? *out_cols : 0)
+            || last_rows != (out_rows ? *out_rows : 0)))
+    {
+        have_last_log = true;
+        last_source_w = source_w;
+        last_source_h = source_h;
+        last_cols = out_cols ? *out_cols : 0;
+        last_rows = out_rows ? *out_rows : 0;
+        log_debug("left-panel scratch content: source=%dx%d measured=%dx%d",
+            source_w, source_h, last_cols, last_rows);
+    }
+
+    return measured;
 }
 
 static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
@@ -3037,17 +3213,33 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         content_cols = local_metrics.content_cols;
         panel_rows = local_metrics.panel_rows;
     } else {
+        int natural_rows = sdl_left_panel_pane_rows_for_view(view);
         int measured_cols = 0;
         int measured_rows = 0;
+        bool measured = false;
 
-        panel_rows = sdl_left_panel_pane_rows_for_view(view);
-        if (sdl_left_panel_content_size_for_view(view, &measured_cols,
-                &measured_rows))
+        measured = sdl_left_panel_content_size_for_view(view, &measured_cols,
+            &measured_rows);
+        if (view->t.hgt < natural_rows) {
+            int scratch_cols = 0;
+            int scratch_rows = 0;
+
+            if (sdl_left_panel_content_size_for_scratch(view, natural_rows,
+                    &scratch_cols, &scratch_rows))
+            {
+                measured_cols = scratch_cols;
+                measured_rows = scratch_rows;
+                measured = true;
+            }
+        }
+
+        if (measured)
         {
             content_cols = measured_cols;
-            if (measured_rows > panel_rows)
-                panel_rows = measured_rows;
+            panel_rows = measured_rows;
         }
+        else
+            panel_rows = natural_rows;
     }
     if (content_cols < 1)
         content_cols = 1;
@@ -3107,7 +3299,7 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         metrics->cell_h = cell_h;
         metrics->content_cols = content_cols;
         metrics->content_w = content_cols * metrics->cell_w;
-        metrics->separator_w = metrics->collapsed ? 0 : view->cell_w;
+        metrics->separator_w = metrics->collapsed ? 0 : metrics->cell_w;
         metrics->total_w = metrics->content_w
             + (metrics->separator_w * 2);
         metrics->panel_rows = panel_rows;
@@ -27924,6 +28116,68 @@ static bool sdl_left_panel_cell_is_tile(byte a, char c)
         && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
 }
 
+static void sdl_left_panel_debug_make_row_text(const term_win* scr, int row,
+    int source_col, int end_col, char* out, size_t out_size,
+    int* out_visible_width)
+{
+    int len = 0;
+    int visible_col = -1;
+
+    if (out && out_size > 0)
+        out[0] = '\0';
+    if (out_visible_width)
+        *out_visible_width = 0;
+    if (!scr || !scr->a || !scr->c || row < 0 || !scr->a[row]
+        || !scr->c[row] || !out || out_size == 0)
+    {
+        return;
+    }
+
+    for (int col = source_col; col < end_col
+         && len < (int)out_size - 1; col++)
+    {
+        byte a = scr->a[row][col];
+        char c = scr->c[row][col];
+        unsigned char uc = (unsigned char)c;
+
+        if (sdl_left_panel_cell_has_visible_content(a, c))
+            visible_col = col;
+
+        if ((a == 255) && (uc == 0xFF))
+            out[len++] = '~';
+        else if (uc == 0)
+            out[len++] = ' ';
+        else if (uc < 32 || uc > 126)
+            out[len++] = '?';
+        else
+            out[len++] = (char)uc;
+    }
+    out[len] = '\0';
+
+    if (out_visible_width && visible_col >= source_col)
+        *out_visible_width = visible_col - source_col + 1;
+}
+
+static void sdl_left_panel_debug_log_source_row(const term* t,
+    const term_win* scr, int source_row, int source_col, int width,
+    int end_col, int dest_col, int dest_row, float content_x, int cell_w,
+    int cell_h)
+{
+    char text[LEFT_PANEL_CONTENT_WID + 1];
+    int visible_width = 0;
+
+    if (!g_left_panel_debug_dump_rows || !t || !scr)
+        return;
+
+    sdl_left_panel_debug_make_row_text(scr, source_row, source_col, end_col,
+        text, sizeof(text), &visible_width);
+    log_debug("left-panel row: src_row=%d dst_row=%d src_col=%d "
+        "requested_w=%d end_col=%d visible_w=%d dest_col=%d cell=%dx%d "
+        "content_x=%.1f text='%s'",
+        source_row, dest_row, source_col, width, end_col, visible_width,
+        dest_col, cell_w, cell_h, (double)content_x, text);
+}
+
 static SDL_Color sdl_left_panel_background_color(void)
 {
     SDL_Color color = { 0, 0, 0, 255 };
@@ -27992,8 +28246,8 @@ static byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
 }
 
 static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
-    term_win* scr, int source_row, int source_col, int width, int dest_col,
-    int dest_row, float content_x, int cell_w, int cell_h,
+    const term* source_term, term_win* scr, int source_row, int source_col,
+    int width, int dest_col, int dest_row, float content_x, int cell_w, int cell_h,
     SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h,
     TTF_Font* mono_font)
 {
@@ -28006,7 +28260,7 @@ static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     if (source_row < 0 || source_col < 0 || width <= 0)
         return;
 
-    t = &view->t;
+    t = source_term ? source_term : &view->t;
     if (source_row >= t->hgt)
         return;
     if (!scr->a || !scr->c || !scr->a[source_row] || !scr->c[source_row])
@@ -28019,6 +28273,9 @@ static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
         end_col = LEFT_PANEL_CONTENT_WID;
     if (end_col <= source_col)
         return;
+
+    sdl_left_panel_debug_log_source_row(t, scr, source_row, source_col,
+        width, end_col, dest_col, dest_row, content_x, cell_w, cell_h);
 
     col = source_col;
     while (col < end_col) {
@@ -28104,6 +28361,121 @@ static void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     }
 }
 
+static void sdl_left_panel_debug_log_frame(const sdl_view* view,
+    const sdl_left_panel_metrics* metrics, const SDL_FRect* dst_left,
+    int visual_cols, int visual_rows, int source_h, int visual_w,
+    int canvas_w)
+{
+    static bool have_last = false;
+    static int last_view_cell_w;
+    static int last_view_cell_h;
+    static int last_cols;
+    static int last_rows;
+    static int last_visual_cols;
+    static int last_visual_rows;
+    static int last_source_h;
+    static int last_visual_w;
+    static int last_canvas_w;
+    static int last_cell_w;
+    static int last_cell_h;
+    static int last_content_cols;
+    static int last_content_w;
+    static int last_separator_w;
+    static int last_total_w;
+    static int last_panel_rows;
+    static int last_panel_render_h;
+    static int last_bottom_border_h;
+    static int last_corner_h;
+    static int last_dst_x;
+    static int last_dst_y;
+    static int last_dst_w;
+    static int last_dst_h;
+    static int last_collapsed;
+    int dst_x;
+    int dst_y;
+    int dst_w;
+    int dst_h;
+    bool changed;
+
+    if (!view || !metrics || !dst_left)
+        return;
+
+    dst_x = (int)(dst_left->x + 0.5f);
+    dst_y = (int)(dst_left->y + 0.5f);
+    dst_w = (int)(dst_left->w + 0.5f);
+    dst_h = (int)(dst_left->h + 0.5f);
+
+    changed = !have_last
+        || last_view_cell_w != view->cell_w
+        || last_view_cell_h != view->cell_h
+        || last_cols != view->cols
+        || last_rows != view->rows
+        || last_visual_cols != visual_cols
+        || last_visual_rows != visual_rows
+        || last_source_h != source_h
+        || last_visual_w != visual_w
+        || last_canvas_w != canvas_w
+        || last_cell_w != metrics->cell_w
+        || last_cell_h != metrics->cell_h
+        || last_content_cols != metrics->content_cols
+        || last_content_w != metrics->content_w
+        || last_separator_w != metrics->separator_w
+        || last_total_w != metrics->total_w
+        || last_panel_rows != metrics->panel_rows
+        || last_panel_render_h != metrics->panel_render_h
+        || last_bottom_border_h != metrics->bottom_border_h
+        || last_corner_h != metrics->corner_h
+        || last_dst_x != dst_x
+        || last_dst_y != dst_y
+        || last_dst_w != dst_w
+        || last_dst_h != dst_h
+        || last_collapsed != (metrics->collapsed ? 1 : 0);
+
+    if (!changed)
+        return;
+
+    have_last = true;
+    last_view_cell_w = view->cell_w;
+    last_view_cell_h = view->cell_h;
+    last_cols = view->cols;
+    last_rows = view->rows;
+    last_visual_cols = visual_cols;
+    last_visual_rows = visual_rows;
+    last_source_h = source_h;
+    last_visual_w = visual_w;
+    last_canvas_w = canvas_w;
+    last_cell_w = metrics->cell_w;
+    last_cell_h = metrics->cell_h;
+    last_content_cols = metrics->content_cols;
+    last_content_w = metrics->content_w;
+    last_separator_w = metrics->separator_w;
+    last_total_w = metrics->total_w;
+    last_panel_rows = metrics->panel_rows;
+    last_panel_render_h = metrics->panel_render_h;
+    last_bottom_border_h = metrics->bottom_border_h;
+    last_corner_h = metrics->corner_h;
+    last_dst_x = dst_x;
+    last_dst_y = dst_y;
+    last_dst_w = dst_w;
+    last_dst_h = dst_h;
+    last_collapsed = metrics->collapsed ? 1 : 0;
+    g_left_panel_debug_dump_rows = true;
+
+    log_debug("left-panel frame: collapsed=%d compact_row=%d "
+        "term=%dx%d visual=%dx%d main_cell=%dx%d pane_cell=%dx%d "
+        "source_h=%d visual_w=%d canvas_w=%d content_cols=%d content_w=%d "
+        "separator_w=%d total_w=%d panel_rows=%d panel_h=%d border_h=%d "
+        "corner_h=%d dst=(%d,%d %dx%d) use_tiles=%d use_bigtile=%d",
+        metrics->collapsed ? 1 : 0, metrics->compact_row ? 1 : 0,
+        view->cols, view->rows, visual_cols, visual_rows, view->cell_w,
+        view->cell_h, metrics->cell_w, metrics->cell_h, source_h,
+        visual_w, canvas_w, metrics->content_cols, metrics->content_w,
+        metrics->separator_w, metrics->total_w, metrics->panel_rows,
+        metrics->panel_render_h, metrics->bottom_border_h, metrics->corner_h,
+        dst_x, dst_y, dst_w, dst_h, g_state.use_tiles ? 1 : 0,
+        use_bigtile ? 1 : 0);
+}
+
 static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     const SDL_FRect* dst_left)
 {
@@ -28124,6 +28496,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     float content_x;
     term panel_term;
     bool panel_term_ready = false;
+    const term* source_term;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
         return false;
@@ -28143,6 +28516,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     scr = t->scr;
     if (!scr || !scr->a || !scr->c)
         return false;
+    source_term = t;
 
     canvas_w = metrics.total_w;
     canvas_h = metrics.corner_h;
@@ -28179,6 +28553,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
             prt_frame_basic();
             Term_activate(old_term);
             scr = panel_term.scr;
+            source_term = &panel_term;
         }
     }
 
@@ -28197,7 +28572,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
     if (metrics.collapsed) {
         for (int i = 0; i < metrics.compact_segment_count; i++) {
-            sdl_render_left_panel_source_row_cells(view, scr,
+            sdl_render_left_panel_source_row_cells(view, source_term, scr,
                 metrics.compact_source_rows[i], 0, metrics.compact_widths[i],
                 metrics.compact_output_cols[i], metrics.compact_output_rows[i],
                 content_x, metrics.cell_w, metrics.cell_h, font_atlas,
@@ -28207,12 +28582,13 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
         for (int row = 0; row < metrics.panel_rows; row++) {
             if (row * metrics.cell_h >= metrics.panel_render_h)
                 break;
-            sdl_render_left_panel_source_row_cells(view, scr, row, 0,
+            sdl_render_left_panel_source_row_cells(view, source_term, scr, row, 0,
                 metrics.content_cols, 0, row, content_x, metrics.cell_w,
                 metrics.cell_h, font_atlas, atlas_cell_w, atlas_cell_h,
                 mono_font);
         }
     }
+    g_left_panel_debug_dump_rows = false;
 
     SDL_SetRenderTarget(g_state.renderer, old_target);
     SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
@@ -28266,6 +28642,8 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     grid_y = (float)(view->rect.y + view->margin_y);
     if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &dst_left))
         return false;
+    sdl_left_panel_debug_log_frame(view, &metrics, &dst_left, visual_cols,
+        visual_rows, source_h, visual_w, canvas_w);
 
     src_map = (SDL_FRect){
         .x = (float)(COL_MAP * view->cell_w),
@@ -36848,8 +37226,18 @@ static void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w,
         float max_w = (float)cell_span * cell_w;
         SDL_FRect dst;
 
-        if (render_w > max_w)
+        if (render_w > max_w) {
+            if (origin_x > 0.0f || g_left_panel_debug_dump_rows) {
+                log_debug("left-panel utf8 glyph clamp: term_x=%d y=%d "
+                    "offset=%d span=%d cell=%.1fx%.1f surf=%dx%d "
+                    "scaled_w=%.1f max_w=%.1f first_byte=0x%02x",
+                    x, y, cell_offset, cell_span, (double)cell_w,
+                    (double)cell_h, text_surface->w, text_surface->h,
+                    (double)render_w, (double)max_w,
+                    (unsigned int)(unsigned char)s[0]);
+            }
             render_w = max_w;
+        }
 
         dst.x = origin_x + ((float)(x + cell_offset) * cell_w)
             + ((max_w - render_w) * 0.5f);
