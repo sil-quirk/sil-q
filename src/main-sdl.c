@@ -1300,6 +1300,7 @@ static bool g_main_menu_pane_hover = false;
 static bool g_main_menu_overlay_active = false;
 static int g_main_menu_overlay_highlight = MAIN_MENU_CHARACTER;
 static int g_main_menu_overlay_hover_choice = 0;
+static int g_main_menu_overlay_first_choice = 1;
 static int g_depth_pane_hover_action = 0;
 static u16b g_mouse_path_reverse[SDL_MOUSE_PATH_MAX_GRIDS];
 static mouse_path_search_state g_mouse_path_search;
@@ -6452,8 +6453,12 @@ typedef struct main_menu_pane_layout {
     SDL_FRect rows[MAIN_MENU_MAX + 1];
     float pad_x;
     float row_h;
+    float title_w;
     float shortcut_w;
+    float shortcut_gap;
     int font_px;
+    int first_choice;
+    int visible_count;
 } main_menu_pane_layout;
 
 typedef enum main_menu_text_align {
@@ -6493,7 +6498,7 @@ static const char* sdl_main_menu_mono_font_path(void)
         : "lib/xtra/font/VictorMono-Medium.ttf";
 }
 
-static TTF_Font* sdl_main_menu_font_for_height(int font_px)
+static TTF_Font* sdl_main_menu_mono_font_for_height(int font_px)
 {
     const char* fallback = "lib/xtra/font/VictorMono-Medium.ttf";
     const char* font_path;
@@ -6515,32 +6520,46 @@ static TTF_Font* sdl_main_menu_font_for_height(int font_px)
     return font;
 }
 
-static void sdl_main_menu_draw_text(cptr text, float x, float y,
-    float max_w, float row_h, int font_px, SDL_Color color,
+static void sdl_main_menu_shortcut_display_label(int choice, char* buf,
+    size_t buflen)
+{
+    char label[32];
+
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+    main_menu_shortcut_label(choice, label, sizeof(label));
+    if (!label[0])
+        return;
+
+    if (steamdeck_controls_active())
+        strnfmt(buf, buflen, "[%s]", label);
+    else
+        strnfmt(buf, buflen, "(%s)", label);
+}
+
+static float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
+    float y, float max_w, float row_h, SDL_Color color,
     main_menu_text_align align)
 {
-    TTF_Font* font;
     SDL_Surface* surface;
     SDL_Texture* texture;
     SDL_FRect dst;
     float scale = 1.0f;
     float max_h;
 
-    if (!text || !text[0] || max_w <= 0.0f || row_h <= 0.0f || font_px <= 0)
-        return;
-
-    font = sdl_main_menu_font_for_height(font_px);
-    if (!font)
-        return;
+    if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
+        return 0.0f;
 
     surface = TTF_RenderText_Blended(font, text, 0, color);
     if (!surface)
-        return;
+        return 0.0f;
 
     texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
     if (!texture) {
         SDL_DestroySurface(surface);
-        return;
+        return 0.0f;
     }
 
     if (surface->w > 0 && (float)surface->w > max_w)
@@ -6566,6 +6585,7 @@ static void sdl_main_menu_draw_text(cptr text, float x, float y,
 
     SDL_DestroyTexture(texture);
     SDL_DestroySurface(surface);
+    return dst.w;
 }
 
 static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
@@ -6593,7 +6613,7 @@ static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
-    font = sdl_main_menu_font_for_height(font_px);
+    font = sdl_story_font_for_height(font_px);
     text_w = font ? sdl_touch_pane_story_text_width(font, label)
                   : (int)strlen(label) * font_px / 2;
     if (text_w < 1)
@@ -6625,12 +6645,46 @@ static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
     return true;
 }
 
+static void sdl_main_menu_overlay_scroll_to_highlight(int visible_count)
+{
+    int max_first;
+    int highlight = g_main_menu_overlay_highlight;
+
+    if (visible_count < 1)
+        visible_count = 1;
+    if (visible_count > MAIN_MENU_MAX)
+        visible_count = MAIN_MENU_MAX;
+
+    max_first = MAIN_MENU_MAX - visible_count + 1;
+    if (max_first < 1)
+        max_first = 1;
+
+    if (g_main_menu_overlay_first_choice < 1)
+        g_main_menu_overlay_first_choice = 1;
+    if (g_main_menu_overlay_first_choice > max_first)
+        g_main_menu_overlay_first_choice = max_first;
+
+    if (highlight >= 1 && highlight <= MAIN_MENU_MAX)
+    {
+        if (highlight < g_main_menu_overlay_first_choice)
+            g_main_menu_overlay_first_choice = highlight;
+        else if (highlight >= g_main_menu_overlay_first_choice + visible_count)
+            g_main_menu_overlay_first_choice = highlight - visible_count + 1;
+    }
+
+    if (g_main_menu_overlay_first_choice < 1)
+        g_main_menu_overlay_first_choice = 1;
+    if (g_main_menu_overlay_first_choice > max_first)
+        g_main_menu_overlay_first_choice = max_first;
+}
+
 static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
 {
     const struct pane_config* pc = sdl_main_menu_pane_config();
     SDL_Rect anchor;
     SDL_Rect screen;
-    TTF_Font* font;
+    TTF_Font* story_font;
+    TTF_Font* mono_font;
     int font_px;
     int title_w = 0;
     int shortcut_w = 0;
@@ -6642,6 +6696,7 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     float max_panel_w;
     float max_panel_h;
     float shortcut_gap;
+    int visible_count = MAIN_MENU_MAX;
 
     if (out)
         *out = (main_menu_pane_layout){ 0 };
@@ -6653,19 +6708,22 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
-    font = sdl_main_menu_font_for_height(font_px);
-    if (!font)
+    story_font = sdl_story_font_for_height(font_px);
+    mono_font = sdl_main_menu_mono_font_for_height(font_px);
+    if (!story_font)
         return false;
 
     for (int i = 1; i <= MAIN_MENU_MAX; i++) {
         char shortcut[32];
-        int w = sdl_touch_pane_story_text_width(font, main_menu_title(i));
+        int w = sdl_touch_pane_story_text_width(story_font,
+            main_menu_title(i));
 
         if (w > title_w)
             title_w = w;
-        main_menu_shortcut_label(i, shortcut, sizeof(shortcut));
+        sdl_main_menu_shortcut_display_label(i, shortcut, sizeof(shortcut));
         if (shortcut[0]) {
-            w = sdl_touch_pane_story_text_width(font, shortcut);
+            w = mono_font ? sdl_touch_pane_story_text_width(mono_font,
+                shortcut) : (int)strlen(shortcut) * font_px / 2;
             if (w > shortcut_w)
                 shortcut_w = w;
         }
@@ -6681,11 +6739,13 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     if (row_h < (float)font_px + 3.0f)
         row_h = (float)font_px + 3.0f;
 
-    shortcut_gap = shortcut_w > 0 ? (float)font_px * 1.10f : 0.0f;
+    shortcut_gap = shortcut_w > 0 ? (float)font_px * 0.38f : 0.0f;
+    if (shortcut_w > 0 && shortcut_gap < 5.0f)
+        shortcut_gap = 5.0f;
     panel_w = pad_x * 2.0f + (float)title_w
         + (float)shortcut_w + shortcut_gap;
-    if (panel_w < (float)font_px * 15.0f)
-        panel_w = (float)font_px * 15.0f;
+    if (panel_w < (float)font_px * 11.0f)
+        panel_w = (float)font_px * 11.0f;
     max_panel_w = (float)screen.w - 12.0f;
     if (max_panel_w < 1.0f)
         max_panel_w = (float)screen.w;
@@ -6695,11 +6755,16 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
     max_panel_h = (float)screen.h - 12.0f;
     if (max_panel_h < 1.0f)
         max_panel_h = (float)screen.h;
-    if (panel_h > max_panel_h && max_panel_h > pad_y * 2.0f)
-    {
-        panel_h = max_panel_h;
-        row_h = (panel_h - pad_y * 2.0f) / (float)MAIN_MENU_MAX;
+    if (panel_h > max_panel_h && max_panel_h > pad_y * 2.0f) {
+        visible_count = (int)((max_panel_h - pad_y * 2.0f) / row_h);
+        if (visible_count < 1)
+            visible_count = 1;
+        if (visible_count > MAIN_MENU_MAX)
+            visible_count = MAIN_MENU_MAX;
+        panel_h = pad_y * 2.0f + row_h * (float)visible_count;
     }
+
+    sdl_main_menu_overlay_scroll_to_highlight(visible_count);
 
     if (out)
     {
@@ -6707,13 +6772,25 @@ static bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
             (int)(panel_w + 0.5f), (int)(panel_h + 0.5f), &screen);
         out->pad_x = pad_x;
         out->row_h = row_h;
+        out->title_w = (float)title_w;
         out->shortcut_w = (float)shortcut_w;
+        out->shortcut_gap = shortcut_gap;
         out->font_px = font_px;
+        out->first_choice = g_main_menu_overlay_first_choice;
+        out->visible_count = visible_count;
 
         for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+            if (i < out->first_choice
+                || i >= out->first_choice + out->visible_count)
+            {
+                out->rows[i] = (SDL_FRect){ 0 };
+                continue;
+            }
+
             out->rows[i] = (SDL_FRect){
                 .x = out->panel.x + pad_x * 0.44f,
-                .y = out->panel.y + pad_y + (float)(i - 1) * row_h,
+                .y = out->panel.y + pad_y
+                    + (float)(i - out->first_choice) * row_h,
                 .w = out->panel.w - pad_x * 0.88f,
                 .h = row_h,
             };
@@ -6782,12 +6859,14 @@ bool sdl_main_menu_overlay_begin(void)
     if (sdl_main_menu_choice_disabled_now(g_main_menu_overlay_highlight))
         g_main_menu_overlay_highlight = MAIN_MENU_RETURN_GAME;
 
+    sdl_main_menu_overlay_scroll_to_highlight(layout.visible_count);
     g_state.need_present = true;
     return true;
 }
 
 static void sdl_main_menu_overlay_move(int delta)
 {
+    main_menu_pane_layout layout;
     int choice = g_main_menu_overlay_highlight;
 
     if (delta == 0)
@@ -6803,6 +6882,8 @@ static void sdl_main_menu_overlay_move(int delta)
             choice = 1;
         if (!sdl_main_menu_choice_disabled_now(choice)) {
             g_main_menu_overlay_highlight = choice;
+            if (sdl_main_menu_overlay_layout(&layout))
+                sdl_main_menu_overlay_scroll_to_highlight(layout.visible_count);
             g_state.need_present = true;
             return;
         }
@@ -6841,9 +6922,16 @@ static void sdl_main_menu_pane_render(void)
     SDL_FRect rect;
     SDL_FRect shadow;
     SDL_Color text;
+    TTF_Font* story_font;
+    TTF_Font* mono_font;
 
     if (g_main_menu_overlay_active) {
         if (!sdl_main_menu_overlay_layout(&layout))
+            return;
+
+        story_font = sdl_story_font_for_height(layout.font_px);
+        mono_font = sdl_main_menu_mono_font_for_height(layout.font_px);
+        if (!story_font)
             return;
 
         shadow = layout.panel;
@@ -6856,7 +6944,11 @@ static void sdl_main_menu_pane_render(void)
         SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 242);
         SDL_RenderFillRect(g_state.renderer, &layout.panel);
 
-        for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+        for (int i = layout.first_choice;
+             i < layout.first_choice + layout.visible_count
+                 && i <= MAIN_MENU_MAX;
+             i++)
+        {
             SDL_FRect row = layout.rows[i];
             bool selected = (i == g_main_menu_overlay_highlight);
             bool disabled = sdl_main_menu_choice_disabled_now(i);
@@ -6866,22 +6958,34 @@ static void sdl_main_menu_pane_render(void)
             SDL_Color shortcut = row_text;
             char shortcut_label[32];
             float inner = layout.pad_x * 0.42f;
-            float shortcut_box_w = layout.shortcut_w
-                + (layout.shortcut_w > 0.0f ? layout.pad_x * 0.75f : 0.0f);
-            float title_w = row.w - inner * 2.0f - shortcut_box_w;
+            float title_x = row.x + inner;
+            float title_w = layout.title_w;
+            float available_title_w = row.w - inner * 2.0f;
 
-            if (title_w < row.w * 0.55f)
-                title_w = row.w * 0.55f;
-            sdl_main_menu_draw_text(main_menu_title(i), row.x + inner, row.y,
-                title_w, row.h, layout.font_px, row_text,
+            sdl_main_menu_shortcut_display_label(i, shortcut_label,
+                sizeof(shortcut_label));
+            if (shortcut_label[0] && layout.shortcut_w > 0.0f)
+                available_title_w -= layout.shortcut_w + layout.shortcut_gap;
+            if (title_w > available_title_w)
+                title_w = available_title_w;
+            if (title_w < 1.0f)
+                title_w = 1.0f;
+
+            (void)sdl_main_menu_draw_text(story_font, main_menu_title(i),
+                title_x, row.y, title_w, row.h, row_text,
                 MAIN_MENU_TEXT_LEFT);
 
-            main_menu_shortcut_label(i, shortcut_label, sizeof(shortcut_label));
-            if (shortcut_label[0] && shortcut_box_w > 0.0f) {
-                sdl_main_menu_draw_text(shortcut_label,
-                    row.x + row.w - inner - shortcut_box_w, row.y,
-                    shortcut_box_w, row.h, layout.font_px, shortcut,
-                    MAIN_MENU_TEXT_RIGHT);
+            if (shortcut_label[0] && layout.shortcut_w > 0.0f && mono_font) {
+                float shortcut_x = title_x + title_w + layout.shortcut_gap;
+                float right_limit = row.x + row.w - inner;
+
+                if (shortcut_x + layout.shortcut_w > right_limit)
+                    shortcut_x = right_limit - layout.shortcut_w;
+                if (shortcut_x < title_x + title_w)
+                    shortcut_x = title_x + title_w;
+                sdl_main_menu_draw_text(mono_font, shortcut_label,
+                    shortcut_x, row.y, layout.shortcut_w, row.h, shortcut,
+                    MAIN_MENU_TEXT_LEFT);
             }
         }
         return;
@@ -6906,8 +7010,9 @@ static void sdl_main_menu_pane_render(void)
         SDL_SetRenderDrawColor(g_state.renderer, 8, 10, 12, 226);
     SDL_RenderFillRect(g_state.renderer, &rect);
 
-    sdl_main_menu_draw_text("Menu", rect.x + rect.w * 0.10f, rect.y,
-        rect.w * 0.80f, rect.h, sdl_main_menu_pane_font_px(), text,
+    story_font = sdl_story_font_for_height(sdl_main_menu_pane_font_px());
+    sdl_main_menu_draw_text(story_font, "Menu", rect.x + rect.w * 0.10f,
+        rect.y, rect.w * 0.80f, rect.h, text,
         MAIN_MENU_TEXT_CENTER);
 }
 
@@ -6972,7 +7077,10 @@ static int sdl_main_menu_overlay_choice_at(float x, float y, bool* in_panel)
 
     if (in_panel)
         *in_panel = true;
-    for (int i = 1; i <= MAIN_MENU_MAX; i++) {
+    for (int i = layout.first_choice;
+         i < layout.first_choice + layout.visible_count && i <= MAIN_MENU_MAX;
+         i++)
+    {
         SDL_FRect row = layout.rows[i];
 
         if (x >= row.x && x < row.x + row.w
