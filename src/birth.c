@@ -4956,6 +4956,8 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
             cptr power = blessing
                 ? (cu->blessing_power ? cu_text + cu->blessing_power : "")
                 : (cu->power ? cu_text + cu->power : "");
+            bool reveal_power = show_effects && power && power[0]
+                && (blessing || CURSE_SEEN(selected_id));
             int desc_row = 4 + list_rows;
 
             birth_put_str_fit(TERM_WHITE, blessing ? blitz_blessing_name_str(selected_id)
@@ -4966,7 +4968,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                 birth_put_wrapped_text(TERM_SLATE, desc, desc_row, 2);
                 desc_row += birth_wrapped_line_count(desc, 2);
             }
-            if (show_effects && power && power[0])
+            if (reveal_power)
             {
                 char power_line[512];
                 strnfmt(power_line, sizeof(power_line), "Effect: %s", power);

@@ -2091,6 +2091,9 @@ extern void set_sdl_mouse_enabled(bool enabled);
 extern bool get_sdl_mouse_default_enabled(void);
 extern void sdl_screen_back_gesture_begin(void);
 extern void sdl_screen_back_gesture_end(void);
+extern bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text,
+    bool touch);
+extern void sdl_hover_tooltip_clear(void);
 extern bool get_sdl_touch_pane_enabled(void);
 extern void set_sdl_touch_pane_enabled(bool value);
 extern bool get_sdl_touch_pane_default_open(void);

@@ -734,7 +734,172 @@ void do_cmd_redraw(void)
 /*
  * Hack -- character sheet
  */
-#define CHARACTER_SHEET_CLICK_SKILL_BASE 12000
+#define CHARACTER_SHEET_CLICK_ITEM_BASE 12000
+#define CHARACTER_SHEET_MAX_ITEMS 96
+
+typedef enum {
+    CHARACTER_SHEET_ITEM_SKILL = 0,
+    CHARACTER_SHEET_ITEM_TRAIT = 1,
+    CHARACTER_SHEET_ITEM_VALUE = 2
+} character_sheet_item_kind;
+
+typedef enum {
+    CHARACTER_SHEET_VALUE_EXP = 0,
+    CHARACTER_SHEET_VALUE_BURDEN,
+    CHARACTER_SHEET_VALUE_DEPTH,
+    CHARACTER_SHEET_VALUE_DEEP_CALL,
+    CHARACTER_SHEET_VALUE_TURN,
+    CHARACTER_SHEET_VALUE_LIGHT,
+    CHARACTER_SHEET_VALUE_MELEE,
+    CHARACTER_SHEET_VALUE_MELEE_X2,
+    CHARACTER_SHEET_VALUE_OFFHAND,
+    CHARACTER_SHEET_VALUE_BOWS,
+    CHARACTER_SHEET_VALUE_ARMOR,
+    CHARACTER_SHEET_VALUE_HEALTH,
+    CHARACTER_SHEET_VALUE_VOICE,
+    CHARACTER_SHEET_VALUE_SONG,
+    CHARACTER_SHEET_VALUE_STR,
+    CHARACTER_SHEET_VALUE_DEX,
+    CHARACTER_SHEET_VALUE_CON,
+    CHARACTER_SHEET_VALUE_GRA,
+    CHARACTER_SHEET_VALUE_DEPTH_PROGRESS
+} character_sheet_value_kind;
+
+typedef struct {
+    character_sheet_item_kind kind;
+    int id;
+    int row;
+    int col;
+    int width;
+    int skill;
+    int trait_score;
+    int value_kind;
+    bool proficiency;
+    u32b aff_flag;
+    u32b pen_flag;
+    cptr label;
+    cptr desc;
+    char label_buf[64];
+} character_sheet_item;
+
+typedef struct {
+    cptr label;
+    cptr desc;
+} character_sheet_named_trait;
+
+typedef struct {
+    cptr label;
+    character_sheet_value_kind kind;
+    cptr desc;
+    bool skip_skill_rows;
+    bool require_digit_after_label;
+    int width;
+} character_sheet_value_desc;
+
+static const character_sheet_named_trait character_sheet_named_traits[] = {
+    { "Master Artisan", "Artifacts use only 1 forge charge; fire and light items are easier to make." },
+    { "Creator of Galvorn", "You may smith Galvorn armour and begin with humbler bread." },
+    { "Chosen of Ulmo", "Horns are twice as effective." },
+    { "Indomitable Will", "Will Affinity is fixed at 3 and cannot be reduced by curses." },
+    { "Himself", "Majesty is 1.5x effective." },
+    { "Songs of Power", "Song of Staying is twice as effective." },
+    { "Elven Dance", "Song of Lorien is 1.5x effective." },
+    { "Girdle of Melian", "Song of Thresholds and Gems of Warding are twice as effective." },
+    { "Creator of Angrist", "You can create very sharp items; sharp and accurate items are easier to smith." },
+    { "Old Master", "Using 3 forge charges can create mithril items without mithril." },
+    { "Ring Master", "Rings cost 30% less to create and ring slots are treated as major slots." },
+    { "Aure entuluva", "Song of Slaying is twice as effective." },
+    { "Voice of the Girdle", "Song of Mastery is 1.75x effective." },
+    { "Forgotten", "You begin with all stealth abilities." },
+    { "One Handed", "Melee abilities are twice as effective and one-handed combat is stronger." },
+    { "Agarwaen", "Will abilities are twice as effective and you can break fate-cursed items." },
+    { "Shadow Walker", "Song of Disguise checks add your Perception skill." },
+    { "Minstrel", "Song ability costs are reduced." },
+    { "Woven Master", "Song is not reduced for woven minor themes." },
+    { "Gift of Eru", "Story deaths are not counted if you die." },
+    { "Seafarer", "Abilities cost less to acquire." },
+    { "Kinslayer", "Retrieving Silmarils may endanger your kin." },
+    { "Treacherous", "You may steal a Silmaril at the end." },
+    { "Doom of Mandos", "Curses offered to you grow more complex." },
+    { "Morgoth Curse", "You will encounter more dangerous creatures." },
+};
+
+typedef struct {
+    cptr label;
+    int skill;
+    u32b aff_flag;
+    u32b pen_flag;
+    bool proficiency;
+} character_sheet_skill_trait;
+
+static const character_sheet_skill_trait character_sheet_skill_traits[] = {
+    { "melee", S_MEL, RHF_MEL_AFFINITY, RHF_MEL_PENALTY, false },
+    { "evasion", S_EVN, RHF_EVN_AFFINITY, RHF_EVN_PENALTY, false },
+    { "stealth", S_STL, RHF_STL_AFFINITY, RHF_STL_PENALTY, false },
+    { "archery", S_ARC, RHF_ARC_AFFINITY, RHF_ARC_PENALTY, false },
+    { "will", S_WIL, RHF_WIL_AFFINITY, RHF_WIL_PENALTY, false },
+    { "perception", S_PER, RHF_PER_AFFINITY, RHF_PER_PENALTY, false },
+    { "smithing", S_SMT, RHF_SMT_AFFINITY, RHF_SMT_PENALTY, false },
+    { "song", S_SNG, RHF_SNG_AFFINITY, RHF_SNG_PENALTY, false },
+    { "bow", S_ARC, RHF_BOW_PROFICIENCY, 0, true },
+    { "axe", S_MEL, RHF_AXE_PROFICIENCY, 0, true },
+};
+
+static const cptr character_sheet_skill_descriptions[S_MAX] = {
+    "Melee chance to hit and control in close combat.",
+    "Ranged chance to hit with bows and thrown weapons.",
+    "Avoiding attacks; also shown in armour as hit-avoid chance.",
+    "Avoiding detection and moving quietly.",
+    "Noticing hidden doors, traps, monsters, and subtle details.",
+    "Mental resistance and force of will.",
+    "Crafting items at forges.",
+    "Power and reliability of songs.",
+    ""
+};
+
+static const character_sheet_value_desc character_sheet_value_descriptions[] = {
+    { "Melee x2", CHARACTER_SHEET_VALUE_MELEE_X2,
+        "Extra rapid-attack swing: (attack bonus, damage dice).", false, true, 20 },
+    { "Deep Call", CHARACTER_SHEET_VALUE_DEEP_CALL,
+        "Deep Call: pressure on the minimum-depth timer; higher values mean the call below is growing stronger.", false, true, 20 },
+    { "Depth c/m", CHARACTER_SHEET_VALUE_DEPTH,
+        "Depth c/m: current depth / minimum return depth.", false, true, 20 },
+    { "Burden", CHARACTER_SHEET_VALUE_BURDEN,
+        "Burden: carried weight / maximum carrying capacity.", false, true, 20 },
+    { "Offhand", CHARACTER_SHEET_VALUE_OFFHAND,
+        "Offhand attack: (attack bonus, damage dice) for the weapon in your other hand.", false, true, 20 },
+    { "Health", CHARACTER_SHEET_VALUE_HEALTH,
+        "Health: current / maximum hit points.", false, true, 20 },
+    { "Voice", CHARACTER_SHEET_VALUE_VOICE,
+        "Voice: current / maximum song points.", false, true, 20 },
+    { "Armor", CHARACTER_SHEET_VALUE_ARMOR,
+        "Armor: [evasion, protection] shows hit-avoid chance and damage absorption.", false, true, 20 },
+    { "Melee", CHARACTER_SHEET_VALUE_MELEE,
+        "Main-hand melee: (attack bonus, damage dice).", true, true, 20 },
+    { "Bows", CHARACTER_SHEET_VALUE_BOWS,
+        "Ranged attacks: (attack bonus, damage dice).", false, true, 20 },
+    { "Exp", CHARACTER_SHEET_VALUE_EXP,
+        "Experience: unspent / total XP.", false, true, 20 },
+    { "Depth", CHARACTER_SHEET_VALUE_DEPTH,
+        "Depth: current depth / minimum return depth.", false, true, 20 },
+    { "Turn", CHARACTER_SHEET_VALUE_TURN,
+        "Turn: total game turns elapsed.", false, true, 20 },
+    { "Light", CHARACTER_SHEET_VALUE_LIGHT,
+        "Light: current light radius.", false, true, 20 },
+    { "Song", CHARACTER_SHEET_VALUE_SONG,
+        "Song: currently active song.", true, false, 20 },
+    { "Str", CHARACTER_SHEET_VALUE_STR,
+        "Strength: melee damage dice and weight capacity.", false, true, 24 },
+    { "Dex", CHARACTER_SHEET_VALUE_DEX,
+        "Dexterity: melee, evasion, archery, and stealth.", false, true, 24 },
+    { "Con", CHARACTER_SHEET_VALUE_CON,
+        "Constitution: maximum health.", false, true, 24 },
+    { "Gra", CHARACTER_SHEET_VALUE_GRA,
+        "Grace: will, perception, smithing, song, and voice.", false, true, 24 },
+};
+
+static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
+    char* out, size_t outsz);
 
 static char character_sheet_screen_char(int row, int col)
 {
@@ -767,11 +932,15 @@ static bool character_sheet_screen_text_matches(int row, int col, cptr text,
     return true;
 }
 
-static bool character_sheet_screen_row_has_skill_value(int row, int start_col)
+static bool character_sheet_screen_row_has_skill_value(int row, int start_col,
+    int end_col)
 {
     int wid = Term ? Term->wid : 0;
 
-    for (int col = start_col; col < wid; col++)
+    if (end_col <= start_col || end_col > wid)
+        end_col = wid;
+
+    for (int col = start_col; col < end_col; col++)
     {
         if (character_sheet_screen_char(row, col) == '=')
             return true;
@@ -780,13 +949,289 @@ static bool character_sheet_screen_row_has_skill_value(int row, int start_col)
     return false;
 }
 
-static void character_sheet_register_skill_clicks(void)
+static bool character_sheet_is_word_char(char ch)
+{
+    return isalnum((unsigned char)ch) || ch == '_';
+}
+
+static bool character_sheet_text_boundary_ok(int row, int col, int len,
+    int score)
+{
+    char prev;
+    char next;
+
+    if (len <= 0)
+        return false;
+
+    prev = character_sheet_screen_char(row, col - 1);
+    next = character_sheet_screen_char(row, col + len);
+
+    if (character_sheet_is_word_char(prev)
+        || character_sheet_is_word_char(next))
+    {
+        return false;
+    }
+
+    if (score == 1 && next == '+')
+        return false;
+    if (score == -1 && next == '-')
+        return false;
+
+    return true;
+}
+
+static bool character_sheet_add_item(character_sheet_item items[], int* count,
+    int max_items, character_sheet_item item)
+{
+    int wid = 80;
+
+    if (!items || !count || *count >= max_items)
+        return false;
+
+    for (int i = 0; i < *count; i++)
+    {
+        if (items[i].row == item.row && items[i].col == item.col
+            && items[i].kind == item.kind)
+        {
+            return false;
+        }
+    }
+
+    Term_get_size(&wid, NULL);
+    if (wid < 1)
+        wid = 80;
+
+    if (item.col < 0)
+        item.col = 0;
+    if (item.col >= wid)
+        return false;
+    if (item.width <= 0 || item.col + item.width > wid)
+        item.width = wid - item.col;
+    if (item.width <= 0)
+        return false;
+
+    ui_menu_click_add(CHARACTER_SHEET_CLICK_ITEM_BASE + *count, item.col,
+        item.row, item.width);
+    items[*count] = item;
+    if (items[*count].label_buf[0])
+        items[*count].label = items[*count].label_buf;
+    (*count)++;
+    return true;
+}
+
+static bool character_sheet_find_text(cptr text, int* out_row, int* out_col,
+    int* out_len, int score)
+{
+    int wid = 80;
+    int hgt = 24;
+    int len;
+
+    if (!Term || !Term->scr || !Term->scr->c || !text || !text[0])
+        return false;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    len = (int)strlen(text);
+    if (len <= 0 || len > wid)
+        return false;
+
+    for (int row = 0; row < hgt - 1; row++)
+    {
+        for (int col = 0; col <= wid - len; col++)
+        {
+            if (!character_sheet_screen_text_matches(row, col, text, len))
+                continue;
+            if (!character_sheet_text_boundary_ok(row, col, len, score))
+                continue;
+
+            if (out_row)
+                *out_row = row;
+            if (out_col)
+                *out_col = col;
+            if (out_len)
+                *out_len = len;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool character_sheet_row_has_digit_after(int row, int col)
+{
+    int wid = Term ? Term->wid : 0;
+
+    for (int i = MAX(0, col); i < wid; i++)
+    {
+        if (isdigit((unsigned char)character_sheet_screen_char(row, i)))
+            return true;
+    }
+
+    return false;
+}
+
+static bool character_sheet_row_has_nonspace_after(int row, int col)
+{
+    int wid = Term ? Term->wid : 0;
+
+    for (int i = MAX(0, col); i < wid; i++)
+    {
+        if (character_sheet_screen_char(row, i) != ' ')
+            return true;
+    }
+
+    return false;
+}
+
+static void character_sheet_collect_progress_bar_items(
+    character_sheet_item items[], int* count, int max_items)
 {
     int wid = 80;
     int hgt = 24;
 
     if (!Term || !Term->scr || !Term->scr->c)
         return;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (int row = 0; row < hgt - 1; row++)
+    {
+        for (int col = 0; col < wid; col++)
+        {
+            int end = col + 1;
+            character_sheet_item item;
+
+            if (character_sheet_screen_char(row, col) != '[')
+                continue;
+
+            while (end < wid)
+            {
+                char ch = character_sheet_screen_char(row, end);
+
+                if (ch == ']')
+                    break;
+                if (ch != '#' && ch != '.')
+                    break;
+                end++;
+            }
+
+            if (end >= wid || character_sheet_screen_char(row, end) != ']')
+                continue;
+            if (end - col < 8)
+                continue;
+
+            SDL_zero(item);
+            item.kind = CHARACTER_SHEET_ITEM_VALUE;
+            item.id = CHARACTER_SHEET_VALUE_DEPTH_PROGRESS;
+            item.value_kind = CHARACTER_SHEET_VALUE_DEPTH_PROGRESS;
+            item.row = row;
+            item.col = MAX(0, col - 1);
+            item.width = MIN(end - col + 3, wid - item.col);
+            item.label = "Minimum depth progress";
+            item.desc = "Progress toward the next minimum-depth increase.";
+            character_sheet_add_item(items, count, max_items, item);
+            return;
+        }
+    }
+}
+
+static int character_sheet_collect_value_items(character_sheet_item items[],
+    int* count, int max_items)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return 0;
+
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    for (size_t i = 0; i < N_ELEMENTS(character_sheet_value_descriptions); i++)
+    {
+        const character_sheet_value_desc* desc =
+            &character_sheet_value_descriptions[i];
+        int len;
+
+        if (!desc->label || !desc->label[0])
+            continue;
+
+        len = (int)strlen(desc->label);
+        if (len <= 0 || len > wid)
+            continue;
+
+        for (int row = 0; row < hgt - 1; row++)
+        {
+            for (int col = 0; col <= wid - len; col++)
+            {
+                character_sheet_item item;
+                int width;
+
+                if (!character_sheet_screen_text_matches(row, col,
+                        desc->label, len))
+                {
+                    continue;
+                }
+                if (!character_sheet_text_boundary_ok(row, col, len, 0))
+                    continue;
+                if (desc->skip_skill_rows
+                    && character_sheet_screen_row_has_skill_value(row,
+                        col + len, col + 32))
+                {
+                    continue;
+                }
+                if (desc->require_digit_after_label
+                    && !character_sheet_row_has_digit_after(row, col + len))
+                {
+                    continue;
+                }
+                if (!desc->require_digit_after_label
+                    && !character_sheet_row_has_nonspace_after(row, col + len))
+                {
+                    continue;
+                }
+
+                SDL_zero(item);
+                width = desc->width;
+                if (width < len + 2)
+                    width = len + 2;
+
+                item.kind = CHARACTER_SHEET_ITEM_VALUE;
+                item.id = (int)desc->kind;
+                item.value_kind = (int)desc->kind;
+                item.row = row;
+                item.col = MAX(0, col - 1);
+                item.width = MIN(width, wid - item.col);
+                item.label = desc->label;
+                item.desc = desc->desc;
+                character_sheet_add_item(items, count, max_items, item);
+            }
+        }
+    }
+
+    character_sheet_collect_progress_bar_items(items, count, max_items);
+    return *count;
+}
+
+static int character_sheet_collect_skill_items(character_sheet_item items[],
+    int* count, int max_items)
+{
+    int wid = 80;
+    int hgt = 24;
+
+    if (!Term || !Term->scr || !Term->scr->c)
+        return 0;
 
     Term_get_size(&wid, &hgt);
     if (wid < 1)
@@ -830,19 +1275,633 @@ static void character_sheet_register_skill_clicks(void)
                 }
 
                 if (!character_sheet_screen_row_has_skill_value(row,
-                    col + match_len))
+                    col + match_len, col + 32))
                 {
                     continue;
                 }
 
                 start_col = MAX(0, col - 1);
-                ui_menu_click_add(CHARACTER_SHEET_CLICK_SKILL_BASE + skill,
-                    start_col, row, wid - start_col);
+                character_sheet_item item;
+
+                SDL_zero(item);
+                item.kind = CHARACTER_SHEET_ITEM_SKILL;
+                item.id = skill;
+                item.skill = skill;
+                item.row = row;
+                item.col = start_col;
+                item.width = MIN(28, wid - start_col);
+                item.label = name;
+                character_sheet_add_item(items, count, max_items, item);
                 found = true;
                 break;
             }
         }
     }
+
+    return *count;
+}
+
+static int character_sheet_collect_trait_items(character_sheet_item items[],
+    int* count, int max_items)
+{
+    int wid = 80;
+
+    Term_get_size(&wid, NULL);
+    if (wid < 1)
+        wid = 80;
+
+    for (size_t i = 0; i < N_ELEMENTS(character_sheet_named_traits); i++)
+    {
+        int row;
+        int col;
+        int len;
+        character_sheet_item item;
+
+        if (!character_sheet_find_text(character_sheet_named_traits[i].label,
+                &row, &col, &len, 0))
+        {
+            continue;
+        }
+
+        SDL_zero(item);
+        item.kind = CHARACTER_SHEET_ITEM_TRAIT;
+        item.id = (int)i;
+        item.row = row;
+        item.col = MAX(0, col - 1);
+        item.width = MIN(len + 3, wid - item.col);
+        item.label = character_sheet_named_traits[i].label;
+        item.desc = character_sheet_named_traits[i].desc;
+        character_sheet_add_item(items, count, max_items, item);
+    }
+
+    for (size_t i = 0; i < N_ELEMENTS(character_sheet_skill_traits); i++)
+    {
+        static const int scores[] = { 2, -2, 1, -1 };
+
+        for (size_t j = 0; j < N_ELEMENTS(scores); j++)
+        {
+            int score = scores[j];
+            int row;
+            int col;
+            int len;
+            character_sheet_item item;
+            char label[32];
+
+            if (score == 2)
+                strnfmt(label, sizeof(label), "%s++",
+                    character_sheet_skill_traits[i].label);
+            else if (score == 1)
+                strnfmt(label, sizeof(label), "%s+",
+                    character_sheet_skill_traits[i].label);
+            else if (score == -1)
+                strnfmt(label, sizeof(label), "%s-",
+                    character_sheet_skill_traits[i].label);
+            else
+                strnfmt(label, sizeof(label), "%s--",
+                    character_sheet_skill_traits[i].label);
+
+            if (!character_sheet_find_text(label, &row, &col, &len, score))
+                continue;
+
+            SDL_zero(item);
+            item.kind = CHARACTER_SHEET_ITEM_TRAIT;
+            item.id = 1000 + (int)(i * 10) + (score + 2);
+            item.row = row;
+            item.col = MAX(0, col - 1);
+            item.width = MIN(len + 3, wid - item.col);
+            item.skill = character_sheet_skill_traits[i].skill;
+            item.trait_score = score;
+            item.proficiency = character_sheet_skill_traits[i].proficiency;
+            item.aff_flag = character_sheet_skill_traits[i].aff_flag;
+            item.pen_flag = character_sheet_skill_traits[i].pen_flag;
+            item.label = item.label_buf;
+            SDL_strlcpy(item.label_buf, label, sizeof(item.label_buf));
+            character_sheet_add_item(items, count, max_items, item);
+        }
+    }
+
+    return *count;
+}
+
+static int character_sheet_collect_items(character_sheet_item items[],
+    int max_items)
+{
+    int count = 0;
+
+    character_sheet_collect_value_items(items, &count, max_items);
+    character_sheet_collect_skill_items(items, &count, max_items);
+    character_sheet_collect_trait_items(items, &count, max_items);
+
+    return count;
+}
+
+static void character_sheet_highlight_item(const character_sheet_item* item)
+{
+    cptr label;
+    int len;
+    bool story;
+
+    if (!item || !item->label)
+        return;
+
+    label = item->label;
+    len = (int)strlen(label);
+    if (len <= 0)
+        return;
+
+    story = story_character_enabled();
+    if (story)
+        sdl_story_font_enable();
+    Term_putstr(item->col
+            + ((item->col > 0
+                && character_sheet_screen_char(item->row, item->col) == ' ')
+                    ? 1 : 0),
+        item->row, len, TERM_L_BLUE, label);
+    if (story)
+        sdl_story_font_disable();
+}
+
+static int character_sheet_find_best_focus(const character_sheet_item items[],
+    int item_count, int current, int dx, int dy)
+{
+    const character_sheet_item* base;
+    int best = -1;
+    int best_score = 1000000;
+
+    if (!items || item_count <= 0)
+        return -1;
+
+    if (current < 0 || current >= item_count)
+        return 0;
+
+    base = &items[current];
+
+    if (dx != 0)
+    {
+        for (int i = 0; i < item_count; i++)
+        {
+            int side;
+            int score;
+
+            if (i == current)
+                continue;
+            side = items[i].col - base->col;
+            if ((dx < 0 && side >= 0) || (dx > 0 && side <= 0))
+                continue;
+
+            score = ABS(items[i].row - base->row) * 100 + ABS(side);
+            if (items[i].kind == base->kind)
+                score += 1000;
+            if (score < best_score)
+            {
+                best = i;
+                best_score = score;
+            }
+        }
+
+        if (best >= 0)
+            return best;
+    }
+
+    if (dy != 0)
+    {
+        int wrap = -1;
+        int wrap_score = (dy > 0) ? 1000000 : -1000000;
+
+        best_score = 1000000;
+        for (int i = 0; i < item_count; i++)
+        {
+            int row_delta;
+            int score;
+
+            if (i == current || items[i].kind != base->kind)
+                continue;
+
+            row_delta = items[i].row - base->row;
+            if ((dy > 0 && row_delta > 0) || (dy < 0 && row_delta < 0))
+            {
+                score = ABS(row_delta) * 100 + ABS(items[i].col - base->col);
+                if (score < best_score)
+                {
+                    best = i;
+                    best_score = score;
+                }
+            }
+
+            if (dy > 0)
+            {
+                if (items[i].row < wrap_score)
+                {
+                    wrap = i;
+                    wrap_score = items[i].row;
+                }
+            }
+            else
+            {
+                if (items[i].row > wrap_score)
+                {
+                    wrap = i;
+                    wrap_score = items[i].row;
+                }
+            }
+        }
+
+        if (best >= 0)
+            return best;
+        if (wrap >= 0)
+            return wrap;
+    }
+
+    return current;
+}
+
+static cptr character_sheet_skill_description(int skill)
+{
+    if (skill < 0 || skill >= S_MAX)
+        return "";
+    if (character_sheet_skill_descriptions[skill])
+        return character_sheet_skill_descriptions[skill];
+    return "";
+}
+
+static void character_sheet_append_effect_text(char* buf, size_t buflen,
+    cptr prefix, cptr text)
+{
+    char tmp[384];
+
+    if (!buf || !buflen || !text || !text[0])
+        return;
+
+    if (prefix && prefix[0])
+        strnfmt(tmp, sizeof(tmp), " %s: %s", prefix, text);
+    else
+        strnfmt(tmp, sizeof(tmp), " %s", text);
+
+    SDL_strlcat(buf, tmp, buflen);
+}
+
+static void character_sheet_append_curse_hint(char* buf, size_t buflen,
+    u32b flag)
+{
+    if (!flag || !z_info || !cu_info || !cu_text)
+        return;
+
+    for (int id = 0; id < (int)z_info->cu_max; id++)
+    {
+        int stacks = CURSE_GET(id);
+        bool blessing = (stacks < 0);
+        bool matches;
+        cptr desc = NULL;
+        cptr power = NULL;
+
+        if (!stacks)
+            continue;
+
+        matches = blessing
+            ? ((cu_info[id].blessing_flags & flag) != 0)
+            : ((cu_info[id].flags & flag) != 0);
+        if (!matches)
+            continue;
+
+        desc = blessing
+            ? (cu_info[id].blessing_text ? cu_text + cu_info[id].blessing_text : NULL)
+            : (cu_info[id].text ? cu_text + cu_info[id].text : NULL);
+        power = blessing
+            ? (cu_info[id].blessing_power ? cu_text + cu_info[id].blessing_power : NULL)
+            : (cu_info[id].power ? cu_text + cu_info[id].power : NULL);
+
+        if (CURSE_SEEN(id) && power && power[0])
+        {
+            character_sheet_append_effect_text(buf, buflen,
+                blessing ? "Known blessing" : "Known curse", power);
+        }
+        else if (desc && desc[0])
+        {
+            character_sheet_append_effect_text(buf, buflen,
+                blessing ? "Unknown blessing" : "Unknown curse", desc);
+        }
+        return;
+    }
+}
+
+static void character_sheet_format_tenths(char* buf, size_t buflen, long tenths)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (tenths < 0)
+        tenths = 0;
+
+    strnfmt(buf, buflen, "%ld.%ld", tenths / 10L, tenths % 10L);
+}
+
+static cptr character_sheet_stat_full_name(int stat)
+{
+    switch (stat)
+    {
+    case A_STR: return "Strength";
+    case A_DEX: return "Dexterity";
+    case A_CON: return "Constitution";
+    case A_GRA: return "Grace";
+    }
+
+    return "Attribute";
+}
+
+static cptr character_sheet_stat_description(int stat)
+{
+    switch (stat)
+    {
+    case A_STR: return "melee damage dice and weight capacity";
+    case A_DEX: return "melee, evasion, archery, and stealth";
+    case A_CON: return "maximum health";
+    case A_GRA: return "will, perception, smithing, song, and voice";
+    }
+
+    return "character performance";
+}
+
+static int character_sheet_value_stat(character_sheet_value_kind kind)
+{
+    switch (kind)
+    {
+    case CHARACTER_SHEET_VALUE_STR: return A_STR;
+    case CHARACTER_SHEET_VALUE_DEX: return A_DEX;
+    case CHARACTER_SHEET_VALUE_CON: return A_CON;
+    case CHARACTER_SHEET_VALUE_GRA: return A_GRA;
+    default: return -1;
+    }
+}
+
+static void character_sheet_format_stat_item(const character_sheet_item* item,
+    char* buf, size_t buflen)
+{
+    int stat;
+    char use_buf[16];
+    char base_buf[16];
+
+    if (!buf || !buflen || !item)
+        return;
+
+    buf[0] = '\0';
+    stat = character_sheet_value_stat((character_sheet_value_kind)item->value_kind);
+    if (stat < 0 || stat >= A_MAX)
+        return;
+
+    cnv_stat(p_ptr->stat_use[stat], use_buf);
+    cnv_stat(p_ptr->stat_base[stat], base_buf);
+    strnfmt(buf, buflen,
+        "%s: %s current = %s base%+d equip%+d misc%+d drain. Affects %s.",
+        character_sheet_stat_full_name(stat), use_buf, base_buf,
+        p_ptr->stat_equip_mod[stat], p_ptr->stat_misc_mod[stat],
+        p_ptr->stat_drain[stat], character_sheet_stat_description(stat));
+}
+
+static void character_sheet_format_value_item(const character_sheet_item* item,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen || !item)
+        return;
+
+    buf[0] = '\0';
+
+    if (character_sheet_value_stat((character_sheet_value_kind)item->value_kind)
+        >= 0)
+    {
+        character_sheet_format_stat_item(item, buf, buflen);
+        return;
+    }
+
+    switch ((character_sheet_value_kind)item->value_kind)
+    {
+    case CHARACTER_SHEET_VALUE_EXP:
+        strnfmt(buf, buflen,
+            "Experience: %ld unspent / %ld total. Spend XP to raise skills and buy abilities.",
+            (long)p_ptr->new_exp, (long)p_ptr->exp);
+        break;
+    case CHARACTER_SHEET_VALUE_BURDEN:
+    {
+        char carried[32];
+        char limit[32];
+        character_sheet_format_tenths(carried, sizeof(carried),
+            (long)p_ptr->total_weight);
+        character_sheet_format_tenths(limit, sizeof(limit),
+            (long)weight_limit());
+        strnfmt(buf, buflen,
+            "Burden: %s/%s lb carried. Heavy loads count against movement and stealth.",
+            carried, limit);
+        break;
+    }
+    case CHARACTER_SHEET_VALUE_DEPTH:
+        strnfmt(buf, buflen,
+            "Depth c/m: %d ft current / %d ft minimum return depth.",
+            p_ptr->depth * 50, min_depth() * 50);
+        break;
+    case CHARACTER_SHEET_VALUE_DEEP_CALL:
+    {
+        int total = 0;
+        int progress = 0;
+        int threshold = 0;
+
+        min_depth_timer_status(NULL, NULL, &total, &progress, &threshold);
+        if (threshold > 0)
+        {
+            strnfmt(buf, buflen,
+                "Deep Call: minimum-depth pressure. Progress %d/%d; currently advances by %d per turn.",
+                progress, threshold, total);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "Deep Call: minimum-depth pressure from time and certain items.",
+                buflen);
+        }
+        break;
+    }
+    case CHARACTER_SHEET_VALUE_DEPTH_PROGRESS:
+    {
+        int progress = 0;
+        int threshold = 0;
+
+        min_depth_timer_status(NULL, NULL, NULL, &progress, &threshold);
+        strnfmt(buf, buflen,
+            "Minimum-depth progress: %d/%d toward the next rise in minimum return depth.",
+            progress, threshold);
+        break;
+    }
+    case CHARACTER_SHEET_VALUE_TURN:
+    {
+        char turns[32];
+        comma_number(turns, playerturn);
+        strnfmt(buf, buflen, "Turn: %s game turns elapsed.", turns);
+        break;
+    }
+    case CHARACTER_SHEET_VALUE_LIGHT:
+        strnfmt(buf, buflen, "Light: radius %d around you.", p_ptr->cur_light);
+        break;
+    case CHARACTER_SHEET_VALUE_MELEE:
+        strnfmt(buf, buflen,
+            "Melee: main hand (%+d,%dd%d): attack bonus and damage dice.",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        break;
+    case CHARACTER_SHEET_VALUE_MELEE_X2:
+        strnfmt(buf, buflen,
+            "Melee x2: Rapid Attack grants another swing at (%+d,%dd%d).",
+            p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+        break;
+    case CHARACTER_SHEET_VALUE_OFFHAND:
+        strnfmt(buf, buflen,
+            "Offhand: secondary attack (%+d,%dd%d).",
+            p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
+            p_ptr->mdd2, p_ptr->mds2);
+        break;
+    case CHARACTER_SHEET_VALUE_BOWS:
+        strnfmt(buf, buflen,
+            "Bows: ranged attacks (%+d,%dd%d): attack bonus and damage dice.",
+            p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+        break;
+    case CHARACTER_SHEET_VALUE_ARMOR:
+        strnfmt(buf, buflen,
+            "Armor: [%+d,%d-%d] = evasion bonus and protection dice.",
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true),
+            p_max(GF_HURT, true));
+        break;
+    case CHARACTER_SHEET_VALUE_HEALTH:
+        strnfmt(buf, buflen, "Health: %d/%d hit points.",
+            MIN(p_ptr->chp, 999), MIN(p_ptr->mhp, 999));
+        break;
+    case CHARACTER_SHEET_VALUE_VOICE:
+        strnfmt(buf, buflen, "Voice: %d/%d song points.",
+            MIN(p_ptr->csp, 999), MIN(p_ptr->msp, 999));
+        break;
+    case CHARACTER_SHEET_VALUE_SONG:
+    {
+        cptr song1 = (p_ptr->song1 != SNG_NOTHING)
+            ? b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name
+            : NULL;
+        cptr song2 = (p_ptr->song2 != SNG_NOTHING)
+            ? b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name
+            : NULL;
+
+        if (song1 && prefix(song1, "Song of "))
+            song1 += 8;
+        if (song2 && prefix(song2, "Song of "))
+            song2 += 8;
+        if (song1 && song2)
+            strnfmt(buf, buflen, "Song: currently singing %s and %s.",
+                song1, song2);
+        else if (song1)
+            strnfmt(buf, buflen, "Song: currently singing %s.", song1);
+        else if (song2)
+            strnfmt(buf, buflen, "Song: currently singing %s.", song2);
+        else
+            SDL_strlcpy(buf, "Song: no active song.", buflen);
+        break;
+    }
+    default:
+        SDL_strlcpy(buf, item->desc ? item->desc : "Character sheet value.",
+            buflen);
+        break;
+    }
+}
+
+static void character_sheet_format_skill_item(const character_sheet_item* item,
+    char* buf, size_t buflen)
+{
+    int skill;
+    int next_cost;
+    int stat_mod;
+    int equip_mod;
+    int misc_mod;
+
+    if (!buf || !buflen || !item)
+        return;
+
+    buf[0] = '\0';
+    skill = item->skill;
+    if (skill < 0 || skill >= S_MAX || skill == S_SPC)
+        return;
+
+    next_cost = (p_ptr->skill_base[skill] + 1) * 100;
+    stat_mod = p_ptr->skill_stat_mod[skill];
+    equip_mod = p_ptr->skill_equip_mod[skill];
+    misc_mod = p_ptr->skill_misc_mod[skill];
+
+    strnfmt(buf, buflen,
+        "%s: %s Current %d = base %d%+d stat%+d equip%+d misc. Next point: %d XP.",
+        skill_names_full[skill], character_sheet_skill_description(skill),
+        p_ptr->skill_use[skill], p_ptr->skill_base[skill], stat_mod,
+        equip_mod, misc_mod, next_cost);
+}
+
+static void character_sheet_format_trait_item(const character_sheet_item* item,
+    char* buf, size_t buflen)
+{
+    cptr label;
+
+    if (!buf || !buflen || !item)
+        return;
+
+    buf[0] = '\0';
+    label = item->label ? item->label : "Trait";
+
+    if (item->trait_score != 0)
+    {
+        int amount = ABS(item->trait_score);
+        cptr rank;
+
+        if (item->proficiency)
+        {
+            cptr weapon = (item->aff_flag == RHF_BOW_PROFICIENCY)
+                ? "bows" : "axes";
+
+            strnfmt(buf, buflen,
+                "%s: %+d attack bonus when using %s.",
+                label, amount, weapon);
+            character_sheet_append_curse_hint(buf, buflen, item->aff_flag);
+            return;
+        }
+
+        if (item->trait_score == 2)
+            rank = "Mastery";
+        else if (item->trait_score == 1)
+            rank = "Affinity";
+        else if (item->trait_score == -1)
+            rank = "Penalty";
+        else
+            rank = "Grand penalty";
+
+        strnfmt(buf, buflen,
+            "%s: %s gives %+d current %s and changes ability costs in that skill.",
+            label, rank, item->trait_score, skill_names_full[item->skill]);
+        character_sheet_append_curse_hint(buf, buflen,
+            item->trait_score > 0 ? item->aff_flag : item->pen_flag);
+        return;
+    }
+
+    strnfmt(buf, buflen, "%s: %s", label,
+        item->desc ? item->desc : "A special racial or character trait.");
+}
+
+static void character_sheet_show_item_tooltip(const character_sheet_item* item)
+{
+    char desc[640];
+
+    if (!item)
+        return;
+
+    if (item->kind == CHARACTER_SHEET_ITEM_SKILL)
+        character_sheet_format_skill_item(item, desc, sizeof(desc));
+    else if (item->kind == CHARACTER_SHEET_ITEM_TRAIT)
+        character_sheet_format_trait_item(item, desc, sizeof(desc));
+    else
+        character_sheet_format_value_item(item, desc, sizeof(desc));
+
+    if (!desc[0])
+        return;
+
+    (void)sdl_hover_tooltip_show_text(item->col, item->row, item->width,
+        desc, false);
 }
 
 static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
@@ -1011,6 +2070,8 @@ void do_cmd_character_sheet(void)
     int sheet_page = 1;
     int body_scroll = 0;
     int last_sheet_page = -1;
+    int focus_item = -1;
+    bool focus_from_pointer = false;
 
     enum {
         CHAR_SHEET_MODE_COMPACT_DESC_FLAGS = 100,
@@ -1042,6 +2103,8 @@ void do_cmd_character_sheet(void)
         int compact_pages;
         int max_body_scroll = 0;
         bool steamdeck = steamdeck_controls_active();
+        character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
+        int sheet_item_count = 0;
 
         Term_get_size(&wid, &hgt);
         if (wid < 1)
@@ -1058,6 +2121,9 @@ void do_cmd_character_sheet(void)
         if (sheet_page != last_sheet_page)
         {
             body_scroll = 0;
+            focus_item = -1;
+            focus_from_pointer = false;
+            sdl_hover_tooltip_clear();
             last_sheet_page = sheet_page;
         }
 
@@ -1102,7 +2168,23 @@ void do_cmd_character_sheet(void)
         Term_erase(0, prompt_row, 255);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
-        character_sheet_register_skill_clicks();
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+        sheet_item_count = character_sheet_collect_items(sheet_items,
+            CHARACTER_SHEET_MAX_ITEMS);
+        if (focus_item >= sheet_item_count)
+        {
+            focus_item = -1;
+            focus_from_pointer = false;
+        }
+        if (focus_item >= 0 && sheet_item_count > 0)
+        {
+            character_sheet_highlight_item(&sheet_items[focus_item]);
+            character_sheet_show_item_tooltip(&sheet_items[focus_item]);
+        }
+        else
+        {
+            sdl_hover_tooltip_clear();
+        }
 
         /* Prompt - dynamic, width-aware, and user-friendly for new players */
         {
@@ -1171,31 +2253,96 @@ void do_cmd_character_sheet(void)
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
-                if (click_action == UI_MENU_CLICK_HOVER)
-                    continue;
-                if (clicked_choice >= CHARACTER_SHEET_CLICK_SKILL_BASE
-                    && clicked_choice < CHARACTER_SHEET_CLICK_SKILL_BASE + S_MAX)
+                if (clicked_choice >= CHARACTER_SHEET_CLICK_ITEM_BASE
+                    && clicked_choice < CHARACTER_SHEET_CLICK_ITEM_BASE
+                        + sheet_item_count)
                 {
-                    gain_skills_set_initial_skill(
-                        clicked_choice - CHARACTER_SHEET_CLICK_SKILL_BASE);
-                    ch = 'i';
+                    int clicked_item =
+                        clicked_choice - CHARACTER_SHEET_CLICK_ITEM_BASE;
+                    bool same_item = (clicked_item == focus_item);
+
+                    focus_item = clicked_item;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        focus_from_pointer = true;
+                        continue;
+                    }
+
+                    focus_from_pointer = false;
+
+                    if (sheet_items[focus_item].kind
+                            == CHARACTER_SHEET_ITEM_SKILL
+                        && (same_item
+                            || click_action == UI_MENU_CLICK_SECONDARY))
+                    {
+                        gain_skills_set_initial_skill(
+                            sheet_items[focus_item].skill);
+                        ch = 'i';
+                    }
+                    else
+                    {
+                        continue;
+                    }
                 }
                 else
                 {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
                     ch = (char)clicked_choice;
                 }
             }
             else if (ch == UI_MENU_CLICK_WAKE_KEY)
             {
+                int hover_choice = 0;
+
+                if (focus_from_pointer
+                    && !ui_menu_click_get_hover_choice(&hover_choice))
+                {
+                    focus_item = -1;
+                    focus_from_pointer = false;
+                    sdl_hover_tooltip_clear();
+                }
                 continue;
             }
         }
 
         /* Exit - B button (back) or ESC */
         if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
+        {
+            sdl_hover_tooltip_clear();
             break;
+        }
         if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
+        {
+            sdl_hover_tooltip_clear();
             break;
+        }
+
+        {
+            int d = target_dir((char)ch);
+            bool allow_item_nav = sheet_item_count > 0
+                && (!compact_sheet || sheet_page == 1 || focus_item >= 0);
+
+            if (d && allow_item_nav)
+            {
+                int next_focus = character_sheet_find_best_focus(sheet_items,
+                    sheet_item_count, focus_item, ddx[d], ddy[d]);
+
+                if (next_focus >= 0 && next_focus < sheet_item_count
+                    && next_focus != focus_item)
+                {
+                    focus_item = next_focus;
+                    focus_from_pointer = false;
+                    continue;
+                }
+                if (focus_item < 0 && next_focus >= 0)
+                {
+                    focus_item = next_focus;
+                    focus_from_pointer = false;
+                    continue;
+                }
+            }
+        }
 
         if (compact_pages > 1)
         {
@@ -1231,6 +2378,12 @@ void do_cmd_character_sheet(void)
         if (ch == 'i' || ch == ' ' || ch == INPUT_BIND_CONFIRM
             || (steamdeck && ch == steamdeck_confirm_key()))
         {
+            sdl_hover_tooltip_clear();
+            if (focus_item >= 0 && focus_item < sheet_item_count
+                && sheet_items[focus_item].kind == CHARACTER_SHEET_ITEM_SKILL)
+            {
+                gain_skills_set_initial_skill(sheet_items[focus_item].skill);
+            }
             gain_skills();
             /* Force redraw after skill changes */
             p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
@@ -1240,12 +2393,14 @@ void do_cmd_character_sheet(void)
         /* Show notes - 'n' */
         else if (ch == 'n')
         {
+            sdl_hover_tooltip_clear();
             do_cmd_knowledge_notes();
         }
 
         /* Story stats - 's' or Y button */
         else if (ch == 's' || (steamdeck && ch == steamdeck_secondary_key()))
         {
+            sdl_hover_tooltip_clear();
             print_metarun_stats();
         }
 
@@ -1253,6 +2408,7 @@ void do_cmd_character_sheet(void)
         /* Curses Menu */
         else if (ch == 'c')
         {
+            sdl_hover_tooltip_clear();
             dbg_show_active_flags();
         }
 #endif
@@ -1260,6 +2416,7 @@ void do_cmd_character_sheet(void)
         /* Abilities - 'a', Tab, or X button */
         else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
         {
+            sdl_hover_tooltip_clear();
             (void)do_cmd_ability_screen();
             /* Force redraw after ability changes */
             p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
@@ -1271,6 +2428,7 @@ void do_cmd_character_sheet(void)
         {
             char ftmp[80];
 
+            sdl_hover_tooltip_clear();
             strnfmt(ftmp, sizeof(ftmp), "%s.txt", op_ptr->base_name);
 
             if (term_get_string("File name: ", ftmp, sizeof(ftmp)))
@@ -1292,6 +2450,7 @@ void do_cmd_character_sheet(void)
         /* Tutorial / Help - '?' or RS Right */
         else if (ch == '?' || (steamdeck && ch == steamdeck_info_key()))
         {
+            sdl_hover_tooltip_clear();
             display_character_tutorial();
         }
 
@@ -1307,6 +2466,7 @@ void do_cmd_character_sheet(void)
 
     /* Load screen */
     ui_menu_click_clear();
+    sdl_hover_tooltip_clear();
     sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
     screen_pop_touch_pane_proto();

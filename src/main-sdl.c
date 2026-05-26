@@ -903,10 +903,14 @@ typedef struct map_touch_press_state {
 typedef struct object_tooltip_state {
     bool active;
     bool touch;
+    bool term_cell;
     int map_y;
     int map_x;
+    int cell_col;
+    int cell_row;
+    int cell_cols;
     Uint64 expires_at;
-    char text[160];
+    char text[640];
 } object_tooltip_state;
 
 typedef struct unified_look_map_drag_state {
@@ -1697,6 +1701,8 @@ static bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
     int* out_command, int* out_dir);
 static bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x);
 static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch);
+static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
+    cptr text, bool touch);
 static bool sdl_mouse_grid_has_describable_content(int y, int x);
 static bool sdl_mouse_path_compute(int target_y, int target_x);
 static bool sdl_mouse_stuck_door_bash_queue_prompt(int map_y, int map_x);
@@ -14281,8 +14287,12 @@ static void sdl_object_tooltip_clear(void)
 
     g_object_tooltip.active = false;
     g_object_tooltip.touch = false;
+    g_object_tooltip.term_cell = false;
     g_object_tooltip.map_y = 0;
     g_object_tooltip.map_x = 0;
+    g_object_tooltip.cell_col = 0;
+    g_object_tooltip.cell_row = 0;
+    g_object_tooltip.cell_cols = 0;
     g_object_tooltip.expires_at = 0;
     g_object_tooltip.text[0] = '\0';
     g_state.need_present = true;
@@ -14488,6 +14498,61 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     return true;
 }
 
+static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
+    cptr text, bool touch)
+{
+    Uint64 expires_at = 0;
+
+    if (!text || !text[0] || col < 0 || row < 0) {
+        sdl_object_tooltip_clear();
+        return false;
+    }
+
+    if (cols < 1)
+        cols = 1;
+
+    if (touch)
+        expires_at = SDL_GetTicksNS()
+            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
+
+    if (g_object_tooltip.active
+        && g_object_tooltip.term_cell
+        && g_object_tooltip.touch == touch
+        && g_object_tooltip.cell_col == col
+        && g_object_tooltip.cell_row == row
+        && g_object_tooltip.cell_cols == cols
+        && SDL_strcmp(g_object_tooltip.text, text) == 0)
+    {
+        if (touch)
+            g_object_tooltip.expires_at = expires_at;
+        return true;
+    }
+
+    g_object_tooltip.active = true;
+    g_object_tooltip.touch = touch;
+    g_object_tooltip.term_cell = true;
+    g_object_tooltip.map_y = 0;
+    g_object_tooltip.map_x = 0;
+    g_object_tooltip.cell_col = col;
+    g_object_tooltip.cell_row = row;
+    g_object_tooltip.cell_cols = cols;
+    g_object_tooltip.expires_at = expires_at;
+    SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
+    g_state.need_present = true;
+    return true;
+}
+
+bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text,
+    bool touch)
+{
+    return sdl_object_tooltip_show_text_at_cell(col, row, cols, text, touch);
+}
+
+void sdl_hover_tooltip_clear(void)
+{
+    sdl_object_tooltip_clear();
+}
+
 static int sdl_object_tooltip_font_px(void)
 {
     float system_scale = (g_state.system_scale > 0.0f)
@@ -14526,6 +14591,9 @@ static void sdl_object_tooltip_handle_mouse_motion(float x, float y)
 {
     int map_y = 0;
     int map_x = 0;
+
+    if (g_object_tooltip.active && g_object_tooltip.term_cell)
+        return;
 
     if (g_unified_look_active || g_pointer_aim.active
         || g_player_action_menu.active || g_player_exchange_target.active)
@@ -14598,18 +14666,29 @@ static void sdl_object_tooltip_render(void)
         sdl_object_tooltip_clear();
         return;
     }
-    if (!sdl_mouse_gameplay_context_active()
-        || !sdl_object_tooltip_format_grid(g_object_tooltip.map_y,
-            g_object_tooltip.map_x, current, sizeof(current))
-        || !sdl_player_map_rect(g_object_tooltip.map_y,
-            g_object_tooltip.map_x, &cell_rect))
-    {
-        sdl_object_tooltip_clear();
-        return;
+    if (g_object_tooltip.term_cell) {
+        if (!g_object_tooltip.text[0]
+            || !sdl_main_cell_rect(g_object_tooltip.cell_col,
+                g_object_tooltip.cell_row, g_object_tooltip.cell_cols, 1,
+                &cell_rect))
+        {
+            sdl_object_tooltip_clear();
+            return;
+        }
+    } else {
+        if (!sdl_mouse_gameplay_context_active()
+            || !sdl_object_tooltip_format_grid(g_object_tooltip.map_y,
+                g_object_tooltip.map_x, current, sizeof(current))
+            || !sdl_player_map_rect(g_object_tooltip.map_y,
+                g_object_tooltip.map_x, &cell_rect))
+        {
+            sdl_object_tooltip_clear();
+            return;
+        }
+        if (SDL_strcmp(g_object_tooltip.text, current) != 0)
+            SDL_strlcpy(g_object_tooltip.text, current,
+                sizeof(g_object_tooltip.text));
     }
-    if (SDL_strcmp(g_object_tooltip.text, current) != 0)
-        SDL_strlcpy(g_object_tooltip.text, current,
-            sizeof(g_object_tooltip.text));
 
     screen = sdl_get_layout_screen_rect();
     if (!sdl_rect_has_area(&screen))
