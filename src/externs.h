@@ -732,6 +732,13 @@ extern object_type* smith_o_ptr;
 extern void do_cmd_redraw(void);
 extern void options_birth_menu(bool adult);
 extern void do_cmd_character_sheet(void);
+extern cptr character_sheet_skill_description(int skill);
+extern cptr character_sheet_trait_description(cptr label);
+extern void character_sheet_format_stat_hint(int stat, int value,
+    bool has_value, char* buf, size_t buflen);
+extern void character_sheet_format_trait_description(cptr label, int skill,
+    int trait_score, bool proficiency, u32b aff_flag, u32b pen_flag,
+    cptr desc, char* buf, size_t buflen);
 extern void do_cmd_change_song(void);
 extern void show_songs_with_highlight(int highlight);
 extern void wipe_screen_from(int col);

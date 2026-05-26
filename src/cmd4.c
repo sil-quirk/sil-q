@@ -898,6 +898,20 @@ static const character_sheet_value_desc character_sheet_value_descriptions[] = {
         "Grace: will, perception, smithing, song, and voice.", false, true, 24 },
 };
 
+cptr character_sheet_trait_description(cptr label)
+{
+    if (!label || !label[0])
+        return "";
+
+    for (size_t i = 0; i < N_ELEMENTS(character_sheet_named_traits); i++)
+    {
+        if (!strcmp(label, character_sheet_named_traits[i].label))
+            return character_sheet_named_traits[i].desc;
+    }
+
+    return "";
+}
+
 static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
     char* out, size_t outsz);
 
@@ -1515,7 +1529,7 @@ static int character_sheet_find_best_focus(const character_sheet_item items[],
     return current;
 }
 
-static cptr character_sheet_skill_description(int skill)
+cptr character_sheet_skill_description(int skill)
 {
     if (skill < 0 || skill >= S_MAX)
         return "";
@@ -1619,6 +1633,30 @@ static cptr character_sheet_stat_description(int stat)
     }
 
     return "character performance";
+}
+
+void character_sheet_format_stat_hint(int stat, int value, bool has_value,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    if (stat < 0 || stat >= A_MAX)
+        return;
+
+    if (has_value)
+    {
+        strnfmt(buf, buflen, "%s: Affects %s. Selection total modifier %+d.",
+            character_sheet_stat_full_name(stat),
+            character_sheet_stat_description(stat), value);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%s: Affects %s.",
+            character_sheet_stat_full_name(stat),
+            character_sheet_stat_description(stat));
+    }
 }
 
 static int character_sheet_value_stat(character_sheet_value_kind kind)
@@ -1881,6 +1919,29 @@ static void character_sheet_format_trait_item(const character_sheet_item* item,
 
     strnfmt(buf, buflen, "%s: %s", label,
         item->desc ? item->desc : "A special racial or character trait.");
+}
+
+void character_sheet_format_trait_description(cptr label, int skill,
+    int trait_score, bool proficiency, u32b aff_flag, u32b pen_flag,
+    cptr desc, char* buf, size_t buflen)
+{
+    character_sheet_item item;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    SDL_zero(item);
+    item.kind = CHARACTER_SHEET_ITEM_TRAIT;
+    item.label = label;
+    item.skill = skill;
+    item.trait_score = trait_score;
+    item.proficiency = proficiency;
+    item.aff_flag = aff_flag;
+    item.pen_flag = pen_flag;
+    item.desc = desc;
+
+    character_sheet_format_trait_item(&item, buf, buflen);
 }
 
 static void character_sheet_show_item_tooltip(const character_sheet_item* item)

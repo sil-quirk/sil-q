@@ -234,6 +234,67 @@ struct birth_menu
     cptr text;
 };
 
+#define BIRTH_DETAIL_HOVER_CLICK_BASE 16000
+#define BIRTH_DETAIL_HOVER_MAX 96
+
+typedef struct {
+    int col;
+    int row;
+    int width;
+    char desc[640];
+} birth_detail_hover_target;
+
+static birth_detail_hover_target birth_detail_hover_targets[BIRTH_DETAIL_HOVER_MAX];
+static int birth_detail_hover_target_count = 0;
+
+static void birth_detail_hover_reset(void)
+{
+    birth_detail_hover_target_count = 0;
+}
+
+static bool birth_detail_hover_is_choice(int choice)
+{
+    int idx = choice - BIRTH_DETAIL_HOVER_CLICK_BASE;
+
+    return idx >= 0 && idx < birth_detail_hover_target_count;
+}
+
+static void birth_detail_hover_add(int col, int row, int width, cptr desc)
+{
+    birth_detail_hover_target* target;
+
+    if (!desc || !desc[0])
+        return;
+    if (birth_detail_hover_target_count >= BIRTH_DETAIL_HOVER_MAX)
+        return;
+    if (width <= 0)
+        return;
+
+    target = &birth_detail_hover_targets[birth_detail_hover_target_count];
+    target->col = col;
+    target->row = row;
+    target->width = width;
+    SDL_strlcpy(target->desc, desc, sizeof(target->desc));
+
+    ui_menu_click_add(BIRTH_DETAIL_HOVER_CLICK_BASE
+            + birth_detail_hover_target_count,
+        col, row, width);
+    birth_detail_hover_target_count++;
+}
+
+static bool birth_detail_hover_show(int choice, bool touch)
+{
+    int idx = choice - BIRTH_DETAIL_HOVER_CLICK_BASE;
+    birth_detail_hover_target* target;
+
+    if (idx < 0 || idx >= birth_detail_hover_target_count)
+        return false;
+
+    target = &birth_detail_hover_targets[idx];
+    return sdl_hover_tooltip_show_text(target->col, target->row,
+        target->width, target->desc, touch);
+}
+
 // s16b adj_c[A_MAX];
 
 static int get_start_xp(void)
@@ -1662,7 +1723,8 @@ static int choice_description_fit_row(int row, int visible_rows, cptr text)
     return row;
 }
 
-static int collect_character_starting_abilities(int character, cptr out[], int out_max)
+static int collect_character_starting_abilities(int character, cptr out[],
+    int out_max, int out_skill[], int out_ability[])
 {
     int count = 0;
 
@@ -1689,12 +1751,56 @@ static int collect_character_starting_abilities(int character, cptr out[], int o
             continue;
 
         if (out && count < out_max)
+        {
             out[count] = name;
+            if (out_skill)
+                out_skill[count] = stat;
+            if (out_ability)
+                out_ability[count] = ability;
+        }
 
         count++;
     }
 
     return count;
+}
+
+static void birth_format_ability_hint(int skill, int ability, char* buf,
+    size_t buflen)
+{
+    int idx;
+    ability_type* b_ptr;
+    cptr name;
+    cptr effect = NULL;
+    cptr lore = NULL;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    if (skill < 0 || skill >= S_MAX || ability < 0 || ability >= ABILITIES_MAX)
+        return;
+
+    idx = ability_index(skill, ability);
+    if (idx < 0 || idx >= z_info->b_max)
+        return;
+
+    b_ptr = &b_info[idx];
+    if (!b_ptr->name)
+        return;
+
+    name = b_name + b_ptr->name;
+    if (b_ptr->effect)
+        effect = b_text + b_ptr->effect;
+    if (b_ptr->text)
+        lore = b_text + b_ptr->text;
+
+    if (effect && effect[0])
+        strnfmt(buf, buflen, "%s: %s", name, effect);
+    else if (lore && lore[0])
+        strnfmt(buf, buflen, "%s: %s", name, lore);
+    else
+        strnfmt(buf, buflen, "%s: Starting ability.", name);
 }
 
 static void display_character_description_screen(birth_menu choice)
@@ -1840,6 +1946,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        birth_detail_hover_reset();
 
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
@@ -2042,7 +2149,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
                 ui_menu_click_clear();
-                if (click_action == UI_MENU_CLICK_SECONDARY
+                if (birth_detail_hover_is_choice(clicked_choice))
+                {
+                    birth_detail_hover_show(clicked_choice,
+                        click_action != UI_MENU_CLICK_HOVER);
+                    continue;
+                }
+                else if (click_action == UI_MENU_CLICK_SECONDARY
                     && allow_full_description_screen)
                 {
                     c = ESCAPE;
@@ -2052,7 +2165,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 else if (clicked_choice == BIRTH_CHOICE_CLICK_RIGHT_BACK)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        sdl_hover_tooltip_clear();
                         continue;
+                    }
                     continue;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < num)
@@ -2060,6 +2176,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                     if (click_action == UI_MENU_CLICK_HOVER
                         || clicked_choice != cur)
                     {
+                        sdl_hover_tooltip_clear();
                         cur = clicked_choice;
                         if (cur < top || cur > top + hgt)
                             top = cur;
@@ -2074,7 +2191,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 }
 
                 if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    sdl_hover_tooltip_clear();
                     continue;
+                }
 
                 switch (clicked_choice)
                 {
@@ -2085,6 +2205,21 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 case BIRTH_CHOICE_CLICK_RIGHT_BACK: break;
                 default: break;
                 }
+            }
+            else if (c == UI_MENU_CLICK_WAKE_KEY)
+            {
+                int hover_choice = 0;
+
+                if (!ui_menu_click_get_hover_choice(&hover_choice)
+                    || !birth_detail_hover_is_choice(hover_choice))
+                {
+                    sdl_hover_tooltip_clear();
+                }
+                continue;
+            }
+            else
+            {
+                sdl_hover_tooltip_clear();
             }
         }
 
@@ -2315,6 +2450,13 @@ int curse_flag_delta_cur(u32b cur_flag)
 typedef struct {
     cptr txt;
     byte attr;
+    int side;
+    int skill;
+    int trait_score;
+    bool proficiency;
+    u32b aff_flag;
+    u32b pen_flag;
+    cptr desc_label;
 } birth_compact_flag_line;
 
 static int collect_character_trait_lines(int race, int character, bool short_labels,
@@ -2330,16 +2472,26 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
     birth_compact_flag_line uniq_buf[32], ma_buf[16], af_buf[16], pen_buf[32];
     int uniq_n = 0, ma_n = 0, af_n = 0, pen_n = 0;
 
-#define PUSH(arr, n, text, color)                                             \
+#define PUSH_TRAIT(arr, n, text, color, side_value, skill_value, score_value, \
+    proficiency_value, aff_value, pen_value, desc_label_value)                \
     do {                                                                      \
         if ((text) && (n) < (int)N_ELEMENTS(arr))                             \
         {                                                                     \
-            (arr)[(n)].txt = (text);                                          \
-            (arr)[(n)++].attr = (color);                                      \
+            birth_compact_flag_line* _line = &(arr)[(n)++];                  \
+            _line->txt = (text);                                              \
+            _line->attr = (color);                                            \
+            _line->side = (side_value);                                       \
+            _line->skill = (skill_value);                                     \
+            _line->trait_score = (score_value);                               \
+            _line->proficiency = (proficiency_value);                         \
+            _line->aff_flag = (aff_value);                                    \
+            _line->pen_flag = (pen_value);                                    \
+            _line->desc_label = (desc_label_value);                           \
         }                                                                     \
     } while (0)
 
-#define HANDLE_SKILL_EX(LABEL_LONG, LABEL_SHORT, AFF_FLAG, PEN_FLAG)          \
+#define HANDLE_SKILL_EX(LABEL_LONG, LABEL_SHORT, SKILL, AFF_FLAG, PEN_FLAG,   \
+    PROFICIENCY)                                                              \
     do {                                                                      \
         int score = 0;                                                        \
         if (p_info[race].flags & (AFF_FLAG)) score++;                         \
@@ -2351,33 +2503,39 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
         if (score > 2) score = 2;                                             \
         if (score < -2) score = -2;                                           \
         if (score == 2)                                                       \
-            PUSH(ma_buf, ma_n,                                                \
+            PUSH_TRAIT(ma_buf, ma_n,                                          \
                 short_labels ? LABEL_SHORT "++" : LABEL_LONG " mastery",      \
-                attr_mastery);                                                \
+                attr_mastery, 0, (SKILL), score, (PROFICIENCY),               \
+                (AFF_FLAG), (PEN_FLAG), NULL);                                \
         else if (score == 1)                                                  \
-            PUSH(af_buf, af_n,                                                \
+            PUSH_TRAIT(af_buf, af_n,                                          \
                 short_labels ? LABEL_SHORT "+ " : LABEL_LONG " affinity",     \
-                attr_affinity);                                               \
+                attr_affinity, 0, (SKILL), score, (PROFICIENCY),              \
+                (AFF_FLAG), (PEN_FLAG), NULL);                                \
         else if (score == -1)                                                 \
-            PUSH(pen_buf, pen_n,                                              \
+            PUSH_TRAIT(pen_buf, pen_n,                                        \
                 short_labels ? LABEL_SHORT "- " : LABEL_LONG " penalty",      \
-                attr_penalty);                                                \
+                attr_penalty, 1, (SKILL), score, (PROFICIENCY),               \
+                (AFF_FLAG), (PEN_FLAG), NULL);                                \
         else if (score == -2)                                                 \
-            PUSH(pen_buf, pen_n,                                              \
+            PUSH_TRAIT(pen_buf, pen_n,                                        \
                 short_labels ? LABEL_SHORT "--" : LABEL_LONG " grand penalty",\
-                attr_gr_penalty);                                             \
+                attr_gr_penalty, 1, (SKILL), score, (PROFICIENCY),            \
+                (AFF_FLAG), (PEN_FLAG), NULL);                                \
     } while (0)
 
-#define HANDLE_UNIQUE_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)                \
+#define HANDLE_UNIQUE_EX(LABEL_LONG, LABEL_SHORT, DESC_LABEL, FLAG, COLOR)    \
     do {                                                                      \
         if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
-            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+            PUSH_TRAIT(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, \
+                (COLOR), 1, -1, 0, false, 0, 0, (DESC_LABEL));                \
     } while (0)
 
-#define HANDLE_UNIQUE_U_EX(LABEL_LONG, LABEL_SHORT, FLAG, COLOR)              \
+#define HANDLE_UNIQUE_U_EX(LABEL_LONG, LABEL_SHORT, DESC_LABEL, FLAG, COLOR)  \
     do {                                                                      \
         if (c_info[character].flags_u & (FLAG))                               \
-            PUSH(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, (COLOR)); \
+            PUSH_TRAIT(uniq_buf, uniq_n, short_labels ? LABEL_SHORT : LABEL_LONG, \
+                (COLOR), 1, -1, 0, false, 0, 0, (DESC_LABEL));                \
     } while (0)
 
 #define EMIT(arr, n)                                                          \
@@ -2393,43 +2551,43 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
         }                                                                     \
     } while (0)
 
-    HANDLE_SKILL_EX("melee", "melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
-    HANDLE_SKILL_EX("evasion", "evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
-    HANDLE_SKILL_EX("stealth", "stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
-    HANDLE_SKILL_EX("archery", "archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
-    HANDLE_SKILL_EX("will", "will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
-    HANDLE_SKILL_EX("perception", "perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
-    HANDLE_SKILL_EX("smithing", "smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
-    HANDLE_SKILL_EX("song", "song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
-    HANDLE_SKILL_EX("bow", "bow", RHF_BOW_PROFICIENCY, 0);
-    HANDLE_SKILL_EX("axe", "axe", RHF_AXE_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("melee", "melee", S_MEL, RHF_MEL_AFFINITY, RHF_MEL_PENALTY, false);
+    HANDLE_SKILL_EX("evasion", "evasion", S_EVN, RHF_EVN_AFFINITY, RHF_EVN_PENALTY, false);
+    HANDLE_SKILL_EX("stealth", "stealth", S_STL, RHF_STL_AFFINITY, RHF_STL_PENALTY, false);
+    HANDLE_SKILL_EX("archery", "archery", S_ARC, RHF_ARC_AFFINITY, RHF_ARC_PENALTY, false);
+    HANDLE_SKILL_EX("will", "will", S_WIL, RHF_WIL_AFFINITY, RHF_WIL_PENALTY, false);
+    HANDLE_SKILL_EX("perception", "perception", S_PER, RHF_PER_AFFINITY, RHF_PER_PENALTY, false);
+    HANDLE_SKILL_EX("smithing", "smithing", S_SMT, RHF_SMT_AFFINITY, RHF_SMT_PENALTY, false);
+    HANDLE_SKILL_EX("song", "song", S_SNG, RHF_SNG_AFFINITY, RHF_SNG_PENALTY, false);
+    HANDLE_SKILL_EX("bow", "bow", S_ARC, RHF_BOW_PROFICIENCY, 0, true);
+    HANDLE_SKILL_EX("axe", "axe", S_MEL, RHF_AXE_PROFICIENCY, 0, true);
 
-    HANDLE_UNIQUE_U_EX("Master Artisan", "Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Creator of Galvorn", "Galvorn Maker", UNQ_SMT_EOL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("One Handed", "One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Agarwaen", "Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Hidden city", "Hidden City", UNQ_SNG_TURGON, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Chosen of Ulmo", "Ulmo's Chosen", UNQ_WIL_TUOR, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Indominable Will", "Indom. Will", UNQ_EARENDIL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Oromë Himself", "Oromë", UNQ_WIL_FIN, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Songs of Power", "Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Elven Dance", "Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Girdle of Melian", "Melian's Girdle", UNQ_SNG_MEL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Creator of Angrist", "Angrist Maker", UNQ_SMT_TELCHAR, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Old Master", "Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Ring Master", "Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Aure entuluva", "Aure Entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Voice of Girdle", "Girdle Voice", UNQ_SNG_THINGOL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Forgotten", "Forgotten", UNQ_MIM, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Minstrel", "Minstrel", UNQ_MINSTREL, TERM_VIOLET);
-    HANDLE_UNIQUE_U_EX("Woven Master", "Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Master Artisan", "Master Artisan", "Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Galvorn", "Galvorn Maker", "Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("One Handed", "One Handed", "One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Agarwaen", "Agarwaen", "Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Shadow Walker", "Shadow Walk", "Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Chosen of Ulmo", "Ulmo's Chosen", "Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Indomitable Will", "Indom. Will", "Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Oromë Himself", "Oromë", "Himself", UNQ_WIL_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Songs of Power", "Songs of Power", "Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Elven Dance", "Elven Dance", "Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Girdle of Melian", "Melian's Girdle", "Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Creator of Angrist", "Angrist Maker", "Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Old Master", "Old Master", "Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Ring Master", "Ring Master", "Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Aure entuluva", "Aure Entuluva", "Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Voice of the Girdle", "Girdle Voice", "Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Forgotten", "Forgotten", "Forgotten", UNQ_MIM, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Minstrel", "Minstrel", "Minstrel", UNQ_MINSTREL, TERM_VIOLET);
+    HANDLE_UNIQUE_U_EX("Woven Master", "Woven Master", "Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET);
 
-    HANDLE_UNIQUE_EX("Gift of Eru", "Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
-    HANDLE_UNIQUE_EX("Seafarer", "Seafarer", RHF_FREE, TERM_VIOLET);
-    HANDLE_UNIQUE_EX("Kinslayer", "Kinslayer", RHF_KINSLAYER, TERM_UMBER);
-    HANDLE_UNIQUE_EX("Treacherous", "Treacherous", RHF_TREACHERY, TERM_UMBER);
-    HANDLE_UNIQUE_EX("Doom of Mandos", "Mandos' Doom", RHF_CURSE, TERM_UMBER);
-    HANDLE_UNIQUE_EX("Morgoth Curse", "Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Gift of Eru", "Gift of Eru", "Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Seafarer", "Seafarer", "Seafarer", RHF_FREE, TERM_VIOLET);
+    HANDLE_UNIQUE_EX("Kinslayer", "Kinslayer", "Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Treacherous", "Treacherous", "Treacherous", RHF_TREACHERY, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Doom of Mandos", "Mandos' Doom", "Doom of Mandos", RHF_CURSE, TERM_UMBER);
+    HANDLE_UNIQUE_EX("Morgoth Curse", "Morgoth Curse", "Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
 
     EMIT(uniq_buf, uniq_n);
     EMIT(ma_buf, ma_n);
@@ -2440,9 +2598,54 @@ static int collect_character_trait_lines(int race, int character, bool short_lab
 #undef HANDLE_UNIQUE_U_EX
 #undef HANDLE_UNIQUE_EX
 #undef HANDLE_SKILL_EX
-#undef PUSH
+#undef PUSH_TRAIT
 
     return total;
+}
+
+static void birth_format_trait_hint(const birth_compact_flag_line* line,
+    char* buf, size_t buflen)
+{
+    cptr desc_label;
+    cptr desc = NULL;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    if (!line || !line->txt)
+        return;
+
+    desc_label = line->desc_label ? line->desc_label : line->txt;
+    if (desc_label && desc_label[0])
+    {
+        desc = character_sheet_trait_description(desc_label);
+        if (desc && !desc[0])
+            desc = NULL;
+    }
+
+    character_sheet_format_trait_description(line->txt, line->skill,
+        line->trait_score, line->proficiency, line->aff_flag, line->pen_flag,
+        desc, buf, buflen);
+}
+
+static void birth_detail_hover_add_trait(int col, int row,
+    const birth_compact_flag_line* line)
+{
+    char desc[640];
+    int width;
+
+    if (!line || !line->txt)
+        return;
+
+    birth_format_trait_hint(line, desc, sizeof(desc));
+    if (!desc[0])
+        return;
+
+    width = (int)strlen(line->txt);
+    if (width < 1)
+        width = 1;
+    birth_detail_hover_add(col, row, width, desc);
 }
 
 
@@ -2460,8 +2663,10 @@ static void print_rh_flags(int race, int character, int col, int row)
     int term_wid = 80;
     int term_hgt = 24;
     cptr ability_lines[CHARACTER_ABILITY_MAX];
+    int ability_skills[CHARACTER_ABILITY_MAX];
+    int ability_ids[CHARACTER_ABILITY_MAX];
     int ability_line_n = collect_character_starting_abilities(character,
-        ability_lines, N_ELEMENTS(ability_lines));
+        ability_lines, N_ELEMENTS(ability_lines), ability_skills, ability_ids);
 
     byte attr_affinity = TERM_GREEN;
     byte attr_mastery  = TERM_L_GREEN;
@@ -2470,14 +2675,7 @@ static void print_rh_flags(int race, int character, int col, int row)
 
     const int col_pen = col + 21;
 
-    // Updated struct to support side
-    typedef struct {
-        const char *txt;
-        byte col;
-        int side;  // 0 = left, 1 = right
-    } skill_line;
-
-    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[32];
+    birth_compact_flag_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[32];
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
     if (Term)
@@ -2502,7 +2700,23 @@ static void print_rh_flags(int race, int character, int col, int row)
 /* Show one skill line according to the new +/-2 rule,
  * now counting curse affinities / penalties too.
  */
-#define HANDLE_SKILL_EX(label, AFF_FLAG, PEN_FLAG)                          \
+#define BIRTH_PUSH_TRAIT(arr, n, text_value, attr_value, side_value,          \
+    skill_value, score_value, proficiency_value, aff_value, pen_value,        \
+    desc_label_value)                                                         \
+    do {                                                                      \
+        birth_compact_flag_line* _line = &(arr)[(n)++];                      \
+        _line->txt = (text_value);                                            \
+        _line->attr = (attr_value);                                           \
+        _line->side = (side_value);                                           \
+        _line->skill = (skill_value);                                         \
+        _line->trait_score = (score_value);                                   \
+        _line->proficiency = (proficiency_value);                             \
+        _line->aff_flag = (aff_value);                                        \
+        _line->pen_flag = (pen_value);                                        \
+        _line->desc_label = (desc_label_value);                               \
+    } while (0)
+
+#define HANDLE_SKILL_EX(label, SKILL, AFF_FLAG, PEN_FLAG, PROFICIENCY)       \
     do {                                                                    \
         int score = 0;                                                      \
                                                                             \
@@ -2521,84 +2735,86 @@ static void print_rh_flags(int race, int character, int col, int row)
         if (score < -2) score = -2;                                         \
                                                                             \
         if (score ==  2) {                                                  \
-            mastery_buf[mastery_n].txt = label " mastery";                  \
-            mastery_buf[mastery_n++].col = attr_mastery;                    \
+            BIRTH_PUSH_TRAIT(mastery_buf, mastery_n, label " mastery",      \
+                attr_mastery, 0, (SKILL), score, (PROFICIENCY),             \
+                (AFF_FLAG), (PEN_FLAG), NULL);                              \
         } else if (score == 1) {                                            \
-            affinity_buf[affinity_n].txt = label " affinity";               \
-            affinity_buf[affinity_n++].col = attr_affinity;                 \
+            BIRTH_PUSH_TRAIT(affinity_buf, affinity_n, label " affinity",   \
+                attr_affinity, 0, (SKILL), score, (PROFICIENCY),            \
+                (AFF_FLAG), (PEN_FLAG), NULL);                              \
         } else if (score == -1) {                                           \
-            penalty_buf[penalty_n].txt = label " penalty";                  \
-            penalty_buf[penalty_n++].col = attr_penalty;                    \
+            BIRTH_PUSH_TRAIT(penalty_buf, penalty_n, label " penalty",      \
+                attr_penalty, 1, (SKILL), score, (PROFICIENCY),             \
+                (AFF_FLAG), (PEN_FLAG), NULL);                              \
         } else if (score == -2) {                                           \
-            penalty_buf[penalty_n].txt = label " grand penalty";            \
-            penalty_buf[penalty_n++].col = attr_gr_penalty;                 \
+            BIRTH_PUSH_TRAIT(penalty_buf, penalty_n,                        \
+                label " grand penalty", attr_gr_penalty, 1, (SKILL),        \
+                score, (PROFICIENCY), (AFF_FLAG), (PEN_FLAG), NULL);        \
         }                                                                   \
     } while (0)
 
 
-// New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
-#define HANDLE_UNIQUE(label, FLAG, COLOR, SIDE)                             \
+// New: (label, desc_label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
+#define HANDLE_UNIQUE(label, desc_label, FLAG, COLOR, SIDE)                 \
     do {                                                                    \
         int race_has     = p_info[race].flags & (FLAG);                     \
         int character_has = c_info[character].flags & (FLAG);               \
         if (race_has || character_has) {                                    \
-            unique_buf[unique_n].txt  = label;                              \
-            unique_buf[unique_n].col  = (COLOR);                            \
-            unique_buf[unique_n++].side = (SIDE);                           \
+            BIRTH_PUSH_TRAIT(unique_buf, unique_n, label, (COLOR), (SIDE),  \
+                -1, 0, false, 0, 0, (desc_label));                          \
         }                                                                   \
     } while (0)
 
-// New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
-#define HANDLE_UNIQUE_U(label, FLAG, COLOR, SIDE)                             \
+// New: (label, desc_label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
+#define HANDLE_UNIQUE_U(label, desc_label, FLAG, COLOR, SIDE)               \
     do {                                                                    \
         int character_has = c_info[character].flags_u & (FLAG);             \
         if (character_has) {                                                \
-            unique_buf[unique_n].txt  = label;                              \
-            unique_buf[unique_n].col  = (COLOR);                            \
-            unique_buf[unique_n++].side = (SIDE);                           \
+            BIRTH_PUSH_TRAIT(unique_buf, unique_n, label, (COLOR), (SIDE),  \
+                -1, 0, false, 0, 0, (desc_label));                          \
         }                                                                   \
     } while (0)
 
     // Skills
-    HANDLE_SKILL_EX("melee",      RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
-    HANDLE_SKILL_EX("evasion",    RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
-    HANDLE_SKILL_EX("stealth",    RHF_STL_AFFINITY, RHF_STL_PENALTY);
-    HANDLE_SKILL_EX("archery",    RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
-    HANDLE_SKILL_EX("will",       RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
-    HANDLE_SKILL_EX("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
-    HANDLE_SKILL_EX("smithing",   RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
-    HANDLE_SKILL_EX("song",       RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
-    HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
-    HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("melee",      S_MEL, RHF_MEL_AFFINITY, RHF_MEL_PENALTY, false);
+    HANDLE_SKILL_EX("evasion",    S_EVN, RHF_EVN_AFFINITY, RHF_EVN_PENALTY, false);
+    HANDLE_SKILL_EX("stealth",    S_STL, RHF_STL_AFFINITY, RHF_STL_PENALTY, false);
+    HANDLE_SKILL_EX("archery",    S_ARC, RHF_ARC_AFFINITY, RHF_ARC_PENALTY, false);
+    HANDLE_SKILL_EX("will",       S_WIL, RHF_WIL_AFFINITY, RHF_WIL_PENALTY, false);
+    HANDLE_SKILL_EX("perception", S_PER, RHF_PER_AFFINITY, RHF_PER_PENALTY, false);
+    HANDLE_SKILL_EX("smithing",   S_SMT, RHF_SMT_AFFINITY, RHF_SMT_PENALTY, false);
+    HANDLE_SKILL_EX("song",       S_SNG, RHF_SNG_AFFINITY, RHF_SNG_PENALTY, false);
+    HANDLE_SKILL_EX("bow",        S_ARC, RHF_BOW_PROFICIENCY, 0, true);
+    HANDLE_SKILL_EX("axe",        S_MEL, RHF_AXE_PROFICIENCY, 0, true);
 
     // Unique skills: SIDE = 0 (left), 1 (right)
-    HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE_U("Creator of Galvorn",   UNQ_SMT_EOL,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE_U("One Handed",   UNQ_MEL_MAEDHROS,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE_U("Agarwaen",   UNQ_WIL_TURIN,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE_U("Hidden city",   UNQ_SNG_TURGON,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Oromë Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Ring Master",   UNQ_SMT_CELEBRIMBOR, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Minstrel",   UNQ_MINSTREL, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Woven Master",   UNQ_WOVEN_MASTER, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Master Artisan", "Master Artisan",   UNQ_SMT_FEANOR,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Creator of Galvorn", "Creator of Galvorn",   UNQ_SMT_EOL,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("One Handed", "One Handed",   UNQ_MEL_MAEDHROS,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Agarwaen", "Agarwaen",   UNQ_WIL_TURIN,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Shadow Walker", "Shadow Walker",   UNQ_SNG_TURGON,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Chosen of Ulmo", "Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Indomitable Will", "Indomitable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Oromë Himself", "Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Songs of Power", "Songs of Power",   UNQ_SNG_FIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Elven Dance", "Elven Dance",   UNQ_SNG_LUT, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Girdle of Melian", "Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Creator of Angrist", "Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Old Master", "Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Ring Master", "Ring Master",   UNQ_SMT_CELEBRIMBOR, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Aure entuluva", "Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Voice of the Girdle", "Voice of the Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Forgotten", "Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Minstrel", "Minstrel",   UNQ_MINSTREL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Woven Master", "Woven Master",   UNQ_WOVEN_MASTER, TERM_VIOLET,   1);
 
-    HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1);
+    HANDLE_UNIQUE("Gift of Eru", "Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE("Seafarer", "Seafarer",   RHF_FREE, TERM_VIOLET,   1);
 
-    HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
-    HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
-    HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
-    HANDLE_UNIQUE("Morgoth Curse",   RHF_MOR_CURSE, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Kinslayer", "Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Treacherous", "Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Doom of Mandos", "Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Morgoth Curse", "Morgoth Curse",   RHF_MOR_CURSE, TERM_UMBER,   1); // right
 
     if (compact_layout)
     {
@@ -2737,6 +2953,8 @@ static void print_rh_flags(int race, int character, int col, int row)
                             upper_col_wid, short_trait_lines[i].txt);
                         Term_putstr(upper_col, traits_row + i, -1,
                             short_trait_lines[i].attr, line_buf);
+                        birth_detail_hover_add_trait(upper_col,
+                            traits_row + i, &short_trait_lines[i]);
                     }
 
                     for (int i = 0; i < right_count; ++i)
@@ -2746,6 +2964,8 @@ static void print_rh_flags(int race, int character, int col, int row)
                             upper_col_wid, short_trait_lines[idx].txt);
                         Term_putstr(col2, traits_row + i, -1,
                             short_trait_lines[idx].attr, line_buf);
+                        birth_detail_hover_add_trait(col2, traits_row + i,
+                            &short_trait_lines[idx]);
                     }
                 }
                 else
@@ -2758,8 +2978,12 @@ static void print_rh_flags(int race, int character, int col, int row)
                     draw_lines = (short_trait_n < rows) ? short_trait_n : rows;
 
                     for (int i = 0; i < draw_lines; ++i)
+                    {
                         Term_putstr(upper_col, traits_row + i, -1,
                             short_trait_lines[i].attr, short_trait_lines[i].txt);
+                        birth_detail_hover_add_trait(upper_col,
+                            traits_row + i, &short_trait_lines[i]);
+                    }
                 }
 
                 if (show_ability_heading && ability_line_n > 0)
@@ -2892,6 +3116,8 @@ static void print_rh_flags(int race, int character, int col, int row)
                         strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
                             compact_lines[i].txt);
                         Term_putstr(compact_col, y, -1, compact_lines[i].attr, line_buf);
+                        birth_detail_hover_add_trait(compact_col, y,
+                            &compact_lines[i]);
                     }
 
                     for (int i = 0; i < right_count; ++i)
@@ -2901,6 +3127,8 @@ static void print_rh_flags(int race, int character, int col, int row)
                         strnfmt(line_buf, sizeof(line_buf), "%-*.*s", col_wid, col_wid,
                             compact_lines[idx].txt);
                         Term_putstr(col2, y, -1, compact_lines[idx].attr, line_buf);
+                        birth_detail_hover_add_trait(col2, y,
+                            &compact_lines[idx]);
                     }
                 }
                 else
@@ -2914,8 +3142,12 @@ static void print_rh_flags(int race, int character, int col, int row)
                     draw_lines = (compact_line_n < rows) ? compact_line_n : rows;
 
                     for (int i = 0; i < draw_lines; ++i)
+                    {
                         Term_putstr(compact_col, start_row + i, -1,
                             compact_lines[i].attr, compact_lines[i].txt);
+                        birth_detail_hover_add_trait(compact_col,
+                            start_row + i, &compact_lines[i]);
+                    }
                 }
             }
         }
@@ -2925,23 +3157,44 @@ static void print_rh_flags(int race, int character, int col, int row)
         // Left column
         for (int i = 0; i < unique_n; ++i)
             if (unique_buf[i].side == 0)
-                Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
+            {
+                int y = row + flags_left++;
+                Term_putstr(col, y, -1, unique_buf[i].attr, unique_buf[i].txt);
+                birth_detail_hover_add_trait(col, y, &unique_buf[i]);
+            }
         for (int i = 0; i < mastery_n;  ++i)
-            Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
+        {
+            int y = row + flags_left++;
+            Term_putstr(col, y, -1, mastery_buf[i].attr, mastery_buf[i].txt);
+            birth_detail_hover_add_trait(col, y, &mastery_buf[i]);
+        }
         for (int i = 0; i < affinity_n; ++i)
-            Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+        {
+            int y = row + flags_left++;
+            Term_putstr(col, y, -1, affinity_buf[i].attr, affinity_buf[i].txt);
+            birth_detail_hover_add_trait(col, y, &affinity_buf[i]);
+        }
 
         // Right column
         for (int i = 0; i < unique_n; ++i)
             if (unique_buf[i].side == 1)
-                Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
+            {
+                int y = row + flags_right++;
+                Term_putstr(col_pen, y, -1, unique_buf[i].attr, unique_buf[i].txt);
+                birth_detail_hover_add_trait(col_pen, y, &unique_buf[i]);
+            }
         for (int i = 0; i < penalty_n; ++i)
-            Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+        {
+            int y = row + flags_right++;
+            Term_putstr(col_pen, y, -1, penalty_buf[i].attr, penalty_buf[i].txt);
+            birth_detail_hover_add_trait(col_pen, y, &penalty_buf[i]);
+        }
     }
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
 #undef HANDLE_UNIQUE_U
+#undef BIRTH_PUSH_TRAIT
 
 if (!compact_layout)
 {
@@ -2968,7 +3221,17 @@ if (!compact_layout)
             max_lines = ability_line_n;
 
         for (int slot = 0; slot < max_lines; slot++)
-            Term_putstr(x, y++, -1, TERM_YELLOW, ability_lines[slot]);
+        {
+            char desc[640];
+
+            Term_putstr(x, y, -1, TERM_YELLOW, ability_lines[slot]);
+            birth_format_ability_hint(ability_skills[slot], ability_ids[slot],
+                desc, sizeof(desc));
+            if (desc[0])
+                birth_detail_hover_add(x, y, (int)strlen(ability_lines[slot]),
+                    desc);
+            y++;
+        }
     }
 }
 }
@@ -3181,6 +3444,13 @@ static void character_aux_hook(birth_menu c_str)
             attr = TERM_L_BLUE;
 
         Term_putstr(TOTAL_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
+        {
+            char desc[256];
+
+            character_sheet_format_stat_hint(i, adj, true, desc,
+                sizeof(desc));
+            birth_detail_hover_add(TOTAL_AUX_COL, TABLE_ROW + i, 8, desc);
+        }
     }
     // Check dead
     // if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, QUESTION_ROW + A_MAX + 7, -1, TERM_RED,
