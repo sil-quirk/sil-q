@@ -5442,42 +5442,14 @@ static int sdl_max_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
 static int sdl_min_main_view_zoom_scale_for_layout(const SDL_Rect* screen,
     int mode)
 {
-    int map_wid;
-    int map_hgt;
     int floor = sdl_main_view_scale_floor_for_mode(mode);
 
     if (!screen || !sdl_rect_has_area(screen))
         return floor;
     if (!sdl_min_terminal_mode_is_valid(mode))
         return floor;
-    if (!character_dungeon || !p_ptr || p_ptr->cur_map_wid <= 0
-        || p_ptr->cur_map_hgt <= 0)
-    {
-        return floor;
-    }
 
-    map_wid = p_ptr->cur_map_wid;
-    map_hgt = p_ptr->cur_map_hgt;
-
-    for (int scale = floor;
-         scale <= SDL_MAIN_VIEW_MAX_SCALE; scale++) {
-        int cols = 0;
-        int rows = 0;
-        int map_cols;
-        int map_rows;
-
-        sdl_compute_pruned_split_panes_for_mode_ex(screen, mode, scale, false,
-            NULL, NULL, NULL, &cols, &rows, NULL);
-        map_cols = sdl_main_view_map_cols_for_terminal_cols(cols);
-        map_rows = sdl_main_view_map_rows_for_terminal_rows(rows);
-        if (map_cols > 0 && map_rows > 0
-            && map_cols <= map_wid && map_rows <= map_hgt)
-        {
-            return scale;
-        }
-    }
-
-    return SDL_MAIN_VIEW_MAX_SCALE;
+    return floor;
 }
 
 static int sdl_max_scale_for_window_mode(int mode)
@@ -10760,8 +10732,11 @@ static bool sdl_main_screen_set_main_view_scale_target(int scale)
         return true;
 
     sdl_apply_runtime_zoom();
-    if (character_dungeon)
+    if (character_dungeon && p_ptr) {
+        (void)modify_panel(p_ptr->py - SCREEN_HGT / 2,
+            p_ptr->px - SCREEN_WID / 2);
         Term_keypress(KTRL('R'));
+    }
 
     log_debug("main scale target change %d->%d completed in %llu ms",
         old_scale, get_sdl_effective_main_view_scale(),
@@ -10796,27 +10771,6 @@ static bool sdl_main_map_point_to_drag_map(float x, float y)
     return sdl_main_view_point_to_map(x, y, &map_y, &map_x);
 }
 
-static void sdl_main_map_constrain_viewport(int* wy, int* wx)
-{
-    int max_wy;
-    int max_wx;
-
-    if (!wy || !wx || !p_ptr)
-        return;
-
-    max_wy = MAX(p_ptr->cur_map_hgt - SCREEN_HGT, 0);
-    max_wx = MAX(p_ptr->cur_map_wid - SCREEN_WID, 0);
-
-    if (*wy < 0)
-        *wy = 0;
-    if (*wy > max_wy)
-        *wy = max_wy;
-    if (*wx < 0)
-        *wx = 0;
-    if (*wx > max_wx)
-        *wx = max_wx;
-}
-
 static bool sdl_main_map_apply_pan(int pan_dy, int pan_dx)
 {
     int new_wy;
@@ -10827,7 +10781,6 @@ static bool sdl_main_map_apply_pan(int pan_dy, int pan_dx)
 
     new_wy = p_ptr->wy + pan_dy;
     new_wx = p_ptr->wx + pan_dx;
-    sdl_main_map_constrain_viewport(&new_wy, &new_wx);
     if (!modify_panel(new_wy, new_wx))
         return true;
 
@@ -32027,6 +31980,8 @@ static void sdl_draw_rage_tile_filter(byte a, char c, int y, int x,
 static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     char tc, const SDL_FRect* dst)
 {
+    bool terrain_tile = (ta & TILE_FLAG) && (((byte)tc) & TILE_FLAG);
+    bool base_tile = (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
     bool glow = (a & GRAPHICS_GLOW_MASK) != 0;
     bool alert = (((byte)c) & GRAPHICS_ALERT_MASK) != 0;
     bool seen = (((byte)tc) & GRAPHICS_SEEN_MASK) != 0;
@@ -32044,8 +31999,12 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
         return;
     }
 
+    if (!terrain_tile && !base_tile)
+        return;
+
     /* Terrain underlay */
-    sdl_draw_tileset_sprite(ta, tc, dst, false);
+    if (terrain_tile)
+        sdl_draw_tileset_sprite(ta, tc, dst, false);
     if (sdl_rage_wall_tint_active(dy, dx) && (cave_m_idx[dy][dx] != 0))
         sdl_draw_rage_tile_filter(ta, tc, dy, dx, dst);
     else if (sdl_rage_floor_tint_active(dy, dx))
@@ -32128,7 +32087,7 @@ static void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     }
 
     /* Base tile */
-    {
+    if (base_tile) {
         byte draw_a = a;
         SDL_FlipMode flip = SDL_FLIP_NONE;
 
@@ -37821,11 +37780,8 @@ static int get_sdl_min_main_view_zoom_scale(void)
     min_scale = sdl_min_main_view_zoom_scale_for_layout(&screen,
         config.min_terminal_mode);
 
-    log_debug("get_sdl_min_main_view_zoom_scale: layout=(%d,%d %dx%d) map=%dx%d min_scale=%d",
-              screen.x, screen.y, screen.w, screen.h,
-              (character_dungeon && p_ptr) ? p_ptr->cur_map_wid : 0,
-              (character_dungeon && p_ptr) ? p_ptr->cur_map_hgt : 0,
-              min_scale);
+    log_debug("get_sdl_min_main_view_zoom_scale: layout=(%d,%d %dx%d) min_scale=%d",
+              screen.x, screen.y, screen.w, screen.h, min_scale);
 
     return min_scale;
 }

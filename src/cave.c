@@ -2788,12 +2788,18 @@ void prt_map(void)
     {
         for (x = p_ptr->wx, vx = COL_MAP; x < tx; vx += cell_w, x++)
         {
-            /* Check bounds */
-            if (!in_bounds(y, x))
-                continue;
-
             if (hidden_left_panel_masked_span(vy, vx, cell_w))
                 continue;
+
+            /* Check bounds */
+            if (!in_bounds(y, x))
+            {
+                Term_queue_char(vx, vy, TERM_DARK, ' ', TERM_DARK, ' ');
+                if (use_bigtile)
+                    Term_queue_char(vx + 1, vy, TERM_DARK, ' ', TERM_DARK,
+                        ' ');
+                continue;
+            }
 
             /* Determine what is there */
             map_info(y, x, &a, &c, &ta, &tc);

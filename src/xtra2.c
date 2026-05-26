@@ -3151,7 +3151,8 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
 
 /*
  * Modify the current panel to the given coordinates, adjusting only to
- * ensure the coordinates are legal, and return true if anything done.
+ * keep the viewport within the useful off-map scroll range, and return true
+ * if anything done.
  *
  * Hack -- The surface should never be scrolled around.
  *
@@ -3162,21 +3163,27 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
  */
 bool modify_panel(int wy, int wx)
 {
+    int min_wy = -(SCREEN_HGT / 2);
+    int min_wx = -(SCREEN_WID / 2);
+    int max_wy = p_ptr->cur_map_hgt - 1 - (SCREEN_HGT / 2);
+    int max_wx = p_ptr->cur_map_wid - 1 - (SCREEN_WID / 2);
+
+    if (max_wy < min_wy)
+        max_wy = min_wy;
+    if (max_wx < min_wx)
+        max_wx = min_wx;
+
     /* Verify wy, adjust if needed */
-    if (p_ptr->cur_map_hgt < SCREEN_HGT)
-        wy = 0;
-    else if (wy > p_ptr->cur_map_hgt - SCREEN_HGT)
-        wy = p_ptr->cur_map_hgt - SCREEN_HGT;
-    if (wy < 0)
-        wy = 0;
+    if (wy < min_wy)
+        wy = min_wy;
+    else if (wy > max_wy)
+        wy = max_wy;
 
     /* Verify wx, adjust if needed */
-    if (p_ptr->cur_map_wid < SCREEN_WID)
-        wx = 0;
-    else if (wx > p_ptr->cur_map_wid - SCREEN_WID)
-        wx = p_ptr->cur_map_wid - SCREEN_WID;
-    if (wx < 0)
-        wx = 0;
+    if (wx < min_wx)
+        wx = min_wx;
+    else if (wx > max_wx)
+        wx = max_wx;
 
     /* React to changes */
     if ((p_ptr->wy != wy) || (p_ptr->wx != wx))

@@ -41,6 +41,9 @@ void display_light_map(void)
         {
             byte a;
 
+            if (!in_bounds(y, x))
+                continue;
+
             int light = cave_light[y][x];
 
             /* Pretty colors by level */
@@ -82,6 +85,9 @@ void display_scent_map(void)
     {
         for (x = p_ptr->wx; x < p_ptr->wx + SCREEN_WID; x++)
         {
+            if (!in_bounds(y, x))
+                continue;
+
             age = get_scent(y, x);
 
             /* Must have scent */

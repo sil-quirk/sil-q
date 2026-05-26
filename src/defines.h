@@ -3434,7 +3434,8 @@
  * Pre-storing this into a cave_info flag would be nice.  XXX XXX
  */
 #define panel_contains(Y, X)                                                   \
-    (((unsigned)((Y)-p_ptr->wy) < (unsigned)(SCREEN_HGT))                      \
+    (in_bounds((Y), (X))                                                       \
+        && ((unsigned)((Y)-p_ptr->wy) < (unsigned)(SCREEN_HGT))                \
         && ((unsigned)((X)-p_ptr->wx) < (unsigned)(SCREEN_WID)))
 
 /*

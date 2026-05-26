@@ -4216,8 +4216,9 @@ static void dungeon(void)
     }
 
     /* Choose panel */
-    log_debug("Verifying panel position");
-    verify_panel();
+    log_debug("Centering initial panel on player");
+    (void)modify_panel(p_ptr->py - SCREEN_HGT / 2,
+        p_ptr->px - SCREEN_WID / 2);
 
     /* Flush messages */
     log_debug("Flushing messages");
