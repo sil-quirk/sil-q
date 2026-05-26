@@ -19958,6 +19958,7 @@ void do_cmd_messages_with_filter(int initial_filter)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_terminal_menu_scale();
 
     /* Get size after any hidden-pane layout change */
     Term_get_size(&wid, &hgt);
@@ -20303,6 +20304,7 @@ void do_cmd_messages_with_filter(int initial_filter)
     ui_menu_click_clear();
 
     /* Load screen */
+    sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
 }

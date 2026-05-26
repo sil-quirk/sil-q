@@ -1625,6 +1625,7 @@ void show_scores(bool longscore)
              preview_allowed ? 1 : 0);
 
     sdl_suspend_main_view_zoom_for_saved_screen();
+    sdl_push_terminal_menu_scale();
 
     high_score ordered_by_score[MAX_HISCORES + 1];
     high_score ordered_by_time[MAX_HISCORES + 1];
@@ -1736,6 +1737,7 @@ void show_scores(bool longscore)
         break;
     }
     screen_pop_supporting_panes_hidden();
+    sdl_pop_terminal_menu_scale();
     sdl_resume_main_view_zoom_for_saved_screen();
 
     forced_highlight_active = false;
