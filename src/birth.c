@@ -1282,6 +1282,46 @@ static int birth_wrap_col(int indent)
     return wid - 1;
 }
 
+static cptr birth_wrap_line(cptr text, int width, char *buf, size_t buflen);
+
+/*
+ * UTF-8 text is stored as bytes in Term but packed into display cells by SDL.
+ * Force rows that mix old/new accented text to repaint even when byte cells
+ * look unchanged.
+ */
+static void birth_invalidate_cells(int col, int row, int width)
+{
+    if (!Term || !Term->old || row < 0 || row >= Term->hgt || width <= 0)
+        return;
+    if (col < 0)
+    {
+        width += col;
+        col = 0;
+    }
+    if (col >= Term->wid || width <= 0)
+        return;
+    if (col + width > Term->wid)
+        width = Term->wid - col;
+
+    for (int x = col; x < col + width; x++)
+    {
+        Term->old->a[row][x] = 255;
+        Term->old->c[row][x] = 0;
+        Term->old->ta[row][x] = 255;
+        Term->old->tc[row][x] = 0;
+        Term->old->story[row][x] = 255;
+    }
+
+    if (row < Term->y1)
+        Term->y1 = row;
+    if (row > Term->y2)
+        Term->y2 = row;
+    if (col < Term->x1[row])
+        Term->x1[row] = col;
+    if (col + width - 1 > Term->x2[row])
+        Term->x2[row] = col + width - 1;
+}
+
 static int birth_utf8_prefix_len(cptr text, int max_cols)
 {
     int bytes = 0;
@@ -1319,15 +1359,38 @@ static int birth_wrapped_line_count(cptr text, int indent)
 
 static void birth_put_wrapped_text(byte attr, cptr text, int row, int col)
 {
+    int wid = 80;
+    int hgt = 24;
+    int width;
+    char line_buf[512];
+    cptr rest;
+
     if (!text || !text[0])
         return;
 
-    text_out_wrap = birth_wrap_col(col);
-    text_out_indent = col;
-    Term_gotoxy(col, row);
-    text_out_to_screen(attr, text);
-    text_out_wrap = 0;
-    text_out_indent = 0;
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+    if (col < 0)
+        col = 0;
+    if (col >= wid || row >= hgt)
+        return;
+
+    width = birth_wrap_col(col) - col;
+    if (width < 1)
+        width = 1;
+
+    rest = text;
+    while (rest && rest[0] && row < hgt)
+    {
+        rest = birth_wrap_line(rest, width, line_buf, sizeof(line_buf));
+        Term_erase(col, row, width);
+        Term_putstr(col, row, -1, attr, line_buf);
+        birth_invalidate_cells(col, row, width);
+        row++;
+    }
 }
 
 static void birth_put_str_fit(byte attr, cptr text, int row, int col)
@@ -3125,7 +3188,9 @@ static void character_aux_hook(birth_menu c_str)
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
     char pretty_name[40];
+    bool pretty_name_has_utf8;
     strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[character_idx].name, c_name + c_info[character_idx].alt_name); 
+    pretty_name_has_utf8 = utf8_has_non_ascii(pretty_name);
     
     /* Add power stars to the character name */
     char power_stars[16];
@@ -3172,9 +3237,21 @@ static void character_aux_hook(birth_menu c_str)
     name_col = aligned_name_fits ? TOTAL_AUX_COL : fallback_name_col;
 
     Term_putstr(name_col, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    Term_putstr(name_col
-        + utf8_display_width_n(pretty_name, (int)strlen(pretty_name)),
-        HEADER_ROW, -1, star_attr, power_stars);
+    if (pretty_name_has_utf8)
+    {
+        cptr star_text = (power_stars[0] == ' ') ? power_stars + 1 : power_stars;
+
+        Term_putstr(name_col + (int)strlen(pretty_name), HEADER_ROW, -1,
+            star_attr, star_text);
+    }
+    else
+    {
+        Term_putstr(name_col
+            + utf8_display_width_n(pretty_name, (int)strlen(pretty_name)),
+            HEADER_ROW, -1, star_attr, power_stars);
+    }
+    birth_invalidate_cells(fallback_name_col, HEADER_ROW,
+        term_wid - fallback_name_col);
     
     {
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
