@@ -12464,10 +12464,10 @@ static bool sdl_mouse_path_handle_right_click(float x, float y)
 
     if (map_y != p_ptr->py || map_x != p_ptr->px)
     {
-        if (sdl_mouse_grid_has_describable_content(map_y, map_x))
-            return false;
         if (sdl_mouse_feature_action_queue_grid(map_y, map_x))
             return true;
+        if (sdl_mouse_grid_has_describable_content(map_y, map_x))
+            return false;
         return false;
     }
 
@@ -15162,15 +15162,15 @@ static bool sdl_map_touch_flush_pending_press(Uint64 now_ns)
     if (map_y == p_ptr->py && map_x == p_ptr->px)
         return sdl_player_action_menu_open();
 
+    if (sdl_mouse_feature_action_queue_grid(map_y, map_x))
+        return true;
+
     if (sdl_mouse_grid_has_describable_content(map_y, map_x))
     {
         if (!sdl_mouse_recall_handle_right_click(x, y))
             sdl_mouse_path_cancel();
         return true;
     }
-
-    if (sdl_mouse_feature_action_queue_grid(map_y, map_x))
-        return true;
 
     if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_LONG_PRESS_ONLY)
         return sdl_mouse_path_start_follow_grid(map_y, map_x);

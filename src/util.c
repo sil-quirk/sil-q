@@ -5446,8 +5446,7 @@ void request_command(void)
         act = keymap_act[mode][(byte)(ch)];
 
         /* Apply keymap if not inside a keymap already */
-        /* Skip Space keymap if space_acts_as_comma option is disabled */
-        if (act && !inkey_next && !((ch == ' ') && !space_acts_as_comma))
+        if (act && !inkey_next && ((ch != ' ') || space_acts_as_comma))
         {
             /* Install the keymap */
             SDL_strlcpy(

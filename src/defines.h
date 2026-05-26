@@ -3071,7 +3071,7 @@
 #define more_stairs op_ptr->opt[OPT_more_stairs]
 #define display_hits op_ptr->opt[OPT_display_hits]
 #define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
-#define space_acts_as_comma false
+#define space_acts_as_comma true
 /* Level entry narrative display modes. Keep 0 as banner for old save compatibility. */
 #define LEVEL_ENTRY_NARRATIVE_BANNER_DELAY    0
 #define LEVEL_ENTRY_NARRATIVE_BANNER          1
