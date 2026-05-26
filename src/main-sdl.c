@@ -7323,6 +7323,7 @@ static void sdl_main_menu_overlay_move(int delta)
 static void sdl_main_menu_overlay_choose(int choice)
 {
     bool executed;
+    bool restore_command_wait;
 
     if (choice < 1 || choice > MAIN_MENU_MAX)
         return;
@@ -7336,7 +7337,15 @@ static void sdl_main_menu_overlay_choose(int choice)
 
     sdl_main_menu_overlay_close();
     log_debug("sdl main menu overlay: executing choice %d", choice);
+    restore_command_wait = inkey_flag;
     executed = do_cmd_main_menu_execute_choice(choice);
+    /* The SDL overlay can execute modal screens while request_command() is
+     * still blocked in an outer inkey(). Those modal screens call inkey()
+     * themselves, whose cleanup clears inkey_flag and leaves pointer command
+     * shortcuts inactive until the next physical keypress. Restore the outer
+     * command-wait state after returning from the menu action. */
+    if (restore_command_wait && character_icky == 0)
+        inkey_flag = true;
 
     if (executed && choice == MAIN_MENU_SAVE_QUIT
         && (sdl_quit_transition_active() || death_spectator_active()))
