@@ -760,6 +760,48 @@ typedef struct welcome_touch_press_state {
     float start_y;
 } welcome_touch_press_state;
 
+typedef enum sdl_welcome_screen_mode {
+    SDL_WELCOME_SCREEN_HIDDEN = 0,
+    SDL_WELCOME_SCREEN_INTRO,
+    SDL_WELCOME_SCREEN_MENU,
+    SDL_WELCOME_SCREEN_LOADING
+} sdl_welcome_screen_mode;
+
+typedef enum sdl_welcome_line_role {
+    SDL_WELCOME_LINE_QUOTE = 0,
+    SDL_WELCOME_LINE_ATTRIBUTION,
+    SDL_WELCOME_LINE_SONG_ATTRIBUTION,
+    SDL_WELCOME_LINE_TITLE,
+    SDL_WELCOME_LINE_SUBTITLE,
+    SDL_WELCOME_LINE_BODY,
+    SDL_WELCOME_LINE_ACTION
+} sdl_welcome_line_role;
+
+typedef struct sdl_welcome_intro_line {
+    int row;
+    byte attr;
+    sdl_welcome_line_role role;
+    const char* text;
+} sdl_welcome_intro_line;
+
+typedef struct sdl_welcome_screen_state {
+    sdl_welcome_screen_mode mode;
+    int intro_style;
+    bool show_wizard;
+    bool new_metarun;
+    bool hover_continue;
+    bool hover_quit;
+    char status[160];
+    SDL_FRect continue_rect;
+    SDL_FRect quit_rect;
+} sdl_welcome_screen_state;
+
+typedef struct sdl_welcome_picture_bounds {
+    bool any;
+    float left;
+    float right;
+} sdl_welcome_picture_bounds;
+
 typedef struct touch_zone_press_state {
     bool active;
     SDL_FingerID finger_id;
@@ -1356,6 +1398,10 @@ static SDL_MouseID g_touch_mouse_fallback_mouse_id = 0;
 static bool g_handheld_untagged_mouse_fallback_logged = false;
 static touch_swipe_state g_touch_swipe;
 static welcome_touch_press_state g_welcome_touch_press;
+static sdl_welcome_screen_state g_sdl_welcome_screen = {
+    .mode = SDL_WELCOME_SCREEN_HIDDEN,
+    .intro_style = INTRO_STYLE_FLAME
+};
 static touch_zone_press_state g_touch_zone_press;
 static touch_top_panel_press_state g_touch_top_panel_press;
 static touch_round_press_state g_touch_round_press;
@@ -1689,6 +1735,7 @@ static bool sdl_welcome_touch_handle_pointer_down(float x, float y, SDL_FingerID
 static bool sdl_welcome_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 static bool sdl_welcome_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
 static void sdl_welcome_touch_cancel_press(void);
+static bool sdl_welcome_screen_handle_pointer_motion(float x, float y);
 static bool sdl_pointer_activate_welcome_screen_at(float x, float y);
 static bool sdl_pointer_activate_welcome_screen(void);
 static bool sdl_pointer_dismiss_any_key_prompt(void);
@@ -7014,6 +7061,984 @@ static float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     SDL_DestroyTexture(texture);
     SDL_DestroySurface(surface);
     return dst.w;
+}
+
+enum {
+    SDL_WELCOME_CANVAS_COLS = 80,
+    SDL_WELCOME_CANVAS_ROWS = 24,
+    SDL_WELCOME_BASE_COL = 14,
+    SDL_WELCOME_TITLE_COL = 22,
+    SDL_WELCOME_SUBTITLE_COL = 20,
+    SDL_WELCOME_ATTRIBUTION_COL = 34,
+    SDL_WELCOME_SONG_ATTRIBUTION_COL = 28,
+    SDL_WELCOME_TEXT_MAX_COLS = 66,
+    SDL_WELCOME_FONT_SCALE_PERCENT = 125,
+    SDL_WELCOME_PROMPT_ROW = 23,
+    SDL_WELCOME_SEPARATOR_ROW = 21,
+    SDL_WELCOME_WIZARD_ROW = 20
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
+    { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"In the beginning Eru, the One," },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  made the Ainur of his thought;" },
+    { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  and they sang, and he was glad.\"" },
+    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Ainulindalë" },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "In the deeps of Angband, beyond" },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "gates of iron and pits of flame," },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Morgoth hoards the Silmarils --" },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "three jewels of living light." },
+    { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Take up blade and burden. Descend." },
+    { 15, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Oaths, quests, blessings of the Valar" },
+    { 16, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "await in the First Age reborn." },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_feanor[] = {
+    { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE, "\"Be he foe or friend," },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  be he foul or clean..." },
+    { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  he shall defend, shall be held mine.\"" },
+    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Oath of Fëanor" },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "In the pits beneath the mountains" },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Morgoth broods upon his throne." },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Three jewels burn upon his crown --" },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "stolen light that is not his own." },
+    { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Take up blade and burden. Descend." },
+    { 15, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Oaths, quests, blessings of the Valar" },
+    { 16, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "await in the First Age reborn." },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_twilight[] = {
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Before the Sun and Moon were wrought" },
+    { 5, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "the Eldar walked by starlight alone." },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Now shadow stirs beneath the earth" },
+    { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "where Morgoth sits upon his throne." },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Three jewels blaze upon his crown --" },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "stolen fire none may reclaim..." },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "unless one dares the iron dark" },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "and walks through everlasting flame." },
+    { 14, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"...and the light that blazed in them" },
+    { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  no power could dim or mar.\"" },
+    { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Of the Silmarils" },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_luthien[] = {
+    { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"The leaves were long, the grass was green," },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  the hemlock-umbels tall and fair," },
+    { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  and in the glade a light was seen" },
+    { 4, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  of stars in shadow shimmering.\"" },
+    { 5, TERM_SLATE, SDL_WELCOME_LINE_SONG_ATTRIBUTION,
+        "-- Of Beren and Lúthien" },
+    { 7, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 8, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Even in the deepest dark, a song" },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "may still undo the mightiest door." },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Dare the throne-hall of the Enemy" },
+    { 13, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "and seize what Morgoth stole of old." },
+    { 15, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Oaths, quests, blessings of the Valar" },
+    { 16, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "await in the First Age reborn." },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_hurin[] = {
+    { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"The day shall come again when you" },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  shall see the Sun once more.\"" },
+    { 3, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Words of Húrin" },
+    { 5, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 6, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 8, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "No chain can hold a will unbroken." },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Though Morgoth's shadow covers all," },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "the free may still defy the dark" },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "and wrest a jewel from his crown." },
+    { 13, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Take up blade and burden. Descend." },
+    { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "Oaths, quests, blessings of the Valar" },
+    { 15, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
+        "await in the First Age reborn." },
+    { 16, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE, "\"Aure entuluva!\"" },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_starlight[] = {
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "By silver waters Elves first woke" },
+    { 5, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "beneath the stars ere morning broke." },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "No sun had risen, no moon shone --" },
+    { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "just heaven's light on lake and stone." },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Then Morgoth's shadow veiled the land" },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "and stole the Light with iron hand." },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Yet still a whisper stirs the deep:" },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "what darkness took, the bold may reap." },
+    { 14, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"...the starlight glittered" },
+    { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  on the waters of Cuiviénen.\"" },
+    { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION,
+        "-- Of the Coming of the Elves" },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line g_sdl_welcome_intro_noldor[] = {
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
+        "~ Shining  Darkness ~" },
+    { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "In Valinor the Two Trees shone" },
+    { 5, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "with gold and silver, leaf and bough." },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Their mingled light is dead and gone --" },
+    { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "the world lies under shadow now." },
+    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Across the ice the exiles came," },
+    { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "the Noldor burning with their oath." },
+    { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "They traded bliss for grief and flame" },
+    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "and lost the blessing of them both." },
+    { 14, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "\"...and the Noldor wept" },
+    { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
+        "  for the beauty of Telperion and Laurelin.\"" },
+    { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION,
+        "-- Of the Darkening of Valinor" },
+    { 0, 0, 0, NULL }
+};
+
+static const sdl_welcome_intro_line* sdl_welcome_intro_lines_for_style(
+    int intro_style)
+{
+    switch (intro_style)
+    {
+    case INTRO_STYLE_FEANOR: return g_sdl_welcome_intro_feanor;
+    case INTRO_STYLE_TWILIGHT: return g_sdl_welcome_intro_twilight;
+    case INTRO_STYLE_LUTHIEN: return g_sdl_welcome_intro_luthien;
+    case INTRO_STYLE_HURIN: return g_sdl_welcome_intro_hurin;
+    case INTRO_STYLE_STARLIGHT: return g_sdl_welcome_intro_starlight;
+    case INTRO_STYLE_NOLDOLANTE: return g_sdl_welcome_intro_noldor;
+    case INTRO_STYLE_FLAME:
+    default: return g_sdl_welcome_intro_flame;
+    }
+}
+
+static SDL_Color sdl_welcome_color(byte attr, byte alpha)
+{
+    SDL_Color color;
+
+    color.r = angband_color_table[attr][1];
+    color.g = angband_color_table[attr][2];
+    color.b = angband_color_table[attr][3];
+    color.a = alpha;
+    return color;
+}
+
+static bool sdl_welcome_screen_available(void)
+{
+    return g_state.window && g_state.renderer;
+}
+
+static void sdl_welcome_screen_clear_hits(void)
+{
+    g_sdl_welcome_screen.continue_rect = (SDL_FRect){ 0 };
+    g_sdl_welcome_screen.quit_rect = (SDL_FRect){ 0 };
+}
+
+static void sdl_welcome_screen_mark_dirty(void)
+{
+    if (sdl_welcome_screen_available())
+        g_state.need_present = true;
+}
+
+static int sdl_welcome_screen_normalize_intro_style(int intro_style)
+{
+    if (intro_style < INTRO_STYLE_FLAME || intro_style >= INTRO_STYLE_MAX)
+        return INTRO_STYLE_FLAME;
+
+    return intro_style;
+}
+
+bool sdl_welcome_screen_active(void)
+{
+    return g_sdl_welcome_screen.mode != SDL_WELCOME_SCREEN_HIDDEN;
+}
+
+bool sdl_welcome_screen_show_intro(int intro_style, bool show_wizard)
+{
+    if (!sdl_welcome_screen_available())
+        return false;
+
+    g_sdl_welcome_screen.mode = SDL_WELCOME_SCREEN_INTRO;
+    g_sdl_welcome_screen.intro_style =
+        sdl_welcome_screen_normalize_intro_style(intro_style);
+    g_sdl_welcome_screen.show_wizard = show_wizard;
+    g_sdl_welcome_screen.new_metarun = false;
+    g_sdl_welcome_screen.hover_continue = false;
+    g_sdl_welcome_screen.hover_quit = false;
+    SDL_strlcpy(g_sdl_welcome_screen.status, "Loading...",
+        sizeof(g_sdl_welcome_screen.status));
+    sdl_welcome_screen_clear_hits();
+    sdl_welcome_screen_mark_dirty();
+    return true;
+}
+
+bool sdl_welcome_screen_show_menu(bool show_wizard, bool new_metarun)
+{
+    if (!sdl_welcome_screen_available())
+        return false;
+
+    g_sdl_welcome_screen.mode = SDL_WELCOME_SCREEN_MENU;
+    g_sdl_welcome_screen.show_wizard = show_wizard;
+    g_sdl_welcome_screen.new_metarun = new_metarun;
+    g_sdl_welcome_screen.status[0] = '\0';
+    sdl_welcome_screen_clear_hits();
+    sdl_welcome_screen_mark_dirty();
+    return true;
+}
+
+bool sdl_welcome_screen_set_status(cptr status)
+{
+    if (!sdl_welcome_screen_available() || !sdl_welcome_screen_active())
+        return false;
+
+    SDL_strlcpy(g_sdl_welcome_screen.status, status ? status : "",
+        sizeof(g_sdl_welcome_screen.status));
+    sdl_welcome_screen_mark_dirty();
+    return true;
+}
+
+bool sdl_welcome_screen_show_loading(cptr status)
+{
+    if (!sdl_welcome_screen_available())
+        return false;
+
+    g_sdl_welcome_screen.mode = SDL_WELCOME_SCREEN_LOADING;
+    SDL_strlcpy(g_sdl_welcome_screen.status,
+        (status && status[0]) ? status : "Loading...",
+        sizeof(g_sdl_welcome_screen.status));
+    g_sdl_welcome_screen.hover_continue = false;
+    g_sdl_welcome_screen.hover_quit = false;
+    sdl_welcome_screen_clear_hits();
+    sdl_welcome_screen_mark_dirty();
+    return true;
+}
+
+void sdl_welcome_screen_hide(void)
+{
+    if (!sdl_welcome_screen_active())
+        return;
+
+    g_sdl_welcome_screen.mode = SDL_WELCOME_SCREEN_HIDDEN;
+    g_sdl_welcome_screen.status[0] = '\0';
+    g_sdl_welcome_screen.hover_continue = false;
+    g_sdl_welcome_screen.hover_quit = false;
+    sdl_welcome_screen_clear_hits();
+    sdl_welcome_screen_mark_dirty();
+}
+
+static int sdl_welcome_col_for_role(sdl_welcome_line_role role)
+{
+    switch (role)
+    {
+    case SDL_WELCOME_LINE_TITLE: return SDL_WELCOME_TITLE_COL;
+    case SDL_WELCOME_LINE_SUBTITLE: return SDL_WELCOME_SUBTITLE_COL;
+    case SDL_WELCOME_LINE_ATTRIBUTION: return SDL_WELCOME_ATTRIBUTION_COL;
+    case SDL_WELCOME_LINE_SONG_ATTRIBUTION:
+        return SDL_WELCOME_SONG_ATTRIBUTION_COL;
+    case SDL_WELCOME_LINE_QUOTE:
+    case SDL_WELCOME_LINE_BODY:
+    case SDL_WELCOME_LINE_ACTION:
+    default: return SDL_WELCOME_BASE_COL;
+    }
+}
+
+static int sdl_welcome_font_px_for_canvas(const SDL_Rect* canvas)
+{
+    int pixel_height;
+
+    if (!canvas || canvas->h <= 0)
+        return 0;
+
+    pixel_height = (int)(((float)canvas->h
+        / (float)SDL_WELCOME_CANVAS_ROWS)
+        * (float)SDL_WELCOME_FONT_SCALE_PERCENT / 100.0f + 0.5f);
+    return MAX(1, pixel_height);
+}
+
+static float sdl_welcome_cell_width(const SDL_Rect* canvas)
+{
+    return canvas ? (float)canvas->w / (float)SDL_WELCOME_CANVAS_COLS : 0.0f;
+}
+
+static float sdl_welcome_cell_height(const SDL_Rect* canvas)
+{
+    return canvas ? (float)canvas->h / (float)SDL_WELCOME_CANVAS_ROWS : 0.0f;
+}
+
+static float sdl_welcome_text_target_height(const SDL_Rect* canvas)
+{
+    return sdl_welcome_cell_height(canvas)
+        * (float)SDL_WELCOME_FONT_SCALE_PERCENT / 100.0f;
+}
+
+static float sdl_welcome_text_scale(const SDL_Rect* canvas, int max_cols,
+    int text_w, int text_h)
+{
+    float cell_w = sdl_welcome_cell_width(canvas);
+    float target_h = sdl_welcome_text_target_height(canvas);
+    float max_w;
+    float scale;
+
+    if (text_w <= 0 || text_h <= 0 || cell_w <= 0.0f || target_h <= 0.0f)
+        return 0.0f;
+
+    if (max_cols <= 0 || max_cols > SDL_WELCOME_CANVAS_COLS)
+        max_cols = SDL_WELCOME_CANVAS_COLS;
+
+    max_w = (float)max_cols * cell_w;
+    scale = target_h / (float)text_h;
+    if (max_w > 0.0f && (float)text_w * scale > max_w)
+        scale = max_w / (float)text_w;
+
+    return scale;
+}
+
+static SDL_FRect sdl_welcome_measure_story_text(const SDL_Rect* canvas, int col,
+    int row, int max_cols, cptr text)
+{
+    SDL_FRect hit = { 0 };
+    TTF_Font* font;
+    int text_w = 0;
+    int font_h;
+    float cell_w;
+    float cell_h;
+    float scale;
+    int font_px;
+
+    if (!canvas || !sdl_rect_has_area(canvas) || !text || !text[0])
+        return hit;
+    if (row < 0 || row >= SDL_WELCOME_CANVAS_ROWS
+        || col >= SDL_WELCOME_CANVAS_COLS)
+    {
+        return hit;
+    }
+    if (col < 0)
+        col = 0;
+    if (max_cols <= 0 || col + max_cols > SDL_WELCOME_CANVAS_COLS)
+        max_cols = SDL_WELCOME_CANVAS_COLS - col;
+    if (max_cols <= 0)
+        return hit;
+
+    font_px = sdl_welcome_font_px_for_canvas(canvas);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return hit;
+
+    TTF_MeasureString(font, text, strlen(text), 0, &text_w, NULL);
+    font_h = TTF_GetFontHeight(font);
+    scale = sdl_welcome_text_scale(canvas, max_cols, text_w, font_h);
+    if (scale <= 0.0f)
+        return hit;
+
+    cell_w = sdl_welcome_cell_width(canvas);
+    cell_h = sdl_welcome_cell_height(canvas);
+
+    hit.w = (float)text_w * scale;
+    hit.h = (float)font_h * scale;
+    hit.x = (float)canvas->x + (float)col * cell_w;
+    hit.y = (float)canvas->y + (float)row * cell_h
+        + (cell_h - hit.h) * 0.5f;
+    return hit;
+}
+
+static void sdl_welcome_bounds_add(sdl_welcome_picture_bounds* bounds,
+    SDL_FRect rect)
+{
+    if (!bounds || rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+
+    if (!bounds->any)
+    {
+        bounds->any = true;
+        bounds->left = rect.x;
+        bounds->right = rect.x + rect.w;
+        return;
+    }
+
+    if (rect.x < bounds->left)
+        bounds->left = rect.x;
+    if (rect.x + rect.w > bounds->right)
+        bounds->right = rect.x + rect.w;
+}
+
+static void sdl_welcome_bounds_add_text(sdl_welcome_picture_bounds* bounds,
+    const SDL_Rect* canvas, int col, int row, int max_cols, cptr text)
+{
+    sdl_welcome_bounds_add(bounds,
+        sdl_welcome_measure_story_text(canvas, col, row, max_cols, text));
+}
+
+static SDL_FRect sdl_welcome_draw_story_text(const SDL_Rect* canvas, int col,
+    int row, int max_cols, cptr text, byte attr, float x_offset)
+{
+    SDL_FRect hit = { 0 };
+    TTF_Font* font;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_Color color;
+    float cell_w;
+    float cell_h;
+    float scale;
+    int font_px;
+
+    if (!canvas || !sdl_rect_has_area(canvas) || !text || !text[0])
+        return hit;
+    if (row < 0 || row >= SDL_WELCOME_CANVAS_ROWS
+        || col >= SDL_WELCOME_CANVAS_COLS)
+    {
+        return hit;
+    }
+    if (col < 0)
+        col = 0;
+    if (max_cols <= 0 || col + max_cols > SDL_WELCOME_CANVAS_COLS)
+        max_cols = SDL_WELCOME_CANVAS_COLS - col;
+    if (max_cols <= 0)
+        return hit;
+
+    font_px = sdl_welcome_font_px_for_canvas(canvas);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return hit;
+
+    color = sdl_welcome_color(attr, 255);
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return hit;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return hit;
+    }
+
+    cell_w = sdl_welcome_cell_width(canvas);
+    cell_h = sdl_welcome_cell_height(canvas);
+    scale = sdl_welcome_text_scale(canvas, max_cols, surface->w, surface->h);
+
+    if (scale > 0.0f)
+    {
+        hit.w = (float)surface->w * scale;
+        hit.h = (float)surface->h * scale;
+        hit.x = (float)canvas->x + (float)col * cell_w + x_offset;
+        hit.y = (float)canvas->y + (float)row * cell_h
+            + (cell_h - hit.h) * 0.5f;
+
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, texture, NULL, &hit);
+    }
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+    return hit;
+}
+
+static SDL_FRect sdl_welcome_story_text_span_rect(const SDL_Rect* canvas,
+    int col, int row, int max_cols, cptr text, int start, int end,
+    float x_offset)
+{
+    SDL_FRect rect = { 0 };
+    TTF_Font* font;
+    char prefix[128];
+    int prefix_len;
+    int span_len;
+    int prefix_w = 0;
+    int span_w = 0;
+    int full_w = 0;
+    int font_h;
+    float cell_w;
+    float cell_h;
+    float scale;
+    int font_px;
+    int text_len;
+
+    if (!canvas || !sdl_rect_has_area(canvas) || !text)
+        return rect;
+    text_len = (int)strlen(text);
+    if (start < 0)
+        start = 0;
+    if (end > text_len)
+        end = text_len;
+    if (end <= start)
+        return rect;
+
+    font_px = sdl_welcome_font_px_for_canvas(canvas);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return rect;
+
+    prefix_len = start;
+    if (prefix_len >= (int)sizeof(prefix))
+        prefix_len = (int)sizeof(prefix) - 1;
+    memcpy(prefix, text, (size_t)prefix_len);
+    prefix[prefix_len] = '\0';
+    span_len = end - start;
+
+    if (prefix_len > 0)
+        TTF_MeasureString(font, prefix, prefix_len, 0, &prefix_w, NULL);
+    TTF_MeasureString(font, text + start, span_len, 0, &span_w, NULL);
+    TTF_MeasureString(font, text, text_len, 0, &full_w, NULL);
+
+    font_h = TTF_GetFontHeight(font);
+    scale = sdl_welcome_text_scale(canvas, max_cols, full_w, font_h);
+    if (scale <= 0.0f)
+        return rect;
+
+    cell_w = sdl_welcome_cell_width(canvas);
+    cell_h = sdl_welcome_cell_height(canvas);
+
+    rect.x = (float)canvas->x + (float)col * cell_w
+        + (float)prefix_w * scale + x_offset;
+    rect.y = (float)canvas->y + (float)row * cell_h
+        + (cell_h - (float)font_h * scale) * 0.5f;
+    rect.w = (float)span_w * scale;
+    rect.h = (float)font_h * scale;
+    return rect;
+}
+
+static SDL_FRect sdl_welcome_draw_story_text_span(const SDL_Rect* canvas,
+    int col, int row, int max_cols, cptr text, int start, int end, byte attr,
+    float x_offset)
+{
+    SDL_FRect hit = { 0 };
+    TTF_Font* font;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_Color color;
+    char span[128];
+    int span_len;
+    int text_len;
+    int full_w = 0;
+    int font_h;
+    float cell_h;
+    float scale;
+    int font_px;
+
+    if (!canvas || !sdl_rect_has_area(canvas) || !text)
+        return hit;
+    text_len = (int)strlen(text);
+    if (start < 0)
+        start = 0;
+    if (end > text_len)
+        end = text_len;
+    if (end <= start)
+        return hit;
+
+    span_len = end - start;
+    if (span_len >= (int)sizeof(span))
+        span_len = (int)sizeof(span) - 1;
+    memcpy(span, text + start, (size_t)span_len);
+    span[span_len] = '\0';
+
+    font_px = sdl_welcome_font_px_for_canvas(canvas);
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return hit;
+
+    TTF_MeasureString(font, text, text_len, 0, &full_w, NULL);
+    font_h = TTF_GetFontHeight(font);
+    scale = sdl_welcome_text_scale(canvas, max_cols, full_w, font_h);
+    if (scale <= 0.0f)
+        return hit;
+
+    hit = sdl_welcome_story_text_span_rect(canvas, col, row, max_cols,
+        text, start, start + span_len, x_offset);
+    if (hit.w <= 0.0f || hit.h <= 0.0f)
+        return hit;
+
+    color = sdl_welcome_color(attr, 255);
+    surface = TTF_RenderText_Blended(font, span, 0, color);
+    if (!surface)
+        return hit;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return hit;
+    }
+
+    cell_h = sdl_welcome_cell_height(canvas);
+    hit.h = (float)surface->h * scale;
+    hit.y = (float)canvas->y + (float)row * cell_h
+        + (cell_h - hit.h) * 0.5f;
+    hit.w = (float)surface->w * scale;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &hit);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+    return hit;
+}
+
+static bool sdl_welcome_text_token_range(cptr text, cptr token, int* start,
+    int* end)
+{
+    cptr match;
+
+    if (!text || !token || !token[0])
+        return false;
+
+    match = strstr(text, token);
+    if (!match)
+        return false;
+
+    if (start)
+        *start = (int)(match - text);
+    if (end)
+        *end = (int)(match - text) + (int)strlen(token);
+    return true;
+}
+
+static bool sdl_welcome_text_command_range(cptr text, cptr token_a,
+    cptr token_b, int* start, int* end)
+{
+    int a_start = 0;
+    int a_end = 0;
+    int b_start = 0;
+    int b_end = 0;
+    bool have_a = sdl_welcome_text_token_range(text, token_a,
+        &a_start, &a_end);
+    bool have_b = sdl_welcome_text_token_range(text, token_b,
+        &b_start, &b_end);
+
+    if (!have_a && !have_b)
+        return false;
+
+    if (!have_a)
+    {
+        a_start = b_start;
+        a_end = b_end;
+    }
+    if (!have_b)
+    {
+        b_start = a_start;
+        b_end = a_end;
+    }
+
+    if (start)
+        *start = MIN(a_start, b_start);
+    if (end)
+        *end = MAX(a_end, b_end);
+    return true;
+}
+
+static void sdl_welcome_compose_menu_line(char* menu_line, size_t menu_size,
+    char* quit_command, size_t quit_command_size, cptr* primary_token)
+{
+    cptr quit_token = steamdeck_controls_active() ? "Back/B" : "Q/Esc";
+
+    if (primary_token)
+        *primary_token = g_sdl_welcome_screen.new_metarun
+            ? "Begin"
+            : "Continue";
+    if (quit_command && quit_command_size > 0)
+        strnfmt(quit_command, quit_command_size, "[%s]", quit_token);
+    if (menu_line && menu_size > 0)
+    {
+        strnfmt(menu_line, menu_size,
+            g_sdl_welcome_screen.new_metarun
+                ? "[Any key] Begin    [%s] Quit"
+                : "[Any key] Continue  [%s] Quit",
+            quit_token);
+    }
+}
+
+static float sdl_welcome_bounds_x_offset(const SDL_Rect* canvas,
+    const sdl_welcome_picture_bounds* bounds)
+{
+    if (!canvas || !bounds || !bounds->any)
+        return 0.0f;
+
+    {
+        float width = bounds->right - bounds->left;
+
+        if (width > 0.0f && width < (float)canvas->w)
+        {
+            float target_left = (float)canvas->x
+                + ((float)canvas->w - width) * 0.5f;
+            return target_left - bounds->left;
+        }
+    }
+
+    return 0.0f;
+}
+
+static float sdl_welcome_intro_x_offset(const SDL_Rect* canvas)
+{
+    sdl_welcome_picture_bounds bounds = { 0 };
+    const sdl_welcome_intro_line* lines;
+
+    if (!canvas || !sdl_rect_has_area(canvas))
+        return 0.0f;
+
+    lines = sdl_welcome_intro_lines_for_style(
+        g_sdl_welcome_screen.intro_style);
+    for (int i = 0; lines[i].text; i++)
+    {
+        int col = sdl_welcome_col_for_role(lines[i].role);
+        sdl_welcome_bounds_add_text(&bounds, canvas, col, lines[i].row,
+            MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
+            lines[i].text);
+    }
+
+    return sdl_welcome_bounds_x_offset(canvas, &bounds);
+}
+
+static float sdl_welcome_status_x_offset(const SDL_Rect* canvas)
+{
+    sdl_welcome_picture_bounds bounds = { 0 };
+    cptr status = g_sdl_welcome_screen.status;
+    int col;
+
+    if (!canvas || !sdl_rect_has_area(canvas) || !status || !status[0])
+        return 0.0f;
+
+    col = MAX(0, (SDL_WELCOME_CANVAS_COLS - (int)strlen(status)) / 2);
+    sdl_welcome_bounds_add_text(&bounds, canvas, col,
+        SDL_WELCOME_PROMPT_ROW,
+        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
+        status);
+
+    return sdl_welcome_bounds_x_offset(canvas, &bounds);
+}
+
+static float sdl_welcome_footer_x_offset(const SDL_Rect* canvas)
+{
+    sdl_welcome_picture_bounds bounds = { 0 };
+    char menu_line[96];
+    char quit_command[32];
+    cptr wizard_line = "Resurrecting a character is a form of cheating.";
+    cptr sep_line = "- - - - - - - - - - - -";
+    int x = SDL_WELCOME_BASE_COL;
+
+    if (!canvas || !sdl_rect_has_area(canvas))
+        return 0.0f;
+
+    sdl_welcome_compose_menu_line(menu_line, sizeof(menu_line),
+        quit_command, sizeof(quit_command), NULL);
+    sdl_welcome_bounds_add_text(&bounds, canvas, x, SDL_WELCOME_PROMPT_ROW,
+        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - x),
+        menu_line);
+    sdl_welcome_bounds_add_text(&bounds, canvas, x, SDL_WELCOME_SEPARATOR_ROW,
+        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - x),
+        sep_line);
+    if (g_sdl_welcome_screen.show_wizard)
+    {
+        sdl_welcome_bounds_add_text(&bounds, canvas, x,
+            SDL_WELCOME_WIZARD_ROW,
+            MIN(60, SDL_WELCOME_CANVAS_COLS - x), wizard_line);
+    }
+
+    return sdl_welcome_bounds_x_offset(canvas, &bounds);
+}
+
+static void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas,
+    float x_offset)
+{
+    const sdl_welcome_intro_line* lines;
+
+    if (!canvas || !sdl_rect_has_area(canvas))
+        return;
+
+    lines = sdl_welcome_intro_lines_for_style(
+        g_sdl_welcome_screen.intro_style);
+    for (int i = 0; lines[i].text; i++)
+    {
+        int col = sdl_welcome_col_for_role(lines[i].role);
+        (void)sdl_welcome_draw_story_text(canvas, col, lines[i].row,
+            MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
+            lines[i].text, lines[i].attr, x_offset);
+    }
+}
+
+static void sdl_welcome_render_status_canvas(const SDL_Rect* canvas,
+    float x_offset)
+{
+    cptr status = g_sdl_welcome_screen.status;
+    int col;
+
+    if (!status || !status[0] || !canvas || !sdl_rect_has_area(canvas))
+        return;
+
+    col = MAX(0, (SDL_WELCOME_CANVAS_COLS - (int)strlen(status)) / 2);
+    (void)sdl_welcome_draw_story_text(canvas, col, SDL_WELCOME_PROMPT_ROW,
+        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
+        status, TERM_SLATE, x_offset);
+}
+
+static void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas,
+    float x_offset)
+{
+    char menu_line[96];
+    char quit_command[32];
+    cptr primary_token;
+    cptr wizard_line = "Resurrecting a character is a form of cheating.";
+    cptr sep_line = "- - - - - - - - - - - -";
+    int x = SDL_WELCOME_BASE_COL;
+    int max_cols = MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - x);
+    int primary_start = 0;
+    int primary_end = 0;
+    int quit_start = 0;
+    int quit_end = 0;
+    bool has_primary_range;
+    bool has_quit_range;
+
+    if (!canvas || !sdl_rect_has_area(canvas))
+        return;
+
+    sdl_welcome_screen_clear_hits();
+
+    sdl_welcome_compose_menu_line(menu_line, sizeof(menu_line),
+        quit_command, sizeof(quit_command), &primary_token);
+
+    g_sdl_welcome_screen.continue_rect = sdl_welcome_draw_story_text(canvas,
+        x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, TERM_SLATE, x_offset);
+
+    has_primary_range = sdl_welcome_text_command_range(menu_line, "[Any key]",
+        primary_token, &primary_start, &primary_end);
+    has_quit_range = sdl_welcome_text_command_range(menu_line, quit_command,
+        "Quit", &quit_start, &quit_end);
+
+    if (has_primary_range)
+        g_sdl_welcome_screen.continue_rect = sdl_welcome_story_text_span_rect(
+            canvas, x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line,
+            primary_start, primary_end, x_offset);
+    if (has_quit_range)
+        g_sdl_welcome_screen.quit_rect = sdl_welcome_story_text_span_rect(
+            canvas, x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line,
+            quit_start, quit_end, x_offset);
+
+    if (g_sdl_welcome_screen.hover_continue && has_primary_range)
+        (void)sdl_welcome_draw_story_text_span(canvas, x,
+            SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, primary_start,
+            primary_end, TERM_L_BLUE, x_offset);
+    if (g_sdl_welcome_screen.hover_quit && has_quit_range)
+        (void)sdl_welcome_draw_story_text_span(canvas, x,
+            SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, quit_start,
+            quit_end, TERM_L_BLUE, x_offset);
+
+    (void)sdl_welcome_draw_story_text(canvas, x, SDL_WELCOME_SEPARATOR_ROW,
+        max_cols, sep_line, TERM_L_DARK, x_offset);
+
+    if (g_sdl_welcome_screen.show_wizard)
+    {
+        (void)sdl_welcome_draw_story_text(canvas, x, SDL_WELCOME_WIZARD_ROW,
+            MIN(60, max_cols), wizard_line, TERM_BLUE, x_offset);
+    }
+}
+
+static void sdl_welcome_screen_render(void)
+{
+    SDL_Rect canvas;
+    float intro_x_offset;
+
+    if (!sdl_welcome_screen_active() || !sdl_welcome_screen_available())
+        return;
+
+    canvas = sdl_get_window_pixel_rect();
+    if (!sdl_rect_has_area(&canvas))
+        return;
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+
+    intro_x_offset = sdl_welcome_intro_x_offset(&canvas);
+    sdl_welcome_render_intro_canvas(&canvas, intro_x_offset);
+
+    if (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
+    {
+        float footer_x_offset = sdl_welcome_footer_x_offset(&canvas);
+
+        sdl_welcome_render_menu_footer_canvas(&canvas, footer_x_offset);
+    }
+    else
+    {
+        float status_x_offset = sdl_welcome_status_x_offset(&canvas);
+
+        sdl_welcome_render_status_canvas(&canvas, status_x_offset);
+    }
 }
 
 static bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
@@ -17390,26 +18415,7 @@ static bool sdl_screen_shows_any_key_prompt(void)
 
 static bool sdl_screen_shows_welcome_screen(void)
 {
-    const term* t = Term;
-    bool saw_title = false;
-    bool saw_menu = false;
-
-    if (!t || !t->scr || !t->scr->c)
-        return false;
-
-    for (int row = 0; row < t->hgt; row++) {
-        if (sdl_screen_row_contains_ci(t, row, "S I L - M O R E"))
-            saw_title = true;
-
-        if (sdl_screen_row_contains_ci(t, row, "Quit")
-            && (sdl_screen_row_contains_ci(t, row, "Continue")
-                || sdl_screen_row_contains_ci(t, row, "Begin")))
-        {
-            saw_menu = true;
-        }
-    }
-
-    return saw_title && (saw_menu || !character_generated);
+    return sdl_welcome_screen_active();
 }
 
 static bool sdl_welcome_screen_handle_gamepad_button(SDL_GamepadButton button,
@@ -17442,6 +18448,30 @@ static bool sdl_pointer_activate_welcome_screen(void)
     return true;
 }
 
+static bool sdl_welcome_screen_handle_pointer_motion(float x, float y)
+{
+    bool hover_continue;
+    bool hover_quit;
+
+    if (!sdl_welcome_screen_active())
+        return false;
+
+    hover_continue = (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
+        && sdl_point_in_frect(&g_sdl_welcome_screen.continue_rect, x, y);
+    hover_quit = (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU)
+        && sdl_point_in_frect(&g_sdl_welcome_screen.quit_rect, x, y);
+
+    if (g_sdl_welcome_screen.hover_continue != hover_continue
+        || g_sdl_welcome_screen.hover_quit != hover_quit)
+    {
+        g_sdl_welcome_screen.hover_continue = hover_continue;
+        g_sdl_welcome_screen.hover_quit = hover_quit;
+        sdl_welcome_screen_mark_dirty();
+    }
+
+    return true;
+}
+
 static bool sdl_pointer_activate_welcome_screen_at(float x, float y)
 {
     int slot = -1;
@@ -17454,9 +18484,10 @@ static bool sdl_pointer_activate_welcome_screen_at(float x, float y)
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
 
-    if (sdl_main_screen_handle_menu_text_pointer(
-        x, y, UI_MENU_CLICK_PRIMARY))
+    if (g_sdl_welcome_screen.mode == SDL_WELCOME_SCREEN_MENU
+        && sdl_point_in_frect(&g_sdl_welcome_screen.quit_rect, x, y))
     {
+        Term_keypress(ESCAPE);
         return true;
     }
 
@@ -17483,10 +18514,6 @@ static bool sdl_welcome_touch_handle_pointer_down(float x, float y,
         return false;
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
         return false;
-    if (!sdl_main_screen_menu_pointer_hits_cell(x, y)) {
-        Term_keypress('\r');
-        return true;
-    }
 
     sdl_welcome_touch_cancel_press();
     g_welcome_touch_press.active = true;
@@ -26868,6 +27895,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         if (ev->motion.which == SDL_TOUCH_MOUSEID)
             return;
+        if (sdl_welcome_screen_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         sdl_object_tooltip_handle_mouse_motion((float)ev->motion.x,
             (float)ev->motion.y);
         if (g_touch_pane_yes_no_prompt_active
@@ -28826,6 +29858,11 @@ static bool sdl_render_current_window_frame(void)
 
     if (g_suppress_layout_refresh_present)
         return false;
+
+    if (sdl_welcome_screen_active()) {
+        sdl_welcome_screen_render();
+        return true;
+    }
 
     show_supporting_panes = sdl_should_show_supporting_panes();
     layout_matches = sdl_layout_matches_supporting_pane_visibility();

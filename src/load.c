@@ -196,20 +196,11 @@ static bool startup_loading_overlay_shown = false;
 static void maybe_show_startup_loading_overlay(void)
 {
     static const char msg[] = "Loading...";
-    int term_wid = 80;
-    int term_hgt = 24;
-    int row;
-    int col;
 
     if (!startup_loading_overlay_armed || startup_loading_overlay_shown)
         return;
 
-    Term_get_size(&term_wid, &term_hgt);
-    row = term_hgt - 1;
-    col = MAX(0, (term_wid - (int)strlen(msg)) / 2);
-
-    Term_erase(0, row, 255);
-    Term_putstr(col, row, term_wid - col, TERM_SLATE, msg);
+    (void)sdl_welcome_screen_show_loading(msg);
     Term_fresh();
 
     startup_loading_overlay_shown = true;
@@ -225,6 +216,7 @@ void startup_loading_overlay_disarm(void)
 {
     startup_loading_overlay_armed = false;
     startup_loading_overlay_shown = false;
+    sdl_welcome_screen_hide();
 }
 
 /*
