@@ -10901,8 +10901,18 @@ static bool sdl_main_map_begin_pinch(float x, float y,
 static bool sdl_main_map_handle_drag_down(float x, float y,
     bool mouse, SDL_FingerID finger_id)
 {
+    int map_y = 0;
+    int map_x = 0;
+
+    if (g_player_action_menu.active || g_player_exchange_target.active)
+        return false;
     if (!sdl_main_map_point_to_drag_map(x, y))
         return false;
+    if (!mouse && sdl_main_view_point_to_map(x, y, &map_y, &map_x)
+        && map_y == p_ptr->py && map_x == p_ptr->px)
+    {
+        return false;
+    }
 
     if (!mouse && g_touch_swipe.active
         && g_touch_swipe.finger_id == finger_id)
@@ -27017,6 +27027,16 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_player_action_menu_handle_pointer_down(
+                (float)ev->button.x, (float)ev->button.y, 0, true, false))
+            {
+                return;
+            }
+            if (sdl_player_exchange_handle_pointer_down(
+                (float)ev->button.x, (float)ev->button.y, 0, true))
+            {
+                return;
+            }
             if (sdl_unified_look_handle_map_drag_down(
                     (float)ev->button.x, (float)ev->button.y, true, 0))
             {
@@ -27047,16 +27067,6 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 {
                     return;
                 }
-            }
-            if (sdl_player_action_menu_handle_pointer_down(
-                (float)ev->button.x, (float)ev->button.y, 0, true, false))
-            {
-                return;
-            }
-            if (sdl_player_exchange_handle_pointer_down(
-                (float)ev->button.x, (float)ev->button.y, 0, true))
-            {
-                return;
             }
             if (sdl_touch_hidden_indicator_handle_pointer_down(
                 (float)ev->button.x, (float)ev->button.y))
@@ -27228,16 +27238,6 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
-            if (sdl_main_map_handle_drag_up((float)ev->button.x,
-                (float)ev->button.y, true, 0))
-            {
-                return;
-            }
-            if (sdl_side_map_pane_handle_pointer_up((float)ev->button.x,
-                (float)ev->button.y, true, 0))
-            {
-                return;
-            }
             if (sdl_player_action_menu_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, 0, true, false))
             {
@@ -27245,6 +27245,16 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (sdl_player_exchange_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, 0, true))
+            {
+                return;
+            }
+            if (sdl_main_map_handle_drag_up((float)ev->button.x,
+                (float)ev->button.y, true, 0))
+            {
+                return;
+            }
+            if (sdl_side_map_pane_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, true, 0))
             {
                 return;
             }
