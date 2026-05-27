@@ -7085,7 +7085,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
         "  made the Ainur of his thought;" },
     { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  and they sang, and he was glad.\"" },
-    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Ainulindalë" },
+    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Ainulindalë" },
     { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
     { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
@@ -7094,7 +7094,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "gates of iron and pits of flame," },
     { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Morgoth hoards the Silmarils --" },
+        "Morgoth hoards the Silmarils —" },
     { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "three jewels of living light." },
     { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
@@ -7112,7 +7112,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_feanor[] = {
         "  be he foul or clean..." },
     { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  he shall defend, shall be held mine.\"" },
-    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Oath of Fëanor" },
+    { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Oath of Fëanor" },
     { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
     { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
@@ -7121,7 +7121,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_feanor[] = {
     { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "Morgoth broods upon his throne." },
     { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Three jewels burn upon his crown --" },
+        "Three jewels burn upon his crown —" },
     { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "stolen light that is not his own." },
     { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
@@ -7146,7 +7146,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_twilight[] = {
     { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "where Morgoth sits upon his throne." },
     { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Three jewels blaze upon his crown --" },
+        "Three jewels blaze upon his crown —" },
     { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "stolen fire none may reclaim..." },
     { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -7157,7 +7157,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_twilight[] = {
         "\"...and the light that blazed in them" },
     { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  no power could dim or mar.\"" },
-    { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Of the Silmarils" },
+    { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Of the Silmarils" },
     { 0, 0, 0, NULL }
 };
 
@@ -7171,7 +7171,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_luthien[] = {
     { 4, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  of stars in shadow shimmering.\"" },
     { 5, TERM_SLATE, SDL_WELCOME_LINE_SONG_ATTRIBUTION,
-        "-- Of Beren and Lúthien" },
+        "— Of Beren and Lúthien" },
     { 7, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
     { 8, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
@@ -7195,7 +7195,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_hurin[] = {
         "\"The day shall come again when you" },
     { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  shall see the Sun once more.\"" },
-    { 3, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "-- Words of Húrin" },
+    { 3, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Words of Húrin" },
     { 5, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
     { 6, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
@@ -7226,7 +7226,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_starlight[] = {
     { 5, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "beneath the stars ere morning broke." },
     { 6, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "No sun had risen, no moon shone --" },
+        "No sun had risen, no moon shone —" },
     { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "just heaven's light on lake and stone." },
     { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -7242,7 +7242,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_starlight[] = {
     { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  on the waters of Cuiviénen.\"" },
     { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION,
-        "-- Of the Coming of the Elves" },
+        "— Of the Coming of the Elves" },
     { 0, 0, 0, NULL }
 };
 
@@ -7255,7 +7255,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_noldor[] = {
     { 5, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "with gold and silver, leaf and bough." },
     { 6, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Their mingled light is dead and gone --" },
+        "Their mingled light is dead and gone —" },
     { 7, TERM_WHITE, SDL_WELCOME_LINE_BODY,
         "the world lies under shadow now." },
     { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -7271,7 +7271,7 @@ static const sdl_welcome_intro_line g_sdl_welcome_intro_noldor[] = {
     { 15, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  for the beauty of Telperion and Laurelin.\"" },
     { 16, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION,
-        "-- Of the Darkening of Valinor" },
+        "— Of the Darkening of Valinor" },
     { 0, 0, 0, NULL }
 };
 
@@ -7418,6 +7418,23 @@ static int sdl_welcome_col_for_role(sdl_welcome_line_role role)
     case SDL_WELCOME_LINE_BODY:
     case SDL_WELCOME_LINE_ACTION:
     default: return SDL_WELCOME_BASE_COL;
+    }
+}
+
+static bool sdl_welcome_line_centers_footer(sdl_welcome_line_role role)
+{
+    switch (role)
+    {
+    case SDL_WELCOME_LINE_TITLE:
+    case SDL_WELCOME_LINE_SUBTITLE:
+    case SDL_WELCOME_LINE_BODY:
+    case SDL_WELCOME_LINE_ACTION:
+        return true;
+    case SDL_WELCOME_LINE_QUOTE:
+    case SDL_WELCOME_LINE_ATTRIBUTION:
+    case SDL_WELCOME_LINE_SONG_ATTRIBUTION:
+    default:
+        return false;
     }
 }
 
@@ -7884,28 +7901,23 @@ static float sdl_welcome_status_x_offset(const SDL_Rect* canvas)
 static float sdl_welcome_footer_x_offset(const SDL_Rect* canvas)
 {
     sdl_welcome_picture_bounds bounds = { 0 };
-    char menu_line[96];
-    char quit_command[32];
-    cptr wizard_line = "Resurrecting a character is a form of cheating.";
-    cptr sep_line = "- - - - - - - - - - - -";
-    int x = SDL_WELCOME_BASE_COL;
+    const sdl_welcome_intro_line* lines;
 
     if (!canvas || !sdl_rect_has_area(canvas))
         return 0.0f;
 
-    sdl_welcome_compose_menu_line(menu_line, sizeof(menu_line),
-        quit_command, sizeof(quit_command), NULL);
-    sdl_welcome_bounds_add_text(&bounds, canvas, x, SDL_WELCOME_PROMPT_ROW,
-        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - x),
-        menu_line);
-    sdl_welcome_bounds_add_text(&bounds, canvas, x, SDL_WELCOME_SEPARATOR_ROW,
-        MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - x),
-        sep_line);
-    if (g_sdl_welcome_screen.show_wizard)
+    lines = sdl_welcome_intro_lines_for_style(
+        g_sdl_welcome_screen.intro_style);
+    for (int i = 0; lines[i].text; i++)
     {
-        sdl_welcome_bounds_add_text(&bounds, canvas, x,
-            SDL_WELCOME_WIZARD_ROW,
-            MIN(60, SDL_WELCOME_CANVAS_COLS - x), wizard_line);
+        int col = sdl_welcome_col_for_role(lines[i].role);
+
+        if (!sdl_welcome_line_centers_footer(lines[i].role))
+            continue;
+
+        sdl_welcome_bounds_add_text(&bounds, canvas, col, lines[i].row,
+            MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
+            lines[i].text);
     }
 
     return sdl_welcome_bounds_x_offset(canvas, &bounds);
