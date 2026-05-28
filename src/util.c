@@ -588,6 +588,54 @@ bool ui_menu_click_clear_hover(bool* wake)
     return true;
 }
 
+bool ui_menu_click_handle_choice_action(int choice, int action, bool* wake)
+{
+    bool changed = false;
+
+    if (wake)
+        *wake = false;
+    if (!ui_menu_click_active)
+        return false;
+
+    if (action != UI_MENU_CLICK_SECONDARY && action != UI_MENU_CLICK_HOVER)
+        action = UI_MENU_CLICK_PRIMARY;
+
+    if (action == UI_MENU_CLICK_HOVER)
+    {
+        if (!ui_menu_click_hover_enabled)
+            return false;
+
+        changed = !ui_menu_click_hover_current
+            || ui_menu_click_hover_choice != choice;
+        ui_menu_click_hover_current = true;
+        ui_menu_click_hover_choice = choice;
+
+        if (!changed)
+            return true;
+
+        if (ui_menu_click_pending
+            && ui_menu_click_pending_action != UI_MENU_CLICK_HOVER)
+        {
+            return true;
+        }
+
+        ui_menu_click_pending = true;
+        ui_menu_click_pending_choice = choice;
+        ui_menu_click_pending_action = UI_MENU_CLICK_HOVER;
+        ui_menu_click_hover_wake_pending = true;
+
+        if (wake)
+            *wake = true;
+        return true;
+    }
+
+    ui_menu_click_hover_wake_pending = false;
+    ui_menu_click_pending = true;
+    ui_menu_click_pending_choice = choice;
+    ui_menu_click_pending_action = action;
+    return true;
+}
+
 bool ui_menu_click_handle_cell_action(int col, int row, int action)
 {
     const ui_menu_click_entry* entry = ui_menu_click_find_cell(col, row);

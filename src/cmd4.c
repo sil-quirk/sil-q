@@ -1409,6 +1409,274 @@ static int character_sheet_collect_items(character_sheet_item items[],
     return count;
 }
 
+static bool character_sheet_add_semantic_item(character_sheet_item items[],
+    int* count, int max_items, const character_sheet_item* src)
+{
+    if (!items || !count || !src || *count >= max_items)
+        return false;
+
+    items[*count] = *src;
+    if (items[*count].label_buf[0])
+        items[*count].label = items[*count].label_buf;
+    (*count)++;
+    return true;
+}
+
+static void character_sheet_add_semantic_value(character_sheet_item items[],
+    int* count, int max_items, cptr label, character_sheet_value_kind kind,
+    int row, int col)
+{
+    character_sheet_item item;
+
+    SDL_zero(item);
+    item.kind = CHARACTER_SHEET_ITEM_VALUE;
+    item.id = (int)kind;
+    item.value_kind = (int)kind;
+    item.row = row;
+    item.col = col;
+    item.width = 24;
+    item.label = label;
+    (void)character_sheet_add_semantic_item(items, count, max_items, &item);
+}
+
+static void character_sheet_add_semantic_unique_trait(
+    character_sheet_item items[], int* count, int max_items, cptr label,
+    int row, int col)
+{
+    character_sheet_item item;
+
+    SDL_zero(item);
+    item.kind = CHARACTER_SHEET_ITEM_TRAIT;
+    item.id = 100 + *count;
+    item.row = row;
+    item.col = col;
+    item.width = label ? (int)strlen(label) + 3 : 16;
+    item.label = label;
+    item.desc = character_sheet_trait_description(label);
+    (void)character_sheet_add_semantic_item(items, count, max_items, &item);
+}
+
+static bool character_sheet_add_semantic_skill_trait(
+    character_sheet_item items[], int* count, int max_items, cptr label,
+    int skill, int score, bool proficiency, u32b aff_flag, u32b pen_flag,
+    int row, int col)
+{
+    character_sheet_item item;
+
+    if (!label || !label[0] || score == 0)
+        return false;
+
+    SDL_zero(item);
+    item.kind = CHARACTER_SHEET_ITEM_TRAIT;
+    item.id = 1000 + *count;
+    item.row = row;
+    item.col = col;
+    item.width = (int)strlen(label) + 4;
+    item.skill = skill;
+    item.trait_score = score;
+    item.proficiency = proficiency;
+    item.aff_flag = aff_flag;
+    item.pen_flag = pen_flag;
+    item.label = item.label_buf;
+
+    if (score == 2)
+        strnfmt(item.label_buf, sizeof(item.label_buf), "%s++", label);
+    else if (score == 1)
+        strnfmt(item.label_buf, sizeof(item.label_buf), "%s+", label);
+    else if (score == -1)
+        strnfmt(item.label_buf, sizeof(item.label_buf), "%s-", label);
+    else
+        strnfmt(item.label_buf, sizeof(item.label_buf), "%s--", label);
+
+    return character_sheet_add_semantic_item(items, count, max_items, &item);
+}
+
+static int character_sheet_collect_semantic_items(character_sheet_item items[],
+    int max_items)
+{
+    int count = 0;
+    int race;
+    int character;
+    int row;
+
+    if (!items || max_items <= 0 || !p_ptr)
+        return 0;
+
+    row = 1;
+    character_sheet_add_semantic_value(items, &count, max_items, "Exp",
+        CHARACTER_SHEET_VALUE_EXP, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Burden",
+        CHARACTER_SHEET_VALUE_BURDEN, row++, 0);
+    if (turn > 0)
+    {
+        character_sheet_add_semantic_value(items, &count, max_items,
+            "Depth c/m", CHARACTER_SHEET_VALUE_DEPTH, row++, 0);
+        character_sheet_add_semantic_value(items, &count, max_items,
+            "Minimum depth progress", CHARACTER_SHEET_VALUE_DEPTH_PROGRESS,
+            row++, 0);
+    }
+    character_sheet_add_semantic_value(items, &count, max_items, "Deep Call",
+        CHARACTER_SHEET_VALUE_DEEP_CALL, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Turn",
+        CHARACTER_SHEET_VALUE_TURN, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Light",
+        CHARACTER_SHEET_VALUE_LIGHT, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Melee",
+        CHARACTER_SHEET_VALUE_MELEE, row++, 0);
+    if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
+    {
+        character_sheet_add_semantic_value(items, &count, max_items,
+            "Melee x2", CHARACTER_SHEET_VALUE_MELEE_X2, row++, 0);
+    }
+    if (p_ptr->mds2 > 0)
+    {
+        character_sheet_add_semantic_value(items, &count, max_items,
+            "Offhand", CHARACTER_SHEET_VALUE_OFFHAND, row++, 0);
+    }
+    character_sheet_add_semantic_value(items, &count, max_items, "Bows",
+        CHARACTER_SHEET_VALUE_BOWS, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Armor",
+        CHARACTER_SHEET_VALUE_ARMOR, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Health",
+        CHARACTER_SHEET_VALUE_HEALTH, row++, 0);
+    character_sheet_add_semantic_value(items, &count, max_items, "Voice",
+        CHARACTER_SHEET_VALUE_VOICE, row++, 0);
+    if (p_ptr->song1 != SNG_NOTHING)
+    {
+        character_sheet_add_semantic_value(items, &count, max_items, "Song",
+            CHARACTER_SHEET_VALUE_SONG, row++, 0);
+    }
+    if (p_ptr->song2 != SNG_NOTHING)
+    {
+        character_sheet_add_semantic_value(items, &count, max_items, "Theme",
+            CHARACTER_SHEET_VALUE_SONG, row++, 0);
+    }
+
+    character_sheet_add_semantic_value(items, &count, max_items, "Str",
+        CHARACTER_SHEET_VALUE_STR, 1, 50);
+    character_sheet_add_semantic_value(items, &count, max_items, "Dex",
+        CHARACTER_SHEET_VALUE_DEX, 2, 50);
+    character_sheet_add_semantic_value(items, &count, max_items, "Con",
+        CHARACTER_SHEET_VALUE_CON, 3, 50);
+    character_sheet_add_semantic_value(items, &count, max_items, "Gra",
+        CHARACTER_SHEET_VALUE_GRA, 4, 50);
+
+    row = 1;
+    for (int skill = 0; skill < S_MAX; skill++)
+    {
+        character_sheet_item item;
+
+        if (skill == S_SPC)
+            continue;
+
+        SDL_zero(item);
+        item.kind = CHARACTER_SHEET_ITEM_SKILL;
+        item.id = skill;
+        item.skill = skill;
+        item.row = row++;
+        item.col = 66;
+        item.width = 30;
+        item.label = skill_names_full[skill];
+        (void)character_sheet_add_semantic_item(items, &count, max_items,
+            &item);
+    }
+
+    if (!p_info || !c_info)
+        return count;
+
+    race = p_ptr->prace;
+    character = p_ptr->pcharacter;
+    row = 1;
+
+#define ADD_SEMANTIC_UNIQUE(LABEL, FLAG)                                       \
+    do {                                                                       \
+        if ((p_info[race].flags & (FLAG))                                      \
+            || (c_info[character].flags & (FLAG)))                             \
+        {                                                                      \
+            character_sheet_add_semantic_unique_trait(items, &count,           \
+                max_items, (LABEL), row++, 25);                                \
+        }                                                                      \
+    } while (0)
+
+#define ADD_SEMANTIC_UNIQUE_U(LABEL, FLAG)                                     \
+    do {                                                                       \
+        if (c_info[character].flags_u & (FLAG))                                \
+        {                                                                      \
+            character_sheet_add_semantic_unique_trait(items, &count,           \
+                max_items, (LABEL), row++, 25);                                \
+        }                                                                      \
+    } while (0)
+
+#define ADD_SEMANTIC_SKILL_TRAIT(LABEL, SKILL, AFF, PEN, PROF)                 \
+    do {                                                                       \
+        int score = 0;                                                         \
+        if (p_info[race].flags & (AFF)) score++;                               \
+        if (c_info[character].flags & (AFF)) score++;                          \
+        if ((PEN) && (p_info[race].flags & (PEN))) score--;                    \
+        if ((PEN) && (c_info[character].flags & (PEN))) score--;               \
+        score += curse_flag_count_rhf(AFF);                                    \
+        if (PEN) score -= curse_flag_count_rhf(PEN);                           \
+        score = MIN(2, MAX(-2, score));                                        \
+        if (character_sheet_add_semantic_skill_trait(items, &count,           \
+                max_items, (LABEL), (SKILL), score, (PROF), (AFF), (PEN),     \
+                row, 25))                                                     \
+        {                                                                     \
+            row++;                                                            \
+        }                                                                     \
+    } while (0)
+
+    ADD_SEMANTIC_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR);
+    ADD_SEMANTIC_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL);
+    ADD_SEMANTIC_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR);
+    ADD_SEMANTIC_UNIQUE_U("Indomitable Will", UNQ_EARENDIL);
+    ADD_SEMANTIC_UNIQUE_U("Himself", UNQ_WIL_FIN);
+    ADD_SEMANTIC_UNIQUE_U("Songs of Power", UNQ_SNG_FIN);
+    ADD_SEMANTIC_UNIQUE_U("Elven Dance", UNQ_SNG_LUT);
+    ADD_SEMANTIC_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL);
+    ADD_SEMANTIC_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR);
+    ADD_SEMANTIC_UNIQUE_U("Old Master", UNQ_SMT_GAMIL);
+    ADD_SEMANTIC_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR);
+    ADD_SEMANTIC_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN);
+    ADD_SEMANTIC_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL);
+    ADD_SEMANTIC_UNIQUE_U("Forgotten", UNQ_MIM);
+    ADD_SEMANTIC_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS);
+    ADD_SEMANTIC_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN);
+    ADD_SEMANTIC_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON);
+    ADD_SEMANTIC_UNIQUE_U("Minstrel", UNQ_MINSTREL);
+    ADD_SEMANTIC_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER);
+    ADD_SEMANTIC_UNIQUE("Gift of Eru", RHF_GIFTERU);
+    ADD_SEMANTIC_UNIQUE("Seafarer", RHF_FREE);
+    ADD_SEMANTIC_UNIQUE("Kinslayer", RHF_KINSLAYER);
+    ADD_SEMANTIC_UNIQUE("Treacherous", RHF_TREACHERY);
+    ADD_SEMANTIC_UNIQUE("Doom of Mandos", RHF_CURSE);
+    ADD_SEMANTIC_UNIQUE("Morgoth Curse", RHF_MOR_CURSE);
+
+    ADD_SEMANTIC_SKILL_TRAIT("melee", S_MEL, RHF_MEL_AFFINITY,
+        RHF_MEL_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("evasion", S_EVN, RHF_EVN_AFFINITY,
+        RHF_EVN_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("stealth", S_STL, RHF_STL_AFFINITY,
+        RHF_STL_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("archery", S_ARC, RHF_ARC_AFFINITY,
+        RHF_ARC_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("will", S_WIL, RHF_WIL_AFFINITY,
+        RHF_WIL_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("perception", S_PER, RHF_PER_AFFINITY,
+        RHF_PER_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("smithing", S_SMT, RHF_SMT_AFFINITY,
+        RHF_SMT_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("song", S_SNG, RHF_SNG_AFFINITY,
+        RHF_SNG_PENALTY, false);
+    ADD_SEMANTIC_SKILL_TRAIT("bow", S_ARC, RHF_BOW_PROFICIENCY, 0, true);
+    ADD_SEMANTIC_SKILL_TRAIT("axe", S_MEL, RHF_AXE_PROFICIENCY, 0, true);
+
+#undef ADD_SEMANTIC_SKILL_TRAIT
+#undef ADD_SEMANTIC_UNIQUE_U
+#undef ADD_SEMANTIC_UNIQUE
+
+    return count;
+}
+
 static void character_sheet_highlight_item(const character_sheet_item* item)
 {
     cptr label;
@@ -1944,19 +2212,29 @@ void character_sheet_format_trait_description(cptr label, int skill,
     character_sheet_format_trait_item(&item, buf, buflen);
 }
 
-static void character_sheet_show_item_tooltip(const character_sheet_item* item)
+static void character_sheet_format_item_description(
+    const character_sheet_item* item, char* desc, size_t descsz)
 {
-    char desc[640];
+    if (!desc || !descsz)
+        return;
 
+    desc[0] = '\0';
     if (!item)
         return;
 
     if (item->kind == CHARACTER_SHEET_ITEM_SKILL)
-        character_sheet_format_skill_item(item, desc, sizeof(desc));
+        character_sheet_format_skill_item(item, desc, descsz);
     else if (item->kind == CHARACTER_SHEET_ITEM_TRAIT)
-        character_sheet_format_trait_item(item, desc, sizeof(desc));
+        character_sheet_format_trait_item(item, desc, descsz);
     else
-        character_sheet_format_value_item(item, desc, sizeof(desc));
+        character_sheet_format_value_item(item, desc, descsz);
+}
+
+static void character_sheet_show_item_tooltip(const character_sheet_item* item)
+{
+    char desc[640];
+
+    character_sheet_format_item_description(item, desc, sizeof(desc));
 
     if (!desc[0])
         return;
@@ -2164,6 +2442,7 @@ void do_cmd_character_sheet(void)
         int compact_pages;
         int max_body_scroll = 0;
         bool steamdeck = steamdeck_controls_active();
+        bool sdl_sheet = false;
         character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
         int sheet_item_count = 0;
 
@@ -2230,14 +2509,38 @@ void do_cmd_character_sheet(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        sheet_item_count = character_sheet_collect_items(sheet_items,
-            CHARACTER_SHEET_MAX_ITEMS);
+        sdl_sheet = sdl_character_sheet_screen_begin_live(-1);
+        sheet_item_count = sdl_sheet
+            ? character_sheet_collect_semantic_items(sheet_items,
+                CHARACTER_SHEET_MAX_ITEMS)
+            : character_sheet_collect_items(sheet_items,
+                CHARACTER_SHEET_MAX_ITEMS);
         if (focus_item >= sheet_item_count)
         {
             focus_item = -1;
             focus_from_pointer = false;
         }
-        if (focus_item >= 0 && sheet_item_count > 0)
+        if (sdl_sheet)
+        {
+            int focus_choice = (focus_item >= 0)
+                ? CHARACTER_SHEET_CLICK_ITEM_BASE + focus_item
+                : -1;
+
+            (void)sdl_character_sheet_screen_begin_live(focus_choice);
+            for (int i = 0; i < sheet_item_count; i++)
+            {
+                char desc[640];
+
+                character_sheet_format_item_description(&sheet_items[i],
+                    desc, sizeof(desc));
+                sdl_character_sheet_screen_add_live_item(
+                    CHARACTER_SHEET_CLICK_ITEM_BASE + i,
+                    (int)sheet_items[i].kind, sheet_items[i].skill,
+                    sheet_items[i].value_kind, sheet_items[i].label, desc);
+            }
+            sdl_hover_tooltip_clear();
+        }
+        else if (focus_item >= 0 && sheet_item_count > 0)
         {
             character_sheet_highlight_item(&sheet_items[focus_item]);
             character_sheet_show_item_tooltip(&sheet_items[focus_item]);
@@ -2440,6 +2743,7 @@ void do_cmd_character_sheet(void)
             || (steamdeck && ch == steamdeck_confirm_key()))
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             if (focus_item >= 0 && focus_item < sheet_item_count
                 && sheet_items[focus_item].kind == CHARACTER_SHEET_ITEM_SKILL)
             {
@@ -2455,6 +2759,7 @@ void do_cmd_character_sheet(void)
         else if (ch == 'n')
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             do_cmd_knowledge_notes();
         }
 
@@ -2462,6 +2767,7 @@ void do_cmd_character_sheet(void)
         else if (ch == 's' || (steamdeck && ch == steamdeck_secondary_key()))
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             print_metarun_stats();
         }
 
@@ -2470,6 +2776,7 @@ void do_cmd_character_sheet(void)
         else if (ch == 'c')
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             dbg_show_active_flags();
         }
 #endif
@@ -2478,6 +2785,7 @@ void do_cmd_character_sheet(void)
         else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             (void)do_cmd_ability_screen();
             /* Force redraw after ability changes */
             p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_EXP);
@@ -2490,6 +2798,7 @@ void do_cmd_character_sheet(void)
             char ftmp[80];
 
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             strnfmt(ftmp, sizeof(ftmp), "%s.txt", op_ptr->base_name);
 
             if (term_get_string("File name: ", ftmp, sizeof(ftmp)))
@@ -2512,6 +2821,7 @@ void do_cmd_character_sheet(void)
         else if (ch == '?' || (steamdeck && ch == steamdeck_info_key()))
         {
             sdl_hover_tooltip_clear();
+            sdl_character_sheet_screen_hide();
             display_character_tutorial();
         }
 
@@ -2522,12 +2832,14 @@ void do_cmd_character_sheet(void)
         }
 
         /* Flush messages */
+        sdl_character_sheet_screen_hide();
         message_flush();
     }
 
     /* Load screen */
     ui_menu_click_clear();
     sdl_hover_tooltip_clear();
+    sdl_character_sheet_screen_hide();
     sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
     screen_pop_touch_pane_proto();

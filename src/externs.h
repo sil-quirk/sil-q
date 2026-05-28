@@ -1591,6 +1591,16 @@ extern bool sdl_welcome_screen_set_status(cptr status);
 extern bool sdl_welcome_screen_show_loading(cptr status);
 extern void sdl_welcome_screen_hide(void);
 extern bool sdl_welcome_screen_active(void);
+extern bool sdl_character_sheet_screen_active(void);
+extern void sdl_character_sheet_screen_hide(void);
+extern bool sdl_character_sheet_screen_begin_live(int focus_choice);
+extern void sdl_character_sheet_screen_add_live_item(int choice, int kind,
+    int skill, int value_kind, cptr label, cptr desc);
+extern bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
+    const int* costs, int selected_stat, int points_left);
+extern bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
+    const int* skill_gain, const int* costs, int selected_skill,
+    int points_left);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
 extern void screen_pop_supporting_panes_hidden(void);
@@ -1694,6 +1704,8 @@ extern void ui_menu_click_add_text_token(int choice, int col, int row, cptr text
 extern bool ui_menu_click_has_cell(int col, int row);
 extern bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
 extern bool ui_menu_click_clear_hover(bool* wake);
+extern bool ui_menu_click_handle_choice_action(int choice, int action,
+    bool* wake);
 extern bool ui_menu_click_handle_cell(int col, int row);
 extern bool ui_menu_click_handle_cell_action(int col, int row, int action);
 extern bool ui_menu_click_has_pending(void);

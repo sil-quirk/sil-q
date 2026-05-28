@@ -6180,6 +6180,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
     int stat = 0;
 
     int cost;
+    int stat_costs[A_MAX];
 
     char ch;
 
@@ -6275,6 +6276,9 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
             /* Recompute costs */
             continue;
         }
+
+        for (i = 0; i < A_MAX; i++)
+            stat_costs[i] = birth_stat_increase_cost(stats[i]);
 
         p_ptr->new_exp = p_ptr->exp = get_start_xp();
 
@@ -6425,6 +6429,11 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
             }
         }
 
+        (void)sdl_character_sheet_screen_show_birth_stats(stats, stat_costs,
+            stat, MAX_COST - cost);
+        (void)Term_set_cursor(false);
+        Term_fresh();
+
         /* Get key */
         hide_cursor = true;
         ch = inkey();
@@ -6480,6 +6489,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
         /* Done */
         if (birth_confirm_input(ch, steamdeck))
         {
+            sdl_character_sheet_screen_hide();
             if (!birth_confirm_unspent_stat_points(MAX_COST - cost, steamdeck))
                 continue;
             ui_menu_click_clear();
@@ -6515,6 +6525,7 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
 
     /* Shouldn't reach; default to back */
 cleanup:
+    sdl_character_sheet_screen_hide();
     screen_pop_touch_pane_proto();
     ui_scroll_area_clear();
     return result;
@@ -6670,6 +6681,7 @@ extern NavResult gain_skills(void)
 
     int old_base[S_MAX];
     int skill_gain[S_MAX];
+    int skill_costs[S_MAX];
 
     int old_new_exp = p_ptr->new_exp;
     int total_cost = 0;
@@ -6708,8 +6720,13 @@ extern NavResult gain_skills(void)
         for (i = 0; i < S_MAX; i++)
         {
             /* Skip Special abilities skill - not trainable */
-            if (i == S_SPC) continue;
-            total_cost += skill_cost(old_base[i], skill_gain[i]);
+            if (i == S_SPC)
+            {
+                skill_costs[i] = 0;
+                continue;
+            }
+            skill_costs[i] = skill_cost(old_base[i], skill_gain[i]);
+            total_cost += skill_costs[i];
         }
 
         p_ptr->new_exp = old_new_exp - total_cost;
@@ -6883,6 +6900,11 @@ extern NavResult gain_skills(void)
             force_initial_redraw = false;
         }
 
+        (void)sdl_character_sheet_screen_show_birth_skills(old_base,
+            skill_gain, skill_costs, skill, p_ptr->new_exp);
+        (void)Term_set_cursor(false);
+        Term_fresh();
+
         /* Get key */
         hide_cursor = true;
         ch = inkey();
@@ -6928,6 +6950,7 @@ extern NavResult gain_skills(void)
             skill_gain_in_progress = false;
             ui_menu_click_clear();
             ui_scroll_area_clear();
+            sdl_character_sheet_screen_hide();
             return NAV_TO_CHARACTER;
         }
 
@@ -6936,9 +6959,10 @@ extern NavResult gain_skills(void)
         {
             if (compact && birth_pending_compact_description_confirm)
             {
+                sdl_character_sheet_screen_hide();
                 if (!birth_show_compact_description_after_assignment(steamdeck))
                     continue;
-            birth_pending_compact_description_confirm = false;
+                birth_pending_compact_description_confirm = false;
             }
             ui_menu_click_clear();
             ui_scroll_area_clear();
@@ -6997,6 +7021,7 @@ extern NavResult gain_skills(void)
     // reset hack global variable
     ui_menu_click_clear();
     ui_scroll_area_clear();
+    sdl_character_sheet_screen_hide();
     skill_gain_in_progress = false;
 
     /* Calculate the bonuses */
