@@ -36194,15 +36194,138 @@ static void knowledge_display_groups(const knowledge_browser_layout* layout,
     }
 }
 
+static int knowledge_entry_icon_w(const knowledge_browser_layout* layout)
+{
+    (void)layout;
+    return use_bigtile ? 3 : 2;
+}
+
+static bool knowledge_entry_icons_fit(const knowledge_browser_layout* layout)
+{
+    if (!layout)
+        return false;
+
+    return layout->list_w > knowledge_entry_icon_w(layout) + 3;
+}
+
+static int knowledge_entry_name_col(const knowledge_browser_layout* layout)
+{
+    if (!layout)
+        return 0;
+
+    return layout->list_col
+        + (knowledge_entry_icons_fit(layout) ? knowledge_entry_icon_w(layout) : 0);
+}
+
+static int knowledge_entry_name_width(const knowledge_browser_layout* layout)
+{
+    int prefix_w;
+    int name_w;
+
+    if (!layout)
+        return 1;
+
+    prefix_w = knowledge_entry_name_col(layout) - layout->list_col;
+    name_w = layout->list_w - prefix_w;
+
+    return (name_w > 0) ? name_w : 1;
+}
+
+static void knowledge_put_entry_icon(const knowledge_browser_layout* layout,
+    int row, byte attr, char chr)
+{
+    int col;
+
+    if (!knowledge_entry_icons_fit(layout) || !chr)
+        return;
+
+    col = layout->list_col;
+    Term_putch(col, row, attr, chr);
+    if (use_bigtile)
+    {
+        if (attr & TILE_FLAG)
+            Term_putch(col + 1, row, 255, -1);
+        else
+            Term_putch(col + 1, row, 0, ' ');
+    }
+}
+
+static bool knowledge_object_entry_icon(const object_list_entry* obj, byte* attr,
+    char* chr)
+{
+    int k_idx = 0;
+
+    if (!obj || !attr || !chr)
+        return false;
+
+    switch (obj->type)
+    {
+    case OBJ_NORMAL:
+        k_idx = obj->idx;
+        break;
+
+    case OBJ_SPECIAL:
+        if (obj->sval >= 0)
+        {
+            k_idx = lookup_kind(obj->tval, obj->sval);
+        }
+        else if (obj->e_idx > 0 && obj->e_idx < z_info->e_max)
+        {
+            ego_item_type* e_ptr = &e_info[obj->e_idx];
+            int i;
+
+            for (i = 0; i < EGO_TVALS_MAX && !k_idx; i++)
+            {
+                int j;
+
+                if (e_ptr->tval[i] != obj->tval)
+                    continue;
+
+                for (j = 1; j < z_info->k_max; j++)
+                {
+                    object_kind* k_ptr = &k_info[j];
+
+                    if (!k_ptr->name || !k_ptr->everseen)
+                        continue;
+                    if (k_ptr->tval != obj->tval)
+                        continue;
+                    if (k_ptr->sval < e_ptr->min_sval[i]
+                        || k_ptr->sval > e_ptr->max_sval[i])
+                    {
+                        continue;
+                    }
+
+                    k_idx = j;
+                    break;
+                }
+            }
+        }
+        break;
+
+    case OBJ_NONE:
+    default:
+        break;
+    }
+
+    if (k_idx <= 0 || k_idx >= z_info->k_max)
+        return false;
+
+    *attr = object_type_attr(k_idx);
+    *chr = object_type_char(k_idx);
+
+    return (*chr != '\0');
+}
+
 static int knowledge_artefact_name_width(const knowledge_browser_layout* layout,
     bool* show_debug)
 {
     bool debug = cheat_know && (layout->term_wid >= 78);
-    int name_w = layout->list_w;
+    int name_col = knowledge_entry_name_col(layout);
+    int name_w = knowledge_entry_name_width(layout);
 
     if (debug)
     {
-        int debug_name_w = (layout->term_wid - 12) - layout->list_col - 1;
+        int debug_name_w = (layout->term_wid - 12) - name_col - 1;
         if (debug_name_w >= 12)
             name_w = debug_name_w;
         else
@@ -36268,69 +36391,43 @@ static void knowledge_object_display_name(char* buf, size_t buflen,
 }
 
 static int knowledge_object_name_width(const knowledge_browser_layout* layout,
-    bool* show_idx, bool* show_sym)
+    bool* show_idx)
 {
     bool idx = cheat_know && (layout->term_wid >= 70);
-    bool sym = (layout->term_wid >= 44);
-    int name_w = layout->list_w;
+    int name_col = knowledge_entry_name_col(layout);
+    int name_w = knowledge_entry_name_width(layout);
 
     if (idx)
     {
-        int idx_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        int idx_name_w = (layout->term_wid - 5) - name_col - 1;
         if (idx_name_w >= 12 && idx_name_w < name_w)
             name_w = idx_name_w;
         else if (idx_name_w < 12)
             idx = false;
     }
 
-    if (sym)
-    {
-        int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w >= 12 && sym_name_w < name_w)
-            name_w = sym_name_w;
-        else if (sym_name_w < 12)
-            sym = false;
-    }
-
     if (show_idx)
         *show_idx = idx;
-    if (show_sym)
-        *show_sym = sym;
 
     return (name_w > 0) ? name_w : 1;
 }
 
 static int knowledge_monster_name_width(const knowledge_browser_layout* layout,
-    bool* show_sym, bool* show_kills)
+    bool* show_kills)
 {
-    bool sym = (layout->term_wid >= 44);
     bool kills = (layout->term_wid >= 56);
-    int name_w = layout->list_w;
+    int name_col = knowledge_entry_name_col(layout);
+    int name_w = knowledge_entry_name_width(layout);
 
     if (kills)
     {
-        int kills_name_w = (layout->term_wid - 5) - layout->list_col - 1;
+        int kills_name_w = (layout->term_wid - 5) - name_col - 1;
         if (kills_name_w >= 12 && kills_name_w < name_w)
             name_w = kills_name_w;
         else if (kills_name_w < 12)
             kills = false;
     }
 
-    if (sym)
-    {
-        int kills_col = layout->term_wid - 5;
-        int sym_col = kills ? (kills_col - 2)
-                            : (layout->term_wid - (use_bigtile ? 2 : 1));
-        int sym_name_w = sym_col - layout->list_col - 1;
-        if (sym_name_w >= 12 && sym_name_w < name_w)
-            name_w = sym_name_w;
-        else if (sym_name_w < 12)
-            sym = false;
-    }
-
-    if (show_sym)
-        *show_sym = sym;
     if (show_kills)
         *show_kills = kills;
 
@@ -36417,6 +36514,7 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
     int dep_col = layout->term_wid - 8;
     int rar_col = layout->term_wid - 4;
     int name_w = knowledge_artefact_name_width(layout, &show_debug);
+    int name_col = knowledge_entry_name_col(layout);
     int i;
 
     if (show_debug)
@@ -36444,7 +36542,9 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
         object_wipe(i_ptr);
         prepare_fake_artefact(i_ptr, artefact_idx[idx]);
         object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
-        Term_putstr(layout->list_col, row, name_w, attr, o_name);
+        knowledge_put_entry_icon(layout, row, object_attr(i_ptr),
+            object_char(i_ptr));
+        Term_putstr(name_col, row, name_w, attr, o_name);
 
         if (show_debug)
         {
@@ -36460,16 +36560,16 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
     object_list_entry object_idx[], int object_cnt, int object_cur, int object_top)
 {
     bool show_idx = false;
-    bool show_sym = false;
     int idx_col = layout->term_wid - 5;
-    int sym_col = layout->term_wid - (use_bigtile ? 2 : 1);
-    int name_w = knowledge_object_name_width(layout, &show_idx, &show_sym);
+    int name_w = knowledge_object_name_width(layout, &show_idx);
+    int name_col = knowledge_entry_name_col(layout);
+    int icon_w = knowledge_entry_icons_fit(layout)
+        ? knowledge_entry_icon_w(layout)
+        : 0;
     int i;
 
     if (show_idx)
         Term_putstr(idx_col, layout->header_row, 3, TERM_SLATE, "Idx");
-    if (show_sym)
-        Term_putstr(sym_col, layout->header_row, 3, TERM_SLATE, "Sym");
 
     for (i = 0; i < layout->list_rows; i++)
     {
@@ -36481,6 +36581,11 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
         byte attr;
         byte cursor;
         char buf[80];
+        byte icon_attr = TERM_WHITE;
+        char icon_chr = '\0';
+        bool has_icon;
+        int text_col;
+        int text_w;
 
         Term_erase(layout->list_col, row, 255);
 
@@ -36488,6 +36593,9 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             continue;
 
         obj = &object_idx[oidx];
+        has_icon = knowledge_object_entry_icon(obj, &icon_attr, &icon_chr);
+        text_col = has_icon ? name_col : layout->list_col;
+        text_w = has_icon ? name_w : name_w + icon_w;
 
         switch (obj->type)
         {
@@ -36497,24 +36605,12 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             cursor = k_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
             knowledge_object_display_name(buf, sizeof(buf), obj);
-            Term_putstr(layout->list_col, row, name_w, attr, buf);
+            if (has_icon)
+                knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
+            Term_putstr(text_col, row, text_w, attr, buf);
 
             if (show_idx)
                 c_prt(attr, format("%d", obj->idx), row, idx_col);
-
-            if (show_sym && k_ptr->aware)
-            {
-                byte a = k_ptr->flavor ? flavor_info[k_ptr->flavor].x_attr : k_ptr->d_attr;
-                byte c = k_ptr->flavor ? flavor_info[k_ptr->flavor].x_char : k_ptr->d_char;
-                Term_putch(sym_col, row, a, c);
-                if (use_bigtile)
-                {
-                    if (a & 0x80)
-                        Term_putch(sym_col + 1, row, 255, -1);
-                    else
-                        Term_putch(sym_col + 1, row, 0, ' ');
-                }
-            }
             break;
 
         case OBJ_SPECIAL:
@@ -36523,7 +36619,9 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             cursor = e_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
             knowledge_object_display_name(buf, sizeof(buf), obj);
-            Term_putstr(layout->list_col, row, name_w, attr, buf);
+            if (has_icon)
+                knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
+            Term_putstr(text_col, row, text_w, attr, buf);
             break;
 
         case OBJ_NONE:
@@ -36584,17 +36682,12 @@ static void knowledge_monster_summary(char* buf, size_t buflen, int grp_cur)
 static void knowledge_display_monsters(const knowledge_browser_layout* layout,
     monster_list_entry mon_idx[], int mon_cnt, int mon_cur, int mon_top)
 {
-    bool show_sym = false;
     bool show_kills = false;
     int kills_col = layout->term_wid - 5;
-    int sym_col;
-    int name_w = knowledge_monster_name_width(layout, &show_sym, &show_kills);
+    int name_w = knowledge_monster_name_width(layout, &show_kills);
+    int name_col = knowledge_entry_name_col(layout);
     int i;
-    sym_col = show_kills ? (kills_col - 2)
-                         : (layout->term_wid - (use_bigtile ? 2 : 1));
 
-    if (show_sym)
-        Term_putstr(sym_col, layout->header_row, 3, TERM_SLATE, "Sym");
     if (show_kills)
         Term_putstr(kills_col, layout->header_row, 5, TERM_SLATE, "Kills");
 
@@ -36619,19 +36712,8 @@ static void knowledge_display_monsters(const knowledge_browser_layout* layout,
         attr = (idx == mon_cur) ? TERM_L_BLUE : TERM_WHITE;
 
         monster_desc_race(race_name, sizeof(race_name), r_idx);
-        Term_putstr(layout->list_col, row, name_w, attr, race_name);
-
-        if (show_sym)
-        {
-            Term_putch(sym_col, row, r_ptr->x_attr, r_ptr->x_char);
-            if (use_bigtile)
-            {
-                if ((byte)(r_ptr->x_attr) & 0x80)
-                    Term_putch(sym_col + 1, row, 255, -1);
-                else
-                    Term_putch(sym_col + 1, row, 0, ' ');
-            }
-        }
+        knowledge_put_entry_icon(layout, row, r_ptr->x_attr, r_ptr->x_char);
+        Term_putstr(name_col, row, name_w, attr, race_name);
 
         if (show_kills)
         {
@@ -37183,8 +37265,8 @@ void do_cmd_knowledge_browser_page(int page)
                     object_grp_idx[state.group_cur[page]], object_idx);
             full_layout = layout;
             knowledge_expand_active_column(&full_layout);
-            split_name_w = knowledge_object_name_width(&layout, NULL, NULL);
-            full_name_w = knowledge_object_name_width(&full_layout, NULL, NULL);
+            split_name_w = knowledge_object_name_width(&layout, NULL);
+            full_name_w = knowledge_object_name_width(&full_layout, NULL);
             max_name_len = knowledge_max_object_name_len(object_idx, object_cnt);
             single_column = knowledge_should_use_single_column_for_names(
                 split_name_w, full_name_w, max_name_len);
@@ -37353,8 +37435,8 @@ void do_cmd_knowledge_browser_page(int page)
                     monster_grp_idx[state.group_cur[page]], mon_idx, 0x00);
             full_layout = layout;
             knowledge_expand_active_column(&full_layout);
-            split_name_w = knowledge_monster_name_width(&layout, NULL, NULL);
-            full_name_w = knowledge_monster_name_width(&full_layout, NULL, NULL);
+            split_name_w = knowledge_monster_name_width(&layout, NULL);
+            full_name_w = knowledge_monster_name_width(&full_layout, NULL);
             max_name_len = knowledge_max_monster_name_len(mon_idx, monster_cnt);
             single_column = knowledge_should_use_single_column_for_names(
                 split_name_w, full_name_w, max_name_len);

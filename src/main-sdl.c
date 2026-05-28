@@ -2084,6 +2084,7 @@ static bool sdl_left_panel_pane_runtime_active(void);
 static bool sdl_left_panel_pane_collapsed(void);
 static enum pane_placement sdl_left_panel_pane_placement(void);
 static bool sdl_left_panel_compact_row_mode(void);
+static bool sdl_left_panel_pane_has_border_columns(void);
 static bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
     const sdl_left_panel_metrics* metrics, SDL_FRect* out_rect);
 static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
@@ -2998,7 +2999,7 @@ static void sdl_left_panel_pane_cell_size_for_view(const sdl_view* view,
     int initial_cell_w = cell_w;
     int visual_cols = 0;
     int visual_w = 0;
-    int border_cols = sdl_left_panel_pane_collapsed() ? 0 : 2;
+    int border_cols = sdl_left_panel_pane_has_border_columns() ? 2 : 0;
     int available_w = 0;
     int max_cell_w = 0;
 
@@ -3455,7 +3456,9 @@ static bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         metrics->cell_h = cell_h;
         metrics->content_cols = content_cols;
         metrics->content_w = content_cols * metrics->cell_w;
-        metrics->separator_w = metrics->collapsed ? 0 : metrics->cell_w;
+        metrics->separator_w = sdl_left_panel_pane_has_border_columns()
+            ? metrics->cell_w
+            : 0;
         metrics->total_w = metrics->content_w
             + (metrics->separator_w * 2);
         metrics->panel_rows = panel_rows;
@@ -3584,6 +3587,12 @@ static bool sdl_left_panel_compact_row_mode(void)
 {
     return sdl_left_panel_compact_mode_normalized(
         config.left_panel_compact_mode) == SDL_LEFT_PANEL_COMPACT_ROW;
+}
+
+static bool sdl_left_panel_pane_has_border_columns(void)
+{
+    return !sdl_left_panel_pane_collapsed()
+        || !sdl_left_panel_compact_row_mode();
 }
 
 static int sdl_main_view_visual_cols_for_width(int width_px, int cell_w)
