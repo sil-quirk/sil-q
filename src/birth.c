@@ -1892,7 +1892,7 @@ static void display_character_description_screen(birth_menu choice)
 
 static byte birth_selected_attr(void)
 {
-    return (byte)(TERM_UI_SELECTED + TERM_L_WHITE);
+    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
 }
 
 static void birth_fill_selected_row(int col, int row, int width, byte attr)

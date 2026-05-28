@@ -5264,7 +5264,7 @@ static void ability_browser_fill_row(int col, int row, int width, byte attr)
 static byte ability_browser_selected_attr(byte source_attr)
 {
     (void)source_attr;
-    return (byte)(TERM_UI_SELECTED + TERM_L_WHITE);
+    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
 }
 
 static void ability_browser_init_layout(ability_browser_layout* layout)
@@ -34365,13 +34365,32 @@ static int supply_browser_page_tab_col(int page)
     int col = 0;
 
     for (int i = SUPPLY_BROWSER_PAGE_EQUIPMENT; i < page; i++)
+    {
         col += (int)strlen(supply_browser_page_text(i)) + 2;
+        if (i != SUPPLY_BROWSER_PAGE_SUPPLIES)
+            col++;
+    }
 
     return col;
 }
 
+static int supply_browser_page_token_width(int page)
+{
+    return (int)strlen(supply_browser_page_text(page)) + 2;
+}
+
+static byte supply_browser_page_tab_attr(int page, int selected_page,
+    int hover_page)
+{
+    if (page == hover_page)
+        return TERM_L_BLUE;
+    if (page == selected_page)
+        return (byte)(TERM_L_WHITE + TERM_SHADE);
+    return TERM_SLATE;
+}
+
 static void supply_draw_page_header(const knowledge_browser_layout* layout,
-    int page, cptr title)
+    int page, int hover_page, cptr title)
 {
     int col;
 
@@ -34385,14 +34404,23 @@ static void supply_draw_page_header(const knowledge_browser_layout* layout,
          i <= SUPPLY_BROWSER_PAGE_SUPPLIES; i++)
     {
         cptr label = supply_browser_page_text(i);
-        byte attr = (i == page) ? (TERM_L_WHITE + TERM_SHADE) : TERM_SLATE;
+        bool selected = (i == page);
+        byte attr = supply_browser_page_tab_attr(i, page, hover_page);
+        char token[32];
+        int token_width;
 
-        Term_putstr(col, layout->title_row, (int)strlen(label), attr, label);
-        col += (int)strlen(label);
+        if (selected)
+            strnfmt(token, sizeof(token), "[%s]", label);
+        else
+            strnfmt(token, sizeof(token), " %s ", label);
+
+        token_width = (int)strlen(token);
+        Term_putstr(col, layout->title_row, token_width, attr, token);
+        col += token_width;
         if (i != SUPPLY_BROWSER_PAGE_SUPPLIES)
         {
-            Term_putstr(col, layout->title_row, 2, TERM_L_DARK, "  ");
-            col += 2;
+            Term_putstr(col, layout->title_row, 1, TERM_L_DARK, " ");
+            col++;
         }
     }
 
@@ -34407,21 +34435,49 @@ static void supply_draw_page_header(const knowledge_browser_layout* layout,
 
 static void supply_register_page_tabs(const knowledge_browser_layout* layout)
 {
-    int equip_col;
-    int supply_col;
+    int col;
 
     if (!layout)
         return;
 
-    equip_col = supply_browser_page_tab_col(SUPPLY_BROWSER_PAGE_EQUIPMENT);
-    supply_col = supply_browser_page_tab_col(SUPPLY_BROWSER_PAGE_SUPPLIES);
+    col = supply_browser_page_tab_col(SUPPLY_BROWSER_PAGE_EQUIPMENT);
+    for (int i = SUPPLY_BROWSER_PAGE_EQUIPMENT;
+         i <= SUPPLY_BROWSER_PAGE_SUPPLIES; i++)
+    {
+        int choice = (i == SUPPLY_BROWSER_PAGE_EQUIPMENT)
+            ? SUPPLY_CLICK_PAGE_EQUIPMENT
+            : SUPPLY_CLICK_PAGE_SUPPLIES;
+        int width = supply_browser_page_token_width(i);
 
-    ui_menu_click_add(SUPPLY_CLICK_PAGE_EQUIPMENT, equip_col,
-        layout->title_row,
-        (int)strlen(supply_browser_page_text(SUPPLY_BROWSER_PAGE_EQUIPMENT)));
-    ui_menu_click_add(SUPPLY_CLICK_PAGE_SUPPLIES, supply_col,
-        layout->title_row,
-        (int)strlen(supply_browser_page_text(SUPPLY_BROWSER_PAGE_SUPPLIES)));
+        if (i != SUPPLY_BROWSER_PAGE_SUPPLIES
+            && col + width < layout->term_wid)
+        {
+            width++;
+        }
+
+        ui_menu_click_add(choice, col, layout->title_row, width);
+        col += supply_browser_page_token_width(i);
+        if (i != SUPPLY_BROWSER_PAGE_SUPPLIES)
+            col++;
+    }
+}
+
+static int supply_browser_hover_page(void)
+{
+    int hover_choice;
+
+    if (!ui_menu_click_get_hover_choice(&hover_choice))
+        return -1;
+
+    switch (hover_choice)
+    {
+    case SUPPLY_CLICK_PAGE_EQUIPMENT:
+        return SUPPLY_BROWSER_PAGE_EQUIPMENT;
+    case SUPPLY_CLICK_PAGE_SUPPLIES:
+        return SUPPLY_BROWSER_PAGE_SUPPLIES;
+    default:
+        return -1;
+    }
 }
 
 static const int equipment_menu_slots[] = {
@@ -37865,8 +37921,14 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (equip_grp_top < 0)
                 equip_grp_top = 0;
 
+            (void)Term_set_extra_cursor(false, 0, 0, false);
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+
             Term_clear();
-            supply_draw_page_header(&layout, page, "Equipment");
+            supply_draw_page_header(&layout, page,
+                supply_browser_hover_page(), "Equipment");
             Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
                 "Slots with equipped items and matching pack/supply choices");
             Term_erase(0, layout.header_row, 255);
@@ -37884,10 +37946,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 Term_putch(layout.divider_col, layout.list_row + i,
                     TERM_L_DARK, '|');
 
-            (void)Term_set_extra_cursor(false, 0, 0, false);
-            ui_menu_click_begin();
-            ui_menu_click_set_hover_enabled(true);
-            ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
             supply_register_page_tabs(&layout);
 
             display_equipment_group_list(layout.group_col, layout.list_row,
@@ -38174,6 +38232,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         bool compact_draw_names;
         int entry_page_rows;
         int entry_row_stride;
+        cptr list_label;
+        cptr title_label;
 
         prepare_supply_group_icons(group_icons, group_icon_kinds);
         compute_supply_group_totals(group_totals);
@@ -38264,6 +38324,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             light_item_weight, light_oil_weight, lamp_oil,
             player_lamp_oil_capacity(), oil_slots, oil_slot_capacity);
 
+        list_label = (single_column && column)
+            ? supply_group_text[grp_idx[grp_cur]]
+            : "Name";
+        title_label = (draw_layout.term_wid <= 50)
+            ? "Supplies - H/F/P/G/Oil/Jewelry"
+            : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil, Jewelry Sets";
+
+        if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
+            list_label = "Set";
+
         if (redraw || single_column
             || (single_column != prev_single_column)
             || (grp_idx[grp_cur] != prev_group)
@@ -38272,18 +38342,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             || (draw_layout.term_hgt != prev_term_hgt)
             || (draw_layout.divider_col != prev_divider_col))
         {
-            cptr list_label = (single_column && column)
-                ? supply_group_text[grp_idx[grp_cur]]
-                : "Name";
-            cptr title_label = (draw_layout.term_wid <= 50)
-                ? "Supplies - H/F/P/G/Oil/Jewelry"
-                : "Supplies - Herbs, Food, Potions, Gems, Lights/Oil, Jewelry Sets";
-
-            if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
-                list_label = "Set";
-
             Term_clear();
-            supply_draw_page_header(&draw_layout, page, title_label);
             Term_putstr(0, draw_layout.tabs_row, draw_layout.term_wid, TERM_SLATE,
                 weight_buf);
             Term_erase(0, draw_layout.header_row, 255);
@@ -38340,6 +38399,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+        supply_draw_page_header(&draw_layout, page,
+            supply_browser_hover_page(), title_label);
         supply_register_page_tabs(&draw_layout);
 
         if (!single_column || !column)

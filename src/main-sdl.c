@@ -614,6 +614,13 @@ typedef struct sdl_left_panel_metrics {
     int compact_widths[3];
 } sdl_left_panel_metrics;
 
+typedef struct sdl_left_panel_compact_light_span {
+    int icon_cols;
+    int text_start;
+    int text_width;
+    int packed_width;
+} sdl_left_panel_compact_light_span;
+
 typedef struct touch_pane_slot_info {
     const char* slot_name;
     const char* default_label;
@@ -3299,6 +3306,69 @@ static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
     return max_col + 1;
 }
 
+static bool sdl_left_panel_compact_light_span_for_term(const term* t,
+    const term_win* scr, sdl_left_panel_compact_light_span* out)
+{
+    int scan_cols;
+    int icon_cols = 2;
+    int text_start = -1;
+    int text_end = -1;
+
+    if (out)
+        *out = (sdl_left_panel_compact_light_span){ 0 };
+    if (!t || !scr || !inventory[INVEN_LITE].k_idx)
+        return false;
+    if (ROW_LIGHT < 0 || ROW_LIGHT >= t->hgt)
+        return false;
+    if (!scr->a || !scr->c || !scr->a[ROW_LIGHT] || !scr->c[ROW_LIGHT])
+        return false;
+
+    scan_cols = MIN(LEFT_PANEL_CONTENT_WID, t->wid);
+    if (scan_cols <= icon_cols)
+        return false;
+
+    for (int col = icon_cols; col < scan_cols; col++) {
+        byte a = scr->a[ROW_LIGHT][col];
+        char c = scr->c[ROW_LIGHT][col];
+
+        if (!sdl_left_panel_cell_has_visible_content(a, c))
+            continue;
+
+        if (text_start < 0)
+            text_start = col;
+        text_end = col;
+    }
+
+    if (text_start < 0 || text_end < text_start)
+        return false;
+
+    if (out) {
+        out->icon_cols = icon_cols;
+        out->text_start = text_start;
+        out->text_width = text_end - text_start + 1;
+        out->packed_width = icon_cols + 1 + out->text_width;
+    }
+
+    return true;
+}
+
+static int sdl_left_panel_compact_source_row_width_for_view(
+    const sdl_view* view, int source_row, bool row_mode)
+{
+    if (row_mode && source_row == ROW_LIGHT) {
+        sdl_left_panel_compact_light_span span;
+
+        if (view && view->term_ready
+            && sdl_left_panel_compact_light_span_for_term(&view->t,
+                view->t.scr, &span))
+        {
+            return span.packed_width;
+        }
+    }
+
+    return sdl_left_panel_source_row_width_for_view(view, source_row);
+}
+
 static void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics)
 {
@@ -3316,8 +3386,8 @@ static void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
     metrics->compact_segment_count = (int)N_ELEMENTS(source_rows);
 
     for (int i = 0; i < metrics->compact_segment_count; i++) {
-        int width = sdl_left_panel_source_row_width_for_view(view,
-            source_rows[i]);
+        int width = sdl_left_panel_compact_source_row_width_for_view(view,
+            source_rows[i], row_mode);
 
         if (width <= 0)
             width = LEFT_PANEL_CONTENT_WID;
@@ -3331,7 +3401,7 @@ static void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
             metrics->compact_output_cols[i] = next_col;
             next_col += width + 1;
         } else {
-            metrics->compact_output_rows[i] = i;
+            metrics->compact_output_rows[i] = i + 1;
             metrics->compact_output_cols[i] = 0;
             if (width > max_cols)
                 max_cols = width;
@@ -3342,7 +3412,7 @@ static void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
         metrics->panel_rows = 1;
         metrics->content_cols = next_col > 0 ? next_col - 1 : 1;
     } else {
-        metrics->panel_rows = metrics->compact_segment_count;
+        metrics->panel_rows = metrics->compact_segment_count + 1;
         metrics->content_cols = max_cols > 0 ? max_cols : LEFT_PANEL_CONTENT_WID;
     }
 }
@@ -32239,11 +32309,33 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
     if (metrics.collapsed) {
         for (int i = 0; i < metrics.compact_segment_count; i++) {
+            int source_row = metrics.compact_source_rows[i];
+            int output_col = metrics.compact_output_cols[i];
+            int output_row = metrics.compact_output_rows[i];
+
+            if (metrics.compact_row && source_row == ROW_LIGHT) {
+                sdl_left_panel_compact_light_span span;
+
+                if (sdl_left_panel_compact_light_span_for_term(source_term,
+                        scr, &span))
+                {
+                    sdl_render_left_panel_source_row_cells(view, source_term,
+                        scr, source_row, 0, span.icon_cols, output_col,
+                        output_row, content_x, metrics.cell_w, metrics.cell_h,
+                        font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
+                    sdl_render_left_panel_source_row_cells(view, source_term,
+                        scr, source_row, span.text_start, span.text_width,
+                        output_col + span.icon_cols + 1, output_row,
+                        content_x, metrics.cell_w, metrics.cell_h, font_atlas,
+                        atlas_cell_w, atlas_cell_h, mono_font);
+                    continue;
+                }
+            }
+
             sdl_render_left_panel_source_row_cells(view, source_term, scr,
-                metrics.compact_source_rows[i], 0, metrics.compact_widths[i],
-                metrics.compact_output_cols[i], metrics.compact_output_rows[i],
-                content_x, metrics.cell_w, metrics.cell_h, font_atlas,
-                atlas_cell_w, atlas_cell_h, mono_font);
+                source_row, 0, metrics.compact_widths[i], output_col,
+                output_row, content_x, metrics.cell_w, metrics.cell_h,
+                font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
         }
     } else {
         for (int row = 0; row < metrics.panel_rows; row++) {

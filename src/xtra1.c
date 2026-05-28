@@ -315,25 +315,161 @@ static bool pointer_attack_melee_has_offhand(void)
         && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
 }
 
-static void prt_pointer_attack_value_row(cptr label, byte label_attr,
-    byte value_attr, cptr value, int row)
+static bool left_panel_object_icon_is_usable(const object_type* o_ptr)
+{
+    return o_ptr && o_ptr->k_idx;
+}
+
+static int left_panel_put_object_icon(const object_type* o_ptr, int row,
+    int col, bool trailing_space)
+{
+    byte attr;
+    char icon;
+    int start_col = col;
+    int limit_col = COL_MEL + LEFT_PANEL_CONTENT_WID;
+
+    if (!Term || !left_panel_object_icon_is_usable(o_ptr))
+        return 0;
+    if (row < 0 || row >= Term->hgt || col < COL_MEL || col >= limit_col)
+        return 0;
+
+    attr = object_attr(o_ptr);
+    icon = object_char(o_ptr);
+
+    Term_putch(col, row, attr, icon);
+    col++;
+    if (col < limit_col)
+    {
+        if (use_bigtile)
+            Term_putch(col, row, 255, -1);
+        else
+            Term_putch(col, row, attr, icon);
+        col++;
+    }
+    if (trailing_space && col < limit_col)
+    {
+        Term_putch(col, row, TERM_WHITE, ' ');
+        col++;
+    }
+
+    return col - start_col;
+}
+
+static const object_type* left_panel_melee_display_object(void)
+{
+    return inventory[INVEN_WIELD].k_idx ? &inventory[INVEN_WIELD] : NULL;
+}
+
+static const object_type* left_panel_offhand_display_object(void)
+{
+    return pointer_attack_melee_has_offhand() ? &inventory[INVEN_ARM] : NULL;
+}
+
+static const object_type* left_panel_ranged_display_object(bool throwing)
+{
+    int mode = pointer_attack_ranged_display_mode();
+    const object_type* ammo = pointer_attack_ranged_ammo_for_mode(mode);
+
+    if (throwing && ammo && ammo->k_idx)
+        return ammo;
+    if (inventory[INVEN_BOW].k_idx)
+        return &inventory[INVEN_BOW];
+    if (ammo && ammo->k_idx)
+        return ammo;
+
+    return NULL;
+}
+
+static const object_type* left_panel_armour_display_object(void)
+{
+    static const int slots[] = {
+        INVEN_BODY, INVEN_ARM, INVEN_OUTER, INVEN_HEAD, INVEN_HANDS, INVEN_FEET
+    };
+
+    for (int i = 0; i < (int)N_ELEMENTS(slots); i++)
+    {
+        object_type* o_ptr = &inventory[slots[i]];
+
+        if (!o_ptr->k_idx)
+            continue;
+        if (slots[i] == INVEN_ARM && o_ptr->tval != TV_SHIELD)
+            continue;
+
+        return o_ptr;
+    }
+
+    return NULL;
+}
+
+static void left_panel_format_evasion_value(char* buf, size_t buflen)
+{
+    bool block;
+
+    if (!buf || buflen == 0)
+        return;
+    buf[0] = '\0';
+    if (!p_ptr)
+        return;
+
+    block = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = false;
+    strnfmt(buf, buflen, "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
+        p_min(GF_HURT, true), p_max(GF_HURT, true));
+    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
+}
+
+static void prt_pointer_attack_value_row_icon(cptr label, byte label_attr,
+    byte value_attr, cptr value, int row, const object_type* icon_obj)
 {
     int value_len;
     int value_col;
+    bool can_draw_icon;
 
-    if (!label || !value || !value[0])
+    if (!value || !value[0])
         return;
 
     value_len = strlen(value);
+    can_draw_icon = left_panel_object_icon_is_usable(icon_obj)
+        && value_len <= LEFT_PANEL_CONTENT_WID - 2;
+    if (can_draw_icon)
+    {
+        int icon_cols = left_panel_put_object_icon(icon_obj, row, COL_MEL,
+            false);
+
+        if (icon_cols > 0)
+        {
+            int label_col = COL_MEL + icon_cols;
+
+            value_col = COL_MEL + LEFT_PANEL_CONTENT_WID - value_len;
+            if (value_col < label_col)
+                value_col = label_col;
+            if (label && label[0]
+                && ((int)strlen(label) + 1) <= value_col - label_col)
+            {
+                c_put_str(label_attr, label, row, label_col);
+            }
+            else if (label && label[0] && value_col > label_col + 1)
+            {
+                char short_label[2];
+
+                short_label[0] = label[0];
+                short_label[1] = '\0';
+                c_put_str(label_attr, short_label, row, label_col);
+            }
+            c_put_str(value_attr, value, row, value_col);
+            return;
+        }
+    }
+
     value_col = COL_MEL + LEFT_PANEL_CONTENT_WID - value_len;
     if (value_col < COL_MEL)
         value_col = COL_MEL;
 
-    if (((int)strlen(label) + 1) <= value_col - COL_MEL)
+    if (label && label[0] && ((int)strlen(label) + 1) <= value_col - COL_MEL)
     {
         c_put_str(label_attr, label, row, COL_MEL);
     }
-    else if (value_col > COL_MEL + 1)
+    else if (label && label[0] && value_col > COL_MEL + 1)
     {
         char short_label[2];
 
@@ -930,20 +1066,20 @@ static void prt_mel(void)
         meleeColour);
     strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL],
         p_ptr->mdd, p_ptr->mds);
-    prt_pointer_attack_value_row(
+    prt_pointer_attack_value_row_icon(
         p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2x" : "Mel",
         pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-        meleeColour, buf, main_row);
+        meleeColour, buf, main_row, left_panel_melee_display_object());
 
     if (has_offhand && can_use_offhand_row)
     {
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
             p_ptr->mds2);
-        prt_pointer_attack_value_row("Off",
+        prt_pointer_attack_value_row_icon("Off",
             pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
             pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-            buf, ROW_MEL);
+            buf, ROW_MEL, left_panel_offhand_display_object());
     }
 }
 
@@ -966,12 +1102,25 @@ static void prt_arc(void)
     {
         byte arc_attr = pointer_attack_ranged_panel_attr(TERM_UMBER);
         cptr label = throwing ? "Thr" : "Arc";
+        const object_type* icon_obj = left_panel_ranged_display_object(throwing);
+        bool draw_icon = left_panel_object_icon_is_usable(icon_obj);
 
         if (!throwing && p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
             && p_ptr->killed_enemy_with_arrow)
         {
-            c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), label,
-                ROW_ARC, COL_ARC);
+            char full_value[32];
+            bool draw_special_icon;
+
+            strnfmt(full_value, sizeof(full_value), "(%+d,%dd%d)", attack,
+                2 * dd, ds);
+            draw_special_icon = draw_icon
+                && (int)strlen(full_value) <= LEFT_PANEL_CONTENT_WID - 3;
+
+            if (draw_special_icon)
+                left_panel_put_object_icon(icon_obj, ROW_ARC, COL_ARC, true);
+            else
+                c_put_str(pointer_attack_ranged_panel_attr(TERM_L_WHITE), label,
+                    ROW_ARC, COL_ARC);
             strnfmt(buf, sizeof(buf), ")");
             c_put_str(arc_attr, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
             strnfmt(buf, sizeof(buf), "%dd%d", 2 * dd, ds);
@@ -987,9 +1136,9 @@ static void prt_arc(void)
         else
         {
             strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", attack, dd, ds);
-            prt_pointer_attack_value_row(label,
+            prt_pointer_attack_value_row_icon(label,
                 pointer_attack_ranged_panel_attr(TERM_L_WHITE), arc_attr, buf,
-                ROW_ARC);
+                ROW_ARC, icon_obj);
         }
     }
 
@@ -1187,15 +1336,10 @@ static void prt_evn(void)
     /* Clear the line so shorter values don't leave stale characters */
     Term_erase(COL_EVN, ROW_EVN, 12);
 
-    // Toggle blocking on and off so we don't show the blocking value in
-    // the armor total
-    bool block = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
-    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = false;
     /* Total Armor */
-    strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
-        p_min(GF_HURT, true), p_max(GF_HURT, true));
-    c_put_str(attr, buf, ROW_EVN, COL_EVN + 12 - strlen(buf));
-    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
+    left_panel_format_evasion_value(buf, sizeof(buf));
+    prt_pointer_attack_value_row_icon(NULL, attr, attr, buf, ROW_EVN,
+        left_panel_armour_display_object());
 }
 
 /*
@@ -1861,15 +2005,25 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
     }
 
     {
+        const object_type* icon_obj = left_panel_melee_display_object();
+
         strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)",
             p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? "M2" : "M",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
         SDL_strlcpy(short_buf, buf, sizeof(short_buf));
         {
             int old_count = count;
-            hidden_left_panel_add_line_mode(lines, &count, max_lines,
-                pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE, TERM_L_WHITE),
-                buf, SDL_POINTER_ATTACK_MELEE);
+            if (left_panel_object_icon_is_usable(icon_obj))
+                hidden_left_panel_add_icon_line_mode(lines, &count, max_lines,
+                    pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                        TERM_L_WHITE),
+                    buf, short_buf, object_attr(icon_obj), object_char(icon_obj),
+                    SDL_POINTER_ATTACK_MELEE);
+            else
+                hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                    pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                        TERM_L_WHITE),
+                    buf, SDL_POINTER_ATTACK_MELEE);
             if (count > old_count)
                 SDL_strlcpy(lines[count - 1].short_text, short_buf,
                     sizeof(lines[count - 1].short_text));
@@ -1877,16 +2031,26 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
 
         if (pointer_attack_melee_has_offhand())
         {
+            const object_type* offhand_icon = left_panel_offhand_display_object();
+
             strnfmt(buf, sizeof(buf), "O(%+d,%dd%d)",
                 p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
                 p_ptr->mds2);
             SDL_strlcpy(short_buf, buf, sizeof(short_buf));
             {
                 int old_count = count;
-                hidden_left_panel_add_line_mode(lines, &count, max_lines,
-                    pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
-                        TERM_L_WHITE),
-                    buf, SDL_POINTER_ATTACK_MELEE);
+                if (left_panel_object_icon_is_usable(offhand_icon))
+                    hidden_left_panel_add_icon_line_mode(lines, &count,
+                        max_lines,
+                        pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                            TERM_L_WHITE),
+                        buf, short_buf, object_attr(offhand_icon),
+                        object_char(offhand_icon), SDL_POINTER_ATTACK_MELEE);
+                else
+                    hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                        pointer_attack_panel_attr(SDL_POINTER_ATTACK_MELEE,
+                            TERM_L_WHITE),
+                        buf, SDL_POINTER_ATTACK_MELEE);
                 if (count > old_count)
                     SDL_strlcpy(lines[count - 1].short_text, short_buf,
                         sizeof(lines[count - 1].short_text));
@@ -1905,6 +2069,8 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
         {
             {
                 cptr label = arc_throwing ? "T" : "A";
+                const object_type* icon_obj =
+                    left_panel_ranged_display_object(arc_throwing);
 
                 strnfmt(buf, sizeof(buf), "%s(%+d,%dd%d)", label, arc_attack,
                     arc_dd, arc_ds);
@@ -1912,9 +2078,16 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
                     label, arc_attack, arc_dd, arc_ds);
                 {
                     int old_count = count;
-                    hidden_left_panel_add_line_mode(lines, &count, max_lines,
-                        pointer_attack_ranged_panel_attr(TERM_UMBER),
-                        buf, SDL_POINTER_ATTACK_RANGED_1);
+                    if (left_panel_object_icon_is_usable(icon_obj))
+                        hidden_left_panel_add_icon_line_mode(lines, &count,
+                            max_lines,
+                            pointer_attack_ranged_panel_attr(TERM_UMBER),
+                            buf, short_buf, object_attr(icon_obj),
+                            object_char(icon_obj), SDL_POINTER_ATTACK_RANGED_1);
+                    else
+                        hidden_left_panel_add_line_mode(lines, &count, max_lines,
+                            pointer_attack_ranged_panel_attr(TERM_UMBER),
+                            buf, SDL_POINTER_ATTACK_RANGED_1);
                     if (count > old_count)
                         SDL_strlcpy(lines[count - 1].short_text, short_buf,
                             sizeof(lines[count - 1].short_text));
@@ -1928,6 +2101,22 @@ static int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lin
             &inventory[INVEN_QUIVER1], SDL_POINTER_ATTACK_RANGED_1);
         hidden_left_panel_add_quiver_line(lines, &count, max_lines,
             &inventory[INVEN_QUIVER2], SDL_POINTER_ATTACK_RANGED_2);
+    }
+
+    {
+        const object_type* armour_icon = left_panel_armour_display_object();
+        int old_count = count;
+
+        left_panel_format_evasion_value(buf, sizeof(buf));
+        if (left_panel_object_icon_is_usable(armour_icon))
+            hidden_left_panel_add_icon_line(lines, &count, max_lines,
+                TERM_SLATE, buf, buf, object_attr(armour_icon),
+                object_char(armour_icon));
+        else
+            hidden_left_panel_add_line(lines, &count, max_lines, TERM_SLATE,
+                buf);
+        if (count > old_count)
+            lines[count - 1].click_action = SDL_PANEL_CLICK_INVENTORY;
     }
 
     if (!ui_status_pane_owns_left_panel_statuses()
