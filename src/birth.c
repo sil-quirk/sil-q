@@ -1890,6 +1890,36 @@ static void display_character_description_screen(birth_menu choice)
     screen_load();
 }
 
+static byte birth_selected_attr(void)
+{
+    return (byte)(TERM_UI_SELECTED + TERM_L_WHITE);
+}
+
+static void birth_fill_selected_row(int col, int row, int width, byte attr)
+{
+    char fill[160];
+    int term_wid = Term ? Term->wid : 80;
+    int term_hgt = Term ? Term->hgt : 24;
+
+    if (row < 0 || row >= term_hgt || width <= 0)
+        return;
+    if (col < 0)
+    {
+        width += col;
+        col = 0;
+    }
+    if (col >= term_wid || width <= 0)
+        return;
+    if (col + width > term_wid)
+        width = term_wid - col;
+    if (width >= (int)sizeof(fill))
+        width = (int)sizeof(fill) - 1;
+
+    memset(fill, ' ', (size_t)width);
+    fill[width] = '\0';
+    Term_putstr(col, row, width, attr, fill);
+}
+
 /*
  * Generic "get choice from menu" function
  */
@@ -1951,14 +1981,18 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
+            bool selected = (i == (cur - top));
+
             /* Clear */
             Term_erase(col, i + TABLE_ROW, wid);
 
             /* Display name part */
-            if (i == (cur - top))
+            if (selected)
             {
                 /* Highlight the current selection */
-                if (choices[i + top].ghost)
+                if (allow_full_description_screen)
+                    attr = birth_selected_attr();
+                else if (choices[i + top].ghost)
                     attr = TERM_BLUE;
                 else
                     attr = TERM_L_BLUE;
@@ -1977,7 +2011,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 strnfmt(name_part, sizeof(name_part), "%c %s", 'X', choices[i + top].name);
             else 
                 strnfmt(name_part, sizeof(name_part), "%s", choices[i + top].name);
-            
+
+            if (selected && allow_full_description_screen)
+                birth_fill_selected_row(col, i + TABLE_ROW, wid, attr);
             Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
             ui_menu_click_add(i + top, col, i + TABLE_ROW, wid);
         }

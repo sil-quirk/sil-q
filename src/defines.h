@@ -3648,6 +3648,7 @@
 #define TERM_L_UMBER 15 /* 'U' */ /* 3,2,1 */
 
 #define TERM_SHADE 16 // added onto a colour N times to produce shade N
+#define TERM_UI_SELECTED 192 /* SDL reverse-video attrs; add background color */
 
 #define MSG_GENERIC 0
 #define MSG_HIT 1

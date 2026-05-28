@@ -5236,6 +5236,37 @@ static void ability_browser_put_fitted(int col, int row, int width, byte attr,
     Term_putstr(col, row, width, attr, fitted);
 }
 
+static void ability_browser_fill_row(int col, int row, int width, byte attr)
+{
+    char fill[180];
+    int term_wid = Term ? Term->wid : 80;
+    int term_hgt = Term ? Term->hgt : 24;
+
+    if (row < 0 || row >= term_hgt || width <= 0)
+        return;
+    if (col < 0)
+    {
+        width += col;
+        col = 0;
+    }
+    if (col >= term_wid || width <= 0)
+        return;
+    if (col + width > term_wid)
+        width = term_wid - col;
+    if (width >= (int)sizeof(fill))
+        width = (int)sizeof(fill) - 1;
+
+    SDL_memset(fill, ' ', (size_t)width);
+    fill[width] = '\0';
+    Term_putstr(col, row, width, attr, fill);
+}
+
+static byte ability_browser_selected_attr(byte source_attr)
+{
+    (void)source_attr;
+    return (byte)(TERM_UI_SELECTED + TERM_L_WHITE);
+}
+
 static void ability_browser_init_layout(ability_browser_layout* layout)
 {
     int min_ability_w = 28;
@@ -5758,34 +5789,47 @@ static void ability_browser_draw_ability_list(
         int idx = entry_top + i;
         int y = layout->list_row + i;
         const ability_browser_entry* entry;
-        byte attr;
         char state[32];
         char level[8];
         char prefix[8];
+        bool selected;
+        bool highlighted;
+        byte row_attr;
+        byte prefix_attr;
+        byte level_attr;
+        byte state_attr;
 
         if (idx >= entry_count)
             break;
 
         entry = &entries[idx];
-        attr = entry->attr;
-        if (idx == entry_cur && focused)
-            attr = TERM_L_BLUE;
+        selected = (idx == entry_cur);
+        highlighted = selected && focused;
+        row_attr = highlighted ? ability_browser_selected_attr(entry->attr)
+                               : entry->attr;
+        prefix_attr = highlighted ? row_attr
+            : (selected ? TERM_L_BLUE : TERM_L_DARK);
+        level_attr = highlighted ? row_attr : TERM_SLATE;
+        state_attr = highlighted ? row_attr : entry->attr;
 
-        if (idx == entry_cur)
+        ability_browser_fill_row(layout->ability_col, y, layout->ability_w,
+            highlighted ? row_attr : TERM_DARK);
+
+        if (selected)
             indexed_menu_focus_prefix(prefix, sizeof(prefix), idx);
         else
             indexed_menu_normal_prefix(prefix, sizeof(prefix), idx);
-        Term_putstr(layout->ability_col, y, prefix_w,
-            (idx == entry_cur) ? TERM_L_BLUE : TERM_L_DARK, prefix);
+        Term_putstr(layout->ability_col, y, prefix_w, prefix_attr, prefix);
 
         strnfmt(level, sizeof(level), "%2d", entry->b_ptr->level);
-        ability_browser_put_fitted(level_col, y, 2, TERM_SLATE, level);
-        ability_browser_put_fitted(name_col, y, name_w, attr, entry->name);
+        ability_browser_put_fitted(level_col, y, 2, level_attr, level);
+        ability_browser_put_fitted(name_col, y, name_w, row_attr,
+            entry->name);
 
         ability_browser_entry_state(state, sizeof(state), skilltype, entry);
         ability_browser_put_fitted(state_col, y,
             layout->ability_col + layout->ability_w - state_col,
-            entry->attr, state);
+            state_attr, state);
 
         ui_menu_click_add(ABILITY_MENU_CLICK_ABILITY_BASE + idx,
             layout->ability_col, y, layout->ability_w);

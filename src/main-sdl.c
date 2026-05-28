@@ -833,6 +833,8 @@ typedef struct sdl_character_sheet_screen_state {
     sdl_character_sheet_hit hits[160];
     int hit_count;
     int hover_choice;
+    int sheet_scroll;
+    int sheet_scroll_max;
 } sdl_character_sheet_screen_state;
 
 typedef struct sdl_welcome_picture_bounds {
@@ -8205,6 +8207,56 @@ static TTF_Font* sdl_char_sheet_font_for_rows(float available_h, int rows,
     return chosen_font;
 }
 
+/*
+ * Like sdl_char_sheet_font_for_rows but never squishes the line height below
+ * the font's natural metric: if the content cannot fit even at min_px, the
+ * largest legible font is kept and the leftover height is reported so the
+ * caller can enable vertical scrolling instead of rendering illegible text.
+ */
+static TTF_Font* sdl_char_sheet_font_for_rows_scroll(float available_h,
+    int rows, int min_px, int max_px, float line_scale, float* out_line_h,
+    float* out_overflow, int* out_px)
+{
+    TTF_Font* chosen_font = NULL;
+    float chosen_line_h = 1.0f;
+    int chosen_px = min_px;
+
+    if (rows < 1)
+        rows = 1;
+    if (available_h < 1.0f)
+        available_h = 1.0f;
+    if (max_px < min_px)
+        max_px = min_px;
+
+    for (int px = max_px; px >= min_px; px--)
+    {
+        TTF_Font* font = sdl_story_font_for_height(px);
+        float line_h;
+
+        if (!font)
+            continue;
+
+        line_h = sdl_char_sheet_line_h(font, px, line_scale);
+        chosen_font = font;
+        chosen_line_h = line_h;
+        chosen_px = px;
+        if (line_h * (float)rows <= available_h)
+            break;
+    }
+
+    if (out_line_h)
+        *out_line_h = chosen_line_h;
+    if (out_px)
+        *out_px = chosen_px;
+    if (out_overflow)
+    {
+        float total = chosen_line_h * (float)rows;
+        *out_overflow = (total > available_h) ? (total - available_h) : 0.0f;
+    }
+
+    return chosen_font;
+}
+
 static SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text,
     byte attr, float x, float y, float max_w, float max_h, bool centered)
 {
@@ -8401,6 +8453,31 @@ static void sdl_char_sheet_clear_hits(void)
     g_sdl_character_sheet_screen.hit_count = 0;
 }
 
+/*
+ * Drop hit targets whose vertical centre falls outside [top, bottom].  Used
+ * after drawing a scrolled, clipped column region so clicks/hover only match
+ * what is actually visible.
+ */
+static void sdl_char_sheet_prune_hits_vertical(float top, float bottom)
+{
+    int kept = 0;
+
+    for (int i = 0; i < g_sdl_character_sheet_screen.hit_count; i++)
+    {
+        const sdl_character_sheet_hit* hit =
+            &g_sdl_character_sheet_screen.hits[i];
+        float center = hit->rect.y + hit->rect.h * 0.5f;
+
+        if (center < top || center > bottom)
+            continue;
+        if (kept != i)
+            g_sdl_character_sheet_screen.hits[kept] = *hit;
+        kept++;
+    }
+
+    g_sdl_character_sheet_screen.hit_count = kept;
+}
+
 static void sdl_char_sheet_add_hit(SDL_FRect rect, int choice, cptr desc)
 {
     sdl_character_sheet_hit* hit;
@@ -8531,15 +8608,20 @@ static bool sdl_char_sheet_prompt_focused(int choice)
 
 static void sdl_char_sheet_draw_focus_rect(SDL_FRect rect, bool strong)
 {
-    SDL_Color color = g_state.palette[TERM_L_BLUE];
+    SDL_Color color = g_state.palette[strong ? TERM_WHITE : TERM_L_WHITE];
 
     if (!g_state.renderer || rect.w <= 0.0f || rect.h <= 0.0f)
         return;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
-        strong ? 54 : 34);
+        strong ? 255 : 210);
     SDL_RenderFillRect(g_state.renderer, &rect);
+}
+
+static byte sdl_char_sheet_focus_text_attr(byte attr, bool focused)
+{
+    return focused ? TERM_DARK : attr;
 }
 
 static void sdl_char_sheet_format_tenths(char* buf, size_t buflen,
@@ -8949,7 +9031,8 @@ static void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
         if (choice >= 0)
             sdl_char_sheet_add_hit(hit_rect, choice, desc);
 
-        (void)sdl_char_sheet_draw_text(font, label, TERM_WHITE, x, y,
+        (void)sdl_char_sheet_draw_text(font, label,
+            sdl_char_sheet_focus_text_attr(TERM_WHITE, focused), x, y,
             label_w, line_h * 0.92f, false);
         if (streq(label, "Depth timer"))
         {
@@ -8969,8 +9052,9 @@ static void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
         }
         else
         {
-            (void)sdl_char_sheet_draw_text(font, value, attr, x + label_w, y,
-                w - label_w, line_h * 0.92f, false);
+            (void)sdl_char_sheet_draw_text(font, value,
+                sdl_char_sheet_focus_text_attr(attr, focused), x + label_w,
+                y, w - label_w, line_h * 0.92f, false);
         }
     }
     else
@@ -8983,7 +9067,8 @@ static void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
         if (choice >= 0)
             sdl_char_sheet_add_hit(hit_rect, choice, desc);
 
-        (void)sdl_char_sheet_draw_text(font, label, attr, x, y, w,
+        (void)sdl_char_sheet_draw_text(font, label,
+            sdl_char_sheet_focus_text_attr(attr, focused), x, y, w,
             line_h * 0.92f, false);
     }
 }
@@ -9047,23 +9132,315 @@ static void sdl_char_sheet_draw_traits(TTF_Font* font,
     }
 }
 
-static void sdl_char_sheet_draw_stats(TTF_Font* font, float x, float y,
-    float w, float h, float line_h)
+static SDL_FRect sdl_char_sheet_alloc_rect(float x, float y, float w,
+    float line_h, int row, int col, int span)
 {
-    float row_y = y + line_h;
+    const float cols = 38.0f;
+    SDL_FRect rect = { 0 };
+    float cell_w;
 
-    sdl_char_sheet_draw_heading(font, "Attributes", x, y, w, line_h);
-    for (int stat = 0; stat < A_MAX && row_y + line_h * 0.2f <= y + h;
-         stat++)
+    if (w <= 0.0f || line_h <= 0.0f || span <= 0)
+        return rect;
+
+    if (col < 0)
+    {
+        span += col;
+        col = 0;
+    }
+    if (col >= (int)cols || span <= 0)
+        return rect;
+    if (col + span > (int)cols)
+        span = (int)cols - col;
+
+    cell_w = w / cols;
+    rect.x = x + (float)col * cell_w;
+    rect.y = y + (float)row * line_h;
+    rect.w = (float)span * cell_w;
+    rect.h = line_h;
+    return rect;
+}
+
+static void sdl_char_sheet_alloc_text(TTF_Font* font, float x, float y,
+    float w, float line_h, int row, int col, int span, byte attr, cptr text,
+    bool focused)
+{
+    SDL_FRect rect;
+
+    if (!text || !text[0])
+        return;
+
+    rect = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, col, span);
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+
+    (void)sdl_char_sheet_draw_text(font, text,
+        sdl_char_sheet_focus_text_attr(attr, focused), rect.x, rect.y,
+        rect.w, rect.h * 0.92f, false);
+}
+
+static bool sdl_char_sheet_alloc_row_visible(float y, float h, float line_h,
+    int row)
+{
+    float row_y = y + (float)row * line_h;
+
+    return row_y + line_h * 0.2f <= y + h;
+}
+
+static void sdl_char_sheet_copy_trimmed(cptr src, char* dst, size_t dstsz)
+{
+    size_t len;
+
+    if (!dst || dstsz == 0)
+        return;
+
+    SDL_strlcpy(dst, src ? src : "", dstsz);
+    len = strlen(dst);
+    while (len > 0 && dst[len - 1] == ' ')
+        dst[--len] = '\0';
+}
+
+static void sdl_char_sheet_draw_birth_stat_table_row(TTF_Font* font,
+    float x, float y, float w, float h, float line_h, int row, int stat,
+    bool allocation)
+{
+    char label[32];
+    char value[32];
+    char cost[32];
+    bool focused = false;
+    SDL_FRect row_rect;
+
+    if (stat < 0 || stat >= A_MAX
+        || !sdl_char_sheet_alloc_row_visible(y, h, line_h, row))
+    {
+        return;
+    }
+
+    focused = allocation && sdl_char_sheet_choice_focused(stat);
+    row_rect = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 0, 38);
+    if (focused)
+        sdl_char_sheet_draw_focus_rect(row_rect, true);
+
+    sdl_char_sheet_copy_trimmed((p_ptr && p_ptr->stat_drain[stat] < 0)
+            ? stat_names_reduced[stat] : stat_names[stat],
+        label, sizeof(label));
+    cnv_stat(p_ptr ? p_ptr->stat_use[stat]
+                   : g_sdl_character_sheet_screen.stat_values[stat],
+        value);
+
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, 5,
+        TERM_WHITE, label, focused);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 6, 6,
+        (p_ptr && p_ptr->stat_drain[stat] < 0) ? TERM_YELLOW
+                                               : TERM_L_GREEN,
+        value, focused);
+
+    if (allocation)
+    {
+        strnfmt(cost, sizeof(cost), "%4d",
+            g_sdl_character_sheet_screen.stat_costs[stat]);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 33, 4,
+            TERM_L_WHITE, cost, focused);
+        sdl_char_sheet_add_hit(row_rect, stat,
+            "Click to select; click selected row to increase, right-click to decrease.");
+    }
+}
+
+static void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
+    float x, float y, float w, float h, float line_h, int row, int skill,
+    bool allocation)
+{
+    char buf[32];
+    bool focused;
+    SDL_FRect row_rect;
+
+    if (skill < 0 || skill >= S_MAX || skill == S_SPC
+        || !sdl_char_sheet_alloc_row_visible(y, h, line_h, row))
+    {
+        return;
+    }
+
+    focused = allocation && sdl_char_sheet_choice_focused(skill);
+    row_rect = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 0, 38);
+    if (focused)
+        sdl_char_sheet_draw_focus_rect(row_rect, true);
+
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, 10,
+        TERM_WHITE, skill_names_full[skill], focused);
+
+    strnfmt(buf, sizeof(buf), "%3d", p_ptr ? p_ptr->skill_use[skill] : 0);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 11, 3,
+        TERM_L_GREEN, buf, focused);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 15, 1,
+        TERM_SLATE, "=", focused);
+    strnfmt(buf, sizeof(buf), "%2d", p_ptr ? p_ptr->skill_base[skill] : 0);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 17, 2,
+        TERM_GREEN, buf, focused);
+
+    if (p_ptr && p_ptr->skill_stat_mod[skill] != 0)
+    {
+        strnfmt(buf, sizeof(buf), "%+3d", p_ptr->skill_stat_mod[skill]);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 20, 3,
+            TERM_SLATE, buf, focused);
+    }
+    if (p_ptr && p_ptr->skill_equip_mod[skill] != 0)
+    {
+        strnfmt(buf, sizeof(buf), "%+3d", p_ptr->skill_equip_mod[skill]);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 24, 3,
+            TERM_SLATE, buf, focused);
+    }
+    if (p_ptr && p_ptr->skill_misc_mod[skill] != 0)
+    {
+        strnfmt(buf, sizeof(buf), "%+3d", p_ptr->skill_misc_mod[skill]);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 28, 3,
+            TERM_SLATE, buf, focused);
+    }
+
+    if (allocation)
+    {
+        strnfmt(buf, sizeof(buf), "%6d",
+            g_sdl_character_sheet_screen.skill_costs[skill]);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 31, 6,
+            TERM_L_WHITE, buf, focused);
+        sdl_char_sheet_add_hit(row_rect, skill,
+            "Click to select; click selected row to increase, right-click to decrease.");
+    }
+}
+
+static void sdl_char_sheet_draw_birth_status_row(TTF_Font* font, float x,
+    float y, float w, float h, float line_h, int row, cptr status)
+{
+    SDL_FRect hit;
+    bool confirm_focused;
+    bool back_focused;
+
+    if (!sdl_char_sheet_alloc_row_visible(y, h, line_h, row))
+        return;
+
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, 20,
+        TERM_L_BLUE, status, false);
+
+    confirm_focused = sdl_char_sheet_prompt_focused(-2);
+    back_focused = sdl_char_sheet_prompt_focused(-1);
+
+    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 23, 9);
+    if (confirm_focused)
+        sdl_char_sheet_draw_focus_rect(hit, true);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 23, 9,
+        TERM_SLATE, "[Confirm]", confirm_focused);
+    sdl_char_sheet_add_prompt_hit(hit, -2);
+
+    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 33, 5);
+    if (back_focused)
+        sdl_char_sheet_draw_focus_rect(hit, true);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 33, 5,
+        TERM_SLATE, "[Esc]", back_focused);
+    sdl_char_sheet_add_prompt_hit(hit, -1);
+}
+
+static void sdl_char_sheet_draw_birth_allocation_area(TTF_Font* font,
+    float x, float y, float w, float h, float line_h, bool stats_screen)
+{
+    int skill_row = 6;
+
+    if (!font || w <= 0.0f || h <= 0.0f || line_h <= 0.0f)
+        return;
+
+    if (stats_screen)
+    {
+        char points[16];
+        char status[80];
+        int selected = g_sdl_character_sheet_screen.selected_index;
+
+        strnfmt(points, sizeof(points), "%2d",
+            g_sdl_character_sheet_screen.points_left);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, 0, 22, 12,
+            TERM_WHITE, "Points Left:", false);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, 0, 35, 2,
+            TERM_L_GREEN, points, false);
+
+        for (int stat = 0; stat < A_MAX; stat++)
+            sdl_char_sheet_draw_birth_stat_table_row(font, x, y, w, h,
+                line_h, 1 + stat, stat, true);
+
+        if (selected >= 0 && selected < A_MAX)
+        {
+            char label[16];
+
+            sdl_char_sheet_copy_trimmed(stat_names[selected], label,
+                sizeof(label));
+            strnfmt(status, sizeof(status), "%s %d Cost:%d Left:%d",
+                label, p_ptr ? p_ptr->stat_use[selected] : 0,
+                g_sdl_character_sheet_screen.stat_costs[selected],
+                g_sdl_character_sheet_screen.points_left);
+            sdl_char_sheet_draw_birth_status_row(font, x, y, w, h, line_h,
+                5, status);
+        }
+
+        for (int skill = 0; skill < S_MAX; skill++)
+        {
+            if (skill == S_SPC)
+                continue;
+            sdl_char_sheet_draw_birth_skill_table_row(font, x, y, w, h,
+                line_h, skill_row++, skill, false);
+        }
+    }
+    else
+    {
+        char points[16];
+        char status[80];
+        int selected = g_sdl_character_sheet_screen.selected_index;
+        int tab;
+
+        for (int stat = 0; stat < A_MAX; stat++)
+            sdl_char_sheet_draw_birth_stat_table_row(font, x, y, w, h,
+                line_h, 1 + stat, stat, false);
+
+        tab = (g_sdl_character_sheet_screen.points_left >= 10000) ? 0
+            : (g_sdl_character_sheet_screen.points_left >= 1000) ? 1
+            : (g_sdl_character_sheet_screen.points_left >= 100) ? 2
+            : (g_sdl_character_sheet_screen.points_left >= 10) ? 3 : 4;
+        strnfmt(points, sizeof(points), "%6d",
+            g_sdl_character_sheet_screen.points_left);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, 4, 18 + tab,
+            13 - tab, TERM_WHITE, "Points Left:", false);
+        sdl_char_sheet_alloc_text(font, x, y, w, line_h, 4, 31, 6,
+            TERM_L_GREEN, points, false);
+
+        for (int skill = 0; skill < S_MAX; skill++)
+        {
+            if (skill == S_SPC)
+                continue;
+            sdl_char_sheet_draw_birth_skill_table_row(font, x, y, w, h,
+                line_h, skill_row++, skill, true);
+        }
+
+        if (selected >= 0 && selected < S_MAX && selected != S_SPC)
+        {
+            strnfmt(status, sizeof(status), "Cost:%d Left:%d",
+                g_sdl_character_sheet_screen.skill_costs[selected],
+                g_sdl_character_sheet_screen.points_left);
+            sdl_char_sheet_draw_birth_status_row(font, x, y, w, h, line_h,
+                15, status);
+        }
+    }
+}
+
+static int sdl_char_sheet_collect_stats(sdl_char_sheet_line* lines,
+    int max_count)
+{
+    int count = 0;
+
+    if (!p_ptr)
+        return 0;
+
+    for (int stat = 0; stat < A_MAX; stat++)
     {
         char label[32];
         char value[32];
         char text[128];
-        int choice = -1;
-        cptr desc = "";
-        const sdl_character_sheet_live_item* item = NULL;
-        bool allocation =
-            g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS;
+        int choice;
+        cptr desc;
+        const sdl_character_sheet_live_item* item;
 
         SDL_strlcpy(label, (p_ptr->stat_drain[stat] < 0)
                 ? stat_names_reduced[stat] : stat_names[stat],
@@ -9075,96 +9452,68 @@ static void sdl_char_sheet_draw_stats(TTF_Font* font, float x, float y,
         }
         cnv_stat(p_ptr->stat_use[stat], value);
 
-        if (allocation)
+        item = sdl_char_sheet_live_label_item(label);
+        choice = item ? item->choice : -1;
+        desc = (item && item->desc[0]) ? item->desc : "";
+        if (!desc[0])
         {
-            choice = stat;
-            strnfmt(text, sizeof(text), "%s\t%s   cost %d", label, value,
-                g_sdl_character_sheet_screen.stat_costs[stat]);
-            desc = "Click to select; click selected row to increase, right-click to decrease.";
-            if (stat == g_sdl_character_sheet_screen.selected_index)
-                g_sdl_character_sheet_screen.focus_choice = stat;
-        }
-        else
-        {
-            item = sdl_char_sheet_live_label_item(label);
-            choice = item ? item->choice : -1;
-            desc = item ? item->desc : "";
             switch (stat)
             {
             case A_STR:
-                if (!desc[0])
-                    desc = "Strength: melee damage dice and weight capacity.";
+                desc = "Strength: melee damage dice and weight capacity.";
                 break;
             case A_DEX:
-                if (!desc[0])
-                    desc = "Dexterity: melee, evasion, archery, and stealth.";
+                desc = "Dexterity: melee, evasion, archery, and stealth.";
                 break;
             case A_CON:
-                if (!desc[0])
-                    desc = "Constitution: maximum health.";
+                desc = "Constitution: maximum health.";
                 break;
             case A_GRA:
-                if (!desc[0])
-                    desc = "Grace: will, perception, smithing, song, and voice.";
+                desc = "Grace: will, perception, smithing, song, and voice.";
                 break;
             default: break;
             }
-            strnfmt(text, sizeof(text), "%s\t%s", label, value);
         }
 
-        sdl_char_sheet_draw_labeled_line(font, text,
+        strnfmt(text, sizeof(text), "%s\t%s", label, value);
+        sdl_char_sheet_add_line(lines, &count, max_count, text,
             (p_ptr->stat_drain[stat] < 0) ? TERM_YELLOW : TERM_L_GREEN,
-            choice, desc,
-            x, row_y, w, line_h, allocation ? 0.36f : 0.42f);
-        row_y += line_h;
+            choice, desc);
     }
+
+    return count;
 }
 
-static void sdl_char_sheet_draw_skills(TTF_Font* font, float x, float y,
-    float w, float h, float line_h)
+static int sdl_char_sheet_collect_skills(sdl_char_sheet_line* lines,
+    int max_count)
 {
-    float row_y = y + line_h;
-    bool allocation =
-        g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SKILLS;
+    int count = 0;
 
-    sdl_char_sheet_draw_heading(font, "Skills", x, y, w, line_h);
+    if (!p_ptr)
+        return 0;
+
     for (int skill = 0; skill < S_MAX; skill++)
     {
         char text[160];
-        int choice = -1;
-        cptr desc = "";
-        const sdl_character_sheet_live_item* item = NULL;
+        int choice;
+        cptr desc;
+        const sdl_character_sheet_live_item* item;
 
         if (skill == S_SPC)
             continue;
-        if (row_y + line_h * 0.2f > y + h)
-            break;
 
-        if (allocation)
-        {
-            choice = skill;
-            strnfmt(text, sizeof(text), "%s\t%d   cost %d",
-                skill_names_full[skill], p_ptr->skill_use[skill],
-                g_sdl_character_sheet_screen.skill_costs[skill]);
-            desc = "Click to select; click selected row to increase, right-click to decrease.";
-            if (skill == g_sdl_character_sheet_screen.selected_index)
-                g_sdl_character_sheet_screen.focus_choice = skill;
-        }
-        else
-        {
-            item = sdl_char_sheet_live_skill_item(skill);
-            choice = item ? item->choice : -1;
-            desc = item ? item->desc : character_sheet_skill_description(skill);
-            strnfmt(text, sizeof(text), "%s\t%d = %d %+d %+d %+d",
-                skill_names_full[skill], p_ptr->skill_use[skill],
-                p_ptr->skill_base[skill], p_ptr->skill_stat_mod[skill],
-                p_ptr->skill_equip_mod[skill], p_ptr->skill_misc_mod[skill]);
-        }
-
-        sdl_char_sheet_draw_labeled_line(font, text, TERM_L_GREEN, choice,
-            desc, x, row_y, w, line_h, allocation ? 0.42f : 0.44f);
-        row_y += line_h;
+        item = sdl_char_sheet_live_skill_item(skill);
+        choice = item ? item->choice : -1;
+        desc = item ? item->desc : character_sheet_skill_description(skill);
+        strnfmt(text, sizeof(text), "%s\t%d = %d %+d %+d %+d",
+            skill_names_full[skill], p_ptr->skill_use[skill],
+            p_ptr->skill_base[skill], p_ptr->skill_stat_mod[skill],
+            p_ptr->skill_equip_mod[skill], p_ptr->skill_misc_mod[skill]);
+        sdl_char_sheet_add_line(lines, &count, max_count, text, TERM_L_GREEN,
+            choice, desc);
     }
+
+    return count;
 }
 
 static void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
@@ -9251,7 +9600,6 @@ static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     {
         cptr label = items[i].label;
         int text_w = sdl_char_sheet_text_width(font, label);
-        SDL_FRect dst;
         int choice = items[i].choice;
         bool focused = (choice >= 0)
             ? sdl_char_sheet_choice_focused(choice)
@@ -9260,11 +9608,13 @@ static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         if (cursor_x + (float)text_w > x + w)
             break;
 
-        dst = sdl_char_sheet_draw_text(font, label,
-            focused ? TERM_L_BLUE : TERM_L_WHITE, cursor_x, y,
-            (float)text_w + 4.0f, h, false);
         {
-            SDL_FRect hit = { cursor_x, y, MAX(dst.w, (float)text_w), h };
+            SDL_FRect hit = { cursor_x, y, (float)text_w + 4.0f, h };
+            if (focused)
+                sdl_char_sheet_draw_focus_rect(hit, true);
+            (void)sdl_char_sheet_draw_text(font, label,
+                focused ? TERM_DARK : TERM_L_WHITE, cursor_x, y,
+                hit.w, h, false);
             if (choice >= 0)
                 sdl_char_sheet_add_hit(hit, choice, "");
             else
@@ -9274,6 +9624,12 @@ static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     }
 }
 
+static bool sdl_char_sheet_birth_context(void)
+{
+    return g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS
+        || g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SKILLS;
+}
 static cptr sdl_char_sheet_hover_desc(SDL_FRect* out_rect)
 {
     int choice = g_sdl_character_sheet_screen.hover_choice;
@@ -9391,6 +9747,277 @@ static void sdl_char_sheet_render_hover_tooltip(void)
     SDL_DestroySurface(surface);
 }
 
+/*
+ * Pixel-semantic panel engine.
+ *
+ * A "panel" is a titled block of pre-collected labeled lines (vitals, traits,
+ * attributes, skills) or the birth allocation table.  The fluid packer decides
+ * how many columns fit the available width (column count is emergent, not a
+ * hand-tuned breakpoint), distributes the panels across those columns, and
+ * sizes one shared body font so the fullest column fits the available height.
+ * All drawing reuses the existing labeled-line / traits / allocation drawers.
+ */
+typedef enum sdl_panel_kind {
+    SDL_PANEL_KIND_LINES = 0,   /* heading + labeled lines */
+    SDL_PANEL_KIND_TRAITS,      /* trait grid */
+    SDL_PANEL_KIND_ALLOC        /* birth allocation table */
+} sdl_panel_kind;
+
+typedef struct sdl_panel {
+    sdl_panel_kind kind;
+    cptr heading;
+    const sdl_char_sheet_line* lines;
+    int line_count;
+    float label_fraction;
+    int weight;          /* relative column-width weight */
+    int rows;            /* rows consumed incl. heading (for packing/sizing) */
+    float natural_w;     /* measured natural width (filled by the packer) */
+    bool splittable;     /* may split into sub-columns when extra width (P3) */
+    bool alloc_stats;    /* ALLOC: stats screen vs skills screen */
+    int trait_cols;      /* TRAITS: column count chosen at draw time */
+} sdl_panel;
+
+#define SDL_CHAR_SHEET_PANEL_MAX 8
+
+static float sdl_char_sheet_row_natural_w(const sdl_char_sheet_line* line,
+    TTF_Font* font, float label_fraction)
+{
+    const char* tab;
+    char label[96];
+    float lw;
+    float vw;
+
+    if (!line || !line->text[0])
+        return 0.0f;
+
+    tab = strchr(line->text, '\t');
+    if (!tab)
+        return (float)sdl_char_sheet_text_width(font, line->text) + 8.0f;
+
+    {
+        size_t ll = (size_t)(tab - line->text);
+        if (ll >= sizeof(label))
+            ll = sizeof(label) - 1;
+        memcpy(label, line->text, ll);
+        label[ll] = '\0';
+    }
+    lw = (float)sdl_char_sheet_text_width(font, label);
+    vw = (float)sdl_char_sheet_text_width(font, tab + 1);
+    if (label_fraction < 0.2f)
+        label_fraction = 0.2f;
+    if (label_fraction > 0.8f)
+        label_fraction = 0.8f;
+    return MAX(lw / label_fraction, vw / (1.0f - label_fraction)) + 10.0f;
+}
+
+static float sdl_char_sheet_panel_natural_w(const sdl_panel* p, TTF_Font* font)
+{
+    float maxw;
+
+    if (!p)
+        return 0.0f;
+
+    maxw = (float)sdl_char_sheet_text_width(font, p->heading ? p->heading : "");
+    if (p->kind == SDL_PANEL_KIND_ALLOC)
+    {
+        float w = (float)sdl_char_sheet_text_width(font,
+            "Constitution   000   cost 00");
+        return MAX(maxw, w);
+    }
+
+    for (int i = 0; i < p->line_count; i++)
+    {
+        float w = sdl_char_sheet_row_natural_w(&p->lines[i], font,
+            (p->kind == SDL_PANEL_KIND_TRAITS) ? 0.95f : p->label_fraction);
+        if (w > maxw)
+            maxw = w;
+    }
+    return maxw;
+}
+
+static void sdl_char_sheet_panel_draw(const sdl_panel* p, TTF_Font* font,
+    float x, float y, float w, float h, float line_h)
+{
+    if (!p)
+        return;
+
+    switch (p->kind)
+    {
+    case SDL_PANEL_KIND_TRAITS:
+        sdl_char_sheet_draw_traits(font, p->lines, p->line_count, x, y, w, h,
+            line_h, p->trait_cols > 0 ? p->trait_cols : 1);
+        break;
+    case SDL_PANEL_KIND_ALLOC:
+        sdl_char_sheet_draw_birth_allocation_area(font, x, y, w, h, line_h,
+            p->alloc_stats);
+        break;
+    case SDL_PANEL_KIND_LINES:
+    default:
+        sdl_char_sheet_draw_lines(font, p->heading, p->lines, p->line_count,
+            x, y, w, h, line_h, p->label_fraction);
+        break;
+    }
+}
+
+/*
+ * Fluid weight-based packer: lay panels out into an emergent number of columns
+ * sized to the available width, then draw them with one shared body font.
+ */
+static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
+    float content_x, float top_y, float content_w, float top_h, int canvas_h,
+    int* out_body_px)
+{
+    TTF_Font* probe;
+    TTF_Font* body;
+    int probe_px;
+    int ncols;
+    int sum_wt = 0;
+    int col_of[SDL_CHAR_SHEET_PANEL_MAX];
+    float col_rows[SDL_CHAR_SHEET_PANEL_MAX];
+    int col_wt[SDL_CHAR_SHEET_PANEL_MAX];
+    float col_x[SDL_CHAR_SHEET_PANEL_MAX];
+    float col_w[SDL_CHAR_SHEET_PANEL_MAX];
+    float min_col_px = 1.0f;
+    float max_rows = 1.0f;
+    float gap;
+    float avail;
+    float top_line_h = 1.0f;
+
+    if (panel_count <= 0 || content_w <= 0.0f || top_h <= 0.0f)
+        return;
+    if (panel_count > SDL_CHAR_SHEET_PANEL_MAX)
+        panel_count = SDL_CHAR_SHEET_PANEL_MAX;
+
+    probe_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.030f), 16, 30);
+    probe = sdl_story_font_for_height(probe_px);
+
+    for (int i = 0; i < panel_count; i++)
+    {
+        panels[i].natural_w = sdl_char_sheet_panel_natural_w(&panels[i],
+            probe);
+        if (panels[i].natural_w > min_col_px)
+            min_col_px = panels[i].natural_w;
+    }
+
+    gap = sdl_char_sheet_clampf(content_w * 0.022f, 14.0f, 44.0f);
+    min_col_px = sdl_char_sheet_clampf(min_col_px * 1.08f, content_w * 0.18f,
+        content_w);
+    ncols = (int)((content_w + gap) / (min_col_px + gap));
+    ncols = sdl_char_sheet_clampi(ncols, 1, panel_count);
+
+    for (int c = 0; c < ncols; c++)
+    {
+        col_rows[c] = 0.0f;
+        col_wt[c] = 0;
+    }
+
+    /* Greedy: drop each panel into the currently shortest column. */
+    for (int i = 0; i < panel_count; i++)
+    {
+        int best = 0;
+        for (int c = 1; c < ncols; c++)
+            if (col_rows[c] < col_rows[best])
+                best = c;
+        col_of[i] = best;
+        col_rows[best] += (float)panels[i].rows + 1.0f;
+        if (panels[i].weight > col_wt[best])
+            col_wt[best] = panels[i].weight;
+    }
+
+    for (int c = 0; c < ncols; c++)
+    {
+        if (col_wt[c] < 1)
+            col_wt[c] = 1;
+        sum_wt += col_wt[c];
+        if (col_rows[c] > max_rows)
+            max_rows = col_rows[c];
+    }
+
+    avail = content_w - gap * (float)(ncols - 1);
+    if (avail < 1.0f)
+        avail = 1.0f;
+    {
+        float cx = content_x;
+        for (int c = 0; c < ncols; c++)
+        {
+            col_w[c] = avail * (float)col_wt[c] / (float)sum_wt;
+            col_x[c] = cx;
+            cx += col_w[c] + gap;
+        }
+    }
+
+    {
+        int min_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.022f),
+            14, 26);
+        int max_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.072f),
+            34, 96);
+        float overflow = 0.0f;
+        int body_px = min_px;
+
+        body = sdl_char_sheet_font_for_rows_scroll(top_h,
+            (int)(max_rows + 0.5f), min_px, max_px, 1.13f, &top_line_h,
+            &overflow, &body_px);
+        if (out_body_px)
+            *out_body_px = body_px;
+
+        g_sdl_character_sheet_screen.sheet_scroll_max =
+            (int)(overflow + 0.5f);
+        if (g_sdl_character_sheet_screen.sheet_scroll
+                > g_sdl_character_sheet_screen.sheet_scroll_max)
+            g_sdl_character_sheet_screen.sheet_scroll =
+                g_sdl_character_sheet_screen.sheet_scroll_max;
+        if (g_sdl_character_sheet_screen.sheet_scroll < 0)
+            g_sdl_character_sheet_screen.sheet_scroll = 0;
+    }
+
+    {
+        bool scrolling = g_sdl_character_sheet_screen.sheet_scroll_max > 0;
+        float scroll = (float)g_sdl_character_sheet_screen.sheet_scroll;
+        SDL_Rect clip;
+
+        clip.x = (int)content_x;
+        clip.y = (int)top_y;
+        clip.w = (int)(content_w + 0.5f);
+        clip.h = (int)(top_h + 0.5f);
+        if (scrolling)
+            SDL_SetRenderClipRect(g_state.renderer, &clip);
+
+        for (int c = 0; c < ncols; c++)
+        {
+            float y = top_y - scroll;
+
+            for (int i = 0; i < panel_count; i++)
+            {
+                float h_left;
+
+                if (col_of[i] != c)
+                    continue;
+
+                /* Stop at the bottom of the (clipped) column area. */
+                h_left = top_y + top_h - y;
+                if (h_left < top_line_h * 0.2f)
+                    break;
+
+                if (panels[i].kind == SDL_PANEL_KIND_TRAITS)
+                    panels[i].trait_cols =
+                        (panels[i].line_count > 10
+                            && col_w[c] > content_w * 0.30f)
+                            ? 2 : 1;
+
+                sdl_char_sheet_panel_draw(&panels[i], body, col_x[c], y,
+                    col_w[c], h_left, top_line_h);
+                y += (float)panels[i].rows * top_line_h + top_line_h * 0.6f;
+            }
+        }
+
+        if (scrolling)
+        {
+            SDL_SetRenderClipRect(g_state.renderer, NULL);
+            sdl_char_sheet_prune_hits_vertical(top_y, top_y + top_h);
+        }
+    }
+}
+
 static void sdl_character_sheet_screen_render(void)
 {
     SDL_Rect canvas;
@@ -9470,20 +10097,50 @@ static void sdl_character_sheet_screen_render(void)
     prompt_y = (float)(canvas.y + canvas.h) - margin_bottom - prompt_h;
 
     history = (p_ptr && p_ptr->history[0]) ? p_ptr->history : "";
-    history_h = sdl_char_sheet_clampf((float)canvas.h * 0.31f, 128.0f,
-        (float)canvas.h * 0.42f);
-    history_y = prompt_y - gap - history_h;
     top_y = title_y + title_h + gap;
-    if (history_y < top_y + (float)canvas.h * 0.36f)
+
+    /*
+     * Description (history) typography + band sizing.
+     *
+     * The description is a fixed small role: it is sized independently of the
+     * column body so it always reads smaller than the column text (the body
+     * font floor is canvas.h*0.022 clamped to [14,26]; this stays at or below
+     * that), and its band is fit to the actual wrapped content so the freed
+     * vertical space is handed back to the columns instead of sitting empty.
+     */
     {
-        history_y = top_y + (float)canvas.h * 0.36f;
-        history_h = prompt_y - gap - history_y;
+        float region_bottom = prompt_y - gap;
+        float region_h = (region_bottom > top_y) ? (region_bottom - top_y)
+                                                  : 1.0f;
+        int desc_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.020f),
+            13, 22);
+        float desc_cap_h = region_h * 0.42f;
+
+        if (history[0])
+        {
+            history_font = sdl_char_sheet_font_for_wrapped_text(history,
+                content_w, (float)canvas.h * 4.0f, desc_px, desc_px, 1.16f,
+                &history_line_h, &history_lines);
+            history_h = history_line_h * (float)history_lines;
+            if (history_h > desc_cap_h)
+                history_h = desc_cap_h;
+            if (history_h < history_line_h)
+                history_h = history_line_h;
+        }
+        else
+        {
+            history_font = NULL;
+            history_h = 0.0f;
+            history_line_h = 1.0f;
+            history_lines = 0;
+        }
+
+        history_y = region_bottom - history_h;
+        top_h = (history_h > 0.0f) ? (history_y - gap - top_y)
+                                   : (region_bottom - top_y);
+        if (top_h < 80.0f)
+            top_h = 80.0f;
     }
-    if (history_h < 80.0f)
-        history_h = 80.0f;
-    top_h = history_y - gap - top_y;
-    if (top_h < 80.0f)
-        top_h = 80.0f;
 
     sdl_char_sheet_title(title, sizeof(title));
     if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS)
@@ -9502,70 +10159,128 @@ static void sdl_character_sheet_screen_render(void)
     trait_count = sdl_char_sheet_collect_traits(trait_lines,
         SDL_CHAR_SHEET_MAX_LINES);
 
-    trait_cols = (content_w > 1380.0f && trait_count > 10) ? 2 : 1;
-    top_rows = MAX(vital_count + 1, S_MAX);
-    top_rows = MAX(top_rows, A_MAX + 1);
-    top_rows = MAX(top_rows, ((trait_count + trait_cols - 1) / trait_cols) + 1);
-    top_font = sdl_char_sheet_font_for_rows(top_h, top_rows, 12,
-        sdl_char_sheet_clampi((int)((float)canvas.h * 0.052f), 34, 60),
-        1.13f, &top_line_h, &top_px);
-    (void)top_px;
-
-    if (content_w >= 980.0f)
+    if (sdl_char_sheet_birth_context())
     {
-        float col_gap = sdl_char_sheet_clampf(content_w * 0.024f, 18.0f,
-            48.0f);
-        float vital_w = content_w * 0.245f;
-        float trait_w = content_w * 0.245f;
-        float attr_w = content_w * 0.165f;
-        float skill_w = content_w - vital_w - trait_w - attr_w
-            - col_gap * 3.0f;
-        float x0 = content_x;
-        float x1 = x0 + vital_w + col_gap;
-        float x2 = x1 + trait_w + col_gap;
-        float x3 = x2 + attr_w + col_gap;
+        trait_cols = (content_w > 1380.0f && trait_count > 10) ? 2 : 1;
+        top_rows = MAX(vital_count + 1, A_MAX + 1);
+        top_rows = MAX(top_rows,
+            ((trait_count + trait_cols - 1) / trait_cols) + 1);
+        top_rows = MAX(top_rows, 16);
 
-        sdl_char_sheet_draw_lines(top_font, "Vitals", vital_lines,
-            vital_count, x0, top_y, vital_w, top_h, top_line_h, 0.48f);
-        sdl_char_sheet_draw_traits(top_font, trait_lines, trait_count, x1,
-            top_y, trait_w, top_h, top_line_h, trait_cols);
-        sdl_char_sheet_draw_stats(top_font, x2, top_y, attr_w, top_h,
-            top_line_h);
-        sdl_char_sheet_draw_skills(top_font, x3, top_y, skill_w, top_h,
-            top_line_h);
+        if (content_w >= 980.0f)
+        {
+            float col_gap = sdl_char_sheet_clampf(content_w * 0.024f, 18.0f,
+                48.0f);
+            float vital_w = content_w * 0.245f;
+            float trait_w = content_w * 0.245f;
+            float attr_w = content_w * 0.165f;
+            float skill_w = content_w - vital_w - trait_w - attr_w
+                - col_gap * 3.0f;
+            float x0 = content_x;
+            float x1 = x0 + vital_w + col_gap;
+            float x2 = x1 + trait_w + col_gap;
+
+            top_font = sdl_char_sheet_font_for_rows(top_h, top_rows, 12,
+                sdl_char_sheet_clampi((int)((float)canvas.h * 0.052f), 34,
+                    60),
+                1.13f, &top_line_h, &top_px);
+            (void)top_px;
+
+            sdl_char_sheet_draw_lines(top_font, "Vitals", vital_lines,
+                vital_count, x0, top_y, vital_w, top_h, top_line_h, 0.48f);
+            sdl_char_sheet_draw_traits(top_font, trait_lines, trait_count,
+                x1, top_y, trait_w, top_h, top_line_h, trait_cols);
+            sdl_char_sheet_draw_birth_allocation_area(top_font, x2, top_y,
+                attr_w + col_gap + skill_w, top_h, top_line_h,
+                g_sdl_character_sheet_screen.context
+                    == SDL_CHARACTER_SHEET_BIRTH_STATS);
+        }
+        else
+        {
+            float col_gap = sdl_char_sheet_clampf(content_w * 0.034f, 12.0f,
+                28.0f);
+            float row_gap = gap;
+            float col_w = (content_w - col_gap) * 0.5f;
+            float section_h = (top_h - row_gap) * 0.5f;
+
+            top_rows = MAX(vital_count + 1, trait_count + 1);
+            top_rows = MAX(top_rows, 16);
+            top_font = sdl_char_sheet_font_for_rows(top_h, top_rows, 9,
+                sdl_char_sheet_clampi((int)((float)canvas.h * 0.042f), 24,
+                    42),
+                1.12f, &top_line_h, &top_px);
+            (void)top_px;
+
+            sdl_char_sheet_draw_lines(top_font, "Vitals", vital_lines,
+                vital_count, content_x, top_y, col_w, section_h, top_line_h,
+                0.48f);
+            sdl_char_sheet_draw_traits(top_font, trait_lines, trait_count,
+                content_x, top_y + section_h + row_gap, col_w, section_h,
+                top_line_h, 1);
+            sdl_char_sheet_draw_birth_allocation_area(top_font,
+                content_x + col_w + col_gap, top_y, col_w, top_h,
+                top_line_h,
+                g_sdl_character_sheet_screen.context
+                    == SDL_CHARACTER_SHEET_BIRTH_STATS);
+        }
     }
     else
     {
-        float col_gap = sdl_char_sheet_clampf(content_w * 0.034f, 12.0f,
-            28.0f);
-        float row_gap = gap;
-        float col_w = (content_w - col_gap) * 0.5f;
-        float section_h = (top_h - row_gap) * 0.5f;
+        sdl_char_sheet_line stat_lines[A_MAX + 2];
+        sdl_char_sheet_line skill_lines[S_MAX + 2];
+        sdl_panel panels[4];
+        int n = 0;
+        int stat_count;
+        int skill_count;
 
-        top_rows = MAX(MAX(vital_count + 1, S_MAX), trait_count + 1);
-        top_rows = MAX(top_rows, A_MAX + 1);
-        top_font = sdl_char_sheet_font_for_rows(section_h, top_rows, 9,
-            sdl_char_sheet_clampi((int)((float)canvas.h * 0.042f), 24, 42),
-            1.12f, &top_line_h, &top_px);
-        (void)top_px;
+        SDL_zero(stat_lines);
+        SDL_zero(skill_lines);
+        stat_count = sdl_char_sheet_collect_stats(stat_lines, A_MAX + 2);
+        skill_count = sdl_char_sheet_collect_skills(skill_lines, S_MAX + 2);
 
-        sdl_char_sheet_draw_lines(top_font, "Vitals", vital_lines,
-            vital_count, content_x, top_y, col_w, section_h, top_line_h,
-            0.48f);
-        sdl_char_sheet_draw_skills(top_font, content_x + col_w + col_gap,
-            top_y, col_w, section_h, top_line_h);
-        sdl_char_sheet_draw_stats(top_font, content_x,
-            top_y + section_h + row_gap, col_w, section_h, top_line_h);
-        sdl_char_sheet_draw_traits(top_font, trait_lines, trait_count,
-            content_x + col_w + col_gap, top_y + section_h + row_gap, col_w,
-            section_h, top_line_h, 1);
+        SDL_zero(panels);
+        panels[n].kind = SDL_PANEL_KIND_LINES;
+        panels[n].heading = "Vitals";
+        panels[n].lines = vital_lines;
+        panels[n].line_count = vital_count;
+        panels[n].label_fraction = 0.48f;
+        panels[n].weight = 3;
+        panels[n].rows = vital_count + 1;
+        n++;
+
+        panels[n].kind = SDL_PANEL_KIND_TRAITS;
+        panels[n].heading = "Traits";
+        panels[n].lines = trait_lines;
+        panels[n].line_count = trait_count;
+        panels[n].label_fraction = 0.58f;
+        panels[n].weight = 3;
+        panels[n].rows = trait_count + 1;
+        n++;
+
+        panels[n].kind = SDL_PANEL_KIND_LINES;
+        panels[n].heading = "Attributes";
+        panels[n].lines = stat_lines;
+        panels[n].line_count = stat_count;
+        panels[n].label_fraction = 0.42f;
+        panels[n].weight = 2;
+        panels[n].rows = stat_count + 1;
+        n++;
+
+        panels[n].kind = SDL_PANEL_KIND_LINES;
+        panels[n].heading = "Skills";
+        panels[n].lines = skill_lines;
+        panels[n].line_count = skill_count;
+        panels[n].label_fraction = 0.44f;
+        panels[n].weight = 4;
+        panels[n].rows = skill_count + 1;
+        n++;
+
+        sdl_char_sheet_render_columns(panels, n, content_x, top_y, content_w,
+            top_h, canvas.h, &top_px);
     }
 
-    history_font = sdl_char_sheet_font_for_wrapped_text(history, content_w,
-        history_h, 12,
-        sdl_char_sheet_clampi((int)((float)canvas.h * 0.055f), 36, 64),
-        1.16f, &history_line_h, &history_lines);
     (void)history_px;
+    (void)top_px;
     sdl_char_sheet_draw_history(history_font, history, content_x, history_y,
         content_w, history_h, history_line_h, history_lines);
 
@@ -9580,15 +10295,6 @@ static void sdl_character_sheet_screen_render(void)
         prompt = steamdeck_controls_active()
             ? "back confirm character"
             : "back confirm character";
-
-        {
-            char points_buf[64];
-            strnfmt(points_buf, sizeof(points_buf), "Points Left: %d",
-                g_sdl_character_sheet_screen.points_left);
-            (void)sdl_char_sheet_draw_text(prompt_font, points_buf,
-                TERM_L_GREEN, content_x, prompt_y - prompt_h * 1.18f,
-                content_w, prompt_h, false);
-        }
     }
 
     sdl_char_sheet_draw_prompt(prompt_font, prompt, content_x, prompt_y,
@@ -9611,6 +10317,8 @@ void sdl_character_sheet_screen_hide(void)
     g_sdl_character_sheet_screen.selected_index = -1;
     g_sdl_character_sheet_screen.hover_choice = -1;
     g_sdl_character_sheet_screen.live_item_count = 0;
+    g_sdl_character_sheet_screen.sheet_scroll = 0;
+    g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     sdl_char_sheet_clear_hits();
     ui_menu_click_clear_pending_hover();
     g_state.need_present = true;
@@ -9621,6 +10329,11 @@ bool sdl_character_sheet_screen_begin_live(int focus_choice)
     if (!g_state.window || !g_state.renderer)
         return false;
 
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_LIVE)
+    {
+        g_sdl_character_sheet_screen.sheet_scroll = 0;
+        g_sdl_character_sheet_screen.sheet_scroll_max = 0;
+    }
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_LIVE;
     g_sdl_character_sheet_screen.focus_choice = focus_choice;
     g_sdl_character_sheet_screen.selected_index = -1;
@@ -9661,6 +10374,8 @@ bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
         return false;
 
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_STATS;
+    g_sdl_character_sheet_screen.sheet_scroll = 0;
+    g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     g_sdl_character_sheet_screen.focus_choice = selected_stat;
     g_sdl_character_sheet_screen.selected_index = selected_stat;
     g_sdl_character_sheet_screen.points_left = points_left;
@@ -9682,6 +10397,8 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
         return false;
 
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SKILLS;
+    g_sdl_character_sheet_screen.sheet_scroll = 0;
+    g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     g_sdl_character_sheet_screen.focus_choice = selected_skill;
     g_sdl_character_sheet_screen.selected_index = selected_skill;
     g_sdl_character_sheet_screen.points_left = points_left;
@@ -9787,7 +10504,24 @@ static bool sdl_character_sheet_screen_handle_pointer_event(
         return true;
 
     case SDL_EVENT_MOUSE_BUTTON_UP:
+        return true;
+
     case SDL_EVENT_MOUSE_WHEEL:
+        if (g_sdl_character_sheet_screen.sheet_scroll_max > 0)
+        {
+            int step = (int)(ev->wheel.y * 64.0f);
+            int s = g_sdl_character_sheet_screen.sheet_scroll - step;
+
+            if (s < 0)
+                s = 0;
+            if (s > g_sdl_character_sheet_screen.sheet_scroll_max)
+                s = g_sdl_character_sheet_screen.sheet_scroll_max;
+            if (s != g_sdl_character_sheet_screen.sheet_scroll)
+            {
+                g_sdl_character_sheet_screen.sheet_scroll = s;
+                g_state.need_present = true;
+            }
+        }
         return true;
 
     case SDL_EVENT_FINGER_DOWN:
@@ -34245,6 +34979,11 @@ static errr callback_sdl_wipe(int x, int y, int n)
 static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 {
     sdl_view* d = sdl_view_from_term(Term);
+    bool selected_attr = (a >= TERM_UI_SELECTED);
+    byte selected_bg_attr = selected_attr ? (byte)(a - TERM_UI_SELECTED)
+                                          : TERM_DARK;
+    byte fg_attr = selected_attr ? TERM_DARK : a;
+    SDL_Color bg_col = { 0, 0, 0, 255 };
     if (!d || !d->canvas || !Term || !s || n <= 0)
         return 0;
     if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
@@ -34256,6 +34995,12 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
     TTF_Font* story_font = sdl_story_font_for_view(d);
+    if (selected_attr)
+    {
+        bg_col.r = angband_color_table[selected_bg_attr][1];
+        bg_col.g = angband_color_table[selected_bg_attr][2];
+        bg_col.b = angband_color_table[selected_bg_attr][3];
+    }
 
     // Check if any character in this chunk should use story font
     // First check the global chunk flag (for whole-line story rendering)
@@ -34290,7 +35035,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             (float)(n * d->cell_w),
             (float)(d->cell_h)
         };
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_SetRenderDrawColor(g_state.renderer, bg_col.r, bg_col.g,
+            bg_col.b, bg_col.a);
         SDL_RenderFillRect(g_state.renderer, &bg);
         SDL_SetRenderClipRect(g_state.renderer, NULL);
     } else {
@@ -34299,9 +35045,9 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 
     /* Use extended color table to support shaded colors (indices 0-255) */
     SDL_Color col;
-    col.r = angband_color_table[a][1];
-    col.g = angband_color_table[a][2];
-    col.b = angband_color_table[a][3];
+    col.r = angband_color_table[fg_attr][1];
+    col.g = angband_color_table[fg_attr][2];
+    col.b = angband_color_table[fg_attr][3];
     col.a = 255;
     
     // Special logging for line 0 (top description line in unified look)
@@ -34405,7 +35151,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                     (float)(render_run * d->cell_w),
                     (float)d->cell_h
                 };
-                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+                SDL_SetRenderDrawColor(g_state.renderer, bg_col.r,
+                    bg_col.g, bg_col.b, bg_col.a);
                 SDL_RenderFillRect(g_state.renderer, &clear_rect);
 
                 if (use_story) {
@@ -34445,7 +35192,8 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                 (float)(n * d->cell_w),
                 (float)d->cell_h
             };
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_SetRenderDrawColor(g_state.renderer, bg_col.r, bg_col.g,
+                bg_col.b, bg_col.a);
             SDL_RenderFillRect(g_state.renderer, &clear_rect);
             sdl_render_story_text_free(d, story_font, x, y, n, s, col);
         }
