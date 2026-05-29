@@ -39,12 +39,21 @@ typedef enum supply_menu_action
     SUPPLY_MENU_ACTION_DROP
 } supply_menu_action;
 
+typedef enum supply_menu_page
+{
+    SUPPLY_MENU_PAGE_EQUIPPED = 0,
+    SUPPLY_MENU_PAGE_INVENTORY,
+    SUPPLY_MENU_PAGE_SUPPLIES
+} supply_menu_page;
+
 typedef struct supply_menu_request
 {
     bool focus_group;          /* jump to specific group */
     int group;                 /* supply_group value */
     supply_menu_action action; /* default action when selecting */
     bool hotkey_mode;          /* close menu after first action */
+    bool focus_page;           /* jump to a specific browser page */
+    supply_menu_page page;     /* initial page when focus_page is true */
 } supply_menu_request;
 
 void supplies_init(void);

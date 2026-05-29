@@ -701,6 +701,7 @@ extern void do_cmd_jewelry_preset_shortcut(void);
 extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
+extern bool open_inventory_menu_page(supply_menu_page page);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);

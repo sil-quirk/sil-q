@@ -3386,7 +3386,7 @@ static bool startup_touch_pane_hidden = false;
 
 bool screen_saved_fullscreen_active(void)
 {
-    return false;
+    return (startup_supporting_panes_hidden || supporting_panes_hidden_depth > 0);
 }
 
 void screen_push_supporting_panes_hidden(void)

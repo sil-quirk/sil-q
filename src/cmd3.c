@@ -229,6 +229,16 @@ bool open_supplies_menu_with_context(supply_menu_action default_action, int defa
     return do_cmd_knowledge_supplies(&request);
 }
 
+bool open_inventory_menu_page(supply_menu_page page)
+{
+    supply_menu_request request = {0};
+
+    request.focus_page = true;
+    request.page = page;
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
@@ -640,54 +650,8 @@ void do_cmd_use_item_enhanced(void)
  */
 void do_cmd_inven_direct(void)
 {
-    log_debug("do_cmd_inven_direct: Starting direct access inventory with cycling");
-    
-    int menu_state = 0;  /* 0=inventory, 1=equipment */
-    
-    while (true) {
-        if (menu_state == 0) {
-            /* Display inventory */
-            log_trace("do_cmd_inven_direct: Showing inventory");
-            do_cmd_inven();
-            
-            /* Check action */
-            extern int enhanced_menu_action;
-            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
-                /* Switch to equipment */
-                log_trace("do_cmd_inven_direct: Switching to equipment");
-                menu_state = 1;
-                enhanced_menu_action = 0;
-                continue;
-            }
-            else {
-                /* Exit or item examined */
-                enhanced_menu_action = 0;
-                break;
-            }
-        }
-        else {
-            /* Display equipment */
-            log_trace("do_cmd_inven_direct: Showing equipment");
-            do_cmd_equip();
-            
-            /* Check action */
-            extern int enhanced_equip_action;
-            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
-                /* Switch to inventory */
-                log_trace("do_cmd_inven_direct: Switching to inventory");
-                menu_state = 0;
-                enhanced_equip_action = 0;
-                continue;
-            }
-            else {
-                /* Exit or item examined */
-                enhanced_equip_action = 0;
-                break;
-            }
-        }
-    }
-    
-    log_debug("do_cmd_inven_direct: Direct access cycling finished");
+    log_debug("do_cmd_inven_direct: Opening inventory browser page");
+    (void)open_inventory_menu_page(SUPPLY_MENU_PAGE_INVENTORY);
 }
 
 /*
@@ -695,54 +659,8 @@ void do_cmd_inven_direct(void)
  */
 void do_cmd_equip_direct(void)
 {
-    log_debug("do_cmd_equip_direct: Starting direct access equipment with cycling");
-    
-    int menu_state = 1;  /* 0=inventory, 1=equipment */
-    
-    while (true) {
-        if (menu_state == 0) {
-            /* Display inventory */
-            log_trace("do_cmd_equip_direct: Showing inventory");
-            do_cmd_inven();
-            
-            /* Check action */
-            extern int enhanced_menu_action;
-            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
-                /* Switch to equipment */
-                log_trace("do_cmd_equip_direct: Switching to equipment");
-                menu_state = 1;
-                enhanced_menu_action = 0;
-                continue;
-            }
-            else {
-                /* Exit or item examined */
-                enhanced_menu_action = 0;
-                break;
-            }
-        }
-        else {
-            /* Display equipment */
-            log_trace("do_cmd_equip_direct: Showing equipment");
-            do_cmd_equip();
-            
-            /* Check action */
-            extern int enhanced_equip_action;
-            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
-                /* Switch to inventory */
-                log_trace("do_cmd_equip_direct: Switching to inventory");
-                menu_state = 0;
-                enhanced_equip_action = 0;
-                continue;
-            }
-            else {
-                /* Exit or item examined */
-                enhanced_equip_action = 0;
-                break;
-            }
-        }
-    }
-    
-    log_debug("do_cmd_equip_direct: Direct access cycling finished");
+    log_debug("do_cmd_equip_direct: Opening equipped browser page");
+    (void)open_inventory_menu_page(SUPPLY_MENU_PAGE_EQUIPPED);
 }
 
 /*

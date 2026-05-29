@@ -5325,10 +5325,13 @@ static void sdl_mark_active_supporting_panes_dirty(const SDL_Rect* panes)
 
 static bool sdl_hide_supporting_panes_mode_effective(void)
 {
+    bool explicit_hide = screen_startup_supporting_panes_hidden_active()
+        || screen_supporting_panes_hidden_active();
+
     /* Startup hidden mode must be able to take effect before persistent
      * options have been loaded into op_ptr. */
-    if (!screen_startup_supporting_panes_hidden_active()
-        && op_ptr && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
+    if (!explicit_hide && op_ptr
+        && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
         return false;
 
     for (int i = 0; i < pane_config_count; i++) {
@@ -8598,6 +8601,25 @@ static bool sdl_char_sheet_choice_focused(int choice)
     return g_sdl_character_sheet_screen.hover_choice == choice;
 }
 
+/*
+ * A row is "pressable" only if clicking it actually does something.  On the
+ * live sheet that is just skills (a click increases them); traits and plain
+ * values are informational, so they get a hover tooltip but no highlight box.
+ * Birth screens draw their own focus rectangles, so their rows count as
+ * pressable here.
+ */
+static bool sdl_char_sheet_choice_pressable(int choice)
+{
+    const sdl_character_sheet_live_item* item;
+
+    if (!sdl_char_sheet_choice_is_valid(choice))
+        return false;
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_LIVE)
+        return true;
+    item = sdl_char_sheet_live_item_by_choice(choice);
+    return item && item->kind == 0; /* CHARACTER_SHEET_ITEM_SKILL */
+}
+
 static bool sdl_char_sheet_prompt_focused(int choice)
 {
     int hover_choice = -1;
@@ -8999,7 +9021,10 @@ static void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
     char label[96];
     char value[160];
     SDL_FRect hit_rect = { x, y, 0.0f, line_h };
-    bool focused = sdl_char_sheet_choice_focused(choice);
+    /* Only pressable rows get the highlight; the hit (and thus the hover
+     * tooltip) is still registered for informational rows below. */
+    bool focused = sdl_char_sheet_choice_focused(choice)
+        && sdl_char_sheet_choice_pressable(choice);
 
     if (!text || !text[0])
         return;
@@ -9861,23 +9886,45 @@ static void sdl_char_sheet_panel_draw(const sdl_panel* p, TTF_Font* font,
 }
 
 /*
+ * Choose the live-sheet column count from the screen aspect ratio
+ * (content width vs the full canvas height -- device-intrinsic, so it is not
+ * thrown off by the title/prompt bars or safe-area cropping).  Wider screens
+ * get more columns: fewer rows per column means the tallest column shrinks and
+ * the body font can grow.  Five columns require the long Vitals group to be
+ * split into Vitals (status) + Combat, which the caller does when this returns
+ * 5.  Reference points (content_w/canvas_h): typical Android phone landscape
+ * (e.g. OnePlus 13, ~2.05-2.2) -> 5; 16:9 desktop (~1.67) -> 4; 4:3 / narrow
+ * windows -> 3; portrait -> 2.  Thresholds are simple to tune.
+ */
+static int sdl_char_sheet_target_ncols(float content_w, float screen_h)
+{
+    float ar = (screen_h > 1.0f) ? content_w / screen_h : 1.8f;
+
+    if (ar >= 1.90f)
+        return 5;
+    if (ar >= 1.45f)
+        return 4;
+    if (ar >= 1.05f)
+        return 3;
+    return 2;
+}
+
+/*
  * Live-sheet column layout, matching the birth screens for visual consistency.
  *
- * The column count follows the aspect ratio -- three columns
- * (Vitals | Traits | Attributes+Skills) for normal and less-wide screens, four
- * when the screen is wide enough -- and panels keep their given left-to-right
- * order, with any panels past the column count stacked into the final column.
- * Columns use a moderate body font; the description is laid out directly
- * beneath them at a slightly smaller size (never larger than the columns), and
- * the whole group is centred so leftover height becomes balanced top/bottom
- * margin instead of a gap between the columns and the description.
+ * The column count follows sdl_char_sheet_target_ncols(); panels keep their
+ * given left-to-right order, with any panels past the column count stacked into
+ * the final column.  Columns use a moderate body font; the description is laid
+ * out directly beneath them at a slightly smaller size (never larger than the
+ * columns), and the group is centred (large screens) or row-spread (small
+ * screens) so there is neither a gap between columns and description nor wasted
+ * vertical space.
  */
 static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     float content_x, float top_y, float content_w, float region_h, int canvas_h,
     cptr desc)
 {
-    float ar = (canvas_h > 0) ? content_w / (float)canvas_h : 1.7f;
-    int ncols = (ar >= 2.7f) ? 5 : (ar >= 1.95f) ? 4 : 3;
+    int ncols = sdl_char_sheet_target_ncols(content_w, (float)canvas_h);
     float col_gap = sdl_char_sheet_clampf(content_w * 0.022f, 16.0f, 44.0f);
     float gap = sdl_char_sheet_clampf(region_h * 0.02f, 10.0f, 28.0f);
     bool has_desc = (desc && desc[0]);
@@ -10025,17 +10072,30 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     }
 
     /*
-     * Centre the block only when there is plenty of leftover height (large
-     * screens), so it doesn't float; on small screens keep it at the top so no
-     * vertical space is wasted and the text stays as large as possible.
+     * Fill the height: the body font is already as large as the column widths
+     * allow, so spread the rows to reach the description rather than leaving
+     * empty bands.  The spread is capped so the rows never get absurdly airy;
+     * on a very tall screen where even the cap can't fill, the small residual
+     * is centred so the block doesn't cling to the top.
      */
-    v_off = region_h - group_h;
-    if (v_off <= 0.0f)
-        v_off = 0.0f;
-    else if (v_off > region_h * 0.20f)
-        v_off *= 0.5f;
-    else
-        v_off = 0.0f;
+    {
+        float col_h_avail = region_h - (has_desc ? (gap + desc_h) : 0.0f);
+
+        if (max_rows > 0.5f && col_h_avail > max_rows * top_line_h)
+        {
+            float spread = col_h_avail / max_rows;
+            float cap = top_line_h * 2.2f;
+
+            if (spread > cap)
+                spread = cap;
+            top_line_h = spread;
+            columns_h = max_rows * top_line_h;
+        }
+        group_h = columns_h + (has_desc ? (gap + desc_h) : 0.0f);
+        v_off = (region_h - group_h) * 0.5f;
+        if (v_off < 0.0f)
+            v_off = 0.0f;
+    }
 
     for (int c = 0; c < ncols; c++)
     {
@@ -10278,14 +10338,55 @@ static void sdl_character_sheet_screen_render(void)
         skill_count = sdl_char_sheet_collect_skills(skill_lines, S_MAX + 2);
 
         SDL_zero(panels);
-        panels[n].kind = SDL_PANEL_KIND_LINES;
-        panels[n].heading = "Vitals";
-        panels[n].lines = vital_lines;
-        panels[n].line_count = vital_count;
-        panels[n].label_fraction = 0.48f;
-        panels[n].weight = 3;
-        panels[n].rows = vital_count + 1;
-        n++;
+
+        /*
+         * On very wide screens (5-column target) split the long Vitals list
+         * into "Vitals" (status: Exp..Light) and "Combat" (Melee onward) so a
+         * fifth column exists and the tallest column shrinks, letting the font
+         * grow.  Otherwise Vitals stays a single column.
+         */
+        if (sdl_char_sheet_target_ncols(content_w, (float)canvas.h) >= 5)
+        {
+            int v_split = vital_count;
+
+            for (int i = 0; i < vital_count; i++)
+                if (strncmp(vital_lines[i].text, "Melee\t", 6) == 0)
+                {
+                    v_split = i;
+                    break;
+                }
+            if (v_split <= 0 || v_split >= vital_count)
+                v_split = vital_count / 2;
+
+            panels[n].kind = SDL_PANEL_KIND_LINES;
+            panels[n].heading = "Vitals";
+            panels[n].lines = vital_lines;
+            panels[n].line_count = v_split;
+            panels[n].label_fraction = 0.48f;
+            panels[n].weight = 3;
+            panels[n].rows = v_split + 1;
+            n++;
+
+            panels[n].kind = SDL_PANEL_KIND_LINES;
+            panels[n].heading = "Combat";
+            panels[n].lines = vital_lines + v_split;
+            panels[n].line_count = vital_count - v_split;
+            panels[n].label_fraction = 0.48f;
+            panels[n].weight = 3;
+            panels[n].rows = (vital_count - v_split) + 1;
+            n++;
+        }
+        else
+        {
+            panels[n].kind = SDL_PANEL_KIND_LINES;
+            panels[n].heading = "Vitals";
+            panels[n].lines = vital_lines;
+            panels[n].line_count = vital_count;
+            panels[n].label_fraction = 0.48f;
+            panels[n].weight = 3;
+            panels[n].rows = vital_count + 1;
+            n++;
+        }
 
         panels[n].kind = SDL_PANEL_KIND_TRAITS;
         panels[n].heading = "Traits";
@@ -42055,6 +42156,48 @@ static bool sdl_story_cell_is_text(byte a, char c)
     return true;
 }
 
+static byte sdl_ui_text_fg_attr(byte attr)
+{
+    return (attr >= TERM_UI_SELECTED) ? TERM_DARK : attr;
+}
+
+static byte sdl_ui_text_bg_attr(byte attr)
+{
+    return (attr >= TERM_UI_SELECTED)
+        ? (byte)(attr - TERM_UI_SELECTED)
+        : TERM_DARK;
+}
+
+static SDL_Color sdl_color_from_attr(byte attr)
+{
+    SDL_Color col = {
+        angband_color_table[attr][1],
+        angband_color_table[attr][2],
+        angband_color_table[attr][3],
+        255
+    };
+
+    return col;
+}
+
+static void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n,
+    byte attr)
+{
+    if (!d || n <= 0)
+        return;
+
+    SDL_Color bg = sdl_color_from_attr(sdl_ui_text_bg_attr(attr));
+    SDL_FRect clear_rect = {
+        x * (float)d->cell_w,
+        y * (float)d->cell_h,
+        n * (float)d->cell_w,
+        (float)d->cell_h
+    };
+
+    SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
+    SDL_RenderFillRect(g_state.renderer, &clear_rect);
+}
+
 static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row,
     const char* row_chars, const byte* row_attr)
 {
@@ -42063,7 +42206,6 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
 
     const int wid = Term->wid;
     const float cell_w_f = (float)d->cell_w;
-    const float cell_h_f = (float)d->cell_h;
 
     int x = 0;
     while (x < wid)
@@ -42097,16 +42239,8 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
             }
 
             int run_len = x - run_start;
-            SDL_FRect clear_rect = { run_start * cell_w_f, y * cell_h_f, run_len * cell_w_f, cell_h_f };
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-            SDL_RenderFillRect(g_state.renderer, &clear_rect);
-
-            SDL_Color col = {
-                angband_color_table[attr][1],
-                angband_color_table[attr][2],
-                angband_color_table[attr][3],
-                255
-            };
+            SDL_Color col = sdl_color_from_attr(sdl_ui_text_fg_attr(attr));
+            sdl_fill_cell_span_with_attr(d, run_start, y, run_len, attr);
             if (utf8_has_non_ascii_n(row_chars + run_start, run_len))
             {
                 const char* font_path = config.monospace_font[0] != '\0'
@@ -42148,16 +42282,8 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
             }
 
             int run_len = x - run_start;
-            SDL_FRect clear_rect = { run_start * cell_w_f, y * cell_h_f, run_len * cell_w_f, cell_h_f };
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-            SDL_RenderFillRect(g_state.renderer, &clear_rect);
-
-            SDL_Color col = {
-                angband_color_table[attr][1],
-                angband_color_table[attr][2],
-                angband_color_table[attr][3],
-                255
-            };
+            SDL_Color col = sdl_color_from_attr(sdl_ui_text_fg_attr(attr));
+            sdl_fill_cell_span_with_attr(d, run_start, y, run_len, attr);
             sdl_render_story_text_grid(d, font, run_start, y, run_len, row_chars + run_start, col);
             continue;
         }
@@ -42180,10 +42306,18 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
         if (region_end <= region_start)
             continue;
 
-        SDL_FRect clear_rect = { region_start * cell_w_f, y * cell_h_f, (region_end - region_start) * cell_w_f,
-            cell_h_f };
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-        SDL_RenderFillRect(g_state.renderer, &clear_rect);
+        int bg = region_start;
+        while (bg < region_end)
+        {
+            byte bg_attr = row_attr[bg];
+            int bg_end = bg + 1;
+
+            while (bg_end < region_end && row_attr[bg_end] == bg_attr)
+                bg_end++;
+
+            sdl_fill_cell_span_with_attr(d, bg, y, bg_end - bg, bg_attr);
+            bg = bg_end;
+        }
 
         float px_cursor = region_start * cell_w_f;
         float px_end = region_end * cell_w_f;
@@ -42206,12 +42340,8 @@ static void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, cons
             }
 
             int seg_len = seg_end - seg;
-            SDL_Color seg_col = {
-                angband_color_table[seg_attr][1],
-                angband_color_table[seg_attr][2],
-                angband_color_table[seg_attr][3],
-                255
-            };
+            SDL_Color seg_col =
+                sdl_color_from_attr(sdl_ui_text_fg_attr(seg_attr));
 
             float remaining = px_end - px_cursor;
             if (remaining <= 0.0f)
