@@ -2211,6 +2211,18 @@ extern void re_init_some_things(void)
     ui_reset_transient_state_for_new_session();
     screen_set_startup_supporting_panes_hidden(true);
 
+    /* Defensive: clear any quit-time presentation suppression so a session that
+     * returns to the title (rather than exiting) keeps rendering normally. */
+    sdl_set_present_suppressed(false);
+
+    /* No live dungeon session exists while the between-games welcome flow is
+     * active.  Leaving these set lets SDL's quit-transition guard consume all
+     * input on the welcome screen after death or other end-of-run exits. */
+    character_generated = false;
+    character_dungeon = false;
+    character_loaded = false;
+    character_loaded_dead = false;
+
     // wipe the whole player structure
     memset(p_ptr, 0, sizeof(player_type));
 

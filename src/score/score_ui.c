@@ -1736,6 +1736,16 @@ void show_scores(bool longscore)
         }
         break;
     }
+    /* If the player is quitting the program from in-game (leaving, no longer
+     * playing, not dead, not returning to the title menu), the teardown below
+     * restores and repaints the dungeon view, which flashes on screen for a
+     * frame just before the window closes.  Suppress presentation so the score
+     * screen stays visible until the process exits. */
+    if (p_ptr->leaving && !p_ptr->playing && !p_ptr->is_dead
+        && !p_ptr->quit_to_menu)
+    {
+        sdl_set_present_suppressed(true);
+    }
     screen_pop_supporting_panes_hidden();
     sdl_pop_terminal_menu_scale();
     sdl_resume_main_view_zoom_for_saved_screen();

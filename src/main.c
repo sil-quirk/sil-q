@@ -554,8 +554,10 @@ int main(int argc, char* argv[])
         /* Play a game */
         PlayResult pr = play_game();   /* play and capture result */
 
-        if (pr != PLAY_QUIT)
-            screen_clear_all_terms_no_fresh();
+        if (pr == PLAY_QUIT)
+            quit(NULL);       /* honour in-game quit without redrawing menus */
+
+        screen_clear_all_terms_no_fresh();
 
         // rerun the first initialization routine
         init_stuff();
@@ -565,7 +567,6 @@ int main(int argc, char* argv[])
 
         // game no longer in progress
         game_in_progress = false;
-        if (pr == PLAY_QUIT) quit(NULL);       /* honour in-game quit     */
     }
 
     /* Free resources */

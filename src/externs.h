@@ -2002,6 +2002,7 @@ extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);
+extern void sdl_set_present_suppressed(bool suppressed);
 extern int get_sdl_min_terminal_mode(void);
 extern void set_sdl_min_terminal_mode(int value);
 extern int get_sdl_aux_view_font_size(void);
