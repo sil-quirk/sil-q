@@ -9554,6 +9554,69 @@ static int sdl_char_sheet_collect_skills(sdl_char_sheet_line* lines,
     return count;
 }
 
+/* Allocatable attributes for the birth/assign screen: value + point cost, each
+ * row clickable (choice = stat index) so the existing birth click handling
+ * selects/increases it. */
+static int sdl_char_sheet_collect_alloc_stats(sdl_char_sheet_line* lines,
+    int max_count)
+{
+    int count = 0;
+
+    if (!p_ptr)
+        return 0;
+
+    for (int stat = 0; stat < A_MAX; stat++)
+    {
+        char label[32];
+        char value[32];
+        char text[96];
+
+        SDL_strlcpy(label, (p_ptr->stat_drain[stat] < 0)
+                ? stat_names_reduced[stat] : stat_names[stat],
+            sizeof(label));
+        for (size_t len = strlen(label); len > 0 && label[len - 1] == ' ';
+             len = strlen(label))
+            label[len - 1] = '\0';
+        cnv_stat(p_ptr->stat_use[stat], value);
+        strnfmt(text, sizeof(text), "%s\t%s   cost %d", label, value,
+            g_sdl_character_sheet_screen.stat_costs[stat]);
+        sdl_char_sheet_add_line(lines, &count, max_count, text,
+            (p_ptr->stat_drain[stat] < 0) ? TERM_YELLOW : TERM_L_GREEN, stat,
+            "Click to select; click the selected row to increase, "
+            "right-click to decrease.");
+    }
+
+    return count;
+}
+
+/* Allocatable skills for the assign/skill-increase screen: total + cost, each
+ * row clickable (choice = skill index). */
+static int sdl_char_sheet_collect_alloc_skills(sdl_char_sheet_line* lines,
+    int max_count)
+{
+    int count = 0;
+
+    if (!p_ptr)
+        return 0;
+
+    for (int skill = 0; skill < S_MAX; skill++)
+    {
+        char text[96];
+
+        if (skill == S_SPC)
+            continue;
+        strnfmt(text, sizeof(text), "%s\t%d   cost %d",
+            skill_names_full[skill], p_ptr->skill_use[skill],
+            g_sdl_character_sheet_screen.skill_costs[skill]);
+        sdl_char_sheet_add_line(lines, &count, max_count, text, TERM_L_GREEN,
+            skill,
+            "Click to select; click the selected row to increase, "
+            "right-click to decrease.");
+    }
+
+    return count;
+}
+
 static void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
     float y, float w, float h, float line_h, int line_count)
 {
@@ -18141,6 +18204,7 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
             + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
 
     if (g_object_tooltip.active
+        && !g_object_tooltip.term_cell
         && g_object_tooltip.touch == touch
         && g_object_tooltip.map_y == map_y
         && g_object_tooltip.map_x == map_x
@@ -18153,8 +18217,12 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
 
     g_object_tooltip.active = true;
     g_object_tooltip.touch = touch;
+    g_object_tooltip.term_cell = false;
     g_object_tooltip.map_y = map_y;
     g_object_tooltip.map_x = map_x;
+    g_object_tooltip.cell_col = 0;
+    g_object_tooltip.cell_row = 0;
+    g_object_tooltip.cell_cols = 0;
     g_object_tooltip.expires_at = expires_at;
     SDL_strlcpy(g_object_tooltip.text, name, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
@@ -18247,13 +18315,32 @@ static SDL_Surface* sdl_object_tooltip_render_text_surface(TTF_Font* font,
     return TTF_RenderText_Blended_Wrapped(font, text, 0, color, wrap_w);
 }
 
+static bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!g_object_tooltip.active || !g_object_tooltip.term_cell)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (row != g_object_tooltip.cell_row)
+        return false;
+
+    return col >= g_object_tooltip.cell_col
+        && col < g_object_tooltip.cell_col + g_object_tooltip.cell_cols;
+}
+
 static void sdl_object_tooltip_handle_mouse_motion(float x, float y)
 {
     int map_y = 0;
     int map_x = 0;
 
-    if (g_object_tooltip.active && g_object_tooltip.term_cell)
-        return;
+    if (g_object_tooltip.active && g_object_tooltip.term_cell) {
+        if (sdl_object_tooltip_pointer_hits_term_cell(x, y))
+            return;
+        sdl_object_tooltip_clear();
+    }
 
     if (g_unified_look_active || g_pointer_aim.active
         || g_player_action_menu.active || g_player_exchange_target.active)
@@ -23456,6 +23543,135 @@ static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
     return SDL_PANEL_CLICK_NONE;
 }
 
+static cptr sdl_character_panel_click_tooltip_text(int click_action)
+{
+    switch (click_action)
+    {
+    case SDL_PANEL_CLICK_CHARACTER:
+        return "Click: open character details.";
+    case SDL_PANEL_CLICK_SONG:
+        return "Click: open the song menu.";
+    case SDL_PANEL_CLICK_SUPPLIES_LIGHTS:
+        return "Click: open supplies for lights.";
+    case SDL_PANEL_CLICK_SKILL_DISTRIBUTION:
+        return "Click: spend experience.";
+    case SDL_PANEL_CLICK_INVENTORY:
+        return "Click: open inventory.";
+    case SDL_PANEL_CLICK_ABILITIES:
+        return "Click: open abilities.";
+    case SDL_PANEL_CLICK_SMITHING:
+        return "Click: open smithing.";
+    default:
+        return NULL;
+    }
+}
+
+static cptr sdl_character_panel_attack_tooltip_text(int attack_mode)
+{
+    switch (attack_mode)
+    {
+    case SDL_POINTER_ATTACK_MELEE:
+        return "Click: select melee attack mode.";
+    case SDL_POINTER_ATTACK_RANGED_1:
+        return "Click: select ranged attack mode.";
+    case SDL_POINTER_ATTACK_RANGED_2:
+        return "Click: select second-quiver ranged attack mode.";
+    default:
+        return NULL;
+    }
+}
+
+static void sdl_character_panel_tooltip_span(int col, int row,
+    int attack_mode, int click_action, int* out_col, int* out_cols)
+{
+    int anchor_col = 0;
+    int anchor_cols = LEFT_PANEL_CONTENT_WID;
+
+    if (anchor_cols <= 0)
+        anchor_cols = COL_MAP;
+
+    if (get_sdl_hide_left_panel())
+    {
+        int idx = row - g_hidden_left_panel_overlay_start_row;
+        int start_col = -1;
+        int end_col = -1;
+
+        if (idx >= 0 && idx < g_hidden_left_panel_overlay_rows && idx < 16)
+        {
+            if (attack_mode != SDL_POINTER_ATTACK_NONE)
+            {
+                start_col = g_hidden_left_panel_overlay_attack_start_cols[idx];
+                end_col = g_hidden_left_panel_overlay_attack_end_cols[idx];
+            }
+            else if (click_action != SDL_PANEL_CLICK_NONE)
+            {
+                start_col = g_hidden_left_panel_overlay_click_start_cols[idx];
+                end_col = g_hidden_left_panel_overlay_click_end_cols[idx];
+            }
+
+            if (end_col <= start_col)
+            {
+                start_col = g_hidden_left_panel_overlay_start_cols[idx];
+                end_col = start_col + g_hidden_left_panel_overlay_widths[idx];
+            }
+        }
+
+        if (end_col > start_col)
+        {
+            anchor_col = start_col;
+            anchor_cols = end_col - start_col;
+        }
+    }
+    else if (row == ROW_QUIVER && attack_mode != SDL_POINTER_ATTACK_NONE)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            if (g_left_panel_quiver_attack_modes[i] != attack_mode)
+                continue;
+            if (col < g_left_panel_quiver_attack_start_cols[i]
+                || col >= g_left_panel_quiver_attack_end_cols[i])
+            {
+                continue;
+            }
+            if (g_left_panel_quiver_attack_end_cols[i]
+                > g_left_panel_quiver_attack_start_cols[i])
+            {
+                anchor_col = g_left_panel_quiver_attack_start_cols[i];
+                anchor_cols = g_left_panel_quiver_attack_end_cols[i]
+                    - g_left_panel_quiver_attack_start_cols[i];
+            }
+            break;
+        }
+    }
+
+    if (anchor_cols < 1)
+        anchor_cols = 1;
+    if (out_col)
+        *out_col = anchor_col;
+    if (out_cols)
+        *out_cols = anchor_cols;
+}
+
+static void sdl_character_panel_show_hover_tooltip(int col, int row,
+    int attack_mode, int click_action)
+{
+    cptr text = NULL;
+    int anchor_col = 0;
+    int anchor_cols = 1;
+
+    if (attack_mode != SDL_POINTER_ATTACK_NONE)
+        text = sdl_character_panel_attack_tooltip_text(attack_mode);
+    if (!text && click_action != SDL_PANEL_CLICK_NONE)
+        text = sdl_character_panel_click_tooltip_text(click_action);
+    if (!text)
+        return;
+
+    sdl_character_panel_tooltip_span(col, row, attack_mode, click_action,
+        &anchor_col, &anchor_cols);
+    (void)sdl_hover_tooltip_show_text(anchor_col, row, anchor_cols, text,
+        false);
+}
+
 static bool sdl_handle_character_panel_click_action(int click_action)
 {
     switch (click_action)
@@ -23521,12 +23737,17 @@ static bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float 
         sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
             SDL_PANEL_CLICK_NONE, -1, active);
         sdl_pointer_attack_set_panel_hover_mode(attack_mode);
+        sdl_character_panel_show_hover_tooltip(col, row, attack_mode,
+            SDL_PANEL_CLICK_NONE);
         return true;
     }
 
     sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
     sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
         click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, active);
+    if (click_action != SDL_PANEL_CLICK_NONE)
+        sdl_character_panel_show_hover_tooltip(col, row,
+            SDL_POINTER_ATTACK_NONE, click_action);
 
     return click_action != SDL_PANEL_CLICK_NONE;
 }

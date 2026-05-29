@@ -18632,6 +18632,43 @@ static void hint_message_put_segment(int row, int col, byte attr, const char* te
         Term_putstr(col, row, -1, attr, text);
 }
 
+static byte hint_message_selected_attr(byte source_attr)
+{
+    (void)source_attr;
+    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
+}
+
+static void hint_message_fill_row(int row, int width, byte attr)
+{
+    char fill[180];
+    int term_wid = Term ? Term->wid : 80;
+    int term_hgt = Term ? Term->hgt : 24;
+
+    if (row < 0 || row >= term_hgt || width <= 0)
+        return;
+    if (width > term_wid)
+        width = term_wid;
+    if (width >= (int)sizeof(fill))
+        width = (int)sizeof(fill) - 1;
+
+    SDL_memset(fill, ' ', (size_t)width);
+    fill[width] = '\0';
+    Term_putstr(0, row, width, attr, fill);
+}
+
+static int hint_message_selection_width(int text_col, const char* text, int wid)
+{
+    int text_len = text ? (int)strlen(text) : 0;
+    int width = text_col + text_len;
+
+    if (width < 1)
+        width = 1;
+    if (wid > 0 && width > wid)
+        width = wid;
+
+    return width;
+}
+
 static void hint_message_draw_colored_line(int row, int col, byte base_attr,
     const char* line, const hint_message_meta* meta, bool highlight_tutorial)
 {
@@ -18641,6 +18678,12 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
 
     if (!line)
         line = "";
+
+    if (base_attr >= TERM_UI_SELECTED)
+    {
+        hint_message_put_segment(row, col, base_attr, line);
+        return;
+    }
 
     len = (int)strlen(line);
     for (int i = 0; i < len; )
@@ -19058,7 +19101,11 @@ static int hint_message_list_emit_token(int base_row, int wid, int text_col,
 
         row = base_row + *used_rows;
         if (draw)
+        {
             Term_erase(0, row, 255);
+            if (attr >= TERM_UI_SELECTED)
+                hint_message_fill_row(row, text_col, attr);
+        }
         (*used_rows)++;
         *cursor_col = text_col;
     }
@@ -19087,7 +19134,11 @@ static int hint_message_list_emit_token(int base_row, int wid, int text_col,
 
                 row = base_row + *used_rows;
                 if (draw)
+                {
                     Term_erase(0, row, 255);
+                    if (attr >= TERM_UI_SELECTED)
+                        hint_message_fill_row(row, text_col, attr);
+                }
                 (*used_rows)++;
                 *cursor_col = text_col;
             }
@@ -19495,8 +19546,9 @@ static int hint_message_draw_wrapped_list_entry(int row, int idx,
 {
     char prefix[8];
     hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
-    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
-    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
+    byte selected_attr = hint_message_selected_attr(TERM_WHITE);
+    byte prefix_attr = selected ? selected_attr : TERM_WHITE;
+    byte title_attr = selected ? selected_attr : TERM_WHITE;
     int text_col;
     int line_count;
     int draw_count;
@@ -19513,6 +19565,12 @@ static int hint_message_draw_wrapped_list_entry(int row, int idx,
     for (int li = 0; li < draw_count; ++li)
     {
         Term_erase(0, row + li, 255);
+        if (selected)
+        {
+            int selection_w = hint_message_selection_width(text_col,
+                lines[li].text, wid);
+            hint_message_fill_row(row + li, selection_w, selected_attr);
+        }
 
         if (li == 0)
             Term_putstr(0, row + li, -1, prefix_attr, prefix);
@@ -19531,9 +19589,12 @@ static int hint_message_layout_list_entry(int row, int idx, bool selected,
     char prefix[8];
     hint_message_display_line title_lines[HINT_MESSAGE_LIST_LINES_MAX];
     const char* title = hint_message_title(idx);
-    byte prefix_attr = selected ? TERM_L_BLUE : TERM_WHITE;
-    byte title_attr = selected ? TERM_L_WHITE : TERM_WHITE;
-    byte chrome_attr = TERM_SLATE;
+    byte selected_attr = hint_message_selected_attr(TERM_WHITE);
+    byte prefix_attr = selected ? selected_attr : TERM_WHITE;
+    byte title_attr = selected ? selected_attr : TERM_WHITE;
+    byte chrome_attr = selected ? selected_attr : TERM_SLATE;
+    byte cue_dist_attr = selected ? selected_attr : TERM_YELLOW;
+    byte cue_dir_attr = selected ? selected_attr : TERM_L_BLUE;
     int text_col;
     int title_count;
     int used_rows = 0;
@@ -19553,6 +19614,13 @@ static int hint_message_layout_list_entry(int row, int idx, bool selected,
         if (draw)
         {
             Term_erase(0, row + used_rows, 255);
+            if (selected)
+            {
+                int selection_w = hint_message_selection_width(text_col,
+                    title_lines[li].text, wid);
+                hint_message_fill_row(row + used_rows, selection_w,
+                    selected_attr);
+            }
             if (li == 0)
                 Term_putstr(0, row + used_rows, -1, prefix_attr, prefix);
             hint_message_put_segment(row + used_rows, text_col, title_attr,
@@ -19587,7 +19655,7 @@ static int hint_message_layout_list_entry(int row, int idx, bool selected,
         if (meta.cue_dists[cue][0])
         {
             if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, TERM_YELLOW,
+                    &used_rows, &cursor_col, draw, cue_dist_attr,
                     meta.cue_dists[cue]))
             {
                 return used_rows;
@@ -19606,7 +19674,7 @@ static int hint_message_layout_list_entry(int row, int idx, bool selected,
         if (meta.cue_dirs[cue][0])
         {
             if (!hint_message_list_emit_token(row, wid, text_col, max_rows,
-                    &used_rows, &cursor_col, draw, TERM_L_BLUE,
+                    &used_rows, &cursor_col, draw, cue_dir_attr,
                     meta.cue_dirs[cue]))
             {
                 return used_rows;
@@ -34070,6 +34138,29 @@ static void supply_browser_fill_row(int col, int row, int width, byte attr)
     Term_putstr(col, row, width, attr, fill);
 }
 
+static int supply_browser_selection_width(int start_col, int text_col,
+    int text_w, cptr text, int max_w)
+{
+    int prefix_w = text_col - start_col;
+    int text_len = text ? (int)strlen(text) : 0;
+    int width;
+
+    if (prefix_w < 0)
+        prefix_w = 0;
+    if (text_w <= 0)
+        text_len = 0;
+    else if (text_len > text_w)
+        text_len = text_w;
+
+    width = prefix_w + text_len;
+    if (width < 1)
+        width = 1;
+    if (max_w > 0 && width > max_w)
+        width = max_w;
+
+    return width;
+}
+
 static void display_supply_group_list(int col, int row, int wid, int per_page,
     int grp_idx[], int grp_cur, int grp_top, int group_totals[],
     const supply_group_icon icons[SUPPLY_GROUP_MAX], bool active)
@@ -34085,6 +34176,7 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
         int grp;
         byte base_color;
         byte attr;
+        byte count_attr;
         char buf[8];
         bool selected;
         bool highlighted;
@@ -34118,10 +34210,17 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
             attr = TERM_L_DARK;
         else
             attr = base_color;
+        count_attr = attr;
+        if (highlighted)
+            count_attr = (group_totals[grp] == 0) ? TERM_L_DARK : base_color;
 
         Term_erase(col, row + i, wid);
         if (highlighted)
-            supply_browser_fill_row(col, row + i, wid, attr);
+        {
+            int selection_w = supply_browser_selection_width(col, text_col,
+                text_w, supply_group_text[grp], wid);
+            supply_browser_fill_row(col, row + i, selection_w, attr);
+        }
         if (icons && icons[grp].has_icon)
         {
             draw_supply_icon(col, row + i, &icons[grp].obj);
@@ -34134,7 +34233,7 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
 
         strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
         if (wid >= 3)
-            supply_put_fitted(total_col, row + i, 3, attr, buf);
+            supply_put_fitted(total_col, row + i, 3, count_attr, buf);
     }
 }
 
@@ -34197,14 +34296,21 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
 
             if (selected)
             {
-                for (int line = 0;
-                     line < rows_per_entry && y + line < list_end; line++)
-                {
-                    supply_browser_fill_row(layout->list_col, y + line,
-                        layout->list_w, attr);
-                }
-            }
+                char line_buf[160];
+                char text_buf[180];
+                char prefix[8];
+                int selection_w;
 
+                jewelry_preset_display_line(line_buf, sizeof(line_buf),
+                    entry->preset_idx, 0, rows_per_entry);
+                strnfmt(prefix, sizeof(prefix), "%d  ",
+                    entry->preset_idx + 1);
+                strnfmt(text_buf, sizeof(text_buf), "%s%s", prefix, line_buf);
+                selection_w = supply_browser_selection_width(layout->list_col,
+                    cols->name_col, name_w, text_buf, layout->list_w);
+                supply_browser_fill_row(layout->list_col, y, selection_w,
+                    attr);
+            }
             if (cols->show_sym && draw_obj)
             {
                 draw_supply_icon(cols->sym_col, y, draw_obj);
@@ -34231,6 +34337,14 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
                     SDL_strlcpy(prefix, "   ", sizeof(prefix));
 
                 strnfmt(text_buf, sizeof(text_buf), "%s%s", prefix, line_buf);
+                if (selected && line > 0)
+                {
+                    int selection_w = supply_browser_selection_width(
+                        layout->list_col, cols->name_col, name_w, text_buf,
+                        layout->list_w);
+                    supply_browser_fill_row(layout->list_col, y + line,
+                        selection_w, attr);
+                }
                 supply_put_fitted(cols->name_col, y + line, name_w, attr,
                     text_buf);
             }
@@ -34280,11 +34394,14 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
         if (!o_ptr)
             continue;
 
-        if (selected)
-            supply_browser_fill_row(layout->list_col, y, layout->list_w, attr);
-
         supply_entry_display_name(name, sizeof(name), entry, o_ptr,
             current_group, compact_names);
+        if (selected)
+        {
+            int selection_w = supply_browser_selection_width(layout->list_col,
+                cols->name_col, cols->name_w, name, layout->list_w);
+            supply_browser_fill_row(layout->list_col, y, selection_w, attr);
+        }
         if (cols->show_sym)
         {
             draw_supply_icon(cols->sym_col, y, o_ptr);
@@ -34298,7 +34415,7 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
         {
             strnfmt(cell_buf, sizeof(cell_buf), "%d.%1d",
                 o_ptr->weight / 10, o_ptr->weight % 10);
-            Term_putstr(cols->weight_col, y, 5, attr, cell_buf);
+            Term_putstr(cols->weight_col, y, 5, base_attr, cell_buf);
         }
 
         if (cols->show_turns)
@@ -34311,13 +34428,13 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
                 strnfmt(cell_buf, sizeof(cell_buf), "%5s", "");
             else
                 strnfmt(cell_buf, sizeof(cell_buf), "%5s", "inf");
-            Term_putstr(cols->turns_col, y, 5, attr, cell_buf);
+            Term_putstr(cols->turns_col, y, 5, base_attr, cell_buf);
         }
 
         if (cols->show_qty)
         {
             strnfmt(cell_buf, sizeof(cell_buf), "x%-3d", entry->total);
-            Term_putstr(cols->qty_col, y, 4, attr, cell_buf);
+            Term_putstr(cols->qty_col, y, 4, base_attr, cell_buf);
         }
 
     }
@@ -34943,6 +35060,23 @@ static void compute_equipment_group_totals(
             equipment_menu_slots[group]);
 }
 
+static bool equipment_menu_slot_is_filled(int slot)
+{
+    if (slot == EQUIPMENT_MENU_ALL)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (inventory[i].k_idx)
+                return true;
+        }
+
+        return false;
+    }
+
+    return slot >= INVEN_WIELD && slot < INVEN_TOTAL
+        && inventory[slot].k_idx;
+}
+
 static void display_equipment_group_list(int col, int row, int wid,
     int per_page, int grp_cur, int grp_top,
     const int totals[EQUIPMENT_MENU_SLOT_COUNT],
@@ -34957,6 +35091,7 @@ static void display_equipment_group_list(int col, int row, int wid,
         int grp_pos = grp_top + i;
         int slot;
         byte attr;
+        byte count_attr;
         char buf[8];
         bool selected;
         bool highlighted;
@@ -34972,15 +35107,33 @@ static void display_equipment_group_list(int col, int row, int wid,
 
         if (highlighted)
             attr = supply_browser_selected_attr(TERM_L_BLUE);
+        else if (selected && equipment_menu_slot_is_filled(slot))
+            attr = TERM_WHITE;
         else if (selected)
             attr = TERM_L_BLUE;
         else if (totals[grp_pos] == 0)
             attr = TERM_L_DARK;
+        else if (equipment_menu_slot_is_filled(slot))
+            attr = TERM_WHITE;
         else
             attr = TERM_L_BLUE;
+        count_attr = attr;
+        if (highlighted)
+        {
+            if (totals[grp_pos] == 0)
+                count_attr = TERM_L_DARK;
+            else if (equipment_menu_slot_is_filled(slot))
+                count_attr = TERM_WHITE;
+            else
+                count_attr = TERM_L_BLUE;
+        }
 
         if (highlighted)
-            supply_browser_fill_row(col, row + i, wid, attr);
+        {
+            int selection_w = supply_browser_selection_width(col, text_col,
+                text_w, equipment_slot_text(slot), wid);
+            supply_browser_fill_row(col, row + i, selection_w, attr);
+        }
         if (icons && icons[grp_pos].has_icon)
         {
             draw_supply_icon(col, row + i, &icons[grp_pos].obj);
@@ -34994,7 +35147,7 @@ static void display_equipment_group_list(int col, int row, int wid,
 
         strnfmt(buf, sizeof(buf), "%3d", totals[grp_pos]);
         if (wid >= 3)
-            supply_put_fitted(total_col, row + i, 3, attr, buf);
+            supply_put_fitted(total_col, row + i, 3, count_attr, buf);
     }
 }
 
@@ -35023,10 +35176,10 @@ static cptr equipment_entry_source_text(const equipment_list_entry* entry,
 static void display_equipment_slot_entries(
     const knowledge_browser_layout* layout, int row, int per_page,
     equipment_list_entry entries[], int entry_cnt, int entry_cur,
-    int entry_top, int column)
+    int entry_top, int column, bool show_source)
 {
     int sym_w = use_bigtile ? 2 : 1;
-    int source_w = (layout->term_wid >= 64) ? 10 : 0;
+    int source_w = (show_source && layout->term_wid >= 64) ? 10 : 0;
     int source_col = layout->term_wid - source_w;
     int name_col = layout->list_col + sym_w + 1;
     int name_w = layout->term_wid - name_col - (source_w ? source_w + 1 : 0);
@@ -35057,17 +35210,21 @@ static void display_equipment_slot_entries(
             continue;
 
         selected = (column == 1 && idx == entry_cur);
-        base_attr = entry->equipped ? TERM_L_BLUE
+        base_attr = entry->equipped ? TERM_WHITE
             : object_display_color(o_ptr,
                 tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         attr = selected ? supply_browser_selected_attr(base_attr) : base_attr;
 
-        if (selected)
-            supply_browser_fill_row(layout->list_col, y, layout->list_w, attr);
-
-        object_desc(name, sizeof(name), o_ptr, false, 0);
+        object_desc(name, sizeof(name), o_ptr, true, 3);
         if (entry->equipped)
             SDL_strlcat(name, " [equipped]", sizeof(name));
+
+        if (selected)
+        {
+            int selection_w = supply_browser_selection_width(layout->list_col,
+                name_col, name_w, name, layout->list_w);
+            supply_browser_fill_row(layout->list_col, y, selection_w, attr);
+        }
 
         draw_supply_icon(layout->list_col, y, o_ptr);
         if (selected)
@@ -35075,7 +35232,7 @@ static void display_equipment_slot_entries(
 
         supply_put_fitted(name_col, y, name_w, attr, name);
         if (source_w > 0)
-            supply_put_fitted(source_col, y, source_w, attr,
+            supply_put_fitted(source_col, y, source_w, base_attr,
                 equipment_entry_source_text(entry, source_buf,
                     sizeof(source_buf)));
     }
@@ -36241,16 +36398,31 @@ static void knowledge_fill_row(int col, int row, int width, byte attr)
     Term_putstr(col, row, width, attr, fill);
 }
 
-static int knowledge_list_text_selection_width(
-    const knowledge_browser_layout* layout, int text_col)
+static int knowledge_selection_width(const knowledge_browser_layout* layout,
+    int text_col, int text_w, cptr text)
 {
-    int right;
+    int prefix_w;
+    int text_len = text ? (int)strlen(text) : 0;
+    int width;
 
     if (!layout)
         return 1;
 
-    right = layout->list_col + layout->list_w;
-    return (right > text_col) ? (right - text_col) : 1;
+    prefix_w = text_col - layout->list_col;
+    if (prefix_w < 0)
+        prefix_w = 0;
+    if (text_w <= 0)
+        text_len = 0;
+    else if (text_len > text_w)
+        text_len = text_w;
+
+    width = prefix_w + text_len;
+    if (width < 1)
+        width = 1;
+    if (width > layout->list_w)
+        width = layout->list_w;
+
+    return width;
 }
 
 static void knowledge_register_tabs(const knowledge_browser_layout* layout)
@@ -36479,8 +36651,14 @@ static void knowledge_display_groups(const knowledge_browser_layout* layout,
             continue;
 
         if (idx == grp_cur)
-            knowledge_fill_row(layout->group_col, y, layout->group_w,
+        {
+            int selection_w = MIN((int)strlen(group_text[grp_idx[idx]]),
+                layout->group_w);
+            if (selection_w < 1)
+                selection_w = 1;
+            knowledge_fill_row(layout->group_col, y, selection_w,
                 knowledge_selected_attr(TERM_WHITE));
+        }
 
         Term_putstr(layout->group_col, y, layout->group_w,
             (idx == grp_cur) ? knowledge_selected_attr(TERM_WHITE) : TERM_WHITE,
@@ -36525,22 +36703,59 @@ static int knowledge_entry_name_width(const knowledge_browser_layout* layout)
     return (name_w > 0) ? name_w : 1;
 }
 
+static bool knowledge_icon_selected_background(int col, int row, byte* bg_attr)
+{
+    byte attr;
+    char chr;
+
+    if (!Term || !Term->scr || !bg_attr)
+        return false;
+    if (col < 0 || row < 0 || col >= Term->wid || row >= Term->hgt)
+        return false;
+
+    attr = Term->scr->a[row][col];
+    chr = Term->scr->c[row][col];
+    if (attr < TERM_UI_SELECTED || chr != ' ')
+        return false;
+
+    *bg_attr = attr;
+    return true;
+}
+
 static void knowledge_put_entry_icon(const knowledge_browser_layout* layout,
     int row, byte attr, char chr)
 {
     int col;
+    byte bg_attr = 0;
+    bool selected_bg;
 
     if (!knowledge_entry_icons_fit(layout) || !chr)
         return;
 
     col = layout->list_col;
-    Term_putch(col, row, attr, chr);
+    selected_bg = knowledge_icon_selected_background(col, row, &bg_attr);
+
+    if (selected_bg)
+        Term_queue_char(col, row, attr, chr, bg_attr, ' ');
+    else
+        Term_putch(col, row, attr, chr);
+
     if (use_bigtile)
     {
         if (attr & TILE_FLAG)
-            Term_putch(col + 1, row, 255, -1);
+        {
+            if (selected_bg)
+                Term_queue_char(col + 1, row, 255, -1, bg_attr, ' ');
+            else
+                Term_putch(col + 1, row, 255, -1);
+        }
         else
-            Term_putch(col + 1, row, 0, ' ');
+        {
+            if (selected_bg)
+                Term_queue_char(col + 1, row, bg_attr, ' ', bg_attr, ' ');
+            else
+                Term_putch(col + 1, row, 0, ' ');
+        }
     }
 }
 
@@ -36834,12 +37049,15 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
 
         attr = (idx == artefact_cur) ? knowledge_selected_attr(TERM_WHITE)
                                      : TERM_WHITE;
-        if (idx == artefact_cur)
-            knowledge_fill_row(name_col, row,
-                knowledge_list_text_selection_width(layout, name_col), attr);
         object_wipe(i_ptr);
         prepare_fake_artefact(i_ptr, artefact_idx[idx]);
         object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
+        if (idx == artefact_cur)
+        {
+            int selection_w = knowledge_selection_width(layout, name_col,
+                name_w, o_name);
+            knowledge_fill_row(layout->list_col, row, selection_w, attr);
+        }
         knowledge_put_entry_icon(layout, row, object_attr(i_ptr),
             object_char(i_ptr));
         Term_putstr(name_col, row, name_w, attr, o_name);
@@ -36847,9 +37065,9 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
         if (show_debug)
         {
             artefact_type* a_ptr = &a_info[artefact_idx[idx]];
-            c_prt(attr, format("%3d", artefact_idx[idx]), row, idx_col);
-            c_prt(attr, format("%3d", a_ptr->level), row, dep_col);
-            c_prt(attr, format("%3d", a_ptr->rarity), row, rar_col);
+            c_prt(TERM_WHITE, format("%3d", artefact_idx[idx]), row, idx_col);
+            c_prt(TERM_WHITE, format("%3d", a_ptr->level), row, dep_col);
+            c_prt(TERM_WHITE, format("%3d", a_ptr->rarity), row, rar_col);
         }
     }
 }
@@ -36902,19 +37120,21 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = k_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = k_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             if (oidx == object_cur)
             {
                 attr = knowledge_selected_attr(attr);
-                knowledge_fill_row(text_col, row,
-                    knowledge_list_text_selection_width(layout, text_col), attr);
+                knowledge_fill_row(layout->list_col, row,
+                    knowledge_selection_width(layout, text_col, text_w, buf),
+                    attr);
             }
-            knowledge_object_display_name(buf, sizeof(buf), obj);
             if (has_icon)
                 knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
             Term_putstr(text_col, row, text_w, attr, buf);
 
             if (show_idx)
-                c_prt(attr, format("%d", obj->idx), row, idx_col);
+                c_prt(k_ptr->aware ? TERM_WHITE : TERM_SLATE,
+                    format("%d", obj->idx), row, idx_col);
             break;
 
         case OBJ_SPECIAL:
@@ -36922,13 +37142,14 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = e_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = e_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
+            knowledge_object_display_name(buf, sizeof(buf), obj);
             if (oidx == object_cur)
             {
                 attr = knowledge_selected_attr(attr);
-                knowledge_fill_row(text_col, row,
-                    knowledge_list_text_selection_width(layout, text_col), attr);
+                knowledge_fill_row(layout->list_col, row,
+                    knowledge_selection_width(layout, text_col, text_w, buf),
+                    attr);
             }
-            knowledge_object_display_name(buf, sizeof(buf), obj);
             if (has_icon)
                 knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
             Term_putstr(text_col, row, text_w, attr, buf);
@@ -37021,11 +37242,14 @@ static void knowledge_display_monsters(const knowledge_browser_layout* layout,
         l_ptr = &l_list[r_idx];
         attr = (idx == mon_cur) ? knowledge_selected_attr(TERM_WHITE)
                                 : TERM_WHITE;
-        if (idx == mon_cur)
-            knowledge_fill_row(name_col, row,
-                knowledge_list_text_selection_width(layout, name_col), attr);
-
         monster_desc_race(race_name, sizeof(race_name), r_idx);
+        if (idx == mon_cur)
+        {
+            int selection_w = knowledge_selection_width(layout, name_col,
+                name_w, race_name);
+            knowledge_fill_row(layout->list_col, row, selection_w, attr);
+        }
+
         knowledge_put_entry_icon(layout, row, r_ptr->x_attr, r_ptr->x_char);
         Term_putstr(name_col, row, name_w, attr, race_name);
 
@@ -37105,7 +37329,14 @@ static void knowledge_display_curses(const knowledge_browser_layout* layout,
         attr = (idx == curse_cur) ? knowledge_selected_attr(TERM_L_RED)
                                   : TERM_L_RED;
         if (idx == curse_cur)
-            knowledge_fill_row(0, row, layout->term_wid, attr);
+        {
+            int selection_w = MIN(
+                (int)strlen(knowledge_curse_display_name(id)),
+                layout->term_wid);
+            if (selection_w < 1)
+                selection_w = 1;
+            knowledge_fill_row(0, row, selection_w, attr);
+        }
         Term_putstr(0, row, layout->term_wid, attr,
             knowledge_curse_display_name(id));
     }
@@ -38218,7 +38449,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             display_equipment_slot_entries(&layout, layout.list_row,
                 layout.list_rows, equip_entries, equip_entry_cnt,
-                equip_entry_cur, equip_entry_top, equip_column);
+                equip_entry_cur, equip_entry_top, equip_column, true);
 
             for (i = 0; i < entry_page_rows; i++)
             {
@@ -38531,9 +38762,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_erase(0, layout.header_row, 255);
             Term_putstr(layout.list_col, layout.header_row, layout.list_w,
                 TERM_SLATE, "Item");
-            if (layout.term_wid >= 64)
-                Term_putstr(layout.term_wid - 10, layout.header_row, 10,
-                    TERM_SLATE, "Where");
 
             for (i = 0; i < layout.term_wid; i++)
                 Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
@@ -38542,7 +38770,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             display_equipment_slot_entries(&layout, layout.list_row,
                 layout.list_rows, equip_entries, inventory_entry_cnt,
-                inv_entry_cur, inv_entry_top, 1);
+                inv_entry_cur, inv_entry_top, 1, false);
 
             for (i = 0; i < entry_page_rows; i++)
             {
