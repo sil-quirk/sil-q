@@ -35804,17 +35804,6 @@ static cptr knowledge_tab_label(int page)
     return labels[page];
 }
 
-static int knowledge_tab_col(int page)
-{
-    int i;
-    int col = 0;
-
-    for (i = KNOWLEDGE_PAGE_ARTEFACTS; i < page; i++)
-        col += (int)strlen(knowledge_tab_label(i)) + 1;
-
-    return col;
-}
-
 static void knowledge_init_layout(knowledge_browser_layout* layout,
     int max_group_len, bool has_groups)
 {
@@ -35898,6 +35887,7 @@ static void knowledge_draw_tabs(const knowledge_browser_layout* layout, int page
     int i;
     int col = 0;
 
+    (void)tabs_focus;
     Term_erase(0, layout->tabs_row, 255);
 
     for (i = KNOWLEDGE_PAGE_ARTEFACTS; i <= KNOWLEDGE_PAGE_CURSES; i++)
@@ -35911,7 +35901,7 @@ static void knowledge_draw_tabs(const knowledge_browser_layout* layout, int page
             break;
 
         if (i == page)
-            attr = tabs_focus ? TERM_YELLOW : TERM_L_BLUE;
+            attr = TERM_L_BLUE;
 
         len = (int)strlen(label);
         Term_putstr(col, layout->tabs_row, remaining, attr, label);
@@ -36017,6 +36007,49 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_SLATE, prompt);
         knowledge_register_prompt_clicks(layout, prompt);
     }
+}
+
+static byte knowledge_selected_attr(byte source_attr)
+{
+    (void)source_attr;
+    return (byte)(TERM_UI_SELECTED + TERM_L_BLUE);
+}
+
+static void knowledge_fill_row(int col, int row, int width, byte attr)
+{
+    char fill[180];
+    int term_wid = Term ? Term->wid : 80;
+    int term_hgt = Term ? Term->hgt : 24;
+
+    if (row < 0 || row >= term_hgt || width <= 0)
+        return;
+    if (col < 0)
+    {
+        width += col;
+        col = 0;
+    }
+    if (col >= term_wid || width <= 0)
+        return;
+    if (col + width > term_wid)
+        width = term_wid - col;
+    if (width >= (int)sizeof(fill))
+        width = (int)sizeof(fill) - 1;
+
+    SDL_memset(fill, ' ', (size_t)width);
+    fill[width] = '\0';
+    Term_putstr(col, row, width, attr, fill);
+}
+
+static int knowledge_list_text_selection_width(
+    const knowledge_browser_layout* layout, int text_col)
+{
+    int right;
+
+    if (!layout)
+        return 1;
+
+    right = layout->list_col + layout->list_w;
+    return (right > text_col) ? (right - text_col) : 1;
 }
 
 static void knowledge_register_tabs(const knowledge_browser_layout* layout)
@@ -36244,8 +36277,12 @@ static void knowledge_display_groups(const knowledge_browser_layout* layout,
         if (idx >= grp_cnt)
             continue;
 
+        if (idx == grp_cur)
+            knowledge_fill_row(layout->group_col, y, layout->group_w,
+                knowledge_selected_attr(TERM_WHITE));
+
         Term_putstr(layout->group_col, y, layout->group_w,
-            (idx == grp_cur) ? TERM_L_BLUE : TERM_WHITE,
+            (idx == grp_cur) ? knowledge_selected_attr(TERM_WHITE) : TERM_WHITE,
             group_text[grp_idx[idx]]);
     }
 }
@@ -36594,7 +36631,11 @@ static void knowledge_display_artefacts(const knowledge_browser_layout* layout,
         if (idx >= artefact_cnt)
             continue;
 
-        attr = (idx == artefact_cur) ? TERM_L_BLUE : TERM_WHITE;
+        attr = (idx == artefact_cur) ? knowledge_selected_attr(TERM_WHITE)
+                                     : TERM_WHITE;
+        if (idx == artefact_cur)
+            knowledge_fill_row(name_col, row,
+                knowledge_list_text_selection_width(layout, name_col), attr);
         object_wipe(i_ptr);
         prepare_fake_artefact(i_ptr, artefact_idx[idx]);
         object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
@@ -36660,6 +36701,12 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = k_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = k_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
+            if (oidx == object_cur)
+            {
+                attr = knowledge_selected_attr(attr);
+                knowledge_fill_row(text_col, row,
+                    knowledge_list_text_selection_width(layout, text_col), attr);
+            }
             knowledge_object_display_name(buf, sizeof(buf), obj);
             if (has_icon)
                 knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
@@ -36674,6 +36721,12 @@ static void knowledge_display_objects(const knowledge_browser_layout* layout,
             attr = e_ptr->aware ? TERM_WHITE : TERM_SLATE;
             cursor = e_ptr->aware ? TERM_L_BLUE : TERM_BLUE;
             attr = (oidx == object_cur) ? cursor : attr;
+            if (oidx == object_cur)
+            {
+                attr = knowledge_selected_attr(attr);
+                knowledge_fill_row(text_col, row,
+                    knowledge_list_text_selection_width(layout, text_col), attr);
+            }
             knowledge_object_display_name(buf, sizeof(buf), obj);
             if (has_icon)
                 knowledge_put_entry_icon(layout, row, icon_attr, icon_chr);
@@ -36765,7 +36818,11 @@ static void knowledge_display_monsters(const knowledge_browser_layout* layout,
         r_idx = mon_idx[idx].r_idx;
         r_ptr = &r_info[r_idx];
         l_ptr = &l_list[r_idx];
-        attr = (idx == mon_cur) ? TERM_L_BLUE : TERM_WHITE;
+        attr = (idx == mon_cur) ? knowledge_selected_attr(TERM_WHITE)
+                                : TERM_WHITE;
+        if (idx == mon_cur)
+            knowledge_fill_row(name_col, row,
+                knowledge_list_text_selection_width(layout, name_col), attr);
 
         monster_desc_race(race_name, sizeof(race_name), r_idx);
         knowledge_put_entry_icon(layout, row, r_ptr->x_attr, r_ptr->x_char);
@@ -36844,7 +36901,10 @@ static void knowledge_display_curses(const knowledge_browser_layout* layout,
             continue;
 
         id = curse_idx[idx];
-        attr = (idx == curse_cur) ? TERM_L_BLUE : TERM_L_RED;
+        attr = (idx == curse_cur) ? knowledge_selected_attr(TERM_L_RED)
+                                  : TERM_L_RED;
+        if (idx == curse_cur)
+            knowledge_fill_row(0, row, layout->term_wid, attr);
         Term_putstr(0, row, layout->term_wid, attr,
             knowledge_curse_display_name(id));
     }
@@ -37236,11 +37296,7 @@ void do_cmd_knowledge_browser_page(int page)
                 artefact_old = selected_artefact;
             }
 
-            if (state.tabs_focus)
-            {
-                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
-            }
-            else if (artefact_grp_cnt > 0)
+            if (artefact_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
                     Term_gotoxy(draw_layout.group_col, draw_layout.list_row
@@ -37400,11 +37456,7 @@ void do_cmd_knowledge_browser_page(int page)
                 object_old = tracked_kind;
             }
 
-            if (state.tabs_focus)
-            {
-                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
-            }
-            else if (object_grp_cnt > 0)
+            if (object_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
                     Term_gotoxy(draw_layout.group_col, draw_layout.list_row
@@ -37554,11 +37606,7 @@ void do_cmd_knowledge_browser_page(int page)
                 monster_old = selected_r_idx;
             }
 
-            if (state.tabs_focus)
-            {
-                Term_gotoxy(knowledge_tab_col(page), draw_layout.tabs_row);
-            }
-            else if (monster_grp_cnt > 0)
+            if (monster_grp_cnt > 0)
             {
                 if (state.column[page] == 0)
                     Term_gotoxy(draw_layout.group_col, draw_layout.list_row
@@ -37660,11 +37708,7 @@ void do_cmd_knowledge_browser_page(int page)
                 Term_putstr(0, layout.status_row, layout.term_wid, TERM_L_BLUE, status);
             knowledge_draw_prompt(&layout);
 
-            if (state.tabs_focus)
-            {
-                Term_gotoxy(knowledge_tab_col(page), layout.tabs_row);
-            }
-            else if (curse_cnt > 0)
+            if (curse_cnt > 0)
             {
                 Term_gotoxy(0, layout.list_row
                     + (state.entry_cur[page] - state.entry_top[page]));

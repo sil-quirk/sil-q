@@ -8484,31 +8484,6 @@ static void sdl_char_sheet_clear_hits(void)
     g_sdl_character_sheet_screen.hit_count = 0;
 }
 
-/*
- * Drop hit targets whose vertical centre falls outside [top, bottom].  Used
- * after drawing a scrolled, clipped column region so clicks/hover only match
- * what is actually visible.
- */
-static void sdl_char_sheet_prune_hits_vertical(float top, float bottom)
-{
-    int kept = 0;
-
-    for (int i = 0; i < g_sdl_character_sheet_screen.hit_count; i++)
-    {
-        const sdl_character_sheet_hit* hit =
-            &g_sdl_character_sheet_screen.hits[i];
-        float center = hit->rect.y + hit->rect.h * 0.5f;
-
-        if (center < top || center > bottom)
-            continue;
-        if (kept != i)
-            g_sdl_character_sheet_screen.hits[kept] = *hit;
-        kept++;
-    }
-
-    g_sdl_character_sheet_screen.hit_count = kept;
-}
-
 static void sdl_char_sheet_add_hit(SDL_FRect rect, int choice, cptr desc)
 {
     sdl_character_sheet_hit* hit;
@@ -9810,6 +9785,7 @@ typedef struct sdl_panel {
 
 #define SDL_CHAR_SHEET_PANEL_MAX 8
 
+/* Width a labeled row needs so neither its label nor value gets scaled down. */
 static float sdl_char_sheet_row_natural_w(const sdl_char_sheet_line* line,
     TTF_Font* font, float label_fraction)
 {
@@ -9841,6 +9817,7 @@ static float sdl_char_sheet_row_natural_w(const sdl_char_sheet_line* line,
     return MAX(lw / label_fraction, vw / (1.0f - label_fraction)) + 10.0f;
 }
 
+/* Column width a panel needs (widest row/heading) so nothing is scaled down. */
 static float sdl_char_sheet_panel_natural_w(const sdl_panel* p, TTF_Font* font)
 {
     float maxw;
@@ -9849,13 +9826,6 @@ static float sdl_char_sheet_panel_natural_w(const sdl_panel* p, TTF_Font* font)
         return 0.0f;
 
     maxw = (float)sdl_char_sheet_text_width(font, p->heading ? p->heading : "");
-    if (p->kind == SDL_PANEL_KIND_ALLOC)
-    {
-        float w = (float)sdl_char_sheet_text_width(font,
-            "Constitution   000   cost 00");
-        return MAX(maxw, w);
-    }
-
     for (int i = 0; i < p->line_count; i++)
     {
         float w = sdl_char_sheet_row_natural_w(&p->lines[i], font,
@@ -9891,265 +9861,206 @@ static void sdl_char_sheet_panel_draw(const sdl_panel* p, TTF_Font* font,
 }
 
 /*
- * Fully dynamic live-sheet layout.
+ * Live-sheet column layout, matching the birth screens for visual consistency.
  *
- * Every panel and the description are measured, then the layout solves for the
- * largest body font at which the whole content (the columns plus the
- * description beneath them) fits the region.  Because the content is sized to
- * the space rather than capped at a fixed maximum, there is no dead gap: any
- * leftover height is split as a centred top/bottom margin, and only when the
- * content cannot fit even at the minimum legible size does the region scroll.
- * Column count, per-column packing and column widths all fall out of the same
- * solve, so width and height adapt together to any aspect ratio.
+ * The column count follows the aspect ratio -- three columns
+ * (Vitals | Traits | Attributes+Skills) for normal and less-wide screens, four
+ * when the screen is wide enough -- and panels keep their given left-to-right
+ * order, with any panels past the column count stacked into the final column.
+ * Columns use a moderate body font; the description is laid out directly
+ * beneath them at a slightly smaller size (never larger than the columns), and
+ * the whole group is centred so leftover height becomes balanced top/bottom
+ * margin instead of a gap between the columns and the description.
  */
 static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
-    float content_x, float region_top, float content_w, float region_h,
-    int canvas_h, cptr desc)
+    float content_x, float top_y, float content_w, float region_h, int canvas_h,
+    cptr desc)
 {
-    const int ref_px = 32;
-    const float panel_gap_rows = 0.6f;
-    int min_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.015f), 12, 22);
-    int max_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.072f), 30, 100);
-    float gap = sdl_char_sheet_clampf(content_w * 0.022f, 14.0f, 44.0f);
+    float ar = (canvas_h > 0) ? content_w / (float)canvas_h : 1.7f;
+    int ncols = (ar >= 2.7f) ? 5 : (ar >= 1.95f) ? 4 : 3;
+    float col_gap = sdl_char_sheet_clampf(content_w * 0.022f, 16.0f, 44.0f);
+    float gap = sdl_char_sheet_clampf(region_h * 0.02f, 10.0f, 28.0f);
     bool has_desc = (desc && desc[0]);
-
-    TTF_Font* ref_font;
-    TTF_Font* body;
-    float ref_w[SDL_CHAR_SHEET_PANEL_MAX];
-    float max_ref_w = 1.0f;
-    float desc_ref_w = 0.0f;
-
-    int best_px = min_px;
-    int best_ncols = 1;
-    int best_col_of[SDL_CHAR_SHEET_PANEL_MAX];
-    float best_line_h = 1.0f;
-    float best_cols_h = 0.0f;
-    int best_desc_px = 0;
-    float best_desc_line_h = 1.0f;
-    int best_desc_lines = 0;
-    float best_desc_h = 0.0f;
-    bool fits = false;
-
+    int col_of[SDL_CHAR_SHEET_PANEL_MAX];
     int col_wt[SDL_CHAR_SHEET_PANEL_MAX];
-    int order[SDL_CHAR_SHEET_PANEL_MAX];
+    float col_rows[SDL_CHAR_SHEET_PANEL_MAX];
     float col_x[SDL_CHAR_SHEET_PANEL_MAX];
     float col_w[SDL_CHAR_SHEET_PANEL_MAX];
+    float max_rows = 1.0f;
+    float top_line_h = 1.0f;
+    float columns_h;
+    float group_h;
+    float v_off;
     int sum_wt = 0;
-    float avail;
-    float total_h;
-    float v_off = 0.0f;
-    float scroll = 0.0f;
-    bool scrolling;
+    int col_px = 0;
+    TTF_Font* body;
+    TTF_Font* desc_font = NULL;
+    float desc_line_h = 1.0f;
+    int desc_lines = 0;
+    float desc_h = 0.0f;
 
     if (panel_count <= 0 || content_w <= 0.0f || region_h <= 0.0f)
         return;
     if (panel_count > SDL_CHAR_SHEET_PANEL_MAX)
         panel_count = SDL_CHAR_SHEET_PANEL_MAX;
-    if (max_px < min_px)
-        max_px = min_px;
+    if (ncols > panel_count)
+        ncols = panel_count;
+    if (ncols < 1)
+        ncols = 1;
 
-    /* Measure once at a reference size; widths scale ~linearly with px. */
-    ref_font = sdl_story_font_for_height(ref_px);
-    for (int i = 0; i < panel_count; i++)
+    /* Keep panel order; stack panels past the column count into the last. */
+    for (int c = 0; c < ncols; c++)
     {
-        ref_w[i] = sdl_char_sheet_panel_natural_w(&panels[i], ref_font);
-        if (ref_w[i] > max_ref_w)
-            max_ref_w = ref_w[i];
-    }
-    if (has_desc)
-        desc_ref_w = (float)sdl_char_sheet_text_width(ref_font, desc);
-
-    /* Assign tallest panels first so columns stay balanced (even heights). */
-    for (int i = 0; i < panel_count; i++)
-        order[i] = i;
-    for (int a = 0; a < panel_count; a++)
-        for (int b = a + 1; b < panel_count; b++)
-            if (panels[order[b]].rows > panels[order[a]].rows)
-            {
-                int t = order[a];
-                order[a] = order[b];
-                order[b] = t;
-            }
-
-    /* Solve for the largest body font where columns + description fit. */
-    for (int px = max_px; px >= min_px; px--)
-    {
-        TTF_Font* font = sdl_story_font_for_height(px);
-        float pxscale = (float)px / (float)ref_px;
-        float line_h;
-        float min_col_w;
-        int ncols;
-        float col_rows[SDL_CHAR_SHEET_PANEL_MAX];
-        int col_of[SDL_CHAR_SHEET_PANEL_MAX];
-        float max_col_rows = 1.0f;
-        float cols_h;
-        int dpx = 0;
-        float dline_h = 1.0f;
-        int dlines = 0;
-        float dh = 0.0f;
-
-        if (!font)
-            continue;
-        line_h = sdl_char_sheet_line_h(font, px, 1.13f);
-
-        min_col_w = max_ref_w * pxscale;
-        if (min_col_w < 1.0f)
-            min_col_w = 1.0f;
-        ncols = (int)((content_w + gap) / (min_col_w + gap));
-        ncols = sdl_char_sheet_clampi(ncols, 1, panel_count);
-
-        for (int c = 0; c < ncols; c++)
-            col_rows[c] = 0.0f;
-        for (int k = 0; k < panel_count; k++)
-        {
-            int i = order[k];
-            int b = 0;
-            for (int c = 1; c < ncols; c++)
-                if (col_rows[c] < col_rows[b])
-                    b = c;
-            col_of[i] = b;
-            col_rows[b] += (float)panels[i].rows + panel_gap_rows;
-        }
-        for (int c = 0; c < ncols; c++)
-            if (col_rows[c] > max_col_rows)
-                max_col_rows = col_rows[c];
-        cols_h = max_col_rows * line_h;
-
-        if (has_desc)
-        {
-            float dwidth;
-
-            dpx = sdl_char_sheet_clampi((int)((float)px * 0.85f), 12, px);
-            dline_h = sdl_char_sheet_line_h(sdl_story_font_for_height(dpx),
-                dpx, 1.18f);
-            dwidth = desc_ref_w * ((float)dpx / (float)ref_px);
-            dlines = (int)((dwidth + content_w - 1.0f) / content_w) + 1;
-            if (dlines < 1)
-                dlines = 1;
-            dh = dline_h * (float)dlines;
-        }
-
-        best_px = px;
-        best_ncols = ncols;
-        best_line_h = line_h;
-        best_cols_h = cols_h;
-        for (int i = 0; i < panel_count; i++)
-            best_col_of[i] = col_of[i];
-        best_desc_px = dpx;
-        best_desc_line_h = dline_h;
-        best_desc_lines = dlines;
-        best_desc_h = dh;
-
-        total_h = cols_h + (has_desc ? (gap + dh) : 0.0f);
-        if (total_h <= region_h)
-        {
-            fits = true;
-            break;
-        }
-    }
-
-    total_h = best_cols_h + (has_desc ? (gap + best_desc_h) : 0.0f);
-
-    scrolling = (!fits && total_h > region_h);
-    if (scrolling)
-    {
-        g_sdl_character_sheet_screen.sheet_scroll_max =
-            (int)(total_h - region_h + 0.5f);
-        if (g_sdl_character_sheet_screen.sheet_scroll
-                > g_sdl_character_sheet_screen.sheet_scroll_max)
-            g_sdl_character_sheet_screen.sheet_scroll =
-                g_sdl_character_sheet_screen.sheet_scroll_max;
-        if (g_sdl_character_sheet_screen.sheet_scroll < 0)
-            g_sdl_character_sheet_screen.sheet_scroll = 0;
-        scroll = (float)g_sdl_character_sheet_screen.sheet_scroll;
-    }
-    else
-    {
-        g_sdl_character_sheet_screen.sheet_scroll = 0;
-        g_sdl_character_sheet_screen.sheet_scroll_max = 0;
-        v_off = (region_h - total_h) * 0.5f;
-        if (v_off < 0.0f)
-            v_off = 0.0f;
-    }
-
-    /* Column weights -> widths for the chosen layout. */
-    for (int c = 0; c < best_ncols; c++)
+        col_rows[c] = 0.0f;
         col_wt[c] = 0;
+    }
     for (int i = 0; i < panel_count; i++)
     {
-        int c = best_col_of[i];
+        int c = (i < ncols) ? i : ncols - 1;
+
+        col_of[i] = c;
+        col_rows[c] += (float)panels[i].rows + 0.6f;
         if (panels[i].weight > col_wt[c])
             col_wt[c] = panels[i].weight;
     }
-    for (int c = 0; c < best_ncols; c++)
+    for (int c = 0; c < ncols; c++)
     {
         if (col_wt[c] < 1)
             col_wt[c] = 1;
         sum_wt += col_wt[c];
+        if (col_rows[c] > max_rows)
+            max_rows = col_rows[c];
     }
-    avail = content_w - gap * (float)(best_ncols - 1);
-    if (avail < 1.0f)
-        avail = 1.0f;
+
     {
+        float avail = content_w - col_gap * (float)(ncols - 1);
         float cx = content_x;
-        for (int c = 0; c < best_ncols; c++)
+
+        if (avail < 1.0f)
+            avail = 1.0f;
+        for (int c = 0; c < ncols; c++)
         {
             col_w[c] = avail * (float)col_wt[c] / (float)sum_wt;
             col_x[c] = cx;
-            cx += col_w[c] + gap;
+            cx += col_w[c] + col_gap;
         }
     }
 
-    body = sdl_story_font_for_height(best_px);
-
     {
-        SDL_Rect clip;
-        float start_y = region_top + v_off - scroll;
+        int max_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.052f),
+            34, 60);
+        int desc_px;
 
-        clip.x = (int)content_x;
-        clip.y = (int)region_top;
-        clip.w = (int)(content_w + 0.5f);
-        clip.h = (int)(region_h + 0.5f);
-        if (scrolling)
-            SDL_SetRenderClipRect(g_state.renderer, &clip);
-
-        for (int c = 0; c < best_ncols; c++)
+        /*
+         * Cap the body font so the widest row in each column fits its column
+         * width without being scaled down -- otherwise col_px overstates the
+         * real rendered text size and the (full-width) description, sized from
+         * it, ends up looking larger than the columns.
+         */
         {
-            float y = start_y;
+            const int ref_px = 40;
+            TTF_Font* ref_font = sdl_story_font_for_height(ref_px);
+            float ref_w[SDL_CHAR_SHEET_PANEL_MAX];
+            float width_cap = (float)max_px;
 
+            for (int c = 0; c < ncols; c++)
+                ref_w[c] = 0.0f;
             for (int i = 0; i < panel_count; i++)
             {
-                if (best_col_of[i] != c)
-                    continue;
-
-                if (panels[i].kind == SDL_PANEL_KIND_TRAITS)
-                    panels[i].trait_cols =
-                        (panels[i].line_count > 10
-                            && col_w[c] > content_w * 0.30f)
-                            ? 2 : 1;
-
-                sdl_char_sheet_panel_draw(&panels[i], body, col_x[c], y,
-                    col_w[c], best_cols_h - (y - start_y), best_line_h);
-                y += (float)panels[i].rows * best_line_h
-                    + panel_gap_rows * best_line_h;
+                float w = sdl_char_sheet_panel_natural_w(&panels[i], ref_font);
+                if (w > ref_w[col_of[i]])
+                    ref_w[col_of[i]] = w;
             }
+            for (int c = 0; c < ncols; c++)
+                if (ref_w[c] > 1.0f)
+                {
+                    float cap = (float)ref_px * col_w[c] / ref_w[c];
+                    if (cap < width_cap)
+                        width_cap = cap;
+                }
+            if (width_cap < 12.0f)
+                width_cap = 12.0f;
+            if ((float)max_px > width_cap)
+                max_px = (int)width_cap;
         }
 
-        if (has_desc && best_desc_lines > 0)
+        /* Size the columns to fill the available height (capped to the width
+         * limit above and a readable maximum) so small screens use all their
+         * space, then lay the description out beneath at a slightly smaller
+         * size. */
+        body = sdl_char_sheet_font_for_rows(region_h, (int)(max_rows + 0.5f),
+            12, max_px, 1.13f, &top_line_h, &col_px);
+        columns_h = max_rows * top_line_h;
+        if (has_desc)
         {
-            TTF_Font* dfont = sdl_story_font_for_height(best_desc_px);
-            float desc_y = start_y + best_cols_h + gap;
-
-            sdl_char_sheet_draw_history(dfont, desc, content_x, desc_y,
-                content_w, best_desc_h, best_desc_line_h, best_desc_lines);
+            desc_px = sdl_char_sheet_clampi((int)((float)col_px * 0.9f), 12,
+                col_px);
+            desc_font = sdl_char_sheet_font_for_wrapped_text(desc, content_w,
+                region_h * 4.0f, desc_px, desc_px, 1.18f, &desc_line_h,
+                &desc_lines);
+            desc_h = desc_line_h * (float)desc_lines;
         }
+        group_h = columns_h + (has_desc ? (gap + desc_h) : 0.0f);
 
-        if (scrolling)
+        /* If the description does not fit beneath the columns, shrink the
+         * columns to make room. */
+        if (has_desc && group_h > region_h)
         {
-            SDL_SetRenderClipRect(g_state.renderer, NULL);
-            sdl_char_sheet_prune_hits_vertical(region_top,
-                region_top + region_h);
+            float col_avail = region_h - desc_h - gap;
+
+            if (col_avail < region_h * 0.4f)
+                col_avail = region_h * 0.4f;
+            body = sdl_char_sheet_font_for_rows(col_avail,
+                (int)(max_rows + 0.5f), 12, max_px, 1.13f, &top_line_h,
+                &col_px);
+            columns_h = max_rows * top_line_h;
+            desc_px = sdl_char_sheet_clampi((int)((float)col_px * 0.9f), 12,
+                col_px);
+            desc_font = sdl_char_sheet_font_for_wrapped_text(desc, content_w,
+                region_h * 4.0f, desc_px, desc_px, 1.18f, &desc_line_h,
+                &desc_lines);
+            desc_h = desc_line_h * (float)desc_lines;
+            group_h = columns_h + gap + desc_h;
         }
+    }
+
+    /*
+     * Centre the block only when there is plenty of leftover height (large
+     * screens), so it doesn't float; on small screens keep it at the top so no
+     * vertical space is wasted and the text stays as large as possible.
+     */
+    v_off = region_h - group_h;
+    if (v_off <= 0.0f)
+        v_off = 0.0f;
+    else if (v_off > region_h * 0.20f)
+        v_off *= 0.5f;
+    else
+        v_off = 0.0f;
+
+    for (int c = 0; c < ncols; c++)
+    {
+        float y = top_y + v_off;
+
+        for (int i = 0; i < panel_count; i++)
+        {
+            if (col_of[i] != c)
+                continue;
+
+            if (panels[i].kind == SDL_PANEL_KIND_TRAITS)
+                panels[i].trait_cols = 1;
+
+            sdl_char_sheet_panel_draw(&panels[i], body, col_x[c], y, col_w[c],
+                columns_h - (y - (top_y + v_off)), top_line_h);
+            y += (float)panels[i].rows * top_line_h + top_line_h * 0.6f;
+        }
+    }
+
+    if (has_desc && desc_lines > 0)
+    {
+        float desc_y = top_y + v_off + columns_h + gap;
+
+        sdl_char_sheet_draw_history(desc_font, desc, content_x, desc_y,
+            content_w, desc_h, desc_line_h, desc_lines);
     }
 }
 
@@ -10195,7 +10106,8 @@ static void sdl_character_sheet_screen_render(void)
     if (!sdl_character_sheet_screen_active() || !g_state.renderer)
         return;
 
-    canvas = sdl_get_window_pixel_rect();
+    sdl_refresh_safe_area();
+    canvas = sdl_get_layout_screen_rect();
     if (!sdl_rect_has_area(&canvas))
         return;
 
@@ -10237,9 +10149,9 @@ static void sdl_character_sheet_screen_render(void)
     region_bottom = prompt_y - gap;
 
     /*
-     * The live sheet lays out its description dynamically together with the
-     * columns (see sdl_char_sheet_render_columns), so default to "no footer"
-     * here; only birth uses a fixed description footer above the prompt.
+     * Birth keeps a readable description band above the prompt (computed here);
+     * the live sheet instead lays its description out together with the columns
+     * in sdl_char_sheet_render_columns, so it is left as "no footer" here.
      */
     history_font = NULL;
     history_h = 0.0f;
@@ -10251,12 +10163,12 @@ static void sdl_character_sheet_screen_render(void)
     if (sdl_char_sheet_birth_context() && history[0])
     {
         float region_h = top_h;
-        int desc_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.020f),
-            13, 22);
-        float desc_cap_h = region_h * 0.42f;
+        int desc_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.032f),
+            22, 48);
+        float desc_cap_h = region_h * 0.40f;
 
         history_font = sdl_char_sheet_font_for_wrapped_text(history,
-            content_w, (float)canvas.h * 4.0f, desc_px, desc_px, 1.16f,
+            content_w, (float)canvas.h * 4.0f, desc_px, desc_px, 1.18f,
             &history_line_h, &history_lines);
         history_h = history_line_h * (float)history_lines;
         if (history_h > desc_cap_h)
@@ -10355,56 +10267,25 @@ static void sdl_character_sheet_screen_render(void)
     {
         sdl_char_sheet_line stat_lines[A_MAX + 2];
         sdl_char_sheet_line skill_lines[S_MAX + 2];
-        sdl_panel panels[8];
+        sdl_panel panels[6];
         int n = 0;
         int stat_count;
         int skill_count;
-        int v_split;
 
         SDL_zero(stat_lines);
         SDL_zero(skill_lines);
         stat_count = sdl_char_sheet_collect_stats(stat_lines, A_MAX + 2);
         skill_count = sdl_char_sheet_collect_skills(skill_lines, S_MAX + 2);
 
-        /*
-         * Split the long Vitals list into "Vitals" (status: Exp..Light) and
-         * "Combat" (Melee onward: attacks, armour, health, voice, song) so the
-         * columns balance instead of one towering column making the rest look
-         * ragged.  The split is at the Melee row, falling back to the midpoint.
-         */
-        v_split = vital_count;
-        for (int i = 0; i < vital_count; i++)
-        {
-            if (strncmp(vital_lines[i].text, "Melee\t", 6) == 0)
-            {
-                v_split = i;
-                break;
-            }
-        }
-        if (v_split <= 0 || v_split >= vital_count)
-            v_split = vital_count / 2;
-
         SDL_zero(panels);
         panels[n].kind = SDL_PANEL_KIND_LINES;
         panels[n].heading = "Vitals";
         panels[n].lines = vital_lines;
-        panels[n].line_count = v_split;
+        panels[n].line_count = vital_count;
         panels[n].label_fraction = 0.48f;
         panels[n].weight = 3;
-        panels[n].rows = v_split + 1;
+        panels[n].rows = vital_count + 1;
         n++;
-
-        if (vital_count - v_split > 0)
-        {
-            panels[n].kind = SDL_PANEL_KIND_LINES;
-            panels[n].heading = "Combat";
-            panels[n].lines = vital_lines + v_split;
-            panels[n].line_count = vital_count - v_split;
-            panels[n].label_fraction = 0.48f;
-            panels[n].weight = 3;
-            panels[n].rows = (vital_count - v_split) + 1;
-            n++;
-        }
 
         panels[n].kind = SDL_PANEL_KIND_TRAITS;
         panels[n].heading = "Traits";
@@ -10434,7 +10315,7 @@ static void sdl_character_sheet_screen_render(void)
         n++;
 
         sdl_char_sheet_render_columns(panels, n, content_x, top_y, content_w,
-            region_bottom - top_y, canvas.h, history);
+            top_h, canvas.h, history);
     }
 
     (void)history_px;
