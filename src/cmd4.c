@@ -33197,23 +33197,60 @@ static bool supply_icon_frame_is_big(const object_type* o_ptr)
         && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx;
 }
 
+static bool supply_icon_selected_background(int col, int row, byte* bg_attr)
+{
+    byte attr;
+    char chr;
+
+    if (!Term || !Term->scr || !bg_attr)
+        return false;
+    if (col < 0 || row < 0 || col >= Term->wid || row >= Term->hgt)
+        return false;
+
+    attr = Term->scr->a[row][col];
+    chr = Term->scr->c[row][col];
+    if (attr < TERM_UI_SELECTED || chr != ' ')
+        return false;
+
+    *bg_attr = attr;
+    return true;
+}
+
 static void draw_supply_icon(int col, int row, const object_type* o_ptr)
 {
     byte sym_attr;
     char sym_char;
+    byte bg_attr = 0;
+    bool selected_bg;
 
     if (!o_ptr || !o_ptr->k_idx)
         return;
 
     sym_attr = object_attr(o_ptr);
     sym_char = object_char(o_ptr);
-    Term_putch(col, row, sym_attr, sym_char);
+    selected_bg = supply_icon_selected_background(col, row, &bg_attr);
+
+    if (selected_bg)
+        Term_queue_char(col, row, sym_attr, sym_char, bg_attr, ' ');
+    else
+        Term_putch(col, row, sym_attr, sym_char);
+
     if (use_bigtile)
     {
         if (sym_attr & TILE_FLAG)
-            Term_putch(col + 1, row, 255, -1);
+        {
+            if (selected_bg)
+                Term_queue_char(col + 1, row, 255, -1, bg_attr, ' ');
+            else
+                Term_putch(col + 1, row, 255, -1);
+        }
         else
-            Term_putch(col + 1, row, 0, ' ');
+        {
+            if (selected_bg)
+                Term_queue_char(col + 1, row, bg_attr, ' ', bg_attr, ' ');
+            else
+                Term_putch(col + 1, row, 0, ' ');
+        }
     }
 }
 
