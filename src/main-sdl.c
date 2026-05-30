@@ -10042,15 +10042,70 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     if (ncols < 1)
         ncols = 1;
 
-    /* Keep panel order; stack panels past the column count into the last. */
-    for (int c = 0; c < ncols; c++)
-        col_rows[c] = 0.0f;
-    for (int i = 0; i < panel_count; i++)
+    /*
+     * Balanced assignment: place the tallest panels first, each into the
+     * currently-shortest column.  When there are more panels than columns this
+     * doubles a SHORT panel (e.g. Attributes) under another column rather than
+     * piling everything onto the last one -- so Attributes lands under a
+     * Vitals/Combat column and the tall Skills block keeps its own column.
+     * Columns are then ordered left-to-right by their smallest original panel
+     * index, so the visual order stays sensible (Vitals ... Skills).
+     */
     {
-        int c = (i < ncols) ? i : ncols - 1;
+        int order[SDL_CHAR_SHEET_PANEL_MAX];
+        int col_min_idx[SDL_CHAR_SHEET_PANEL_MAX];
+        int remap[SDL_CHAR_SHEET_PANEL_MAX];
+        int inv[SDL_CHAR_SHEET_PANEL_MAX];
 
-        col_of[i] = c;
-        col_rows[c] += (float)panels[i].rows + 0.6f;
+        for (int i = 0; i < panel_count; i++)
+            order[i] = i;
+        for (int a = 0; a < panel_count; a++)
+            for (int b = a + 1; b < panel_count; b++)
+                if (panels[order[b]].rows > panels[order[a]].rows)
+                {
+                    int t = order[a];
+                    order[a] = order[b];
+                    order[b] = t;
+                }
+
+        for (int c = 0; c < ncols; c++)
+        {
+            col_rows[c] = 0.0f;
+            col_min_idx[c] = panel_count;
+        }
+        for (int k = 0; k < panel_count; k++)
+        {
+            int i = order[k];
+            int best = 0;
+
+            for (int c = 1; c < ncols; c++)
+                if (col_rows[c] < col_rows[best])
+                    best = c;
+            col_of[i] = best;
+            col_rows[best] += (float)panels[i].rows + 0.6f;
+            if (i < col_min_idx[best])
+                col_min_idx[best] = i;
+        }
+
+        for (int c = 0; c < ncols; c++)
+            remap[c] = c;
+        for (int a = 0; a < ncols; a++)
+            for (int b = a + 1; b < ncols; b++)
+                if (col_min_idx[remap[b]] < col_min_idx[remap[a]])
+                {
+                    int t = remap[a];
+                    remap[a] = remap[b];
+                    remap[b] = t;
+                }
+        for (int c = 0; c < ncols; c++)
+            inv[remap[c]] = c;
+        for (int i = 0; i < panel_count; i++)
+            col_of[i] = inv[col_of[i]];
+
+        for (int c = 0; c < ncols; c++)
+            col_rows[c] = 0.0f;
+        for (int i = 0; i < panel_count; i++)
+            col_rows[col_of[i]] += (float)panels[i].rows + 0.6f;
     }
     for (int c = 0; c < ncols; c++)
         if (col_rows[c] > max_rows)
