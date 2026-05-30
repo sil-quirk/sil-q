@@ -5583,6 +5583,29 @@ static byte ability_browser_skill_attr(int skilltype, bool hovered)
     return hovered ? TERM_L_BLUE : ability_browser_skill_color(skilltype);
 }
 
+static cptr ability_browser_skill_trait_suffix(int skilltype)
+{
+    int score;
+
+    if (!p_ptr || !rp_ptr || !current_character_profile
+        || skilltype < 0 || skilltype >= S_MAX || skilltype == S_SPC)
+    {
+        return "";
+    }
+
+    score = affinity_level(skilltype);
+    if (score >= 2)
+        return "++";
+    if (score == 1)
+        return "+";
+    if (score == -1)
+        return "-";
+    if (score <= -2)
+        return "--";
+
+    return "";
+}
+
 static void ability_browser_draw_skill_summary(
     const ability_browser_layout* layout, int skill_options, int skill_cur,
     int skill_hover)
@@ -5594,18 +5617,27 @@ static void ability_browser_draw_skill_summary(
     Term_erase(layout->skill_col, tab_row, layout->skill_w);
     for (int skill = 0; skill < skill_options; skill++)
     {
-        cptr label = (layout->skill_w >= 78)
+        cptr base_label = (layout->skill_w >= 78)
             ? skill_names_full[skill]
             : skill_names[skill];
+        cptr suffix = ability_browser_skill_trait_suffix(skill);
+        cptr label = base_label;
         bool selected = (skill == skill_cur);
         bool hovered = (skill == skill_hover);
         byte attr = ability_browser_skill_attr(skill, hovered);
         int token_len;
         int click_width;
+        char label_buf[32];
         char token[32];
 
         if (col >= end_col)
             break;
+
+        if (suffix[0])
+        {
+            strnfmt(label_buf, sizeof(label_buf), "%s%s", base_label, suffix);
+            label = label_buf;
+        }
 
         if (selected)
             strnfmt(token, sizeof(token), "[%s]", label);
@@ -6436,8 +6468,8 @@ static int ability_browser_highlight_match(cptr line, int offset, byte* attr,
         { "Current bonus", TERM_L_GREEN },
         { "Current effect", TERM_L_GREEN },
         { "Bonus", TERM_L_GREEN },
-        { "Price", TERM_L_WHITE },
-        { "price", TERM_L_WHITE },
+        { "Price", TERM_WHITE },
+        { "price", TERM_WHITE },
         { "XP", TERM_L_GREEN },
         { "Locked", TERM_RED },
         { "inactive", TERM_RED },
@@ -6635,7 +6667,7 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
     ability_browser_fit_text(visible_summary, sizeof(visible_summary),
         summary, layout->visible_w);
     ability_browser_draw_colored_text_line_ex(layout->visible_col,
-        layout->summary_row, layout->visible_w, TERM_L_WHITE,
+        layout->summary_row, layout->visible_w, TERM_WHITE,
         visible_summary, false);
     if (skilltype >= 0 && skilltype < S_MAX && skilltype != S_SPC)
     {
@@ -6651,6 +6683,24 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
             " | ability price");
         if (ability_start)
             end_offset = (int)(ability_start - visible_summary);
+
+        if (end_offset > start_offset)
+        {
+            byte train_attr = ability_browser_selected_attr(TERM_WHITE);
+            char train_text[160];
+            int train_len = end_offset - start_offset;
+
+            if (train_len >= (int)sizeof(train_text))
+                train_len = (int)sizeof(train_text) - 1;
+            SDL_memcpy(train_text, visible_summary + start_offset,
+                (size_t)train_len);
+            train_text[train_len] = '\0';
+
+            ability_browser_fill_row(layout->visible_col + start_offset,
+                layout->summary_row, train_len, train_attr);
+            Term_putstr(layout->visible_col + start_offset,
+                layout->summary_row, train_len, train_attr, train_text);
+        }
 
         ui_menu_click_add_text_span(ABILITY_MENU_CLICK_TRAIN,
             layout->visible_col, layout->summary_row, visible_summary,
@@ -34161,14 +34211,16 @@ static int supply_browser_selection_width(int start_col, int text_col,
     return width;
 }
 
-static void display_supply_group_list(int col, int row, int wid, int per_page,
-    int grp_idx[], int grp_cur, int grp_top, int group_totals[],
+static void display_supply_group_list(int col, int row, int wid,
+    int selection_w, int per_page, int grp_idx[], int grp_cur, int grp_top,
+    int group_totals[],
     const supply_group_icon icons[SUPPLY_GROUP_MAX], bool active)
 {
     int i;
     int total_col = col + wid - 3;
     int text_col = col + (use_bigtile ? 2 : 1);
     int text_w = total_col - text_col;
+    int erase_w = (selection_w > wid) ? selection_w : wid;
 
     for (i = 0; i < per_page; i++)
     {
@@ -34176,7 +34228,6 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
         int grp;
         byte base_color;
         byte attr;
-        byte count_attr;
         char buf[8];
         bool selected;
         bool highlighted;
@@ -34210,17 +34261,10 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
             attr = TERM_L_DARK;
         else
             attr = base_color;
-        count_attr = attr;
-        if (highlighted)
-            count_attr = (group_totals[grp] == 0) ? TERM_L_DARK : base_color;
 
-        Term_erase(col, row + i, wid);
+        Term_erase(col, row + i, erase_w);
         if (highlighted)
-        {
-            int selection_w = supply_browser_selection_width(col, text_col,
-                text_w, supply_group_text[grp], wid);
             supply_browser_fill_row(col, row + i, selection_w, attr);
-        }
         if (icons && icons[grp].has_icon)
         {
             draw_supply_icon(col, row + i, &icons[grp].obj);
@@ -34233,7 +34277,7 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
 
         strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
         if (wid >= 3)
-            supply_put_fitted(total_col, row + i, 3, count_attr, buf);
+            supply_put_fitted(total_col, row + i, 3, attr, buf);
     }
 }
 
@@ -35078,25 +35122,25 @@ static bool equipment_menu_slot_is_filled(int slot)
 }
 
 static void display_equipment_group_list(int col, int row, int wid,
-    int per_page, int grp_cur, int grp_top,
+    int selection_w, int per_page, int grp_cur, int grp_top,
     const int totals[EQUIPMENT_MENU_SLOT_COUNT],
     const supply_group_icon icons[EQUIPMENT_MENU_SLOT_COUNT], bool active)
 {
     int total_col = col + wid - 3;
     int text_col = col + (use_bigtile ? 2 : 1);
     int text_w = total_col - text_col;
+    int erase_w = (selection_w > wid) ? selection_w : wid;
 
     for (int i = 0; i < per_page; i++)
     {
         int grp_pos = grp_top + i;
         int slot;
         byte attr;
-        byte count_attr;
         char buf[8];
         bool selected;
         bool highlighted;
 
-        Term_erase(col, row + i, wid);
+        Term_erase(col, row + i, erase_w);
 
         if (grp_pos >= EQUIPMENT_MENU_SLOT_COUNT)
             continue;
@@ -35117,23 +35161,9 @@ static void display_equipment_group_list(int col, int row, int wid,
             attr = TERM_WHITE;
         else
             attr = TERM_L_BLUE;
-        count_attr = attr;
-        if (highlighted)
-        {
-            if (totals[grp_pos] == 0)
-                count_attr = TERM_L_DARK;
-            else if (equipment_menu_slot_is_filled(slot))
-                count_attr = TERM_WHITE;
-            else
-                count_attr = TERM_L_BLUE;
-        }
 
         if (highlighted)
-        {
-            int selection_w = supply_browser_selection_width(col, text_col,
-                text_w, equipment_slot_text(slot), wid);
             supply_browser_fill_row(col, row + i, selection_w, attr);
-        }
         if (icons && icons[grp_pos].has_icon)
         {
             draw_supply_icon(col, row + i, &icons[grp_pos].obj);
@@ -35147,7 +35177,7 @@ static void display_equipment_group_list(int col, int row, int wid,
 
         strnfmt(buf, sizeof(buf), "%3d", totals[grp_pos]);
         if (wid >= 3)
-            supply_put_fitted(total_col, row + i, 3, count_attr, buf);
+            supply_put_fitted(total_col, row + i, 3, attr, buf);
     }
 }
 
@@ -38433,9 +38463,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             supply_register_page_tabs(&layout);
 
-            display_equipment_group_list(layout.group_col, layout.list_row,
-                layout.group_w, layout.list_rows, equip_grp_cur,
-                equip_grp_top, equip_totals, equip_icons, equip_column == 0);
+            {
+                int group_selection_w = layout.group_w;
+
+                if (layout.divider_col > layout.group_col)
+                    group_selection_w = layout.divider_col - layout.group_col;
+
+                display_equipment_group_list(layout.group_col, layout.list_row,
+                    layout.group_w, group_selection_w, layout.list_rows,
+                    equip_grp_cur, equip_grp_top, equip_totals, equip_icons,
+                    equip_column == 0);
+            }
 
             for (i = 0; i < layout.list_rows; i++)
             {
@@ -38444,7 +38482,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     break;
 
                 ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
-                    layout.group_col, layout.list_row + i, layout.group_w);
+                    layout.group_col, layout.list_row + i,
+                    (layout.divider_col > layout.group_col)
+                        ? (layout.divider_col - layout.group_col)
+                        : layout.group_w);
             }
 
             display_equipment_slot_entries(&layout, layout.list_row,
@@ -39217,10 +39258,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             int group_list_w = (!single_column) ? draw_layout.group_w
                                                 : layout.group_w;
+            int group_selection_w = group_list_w;
+
+            if (!single_column && draw_layout.divider_col > draw_layout.group_col)
+                group_selection_w = draw_layout.divider_col
+                    - draw_layout.group_col;
 
             display_supply_group_list(draw_layout.group_col, draw_layout.list_row,
-                group_list_w, draw_layout.list_rows, grp_idx, grp_cur,
-                grp_top, group_totals, group_icons, column == 0);
+                group_list_w, group_selection_w, draw_layout.list_rows,
+                grp_idx, grp_cur, grp_top, group_totals, group_icons,
+                column == 0);
 
             for (i = 0; i < draw_layout.list_rows; i++)
             {
@@ -39230,7 +39277,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
                 ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
                     draw_layout.group_col, draw_layout.list_row + i,
-                    group_list_w);
+                    group_selection_w);
             }
         }
         if (!single_column || column)
