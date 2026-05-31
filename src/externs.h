@@ -702,6 +702,7 @@ extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
 extern bool open_inventory_menu_page(supply_menu_page page);
+extern bool open_inventory_menu_category(inventory_menu_group group);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
@@ -733,6 +734,7 @@ extern object_type* smith_o_ptr;
 extern void do_cmd_redraw(void);
 extern void options_birth_menu(bool adult);
 extern void do_cmd_character_sheet(void);
+extern void character_sheet_show_birth_preview(void);
 extern cptr character_sheet_skill_description(int skill);
 extern cptr character_sheet_trait_description(cptr label);
 extern void character_sheet_format_stat_hint(int stat, int value,
@@ -1324,10 +1326,48 @@ extern bool inven_carry_okay(const object_type* o_ptr);
 extern bool inven_carry_okay_after_removing(
     const object_type* o_ptr, int remove_item, int remove_amt);
 extern bool inven_carry_limit_failed(void);
+#ifndef INVENTORY_LIMIT_GROUP_DEFINED
+#define INVENTORY_LIMIT_GROUP_DEFINED
+enum inventory_limit_group
+{
+    INV_LIMIT_NONE = 0,
+    INV_LIMIT_ARROW,
+    INV_LIMIT_BOW,
+    INV_LIMIT_STAFF,
+    INV_LIMIT_HORN,
+    INV_LIMIT_DIGGING,
+    INV_LIMIT_BOOTS,
+    INV_LIMIT_GLOVES,
+    INV_LIMIT_HELM_CROWN,
+    INV_LIMIT_ROUND_SHIELD,
+    INV_LIMIT_OTHER_SHIELD,
+    INV_LIMIT_CLOAK,
+    INV_LIMIT_SOFT_ARMOUR,
+    INV_LIMIT_MAIL,
+    INV_LIMIT_MELEE_WEAPON,
+    INV_LIMIT_SUPPLY_WEIGHT,
+    INV_LIMIT_TORCHES,
+    INV_LIMIT_BRASS_LAMPS,
+    INV_LIMIT_LESSER_JEWEL,
+    INV_LIMIT_FEANORIAN_LAMP
+};
+#endif
+extern inventory_menu_group inventory_menu_group_for_limit_group(
+    enum inventory_limit_group limit_group);
+extern enum inventory_limit_group inven_carry_limit_group(void);
 extern cptr inven_carry_limit_label(void);
 extern int inven_carry_limit_value(void);
 extern bool inven_carry_limit_is_supply_weight(void);
 extern bool inven_carry_limit_can_replace(const object_type* o_ptr);
+extern enum inventory_limit_group inventory_limit_group_for_object(
+    const object_type* o_ptr);
+extern bool inventory_limit_info_for_object(const object_type* o_ptr,
+    enum inventory_limit_group* group, int* limit, int* cost);
+extern int inventory_limit_usage_for_group(enum inventory_limit_group group);
+extern int inventory_limit_limit_for_group(enum inventory_limit_group group);
+extern bool inventory_limit_object_matches_group(
+    enum inventory_limit_group group, const object_type* o_ptr);
+extern cptr inventory_limit_group_name(enum inventory_limit_group group);
 extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
@@ -1602,6 +1642,18 @@ extern bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
 extern bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
     const int* skill_gain, const int* costs, int selected_skill,
     int points_left);
+extern bool sdl_character_sheet_screen_begin_select(int focus_choice,
+    cptr title);
+extern void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
+    int attr, cptr desc);
+extern void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
+    cptr desc);
+extern void sdl_character_sheet_screen_add_select_heading(cptr label);
+extern void sdl_character_sheet_screen_set_select_intro(cptr text);
+extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
+extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
+extern void sdl_character_sheet_screen_set_select_description(cptr text);
+extern bool sdl_character_sheet_screen_commit_select(int selected_index);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
 extern void screen_pop_supporting_panes_hidden(void);

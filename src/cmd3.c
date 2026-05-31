@@ -168,6 +168,25 @@ static bool forced_wield_slot_accepts_object(const object_type* o_ptr,
     }
 }
 
+static int first_floor_item_under_player(void)
+{
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    floor_num = scan_floor(
+        floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+
+    for (int i = 0; i < floor_num; i++)
+    {
+        int o_idx = floor_list[i];
+
+        if (o_idx > 0 && o_idx < o_max && o_list[o_idx].k_idx)
+            return 0 - o_idx;
+    }
+
+    return 0;
+}
+
 static bool item_tester_hook_throw_slots(const object_type* o_ptr)
 {
     if (!throw_slot_menu_active)
@@ -235,6 +254,18 @@ bool open_inventory_menu_page(supply_menu_page page)
 
     request.focus_page = true;
     request.page = page;
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
+bool open_inventory_menu_category(inventory_menu_group group)
+{
+    supply_menu_request request = {0};
+
+    request.focus_page = true;
+    request.page = SUPPLY_MENU_PAGE_INVENTORY;
+    request.focus_inventory_group = true;
+    request.inventory_group = group;
 
     return do_cmd_knowledge_supplies(&request);
 }
@@ -455,16 +486,34 @@ void do_cmd_use_item_by_index(int item)
  */
 void do_cmd_use_item(void)
 {
-    /* Set up for enhanced menu cycling */
-    extern char current_menu_command;
-    extern int current_menu_state;
-    
-    /* Mark that 'u' command opened this menu */
-    current_menu_command = 'u';
-    current_menu_state = 0;  /* Start with inventory */
-    
-    /* Start the enhanced menu system */
-    do_cmd_use_item_enhanced();
+    int floor_item = first_floor_item_under_player();
+
+    if (floor_item)
+    {
+        extern char current_menu_command;
+        extern int current_menu_state;
+
+        log_debug(
+            "do_cmd_use_item: Using floor item under player, item=%d",
+            floor_item);
+        current_menu_command = 'u';
+        current_menu_state = 0;
+        do_cmd_use_item_by_index(floor_item);
+        current_menu_command = 0;
+        current_menu_state = 0;
+        return;
+    }
+
+    {
+        extern char current_menu_command;
+        extern int current_menu_state;
+
+        current_menu_command = 0;
+        current_menu_state = 0;
+    }
+
+    log_debug("do_cmd_use_item: No floor item, opening inventory browser");
+    (void)open_inventory_menu_page(SUPPLY_MENU_PAGE_INVENTORY);
 }
 
 /*
@@ -1042,10 +1091,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         if (!replacing_same_group && player_light_available_capacity(o_ptr) <= 0)
         {
+            inventory_menu_group menu_group =
+                inventory_menu_group_for_limit_group(
+                    inventory_limit_group_for_object(o_ptr));
+
             if (player_oil_container_object(o_ptr))
                 msg_print("You have no free lamp/flask slots.");
             else
                 msg_print("You cannot carry any more of those.");
+            if (menu_group != INVENTORY_MENU_GROUP_ALL)
+                (void)open_inventory_menu_category(menu_group);
             return;
         }
     }
@@ -3188,16 +3243,34 @@ void do_cmd_destroy(void)
  */
 void do_cmd_observe(void)
 {
-    /* Set up for enhanced menu cycling */
-    extern char current_menu_command;
-    extern int current_menu_state;
-    
-    /* Mark that 'x' command opened this menu */
-    current_menu_command = 'x';
-    current_menu_state = 0;  /* Start with inventory */
-    
-    /* Start the enhanced menu system */
-    do_cmd_observe_enhanced();
+    int floor_item = first_floor_item_under_player();
+
+    if (floor_item)
+    {
+        extern char current_menu_command;
+        extern int current_menu_state;
+
+        log_debug(
+            "do_cmd_observe: Examining floor item under player, item=%d",
+            floor_item);
+        current_menu_command = 'x';
+        current_menu_state = 0;
+        describe_item_with_comparisons(floor_item, true);
+        current_menu_command = 0;
+        current_menu_state = 0;
+        return;
+    }
+
+    {
+        extern char current_menu_command;
+        extern int current_menu_state;
+
+        current_menu_command = 0;
+        current_menu_state = 0;
+    }
+
+    log_debug("do_cmd_observe: No floor item, opening inventory browser");
+    (void)open_inventory_menu_page(SUPPLY_MENU_PAGE_INVENTORY);
 }
 
 /*

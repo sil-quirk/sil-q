@@ -807,7 +807,8 @@ typedef enum sdl_character_sheet_context {
     SDL_CHARACTER_SHEET_HIDDEN = 0,
     SDL_CHARACTER_SHEET_LIVE,
     SDL_CHARACTER_SHEET_BIRTH_STATS,
-    SDL_CHARACTER_SHEET_BIRTH_SKILLS
+    SDL_CHARACTER_SHEET_BIRTH_SKILLS,
+    SDL_CHARACTER_SHEET_BIRTH_SELECT  /* race / lineage / character selection */
 } sdl_character_sheet_context;
 
 typedef struct sdl_character_sheet_live_item {
@@ -825,6 +826,23 @@ typedef struct sdl_character_sheet_hit {
     char desc[256];
 } sdl_character_sheet_hit;
 
+/* One row on the race/character selection screen: a selectable choice, or a
+ * non-selectable heading/blurb (book-page mode, screen 1). */
+typedef struct sdl_character_sheet_select_row {
+    int choice;        /* choice id consumed by get_player_choice (>= 0) */
+    byte attr;
+    bool is_heading;   /* book mode: non-selectable heading/blurb text */
+    char label[160];
+    char desc[256];    /* hover tooltip */
+} sdl_character_sheet_select_row;
+
+/* One informational "label<TAB>value" line in the selection detail panel. */
+typedef struct sdl_character_sheet_select_detail {
+    byte attr;
+    char text[128];
+    char desc[256];   /* hover tooltip (stat/trait explanation) */
+} sdl_character_sheet_select_detail;
+
 typedef struct sdl_character_sheet_screen_state {
     sdl_character_sheet_context context;
     int focus_choice;
@@ -837,6 +855,18 @@ typedef struct sdl_character_sheet_screen_state {
     int skill_costs[S_MAX];
     sdl_character_sheet_live_item live_items[128];
     int live_item_count;
+    sdl_character_sheet_select_row select_rows[64];
+    int select_row_count;
+    sdl_character_sheet_select_detail select_detail[80];
+    int select_detail_count;
+    char select_description[4096];
+    char select_title[96];
+    char select_intro[2048];   /* book mode: chronicle text (white) */
+    char select_frame_top[768];    /* book mode: framing line above (accent) */
+    char select_frame_bottom[768]; /* book mode: framing/charge below (accent) */
+    char select_desc_sizing[4096]; /* longest description, for stable layout */
+    bool select_book_mode;     /* screen 1: story/explanation page, no detail */
+    int last_body_px;          /* last column body font px (tooltip = half) */
     sdl_character_sheet_hit hits[160];
     int hit_count;
     int hover_choice;
@@ -3635,7 +3665,19 @@ static bool sdl_left_panel_pane_presentation_active(void)
         && character_generated
         && character_dungeon
         && p_ptr
-        && character_icky == 0;
+        && character_icky == 0
+        /* Only present the styled left-panel pane during live gameplay.  Death
+         * (is_dead), the post-death spectator view, and quit-to-title
+         * (!playing) are not gameplay: the pane used to keep drawing its compact
+         * fallback alone over a blank main view in those scenes (e.g. behind the
+         * wizard "Die?" prompt).  Gating here also keeps the map's COL_MAP offset
+         * consistent, since every consumer derives from this one predicate.  We
+         * deliberately do NOT gate on p_ptr->leaving, so ordinary level
+         * transitions keep the pane (and the map offset) steady instead of
+         * snapping to the classic sidebar on every stair. */
+        && p_ptr->playing
+        && !p_ptr->is_dead
+        && !death_spectator_active();
 }
 
 bool sdl_left_panel_pane_renders_character_panel(void)
@@ -9591,8 +9633,8 @@ static int sdl_char_sheet_collect_skills(sdl_char_sheet_line* lines,
     return count;
 }
 
-static void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
-    float y, float w, float h, float line_h, int line_count)
+static void sdl_char_sheet_draw_wrapped(TTF_Font* font, cptr text, byte attr,
+    float x, float y, float w, float h, float line_h, int line_count)
 {
     char lines[SDL_CHAR_SHEET_MAX_LINES][SDL_CHAR_SHEET_TEXT_LEN];
     float row_y = y;
@@ -9613,10 +9655,17 @@ static void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
     {
         if (row_y + line_h * 0.2f > y + h)
             break;
-        (void)sdl_char_sheet_draw_text(font, lines[i], TERM_WHITE, x, row_y,
+        (void)sdl_char_sheet_draw_text(font, lines[i], attr, x, row_y,
             w, line_h * 0.96f, false);
         row_y += line_h;
     }
+}
+
+static void sdl_char_sheet_draw_history(TTF_Font* font, cptr text, float x,
+    float y, float w, float h, float line_h, int line_count)
+{
+    sdl_char_sheet_draw_wrapped(font, text, TERM_WHITE, x, y, w, h, line_h,
+        line_count);
 }
 
 static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
@@ -9644,6 +9693,10 @@ static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         { "Space/Enter confirm", -2 },
         { "Q character", -3 },
     };
+    static const sdl_char_sheet_prompt_item select_items[] = {
+        { "Esc back", -1 },
+        { "Space/Enter select", -2 },
+    };
     const sdl_char_sheet_prompt_item* items = birth_items;
     int item_count = (int)N_ELEMENTS(birth_items);
     float cursor_x = x;
@@ -9659,6 +9712,12 @@ static void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     {
         items = live_items;
         item_count = (int)N_ELEMENTS(live_items);
+    }
+    else if (g_sdl_character_sheet_screen.context
+        == SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    {
+        items = select_items;
+        item_count = (int)N_ELEMENTS(select_items);
     }
 
     for (int i = 0; i < item_count; i++)
@@ -9763,8 +9822,15 @@ static void sdl_char_sheet_render_hover_tooltip(void)
     if (!sdl_rect_has_area(&screen))
         return;
 
-    font_px = sdl_char_sheet_clampi((int)((float)screen.h * 0.021f), 14,
-        26);
+    /* Half the size of the stats/trait text it explains (the column body
+     * font), so the tooltip is clearly secondary; fall back to a screen-based
+     * size if no column has been measured yet. */
+    if (g_sdl_character_sheet_screen.last_body_px > 0)
+        font_px = sdl_char_sheet_clampi(
+            g_sdl_character_sheet_screen.last_body_px / 2, 9, 40);
+    else
+        font_px = sdl_char_sheet_clampi((int)((float)screen.h * 0.0105f), 8,
+            14);
     font = sdl_story_font_for_height(font_px);
     if (!font)
         return;
@@ -10001,13 +10067,17 @@ static int sdl_char_sheet_target_ncols(float content_w, float screen_h)
  */
 static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     float content_x, float top_y, float content_w, float region_h, int canvas_h,
-    cptr desc, int ncols_bias, SDL_FRect* out_alloc_col)
+    cptr desc, cptr desc_sizing, int ncols_bias, SDL_FRect* out_alloc_col)
 {
     int ncols = sdl_char_sheet_target_ncols(content_w, (float)canvas_h)
         + ncols_bias;
     float col_gap = sdl_char_sheet_clampf(content_w * 0.022f, 16.0f, 44.0f);
     float gap = sdl_char_sheet_clampf(region_h * 0.02f, 10.0f, 28.0f);
     bool has_desc = (desc && desc[0]);
+    /* Size the description band from desc_sizing (the longest description in
+     * the set) so the layout stays put as the highlighted entry changes; the
+     * actual desc is what gets drawn. */
+    cptr desc_measure = (desc_sizing && desc_sizing[0]) ? desc_sizing : desc;
     int col_of[SDL_CHAR_SHEET_PANEL_MAX];
     float col_rows[SDL_CHAR_SHEET_PANEL_MAX];
     float col_x[SDL_CHAR_SHEET_PANEL_MAX];
@@ -10192,6 +10262,9 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
             has_desc ? region_h * 0.72f : region_h,
             (int)(max_rows + 0.5f), 12, max_px, 1.13f, &top_line_h, &col_px);
         columns_h = max_rows * top_line_h;
+        /* Record the column body size so the hover tooltip can render at about
+         * half the size of the stats/trait text it explains. */
+        g_sdl_character_sheet_screen.last_body_px = col_px;
 
         if (has_desc)
         {
@@ -10199,8 +10272,9 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
 
             if (desc_avail < top_line_h)
                 desc_avail = top_line_h;
-            desc_font = sdl_char_sheet_font_for_wrapped_text(desc, content_w,
-                desc_avail, 12, col_px, 1.18f, &desc_line_h, &desc_lines);
+            desc_font = sdl_char_sheet_font_for_wrapped_text(desc_measure,
+                content_w, desc_avail, 12, col_px, 1.18f, &desc_line_h,
+                &desc_lines);
             desc_h = desc_line_h * (float)desc_lines;
         }
 
@@ -10316,15 +10390,298 @@ static void sdl_character_sheet_screen_render(void)
     region_bottom = prompt_y - gap;
     top_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
 
-    sdl_char_sheet_title(title, sizeof(title));
-    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS)
-        SDL_strlcat(title, " - Assign Attributes", sizeof(title));
-    else if (g_sdl_character_sheet_screen.context
-        == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
-        SDL_strlcat(title, " - Assign Skills", sizeof(title));
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        SDL_strlcpy(title, g_sdl_character_sheet_screen.select_title,
+            sizeof(title));
+    else
+    {
+        sdl_char_sheet_title(title, sizeof(title));
+        if (g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_STATS)
+            SDL_strlcat(title, " - Assign Attributes", sizeof(title));
+        else if (g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
+            SDL_strlcat(title, " - Assign Skills", sizeof(title));
+    }
     (void)sdl_char_sheet_draw_text(title_font, title,
         p_ptr && p_ptr->oaths_broken ? TERM_RED : TERM_L_BLUE, content_x,
         title_y, content_w, title_h, true);
+
+    /*
+     * Race selection (book mode): a story/explanation page -- intro text on
+     * top, a grouped *selectable* list of peoples in the middle, and the
+     * highlighted entry's lore at the bottom.  No detail panel, no pop-ups;
+     * everything is the proportional story font.
+     */
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT
+        && g_sdl_character_sheet_screen.select_book_mode)
+    {
+        cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
+        cptr intro = g_sdl_character_sheet_screen.select_intro;
+        cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
+        cptr desc = g_sdl_character_sheet_screen.select_description;
+        /* Size from the longest description so the font/layout stays put as the
+         * highlighted people changes; the current desc is what gets drawn. */
+        cptr desc_measure =
+            (g_sdl_character_sheet_screen.select_desc_sizing[0])
+                ? g_sdl_character_sheet_screen.select_desc_sizing
+                : desc;
+        int row_count = g_sdl_character_sheet_screen.select_row_count;
+        float region_h = (region_bottom > top_y) ? (region_bottom - top_y)
+                                                  : 1.0f;
+        int min_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.018f),
+            14, 24);
+        int body_px = min_px;
+        TTF_Font* body_font;
+        float body_lh;
+        float list_lh;
+        float gap2;     /* between major sections (intro/list/lore) */
+        float gap_in;   /* between the framing lines and the chronicle */
+        int ft_lines;
+        int in_lines;
+        int fb_lines;
+        int desc_lines;
+        float content_h;
+        float y = top_y;
+
+        /*
+         * Size the story font so the whole page -- framing, chronicle, list,
+         * and lore -- flows top to bottom and fills the height.  Pick the
+         * largest size (no bigger than the title) whose total content fits,
+         * measured at the candidate font so nothing spills off-screen.
+         */
+        for (int px = title_px; px >= min_px; px -= 2)
+        {
+            TTF_Font* f = sdl_story_font_for_height(px);
+            float lh = sdl_char_sheet_line_h(f, px, 1.28f);
+            int ft = (frame_top && frame_top[0])
+                ? sdl_char_sheet_wrap_text(f, frame_top, content_w, NULL, 0) : 0;
+            int in = (intro && intro[0])
+                ? sdl_char_sheet_wrap_text(f, intro, content_w, NULL, 0) : 0;
+            int fb = (frame_bottom && frame_bottom[0])
+                ? sdl_char_sheet_wrap_text(f, frame_bottom, content_w, NULL, 0)
+                : 0;
+            int dl = (desc_measure && desc_measure[0])
+                ? sdl_char_sheet_wrap_text(f, desc_measure, content_w, NULL, 0)
+                : 0;
+            float total = (float)(ft + in + fb + dl) * lh
+                + (float)row_count * (lh * 1.35f) + lh * 3.2f;
+
+            body_px = px;
+            if (total <= region_h)
+                break;
+        }
+        body_font = sdl_story_font_for_height(body_px);
+        body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
+        list_lh = body_lh * 1.35f;
+        gap2 = body_lh * 0.8f;
+        gap_in = body_lh * 0.35f;
+        ft_lines = (frame_top && frame_top[0])
+            ? sdl_char_sheet_wrap_text(body_font, frame_top, content_w, NULL, 0)
+            : 0;
+        in_lines = (intro && intro[0])
+            ? sdl_char_sheet_wrap_text(body_font, intro, content_w, NULL, 0)
+            : 0;
+        fb_lines = (frame_bottom && frame_bottom[0])
+            ? sdl_char_sheet_wrap_text(body_font, frame_bottom, content_w, NULL,
+                0)
+            : 0;
+        desc_lines = (desc_measure && desc_measure[0])
+            ? sdl_char_sheet_wrap_text(body_font, desc_measure, content_w, NULL,
+                0)
+            : 0;
+
+        /* Centre the block vertically so any leftover splits top and bottom. */
+        content_h = (float)(ft_lines + in_lines + fb_lines) * body_lh
+            + 2.0f * gap_in + 2.0f * gap2
+            + (float)row_count * list_lh + (float)desc_lines * body_lh;
+        if (content_h < region_h)
+            y = top_y + (region_h - content_h) * 0.5f;
+
+        /* 1a. Framing line above (the trial / second-person voice). */
+        if (ft_lines > 0)
+        {
+            sdl_char_sheet_draw_wrapped(body_font, frame_top, TERM_L_BLUE,
+                content_x, y, content_w, (float)ft_lines * body_lh + body_lh,
+                body_lh, 0);
+            y += (float)ft_lines * body_lh + gap_in;
+        }
+
+        /* 1b. The chronicle (history of the war). */
+        if (in_lines > 0)
+        {
+            sdl_char_sheet_draw_wrapped(body_font, intro, TERM_WHITE, content_x,
+                y, content_w, (float)in_lines * body_lh + body_lh, body_lh, 0);
+            y += (float)in_lines * body_lh + (fb_lines > 0 ? gap_in : gap2);
+        }
+
+        /* 1c. Framing/charge line below (choose whose name you will wear). */
+        if (fb_lines > 0)
+        {
+            sdl_char_sheet_draw_wrapped(body_font, frame_bottom, TERM_L_BLUE,
+                content_x, y, content_w, (float)fb_lines * body_lh + body_lh,
+                body_lh, 0);
+            y += (float)fb_lines * body_lh + gap2;
+        }
+
+        /* 2. Grouped, selectable list (headings + peoples). */
+        for (int i = 0; i < row_count; i++)
+        {
+            const sdl_character_sheet_select_row* r =
+                &g_sdl_character_sheet_screen.select_rows[i];
+            /* list_lh is the row pitch (spacing); the text and its highlight
+             * are only body_lh tall, centred in the slot, so the selection
+             * hugs a single line instead of spanning the gap to the next row. */
+            float text_y = y + (list_lh - body_lh) * 0.5f;
+
+            if (text_y + body_lh * 0.5f > region_bottom)
+                break;
+            if (text_y < y)
+                text_y = y;
+
+            if (r->is_heading)
+            {
+                (void)sdl_char_sheet_draw_text(body_font, r->label,
+                    TERM_SLATE, content_x, text_y, content_w, body_lh * 0.95f,
+                    false);
+            }
+            else
+            {
+                bool focused = sdl_char_sheet_choice_focused(r->choice);
+                float indent = content_w * 0.05f;
+                int tw = sdl_char_sheet_text_width(body_font, r->label);
+                SDL_FRect focus = { content_x + indent, text_y,
+                    MIN(content_w - indent, (float)tw + body_lh * 0.5f),
+                    body_lh };
+                SDL_FRect hit = { content_x + indent, y, content_w - indent,
+                    list_lh };
+
+                if (focused)
+                    sdl_char_sheet_draw_focus_rect(focus, true);
+                (void)sdl_char_sheet_draw_text(body_font, r->label,
+                    sdl_char_sheet_focus_text_attr(TERM_WHITE, focused),
+                    content_x + indent, text_y, content_w - indent,
+                    body_lh * 0.95f, false);
+                if (r->choice >= 0)
+                    sdl_char_sheet_add_hit(hit, r->choice, "");
+            }
+            y += list_lh;
+        }
+
+        /* 3. Highlighted people's lore, flowing on beneath the list. */
+        y += gap2;
+        if (region_bottom - y > body_lh * 0.5f)
+            sdl_char_sheet_draw_history(body_font, desc, content_x, y,
+                content_w, region_bottom - y, body_lh, 0);
+
+        sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
+            content_w, prompt_h);
+        /* No hover tooltip in book mode (no pop-ups). */
+        return;
+    }
+
+    /*
+     * Character selection: a clickable list column, a detail column for the
+     * focused choice, and the lore as the description.  Reuses the same fluid
+     * column packer + prompt + tooltip as the live sheet.
+     */
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    {
+        /* Reuse the already-declared vitals/traits scratch arrays (this branch
+         * returns before they are used for the live sheet) so the select screen
+         * adds no extra stack. */
+        sdl_char_sheet_line* list_lines = vital_lines;
+        sdl_char_sheet_line* detail_lines = trait_lines;
+        sdl_panel panels[3];
+        int n = 0;
+        int list_count = g_sdl_character_sheet_screen.select_row_count;
+        int detail_count = g_sdl_character_sheet_screen.select_detail_count;
+
+        SDL_zero(vital_lines);
+        SDL_zero(trait_lines);
+        if (list_count > SDL_CHAR_SHEET_MAX_LINES)
+            list_count = SDL_CHAR_SHEET_MAX_LINES;
+        if (detail_count > SDL_CHAR_SHEET_MAX_LINES)
+            detail_count = SDL_CHAR_SHEET_MAX_LINES;
+
+        for (int i = 0; i < list_count; i++)
+        {
+            const sdl_character_sheet_select_row* r =
+                &g_sdl_character_sheet_screen.select_rows[i];
+
+            SDL_strlcpy(list_lines[i].text, r->label,
+                sizeof(list_lines[i].text));
+            list_lines[i].attr = r->attr;
+            list_lines[i].choice = r->choice;
+            SDL_strlcpy(list_lines[i].desc, r->desc,
+                sizeof(list_lines[i].desc));
+        }
+        for (int i = 0; i < detail_count; i++)
+        {
+            const sdl_character_sheet_select_detail* d =
+                &g_sdl_character_sheet_screen.select_detail[i];
+
+            SDL_strlcpy(detail_lines[i].text, d->text,
+                sizeof(detail_lines[i].text));
+            detail_lines[i].attr = d->attr;
+            SDL_strlcpy(detail_lines[i].desc, d->desc,
+                sizeof(detail_lines[i].desc));
+            /* Stat/trait rows are hoverable for a tooltip (a distinct id range
+             * so a click never reads as a selection); rows without a tooltip
+             * stay inert. */
+            detail_lines[i].choice = (d->desc[0]) ? (9000 + i) : -1;
+        }
+
+        SDL_zero(panels);
+        panels[n].kind = SDL_PANEL_KIND_LINES;
+        panels[n].heading = "";
+        panels[n].lines = list_lines;
+        panels[n].line_count = list_count;
+        panels[n].label_fraction = 0.96f;
+        panels[n].weight = 3;
+        panels[n].rows = list_count + 1;
+        n++;
+
+        if (detail_count > 0)
+        {
+            /* Split the detail (stats + traits) into two columns so its varying
+             * length stops driving the column font size -- the constant-length
+             * choice list stays the tallest column, keeping the layout still. */
+            int half = (detail_count + 1) / 2;
+
+            panels[n].kind = SDL_PANEL_KIND_LINES;
+            panels[n].heading = "Details";
+            panels[n].lines = detail_lines;
+            panels[n].line_count = half;
+            panels[n].label_fraction = 0.62f;
+            panels[n].weight = 2;
+            panels[n].rows = half + 1;
+            n++;
+
+            if (detail_count > half)
+            {
+                panels[n].kind = SDL_PANEL_KIND_LINES;
+                panels[n].heading = "";
+                panels[n].lines = detail_lines + half;
+                panels[n].line_count = detail_count - half;
+                panels[n].label_fraction = 0.62f;
+                panels[n].weight = 2;
+                panels[n].rows = (detail_count - half) + 1;
+                n++;
+            }
+        }
+
+        sdl_char_sheet_render_columns(panels, n, content_x, top_y, content_w,
+            top_h, canvas.h, g_sdl_character_sheet_screen.select_description,
+            g_sdl_character_sheet_screen.select_desc_sizing, 0, NULL);
+
+        sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
+            content_w, prompt_h);
+        /* Tooltips for the stat/trait detail rows only (list rows carry none,
+         * since the focused choice's text is already shown below). */
+        sdl_char_sheet_render_hover_tooltip();
+        return;
+    }
 
     SDL_zero(vital_lines);
     SDL_zero(trait_lines);
@@ -10452,7 +10809,8 @@ static void sdl_character_sheet_screen_render(void)
             SDL_FRect alloc_col = { content_x, top_y, content_w, top_h };
 
             sdl_char_sheet_render_columns(panels, n, content_x, top_y,
-                content_w, top_h - flh - gap, canvas.h, "", -1, &alloc_col);
+                content_w, top_h - flh - gap, canvas.h, "", NULL, -1,
+                &alloc_col);
             strnfmt(status, sizeof(status), "Points Left: %d",
                 g_sdl_character_sheet_screen.points_left);
             sdl_char_sheet_draw_birth_status_row(ffont, alloc_col.x,
@@ -10461,7 +10819,7 @@ static void sdl_character_sheet_screen_render(void)
         else
         {
             sdl_char_sheet_render_columns(panels, n, content_x, top_y,
-                content_w, top_h, canvas.h, history, 0, NULL);
+                content_w, top_h, canvas.h, history, NULL, 0, NULL);
         }
     }
 
@@ -10592,6 +10950,162 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
             skill_gain ? skill_gain[i] : 0;
         g_sdl_character_sheet_screen.skill_costs[i] = costs ? costs[i] : 0;
     }
+    g_state.need_present = true;
+    return true;
+}
+
+/*
+ * Race / lineage / character selection.  Mirrors the live append-builder: the
+ * birth keyboard loop (get_player_choice) rebuilds the screen every iteration --
+ * begin_select, add a row per visible choice, add the focused choice's detail
+ * lines, set the description (lore), then commit.
+ */
+bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
+{
+    if (!g_state.window || !g_state.renderer)
+        return false;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    {
+        g_sdl_character_sheet_screen.sheet_scroll = 0;
+        g_sdl_character_sheet_screen.sheet_scroll_max = 0;
+    }
+    g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SELECT;
+    g_sdl_character_sheet_screen.focus_choice = focus_choice;
+    g_sdl_character_sheet_screen.selected_index = focus_choice;
+    g_sdl_character_sheet_screen.points_left = 0;
+    g_sdl_character_sheet_screen.live_item_count = 0;
+    g_sdl_character_sheet_screen.select_row_count = 0;
+    g_sdl_character_sheet_screen.select_detail_count = 0;
+    g_sdl_character_sheet_screen.select_description[0] = '\0';
+    g_sdl_character_sheet_screen.select_intro[0] = '\0';
+    g_sdl_character_sheet_screen.select_frame_top[0] = '\0';
+    g_sdl_character_sheet_screen.select_frame_bottom[0] = '\0';
+    g_sdl_character_sheet_screen.select_desc_sizing[0] = '\0';
+    g_sdl_character_sheet_screen.select_book_mode = false;
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_title, title ? title : "",
+        sizeof(g_sdl_character_sheet_screen.select_title));
+    return true;
+}
+
+void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
+    int attr, cptr desc)
+{
+    sdl_character_sheet_select_row* row;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (g_sdl_character_sheet_screen.select_row_count
+        >= (int)N_ELEMENTS(g_sdl_character_sheet_screen.select_rows))
+    {
+        return;
+    }
+
+    row = &g_sdl_character_sheet_screen
+               .select_rows[g_sdl_character_sheet_screen.select_row_count++];
+    row->choice = choice;
+    row->attr = (byte)attr;
+    row->is_heading = false;
+    SDL_strlcpy(row->label, label ? label : "", sizeof(row->label));
+    SDL_strlcpy(row->desc, desc ? desc : "", sizeof(row->desc));
+}
+
+/* Book mode: a non-selectable heading/blurb row (e.g. "The Noldor ..."). */
+void sdl_character_sheet_screen_add_select_heading(cptr label)
+{
+    sdl_character_sheet_select_row* row;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (!label || !label[0])
+        return;
+    if (g_sdl_character_sheet_screen.select_row_count
+        >= (int)N_ELEMENTS(g_sdl_character_sheet_screen.select_rows))
+    {
+        return;
+    }
+
+    row = &g_sdl_character_sheet_screen
+               .select_rows[g_sdl_character_sheet_screen.select_row_count++];
+    row->choice = -1;
+    row->attr = TERM_L_DARK;
+    row->is_heading = true;
+    SDL_strlcpy(row->label, label, sizeof(row->label));
+    row->desc[0] = '\0';
+}
+
+/* Book mode: the explanation text shown at the top of the page. Enables the
+ * story/explanation layout (no detail panel, no hover pop-ups). */
+void sdl_character_sheet_screen_set_select_intro(cptr text)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_intro, text ? text : "",
+        sizeof(g_sdl_character_sheet_screen.select_intro));
+    g_sdl_character_sheet_screen.select_book_mode = true;
+}
+
+/* Book mode: framing lines (accent colour) above and below the chronicle --
+ * the second-person "trial" voice that brackets the historical text. */
+void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_frame_top, top ? top : "",
+        sizeof(g_sdl_character_sheet_screen.select_frame_top));
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_frame_bottom,
+        bottom ? bottom : "",
+        sizeof(g_sdl_character_sheet_screen.select_frame_bottom));
+}
+
+void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
+    cptr desc)
+{
+    sdl_character_sheet_select_detail* d;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (!text || !text[0])
+        return;
+    if (g_sdl_character_sheet_screen.select_detail_count
+        >= (int)N_ELEMENTS(g_sdl_character_sheet_screen.select_detail))
+    {
+        return;
+    }
+
+    d = &g_sdl_character_sheet_screen
+             .select_detail[g_sdl_character_sheet_screen.select_detail_count++];
+    d->attr = (byte)attr;
+    SDL_strlcpy(d->text, text, sizeof(d->text));
+    SDL_strlcpy(d->desc, desc ? desc : "", sizeof(d->desc));
+}
+
+/* The longest description in the set: used to size the description band so the
+ * layout does not reflow as the highlighted entry changes. */
+void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_desc_sizing,
+        longest_desc ? longest_desc : "",
+        sizeof(g_sdl_character_sheet_screen.select_desc_sizing));
+}
+
+void sdl_character_sheet_screen_set_select_description(cptr text)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_description,
+        text ? text : "",
+        sizeof(g_sdl_character_sheet_screen.select_description));
+}
+
+bool sdl_character_sheet_screen_commit_select(int selected_index)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return false;
+    g_sdl_character_sheet_screen.selected_index = selected_index;
+    g_sdl_character_sheet_screen.focus_choice = selected_index;
     g_state.need_present = true;
     return true;
 }
@@ -13278,6 +13792,11 @@ static void sdl_touch_pane_render_yes_no_prompt(void)
                            : (SDL_Color){ 31, 31, 31, 255 };
     yes_border = yes_highlight ? accent : muted;
     no_border = no_highlight ? accent : muted;
+
+    /* Composite explicitly: this overlay draws straight to the window after a
+     * chain of other renderers, so the blend mode must not be left to chance or
+     * the translucent shadow/panel can paint over the dungeon incorrectly. */
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
     shadow = panel_rect;
     shadow.x += 3.0f;
@@ -30736,6 +31255,13 @@ static bool sdl_quit_transition_active(void)
         && character_icky == 0
         && !screen_saved_fullscreen_active()
         && !death_spectator_active()
+        /* A modal yes/no prompt (get_check) genuinely needs the user's answer,
+         * even though p_ptr->leaving is already set.  The clearest case is the
+         * wizard/cheat "Die?" confirm: death sets both is_dead and leaving while
+         * p_ptr->playing is still true, so without this guard the quit
+         * transition swallows every click and keypress and the prompt can never
+         * be answered. */
+        && !g_touch_pane_yes_no_prompt_active
         && (p_ptr->leaving || !p_ptr->playing);
 }
 
@@ -30784,6 +31310,34 @@ static bool sdl_quit_transition_consume_event(const SDL_Event* ev)
     g_state.need_present = true;
 
     return true;
+}
+
+/* While the yes/no confirmation popup is active it must behave as a true modal:
+ * give it first claim on mouse input so it stays clickable even when another
+ * full-screen surface (the character sheet at birth, the welcome screen) is up
+ * and the normal map-screen pointer routing would otherwise consume the click.
+ * Keyboard events are deliberately left to fall through so y/n/ESC still work. */
+static bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
+{
+    if (!ev || !g_touch_pane_yes_no_prompt_active)
+        return false;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_MOUSE_MOTION:
+        if (ev->motion.which == SDL_TOUCH_MOUSEID)
+            return false;
+        return sdl_touch_pane_handle_yes_no_prompt_hover(
+            (float)ev->motion.x, (float)ev->motion.y);
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (ev->button.button != SDL_BUTTON_LEFT
+            || ev->button.which == SDL_TOUCH_MOUSEID)
+            return false;
+        return sdl_touch_pane_handle_yes_no_prompt_pointer(
+            (float)ev->button.x, (float)ev->button.y);
+    default:
+        return false;
+    }
 }
 
 static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
@@ -30837,6 +31391,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         } else if (ev->type == SDL_EVENT_FINGER_UP || ev->type == SDL_EVENT_FINGER_CANCELED) {
             return;
         }
+    } else if (sdl_yes_no_prompt_handle_modal_event(ev)) {
+        return;
     } else if (sdl_main_menu_overlay_handle_event(ev)) {
         return;
     } else if (g_minimap.active && sdl_minimap_handle_event(ev)) {
@@ -32836,11 +33392,15 @@ static bool sdl_render_current_window_frame(void)
 
     if (sdl_welcome_screen_active()) {
         sdl_welcome_screen_render();
+        /* The yes/no confirm is modal and must stay visible above any
+         * full-screen surface (see sdl_yes_no_prompt_handle_modal_event). */
+        sdl_touch_pane_render_yes_no_prompt();
         return true;
     }
 
     if (sdl_character_sheet_screen_active()) {
         sdl_character_sheet_screen_render();
+        sdl_touch_pane_render_yes_no_prompt();
         return true;
     }
 

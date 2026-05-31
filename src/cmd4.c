@@ -2846,6 +2846,74 @@ void do_cmd_character_sheet(void)
     handle_stuff();
 }
 
+/*
+ * Read-only full character sheet shown during birth, after race/character
+ * selection and before stat allocation: the player sees their whole sheet
+ * "full at first", then any key or click continues into stat allocation.
+ * Reuses the same pixel-semantic live-sheet renderer as do_cmd_character_sheet.
+ */
+void character_sheet_show_birth_preview(void)
+{
+    character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
+    bool sdl_sheet;
+
+    if (!p_ptr)
+        return;
+
+    screen_save();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_proto();
+
+    sdl_sheet = sdl_character_sheet_screen_begin_live(-1);
+    if (sdl_sheet)
+    {
+        int count = character_sheet_collect_semantic_items(sheet_items,
+            CHARACTER_SHEET_MAX_ITEMS);
+
+        (void)sdl_character_sheet_screen_begin_live(-1);
+        for (int i = 0; i < count; i++)
+        {
+            char desc[640];
+
+            character_sheet_format_item_description(&sheet_items[i], desc,
+                sizeof(desc));
+            sdl_character_sheet_screen_add_live_item(
+                CHARACTER_SHEET_CLICK_ITEM_BASE + i,
+                (int)sheet_items[i].kind, sheet_items[i].skill,
+                sheet_items[i].value_kind, sheet_items[i].label, desc);
+        }
+        sdl_hover_tooltip_clear();
+    }
+    else
+    {
+        /* Terminal fallback. */
+        display_player(0);
+    }
+
+    /* Wait for any key or click to continue (hover wakeups are ignored). */
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    Term_fresh();
+    while (1)
+    {
+        int ch = inkey();
+
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+        {
+            ui_menu_click_clear();
+            continue;
+        }
+        break;
+    }
+
+    ui_menu_click_clear();
+    sdl_hover_tooltip_clear();
+    sdl_character_sheet_screen_hide();
+    screen_pop_touch_pane_proto();
+    screen_pop_supporting_panes_hidden();
+    screen_load();
+}
+
 #define COL_SKILL 2
 #define COL_ABILITY 16
 #define COL_DESCRIPTION 41
@@ -34746,7 +34814,9 @@ static int supply_browser_hover_page(void)
 
 enum
 {
-    EQUIPMENT_MENU_ALL = -1
+    EQUIPMENT_MENU_ALL = -1,
+    EQUIPMENT_MENU_RINGS = -2,
+    EQUIPMENT_MENU_QUIVERS = -3
 };
 
 static const int equipment_menu_slots[] = {
@@ -34754,8 +34824,7 @@ static const int equipment_menu_slots[] = {
     INVEN_WIELD,
     INVEN_BOW,
     INVEN_STAFF,
-    INVEN_LEFT,
-    INVEN_RIGHT,
+    EQUIPMENT_MENU_RINGS,
     INVEN_NECK,
     INVEN_LITE,
     INVEN_BODY,
@@ -34764,8 +34833,7 @@ static const int equipment_menu_slots[] = {
     INVEN_HEAD,
     INVEN_HANDS,
     INVEN_FEET,
-    INVEN_QUIVER1,
-    INVEN_QUIVER2,
+    EQUIPMENT_MENU_QUIVERS,
     INVEN_HORN
 };
 
@@ -34783,10 +34851,8 @@ static cptr equipment_slot_text(int slot)
         return "Bow";
     case INVEN_STAFF:
         return "Walking staff";
-    case INVEN_LEFT:
-        return "Left ring";
-    case INVEN_RIGHT:
-        return "Right ring";
+    case EQUIPMENT_MENU_RINGS:
+        return "Rings";
     case INVEN_NECK:
         return "Amulet";
     case INVEN_LITE:
@@ -34803,15 +34869,39 @@ static cptr equipment_slot_text(int slot)
         return "Hands";
     case INVEN_FEET:
         return "Feet";
+    case EQUIPMENT_MENU_QUIVERS:
+        return "Quivers";
+    case INVEN_HORN:
+        return "Horn";
+    case INVEN_LEFT:
+        return "Left ring";
+    case INVEN_RIGHT:
+        return "Right ring";
     case INVEN_QUIVER1:
         return "1st quiver";
     case INVEN_QUIVER2:
         return "2nd quiver";
-    case INVEN_HORN:
-        return "Horn";
     default:
         return "Slot";
     }
+}
+
+static bool equipment_menu_slot_group_contains(int group, int slot)
+{
+    switch (group)
+    {
+    case EQUIPMENT_MENU_RINGS:
+        return slot == INVEN_LEFT || slot == INVEN_RIGHT;
+    case EQUIPMENT_MENU_QUIVERS:
+        return slot == INVEN_QUIVER1 || slot == INVEN_QUIVER2;
+    default:
+        return false;
+    }
+}
+
+static bool equipment_menu_slot_is_group(int slot)
+{
+    return slot == EQUIPMENT_MENU_RINGS || slot == EQUIPMENT_MENU_QUIVERS;
 }
 
 static int equipment_slot_group_width(void)
@@ -34849,6 +34939,13 @@ static bool equipment_slot_accepts_object(int slot, const object_type* o_ptr)
     natural_slot = wield_slot(o_ptr);
     if (natural_slot == slot)
         return true;
+
+    if (slot == EQUIPMENT_MENU_RINGS)
+        return o_ptr->tval == TV_RING;
+
+    if (slot == EQUIPMENT_MENU_QUIVERS)
+        return (o_ptr->tval == TV_ARROW)
+            || player_can_treat_as_throwing(o_ptr);
 
     switch (slot)
     {
@@ -34934,7 +35031,19 @@ static int collect_equipment_entries_for_slot(int slot,
         return count;
     }
 
-    if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
+    if (equipment_menu_slot_is_group(slot))
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL && count < capacity; i++)
+        {
+            if (equipment_menu_slot_group_contains(slot, i)
+                && inventory[i].k_idx)
+            {
+                equipment_add_entry(entries, &count, capacity, -1, -1, i,
+                    true);
+            }
+        }
+    }
+    else if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
         && inventory[slot].k_idx)
     {
         equipment_add_entry(entries, &count, capacity, -1, -1, slot, true);
@@ -34979,7 +35088,18 @@ static int count_equipment_entries_for_slot(int slot)
         return count;
     }
 
-    if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
+    if (equipment_menu_slot_is_group(slot))
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (equipment_menu_slot_group_contains(slot, i)
+                && inventory[i].k_idx)
+            {
+                count++;
+            }
+        }
+    }
+    else if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
         && inventory[slot].k_idx)
     {
         count++;
@@ -35055,6 +35175,25 @@ static void prepare_equipment_group_icons(
             continue;
         }
 
+        if (equipment_menu_slot_is_group(slot))
+        {
+            for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+            {
+                if (!equipment_menu_slot_group_contains(slot, i)
+                    || !inventory[i].k_idx)
+                {
+                    continue;
+                }
+
+                object_copy(icon_obj, &inventory[i]);
+                icons[group].has_icon = true;
+                break;
+            }
+
+            if (icons[group].has_icon)
+                continue;
+        }
+
         if (slot >= INVEN_WIELD && slot < INVEN_TOTAL
             && inventory[slot].k_idx)
         {
@@ -35112,6 +35251,20 @@ static bool equipment_menu_slot_is_filled(int slot)
         {
             if (inventory[i].k_idx)
                 return true;
+        }
+
+        return false;
+    }
+
+    if (equipment_menu_slot_is_group(slot))
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (equipment_menu_slot_group_contains(slot, i)
+                && inventory[i].k_idx)
+            {
+                return true;
+            }
         }
 
         return false;
@@ -35188,7 +35341,12 @@ static cptr equipment_entry_source_text(const equipment_list_entry* entry,
         return "";
 
     if (entry->equipped)
+    {
+        if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+            return equipment_slot_text(entry->equip_idx);
+
         return "Equipped";
+    }
 
     if (entry->supply_idx >= 0)
         return "Supply";
@@ -35275,6 +35433,37 @@ static void display_equipment_slot_entries(
     }
 }
 
+static int equipment_menu_compare_slots(int selected_slot, int slots[],
+    int max_slots)
+{
+    int count = 0;
+
+    if (!slots || max_slots <= 0)
+        return 0;
+
+    if (equipment_menu_slot_is_group(selected_slot))
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL && count < max_slots; i++)
+        {
+            if (equipment_menu_slot_group_contains(selected_slot, i)
+                && inventory[i].k_idx)
+            {
+                slots[count++] = i;
+            }
+        }
+
+        return count;
+    }
+
+    if (selected_slot >= INVEN_WIELD && selected_slot < INVEN_TOTAL
+        && inventory[selected_slot].k_idx)
+    {
+        slots[count++] = selected_slot;
+    }
+
+    return count;
+}
+
 static bool equipment_menu_recall_entry(equipment_list_entry* entry,
     int selected_slot)
 {
@@ -35301,29 +35490,40 @@ static bool equipment_menu_recall_entry(equipment_list_entry* entry,
     if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
 
-    if (selected_slot >= INVEN_WIELD && selected_slot < INVEN_TOTAL
-        && inventory[selected_slot].k_idx)
     {
-        const object_type* objects[2];
-        const char* headings[2];
-        char selected_heading[32];
-        char equipped_heading[32];
+        int compare_slots[2];
+        int compare_count =
+            equipment_menu_compare_slots(selected_slot, compare_slots, 2);
 
-        strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
-        strnfmt(equipped_heading, sizeof(equipped_heading), "%s",
-            equipment_slot_text(selected_slot));
+        if (compare_count > 0)
+        {
+            const object_type* objects[3];
+            const char* headings[3];
+            char heading_texts[3][32];
+            int count = 0;
 
-        objects[0] = o_ptr;
-        headings[0] = selected_heading;
-        objects[1] = &inventory[selected_slot];
-        headings[1] = equipped_heading;
-        object_info_screen_multi(objects, headings, 2);
+            strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+                "Selected item");
+            headings[count] = heading_texts[count];
+            objects[count++] = o_ptr;
+
+            for (int i = 0; i < compare_count && count < 3; i++)
+            {
+                int slot = compare_slots[i];
+
+                strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+                    "%s", equipment_slot_text(slot));
+                headings[count] = heading_texts[count];
+                objects[count++] = &inventory[slot];
+            }
+
+            object_info_screen_multi(objects, headings, count);
+        }
+        else
+        {
+            object_info_screen(o_ptr);
+        }
     }
-    else
-    {
-        object_info_screen(o_ptr);
-    }
-
     return true;
 }
 
@@ -35348,14 +35548,20 @@ static bool equipment_menu_use_entry(equipment_list_entry* entry,
     if (entry->supply_idx >= 0)
     {
         supplies_begin_action(entry->supply_idx);
-        do_cmd_wield_to_slot(o_ptr, SUPPLIES_INDEX, selected_slot);
+        if (equipment_menu_slot_is_group(selected_slot))
+            do_cmd_wield(o_ptr, SUPPLIES_INDEX);
+        else
+            do_cmd_wield_to_slot(o_ptr, SUPPLIES_INDEX, selected_slot);
         supplies_end_action();
         return true;
     }
 
     if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
     {
-        do_cmd_wield_to_slot(o_ptr, entry->item_idx, selected_slot);
+        if (equipment_menu_slot_is_group(selected_slot))
+            do_cmd_wield(o_ptr, entry->item_idx);
+        else
+            do_cmd_wield_to_slot(o_ptr, entry->item_idx, selected_slot);
         return true;
     }
 
@@ -35406,8 +35612,477 @@ static bool equipment_menu_drop_entry(equipment_list_entry* entry)
     }
 }
 
-static int collect_inventory_page_entries(equipment_list_entry entries[],
-    int capacity)
+static const inventory_menu_group inventory_browser_groups[] = {
+    INVENTORY_MENU_GROUP_ALL,
+    INVENTORY_MENU_GROUP_RINGS,
+    INVENTORY_MENU_GROUP_AMULETS,
+    INVENTORY_MENU_GROUP_WEAPONS,
+    INVENTORY_MENU_GROUP_ARMOUR,
+    INVENTORY_MENU_GROUP_CLOAKS,
+    INVENTORY_MENU_GROUP_SHIELDS,
+    INVENTORY_MENU_GROUP_HEADGEAR,
+    INVENTORY_MENU_GROUP_GLOVES,
+    INVENTORY_MENU_GROUP_BOOTS,
+    INVENTORY_MENU_GROUP_LIGHTS,
+    INVENTORY_MENU_GROUP_STAVES,
+    INVENTORY_MENU_GROUP_HORNS,
+    INVENTORY_MENU_GROUP_DIGGING,
+    INVENTORY_MENU_GROUP_OTHER
+};
+
+#define INVENTORY_BROWSER_GROUP_COUNT ((int)N_ELEMENTS(inventory_browser_groups))
+
+static cptr inventory_browser_group_text(inventory_menu_group group)
+{
+    switch (group)
+    {
+    case INVENTORY_MENU_GROUP_ALL:
+        return "All inventory";
+    case INVENTORY_MENU_GROUP_RINGS:
+        return "Rings";
+    case INVENTORY_MENU_GROUP_AMULETS:
+        return "Amulets";
+    case INVENTORY_MENU_GROUP_WEAPONS:
+        return "Weapons";
+    case INVENTORY_MENU_GROUP_ARMOUR:
+        return "Armour";
+    case INVENTORY_MENU_GROUP_CLOAKS:
+        return "Cloaks/robes";
+    case INVENTORY_MENU_GROUP_SHIELDS:
+        return "Shields";
+    case INVENTORY_MENU_GROUP_HEADGEAR:
+        return "Headgear";
+    case INVENTORY_MENU_GROUP_GLOVES:
+        return "Gloves";
+    case INVENTORY_MENU_GROUP_BOOTS:
+        return "Boots";
+    case INVENTORY_MENU_GROUP_LIGHTS:
+        return "Lights/oil";
+    case INVENTORY_MENU_GROUP_STAVES:
+        return "Staves";
+    case INVENTORY_MENU_GROUP_HORNS:
+        return "Horns";
+    case INVENTORY_MENU_GROUP_DIGGING:
+        return "Digging";
+    case INVENTORY_MENU_GROUP_OTHER:
+        return "Other";
+    default:
+        return "";
+    }
+}
+
+static bool inventory_browser_object_matches_group(
+    inventory_menu_group group, const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    switch (group)
+    {
+    case INVENTORY_MENU_GROUP_RINGS:
+        return o_ptr->tval == TV_RING;
+    case INVENTORY_MENU_GROUP_AMULETS:
+        return o_ptr->tval == TV_AMULET;
+    case INVENTORY_MENU_GROUP_WEAPONS:
+        return o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW
+            || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_POLEARM
+            || o_ptr->tval == TV_SWORD
+            || player_can_treat_as_throwing(o_ptr);
+    case INVENTORY_MENU_GROUP_ARMOUR:
+        return o_ptr->tval == TV_MAIL
+            || (o_ptr->tval == TV_SOFT_ARMOR && o_ptr->sval != SV_ROBE);
+    case INVENTORY_MENU_GROUP_CLOAKS:
+        return o_ptr->tval == TV_CLOAK
+            || (o_ptr->tval == TV_SOFT_ARMOR && o_ptr->sval == SV_ROBE);
+    case INVENTORY_MENU_GROUP_SHIELDS:
+        return o_ptr->tval == TV_SHIELD;
+    case INVENTORY_MENU_GROUP_HEADGEAR:
+        return o_ptr->tval == TV_HELM || o_ptr->tval == TV_CROWN;
+    case INVENTORY_MENU_GROUP_GLOVES:
+        return o_ptr->tval == TV_GLOVES;
+    case INVENTORY_MENU_GROUP_BOOTS:
+        return o_ptr->tval == TV_BOOTS;
+    case INVENTORY_MENU_GROUP_LIGHTS:
+        return o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_FLASK
+            || player_oil_container_object(o_ptr);
+    case INVENTORY_MENU_GROUP_STAVES:
+        return o_ptr->tval == TV_STAFF;
+    case INVENTORY_MENU_GROUP_HORNS:
+        return o_ptr->tval == TV_HORN;
+    case INVENTORY_MENU_GROUP_DIGGING:
+        return o_ptr->tval == TV_DIGGING;
+    case INVENTORY_MENU_GROUP_OTHER:
+        for (int i = 1; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+        {
+            inventory_menu_group candidate = inventory_browser_groups[i];
+
+            if (candidate == INVENTORY_MENU_GROUP_OTHER)
+                continue;
+            if (inventory_browser_object_matches_group(candidate, o_ptr))
+                return false;
+        }
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool inventory_browser_equipped_slot_matches_group(
+    inventory_menu_group group, int slot)
+{
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL || !inventory[slot].k_idx)
+        return false;
+
+    return inventory_browser_object_matches_group(group, &inventory[slot]);
+}
+
+static int inventory_browser_group_width(void)
+{
+    int width = 0;
+
+    for (int i = 0; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+    {
+        int len = (int)strlen(
+            inventory_browser_group_text(inventory_browser_groups[i])) + 5;
+        if (len > width)
+            width = len;
+    }
+
+    return width + 2;
+}
+
+static bool inventory_browser_group_contains_limit(
+    inventory_menu_group group, enum inventory_limit_group limit_group)
+{
+    static const enum inventory_limit_group weapons[] = {
+        INV_LIMIT_MELEE_WEAPON,
+        INV_LIMIT_BOW,
+        INV_LIMIT_ARROW
+    };
+    static const enum inventory_limit_group armour[] = {
+        INV_LIMIT_SOFT_ARMOUR,
+        INV_LIMIT_MAIL
+    };
+    static const enum inventory_limit_group shields[] = {
+        INV_LIMIT_ROUND_SHIELD,
+        INV_LIMIT_OTHER_SHIELD
+    };
+    static const enum inventory_limit_group lights[] = {
+        INV_LIMIT_TORCHES,
+        INV_LIMIT_BRASS_LAMPS,
+        INV_LIMIT_LESSER_JEWEL
+    };
+    const enum inventory_limit_group* groups = NULL;
+    int count = 0;
+
+    switch (group)
+    {
+    case INVENTORY_MENU_GROUP_WEAPONS:
+        groups = weapons;
+        count = (int)N_ELEMENTS(weapons);
+        break;
+    case INVENTORY_MENU_GROUP_ARMOUR:
+        groups = armour;
+        count = (int)N_ELEMENTS(armour);
+        break;
+    case INVENTORY_MENU_GROUP_CLOAKS:
+        return limit_group == INV_LIMIT_CLOAK;
+    case INVENTORY_MENU_GROUP_SHIELDS:
+        groups = shields;
+        count = (int)N_ELEMENTS(shields);
+        break;
+    case INVENTORY_MENU_GROUP_HEADGEAR:
+        return limit_group == INV_LIMIT_HELM_CROWN;
+    case INVENTORY_MENU_GROUP_GLOVES:
+        return limit_group == INV_LIMIT_GLOVES;
+    case INVENTORY_MENU_GROUP_BOOTS:
+        return limit_group == INV_LIMIT_BOOTS;
+    case INVENTORY_MENU_GROUP_LIGHTS:
+        groups = lights;
+        count = (int)N_ELEMENTS(lights);
+        break;
+    case INVENTORY_MENU_GROUP_STAVES:
+        return limit_group == INV_LIMIT_STAFF;
+    case INVENTORY_MENU_GROUP_HORNS:
+        return limit_group == INV_LIMIT_HORN;
+    case INVENTORY_MENU_GROUP_DIGGING:
+        return limit_group == INV_LIMIT_DIGGING;
+    default:
+        return false;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        if (groups[i] == limit_group)
+            return true;
+    }
+
+    return false;
+}
+
+inventory_menu_group inventory_menu_group_for_limit_group(
+    enum inventory_limit_group limit_group)
+{
+    for (int i = 0; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+    {
+        inventory_menu_group group = inventory_browser_groups[i];
+
+        if (inventory_browser_group_contains_limit(group, limit_group))
+            return group;
+    }
+
+    return INVENTORY_MENU_GROUP_ALL;
+}
+
+static int inventory_browser_group_index(inventory_menu_group group)
+{
+    for (int i = 0; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+    {
+        if (inventory_browser_groups[i] == group)
+            return i;
+    }
+
+    return 0;
+}
+
+static void inventory_browser_group_limit_status(inventory_menu_group group,
+    char* buf, size_t buflen)
+{
+    bool first = true;
+
+    if (!buf || buflen == 0)
+        return;
+
+    buf[0] = '\0';
+
+    for (int i = INV_LIMIT_ARROW; i <= INV_LIMIT_FEANORIAN_LAMP; i++)
+    {
+        enum inventory_limit_group limit_group = (enum inventory_limit_group)i;
+        char part[48];
+        int limit;
+        int used;
+
+        if (!inventory_browser_group_contains_limit(group, limit_group))
+            continue;
+
+        limit = inventory_limit_limit_for_group(limit_group);
+        if (limit < 0)
+            continue;
+
+        used = inventory_limit_usage_for_group(limit_group);
+        strnfmt(part, sizeof(part), "%s%s %d/%d",
+            first ? "" : ", ", inventory_limit_group_name(limit_group),
+            used, limit);
+        SDL_strlcat(buf, part, buflen);
+        first = false;
+    }
+}
+
+static void inventory_browser_group_status(inventory_menu_group group,
+    int entry_cnt, char* buf, size_t buflen)
+{
+    char limits[160];
+
+    if (!buf || buflen == 0)
+        return;
+
+    if (group == INVENTORY_MENU_GROUP_ALL)
+    {
+        strnfmt(buf, buflen, "%d pack item%s. Pack slots %d/%d.",
+            entry_cnt, (entry_cnt == 1) ? "" : "s", p_ptr->inven_cnt,
+            INVEN_PACK);
+        return;
+    }
+
+    inventory_browser_group_limit_status(group, limits, sizeof(limits));
+    if (limits[0])
+    {
+        strnfmt(buf, buflen, "%s: %d choice%s. Limits: %s.",
+            inventory_browser_group_text(group), entry_cnt,
+            (entry_cnt == 1) ? "" : "s", limits);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%s: %d choice%s.",
+            inventory_browser_group_text(group), entry_cnt,
+            (entry_cnt == 1) ? "" : "s");
+    }
+}
+
+static int count_inventory_browser_group_entries(inventory_menu_group group)
+{
+    int count = 0;
+
+    if (group == INVENTORY_MENU_GROUP_ALL)
+    {
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            if (inventory[i].k_idx)
+                count++;
+        }
+        return count;
+    }
+
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        if (inventory_browser_equipped_slot_matches_group(group, i))
+            count++;
+    }
+
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        if (inventory_browser_object_matches_group(group, &inventory[i]))
+            count++;
+    }
+
+    return count;
+}
+
+static void compute_inventory_browser_group_totals(
+    int totals[INVENTORY_BROWSER_GROUP_COUNT])
+{
+    for (int i = 0; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+        totals[i] = count_inventory_browser_group_entries(
+            inventory_browser_groups[i]);
+}
+
+static void prepare_inventory_browser_group_icons(
+    supply_group_icon icons[INVENTORY_BROWSER_GROUP_COUNT])
+{
+    for (int group_idx = 0; group_idx < INVENTORY_BROWSER_GROUP_COUNT;
+         group_idx++)
+    {
+        inventory_menu_group group = inventory_browser_groups[group_idx];
+        object_type* icon_obj = &icons[group_idx].obj;
+
+        object_wipe(icon_obj);
+        icons[group_idx].has_icon = false;
+
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (!inventory_browser_equipped_slot_matches_group(group, i))
+                continue;
+
+            object_copy(icon_obj, &inventory[i]);
+            icons[group_idx].has_icon = true;
+            break;
+        }
+
+        if (icons[group_idx].has_icon)
+            continue;
+
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            if (!inventory_browser_object_matches_group(group, &inventory[i]))
+                continue;
+
+            object_copy(icon_obj, &inventory[i]);
+            icons[group_idx].has_icon = true;
+            break;
+        }
+    }
+}
+
+static void display_inventory_browser_group_list(int col, int row, int wid,
+    int selection_w, int per_page, int grp_cur, int grp_top,
+    const int totals[INVENTORY_BROWSER_GROUP_COUNT],
+    const supply_group_icon icons[INVENTORY_BROWSER_GROUP_COUNT], bool active)
+{
+    int total_col = col + wid - 3;
+    int text_col = col + (use_bigtile ? 2 : 1);
+    int text_w = total_col - text_col;
+    int erase_w = (selection_w > wid) ? selection_w : wid;
+
+    for (int i = 0; i < per_page; i++)
+    {
+        int grp_pos = grp_top + i;
+        inventory_menu_group group;
+        byte attr;
+        char buf[8];
+        bool selected;
+        bool highlighted;
+
+        Term_erase(col, row + i, erase_w);
+
+        if (grp_pos >= INVENTORY_BROWSER_GROUP_COUNT)
+            continue;
+
+        group = inventory_browser_groups[grp_pos];
+        selected = (grp_pos == grp_cur);
+        highlighted = selected && active;
+
+        if (highlighted)
+            attr = supply_browser_selected_attr(TERM_L_BLUE);
+        else if (selected)
+            attr = TERM_L_BLUE;
+        else if (totals[grp_pos] == 0)
+            attr = TERM_L_DARK;
+        else
+            attr = TERM_L_BLUE;
+
+        if (highlighted)
+            supply_browser_fill_row(col, row + i, selection_w, attr);
+        if (icons && icons[grp_pos].has_icon)
+        {
+            draw_supply_icon(col, row + i, &icons[grp_pos].obj);
+            if (active && grp_pos == grp_cur)
+                draw_supply_icon_frame(col, row + i, &icons[grp_pos].obj);
+        }
+
+        if (text_w > 0)
+            supply_put_fitted(text_col, row + i, text_w, attr,
+                inventory_browser_group_text(group));
+
+        strnfmt(buf, sizeof(buf), "%3d", totals[grp_pos]);
+        if (wid >= 3)
+            supply_put_fitted(total_col, row + i, 3, attr, buf);
+    }
+}
+
+static int inventory_browser_compare_slot_for_entry(inventory_menu_group group,
+    const equipment_list_entry* entry)
+{
+    object_type* o_ptr = equipment_entry_object(entry);
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return EQUIPMENT_MENU_ALL;
+
+    switch (group)
+    {
+    case INVENTORY_MENU_GROUP_RINGS:
+        return EQUIPMENT_MENU_RINGS;
+    case INVENTORY_MENU_GROUP_AMULETS:
+        return INVEN_NECK;
+    case INVENTORY_MENU_GROUP_ARMOUR:
+        return INVEN_BODY;
+    case INVENTORY_MENU_GROUP_CLOAKS:
+        return (o_ptr->tval == TV_SOFT_ARMOR && o_ptr->sval == SV_ROBE)
+            ? INVEN_BODY
+            : INVEN_OUTER;
+    case INVENTORY_MENU_GROUP_SHIELDS:
+        return INVEN_ARM;
+    case INVENTORY_MENU_GROUP_HEADGEAR:
+        return INVEN_HEAD;
+    case INVENTORY_MENU_GROUP_GLOVES:
+        return INVEN_HANDS;
+    case INVENTORY_MENU_GROUP_BOOTS:
+        return INVEN_FEET;
+    case INVENTORY_MENU_GROUP_LIGHTS:
+        return INVEN_LITE;
+    case INVENTORY_MENU_GROUP_STAVES:
+        return INVEN_STAFF;
+    case INVENTORY_MENU_GROUP_HORNS:
+        return INVEN_HORN;
+    case INVENTORY_MENU_GROUP_WEAPONS:
+    case INVENTORY_MENU_GROUP_DIGGING:
+        return wield_slot(o_ptr);
+    default:
+        return EQUIPMENT_MENU_ALL;
+    }
+}
+
+static int collect_inventory_page_entries(inventory_menu_group group,
+    equipment_list_entry entries[], int capacity)
 {
     int count = 0;
 
@@ -35417,10 +36092,28 @@ static int collect_inventory_page_entries(equipment_list_entry entries[],
     for (int i = 0; i < capacity; i++)
         equipment_entry_clear(&entries[i]);
 
+    if (group != INVENTORY_MENU_GROUP_ALL)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL && count < capacity; i++)
+        {
+            if (inventory_browser_equipped_slot_matches_group(group, i))
+            {
+                equipment_add_entry(entries, &count, capacity, -1, -1, i,
+                    true);
+            }
+        }
+    }
+
     for (int i = 0; i < INVEN_PACK && count < capacity; i++)
     {
         if (!inventory[i].k_idx)
             continue;
+
+        if (group != INVENTORY_MENU_GROUP_ALL
+            && !inventory_browser_object_matches_group(group, &inventory[i]))
+        {
+            continue;
+        }
 
         equipment_add_entry(entries, &count, capacity, i, -1, -1, false);
     }
@@ -35430,20 +36123,42 @@ static int collect_inventory_page_entries(equipment_list_entry entries[],
 
 static bool inventory_page_use_entry(equipment_list_entry* entry)
 {
-    if (!entry || entry->item_idx < 0 || entry->item_idx >= INVEN_PACK)
+    if (!entry)
         return false;
 
-    do_cmd_use_item_by_index(entry->item_idx);
-    return true;
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        do_cmd_use_item_by_index(entry->equip_idx);
+        return true;
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        do_cmd_use_item_by_index(entry->item_idx);
+        return true;
+    }
+
+    return false;
 }
 
 static bool inventory_page_drop_entry(equipment_list_entry* entry)
 {
-    if (!entry || entry->item_idx < 0 || entry->item_idx >= INVEN_PACK)
+    if (!entry)
         return false;
 
-    do_cmd_drop_item_by_index(entry->item_idx);
-    return true;
+    if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
+    {
+        do_cmd_drop_item_by_index(entry->equip_idx);
+        return true;
+    }
+
+    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    {
+        do_cmd_drop_item_by_index(entry->item_idx);
+        return true;
+    }
+
+    return false;
 }
 
 /*
@@ -38324,8 +39039,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     int equip_entry_cur = 0;
     int equip_entry_top = 0;
     int equip_column = 0;
+    int inv_grp_cur = 0;
+    int inv_grp_top = 0;
     int inv_entry_cur = 0;
     int inv_entry_top = 0;
+    int inv_column = 0;
     supply_menu_page page = SUPPLY_MENU_PAGE_SUPPLIES;
     int column = 0;
     bool flag = false;
@@ -38354,6 +39072,14 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             page = SUPPLY_MENU_PAGE_SUPPLIES;
         if (request->focus_group && request->group >= 0 && request->group < SUPPLY_GROUP_MAX)
             grp_cur = request->group;
+        if (request->focus_inventory_group
+            && request->inventory_group >= INVENTORY_MENU_GROUP_ALL
+            && request->inventory_group < INVENTORY_MENU_GROUP_MAX)
+        {
+            page = SUPPLY_MENU_PAGE_INVENTORY;
+            inv_grp_cur = inventory_browser_group_index(
+                request->inventory_group);
+        }
         if (forced_action != SUPPLY_MENU_ACTION_NONE)
             column = 1;
         if (forced_action == SUPPLY_MENU_ACTION_DROP)
@@ -38369,6 +39095,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     }
     grp_idx[grp_cnt] = -1;
     max += 2;
+    int inv_max = inventory_browser_group_width();
 
     choose_supply_group_icon_kinds(group_icon_kinds);
 
@@ -38758,22 +39485,35 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         if (page == SUPPLY_MENU_PAGE_INVENTORY)
         {
             int inventory_entry_cnt;
+            int inventory_totals[INVENTORY_BROWSER_GROUP_COUNT];
+            supply_group_icon inventory_icons[INVENTORY_BROWSER_GROUP_COUNT];
             knowledge_browser_layout layout;
+            inventory_menu_group selected_group;
             int entry_page_rows;
-            char status_buf[120];
+            char status_buf[180];
 
-            knowledge_init_layout(&layout, 0, false);
+            prepare_inventory_browser_group_icons(inventory_icons);
+            compute_inventory_browser_group_totals(inventory_totals);
+            knowledge_init_layout(&layout, inv_max, true);
             entry_page_rows = layout.list_rows;
             if (entry_page_rows < 1)
                 entry_page_rows = 1;
 
-            inventory_entry_cnt = collect_inventory_page_entries(equip_entries,
-                equip_capacity);
+            if (inv_grp_cur >= INVENTORY_BROWSER_GROUP_COUNT)
+                inv_grp_cur = INVENTORY_BROWSER_GROUP_COUNT - 1;
+            if (inv_grp_cur < 0)
+                inv_grp_cur = 0;
+
+            selected_group = inventory_browser_groups[inv_grp_cur];
+            inventory_entry_cnt = collect_inventory_page_entries(selected_group,
+                equip_entries, equip_capacity);
 
             if (inventory_entry_cnt == 0)
             {
                 inv_entry_cur = 0;
                 inv_entry_top = 0;
+                if (inv_column)
+                    inv_column = 0;
             }
             else
             {
@@ -38789,6 +39529,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     inv_entry_top = 0;
             }
 
+            if (inv_grp_cur < inv_grp_top)
+                inv_grp_top = inv_grp_cur;
+            if (inv_grp_cur >= inv_grp_top + layout.list_rows)
+                inv_grp_top = inv_grp_cur - layout.list_rows + 1;
+            if (inv_grp_top < 0)
+                inv_grp_top = 0;
+
             (void)Term_set_extra_cursor(false, 0, 0, false);
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
@@ -38799,19 +39546,56 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             supply_draw_page_header(&layout, page,
                 supply_browser_hover_page(), "Inventory");
             Term_putstr(0, layout.tabs_row, layout.term_wid, TERM_SLATE,
-                "Items carried in your pack");
+                "Inventory categories, equipped matches, and pack limits");
             Term_erase(0, layout.header_row, 255);
+            Term_putstr(0, layout.header_row, layout.group_w, TERM_SLATE,
+                "Category");
             Term_putstr(layout.list_col, layout.header_row, layout.list_w,
-                TERM_SLATE, "Item");
+                TERM_SLATE, inventory_browser_group_text(selected_group));
+            if (selected_group != INVENTORY_MENU_GROUP_ALL
+                && layout.term_wid >= 64)
+            {
+                Term_putstr(layout.term_wid - 10, layout.header_row, 10,
+                    TERM_SLATE, "Where");
+            }
 
             for (i = 0; i < layout.term_wid; i++)
                 Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
+            for (i = 0; i < layout.list_rows; i++)
+                Term_putch(layout.divider_col, layout.list_row + i,
+                    TERM_L_DARK, '|');
 
             supply_register_page_tabs(&layout);
 
+            {
+                int group_selection_w = layout.group_w;
+
+                if (layout.divider_col > layout.group_col)
+                    group_selection_w = layout.divider_col - layout.group_col;
+
+                display_inventory_browser_group_list(layout.group_col,
+                    layout.list_row, layout.group_w, group_selection_w,
+                    layout.list_rows, inv_grp_cur, inv_grp_top,
+                    inventory_totals, inventory_icons, inv_column == 0);
+            }
+
+            for (i = 0; i < layout.list_rows; i++)
+            {
+                int grp_pos = inv_grp_top + i;
+                if (grp_pos >= INVENTORY_BROWSER_GROUP_COUNT)
+                    break;
+
+                ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
+                    layout.group_col, layout.list_row + i,
+                    (layout.divider_col > layout.group_col)
+                        ? (layout.divider_col - layout.group_col)
+                        : layout.group_w);
+            }
+
             display_equipment_slot_entries(&layout, layout.list_row,
                 layout.list_rows, equip_entries, inventory_entry_cnt,
-                inv_entry_cur, inv_entry_top, 1, false);
+                inv_entry_cur, inv_entry_top, inv_column,
+                selected_group != INVENTORY_MENU_GROUP_ALL);
 
             for (i = 0; i < entry_page_rows; i++)
             {
@@ -38823,8 +39607,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     layout.list_col, layout.list_row + i, layout.list_w);
             }
 
-            strnfmt(status_buf, sizeof(status_buf), "%d pack item%s.",
-                inventory_entry_cnt, (inventory_entry_cnt == 1) ? "" : "s");
+            inventory_browser_group_status(selected_group, inventory_entry_cnt,
+                status_buf, sizeof(status_buf));
             if (layout.status_row != layout.prompt_row)
             {
                 Term_erase(0, layout.status_row, 255);
@@ -38877,11 +39661,15 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         TERM_YELLOW);
             }
 
-            if (inventory_entry_cnt)
+            if (!inv_column)
+                Term_gotoxy(layout.group_col,
+                    layout.list_row + (inv_grp_cur - inv_grp_top));
+            else if (inventory_entry_cnt)
                 Term_gotoxy(layout.list_col,
                     layout.list_row + (inv_entry_cur - inv_entry_top));
             else
-                Term_gotoxy(layout.list_col, layout.list_row);
+                Term_gotoxy(layout.group_col,
+                    layout.list_row + (inv_grp_cur - inv_grp_top));
 
             char ch = inkey();
             {
@@ -38920,10 +39708,28 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             && clicked_entry < inventory_entry_cnt)
                         {
                             inv_entry_cur = clicked_entry;
+                            inv_column = 1;
                             if (click_action == UI_MENU_CLICK_HOVER)
                                 continue;
                             ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
                                 : (drop_click_mode ? 'd' : 'u');
+                        }
+                    }
+                    else if (clicked_choice >= SUPPLY_CLICK_GROUP_BASE)
+                    {
+                        int clicked_group = clicked_choice
+                            - SUPPLY_CLICK_GROUP_BASE;
+
+                        if (clicked_group >= 0
+                            && clicked_group < INVENTORY_BROWSER_GROUP_COUNT)
+                        {
+                            inv_grp_cur = clicked_group;
+                            inv_entry_cur = 0;
+                            inv_entry_top = 0;
+                            inv_column = 0;
+                            if (click_action == UI_MENU_CLICK_HOVER)
+                                continue;
+                            continue;
                         }
                     }
                     else
@@ -38990,17 +39796,30 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #ifdef ARROW_RIGHT
             case ARROW_RIGHT:
 #endif
-                if (inventory_entry_cnt)
+                if (!inv_column && inventory_entry_cnt)
+                {
+                    inv_column = 1;
+                }
+                else if (inv_column && inventory_entry_cnt)
                 {
                     (void)equipment_menu_recall_entry(
-                        &equip_entries[inv_entry_cur], EQUIPMENT_MENU_ALL);
+                        &equip_entries[inv_entry_cur],
+                        selected_group == INVENTORY_MENU_GROUP_ALL
+                            ? EQUIPMENT_MENU_ALL
+                            : inventory_browser_compare_slot_for_entry(
+                                  selected_group,
+                                  &equip_entries[inv_entry_cur]));
                 }
                 break;
 
             case 'u':
             case 'U':
             case ' ':
-                if (inventory_entry_cnt)
+                if (!inv_column && inventory_entry_cnt)
+                {
+                    inv_column = 1;
+                }
+                else if (inv_column && inventory_entry_cnt)
                 {
                     if (death_spectator_active())
                     {
@@ -39019,7 +39838,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             case 'd':
             case 'D':
-                if (inventory_entry_cnt)
+                if (!inv_column && inventory_entry_cnt)
+                {
+                    inv_column = 1;
+                }
+                else if (inv_column && inventory_entry_cnt)
                 {
                     if (death_spectator_active())
                     {
@@ -39037,23 +39860,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 break;
 
             default:
-            {
-                int d = target_dir(ch);
-                int page_jump = (entry_page_rows > 0)
-                    ? entry_page_rows
-                    : BROWSER_ROWS;
-
-                if (!d || inventory_entry_cnt <= 0)
-                    break;
-
-                if ((ddx[d] > 0) && ddy[d])
-                    inv_entry_cur = browser_move_index(inv_entry_cur,
-                        inventory_entry_cnt, ddy[d] * page_jump, true);
-                else if (ddy[d])
-                    inv_entry_cur = browser_move_index(inv_entry_cur,
-                        inventory_entry_cnt, ddy[d], true);
+                browser_cursor_with_rows(ch, &inv_column, &inv_grp_cur,
+                    INVENTORY_BROWSER_GROUP_COUNT, &inv_entry_cur,
+                    inventory_entry_cnt, entry_page_rows, true);
                 break;
-            }
             }
             continue;
         }

@@ -46,6 +46,26 @@ typedef enum supply_menu_page
     SUPPLY_MENU_PAGE_SUPPLIES
 } supply_menu_page;
 
+typedef enum inventory_menu_group
+{
+    INVENTORY_MENU_GROUP_ALL = 0,
+    INVENTORY_MENU_GROUP_RINGS,
+    INVENTORY_MENU_GROUP_AMULETS,
+    INVENTORY_MENU_GROUP_WEAPONS,
+    INVENTORY_MENU_GROUP_ARMOUR,
+    INVENTORY_MENU_GROUP_CLOAKS,
+    INVENTORY_MENU_GROUP_SHIELDS,
+    INVENTORY_MENU_GROUP_HEADGEAR,
+    INVENTORY_MENU_GROUP_GLOVES,
+    INVENTORY_MENU_GROUP_BOOTS,
+    INVENTORY_MENU_GROUP_LIGHTS,
+    INVENTORY_MENU_GROUP_STAVES,
+    INVENTORY_MENU_GROUP_HORNS,
+    INVENTORY_MENU_GROUP_DIGGING,
+    INVENTORY_MENU_GROUP_OTHER,
+    INVENTORY_MENU_GROUP_MAX
+} inventory_menu_group;
+
 typedef struct supply_menu_request
 {
     bool focus_group;          /* jump to specific group */
@@ -54,6 +74,8 @@ typedef struct supply_menu_request
     bool hotkey_mode;          /* close menu after first action */
     bool focus_page;           /* jump to a specific browser page */
     supply_menu_page page;     /* initial page when focus_page is true */
+    bool focus_inventory_group; /* jump to a specific inventory browser group */
+    inventory_menu_group inventory_group;
 } supply_menu_request;
 
 void supplies_init(void);

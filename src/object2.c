@@ -14,30 +14,6 @@
 #include "supplies.h"
 #include <limits.h>
 
-enum inventory_limit_group
-{
-    INV_LIMIT_NONE = 0,
-    INV_LIMIT_ARROW,
-    INV_LIMIT_BOW,
-    INV_LIMIT_STAFF,
-    INV_LIMIT_HORN,
-    INV_LIMIT_DIGGING,
-    INV_LIMIT_BOOTS,
-    INV_LIMIT_GLOVES,
-    INV_LIMIT_HELM_CROWN,
-    INV_LIMIT_ROUND_SHIELD,
-    INV_LIMIT_OTHER_SHIELD,
-    INV_LIMIT_CLOAK,
-    INV_LIMIT_SOFT_ARMOUR,
-    INV_LIMIT_MAIL,
-    INV_LIMIT_MELEE_WEAPON,
-    INV_LIMIT_SUPPLY_WEIGHT,
-    INV_LIMIT_TORCHES,
-    INV_LIMIT_BRASS_LAMPS,
-    INV_LIMIT_LESSER_JEWEL,
-    INV_LIMIT_FEANORIAN_LAMP
-};
-
 static bool carry_limit_last_failed = false;
 static enum inventory_limit_group carry_limit_last_group = INV_LIMIT_NONE;
 static int carry_limit_last_limit = 0;
@@ -6986,6 +6962,205 @@ bool inven_carry_limit_is_supply_weight(void)
 {
     return carry_limit_last_failed
         && (carry_limit_last_group == INV_LIMIT_SUPPLY_WEIGHT);
+}
+
+enum inventory_limit_group inventory_limit_group_for_object(
+    const object_type* o_ptr)
+{
+    enum inventory_limit_group group;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return INV_LIMIT_NONE;
+
+    if (o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_FLASK
+        || player_oil_container_object(o_ptr))
+    {
+        group = light_limit_group(o_ptr);
+        if (group != INV_LIMIT_NONE)
+            return group;
+    }
+
+    if (get_inventory_limit_info(o_ptr, &group, NULL, NULL))
+        return group;
+
+    return INV_LIMIT_NONE;
+}
+
+bool inventory_limit_info_for_object(const object_type* o_ptr,
+    enum inventory_limit_group* group, int* limit, int* cost)
+{
+    enum inventory_limit_group local_group;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    local_group = inventory_limit_group_for_object(o_ptr);
+    if (local_group == INV_LIMIT_NONE)
+        return false;
+
+    if (group)
+        *group = local_group;
+
+    if (local_group == INV_LIMIT_TORCHES
+        || local_group == INV_LIMIT_BRASS_LAMPS
+        || local_group == INV_LIMIT_LESSER_JEWEL
+        || local_group == INV_LIMIT_FEANORIAN_LAMP)
+    {
+        if (limit)
+            *limit = player_light_carry_cap(o_ptr);
+        if (cost)
+            *cost = player_oil_container_object(o_ptr)
+                ? player_oil_container_slot_cost(o_ptr)
+                : 1;
+        return true;
+    }
+
+    return get_inventory_limit_info(o_ptr, NULL, limit, cost);
+}
+
+int inventory_limit_usage_for_group(enum inventory_limit_group group)
+{
+    int usage = 0;
+
+    if (group == INV_LIMIT_NONE)
+        return 0;
+
+    if (group >= INV_LIMIT_ARROW && group <= INV_LIMIT_MELEE_WEAPON)
+        return inventory_limit_usage(group);
+
+    if (group == INV_LIMIT_BRASS_LAMPS)
+        return player_oil_container_slots_used();
+
+    for (int i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        enum inventory_limit_group object_group;
+        int cost;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_group = inventory_limit_group_for_object(o_ptr);
+        if (object_group != group)
+            continue;
+
+        if (!inventory_limit_info_for_object(o_ptr, NULL, NULL, &cost))
+            cost = 1;
+
+        usage += cost * MAX(o_ptr->number, 1);
+    }
+
+    return usage;
+}
+
+int inventory_limit_limit_for_group(enum inventory_limit_group group)
+{
+    int limit;
+
+    switch (group)
+    {
+    case INV_LIMIT_ARROW:
+        return 2;
+    case INV_LIMIT_BOW:
+        return 1;
+    case INV_LIMIT_STAFF:
+        return 1;
+    case INV_LIMIT_HORN:
+        return 2;
+    case INV_LIMIT_DIGGING:
+        return 1;
+    case INV_LIMIT_BOOTS:
+        return 2;
+    case INV_LIMIT_GLOVES:
+        return 2;
+    case INV_LIMIT_HELM_CROWN:
+        limit = 1;
+        break;
+    case INV_LIMIT_ROUND_SHIELD:
+        limit = 1;
+        break;
+    case INV_LIMIT_OTHER_SHIELD:
+        limit = 0;
+        break;
+    case INV_LIMIT_CLOAK:
+        return 3;
+    case INV_LIMIT_SOFT_ARMOUR:
+        return 1;
+    case INV_LIMIT_MAIL:
+        limit = 0;
+        break;
+    case INV_LIMIT_MELEE_WEAPON:
+        return 2;
+    case INV_LIMIT_SUPPLY_WEIGHT:
+        return supplies_current_weight_cap() / 10;
+    case INV_LIMIT_TORCHES:
+        return PLAYER_TORCH_CAP;
+    case INV_LIMIT_BRASS_LAMPS:
+        return PLAYER_OIL_CONTAINER_SLOT_CAP;
+    case INV_LIMIT_LESSER_JEWEL:
+    case INV_LIMIT_FEANORIAN_LAMP:
+        return PLAYER_PERMANENT_LIGHT_CAP;
+    default:
+        return -1;
+    }
+
+    if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR])
+        limit += 1;
+
+    return limit;
+}
+
+bool inventory_limit_object_matches_group(
+    enum inventory_limit_group group, const object_type* o_ptr)
+{
+    return group != INV_LIMIT_NONE
+        && inventory_limit_group_for_object(o_ptr) == group;
+}
+
+cptr inventory_limit_group_name(enum inventory_limit_group group)
+{
+    switch (group)
+    {
+    case INV_LIMIT_ARROW:
+        return "arrow stacks";
+    case INV_LIMIT_BOW:
+        return "bows";
+    case INV_LIMIT_STAFF:
+        return "walking staves";
+    case INV_LIMIT_HORN:
+        return "horns";
+    case INV_LIMIT_DIGGING:
+        return "digging tools";
+    case INV_LIMIT_BOOTS:
+        return "boots";
+    case INV_LIMIT_GLOVES:
+        return "gloves";
+    case INV_LIMIT_HELM_CROWN:
+        return "helms/crowns";
+    case INV_LIMIT_ROUND_SHIELD:
+        return "round shields";
+    case INV_LIMIT_OTHER_SHIELD:
+        return "other shields";
+    case INV_LIMIT_CLOAK:
+        return "cloaks/robes";
+    case INV_LIMIT_SOFT_ARMOUR:
+        return "soft armour";
+    case INV_LIMIT_MAIL:
+        return "mail armour";
+    case INV_LIMIT_MELEE_WEAPON:
+        return "melee weapons";
+    case INV_LIMIT_SUPPLY_WEIGHT:
+        return "supply weight";
+    case INV_LIMIT_TORCHES:
+        return "torches";
+    case INV_LIMIT_BRASS_LAMPS:
+        return "oil slots";
+    case INV_LIMIT_LESSER_JEWEL:
+    case INV_LIMIT_FEANORIAN_LAMP:
+        return "permanent lights";
+    default:
+        return "";
+    }
 }
 
 /*

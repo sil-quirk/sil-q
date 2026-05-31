@@ -234,6 +234,22 @@ struct birth_menu
     cptr text;
 };
 
+/*
+ * Optional book/story framing for a selection screen (the race page).  When
+ * intro is non-NULL the SDL screen renders in "book mode": a framing line
+ * above and below the chronicle (accent colour), the chronicle itself (white),
+ * a grouped selectable list, and the highlighted choice's lore -- no stats,
+ * no pop-ups.  All fields may be NULL for a plain list+detail screen.
+ */
+typedef struct birth_select_page
+{
+    cptr title;            /* screen title */
+    cptr frame_top;        /* book mode: framing line above the chronicle */
+    cptr intro;            /* book mode: chronicle text (non-NULL enables book) */
+    cptr frame_bottom;     /* book mode: framing/charge line below the chronicle */
+    cptr* group_headings;  /* optional heading shown before choice[i] */
+} birth_select_page;
+
 #define BIRTH_DETAIL_HOVER_CLICK_BASE 16000
 #define BIRTH_DETAIL_HOVER_MAX 96
 
@@ -1924,7 +1940,8 @@ static void birth_fill_selected_row(int col, int row, int width, byte attr)
  * Generic "get choice from menu" function
  */
 static int get_player_choice(birth_menu* choices, int num, int def, int col,
-    int wid, void (*hook)(birth_menu), bool allow_full_description_screen)
+    int wid, void (*hook)(birth_menu), bool allow_full_description_screen,
+    const birth_select_page* page)
 {
     enum {
         BIRTH_CHOICE_CLICK_BACK = -1,
@@ -1939,6 +1956,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     bool done = false;
     bool show_description;
     bool compact_flags;
+    bool sdl_select = false;
     int prompt_row;
     int hgt;
     byte attr;
@@ -1978,6 +1996,74 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         ui_menu_click_set_hover_enabled(true);
         birth_detail_hover_reset();
 
+        /*
+         * Pixel-semantic path: drive the SDL selection screen instead of the
+         * terminal grid.  With select_intro set this is the book-mode race page
+         * (intro text + grouped selectable list + lore, no detail/pop-ups);
+         * otherwise it is the character page (list + detail + lore).  The
+         * keyboard/click state machine below is shared; only the drawing differs.
+         */
+        sdl_select = sdl_character_sheet_screen_begin_select(cur,
+            (page && page->title) ? page->title : "");
+        if (sdl_select)
+        {
+            bool book = (page && page->intro != NULL);
+            cptr* group_headings = page ? page->group_headings : NULL;
+
+            if (book)
+            {
+                sdl_character_sheet_screen_set_select_intro(page->intro);
+                sdl_character_sheet_screen_set_select_frame(page->frame_top,
+                    page->frame_bottom);
+            }
+
+            for (i = 0; i < num; i++)
+            {
+                byte rattr = choices[i].ghost ? TERM_SLATE : TERM_WHITE;
+                char label[256];
+
+                if (book && group_headings && group_headings[i])
+                    sdl_character_sheet_screen_add_select_heading(
+                        group_headings[i]);
+
+                if (choices[i].ghost)
+                    strnfmt(label, sizeof(label), "X %s", choices[i].name);
+                else
+                    strnfmt(label, sizeof(label), "%s", choices[i].name);
+                /* No per-row hover tooltip: the focused choice's text is
+                 * already shown in the description area below. */
+                sdl_character_sheet_screen_add_select_row(i, label, rattr, "");
+            }
+            if (hook)
+                hook(choices[cur]);
+            sdl_character_sheet_screen_set_select_description(
+                choices[cur].text ? choices[cur].text : "");
+
+            /* Size the description area for the LONGEST choice text so the
+             * layout does not reflow as the highlight moves between choices. */
+            {
+                cptr longest = "";
+                size_t longest_len = 0;
+                int j;
+
+                for (j = 0; j < num; j++)
+                {
+                    cptr t = choices[j].text ? choices[j].text : "";
+                    size_t l = strlen(t);
+
+                    if (l > longest_len)
+                    {
+                        longest_len = l;
+                        longest = t;
+                    }
+                }
+                sdl_character_sheet_screen_set_select_size_hint(longest);
+            }
+            sdl_character_sheet_screen_commit_select(cur);
+        }
+
+      if (!sdl_select)
+      {
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
@@ -2095,6 +2181,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         last_list_rows_drawn = list_rows_drawn;
         last_description_row = description_row;
+      }  /* if (!sdl_select) -- terminal list/description drawing */
 
         if (done)
         {
@@ -2102,7 +2189,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             return (cur);
         }
 
-        if (Term->hgt > 0)
+        if (!sdl_select && Term->hgt > 0)
         {
             prompt_row = birth_prompt_row();
             Term_erase(0, prompt_row, 255);
@@ -2157,7 +2244,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 QUESTION_COL, prompt_row, prompt, "random");
         }
 
-        if (allow_full_description_screen)
+        if (!sdl_select && allow_full_description_screen)
         {
             int term_wid = 80;
             int term_hgt = 24;
@@ -2172,7 +2259,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         }
 
         /* Move the cursor */
-        put_str("", TABLE_ROW + cur - top, col);
+        if (!sdl_select)
+            put_str("", TABLE_ROW + cur - top, col);
 
         hide_cursor = true;
         c = inkey();
@@ -3273,6 +3361,193 @@ if (!compact_layout)
 }
 
 /*
+ * Peoples grouping for the race-selection screen (the "book page").
+ *
+ * The three Noldorin lineages (separate p_info races sharing the Noldorin
+ * stats but with different affinities) are grouped under a Noldor heading;
+ * the other peoples follow.  All are directly selectable and each maps to a
+ * concrete p_info[] race that ends up in p_ptr->prace.
+ *
+ * Race indices match lib/edit/race.txt:
+ *   0 Feanorians  1 Fingolfinrim  2 Finarfinrim  3 Sindar  4 Naugrim  5 Edain
+ * A runtime check (birth_peoples_validate) guards against a future reorder.
+ */
+typedef struct birth_people {
+    cptr name;
+    int races[3];
+    int race_count;
+    cptr lore;
+} birth_people;
+
+/*
+ * Race-screen text, in three voices.  birth_frame_top and birth_frame_bottom
+ * are the second-person "trial" frame (rendered in an accent colour) that ties
+ * the choice to the metarun storyline from print_story_intro -- a nameless
+ * spirit who borrows the names of the dead to descend into Angband.  Between
+ * them, birth_intro_lore is the chronicle of the war (rendered in white).
+ * Blank lines (\n\n) separate paragraphs.
+ */
+static const char birth_frame_top[] =
+    "You wake again in the dark, nameless and unremembered \xe2\x80\x94 a "
+    "spirit set by the Valar to their long trial: to live the War of the "
+    "Jewels once more, in a shape that is not your own.";
+
+static const char birth_intro_lore[] =
+    "In the Elder Days, when the Two Trees of Valinor were slain and their "
+    "light failed, Morgoth the great Enemy stole the Silmarils \xe2\x80\x94 the "
+    "three holy jewels wrought by F\xc3\xab" "anor, in which that light yet lived "
+    "\xe2\x80\x94 and fled north to Angband, his fortress of iron beneath the "
+    "triple peaks of Thangorodrim. There he set the Jewels in an iron crown "
+    "and sat enthroned in darkness, walled about by orcs, balrogs, and "
+    "dragons.\n\n"
+    "For the Silmarils F\xc3\xab" "anor swore his terrible Oath, and the Noldor "
+    "forsook the Blessed Realm and came in exile to Beleriand to make war upon "
+    "the Enemy. They raised proud kingdoms and held Angband under siege "
+    "through long years \xe2\x80\x94 yet their valour was ever shadowed by the "
+    "Kinslaying at Alqualond\xc3\xab and the Doom of Mandos that followed "
+    "them.\n\n"
+    "They did not fight alone. The Sindar, Grey-elves who dwelt beneath the "
+    "stars of Beleriand long before the Noldor came, took up arms in the Elven "
+    "realms and at the Havens of the Falas \xe2\x80\x94 though hidden Doriath, "
+    "girdled by the power of Melian, held apart behind its enchanted bounds. "
+    "The Naugrim, Dwarves of the Blue Mountains, forged matchless mail and "
+    "axes and marched to the great battles. And the Edain, the first Men over "
+    "the mountains, swore friendship to the Eldar and spent their brief, "
+    "valiant lives in the war, winning undying renown.";
+
+static const char birth_frame_bottom[] =
+    "Choose now whose name you will wear \xe2\x80\x94 whose courage, whose "
+    "grief, whose doom you carry down into Angband. Each Silmaril wrested from "
+    "the iron crown brightens the Valar's hope, though your spirit thins; and "
+    "in the borrowed glory of another you may, at last, remember your own "
+    "forgotten name.";
+
+static const birth_people birth_peoples[] = {
+    { "Noldor", { 0, 1, 2 }, 3,
+        "The Noldor are the High Elves of the West, deep in lore and craft, "
+        "who dwelt in the light of Valinor. For love of the stolen Silmarils "
+        "-- and, for some, bound by the dreadful Oath of Feanor -- they "
+        "returned to Middle-earth in exile to make war upon Morgoth. Proud, "
+        "mighty, and gifted, they raised shining kingdoms and forged wondrous "
+        "things, yet a doom of sorrow and kinstrife shadows their valour. "
+        "Their lineages descend from three lords: Feanor, Fingolfin, and "
+        "Finarfin." },
+    { "Sindar", { 3 }, 1,
+        "The Sindar are the Grey-elves of Beleriand, kindred of the Eldar who "
+        "never crossed the Sea but lingered under the stars of Middle-earth. "
+        "Masters of song, woodcraft, and secret ways, they ruled the woven "
+        "realm of Doriath and the havens of the Falas. Theirs is a quieter "
+        "wisdom than the Noldor's, deep-rooted and enduring, though wars not "
+        "of their making press hard upon their twilight land." },
+    { "Naugrim", { 4 }, 1,
+        "The Naugrim, the Dwarves, are the hardy smith-folk who dwell in "
+        "halls of stone beneath the mountains. Strong and stubborn, secretive "
+        "yet steadfast, they are unmatched in the working of metal and gem. "
+        "Their axes are feared and their mail is peerless; greed and grievance "
+        "can stir them, but a Dwarf-friend has no truer ally in the long war "
+        "against the Shadow." },
+    { "Edain", { 5 }, 1,
+        "The Edain are the Men of the Three Houses, mortal and short-lived, "
+        "who came over the mountains into Beleriand and allied themselves with "
+        "the Eldar against Morgoth. Brief their years, but bright their "
+        "valour; their deeds outrun their span and live on in song. Bound to "
+        "the Elves by love and sorrow, they carry hope into the dark beyond "
+        "the reach of the Eldar's fading." },
+};
+#define BIRTH_PEOPLE_COUNT ((int)N_ELEMENTS(birth_peoples))
+
+/*
+ * Verify the hardcoded race indices still match race.txt by name.  Returns
+ * true when sane; logs and returns false if the data has been reordered.
+ */
+static bool birth_peoples_validate(void)
+{
+    for (int p = 0; p < BIRTH_PEOPLE_COUNT; p++)
+    {
+        for (int r = 0; r < birth_peoples[p].race_count; r++)
+        {
+            int race = birth_peoples[p].races[r];
+
+            if (race < 0 || race >= z_info->p_max)
+                return false;
+        }
+    }
+    return true;
+}
+
+/*
+ * Emit the detail-panel lines (stat adjustments, then affinities/traits) for a
+ * race (and optionally a character) to the SDL selection screen.  Pass
+ * character < 0 for race/lineage screens (uses the Houseless baseline so only
+ * racial affinities show); affinities_vary suppresses the affinity list for
+ * the multi-lineage Noldor people, where it differs per lineage.
+ */
+static void birth_select_emit_detail(int race, int character, bool affinities_vary)
+{
+    char line[128];
+    char hint[256];
+    int i;
+
+    if (race < 0 || race >= z_info->p_max)
+        return;
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        char name[32];
+        int len;
+        int adj;
+        byte attr;
+
+        SDL_strlcpy(name, stat_names[i] ? stat_names[i] : "", sizeof(name));
+        len = (int)strlen(name);
+        while (len > 0 && name[len - 1] == ' ')
+            name[--len] = '\0';
+
+        if (character >= 0)
+            adj = c_info[character].h_adj[i] + p_info[race].r_adj[i]
+                + curses_stat_adj(i);
+        else
+            adj = p_info[race].r_adj[i];
+
+        if (adj < 0)            attr = TERM_RED;
+        else if (adj == 0)      attr = TERM_L_DARK;
+        else if (adj == 1)      attr = TERM_GREEN;
+        else if (adj == 2)      attr = TERM_L_GREEN;
+        else                    attr = TERM_L_BLUE;
+
+        strnfmt(line, sizeof(line), "%s\t%+d", name, adj);
+        hint[0] = '\0';
+        character_sheet_format_stat_hint(i, adj, true, hint, sizeof(hint));
+        sdl_character_sheet_screen_add_select_detail(line, attr, hint);
+    }
+
+    if (affinities_vary)
+    {
+        sdl_character_sheet_screen_add_select_detail(
+            "Affinities vary by lineage", TERM_SLATE,
+            "Each Noldorin lineage has its own skill affinities; choose a "
+            "lineage to see them.");
+        return;
+    }
+
+    {
+        birth_compact_flag_line traits[48];
+        int n = collect_character_trait_lines(race,
+            (character >= 0) ? character : 0, false, traits,
+            (int)N_ELEMENTS(traits), NULL);
+
+        for (i = 0; i < n; i++)
+            if (traits[i].txt && traits[i].txt[0])
+            {
+                hint[0] = '\0';
+                birth_format_trait_hint(&traits[i], hint, sizeof(hint));
+                sdl_character_sheet_screen_add_select_detail(traits[i].txt,
+                    traits[i].attr, hint);
+            }
+    }
+}
+
+/*
  * Display additional information about each race during the selection.
  */
 static void race_aux_hook(birth_menu r_str)
@@ -3290,6 +3565,14 @@ static void race_aux_hook(birth_menu r_str)
 
     if (race == z_info->p_max)
         return;
+
+    /* Pixel-semantic selection screen: feed the detail panel and stop (no
+     * terminal grid underdraw). */
+    if (sdl_character_sheet_screen_active())
+    {
+        birth_select_emit_detail(race, -1, false);
+        return;
+    }
 
     /* Display the stats */
     for (i = 0; i < A_MAX; i++)
@@ -3348,35 +3631,64 @@ static void race_aux_hook(birth_menu r_str)
 }
 
 /*
- * Player race
+ * Player race (screen 1): a story/explanation "book page".  All peoples are
+ * directly selectable in one grouped list -- the three Noldorin lineages under
+ * a Noldor heading, then the other peoples -- with the setting lore on top and
+ * the highlighted people's description at the bottom.  No stats or affinities;
+ * just story.  Resolves a concrete p_info race into p_ptr->prace.
  */
 static bool get_player_race(void)
 {
     int i;
-    birth_menu* races;
     int race;
+    int num = z_info->p_max;
+    int noldor_count = birth_peoples[0].race_count;
+    birth_menu menu[16];
+    cptr headings[16];
 
-    races = mem_alloc_array(z_info->p_max, birth_menu);
+    (void)birth_peoples_validate();
 
-    /* Tabulate races */
-    for (i = 0; i < z_info->p_max; i++)
+    if (num > (int)N_ELEMENTS(menu))
+        num = (int)N_ELEMENTS(menu);
+
+    for (i = 0; i < num; i++)
     {
-        races[i].name = p_name + p_info[i].name;
-        races[i].ghost = false;
-        races[i].text = p_text + p_info[i].text;
+        menu[i].name = p_name + p_info[i].name;
+        menu[i].ghost = false;
+        menu[i].text = p_text + p_info[i].text;   /* shown at the bottom */
+        headings[i] = NULL;
     }
 
-    race = get_player_choice(
-        races, z_info->p_max, p_ptr->prace, RACE_COL, 15, race_aux_hook, false);
+    /* Group headings: Noldor (its lineages), then the other peoples. */
+    if (num > 0)
+        headings[0] =
+            "The Noldor \xe2\x80\x94 exiled High Elves of three royal houses, "
+            "whose names you may take:";
+    if (noldor_count > 0 && noldor_count < num)
+        headings[noldor_count] = "The other free peoples of Beleriand:";
 
-    /* No selection? */
+    {
+        /*
+         * race_aux_hook only feeds the terminal-fallback detail; the SDL book
+         * page ignores it (no stats/affinities -- just story).
+         */
+        birth_select_page page = {
+            "The War of the Jewels",   /* title */
+            birth_frame_top,           /* framing line above (accent) */
+            birth_intro_lore,          /* chronicle (white) */
+            birth_frame_bottom,        /* framing/charge below (accent) */
+            headings
+        };
+
+        race = get_player_choice(menu, num, p_ptr->prace, RACE_COL, 15,
+            race_aux_hook, false, &page);
+    }
+
+    /* No selection -> back to main menu. */
     if (race == INVALID_CHOICE)
-    {
         return (false);
-    }
 
-    // if different race to last time, then wipe the history, age, height,
-    // weight
+    /* If different race to last time, wipe history, age, height, weight. */
     if (race != p_ptr->prace)
     {
         p_ptr->history[0] = '\0';
@@ -3392,8 +3704,6 @@ static bool get_player_race(void)
 
     /* Save the race pointer */
     rp_ptr = &p_info[p_ptr->prace];
-
-    races = mem_free(races);
 
     /* Success */
     return (true);
@@ -3434,6 +3744,14 @@ static void character_aux_hook(birth_menu c_str)
 
     if (character_idx == z_info->c_max)
         return;
+
+    /* Pixel-semantic selection screen: feed the detail panel and stop (no
+     * terminal grid underdraw). */
+    if (sdl_character_sheet_screen_active())
+    {
+        birth_select_emit_detail(p_ptr->prace, character_idx, false);
+        return;
+    }
 
     Term_get_size(&term_wid, &term_hgt);
     if (term_wid < 1)
@@ -3665,6 +3983,8 @@ static bool get_character_profile(void)
     int character_choice;
     int previous_choice = 0;
     birth_menu* character_menu;
+    /* Per-row "welcome + chronicle" text, kept alive for get_player_choice. */
+    static char character_desc_buf[48][1280];
 
     int no_character_flags = 1;
     for (int idx = 0; idx < FLAG_WORDS; ++idx) {
@@ -3683,19 +4003,37 @@ static bool get_character_profile(void)
 
     character_menu = mem_alloc_array(z_info->c_max, birth_menu);
 
-    /* Tabulate characters */
-
+    /* Tabulate characters.  The shown description leads with the hero's own
+     * second-person welcome (the B: line, e.g. "You rise aflame-spirit of
+     * fire...") -- the name you put on -- followed by their chronicle. */
     for (i = 0; i < z_info->c_max; i++)
     {
 
         /* Analyze */
         if (is_set(i))
         {
+            cptr welcome = c_name + c_info[i].start_string;
+            cptr lore = c_text + c_info[i].text;
+
             if (highscore_dead(c_name + c_info[i].name)) character_menu[character].ghost = true;
             else character_menu[character].ghost = false;
 
             character_menu[character].name = c_name + c_info[i].name;
-            character_menu[character].text = c_text + c_info[i].text;
+            if (character < (int)N_ELEMENTS(character_desc_buf))
+            {
+                if (welcome && welcome[0])
+                    strnfmt(character_desc_buf[character],
+                        sizeof(character_desc_buf[character]), "%s\n\n%s",
+                        welcome, lore);
+                else
+                    strnfmt(character_desc_buf[character],
+                        sizeof(character_desc_buf[character]), "%s", lore);
+                character_menu[character].text = character_desc_buf[character];
+            }
+            else
+            {
+                character_menu[character].text = lore;
+            }
             if (p_ptr->pcharacter == i)
                 previous_choice = character;
             character++;
@@ -3703,9 +4041,17 @@ static bool get_character_profile(void)
     }
 
     screen_push_touch_pane_proto();
-    character_choice = get_player_choice(
-        character_menu, character, previous_choice, CLASS_COL, 22,
-        character_aux_hook, true);
+    {
+        birth_select_page page = {
+            "Whose name will you wear?",  /* title (the borrowing voice) */
+            NULL, NULL, NULL,             /* not book mode: keep the detail panel */
+            NULL
+        };
+
+        character_choice = get_player_choice(
+            character_menu, character, previous_choice, CLASS_COL, 22,
+            character_aux_hook, true, &page);
+    }
     screen_pop_touch_pane_proto();
 
     /* No selection? */
@@ -4190,6 +4536,9 @@ NavResult character_creation(void)
     result = NAV_OK;
 
 cleanup:
+    /* Hide the pixel-semantic selection overlay so the following terminal
+     * screens (oath selection, etc.) and the main menu are visible again. */
+    sdl_character_sheet_screen_hide();
     ui_menu_click_clear();
     screen_pop_touch_pane_proto();
     return result;
@@ -7132,9 +7481,14 @@ static NavResult player_birth_aux(void)
         for (int i = 0; i < A_MAX; i++)
             stat_alloc[i] = p_ptr->stat_base[i];
 
+        /* Show the complete character sheet once ("full at first") before
+         * dropping into stat allocation, then skills. */
+        character_sheet_show_birth_preview();
+
         for (;;)
         {
-            display_player(0);
+            if (!sdl_character_sheet_screen_active())
+                display_player(0);
 
             /* Stats allocation screen */
             log_debug("Entering stats allocation");

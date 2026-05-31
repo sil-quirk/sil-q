@@ -3903,6 +3903,27 @@ static pickup_failure_result prompt_replace_light_limit_item(
     else
         msg_print("You cannot carry any more of those.");
 
+    {
+        inventory_menu_group menu_group =
+            inventory_menu_group_for_limit_group(inven_carry_limit_group());
+
+        if (menu_group != INVENTORY_MENU_GROUP_ALL)
+        {
+            bool acted;
+
+            msg_print("Opening the matching inventory category.");
+            acted = open_inventory_menu_category(menu_group);
+
+            inventory_menu_set_expand_supplies(old_expand_supplies);
+            replacement_filter_incoming = old_filter;
+            item_tester_hook = old_item_tester_hook;
+            item_tester_tval = old_item_tester_tval;
+            item_tester_full = old_item_tester_full;
+
+            return acted ? PICKUP_FAILURE_RETRY : PICKUP_FAILURE_ABORT;
+        }
+    }
+
     msg_print("Choose an item to replace.");
 
     strnfmt(prompt, sizeof(prompt),
@@ -4696,6 +4717,28 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         msg_format("You already carry %s (limit %d).", label, limit);
     else
         msg_print("You cannot carry any more of those.");
+
+    if (!supply_weight_limit)
+    {
+        inventory_menu_group menu_group =
+            inventory_menu_group_for_limit_group(inven_carry_limit_group());
+
+        if (menu_group != INVENTORY_MENU_GROUP_ALL)
+        {
+            bool acted;
+
+            msg_print("Opening the matching inventory category.");
+            acted = open_inventory_menu_category(menu_group);
+
+            inventory_menu_set_expand_supplies(old_expand_supplies);
+            replacement_filter_incoming = old_filter;
+            item_tester_hook = old_item_tester_hook;
+            item_tester_tval = old_item_tester_tval;
+            item_tester_full = old_item_tester_full;
+
+            return acted;
+        }
+    }
 
     msg_print("Choose an item to replace.");
 
