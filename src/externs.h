@@ -1635,6 +1635,7 @@ extern bool sdl_welcome_screen_active(void);
 extern bool sdl_character_sheet_screen_active(void);
 extern void sdl_character_sheet_screen_hide(void);
 extern bool sdl_character_sheet_screen_begin_live(int focus_choice);
+extern bool sdl_character_sheet_screen_begin_birth_preview(void);
 extern void sdl_character_sheet_screen_add_live_item(int choice, int kind,
     int skill, int value_kind, cptr label, cptr desc);
 extern bool sdl_character_sheet_screen_show_birth_stats(const int* stats,

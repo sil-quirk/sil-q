@@ -2856,6 +2856,10 @@ void character_sheet_show_birth_preview(void)
 {
     character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
     bool sdl_sheet;
+    int prompt_row = -1;
+    int prompt_col = 0;
+    int prompt_len = 0;
+    cptr prompt = "Continue to Stats";
 
     if (!p_ptr)
         return;
@@ -2864,13 +2868,13 @@ void character_sheet_show_birth_preview(void)
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
 
-    sdl_sheet = sdl_character_sheet_screen_begin_live(-1);
+    sdl_sheet = sdl_character_sheet_screen_begin_birth_preview();
     if (sdl_sheet)
     {
         int count = character_sheet_collect_semantic_items(sheet_items,
             CHARACTER_SHEET_MAX_ITEMS);
 
-        (void)sdl_character_sheet_screen_begin_live(-1);
+        (void)sdl_character_sheet_screen_begin_birth_preview();
         for (int i = 0; i < count; i++)
         {
             char desc[640];
@@ -2887,12 +2891,28 @@ void character_sheet_show_birth_preview(void)
     else
     {
         /* Terminal fallback. */
+        int wid = 80;
+        int hgt = 24;
+
         display_player(0);
+        Term_get_size(&wid, &hgt);
+        if (wid < 1)
+            wid = 80;
+        if (hgt < 1)
+            hgt = 24;
+
+        prompt_row = hgt - 1;
+        prompt_len = (int)strlen(prompt);
+        prompt_col = (wid > prompt_len) ? (wid - prompt_len) / 2 : 0;
+        Term_erase(0, prompt_row, 255);
+        Term_putstr(prompt_col, prompt_row, -1, TERM_L_BLUE, prompt);
     }
 
     /* Wait for any key or click to continue (hover wakeups are ignored). */
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
+    if (!sdl_sheet && prompt_row >= 0)
+        ui_menu_click_add('\r', prompt_col, prompt_row, prompt_len);
     Term_fresh();
     while (1)
     {
@@ -2900,7 +2920,6 @@ void character_sheet_show_birth_preview(void)
 
         if (ch == UI_MENU_CLICK_WAKE_KEY)
         {
-            ui_menu_click_clear();
             continue;
         }
         break;
@@ -21652,7 +21671,6 @@ static cptr option_menu_label(int opt)
     {
         switch (opt)
         {
-        case OPT_easy_main_menu: return narrow ? "Esc menu" : "Esc main menu";
         case OPT_hjkl_movement: return narrow ? "hjkl move" : "hjkl movement";
         case OPT_angband_keyset: return narrow ? "Angband keys" : "Angband keyset";
         case OPT_story_lists: return narrow ? "Story look" : "Story font: look/target";

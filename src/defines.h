@@ -2831,7 +2831,7 @@
 #define OPT_know_monster_info 72
 // reserved legacy slot: auto_display_lists
 #define OPT_artifact_unique_color 74
-#define OPT_easy_main_menu 75
+#define OPT_easy_main_menu 75 /* obsolete: Esc always opens the main menu */
 #define OPT_story_lists 76
 #define OPT_story_lists_inven 77
 #define OPT_story_lists_equip 78
@@ -3049,7 +3049,7 @@
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define unidentified_items_slate op_ptr->opt[OPT_unidentified_items_slate]
-#define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
+#define easy_main_menu true
 #define show_level_generation_debug op_ptr->opt[OPT_show_level_generation_debug]
 #define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
 #define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]

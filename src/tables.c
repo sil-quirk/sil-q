@@ -222,7 +222,7 @@ cptr option_text[OPT_MAX] = {
     "know_monster_info", /* OPT_know_monster_info */
     NULL, /* reserved legacy slot: auto_display_lists */
     "artifact_unique_color", /* OPT_artifact_unique_color */
-    "easy_main_menu", /* OPT_easy_main_menu */
+    NULL, /* obsolete: easy_main_menu (Esc always opens the main menu) */
     "story_lists", /* OPT_story_lists */
     "story_lists_inven", /* OPT_story_lists_inven */
     "story_lists_equip", /* OPT_story_lists_equip */
@@ -467,7 +467,7 @@ cptr option_desc[OPT_MAX] = {
     "Know all monster info", /* OPT_know_monster_info */
     NULL, /* reserved legacy slot: auto_display_lists */
     "Display artifacts in unique yellow color", /* OPT_artifact_unique_color */
-    "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
+    NULL, /* obsolete: easy_main_menu (Esc always opens the main menu) */
     "Render look/target lists with the story font", /* OPT_story_lists */
     "Render the inventory menu in the main window with the story font", /* OPT_story_lists_inven */
     "Render the equipment menu in the main window with the story font", /* OPT_story_lists_equip */
@@ -728,7 +728,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_know_monster_info */
     false, /* reserved legacy slot: auto_display_lists */
     true, /* OPT_artifact_unique_color */
-    true, /* OPT_easy_main_menu */
+    true, /* obsolete: easy_main_menu (Esc always opens the main menu) */
     false, /* OPT_story_lists */
     true, /* OPT_story_lists_inven */
     true, /* OPT_story_lists_equip */
@@ -925,11 +925,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
         OPT_song_list_sort_by_recent,
         OPT_hitpoint_warning,
-        OPT_easy_main_menu, OPT_hjkl_movement, OPT_angband_keyset,
+        OPT_hjkl_movement, OPT_angband_keyset,
         OPT_inventory_selection_square, OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/

@@ -2428,8 +2428,7 @@ static void process_command(void)
     }
     case ESCAPE:
     {
-        if (easy_main_menu)
-            do_cmd_main_menu();
+        do_cmd_main_menu();
         break;
     }
 

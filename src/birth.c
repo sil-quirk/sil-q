@@ -416,7 +416,6 @@ void player_wipe(void)
     log_debug("birth.c: character_generated set to false - starting character wipe");
     int i;
     char history[550];
-    int stat[A_MAX];
 
     log_debug("Wiping player data for new character creation");
 
@@ -439,19 +438,14 @@ void player_wipe(void)
         height = p_ptr->ht;
         weight = p_ptr->wt;
         sprintf(history, "%s", p_ptr->history);
-
-        for (i = 0; i < A_MAX; i++)
-        {
-            if (!(p_ptr->noscore & 0x0008))
-                stat[i] = p_ptr->stat_base[i]
-                    - (rp_ptr->r_adj[i] + current_character_profile->h_adj[i]);
-            else
-                stat[i] = 0;
-        }
     }
 
     /* Wipe the player */
     memset(p_ptr, 0, sizeof(player_type));
+
+    turn = 0;
+    playerturn = 0;
+    min_depth_counter = 0;
 
     supplies_reset_store();
 
@@ -466,10 +460,6 @@ void player_wipe(void)
         p_ptr->ht = height;
         p_ptr->wt = weight;
         sprintf(p_ptr->history, "%s", history);
-        for (i = 0; i < A_MAX; i++)
-        {
-            p_ptr->stat_base[i] = stat[i];
-        }
     }
     else
     {
@@ -481,11 +471,14 @@ void player_wipe(void)
         p_ptr->ht = 0;
         p_ptr->wt = 0;
         p_ptr->history[0] = '\0';
-        for (i = 0; i < A_MAX; i++)
-        {
-            p_ptr->stat_base[i] = 0;
-        }
     }
+
+    for (i = 0; i < A_MAX; i++)
+        p_ptr->stat_base[i] = 0;
+
+    p_ptr->song1 = SNG_NOTHING;
+    p_ptr->song2 = SNG_NOTHING;
+    p_ptr->song_target_song = SNG_NOTHING;
 
     /* Clear the inventory */
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -1035,6 +1028,7 @@ static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     int prompt_row;
     char key;
     char buf[160];
+    char warning_buf[160];
     bool confirmed = false;
 
     if (points_left <= 0)
@@ -1054,8 +1048,9 @@ static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     Term_erase(0, message_row, 255);
     Term_erase(0, prompt_row, 255);
 
-    strnfmt(buf, sizeof(buf), "Unused stat points: %d. Continue anyway?", points_left);
-    birth_put_str_fit(TERM_YELLOW, buf, message_row, 1);
+    strnfmt(warning_buf, sizeof(warning_buf),
+        "Unused stat points: %d. Continue anyway?", points_left);
+    birth_put_str_fit(TERM_YELLOW, warning_buf, message_row, 1);
 
     if (steamdeck)
     {
@@ -1099,8 +1094,7 @@ static bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/ESC");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "keep allocating");
     }
-    sdl_touch_pane_begin_yes_no_prompt(
-        "Continue with unused stat points?");
+    sdl_touch_pane_begin_yes_no_prompt(warning_buf);
     Term_fresh();
 
     while (1)
@@ -6874,7 +6868,6 @@ static NavResult player_birth_aux_2(int stats[A_MAX])
         /* Done */
         if (birth_confirm_input(ch, steamdeck))
         {
-            sdl_character_sheet_screen_hide();
             if (!birth_confirm_unspent_stat_points(MAX_COST - cost, steamdeck))
                 continue;
             ui_menu_click_clear();
