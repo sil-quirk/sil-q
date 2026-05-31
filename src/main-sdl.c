@@ -878,6 +878,7 @@ typedef struct sdl_character_sheet_screen_state {
     SDL_Texture* page_turn_to_tex;   /* incoming page snapshot (revealed beneath) */
     int page_turn_tex_w;       /* snapshot pixel size */
     int page_turn_tex_h;
+    touch_swipe_state birth_swipe;
     int last_body_px;          /* last column body font px (tooltip = half) */
     float last_body_line_h;    /* rendered row height for last column body */
     int last_desc_px;          /* last description font px */
@@ -10607,11 +10608,9 @@ static float sdl_char_sheet_book_width(int body_px, float content_w)
 }
 
 /*
- * Largest story px (no bigger than the title) at which the FULLER of the two
- * pages still fills-but-fits the text band (region minus the top/bottom page
- * margins).  Sizing to the fuller page -- rather than to both pages combined --
- * lets the larger font fill each page; the same size is used for both so the
- * text does not change size across the turn.
+ * Shared story px (no bigger than the title) for the two-page book.  The lore
+ * on the choice page is intentionally treated as flowing remainder text; sizing
+ * to the lore collapses the chronicle page on wide mobile layouts.
  */
 static int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
     float top_y, float region_bottom, int title_px)
@@ -10619,10 +10618,6 @@ static int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
     cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
     cptr intro = g_sdl_character_sheet_screen.select_intro;
     cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
-    cptr desc = g_sdl_character_sheet_screen.select_description;
-    cptr desc_measure = (g_sdl_character_sheet_screen.select_desc_sizing[0])
-        ? g_sdl_character_sheet_screen.select_desc_sizing
-        : desc;
     int row_count = g_sdl_character_sheet_screen.select_row_count;
     float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
     int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.018f), 14, 24);
@@ -10641,13 +10636,11 @@ static int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
         int fb = (frame_bottom && frame_bottom[0])
             ? sdl_char_sheet_wrap_text(f, frame_bottom, candidate_w, NULL, 0)
             : 0;
-        int dl = (desc_measure && desc_measure[0])
-            ? sdl_char_sheet_wrap_text(f, desc_measure, candidate_w, NULL, 0)
-            : 0;
-        /* Match the per-page layout in sdl_char_sheet_render_book_page. */
+        /* Match the mandatory page layouts.  The highlighted lore is drawn into
+         * whatever space remains after the list. */
         float page0 = (float)(ft + in) * lh + lh * 0.35f;
-        float page1 = (float)(fb + dl) * lh
-            + (float)row_count * (lh * 1.35f) + lh * 1.6f;
+        float page1 = (float)fb * lh + (float)row_count * (lh * 1.35f)
+            + lh * 1.6f;
         float need = (page0 > page1) ? page0 : page1;
 
         body_px = px;
@@ -10704,9 +10697,9 @@ static void sdl_char_sheet_draw_page_frame(float px, float py, float pw,
  *
  * The page has a parchment frame with margins; the text block sits inset within
  * it.  Coordinates are absolute in the current target; pass them shifted when
- * the target is an offscreen snapshot.  The story font is sized so that BOTH
- * pages fit, so text stays the same size across the turn.  register_hits adds
- * the people-row click targets (only meaningful on page 1 drawn to the screen).
+ * the target is an offscreen snapshot.  Both pages use the same book text size.
+ * register_hits adds the people-row click targets (only meaningful on page 1
+ * drawn to the screen).
  */
 static void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float content_x, float content_w, float top_y, float region_bottom,
@@ -11020,6 +11013,115 @@ static int sdl_select_page_turn_timeout_ms(Uint64 now_ns)
     if (!g_sdl_character_sheet_screen.page_turn_active)
         return -1;
     return 16;
+}
+
+static bool sdl_character_sheet_screen_birth_sequence_active(void)
+{
+    return g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_PREVIEW
+        || g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT
+        || g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS
+        || g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SKILLS;
+}
+
+static void sdl_character_sheet_birth_swipe_cancel(void)
+{
+    touch_swipe_state* swipe = &g_sdl_character_sheet_screen.birth_swipe;
+
+    swipe->active = false;
+    swipe->triggered = false;
+    swipe->finger_id = 0;
+    swipe->start_x = 0.0f;
+    swipe->start_y = 0.0f;
+    swipe->last_x = 0.0f;
+    swipe->last_y = 0.0f;
+}
+
+static void sdl_character_sheet_birth_swipe_begin(float x, float y,
+    SDL_FingerID finger_id)
+{
+    touch_swipe_state* swipe = &g_sdl_character_sheet_screen.birth_swipe;
+
+    sdl_character_sheet_birth_swipe_cancel();
+    swipe->active = true;
+    swipe->triggered = false;
+    swipe->finger_id = finger_id;
+    swipe->start_x = x;
+    swipe->start_y = y;
+    swipe->last_x = x;
+    swipe->last_y = y;
+}
+
+static int sdl_character_sheet_birth_swipe_key_for_dir(int dir)
+{
+    if (dir == 8 || dir == 2)
+        return '0' + dir;
+
+    if (dir == 4)
+    {
+        if (g_sdl_character_sheet_screen.context
+                == SDL_CHARACTER_SHEET_BIRTH_SELECT
+            && g_sdl_character_sheet_screen.select_book_mode
+            && g_sdl_character_sheet_screen.select_page <= 0
+            && g_sdl_character_sheet_screen.select_page_count > 1)
+        {
+            return '6';
+        }
+
+        return '\r';
+    }
+
+    if (dir == 6)
+    {
+        if (g_sdl_character_sheet_screen.context
+                == SDL_CHARACTER_SHEET_BIRTH_SELECT
+            && g_sdl_character_sheet_screen.select_book_mode
+            && g_sdl_character_sheet_screen.select_page > 0)
+        {
+            return '4';
+        }
+
+        return ESCAPE;
+    }
+
+    return 0;
+}
+
+static bool sdl_character_sheet_birth_swipe_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    touch_swipe_state* swipe = &g_sdl_character_sheet_screen.birth_swipe;
+    float dx;
+    float dy;
+    int dir;
+    int key;
+
+    if (!swipe->active || swipe->finger_id != finger_id)
+        return false;
+
+    swipe->last_x = x;
+    swipe->last_y = y;
+    if (swipe->triggered)
+        return true;
+
+    dx = x - swipe->start_x;
+    dy = y - swipe->start_y;
+    dir = sdl_touch_swipe_direction_for_delta(dx, dy,
+        sdl_touch_swipe_threshold_px());
+    if (!dir)
+        return true;
+
+    swipe->triggered = true;
+    if (g_sdl_character_sheet_screen.page_turn_active)
+        return true;
+
+    key = sdl_character_sheet_birth_swipe_key_for_dir(dir);
+    if (key)
+    {
+        ui_menu_click_clear_pending_hover();
+        Term_keypress(key);
+    }
+
+    return true;
 }
 
 static void sdl_character_sheet_screen_render(void)
@@ -11711,6 +11813,7 @@ void sdl_character_sheet_screen_hide(void)
     g_sdl_character_sheet_screen.live_item_count = 0;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
+    sdl_character_sheet_birth_swipe_cancel();
     sdl_char_sheet_clear_hits();
     ui_menu_click_clear_pending_hover();
     g_state.need_present = true;
@@ -11746,6 +11849,7 @@ bool sdl_character_sheet_screen_begin_birth_preview(void)
         g_sdl_character_sheet_screen.sheet_scroll = 0;
         g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     }
+    sdl_character_sheet_birth_swipe_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_PREVIEW;
     g_sdl_character_sheet_screen.focus_choice = -1;
     g_sdl_character_sheet_screen.selected_index = -1;
@@ -11789,6 +11893,7 @@ bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
     if (!g_state.window || !g_state.renderer)
         return false;
 
+    sdl_character_sheet_birth_swipe_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_STATS;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
@@ -11812,6 +11917,7 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
     if (!g_state.window || !g_state.renderer)
         return false;
 
+    sdl_character_sheet_birth_swipe_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SKILLS;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
@@ -11868,6 +11974,7 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
         sdl_character_sheet_screen_reset_select_page();
     }
     g_sdl_character_sheet_screen.select_page_count = 1;
+    sdl_character_sheet_birth_swipe_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SELECT;
     g_sdl_character_sheet_screen.focus_choice = focus_choice;
     g_sdl_character_sheet_screen.selected_index = focus_choice;
@@ -12069,6 +12176,13 @@ static bool sdl_character_sheet_screen_handle_pointer_motion(float x, float y)
     if (!sdl_character_sheet_screen_active())
         return false;
 
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_PREVIEW)
+    {
+        Term_keypress('\r');
+        g_state.need_present = true;
+        return true;
+    }
+
     hit = sdl_char_sheet_hit_at(x, y);
     if (hit)
     {
@@ -12190,6 +12304,11 @@ static bool sdl_character_sheet_screen_handle_pointer_event(
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (sdl_character_sheet_screen_birth_sequence_active())
+        {
+            sdl_character_sheet_birth_swipe_begin(x, y, ev->tfinger.fingerID);
+            return true;
+        }
         return sdl_character_sheet_screen_handle_pointer_button(x, y,
             UI_MENU_CLICK_PRIMARY);
 
@@ -12199,10 +12318,46 @@ static bool sdl_character_sheet_screen_handle_pointer_event(
         SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
         x = ev->tfinger.x * (float)window_w;
         y = ev->tfinger.y * (float)window_h;
+        if (g_sdl_character_sheet_screen.birth_swipe.active
+            && g_sdl_character_sheet_screen.birth_swipe.finger_id
+                == ev->tfinger.fingerID)
+        {
+            return sdl_character_sheet_birth_swipe_motion(x, y,
+                ev->tfinger.fingerID);
+        }
         return sdl_character_sheet_screen_handle_pointer_motion(x, y);
 
     case SDL_EVENT_FINGER_UP:
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return true;
+        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
+        x = ev->tfinger.x * (float)window_w;
+        y = ev->tfinger.y * (float)window_h;
+        if (g_sdl_character_sheet_screen.birth_swipe.active
+            && g_sdl_character_sheet_screen.birth_swipe.finger_id
+                == ev->tfinger.fingerID)
+        {
+            bool triggered;
+
+            (void)sdl_character_sheet_birth_swipe_motion(x, y,
+                ev->tfinger.fingerID);
+            triggered = g_sdl_character_sheet_screen.birth_swipe.triggered;
+            sdl_character_sheet_birth_swipe_cancel();
+            if (!triggered)
+            {
+                return sdl_character_sheet_screen_handle_pointer_button(x,
+                    y, UI_MENU_CLICK_PRIMARY);
+            }
+        }
+        return true;
+
     case SDL_EVENT_FINGER_CANCELED:
+        if (g_sdl_character_sheet_screen.birth_swipe.active
+            && g_sdl_character_sheet_screen.birth_swipe.finger_id
+                == ev->tfinger.fingerID)
+        {
+            sdl_character_sheet_birth_swipe_cancel();
+        }
         return true;
 
     default:
@@ -22838,9 +22993,12 @@ static bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
 {
     float dx;
     float dy;
+    float raw_dx;
+    float raw_dy;
     float threshold;
     float start_x;
     float start_y;
+    int dir;
 
     if (!g_welcome_touch_press.active
         || g_welcome_touch_press.finger_id != finger_id)
@@ -22848,12 +23006,10 @@ static bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
         return false;
     }
 
-    dx = x - g_welcome_touch_press.start_x;
-    dy = y - g_welcome_touch_press.start_y;
-    if (dx < 0.0f)
-        dx = -dx;
-    if (dy < 0.0f)
-        dy = -dy;
+    raw_dx = x - g_welcome_touch_press.start_x;
+    raw_dy = y - g_welcome_touch_press.start_y;
+    dx = (raw_dx < 0.0f) ? -raw_dx : raw_dx;
+    dy = (raw_dy < 0.0f) ? -raw_dy : raw_dy;
 
     threshold = sdl_touch_swipe_threshold_px();
     if (dx <= threshold && dy <= threshold)
@@ -22862,6 +23018,12 @@ static bool sdl_welcome_touch_handle_pointer_motion(float x, float y,
     start_x = g_welcome_touch_press.start_x;
     start_y = g_welcome_touch_press.start_y;
     sdl_welcome_touch_cancel_press();
+    dir = sdl_touch_swipe_direction_for_delta(raw_dx, raw_dy, threshold);
+    if (dir == 4 || dir == 6)
+    {
+        Term_keypress((dir == 4) ? '\r' : ESCAPE);
+        return true;
+    }
     if (sdl_touch_swipe_handle_pointer_down(start_x, start_y, finger_id))
         (void)sdl_touch_swipe_handle_pointer_motion(x, y, finger_id);
     return true;
