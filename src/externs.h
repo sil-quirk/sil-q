@@ -1652,6 +1652,14 @@ extern void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
 extern void sdl_character_sheet_screen_add_select_heading(cptr label);
 extern void sdl_character_sheet_screen_set_select_intro(cptr text);
 extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
+/* Race "book" page-turn: click ids (mouse) + navigation API for birth.c. */
+#define SDL_SELECT_CLICK_PAGE_PREV (-20)
+#define SDL_SELECT_CLICK_PAGE_NEXT (-21)
+extern void sdl_character_sheet_screen_reset_select_page(void);
+extern int sdl_character_sheet_screen_select_page(void);
+extern int sdl_character_sheet_screen_select_page_count(void);
+extern bool sdl_character_sheet_screen_page_turning(void);
+extern void sdl_character_sheet_screen_begin_page_turn(int dir);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
 extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);

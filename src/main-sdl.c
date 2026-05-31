@@ -867,6 +867,15 @@ typedef struct sdl_character_sheet_screen_state {
     char select_frame_bottom[768]; /* book mode: framing/charge below (accent) */
     char select_desc_sizing[4096]; /* longest description, for stable layout */
     bool select_book_mode;     /* screen 1: story/explanation page, no detail */
+    int select_page;           /* book mode: current page (0 = story, 1 = choice) */
+    int select_page_count;     /* book mode: number of pages (1 otherwise) */
+    bool page_turn_active;     /* book mode: a page-curl animation is playing */
+    int page_turn_dir;         /* +1 = forward (0->1), -1 = back (1->0) */
+    Uint64 page_turn_start_ns; /* animation start timestamp */
+    SDL_Texture* page_turn_from_tex; /* outgoing page snapshot (the curling leaf) */
+    SDL_Texture* page_turn_to_tex;   /* incoming page snapshot (revealed beneath) */
+    int page_turn_tex_w;       /* snapshot pixel size */
+    int page_turn_tex_h;
     int last_body_px;          /* last column body font px (tooltip = half) */
     sdl_character_sheet_hit hits[160];
     int hit_count;
@@ -8603,6 +8612,26 @@ static void sdl_char_sheet_add_prompt_hit(SDL_FRect rect, int choice)
     hit->desc[0] = '\0';
 }
 
+/* Book mode: a clickable page-turn button (negative ids outside the prompt
+ * range). Bypasses the prompt-range check so the two leaf-turn buttons work. */
+static void sdl_char_sheet_add_select_button_hit(SDL_FRect rect, int choice)
+{
+    sdl_character_sheet_hit* hit;
+
+    if (choice >= 0)
+        return;
+    if (g_sdl_character_sheet_screen.hit_count >= SDL_CHAR_SHEET_HIT_MAX)
+        return;
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+
+    hit = &g_sdl_character_sheet_screen
+               .hits[g_sdl_character_sheet_screen.hit_count++];
+    hit->rect = rect;
+    hit->choice = choice;
+    hit->desc[0] = '\0';
+}
+
 static const sdl_character_sheet_hit* sdl_char_sheet_hit_at(float x, float y)
 {
     for (int i = g_sdl_character_sheet_screen.hit_count - 1; i >= 0; i--)
@@ -10295,6 +10324,443 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     }
 }
 
+/* Race "book" page-turn tuning. */
+#define SDL_SELECT_PAGE_TURN_MS 850
+#define SDL_BOOK_MAX_EMS 60.0f       /* reading measure cap (ems) */
+#define SDL_BOOK_WIDTH_FRAC 0.58f    /* book-like column width (fraction of content) */
+/* Horizontal / vertical page margin (text inset from the page edge), in body
+ * line-heights.  Shared by the sizing helper, the page renderer and the turn. */
+#define SDL_BOOK_MARGIN_H 1.10f
+#define SDL_BOOK_MARGIN_V 0.85f
+
+static void sdl_select_page_turn_free(void);
+static void sdl_character_sheet_screen_render(void);
+
+/* The reading-column width for a given story px (a measure cap, but never wider
+ * than a fraction of the content so the page keeps side margins). */
+static float sdl_char_sheet_book_width(int body_px, float content_w)
+{
+    float w = MIN(content_w * SDL_BOOK_WIDTH_FRAC,
+        (float)body_px * SDL_BOOK_MAX_EMS);
+    return (w < 1.0f) ? 1.0f : w;
+}
+
+/*
+ * Largest story px (no bigger than the title) at which the FULLER of the two
+ * pages still fills-but-fits the text band (region minus the top/bottom page
+ * margins).  Sizing to the fuller page -- rather than to both pages combined --
+ * lets the larger font fill each page; the same size is used for both so the
+ * text does not change size across the turn.
+ */
+static int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
+    float top_y, float region_bottom, int title_px)
+{
+    cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
+    cptr intro = g_sdl_character_sheet_screen.select_intro;
+    cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
+    cptr desc = g_sdl_character_sheet_screen.select_description;
+    cptr desc_measure = (g_sdl_character_sheet_screen.select_desc_sizing[0])
+        ? g_sdl_character_sheet_screen.select_desc_sizing
+        : desc;
+    int row_count = g_sdl_character_sheet_screen.select_row_count;
+    float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.018f), 14, 24);
+    int body_px = min_px;
+
+    for (int px = title_px; px >= min_px; px -= 2)
+    {
+        TTF_Font* f = sdl_story_font_for_height(px);
+        float lh = sdl_char_sheet_line_h(f, px, 1.28f);
+        float candidate_w = sdl_char_sheet_book_width(px, content_w);
+        float avail = region_h - 2.0f * (lh * SDL_BOOK_MARGIN_V);
+        int ft = (frame_top && frame_top[0])
+            ? sdl_char_sheet_wrap_text(f, frame_top, candidate_w, NULL, 0) : 0;
+        int in = (intro && intro[0])
+            ? sdl_char_sheet_wrap_text(f, intro, candidate_w, NULL, 0) : 0;
+        int fb = (frame_bottom && frame_bottom[0])
+            ? sdl_char_sheet_wrap_text(f, frame_bottom, candidate_w, NULL, 0)
+            : 0;
+        int dl = (desc_measure && desc_measure[0])
+            ? sdl_char_sheet_wrap_text(f, desc_measure, candidate_w, NULL, 0)
+            : 0;
+        /* Match the per-page layout in sdl_char_sheet_render_book_page. */
+        float page0 = (float)(ft + in) * lh + lh * 0.35f;
+        float page1 = (float)(fb + dl) * lh
+            + (float)row_count * (lh * 1.35f) + lh * 1.6f;
+        float need = (page0 > page1) ? page0 : page1;
+
+        body_px = px;
+        if (need <= avail)
+            break;
+    }
+    return body_px;
+}
+
+/* A book-page frame: a parchment border with an inner hairline, drawn into the
+ * current target.  Always visible, and (being part of the page) it curls with
+ * the leaf during a turn. */
+static void sdl_char_sheet_draw_page_frame(float px, float py, float pw,
+    float ph, float bt)
+{
+    SDL_FRect r;
+    float inset;
+    float hb;
+
+    if (pw <= 2.0f * bt || ph <= 2.0f * bt)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 206, 196, 170, 210);
+    r = (SDL_FRect){ px, py, pw, bt };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px, py + ph - bt, pw, bt };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px, py, bt, ph };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px + pw - bt, py, bt, ph };
+    SDL_RenderFillRect(g_state.renderer, &r);
+
+    inset = bt * 2.5f;
+    hb = (bt * 0.5f < 1.0f) ? 1.0f : bt * 0.5f;
+    if (pw <= 2.0f * inset || ph <= 2.0f * inset)
+        return;
+    SDL_SetRenderDrawColor(g_state.renderer, 150, 140, 120, 150);
+    r = (SDL_FRect){ px + inset, py + inset, pw - 2.0f * inset, hb };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px + inset, py + ph - inset - hb, pw - 2.0f * inset, hb };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px + inset, py + inset, hb, ph - 2.0f * inset };
+    SDL_RenderFillRect(g_state.renderer, &r);
+    r = (SDL_FRect){ px + pw - inset - hb, py + inset, hb, ph - 2.0f * inset };
+    SDL_RenderFillRect(g_state.renderer, &r);
+}
+
+/*
+ * Draw one page of the race "book" into the CURRENT render target.
+ *
+ *   page 0 = the trial intro (accent) + war chronicle (white)        -- story
+ *   page 1 = the charge (accent) + selectable peoples list + lore    -- choice
+ *
+ * The page has a parchment frame with margins; the text block sits inset within
+ * it.  Coordinates are absolute in the current target; pass them shifted when
+ * the target is an offscreen snapshot.  The story font is sized so that BOTH
+ * pages fit, so text stays the same size across the turn.  register_hits adds
+ * the people-row click targets (only meaningful on page 1 drawn to the screen).
+ */
+static void sdl_char_sheet_render_book_page(int page, float canvas_h,
+    float content_x, float content_w, float top_y, float region_bottom,
+    int title_px, bool register_hits)
+{
+    cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
+    cptr intro = g_sdl_character_sheet_screen.select_intro;
+    cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
+    cptr desc = g_sdl_character_sheet_screen.select_description;
+    cptr desc_measure = (g_sdl_character_sheet_screen.select_desc_sizing[0])
+        ? g_sdl_character_sheet_screen.select_desc_sizing
+        : desc;
+    int row_count = g_sdl_character_sheet_screen.select_row_count;
+    float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    float book_w;
+    float book_x;
+    int body_px = sdl_char_sheet_book_body_px(canvas_h, content_w, top_y,
+        region_bottom, title_px);
+    TTF_Font* body_font;
+    float body_lh;
+    float list_lh;
+    float gap2;
+    float gap_in;
+    int ft_lines;
+    int in_lines;
+    int fb_lines;
+    int desc_lines;
+    float content_h;
+    float y;
+
+    body_font = sdl_story_font_for_height(body_px);
+    book_w = sdl_char_sheet_book_width(body_px, content_w);
+    book_x = content_x + (content_w - book_w) * 0.5f;
+    body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
+    list_lh = body_lh * 1.35f;
+    gap2 = body_lh * 0.8f;
+    gap_in = body_lh * 0.35f;
+    ft_lines = (frame_top && frame_top[0])
+        ? sdl_char_sheet_wrap_text(body_font, frame_top, book_w, NULL, 0) : 0;
+    in_lines = (intro && intro[0])
+        ? sdl_char_sheet_wrap_text(body_font, intro, book_w, NULL, 0) : 0;
+    fb_lines = (frame_bottom && frame_bottom[0])
+        ? sdl_char_sheet_wrap_text(body_font, frame_bottom, book_w, NULL, 0) : 0;
+    desc_lines = (desc_measure && desc_measure[0])
+        ? sdl_char_sheet_wrap_text(body_font, desc_measure, book_w, NULL, 0) : 0;
+
+    /* Page frame + margins around the text block. */
+    {
+        float mh = body_lh * SDL_BOOK_MARGIN_H;
+        float mv = body_lh * SDL_BOOK_MARGIN_V;
+        float page_x = book_x - mh;
+        float page_w = book_w + 2.0f * mh;
+        float bt = (body_lh * 0.07f < 2.0f) ? 2.0f : body_lh * 0.07f;
+
+        if (page_x < content_x)
+        {
+            page_w -= (content_x - page_x);
+            page_x = content_x;
+        }
+        if (page_x + page_w > content_x + content_w)
+            page_w = content_x + content_w - page_x;
+
+        sdl_char_sheet_draw_page_frame(page_x, top_y, page_w, region_h, bt);
+
+        /* Inset the vertical text band by the top/bottom margins. */
+        top_y += mv;
+        region_bottom -= mv;
+        region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    }
+
+    if (page == 0)
+    {
+        /* Story page: trial intro (accent) then the chronicle (white). */
+        content_h = (float)(ft_lines + in_lines) * body_lh + gap_in;
+        y = top_y + (content_h < region_h ? (region_h - content_h) * 0.5f : 0.0f);
+
+        if (ft_lines > 0)
+        {
+            sdl_char_sheet_draw_wrapped(body_font, frame_top, TERM_L_BLUE,
+                book_x, y, book_w, (float)ft_lines * body_lh + body_lh,
+                body_lh, 0);
+            y += (float)ft_lines * body_lh + gap_in;
+        }
+        if (in_lines > 0)
+            sdl_char_sheet_draw_wrapped(body_font, intro, TERM_WHITE, book_x,
+                y, book_w, (float)in_lines * body_lh + body_lh, body_lh, 0);
+        return;
+    }
+
+    /* Choice page: the charge (accent), the grouped list, then the lore. */
+    content_h = (float)fb_lines * body_lh + gap2 + (float)row_count * list_lh
+        + gap2 + (float)desc_lines * body_lh;
+    y = top_y + (content_h < region_h ? (region_h - content_h) * 0.5f : 0.0f);
+
+    if (fb_lines > 0)
+    {
+        sdl_char_sheet_draw_wrapped(body_font, frame_bottom, TERM_L_BLUE,
+            book_x, y, book_w, (float)fb_lines * body_lh + body_lh, body_lh, 0);
+        y += (float)fb_lines * body_lh + gap2;
+    }
+
+    for (int i = 0; i < row_count; i++)
+    {
+        const sdl_character_sheet_select_row* r =
+            &g_sdl_character_sheet_screen.select_rows[i];
+        float text_y = y + (list_lh - body_lh) * 0.5f;
+
+        if (text_y + body_lh * 0.5f > region_bottom)
+            break;
+        if (text_y < y)
+            text_y = y;
+
+        if (r->is_heading)
+        {
+            (void)sdl_char_sheet_draw_text(body_font, r->label, TERM_SLATE,
+                book_x, text_y, book_w, body_lh * 0.95f, false);
+        }
+        else
+        {
+            bool focused = sdl_char_sheet_choice_focused(r->choice);
+            float indent = book_w * 0.05f;
+            int tw = sdl_char_sheet_text_width(body_font, r->label);
+            SDL_FRect focus = { book_x + indent, text_y,
+                MIN(book_w - indent, (float)tw + body_lh * 0.5f), body_lh };
+            SDL_FRect hit = { book_x + indent, y, book_w - indent, list_lh };
+
+            if (focused)
+                sdl_char_sheet_draw_focus_rect(focus, true);
+            (void)sdl_char_sheet_draw_text(body_font, r->label,
+                sdl_char_sheet_focus_text_attr(TERM_WHITE, focused),
+                book_x + indent, text_y, book_w - indent, body_lh * 0.95f,
+                false);
+            if (register_hits && r->choice >= 0)
+                sdl_char_sheet_add_hit(hit, r->choice, "");
+        }
+        y += list_lh;
+    }
+
+    y += gap2;
+    if (region_bottom - y > body_lh * 0.5f)
+        sdl_char_sheet_draw_history(body_font, desc, book_x, y, book_w,
+            region_bottom - y, body_lh, 0);
+}
+
+/*
+ * Draw a "leaf" texture turning like a real page: the top-right corner lifts
+ * first and the fold sweeps diagonally down to the left spine.  cp (progress)
+ * 0 = flat (the texture fully covers region); 1 = the page has swung up and away.
+ *
+ * A deformable grid mesh gives the corner-led peel: each row rotates about the
+ * left spine, but upper rows lead lower rows (so the page twists, top first),
+ * and the right/top region lifts toward the viewer.  The leaf is shaded by how
+ * much it faces the viewer, fades out as it tips past edge-on, and is outlined
+ * with a thin light border so the black page reads against the black screen.
+ */
+static void sdl_char_sheet_draw_curled_leaf(SDL_Texture* leaf, SDL_FRect region,
+    float cp)
+{
+    enum { NX = 20, NY = 10 };
+    const float PI = 3.14159265f;
+    const float THETA_MAX = PI * 0.62f;   /* swing just past edge-on */
+    const float LEAD = 0.45f;             /* how far the top leads the bottom */
+    SDL_Vertex verts[(NX + 1) * (NY + 1)];
+    int idx[NX * NY * 6];
+    float W = region.w;
+    float H = region.h;
+    float x0 = region.x;
+    float y0 = region.y;
+    float d;
+    float leaf_alpha;
+    int vcount = 0;
+    int icount = 0;
+
+    if (!leaf || W <= 1.0f || H <= 1.0f)
+        return;
+    if (cp <= 0.002f)
+    {
+        SDL_RenderTexture(g_state.renderer, leaf, NULL, &region);
+        return;
+    }
+    if (cp > 1.0f)
+        cp = 1.0f;
+
+    d = W * 2.2f;                          /* perspective focal distance */
+
+    /* Fade out over the final stretch as it tips onto its (blank) back. */
+    leaf_alpha = (cp > 0.80f) ? (1.0f - (cp - 0.80f) / 0.20f) : 1.0f;
+    if (leaf_alpha < 0.0f)
+        leaf_alpha = 0.0f;
+
+    for (int j = 0; j <= NY; j++)
+    {
+        float v = (float)j / (float)NY;
+        /* Upper rows (small v) turn ahead of lower rows -> top-right leads. */
+        float pr = (cp - v * LEAD) / (1.0f - LEAD);
+        float theta;
+        float ct;
+        float st;
+        float facing;
+
+        if (pr < 0.0f) pr = 0.0f;
+        if (pr > 1.0f) pr = 1.0f;
+        theta = pr * THETA_MAX;
+        ct = SDL_cosf(theta);
+        st = SDL_sinf(theta);
+        facing = (ct + 1.0f) * 0.5f;
+
+        for (int i = 0; i <= NX; i++)
+        {
+            float u = (float)i / (float)NX;
+            float localx = u * W;
+            float zr = -localx * st;       /* toward the viewer */
+            float persp = d / (d + zr);
+            float sx = x0 + localx * ct * persp;
+            /* Lift the turning region off the surface; strongest at the
+             * top-right corner so the peel clearly starts there. */
+            float lift = H * 0.22f * (localx / W) * st * (1.0f - v * 0.55f);
+            float sy = y0 + v * H - lift;
+            float glint = 0.22f
+                * SDL_expf(-(u - (1.0f - cp)) * (u - (1.0f - cp)) / 0.012f);
+            float bright = 0.38f + 0.62f * facing + glint;
+            SDL_FColor col;
+
+            if (bright > 1.0f)
+                bright = 1.0f;
+            col.r = bright;
+            col.g = bright;
+            col.b = bright;
+            col.a = leaf_alpha;
+
+            verts[vcount].position.x = sx;
+            verts[vcount].position.y = sy;
+            verts[vcount].color = col;
+            verts[vcount].tex_coord.x = u;
+            verts[vcount].tex_coord.y = v;
+            vcount++;
+        }
+    }
+
+    for (int j = 0; j < NY; j++)
+    {
+        for (int i = 0; i < NX; i++)
+        {
+            int a = j * (NX + 1) + i;
+            int b = a + 1;
+            int c = a + (NX + 1);
+            int e = c + 1;
+
+            idx[icount++] = a;
+            idx[icount++] = c;
+            idx[icount++] = b;
+            idx[icount++] = b;
+            idx[icount++] = c;
+            idx[icount++] = e;
+        }
+    }
+
+    SDL_SetTextureBlendMode(leaf, SDL_BLENDMODE_BLEND);
+    SDL_RenderGeometry(g_state.renderer, leaf, verts, vcount, idx, icount);
+}
+
+/* Begin a page-curl turn.  dir > 0 advances (0->1); dir < 0 returns (1->0).
+ * Snapshots are captured lazily on the next render frame. */
+void sdl_character_sheet_screen_begin_page_turn(int dir)
+{
+    int dest;
+
+    if (!g_sdl_character_sheet_screen.select_book_mode)
+        return;
+    if (g_sdl_character_sheet_screen.page_turn_active)
+        return;
+    dest = g_sdl_character_sheet_screen.select_page + (dir >= 0 ? 1 : -1);
+    if (dest < 0 || dest >= g_sdl_character_sheet_screen.select_page_count)
+        return;
+
+    sdl_select_page_turn_free();
+    g_sdl_character_sheet_screen.select_page = dest;
+    g_sdl_character_sheet_screen.page_turn_dir = (dir >= 0) ? 1 : -1;
+    g_sdl_character_sheet_screen.page_turn_start_ns = SDL_GetTicksNS();
+    g_sdl_character_sheet_screen.page_turn_active = true;
+    g_state.need_present = true;
+
+    /*
+     * Drive the curl synchronously: the render path clears page_turn_active
+     * once the animation completes.  Self-contained so it does not depend on
+     * the blocking event loop re-presenting on a timeout.  A wall-clock guard
+     * makes sure the loop always terminates.
+     */
+    {
+        Uint64 deadline = g_sdl_character_sheet_screen.page_turn_start_ns
+            + (Uint64)(SDL_SELECT_PAGE_TURN_MS + 250) * 1000000ULL;
+
+        while (g_sdl_character_sheet_screen.page_turn_active)
+        {
+            if (!g_state.renderer || SDL_GetTicksNS() > deadline)
+            {
+                sdl_select_page_turn_free();
+                break;
+            }
+            sdl_character_sheet_screen_render();
+            SDL_RenderPresent(g_state.renderer);
+            SDL_Delay(12);
+        }
+    }
+}
+
+/* While a page-curl is playing, keep waking the loop to draw frames. */
+static int sdl_select_page_turn_timeout_ms(Uint64 now_ns)
+{
+    (void)now_ns;
+    if (!g_sdl_character_sheet_screen.page_turn_active)
+        return -1;
+    return 16;
+}
+
 static void sdl_character_sheet_screen_render(void)
 {
     SDL_Rect canvas;
@@ -10400,172 +10866,191 @@ static void sdl_character_sheet_screen_render(void)
     if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT
         && g_sdl_character_sheet_screen.select_book_mode)
     {
-        cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
-        cptr intro = g_sdl_character_sheet_screen.select_intro;
-        cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
-        cptr desc = g_sdl_character_sheet_screen.select_description;
-        /* Size from the longest description so the font/layout stays put as the
-         * highlighted people changes; the current desc is what gets drawn. */
-        cptr desc_measure =
-            (g_sdl_character_sheet_screen.select_desc_sizing[0])
-                ? g_sdl_character_sheet_screen.select_desc_sizing
-                : desc;
-        int row_count = g_sdl_character_sheet_screen.select_row_count;
-        float region_h = (region_bottom > top_y) ? (region_bottom - top_y)
-                                                  : 1.0f;
-        const float book_max_ems = 60.0f;
-        float book_w;
-        float book_x;
-        int min_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.018f),
-            14, 24);
-        int body_px = min_px;
-        TTF_Font* body_font;
-        float body_lh;
-        float list_lh;
-        float gap2;     /* between major sections (intro/list/lore) */
-        float gap_in;   /* between the framing lines and the chronicle */
-        int ft_lines;
-        int in_lines;
-        int fb_lines;
-        int desc_lines;
-        float content_h;
-        float y = top_y;
+        int page = g_sdl_character_sheet_screen.select_page;
+        int page_count = g_sdl_character_sheet_screen.select_page_count;
+        bool turning = g_sdl_character_sheet_screen.page_turn_active;
 
-        /*
-         * Size the story font so the whole page -- framing, chronicle, list,
-         * and lore -- flows top to bottom and fills the height.  Pick the
-         * largest size (no bigger than the title) whose total content fits,
-         * measured at the candidate font so nothing spills off-screen.
-         */
-        for (int px = title_px; px >= min_px; px -= 2)
+        if (turning)
         {
-            TTF_Font* f = sdl_story_font_for_height(px);
-            float lh = sdl_char_sheet_line_h(f, px, 1.28f);
-            float candidate_w = MIN(content_w, (float)px * book_max_ems);
-            int ft = (frame_top && frame_top[0])
-                ? sdl_char_sheet_wrap_text(f, frame_top, candidate_w, NULL, 0) : 0;
-            int in = (intro && intro[0])
-                ? sdl_char_sheet_wrap_text(f, intro, candidate_w, NULL, 0) : 0;
-            int fb = (frame_bottom && frame_bottom[0])
-                ? sdl_char_sheet_wrap_text(f, frame_bottom, candidate_w, NULL, 0)
-                : 0;
-            int dl = (desc_measure && desc_measure[0])
-                ? sdl_char_sheet_wrap_text(f, desc_measure, candidate_w, NULL, 0)
-                : 0;
-            float total = (float)(ft + in + fb + dl) * lh
-                + (float)row_count * (lh * 1.35f) + lh * 3.2f;
+            /*
+             * Page-curl: snapshot both leaves into offscreen textures (once),
+             * draw the destination flat underneath, then curl the other leaf
+             * away on top.  Drives itself via sdl_select_page_turn_timeout_ms.
+             */
+            Uint64 now = SDL_GetTicksNS();
+            float t = (float)((now
+                - g_sdl_character_sheet_screen.page_turn_start_ns) / 1000000ULL)
+                / (float)SDL_SELECT_PAGE_TURN_MS;
+            int dir = g_sdl_character_sheet_screen.page_turn_dir;
+            int to_page = page;
+            int from_page = page - dir;
+            float te;
+            float cp;
+            SDL_Texture* bg;
+            SDL_Texture* leaf;
+            /*
+             * The "page" is only the text column (book_x..book_x+book_w over the
+             * region height), so the turn happens over the text, not the whole
+             * screen.  Snapshots are sized to that column.
+             */
+            int body_px = sdl_char_sheet_book_body_px((float)canvas.h,
+                content_w, top_y, region_bottom, title_px);
+            float book_w = sdl_char_sheet_book_width(body_px, content_w);
+            float book_x = content_x + (content_w - book_w) * 0.5f;
+            float body_lh = sdl_char_sheet_line_h(
+                sdl_story_font_for_height(body_px), body_px, 1.28f);
+            float mh = body_lh * SDL_BOOK_MARGIN_H;
+            float page_x = book_x - mh;
+            float page_w = book_w + 2.0f * mh;
+            float page_h = region_bottom - top_y;
+            int pw;
+            int ph;
+            SDL_FRect region;
 
-            body_px = px;
-            if (total <= region_h)
-                break;
-        }
-        body_font = sdl_story_font_for_height(body_px);
-        book_w = MIN(content_w, (float)body_px * book_max_ems);
-        book_x = content_x + (content_w - book_w) * 0.5f;
-        body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
-        list_lh = body_lh * 1.35f;
-        gap2 = body_lh * 0.8f;
-        gap_in = body_lh * 0.35f;
-        ft_lines = (frame_top && frame_top[0])
-            ? sdl_char_sheet_wrap_text(body_font, frame_top, book_w, NULL, 0)
-            : 0;
-        in_lines = (intro && intro[0])
-            ? sdl_char_sheet_wrap_text(body_font, intro, book_w, NULL, 0)
-            : 0;
-        fb_lines = (frame_bottom && frame_bottom[0])
-            ? sdl_char_sheet_wrap_text(body_font, frame_bottom, book_w, NULL,
-                0)
-            : 0;
-        desc_lines = (desc_measure && desc_measure[0])
-            ? sdl_char_sheet_wrap_text(body_font, desc_measure, book_w, NULL,
-                0)
-            : 0;
-
-        /* Centre the block vertically so any leftover splits top and bottom. */
-        content_h = (float)(ft_lines + in_lines + fb_lines) * body_lh
-            + 2.0f * gap_in + 2.0f * gap2
-            + (float)row_count * list_lh + (float)desc_lines * body_lh;
-        if (content_h < region_h)
-            y = top_y + (region_h - content_h) * 0.5f;
-
-        /* 1a. Framing line above (the trial / second-person voice). */
-        if (ft_lines > 0)
-        {
-            sdl_char_sheet_draw_wrapped(body_font, frame_top, TERM_L_BLUE,
-                book_x, y, book_w, (float)ft_lines * body_lh + body_lh,
-                body_lh, 0);
-            y += (float)ft_lines * body_lh + gap_in;
-        }
-
-        /* 1b. The chronicle (history of the war). */
-        if (in_lines > 0)
-        {
-            sdl_char_sheet_draw_wrapped(body_font, intro, TERM_WHITE, book_x,
-                y, book_w, (float)in_lines * body_lh + body_lh, body_lh, 0);
-            y += (float)in_lines * body_lh + (fb_lines > 0 ? gap_in : gap2);
-        }
-
-        /* 1c. Framing/charge line below (choose whose name you will wear). */
-        if (fb_lines > 0)
-        {
-            sdl_char_sheet_draw_wrapped(body_font, frame_bottom, TERM_L_BLUE,
-                book_x, y, book_w, (float)fb_lines * body_lh + body_lh,
-                body_lh, 0);
-            y += (float)fb_lines * body_lh + gap2;
-        }
-
-        /* 2. Grouped, selectable list (headings + peoples). */
-        for (int i = 0; i < row_count; i++)
-        {
-            const sdl_character_sheet_select_row* r =
-                &g_sdl_character_sheet_screen.select_rows[i];
-            /* list_lh is the row pitch (spacing); the text and its highlight
-             * are only body_lh tall, centred in the slot, so the selection
-             * hugs a single line instead of spanning the gap to the next row. */
-            float text_y = y + (list_lh - body_lh) * 0.5f;
-
-            if (text_y + body_lh * 0.5f > region_bottom)
-                break;
-            if (text_y < y)
-                text_y = y;
-
-            if (r->is_heading)
+            if (page_x < content_x)
             {
-                (void)sdl_char_sheet_draw_text(body_font, r->label,
-                    TERM_SLATE, book_x, text_y, book_w, body_lh * 0.95f,
-                    false);
+                page_w -= (content_x - page_x);
+                page_x = content_x;
+            }
+            if (page_x + page_w > content_x + content_w)
+                page_w = content_x + content_w - page_x;
+            pw = (int)(page_w + 0.5f);
+            ph = (int)(page_h + 0.5f);
+            region = (SDL_FRect){ page_x, top_y, page_w, page_h };
+
+            if (pw < 1) pw = 1;
+            if (ph < 1) ph = 1;
+            if (t < 0.0f) t = 0.0f;
+            if (t >= 1.0f) t = 1.0f;
+            /* easeInOutCubic */
+            te = (t < 0.5f) ? (4.0f * t * t * t)
+                            : (1.0f - SDL_powf(-2.0f * t + 2.0f, 3.0f) * 0.5f);
+
+            /* (Re)capture snapshots if missing or stale (e.g. after resize). */
+            if (!g_sdl_character_sheet_screen.page_turn_from_tex
+                || !g_sdl_character_sheet_screen.page_turn_to_tex
+                || g_sdl_character_sheet_screen.page_turn_tex_w != pw
+                || g_sdl_character_sheet_screen.page_turn_tex_h != ph)
+            {
+                SDL_Texture* prev_target =
+                    SDL_GetRenderTarget(g_state.renderer);
+
+                sdl_select_page_turn_free();
+                g_sdl_character_sheet_screen.page_turn_from_tex =
+                    SDL_CreateTexture(g_state.renderer,
+                        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+                        pw, ph);
+                g_sdl_character_sheet_screen.page_turn_to_tex =
+                    SDL_CreateTexture(g_state.renderer,
+                        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+                        pw, ph);
+                g_sdl_character_sheet_screen.page_turn_tex_w = pw;
+                g_sdl_character_sheet_screen.page_turn_tex_h = ph;
+                g_sdl_character_sheet_screen.page_turn_active = true;
+
+                if (g_sdl_character_sheet_screen.page_turn_from_tex
+                    && g_sdl_character_sheet_screen.page_turn_to_tex)
+                {
+                    int pages[2] = { from_page, to_page };
+                    SDL_Texture* texs[2] = {
+                        g_sdl_character_sheet_screen.page_turn_from_tex,
+                        g_sdl_character_sheet_screen.page_turn_to_tex };
+                    /* Opaque black page filling the whole column texture so the
+                     * turning leaf hides the page beneath until it lifts (its
+                     * edges are drawn with a light border, not a fill). */
+                    SDL_FRect body = { 0.0f, 0.0f, (float)pw, (float)ph };
+
+                    for (int s = 0; s < 2; s++)
+                    {
+                        SDL_SetTextureBlendMode(texs[s], SDL_BLENDMODE_BLEND);
+                        SDL_SetRenderTarget(g_state.renderer, texs[s]);
+                        SDL_SetRenderClipRect(g_state.renderer, NULL);
+                        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 0);
+                        SDL_RenderClear(g_state.renderer);
+                        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+                        SDL_RenderFillRect(g_state.renderer, &body);
+                        /* Render the page into the texture: shift content_x so
+                         * the page frame's left edge maps to 0, and use
+                         * [0, page_h] for the height so the vertical centring
+                         * matches the on-screen layout. */
+                        sdl_char_sheet_render_book_page(pages[s],
+                            (float)canvas.h,
+                            mh - (content_w - book_w) * 0.5f, content_w,
+                            0.0f, page_h, title_px, false);
+                    }
+                }
+
+                SDL_SetRenderTarget(g_state.renderer, prev_target);
+                SDL_SetRenderClipRect(g_state.renderer, NULL);
+            }
+
+            if (dir > 0) { bg = g_sdl_character_sheet_screen.page_turn_to_tex;
+                           leaf = g_sdl_character_sheet_screen.page_turn_from_tex;
+                           cp = te; }
+            else         { bg = g_sdl_character_sheet_screen.page_turn_from_tex;
+                           leaf = g_sdl_character_sheet_screen.page_turn_to_tex;
+                           cp = 1.0f - te; }
+
+            if (bg && leaf)
+            {
+                SDL_SetTextureBlendMode(bg, SDL_BLENDMODE_BLEND);
+                SDL_RenderTexture(g_state.renderer, bg, NULL, &region);
+                sdl_char_sheet_draw_curled_leaf(leaf, region, cp);
             }
             else
             {
-                bool focused = sdl_char_sheet_choice_focused(r->choice);
-                float indent = book_w * 0.05f;
-                int tw = sdl_char_sheet_text_width(body_font, r->label);
-                SDL_FRect focus = { book_x + indent, text_y,
-                    MIN(book_w - indent, (float)tw + body_lh * 0.5f),
-                    body_lh };
-                SDL_FRect hit = { book_x + indent, y, book_w - indent,
-                    list_lh };
-
-                if (focused)
-                    sdl_char_sheet_draw_focus_rect(focus, true);
-                (void)sdl_char_sheet_draw_text(body_font, r->label,
-                    sdl_char_sheet_focus_text_attr(TERM_WHITE, focused),
-                    book_x + indent, text_y, book_w - indent,
-                    body_lh * 0.95f, false);
-                if (r->choice >= 0)
-                    sdl_char_sheet_add_hit(hit, r->choice, "");
+                /* Snapshot failed: skip the effect, just show the new page. */
+                sdl_char_sheet_render_book_page(page, (float)canvas.h,
+                    content_x, content_w, top_y, region_bottom, title_px,
+                    false);
             }
-            y += list_lh;
+
+            if (t >= 1.0f)
+                sdl_select_page_turn_free();   /* lands on the new page */
+
+            sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
+                content_w, prompt_h);
+            g_state.need_present = true;
+            return;
         }
 
-        /* 3. Highlighted people's lore, flowing on beneath the list. */
-        y += gap2;
-        if (region_bottom - y > body_lh * 0.5f)
-            sdl_char_sheet_draw_history(body_font, desc, book_x, y,
-                book_w, region_bottom - y, body_lh, 0);
+        /* Static page: draw the current leaf and its bottom turn button(s). */
+        sdl_char_sheet_render_book_page(page, (float)canvas.h, content_x,
+            content_w, top_y, region_bottom, title_px, true);
 
-        sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
-            content_w, prompt_h);
+        {
+            /* Bottom page-turn buttons (mouse): "Previous" on the left of the
+             * prompt row, "Turn the page" on the right.  Keyboard uses the
+             * arrows / Space (handled in get_player_choice). */
+            float bw = MIN(content_w * 0.34f, prompt_h * 9.0f);
+            float bh = prompt_h;
+            int hov = g_sdl_character_sheet_screen.hover_choice;
+
+            if (page > 0)
+            {
+                SDL_FRect r = { content_x, prompt_y, bw, bh };
+                byte a = (hov == SDL_SELECT_CLICK_PAGE_PREV)
+                    ? TERM_WHITE : TERM_L_BLUE;
+
+                (void)sdl_char_sheet_draw_text(prompt_font,
+                    "\xe2\x80\xb9 Previous page", a, content_x, prompt_y, bw,
+                    bh, true);
+                sdl_char_sheet_add_select_button_hit(r,
+                    SDL_SELECT_CLICK_PAGE_PREV);
+            }
+            if (page < page_count - 1)
+            {
+                SDL_FRect r = { content_x + content_w - bw, prompt_y, bw, bh };
+                byte a = (hov == SDL_SELECT_CLICK_PAGE_NEXT)
+                    ? TERM_WHITE : TERM_L_BLUE;
+
+                (void)sdl_char_sheet_draw_text(prompt_font,
+                    "Turn the page \xe2\x80\xba", a,
+                    content_x + content_w - bw, prompt_y, bw, bh, true);
+                sdl_char_sheet_add_select_button_hit(r,
+                    SDL_SELECT_CLICK_PAGE_NEXT);
+            }
+        }
         /* No hover tooltip in book mode (no pop-ups). */
         return;
     }
@@ -10989,6 +11474,25 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
  * begin_select, add a row per visible choice, add the focused choice's detail
  * lines, set the description (lore), then commit.
  */
+/* Drop any page-curl snapshot textures and stop the animation. */
+static void sdl_select_page_turn_free(void)
+{
+    if (g_sdl_character_sheet_screen.page_turn_from_tex)
+        SDL_DestroyTexture(g_sdl_character_sheet_screen.page_turn_from_tex);
+    if (g_sdl_character_sheet_screen.page_turn_to_tex)
+        SDL_DestroyTexture(g_sdl_character_sheet_screen.page_turn_to_tex);
+    g_sdl_character_sheet_screen.page_turn_from_tex = NULL;
+    g_sdl_character_sheet_screen.page_turn_to_tex = NULL;
+    g_sdl_character_sheet_screen.page_turn_active = false;
+}
+
+/* Reopen the book on its first page (called when (re)entering the race screen). */
+void sdl_character_sheet_screen_reset_select_page(void)
+{
+    sdl_select_page_turn_free();
+    g_sdl_character_sheet_screen.select_page = 0;
+}
+
 bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
 {
     if (!g_state.window || !g_state.renderer)
@@ -10998,7 +11502,9 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     {
         g_sdl_character_sheet_screen.sheet_scroll = 0;
         g_sdl_character_sheet_screen.sheet_scroll_max = 0;
+        sdl_character_sheet_screen_reset_select_page();
     }
+    g_sdl_character_sheet_screen.select_page_count = 1;
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SELECT;
     g_sdl_character_sheet_screen.focus_choice = focus_choice;
     g_sdl_character_sheet_screen.selected_index = focus_choice;
@@ -11072,6 +11578,26 @@ void sdl_character_sheet_screen_set_select_intro(cptr text)
     SDL_strlcpy(g_sdl_character_sheet_screen.select_intro, text ? text : "",
         sizeof(g_sdl_character_sheet_screen.select_intro));
     g_sdl_character_sheet_screen.select_book_mode = true;
+    g_sdl_character_sheet_screen.select_page_count = 2;
+    if (g_sdl_character_sheet_screen.select_page < 0
+        || g_sdl_character_sheet_screen.select_page >= 2)
+        g_sdl_character_sheet_screen.select_page = 0;
+}
+
+/* Book navigation accessors for the birth input loop. */
+int sdl_character_sheet_screen_select_page(void)
+{
+    return g_sdl_character_sheet_screen.select_page;
+}
+
+int sdl_character_sheet_screen_select_page_count(void)
+{
+    return g_sdl_character_sheet_screen.select_page_count;
+}
+
+bool sdl_character_sheet_screen_page_turning(void)
+{
+    return g_sdl_character_sheet_screen.page_turn_active;
 }
 
 /* Book mode: framing lines (accent colour) above and below the chronicle --
@@ -35809,6 +36335,8 @@ static errr callback_sdl_xtra(int n, int v)
                 sdl_log_pane_menu_pending_timeout_ms(now_ns);
             int side_pane_menu_timeout_ms =
                 sdl_side_pane_menu_pending_timeout_ms(now_ns);
+            int select_page_turn_timeout_ms =
+                sdl_select_page_turn_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
@@ -35857,6 +36385,11 @@ static errr callback_sdl_xtra(int n, int v)
                     && side_pane_menu_timeout_ms < timeout_ms))
             {
                 timeout_ms = side_pane_menu_timeout_ms;
+            }
+            if (timeout_ms < 0 || (select_page_turn_timeout_ms >= 0
+                    && select_page_turn_timeout_ms < timeout_ms))
+            {
+                timeout_ms = select_page_turn_timeout_ms;
             }
             g_sdl_blocking_key_wait = true;
             if (timeout_ms >= 0) {

@@ -1958,6 +1958,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int cur = (def) ? def : 0;
     bool steamdeck = steamdeck_controls_active();
     bool menu_letters = sdl_menu_letters_enabled();
+    bool book_mode = (page && page->intro != NULL);  /* race "book" page */
     int clear_limit = birth_prompt_row() + 1;
     int last_list_rows_drawn = 0;
     int last_description_row = birth_prompt_row();
@@ -2273,6 +2274,19 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                         click_action != UI_MENU_CLICK_HOVER);
                     continue;
                 }
+                else if (clicked_choice == SDL_SELECT_CLICK_PAGE_NEXT
+                    || clicked_choice == SDL_SELECT_CLICK_PAGE_PREV)
+                {
+                    /* Book page-turn buttons (race screen, mouse). */
+                    if (book_mode && click_action != UI_MENU_CLICK_HOVER
+                        && !sdl_character_sheet_screen_page_turning())
+                    {
+                        sdl_character_sheet_screen_begin_page_turn(
+                            clicked_choice == SDL_SELECT_CLICK_PAGE_NEXT
+                                ? +1 : -1);
+                    }
+                    continue;
+                }
                 else if (click_action == UI_MENU_CLICK_SECONDARY
                     && allow_full_description_screen)
                 {
@@ -2344,6 +2358,45 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Exit the game */
         if ((c == 'Q') || (c == 'q'))
             quit(NULL);
+
+        /*
+         * Race "book" navigation.  The story page (0) turns forward to the
+         * choice page (1) on Right/Space/Enter; the choice page turns back on
+         * Left.  Esc still backs out of the screen entirely.  Arrow keys reach
+         * us as '4'/'6'.
+         */
+        if (book_mode)
+        {
+            int bpage = sdl_character_sheet_screen_select_page();
+            int pcount = sdl_character_sheet_screen_select_page_count();
+
+            /* Ignore keys while a page-curl is mid-flight. */
+            if (sdl_character_sheet_screen_page_turning())
+                continue;
+
+            if (bpage <= 0 && pcount > 1)
+            {
+                if (c == '6' || birth_confirm_input(c, steamdeck))
+                {
+                    sdl_character_sheet_screen_begin_page_turn(+1);
+                    continue;
+                }
+                /* No list on the story page; swallow vertical movement. */
+                if (c == '8' || c == '2')
+                    continue;
+            }
+            else if (bpage > 0)
+            {
+                if (c == '4')
+                {
+                    sdl_character_sheet_screen_begin_page_turn(-1);
+                    continue;
+                }
+                /* No page beyond the choice page: Right is a no-op. */
+                if (c == '6')
+                    continue;
+            }
+        }
 
         /* Hack - go back */
         if ((c == ESCAPE) || (c == '4')
@@ -3641,6 +3694,9 @@ static bool get_player_race(void)
     cptr headings[16];
 
     (void)birth_peoples_validate();
+
+    /* Always open the book on its first (story) page. */
+    sdl_character_sheet_screen_reset_select_page();
 
     if (num > (int)N_ELEMENTS(menu))
         num = (int)N_ELEMENTS(menu);
