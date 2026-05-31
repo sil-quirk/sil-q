@@ -40,6 +40,7 @@ extern void wipe_screen_from(int col);
 #define CLASS_AUX_COL 27
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
+#define BIRTH_FALLEN_MARK "\xe2\x80\xa0"
 
 static int find_named_artifact_for_character(void);
 static void grant_starting_artifact(void);
@@ -248,6 +249,8 @@ typedef struct birth_select_page
     cptr intro;            /* book mode: chronicle text (non-NULL enables book) */
     cptr frame_bottom;     /* book mode: framing/charge line below the chronicle */
     cptr* group_headings;  /* optional heading shown before choice[i] */
+    int detail_stat_rows_hint;  /* plain mode: fixed stat rows in detail */
+    int detail_trait_rows_hint; /* plain mode: fixed trait rows in detail */
 } birth_select_page;
 
 #define BIRTH_DETAIL_HOVER_CLICK_BASE 16000
@@ -2005,6 +2008,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             bool book = (page && page->intro != NULL);
             cptr* group_headings = page ? page->group_headings : NULL;
 
+            if (page)
+            {
+                sdl_character_sheet_screen_set_select_detail_size_hint(
+                    page->detail_stat_rows_hint,
+                    page->detail_trait_rows_hint);
+            }
+
             if (book)
             {
                 sdl_character_sheet_screen_set_select_intro(page->intro);
@@ -2022,7 +2032,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                         group_headings[i]);
 
                 if (choices[i].ghost)
-                    strnfmt(label, sizeof(label), "X %s", choices[i].name);
+                    strnfmt(label, sizeof(label), "%s %s",
+                        BIRTH_FALLEN_MARK, choices[i].name);
                 else
                     strnfmt(label, sizeof(label), "%s", choices[i].name);
                 /* No per-row hover tooltip: the focused choice's text is
@@ -2089,7 +2100,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             /* Display character name */
             char name_part[256];
             if (choices[i + top].ghost)
-                strnfmt(name_part, sizeof(name_part), "%c %s", 'X', choices[i + top].name);
+                strnfmt(name_part, sizeof(name_part), "%s %s",
+                    BIRTH_FALLEN_MARK, choices[i + top].name);
             else 
                 strnfmt(name_part, sizeof(name_part), "%s", choices[i + top].name);
 
@@ -3727,7 +3739,8 @@ static bool get_player_race(void)
             birth_frame_top,           /* framing line above (accent) */
             birth_intro_lore,          /* chronicle (white) */
             birth_frame_bottom,        /* framing/charge below (accent) */
-            headings
+            headings,
+            0, 0
         };
 
         race = get_player_choice(menu, num, p_ptr->prace, RACE_COL, 15,
@@ -4032,6 +4045,7 @@ static bool get_character_profile(void)
     int character = 0;
     int character_choice;
     int previous_choice = 0;
+    int max_trait_rows = 0;
     birth_menu* character_menu;
     /* Per-row "welcome + chronicle" text, kept alive for get_player_choice. */
     static char character_desc_buf[48][1280];
@@ -4064,9 +4078,14 @@ static bool get_character_profile(void)
         {
             cptr welcome = c_name + c_info[i].start_string;
             cptr lore = c_text + c_info[i].text;
+            int trait_rows = collect_character_trait_lines(p_ptr->prace, i,
+                false, NULL, 0, NULL);
 
             if (highscore_dead(c_name + c_info[i].name)) character_menu[character].ghost = true;
             else character_menu[character].ghost = false;
+
+            if (trait_rows > max_trait_rows)
+                max_trait_rows = trait_rows;
 
             character_menu[character].name = c_name + c_info[i].name;
             if (character < (int)N_ELEMENTS(character_desc_buf))
@@ -4093,10 +4112,13 @@ static bool get_character_profile(void)
     screen_push_touch_pane_proto();
     {
         birth_select_page page = {
-            "Whose name will you wear?",  /* title (the borrowing voice) */
+            "Whose fate will you carry?", /* title (the borrowing voice) */
             NULL, NULL, NULL,             /* not book mode: keep the detail panel */
-            NULL
+            NULL,
+            0, 0
         };
+        page.detail_stat_rows_hint = A_MAX;
+        page.detail_trait_rows_hint = max_trait_rows;
 
         character_choice = get_player_choice(
             character_menu, character, previous_choice, CLASS_COL, 22,

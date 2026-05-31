@@ -21824,6 +21824,43 @@ static void option_set_player_tile_facing_mode(byte mode)
     option_apply_side_effects(OPT_mirror_player_tile_facing);
 }
 
+/*
+ * Inline per-overlay-pane rows shown on the Interface options page.
+ *
+ * These rows live alongside the normal OPT_* options but edit SDL pane
+ * configuration (via the get_sdl_ / set_sdl_ accessors) instead of
+ * op_ptr->opt[].  They are appended after the real options; an opt[] slot
+ * holding a value >=
+ * IFACE_PANE_ROW_BASE marks such a row, whose descriptor is stored separately
+ * (see do_cmd_options_aux).  Mirrors how the Sound page hosts non-OPT_* rows.
+ */
+#define IFACE_PANE_ROW_BASE 4096
+#define IFACE_PANE_ROW_MAX 32
+#define IFACE_PANE_GROUP_MAX 8
+
+enum iface_pane_field {
+    IFACE_PANE_FIELD_ENABLED = 0,
+    IFACE_PANE_FIELD_PLACEMENT,
+    IFACE_PANE_FIELD_FONT,
+    IFACE_PANE_FIELD_LP_LAUNCH,
+    IFACE_PANE_FIELD_LP_COMPACT
+};
+
+struct iface_pane_row {
+    int pane_cfg_index;
+    enum pane_type type;
+    enum iface_pane_field field;
+};
+
+static bool pane_type_is_overlay(enum pane_type type);
+static const char* pane_type_display_name(enum pane_type type);
+static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
+    struct option_group_marker* markers, int* marker_count, int base_index);
+static cptr iface_pane_row_label(const struct iface_pane_row* row);
+static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
+    size_t buflen);
+static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta);
+
 extern void do_cmd_options_aux(int page, cptr info)
 {
     char ch;
@@ -21831,7 +21868,11 @@ extern void do_cmd_options_aux(int page, cptr info)
     int i, k = 0, n = 0;
     int scroll = 0;
 
-    int opt[OPT_PAGE_PER];
+    int opt[OPT_PAGE_PER + IFACE_PANE_ROW_MAX];
+    struct iface_pane_row pane_rows[IFACE_PANE_ROW_MAX];
+    int pane_row_count = 0;
+    int n_real = 0;
+    struct option_group_marker iface_groups[OPT_PAGE_PER + IFACE_PANE_GROUP_MAX + 1];
 
     char buf[160];
 
@@ -21860,6 +21901,41 @@ extern void do_cmd_options_aux(int page, cptr info)
     if (is_sound_page)
     {
         n = SOUND_OPT_MAX;
+    }
+
+    n_real = n;
+
+    /* Interface page: append inline per-overlay-pane rows after the OPT_* rows. */
+    if (page == INTERFACE_PAGE)
+    {
+        struct option_group_marker pane_markers[IFACE_PANE_GROUP_MAX];
+        int pane_marker_count = 0;
+        int g = 0;
+        int s, m;
+
+        pane_row_count = build_interface_pane_rows(pane_rows, IFACE_PANE_ROW_MAX,
+            pane_markers, &pane_marker_count, n_real);
+
+        for (i = 0; i < pane_row_count; i++)
+            opt[n++] = IFACE_PANE_ROW_BASE;
+
+        /*
+         * Build a dynamic group list: the existing OPT_* group headers that
+         * still fall within the real options, followed by one header per
+         * overlay pane.  (Static markers at/after n_real never render in the
+         * OPT-only case, so dropping them preserves current behaviour and
+         * avoids a stray header landing in front of the first pane row.)
+         */
+        for (s = 0; interface_option_groups[s].before_index >= 0; s++)
+        {
+            if (interface_option_groups[s].before_index < n_real)
+                iface_groups[g++] = interface_option_groups[s];
+        }
+        for (m = 0; m < pane_marker_count; m++)
+            iface_groups[g++] = pane_markers[m];
+        iface_groups[g].before_index = -1;
+        iface_groups[g].label = NULL;
+        groups = iface_groups;
     }
 
     /* Interact with the player */
@@ -21918,7 +21994,16 @@ extern void do_cmd_options_aux(int page, cptr info)
 
             /* Display the option text */
             buf[0] = '\0';
-            if (is_sound_page)
+            if (page == INTERFACE_PAGE && opt[i] >= IFACE_PANE_ROW_BASE)
+            {
+                char value_str[32];
+                const struct iface_pane_row* prow = &pane_rows[i - n_real];
+
+                iface_pane_row_value(prow, value_str, sizeof(value_str));
+                option_menu_format_line(buf, sizeof(buf),
+                    iface_pane_row_label(prow), value_str);
+            }
+            else if (is_sound_page)
             {
                 char value_str[32];
 
@@ -22320,7 +22405,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page)
+                if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
+                {
+                    if (iface_pane_row_adjust(&pane_rows[k - n_real], 0))
+                        app_settings_dirty = true;
+                }
+                else if (is_sound_page)
                 {
                     switch (k)
                     {
@@ -22453,7 +22543,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page)
+                if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
+                {
+                    if (iface_pane_row_adjust(&pane_rows[k - n_real], 1))
+                        app_settings_dirty = true;
+                }
+                else if (is_sound_page)
                 {
                     switch (k)
                     {
@@ -22614,7 +22709,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page)
+                if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
+                {
+                    if (iface_pane_row_adjust(&pane_rows[k - n_real], -1))
+                        app_settings_dirty = true;
+                }
+                else if (is_sound_page)
                 {
                     switch (k)
                     {
@@ -22766,6 +22866,23 @@ extern void do_cmd_options_aux(int page, cptr info)
                     app_settings_dirty = true;
                 else if (metarun_page)
                     metarun_settings_dirty = true;
+            }
+            break;
+        }
+
+        case '0':
+        {
+            /* On an inline pane Font Size row, 0 resets to auto. */
+            if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
+            {
+                const struct iface_pane_row* prow = &pane_rows[k - n_real];
+                if (prow->field == IFACE_PANE_FIELD_FONT
+                    && get_sdl_pane_font_size(prow->pane_cfg_index) != 0)
+                {
+                    set_sdl_pane_font_size(prow->pane_cfg_index, 0);
+                    sdl_apply_config();
+                    app_settings_dirty = true;
+                }
             }
             break;
         }
@@ -23054,8 +23171,6 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_AUX_VIEW_FONT_SIZE,
         PANE_SETTING_VIEW_PANE_CONFIGURATION,
         PANE_SETTING_PANE_FONT_SIZES,
-        PANE_SETTING_LEFT_PANEL_LAUNCH_STATE,
-        PANE_SETTING_LEFT_PANEL_COMPACT_MODE,
         PANE_SETTING_OPEN_CONFIG_FILE,
         PANE_SETTING_SAVE_RETURN,
         PANE_SETTING_COUNT
@@ -23246,34 +23361,7 @@ void do_cmd_pane_settings(void)
         ui_menu_click_add(PANE_SETTING_PANE_FONT_SIZES, 2, y0 + 11,
             (int)strlen(buf));
 
-        /* Option 12: Left Panel Launch State */
-        a = (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Left Panel Launch State",
-                "Left Panel Launch",
-                "Panel Launch"),
-            get_sdl_left_panel_expanded_on_launch() ? "full" : "compact",
-            row_width, 7);
-        c_prt(a, buf, y0 + 12, 2);
-        ui_menu_click_add(PANE_SETTING_LEFT_PANEL_LAUNCH_STATE, 2, y0 + 12,
-            (int)strlen(buf));
-
-        /* Option 13: Left Panel Compact Mode */
-        a = (k == PANE_SETTING_LEFT_PANEL_COMPACT_MODE) ? TERM_L_BLUE : TERM_WHITE;
-        settings_ui_format_pair_line(buf, sizeof(buf),
-            settings_ui_pick_label(label_hint,
-                "Left Panel Compact Mode",
-                "Left Panel Compact",
-                "Panel Compact"),
-            get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW
-                ? "row" : "column",
-            row_width, 6);
-        c_prt(a, buf, y0 + 13, 2);
-        ui_menu_click_add(PANE_SETTING_LEFT_PANEL_COMPACT_MODE, 2, y0 + 13,
-            (int)strlen(buf));
-
-        /* Option 14: Open SDL Config File */
+        /* Option 12: Open SDL Config File */
         a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -23281,18 +23369,18 @@ void do_cmd_pane_settings(void)
                 "Open SDL Config",
                 "Open Config"),
             sdl_config_path_leaf(config_label), row_width, 12);
-        c_prt(a, buf, y0 + 14, 2);
-        ui_menu_click_add(PANE_SETTING_OPEN_CONFIG_FILE, 2, y0 + 14,
+        c_prt(a, buf, y0 + 12, 2);
+        ui_menu_click_add(PANE_SETTING_OPEN_CONFIG_FILE, 2, y0 + 12,
             (int)strlen(buf));
 
-        /* Option 15: Save/Return */
+        /* Option 13: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        c_prt(a, buf, y0 + 15, 2);
-        ui_menu_click_add(PANE_SETTING_SAVE_RETURN, 2, y0 + 15,
+        c_prt(a, buf, y0 + 13, 2);
+        ui_menu_click_add(PANE_SETTING_SAVE_RETURN, 2, y0 + 13,
             (int)strlen(buf));
 
         for (int click_i = 0; click_i < n; click_i++)
@@ -23490,23 +23578,6 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
             }
-            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
-            {
-                set_sdl_left_panel_expanded_on_launch(
-                    !get_sdl_left_panel_expanded_on_launch());
-                settings_changed = true;
-                sdl_request_redraw();
-            }
-            else if (k == PANE_SETTING_LEFT_PANEL_COMPACT_MODE)
-            {
-                set_sdl_left_panel_compact_mode(
-                    get_sdl_left_panel_compact_mode()
-                            == SDL_LEFT_PANEL_COMPACT_ROW
-                        ? SDL_LEFT_PANEL_COMPACT_COLUMN
-                        : SDL_LEFT_PANEL_COMPACT_ROW);
-                settings_changed = true;
-                sdl_request_redraw();
-            }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 set_sdl_min_terminal_mode(get_sdl_min_terminal_mode() == 0 ? 1 : 0);
@@ -23601,18 +23672,6 @@ void do_cmd_pane_settings(void)
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
             }
-            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
-            {
-                set_sdl_left_panel_expanded_on_launch(true);
-                settings_changed = true;
-                sdl_request_redraw();
-            }
-            else if (k == PANE_SETTING_LEFT_PANEL_COMPACT_MODE)
-            {
-                set_sdl_left_panel_compact_mode(SDL_LEFT_PANEL_COMPACT_ROW);
-                settings_changed = true;
-                sdl_request_redraw();
-            }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
                 if (get_sdl_min_terminal_mode() != 0)
@@ -23695,18 +23754,6 @@ void do_cmd_pane_settings(void)
                 op_ptr->opt[OPT_hide_supporting_panes_fullscreen] = false;
                 settings_changed = true;
                 sdl_refresh_supporting_panes_layout();
-            }
-            else if (k == PANE_SETTING_LEFT_PANEL_LAUNCH_STATE)
-            {
-                set_sdl_left_panel_expanded_on_launch(false);
-                settings_changed = true;
-                sdl_request_redraw();
-            }
-            else if (k == PANE_SETTING_LEFT_PANEL_COMPACT_MODE)
-            {
-                set_sdl_left_panel_compact_mode(SDL_LEFT_PANEL_COMPACT_COLUMN);
-                settings_changed = true;
-                sdl_request_redraw();
             }
             else if (k == PANE_SETTING_MIN_TERMINAL_SIZE) /* Minimum Terminal Size */
             {
@@ -23792,6 +23839,8 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
         if (!pane_font_settings_exposes_pane(type))
+            continue;
+        if (pane_type_is_overlay(type))
             continue;
         pane_indices[pane_count++] = i;
     }
@@ -24034,7 +24083,7 @@ static int get_supporting_pane_config_count(void)
     for (int i = 0; i < total; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        if (pane_settings_exposes_pane(type))
+        if (pane_settings_exposes_pane(type) && !pane_type_is_overlay(type))
             count++;
     }
     return count;
@@ -24148,6 +24197,220 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
     return changed;
 }
 
+static bool pane_type_is_overlay(enum pane_type type)
+{
+    return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
+        || (type == PANE_DEPTH) || (type == PANE_MAIN_MENU);
+}
+
+static const char* pane_type_display_name(enum pane_type type)
+{
+    switch (type)
+    {
+    case PANE_LEFT_PANEL: return "Left Panel";
+    case PANE_STATUS: return "Status";
+    case PANE_DEPTH: return "Depth";
+    case PANE_MAIN_MENU: return "Main Menu";
+    default: return pane_type_name(type);
+    }
+}
+
+/*
+ * Build the inline pane rows (and their per-pane group headers) shown on the
+ * Interface options page.  One section per configured overlay pane; Left Panel
+ * shows its launch/compact extras (its enabled/placement are fixed elsewhere),
+ * other overlays show enabled/placement.  All show a font-size row.
+ *
+ * `base_index` is the row index at which these rows are appended in the
+ * caller's combined option list, so the emitted markers point at the right row.
+ * Returns the number of rows written.
+ */
+static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
+    struct option_group_marker* markers, int* marker_count, int base_index)
+{
+    int row_count = 0;
+    int mark_count = 0;
+    int total = get_pane_config_count();
+
+    for (int i = 0; i < total; i++)
+    {
+        enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
+        enum iface_pane_field fields[3];
+        int field_count = 0;
+
+        if (!pane_type_is_overlay(type))
+            continue;
+
+        if (type == PANE_LEFT_PANEL)
+        {
+            fields[field_count++] = IFACE_PANE_FIELD_LP_LAUNCH;
+            fields[field_count++] = IFACE_PANE_FIELD_LP_COMPACT;
+            fields[field_count++] = IFACE_PANE_FIELD_FONT;
+        }
+        else
+        {
+            fields[field_count++] = IFACE_PANE_FIELD_ENABLED;
+            fields[field_count++] = IFACE_PANE_FIELD_PLACEMENT;
+            fields[field_count++] = IFACE_PANE_FIELD_FONT;
+        }
+
+        if (row_count + field_count > max_rows || mark_count >= IFACE_PANE_GROUP_MAX)
+            break;
+
+        markers[mark_count].before_index = base_index + row_count;
+        markers[mark_count].label = pane_type_display_name(type);
+        mark_count++;
+
+        for (int f = 0; f < field_count; f++)
+        {
+            rows[row_count].pane_cfg_index = i;
+            rows[row_count].type = type;
+            rows[row_count].field = fields[f];
+            row_count++;
+        }
+    }
+
+    if (marker_count)
+        *marker_count = mark_count;
+    return row_count;
+}
+
+static cptr iface_pane_row_label(const struct iface_pane_row* row)
+{
+    switch (row->field)
+    {
+    case IFACE_PANE_FIELD_ENABLED: return "Enabled";
+    case IFACE_PANE_FIELD_PLACEMENT: return "Placement";
+    case IFACE_PANE_FIELD_FONT: return "Font Size";
+    case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
+    case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
+    default: return "?";
+    }
+}
+
+static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
+    size_t buflen)
+{
+    int idx = row->pane_cfg_index;
+
+    if (!buf || !buflen)
+        return;
+
+    switch (row->field)
+    {
+    case IFACE_PANE_FIELD_ENABLED:
+        SDL_strlcpy(buf, get_sdl_pane_enabled(idx) ? "on" : "off", buflen);
+        break;
+    case IFACE_PANE_FIELD_PLACEMENT:
+        SDL_strlcpy(buf,
+            pane_placement_name((enum pane_placement)get_sdl_pane_where(idx)),
+            buflen);
+        break;
+    case IFACE_PANE_FIELD_FONT:
+        format_font_size_value(buf, buflen, get_sdl_pane_font_size(idx),
+            get_sdl_pane_effective_font_size(idx), 16);
+        break;
+    case IFACE_PANE_FIELD_LP_LAUNCH:
+        SDL_strlcpy(buf,
+            get_sdl_left_panel_expanded_on_launch() ? "full" : "compact", buflen);
+        break;
+    case IFACE_PANE_FIELD_LP_COMPACT:
+        SDL_strlcpy(buf,
+            get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW
+                ? "row" : "column",
+            buflen);
+        break;
+    default:
+        SDL_strlcpy(buf, "", buflen);
+        break;
+    }
+}
+
+/*
+ * Apply a change to one inline pane row.  `delta` is +1 (next/increase),
+ * -1 (prev/decrease) or 0 (toggle/cycle forward).  Mirrors the set_sdl_* +
+ * immediate-apply behaviour of do_cmd_pane_settings and the pane sub-editors.
+ * Returns true if anything changed.
+ */
+static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
+{
+    int idx = row->pane_cfg_index;
+    bool changed = false;
+
+    switch (row->field)
+    {
+    case IFACE_PANE_FIELD_ENABLED:
+    {
+        bool cur = get_sdl_pane_enabled(idx);
+        bool next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_pane_enabled(idx, next);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_PLACEMENT:
+    {
+        enum pane_placement cur = (enum pane_placement)get_sdl_pane_where(idx);
+        enum pane_placement next =
+            pane_next_allowed_placement(row->type, cur, (delta < 0) ? -1 : 1);
+        if (next != cur)
+        {
+            set_sdl_pane_where(idx, next);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_FONT:
+    {
+        int value = get_sdl_pane_font_size(idx);
+        if (value == 0)
+            set_sdl_pane_font_size(idx, get_sdl_pane_effective_font_size(idx));
+        else
+            set_sdl_pane_font_size(idx, value + ((delta < 0) ? -1 : 1));
+        changed = true;
+        break;
+    }
+    case IFACE_PANE_FIELD_LP_LAUNCH:
+    {
+        bool cur = get_sdl_left_panel_expanded_on_launch();
+        bool next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_left_panel_expanded_on_launch(next);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_LP_COMPACT:
+        set_sdl_left_panel_compact_mode(
+            get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW
+                ? SDL_LEFT_PANEL_COMPACT_COLUMN
+                : SDL_LEFT_PANEL_COMPACT_ROW);
+        changed = true;
+        break;
+    default:
+        break;
+    }
+
+    if (changed)
+    {
+        switch (row->field)
+        {
+        case IFACE_PANE_FIELD_LP_LAUNCH:
+        case IFACE_PANE_FIELD_LP_COMPACT:
+            sdl_request_redraw();
+            break;
+        default:
+            sdl_apply_config();
+            break;
+        }
+    }
+
+    return changed;
+}
+
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 {
     enum { MAX_PANES_LOCAL = MAX_PANE_CONFIGS };
@@ -24159,6 +24422,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
         if (!pane_settings_exposes_pane(type))
+            continue;
+        if (pane_type_is_overlay(type))
             continue;
         pane_indices[pane_count++] = i;
     }

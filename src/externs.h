@@ -1649,6 +1649,8 @@ extern void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     int attr, cptr desc);
 extern void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
     cptr desc);
+extern void sdl_character_sheet_screen_set_select_detail_size_hint(
+    int stat_rows, int trait_rows);
 extern void sdl_character_sheet_screen_add_select_heading(cptr label);
 extern void sdl_character_sheet_screen_set_select_intro(cptr text);
 extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
