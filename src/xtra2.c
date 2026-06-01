@@ -8698,6 +8698,127 @@ static bool quest_typewriter_ensure_row(cptr title, byte title_color, int wid,
 }
 
 /*
+ * Show quest narrative as a parchment "book" with page-turn navigation, reusing
+ * the SDL front-end's character-sheet book.  The incoming texts[] are the line
+ * entries from extract_quest_*_texts(): consecutive non-empty lines form one
+ * paragraph and an empty entry is a paragraph break.  Each paragraph is re-flowed
+ * onto the page (terminal line breaks are dropped), then the book paginates.
+ *
+ * Returns false when the book cannot be shown (no SDL screen), so the caller can
+ * fall back to the terminal typewriter below.
+ */
+static bool quest_show_book(cptr title, cptr texts[], int total_texts)
+{
+    char para[1024];
+    size_t para_len = 0;
+    int idx;
+    bool done = false;
+
+    screen_save();
+    screen_push_supporting_panes_hidden();
+
+    if (!sdl_character_sheet_screen_begin_book(title))
+    {
+        screen_pop_supporting_panes_hidden();
+        screen_load();
+        return false;
+    }
+
+    /* Build paragraphs from the line entries and push them into the book.  The
+     * extra (idx == total_texts) pass flushes the final paragraph. */
+    para[0] = '\0';
+    for (idx = 0; idx <= total_texts; idx++)
+    {
+        cptr line = (idx < total_texts) ? texts[idx] : NULL;
+
+        if (line && line[0])
+        {
+            if (para_len > 0 && para_len + 1 < sizeof(para))
+            {
+                para[para_len++] = ' ';
+                para[para_len] = '\0';
+            }
+            if (para_len < sizeof(para))
+            {
+                SDL_strlcpy(para + para_len, line, sizeof(para) - para_len);
+                para_len += strlen(para + para_len);
+            }
+        }
+        else
+        {
+            if (para_len > 0)
+                sdl_character_sheet_screen_add_book_paragraph(para);
+            para[0] = '\0';
+            para_len = 0;
+        }
+    }
+    sdl_character_sheet_screen_commit_book();
+
+    /* Page-turn input loop (mirrors the race-book loop in get_player_choice). */
+    while (!done)
+    {
+        int c;
+        int clicked = 0;
+        int action = UI_MENU_CLICK_PRIMARY;
+        int page;
+        int count;
+
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+
+        c = inkey();
+
+        if (ui_menu_click_take_action(&clicked, &action))
+        {
+            ui_menu_click_clear();
+            if ((clicked == SDL_SELECT_CLICK_PAGE_NEXT
+                    || clicked == SDL_SELECT_CLICK_PAGE_PREV)
+                && action != UI_MENU_CLICK_HOVER
+                && !sdl_character_sheet_screen_page_turning())
+            {
+                sdl_character_sheet_screen_begin_page_turn(
+                    (clicked == SDL_SELECT_CLICK_PAGE_NEXT) ? +1 : -1);
+            }
+            continue;
+        }
+        if (c == UI_MENU_CLICK_WAKE_KEY)
+            continue;
+
+        /* Swallow keys while a page-curl is mid-flight. */
+        if (sdl_character_sheet_screen_page_turning())
+            continue;
+
+        page = sdl_character_sheet_screen_select_page();
+        count = sdl_character_sheet_screen_select_page_count();
+
+        if (c == ESCAPE || c == 'q' || c == 'Q')
+            break;
+
+        if (c == '4')
+        {
+            if (page > 0)
+                sdl_character_sheet_screen_begin_page_turn(-1);
+            continue;
+        }
+
+        if (c == '6' || c == ' ' || c == '\r' || c == '\n')
+        {
+            if (page < count - 1)
+                sdl_character_sheet_screen_begin_page_turn(+1);
+            else
+                done = true;   /* a turn past the last page closes the book */
+            continue;
+        }
+    }
+
+    ui_menu_click_clear();
+    sdl_character_sheet_screen_hide();
+    screen_pop_supporting_panes_hidden();
+    screen_load();
+    return true;
+}
+
+/*
  * Quest typewriter menu function - displays quest dialog with typewriter effect
  * Based on print_story_intro() style
  */
@@ -8708,6 +8829,11 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     int row, col;
     const int indent = 2;
     bool skipped = false;
+
+    /* Prefer the parchment book (SDL front-end) with page-turn navigation; fall
+     * back to the terminal typewriter when it is unavailable. */
+    if (quest_show_book(title, texts, total_texts))
+        return;
 
     /* Save screen and start fresh */
     screen_save();

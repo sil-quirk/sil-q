@@ -1665,6 +1665,11 @@ extern void sdl_character_sheet_screen_begin_page_turn(int dir);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
 extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);
+/* Narrative "book" (text-only, N pages): quest text, etc.  Reuses the page-turn
+ * navigation accessors above (select_page / page_turning / begin_page_turn). */
+extern bool sdl_character_sheet_screen_begin_book(cptr title);
+extern void sdl_character_sheet_screen_add_book_paragraph(cptr text);
+extern void sdl_character_sheet_screen_commit_book(void);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
 extern void screen_pop_supporting_panes_hidden(void);

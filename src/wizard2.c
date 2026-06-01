@@ -20,6 +20,7 @@
  */
 static void do_cmd_debug_complete_quest(void);
 static void do_cmd_debug_orome_status(void);
+static void do_cmd_debug_quest_texts(void);
 static void do_cmd_debug_spawn_quest_valar(void);
 static void do_cmd_debug_identify_all_items(void);
 
@@ -2303,6 +2304,146 @@ static void do_cmd_debug_identify_all_items(void)
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 }
 
+static cptr debug_quest_name(int quest_idx)
+{
+    quest_type* q_ptr;
+
+    if (!z_info || !quest_info || !quest_name_text)
+        return "Unknown Quest";
+
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max)
+        return "Unknown Quest";
+
+    q_ptr = &quest_info[quest_idx];
+
+    if (q_ptr->name)
+        return quest_name_text + q_ptr->name;
+
+    if (q_ptr->title_text && q_text)
+        return q_text + q_ptr->title_text;
+
+    return "Unknown Quest";
+}
+
+static void do_cmd_debug_show_quest_text(int quest_idx, bool completion)
+{
+    int text_count = 0;
+    cptr* texts;
+    char title[160];
+
+    texts = completion
+        ? extract_quest_completion_texts(quest_idx, &text_count)
+        : extract_quest_init_texts(quest_idx, &text_count);
+
+    if (!texts || text_count <= 0)
+    {
+        msg_format("Quest %d has no %s text.", quest_idx,
+            completion ? "completion" : "intro");
+        free_quest_texts(texts, text_count);
+        return;
+    }
+
+    strnfmt(title, sizeof(title), "Quest %d %s: %s", quest_idx,
+        completion ? "Completion" : "Intro", debug_quest_name(quest_idx));
+
+    quest_typewriter_menu(title, texts, text_count,
+        completion ? TERM_L_GREEN : TERM_YELLOW, TERM_WHITE);
+
+    free_quest_texts(texts, text_count);
+}
+
+/*
+ * Debug function: show quest intro/completion text from quest.txt.
+ */
+static void do_cmd_debug_quest_texts(void)
+{
+    int quest_idx;
+    int max_quest;
+    int first_quest;
+    int last_quest;
+    bool show_intro = false;
+    bool show_completion = false;
+    char mode;
+
+    if (!z_info || !quest_info || z_info->quest_max <= 1)
+    {
+        msg_print("Quest data is not loaded.");
+        return;
+    }
+
+    max_quest = z_info->quest_max - 1;
+
+    if (p_ptr->command_arg > 0)
+    {
+        quest_idx = p_ptr->command_arg;
+        p_ptr->command_arg = 0;
+    }
+    else
+    {
+        char prompt[80];
+        char tmp_val[16] = "1";
+
+        strnfmt(prompt, sizeof(prompt), "Quest id (1-%d, 0=all): ",
+            max_quest);
+
+        if (!term_get_string(prompt, tmp_val, sizeof(tmp_val)))
+            return;
+
+        if (tmp_val[0] == 'a' || tmp_val[0] == 'A')
+            quest_idx = 0;
+        else
+            quest_idx = atoi(tmp_val);
+    }
+
+    if (quest_idx < 0 || quest_idx > max_quest)
+    {
+        msg_format("Quest id must be 0-%d.", max_quest);
+        return;
+    }
+
+    if (!get_com("Quest text [i=intro, c=completion, b=both]: ", &mode))
+        return;
+
+    switch (mode)
+    {
+    case 'i':
+    case 'I':
+        show_intro = true;
+        break;
+
+    case 'c':
+    case 'C':
+    case 'w':
+    case 'W':
+        show_completion = true;
+        break;
+
+    case 'b':
+    case 'B':
+    case 'a':
+    case 'A':
+        show_intro = true;
+        show_completion = true;
+        break;
+
+    default:
+        msg_print("Invalid quest text choice.");
+        return;
+    }
+
+    first_quest = (quest_idx == 0) ? 1 : quest_idx;
+    last_quest = (quest_idx == 0) ? max_quest : quest_idx;
+
+    for (int i = first_quest; i <= last_quest; i++)
+    {
+        if (show_intro)
+            do_cmd_debug_show_quest_text(i, false);
+
+        if (show_completion)
+            do_cmd_debug_show_quest_text(i, true);
+    }
+}
+
 /*
  * Ask for and parse a "debug command"
  *
@@ -2494,6 +2635,13 @@ void do_cmd_debug(void)
     case 'q':
     {
         do_cmd_wiz_query();
+        break;
+    }
+
+    /* Show quest intro/completion text */
+    case 'Q':
+    {
+        do_cmd_debug_quest_texts();
         break;
     }
 

@@ -2908,12 +2908,13 @@ void character_sheet_show_birth_preview(void)
         Term_putstr(prompt_col, prompt_row, -1, TERM_L_BLUE, prompt);
     }
 
-    /* Wait for any key or click to continue (hover wakeups are ignored). */
+    /* Wait for a fresh key or click to continue (hover wakeups are ignored). */
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     if (!sdl_sheet && prompt_row >= 0)
         ui_menu_click_add('\r', prompt_col, prompt_row, prompt_len);
     Term_fresh();
+    flush();
     while (1)
     {
         int ch = inkey();

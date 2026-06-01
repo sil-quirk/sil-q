@@ -809,8 +809,15 @@ typedef enum sdl_character_sheet_context {
     SDL_CHARACTER_SHEET_BIRTH_PREVIEW,
     SDL_CHARACTER_SHEET_BIRTH_STATS,
     SDL_CHARACTER_SHEET_BIRTH_SKILLS,
-    SDL_CHARACTER_SHEET_BIRTH_SELECT  /* race / lineage / character selection */
+    SDL_CHARACTER_SHEET_BIRTH_SELECT, /* race / lineage / character selection */
+    SDL_CHARACTER_SHEET_NARRATIVE     /* text-only book (quest text, etc.) */
 } sdl_character_sheet_context;
+
+/* Narrative book (quest offer/completion, etc.): a text-only book paginated
+ * across N parchment pages, reusing the select_page/page-curl machinery. */
+#define SDL_BOOK_MAX_PARAS 32   /* most paragraphs a single book may hold */
+#define SDL_BOOK_PARA_LEN  1024 /* longest single paragraph (re-flowed text) */
+#define SDL_BOOK_MAX_PAGES 24   /* most pages a single book may paginate into */
 
 typedef struct sdl_character_sheet_live_item {
     int choice;
@@ -878,6 +885,15 @@ typedef struct sdl_character_sheet_screen_state {
     SDL_Texture* page_turn_to_tex;   /* incoming page snapshot (revealed beneath) */
     int page_turn_tex_w;       /* snapshot pixel size */
     int page_turn_tex_h;
+    /* Narrative book (context == NARRATIVE): paragraphs flowed across N pages.
+     * Pagination is recomputed lazily in the render path (it needs the live
+     * canvas height) and mirrored into select_page_count. */
+    char narrative_title[96];
+    char narrative_paras[SDL_BOOK_MAX_PARAS][SDL_BOOK_PARA_LEN];
+    int narrative_para_count;
+    int narrative_page_start[SDL_BOOK_MAX_PAGES + 1]; /* [page]..[page+1) paras */
+    int narrative_page_count;
+    int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     touch_swipe_state birth_swipe;
     int last_body_px;          /* last column body font px (tooltip = half) */
     float last_body_line_h;    /* rendered row height for last column body */
@@ -10598,6 +10614,17 @@ static void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
 static void sdl_select_page_turn_free(void);
 static void sdl_character_sheet_screen_render(void);
 
+/* True while a parchment "book" is on screen -- either the birth/race book or a
+ * narrative (quest) book.  The page-curl, swipe and snapshot code is shared. */
+static bool sdl_char_sheet_book_context(void)
+{
+    sdl_character_sheet_context c = g_sdl_character_sheet_screen.context;
+
+    return g_sdl_character_sheet_screen.select_book_mode
+        && (c == SDL_CHARACTER_SHEET_BIRTH_SELECT
+            || c == SDL_CHARACTER_SHEET_NARRATIVE);
+}
+
 /* The reading-column width for a given story px (a measure cap, but never wider
  * than a fraction of the content so the page keeps side margins). */
 static float sdl_char_sheet_book_width(int body_px, float content_w)
@@ -10605,6 +10632,14 @@ static float sdl_char_sheet_book_width(int body_px, float content_w)
     float w = MIN(content_w * SDL_BOOK_WIDTH_FRAC,
         (float)body_px * SDL_BOOK_MAX_EMS);
     return (w < 1.0f) ? 1.0f : w;
+}
+
+/* A fixed, comfortable reading size for the narrative book.  Unlike the race
+ * book (which shrinks a single page to fit all its text), narrative text is
+ * paginated, so the size stays constant and pages turn instead of reflowing. */
+static int sdl_char_sheet_narrative_body_px(float canvas_h)
+{
+    return sdl_char_sheet_clampi((int)(canvas_h * 0.028f), 15, 28);
 }
 
 /*
@@ -10690,6 +10725,137 @@ static void sdl_char_sheet_draw_page_frame(float px, float py, float pw,
 }
 
 /*
+ * Split the narrative book's paragraphs into pages that fit the page region,
+ * packing whole paragraphs (never mid-paragraph) and breaking when the next
+ * would overflow.  Cached against the canvas height so it only recomputes on a
+ * resize.  The page count is mirrored into select_page_count for the shared
+ * page-turn navigation.
+ */
+static void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
+    float top_y, float region_bottom, int title_px)
+{
+    int ih = (int)(canvas_h + 0.5f);
+    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+    int body_px;
+    TTF_Font* body_font;
+    float book_w;
+    float body_lh;
+    float para_gap;
+    float region_h;
+    float used;
+    int page;
+    int i;
+
+    (void)title_px;
+    if (g_sdl_character_sheet_screen.narrative_paginated_for_h == ih)
+        return;
+
+    body_px = sdl_char_sheet_narrative_body_px(canvas_h);
+    body_font = sdl_story_font_for_height(body_px);
+    book_w = sdl_char_sheet_book_width(body_px, content_w);
+    body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
+    para_gap = body_lh * 0.6f;
+    region_h = (region_bottom - top_y) - 2.0f * (body_lh * SDL_BOOK_MARGIN_V);
+    if (region_h < body_lh)
+        region_h = body_lh;
+
+    page = 0;
+    used = 0.0f;
+    g_sdl_character_sheet_screen.narrative_page_start[0] = 0;
+    for (i = 0; i < para_count; i++)
+    {
+        int lines = sdl_char_sheet_wrap_text(body_font,
+            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
+        float need = (float)lines * body_lh;
+        float add = (used > 0.0f) ? need + para_gap : need;
+
+        if (used > 0.0f && used + add > region_h
+            && page + 1 < SDL_BOOK_MAX_PAGES)
+        {
+            page++;
+            g_sdl_character_sheet_screen.narrative_page_start[page] = i;
+            used = need;
+        }
+        else
+        {
+            used += add;
+        }
+    }
+
+    g_sdl_character_sheet_screen.narrative_page_count = page + 1;
+    for (i = page + 1; i <= SDL_BOOK_MAX_PAGES; i++)
+        g_sdl_character_sheet_screen.narrative_page_start[i] = para_count;
+
+    g_sdl_character_sheet_screen.select_page_count =
+        g_sdl_character_sheet_screen.narrative_page_count;
+    if (g_sdl_character_sheet_screen.select_page
+        >= g_sdl_character_sheet_screen.select_page_count)
+        g_sdl_character_sheet_screen.select_page =
+            g_sdl_character_sheet_screen.select_page_count - 1;
+    if (g_sdl_character_sheet_screen.select_page < 0)
+        g_sdl_character_sheet_screen.select_page = 0;
+    g_sdl_character_sheet_screen.narrative_paginated_for_h = ih;
+}
+
+/*
+ * Draw one page of the narrative book: the paragraphs assigned to this page,
+ * as wrapped white body text on the parchment, vertically centred when short.
+ */
+static void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
+    float book_x, float book_w, float top_y, float region_bottom, float body_lh)
+{
+    float para_gap = body_lh * 0.6f;
+    float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+    int page_count = g_sdl_character_sheet_screen.narrative_page_count;
+    int first;
+    int last;
+    float content_h = 0.0f;
+    float y;
+    int i;
+
+    if (page_count <= 0)
+        return;
+    if (page < 0)
+        page = 0;
+    if (page >= page_count)
+        page = page_count - 1;
+
+    first = g_sdl_character_sheet_screen.narrative_page_start[page];
+    last = g_sdl_character_sheet_screen.narrative_page_start[page + 1];
+    if (first < 0)
+        first = 0;
+    if (last > para_count)
+        last = para_count;
+
+    for (i = first; i < last; i++)
+    {
+        int lines = sdl_char_sheet_wrap_text(body_font,
+            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
+
+        content_h += (float)lines * body_lh;
+        if (i + 1 < last)
+            content_h += para_gap;
+    }
+
+    y = top_y + (content_h < region_h ? (region_h - content_h) * 0.5f : 0.0f);
+
+    for (i = first; i < last; i++)
+    {
+        int lines = sdl_char_sheet_wrap_text(body_font,
+            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
+        float h = (float)lines * body_lh;
+
+        sdl_char_sheet_draw_wrapped(body_font,
+            g_sdl_character_sheet_screen.narrative_paras[i], TERM_WHITE, book_x,
+            y, book_w, h + body_lh, body_lh, 0);
+        y += h;
+        if (i + 1 < last)
+            y += para_gap;
+    }
+}
+
+/*
  * Draw one page of the race "book" into the CURRENT render target.
  *
  *   page 0 = the trial intro (accent) + war chronicle (white)        -- story
@@ -10713,11 +10879,15 @@ static void sdl_char_sheet_render_book_page(int page, float canvas_h,
         ? g_sdl_character_sheet_screen.select_desc_sizing
         : desc;
     int row_count = g_sdl_character_sheet_screen.select_row_count;
+    bool narrative =
+        (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_NARRATIVE);
     float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
     float book_w;
     float book_x;
-    int body_px = sdl_char_sheet_book_body_px(canvas_h, content_w, top_y,
-        region_bottom, title_px);
+    int body_px = narrative
+        ? sdl_char_sheet_narrative_body_px(canvas_h)
+        : sdl_char_sheet_book_body_px(canvas_h, content_w, top_y,
+            region_bottom, title_px);
     TTF_Font* body_font;
     float body_lh;
     float list_lh;
@@ -10768,6 +10938,13 @@ static void sdl_char_sheet_render_book_page(int page, float canvas_h,
         top_y += mv;
         region_bottom -= mv;
         region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    }
+
+    if (narrative)
+    {
+        sdl_char_sheet_render_narrative_page(page, body_font, book_x, book_w,
+            top_y, region_bottom, body_lh);
+        return;
     }
 
     if (page == 0)
@@ -11056,6 +11233,20 @@ static int sdl_character_sheet_birth_swipe_key_for_dir(int dir)
     if (dir == 8 || dir == 2)
         return '0' + dir;
 
+    /* Narrative book: swipe left turns the page forward, swipe right back; a
+     * swipe past the first/last page does nothing (it must not close the book). */
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_NARRATIVE)
+    {
+        int page = g_sdl_character_sheet_screen.select_page;
+        int count = g_sdl_character_sheet_screen.select_page_count;
+
+        if (dir == 4)
+            return (page < count - 1) ? '6' : 0;
+        if (dir == 6)
+            return (page > 0) ? '4' : 0;
+        return 0;
+    }
+
     if (dir == 4)
     {
         if (g_sdl_character_sheet_screen.context
@@ -11206,6 +11397,9 @@ static void sdl_character_sheet_screen_render(void)
     if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT)
         SDL_strlcpy(title, g_sdl_character_sheet_screen.select_title,
             sizeof(title));
+    else if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_NARRATIVE)
+        SDL_strlcpy(title, g_sdl_character_sheet_screen.narrative_title,
+            sizeof(title));
     else
     {
         sdl_char_sheet_title(title, sizeof(title));
@@ -11226,12 +11420,20 @@ static void sdl_character_sheet_screen_render(void)
      * highlighted entry's lore at the bottom.  No detail panel, no pop-ups;
      * everything is the proportional story font.
      */
-    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT
-        && g_sdl_character_sheet_screen.select_book_mode)
+    if (sdl_char_sheet_book_context())
     {
-        int page = g_sdl_character_sheet_screen.select_page;
-        int page_count = g_sdl_character_sheet_screen.select_page_count;
+        int page;
+        int page_count;
         bool turning = g_sdl_character_sheet_screen.page_turn_active;
+
+        /* Narrative book paginates against the live region before we read the
+         * page count (the race book already knows its two pages). */
+        if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_NARRATIVE)
+            sdl_char_sheet_paginate_narrative((float)canvas.h, content_w, top_y,
+                region_bottom, title_px);
+
+        page = g_sdl_character_sheet_screen.select_page;
+        page_count = g_sdl_character_sheet_screen.select_page_count;
 
         if (turning)
         {
@@ -11256,8 +11458,12 @@ static void sdl_character_sheet_screen_render(void)
              * region height), so the turn happens over the text, not the whole
              * screen.  Snapshots are sized to that column.
              */
-            int body_px = sdl_char_sheet_book_body_px((float)canvas.h,
-                content_w, top_y, region_bottom, title_px);
+            int body_px =
+                (g_sdl_character_sheet_screen.context
+                    == SDL_CHARACTER_SHEET_NARRATIVE)
+                    ? sdl_char_sheet_narrative_body_px((float)canvas.h)
+                    : sdl_char_sheet_book_body_px((float)canvas.h, content_w,
+                        top_y, region_bottom, title_px);
             float book_w = sdl_char_sheet_book_width(body_px, content_w);
             float book_x = content_x + (content_w - book_w) * 0.5f;
             float body_lh = sdl_char_sheet_line_h(
@@ -11999,6 +12205,65 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     return true;
 }
 
+/* ---- Narrative book (text-only, N pages): quest text, etc. -------------- *
+ * Open the book, push complete paragraphs, then commit.  Navigation reuses
+ * the shared select_page / page-turn accessors and sdl_character_sheet_screen_hide.
+ */
+bool sdl_character_sheet_screen_begin_book(cptr title)
+{
+    if (!g_state.window || !g_state.renderer)
+        return false;
+
+    sdl_select_page_turn_free();
+    sdl_character_sheet_birth_swipe_cancel();
+    g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_NARRATIVE;
+    g_sdl_character_sheet_screen.focus_choice = -1;
+    g_sdl_character_sheet_screen.selected_index = -1;
+    g_sdl_character_sheet_screen.hover_choice = -1;
+    g_sdl_character_sheet_screen.live_item_count = 0;
+    g_sdl_character_sheet_screen.select_row_count = 0;
+    g_sdl_character_sheet_screen.select_detail_count = 0;
+    g_sdl_character_sheet_screen.select_book_mode = true;
+    g_sdl_character_sheet_screen.select_page = 0;
+    g_sdl_character_sheet_screen.select_page_count = 1;
+    g_sdl_character_sheet_screen.narrative_para_count = 0;
+    g_sdl_character_sheet_screen.narrative_page_count = 0;
+    g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_title,
+        title ? title : "",
+        sizeof(g_sdl_character_sheet_screen.narrative_title));
+    return true;
+}
+
+void sdl_character_sheet_screen_add_book_paragraph(cptr text)
+{
+    int n;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    if (!text || !text[0])
+        return;
+
+    n = g_sdl_character_sheet_screen.narrative_para_count;
+    if (n >= SDL_BOOK_MAX_PARAS)
+        return;
+
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_paras[n], text,
+        SDL_BOOK_PARA_LEN);
+    g_sdl_character_sheet_screen.narrative_para_count = n + 1;
+}
+
+void sdl_character_sheet_screen_commit_book(void)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+
+    /* Force a (re)paginate on the next render and open on the first page. */
+    g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
+    g_sdl_character_sheet_screen.select_page = 0;
+    g_state.need_present = true;
+}
+
 void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     int attr, cptr desc)
 {
@@ -12175,13 +12440,6 @@ static bool sdl_character_sheet_screen_handle_pointer_motion(float x, float y)
 
     if (!sdl_character_sheet_screen_active())
         return false;
-
-    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_PREVIEW)
-    {
-        Term_keypress('\r');
-        g_state.need_present = true;
-        return true;
-    }
 
     hit = sdl_char_sheet_hit_at(x, y);
     if (hit)
