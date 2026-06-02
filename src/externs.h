@@ -1088,6 +1088,9 @@ extern cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
 extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);
+extern bool object_info_overlay_show_multi(const object_type** objects,
+    const char** headings, int count);
+extern void object_info_overlay_clear(void);
 extern void describe_item_with_comparisons(int item_index, bool include_comparisons);
 
 /* object1.c */
@@ -2077,10 +2080,11 @@ extern int get_sdl_platform_max_main_view_scale(void);
 extern int get_sdl_terminal_menu_scale(void);
 extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
+extern int sdl_description_overlay_max_cols(void);
 extern bool sdl_description_overlay_present(const byte* attrs,
     const char* chars, const byte* tattrs, const char* tchars,
     const byte* story, int width, int height, int scroll,
-    int* out_visible_rows, int* out_max_scroll);
+    bool interactive, int* out_visible_rows, int* out_max_scroll);
 extern void sdl_description_overlay_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);

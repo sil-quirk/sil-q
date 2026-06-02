@@ -2161,7 +2161,7 @@ static int monster_recall_screen_capture_view(
         Term_get_size(NULL, &term_hgt);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
-                capture->width, capture->height, scroll, &visible_rows,
+                capture->width, capture->height, scroll, true, &visible_rows,
                 &max_scroll))
         {
             exit_key = 0;

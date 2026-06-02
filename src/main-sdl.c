@@ -1137,6 +1137,7 @@ typedef struct object_tooltip_state {
 
 typedef struct description_overlay_state {
     bool active;
+    bool interactive;
     const byte* attrs;
     const char* chars;
     const byte* tattrs;
@@ -20932,6 +20933,37 @@ static int sdl_description_overlay_font_px(void)
     return font_px;
 }
 
+int sdl_description_overlay_max_cols(void)
+{
+    SDL_Rect anchor;
+    int font_px;
+    int cell_w;
+    int margin;
+    int pad_x;
+    int max_panel_w;
+    int max_cols;
+
+    if (!sdl_overlay_pane_anchor_rect(PANE_DESCRIPTION, &anchor))
+        return 80;
+
+    font_px = sdl_description_overlay_font_px();
+    cell_w = font_px / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    margin = sdl_overlay_margin_px();
+    pad_x = cell_w;
+    max_panel_w = anchor.w - margin * 2;
+    if (max_panel_w <= pad_x * 2)
+        return 80;
+
+    max_cols = (max_panel_w - pad_x * 2) / cell_w;
+    if (max_cols < 20)
+        return 20;
+
+    return max_cols;
+}
+
 static SDL_Color sdl_description_overlay_attr_color(byte attr)
 {
     SDL_Color col = {
@@ -21001,7 +21033,7 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (max_cols < 1 || max_rows_no_footer < 1)
         return false;
 
-    footer = overlay->height > max_rows_no_footer;
+    footer = overlay->interactive && overlay->height > max_rows_no_footer;
     max_rows = max_rows_no_footer - (footer ? 1 : 0);
     if (max_rows < 1)
         max_rows = 1;
@@ -35342,7 +35374,8 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
 {
     bool render_styled_left_panel = sdl_left_panel_pane_presentation_active();
     bool skip_terminal_left_panel =
-        g_description_overlay.active && sdl_left_panel_pane_layout_enabled();
+        g_description_overlay.active && g_description_overlay.interactive
+        && sdl_left_panel_pane_layout_enabled();
     int visual_cols;
     int visual_rows;
     int source_h;
@@ -35424,7 +35457,7 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
         SDL_FRect src_content = src_left;
         SDL_FRect dst_content = dst_left;
 
-        if (g_description_overlay.active)
+        if (g_description_overlay.active && g_description_overlay.interactive)
             return true;
 
         SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
@@ -44791,7 +44824,8 @@ void sdl_pop_terminal_menu_scale(void)
 
 bool sdl_description_overlay_present(const byte* attrs, const char* chars,
     const byte* tattrs, const char* tchars, const byte* story, int width,
-    int height, int scroll, int* out_visible_rows, int* out_max_scroll)
+    int height, int scroll, bool interactive, int* out_visible_rows,
+    int* out_max_scroll)
 {
     description_overlay_layout layout;
 
@@ -44807,6 +44841,7 @@ bool sdl_description_overlay_present(const byte* attrs, const char* chars,
     }
 
     g_description_overlay.active = true;
+    g_description_overlay.interactive = interactive;
     g_description_overlay.attrs = attrs;
     g_description_overlay.chars = chars;
     g_description_overlay.tattrs = tattrs;

@@ -35,6 +35,9 @@ typedef struct object_info_screen_capture
     byte* story;
 } object_info_screen_capture;
 
+static object_info_screen_capture object_info_overlay_capture;
+static bool object_info_overlay_capture_active = false;
+
 static void object_info_screen_multi_body(const object_type** objects,
     const char** headings, int count, bool clear_current_line);
 
@@ -2440,6 +2443,17 @@ static void object_info_screen_capture_free(
     capture->height = 0;
 }
 
+void object_info_overlay_clear(void)
+{
+    sdl_description_overlay_clear();
+
+    if (!object_info_overlay_capture_active)
+        return;
+
+    object_info_screen_capture_free(&object_info_overlay_capture);
+    object_info_overlay_capture_active = false;
+}
+
 static int object_info_screen_capture_used_rows(term* t)
 {
     if (!t || !t->scr)
@@ -2491,7 +2505,7 @@ static int object_info_screen_capture_used_cols(term* t, int rows)
 
 static bool object_info_screen_capture_build(
     const object_type** objects, const char** headings, int count,
-    object_info_screen_capture* capture)
+    object_info_screen_capture* capture, int preferred_width)
 {
     term scratch;
     term* saved_term = Term;
@@ -2514,6 +2528,8 @@ static bool object_info_screen_capture_build(
     SDL_memset(&scratch, 0, sizeof(scratch));
 
     Term_get_size(&term_wid, &term_hgt);
+    if (preferred_width > 0 && term_wid > preferred_width)
+        term_wid = preferred_width;
     if (term_wid < 20)
         term_wid = 20;
     if (term_hgt < 24)
@@ -2591,6 +2607,46 @@ cleanup:
     return success;
 }
 
+bool object_info_overlay_show_multi(const object_type** objects,
+    const char** headings, int count)
+{
+    object_info_screen_capture capture;
+    int overlay_width;
+
+    if (count <= 0 || objects == NULL)
+        return false;
+
+    if (object_info_blocked_by_hallucination())
+        return false;
+
+    SDL_memset(&capture, 0, sizeof(capture));
+    overlay_width = sdl_description_overlay_max_cols();
+    if (overlay_width > 4)
+        overlay_width -= 4;
+
+    if (!object_info_screen_capture_build(objects, headings, count, &capture,
+            overlay_width))
+        return false;
+
+    object_info_overlay_clear();
+    object_info_overlay_capture = capture;
+    object_info_overlay_capture_active = true;
+
+    if (!sdl_description_overlay_present(object_info_overlay_capture.attrs,
+            object_info_overlay_capture.chars,
+            object_info_overlay_capture.tattrs,
+            object_info_overlay_capture.tchars,
+            object_info_overlay_capture.story,
+            object_info_overlay_capture.width,
+            object_info_overlay_capture.height, 0, false, NULL, NULL))
+    {
+        object_info_overlay_clear();
+        return false;
+    }
+
+    return true;
+}
+
 static void object_info_screen_capture_view(
     const object_info_screen_capture* capture)
 {
@@ -2611,7 +2667,7 @@ static void object_info_screen_capture_view(
         Term_get_size(NULL, &term_hgt);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
-                capture->width, capture->height, scroll, &visible_rows,
+                capture->width, capture->height, scroll, true, &visible_rows,
                 &max_scroll))
         {
             break;
@@ -2682,7 +2738,8 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     character_icky++;
 
     have_capture =
-        object_info_screen_capture_build(objects, headings, count, &capture);
+        object_info_screen_capture_build(objects, headings, count, &capture,
+            0);
     if (have_capture)
     {
         object_info_screen_capture_view(&capture);

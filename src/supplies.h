@@ -79,6 +79,7 @@ typedef struct supply_menu_request
     supply_menu_page page;     /* initial page when focus_page is true */
     bool focus_inventory_group; /* jump to a specific inventory browser group */
     inventory_menu_group inventory_group;
+    bool preview_inventory_description; /* open inventory with live preview */
 } supply_menu_request;
 
 void supplies_init(void);
