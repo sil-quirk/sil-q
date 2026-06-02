@@ -44,6 +44,11 @@ static void draw_supply_icon_frame(int col, int row, const object_type* o_ptr);
 static void controller_prompt_label(int binding, const char* fallback, char* buf, size_t buflen);
 static void controller_prompt_label_no_sticks(int binding, const char* fallback, char* buf, size_t buflen);
 static void desc_obj_fake(int k_idx);
+static cptr equipment_slot_text(int slot);
+static int equipment_menu_compare_slots(int selected_slot, int slots[],
+    int max_slots);
+static object_type* equipment_menu_floor_item_for_object(
+    const object_type* ref);
 
 static bool indexed_menu_letters_enabled(void)
 {
@@ -416,7 +421,78 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     return dropped;
 }
 
-static bool supplies_menu_recall_entry(supply_list_entry* entry)
+/*
+ * Show an object's description, comparing it against whatever is already
+ * equipped in the slot(s) it would occupy ("the item underneath"). Mirrors the
+ * comparison the Equipped/Inventory panes do via
+ * equipment_menu_show_entry_description, so the Supplies 'x' preview lines a
+ * candidate light/jewelry up against the currently worn item.
+ */
+static bool supply_object_show_with_compare(object_type* o_ptr,
+    int selected_slot, bool overlay)
+{
+    int compare_slots[2];
+    int compare_count;
+    const object_type* objects[3];
+    const char* headings[3];
+    char heading_texts[3][32];
+    int count = 0;
+    object_type* floor_ptr;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    compare_count = equipment_menu_compare_slots(selected_slot, compare_slots,
+        2);
+
+    strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+        "Selected item");
+    headings[count] = heading_texts[count];
+    objects[count++] = o_ptr;
+
+    for (int i = 0; i < compare_count && count < 3; i++)
+    {
+        int slot = compare_slots[i];
+
+        /* The selected entry is itself the equipped item; nothing to
+         * compare against. */
+        if (&inventory[slot] == o_ptr)
+            continue;
+
+        strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+            "%s", equipment_slot_text(slot));
+        headings[count] = heading_texts[count];
+        objects[count++] = &inventory[slot];
+    }
+
+    /* Shortcut: if standing on a comparable item, line it up too. */
+    floor_ptr = equipment_menu_floor_item_for_object(o_ptr);
+    if (floor_ptr && count < 3)
+    {
+        strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+            "On floor");
+        headings[count] = heading_texts[count];
+        objects[count++] = floor_ptr;
+    }
+
+    if (count <= 1)
+    {
+        const object_type* single[1] = { o_ptr };
+
+        if (overlay)
+            return object_info_overlay_show_multi(single, NULL, 1);
+        object_info_screen(o_ptr);
+        return true;
+    }
+
+    if (overlay)
+        return object_info_overlay_show_multi(objects, headings, count);
+    object_info_screen_multi(objects, headings, count);
+    return true;
+}
+
+static bool supplies_menu_show_entry_description(supply_list_entry* entry,
+    bool overlay)
 {
     if (!entry)
         return false;
@@ -431,8 +507,11 @@ static bool supplies_menu_recall_entry(supply_list_entry* entry)
 
         if (!jewelry_preset_is_set(entry->preset_idx))
         {
-            bell("That jewelry set is empty.");
-            msg_print("That jewelry set is empty.");
+            if (!overlay)
+            {
+                bell("That jewelry set is empty.");
+                msg_print("That jewelry set is empty.");
+            }
             return false;
         }
 
@@ -451,20 +530,31 @@ static bool supplies_menu_recall_entry(supply_list_entry* entry)
 
         if (count > 0)
         {
+            if (overlay)
+                return object_info_overlay_show_multi(objects, headings, count);
             object_info_screen_multi(objects, headings, count);
             return true;
         }
 
-        bell("That jewelry set is empty.");
-        msg_print("That jewelry set is empty.");
+        if (!overlay)
+        {
+            bell("That jewelry set is empty.");
+            msg_print("That jewelry set is empty.");
+        }
         return false;
     }
 
     if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
     {
-        (void)player_try_identify_smithing_object_on_examine(
-            &inventory[entry->equip_idx], true);
-        object_info_screen(&inventory[entry->equip_idx]);
+        object_type* o_ptr = &inventory[entry->equip_idx];
+        if (!overlay)
+            (void)player_try_identify_smithing_object_on_examine(o_ptr, true);
+        if (overlay)
+        {
+            const object_type* objects[1] = { o_ptr };
+            return object_info_overlay_show_multi(objects, NULL, 1);
+        }
+        object_info_screen(o_ptr);
         return true;
     }
 
@@ -472,18 +562,17 @@ static bool supplies_menu_recall_entry(supply_list_entry* entry)
     {
         object_type* o_ptr = supplies_entry_at(entry->supply_idx);
         if (o_ptr)
-        {
-            object_info_screen(o_ptr);
-            return true;
-        }
+            return supply_object_show_with_compare(o_ptr, wield_slot(o_ptr),
+                overlay);
     }
 
     if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
     {
-        (void)player_try_identify_smithing_object_on_examine(
-            &inventory[entry->item_idx], false);
-        object_info_screen(&inventory[entry->item_idx]);
-        return true;
+        object_type* o_ptr = &inventory[entry->item_idx];
+        if (!overlay)
+            (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
+        return supply_object_show_with_compare(o_ptr, wield_slot(o_ptr),
+            overlay);
     }
 
     if (entry->k_idx >= 0)
@@ -491,18 +580,41 @@ static bool supplies_menu_recall_entry(supply_list_entry* entry)
         object_kind* k_ptr = &k_info[entry->k_idx];
         if (k_ptr->aware)
         {
+            if (overlay)
+            {
+                object_type object_type_body;
+                object_type* i_ptr = &object_type_body;
+
+                object_wipe(i_ptr);
+                object_prep(i_ptr, entry->k_idx);
+                apply_magic_fake(i_ptr);
+                i_ptr->ident |= IDENT_KNOWN;
+                return supply_object_show_with_compare(i_ptr,
+                    wield_slot(i_ptr), true);
+            }
             desc_obj_fake(entry->k_idx);
             return true;
         }
 
-        bell("You have not identified that yet.");
-        msg_print("You have not identified that yet.");
+        if (!overlay)
+        {
+            bell("You have not identified that yet.");
+            msg_print("You have not identified that yet.");
+        }
         return false;
     }
 
-    bell("Nothing to recall.");
-    msg_print("Nothing to recall.");
+    if (!overlay)
+    {
+        bell("Nothing to recall.");
+        msg_print("Nothing to recall.");
+    }
     return false;
+}
+
+static bool supplies_menu_overlay_entry(supply_list_entry* entry)
+{
+    return supplies_menu_show_entry_description(entry, true);
 }
 
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
@@ -36511,6 +36623,46 @@ static int equipment_menu_compare_slots(int selected_slot, int slots[],
     return count;
 }
 
+/*
+ * Find an item lying on the floor under the player that would occupy the same
+ * slot as 'ref' (so it can be compared against it). Returns NULL when the
+ * player is not standing on a comparable item.
+ */
+static object_type* equipment_menu_floor_item_for_object(const object_type* ref)
+{
+    int slot;
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (!ref || !ref->k_idx)
+        return NULL;
+
+    slot = wield_slot(ref);
+    if (slot < 0)
+        return NULL;
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00);
+
+    for (int i = 0; i < floor_num; i++)
+    {
+        int o_idx = floor_list[i];
+        object_type* o_ptr;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+        if (!o_ptr->k_idx || o_ptr == ref)
+            continue;
+
+        if (equipment_slot_accepts_object(slot, o_ptr))
+            return o_ptr;
+    }
+
+    return NULL;
+}
+
 static bool equipment_menu_show_entry_description(equipment_list_entry* entry,
     int selected_slot, bool overlay)
 {
@@ -36531,72 +36683,66 @@ static bool equipment_menu_show_entry_description(equipment_list_entry* entry,
     }
 
     if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
-    {
         (void)player_try_identify_smithing_object_on_examine(o_ptr, true);
-        if (overlay)
-        {
-            const object_type* objects[1] = { o_ptr };
-            return object_info_overlay_show_multi(objects, NULL, 1);
-        }
-        else
-            object_info_screen(o_ptr);
-        return true;
-    }
-
-    if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+    else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         (void)player_try_identify_smithing_object_on_examine(o_ptr, false);
 
     {
         int compare_slots[2];
         int compare_count =
             equipment_menu_compare_slots(selected_slot, compare_slots, 2);
+        const object_type* objects[3];
+        const char* headings[3];
+        char heading_texts[3][32];
+        int count = 0;
+        object_type* floor_ptr;
 
-        if (compare_count > 0)
+        strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+            "Selected item");
+        headings[count] = heading_texts[count];
+        objects[count++] = o_ptr;
+
+        for (int i = 0; i < compare_count && count < 3; i++)
         {
-            const object_type* objects[3];
-            const char* headings[3];
-            char heading_texts[3][32];
-            int count = 0;
+            int slot = compare_slots[i];
+
+            /* The selected entry is itself this equipped item. */
+            if (&inventory[slot] == o_ptr)
+                continue;
 
             strnfmt(heading_texts[count], sizeof(heading_texts[count]),
-                "Selected item");
+                "%s", equipment_slot_text(slot));
             headings[count] = heading_texts[count];
-            objects[count++] = o_ptr;
+            objects[count++] = &inventory[slot];
+        }
 
-            for (int i = 0; i < compare_count && count < 3; i++)
-            {
-                int slot = compare_slots[i];
+        /* Shortcut: if standing on a comparable item, line it up too. */
+        floor_ptr = equipment_menu_floor_item_for_object(o_ptr);
+        if (floor_ptr && count < 3)
+        {
+            strnfmt(heading_texts[count], sizeof(heading_texts[count]),
+                "On floor");
+            headings[count] = heading_texts[count];
+            objects[count++] = floor_ptr;
+        }
 
-                strnfmt(heading_texts[count], sizeof(heading_texts[count]),
-                    "%s", equipment_slot_text(slot));
-                headings[count] = heading_texts[count];
-                objects[count++] = &inventory[slot];
-            }
-
+        if (count > 1)
+        {
             if (overlay)
                 return object_info_overlay_show_multi(objects, headings,
                     count);
-            else
-                object_info_screen_multi(objects, headings, count);
+            object_info_screen_multi(objects, headings, count);
+            return true;
         }
-        else
+
+        if (overlay)
         {
-            if (overlay)
-            {
-                const object_type* objects[1] = { o_ptr };
-                return object_info_overlay_show_multi(objects, NULL, 1);
-            }
-            else
-                object_info_screen(o_ptr);
+            const object_type* single[1] = { o_ptr };
+            return object_info_overlay_show_multi(single, NULL, 1);
         }
+        object_info_screen(o_ptr);
     }
     return true;
-}
-
-static bool equipment_menu_recall_entry(equipment_list_entry* entry,
-    int selected_slot)
-{
-    return equipment_menu_show_entry_description(entry, selected_slot, false);
 }
 
 static bool equipment_menu_overlay_entry(equipment_list_entry* entry,
@@ -40213,6 +40359,53 @@ static void supply_highlight_prompt_token(const knowledge_browser_layout* layout
         (int)strlen(token), attr, token);
 }
 
+/*
+ * Tracks what the description overlay ('x' preview) is currently showing so we
+ * only rebuild it when the selection, page, or terminal size actually changes.
+ * The overlay is drawn on top of whichever page is active, so the toggle (and
+ * its rendered contents) survive switching between the Equipped, Inventory, and
+ * Supplies pages.
+ */
+typedef struct supply_overlay_cache
+{
+    bool active;
+    int page;
+    int entry;
+    int group;
+    int term_wid;
+    int term_hgt;
+} supply_overlay_cache;
+
+static void supply_overlay_cache_reset(supply_overlay_cache* cache)
+{
+    object_info_overlay_clear();
+    cache->active = false;
+    cache->page = -1;
+    cache->entry = -1;
+    cache->group = -1;
+    cache->term_wid = -1;
+    cache->term_hgt = -1;
+}
+
+static bool supply_overlay_cache_stale(const supply_overlay_cache* cache,
+    int page, int entry, int group, int term_wid, int term_hgt)
+{
+    return !cache->active || cache->page != page || cache->entry != entry
+        || cache->group != group || cache->term_wid != term_wid
+        || cache->term_hgt != term_hgt;
+}
+
+static void supply_overlay_cache_set(supply_overlay_cache* cache, int page,
+    int entry, int group, int term_wid, int term_hgt)
+{
+    cache->active = true;
+    cache->page = page;
+    cache->entry = entry;
+    cache->group = group;
+    cache->term_wid = term_wid;
+    cache->term_hgt = term_hgt;
+}
+
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
     int i;
@@ -40249,12 +40442,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool acted = false;
     bool refresh_after_close = false;
     bool drop_click_mode = false;
-    bool inv_description_overlay = false;
-    bool inv_overlay_active = false;
-    int inv_overlay_entry = -1;
-    int inv_overlay_group = -1;
-    int inv_overlay_term_wid = -1;
-    int inv_overlay_term_hgt = -1;
+    bool desc_overlay_on = false;
+    supply_overlay_cache overlay_cache = { false, -1, -1, -1, -1, -1 };
     bool prev_single_column = false;
     int prev_group = -1;
     int prev_column = -1;
@@ -40287,7 +40476,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             page = SUPPLY_MENU_PAGE_INVENTORY;
             inv_column = 1;
-            inv_description_overlay = true;
+            desc_overlay_on = true;
             if (!request->focus_inventory_group)
                 inv_grp_cur = inventory_browser_group_index(
                     INVENTORY_MENU_GROUP_ALL);
@@ -40333,15 +40522,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             int selected_slot;
             char status_buf[120];
             int entry_page_rows;
-
-            if (inv_overlay_active)
-            {
-                object_info_overlay_clear();
-                inv_overlay_active = false;
-                inv_overlay_entry = -1;
-                inv_overlay_group = -1;
-            }
-            inv_description_overlay = false;
 
             prepare_equipment_group_icons(equip_icons);
             compute_equipment_group_totals(equip_totals);
@@ -40492,8 +40672,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             else
             {
                 cptr prompt = (layout.term_wid <= 50)
-                    ? "Dir move  u/Space equip  d drop  Tab page  Esc"
-                    : "Dir move  r/-> recall  u/Space equip/take off  d drop  Tab page  Esc";
+                    ? "Dir move  x preview  u/Space equip  d drop  Tab  Esc"
+                    : "Dir move  x/-> preview  u/Space equip/take off  d drop  Tab page  Esc";
 
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_SLATE, prompt);
@@ -40502,6 +40682,26 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (drop_click_mode)
                     supply_highlight_prompt_token(&layout, prompt, "drop",
                         TERM_YELLOW);
+            }
+
+            if (desc_overlay_on && equip_entry_cnt)
+            {
+                if (supply_overlay_cache_stale(&overlay_cache, page,
+                        equip_entry_cur, equip_grp_cur, layout.term_wid,
+                        layout.term_hgt))
+                {
+                    if (equipment_menu_overlay_entry(
+                            &equip_entries[equip_entry_cur], selected_slot))
+                        supply_overlay_cache_set(&overlay_cache, page,
+                            equip_entry_cur, equip_grp_cur, layout.term_wid,
+                            layout.term_hgt);
+                    else
+                        supply_overlay_cache_reset(&overlay_cache);
+                }
+            }
+            else if (overlay_cache.active)
+            {
+                supply_overlay_cache_reset(&overlay_cache);
             }
 
             if (!equip_column)
@@ -40554,7 +40754,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             equip_column = 1;
                             if (click_action == UI_MENU_CLICK_HOVER)
                                 continue;
-                            ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
+                            ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'x'
                                 : (drop_click_mode ? 'd' : 'u');
                         }
                     }
@@ -40583,7 +40783,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         switch (clicked_choice)
                         {
                         case SUPPLY_CLICK_BACK:   ch = ESCAPE; break;
-                        case SUPPLY_CLICK_RECALL: ch = 'r'; break;
+                        case SUPPLY_CLICK_RECALL: ch = 'x'; break;
                         case SUPPLY_CLICK_PREVIEW: ch = 'x'; break;
                         case SUPPLY_CLICK_USE:    ch = 'u'; break;
                         case SUPPLY_CLICK_DROP:
@@ -40632,8 +40832,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 redraw = true;
                 break;
 
-            case 'R':
-            case 'r':
             case 'X':
             case 'x':
             case '6':
@@ -40643,11 +40841,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (!equip_column && equip_entry_cnt)
                 {
                     equip_column = 1;
+                    desc_overlay_on = true;
                 }
                 else if (equip_column && equip_entry_cnt)
                 {
-                    (void)equipment_menu_recall_entry(
-                        &equip_entries[equip_entry_cur], selected_slot);
+                    desc_overlay_on = !desc_overlay_on;
+                    if (!desc_overlay_on)
+                        supply_overlay_cache_reset(&overlay_cache);
                 }
                 break;
 
@@ -40877,7 +41077,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
                 cptr prompt = (layout.term_wid <= 50)
                     ? "Dir move  x/-> preview  u/Space use  d drop  Tab  Esc"
-                    : "Dir move  x/-> preview  r recall  u/Space use  d drop  Tab page  Esc";
+                    : "Dir move  x/-> preview  u/Space use  d drop  Tab page  Esc";
 
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_SLATE, prompt);
@@ -40888,42 +41088,29 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         TERM_YELLOW);
             }
 
-            if (inv_description_overlay && inv_column && inventory_entry_cnt)
+            if (desc_overlay_on && inventory_entry_cnt)
             {
                 int selected_slot = (selected_group == INVENTORY_MENU_GROUP_ALL)
                     ? EQUIPMENT_MENU_ALL
                     : inventory_browser_compare_slot_for_entry(selected_group,
                           &equip_entries[inv_entry_cur]);
 
-                if (!inv_overlay_active || inv_overlay_entry != inv_entry_cur
-                    || (inventory_menu_group)inv_overlay_group != selected_group
-                    || inv_overlay_term_wid != layout.term_wid
-                    || inv_overlay_term_hgt != layout.term_hgt)
+                if (supply_overlay_cache_stale(&overlay_cache, page,
+                        inv_entry_cur, (int)selected_group, layout.term_wid,
+                        layout.term_hgt))
                 {
                     if (equipment_menu_overlay_entry(
                             &equip_entries[inv_entry_cur], selected_slot))
-                    {
-                        inv_overlay_active = true;
-                        inv_overlay_entry = inv_entry_cur;
-                        inv_overlay_group = selected_group;
-                        inv_overlay_term_wid = layout.term_wid;
-                        inv_overlay_term_hgt = layout.term_hgt;
-                    }
+                        supply_overlay_cache_set(&overlay_cache, page,
+                            inv_entry_cur, (int)selected_group, layout.term_wid,
+                            layout.term_hgt);
                     else
-                    {
-                        object_info_overlay_clear();
-                        inv_overlay_active = false;
-                        inv_overlay_entry = -1;
-                        inv_overlay_group = -1;
-                    }
+                        supply_overlay_cache_reset(&overlay_cache);
                 }
             }
-            else if (inv_overlay_active)
+            else if (overlay_cache.active)
             {
-                object_info_overlay_clear();
-                inv_overlay_active = false;
-                inv_overlay_entry = -1;
-                inv_overlay_group = -1;
+                supply_overlay_cache_reset(&overlay_cache);
             }
 
             if (!inv_column)
@@ -40976,7 +41163,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             inv_column = 1;
                             if (click_action == UI_MENU_CLICK_HOVER)
                                 continue;
-                            ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
+                            ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'x'
                                 : (drop_click_mode ? 'd' : 'u');
                         }
                     }
@@ -41005,7 +41192,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         switch (clicked_choice)
                         {
                         case SUPPLY_CLICK_BACK:   ch = ESCAPE; break;
-                        case SUPPLY_CLICK_RECALL: ch = 'r'; break;
+                        case SUPPLY_CLICK_RECALL: ch = 'x'; break;
                         case SUPPLY_CLICK_PREVIEW: ch = 'x'; break;
                         case SUPPLY_CLICK_USE:    ch = 'u'; break;
                         case SUPPLY_CLICK_DROP:
@@ -41054,31 +41241,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 redraw = true;
                 break;
 
-            case 'R':
-            case 'r':
-                if (!inv_column && inventory_entry_cnt)
-                {
-                    inv_column = 1;
-                }
-                else if (inv_column && inventory_entry_cnt)
-                {
-                    if (inv_overlay_active)
-                    {
-                        object_info_overlay_clear();
-                        inv_overlay_active = false;
-                        inv_overlay_entry = -1;
-                        inv_overlay_group = -1;
-                    }
-
-                    (void)equipment_menu_recall_entry(
-                        &equip_entries[inv_entry_cur],
-                        selected_group == INVENTORY_MENU_GROUP_ALL
-                            ? EQUIPMENT_MENU_ALL
-                            : inventory_browser_compare_slot_for_entry(
-                                  selected_group,
-                                  &equip_entries[inv_entry_cur]));
-                }
-                break;
 
             case 'X':
             case 'x':
@@ -41088,10 +41250,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #endif
                 if (inventory_entry_cnt)
                 {
-                    inv_column = 1;
-                    inv_description_overlay = true;
-                    inv_overlay_entry = -1;
-                    inv_overlay_group = -1;
+                    if (!inv_column)
+                    {
+                        inv_column = 1;
+                        desc_overlay_on = true;
+                    }
+                    else
+                    {
+                        desc_overlay_on = !desc_overlay_on;
+                        if (!desc_overlay_on)
+                            supply_overlay_cache_reset(&overlay_cache);
+                    }
                 }
                 break;
 
@@ -41178,15 +41347,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         int entry_row_stride;
         cptr list_label;
         cptr title_label;
-
-        if (inv_overlay_active)
-        {
-            object_info_overlay_clear();
-            inv_overlay_active = false;
-            inv_overlay_entry = -1;
-            inv_overlay_group = -1;
-        }
-        inv_description_overlay = false;
 
         prepare_supply_group_icons(group_icons, group_icon_kinds);
         compute_supply_group_totals(group_totals);
@@ -41466,7 +41626,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 else if (draw_layout.term_wid <= 70)
                     prompt = "Dir move  u equip  s save  c clear  Tab  Alt+1-5  Esc";
                 else
-                    prompt = "Dir move  r/-> recall  u/Space equip  s save  c clear  Tab page  Alt+1-5  Esc";
+                    prompt = "Dir move  x/-> preview  u/Space equip  s save  c clear  Tab page  Esc";
             }
             else
             {
@@ -41474,13 +41634,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     prompt = (draw_layout.term_wid <= 50)
                         ? "letter use  arrows move  Tab  Esc"
-                        : "letter use  arrows move  -> recall  Tab page  Esc";
+                        : "letter use  arrows move  -> preview  Tab page  Esc";
                 }
                 else
                 {
                     prompt = (draw_layout.term_wid <= 50)
-                        ? "Dir move  u/Space use  d drop  Tab  Esc"
-                        : "Dir move  r/-> recall  u/Space use  d drop  Tab page  Esc";
+                        ? "Dir move  x preview  u/Space use  d drop  Tab  Esc"
+                        : "Dir move  x/-> preview  u/Space use  d drop  Tab page  Esc";
                 }
             }
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
@@ -41490,6 +41650,23 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (drop_click_mode)
                 supply_highlight_prompt_token(&draw_layout, prompt, "drop",
                     TERM_YELLOW);
+        }
+
+        if (desc_overlay_on && entry_cnt)
+        {
+            if (supply_overlay_cache_stale(&overlay_cache, page, entry_cur,
+                    grp_cur, draw_layout.term_wid, draw_layout.term_hgt))
+            {
+                if (supplies_menu_overlay_entry(&entries[entry_cur]))
+                    supply_overlay_cache_set(&overlay_cache, page, entry_cur,
+                        grp_cur, draw_layout.term_wid, draw_layout.term_hgt);
+                else
+                    supply_overlay_cache_reset(&overlay_cache);
+            }
+        }
+        else if (overlay_cache.active)
+        {
+            supply_overlay_cache_reset(&overlay_cache);
         }
 
         if (!column)
@@ -41541,7 +41718,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         column = 1;
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
-                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'r'
+                        ch = (click_action == UI_MENU_CLICK_SECONDARY) ? 'x'
                             : (drop_click_mode ? 'd' : 'u');
                         click_generated_command = true;
                     }
@@ -41572,7 +41749,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         click_generated_command = true;
                         break;
                     case SUPPLY_CLICK_RECALL:
-                        ch = 'r';
+                        ch = 'x';
                         click_generated_command = true;
                         break;
                     case SUPPLY_CLICK_USE:
@@ -41642,8 +41819,6 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         case 'J':
             break;
 
-        case 'R':
-        case 'r':
         case 'X':
         case 'x':
         case '6':
@@ -41653,11 +41828,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (!column && entry_cnt)
             {
                 column = 1;
+                desc_overlay_on = true;
             }
             else if (column && entry_cnt)
             {
-                if (supplies_menu_recall_entry(&entries[entry_cur]))
-                    redraw = true;
+                desc_overlay_on = !desc_overlay_on;
+                if (!desc_overlay_on)
+                    supply_overlay_cache_reset(&overlay_cache);
             }
             break;
 

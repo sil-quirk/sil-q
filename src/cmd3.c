@@ -3269,6 +3269,7 @@ void do_cmd_destroy(void)
 void do_cmd_observe(void)
 {
     supply_menu_request request = {0};
+    int floor_item = first_floor_item_under_player();
 
     {
         extern char current_menu_command;
@@ -3276,6 +3277,24 @@ void do_cmd_observe(void)
 
         current_menu_command = 0;
         current_menu_state = 0;
+    }
+
+    /* Shortcut: if standing on an item, examine it directly with comparisons
+     * instead of opening the inventory browser. */
+    if (floor_item != 0)
+    {
+        extern char current_menu_command;
+        extern int current_menu_state;
+
+        log_debug(
+            "do_cmd_observe: Examining floor item under player, item=%d",
+            floor_item);
+        current_menu_command = 'x';
+        current_menu_state = 0;
+        describe_item_with_comparisons(floor_item, true);
+        current_menu_command = 0;
+        current_menu_state = 0;
+        return;
     }
 
     log_debug("do_cmd_observe: Opening inventory browser preview");
