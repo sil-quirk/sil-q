@@ -199,6 +199,7 @@ struct supply_list_entry
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
     int equip_idx;  /* Matching equipped light slot (-1 if not equipped) */
     int preset_idx; /* Jewelry preset row (-1 for normal supply rows) */
+    int floor_idx;  /* o_list index of a floor item under the player (-1 if not) */
     bool equipped;  /* This supply-kind is currently equipped */
     bool single_item_display; /* Display one item even if the source stack is larger */
 };
@@ -229,6 +230,7 @@ struct equipment_list_entry
     int item_idx;   /* Inventory slot backing this row */
     int supply_idx; /* Supply cache index backing this row */
     int equip_idx;  /* Equipment slot backing this row */
+    int floor_idx;  /* o_list index of a floor item under the player (-1 if not) */
     bool equipped;  /* This row is the item currently in the selected slot */
 };
 
@@ -314,6 +316,12 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
 {
     if (!entry)
         return false;
+
+    if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+    {
+        py_pickup_aux(entry->floor_idx);
+        return true;
+    }
 
     if (entry->preset_idx >= 0)
         return do_cmd_jewelry_preset_apply(entry->preset_idx);
@@ -33701,6 +33709,10 @@ static object_type* supply_entry_display_object(const supply_list_entry* entry,
     {
         o_ptr = &inventory[entry->item_idx];
     }
+    else if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+    {
+        o_ptr = &o_list[entry->floor_idx];
+    }
     else if (fake)
     {
         object_wipe(fake);
@@ -34510,6 +34522,55 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             ? player_oil_container_slot_cost(light_ptr) * MAX(light_ptr->number, 1)
             : MAX(light_ptr->number, 1);
     }
+
+    {
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
+
+        for (i = 0; i < floor_num; i++)
+        {
+            int o_idx = floor_list[i];
+            object_type* o_ptr;
+            int number;
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+
+            o_ptr = &o_list[o_idx];
+            if (!o_ptr->k_idx || !supplies_is_supply_object(o_ptr))
+                continue;
+
+            number = MAX(o_ptr->number, 1);
+            if (supply_kind_matches(SUPPLY_GROUP_HERBS, o_ptr->tval,
+                    o_ptr->sval))
+            {
+                totals[SUPPLY_GROUP_HERBS] += number;
+            }
+            else if (supply_kind_matches(SUPPLY_GROUP_FOOD, o_ptr->tval,
+                    o_ptr->sval))
+            {
+                totals[SUPPLY_GROUP_FOOD] += number;
+            }
+            else if (o_ptr->tval == TV_POTION)
+            {
+                totals[SUPPLY_GROUP_POTIONS] += number;
+            }
+            else if (o_ptr->tval == TV_GEM)
+            {
+                totals[SUPPLY_GROUP_GEMS] += number;
+            }
+            else if (supply_item_matches(SUPPLY_GROUP_LIGHTS, o_ptr))
+            {
+                int slots = player_oil_container_slot_cost(o_ptr);
+                totals[SUPPLY_GROUP_LIGHTS] += (slots > 0)
+                    ? slots * number
+                    : number;
+            }
+
+            totals[SUPPLY_GROUP_SUPPLY] += number;
+        }
+    }
 }
 
 static bool supply_kind_is_seen(const object_kind* k_ptr)
@@ -34521,6 +34582,46 @@ static bool supply_kind_is_seen(const object_kind* k_ptr)
         return true;
 
     return k_ptr->everseen || k_ptr->tried;
+}
+
+/* Append rows for matching items lying on the floor under the player, so they
+ * can be compared with carried supplies and picked up from the same menu. */
+static void supply_collect_floor_entries(int group_idx,
+    supply_list_entry entries[], int* count, int capacity)
+{
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (!entries || !count)
+        return;
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00);
+
+    for (int i = 0; i < floor_num && *count < capacity; i++)
+    {
+        int o_idx = floor_list[i];
+        object_type* o_ptr;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+        if (!o_ptr->k_idx || !supplies_is_supply_object(o_ptr)
+            || !supply_item_matches(group_idx, o_ptr))
+            continue;
+
+        entries[*count].k_idx = o_ptr->k_idx;
+        entries[*count].item_idx = -1;
+        entries[*count].total = MAX(o_ptr->number, 1);
+        entries[*count].supply_idx = -1;
+        entries[*count].equip_idx = -1;
+        entries[*count].preset_idx = -1;
+        entries[*count].floor_idx = o_idx;
+        entries[*count].equipped = false;
+        entries[*count].single_item_display = false;
+        (*count)++;
+    }
 }
 
 static int collect_supply_entries(int group_idx, supply_list_entry entries[],
@@ -34539,6 +34640,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[],
         entries[i].supply_idx = -1;
         entries[i].equip_idx = -1;
         entries[i].preset_idx = -1;
+        entries[i].floor_idx = -1;
         entries[i].k_idx = -1;
         entries[i].single_item_display = false;
     }
@@ -34596,6 +34698,8 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[],
             entries[count].single_item_display = false;
             count++;
         }
+
+        supply_collect_floor_entries(group_idx, entries, &count, capacity);
 
         if (count < capacity)
         {
@@ -34828,6 +34932,8 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[],
             }
         }
     }
+
+    supply_collect_floor_entries(group_idx, entries, &count, capacity);
 
     /* Add seen kinds even when none are carried.
      * Lights are listed only when actually carried, to avoid misleading 0-count
@@ -35292,6 +35398,8 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
         {
             SDL_strlcpy(display_name, name, sizeof(display_name));
         }
+        if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+            SDL_strlcat(display_name, " [on floor]", sizeof(display_name));
         if (selected)
         {
             int selection_w = supply_browser_selection_width(layout->list_col,
@@ -35755,6 +35863,7 @@ static void equipment_entry_clear(equipment_list_entry* entry)
     entry->item_idx = -1;
     entry->supply_idx = -1;
     entry->equip_idx = -1;
+    entry->floor_idx = -1;
     entry->equipped = false;
 }
 
@@ -35772,6 +35881,9 @@ static object_type* equipment_entry_object(const equipment_list_entry* entry)
     if (entry->supply_idx >= 0)
         return supplies_entry_at(entry->supply_idx);
 
+    if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+        return &o_list[entry->floor_idx];
+
     return NULL;
 }
 
@@ -35787,7 +35899,27 @@ static bool equipment_add_entry(equipment_list_entry entries[], int* count,
     entry->item_idx = item_idx;
     entry->supply_idx = supply_idx;
     entry->equip_idx = equip_idx;
+    entry->floor_idx = -1;
     entry->equipped = equipped;
+    (*count)++;
+    return true;
+}
+
+/* Append a row backed by a floor item lying under the player. */
+static bool equipment_add_floor_entry(equipment_list_entry entries[],
+    int* count, int capacity, int floor_idx)
+{
+    equipment_list_entry* entry;
+
+    if (!entries || !count || *count >= capacity)
+        return false;
+
+    entry = &entries[*count];
+    entry->item_idx = -1;
+    entry->supply_idx = -1;
+    entry->equip_idx = -1;
+    entry->floor_idx = floor_idx;
+    entry->equipped = false;
     (*count)++;
     return true;
 }
@@ -35854,6 +35986,29 @@ static int collect_equipment_entries_for_slot(int slot,
             false);
     }
 
+    /* Floor items under the player that could fill this slot. */
+    {
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
+
+        for (int i = 0; i < floor_num && count < capacity; i++)
+        {
+            int o_idx = floor_list[i];
+            object_type* o_ptr;
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+
+            o_ptr = &o_list[o_idx];
+            if (!o_ptr->k_idx || supplies_is_supply_object(o_ptr)
+                || !equipment_slot_accepts_object(slot, o_ptr))
+                continue;
+
+            equipment_add_floor_entry(entries, &count, capacity, o_idx);
+        }
+    }
+
     return count;
 }
 
@@ -35901,6 +36056,24 @@ static int count_equipment_entries_for_slot(int slot)
 
         if (equipment_slot_accepts_object(slot, o_ptr))
             count++;
+    }
+
+    {
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
+
+        for (int i = 0; i < floor_num; i++)
+        {
+            int o_idx = floor_list[i];
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+
+            if (!supplies_is_supply_object(&o_list[o_idx])
+                && equipment_slot_accepts_object(slot, &o_list[o_idx]))
+                count++;
+        }
     }
 
     return count;
@@ -36009,6 +36182,35 @@ static void prepare_equipment_group_icons(
             object_copy(icon_obj, o_ptr);
             icons[group].has_icon = true;
             break;
+        }
+
+        if (icons[group].has_icon)
+            continue;
+
+        {
+            int floor_list[MAX_FLOOR_STACK];
+            int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK,
+                p_ptr->py, p_ptr->px, 0x00);
+
+            for (int i = 0; i < floor_num; i++)
+            {
+                int o_idx = floor_list[i];
+                object_type* o_ptr;
+
+                if (o_idx <= 0 || o_idx >= o_max)
+                    continue;
+
+                o_ptr = &o_list[o_idx];
+                if (!o_ptr->k_idx || supplies_is_supply_object(o_ptr)
+                    || !equipment_slot_accepts_object(slot, o_ptr))
+                {
+                    continue;
+                }
+
+                object_copy(icon_obj, o_ptr);
+                icons[group].has_icon = true;
+                break;
+            }
         }
 
         if (!icons[group].has_icon
@@ -36142,6 +36344,9 @@ static cptr equipment_entry_source_text(const equipment_list_entry* entry,
         return buf ? buf : "Pack";
     }
 
+    if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+        return "On floor";
+
     return "";
 }
 
@@ -36190,6 +36395,11 @@ static void display_equipment_slot_entries(
         object_desc(name, sizeof(name), o_ptr, true, 3);
         if (entry->equipped)
             SDL_strlcat(name, " [equipped]", sizeof(name));
+        else if (entry->floor_idx > 0 && entry->floor_idx < o_max
+            && source_w <= 0)
+        {
+            SDL_strlcat(name, " [on floor]", sizeof(name));
+        }
 
         if (selected)
         {
@@ -36319,6 +36529,19 @@ static bool equipment_menu_use_entry(equipment_list_entry* entry,
     if (!entry)
         return false;
 
+    if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+    {
+        o_ptr = &o_list[entry->floor_idx];
+        if (!o_ptr->k_idx)
+            return false;
+
+        if (equipment_menu_slot_is_group(selected_slot))
+            do_cmd_wield(o_ptr, 0 - entry->floor_idx);
+        else
+            do_cmd_wield_to_slot(o_ptr, 0 - entry->floor_idx, selected_slot);
+        return true;
+    }
+
     if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
     {
         do_cmd_use_item_by_index(entry->equip_idx);
@@ -36401,6 +36624,8 @@ static const inventory_menu_group inventory_browser_groups[] = {
     INVENTORY_MENU_GROUP_RINGS,
     INVENTORY_MENU_GROUP_AMULETS,
     INVENTORY_MENU_GROUP_WEAPONS,
+    INVENTORY_MENU_GROUP_BOWS,
+    INVENTORY_MENU_GROUP_ARROWS,
     INVENTORY_MENU_GROUP_ARMOUR,
     INVENTORY_MENU_GROUP_CLOAKS,
     INVENTORY_MENU_GROUP_SHIELDS,
@@ -36428,6 +36653,10 @@ static cptr inventory_browser_group_text(inventory_menu_group group)
         return "Amulets";
     case INVENTORY_MENU_GROUP_WEAPONS:
         return "Weapons";
+    case INVENTORY_MENU_GROUP_BOWS:
+        return "Bows";
+    case INVENTORY_MENU_GROUP_ARROWS:
+        return "Arrows";
     case INVENTORY_MENU_GROUP_ARMOUR:
         return "Armour";
     case INVENTORY_MENU_GROUP_CLOAKS:
@@ -36468,10 +36697,13 @@ static bool inventory_browser_object_matches_group(
     case INVENTORY_MENU_GROUP_AMULETS:
         return o_ptr->tval == TV_AMULET;
     case INVENTORY_MENU_GROUP_WEAPONS:
-        return o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW
-            || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_POLEARM
+        return o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_POLEARM
             || o_ptr->tval == TV_SWORD
             || player_can_treat_as_throwing(o_ptr);
+    case INVENTORY_MENU_GROUP_BOWS:
+        return o_ptr->tval == TV_BOW;
+    case INVENTORY_MENU_GROUP_ARROWS:
+        return o_ptr->tval == TV_ARROW;
     case INVENTORY_MENU_GROUP_ARMOUR:
         return o_ptr->tval == TV_MAIL
             || (o_ptr->tval == TV_SOFT_ARMOR && o_ptr->sval != SV_ROBE);
@@ -36538,11 +36770,6 @@ static int inventory_browser_group_width(void)
 static bool inventory_browser_group_contains_limit(
     inventory_menu_group group, enum inventory_limit_group limit_group)
 {
-    static const enum inventory_limit_group weapons[] = {
-        INV_LIMIT_MELEE_WEAPON,
-        INV_LIMIT_BOW,
-        INV_LIMIT_ARROW
-    };
     static const enum inventory_limit_group armour[] = {
         INV_LIMIT_SOFT_ARMOUR,
         INV_LIMIT_MAIL
@@ -36562,9 +36789,11 @@ static bool inventory_browser_group_contains_limit(
     switch (group)
     {
     case INVENTORY_MENU_GROUP_WEAPONS:
-        groups = weapons;
-        count = (int)N_ELEMENTS(weapons);
-        break;
+        return limit_group == INV_LIMIT_MELEE_WEAPON;
+    case INVENTORY_MENU_GROUP_BOWS:
+        return limit_group == INV_LIMIT_BOW;
+    case INVENTORY_MENU_GROUP_ARROWS:
+        return limit_group == INV_LIMIT_ARROW;
     case INVENTORY_MENU_GROUP_ARMOUR:
         groups = armour;
         count = (int)N_ELEMENTS(armour);
@@ -36672,7 +36901,7 @@ static void inventory_browser_group_status(inventory_menu_group group,
 
     if (group == INVENTORY_MENU_GROUP_ALL)
     {
-        strnfmt(buf, buflen, "%d pack item%s. Pack slots %d/%d.",
+        strnfmt(buf, buflen, "%d choice%s. Pack slots %d/%d.",
             entry_cnt, (entry_cnt == 1) ? "" : "s", p_ptr->inven_cnt,
             INVEN_PACK);
         return;
@@ -36704,19 +36933,44 @@ static int count_inventory_browser_group_entries(inventory_menu_group group)
             if (inventory[i].k_idx)
                 count++;
         }
-        return count;
+    }
+    else
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (inventory_browser_equipped_slot_matches_group(group, i))
+                count++;
+        }
+
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            if (inventory_browser_object_matches_group(group, &inventory[i]))
+                count++;
+        }
     }
 
-    for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
     {
-        if (inventory_browser_equipped_slot_matches_group(group, i))
-            count++;
-    }
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
 
-    for (int i = 0; i < INVEN_PACK; i++)
-    {
-        if (inventory_browser_object_matches_group(group, &inventory[i]))
-            count++;
+        for (int i = 0; i < floor_num; i++)
+        {
+            int o_idx = floor_list[i];
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+
+            if (supplies_is_supply_object(&o_list[o_idx]))
+                continue;
+
+            if (group == INVENTORY_MENU_GROUP_ALL
+                || inventory_browser_object_matches_group(group,
+                    &o_list[o_idx]))
+            {
+                count++;
+            }
+        }
     }
 
     return count;
@@ -36763,6 +37017,38 @@ static void prepare_inventory_browser_group_icons(
             object_copy(icon_obj, &inventory[i]);
             icons[group_idx].has_icon = true;
             break;
+        }
+
+        if (icons[group_idx].has_icon)
+            continue;
+
+        {
+            int floor_list[MAX_FLOOR_STACK];
+            int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK,
+                p_ptr->py, p_ptr->px, 0x00);
+
+            for (int i = 0; i < floor_num; i++)
+            {
+                int o_idx = floor_list[i];
+                object_type* o_ptr;
+
+                if (o_idx <= 0 || o_idx >= o_max)
+                    continue;
+
+                o_ptr = &o_list[o_idx];
+                if (!o_ptr->k_idx || supplies_is_supply_object(o_ptr))
+                    continue;
+
+                if (group != INVENTORY_MENU_GROUP_ALL
+                    && !inventory_browser_object_matches_group(group, o_ptr))
+                {
+                    continue;
+                }
+
+                object_copy(icon_obj, o_ptr);
+                icons[group_idx].has_icon = true;
+                break;
+            }
         }
     }
 }
@@ -36857,7 +37143,10 @@ static int inventory_browser_compare_slot_for_entry(inventory_menu_group group,
         return INVEN_STAFF;
     case INVENTORY_MENU_GROUP_HORNS:
         return INVEN_HORN;
+    case INVENTORY_MENU_GROUP_ARROWS:
+        return EQUIPMENT_MENU_QUIVERS;
     case INVENTORY_MENU_GROUP_WEAPONS:
+    case INVENTORY_MENU_GROUP_BOWS:
     case INVENTORY_MENU_GROUP_DIGGING:
         return wield_slot(o_ptr);
     default:
@@ -36902,6 +37191,35 @@ static int collect_inventory_page_entries(inventory_menu_group group,
         equipment_add_entry(entries, &count, capacity, i, -1, -1, false);
     }
 
+    /* Items lying on the floor under the player, so they can be compared and
+     * picked up from the same list. */
+    {
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
+
+        for (int i = 0; i < floor_num && count < capacity; i++)
+        {
+            int o_idx = floor_list[i];
+            object_type* o_ptr;
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+
+            o_ptr = &o_list[o_idx];
+            if (!o_ptr->k_idx || supplies_is_supply_object(o_ptr))
+                continue;
+
+            if (group != INVENTORY_MENU_GROUP_ALL
+                && !inventory_browser_object_matches_group(group, o_ptr))
+            {
+                continue;
+            }
+
+            equipment_add_floor_entry(entries, &count, capacity, o_idx);
+        }
+    }
+
     return count;
 }
 
@@ -36909,6 +37227,12 @@ static bool inventory_page_use_entry(equipment_list_entry* entry)
 {
     if (!entry)
         return false;
+
+    if (entry->floor_idx > 0 && entry->floor_idx < o_max)
+    {
+        py_pickup_aux(entry->floor_idx);
+        return true;
+    }
 
     if (entry->equip_idx >= INVEN_WIELD && entry->equip_idx < INVEN_TOTAL)
     {
@@ -41176,7 +41500,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     break;
                 }
 
-                if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
+                if ((entry->item_idx == SUPPLIES_INDEX
+                        && entry->supply_idx >= 0)
+                    || (entry->floor_idx > 0 && entry->floor_idx < o_max))
                 {
                     handled = supplies_menu_use_entry(entry);
                 }

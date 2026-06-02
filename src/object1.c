@@ -7056,84 +7056,145 @@ static void append_description_slot(int* slots, int* count, int capacity,
         slots[(*count)++] = slot;
 }
 
-enum
-{
-    DESCRIPTION_CATEGORY_NONE = 0,
-    DESCRIPTION_CATEGORY_WEAPON,
-    DESCRIPTION_CATEGORY_ARMOUR,
-    DESCRIPTION_CATEGORY_JEWELRY,
-    DESCRIPTION_CATEGORY_LIGHT,
-    DESCRIPTION_CATEGORY_STAFF,
-    DESCRIPTION_CATEGORY_HORN,
-    DESCRIPTION_CATEGORY_CONSUMABLE,
-    DESCRIPTION_CATEGORY_MATERIAL,
-    DESCRIPTION_CATEGORY_OTHER_BASE = 1000
-};
+/*
+ * Comparison groups for item descriptions.
+ *
+ * Each group corresponds to an equipment slot (or class of slot) that an item
+ * could occupy.  An item is comparable against another item only when their
+ * groups overlap, so the description compares "things you could equip in its
+ * place".  Most items belong to a single group, but a throwing weapon belongs
+ * to both its melee group and the quiver/ammo group (it can be wielded or
+ * thrown), which is why a dagger compares against both weapons and the quiver.
+ */
+#define DESC_GRP_MELEE      0x00000001u
+#define DESC_GRP_BOW        0x00000002u
+#define DESC_GRP_AMMO       0x00000004u /* quiver: arrows and throwing weapons */
+#define DESC_GRP_HEAD       0x00000008u
+#define DESC_GRP_BODY       0x00000010u
+#define DESC_GRP_SHIELD     0x00000020u
+#define DESC_GRP_CLOAK      0x00000040u
+#define DESC_GRP_GLOVES     0x00000080u
+#define DESC_GRP_BOOTS      0x00000100u
+#define DESC_GRP_LIGHT      0x00000200u
+#define DESC_GRP_RING       0x00000400u
+#define DESC_GRP_AMULET     0x00000800u
+#define DESC_GRP_STAFF      0x00001000u
+#define DESC_GRP_HORN       0x00002000u
+#define DESC_GRP_CONSUMABLE 0x00004000u
+#define DESC_GRP_MATERIAL   0x00008000u
 
-static int description_category_for_object(const object_type* o_ptr)
+static u32b description_groups_for_object(const object_type* o_ptr)
 {
+    u32b groups = 0;
+
     if (!o_ptr || !o_ptr->k_idx)
-        return DESCRIPTION_CATEGORY_NONE;
+        return 0;
 
+    /* Throwing-capable weapons can also be placed in the quiver. */
     if (player_can_treat_as_throwing(o_ptr))
-        return DESCRIPTION_CATEGORY_WEAPON;
+        groups |= DESC_GRP_AMMO;
 
     if (supplies_group_matches_object(SUPPLY_GROUP_LIGHTS, o_ptr))
-        return DESCRIPTION_CATEGORY_LIGHT;
+        groups |= DESC_GRP_LIGHT;
 
     switch (o_ptr->tval)
     {
-    case TV_BOW:
     case TV_DIGGING:
     case TV_HAFTED:
     case TV_POLEARM:
     case TV_SWORD:
-    case TV_ARROW:
-        return DESCRIPTION_CATEGORY_WEAPON;
+        groups |= DESC_GRP_MELEE;
+        break;
 
-    case TV_BOOTS:
-    case TV_GLOVES:
+    case TV_BOW:
+        groups |= DESC_GRP_BOW;
+        break;
+
+    case TV_ARROW:
+        groups |= DESC_GRP_AMMO;
+        break;
+
     case TV_HELM:
     case TV_CROWN:
-    case TV_SHIELD:
-    case TV_CLOAK:
+        groups |= DESC_GRP_HEAD;
+        break;
+
     case TV_SOFT_ARMOR:
     case TV_MAIL:
-        return DESCRIPTION_CATEGORY_ARMOUR;
+        groups |= DESC_GRP_BODY;
+        break;
 
-    case TV_RING:
-    case TV_AMULET:
-        return DESCRIPTION_CATEGORY_JEWELRY;
+    case TV_SHIELD:
+        groups |= DESC_GRP_SHIELD;
+        break;
+
+    case TV_CLOAK:
+        groups |= DESC_GRP_CLOAK;
+        break;
+
+    case TV_GLOVES:
+        groups |= DESC_GRP_GLOVES;
+        break;
+
+    case TV_BOOTS:
+        groups |= DESC_GRP_BOOTS;
+        break;
 
     case TV_LIGHT:
     case TV_FLASK:
-        return DESCRIPTION_CATEGORY_LIGHT;
+        groups |= DESC_GRP_LIGHT;
+        break;
+
+    case TV_RING:
+        groups |= DESC_GRP_RING;
+        break;
+
+    case TV_AMULET:
+        groups |= DESC_GRP_AMULET;
+        break;
 
     case TV_STAFF:
-        return DESCRIPTION_CATEGORY_STAFF;
+        groups |= DESC_GRP_STAFF;
+        break;
 
     case TV_HORN:
-        return DESCRIPTION_CATEGORY_HORN;
+        groups |= DESC_GRP_HORN;
+        break;
 
     case TV_POTION:
     case TV_FOOD:
     case TV_EASTER:
     case TV_GEM:
-        return DESCRIPTION_CATEGORY_CONSUMABLE;
+        groups |= DESC_GRP_CONSUMABLE;
+        break;
 
     case TV_METAL:
-        return DESCRIPTION_CATEGORY_MATERIAL;
+        groups |= DESC_GRP_MATERIAL;
+        break;
 
     default:
-        return DESCRIPTION_CATEGORY_OTHER_BASE + o_ptr->tval;
+        break;
     }
+
+    return groups;
 }
 
-static bool description_object_matches_category(const object_type* o_ptr,
-    int category)
+static bool description_object_matches(const object_type* base,
+    u32b base_groups, const object_type* o_ptr)
 {
-    return category != DESCRIPTION_CATEGORY_NONE
-        && description_category_for_object(o_ptr) == category;
+    u32b groups;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    groups = description_groups_for_object(o_ptr);
+
+    /* Both items belong to a known slot group: compare on slot overlap. */
+    if (base_groups && groups)
+        return (base_groups & groups) != 0;
+
+    /* Unknown categories fall back to matching the same base item type. */
+    return base && base->tval == o_ptr->tval;
 }
 
 static bool description_object_already_listed(const object_type* objects[],
@@ -7178,7 +7239,7 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     object_type* base_obj;
     bool is_floor = (item_index < 0);
     bool is_supply = (item_index >= SUPPLIES_INDEX);
-    int category;
+    u32b base_groups;
 
     if (item_index == ENHANCED_MENU_NO_SELECTION)
         return;
@@ -7207,7 +7268,7 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
             is_equipped);
     }
 
-    category = description_category_for_object(base_obj);
+    base_groups = description_groups_for_object(base_obj);
 
     append_description_object(objects, headings, heading_texts, &count,
         MAX_DESCRIPTION_COMPARE_ITEMS, base_obj,
@@ -7246,8 +7307,8 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
         {
             if (!inventory[slot].k_idx)
                 continue;
-            if (!description_object_matches_category(&inventory[slot],
-                    category))
+            if (!description_object_matches(base_obj, base_groups,
+                    &inventory[slot]))
             {
                 continue;
             }
@@ -7286,7 +7347,8 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
         {
             char heading[32];
 
-            if (!description_object_matches_category(&inventory[i], category))
+            if (!description_object_matches(base_obj, base_groups,
+                    &inventory[i]))
                 continue;
 
             strnfmt(heading, sizeof(heading), "Pack %c", index_to_label(i));
@@ -7300,7 +7362,7 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
             object_type* supply_obj = supplies_entry_at(i);
             char heading[32];
 
-            if (!description_object_matches_category(supply_obj, category))
+            if (!description_object_matches(base_obj, base_groups, supply_obj))
                 continue;
 
             strnfmt(heading, sizeof(heading), "Supply %c",
@@ -7325,7 +7387,8 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
                     continue;
 
                 floor_obj = &o_list[o_idx];
-                if (!description_object_matches_category(floor_obj, category))
+                if (!description_object_matches(base_obj, base_groups,
+                        floor_obj))
                     continue;
 
                 append_description_object(objects, headings, heading_texts,
