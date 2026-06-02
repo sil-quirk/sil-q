@@ -321,6 +321,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_STATUS: return "STATUS";
         case PANE_DEPTH: return "DEPTH";
         case PANE_MAIN_MENU: return "MAIN_MENU";
+        case PANE_DESCRIPTION: return "DESCRIPTION";
         default: return "MAIN";
     }
 }
@@ -349,6 +350,10 @@ static enum pane_type parse_pane_type(const char* value)
         return PANE_DEPTH;
     if (strcmp(value, "MAIN_MENU") == 0 || strcmp(value, "MAIN MENU") == 0)
         return PANE_MAIN_MENU;
+    if (strcmp(value, "DESCRIPTION") == 0
+        || strcmp(value, "DESCRIPTION_OVERLAY") == 0
+        || strcmp(value, "DESCRIPTION OVERLAY") == 0)
+        return PANE_DESCRIPTION;
     return PANE_MAIN;
 }
 

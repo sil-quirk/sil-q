@@ -145,6 +145,8 @@ static const struct pane_config default_pane_config[] = {
         .rect.rows = 2, .rect.cols = 12},
     {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
         .rect.rows = 1, .rect.cols = 24},
+    {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
+        .rect.rows = 80, .rect.cols = 160},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_SUPPLY, .where = PLACE_RIGHT, .enabled = true,
@@ -2865,7 +2867,8 @@ static int sdl_overlay_edge_gap_px(int area_px, int content_px)
 static bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
-        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU;
+        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU
+        || pane == PANE_DESCRIPTION;
 }
 
 static bool sdl_migrate_legacy_main_menu_depth_pane(
@@ -4775,9 +4778,11 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
         bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
         bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
         bool is_main_menu_pane = (pane_config[i].pane == PANE_MAIN_MENU);
+        bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
 
         if (touch_only && !is_touch_pane && !is_status_pane
-            && !is_left_panel && !is_depth_pane && !is_main_menu_pane)
+            && !is_left_panel && !is_depth_pane && !is_main_menu_pane
+            && !is_description_pane)
         {
             continue;
         }
@@ -4787,7 +4792,8 @@ static int sdl_build_active_pane_config(struct pane_config* active, bool include
             continue;
         if (!is_touch_pane && !is_status_pane && !is_left_panel
             && !is_depth_pane
-            && !is_main_menu_pane)
+            && !is_main_menu_pane
+            && !is_description_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
@@ -4891,6 +4897,8 @@ static int sdl_auto_pane_font_size(enum pane_type type)
         return sdl_auto_font_size_from_main(1, 2);
     if (type == PANE_LEFT_PANEL || type == PANE_MAIN_MENU)
         return sdl_auto_font_size_from_main(3, 4);
+    if (type == PANE_DESCRIPTION)
+        return sdl_auto_font_size_from_main(2, 3);
 
     return sdl_auto_aux_view_font_size();
 }
@@ -5537,7 +5545,8 @@ static bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
-            || pane_config[i].pane == PANE_MAIN_MENU)
+            || pane_config[i].pane == PANE_MAIN_MENU
+            || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;
         }
@@ -14295,6 +14304,9 @@ static bool sdl_narrative_banner_top_center_pane_rect(
             return false;
         break;
 
+    case PANE_DESCRIPTION:
+        return false;
+
     default:
         break;
     }
@@ -20912,8 +20924,7 @@ static void sdl_object_tooltip_render(void)
 
 static int sdl_description_overlay_font_px(void)
 {
-    int cell_h = sdl_current_main_view_scale() * TILE_SIZE;
-    int font_px = (cell_h * 2 + 1) / 3;
+    int font_px = sdl_effective_pane_cell_height_for_type(PANE_DESCRIPTION);
 
     if (font_px < 8)
         font_px = 8;
@@ -20965,7 +20976,7 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
         return false;
     }
 
-    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor))
+    if (!sdl_overlay_pane_anchor_rect(PANE_DESCRIPTION, &anchor))
         return false;
 
     font_px = sdl_description_overlay_font_px();
@@ -26735,7 +26746,7 @@ static bool sdl_pane_layout_config_draggable(int index)
         return false;
     if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL
         || type == PANE_STATUS || type == PANE_DEPTH
-        || type == PANE_MAIN_MENU)
+        || type == PANE_MAIN_MENU || type == PANE_DESCRIPTION)
     {
         return false;
     }
@@ -27635,6 +27646,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
     case PANE_MAIN_MENU: return "Main Menu";
+    case PANE_DESCRIPTION: return "Description";
     default: return "Pane";
     }
 }
@@ -27650,7 +27662,8 @@ static bool sdl_side_pane_menu_config_is_entry(int index)
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
     if (type == PANE_TOUCH || type == PANE_LEFT_PANEL || type == PANE_STATUS
-        || type == PANE_DEPTH || type == PANE_MAIN_MENU)
+        || type == PANE_DEPTH || type == PANE_MAIN_MENU
+        || type == PANE_DESCRIPTION)
     {
         return false;
     }
@@ -35327,6 +35340,9 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
 static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
 {
+    bool render_styled_left_panel = sdl_left_panel_pane_presentation_active();
+    bool skip_terminal_left_panel =
+        g_description_overlay.active && sdl_left_panel_pane_layout_enabled();
     int visual_cols;
     int visual_rows;
     int source_h;
@@ -35340,7 +35356,7 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     float grid_x;
     float grid_y;
 
-    if (!sdl_left_panel_pane_presentation_active())
+    if (!render_styled_left_panel && !skip_terminal_left_panel)
         return false;
     if (!view || !view->canvas || !view->term_ready)
         return false;
@@ -35364,10 +35380,13 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
 
     grid_x = (float)(view->rect.x + view->margin_x);
     grid_y = (float)(view->rect.y + view->margin_y);
-    if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &dst_left))
-        return false;
-    sdl_left_panel_debug_log_frame(view, &metrics, &dst_left, visual_cols,
-        visual_rows, source_h, visual_w, canvas_w);
+    if (render_styled_left_panel)
+    {
+        if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &dst_left))
+            return false;
+        sdl_left_panel_debug_log_frame(view, &metrics, &dst_left, visual_cols,
+            visual_rows, source_h, visual_w, canvas_w);
+    }
 
     src_map = (SDL_FRect){
         .x = (float)(COL_MAP * view->cell_w),
@@ -35388,6 +35407,9 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     };
     SDL_RenderTexture(g_state.renderer, view->canvas, &src_map, &dst_map);
 
+    if (!render_styled_left_panel)
+        return true;
+
     src_left = (SDL_FRect){
         .x = 0.0f,
         .y = 0.0f,
@@ -35401,6 +35423,9 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
         SDL_Color bg = sdl_left_panel_background_color();
         SDL_FRect src_content = src_left;
         SDL_FRect dst_content = dst_left;
+
+        if (g_description_overlay.active)
+            return true;
 
         SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
         SDL_RenderFillRect(g_state.renderer, &dst_left);
@@ -42396,6 +42421,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_STATUS: type_str = "STATUS"; break;
             case PANE_DEPTH: type_str = "DEPTH"; break;
             case PANE_MAIN_MENU: type_str = "MAIN_MENU"; break;
+            case PANE_DESCRIPTION: type_str = "DESCRIPTION"; break;
             default: break;
         }
         
@@ -43042,7 +43068,8 @@ static void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
-            || pane_config[i].pane == PANE_MAIN_MENU)
+            || pane_config[i].pane == PANE_MAIN_MENU
+            || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;
         }
@@ -43057,7 +43084,8 @@ static void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
-            || pane_config[i].pane == PANE_MAIN_MENU)
+            || pane_config[i].pane == PANE_MAIN_MENU
+            || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;
         }

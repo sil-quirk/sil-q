@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "SDL3/SDL_rect.h"
 
-#define MAX_PANE_CONFIGS 13
+#define MAX_PANE_CONFIGS 16
 
 // Available pane types in the game.
 enum pane_type {
@@ -22,7 +22,8 @@ enum pane_type {
     PANE_STATUS = 12, // current character statuses, rendered as SDL overlay
     PANE_DEPTH = 13, // dungeon depth/partition and zoom overlay
     PANE_MAIN_MENU = 14, // main menu overlay
-    PANE_MAX = 15,
+    PANE_DESCRIPTION = 15, // modal item/monster description overlay
+    PANE_MAX = 16,
 };
 
 // Where the pane is placed.

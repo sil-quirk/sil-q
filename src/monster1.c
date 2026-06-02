@@ -1972,6 +1972,8 @@ typedef struct monster_recall_screen_capture
     int height;
     byte* attrs;
     char* chars;
+    byte* tattrs;
+    char* tchars;
     byte* story;
 } monster_recall_screen_capture;
 
@@ -1983,6 +1985,8 @@ static void monster_recall_screen_capture_free(
 
     mem_free_null(capture->attrs);
     mem_free_null(capture->chars);
+    mem_free_null(capture->tattrs);
+    mem_free_null(capture->tchars);
     mem_free_null(capture->story);
 
     capture->width = 0;
@@ -2010,6 +2014,34 @@ static int monster_recall_screen_capture_used_rows(term* t)
     return 0;
 }
 
+static int monster_recall_screen_capture_used_cols(term* t, int rows)
+{
+    int used_cols = 0;
+
+    if (!t || !t->scr || rows <= 0)
+        return 0;
+
+    if (rows > t->hgt)
+        rows = t->hgt;
+
+    for (int y = 0; y < rows; y++)
+    {
+        for (int x = t->wid - 1; x >= 0; x--)
+        {
+            if ((t->scr->c[y][x] != ' ')
+                || (t->scr->a[y][x] != t->attr_blank)
+                || (t->scr->story[y][x] != 0))
+            {
+                if (x + 1 > used_cols)
+                    used_cols = x + 1;
+                break;
+            }
+        }
+    }
+
+    return used_cols;
+}
+
 static bool monster_recall_screen_capture_build(
     int r_idx, const monster_type* m_ptr,
     monster_recall_screen_capture* capture)
@@ -2027,6 +2059,7 @@ static bool monster_recall_screen_capture_build(
     int term_wid = 80;
     int term_hgt = 24;
     int used_rows;
+    int used_cols;
 
     if (!capture || !saved_term)
         return false;
@@ -2060,11 +2093,16 @@ static bool monster_recall_screen_capture_build(
     used_rows = monster_recall_screen_capture_used_rows(Term);
     if (used_rows < 1)
         used_rows = 1;
+    used_cols = monster_recall_screen_capture_used_cols(Term, used_rows);
+    if (used_cols < 1)
+        used_cols = 1;
 
-    capture->width = term_wid;
+    capture->width = used_cols;
     capture->height = used_rows;
     capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
     capture->chars = mem_alloc_array(capture->width * capture->height, char);
+    capture->tattrs = mem_alloc_array(capture->width * capture->height, byte);
+    capture->tchars = mem_alloc_array(capture->width * capture->height, char);
     capture->story = mem_alloc_array(capture->width * capture->height, byte);
 
     for (int y = 0; y < capture->height; y++)
@@ -2074,6 +2112,8 @@ static bool monster_recall_screen_capture_build(
             int idx = y * capture->width + x;
             capture->attrs[idx] = scratch.scr->a[y][x];
             capture->chars[idx] = scratch.scr->c[y][x];
+            capture->tattrs[idx] = scratch.scr->ta[y][x];
+            capture->tchars[idx] = scratch.scr->tc[y][x];
             capture->story[idx] = scratch.scr->story[y][x];
         }
     }
@@ -2100,120 +2140,38 @@ cleanup:
     return success;
 }
 
-static void monster_recall_screen_capture_draw(
-    const monster_recall_screen_capture* capture, int scroll)
-{
-    int term_wid = 80;
-    int term_hgt = 24;
-    int visible_rows;
-    int prompt_row;
-    int max_scroll;
-    char prompt[96];
-    char scroll_buf[32];
-    bool old_story_active = false;
-    bool old_story_grid = false;
-
-    if (!capture || !capture->attrs || !capture->chars || !capture->story)
-        return;
-
-    Term_get_size(&term_wid, &term_hgt);
-    visible_rows = MAX(1, term_hgt - 1);
-    prompt_row = MAX(0, term_hgt - 1);
-    max_scroll = MAX(0, capture->height - visible_rows);
-
-    if (scroll < 0)
-        scroll = 0;
-    if (scroll > max_scroll)
-        scroll = max_scroll;
-
-    old_story_active = Term->story_font_active;
-    old_story_grid = Term->story_font_grid;
-
-    Term_clear();
-
-    for (int row = 0; row < visible_rows; row++)
-    {
-        int src_row = row + scroll;
-
-        if (src_row >= capture->height)
-            break;
-
-        for (int col = 0; col < capture->width && col < term_wid; col++)
-        {
-            int idx = src_row * capture->width + col;
-
-            Term->story_font_active =
-                ((capture->story[idx] & STORY_FLAG_USE) != 0);
-            Term->story_font_grid =
-                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
-
-            Term_queue_char(
-                col, row, capture->attrs[idx], capture->chars[idx], 0, 0);
-        }
-    }
-
-    Term->story_font_active = old_story_active;
-    Term->story_font_grid = old_story_grid;
-
-    if (term_wid >= 70)
-    {
-        SDL_strlcpy(prompt,
-            "(press ESC to exit, Space for next page, Arrows/Keypad to scroll)",
-            sizeof(prompt));
-    }
-    else if (term_wid >= 40)
-    {
-        SDL_strlcpy(prompt, "(ESC exit, Space page, Arrows scroll)",
-            sizeof(prompt));
-    }
-    else
-    {
-        SDL_strlcpy(prompt, "(ESC exit, Arrows scroll)", sizeof(prompt));
-    }
-
-    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
-
-    if (max_scroll > 0)
-    {
-        int scroll_col;
-
-        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
-            max_scroll + 1);
-        scroll_col = term_wid - (int)strlen(scroll_buf);
-        if (scroll_col < 0)
-            scroll_col = 0;
-        Term_putstr(scroll_col, prompt_row, -1, TERM_SLATE, scroll_buf);
-    }
-
-    Term_fresh();
-}
-
 static int monster_recall_screen_capture_view(
     const monster_recall_screen_capture* capture)
 {
     int scroll = 0;
     int exit_key = ESCAPE;
+    bool overlay_active = false;
 
     if (!capture)
         return 0;
 
     while (true)
     {
-        int term_wid = 80;
         int term_hgt = 24;
-        int visible_rows;
-        int max_scroll;
+        int visible_rows = 1;
+        int max_scroll = 0;
         int dir;
         char ch;
 
-        Term_get_size(&term_wid, &term_hgt);
-        visible_rows = MAX(1, term_hgt - 1);
-        max_scroll = MAX(0, capture->height - visible_rows);
+        Term_get_size(NULL, &term_hgt);
+        if (!sdl_description_overlay_present(capture->attrs, capture->chars,
+                capture->tattrs, capture->tchars, capture->story,
+                capture->width, capture->height, scroll, &visible_rows,
+                &max_scroll))
+        {
+            exit_key = 0;
+            break;
+        }
+        overlay_active = true;
 
         if (scroll > max_scroll)
             scroll = max_scroll;
 
-        monster_recall_screen_capture_draw(capture, scroll);
         ui_scroll_area_begin(0, MAX(0, term_hgt - 1),
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
@@ -2253,6 +2211,8 @@ static int monster_recall_screen_capture_view(
         }
     }
 
+    if (overlay_active)
+        sdl_description_overlay_clear();
     ui_scroll_area_clear();
     return exit_key;
 }
@@ -2306,8 +2266,6 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
 {
     monster_recall_screen_capture capture;
     bool have_capture;
-    int term_wid = 80;
-    int term_hgt = 24;
 
     if (monster_recall_blocked_by_hallucination())
     {
@@ -2318,20 +2276,15 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
     /* Flush messages */
     message_flush();
 
-    Term_get_size(&term_wid, &term_hgt);
-    (void)term_wid;
-
     have_capture = monster_recall_screen_capture_build(r_idx, m_ptr, &capture);
-    if (have_capture && capture.height > term_hgt)
+    if (have_capture)
     {
         int exit_key = monster_recall_screen_capture_view(&capture);
 
         monster_recall_screen_capture_free(&capture);
-        return exit_key;
+        if (exit_key)
+            return exit_key;
     }
-
-    if (have_capture)
-        monster_recall_screen_capture_free(&capture);
 
     monster_recall_screen_draw_plain(r_idx, m_ptr);
 
