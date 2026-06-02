@@ -1250,8 +1250,8 @@ static void rd_options(void)
 
     u32b flag[8];
     u32b mask[8];
-    u32b window_flag[ANGBAND_TERM_MAX];
-    u32b window_mask[ANGBAND_TERM_MAX];
+    u32b window_flag[SAVE_WINDOW_TERM_MAX];
+    u32b window_mask[SAVE_WINDOW_TERM_MAX];
 
     /*** Special info */
 
@@ -1390,22 +1390,23 @@ static void rd_options(void)
     /*** Window Options ***/
 
     /* Read the window flags */
-    for (n = 0; n < ANGBAND_TERM_MAX; n++)
+    for (n = 0; n < SAVE_WINDOW_TERM_MAX; n++)
     {
         rd_u32b(&window_flag[n]);
     }
 
     /* Read the window masks */
-    for (n = 0; n < ANGBAND_TERM_MAX; n++)
+    for (n = 0; n < SAVE_WINDOW_TERM_MAX; n++)
     {
         rd_u32b(&window_mask[n]);
     }
 
-    /* Analyze the options */
     for (n = 0; n < ANGBAND_TERM_MAX; n++)
-    {
         op_ptr->window_flag[n] = 0;
 
+    /* Analyze the options */
+    for (n = 0; n < SAVE_WINDOW_TERM_MAX; n++)
+    {
         /* Analyze the options */
         for (i = 0; i < 32; i++)
         {
@@ -1425,6 +1426,8 @@ static void rd_options(void)
             }
         }
     }
+
+    op_ptr->window_flag[WINDOW_SUPPLY] |= (PW_SUPPLY);
 }
 
 static u32b randart_version;

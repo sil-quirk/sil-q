@@ -852,8 +852,8 @@ static void wr_options(void)
 
     u32b flag[8];
     u32b mask[8];
-    u32b window_flag[ANGBAND_TERM_MAX];
-    u32b window_mask[ANGBAND_TERM_MAX];
+    u32b window_flag[SAVE_WINDOW_TERM_MAX];
+    u32b window_mask[SAVE_WINDOW_TERM_MAX];
 
     /*** Special Options ***/
 
@@ -932,7 +932,7 @@ static void wr_options(void)
     /*** Window options ***/
 
     /* Reset */
-    for (i = 0; i < ANGBAND_TERM_MAX; i++)
+    for (i = 0; i < SAVE_WINDOW_TERM_MAX; i++)
     {
         /* Flags */
         window_flag[i] = op_ptr->window_flag[i];
@@ -952,11 +952,11 @@ static void wr_options(void)
     }
 
     /* Dump the flags */
-    for (i = 0; i < ANGBAND_TERM_MAX; i++)
+    for (i = 0; i < SAVE_WINDOW_TERM_MAX; i++)
         wr_u32b(window_flag[i]);
 
     /* Dump the masks */
-    for (i = 0; i < ANGBAND_TERM_MAX; i++)
+    for (i = 0; i < SAVE_WINDOW_TERM_MAX; i++)
         wr_u32b(window_mask[i]);
 }
 

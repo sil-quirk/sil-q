@@ -193,7 +193,7 @@ term* angband_term[ANGBAND_TERM_MAX];
  */
 char angband_term_name[ANGBAND_TERM_MAX][16]
     = { VERSION_NAME, "Inventory", "Equipment", "Combat Rolls", "Recall",
-          "Character", "Messages", "Monster List" };
+          "Character", "Messages", "Monster List", "Supply" };
 
 int max_macrotrigger = 0;
 cptr macro_template = NULL;

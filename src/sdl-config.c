@@ -308,6 +308,7 @@ static const char* pane_type_to_string(enum pane_type type)
     switch (type) {
         case PANE_MAIN: return "MAIN";
         case PANE_INVENTORY: return "INVENTORY";
+        case PANE_SUPPLY: return "SUPPLY";
         case PANE_WORN: return "WORN";
         case PANE_ROLLS: return "ROLLS";
         case PANE_INFO: return "INFO";
@@ -330,6 +331,8 @@ static enum pane_type parse_pane_type(const char* value)
         return PANE_MAIN;
     if (strcmp(value, "MAIN") == 0) return PANE_MAIN;
     if (strcmp(value, "INVENTORY") == 0) return PANE_INVENTORY;
+    if (strcmp(value, "SUPPLY") == 0 || strcmp(value, "SUPPLIES") == 0)
+        return PANE_SUPPLY;
     if (strcmp(value, "WORN") == 0) return PANE_WORN;
     if (strcmp(value, "ROLLS") == 0) return PANE_ROLLS;
     if (strcmp(value, "INFO") == 0) return PANE_INFO;

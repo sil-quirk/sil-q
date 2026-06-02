@@ -177,7 +177,13 @@
 /*
  * Maximum amount of Angband windows.
  */
-#define ANGBAND_TERM_MAX 8
+#define ANGBAND_TERM_MAX 9
+
+/*
+ * Savefiles still store the legacy set of terminal window flags.  Keep this
+ * count stable when adding runtime-only SDL panes.
+ */
+#define SAVE_WINDOW_TERM_MAX 8
 
 /*
  * Maximum length of the character's notes (for notes_buffer).
@@ -1848,6 +1854,7 @@
 #define PW_MESSAGE 0x00000080L /* Display messages */
 #define PW_OVERHEAD 0x00000100L /* Display overhead view */
 #define PW_MONLIST 0x00000200L /* Display monster list */
+#define PW_SUPPLY 0x00000400L /* Display supply cache */
 
 #define PW_MAX_FLAGS 16
 
@@ -1862,6 +1869,7 @@
 #define WINDOW_PLAYER_0 5
 #define WINDOW_MESSAGE 6
 #define WINDOW_MONLIST 7
+#define WINDOW_SUPPLY 8
 
 /*** Cave flags ***/
 

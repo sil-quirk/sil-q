@@ -147,6 +147,8 @@ static const struct pane_config default_pane_config[] = {
         .rect.rows = 1, .rect.cols = 24},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
+    {.pane = PANE_SUPPLY, .where = PLACE_RIGHT, .enabled = true,
+        .rect.rows = 6},
     {.pane = PANE_WORN, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_INFO, .where = PLACE_RIGHT, .enabled = true, .rect.rows = 8},
     {.pane = PANE_CHARACTER, .where = PLACE_RIGHT, .enabled = false},
@@ -890,10 +892,14 @@ typedef struct sdl_character_sheet_screen_state {
      * canvas height) and mirrored into select_page_count. */
     char narrative_title[96];
     char narrative_paras[SDL_BOOK_MAX_PARAS][SDL_BOOK_PARA_LEN];
+    bool narrative_para_break[SDL_BOOK_MAX_PARAS]; /* force a new page before this para */
+    bool narrative_pending_break; /* next added paragraph starts a fresh page */
     int narrative_para_count;
     int narrative_page_start[SDL_BOOK_MAX_PAGES + 1]; /* [page]..[page+1) paras */
     int narrative_page_count;
+    int narrative_body_px;         /* one body size shared by every page of the book */
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
+    int narrative_paginated_for_w; /* content width the page breaks were built for */
     touch_swipe_state birth_swipe;
     int last_body_px;          /* last column body font px (tooltip = half) */
     float last_body_line_h;    /* rendered row height for last column body */
@@ -1442,6 +1448,7 @@ static bool g_active_side_panes = true;
 static bool g_active_bottom_panes = true;
 static bool g_supporting_panes_layout_visible = true;
 static int g_inventory_pane_layout_rows = -1;
+static int g_supply_pane_layout_rows = -1;
 static bool g_touch_pane_hidden_layout_active = false;
 static bool g_touch_pane_proto_layout_active = false;
 static bool g_suppress_layout_refresh_present = false;
@@ -2814,7 +2821,7 @@ static int sdl_overlay_edge_gap_px(int area_px, int content_px)
 
 static bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
-    return pane == PANE_LEFT_PANEL || pane == PANE_STATUS
+    return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
         || pane == PANE_DEPTH || pane == PANE_MAIN_MENU;
 }
 
@@ -5081,6 +5088,63 @@ static void sdl_apply_dynamic_inventory_pane_size(struct pane_config* active,
     }
 }
 
+static int sdl_supply_pane_desired_rows(void)
+{
+    int rows;
+
+    if (!character_generated || !p_ptr)
+        return -1;
+
+    rows = supplies_entry_count() + 1;
+    if (rows < 2)
+        rows = 2;
+    if (rows > 27)
+        rows = 27;
+
+    return rows;
+}
+
+static bool sdl_supply_pane_dynamic_configured(void)
+{
+    if (!character_generated || !p_ptr)
+        return false;
+    if (!config.enable_right_panes)
+        return false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_SUPPLY)
+            continue;
+        if (!pane_config[i].enabled)
+            continue;
+        if (!pane_placement_is_side(pane_config[i].where))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_apply_dynamic_supply_pane_size(struct pane_config* active,
+    int active_count)
+{
+    int rows = sdl_supply_pane_desired_rows();
+
+    if (rows < 1)
+        return;
+
+    for (int i = 0; i < active_count; i++) {
+        if (!active[i].enabled)
+            continue;
+        if (active[i].pane != PANE_SUPPLY)
+            continue;
+        if (!pane_placement_is_side(active[i].where))
+            continue;
+
+        active[i].rect.rows = rows;
+    }
+}
+
 static int sdl_touch_pane_target_width_px(int pane_height_px)
 {
     const int numerator = 40 * SDL_TOUCH_PANE_BUTTON_COLS;
@@ -5111,6 +5175,7 @@ static void sdl_apply_dynamic_auto_pane_sizes(struct pane_config* active,
         return;
 
     sdl_apply_dynamic_inventory_pane_size(active, active_count);
+    sdl_apply_dynamic_supply_pane_size(active, active_count);
 
     for (int i = 0; i < active_count; i++) {
         if (!active[i].enabled)
@@ -5528,6 +5593,12 @@ static bool sdl_layout_matches_supporting_pane_visibility(void)
         int rows = sdl_inventory_pane_desired_rows();
 
         if (rows > 0 && g_inventory_pane_layout_rows != rows)
+            return false;
+    }
+    if (show_supporting_panes && sdl_supply_pane_dynamic_configured()) {
+        int rows = sdl_supply_pane_desired_rows();
+
+        if (rows > 0 && g_supply_pane_layout_rows != rows)
             return false;
     }
 
@@ -10634,12 +10705,87 @@ static float sdl_char_sheet_book_width(int body_px, float content_w)
     return (w < 1.0f) ? 1.0f : w;
 }
 
-/* A fixed, comfortable reading size for the narrative book.  Unlike the race
- * book (which shrinks a single page to fit all its text), narrative text is
- * paginated, so the size stays constant and pages turn instead of reflowing. */
-static int sdl_char_sheet_narrative_body_px(float canvas_h)
+/*
+ * Pack the narrative paragraphs into pages at a given body size, breaking only
+ * between whole paragraphs.  Returns the page count; if page_start is non-NULL
+ * it receives the first-paragraph index of each page (with a [page_count] =
+ * para_count sentinel, padded out to SDL_BOOK_MAX_PAGES).
+ */
+static int sdl_char_sheet_narrative_pack(int body_px, float content_w,
+    float top_y, float region_bottom, int* page_start)
 {
-    return sdl_char_sheet_clampi((int)(canvas_h * 0.028f), 15, 28);
+    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+    TTF_Font* font = sdl_story_font_for_height(body_px);
+    float book_w = sdl_char_sheet_book_width(body_px, content_w);
+    float lh = sdl_char_sheet_line_h(font, body_px, 1.28f);
+    float para_gap = lh * 0.6f;
+    float region_h = (region_bottom - top_y) - 2.0f * (lh * SDL_BOOK_MARGIN_V);
+    float used = 0.0f;
+    int page = 0;
+    int i;
+
+    if (region_h < lh)
+        region_h = lh;
+    if (page_start)
+        page_start[0] = 0;
+
+    for (i = 0; i < para_count; i++)
+    {
+        int lines = sdl_char_sheet_wrap_text(font,
+            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
+        float need = (float)lines * lh;
+        float add = (used > 0.0f) ? need + para_gap : need;
+        bool hard = (i > 0 && g_sdl_character_sheet_screen.narrative_para_break[i]);
+
+        if (i > 0 && (hard || used + add > region_h)
+            && page + 1 < SDL_BOOK_MAX_PAGES)
+        {
+            page++;
+            if (page_start)
+                page_start[page] = i;
+            used = need;
+        }
+        else
+        {
+            used += add;
+        }
+    }
+
+    if (page_start)
+        for (i = page + 1; i <= SDL_BOOK_MAX_PAGES; i++)
+            page_start[i] = para_count;
+
+    return page + 1;
+}
+
+/*
+ * Choose ONE body size for the whole narrative book.  The race book shrinks a
+ * single page to fit; narrative text is paginated instead, so we pick the
+ * LARGEST readable size that still packs into the fewest pages -- that size
+ * fills those pages most fully, and every page of the quest shares it.
+ */
+static int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w,
+    float top_y, float region_bottom)
+{
+    int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.024f), 15, 26);
+    int max_px = sdl_char_sheet_clampi((int)(canvas_h * 0.040f), 22, 40);
+    int min_pages;
+    int chosen;
+    int px;
+
+    if (max_px < min_px)
+        max_px = min_px;
+
+    min_pages = sdl_char_sheet_narrative_pack(min_px, content_w, top_y,
+        region_bottom, NULL);
+    chosen = min_px;
+    for (px = min_px + 1; px <= max_px; px++)
+    {
+        if (sdl_char_sheet_narrative_pack(px, content_w, top_y, region_bottom,
+                NULL) <= min_pages)
+            chosen = px;
+    }
+    return chosen;
 }
 
 /*
@@ -10735,56 +10881,20 @@ static void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
     float top_y, float region_bottom, int title_px)
 {
     int ih = (int)(canvas_h + 0.5f);
-    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+    int iw = (int)(content_w + 0.5f);
     int body_px;
-    TTF_Font* body_font;
-    float book_w;
-    float body_lh;
-    float para_gap;
-    float region_h;
-    float used;
-    int page;
-    int i;
 
     (void)title_px;
-    if (g_sdl_character_sheet_screen.narrative_paginated_for_h == ih)
+    if (g_sdl_character_sheet_screen.narrative_paginated_for_h == ih
+        && g_sdl_character_sheet_screen.narrative_paginated_for_w == iw)
         return;
 
-    body_px = sdl_char_sheet_narrative_body_px(canvas_h);
-    body_font = sdl_story_font_for_height(body_px);
-    book_w = sdl_char_sheet_book_width(body_px, content_w);
-    body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
-    para_gap = body_lh * 0.6f;
-    region_h = (region_bottom - top_y) - 2.0f * (body_lh * SDL_BOOK_MARGIN_V);
-    if (region_h < body_lh)
-        region_h = body_lh;
-
-    page = 0;
-    used = 0.0f;
-    g_sdl_character_sheet_screen.narrative_page_start[0] = 0;
-    for (i = 0; i < para_count; i++)
-    {
-        int lines = sdl_char_sheet_wrap_text(body_font,
-            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
-        float need = (float)lines * body_lh;
-        float add = (used > 0.0f) ? need + para_gap : need;
-
-        if (used > 0.0f && used + add > region_h
-            && page + 1 < SDL_BOOK_MAX_PAGES)
-        {
-            page++;
-            g_sdl_character_sheet_screen.narrative_page_start[page] = i;
-            used = need;
-        }
-        else
-        {
-            used += add;
-        }
-    }
-
-    g_sdl_character_sheet_screen.narrative_page_count = page + 1;
-    for (i = page + 1; i <= SDL_BOOK_MAX_PAGES; i++)
-        g_sdl_character_sheet_screen.narrative_page_start[i] = para_count;
+    body_px = sdl_char_sheet_narrative_choose_px(canvas_h, content_w, top_y,
+        region_bottom);
+    g_sdl_character_sheet_screen.narrative_body_px = body_px;
+    g_sdl_character_sheet_screen.narrative_page_count =
+        sdl_char_sheet_narrative_pack(body_px, content_w, top_y, region_bottom,
+            g_sdl_character_sheet_screen.narrative_page_start);
 
     g_sdl_character_sheet_screen.select_page_count =
         g_sdl_character_sheet_screen.narrative_page_count;
@@ -10795,6 +10905,7 @@ static void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
     if (g_sdl_character_sheet_screen.select_page < 0)
         g_sdl_character_sheet_screen.select_page = 0;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = ih;
+    g_sdl_character_sheet_screen.narrative_paginated_for_w = iw;
 }
 
 /*
@@ -10885,7 +10996,8 @@ static void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float book_w;
     float book_x;
     int body_px = narrative
-        ? sdl_char_sheet_narrative_body_px(canvas_h)
+        ? (g_sdl_character_sheet_screen.narrative_body_px > 0
+               ? g_sdl_character_sheet_screen.narrative_body_px : 20)
         : sdl_char_sheet_book_body_px(canvas_h, content_w, top_y,
             region_bottom, title_px);
     TTF_Font* body_font;
@@ -11461,7 +11573,8 @@ static void sdl_character_sheet_screen_render(void)
             int body_px =
                 (g_sdl_character_sheet_screen.context
                     == SDL_CHARACTER_SHEET_NARRATIVE)
-                    ? sdl_char_sheet_narrative_body_px((float)canvas.h)
+                    ? (g_sdl_character_sheet_screen.narrative_body_px > 0
+                           ? g_sdl_character_sheet_screen.narrative_body_px : 20)
                     : sdl_char_sheet_book_body_px((float)canvas.h, content_w,
                         top_y, region_bottom, title_px);
             float book_w = sdl_char_sheet_book_width(body_px, content_w);
@@ -12227,8 +12340,11 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.select_page = 0;
     g_sdl_character_sheet_screen.select_page_count = 1;
     g_sdl_character_sheet_screen.narrative_para_count = 0;
+    g_sdl_character_sheet_screen.narrative_pending_break = false;
     g_sdl_character_sheet_screen.narrative_page_count = 0;
+    g_sdl_character_sheet_screen.narrative_body_px = 0;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
+    g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_title,
         title ? title : "",
         sizeof(g_sdl_character_sheet_screen.narrative_title));
@@ -12250,7 +12366,18 @@ void sdl_character_sheet_screen_add_book_paragraph(cptr text)
 
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_paras[n], text,
         SDL_BOOK_PARA_LEN);
+    g_sdl_character_sheet_screen.narrative_para_break[n] =
+        g_sdl_character_sheet_screen.narrative_pending_break;
+    g_sdl_character_sheet_screen.narrative_pending_break = false;
     g_sdl_character_sheet_screen.narrative_para_count = n + 1;
+}
+
+/* Force the next added paragraph to begin a fresh page (author-placed break). */
+void sdl_character_sheet_screen_break_book_page(void)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    g_sdl_character_sheet_screen.narrative_pending_break = true;
 }
 
 void sdl_character_sheet_screen_commit_book(void)
@@ -12260,6 +12387,7 @@ void sdl_character_sheet_screen_commit_book(void)
 
     /* Force a (re)paginate on the next render and open on the first page. */
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
+    g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     g_sdl_character_sheet_screen.select_page = 0;
     g_state.need_present = true;
 }
@@ -26048,6 +26176,11 @@ static bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
         return true;
     }
 
+    if (sdl_point_in_view_rect(PANE_SUPPLY, x, y)) {
+        sdl_enqueue_bypassed_command('q');
+        return true;
+    }
+
     if (sdl_point_in_view_rect(PANE_WORN, x, y)) {
         sdl_enqueue_bypassed_command('e');
         return true;
@@ -26220,6 +26353,9 @@ static void sdl_pane_layout_drag_send_click(enum pane_type pane)
     switch (pane) {
     case PANE_INVENTORY:
         sdl_enqueue_bypassed_command('i');
+        break;
+    case PANE_SUPPLY:
+        sdl_enqueue_bypassed_command('q');
         break;
     case PANE_WORN:
         sdl_enqueue_bypassed_command('e');
@@ -26978,6 +27114,7 @@ static const char* sdl_side_pane_menu_label(enum pane_type pane)
 {
     switch (pane) {
     case PANE_INVENTORY: return "Inventory";
+    case PANE_SUPPLY: return "Supply";
     case PANE_WORN: return "Equipment";
     case PANE_INFO: return "Info";
     case PANE_CHARACTER: return "Character";
@@ -32131,10 +32268,16 @@ void resize(const SDL_Rect* screen)
     }
 
     g_inventory_pane_layout_rows = -1;
+    g_supply_pane_layout_rows = -1;
     if (show_supporting_panes && panes[PANE_INVENTORY].w > 0
         && panes[PANE_INVENTORY].h > 0)
     {
         g_inventory_pane_layout_rows = sdl_inventory_pane_desired_rows();
+    }
+    if (show_supporting_panes && panes[PANE_SUPPLY].w > 0
+        && panes[PANE_SUPPLY].h > 0)
+    {
+        g_supply_pane_layout_rows = sdl_supply_pane_desired_rows();
     }
 
     for (int i = 0; i < PANE_MAX; i++) {
@@ -39555,7 +39698,8 @@ static void sdl_mark_tiles_mode_game_redraw(void)
         | PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
     p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIPPY | PR_RESIST);
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0
-        | PW_MESSAGE | PW_OVERHEAD | PW_MONSTER | PW_OBJECT | PW_MONLIST);
+        | PW_MESSAGE | PW_OVERHEAD | PW_MONSTER | PW_OBJECT | PW_MONLIST
+        | PW_SUPPLY);
 }
 
 static bool sdl_set_tiles_runtime(bool value)
@@ -41768,6 +41912,7 @@ void get_sdl_config_info(char* buf, size_t size)
         switch (pc->pane) {
             case PANE_MAIN: type_str = "MAIN"; break;
             case PANE_INVENTORY: type_str = "INVENTORY"; break;
+            case PANE_SUPPLY: type_str = "SUPPLY"; break;
             case PANE_WORN: type_str = "WORN"; break;
             case PANE_ROLLS: type_str = "ROLLS"; break;
             case PANE_INFO: type_str = "INFO"; break;

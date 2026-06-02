@@ -55,6 +55,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_CHARACTER] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.cols = 60},
     [PANE_LOG] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
     [PANE_MONSTERS] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
+    [PANE_SUPPLY] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_MAP] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 10, .min_rect.cols = 24},
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
     [PANE_LEFT_PANEL] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},

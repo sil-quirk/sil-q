@@ -4816,6 +4816,96 @@ void show_inven(void)
 }
 
 /*
+ * Display the supply cache in a sub-window.
+ */
+void display_supplies(void)
+{
+    int term_wid = menu_term_width();
+    int term_hgt = menu_term_height();
+    int count = supplies_entry_count();
+    int rows = term_hgt - 1;
+    int max_rows;
+    int weight_col = menu_weight_col_for_width(term_wid);
+    bool display_weights = show_weights && term_wid >= 42;
+    char header[80];
+
+    if (rows < 0)
+        rows = 0;
+    max_rows = MIN(rows, 26);
+    if (count > max_rows && max_rows > 0 && max_rows == rows)
+        max_rows--;
+
+    for (int row = 0; row < term_hgt; row++)
+        Term_erase(0, row, 255);
+
+    strnfmt(header, sizeof(header), "Supply %d.%1d/%d.%1d lb",
+        supplies_limit_weight() / 10, supplies_limit_weight() % 10,
+        supplies_current_weight_cap() / 10,
+        supplies_current_weight_cap() % 10);
+    Term_putstr(0, 0, term_wid, TERM_L_BLUE, header);
+
+    if (count <= 0)
+    {
+        if (term_hgt > 1)
+            Term_putstr(0, 1, term_wid, TERM_SLATE, "(none)");
+        return;
+    }
+
+    for (int i = 0; i < count && i < max_rows; i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        char o_name[80];
+        char label[4];
+        byte attr;
+        int row = i + 1;
+        int text_col = 4;
+        int desc_limit;
+
+        if (!o_ptr || !o_ptr->k_idx)
+            continue;
+
+        strnfmt(label, sizeof(label), "%c)", supplies_label_for_entry(i));
+        Term_putstr(0, row, 3, TERM_WHITE, label);
+
+        text_col = draw_item_tile(text_col, row, o_ptr);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        attr = weapon_glows(o_ptr)
+            ? object_display_color(o_ptr, TERM_L_BLUE)
+            : object_display_color(o_ptr,
+                tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
+
+        desc_limit = display_weights ? weight_col - text_col - 1
+                                      : term_wid - text_col;
+        if (desc_limit < 1)
+            desc_limit = 1;
+        if (desc_limit < (int)sizeof(o_name))
+            o_name[desc_limit] = '\0';
+        Term_putstr(text_col, row, desc_limit, attr, o_name);
+
+        if (display_weights && o_ptr->weight)
+        {
+            int wgt = o_ptr->weight * MAX(o_ptr->number, 1);
+            char weight_buf[16];
+
+            strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb",
+                wgt / 10, wgt % 10);
+            Term_putstr(weight_col, row, term_wid - weight_col,
+                attr, weight_buf);
+        }
+    }
+
+    if (count > max_rows && term_hgt > 1)
+    {
+        char more[40];
+        int row = term_hgt - 1;
+
+        strnfmt(more, sizeof(more), "... %d more", count - max_rows);
+        Term_erase(0, row, 255);
+        Term_putstr(0, row, term_wid, TERM_SLATE, more);
+    }
+}
+
+/*
  * Display the equipment.
  */
 void show_equip(void)

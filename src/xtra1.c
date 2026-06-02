@@ -4071,6 +4071,40 @@ static void fix_inven(void)
 }
 
 /*
+ * Hack -- display supplies in sub-windows
+ */
+static void fix_supplies(void)
+{
+    int j;
+
+    /* Scan windows */
+    for (j = 0; j < ANGBAND_TERM_MAX; j++)
+    {
+        term* old = Term;
+
+        /* No window */
+        if (!angband_term[j])
+            continue;
+
+        /* No relevant flags */
+        if (!(op_ptr->window_flag[j] & (PW_SUPPLY)))
+            continue;
+
+        /* Activate */
+        Term_activate(angband_term[j]);
+
+        /* Display supplies */
+        display_supplies();
+
+        /* Fresh */
+        Term_fresh();
+
+        /* Restore */
+        Term_activate(old);
+    }
+}
+
+/*
  * Hack -- display monsters in sub-windows
  */
 static void fix_monlist(void)
@@ -7657,6 +7691,18 @@ void window_stuff(void)
             redraw_stuff();
         p_ptr->window &= ~(PW_INVEN);
         fix_inven();
+    }
+
+    /* Display supplies */
+    if (p_ptr->window & (PW_SUPPLY))
+    {
+        sdl_refresh_supporting_panes_layout_deferred();
+        if (p_ptr->update)
+            update_stuff();
+        if (p_ptr->redraw)
+            redraw_stuff();
+        p_ptr->window &= ~(PW_SUPPLY);
+        fix_supplies();
     }
 
     /* Display monster list */

@@ -107,7 +107,7 @@ typedef struct metarun
     u32b persistent_options[8];  /* Persistent options across the metarun */
     byte persistent_delay_factor; /* Persistent delay factor */
     byte persistent_hitpoint_warn; /* Persistent hitpoint warning */
-    u32b persistent_window_flags[ANGBAND_TERM_MAX]; /* Persistent window flags */
+    u32b persistent_window_flags[SAVE_WINDOW_TERM_MAX]; /* Persistent window flags */
     byte persistent_options_initialized; /* Flag to track if persistent options are set */
 
     /* ----- quest completion tracking --------------------------- */

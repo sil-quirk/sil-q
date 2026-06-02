@@ -2366,6 +2366,7 @@ extern void re_init_some_things(void)
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
+    op_ptr->window_flag[WINDOW_SUPPLY] |= (PW_SUPPLY);
 
     /* Reapply app-wide options after resetting runtime defaults. */
     sdl_config_load_app_options(get_sdl_config_path());
@@ -2488,6 +2489,7 @@ static errr init_other(void)
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
     op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
+    op_ptr->window_flag[WINDOW_SUPPLY] |= (PW_SUPPLY);
 
     /* Reapply app-wide options after initializing runtime defaults. */
     sdl_config_load_app_options(get_sdl_config_path());

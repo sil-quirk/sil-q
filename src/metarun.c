@@ -1052,7 +1052,7 @@ static void reset_defaults(metarun *m)
     for (int i = 0; i < 8; i++) {
         m->persistent_options[i] = 0;
     }
-    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+    for (int i = 0; i < SAVE_WINDOW_TERM_MAX; i++) {
         m->persistent_window_flags[i] = 0;
     }
     m->persistent_delay_factor = 5;      /* Default delay factor */
@@ -2045,7 +2045,7 @@ void metarun_save_persistent_settings(void)
     }
 
     /* Save window flags */
-    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+    for (int i = 0; i < SAVE_WINDOW_TERM_MAX; i++) {
         metar.persistent_window_flags[i] = op_ptr->window_flag[i];
     }
     
@@ -2082,9 +2082,11 @@ void metarun_load_persistent_settings(void)
     }
 
     /* Load window flags */
-    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++)
+        op_ptr->window_flag[i] = 0;
+    for (int i = 0; i < SAVE_WINDOW_TERM_MAX; i++)
         op_ptr->window_flag[i] = metar.persistent_window_flags[i];
-    }
+    op_ptr->window_flag[WINDOW_SUPPLY] |= PW_SUPPLY;
     
     log_info("Persistent settings loaded successfully");
 }

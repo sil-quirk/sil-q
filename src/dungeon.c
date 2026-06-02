@@ -2342,10 +2342,11 @@ static void process_command(void)
         break;
     }
 
-    /* Quaff a potion */
+    /* Use a supply item */
     case 'q':
     {
-        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true, true);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE,
+            SUPPLY_GROUP_SUPPLY, true, true);
         break;
     }
 
@@ -2655,7 +2656,7 @@ static void death_spectator_prepare_display(void)
     /* Force a comprehensive redraw across all panes. */
     p_ptr->redraw |= 0x0FFFFFFFL;
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_MONSTER
-        | PW_MONLIST | PW_COMBAT_ROLLS | PW_OVERHEAD);
+        | PW_MONLIST | PW_COMBAT_ROLLS | PW_OVERHEAD | PW_SUPPLY);
 
     handle_stuff();
 
@@ -4252,7 +4253,7 @@ static void dungeon(void)
 
     /* Window stuff */
     log_debug("Setting up window updates");
-    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_SUPPLY);
 
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MONLIST | PW_COMBAT_ROLLS);
@@ -5562,7 +5563,7 @@ PlayResult play_game(void)
     reset_visuals(true);
 
     /* Window stuff */
-    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_SUPPLY);
 
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MESSAGE);

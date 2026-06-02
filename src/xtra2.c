@@ -8731,7 +8731,17 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
     {
         cptr line = (idx < total_texts) ? texts[idx] : NULL;
 
-        if (line && line[0])
+        /* A "[newpage]" line flushes the current paragraph and forces the next
+         * one onto a fresh page, so an author can lay out a logical page turn. */
+        if (line && streq(line, "[newpage]"))
+        {
+            if (para_len > 0)
+                sdl_character_sheet_screen_add_book_paragraph(para);
+            para[0] = '\0';
+            para_len = 0;
+            sdl_character_sheet_screen_break_book_page();
+        }
+        else if (line && line[0])
         {
             if (para_len > 0 && para_len + 1 < sizeof(para))
             {

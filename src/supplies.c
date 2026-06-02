@@ -153,6 +153,10 @@ bool supplies_group_matches_kind(int group, int tval, int sval)
     case SUPPLY_GROUP_LIGHTS:
         return ((tval == TV_LIGHT) && supplies_is_light_kind(sval))
             || (tval == TV_FLASK);
+    case SUPPLY_GROUP_SUPPLY:
+        return (tval == TV_FOOD) || (tval == TV_POTION)
+            || (tval == TV_GEM) || (tval == TV_FLASK)
+            || ((tval == TV_LIGHT) && supplies_is_light_kind(sval));
     default:
         return false;
     }
@@ -162,6 +166,9 @@ bool supplies_group_matches_object(int group, const object_type* o_ptr)
 {
     if (!o_ptr)
         return false;
+
+    if (group == SUPPLY_GROUP_SUPPLY)
+        return supplies_is_supply_object(o_ptr);
 
     if (group == SUPPLY_GROUP_LIGHTS)
         return supplies_is_light_object(o_ptr)
@@ -1147,7 +1154,7 @@ static void supplies_mark_dirty(void)
 {
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
     p_ptr->update |= (PU_BONUS);
-    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_SUPPLY);
 }
 
 bool supplies_absorb_object(object_type* src)
@@ -1280,6 +1287,30 @@ int supplies_first_entry_for_kind(int k_idx)
     }
 
     return -1;
+}
+
+char supplies_label_for_entry(int idx)
+{
+    if (idx < 0 || idx >= g_supply_count || idx >= 26)
+        return 0;
+
+    return (char)I2A(idx);
+}
+
+int supplies_entry_from_label(int c)
+{
+    int idx;
+
+    if (c >= 'A' && c <= 'Z')
+        c += 'a' - 'A';
+    if (c < 'a' || c > 'z')
+        return -1;
+
+    idx = A2I(c);
+    if (idx < 0 || idx >= g_supply_count)
+        return -1;
+
+    return idx;
 }
 
 bool supplies_take_one(int idx, object_type* out)

@@ -27,7 +27,7 @@ typedef struct metarun_v10 {
     u32b persistent_options[8];
     byte persistent_delay_factor;
     byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    u32b persistent_window_flags[SAVE_WINDOW_TERM_MAX];
     byte persistent_options_initialized;
     u32b completed_quests;
     byte unlocked_oaths;
@@ -59,7 +59,7 @@ typedef struct metarun_v9 {
     u32b persistent_options[8];
     byte persistent_delay_factor;
     byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    u32b persistent_window_flags[SAVE_WINDOW_TERM_MAX];
     byte persistent_options_initialized;
     u32b completed_quests;
     byte unlocked_oaths;
@@ -91,7 +91,7 @@ typedef struct metarun_v8 {
     u32b persistent_options[8];
     byte persistent_delay_factor;
     byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    u32b persistent_window_flags[SAVE_WINDOW_TERM_MAX];
     byte persistent_options_initialized;
     u32b completed_quests;
     byte unlocked_oaths;

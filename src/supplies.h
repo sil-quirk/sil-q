@@ -15,6 +15,7 @@ typedef enum supply_group
     SUPPLY_GROUP_GEMS,
     SUPPLY_GROUP_LIGHTS,
     SUPPLY_GROUP_JEWELRY_PRESETS,
+    SUPPLY_GROUP_SUPPLY,
     SUPPLY_GROUP_MAX
 } supply_group;
 
@@ -110,6 +111,8 @@ struct object_type* supplies_entry_at(int idx);
 int supplies_entry_units(int idx);
 int supplies_first_entry_for_kind(int k_idx);
 bool supplies_take_one(int idx, struct object_type* out);
+char supplies_label_for_entry(int idx);
+int supplies_entry_from_label(int c);
 
 int supplies_total_weight(void);
 int supplies_carried_light_item_weight(void);

@@ -27,7 +27,8 @@ void metarun_from_v10(metarun *dst, const metarun_v10 *src)
     memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags,
+        sizeof(dst->persistent_window_flags));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -86,7 +87,8 @@ void metarun_from_v9(metarun *dst, const metarun_v9 *src)
     memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags,
+        sizeof(dst->persistent_window_flags));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -145,7 +147,8 @@ void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags,
+        sizeof(dst->persistent_window_flags));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;

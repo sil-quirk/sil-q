@@ -1128,6 +1128,7 @@ extern bool item_tester_okay(const object_type* o_ptr);
 extern int scan_floor(int* items, int size, int y, int x, int mode);
 extern void display_inven(void);
 extern void display_equip(void);
+extern void display_supplies(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
@@ -1669,6 +1670,7 @@ extern bool sdl_character_sheet_screen_commit_select(int selected_index);
  * navigation accessors above (select_page / page_turning / begin_page_turn). */
 extern bool sdl_character_sheet_screen_begin_book(cptr title);
 extern void sdl_character_sheet_screen_add_book_paragraph(cptr text);
+extern void sdl_character_sheet_screen_break_book_page(void);
 extern void sdl_character_sheet_screen_commit_book(void);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
