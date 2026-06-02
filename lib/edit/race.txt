@@ -78,7 +78,7 @@ E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:10:1:1    # | Short sword (1)
 D:Valiant and steadfast people, following Fingolfin's bright banner 
-D:through cold Helcaraxe's treacherous ice to realms darkened by war. 
+D:through cold Helcaraxë's treacherous ice to realms darkened by war. 
 D:Their courage tested against Morgoth's might beneath northern skies, 
 D:enduring loss bravely, hearts unbowed even in bitterest defeat. 
 D:Foreshadowing doom upon Anfauglith's fields, bravery unmatched, 

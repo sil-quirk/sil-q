@@ -7006,6 +7006,7 @@ static int enhanced_menu_primary_select_action(void)
  * EXACTLY replicates show_inven() algorithm then adds highlighting
  */
 #define MAX_COMPARE_LINES 2
+#define MAX_DESCRIPTION_COMPARE_ITEMS 32
 #define ENHANCED_MENU_CLICK_SWITCH (-1000000)
 #define ENHANCED_MENU_CLICK_DROP (-1000001)
 
@@ -7039,25 +7040,155 @@ static void append_compare_slot(int* slots, int* count, int slot)
         slots[(*count)++] = slot;
 }
 
+static void append_description_slot(int* slots, int* count, int capacity,
+    int slot)
+{
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+        return;
+
+    for (int i = 0; i < *count; i++)
+    {
+        if (slots[i] == slot)
+            return;
+    }
+
+    if (*count < capacity)
+        slots[(*count)++] = slot;
+}
+
+enum
+{
+    DESCRIPTION_CATEGORY_NONE = 0,
+    DESCRIPTION_CATEGORY_WEAPON,
+    DESCRIPTION_CATEGORY_ARMOUR,
+    DESCRIPTION_CATEGORY_JEWELRY,
+    DESCRIPTION_CATEGORY_LIGHT,
+    DESCRIPTION_CATEGORY_STAFF,
+    DESCRIPTION_CATEGORY_HORN,
+    DESCRIPTION_CATEGORY_CONSUMABLE,
+    DESCRIPTION_CATEGORY_MATERIAL,
+    DESCRIPTION_CATEGORY_OTHER_BASE = 1000
+};
+
+static int description_category_for_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return DESCRIPTION_CATEGORY_NONE;
+
+    if (player_can_treat_as_throwing(o_ptr))
+        return DESCRIPTION_CATEGORY_WEAPON;
+
+    if (supplies_group_matches_object(SUPPLY_GROUP_LIGHTS, o_ptr))
+        return DESCRIPTION_CATEGORY_LIGHT;
+
+    switch (o_ptr->tval)
+    {
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_ARROW:
+        return DESCRIPTION_CATEGORY_WEAPON;
+
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+        return DESCRIPTION_CATEGORY_ARMOUR;
+
+    case TV_RING:
+    case TV_AMULET:
+        return DESCRIPTION_CATEGORY_JEWELRY;
+
+    case TV_LIGHT:
+    case TV_FLASK:
+        return DESCRIPTION_CATEGORY_LIGHT;
+
+    case TV_STAFF:
+        return DESCRIPTION_CATEGORY_STAFF;
+
+    case TV_HORN:
+        return DESCRIPTION_CATEGORY_HORN;
+
+    case TV_POTION:
+    case TV_FOOD:
+    case TV_EASTER:
+    case TV_GEM:
+        return DESCRIPTION_CATEGORY_CONSUMABLE;
+
+    case TV_METAL:
+        return DESCRIPTION_CATEGORY_MATERIAL;
+
+    default:
+        return DESCRIPTION_CATEGORY_OTHER_BASE + o_ptr->tval;
+    }
+}
+
+static bool description_object_matches_category(const object_type* o_ptr,
+    int category)
+{
+    return category != DESCRIPTION_CATEGORY_NONE
+        && description_category_for_object(o_ptr) == category;
+}
+
+static bool description_object_already_listed(const object_type* objects[],
+    int count, const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (objects[i] == o_ptr)
+            return true;
+    }
+
+    return false;
+}
+
+static bool append_description_object(const object_type* objects[],
+    const char* headings[], char heading_texts[][64], int* count, int capacity,
+    const object_type* o_ptr, cptr heading)
+{
+    if (*count >= capacity)
+        return false;
+
+    if (o_ptr && description_object_already_listed(objects, *count, o_ptr))
+        return false;
+
+    strnfmt(heading_texts[*count], sizeof(heading_texts[0]), "%s:",
+        heading ? heading : "Item");
+    headings[*count] = heading_texts[*count];
+    objects[(*count)++] = o_ptr;
+    return true;
+}
+
 
 void describe_item_with_comparisons(int item_index, bool include_comparisons)
 {
-    const object_type* objects[MAX_COMPARE_LINES + 1];
-    const char* headings[MAX_COMPARE_LINES + 1];
-    char heading_texts[MAX_COMPARE_LINES + 1][64];
+    const object_type* objects[MAX_DESCRIPTION_COMPARE_ITEMS];
+    const char* headings[MAX_DESCRIPTION_COMPARE_ITEMS];
+    char heading_texts[MAX_DESCRIPTION_COMPARE_ITEMS][64];
     int count = 0;
     object_type* base_obj;
     bool is_floor = (item_index < 0);
+    bool is_supply = (item_index >= SUPPLIES_INDEX);
+    int category;
 
     if (item_index == ENHANCED_MENU_NO_SELECTION)
         return;
 
-    if (is_floor)
+    if (inventory_item_is_supply_summary(item_index))
+        return;
+
+    if (is_floor || is_supply)
     {
-        int floor_idx = 0 - item_index;
-        if (floor_idx <= 0 || floor_idx >= o_max)
-            return;
-        base_obj = &o_list[floor_idx];
+        base_obj = inventory_item_to_object_ptr(item_index);
     }
     else
     {
@@ -7066,7 +7197,7 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
         base_obj = &inventory[item_index];
     }
 
-    if (!base_obj->k_idx)
+    if (!base_obj || !base_obj->k_idx)
         return;
 
     /* Opening an item description attempts smithing-difficulty identification. */
@@ -7076,43 +7207,131 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
             is_equipped);
     }
 
-    strnfmt(heading_texts[count], sizeof(heading_texts[count]), "%s:",
-        is_floor ? "Selected item (floor)" : "Selected item");
-    headings[count] = heading_texts[count];
-    objects[count++] = base_obj;
+    category = description_category_for_object(base_obj);
+
+    append_description_object(objects, headings, heading_texts, &count,
+        MAX_DESCRIPTION_COMPARE_ITEMS, base_obj,
+        is_floor ? "Selected item (floor)"
+                 : (is_supply ? "Selected item (supply)" : "Selected item"));
 
     if (include_comparisons)
     {
-        int slots[MAX_COMPARE_LINES];
+        int slots[INVEN_TOTAL - INVEN_WIELD];
+        bool slot_allows_empty[INVEN_TOTAL - INVEN_WIELD];
         int slot_count = 0;
 
-        append_compare_slot(slots, &slot_count, wield_slot(base_obj));
+        append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+            wield_slot(base_obj));
 
         if (base_obj->tval == TV_RING)
         {
-            append_compare_slot(slots, &slot_count, INVEN_LEFT);
-            append_compare_slot(slots, &slot_count, INVEN_RIGHT);
+            append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+                INVEN_LEFT);
+            append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+                INVEN_RIGHT);
         }
-        else if (base_obj->tval == TV_ARROW)
+        else if (base_obj->tval == TV_ARROW
+            || player_can_treat_as_throwing(base_obj))
         {
-            append_compare_slot(slots, &slot_count, INVEN_QUIVER1);
-            append_compare_slot(slots, &slot_count, INVEN_QUIVER2);
+            append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+                INVEN_QUIVER1);
+            append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+                INVEN_QUIVER2);
         }
 
-        for (int i = 0; i < slot_count && count < MAX_COMPARE_LINES + 1; i++)
+        for (int i = 0; i < slot_count; i++)
+            slot_allows_empty[i] = true;
+
+        for (int slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++)
+        {
+            if (!inventory[slot].k_idx)
+                continue;
+            if (!description_object_matches_category(&inventory[slot],
+                    category))
+            {
+                continue;
+            }
+
+            int before = slot_count;
+            append_description_slot(slots, &slot_count, N_ELEMENTS(slots),
+                slot);
+            if (slot_count > before)
+                slot_allows_empty[slot_count - 1] = false;
+        }
+
+        for (int i = 0; i < slot_count
+             && count < MAX_DESCRIPTION_COMPARE_ITEMS; i++)
         {
             int slot = slots[i];
             if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
                 continue;
 
             object_type* equip_obj = &inventory[slot];
-            strnfmt(heading_texts[count], sizeof(heading_texts[count]), "%s:", mention_use(slot));
-            headings[count] = heading_texts[count];
             if (equip_obj->k_idx)
-                objects[count] = equip_obj;
-            else
-                objects[count] = NULL;
-            count++;
+            {
+                append_description_object(objects, headings, heading_texts,
+                    &count, MAX_DESCRIPTION_COMPARE_ITEMS, equip_obj,
+                    mention_use(slot));
+            }
+            else if (slot_allows_empty[i])
+            {
+                append_description_object(objects, headings, heading_texts,
+                    &count, MAX_DESCRIPTION_COMPARE_ITEMS, NULL,
+                    mention_use(slot));
+            }
+        }
+
+        for (int i = 0; i < INVEN_PACK
+             && count < MAX_DESCRIPTION_COMPARE_ITEMS; i++)
+        {
+            char heading[32];
+
+            if (!description_object_matches_category(&inventory[i], category))
+                continue;
+
+            strnfmt(heading, sizeof(heading), "Pack %c", index_to_label(i));
+            append_description_object(objects, headings, heading_texts, &count,
+                MAX_DESCRIPTION_COMPARE_ITEMS, &inventory[i], heading);
+        }
+
+        for (int i = 0; i < supplies_entry_count()
+             && count < MAX_DESCRIPTION_COMPARE_ITEMS; i++)
+        {
+            object_type* supply_obj = supplies_entry_at(i);
+            char heading[32];
+
+            if (!description_object_matches_category(supply_obj, category))
+                continue;
+
+            strnfmt(heading, sizeof(heading), "Supply %c",
+                supplies_label_for_entry(i));
+            append_description_object(objects, headings, heading_texts, &count,
+                MAX_DESCRIPTION_COMPARE_ITEMS, supply_obj, heading);
+        }
+
+        if (is_floor)
+        {
+            int floor_list[MAX_FLOOR_STACK];
+            int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+                p_ptr->px, 0x00);
+
+            for (int i = 0; i < floor_num
+                 && count < MAX_DESCRIPTION_COMPARE_ITEMS; i++)
+            {
+                int o_idx = floor_list[i];
+                object_type* floor_obj;
+
+                if (o_idx <= 0 || o_idx >= o_max)
+                    continue;
+
+                floor_obj = &o_list[o_idx];
+                if (!description_object_matches_category(floor_obj, category))
+                    continue;
+
+                append_description_object(objects, headings, heading_texts,
+                    &count, MAX_DESCRIPTION_COMPARE_ITEMS, floor_obj,
+                    "Floor");
+            }
         }
     }
 

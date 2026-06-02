@@ -894,6 +894,8 @@ typedef struct sdl_character_sheet_screen_state {
     char narrative_paras[SDL_BOOK_MAX_PARAS][SDL_BOOK_PARA_LEN];
     bool narrative_para_break[SDL_BOOK_MAX_PARAS]; /* force a new page before this para */
     bool narrative_pending_break; /* next added paragraph starts a fresh page */
+    bool narrative_para_highlight[SDL_BOOK_MAX_PARAS]; /* draw this para in the accent colour (task/reward) */
+    bool narrative_pending_highlight; /* next added paragraph is highlighted */
     int narrative_para_count;
     int narrative_page_start[SDL_BOOK_MAX_PAGES + 1]; /* [page]..[page+1) paras */
     int narrative_page_count;
@@ -1116,6 +1118,32 @@ typedef struct object_tooltip_state {
     Uint64 expires_at;
     char text[640];
 } object_tooltip_state;
+
+typedef struct description_overlay_state {
+    bool active;
+    const byte* attrs;
+    const char* chars;
+    const byte* tattrs;
+    const char* tchars;
+    const byte* story;
+    int width;
+    int height;
+    int scroll;
+} description_overlay_state;
+
+typedef struct description_overlay_layout {
+    SDL_FRect panel;
+    float text_x;
+    float text_y;
+    float footer_y;
+    int cell_w;
+    int cell_h;
+    int visible_cols;
+    int visible_rows;
+    int max_scroll;
+    int scroll;
+    bool footer;
+} description_overlay_layout;
 
 typedef struct unified_look_map_drag_state {
     bool active;
@@ -1592,6 +1620,7 @@ static pointer_attack_state g_pointer_attack = {
 static pointer_aim_state g_pointer_aim;
 static mouse_path_state g_mouse_path;
 static object_tooltip_state g_object_tooltip;
+static description_overlay_state g_description_overlay;
 static main_map_drag_state g_main_map_drag;
 static bool g_unified_look_active = false;
 static bool g_unified_look_map_hover_enabled = false;
@@ -10910,20 +10939,24 @@ static void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
 
 /*
  * Draw one page of the narrative book: the paragraphs assigned to this page,
- * as wrapped white body text on the parchment, vertically centred when short.
+ * as wrapped body text on the parchment.  Text is laid out from the TOP of the
+ * page down (like a real book) rather than vertically centred, so a short final
+ * page reads from the top instead of floating in the middle.  Paragraphs that
+ * were flagged as highlighted -- a quest's actual task and reward -- are drawn
+ * in light blue so the player can pick them out without reading the whole page.
  */
 static void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
     float book_x, float book_w, float top_y, float region_bottom, float body_lh)
 {
     float para_gap = body_lh * 0.6f;
-    float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
     int para_count = g_sdl_character_sheet_screen.narrative_para_count;
     int page_count = g_sdl_character_sheet_screen.narrative_page_count;
     int first;
     int last;
-    float content_h = 0.0f;
     float y;
     int i;
+
+    (void)region_bottom;
 
     if (page_count <= 0)
         return;
@@ -10939,26 +10972,19 @@ static void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
     if (last > para_count)
         last = para_count;
 
-    for (i = first; i < last; i++)
-    {
-        int lines = sdl_char_sheet_wrap_text(body_font,
-            g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
-
-        content_h += (float)lines * body_lh;
-        if (i + 1 < last)
-            content_h += para_gap;
-    }
-
-    y = top_y + (content_h < region_h ? (region_h - content_h) * 0.5f : 0.0f);
+    /* Mimic a real book: start the text at the top of the page. */
+    y = top_y;
 
     for (i = first; i < last; i++)
     {
         int lines = sdl_char_sheet_wrap_text(body_font,
             g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
         float h = (float)lines * body_lh;
+        byte attr = g_sdl_character_sheet_screen.narrative_para_highlight[i]
+            ? TERM_L_BLUE : TERM_WHITE;
 
         sdl_char_sheet_draw_wrapped(body_font,
-            g_sdl_character_sheet_screen.narrative_paras[i], TERM_WHITE, book_x,
+            g_sdl_character_sheet_screen.narrative_paras[i], attr, book_x,
             y, book_w, h + body_lh, body_lh, 0);
         y += h;
         if (i + 1 < last)
@@ -12341,6 +12367,7 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.select_page_count = 1;
     g_sdl_character_sheet_screen.narrative_para_count = 0;
     g_sdl_character_sheet_screen.narrative_pending_break = false;
+    g_sdl_character_sheet_screen.narrative_pending_highlight = false;
     g_sdl_character_sheet_screen.narrative_page_count = 0;
     g_sdl_character_sheet_screen.narrative_body_px = 0;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
@@ -12369,6 +12396,9 @@ void sdl_character_sheet_screen_add_book_paragraph(cptr text)
     g_sdl_character_sheet_screen.narrative_para_break[n] =
         g_sdl_character_sheet_screen.narrative_pending_break;
     g_sdl_character_sheet_screen.narrative_pending_break = false;
+    g_sdl_character_sheet_screen.narrative_para_highlight[n] =
+        g_sdl_character_sheet_screen.narrative_pending_highlight;
+    g_sdl_character_sheet_screen.narrative_pending_highlight = false;
     g_sdl_character_sheet_screen.narrative_para_count = n + 1;
 }
 
@@ -12378,6 +12408,15 @@ void sdl_character_sheet_screen_break_book_page(void)
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
         return;
     g_sdl_character_sheet_screen.narrative_pending_break = true;
+}
+
+/* Flag the next added paragraph to be drawn in the accent colour (light blue),
+ * used to set a quest's actual task and reward apart from its narration. */
+void sdl_character_sheet_screen_highlight_book_paragraph(void)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    g_sdl_character_sheet_screen.narrative_pending_highlight = true;
 }
 
 void sdl_character_sheet_screen_commit_book(void)
@@ -20660,6 +20699,267 @@ static void sdl_object_tooltip_render(void)
 
     SDL_DestroyTexture(texture);
     SDL_DestroySurface(surface);
+}
+
+static int sdl_description_overlay_font_px(void)
+{
+    int cell_h = sdl_current_main_view_scale() * TILE_SIZE;
+    int font_px = (cell_h * 2 + 1) / 3;
+
+    if (font_px < 8)
+        font_px = 8;
+
+    return font_px;
+}
+
+static SDL_Color sdl_description_overlay_attr_color(byte attr)
+{
+    SDL_Color col = {
+        angband_color_table[attr][1],
+        angband_color_table[attr][2],
+        angband_color_table[attr][3],
+        255
+    };
+
+    return col;
+}
+
+static bool sdl_description_overlay_layout(description_overlay_layout* out)
+{
+    SDL_Rect anchor;
+    const description_overlay_state* overlay = &g_description_overlay;
+    const char* footer_text =
+        "Esc close  Space page  Arrows scroll";
+    int font_px;
+    int cell_w;
+    int cell_h;
+    int margin;
+    int pad_x;
+    int pad_y;
+    int max_panel_w;
+    int max_panel_h;
+    int max_cols;
+    int max_rows_no_footer;
+    int max_rows;
+    int visible_cols;
+    int visible_rows;
+    int footer_cols = 0;
+    bool footer;
+    float panel_w;
+    float panel_h;
+
+    if (out)
+        *out = (description_overlay_layout){ 0 };
+    if (!out || !overlay->active || !overlay->attrs || !overlay->chars
+        || overlay->width <= 0 || overlay->height <= 0)
+    {
+        return false;
+    }
+
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor))
+        return false;
+
+    font_px = sdl_description_overlay_font_px();
+    cell_h = font_px;
+    cell_w = font_px / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    margin = sdl_overlay_margin_px();
+    pad_x = cell_w;
+    pad_y = cell_h / 2;
+    if (pad_y < 2)
+        pad_y = 2;
+
+    max_panel_w = anchor.w - margin * 2;
+    max_panel_h = anchor.h - margin * 2;
+    if (max_panel_w <= pad_x * 2 || max_panel_h <= pad_y * 2 + cell_h)
+        return false;
+
+    max_cols = (max_panel_w - pad_x * 2) / cell_w;
+    max_rows_no_footer = (max_panel_h - pad_y * 2) / cell_h;
+    if (max_cols < 1 || max_rows_no_footer < 1)
+        return false;
+
+    footer = overlay->height > max_rows_no_footer;
+    max_rows = max_rows_no_footer - (footer ? 1 : 0);
+    if (max_rows < 1)
+        max_rows = 1;
+
+    visible_rows = overlay->height;
+    if (visible_rows > max_rows)
+        visible_rows = max_rows;
+
+    if (footer)
+        footer_cols = (int)strlen(footer_text);
+    visible_cols = overlay->width;
+    if (visible_cols < footer_cols)
+        visible_cols = footer_cols;
+    if (visible_cols > max_cols)
+        visible_cols = max_cols;
+    if (visible_cols < 1)
+        visible_cols = 1;
+
+    out->cell_w = cell_w;
+    out->cell_h = cell_h;
+    out->visible_cols = visible_cols;
+    out->visible_rows = visible_rows;
+    out->footer = footer;
+    out->max_scroll = MAX(0, overlay->height - visible_rows);
+    out->scroll = overlay->scroll;
+    if (out->scroll < 0)
+        out->scroll = 0;
+    if (out->scroll > out->max_scroll)
+        out->scroll = out->max_scroll;
+
+    panel_w = (float)(visible_cols * cell_w + pad_x * 2);
+    panel_h = (float)((visible_rows + (footer ? 1 : 0)) * cell_h
+        + pad_y * 2);
+    out->panel = (SDL_FRect){
+        .x = (float)anchor.x + ((float)anchor.w - panel_w) * 0.5f,
+        .y = (float)anchor.y + ((float)anchor.h - panel_h) * 0.5f,
+        .w = panel_w,
+        .h = panel_h,
+    };
+    out->text_x = out->panel.x + (float)pad_x;
+    out->text_y = out->panel.y + (float)pad_y;
+    out->footer_y = out->text_y + (float)(visible_rows * cell_h);
+
+    return true;
+}
+
+static void sdl_description_overlay_render_char(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h,
+    float x, float y, byte attr, char ch)
+{
+    unsigned char uch = (unsigned char)ch;
+    SDL_FRect src;
+    SDL_FRect dst;
+    SDL_Color col;
+
+    if (!atlas || uch < 32 || uch == 127)
+        return;
+
+    col = sdl_description_overlay_attr_color(attr);
+    SDL_SetTextureColorMod(atlas, col.r, col.g, col.b);
+    SDL_SetTextureAlphaMod(atlas, 255);
+
+    src = (SDL_FRect){
+        .x = (float)((uch & 15) * atlas_cell_w),
+        .y = (float)((uch >> 4) * atlas_cell_h),
+        .w = (float)atlas_cell_w,
+        .h = (float)atlas_cell_h,
+    };
+    dst = (SDL_FRect){
+        .x = x,
+        .y = y,
+        .w = cell_w,
+        .h = cell_h,
+    };
+
+    SDL_RenderTexture(g_state.renderer, atlas, &src, &dst);
+}
+
+static void sdl_description_overlay_render_text(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, const char* text, float x, float y,
+    float cell_w, float cell_h, byte attr)
+{
+    if (!text)
+        return;
+
+    for (int i = 0; text[i]; i++)
+    {
+        sdl_description_overlay_render_char(atlas, atlas_cell_w,
+            atlas_cell_h, cell_w, cell_h, x + (float)i * cell_w, y, attr,
+            text[i]);
+    }
+}
+
+static void sdl_description_overlay_render(void)
+{
+    description_overlay_layout layout;
+    const description_overlay_state* overlay = &g_description_overlay;
+    const char* font_path = config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+    SDL_Texture* atlas;
+    int atlas_cell_w = 0;
+    int atlas_cell_h = 0;
+    bool cached = false;
+    bool exact = false;
+    SDL_Rect clip;
+
+    if (!sdl_description_overlay_layout(&layout))
+        return;
+
+    atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path, layout.cell_w,
+        layout.cell_h, &cached, &atlas_cell_w, &atlas_cell_h, &exact, true);
+    if (!atlas)
+        return;
+
+    (void)cached;
+    (void)exact;
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 232);
+    SDL_RenderFillRect(g_state.renderer, &layout.panel);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 120);
+    SDL_RenderRect(g_state.renderer, &layout.panel);
+
+    clip = (SDL_Rect){
+        .x = (int)layout.panel.x,
+        .y = (int)layout.panel.y,
+        .w = (int)(layout.panel.w + 1.0f),
+        .h = (int)(layout.panel.h + 1.0f),
+    };
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
+
+    for (int row = 0; row < layout.visible_rows; row++)
+    {
+        int src_row = row + layout.scroll;
+
+        if (src_row >= overlay->height)
+            break;
+
+        for (int col = 0; col < layout.visible_cols; col++)
+        {
+            int idx;
+
+            if (col >= overlay->width)
+                continue;
+
+            idx = src_row * overlay->width + col;
+            sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                atlas_cell_h, (float)layout.cell_w, (float)layout.cell_h,
+                layout.text_x + (float)col * (float)layout.cell_w,
+                layout.text_y + (float)row * (float)layout.cell_h,
+                overlay->attrs[idx], overlay->chars[idx]);
+        }
+    }
+
+    if (layout.footer)
+    {
+        char scroll_buf[32];
+
+        sdl_description_overlay_render_text(atlas, atlas_cell_w,
+            atlas_cell_h, "Esc close  Space page  Arrows scroll",
+            layout.text_x, layout.footer_y, (float)layout.cell_w,
+            (float)layout.cell_h, TERM_SLATE);
+        strnfmt(scroll_buf, sizeof(scroll_buf), "%d/%d",
+            layout.scroll + 1, layout.max_scroll + 1);
+        int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
+        if (scroll_col < 0)
+            scroll_col = 0;
+        sdl_description_overlay_render_text(atlas, atlas_cell_w,
+            atlas_cell_h, scroll_buf,
+            layout.text_x + (float)scroll_col * (float)layout.cell_w,
+            layout.footer_y, (float)layout.cell_w, (float)layout.cell_h,
+            TERM_SLATE);
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
 }
 
 static bool sdl_unified_look_handle_map_describe_pointer(float x, float y)
@@ -35067,6 +35367,7 @@ static bool sdl_render_current_window_frame(void)
     sdl_touch_pane_render_yes_no_prompt();
     sdl_log_pane_menu_render();
     sdl_side_pane_menu_render();
+    sdl_description_overlay_render();
 
     return true;
 }
@@ -40403,40 +40704,6 @@ static bool sdl_mono_atlas_codepoint_visible(Uint32 ch)
     return (ch >= 32 && ch <= 126) || (ch >= 160 && ch <= 255);
 }
 
-static bool sdl_utf8_append_codepoint(char* buf, size_t buf_size,
-    size_t* len, Uint32 ch)
-{
-    if (!buf || !len || *len >= buf_size)
-        return false;
-
-    if (ch < 0x80) {
-        if (*len + 1 >= buf_size)
-            return false;
-        buf[(*len)++] = (char)ch;
-    } else if (ch < 0x800) {
-        if (*len + 2 >= buf_size)
-            return false;
-        buf[(*len)++] = (char)(0xC0 | (ch >> 6));
-        buf[(*len)++] = (char)(0x80 | (ch & 0x3F));
-    } else if (ch < 0x10000) {
-        if (*len + 3 >= buf_size)
-            return false;
-        buf[(*len)++] = (char)(0xE0 | (ch >> 12));
-        buf[(*len)++] = (char)(0x80 | ((ch >> 6) & 0x3F));
-        buf[(*len)++] = (char)(0x80 | (ch & 0x3F));
-    } else {
-        if (*len + 4 >= buf_size)
-            return false;
-        buf[(*len)++] = (char)(0xF0 | (ch >> 18));
-        buf[(*len)++] = (char)(0x80 | ((ch >> 12) & 0x3F));
-        buf[(*len)++] = (char)(0x80 | ((ch >> 6) & 0x3F));
-        buf[(*len)++] = (char)(0x80 | (ch & 0x3F));
-    }
-
-    buf[*len] = '\0';
-    return true;
-}
-
 static void sdl_mono_atlas_set_error(char* error_buf, size_t error_buf_size,
     const char* message)
 {
@@ -40495,65 +40762,60 @@ static SDL_Surface* sdl_build_ttf_font_atlas_surface(const char* font_path,
     SDL_FillSurfaceRect(atlas_surface, NULL,
         SDL_MapSurfaceRGBA(atlas_surface, 0, 0, 0, 0));
     SDL_Color white = (SDL_Color){255, 255, 255, 255};
-    for (Uint32 row = 0; row < 16; row++) {
-        Uint32 row_end = row * 16 + 16;
-        Uint32 ch = row * 16;
+    for (Uint32 ch = 0; ch < 256; ch++) {
+        SDL_Surface* glyph_surface;
+        SDL_Rect dst;
 
-        while (ch < row_end) {
-            char row_text[64];
-            size_t text_len = 0;
-            Uint32 start_ch;
-            SDL_Surface* row_surface;
-            SDL_Rect dst;
+        if (!sdl_mono_atlas_codepoint_visible(ch))
+            continue;
 
-            while (ch < row_end && !sdl_mono_atlas_codepoint_visible(ch))
-                ch++;
-            if (ch >= row_end)
-                break;
-
-            start_ch = ch;
-            row_text[0] = '\0';
-            while (ch < row_end && sdl_mono_atlas_codepoint_visible(ch)) {
-                if (!sdl_utf8_append_codepoint(row_text, sizeof(row_text),
-                        &text_len, ch))
-                {
-                    strnfmt(error_buf, error_buf_size,
-                        "could not encode codepoint %u for TTF atlas",
-                        (unsigned)ch);
-                    SDL_DestroySurface(atlas_surface);
-                    TTF_CloseFont(font);
-                    return NULL;
-                }
-                ch++;
+        glyph_surface = TTF_RenderGlyph_Blended(font, ch, white);
+        if (!glyph_surface) {
+            /* Some codepoints (e.g. U+00AD soft hyphen) have no visible glyph
+             * and render to zero width; newer SDL_ttf reports this as an error
+             * rather than returning a blank surface. Treat that the same as the
+             * zero-width-surface case below and skip the glyph instead of
+             * failing the whole atlas. */
+            const char* render_err = SDL_GetError();
+            if (render_err && SDL_strstr(render_err, "zero width")) {
+                continue;
             }
-
-            row_surface = TTF_RenderText_Blended(font, row_text, 0, white);
-            if (!row_surface) {
-                strnfmt(error_buf, error_buf_size,
-                    "could not render TTF atlas row starting at %u: %s",
-                    (unsigned)start_ch, SDL_GetError());
-                SDL_DestroySurface(atlas_surface);
-                TTF_CloseFont(font);
-                return NULL;
-            }
-            SDL_SetSurfaceBlendMode(row_surface, SDL_BLENDMODE_BLEND);
-            dst.x = (int)(start_ch & 15) * cell_width;
-            dst.y = (int)(start_ch >> 4) * cell_height;
-            dst.w = (int)(ch - start_ch) * cell_width;
-            dst.h = cell_height;
-            if (!SDL_BlitSurfaceScaled(row_surface, NULL, atlas_surface, &dst,
-                    SDL_SCALEMODE_LINEAR))
-            {
-                strnfmt(error_buf, error_buf_size,
-                    "could not blit TTF atlas row starting at %u: %s",
-                    (unsigned)start_ch, SDL_GetError());
-                SDL_DestroySurface(row_surface);
-                SDL_DestroySurface(atlas_surface);
-                TTF_CloseFont(font);
-                return NULL;
-            }
-            SDL_DestroySurface(row_surface);
+            strnfmt(error_buf, error_buf_size,
+                "could not render TTF atlas glyph %u: %s",
+                (unsigned)ch, render_err ? render_err : "");
+            SDL_DestroySurface(atlas_surface);
+            TTF_CloseFont(font);
+            return NULL;
         }
+
+        if (glyph_surface->w <= 0 || glyph_surface->h <= 0) {
+            SDL_DestroySurface(glyph_surface);
+            continue;
+        }
+
+        /* Stretch each glyph to fill its whole cell, matching the original
+         * mono atlas behaviour. Rendering glyphs at their natural ink width
+         * (scaling down only when oversized, then centering) left narrow
+         * glyphs floating in the cell, which made monospace text look too
+         * thin. */
+        dst.w = cell_width;
+        dst.h = cell_height;
+        dst.x = (int)(ch & 15) * cell_width;
+        dst.y = (int)(ch >> 4) * cell_height;
+
+        SDL_SetSurfaceBlendMode(glyph_surface, SDL_BLENDMODE_BLEND);
+        if (!SDL_BlitSurfaceScaled(glyph_surface, NULL, atlas_surface, &dst,
+                SDL_SCALEMODE_LINEAR))
+        {
+            strnfmt(error_buf, error_buf_size,
+                "could not blit TTF atlas glyph %u: %s",
+                (unsigned)ch, SDL_GetError());
+            SDL_DestroySurface(glyph_surface);
+            SDL_DestroySurface(atlas_surface);
+            TTF_CloseFont(font);
+            return NULL;
+        }
+        SDL_DestroySurface(glyph_surface);
     }
 
     TTF_CloseFont(font);
@@ -44210,14 +44472,33 @@ int get_sdl_platform_max_main_view_scale(void)
 
 int get_sdl_terminal_menu_scale(void)
 {
-    int max_scale = get_sdl_platform_max_main_view_scale();
-    int scale = max_scale - 1;
-    int min_scale = sdl_main_view_scale_floor();
+#if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
+    int menu_mode = config.min_terminal_mode;
+#else
+    int menu_mode = SDL_MIN_TERMINAL_NORMAL;
+#endif
+    int max_scale = sdl_max_scale_for_window_mode(menu_mode);
+    int platform_max = sdl_platform_max_main_view_scale_for_mode(menu_mode);
+    int compact_platform_max =
+        sdl_platform_max_main_view_scale_for_mode(SDL_MIN_TERMINAL_COMPACT);
+    int min_scale = sdl_main_view_scale_floor_for_mode(menu_mode);
+    int scale;
 
     if (max_scale <= SDL_MAIN_VIEW_MIN_SCALE)
-        return SDL_MAIN_VIEW_MIN_SCALE;
-    if (scale < min_scale)
-        scale = min_scale;
+        scale = SDL_MAIN_VIEW_MIN_SCALE;
+    else
+    {
+        /* Desktop/full-screen menus should keep one step below the normal
+         * terminal maximum, even when gameplay is in compact mode. */
+        scale = max_scale - 1;
+        if (scale < min_scale)
+            scale = min_scale;
+    }
+
+    log_debug("terminal menu scale: mode=%s layout_max=%d platform_max=%d "
+              "compact_platform_max=%d target=%d",
+        sdl_min_terminal_mode_name(menu_mode), max_scale, platform_max,
+        compact_platform_max, scale);
 
     return scale;
 }
@@ -44256,6 +44537,62 @@ void sdl_pop_terminal_menu_scale(void)
     g_terminal_menu_scale_override = restored_scale;
     if (old_scale != restored_scale)
         sdl_apply_config_no_redraw();
+}
+
+bool sdl_description_overlay_present(const byte* attrs, const char* chars,
+    const byte* tattrs, const char* tchars, const byte* story, int width,
+    int height, int scroll, int* out_visible_rows, int* out_max_scroll)
+{
+    description_overlay_layout layout;
+
+    if (out_visible_rows)
+        *out_visible_rows = 1;
+    if (out_max_scroll)
+        *out_max_scroll = 0;
+
+    if (!attrs || !chars || width <= 0 || height <= 0)
+    {
+        sdl_description_overlay_clear();
+        return false;
+    }
+
+    g_description_overlay.active = true;
+    g_description_overlay.attrs = attrs;
+    g_description_overlay.chars = chars;
+    g_description_overlay.tattrs = tattrs;
+    g_description_overlay.tchars = tchars;
+    g_description_overlay.story = story;
+    g_description_overlay.width = width;
+    g_description_overlay.height = height;
+    g_description_overlay.scroll = scroll;
+
+    if (!sdl_description_overlay_layout(&layout))
+    {
+        g_description_overlay = (description_overlay_state){ 0 };
+        g_state.need_present = true;
+        sdl_present_if_needed(&g_views[PANE_MAIN]);
+        return false;
+    }
+
+    g_description_overlay.scroll = layout.scroll;
+    if (out_visible_rows)
+        *out_visible_rows = layout.visible_rows;
+    if (out_max_scroll)
+        *out_max_scroll = layout.max_scroll;
+
+    g_state.need_present = true;
+    sdl_present_if_needed(&g_views[PANE_MAIN]);
+    return true;
+}
+
+void sdl_description_overlay_clear(void)
+{
+    if (!g_description_overlay.active)
+        return;
+
+    g_description_overlay = (description_overlay_state){ 0 };
+    g_state.need_present = true;
+    sdl_present_if_needed(&g_views[PANE_MAIN]);
 }
 
 void sdl_request_redraw(void)

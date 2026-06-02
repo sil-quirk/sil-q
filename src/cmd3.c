@@ -731,6 +731,14 @@ void do_cmd_inven(void)
 
     enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
 
+    extern int enhanced_menu_action;
+    extern int enhanced_inventory_selected_item;
+    extern char current_menu_command;
+
+    int action = ENHANCED_ACTION_NONE;
+    int selected_index = ENHANCED_MENU_NO_SELECTION;
+    bool death_view = death_spectator_active();
+
     /* Save screen */
     screen_save();
     sdl_push_terminal_menu_scale();
@@ -742,8 +750,31 @@ void do_cmd_inven(void)
     /* Force viewing mode */
     p_ptr->command_see = true;
 
-    /* Display the inventory with scrolling capability */
-    show_inven_enhanced();
+    while (true)
+    {
+        /* Display the inventory with scrolling capability */
+        show_inven_enhanced();
+
+        action = enhanced_menu_action;
+        selected_index = enhanced_inventory_selected_item;
+
+        if (action == ENHANCED_ACTION_EXAMINE)
+        {
+            log_trace("do_cmd_inven: Examining item %d", selected_index);
+            /* Show comparisons when accessed via 'x' menu OR when
+             * examining via arrow-right in direct access. */
+            bool include_comparisons =
+                (current_menu_command == 'u' || current_menu_command == 'x'
+                    || current_menu_command == 0);
+            describe_item_with_comparisons(selected_index,
+                include_comparisons);
+            enhanced_menu_action = ENHANCED_ACTION_NONE;
+            enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
+            continue;
+        }
+
+        break;
+    }
 
     /* Hack -- hide empty slots */
     item_tester_full = false;
@@ -753,25 +784,8 @@ void do_cmd_inven(void)
     screen_load();
     log_debug("do_cmd_inven: Screen loaded");
 
-    extern int enhanced_menu_action;
-    extern int enhanced_inventory_selected_item;
-
-    int action = enhanced_menu_action;
-    int selected_index = enhanced_inventory_selected_item;
-    bool death_view = death_spectator_active();
-
     switch (action)
     {
-    case ENHANCED_ACTION_EXAMINE:
-    {
-        log_trace("do_cmd_inven: Examining item %d", selected_index);
-        extern char current_menu_command;
-        /* Show comparisons when accessed via 'x' menu OR when examining via arrow-right in direct access */
-        bool include_comparisons = (current_menu_command == 'u' || current_menu_command == 'x' || current_menu_command == 0);
-        describe_item_with_comparisons(selected_index, include_comparisons);
-        break;
-    }
-
     case ENHANCED_ACTION_USE:
         if (death_view)
         {
@@ -860,6 +874,13 @@ void do_cmd_equip(void)
 
     enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
 
+    extern int enhanced_equip_action;
+    extern int enhanced_equipment_selected_item;
+
+    int action = ENHANCED_ACTION_NONE;
+    int selected_index = ENHANCED_MENU_NO_SELECTION;
+    bool death_view = death_spectator_active();
+
     /* Save screen */
     screen_save();
     sdl_push_terminal_menu_scale();
@@ -871,8 +892,29 @@ void do_cmd_equip(void)
     /* Force viewing mode */
     p_ptr->command_see = true;
 
-    /* Display the equipment with scrolling capability */
-    show_equip_enhanced();
+    while (true)
+    {
+        /* Display the equipment with scrolling capability */
+        show_equip_enhanced();
+
+        action = enhanced_equip_action;
+        selected_index = enhanced_equipment_selected_item;
+
+        if (action == ENHANCED_ACTION_EXAMINE)
+        {
+            log_trace("do_cmd_equip: Examining item %d", selected_index);
+            if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
+            {
+                describe_item_with_comparisons(selected_index, true);
+            }
+
+            enhanced_equip_action = ENHANCED_ACTION_NONE;
+            enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
+            continue;
+        }
+
+        break;
+    }
 
     /* Keep selector state clean after closing the menu. */
     item_tester_full = false;
@@ -882,25 +924,8 @@ void do_cmd_equip(void)
     screen_load();
     log_debug("do_cmd_equip: Screen loaded");
 
-    extern int enhanced_equip_action;
-    extern int enhanced_equipment_selected_item;
-
-    int action = enhanced_equip_action;
-    int selected_index = enhanced_equipment_selected_item;
-    bool death_view = death_spectator_active();
-
     switch (action)
     {
-    case ENHANCED_ACTION_EXAMINE:
-        log_trace("do_cmd_equip: Examining item %d", selected_index);
-        if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
-        {
-            (void)player_try_identify_smithing_object_on_examine(
-                &inventory[selected_index], true);
-            object_info_screen(&inventory[selected_index]);
-        }
-        break;
-
     case ENHANCED_ACTION_USE:
         if (death_view)
         {

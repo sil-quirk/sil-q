@@ -34,7 +34,7 @@ T:To spare the Children of Ilúvatar
 D:A solemn vow to leave Angband without shedding the blood of Man or Elf, showing mercy even to those who might oppose you. This oath reflects the compassion of Nienna, Lady of Pity.
 P:I swear to leave Angband without shedding blood of Man or Elf, showing mercy to all Children of Ilúvatar I encounter.
 F:Attack or harm Men or Elves in any way
-R:+1 Grace - Divine favor for your merciful heart
+R:+1 Grace—Divine favor for your merciful heart
 A:8:2
 S:0:0:0:1
 B:Cannot attack creatures with RF3_MAN or RF3_ELF flags
@@ -43,15 +43,15 @@ C:Your hand stays its course. The life before you is one of the Children of Ilú
 M:The light of pity leaves your eyes, replaced by the shadow of wrath. The weight of this life taken settles upon you, a curse of your own making.
 E:The echo of your mercy is now a mockery. Your Oath of Mercy is forever broken, a testament to the compassion you have cast aside in this age.
 Q:You passed from the world, but the memory of your final deeds remains. You will be remembered as one who swore compassion, yet chose cruelty.
-Z:OATH OF MERCY SUNDERED - Thy hands are stained with the blood of kindred. No prayer for pity shall be heard from a voice that has forsaken it. The shadow of thy deed shall not be lifted in this age of the world. Marked forever as one who broke the bonds of mercy.
+Z:OATH OF MERCY SUNDERED—Thy hands are stained with the blood of kindred. No prayer for pity shall be heard from a voice that has forsaken it. The shadow of thy deed shall not be lifted in this age of the world. Marked forever as one who broke the bonds of mercy.
 
 # Oath of Silence
 O:2:Oath of Silence
 T:To maintain grim silence
-D:A vow of absolute silence, taken by those who would enter and leave Angband as they came - wordless and grim. This oath embodies the stoic determination of proven warriors.
+D:A vow of absolute silence, taken by those who would enter and leave Angband as they came—wordless and grim. This oath embodies the stoic determination of proven warriors.
 P:I swear to leave Angband as I came, grim and silent, speaking no word and raising no song in these dark halls.
 F:Sing any song or make any vocal utterance
-R:+1 Dexterity - Stoic fortitude and inner resilience
+R:+1 Dexterity—Stoic fortitude and inner resilience
 A:8:3
 S:0:1:0:0
 B:Cannot use any singing abilities or songs
@@ -60,7 +60,7 @@ C:A word forms on your lips. To give it voice is to shatter the solemn vow you h
 M:The quiet strength you held is lost in a cacophony of your own making. Your voice, once held in check, now feels alien and weak.
 E:The profound stillness you swore to keep is drowned by a single sound. Your Oath of Silence is forever broken, lost to a moment of weakness in this age.
 Q:You passed from the world, and your story ended not with a deed, but with a hollow sound. You will be remembered as one whose resolve was as fleeting as a spoken word.
-Z:OATH OF SILENCE SUNDERED - Thy vow is drowned in empty sound, thy purpose lost. Wisdom has fled from a tongue so quick to betray its own promise. The stillness you forsook shall grant you no peace in this age of the world. Marked forever as one who shattered their silence.
+Z:OATH OF SILENCE SUNDERED—Thy vow is drowned in empty sound, thy purpose lost. Wisdom has fled from a tongue so quick to betray its own promise. The stillness you forsook shall grant you no peace in this age of the world. Marked forever as one who shattered their silence.
 
 # Oath of Iron
 O:3:Oath of Iron
@@ -68,7 +68,7 @@ T:To face Morgoth with unwavering courage
 D:An oath of absolute resolve, sworn by those who will not be turned aside from their purpose by any force or fear. You pledge to face even the Dark Lord himself.
 P:I swear that none will daunt me from facing Morgoth forthwith, and I shall not flee upward until a Silmaril is won.
 F:Go up stairs or flee the depths without possessing a Silmaril
-R:+1 Constitution - Unbreakable fortitude and endurance
+R:+1 Constitution—Unbreakable fortitude and endurance
 A:8:4
 S:0:0:1:0  
 B:Cannot use upstairs until possessing a Silmaril
@@ -77,7 +77,7 @@ C:The path of escape lies before you, a refuge for the weary and the weak. To ta
 M:As you turn from your purpose, the iron will within you turns to brittle rust. The despair you swore to defy now rushes in to claim your heart.
 E:Your great purpose is abandoned. Your Oath of Iron is forever shattered, proof that you chose flight over fate in this age.
 Q:You passed from the world, having fled from your great doom. You will be remembered not for your strength, but as one whose will was found wanting at the final test.
-Z:OATH OF IRON SHATTERED - Thy will is broken, thy purpose abandoned in the dark. You have fled from the doom you embraced, and no glory shall be found in weakness. The shadow of your cowardice shall not be lifted in this age of the world. Marked forever as one whose will was broken.
+Z:OATH OF IRON SHATTERED—Thy will is broken, thy purpose abandoned in the dark. You have fled from the doom you embraced, and no glory shall be found in weakness. The shadow of your cowardice shall not be lifted in this age of the world. Marked forever as one whose will was broken.
 
 # Oath of the Smith
 O:4:Oath of the Smith
@@ -85,7 +85,7 @@ T:To craft all gear by your own hand
 D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and armor not forged by your own skill. This oath honors Aulë's mastery of all crafts.
 P:I swear to craft all blades and armor by my own hand, taking up no weapon or protection wrought by others.
 F:Pick up, wield, or wear weapons or armor crafted by others
-R:+5 Smithing - Divine inspiration in all crafts
+R:+5 Smithing—Divine inspiration in all crafts
 A:8:6:0
 S:0:0:0:0
 K:6:5
@@ -95,7 +95,7 @@ C:Your hand reaches for a tool not of your own making. To take it up is to scorn
 M:As you grasp the foreign craft, the fire of your own forge grows dim within you. A shadow of doubt now clouds your eye and makes your own hands feel clumsy.
 E:You have cast aside self-reliance for the fleeting ease of another's work. Your Oath of the Smith is forever broken, a tribute to the craft you forsook in this age.
 Q:You passed from the world, armed not with your own mastery, but with the craft of another. You will be remembered as a smith who lost faith in his own hands.
-Z:OATH OF THE SMITH FORSAKEN - Thy forge is cold, thy hammer idle. You have scorned the work of your own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned their craft.
+Z:OATH OF THE SMITH FORSAKEN—Thy forge is cold, thy hammer idle. You have scorned the work of your own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned their craft.
 
 # Oath of the Valorous Heart
 O:5:Oath of Valor
@@ -103,7 +103,7 @@ T:To fight with honor and restraint
 D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honorable restraint of those who have proven their valor in fair combat.
 P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honorable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.
 F:Attack or deal damage to enemies that are fleeing in terror
-R:+1 Strength - Honed physical prowess through honorable combat
+R:+1 Strength—Honed physical prowess through honorable combat
 A:8:7
 S:1:0:0:0
 B:Cannot attack creatures with M_FEAR flag (fleeing in terror)
@@ -112,7 +112,7 @@ C:Your foe's will has shattered; it turns and flees for its life. To strike it n
 M:As your weapon strikes the fleeing foe, the glory of the battle turns to shame. The warrior's pride within you falters, a curse born of a dishonorable act.
 E:You have chosen a brute's work over a warrior's honor. Your Oath of the Valorous Heart is forever broken, a testament to the valor you have discarded in this age.
 Q:You passed from the world, and your tale is a tainted one. You will be remembered as a warrior who lacked honor, striking down the terrified who fled your might.
-Z:OATH OF THE VALOROUS HEART SUNDERED - Thy blade is stained by a coward's stroke. The noble spirit of honorable combat has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.
+Z:OATH OF THE VALOROUS HEART SUNDERED—Thy blade is stained by a coward's stroke. The noble spirit of honorable combat has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.
 
 # Oath of Light
 O:6:Oath of Light
@@ -120,7 +120,7 @@ T:To bear starlight unsullied
 D:A vow to keep the Kindler's radiance clear, shunning any gear that drinks the light and clouds the path. The stars of Varda are a gift beyond measure, and to bear their light is to walk as a beacon in the darkness. This oath binds you to refuse the tools of shadow.
 P:I swear to wear no shadowed gear that dims my light, and to keep the clear radiance of the stars upon my path.
 F:Wield or wear items that dim your light
-R:+1 Light radius - Blessing of Varda's starlight
+R:+1 Light radius—Blessing of Varda's starlight
 A:8:9
 S:0:0:0:0
 B:Cannot equip items that bear DARKNESS or UNLIGHT
@@ -129,4 +129,4 @@ C:Your hand closes on a shadowed thing. To take it up is to smother the starligh
 M:The light within you gutters and fades as you embrace the shadowed gear. The stars of Varda withdraw their radiance, leaving your path cold and dim.
 E:The flame you vowed to guard is smothered by your own hand. Your Oath of Light is forever broken, a testament to the radiance you forsook in this age.
 Q:You passed from the world with your light quenched by shadow. You will be remembered as one who bore the gift of starlight and cast it aside.
-Z:OATH OF LIGHT EXTINGUISHED - Thy hand has chosen shadow over starlight. The radiance of the Kindler has fled from thee, and no star shall answer thy call. The light you foreswore shall grant you no comfort in this age of the world. Marked forever as one who broke the light.
+Z:OATH OF LIGHT EXTINGUISHED—Thy hand has chosen shadow over starlight. The radiance of the Kindler has fled from thee, and no star shall answer thy call. The light you foreswore shall grant you no comfort in this age of the world. Marked forever as one who broke the light.

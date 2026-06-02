@@ -692,7 +692,7 @@ P:0:0d0:0:2d5
 F:GRA | ENCHANTABLE | NOBLE_ITEM
 D:The shining mail of Finwë, first High King of the Noldor, wrought in
 D: Valinor before the Darkening. When Morgoth came to Formenos with Ungoliant,
-D: Finwë alone stood against him and was slain - the first of the Eldar to
+D: Finwë alone stood against him and was slain—the first of the Eldar to
 D: die in Aman. The Dark Lord took this corslet along with the Silmarils.
 D: It still gleams with the light of the Blessed Realm, untouched by the
 D: Shadow that claimed its bearer.
@@ -932,7 +932,7 @@ D:The dagger of Azaghal, Lord of Belegost, who stood against Glaurung the
 D: Father of Dragons in the Nirnaeth Arnoediad when all others fled. The
 D: Dwarves alone could withstand the dragon's gaze, and when Glaurung bore
 D: down upon Azaghal, the Dwarf-lord drove this blade into the dragon's
-D: belly - the first wound Glaurung ever suffered. Azaghal died crushed
+D: belly—the first wound Glaurung ever suffered. Azaghal died crushed
 D: beneath the wyrm, but Glaurung fled in agony. The blade is still black
 D: with dragon-blood and burns with the wrath of Belegost.
 
@@ -1067,7 +1067,7 @@ D:A rune-etched knife of Mim, last of the Petty-dwarves who dwelt on Amon
 D: Rudh. His folk were the first Dwarves to enter Beleriand, exiled by their
 D: own kin, and they hated all others. When Túrin sheltered with him, Mim
 D: betrayed him to Morgoth's orcs for gold. The runes upon this blade exude
-D: venom, and a curse clings to it still - the bitterness of a diminished
+D: venom, and a curse clings to it still—the bitterness of a diminished
 D: people and the treachery that brought their line to ruin.
 
 ## The Shortsword of Amrod
@@ -1284,7 +1284,7 @@ D:The black sword Anglachel, forged by Eol of Nan Elmoth from star-iron.
 D: It was brought to Thingol in Doriath, and later borne by Beleg
 D: Cuthalion. Its edge is dreadful keen, and a cold will seems to wake
 D: when it is drawn. Many have found that mischance follows where this
-D: blade passes - as though it remembers every death it has dealt.
+D: blade passes—as though it remembers every death it has dealt.
 
 # Gurthang (Black Sword of Túrin)
 # Smithing difficulty: 60
@@ -1299,7 +1299,7 @@ B:4/5/8
 D:The sable sword reforged from Anglachel, wielded by Túrin. Its blade can
 D: slice iron like parchment, and it drinks deeply of blood. A fell curse 
 D: lies upon it: once unsheathed, it must taste blood. The sword's grim will 
-D: fills its master with fearless despair, drawing mighty foes nigh - and 
+D: fills its master with fearless despair, drawing mighty foes nigh—and 
 D: giving strength to slay them.
 
 # Smithing difficulty: 59
@@ -1607,7 +1607,7 @@ D:A great spear with a point like a sharp thorn of steel, originally forged
 D: by the Noldor for hunting the great spiders of Nan Dungortheb. Ogbar, a
 D: chieftain of the Easterlings who served Morgoth, slew its bearer in the
 D: treachery of the Nirnaeth Arnoediad and claimed it as spoil. Though made
-D: for nobler hands, the spear's virtue remains - its edge is death to the
+D: for nobler hands, the spear's virtue remains—its edge is death to the
 D: spawn of Ungoliant, and it pierces the thickest spider-hide with ease.
 
 
@@ -1629,7 +1629,7 @@ B:0/11
 D:The black spear of Melkor Morgoth, mightiest of the Ainur who fell, wielded
 D: in the hour when he and the great spider Ungoliant came in darkness to the
 D: heart of Valinor. With this weapon he struck the Two Trees of Yavanna -
-D: Telperion the White and Laurelin the Gold - and Ungoliant's venom poured
+D: Telperion the White and Laurelin the Gold—and Ungoliant's venom poured
 D: into the wounds until all the light of the world was swallowed. The weapon
 D: still carries a sliver of that primal malice, and even to touch it is to
 D: feel the cold of the Unlight that once shrouded the land in darkness.
@@ -1648,7 +1648,7 @@ P:0:4d3:0:0d0
 F:CON | SLAY_ORC | SLAY_SPIDER | NOBLE_ITEM
 D:A sharp and well-made axe gifted to Haldan, Lord of the Men of Brethil,
 D: by the Dwarves of the Blue Mountains. When he asked its name, the Dwarves
-D: replied 'Binahkram' - meaning 'without name' in their secret tongue, for
+D: replied 'Binahkram'—meaning 'without name' in their secret tongue, for
 D: they do not share true names with outsiders. The Haladin, not understanding,
 D: took this as the axe's name, and so it has been called ever since. It bites
 D: deep into orc-flesh and spider-hide alike.
@@ -1706,7 +1706,7 @@ D: Angband by Morgoth Bauglir himself for the breaking of kin and the severing
 D: of hope. Many are the lives it has claimed, and each one it remembers: it
 D: is blood-warm to the touch and thirsting always for vitality, drinking
 D: deeply of those it wounds. Those who wield it are haunted by the cries of
-D: the slain - mothers weeping over fallen sons in the wars of Beleriand.
+D: the slain—mothers weeping over fallen sons in the wars of Beleriand.
 
 
 ## The Great Axe of Dolmed
@@ -1744,7 +1744,7 @@ B:5/8
 D:A great axe forged in Belegost, the northern Dwarven city of the Blue
 D: Mountains. Both blade and haft are made from a single piece of blackened
 D: steel. Engraved upon the axehead are the names of Belegost's valiant
-D: fallen - warriors who stood against Morgoth's trolls when they descended
+D: fallen—warriors who stood against Morgoth's trolls when they descended
 D: from Angband. It is called 'Mazarbulbark' in the Dwarven tongue, meaning
 D: 'the axe that is written upon', and it fills its wielder with vengeance.
 
@@ -1780,7 +1780,7 @@ D:A sleek hand axe forged by Maeglin, Lord of the House of the Mole, who
 D: learned his father Eol's secrets of working Galvorn and star-iron. The
 D: blade is dark as a moonless night and cuts through armour with ease.
 D: Maeglin delved deep beneath Gondolin seeking metals and gems, and his
-D: skill was great - yet he betrayed the Hidden City to Morgoth for the
+D: skill was great—yet he betrayed the Hidden City to Morgoth for the
 D: promise of Idril. This axe remembers that treachery in its very edge.
 
 ## The Glaive of Gaurin
@@ -1817,7 +1817,7 @@ W:10:20:70:50000
 P:0:2d10:1:0d0
 B:0/10:3/4
 D:Named for the great River Sirion that flowed through the heart of
-D: Beleriand, this glaive moves like its waters - ever restless, seeking
+D: Beleriand, this glaive moves like its waters—ever restless, seeking
 D: every gap and opening. The Sirion was the mightiest river of those
 D: lands, and many realms rose and fell along its banks. In battle, this
 D: blade flows around defences and strikes where foes least expect.
@@ -2000,7 +2000,7 @@ D:A helm wrought of grey metal and set with the bones of an orc who dared
 D: raise his blade against his own master. In Angband, such treachery was
 D: punished with torments beyond imagining, yet this one's defiance was
 D: preserved in mockery. The helm carries the stain of betrayal, but also
-D: the power to break bonds - even the dread Oath of Fëanor holds less
+D: the power to break bonds—even the dread Oath of Fëanor holds less
 D: sway over one who wears it.
 
 ## The Great Helm of Dor-Lomin
@@ -2794,7 +2794,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, forged in Angband to bear the three
 D: Silmarils, the stolen light of the Two Trees. Now all three jewels are
-D: gone, and the crown sits cold and empty - three dark sockets where stars
+D: gone, and the crown sits cold and empty—three dark sockets where stars
 D: once blazed, a monument to a glory stolen and a glory lost. Much of the
 D: Dark Lord's will was poured into its making.
 
@@ -2811,7 +2811,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. Two sockets are empty and dark, but in the third burns
-D: still a Silmaril - a jewel of Fëanor, containing the imperishable light of
+D: still a Silmaril—a jewel of Fëanor, containing the imperishable light of
 D: the Two Trees of Valinor. It is the greatest treasure remaining in
 D: Middle-earth, and the Oath of Fëanor binds his sons to claim it.
 
@@ -2828,7 +2828,7 @@ P:0:0d0:0:0d0:0
 F:INSTA_ART | EVIL_ITEM
 D:The Iron Crown of Morgoth Bauglir, wrought in Angband to hold the stolen
 D: light of the world. One socket gapes empty and dark, but in the other two
-D: burn still two Silmarils - jewels of Fëanor, containing the imperishable
+D: burn still two Silmarils—jewels of Fëanor, containing the imperishable
 D: light of the Two Trees. They are the greatest treasures remaining in
 D: Middle-earth, and war and ruin have followed in their wake.
 

@@ -8741,6 +8741,17 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
             para_len = 0;
             sdl_character_sheet_screen_break_book_page();
         }
+        /* A "[highlight]" line flushes the current paragraph and marks the next
+         * one as the quest's task or reward, drawn in light blue so the player
+         * can find it without reading the whole passage. */
+        else if (line && streq(line, "[highlight]"))
+        {
+            if (para_len > 0)
+                sdl_character_sheet_screen_add_book_paragraph(para);
+            para[0] = '\0';
+            para_len = 0;
+            sdl_character_sheet_screen_highlight_book_paragraph();
+        }
         else if (line && line[0])
         {
             if (para_len > 0 && para_len + 1 < sizeof(para))

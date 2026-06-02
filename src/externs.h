@@ -1671,6 +1671,7 @@ extern bool sdl_character_sheet_screen_commit_select(int selected_index);
 extern bool sdl_character_sheet_screen_begin_book(cptr title);
 extern void sdl_character_sheet_screen_add_book_paragraph(cptr text);
 extern void sdl_character_sheet_screen_break_book_page(void);
+extern void sdl_character_sheet_screen_highlight_book_paragraph(void);
 extern void sdl_character_sheet_screen_commit_book(void);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
@@ -2071,6 +2072,11 @@ extern int get_sdl_platform_max_main_view_scale(void);
 extern int get_sdl_terminal_menu_scale(void);
 extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
+extern bool sdl_description_overlay_present(const byte* attrs,
+    const char* chars, const byte* tattrs, const char* tchars,
+    const byte* story, int width, int height, int scroll,
+    int* out_visible_rows, int* out_max_scroll);
+extern void sdl_description_overlay_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);
 extern void sdl_set_present_suppressed(bool suppressed);
