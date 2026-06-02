@@ -3541,6 +3541,75 @@ static bool birth_peoples_validate(void)
  * racial affinities show); affinities_vary suppresses the affinity list for
  * the multi-lineage Noldor people, where it differs per lineage.
  */
+static void birth_format_character_power(byte power, bool leading_space,
+    char* stars, size_t stars_len, byte* attr, cptr* label)
+{
+    cptr star_text = "**";
+    byte star_attr = TERM_WHITE;
+    cptr power_label = "Fair";
+
+    switch (power)
+    {
+    case 0:
+        star_text = "*";
+        star_attr = TERM_RED;
+        power_label = "Weak";
+        break;
+    case 1:
+        star_text = "**";
+        star_attr = TERM_WHITE;
+        power_label = "Fair";
+        break;
+    case 2:
+        star_text = "***";
+        star_attr = TERM_GREEN;
+        power_label = "Strong";
+        break;
+    case 3:
+    case 4:
+        star_text = "***";
+        star_attr = TERM_L_GREEN;
+        power_label = "Mighty";
+        break;
+    default:
+        break;
+    }
+
+    if (stars && stars_len > 0)
+        strnfmt(stars, stars_len, "%s%s", leading_space ? " " : "",
+            star_text);
+    if (attr)
+        *attr = star_attr;
+    if (label)
+        *label = power_label;
+}
+
+static void birth_count_alive_character_powers(int power_counts[4])
+{
+    int i;
+
+    if (!power_counts)
+        return;
+    for (i = 0; i < 4; i++)
+        power_counts[i] = 0;
+    if (!z_info || !c_info || !c_name)
+        return;
+
+    for (i = 0; i < z_info->c_max; i++)
+    {
+        byte power;
+
+        if (highscore_dead(c_name + c_info[i].name))
+            continue;
+
+        power = c_info[i].power;
+        if (power == 4)
+            power_counts[3]++;
+        else if (power <= 3)
+            power_counts[power]++;
+    }
+}
+
 static void birth_select_emit_detail(int race, int character, bool affinities_vary)
 {
     char line[128];
@@ -3578,6 +3647,44 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
         hint[0] = '\0';
         character_sheet_format_stat_hint(i, adj, true, hint, sizeof(hint));
         sdl_character_sheet_screen_add_select_detail(line, attr, hint);
+    }
+
+    if (character >= 0)
+    {
+        char pretty_name[40];
+        char title_stars[16];
+        char stars[16];
+        byte star_attr;
+        int power_counts[4];
+
+        strnfmt(pretty_name, sizeof(pretty_name), "%s%s",
+            c_name + c_info[character].name,
+            c_name + c_info[character].alt_name);
+        birth_count_alive_character_powers(power_counts);
+
+        sdl_character_sheet_screen_begin_select_rating_summary("Heroes Power");
+        birth_format_character_power(3, false, stars, sizeof(stars),
+            &star_attr, NULL);
+        sdl_character_sheet_screen_add_select_rating("Mighty", stars,
+            power_counts[3], star_attr, "Mighty heroes still alive.");
+        birth_format_character_power(2, false, stars, sizeof(stars),
+            &star_attr, NULL);
+        sdl_character_sheet_screen_add_select_rating("Strong", stars,
+            power_counts[2], star_attr, "Strong heroes still alive.");
+        birth_format_character_power(1, false, stars, sizeof(stars),
+            &star_attr, NULL);
+        sdl_character_sheet_screen_add_select_rating("Fair", stars,
+            power_counts[1], star_attr, "Fair heroes still alive.");
+        birth_format_character_power(0, false, stars, sizeof(stars),
+            &star_attr, NULL);
+        sdl_character_sheet_screen_add_select_rating("Weak", stars,
+            power_counts[0], star_attr, "Weak heroes still alive.");
+
+        birth_format_character_power(c_info[character].power, true,
+            title_stars, sizeof(title_stars), &star_attr, NULL);
+
+        sdl_character_sheet_screen_set_select_title_detail(pretty_name,
+            title_stars, star_attr);
     }
 
     if (affinities_vary)
@@ -3882,31 +3989,8 @@ static void character_aux_hook(birth_menu c_str)
     /* Add power stars to the character name */
     char power_stars[16];
     byte star_attr;
-    byte power = c_info[character_idx].power;
-    switch (power)
-    {
-        case 0: 
-            star_attr = TERM_RED; 
-            strnfmt(power_stars, sizeof(power_stars), " *"); 
-            break;           /* Weak - 1 red star */
-        case 1: 
-            star_attr = TERM_WHITE; 
-            strnfmt(power_stars, sizeof(power_stars), " **"); 
-            break;          /* Average - 2 white stars */
-        case 2: 
-            star_attr = TERM_GREEN; 
-            strnfmt(power_stars, sizeof(power_stars), " ***"); 
-            break;         /* Powerful - 3 green stars */
-        case 3: 
-        case 4:
-            star_attr = TERM_L_GREEN; 
-            strnfmt(power_stars, sizeof(power_stars), " ***"); 
-            break;        /* Very Powerful - 3 bright green stars (P:3 or P:4) */
-        default: 
-            star_attr = TERM_WHITE; 
-            strnfmt(power_stars, sizeof(power_stars), " **"); 
-            break;         /* Default to average */
-    }
+    birth_format_character_power(c_info[character_idx].power, true,
+        power_stars, sizeof(power_stars), &star_attr, NULL);
     
     fallback_name_col = QUESTION_COL
         + utf8_display_width_n(character_selection_header_text(true),
@@ -4001,21 +4085,7 @@ static void character_aux_hook(birth_menu c_str)
         {
             /* Count alive heroes by power level across ALL races */
             int power_counts[4] = {0, 0, 0, 0};  /* weak, fair, strong, mighty (P:3/P:4) */
-            for (int i = 0; i < z_info->c_max; i++)
-            {
-                /* Count only characters that are NOT dead (alive) */
-                if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
-                {
-                    byte power = c_info[i].power;
-                    if (power <= 4)
-                    {
-                        if (power == 4)
-                            power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
-                        else
-                            power_counts[power]++;
-                    }
-                }
-            }
+            birth_count_alive_character_powers(power_counts);
 
             /* Display legend without "Power Rating:" header */
             Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
