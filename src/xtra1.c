@@ -18,7 +18,11 @@
 
 static bool ui_hide_left_panel(void)
 {
+#ifdef USE_SDL
+    return !g_sdl_left_panel_pane_source_active;
+#else
     return get_sdl_hide_left_panel();
+#endif
 }
 
 #ifndef USE_SDL
@@ -1491,7 +1495,11 @@ static enum pane_placement hidden_left_panel_placement(void)
 
 static bool hidden_left_panel_visible(void)
 {
+#ifdef USE_SDL
+    return false;
+#else
     return ui_hide_left_panel() && !g_suppress_hidden_left_panel_overlay;
+#endif
 }
 
 static bool hidden_left_panel_placement_is_right(enum pane_placement where)

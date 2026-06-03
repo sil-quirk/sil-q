@@ -2112,6 +2112,9 @@ extern void set_sdl_enable_bottom_panes(bool value);
 extern bool get_sdl_show_pane_borders(void);
 extern void set_sdl_show_pane_borders(bool value);
 extern bool g_hide_left_panel;
+#ifdef USE_SDL
+extern bool g_sdl_left_panel_pane_source_active;
+#endif
 extern bool g_suppress_hidden_left_panel_overlay;
 extern byte g_hidden_left_panel_overlay_start_row;
 extern byte g_hidden_left_panel_overlay_rows;

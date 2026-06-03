@@ -127,8 +127,10 @@ typedef enum sdl_startup_device_class {
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 bool g_hide_left_panel = false;
+bool g_sdl_left_panel_pane_source_active = false;
 static bool g_left_panel_pane_expanded = false;
 static int g_saved_screen_left_panel_pane_depth = 0;
+static bool g_last_main_cell_hit_left_panel = false;
 
 // Sound configuration (loaded from sound.json)
 struct sound_config g_sound_config;
@@ -1127,6 +1129,7 @@ typedef struct object_tooltip_state {
     bool active;
     bool touch;
     bool term_cell;
+    bool character_panel_cell;
     int map_y;
     int map_x;
     int cell_col;
@@ -3313,11 +3316,52 @@ static bool sdl_left_panel_content_size_for_term(const term* t,
     return true;
 }
 
+static bool sdl_left_panel_render_source_term(const sdl_view* view,
+    int source_rows, term* panel_term, int* out_source_w, int* out_source_h)
+{
+    term* old_term;
+    bool old_source_active;
+    int source_w;
+    int source_h;
+
+    if (out_source_w)
+        *out_source_w = 0;
+    if (out_source_h)
+        *out_source_h = 0;
+    if (!view || !view->term_ready || !panel_term || source_rows <= 0)
+        return false;
+
+    source_w = MAX(view->t.wid, LEFT_PANEL_WID);
+    source_h = source_rows;
+    if (source_h >= 23)
+        source_h = MAX(source_h, 24);
+    if (source_h < 1)
+        source_h = 1;
+
+    if (term_init(panel_term, source_w, source_h, 16) != 0)
+        return false;
+
+    old_term = Term;
+    old_source_active = g_sdl_left_panel_pane_source_active;
+    g_sdl_left_panel_pane_source_active = true;
+    Term_activate(panel_term);
+    prt_frame_basic();
+    Term_activate(old_term);
+    g_sdl_left_panel_pane_source_active = old_source_active;
+
+    if (out_source_w)
+        *out_source_w = source_w;
+    if (out_source_h)
+        *out_source_h = source_h;
+    return true;
+}
+
+static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
+    int source_rows, int* out_cols, int* out_rows);
+
 static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
     int* out_cols, int* out_rows)
 {
-    term saved_term;
-    const term* source_term;
     int scan_rows;
 
     if (out_cols)
@@ -3331,15 +3375,7 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
     if (scan_rows <= 0 && view->rows > 0)
         scan_rows = view->rows;
 
-    source_term = &view->t;
-    if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
-    {
-        saved_term = view->t;
-        saved_term.scr = view->t.mem;
-        source_term = &saved_term;
-    }
-
-    return sdl_left_panel_content_size_for_term(source_term, scan_rows,
+    return sdl_left_panel_content_size_for_scratch(view, scan_rows,
         out_cols, out_rows);
 }
 
@@ -3347,7 +3383,6 @@ static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
     int source_rows, int* out_cols, int* out_rows)
 {
     term panel_term;
-    term* old_term;
     int source_w;
     int source_h;
     bool measured = false;
@@ -3364,20 +3399,13 @@ static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
     if (!view || !view->term_ready || source_rows <= 0)
         return false;
 
-    source_w = MAX(view->t.wid, LEFT_PANEL_WID);
-    source_h = source_rows;
-    if (source_h >= 23)
-        source_h = MAX(source_h, 24);
-
-    if (term_init(&panel_term, source_w, source_h, 16) != 0)
+    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+            &source_w, &source_h))
+    {
         return false;
-
-    old_term = Term;
-    Term_activate(&panel_term);
-    prt_frame_basic();
-    measured = sdl_left_panel_content_size_for_term(&panel_term,
-        source_h, out_cols, out_rows);
-    Term_activate(old_term);
+    }
+    measured = sdl_left_panel_content_size_for_term(&panel_term, source_h,
+        out_cols, out_rows);
     term_nuke(&panel_term);
 
     if (measured
@@ -3399,25 +3427,15 @@ static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
     return measured;
 }
 
-static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
+static int sdl_left_panel_source_row_width_for_term(const term* t,
     int source_row)
 {
-    term saved_term;
-    const term* t;
     term_win* scr;
     int scan_cols;
     int max_col = -1;
 
-    if (!view || !view->term_ready || source_row < 0)
+    if (!t || source_row < 0)
         return 0;
-
-    t = &view->t;
-    if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
-    {
-        saved_term = view->t;
-        saved_term.scr = view->t.mem;
-        t = &saved_term;
-    }
     if (source_row >= t->hgt)
         return 0;
 
@@ -3450,6 +3468,30 @@ static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
     }
 
     return max_col + 1;
+}
+
+static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
+    int source_row)
+{
+    term panel_term;
+    int source_rows;
+    int width;
+
+    if (!view || !view->term_ready || source_row < 0)
+        return 0;
+
+    source_rows = sdl_left_panel_pane_rows_for_view(view);
+    if (source_rows <= source_row)
+        source_rows = source_row + 1;
+    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+            NULL, NULL))
+    {
+        return 0;
+    }
+
+    width = sdl_left_panel_source_row_width_for_term(&panel_term, source_row);
+    term_nuke(&panel_term);
+    return width;
 }
 
 static bool sdl_left_panel_compact_light_span_for_term(const term* t,
@@ -3502,30 +3544,29 @@ static int sdl_left_panel_compact_source_row_width_for_view(
     const sdl_view* view, int source_row, bool row_mode)
 {
     if (row_mode && source_row == ROW_LIGHT) {
-        term saved_term;
-        const term* source_term = NULL;
-        term_win* source_scr = NULL;
+        term panel_term;
         sdl_left_panel_compact_light_span span;
+        int source_rows;
+        int width = 0;
 
-        if (view && view->term_ready)
+        if (!view || !view->term_ready)
+            return 0;
+
+        source_rows = sdl_left_panel_pane_rows_for_view(view);
+        if (source_rows <= source_row)
+            source_rows = source_row + 1;
+        if (sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+                NULL, NULL))
         {
-            source_term = &view->t;
-            source_scr = view->t.scr;
-            if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
+            if (sdl_left_panel_compact_light_span_for_term(&panel_term,
+                    panel_term.scr, &span))
             {
-                saved_term = view->t;
-                saved_term.scr = view->t.mem;
-                source_term = &saved_term;
-                source_scr = view->t.mem;
+                width = span.packed_width;
             }
+            term_nuke(&panel_term);
         }
-
-        if (source_term && source_scr
-            && sdl_left_panel_compact_light_span_for_term(source_term,
-                source_scr, &span))
-        {
-            return span.packed_width;
-        }
+        if (width > 0)
+            return width;
     }
 
     return sdl_left_panel_source_row_width_for_view(view, source_row);
@@ -16008,118 +16049,6 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
     grid_x = (float)(view->rect.x + view->margin_x);
     grid_y = (float)(view->rect.y + view->margin_y);
 
-    if (sdl_left_panel_pane_presentation_active()) {
-        sdl_left_panel_metrics metrics;
-        int start = col;
-        int end = col + cols;
-        int end_row = row + rows;
-        SDL_FRect panel_rect;
-        float panel_content_x;
-        bool have = false;
-        float x1 = 0.0f;
-        float y1 = 0.0f;
-        float x2 = 0.0f;
-        float y2 = 0.0f;
-
-        if (!sdl_left_panel_metrics_for_view(view, &metrics))
-            return false;
-        if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics,
-                &panel_rect))
-        {
-            return false;
-        }
-
-        if (end < start)
-            end = view->cols;
-        if (end_row < row)
-            end_row = view->rows;
-        if (end_row > visual_rows)
-            end_row = visual_rows;
-        panel_content_x = panel_rect.x
-            + (float)sdl_left_panel_content_x_for_metrics(&metrics);
-
-        if (metrics.collapsed) {
-            for (int i = 0; i < metrics.compact_segment_count; i++) {
-                int source_row = metrics.compact_source_rows[i];
-                int c0;
-                int c1;
-
-                if (source_row < row || source_row >= end_row)
-                    continue;
-
-                c0 = MAX(start, 0);
-                c1 = MIN(end, metrics.compact_widths[i]);
-                if (c1 > c0) {
-                    SDL_FRect r = {
-                        .x = panel_content_x
-                            + (float)((metrics.compact_output_cols[i] + c0)
-                                * metrics.cell_w),
-                        .y = panel_rect.y
-                            + (float)(metrics.compact_output_rows[i]
-                                * metrics.cell_h),
-                        .w = (float)((c1 - c0) * metrics.cell_w),
-                        .h = (float)metrics.cell_h,
-                    };
-                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
-                }
-            }
-        } else {
-            if (start < metrics.content_cols && end > 0
-                && row < metrics.panel_rows)
-            {
-                int c0 = MAX(start, 0);
-                int c1 = MIN(end, metrics.content_cols);
-                int r1 = MIN(end_row, metrics.panel_rows);
-
-                if (c1 > c0 && r1 > row) {
-                    SDL_FRect r = {
-                        .x = panel_content_x + (float)(c0 * metrics.cell_w),
-                        .y = panel_rect.y + (float)(row * metrics.cell_h),
-                        .w = (float)((c1 - c0) * metrics.cell_w),
-                        .h = (float)((r1 - row) * metrics.cell_h),
-                    };
-                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
-                }
-            }
-        }
-
-        if (start < view->cols && end > COL_MAP) {
-            int c0 = MAX(start, COL_MAP);
-            int c1 = MIN(end, MIN(view->cols, COL_MAP + visual_cols));
-            int visible_c0 = c0 - COL_MAP;
-            int visible_c1 = c1 - COL_MAP;
-
-            if (visible_c0 < 0)
-                visible_c0 = 0;
-            if (visible_c1 > visual_cols)
-                visible_c1 = visual_cols;
-            if (visible_c1 > visible_c0) {
-                int map_x0 = visible_c0 * view->cell_w;
-                int map_x1 = visible_c1 * view->cell_w;
-                int r0 = row;
-                int r1 = end_row;
-
-                if (r1 > visual_rows)
-                    r1 = visual_rows;
-                if (r1 > r0) {
-                    SDL_FRect r = {
-                        .x = grid_x + (float)map_x0,
-                        .y = grid_y + (float)(r0 * view->cell_h),
-                        .w = (float)(map_x1 - map_x0),
-                        .h = (float)(r1 - r0) * (float)view->cell_h,
-                    };
-                    sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
-                }
-            }
-        }
-
-        if (!have)
-            return false;
-
-        *out = (SDL_FRect){ .x = x1, .y = y1, .w = x2 - x1, .h = y2 - y1 };
-        return out->w > 0.0f && out->h > 0.0f;
-    }
-
     if (col >= visual_cols)
         return false;
     if (cols > visual_cols - col)
@@ -16138,6 +16067,103 @@ static bool sdl_main_cell_rect(int col, int row, int cols, int rows,
     return true;
 }
 
+static bool sdl_left_panel_source_cell_rect(int col, int row, int cols,
+    int rows, SDL_FRect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    sdl_left_panel_metrics metrics;
+    SDL_FRect panel_rect;
+    float panel_content_x;
+
+    if (!out)
+        return false;
+    *out = (SDL_FRect){ 0 };
+    if (!sdl_left_panel_pane_presentation_active())
+        return false;
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0
+        || view->cols <= 0 || view->rows <= 0)
+    {
+        return false;
+    }
+    if (col < 0 || row < 0 || cols <= 0 || rows <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+    if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &panel_rect))
+        return false;
+
+    panel_content_x = panel_rect.x
+        + (float)sdl_left_panel_content_x_for_metrics(&metrics);
+
+    if (metrics.collapsed) {
+        bool have = false;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        float x2 = 0.0f;
+        float y2 = 0.0f;
+        int end_col = col + cols;
+        int end_row = row + rows;
+
+        if (end_col < col)
+            end_col = LEFT_PANEL_CONTENT_WID;
+        if (end_row < row)
+            end_row = row + 1;
+
+        for (int i = 0; i < metrics.compact_segment_count; i++) {
+            int source_row = metrics.compact_source_rows[i];
+            int c0;
+            int c1;
+
+            if (source_row < row || source_row >= end_row)
+                continue;
+
+            c0 = MAX(col, 0);
+            c1 = MIN(end_col, metrics.compact_widths[i]);
+            if (c1 > c0) {
+                SDL_FRect r = {
+                    .x = panel_content_x
+                        + (float)((metrics.compact_output_cols[i] + c0)
+                            * metrics.cell_w),
+                    .y = panel_rect.y
+                        + (float)(metrics.compact_output_rows[i]
+                            * metrics.cell_h),
+                    .w = (float)((c1 - c0) * metrics.cell_w),
+                    .h = (float)metrics.cell_h,
+                };
+                sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+            }
+        }
+
+        if (!have)
+            return false;
+
+        *out = (SDL_FRect){ .x = x1, .y = y1, .w = x2 - x1, .h = y2 - y1 };
+        return out->w > 0.0f && out->h > 0.0f;
+    }
+
+    if (col >= metrics.content_cols || row >= metrics.panel_rows)
+        return false;
+    if (cols > metrics.content_cols - col)
+        cols = metrics.content_cols - col;
+    if (rows > metrics.panel_rows - row)
+        rows = metrics.panel_rows - row;
+    if (cols <= 0 || rows <= 0)
+        return false;
+
+    *out = (SDL_FRect){
+        .x = panel_content_x + (float)(col * metrics.cell_w),
+        .y = panel_rect.y + (float)(row * metrics.cell_h),
+        .w = (float)(cols * metrics.cell_w),
+        .h = (float)(rows * metrics.cell_h),
+    };
+    if (out->y + out->h > panel_rect.y + (float)metrics.panel_render_h)
+        out->h = panel_rect.y + (float)metrics.panel_render_h - out->y;
+
+    return out->w > 0.0f && out->h > 0.0f;
+}
+
 static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
@@ -16150,6 +16176,7 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
 
     if (!out_col || !out_row)
         return false;
+    g_last_main_cell_hit_left_panel = false;
     if (!view->term_ready || !view->canvas)
         return false;
     if (view->cell_w <= 0 || view->cell_h <= 0 || view->cols <= 0 || view->rows <= 0)
@@ -16244,12 +16271,14 @@ static bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out
 
                     *out_col -= seg_col;
                     *out_row = metrics.compact_source_rows[i];
+                    g_last_main_cell_hit_left_panel = true;
                     return true;
                 }
 
                 return false;
             }
 
+            g_last_main_cell_hit_left_panel = true;
             return true;
         }
 
@@ -20472,6 +20501,7 @@ static void sdl_object_tooltip_clear(void)
     g_object_tooltip.active = false;
     g_object_tooltip.touch = false;
     g_object_tooltip.term_cell = false;
+    g_object_tooltip.character_panel_cell = false;
     g_object_tooltip.map_y = 0;
     g_object_tooltip.map_x = 0;
     g_object_tooltip.cell_col = 0;
@@ -20676,6 +20706,7 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     g_object_tooltip.active = true;
     g_object_tooltip.touch = touch;
     g_object_tooltip.term_cell = false;
+    g_object_tooltip.character_panel_cell = false;
     g_object_tooltip.map_y = map_y;
     g_object_tooltip.map_x = map_x;
     g_object_tooltip.cell_col = 0;
@@ -20687,8 +20718,8 @@ static bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     return true;
 }
 
-static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
-    cptr text, bool touch)
+static bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
+    cptr text, bool touch, bool character_panel_cell)
 {
     Uint64 expires_at = 0;
 
@@ -20706,6 +20737,7 @@ static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
 
     if (g_object_tooltip.active
         && g_object_tooltip.term_cell
+        && g_object_tooltip.character_panel_cell == character_panel_cell
         && g_object_tooltip.touch == touch
         && g_object_tooltip.cell_col == col
         && g_object_tooltip.cell_row == row
@@ -20720,6 +20752,7 @@ static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
     g_object_tooltip.active = true;
     g_object_tooltip.touch = touch;
     g_object_tooltip.term_cell = true;
+    g_object_tooltip.character_panel_cell = character_panel_cell;
     g_object_tooltip.map_y = 0;
     g_object_tooltip.map_x = 0;
     g_object_tooltip.cell_col = col;
@@ -20729,6 +20762,20 @@ static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
     SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
     return true;
+}
+
+static bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols,
+    cptr text, bool touch)
+{
+    return sdl_object_tooltip_show_text_at_cell_ex(col, row, cols, text,
+        touch, false);
+}
+
+static bool sdl_object_tooltip_show_character_panel_text_at_cell(int col,
+    int row, int cols, cptr text, bool touch)
+{
+    return sdl_object_tooltip_show_text_at_cell_ex(col, row, cols, text,
+        touch, true);
 }
 
 bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text,
@@ -20780,8 +20827,15 @@ static bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y)
 
     if (!g_object_tooltip.active || !g_object_tooltip.term_cell)
         return false;
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+    if (g_object_tooltip.character_panel_cell) {
+        if (!sdl_main_view_point_to_cell(x, y, &col, &row)
+            || !g_last_main_cell_hit_left_panel)
+        {
+            return false;
+        }
+    } else if (!sdl_main_view_point_to_cell(x, y, &col, &row)) {
         return false;
+    }
     if (row != g_object_tooltip.cell_row)
         return false;
 
@@ -20873,9 +20927,13 @@ static void sdl_object_tooltip_render(void)
     }
     if (g_object_tooltip.term_cell) {
         if (!g_object_tooltip.text[0]
-            || !sdl_main_cell_rect(g_object_tooltip.cell_col,
-                g_object_tooltip.cell_row, g_object_tooltip.cell_cols, 1,
-                &cell_rect))
+            || !(g_object_tooltip.character_panel_cell
+                ? sdl_left_panel_source_cell_rect(g_object_tooltip.cell_col,
+                    g_object_tooltip.cell_row, g_object_tooltip.cell_cols, 1,
+                    &cell_rect)
+                : sdl_main_cell_rect(g_object_tooltip.cell_col,
+                    g_object_tooltip.cell_row, g_object_tooltip.cell_cols, 1,
+                    &cell_rect)))
         {
             sdl_object_tooltip_clear();
             return;
@@ -23715,55 +23773,6 @@ static unsigned char sdl_screen_char_at(const term* t, int row, int col)
     return ch;
 }
 
-static bool sdl_screen_segment_contains_ci(const term* t, int row, int start_col,
-    int width, cptr needle)
-{
-    int needle_len;
-    int end_col;
-
-    if (!t || !needle)
-        return false;
-    if (row < 0 || row >= t->hgt || width <= 0)
-        return false;
-    if (start_col < 0)
-    {
-        width += start_col;
-        start_col = 0;
-    }
-    if (start_col >= t->wid)
-        return false;
-
-    end_col = start_col + width;
-    if (end_col > t->wid)
-        end_col = t->wid;
-
-    needle_len = (int)strlen(needle);
-    if (needle_len <= 0 || needle_len > end_col - start_col)
-        return false;
-
-    for (int col = start_col; col <= end_col - needle_len; col++)
-    {
-        bool match = true;
-
-        for (int i = 0; i < needle_len; i++)
-        {
-            unsigned char actual = sdl_screen_char_at(t, row, col + i);
-            unsigned char expected = (unsigned char)needle[i];
-
-            if (tolower(actual) != tolower(expected))
-            {
-                match = false;
-                break;
-            }
-        }
-
-        if (match)
-            return true;
-    }
-
-    return false;
-}
-
 static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
     int start_col, int width, int hit_col, cptr needle)
 {
@@ -23807,34 +23816,6 @@ static bool sdl_screen_segment_col_hits_ci(const term* t, int row,
         }
 
         if (match && hit_col >= col && hit_col < col + needle_len)
-            return true;
-    }
-
-    return false;
-}
-
-static bool sdl_screen_segment_has_nonblank(const term* t, int row,
-    int start_col, int width)
-{
-    int end_col;
-
-    if (!t || row < 0 || row >= t->hgt || width <= 0)
-        return false;
-    if (start_col < 0)
-    {
-        width += start_col;
-        start_col = 0;
-    }
-    if (start_col >= t->wid)
-        return false;
-
-    end_col = start_col + width;
-    if (end_col > t->wid)
-        end_col = t->wid;
-
-    for (int col = start_col; col < end_col; col++)
-    {
-        if (sdl_screen_char_at(t, row, col) != ' ')
             return true;
     }
 
@@ -26095,14 +26076,10 @@ static bool sdl_main_screen_cell_hits_character_panel(int col, int row)
     if (col < 0 || row < 0)
         return false;
 
-    if (!get_sdl_hide_left_panel()) {
-        if (sdl_left_panel_pane_presentation_active()
-            && sdl_left_panel_pane_collapsed())
-        {
-            return col >= 0 && col < LEFT_PANEL_CONTENT_WID
-                && (row == ROW_HP || row == ROW_SP || row == ROW_LIGHT);
-        }
+    if (g_last_main_cell_hit_left_panel)
+        return true;
 
+    if (!get_sdl_hide_left_panel()) {
         return (row > 0 && col < COL_MAP);
     }
 
@@ -26177,7 +26154,7 @@ static int sdl_visible_character_panel_attack_mode_at_cell(int col, int row)
 
     if (col < 0 || row < 0 || get_sdl_hide_left_panel())
         return SDL_POINTER_ATTACK_NONE;
-    if (col >= COL_MAP)
+    if (col >= LEFT_PANEL_CONTENT_WID)
         return SDL_POINTER_ATTACK_NONE;
 
     melee_uses_two_rows = inventory[INVEN_ARM].k_idx
@@ -26228,38 +26205,18 @@ static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
 
     if (col < 0 || row < 0 || get_sdl_hide_left_panel())
         return SDL_PANEL_CLICK_NONE;
-    if (col >= COL_MAP)
+    panel_width = LEFT_PANEL_CONTENT_WID;
+    if (col >= panel_width)
         return SDL_PANEL_CLICK_NONE;
-    if (!Term)
-        return SDL_PANEL_CLICK_NONE;
 
-    panel_width = COL_MAP;
-    if (panel_width <= 0)
-        panel_width = LEFT_PANEL_CONTENT_WID;
-
-    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Health")
-        || sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Hth"))
-    {
+    if (row == ROW_HP)
         return SDL_PANEL_CLICK_CHARACTER;
-    }
 
-    if (row == ROW_NAME
-        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
-    {
+    if (row == ROW_NAME || row == ROW_NAME + 1)
         return SDL_PANEL_CLICK_CHARACTER;
-    }
 
-    if (row == ROW_NAME + 1
-        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
-    {
-        return SDL_PANEL_CLICK_CHARACTER;
-    }
-
-    if (row == ROW_EXP
-        && sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Exp"))
-    {
+    if (row == ROW_EXP)
         return SDL_PANEL_CLICK_SKILL_DISTRIBUTION;
-    }
 
     if (row >= ROW_STAT && row < ROW_STAT + A_GRA)
         return SDL_PANEL_CLICK_ABILITIES;
@@ -26270,28 +26227,18 @@ static int sdl_visible_character_panel_click_action_at_cell(int col, int row)
         return SDL_PANEL_CLICK_SMITHING;
     }
 
-    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Voice")
-        || sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Vce"))
-    {
-        return SDL_PANEL_CLICK_SONG;
-    }
-
-    if (sdl_screen_segment_contains_ci(Term, row, 0, panel_width, "Singing"))
+    if (row == ROW_SP)
         return SDL_PANEL_CLICK_SONG;
 
     if (row == ROW_LIGHT)
         return SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
 
-    if (row == ROW_EVN
-        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
-    {
+    if (row == ROW_EVN)
         return SDL_PANEL_CLICK_INVENTORY;
-    }
 
     if ((row == ROW_SONG || row == ROW_SONG + 1)
         && p_ptr
-        && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING)
-        && sdl_screen_segment_has_nonblank(Term, row, 0, panel_width))
+        && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING))
     {
         return SDL_PANEL_CLICK_SONG;
     }
@@ -26424,8 +26371,8 @@ static void sdl_character_panel_show_hover_tooltip(int col, int row,
 
     sdl_character_panel_tooltip_span(col, row, attack_mode, click_action,
         &anchor_col, &anchor_cols);
-    (void)sdl_hover_tooltip_show_text(anchor_col, row, anchor_cols, text,
-        false);
+    (void)sdl_object_tooltip_show_character_panel_text_at_cell(anchor_col,
+        row, anchor_cols, text, false);
 }
 
 static bool sdl_handle_character_panel_click_action(int click_action)
@@ -35021,8 +34968,11 @@ static byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
 
     if (!sdl_left_panel_pane_presentation_active())
         return attr;
-    if (source_col < 0 || source_col >= COL_MAP || source_row < 0)
+    if (source_col < 0 || source_col >= LEFT_PANEL_CONTENT_WID
+        || source_row < 0)
+    {
         return attr;
+    }
 
     action = sdl_visible_character_panel_click_action_at_cell(source_col,
         source_row);
@@ -35269,7 +35219,6 @@ static void sdl_left_panel_debug_log_frame(const sdl_view* view,
 static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     const SDL_FRect* dst_left)
 {
-    const term* t;
     term_win* scr;
     const char* font_path;
     SDL_Texture* old_target;
@@ -35285,8 +35234,8 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     int atlas_cell_h;
     float content_x;
     term panel_term;
-    bool panel_term_ready = false;
     const term* source_term;
+    int source_rows;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
         return false;
@@ -35301,18 +35250,6 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
         return false;
     }
     content_x = (float)sdl_left_panel_content_x_for_metrics(&metrics);
-
-    t = &view->t;
-    scr = t->scr;
-    if (!scr || !scr->a || !scr->c)
-        return false;
-    source_term = t;
-    if (sdl_saved_screen_left_panel_pane_active() && t->mem
-        && t->mem->a && t->mem->c)
-    {
-        scr = t->mem;
-        source_term = t;
-    }
 
     canvas_w = metrics.total_w;
     canvas_h = metrics.corner_h;
@@ -35334,24 +35271,18 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 
-    if (!metrics.collapsed && t->hgt < metrics.panel_rows) {
-        int source_w = MAX(t->wid, LEFT_PANEL_WID);
-        int source_h = metrics.panel_rows;
-
-        if (source_h >= 23)
-            source_h = MAX(source_h, 24);
-
-        if (term_init(&panel_term, source_w, source_h, 16) == 0) {
-            term* old_term = Term;
-
-            panel_term_ready = true;
-            Term_activate(&panel_term);
-            prt_frame_basic();
-            Term_activate(old_term);
-            scr = panel_term.scr;
-            source_term = &panel_term;
-        }
+    source_rows = sdl_left_panel_pane_rows_for_view(view);
+    if (source_rows < metrics.panel_rows)
+        source_rows = metrics.panel_rows;
+    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+            NULL, NULL))
+    {
+        if (!font_cached)
+            SDL_DestroyTexture(font_atlas);
+        return false;
     }
+    scr = panel_term.scr;
+    source_term = &panel_term;
 
     old_target = SDL_GetRenderTarget(g_state.renderer);
     had_clip = SDL_RenderClipEnabled(g_state.renderer);
@@ -35413,8 +35344,7 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, NULL, dst_left);
     if (!font_cached)
         SDL_DestroyTexture(font_atlas);
-    if (panel_term_ready)
-        term_nuke(&panel_term);
+    term_nuke(&panel_term);
 
     return true;
 }

@@ -133,7 +133,11 @@
 #define LEFT_PANEL_CONTENT_WID 12
 #define LEFT_PANEL_SEPARATOR_WID 1
 #define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
+#ifdef USE_SDL
+#define COL_MAP 0
+#else
 #define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
+#endif
 #define ROW_STATUS \
     (SIL_UI_STATUS_ROW_COUNT ? (Term->hgt - 1) : Term->hgt)
 
