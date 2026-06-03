@@ -7169,7 +7169,9 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
     enhanced_inventory_selected_item = -1;
 
     screen_save();
+    sdl_push_saved_screen_left_panel_pane();
     show_inven_enhanced();
+    sdl_pop_saved_screen_left_panel_pane();
     screen_load();
 
     inventory_menu_set_include_equip(false);

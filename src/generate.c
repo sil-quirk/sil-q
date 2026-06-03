@@ -4920,7 +4920,6 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
     }
 
     /* Apply to cave: inside cave + platform = floor, inside cave + !platform = chasm */
-    int floor_count = 0;
     int chasm_count = 0;
     for (int gy = y1; gy <= y2; ++gy)
     {
@@ -4936,7 +4935,6 @@ static bool carve_chasm_with_bridges(int y_min, int y_max, int x_min, int x_max,
             {
                 cave_set_feat_style(gy, gx, FEAT_FLOOR, floor_style);
                 cave_info[gy][gx] |= CAVE_ROOM | CAVE_CHASM_AREA;
-                floor_count++;
             }
             else
             {
@@ -6714,11 +6712,9 @@ static void apply_quadrant_generation_modes(void)
                 int blob_target = (density == DENSITY_SPARSE) ? base_blobs :
                                   (density == DENSITY_DENSE) ? base_blobs + 2 : base_blobs + 1;
                 if (blob_target > 6) blob_target = 6;
-                int carved_blobs = 0;
 
                 for (int b = 0; b < blob_target; ++b)
-                    if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2, style_idx))
-                        carved_blobs++;
+                    carve_ca_blob_anchor_bounds(y1, y2, x1, x2, style_idx);
 
                 /* Scatter quartz veins for natural cave look */
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
@@ -6826,7 +6822,6 @@ static void apply_quadrant_generation_modes(void)
                 /* Single massive cavern - the cave IS the room */
                 bool carved = carve_big_cave_bounds(y1, y2, x1, x2, style_idx, cave_type);
                 int blob_count = 0;
-                int carved_blobs = 0;
                 if (!carved)
                 {
                     /* Fallback: many overlapping blobs */
@@ -6834,8 +6829,7 @@ static void apply_quadrant_generation_modes(void)
                     blob_count = (density == DENSITY_SPARSE) ? 5 :
                                  (density == DENSITY_DENSE) ? 10 : 7;
                     for (int b = 0; b < blob_count; ++b)
-                        if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2, ca_style))
-                            carved_blobs++;
+                        carve_ca_blob_anchor_bounds(y1, y2, x1, x2, ca_style);
                     /* Update partition mode to match fallback generation */
                     current_partition_modes[pi] = QUAD_MODE_CAVEY;
                     current_partition_big_cave_types[pi] = BIG_CAVE_NONE;
@@ -7009,10 +7003,8 @@ static void apply_quadrant_generation_modes(void)
             {
                 int blob_target = 2 + (y2 - y1) * (x2 - x1) / 400;
                 if (blob_target > 6) blob_target = 6;
-                int carved_blobs = 0;
                 for (int b = 0; b < blob_target; ++b)
-                    if (carve_ca_blob_anchor_bounds(y1, y2, x1, x2, style_idx))
-                        carved_blobs++;
+                    carve_ca_blob_anchor_bounds(y1, y2, x1, x2, style_idx);
                 scatter_quartz_veins_in_bounds(y1, y2, x1, x2, 0);
                 set_partition_chest_recipe(&current_partition_population_meta[pi], 0,
                     0, 100, 0, 0, PARTITION_CHEST_ANCHOR_ANY);

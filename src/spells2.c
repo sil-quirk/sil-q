@@ -943,7 +943,7 @@ static bool render_resistance_summary(const char* text)
 void self_knowledge(void)
 {
     int i = 0, j, k;
-    u32b f1 = 0L, f2 = 0L, f3 = 0L;
+    u32b f2 = 0L, f3 = 0L;
     object_type* o_ptr;
 
     char s[100][200];
@@ -1000,7 +1000,7 @@ void self_knowledge(void)
             if (is_quiver2 && !is_throwing_item)
                 continue;
         }
-        f1 |= t1; f2 |= t2; f3 |= t3;
+        f2 |= t2; f3 |= t3;
 
         if (t2 & TR2_LIGHT) light++;
         if (t2 & TR2_DARKNESS) light--;

@@ -128,6 +128,7 @@ typedef enum sdl_startup_device_class {
 struct sdl_config config;
 bool g_hide_left_panel = false;
 static bool g_left_panel_pane_expanded = false;
+static int g_saved_screen_left_panel_pane_depth = 0;
 
 // Sound configuration (loaded from sound.json)
 struct sound_config g_sound_config;
@@ -2214,6 +2215,7 @@ static int sdl_effective_pane_cell_height_for_type(enum pane_type type);
 static bool sdl_left_panel_pane_layout_enabled(void);
 static bool sdl_left_panel_pane_presentation_active(void);
 static bool sdl_left_panel_pane_runtime_active(void);
+static bool sdl_saved_screen_left_panel_pane_active(void);
 static bool sdl_left_panel_pane_collapsed(void);
 static enum pane_placement sdl_left_panel_pane_placement(void);
 static bool sdl_left_panel_compact_row_mode(void);
@@ -3314,6 +3316,8 @@ static bool sdl_left_panel_content_size_for_term(const term* t,
 static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
     int* out_cols, int* out_rows)
 {
+    term saved_term;
+    const term* source_term;
     int scan_rows;
 
     if (out_cols)
@@ -3327,7 +3331,15 @@ static bool sdl_left_panel_content_size_for_view(const sdl_view* view,
     if (scan_rows <= 0 && view->rows > 0)
         scan_rows = view->rows;
 
-    return sdl_left_panel_content_size_for_term(&view->t, scan_rows,
+    source_term = &view->t;
+    if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
+    {
+        saved_term = view->t;
+        saved_term.scr = view->t.mem;
+        source_term = &saved_term;
+    }
+
+    return sdl_left_panel_content_size_for_term(source_term, scan_rows,
         out_cols, out_rows);
 }
 
@@ -3390,6 +3402,7 @@ static bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
 static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
     int source_row)
 {
+    term saved_term;
     const term* t;
     term_win* scr;
     int scan_cols;
@@ -3399,6 +3412,12 @@ static int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
         return 0;
 
     t = &view->t;
+    if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
+    {
+        saved_term = view->t;
+        saved_term.scr = view->t.mem;
+        t = &saved_term;
+    }
     if (source_row >= t->hgt)
         return 0;
 
@@ -3483,11 +3502,27 @@ static int sdl_left_panel_compact_source_row_width_for_view(
     const sdl_view* view, int source_row, bool row_mode)
 {
     if (row_mode && source_row == ROW_LIGHT) {
+        term saved_term;
+        const term* source_term = NULL;
+        term_win* source_scr = NULL;
         sdl_left_panel_compact_light_span span;
 
-        if (view && view->term_ready
-            && sdl_left_panel_compact_light_span_for_term(&view->t,
-                view->t.scr, &span))
+        if (view && view->term_ready)
+        {
+            source_term = &view->t;
+            source_scr = view->t.scr;
+            if (sdl_saved_screen_left_panel_pane_active() && view->t.mem)
+            {
+                saved_term = view->t;
+                saved_term.scr = view->t.mem;
+                source_term = &saved_term;
+                source_scr = view->t.mem;
+            }
+        }
+
+        if (source_term && source_scr
+            && sdl_left_panel_compact_light_span_for_term(source_term,
+                source_scr, &span))
         {
             return span.packed_width;
         }
@@ -3743,6 +3778,11 @@ static bool sdl_left_panel_pane_layout_enabled(void)
 {
     return !g_hide_left_panel
         && sdl_left_panel_pane_config_enabled();
+}
+
+static bool sdl_saved_screen_left_panel_pane_active(void)
+{
+    return g_saved_screen_left_panel_pane_depth > 0;
 }
 
 static bool sdl_left_panel_pane_presentation_active(void)
@@ -15847,8 +15887,11 @@ static bool sdl_term_get_size_hook(term* t, int* w, int* h)
      * The SDL main term may keep hidden source columns for the detached
      * left-panel pane.  When that pane is not being presented, only the
      * rendered cell grid is visible, so menus must size themselves to that.
+     * Saved-screen overlays may temporarily present the pane as backdrop,
+     * but their menu layout should still use the visible grid.
      */
-    if (!sdl_left_panel_pane_presentation_active())
+    if (!sdl_left_panel_pane_presentation_active()
+        || sdl_saved_screen_left_panel_pane_active())
     {
         int visual_cols = sdl_main_view_visual_cols(view);
         int visual_rows = sdl_main_view_visual_rows(view);
@@ -35264,6 +35307,12 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     if (!scr || !scr->a || !scr->c)
         return false;
     source_term = t;
+    if (sdl_saved_screen_left_panel_pane_active() && t->mem
+        && t->mem->a && t->mem->c)
+    {
+        scr = t->mem;
+        source_term = t;
+    }
 
     canvas_w = metrics.total_w;
     canvas_h = metrics.corner_h;
@@ -35482,6 +35531,213 @@ static bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     return true;
 }
 
+static bool sdl_saved_screen_cell_changed(const term_win* scr,
+    const term_win* mem, int x, int y)
+{
+    if (!scr || !mem || x < 0 || y < 0)
+        return false;
+    if (!scr->a || !scr->c || !mem->a || !mem->c)
+        return false;
+    if (!scr->a[y] || !scr->c[y] || !mem->a[y] || !mem->c[y])
+        return false;
+
+    if (scr->a[y][x] != mem->a[y][x])
+        return true;
+    if (scr->c[y][x] != mem->c[y][x])
+        return true;
+    if (scr->ta && mem->ta && scr->ta[y] && mem->ta[y]
+        && scr->ta[y][x] != mem->ta[y][x])
+    {
+        return true;
+    }
+    if (scr->tc && mem->tc && scr->tc[y] && mem->tc[y]
+        && scr->tc[y][x] != mem->tc[y][x])
+    {
+        return true;
+    }
+    if (scr->story && mem->story && scr->story[y] && mem->story[y]
+        && scr->story[y][x] != mem->story[y][x])
+    {
+        return true;
+    }
+
+    return false;
+}
+
+static void sdl_redraw_saved_screen_overlay_cells(const sdl_view* view,
+    const SDL_FRect* clip_rect)
+{
+    const term* t;
+    term_win* scr;
+    term_win* mem;
+    int cols;
+    int rows;
+    int visual_cols;
+    int visual_rows;
+    float grid_x;
+    float grid_y;
+    bool had_clip;
+    SDL_Rect old_clip;
+    SDL_Rect clip;
+
+    if (!view || !clip_rect || !view->canvas)
+        return;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return;
+
+    t = &view->t;
+    scr = t->scr;
+    mem = t->mem;
+    if (!scr || !mem)
+        return;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    cols = MIN(COL_MAP, visual_cols);
+    rows = MIN(t->hgt, visual_rows);
+    if (cols <= 0 || rows <= 0)
+        return;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+    clip = (SDL_Rect){
+        .x = (int)clip_rect->x,
+        .y = (int)clip_rect->y,
+        .w = (int)(clip_rect->w + 0.5f),
+        .h = (int)(clip_rect->h + 0.5f),
+    };
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
+
+    for (int y = 0; y < rows; y++)
+    {
+        int x = 0;
+
+        while (x < cols)
+        {
+            int start;
+            int len;
+            SDL_FRect src;
+            SDL_FRect dst;
+
+            while (x < cols && !sdl_saved_screen_cell_changed(scr, mem, x, y))
+                x++;
+            if (x >= cols)
+                break;
+
+            start = x;
+            while (x < cols && sdl_saved_screen_cell_changed(scr, mem, x, y))
+                x++;
+            len = x - start;
+
+            src = (SDL_FRect){
+                .x = (float)(start * view->cell_w),
+                .y = (float)(y * view->cell_h),
+                .w = (float)(len * view->cell_w),
+                .h = (float)view->cell_h,
+            };
+            dst = (SDL_FRect){
+                .x = grid_x + src.x,
+                .y = grid_y + src.y,
+                .w = src.w,
+                .h = src.h,
+            };
+            SDL_RenderTexture(g_state.renderer, view->canvas, &src, &dst);
+        }
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+}
+
+static bool sdl_render_saved_screen_left_panel_backdrop(const sdl_view* view)
+{
+    sdl_left_panel_metrics metrics;
+    SDL_FRect pane_rect;
+    SDL_FRect left_rect;
+    SDL_FRect map_src;
+    int visual_cols;
+    int visual_rows;
+    int visual_w;
+    int visual_h;
+    int canvas_w;
+    float grid_x;
+    float grid_y;
+
+    if (!sdl_saved_screen_left_panel_pane_active())
+        return false;
+    if (!sdl_left_panel_pane_layout_enabled())
+        return false;
+    if (!view || !view->canvas || !view->term_ready)
+        return false;
+    if (!view->t.mem || !view->t.scr)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    visual_w = visual_cols * view->cell_w;
+    visual_h = visual_rows * view->cell_h;
+    canvas_w = view->cols * view->cell_w;
+    if (visual_w <= 0 || visual_h <= 0 || canvas_w <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    left_rect = (SDL_FRect){
+        .x = grid_x,
+        .y = grid_y,
+        .w = (float)MIN(COL_MAP * view->cell_w, visual_w),
+        .h = (float)visual_h,
+    };
+    if (left_rect.w <= 0.0f || left_rect.h <= 0.0f)
+        return false;
+
+    map_src = (SDL_FRect){
+        .x = (float)(COL_MAP * view->cell_w),
+        .y = 0.0f,
+        .w = left_rect.w,
+        .h = left_rect.h,
+    };
+    if (map_src.x + map_src.w > (float)canvas_w)
+        map_src.w = (float)canvas_w - map_src.x;
+
+    if (map_src.w > 0.0f && map_src.h > 0.0f)
+    {
+        SDL_FRect map_dst = left_rect;
+
+        map_dst.w = map_src.w;
+        SDL_RenderTexture(g_state.renderer, view->canvas, &map_src, &map_dst);
+    }
+    else
+    {
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(g_state.renderer, &left_rect);
+    }
+
+    if (sdl_left_panel_pane_rect_for_metrics(view, &metrics, &pane_rect))
+    {
+        if (pane_rect.x < left_rect.x)
+            pane_rect.x = left_rect.x;
+        if (pane_rect.y < left_rect.y)
+            pane_rect.y = left_rect.y;
+        if (pane_rect.x + pane_rect.w > left_rect.x + left_rect.w)
+            pane_rect.w = left_rect.x + left_rect.w - pane_rect.x;
+        if (pane_rect.y + pane_rect.h > left_rect.y + left_rect.h)
+            pane_rect.h = left_rect.y + left_rect.h - pane_rect.y;
+        if (pane_rect.w > 0.0f && pane_rect.h > 0.0f)
+            (void)sdl_render_left_panel_pane_from_cells(view, &pane_rect);
+    }
+
+    sdl_redraw_saved_screen_overlay_cells(view, &left_rect);
+    return true;
+}
+
 static bool sdl_render_current_window_frame(void)
 {
     bool show_supporting_panes;
@@ -35574,6 +35830,9 @@ static bool sdl_render_current_window_frame(void)
             .w = dst_w,
             .h = dst_h,
         });
+
+        if (i == PANE_MAIN)
+            (void)sdl_render_saved_screen_left_panel_backdrop(view);
     }
 
     sdl_side_map_pane_render();
@@ -43168,6 +43427,21 @@ void set_sdl_show_pane_borders(bool value)
 bool get_sdl_hide_left_panel(void)
 {
     return g_hide_left_panel;
+}
+
+void sdl_push_saved_screen_left_panel_pane(void)
+{
+    g_saved_screen_left_panel_pane_depth++;
+    sdl_update_left_panel_pane_rect();
+    g_state.need_present = true;
+}
+
+void sdl_pop_saved_screen_left_panel_pane(void)
+{
+    if (g_saved_screen_left_panel_pane_depth > 0)
+        g_saved_screen_left_panel_pane_depth--;
+    sdl_update_left_panel_pane_rect();
+    g_state.need_present = true;
 }
 
 bool get_sdl_left_panel_expanded_on_launch(void)

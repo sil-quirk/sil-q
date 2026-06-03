@@ -1723,7 +1723,7 @@ void display_player_xtra_info(int mode)
     int row_stats = 2;
     int row_flags = 2;
 
-    int skill, attacks = 1;
+    int skill;
     char cur[32], rhs[32], val[64], buf[160];
 
     byte history_attr = (mode == 2) ? TERM_YELLOW : TERM_WHITE;
@@ -1824,7 +1824,6 @@ void display_player_xtra_info(int mode)
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
-        attacks++;
         put_single20_right(col_stats, row_stats++,
                            "Melee x2", val, 12, TERM_L_BLUE);
     }
@@ -1832,7 +1831,6 @@ void display_player_xtra_info(int mode)
     /* Offhand if present */
     if (p_ptr->mds2 > 0)
     {
-        attacks++;
         strnfmt(val, sizeof(val), "(%+d,%dd%d)",
                 p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
                 p_ptr->mdd2, p_ptr->mds2);

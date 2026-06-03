@@ -4421,8 +4421,6 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
         {
             u32b f1, f2, f3;
 
-            u32b flg3 = 0L;
-
             char m_name[80];
             char o_name[120];
 
@@ -4442,27 +4440,6 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
 
                 /* Extract some flags */
                 object_flags(o_ptr, &f1, &f2, &f3);
-
-                /* React to objects that hurt the monster */
-                if (f1 & (TR1_SLAY_DRAGON))
-                    flg3 |= (RF3_DRAGON);
-                if (f1 & (TR1_SLAY_TROLL))
-                    flg3 |= (RF3_TROLL);
-                if (f1 & (TR1_SLAY_ORC))
-                    flg3 |= (RF3_ORC);
-                if (f1 & (TR1_SLAY_RAUKO))
-                    flg3 |= (RF3_RAUKO);
-                if (f1 & (TR1_SLAY_UNDEAD))
-                    flg3 |= (RF3_UNDEAD);
-                if (f1 & (TR1_SLAY_WOLF))
-                    flg3 |= (RF3_WOLF);
-                if (f1 & (TR1_SLAY_SPIDER))
-                    flg3 |= (RF3_SPIDER);
-                if (f1 & (TR1_SLAY_MAN_OR_ELF))
-                {
-                    flg3 |= (RF3_MAN);
-                    flg3 |= (RF3_ELF);
-                }
 
                 /* Don't pick up cursed items */
                 if ((r_ptr->flags2 & (RF2_TAKE_ITEM))

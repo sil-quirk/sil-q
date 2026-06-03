@@ -6224,7 +6224,6 @@ void py_attack_aux(int y, int x, int attack_type)
     int dam = 0, prt = 0;
     int net_dam = 0;
     int prt_percent = 100;
-    int hits = 0;
     int weapon_weight;
     int total_dice;
     int blows;
@@ -6539,8 +6538,6 @@ void py_attack_aux(int y, int x, int attack_type)
         /* If the attack connects... */
         if (hit_result > 0)
         {
-            hits++;
-
             /* Mark the monster as attacked */
             m_ptr->mflag |= (MFLAG_HIT_BY_MELEE);
 

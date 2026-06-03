@@ -3999,7 +3999,8 @@ void display_equip(void)
  * This should be called before displaying the item description text.
  * Returns the column offset where text should start after the tile.
  */
-static int draw_item_tile(int x, int y, object_type* o_ptr)
+static int draw_item_tile_with_background(int x, int y, object_type* o_ptr,
+    byte bg_attr)
 {
     /* Only draw tiles in graphics mode (not ASCII or pseudo-graphics) */
     if (use_graphics != GRAPHICS_NONE && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx)
@@ -4007,14 +4008,28 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
         /* Get the attribute from object_attr - in graphics mode this is a tile index, not a color code
          * We do NOT shade tile indices as they refer to specific graphics in the tileset */
         byte attr = object_attr(o_ptr);
+        char chr = object_char(o_ptr);
         
         /* Draw the tile using the standard object display functions */
-        Term_putch(x, y, attr, object_char(o_ptr));
+        if (bg_attr)
+            Term_queue_char(x, y, attr, chr, bg_attr, ' ');
+        else
+            Term_putch(x, y, attr, chr);
         
         /* Handle bigtile mode (tiles that occupy 2 cells) */
         if (use_bigtile)
         {
-            Term_putch(x + 1, y, 255, -1);
+            if (bg_attr)
+            {
+                if (attr & TILE_FLAG)
+                    Term_queue_char(x + 1, y, 255, -1, bg_attr, ' ');
+                else
+                    Term_queue_char(x + 1, y, bg_attr, ' ', bg_attr, ' ');
+            }
+            else
+            {
+                Term_putch(x + 1, y, 255, -1);
+            }
             return x + 2; /* Text starts 2 cells after tile */
         }
         
@@ -4023,6 +4038,11 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     
     /* No tile drawn, text starts at the same position */
     return x;
+}
+
+static int draw_item_tile(int x, int y, object_type* o_ptr)
+{
+    return draw_item_tile_with_background(x, y, o_ptr, 0);
 }
 
 static object_type* prepare_supply_icon_object(object_type* o_ptr)
@@ -4260,10 +4280,11 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     int selection_end = label_col + label_width;
 
     Term_erase(base_col, row, 255);
-    if (o_ptr && o_ptr->k_idx)
-        text_col = draw_item_tile(base_col, row, (object_type*)o_ptr);
     if (highlight)
-        story_fill_rect(row, text_col, selection_end - text_col, fill_attr);
+        story_fill_rect(row, base_col, selection_end - base_col, fill_attr);
+    if (o_ptr && o_ptr->k_idx)
+        text_col = draw_item_tile_with_background(base_col, row,
+            (object_type*)o_ptr, highlight ? fill_attr : 0);
     if (square_selection)
         draw_inventory_selection_frame(base_col, row, o_ptr);
 
@@ -4308,18 +4329,15 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     }
 
     int text_col = col + 12 + 2;
-    int tile_col = text_col;
     int selection_end = label_col + label_width;
 
     Term_erase(clear_col, row, 255);
 
-    if (has_object)
-        text_col = draw_item_tile(col + 12 + 2, row, (object_type*)o_ptr);
     if (highlight)
-    {
-        story_fill_rect(row, col, tile_col - col, fill_attr);
-        story_fill_rect(row, text_col, selection_end - text_col, fill_attr);
-    }
+        story_fill_rect(row, col, selection_end - col, fill_attr);
+    if (has_object)
+        text_col = draw_item_tile_with_background(col + 12 + 2, row,
+            (object_type*)o_ptr, highlight ? fill_attr : 0);
     if (square_selection)
         draw_inventory_selection_frame(col + 12 + 2, row,
             has_object ? o_ptr : NULL);
@@ -4447,18 +4465,19 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         int tile_col = text_col;
         int label_col = label_col_base;
         log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
-        if (has_object)
-        {
-            int tile_end_col = draw_item_tile(text_col, row, o_ptr);
-            log_trace("draw_equipment_story_rows: Row %d - drew tile, text_col updated from %d to %d", row, text_col, tile_end_col);
-            text_col = tile_end_col;
-        }
         if (is_highlight)
         {
-            log_trace("draw_equipment_story_rows: Filling highlight text spans at row %d", row);
-            story_fill_rect(row, col, tile_col - col, selected_attr);
-            story_fill_rect(row, text_col,
-                label_col + label_width - text_col, selected_attr);
+            int selection_end = label_col + label_width;
+
+            log_trace("draw_equipment_story_rows: Filling highlight row %d", row);
+            story_fill_rect(row, col, selection_end - col, selected_attr);
+        }
+        if (has_object)
+        {
+            int tile_end_col = draw_item_tile_with_background(text_col, row,
+                o_ptr, is_highlight ? selected_attr : 0);
+            log_trace("draw_equipment_story_rows: Row %d - drew tile, text_col updated from %d to %d", row, text_col, tile_end_col);
+            text_col = tile_end_col;
         }
         if (is_highlight && square_selection)
             draw_inventory_selection_frame(tile_col, row, has_object ? o_ptr : NULL);
@@ -5971,9 +5990,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 })                                                                  \
                 {                                                                   \
                     int text_col = col;                                             \
+                    inventory_menu_fill_selected_span(col, label_col + 4, row+1, attr); \
                     if (display_obj && display_obj->k_idx)                          \
-                        text_col = draw_item_tile(col, row+1, display_obj);         \
-                    inventory_menu_fill_selected_span(text_col, label_col + 4, row+1, attr); \
+                        text_col = draw_item_tile_with_background(col, row+1,       \
+                            display_obj, attr);                                     \
                     if (square_selection)                                           \
                         draw_inventory_selection_frame(col, row+1, display_obj);    \
                     c_put_str(attr,tmp,row+1,text_col);                             \
@@ -5994,9 +6014,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 })                                                                  \
                 {                                                                   \
                     int text_col = col;                                              \
+                    inventory_menu_fill_selected_span(col, label_col + 4, row+1, attr); \
                     if (o_ptr && o_ptr->k_idx)                                       \
-                        text_col = draw_item_tile(col, row+1, o_ptr);               \
-                    inventory_menu_fill_selected_span(text_col, label_col + 4, row+1, attr); \
+                        text_col = draw_item_tile_with_background(col, row+1,       \
+                            o_ptr, attr);                                           \
                     if (square_selection)                                           \
                         draw_inventory_selection_frame(col, row+1,                  \
                             (o_ptr && o_ptr->k_idx) ? o_ptr : NULL);                \
@@ -6028,12 +6049,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
               })                                                                    \
               {                                                                     \
                   int text_col = col + 12 + 2;                                      \
-                  int tile_col = text_col;                                          \
                   int label_col = label_col_base;                                   \
+                  inventory_menu_fill_selected_span(col, label_col + 4, row+1, attr); \
                   if (o_ptr->k_idx)                                                 \
-                      text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
-                  inventory_menu_fill_selected_span(col, tile_col, row+1, attr);    \
-                  inventory_menu_fill_selected_span(text_col, label_col + 4, row+1, attr); \
+                      text_col = draw_item_tile_with_background(col+12+2, row+1,    \
+                          o_ptr, attr);                                             \
                   c_put_str(attr,usebuf,row+1,col);                                 \
                   if (square_selection)                                             \
                       draw_inventory_selection_frame(col+12+2, row+1,               \
@@ -6058,8 +6078,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
             })                                                                      \
             {                                                                       \
-                int text_col = draw_item_tile(col, row+1, o_ptr);                   \
-                inventory_menu_fill_selected_span(text_col, label_col + 4, row+1, attr); \
+                int text_col = col;                                                  \
+                inventory_menu_fill_selected_span(col, label_col + 4, row+1, attr); \
+                text_col = draw_item_tile_with_background(col, row+1, o_ptr, attr); \
                 if (square_selection)                                               \
                     draw_inventory_selection_frame(col, row+1, o_ptr);              \
                 c_put_str(attr,tmp,row+1,text_col);                                 \
@@ -7910,20 +7931,20 @@ void show_inven_enhanced(void)
             /* Draw tile if in graphics mode. */
             int text_col = col;
             int tile_col = text_col;
-            if (display_obj && display_obj->k_idx)
-            {
-                text_col = draw_item_tile(col, row, display_obj);
-            }
+            int selection_end = label_col + label_width;
             if (is_highlight)
             {
-                int selection_end = label_col + label_width;
-
                 if (use_story_font)
-                    story_fill_rect(row, text_col, selection_end - text_col,
+                    story_fill_rect(row, col, selection_end - col,
                         selected_attr);
                 else
-                    inventory_menu_fill_selected_span(text_col, selection_end,
+                    inventory_menu_fill_selected_span(col, selection_end,
                         row, selected_attr);
+            }
+            if (display_obj && display_obj->k_idx)
+            {
+                text_col = draw_item_tile_with_background(col, row,
+                    display_obj, is_highlight ? selected_attr : 0);
             }
             if (is_highlight && square_selection)
                 draw_inventory_selection_frame(tile_col, row, display_obj);
@@ -8824,15 +8845,15 @@ void show_equip_enhanced(void)
                 int text_col = col + 12 + 2;
                 int tile_col = text_col;
                 int label_col = label_col_base;
+                int selection_end = label_col + 4;
+
+                inventory_menu_fill_selected_span(col, selection_end,
+                    display_row, selected_attr);
                 if (o_ptr->k_idx)
                 {
-                    text_col = draw_item_tile(col + 12 + 2, display_row, o_ptr);
+                    text_col = draw_item_tile_with_background(col + 12 + 2,
+                        display_row, o_ptr, selected_attr);
                 }
-
-                inventory_menu_fill_selected_span(col, tile_col, display_row,
-                    selected_attr);
-                inventory_menu_fill_selected_span(text_col, label_col + 4,
-                    display_row, selected_attr);
 
                 c_put_str(prefix_attr, tmp_val, display_row, col);
 
