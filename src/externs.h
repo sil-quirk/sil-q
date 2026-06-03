@@ -703,6 +703,9 @@ extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
 extern bool open_inventory_menu_page(supply_menu_page page);
 extern bool open_inventory_menu_category(inventory_menu_group group);
+extern bool open_inventory_replacement_menu(inventory_menu_group group,
+    const object_type* incoming, bool include_equip, bool include_supplies,
+    int* replacement_item);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
@@ -1082,16 +1085,30 @@ extern bool reproduce_monster(int old_m_idx, int new_r_idx);
 extern void message_pain(int m_idx, int dam);
 
 /* obj-info.c */
+#ifndef OBJECT_INFO_SCREEN_ACTION_DEFINED
+#define OBJECT_INFO_SCREEN_ACTION_DEFINED
+typedef struct object_info_screen_action
+{
+    int key;
+    cptr token;
+} object_info_screen_action;
+#endif
+
 extern bool object_info_out(const object_type* o_ptr);
 extern cptr object_lore_select_base_text(const object_type* o_ptr, char* out,
     size_t out_sz);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
 extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);
+extern char object_info_screen_multi_with_actions(const object_type** objects,
+    const char** headings, int count, cptr footer,
+    const object_info_screen_action* actions, int action_count);
 extern bool object_info_overlay_show_multi(const object_type** objects,
     const char** headings, int count);
 extern void object_info_overlay_clear(void);
 extern void describe_item_with_comparisons(int item_index, bool include_comparisons);
+extern char describe_item_with_floor_actions(int item_index,
+    bool include_comparisons);
 
 /* object1.c */
 extern bool easter_time(void);
@@ -1349,6 +1366,7 @@ enum inventory_limit_group
     INV_LIMIT_SOFT_ARMOUR,
     INV_LIMIT_MAIL,
     INV_LIMIT_MELEE_WEAPON,
+    INV_LIMIT_THROWABLE,
     INV_LIMIT_SUPPLY_WEIGHT,
     INV_LIMIT_TORCHES,
     INV_LIMIT_BRASS_LAMPS,
@@ -1369,6 +1387,7 @@ extern bool inventory_limit_info_for_object(const object_type* o_ptr,
     enum inventory_limit_group* group, int* limit, int* cost);
 extern int inventory_limit_usage_for_group(enum inventory_limit_group group);
 extern int inventory_limit_limit_for_group(enum inventory_limit_group group);
+extern int inventory_limit_space_for_object(const object_type* o_ptr);
 extern bool inventory_limit_object_matches_group(
     enum inventory_limit_group group, const object_type* o_ptr);
 extern cptr inventory_limit_group_name(enum inventory_limit_group group);
@@ -2087,6 +2106,9 @@ extern bool sdl_description_overlay_present(const byte* attrs,
     const char* chars, const byte* tattrs, const char* tchars,
     const byte* story, int width, int height, int scroll,
     bool interactive, int* out_visible_rows, int* out_max_scroll);
+extern void sdl_description_overlay_set_footer(cptr text, bool always);
+extern void sdl_description_overlay_clear_footer_actions(void);
+extern void sdl_description_overlay_add_footer_action(int key, cptr token);
 extern void sdl_description_overlay_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);

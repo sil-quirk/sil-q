@@ -270,6 +270,123 @@ bool open_inventory_menu_category(inventory_menu_group group)
     return do_cmd_knowledge_supplies(&request);
 }
 
+bool open_inventory_replacement_menu(inventory_menu_group group,
+    const object_type* incoming, bool include_equip, bool include_supplies,
+    int* replacement_item)
+{
+    supply_menu_request request = {0};
+
+    if (replacement_item)
+        *replacement_item = -1;
+
+    request.focus_page = true;
+    request.page = SUPPLY_MENU_PAGE_INVENTORY;
+    request.focus_inventory_group = true;
+    request.inventory_group = group;
+    request.preview_inventory_description = true;
+    request.replacement_mode = true;
+    request.replacement_incoming = incoming;
+    request.replacement_include_equip = include_equip;
+    request.replacement_include_supplies = include_supplies;
+    request.replacement_item_out = replacement_item;
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
+static inventory_menu_group inventory_browser_group_for_object(
+    const object_type* o_ptr)
+{
+    enum inventory_limit_group limit_group;
+    inventory_menu_group limit_menu_group;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return INVENTORY_MENU_GROUP_ALL;
+
+    limit_group = inventory_limit_group_for_object(o_ptr);
+    limit_menu_group = inventory_menu_group_for_limit_group(limit_group);
+    if (limit_menu_group != INVENTORY_MENU_GROUP_ALL)
+        return limit_menu_group;
+
+    switch (o_ptr->tval)
+    {
+    case TV_RING:       return INVENTORY_MENU_GROUP_RINGS;
+    case TV_AMULET:     return INVENTORY_MENU_GROUP_AMULETS;
+    case TV_BOW:        return INVENTORY_MENU_GROUP_BOWS;
+    case TV_ARROW:      return INVENTORY_MENU_GROUP_ARROWS;
+    case TV_STAFF:      return INVENTORY_MENU_GROUP_STAVES;
+    case TV_HORN:       return INVENTORY_MENU_GROUP_HORNS;
+    case TV_DIGGING:    return INVENTORY_MENU_GROUP_DIGGING;
+    case TV_LIGHT:
+    case TV_FLASK:      return INVENTORY_MENU_GROUP_LIGHTS;
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:      return INVENTORY_MENU_GROUP_WEAPONS;
+    case TV_MAIL:       return INVENTORY_MENU_GROUP_ARMOUR;
+    case TV_SOFT_ARMOR: return (o_ptr->sval == SV_ROBE)
+                             ? INVENTORY_MENU_GROUP_CLOAKS
+                             : INVENTORY_MENU_GROUP_ARMOUR;
+    case TV_CLOAK:      return INVENTORY_MENU_GROUP_CLOAKS;
+    case TV_SHIELD:     return INVENTORY_MENU_GROUP_SHIELDS;
+    case TV_HELM:
+    case TV_CROWN:      return INVENTORY_MENU_GROUP_HEADGEAR;
+    case TV_GLOVES:     return INVENTORY_MENU_GROUP_GLOVES;
+    case TV_BOOTS:      return INVENTORY_MENU_GROUP_BOOTS;
+    default:            return INVENTORY_MENU_GROUP_OTHER;
+    }
+}
+
+static int supply_browser_group_for_object(const object_type* o_ptr)
+{
+    if (supplies_group_matches_object(SUPPLY_GROUP_HERBS, o_ptr))
+        return SUPPLY_GROUP_HERBS;
+    if (supplies_group_matches_object(SUPPLY_GROUP_FOOD, o_ptr))
+        return SUPPLY_GROUP_FOOD;
+    if (supplies_group_matches_object(SUPPLY_GROUP_POTIONS, o_ptr))
+        return SUPPLY_GROUP_POTIONS;
+    if (supplies_group_matches_object(SUPPLY_GROUP_GEMS, o_ptr))
+        return SUPPLY_GROUP_GEMS;
+    if (supplies_group_matches_object(SUPPLY_GROUP_LIGHTS, o_ptr))
+        return SUPPLY_GROUP_LIGHTS;
+
+    return SUPPLY_GROUP_SUPPLY;
+}
+
+static bool open_inventory_menu_focused_on_floor(int floor_item,
+    bool use_type_group, supply_floor_action floor_action)
+{
+    supply_menu_request request = {0};
+    int floor_o_idx = 0 - floor_item;
+    object_type* o_ptr;
+
+    if (floor_o_idx <= 0 || floor_o_idx >= o_max)
+        return open_inventory_menu_category(INVENTORY_MENU_GROUP_ALL);
+
+    o_ptr = &o_list[floor_o_idx];
+    if (!o_ptr->k_idx)
+        return open_inventory_menu_category(INVENTORY_MENU_GROUP_ALL);
+
+    request.focus_floor_item = true;
+    request.floor_o_idx = floor_o_idx;
+    request.floor_action = floor_action;
+
+    if (supplies_is_supply_object(o_ptr))
+    {
+        request.focus_group = true;
+        request.group = supply_browser_group_for_object(o_ptr);
+    }
+    else
+    {
+        request.focus_page = true;
+        request.page = SUPPLY_MENU_PAGE_INVENTORY;
+        request.focus_inventory_group = true;
+        request.inventory_group = use_type_group
+            ? inventory_browser_group_for_object(o_ptr)
+            : INVENTORY_MENU_GROUP_ALL;
+    }
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
@@ -490,17 +607,11 @@ void do_cmd_use_item(void)
 
     if (floor_item)
     {
-        extern char current_menu_command;
-        extern int current_menu_state;
-
         log_debug(
-            "do_cmd_use_item: Using floor item under player, item=%d",
+            "do_cmd_use_item: Opening browser on floor item under player, item=%d",
             floor_item);
-        current_menu_command = 'u';
-        current_menu_state = 0;
-        do_cmd_use_item_by_index(floor_item);
-        current_menu_command = 0;
-        current_menu_state = 0;
+        (void)open_inventory_menu_focused_on_floor(floor_item, true,
+            SUPPLY_FLOOR_ACTION_USE);
         return;
     }
 
@@ -512,8 +623,8 @@ void do_cmd_use_item(void)
         current_menu_state = 0;
     }
 
-    log_debug("do_cmd_use_item: No floor item, opening inventory browser");
-    (void)open_inventory_menu_page(SUPPLY_MENU_PAGE_INVENTORY);
+    log_debug("do_cmd_use_item: No floor item, opening all inventory browser");
+    (void)open_inventory_menu_category(INVENTORY_MENU_GROUP_ALL);
 }
 
 /*
@@ -521,16 +632,18 @@ void do_cmd_use_item(void)
  */
 void do_cmd_wield_wrapper(void)
 {
-    /* Set up for enhanced menu cycling */
-    extern char current_menu_command;
-    extern int current_menu_state;
-    
-    /* Mark that 'w' command opened this menu */
-    current_menu_command = 'w';
-    current_menu_state = 0;  /* Start with inventory */
-    
-    /* Start the enhanced menu system */
-    do_cmd_wield_enhanced();
+    int floor_item = first_floor_item_under_player();
+
+    log_debug("do_cmd_wield_wrapper: Opening all inventory browser");
+
+    if (floor_item)
+    {
+        (void)open_inventory_menu_focused_on_floor(floor_item, false,
+            SUPPLY_FLOOR_ACTION_WIELD);
+        return;
+    }
+
+    (void)open_inventory_menu_category(INVENTORY_MENU_GROUP_ALL);
 }
 
 /*
@@ -3285,15 +3398,30 @@ void do_cmd_observe(void)
     {
         extern char current_menu_command;
         extern int current_menu_state;
+        char action;
 
         log_debug(
             "do_cmd_observe: Examining floor item under player, item=%d",
             floor_item);
         current_menu_command = 'x';
         current_menu_state = 0;
-        describe_item_with_comparisons(floor_item, true);
+        action = describe_item_with_floor_actions(floor_item, true);
         current_menu_command = 0;
         current_menu_state = 0;
+
+        if (action == 'x')
+        {
+            current_menu_command = 'u';
+            current_menu_state = 0;
+            do_cmd_use_item_by_index(floor_item);
+            current_menu_command = 0;
+            current_menu_state = 0;
+        }
+        else if (action == ' ')
+        {
+            do_cmd_pickup();
+        }
+
         return;
     }
 

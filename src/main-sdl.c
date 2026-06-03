@@ -1139,6 +1139,18 @@ typedef struct object_tooltip_state {
     char text[640];
 } object_tooltip_state;
 
+enum
+{
+    SDL_DESCRIPTION_OVERLAY_FOOTER_LEN = 160,
+    SDL_DESCRIPTION_OVERLAY_ACTION_TOKEN_LEN = 32,
+    SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS = 8
+};
+
+typedef struct description_overlay_action {
+    int key;
+    char token[SDL_DESCRIPTION_OVERLAY_ACTION_TOKEN_LEN];
+} description_overlay_action;
+
 typedef struct description_overlay_state {
     bool active;
     bool interactive;
@@ -1150,6 +1162,11 @@ typedef struct description_overlay_state {
     int width;
     int height;
     int scroll;
+    bool footer_always;
+    int footer_hover_key;
+    int footer_action_count;
+    char footer_text[SDL_DESCRIPTION_OVERLAY_FOOTER_LEN];
+    description_overlay_action footer_actions[SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS];
 } description_overlay_state;
 
 typedef struct description_overlay_layout {
@@ -21077,12 +21094,99 @@ static SDL_Color sdl_description_overlay_attr_color(byte attr)
     return col;
 }
 
+static cptr sdl_description_overlay_footer_text(
+    const description_overlay_state* overlay)
+{
+    if (overlay && overlay->footer_text[0])
+        return overlay->footer_text;
+
+    return "Esc close  Space page  Arrows scroll";
+}
+
+void sdl_description_overlay_set_footer(cptr text, bool always)
+{
+    bool changed;
+
+    g_description_overlay.footer_always = always;
+
+    if (text && text[0])
+    {
+        changed = !streq(g_description_overlay.footer_text, text);
+        SDL_strlcpy(g_description_overlay.footer_text, text,
+            sizeof(g_description_overlay.footer_text));
+        if (changed)
+            g_description_overlay.footer_hover_key = 0;
+    }
+    else
+    {
+        g_description_overlay.footer_hover_key = 0;
+        g_description_overlay.footer_text[0] = '\0';
+    }
+}
+
+void sdl_description_overlay_clear_footer_actions(void)
+{
+    g_description_overlay.footer_action_count = 0;
+    for (int i = 0; i < SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS; i++)
+    {
+        g_description_overlay.footer_actions[i].key = 0;
+        g_description_overlay.footer_actions[i].token[0] = '\0';
+    }
+}
+
+void sdl_description_overlay_add_footer_action(int key, cptr token)
+{
+    description_overlay_action* action;
+
+    if (!token || !token[0])
+        return;
+    if (g_description_overlay.footer_action_count
+        >= SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS)
+    {
+        return;
+    }
+
+    action =
+        &g_description_overlay.footer_actions[
+            g_description_overlay.footer_action_count++];
+    action->key = key;
+    SDL_strlcpy(action->token, token, sizeof(action->token));
+}
+
+static bool sdl_description_overlay_token_matches_hover(
+    const description_overlay_state* overlay, cptr text, int col)
+{
+    if (!overlay || !text || overlay->footer_hover_key == 0)
+        return false;
+
+    for (int i = 0; i < overlay->footer_action_count; i++)
+    {
+        const description_overlay_action* action = &overlay->footer_actions[i];
+        cptr match;
+        int start;
+        int end;
+
+        if (action->key != overlay->footer_hover_key || !action->token[0])
+            continue;
+
+        match = strstr(text, action->token);
+        if (!match)
+            continue;
+
+        start = (int)(match - text);
+        end = start + (int)strlen(action->token);
+        if (col >= start && col < end)
+            return true;
+    }
+
+    return false;
+}
+
 static bool sdl_description_overlay_layout(description_overlay_layout* out)
 {
     SDL_Rect anchor;
     const description_overlay_state* overlay = &g_description_overlay;
-    const char* footer_text =
-        "Esc close  Space page  Arrows scroll";
+    cptr footer_text = sdl_description_overlay_footer_text(overlay);
     int font_px;
     int cell_w;
     int cell_h;
@@ -21134,7 +21238,10 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (max_cols < 1 || max_rows_no_footer < 1)
         return false;
 
-    footer = overlay->interactive && overlay->height > max_rows_no_footer;
+    footer = overlay->interactive
+        && (overlay->height > max_rows_no_footer
+            || overlay->footer_always
+            || overlay->footer_text[0]);
     max_rows = max_rows_no_footer - (footer ? 1 : 0);
     if (max_rows < 1)
         max_rows = 1;
@@ -21295,24 +21402,130 @@ static void sdl_description_overlay_render(void)
     if (layout.footer)
     {
         char scroll_buf[32];
+        cptr footer_text = sdl_description_overlay_footer_text(overlay);
 
-        sdl_description_overlay_render_text(atlas, atlas_cell_w,
-            atlas_cell_h, "Esc close  Space page  Arrows scroll",
-            layout.text_x, layout.footer_y, (float)layout.cell_w,
-            (float)layout.cell_h, TERM_SLATE);
-        strnfmt(scroll_buf, sizeof(scroll_buf), "%d/%d",
-            layout.scroll + 1, layout.max_scroll + 1);
-        int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
-        if (scroll_col < 0)
-            scroll_col = 0;
-        sdl_description_overlay_render_text(atlas, atlas_cell_w,
-            atlas_cell_h, scroll_buf,
-            layout.text_x + (float)scroll_col * (float)layout.cell_w,
-            layout.footer_y, (float)layout.cell_w, (float)layout.cell_h,
-            TERM_SLATE);
+        for (int col = 0; footer_text[col] && col < layout.visible_cols; col++)
+        {
+            byte attr = sdl_description_overlay_token_matches_hover(
+                overlay, footer_text, col)
+                ? TERM_L_BLUE
+                : TERM_SLATE;
+
+            sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                atlas_cell_h, (float)layout.cell_w, (float)layout.cell_h,
+                layout.text_x + (float)col * (float)layout.cell_w,
+                layout.footer_y, attr, footer_text[col]);
+        }
+        if (layout.max_scroll > 0)
+        {
+            strnfmt(scroll_buf, sizeof(scroll_buf), "%d/%d",
+                layout.scroll + 1, layout.max_scroll + 1);
+            int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
+            if (scroll_col < 0)
+                scroll_col = 0;
+            sdl_description_overlay_render_text(atlas, atlas_cell_w,
+                atlas_cell_h, scroll_buf,
+                layout.text_x + (float)scroll_col * (float)layout.cell_w,
+                layout.footer_y, (float)layout.cell_w, (float)layout.cell_h,
+                TERM_SLATE);
+        }
     }
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);
+}
+
+static int sdl_description_overlay_footer_action_at(float x, float y)
+{
+    description_overlay_layout layout;
+    const description_overlay_state* overlay = &g_description_overlay;
+    cptr footer_text;
+    int col;
+
+    if (!overlay->active || !overlay->interactive
+        || overlay->footer_action_count <= 0)
+    {
+        return 0;
+    }
+
+    if (!sdl_description_overlay_layout(&layout) || !layout.footer)
+        return 0;
+
+    if (x < layout.text_x || y < layout.footer_y
+        || y >= layout.footer_y + (float)layout.cell_h)
+    {
+        return 0;
+    }
+
+    col = (int)((x - layout.text_x) / (float)layout.cell_w);
+    if (col < 0 || col >= layout.visible_cols)
+        return 0;
+
+    footer_text = sdl_description_overlay_footer_text(overlay);
+    for (int i = 0; i < overlay->footer_action_count; i++)
+    {
+        const description_overlay_action* action = &overlay->footer_actions[i];
+        cptr match;
+        int start;
+        int end;
+
+        if (!action->token[0])
+            continue;
+
+        match = strstr(footer_text, action->token);
+        if (!match)
+            continue;
+
+        start = (int)(match - footer_text);
+        end = start + (int)strlen(action->token);
+        if (col >= start && col < end)
+            return action->key;
+    }
+
+    return 0;
+}
+
+static bool sdl_description_overlay_handle_footer_hover(float x, float y)
+{
+    int key = sdl_description_overlay_footer_action_at(x, y);
+
+    if (!g_description_overlay.active || !g_description_overlay.interactive
+        || g_description_overlay.footer_action_count <= 0)
+    {
+        return false;
+    }
+
+    if (key == 0)
+    {
+        if (g_description_overlay.footer_hover_key != 0)
+        {
+            g_description_overlay.footer_hover_key = 0;
+            g_state.need_present = true;
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+        return false;
+    }
+
+    if (g_description_overlay.footer_hover_key != key)
+    {
+        g_description_overlay.footer_hover_key = key;
+        g_state.need_present = true;
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    }
+
+    return true;
+}
+
+static bool sdl_description_overlay_handle_footer_pointer(float x, float y)
+{
+    int key = sdl_description_overlay_footer_action_at(x, y);
+
+    if (key == 0)
+        return false;
+
+    g_description_overlay.footer_hover_key = key;
+    g_state.need_present = true;
+    Term_keypress(key);
+    return true;
 }
 
 static bool sdl_unified_look_handle_map_describe_pointer(float x, float y)
@@ -33498,6 +33711,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_description_overlay_handle_footer_hover((float)ev->motion.x,
+                (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_log_pane_menu_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, 0, true))
         {
@@ -33631,6 +33849,11 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (ui_key_wait_dismiss_is_active()
                 && sdl_pointer_dismiss_any_key_prompt())
+            {
+                return;
+            }
+            if (sdl_description_overlay_handle_footer_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
             {
                 return;
             }
@@ -33956,6 +34179,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_description_overlay_handle_footer_pointer(x, y))
+            return;
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_main_menu_pane_handle_pointer(x, y))

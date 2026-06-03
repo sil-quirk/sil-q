@@ -205,6 +205,28 @@ static bool object_is_truly_two_handed(const object_type* o_ptr)
     return false;
 }
 
+static bool object_is_inventory_throwable(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER)
+        return true;
+
+    if (o_ptr->tval == TV_POLEARM)
+        return o_ptr->sval == SV_HAND_AXE || o_ptr->sval == SV_SPEAR;
+
+    return false;
+}
+
+static int inventory_throwable_space_cost(const object_type* o_ptr)
+{
+    if (o_ptr && o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_SPEAR)
+        return 2;
+
+    return 1;
+}
+
 static bool get_inventory_limit_info(const object_type* o_ptr,
                                      enum inventory_limit_group* group,
                                      int* limit,
@@ -291,9 +313,18 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
             case TV_HAFTED:
             case TV_POLEARM:
             case TV_SWORD:
-                local_group = INV_LIMIT_MELEE_WEAPON;
-                local_limit = 2;
-                local_cost = object_is_truly_two_handed(o_ptr) ? 2 : 1;
+                if (object_is_inventory_throwable(o_ptr))
+                {
+                    local_group = INV_LIMIT_THROWABLE;
+                    local_limit = 2;
+                    local_cost = inventory_throwable_space_cost(o_ptr);
+                }
+                else
+                {
+                    local_group = INV_LIMIT_MELEE_WEAPON;
+                    local_limit = 2;
+                    local_cost = object_is_truly_two_handed(o_ptr) ? 2 : 1;
+                }
                 break;
             default:
                 found = false;
@@ -325,13 +356,12 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
     return found;
 }
 
-static bool inventory_limit_counts_stacks(const object_type* o_ptr,
-                                          enum inventory_limit_group group)
+static bool inventory_limit_counts_stacks(enum inventory_limit_group group)
 {
     if (group == INV_LIMIT_ARROW)
         return true;
 
-    if ((group == INV_LIMIT_MELEE_WEAPON) && player_can_treat_as_throwing(o_ptr))
+    if (group == INV_LIMIT_THROWABLE)
         return true;
 
     return false;
@@ -342,7 +372,7 @@ static bool inventory_limit_is_stack_counted(const object_type* o_ptr)
     enum inventory_limit_group group;
 
     return get_inventory_limit_info(o_ptr, &group, NULL, NULL)
-        && inventory_limit_counts_stacks(o_ptr, group);
+        && inventory_limit_counts_stacks(group);
 }
 
 static int inventory_limit_usage(enum inventory_limit_group group)
@@ -370,7 +400,7 @@ static int inventory_limit_usage(enum inventory_limit_group group)
         if (slot_group != group)
             continue;
 
-        if (inventory_limit_counts_stacks(slot_ptr, slot_group))
+        if (inventory_limit_counts_stacks(slot_group))
             usage += slot_cost;
         else
             usage += slot_cost * MAX(slot_ptr->number, 1);
@@ -444,6 +474,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             else
                 SDL_strlcpy(carry_limit_last_label, "melee weapons",
                           sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_THROWABLE:
+            SDL_strlcpy(carry_limit_last_label, "throwing weapons",
+                      sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_SUPPLY_WEIGHT:
             SDL_strlcpy(carry_limit_last_label, "supply weight",
@@ -592,8 +626,8 @@ static bool inventory_type_slot_available(const object_type* o_ptr,
         return false;
     }
 
-    units = inventory_limit_counts_stacks(o_ptr, group) ? 1
-                                                        : MAX(o_ptr->number, 1);
+    units = inventory_limit_counts_stacks(group) ? 1
+                                                 : MAX(o_ptr->number, 1);
 
     int used = inventory_limit_usage(group);
 
@@ -7025,7 +7059,7 @@ int inventory_limit_usage_for_group(enum inventory_limit_group group)
     if (group == INV_LIMIT_NONE)
         return 0;
 
-    if (group >= INV_LIMIT_ARROW && group <= INV_LIMIT_MELEE_WEAPON)
+    if (group >= INV_LIMIT_ARROW && group <= INV_LIMIT_THROWABLE)
         return inventory_limit_usage(group);
 
     if (group == INV_LIMIT_BRASS_LAMPS)
@@ -7051,6 +7085,24 @@ int inventory_limit_usage_for_group(enum inventory_limit_group group)
     }
 
     return usage;
+}
+
+int inventory_limit_space_for_object(const object_type* o_ptr)
+{
+    enum inventory_limit_group group;
+    int cost;
+    int units;
+
+    if (!inventory_limit_info_for_object(o_ptr, &group, NULL, &cost))
+        return 0;
+
+    if (cost <= 0)
+        return 0;
+
+    units = inventory_limit_counts_stacks(group) ? 1
+                                                 : MAX(o_ptr->number, 1);
+
+    return cost * units;
 }
 
 int inventory_limit_limit_for_group(enum inventory_limit_group group)
@@ -7090,6 +7142,8 @@ int inventory_limit_limit_for_group(enum inventory_limit_group group)
         limit = 0;
         break;
     case INV_LIMIT_MELEE_WEAPON:
+        return 2;
+    case INV_LIMIT_THROWABLE:
         return 2;
     case INV_LIMIT_SUPPLY_WEIGHT:
         return supplies_current_weight_cap() / 10;
@@ -7149,6 +7203,8 @@ cptr inventory_limit_group_name(enum inventory_limit_group group)
         return "mail armour";
     case INV_LIMIT_MELEE_WEAPON:
         return "melee weapons";
+    case INV_LIMIT_THROWABLE:
+        return "throwables";
     case INV_LIMIT_SUPPLY_WEIGHT:
         return "supply weight";
     case INV_LIMIT_TORCHES:

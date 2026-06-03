@@ -40,6 +40,9 @@ static bool object_info_overlay_capture_active = false;
 
 static void object_info_screen_multi_body(const object_type** objects,
     const char** headings, int count, bool clear_current_line);
+static char object_info_screen_capture_view(
+    const object_info_screen_capture* capture, cptr footer,
+    const object_info_screen_action* actions, int action_count);
 
 static bool object_info_blocked_by_hallucination(void)
 {
@@ -2647,14 +2650,45 @@ bool object_info_overlay_show_multi(const object_type** objects,
     return true;
 }
 
-static void object_info_screen_capture_view(
-    const object_info_screen_capture* capture)
+static bool object_info_screen_key_is_action(int key,
+    const object_info_screen_action* actions, int action_count)
+{
+    if (!actions || action_count <= 0)
+        return false;
+
+    for (int i = 0; i < action_count; i++)
+    {
+        if (actions[i].key == key)
+            return true;
+    }
+
+    return false;
+}
+
+static void object_info_configure_footer(cptr footer,
+    const object_info_screen_action* actions, int action_count)
+{
+    sdl_description_overlay_set_footer(footer, footer && footer[0]);
+    sdl_description_overlay_clear_footer_actions();
+
+    if (!actions || action_count <= 0)
+        return;
+
+    for (int i = 0; i < action_count; i++)
+        sdl_description_overlay_add_footer_action(actions[i].key,
+            actions[i].token);
+}
+
+static char object_info_screen_capture_view(
+    const object_info_screen_capture* capture, cptr footer,
+    const object_info_screen_action* actions, int action_count)
 {
     int scroll = 0;
     bool overlay_active = false;
+    char result = 0;
 
     if (!capture)
-        return;
+        return 0;
 
     while (true)
     {
@@ -2665,6 +2699,7 @@ static void object_info_screen_capture_view(
         char ch;
 
         Term_get_size(NULL, &term_hgt);
+        object_info_configure_footer(footer, actions, action_count);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
                 capture->width, capture->height, scroll, true, &visible_rows,
@@ -2685,7 +2720,20 @@ static void object_info_screen_capture_view(
         if ((dir == 8) || (dir == 2))
             ch = I2D(dir);
 
-        if ((ch == '8') || (ch == '='))
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+        {
+            continue;
+        }
+        else if (ch == ESCAPE)
+        {
+            break;
+        }
+        else if (object_info_screen_key_is_action(ch, actions, action_count))
+        {
+            result = ch;
+            break;
+        }
+        else if ((ch == '8') || (ch == '='))
         {
             if (scroll > 0)
                 scroll--;
@@ -2707,10 +2755,6 @@ static void object_info_screen_capture_view(
             if (scroll < 0)
                 scroll = 0;
         }
-        else if (ch == ESCAPE)
-        {
-            break;
-        }
         else
         {
             break;
@@ -2719,19 +2763,32 @@ static void object_info_screen_capture_view(
 
     if (overlay_active)
         sdl_description_overlay_clear();
+    sdl_description_overlay_clear_footer_actions();
+    sdl_description_overlay_set_footer(NULL, false);
     ui_scroll_area_clear();
+
+    return result;
 }
 
 void object_info_screen_multi(const object_type** objects, const char** headings, int count)
 {
+    (void)object_info_screen_multi_with_actions(objects, headings, count,
+        NULL, NULL, 0);
+}
+
+char object_info_screen_multi_with_actions(const object_type** objects,
+    const char** headings, int count, cptr footer,
+    const object_info_screen_action* actions, int action_count)
+{
     object_info_screen_capture capture;
     bool have_capture = false;
+    char result = 0;
 
     if (count <= 0 || objects == NULL)
-        return;
+        return 0;
 
     if (object_info_blocked_by_hallucination())
-        return;
+        return 0;
 
     SDL_memset(&capture, 0, sizeof(capture));
 
@@ -2742,7 +2799,8 @@ void object_info_screen_multi(const object_type** objects, const char** headings
             0);
     if (have_capture)
     {
-        object_info_screen_capture_view(&capture);
+        result = object_info_screen_capture_view(&capture, footer, actions,
+            action_count);
         object_info_screen_capture_free(&capture);
     }
     else
@@ -2756,6 +2814,8 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
     new_paragraph = false;
+
+    return result;
 }
 
 

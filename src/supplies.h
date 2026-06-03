@@ -53,6 +53,7 @@ typedef enum inventory_menu_group
     INVENTORY_MENU_GROUP_RINGS,
     INVENTORY_MENU_GROUP_AMULETS,
     INVENTORY_MENU_GROUP_WEAPONS,
+    INVENTORY_MENU_GROUP_THROWABLES,
     INVENTORY_MENU_GROUP_BOWS,
     INVENTORY_MENU_GROUP_ARROWS,
     INVENTORY_MENU_GROUP_ARMOUR,
@@ -69,6 +70,13 @@ typedef enum inventory_menu_group
     INVENTORY_MENU_GROUP_MAX
 } inventory_menu_group;
 
+typedef enum supply_floor_action
+{
+    SUPPLY_FLOOR_ACTION_DEFAULT = 0,
+    SUPPLY_FLOOR_ACTION_USE,
+    SUPPLY_FLOOR_ACTION_WIELD
+} supply_floor_action;
+
 typedef struct supply_menu_request
 {
     bool focus_group;          /* jump to specific group */
@@ -79,7 +87,15 @@ typedef struct supply_menu_request
     supply_menu_page page;     /* initial page when focus_page is true */
     bool focus_inventory_group; /* jump to a specific inventory browser group */
     inventory_menu_group inventory_group;
+    bool focus_floor_item; /* jump to a floor row under the player */
+    int floor_o_idx;       /* o_list index for focus_floor_item */
+    supply_floor_action floor_action; /* Space/Enter action for floor rows */
     bool preview_inventory_description; /* open inventory with live preview */
+    bool replacement_mode; /* choose an item to drop for a pickup limit */
+    const struct object_type* replacement_incoming;
+    bool replacement_include_equip;
+    bool replacement_include_supplies;
+    int* replacement_item_out; /* inventory slot or SUPPLIES_INDEX + supply idx */
 } supply_menu_request;
 
 void supplies_init(void);

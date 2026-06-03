@@ -3892,6 +3892,8 @@ static pickup_failure_result prompt_replace_light_limit_item(
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
     bool old_expand_supplies = inventory_menu_set_expand_supplies(true);
+    int menu_item = -1;
+    bool have_menu_item = false;
 
     extern bool sdl_is_story_font_enabled(void);
     extern void sdl_story_font_disable(void);
@@ -3909,22 +3911,29 @@ static pickup_failure_result prompt_replace_light_limit_item(
 
         if (menu_group != INVENTORY_MENU_GROUP_ALL)
         {
-            bool acted;
+            bool chose_replacement;
 
-            msg_print("Opening the matching inventory category.");
-            acted = open_inventory_menu_category(menu_group);
+            msg_print("What to replace?");
+            chose_replacement = open_inventory_replacement_menu(menu_group,
+                incoming, true, true, &menu_item);
 
-            inventory_menu_set_expand_supplies(old_expand_supplies);
-            replacement_filter_incoming = old_filter;
-            item_tester_hook = old_item_tester_hook;
-            item_tester_tval = old_item_tester_tval;
-            item_tester_full = old_item_tester_full;
+            if (!chose_replacement)
+            {
+                inventory_menu_set_expand_supplies(old_expand_supplies);
+                replacement_filter_incoming = old_filter;
+                item_tester_hook = old_item_tester_hook;
+                item_tester_tval = old_item_tester_tval;
+                item_tester_full = old_item_tester_full;
 
-            return acted ? PICKUP_FAILURE_RETRY : PICKUP_FAILURE_ABORT;
+                return PICKUP_FAILURE_ABORT;
+            }
+
+            have_menu_item = true;
         }
     }
 
-    msg_print("Choose an item to replace.");
+    if (!have_menu_item)
+        msg_print("Choose an item to replace.");
 
     strnfmt(prompt, sizeof(prompt),
             "Replace which item to pick up %s? ", incoming_name);
@@ -3940,7 +3949,12 @@ static pickup_failure_result prompt_replace_light_limit_item(
         object_type* drop_ptr = NULL;
         int remove_amt = 1;
 
-        if (!get_item(&item, prompt, "You have nothing to replace.",
+        if (have_menu_item)
+        {
+            item = menu_item;
+            have_menu_item = false;
+        }
+        else if (!get_item(&item, prompt, "You have nothing to replace.",
             USE_INVEN | USE_EQUIP))
         {
             break;
@@ -4706,6 +4720,8 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     const object_type* old_filter = replacement_filter_incoming;
     bool old_expand_supplies =
         inventory_menu_set_expand_supplies(supply_weight_limit);
+    int menu_item = -1;
+    bool have_menu_item = false;
 
     /* Ensure story font is disabled before showing messages */
     extern bool sdl_is_story_font_enabled(void);
@@ -4725,22 +4741,29 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
 
         if (menu_group != INVENTORY_MENU_GROUP_ALL)
         {
-            bool acted;
+            bool chose_replacement;
 
-            msg_print("Opening the matching inventory category.");
-            acted = open_inventory_menu_category(menu_group);
+            msg_print("What to replace?");
+            chose_replacement = open_inventory_replacement_menu(menu_group,
+                incoming, false, false, &menu_item);
 
-            inventory_menu_set_expand_supplies(old_expand_supplies);
-            replacement_filter_incoming = old_filter;
-            item_tester_hook = old_item_tester_hook;
-            item_tester_tval = old_item_tester_tval;
-            item_tester_full = old_item_tester_full;
+            if (!chose_replacement)
+            {
+                inventory_menu_set_expand_supplies(old_expand_supplies);
+                replacement_filter_incoming = old_filter;
+                item_tester_hook = old_item_tester_hook;
+                item_tester_tval = old_item_tester_tval;
+                item_tester_full = old_item_tester_full;
 
-            return acted;
+                return false;
+            }
+
+            have_menu_item = true;
         }
     }
 
-    msg_print("Choose an item to replace.");
+    if (!have_menu_item)
+        msg_print("Choose an item to replace.");
 
     strnfmt(prompt, sizeof(prompt),
             "Replace which item to pick up %s? ", incoming_name);
@@ -4756,7 +4779,12 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         object_type* drop_ptr = NULL;
         int remove_amt = 0;
 
-        if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
+        if (have_menu_item)
+        {
+            item = menu_item;
+            have_menu_item = false;
+        }
+        else if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
             break;
 
         if (item >= SUPPLIES_INDEX)

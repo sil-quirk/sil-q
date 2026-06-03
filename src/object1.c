@@ -7251,7 +7251,8 @@ static bool append_description_object(const object_type* objects[],
 }
 
 
-void describe_item_with_comparisons(int item_index, bool include_comparisons)
+static char describe_item_with_comparisons_aux(int item_index,
+    bool include_comparisons, bool floor_actions)
 {
     const object_type* objects[MAX_DESCRIPTION_COMPARE_ITEMS];
     const char* headings[MAX_DESCRIPTION_COMPARE_ITEMS];
@@ -7263,10 +7264,10 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     u32b base_groups;
 
     if (item_index == ENHANCED_MENU_NO_SELECTION)
-        return;
+        return 0;
 
     if (inventory_item_is_supply_summary(item_index))
-        return;
+        return 0;
 
     if (is_floor || is_supply)
     {
@@ -7275,12 +7276,12 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     else
     {
         if (item_index < 0 || item_index >= INVEN_TOTAL)
-            return;
+            return 0;
         base_obj = &inventory[item_index];
     }
 
     if (!base_obj || !base_obj->k_idx)
-        return;
+        return 0;
 
     /* Opening an item description attempts smithing-difficulty identification. */
     {
@@ -7419,7 +7420,32 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
         }
     }
 
+    if (floor_actions && is_floor)
+    {
+        static const object_info_screen_action actions[] = {
+            { 'x', "x use" },
+            { ' ', "Space pick up" },
+            { ESCAPE, "Esc close" }
+        };
+
+        return object_info_screen_multi_with_actions(objects, headings, count,
+            "x use  Space pick up  Esc close", actions, N_ELEMENTS(actions));
+    }
+
     object_info_screen_multi(objects, headings, count);
+    return 0;
+}
+
+void describe_item_with_comparisons(int item_index, bool include_comparisons)
+{
+    (void)describe_item_with_comparisons_aux(item_index,
+        include_comparisons, false);
+}
+
+char describe_item_with_floor_actions(int item_index, bool include_comparisons)
+{
+    return describe_item_with_comparisons_aux(item_index,
+        include_comparisons, true);
 }
 
 void show_inven_enhanced(void)

@@ -2066,10 +2066,10 @@ static void process_command(void)
         break;
     }
 
-    /* Remove equipment */
+    /* Equipped browser / remove equipment */
     case 'r':
     {
-        do_cmd_takeoff(NULL, 0);
+        do_cmd_equip_direct();
         break;
     }
 

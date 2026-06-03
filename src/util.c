@@ -4843,36 +4843,12 @@ bool get_check(cptr prompt)
 {
     char ch;
 
-    char buf[160];
-    char suffix[32];
-    bool steamdeck = steamdeck_controls_active();
-
     /* Paranoia XXX XXX XXX */
     message_flush();
 
-    /* Hack -- Build a "useful" prompt */
-    if (steamdeck)
-    {
-        char confirm_label[16];
-        char back_label[16];
-
-        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        prompt_controller_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-        strnfmt(suffix, sizeof(suffix), "[%s/%s] ", confirm_label, back_label);
-    }
-    else
-    {
-        SDL_strlcpy(suffix, portable_controls_active() ? "[y/n/sp] " : "[y/n] ",
-            sizeof(suffix));
-    }
-    format_check_prompt(buf, sizeof(buf), prompt, suffix);
-
     ui_menu_click_clear_pending_hover();
 
-    /* Prompt for it */
-    prt(buf, 0, 0);
+    /* Ask through the modal yes/no question menu instead of a top-line prompt */
     sdl_touch_pane_begin_yes_no_prompt(prompt);
     Term_fresh();
 
