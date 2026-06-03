@@ -2342,5 +2342,7 @@ extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
 extern int sdl_main_view_visible_col0(void);
 extern int sdl_main_view_visible_cols(void);
+extern bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows);
 extern void binding_action_label(int binding, char* buf, size_t buflen);
 extern void binding_action_short(int binding, char* buf, size_t buflen);

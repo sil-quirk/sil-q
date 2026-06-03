@@ -3869,6 +3869,76 @@ bool sdl_left_panel_pane_renders_character_panel(void)
     return sdl_left_panel_pane_presentation_active();
 }
 
+bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    sdl_left_panel_metrics metrics;
+    SDL_FRect rect;
+    int visual_cols;
+    int visual_rows;
+    int first_col;
+    int last_col;
+    int first_row;
+    int last_row;
+    float grid_x;
+    float grid_y;
+
+    if (start_col)
+        *start_col = 0;
+    if (cols)
+        *cols = 0;
+    if (start_row)
+        *start_row = 0;
+    if (rows)
+        *rows = 0;
+
+    if (!sdl_left_panel_pane_presentation_active())
+        return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+    if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &rect))
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    first_col = (int)SDL_floorf((rect.x - grid_x) / (float)view->cell_w);
+    last_col = (int)SDL_ceilf(
+        (rect.x + rect.w - grid_x) / (float)view->cell_w);
+    first_row = (int)SDL_floorf((rect.y - grid_y) / (float)view->cell_h);
+    last_row = (int)SDL_ceilf(
+        (rect.y + rect.h - grid_y) / (float)view->cell_h);
+
+    if (first_col < 0)
+        first_col = 0;
+    if (last_col > visual_cols)
+        last_col = visual_cols;
+    if (first_row < 0)
+        first_row = 0;
+    if (last_row > visual_rows)
+        last_row = visual_rows;
+    if (last_col <= first_col || last_row <= first_row)
+        return false;
+
+    if (start_col)
+        *start_col = first_col;
+    if (cols)
+        *cols = last_col - first_col;
+    if (start_row)
+        *start_row = first_row;
+    if (rows)
+        *rows = last_row - first_row;
+
+    return true;
+}
+
 static bool sdl_left_panel_pane_runtime_active(void)
 {
     return sdl_left_panel_pane_presentation_active()
