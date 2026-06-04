@@ -193,7 +193,14 @@ set(SIL_MORE_SOURCES
     src/birth/birth-skills.c
     src/birth/birth-traits.c
     src/birth/birth-ui-text.c
-    src/cave.c
+    src/cave/cave-awareness.c
+    src/cave/cave-flow.c
+    src/cave/cave-geometry.c
+    src/cave/cave-map-ui.c
+    src/cave/cave-projection.c
+    src/cave/cave-styles.c
+    src/cave/cave-view.c
+    src/cave/cave-visuals.c
     src/cJSON.c
     src/cmd/combat/cmd-combat.c
     src/cmd/combat/cmd-ranged.c
@@ -219,7 +226,17 @@ set(SIL_MORE_SOURCES
     src/cmd/ui/cmd-ui-smithing.c
     src/cmd/world/cmd-interact-chest.c
     src/cmd/world/cmd-interact.c
-    src/dungeon.c
+    src/dungeon/dungeon-command.c
+    src/dungeon/dungeon-identify.c
+    src/dungeon/dungeon-loop.c
+    src/dungeon/dungeon-morgoth.c
+    src/dungeon/dungeon-narrative.c
+    src/dungeon/dungeon-player.c
+    src/dungeon/dungeon-spectator.c
+    src/dungeon/dungeon-startup.c
+    src/dungeon/dungeon-state.c
+    src/dungeon/dungeon-story.c
+    src/dungeon/dungeon-world.c
     src/fs/file.c
     src/fs/pref-files.c
     src/fs/savefile-name.c
@@ -395,6 +412,7 @@ set(SIL_MORE_SOURCES
     src/fs/io_sdl.c
     src/fs/path.c
     src/ui/colors.c
+    src/ui/menu-click.c
     src/ui/story_font.c
     src/ui/status/status-frame.c
     src/ui/status/status-health.c
@@ -425,7 +443,19 @@ set(SIL_MORE_SOURCES
     src/supplies.c
     src/tables.c
     src/use-obj.c
-    src/util.c
+    src/support/command.c
+    src/support/editing-buffer.c
+    src/support/feedback.c
+    src/support/geometry.c
+    src/support/input.c
+    src/support/macro.c
+    src/support/message.c
+    src/support/misc.c
+    src/support/prompt.c
+    src/support/quark.c
+    src/support/screen.c
+    src/support/text-output.c
+    src/support/utf8.c
     src/variable.c
     src/wizard1.c
     src/wizard2.c

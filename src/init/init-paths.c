@@ -729,7 +729,7 @@ static void migrate_legacy_metarun_layout(const char* meta_root, const char* met
  * In general, the initial path should end in the appropriate "PATH_SEP"
  * string.  All of the "sub-directory" paths (created below or supplied
  * by the user) will NOT end in the "PATH_SEP" string, see the special
- * "path_build()" function in "util.c" for more information.
+ * "path_build()" function in fs/path.c for more information.
  *
  * Mega-Hack -- support fat raw files under NEXTSTEP, using special
  * "suffixed" directories for the "ANGBAND_DIR_DATA" directory, but

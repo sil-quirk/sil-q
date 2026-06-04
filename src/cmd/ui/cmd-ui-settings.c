@@ -9659,10 +9659,10 @@ static errr macro_dump(cptr fname)
 /*
  * Hack -- ask for a "trigger" (see below)
  *
- * Note the complex use of the "inkey()" function from "util.c".
+ * Note the complex use of the "inkey()" function from support/input.c.
  *
  * Note that both "flush()" calls are extremely important.  This may
- * no longer be true, since "util.c" is much simpler now.  XXX XXX XXX
+ * no longer be true, since input handling is simpler now.  XXX XXX XXX
  */
 static void do_cmd_macro_aux(char* buf)
 {
@@ -9714,7 +9714,7 @@ static void do_cmd_macro_aux(char* buf)
  * Hack -- ask for a keymap "trigger" (see below)
  *
  * Note that both "flush()" calls are extremely important.  This may
- * no longer be true, since "util.c" is much simpler now.  XXX XXX XXX
+ * no longer be true, since input handling is simpler now.  XXX XXX XXX
  */
 static void do_cmd_macro_aux_keymap(char* buf)
 {

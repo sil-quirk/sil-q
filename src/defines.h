@@ -377,14 +377,14 @@
 #define DISC_LORE_BIG_CAVE_POIS 0x10
 
 /*
- * Maximum size of the "view" array (see "cave.c")
+ * Maximum size of the "view" array (see "cave/cave-view.c")
  * Note that the "view radius" will NEVER exceed 20, and even if the "view"
  * was octagonal, we would never require more than 1520 entries in the array.
  */
 #define VIEW_MAX 1536
 
 /*
- * Maximum size of the "temp" array (see "cave.c")
+ * Maximum size of the "temp" array (see "cave/cave-view.c")
  * Note that we must be as large as "VIEW_MAX" for proper functioning
  * of the "update_view()" function, and we must also be as large as the
  * largest illuminatable room, but no room is larger than 800 grids.  We
@@ -470,13 +470,13 @@
 #define ACTION_BASH 12
 
 /*
- * OPTION: Maximum number of macros (see "util.c")
+ * OPTION: Maximum number of macros (see "support/macro.c")
  * Default: assume at most 256 macros are used
  */
 #define MACRO_MAX 256
 
 /*
- * OPTION: Maximum number of "quarks" (see "util.c")
+ * OPTION: Maximum number of "quarks" (see "support/quark.c")
  * Default: assume at most 512 different inscriptions are used
  */
 #define QUARK_MAX 512
@@ -487,13 +487,13 @@
 #define AUTOINSCRIPTIONS_MAX 216
 
 /*
- * OPTION: Maximum number of messages to remember (see "util.c")
+ * OPTION: Maximum number of messages to remember (see "support/message.c")
  * Default: assume maximal memorization of 2048 total messages
  */
 #define MESSAGE_MAX 2048
 
 /*
- * OPTION: Maximum space for the message text buffer (see "util.c")
+ * OPTION: Maximum space for the message text buffer (see "support/message.c")
  * Default: assume that each of the 2048 messages is repeated an
  * average of three times, and has an average length of 48
  */

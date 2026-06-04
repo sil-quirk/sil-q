@@ -125,7 +125,7 @@ int menu_choose_one_curse(int n)
     strnfmt(str, sizeof(str), "Dark powers demand their price - choose %s curse:", seq[n]);
     print_heading_fade(str, TERM_YELLOW);
 
-    /* dynamic vertical layout - ask util.c to count wrapped lines   */
+    /* dynamic vertical layout - ask support/text-output.c to count wrapped lines */
     int row = 4;                                     /* first free row */
     text_out_hook = text_out_to_screen;
     text_out_wrap = metarun_term_width() - 2;        /* full width     */

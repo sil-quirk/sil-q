@@ -454,7 +454,7 @@ extern NavResult character_creation(void);
 extern NavResult blitz_character_creation(void);
 void player_wipe(void);
 
-/* cave.c */
+/* cave/ */
 extern int distance(int y1, int x1, int y2, int x2);
 extern int distance_squared(int y1, int x1, int y2, int x2);
 extern bool los(int y1, int x1, int y2, int x2);
@@ -848,7 +848,7 @@ extern void do_cmd_play_instrument(
     object_type* default_o_ptr, int default_item);
 extern void do_cmd_activate(void);
 
-/* dungeon.c */
+/* dungeon/ */
 extern bool can_be_pseudo_ided(const object_type* o_ptr);
 extern int value_check_aux1(const object_type* o_ptr);
 extern void land(void);
@@ -1439,7 +1439,22 @@ extern int consumable_healing_points(const object_type* o_ptr);
 extern bool use_object(object_type* o_ptr, bool* ident);
 extern bool use_sanctity_gem_on(object_type* target_o_ptr, bool* ident);
 
-/* util.c */
+/* Split support/ui utility modules, formerly util.c */
+#include "support/command.h"
+#include "support/editing-buffer.h"
+#include "support/feedback.h"
+#include "support/geometry.h"
+#include "support/input.h"
+#include "support/macro.h"
+#include "support/message.h"
+#include "support/misc.h"
+#include "support/prompt.h"
+#include "support/quark.h"
+#include "support/screen.h"
+#include "support/text-output.h"
+#include "support/utf8.h"
+#include "ui/colors.h"
+#include "ui/menu-click.h"
 
 /* SDL3-based file I/O operations */
 extern errr sdl_fclose(SDL_IOStream* stream);
@@ -1672,10 +1687,6 @@ extern bool ui_menu_click_take_hover_redraw(void);
 extern bool ui_menu_click_get_hover_choice(int* choice);
 extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
-#define UI_MENU_CLICK_PRIMARY 1
-#define UI_MENU_CLICK_SECONDARY 2
-#define UI_MENU_CLICK_HOVER 3
-#define UI_MENU_CLICK_WAKE_KEY KTRL('\\')
 extern void ui_scroll_area_clear(void);
 extern void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category);
 extern bool ui_scroll_area_has_cell(int col, int row);
@@ -1886,7 +1897,7 @@ void pause_with_text(const char desc[][100], int row, int col,
 
 #ifdef SET_UID
 #ifndef HAVE_USLEEP
-/* util.c */
+/* support/misc.c */
 extern int usleep(unsigned long usecs);
 #endif /* HAVE_USLEEP */
 extern void user_name(char* buf, size_t len, int id);

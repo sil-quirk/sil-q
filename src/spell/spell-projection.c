@@ -151,7 +151,7 @@ static void calc_starburst(
  * An arc is created by rejecting all grids that form the endpoints of lines
  *   whose angular difference (in degrees) from the centerline of the arc is
  *   greater than one-half the input "degrees".  See the table "get_
- *   angle_to_grid" in "util.c" for more information.
+ *   angle_to_grid" in support/geometry.c for more information.
  * Note:  An arc with a value for degrees of zero is actually a beam of
  *   defined length.
  *
