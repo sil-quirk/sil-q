@@ -19,6 +19,7 @@ static bool new_paragraph = false;
 #define OBJECT_INFO_CAPTURE_MIN_ROWS 255
 #define OBJECT_INFO_CAPTURE_MAX_ROWS 2048
 #define OBJECT_INFO_CAPTURE_ROWS_PER_OBJECT 64
+#define OBJECT_INFO_CAPTURE_MARGIN_COLS 4
 
 typedef struct object_info_screen_capture
 {
@@ -43,6 +44,16 @@ static void object_info_screen_multi_body(const object_type** objects,
 static char object_info_screen_capture_view(
     const object_info_screen_capture* capture, cptr footer,
     const object_info_screen_action* actions, int action_count);
+
+static int object_info_screen_preferred_capture_width(void)
+{
+    int width = sdl_description_overlay_max_cols();
+
+    if (width > OBJECT_INFO_CAPTURE_MARGIN_COLS)
+        width -= OBJECT_INFO_CAPTURE_MARGIN_COLS;
+
+    return width;
+}
 
 static bool object_info_blocked_by_hallucination(void)
 {
@@ -2446,15 +2457,19 @@ static void object_info_screen_capture_free(
     capture->height = 0;
 }
 
-void object_info_overlay_clear(void)
+static void object_info_overlay_capture_release(void)
 {
-    sdl_description_overlay_clear();
-
     if (!object_info_overlay_capture_active)
         return;
 
     object_info_screen_capture_free(&object_info_overlay_capture);
     object_info_overlay_capture_active = false;
+}
+
+void object_info_overlay_clear(void)
+{
+    sdl_description_overlay_clear();
+    object_info_overlay_capture_release();
 }
 
 static int object_info_screen_capture_used_rows(term* t)
@@ -2623,15 +2638,13 @@ bool object_info_overlay_show_multi(const object_type** objects,
         return false;
 
     SDL_memset(&capture, 0, sizeof(capture));
-    overlay_width = sdl_description_overlay_max_cols();
-    if (overlay_width > 4)
-        overlay_width -= 4;
+    overlay_width = object_info_screen_preferred_capture_width();
 
     if (!object_info_screen_capture_build(objects, headings, count, &capture,
             overlay_width))
         return false;
 
-    object_info_overlay_clear();
+    object_info_overlay_capture_release();
     object_info_overlay_capture = capture;
     object_info_overlay_capture_active = true;
 
@@ -2796,7 +2809,7 @@ char object_info_screen_multi_with_actions(const object_type** objects,
 
     have_capture =
         object_info_screen_capture_build(objects, headings, count, &capture,
-            0);
+            object_info_screen_preferred_capture_width());
     if (have_capture)
     {
         result = object_info_screen_capture_view(&capture, footer, actions,

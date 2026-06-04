@@ -40853,6 +40853,61 @@ static void supply_overlay_cache_set(supply_overlay_cache* cache, int page,
     cache->term_hgt = term_hgt;
 }
 
+static void supply_overlay_avoid_selection(
+    const knowledge_browser_layout* layout, bool entry_column, int group_cur,
+    int group_top, int entry_cur, int entry_top, int entry_row_stride)
+{
+    int row;
+    int rows = 1;
+    int list_end;
+
+    if (!layout || layout->term_wid <= 0 || layout->list_rows <= 0)
+    {
+        sdl_description_overlay_clear_avoid();
+        return;
+    }
+
+    if (entry_column)
+    {
+        if (entry_row_stride < 1)
+            entry_row_stride = 1;
+        row = layout->list_row + (entry_cur - entry_top) * entry_row_stride;
+        rows = entry_row_stride;
+    }
+    else
+    {
+        row = layout->list_row + (group_cur - group_top);
+    }
+
+    list_end = layout->list_row + layout->list_rows;
+    if (row < layout->list_row || row >= list_end)
+    {
+        sdl_description_overlay_clear_avoid();
+        return;
+    }
+    if (row + rows > list_end)
+        rows = list_end - row;
+    if (rows < 1)
+        rows = 1;
+
+    sdl_description_overlay_set_avoid_term_rect(0, row, layout->term_wid,
+        rows);
+}
+
+static bool supply_overlay_handle_scroll_key(char ch)
+{
+    if (ch == '8')
+        return sdl_description_overlay_scroll_by(-1);
+    if (ch == '2')
+        return sdl_description_overlay_scroll_by(1);
+    if (ch == '9')
+        return sdl_description_overlay_scroll_page(-1);
+    if (ch == '3')
+        return sdl_description_overlay_scroll_page(1);
+
+    return false;
+}
+
 bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 {
     int i;
@@ -41171,6 +41226,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             if (desc_overlay_on && equip_entry_cnt)
             {
+                supply_overlay_avoid_selection(&layout, equip_column != 0,
+                    equip_grp_cur, equip_grp_top, equip_entry_cur,
+                    equip_entry_top, 1);
+
                 if (supply_overlay_cache_stale(&overlay_cache, page,
                         equip_entry_cur, equip_grp_cur, layout.term_wid,
                         layout.term_hgt))
@@ -41296,6 +41355,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
+
+            if (desc_overlay_on && overlay_cache.active
+                && supply_overlay_handle_scroll_key(ch))
+            {
+                continue;
+            }
 
             if (!click_generated_command)
             {
@@ -41683,6 +41748,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     : inventory_browser_compare_slot_for_entry(selected_group,
                           &equip_entries[inv_entry_cur]);
 
+                supply_overlay_avoid_selection(&layout, inv_column != 0,
+                    inv_grp_cur, inv_grp_top, inv_entry_cur, inv_entry_top,
+                    1);
+
                 if (supply_overlay_cache_stale(&overlay_cache, page,
                         inv_entry_cur, (int)selected_group, layout.term_wid,
                         layout.term_hgt))
@@ -41813,6 +41882,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
+
+            if (desc_overlay_on && overlay_cache.active
+                && supply_overlay_handle_scroll_key(ch))
+            {
+                continue;
+            }
 
             if (!click_generated_command)
             {
@@ -42347,6 +42422,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
         if (desc_overlay_on && entry_cnt)
         {
+            supply_overlay_avoid_selection(&draw_layout, column != 0,
+                grp_cur, grp_top, entry_cur, entry_top, entry_row_stride);
+
             if (supply_overlay_cache_stale(&overlay_cache, page, entry_cur,
                     grp_cur, draw_layout.term_wid, draw_layout.term_hgt))
             {
@@ -42460,6 +42538,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         }
         if (steamdeck_controls_active() && ch == 'f')
             ch = 'z';
+
+        if (desc_overlay_on && overlay_cache.active
+            && supply_overlay_handle_scroll_key(ch))
+        {
+            continue;
+        }
 
         if (ch == '-' && entry_cnt)
         {

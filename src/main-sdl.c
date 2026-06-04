@@ -1154,6 +1154,7 @@ typedef struct description_overlay_action {
 typedef struct description_overlay_state {
     bool active;
     bool interactive;
+    bool avoid_active;
     const byte* attrs;
     const char* chars;
     const byte* tattrs;
@@ -1162,6 +1163,10 @@ typedef struct description_overlay_state {
     int width;
     int height;
     int scroll;
+    int avoid_term_col;
+    int avoid_term_row;
+    int avoid_term_wid;
+    int avoid_term_hgt;
     bool footer_always;
     int footer_hover_key;
     int footer_action_count;
@@ -1808,8 +1813,6 @@ static SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(
     const char* font_path, int cell_width, int cell_height, bool* out_cached,
     int* out_atlas_cell_w, int* out_atlas_cell_h, bool* out_exact,
     bool allow_fallback);
-static SDL_Texture* sdl_acquire_mono_font_atlas_cells(const char* font_path,
-    int cell_width, int cell_height, bool* out_cached);
 static TTF_Font* sdl_acquire_mono_font_cells(const char* font_path,
     int cell_width, int cell_height);
 static TTF_Font* sdl_story_font_for_height(int pixel_height);
@@ -1974,6 +1977,8 @@ static bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
     SDL_FingerID finger_id);
 static bool sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id);
 static void sdl_menu_scroll_cancel(void);
+static bool sdl_description_overlay_handle_mouse_wheel(
+    const SDL_MouseWheelEvent* wheel);
 static bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect);
 static void sdl_side_map_pane_render(void);
 static bool sdl_side_map_pane_handle_mouse_wheel(
@@ -2321,6 +2326,9 @@ static void callback_sdl_init(term* t);
 static errr sdl_view_link_term(sdl_view* d, int term_index);
 static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
     int cell_width, int cell_height, int* actual_font_size);
+static SDL_Texture* sdl_try_load_ttf_font_cells(const char* font_path,
+    int cell_width, int cell_height, int* actual_font_size, char* error_buf,
+    size_t error_buf_size);
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
 static void sdl_window_set_position(int x, int y);
 static bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
@@ -5066,8 +5074,6 @@ static int sdl_auto_pane_font_size(enum pane_type type)
         return sdl_auto_font_size_from_main(1, 2);
     if (type == PANE_LEFT_PANEL || type == PANE_MAIN_MENU)
         return sdl_auto_font_size_from_main(3, 4);
-    if (type == PANE_DESCRIPTION)
-        return sdl_auto_font_size_from_main(2, 3);
 
     return sdl_auto_aux_view_font_size();
 }
@@ -21113,7 +21119,7 @@ static void sdl_object_tooltip_render(void)
 
 static int sdl_description_overlay_font_px(void)
 {
-    int font_px = sdl_effective_pane_cell_height_for_type(PANE_DESCRIPTION);
+    int font_px = get_sdl_terminal_menu_scale() * TILE_SIZE;
 
     if (font_px < 8)
         font_px = 8;
@@ -21223,6 +21229,51 @@ void sdl_description_overlay_add_footer_action(int key, cptr token)
     SDL_strlcpy(action->token, token, sizeof(action->token));
 }
 
+void sdl_description_overlay_clear_avoid(void)
+{
+    bool changed = g_description_overlay.avoid_active;
+
+    g_description_overlay.avoid_active = false;
+    g_description_overlay.avoid_term_col = 0;
+    g_description_overlay.avoid_term_row = 0;
+    g_description_overlay.avoid_term_wid = 0;
+    g_description_overlay.avoid_term_hgt = 0;
+
+    if (changed && g_description_overlay.active)
+    {
+        g_state.need_present = true;
+    }
+}
+
+void sdl_description_overlay_set_avoid_term_rect(int col, int row, int wid,
+    int hgt)
+{
+    bool changed;
+
+    if (col < 0 || row < 0 || wid <= 0 || hgt <= 0)
+    {
+        sdl_description_overlay_clear_avoid();
+        return;
+    }
+
+    changed = !g_description_overlay.avoid_active
+        || g_description_overlay.avoid_term_col != col
+        || g_description_overlay.avoid_term_row != row
+        || g_description_overlay.avoid_term_wid != wid
+        || g_description_overlay.avoid_term_hgt != hgt;
+
+    g_description_overlay.avoid_active = true;
+    g_description_overlay.avoid_term_col = col;
+    g_description_overlay.avoid_term_row = row;
+    g_description_overlay.avoid_term_wid = wid;
+    g_description_overlay.avoid_term_hgt = hgt;
+
+    if (changed && g_description_overlay.active)
+    {
+        g_state.need_present = true;
+    }
+}
+
 static bool sdl_description_overlay_token_matches_hover(
     const description_overlay_state* overlay, cptr text, int col)
 {
@@ -21252,6 +21303,117 @@ static bool sdl_description_overlay_token_matches_hover(
     return false;
 }
 
+static bool sdl_description_overlay_avoid_rect(SDL_FRect* out)
+{
+    const description_overlay_state* overlay = &g_description_overlay;
+
+    if (!out)
+        return false;
+    *out = (SDL_FRect){ 0 };
+    if (!overlay->avoid_active)
+        return false;
+
+    return sdl_main_cell_rect(overlay->avoid_term_col,
+        overlay->avoid_term_row, overlay->avoid_term_wid,
+        overlay->avoid_term_hgt, out);
+}
+
+static bool sdl_description_overlay_rects_intersect(
+    const SDL_FRect* a, const SDL_FRect* b)
+{
+    return a && b && a->x < b->x + b->w && a->x + a->w > b->x
+        && a->y < b->y + b->h && a->y + a->h > b->y;
+}
+
+static int sdl_description_overlay_rows_for_panel_space(float available_h,
+    int pad_y, int cell_h, bool footer)
+{
+    int rows;
+
+    if (available_h <= (float)(pad_y * 2) || cell_h <= 0)
+        return 0;
+
+    rows = ((int)available_h - pad_y * 2) / cell_h;
+    if (footer)
+        rows--;
+    if (rows < 0)
+        rows = 0;
+
+    return rows;
+}
+
+static bool sdl_description_overlay_fit_around_avoid(
+    const SDL_Rect* anchor, int margin, int pad_y, int cell_h, bool footer,
+    float panel_x, float panel_w, int* visible_rows, float* panel_h,
+    float* panel_y)
+{
+    SDL_FRect avoid;
+    SDL_FRect panel;
+
+    if (!anchor || !visible_rows || !panel_h || !panel_y)
+        return false;
+    if (g_description_overlay.interactive
+        || !g_description_overlay.avoid_active)
+    {
+        return true;
+    }
+
+    panel = (SDL_FRect){
+        .x = panel_x,
+        .y = *panel_y,
+        .w = panel_w,
+        .h = *panel_h,
+    };
+
+    if (!sdl_description_overlay_avoid_rect(&avoid)
+        || !sdl_description_overlay_rects_intersect(&panel, &avoid))
+    {
+        return true;
+    }
+
+    {
+        float min_y = (float)(anchor->y + margin);
+        float max_y = (float)(anchor->y + anchor->h - margin);
+        float gap = (float)(cell_h / 4);
+        float above_h;
+        float below_h;
+        int above_rows;
+        int below_rows;
+        int side_rows;
+        bool place_below;
+
+        if (gap < 2.0f)
+            gap = 2.0f;
+
+        above_h = avoid.y - gap - min_y;
+        below_h = max_y - (avoid.y + avoid.h + gap);
+        above_rows = sdl_description_overlay_rows_for_panel_space(
+            above_h, pad_y, cell_h, footer);
+        below_rows = sdl_description_overlay_rows_for_panel_space(
+            below_h, pad_y, cell_h, footer);
+
+        if (below_rows >= *visible_rows && above_rows < *visible_rows)
+            place_below = true;
+        else if (above_rows >= *visible_rows && below_rows < *visible_rows)
+            place_below = false;
+        else
+            place_below = (below_rows >= above_rows);
+
+        side_rows = place_below ? below_rows : above_rows;
+        if (side_rows < 1)
+            return false;
+
+        if (*visible_rows > side_rows)
+            *visible_rows = side_rows;
+        *panel_h = (float)((*visible_rows + (footer ? 1 : 0)) * cell_h
+            + pad_y * 2);
+        *panel_y = place_below ? (avoid.y + avoid.h + gap)
+                               : (avoid.y - gap - *panel_h);
+    }
+
+    return true;
+}
+
 static bool sdl_description_overlay_layout(description_overlay_layout* out)
 {
     SDL_Rect anchor;
@@ -21272,8 +21434,11 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     int visible_rows;
     int footer_cols = 0;
     bool footer;
+    bool footer_forced;
     float panel_w;
     float panel_h;
+    float panel_x;
+    float panel_y;
 
     if (out)
         *out = (description_overlay_layout){ 0 };
@@ -21308,27 +21473,51 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (max_cols < 1 || max_rows_no_footer < 1)
         return false;
 
-    footer = overlay->interactive
-        && (overlay->height > max_rows_no_footer
-            || overlay->footer_always
-            || overlay->footer_text[0]);
-    max_rows = max_rows_no_footer - (footer ? 1 : 0);
-    if (max_rows < 1)
-        max_rows = 1;
+    footer_forced = overlay->interactive
+        && (overlay->footer_always || overlay->footer_text[0]);
+    footer = footer_forced
+        || (overlay->interactive && overlay->height > max_rows_no_footer);
 
-    visible_rows = overlay->height;
-    if (visible_rows > max_rows)
-        visible_rows = max_rows;
+    for (int pass = 0; pass < 2; pass++)
+    {
+        max_rows = max_rows_no_footer - (footer ? 1 : 0);
+        if (max_rows < 1)
+            max_rows = 1;
 
-    if (footer)
-        footer_cols = (int)strlen(footer_text);
-    visible_cols = overlay->width;
-    if (visible_cols < footer_cols)
-        visible_cols = footer_cols;
-    if (visible_cols > max_cols)
-        visible_cols = max_cols;
-    if (visible_cols < 1)
-        visible_cols = 1;
+        visible_rows = overlay->height;
+        if (visible_rows > max_rows)
+            visible_rows = max_rows;
+
+        footer_cols = footer ? (int)strlen(footer_text) : 0;
+        visible_cols = overlay->width;
+        if (visible_cols < footer_cols)
+            visible_cols = footer_cols;
+        if (visible_cols > max_cols)
+            visible_cols = max_cols;
+        if (visible_cols < 1)
+            visible_cols = 1;
+
+        panel_w = (float)(visible_cols * cell_w + pad_x * 2);
+        panel_h = (float)((visible_rows + (footer ? 1 : 0)) * cell_h
+            + pad_y * 2);
+        panel_x = (float)anchor.x + ((float)anchor.w - panel_w) * 0.5f;
+        panel_y = (float)anchor.y + ((float)anchor.h - panel_h) * 0.5f;
+
+        if (!sdl_description_overlay_fit_around_avoid(&anchor, margin,
+                pad_y, cell_h, footer, panel_x, panel_w, &visible_rows,
+                &panel_h, &panel_y))
+        {
+            return false;
+        }
+
+        if (!footer && visible_rows < overlay->height)
+        {
+            footer = true;
+            continue;
+        }
+
+        break;
+    }
 
     out->cell_w = cell_w;
     out->cell_h = cell_h;
@@ -21342,12 +21531,9 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (out->scroll > out->max_scroll)
         out->scroll = out->max_scroll;
 
-    panel_w = (float)(visible_cols * cell_w + pad_x * 2);
-    panel_h = (float)((visible_rows + (footer ? 1 : 0)) * cell_h
-        + pad_y * 2);
     out->panel = (SDL_FRect){
-        .x = (float)anchor.x + ((float)anchor.w - panel_w) * 0.5f,
-        .y = (float)anchor.y + ((float)anchor.h - panel_h) * 0.5f,
+        .x = panel_x,
+        .y = panel_y,
         .w = panel_w,
         .h = panel_h,
     };
@@ -21356,6 +21542,87 @@ static bool sdl_description_overlay_layout(description_overlay_layout* out)
     out->footer_y = out->text_y + (float)(visible_rows * cell_h);
 
     return true;
+}
+
+static bool sdl_description_overlay_scroll_to_layout(
+    const description_overlay_layout* layout, int scroll)
+{
+    int clamped;
+
+    if (!layout || !g_description_overlay.active || layout->max_scroll <= 0)
+        return false;
+
+    clamped = scroll;
+    if (clamped < 0)
+        clamped = 0;
+    if (clamped > layout->max_scroll)
+        clamped = layout->max_scroll;
+
+    if (clamped == g_description_overlay.scroll)
+        return true;
+
+    g_description_overlay.scroll = clamped;
+    g_state.need_present = true;
+    sdl_present_if_needed(&g_views[PANE_MAIN]);
+    return true;
+}
+
+bool sdl_description_overlay_scroll_by(int rows)
+{
+    description_overlay_layout layout;
+
+    if (rows == 0)
+        return false;
+    if (!sdl_description_overlay_layout(&layout))
+        return false;
+
+    return sdl_description_overlay_scroll_to_layout(&layout,
+        layout.scroll + rows);
+}
+
+bool sdl_description_overlay_scroll_page(int direction)
+{
+    description_overlay_layout layout;
+    int rows;
+
+    if (direction == 0)
+        return false;
+    if (!sdl_description_overlay_layout(&layout))
+        return false;
+
+    rows = layout.visible_rows;
+    if (rows < 1)
+        rows = 1;
+    return sdl_description_overlay_scroll_to_layout(&layout,
+        layout.scroll + ((direction > 0) ? rows : -rows));
+}
+
+static bool sdl_description_overlay_handle_mouse_wheel(
+    const SDL_MouseWheelEvent* wheel)
+{
+    static sdl_wheel_step_state wheel_state;
+    description_overlay_layout layout;
+    int steps;
+
+    if (!wheel || wheel->which == SDL_TOUCH_MOUSEID)
+        return false;
+    if (!sdl_description_overlay_layout(&layout) || layout.max_scroll <= 0)
+        return false;
+    if (g_description_overlay.interactive
+        && (wheel->mouse_x < layout.panel.x
+            || wheel->mouse_x >= layout.panel.x + layout.panel.w
+            || wheel->mouse_y < layout.panel.y
+            || wheel->mouse_y >= layout.panel.y + layout.panel.h))
+    {
+        return false;
+    }
+
+    steps = sdl_wheel_step_state_consume_primary_axis(&wheel_state, wheel);
+    if (steps == 0)
+        return true;
+
+    return sdl_description_overlay_scroll_to_layout(&layout,
+        layout.scroll - steps);
 }
 
 static void sdl_description_overlay_render_char(SDL_Texture* atlas,
@@ -21474,22 +21741,27 @@ static void sdl_description_overlay_render(void)
         char scroll_buf[32];
         cptr footer_text = sdl_description_overlay_footer_text(overlay);
 
-        for (int col = 0; footer_text[col] && col < layout.visible_cols; col++)
+        if (overlay->interactive)
         {
-            byte attr = sdl_description_overlay_token_matches_hover(
-                overlay, footer_text, col)
-                ? TERM_L_BLUE
-                : TERM_SLATE;
+            for (int col = 0; footer_text[col] && col < layout.visible_cols;
+                 col++)
+            {
+                byte attr = sdl_description_overlay_token_matches_hover(
+                    overlay, footer_text, col)
+                    ? TERM_L_BLUE
+                    : TERM_SLATE;
 
-            sdl_description_overlay_render_char(atlas, atlas_cell_w,
-                atlas_cell_h, (float)layout.cell_w, (float)layout.cell_h,
-                layout.text_x + (float)col * (float)layout.cell_w,
-                layout.footer_y, attr, footer_text[col]);
+                sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                    atlas_cell_h, (float)layout.cell_w,
+                    (float)layout.cell_h,
+                    layout.text_x + (float)col * (float)layout.cell_w,
+                    layout.footer_y, attr, footer_text[col]);
+            }
         }
         if (layout.max_scroll > 0)
         {
             strnfmt(scroll_buf, sizeof(scroll_buf), "%d/%d",
-                layout.scroll + 1, layout.max_scroll + 1);
+                layout.scroll + 1, overlay->height);
             int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
             if (scroll_col < 0)
                 scroll_col = 0;
@@ -21502,6 +21774,9 @@ static void sdl_description_overlay_render(void)
     }
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);
+
+    if (!cached)
+        SDL_DestroyTexture(atlas);
 }
 
 static int sdl_description_overlay_footer_action_at(float x, float y)
@@ -33889,6 +34164,8 @@ static void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         if (sdl_side_map_pane_handle_mouse_wheel(&ev->wheel))
             return;
+        if (sdl_description_overlay_handle_mouse_wheel(&ev->wheel))
+            return;
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
             return;
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -35559,8 +35836,9 @@ static bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     font_path = config.monospace_font[0] != '\0'
         ? config.monospace_font
         : "lib/xtra/font/VictorMono-Medium.ttf";
-    font_atlas = sdl_acquire_mono_font_atlas_cells(font_path, atlas_cell_w,
-        atlas_cell_h, &font_cached);
+    font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
+        atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
+        &atlas_cell_h, NULL, true);
     if (!font_atlas)
         return false;
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
@@ -41253,7 +41531,6 @@ static SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path,
     int* out_atlas_cell_w, int* out_atlas_cell_h, bool* out_exact,
     bool allow_fallback)
 {
-    mono_font_atlas_entry* free_entry = NULL;
     mono_font_style_key style;
     SDL_Texture* atlas;
 
@@ -41267,13 +41544,13 @@ static SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path,
         *out_atlas_cell_h = cell_height;
     if (cell_width < 1)
         cell_width = 1;
+    if (cell_height < 1)
+        cell_height = 1;
 
     for (int i = 0; i < MAX_MONO_FONT_CACHE; i++) {
         mono_font_atlas_entry* entry = &g_state.mono_font_atlases[i];
 
         if (!entry->valid) {
-            if (!free_entry)
-                free_entry = entry;
             continue;
         }
 
@@ -41314,17 +41591,58 @@ static SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path,
         }
     }
 
-    if (!free_entry) {
-        log_warn("Monospace font atlas cache full; creating uncached atlas for %s at cell %dx%d",
-            font_path, cell_width, cell_height);
-        atlas = sdl_load_ttf_font_cells(font_path, cell_width, cell_height,
-            NULL);
-        if (out_exact)
-            *out_exact = true;
-        return atlas;
+    style = sdl_current_mono_font_style_key();
+    if (allow_fallback)
+    {
+        char error[256] = "";
+        int try_h = cell_height;
+        int try_w = cell_width;
+
+        while (try_h >= 1)
+        {
+            atlas = sdl_try_load_ttf_font_cells(font_path, try_w, try_h,
+                NULL, error, sizeof(error));
+            if (atlas)
+            {
+                bool exact = (try_w == cell_width && try_h == cell_height);
+                bool cached = false;
+
+                if (sdl_store_mono_font_atlas_cells(font_path, try_w, try_h,
+                        atlas, &style))
+                {
+                    cached = true;
+                }
+
+                if (out_cached)
+                    *out_cached = cached;
+                if (out_exact)
+                    *out_exact = exact;
+                if (out_atlas_cell_w)
+                    *out_atlas_cell_w = try_w;
+                if (out_atlas_cell_h)
+                    *out_atlas_cell_h = try_h;
+
+                if (!exact)
+                {
+                    log_warn("Using buildable mono font atlas %dx%d for requested %dx%d",
+                        try_w, try_h, cell_width, cell_height);
+                }
+
+                return atlas;
+            }
+
+            try_h--;
+            try_w = try_h / 2;
+            if (try_w < 1)
+                try_w = 1;
+        }
+
+        log_warn("Could not build fallback mono font atlas for %s at requested cell %dx%d: %s",
+            font_path ? font_path : "(null)", cell_width, cell_height,
+            error[0] ? error : "unknown error");
+        return NULL;
     }
 
-    style = sdl_current_mono_font_style_key();
     atlas = sdl_load_ttf_font_cells(font_path, cell_width, cell_height, NULL);
     if (!atlas)
         return NULL;
@@ -41342,13 +41660,6 @@ static SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path,
         *out_exact = true;
 
     return atlas;
-}
-
-static SDL_Texture* sdl_acquire_mono_font_atlas_cells(const char* font_path,
-    int cell_width, int cell_height, bool* out_cached)
-{
-    return sdl_acquire_mono_font_atlas_cells_ex(font_path, cell_width,
-        cell_height, out_cached, NULL, NULL, NULL, false);
 }
 
 static void sdl_story_font_cache_clear(void)
@@ -41603,29 +41914,32 @@ static SDL_Texture* sdl_texture_from_mono_atlas_surface(SDL_Surface* surface,
 // 1:2 aspect ratio. The font size is expected to take into account any scaling,
 // either HiDPI or user. So on a HiDPI screen to use font size 12, this function
 // would expect 24 given scaling factor of 2.0.
-static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
-    int cell_width, int cell_height, int* actual_font_size)
+static SDL_Texture* sdl_try_load_ttf_font_cells(const char* font_path,
+    int cell_width, int cell_height, int* actual_font_size, char* error_buf,
+    size_t error_buf_size)
 {
     Uint64 start_ns = SDL_GetTicksNS();
     mono_font_style_key style = sdl_current_mono_font_style_key();
     SDL_Surface* atlas_surface;
     SDL_Texture* font_atlas;
     int font_size = 0;
-    char error[256];
+    char local_error[256];
+
+    sdl_mono_atlas_set_error(error_buf, error_buf_size, "");
 
     atlas_surface = sdl_build_ttf_font_atlas_surface(font_path, cell_width,
-        cell_height, &style, &font_size, error, sizeof(error));
+        cell_height, &style, &font_size, local_error, sizeof(local_error));
     if (!atlas_surface) {
-        log_error("could not build TTF glyph atlas: %s", error);
-        quit("could not build TTF glyph atlas");
+        sdl_mono_atlas_set_error(error_buf, error_buf_size, local_error);
+        return NULL;
     }
 
-    font_atlas = sdl_texture_from_mono_atlas_surface(atlas_surface, error,
-        sizeof(error));
+    font_atlas = sdl_texture_from_mono_atlas_surface(atlas_surface,
+        local_error, sizeof(local_error));
     SDL_DestroySurface(atlas_surface);
     if (!font_atlas) {
-        log_error("could not create TTF glyph cache: %s", error);
-        quit("could not create TTF glyph cache");
+        sdl_mono_atlas_set_error(error_buf, error_buf_size, local_error);
+        return NULL;
     }
 
     if (actual_font_size)
@@ -41633,6 +41947,23 @@ static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
     log_debug("Built mono font atlas %dx%d from '%s' in %llu ms",
         cell_width, cell_height, font_path ? font_path : "(null)",
         (unsigned long long)((SDL_GetTicksNS() - start_ns) / 1000000ULL));
+    return font_atlas;
+}
+
+static SDL_Texture* sdl_load_ttf_font_cells(const char* font_path,
+    int cell_width, int cell_height, int* actual_font_size)
+{
+    SDL_Texture* font_atlas;
+    char error[256];
+
+    font_atlas = sdl_try_load_ttf_font_cells(font_path, cell_width,
+        cell_height, actual_font_size, error, sizeof(error));
+    if (!font_atlas)
+    {
+        log_error("could not build TTF glyph atlas: %s", error);
+        quit("could not build TTF glyph atlas");
+    }
+
     return font_atlas;
 }
 
@@ -45349,6 +45680,14 @@ bool sdl_description_overlay_present(const byte* attrs, const char* chars,
     g_description_overlay.width = width;
     g_description_overlay.height = height;
     g_description_overlay.scroll = scroll;
+    if (interactive)
+    {
+        g_description_overlay.avoid_active = false;
+        g_description_overlay.avoid_term_col = 0;
+        g_description_overlay.avoid_term_row = 0;
+        g_description_overlay.avoid_term_wid = 0;
+        g_description_overlay.avoid_term_hgt = 0;
+    }
 
     if (!sdl_description_overlay_layout(&layout))
     {
@@ -45371,12 +45710,17 @@ bool sdl_description_overlay_present(const byte* attrs, const char* chars,
 
 void sdl_description_overlay_clear(void)
 {
-    if (!g_description_overlay.active)
+    bool was_active = g_description_overlay.active;
+
+    if (!g_description_overlay.active && !g_description_overlay.avoid_active)
         return;
 
     g_description_overlay = (description_overlay_state){ 0 };
-    g_state.need_present = true;
-    sdl_present_if_needed(&g_views[PANE_MAIN]);
+    if (was_active)
+    {
+        g_state.need_present = true;
+        sdl_present_if_needed(&g_views[PANE_MAIN]);
+    }
 }
 
 void sdl_request_redraw(void)

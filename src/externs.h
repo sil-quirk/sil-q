@@ -2109,6 +2109,11 @@ extern bool sdl_description_overlay_present(const byte* attrs,
 extern void sdl_description_overlay_set_footer(cptr text, bool always);
 extern void sdl_description_overlay_clear_footer_actions(void);
 extern void sdl_description_overlay_add_footer_action(int key, cptr token);
+extern void sdl_description_overlay_set_avoid_term_rect(int col, int row,
+    int wid, int hgt);
+extern void sdl_description_overlay_clear_avoid(void);
+extern bool sdl_description_overlay_scroll_by(int rows);
+extern bool sdl_description_overlay_scroll_page(int direction);
 extern void sdl_description_overlay_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);
