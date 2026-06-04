@@ -254,7 +254,7 @@ bool do_cmd_open_aux(int y, int x)
  */
 void do_cmd_open(void)
 {
-    int y, x, dir;
+    int y = 0, x = 0, dir;
 
     s16b o_idx;
 
@@ -1324,7 +1324,7 @@ static bool do_cmd_disarm_aux(int y, int x)
  */
 void do_cmd_disarm(void)
 {
-    int y, x, dir;
+    int y = 0, x = 0, dir;
 
     s16b o_idx;
 

@@ -358,8 +358,17 @@ set(SIL_MORE_SOURCES
     src/metarun/metarun-ui-common.c
     src/metarun_legacy.c
     src/quest.c
-    src/monster1.c
-    src/monster2.c
+    src/monster/monster-attr.c
+    src/monster/monster-desc.c
+    src/monster/monster-list.c
+    src/monster/monster-lore.c
+    src/monster/monster-lore-combat.c
+    src/monster/monster-move.c
+    src/monster/monster-recall.c
+    src/monster/monster-select.c
+    src/monster/monster-spawn.c
+    src/monster/monster-summon.c
+    src/monster/monster-update.c
     src/object/object-allocation.c
     src/object/object-desc.c
     src/object/object-flags.c

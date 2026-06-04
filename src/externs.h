@@ -1026,14 +1026,14 @@ extern void calc_stance(monster_type* m_ptr);
 extern void monster_perception(
     bool player_centered, bool main_roll, int difficulty);
 
-/* monster1.c */
+/* monster/ -- recall & lore display */
 extern void describe_monster(
     int r_idx, bool spoilers, const monster_type* m_ptr);
 extern void roff_top(int r_idx);
 extern int screen_roff(int r_idx, const monster_type* m_ptr);
 extern void display_roff(int r_idx, const monster_type* m_ptr);
 
-/* monster2.c */
+/* monster/ -- monster lifecycle (list, selection, placement, summoning) */
 extern s16b poly_r_idx(const monster_type* m_ptr);
 extern void delete_monster_idx(int i);
 extern void delete_monster(int y, int x);
