@@ -1,5 +1,8 @@
 /* File: types.h */
 
+#ifndef INCLUDED_TYPES_H
+#define INCLUDED_TYPES_H
+
 /*
  * Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
  *
@@ -1640,6 +1643,8 @@ struct flag_name
     int set; /* The set into which the flag is to be sent. */
     u32b flag; /* The flag being set. */
 };
+
+#endif /* INCLUDED_TYPES_H */
 
 
 

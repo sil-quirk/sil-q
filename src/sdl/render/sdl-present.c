@@ -1,0 +1,1153 @@
+#include "angband.h"
+#include "sdl/main-sdl-private.h"
+
+void sdl_touch_pane_render(void)
+{
+    SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
+    SDL_FRect pane_rect;
+    SDL_Color frame = g_state.palette[TERM_WHITE];
+    SDL_Color muted = g_state.palette[TERM_SLATE];
+    SDL_Color selected = g_state.palette[TERM_YELLOW];
+    SDL_Rect pane;
+    int panel = sdl_touch_pane_active_panel();
+
+    if (!sdl_touch_pane_current_rect(&pane))
+        return;
+
+    if (!sdl_touch_pane_compute_layout(&pane, slot_rects))
+        return;
+
+    pane_rect = (SDL_FRect){
+        .x = (float)pane.x,
+        .y = (float)pane.y,
+        .w = (float)pane.w,
+        .h = (float)pane.h,
+    };
+
+    SDL_SetRenderDrawColor(g_state.renderer, 12, 12, 12, 255);
+    SDL_RenderFillRect(g_state.renderer, &pane_rect);
+    if (config.show_pane_borders)
+        SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 180);
+    else
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderRect(g_state.renderer, &pane_rect);
+
+    for (int visual_index = 0; visual_index < SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT; visual_index++) {
+        SDL_Color text_color;
+        SDL_Color border_color;
+        SDL_FRect shadow;
+        char label[64];
+        char symbol[32];
+        int i = sdl_touch_pane_visible_slot_at(visual_index);
+        int binding;
+        bool toggled;
+
+        if (i < 0)
+            continue;
+        if (!sdl_touch_pane_slot_visible_in_current_mode(i))
+            continue;
+
+        binding = sdl_touch_pane_effective_binding_for_panel(panel, i);
+        toggled = ((binding == GAMEPAD_BIND_SHIFT && g_touch_pane_second_panel)
+            || (binding == GAMEPAD_BIND_CTRL && sdl_gamepad_ctrl_active())
+            || sdl_pointer_attack_binding_toggled(binding));
+
+        shadow = slot_rects[i];
+        shadow.x += 2.0f;
+        shadow.y += 2.0f;
+
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 160);
+        SDL_RenderFillRect(g_state.renderer, &shadow);
+
+        if (binding == GAMEPAD_BIND_NONE) {
+            SDL_SetRenderDrawColor(g_state.renderer, 26, 26, 26, 255);
+            text_color = muted;
+            border_color = muted;
+        } else if (toggled) {
+            SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 255);
+            text_color = selected;
+            border_color = selected;
+        } else {
+            SDL_SetRenderDrawColor(g_state.renderer, 34, 34, 34, 255);
+            text_color = frame;
+            border_color = frame;
+        }
+
+        SDL_RenderFillRect(g_state.renderer, &slot_rects[i]);
+        SDL_SetRenderDrawColor(g_state.renderer, border_color.r, border_color.g, border_color.b, 220);
+        SDL_RenderRect(g_state.renderer, &slot_rects[i]);
+
+        if (sdl_touch_pane_binding_is_direction(binding)) {
+            sdl_touch_pane_draw_arrow(&slot_rects[i], binding, text_color);
+            continue;
+        }
+
+        sdl_touch_pane_display_label_for_slot(panel, i, label, sizeof(label));
+        if (i == SDL_TOUCH_PANE_CENTER_SLOT
+            && sdl_touch_pane_confirm_binding(binding))
+        {
+            SDL_strlcpy(label, "Confirm", sizeof(label));
+            SDL_strlcpy(symbol, "(pick)", sizeof(symbol));
+        } else {
+            sdl_touch_pane_binding_symbol(binding, symbol, sizeof(symbol));
+            if (!config.touch_pane_key_labels_visible
+                || sdl_touch_pane_should_hide_symbol(label, symbol))
+            {
+                symbol[0] = '\0';
+            }
+        }
+        sdl_touch_pane_draw_button_text(&slot_rects[i], label, symbol, text_color);
+    }
+
+    if (g_touch_pane_flash_slot >= 0) {
+        g_touch_pane_flash_slot = -1;
+        g_touch_pane_flash_until = 0;
+    }
+}
+
+void sdl_restore_render_target(sdl_view* d)
+{
+    if (d && d->canvas)
+        SDL_SetRenderTarget(g_state.renderer, d->canvas);
+    else
+        SDL_SetRenderTarget(g_state.renderer, NULL);
+}
+
+bool sdl_left_panel_ensure_canvas(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+        return false;
+
+    if (g_left_panel_canvas && g_left_panel_canvas_w == width
+        && g_left_panel_canvas_h == height)
+    {
+        return true;
+    }
+
+    sdl_left_panel_canvas_destroy();
+    g_left_panel_canvas = SDL_CreateTexture(g_state.renderer,
+        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+    if (!g_left_panel_canvas) {
+        log_warn("Could not create left panel texture %dx%d: %s", width,
+            height, SDL_GetError());
+        return false;
+    }
+
+    SDL_SetTextureBlendMode(g_left_panel_canvas, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(g_left_panel_canvas, SDL_SCALEMODE_NEAREST);
+    g_left_panel_canvas_w = width;
+    g_left_panel_canvas_h = height;
+    return true;
+}
+
+bool sdl_left_panel_cell_is_tile(byte a, char c)
+{
+    return g_state.use_tiles && g_state.tileset
+        && (a & TILE_FLAG) && (((byte)c) & TILE_FLAG);
+}
+
+void sdl_left_panel_debug_make_row_text(const term_win* scr, int row,
+    int source_col, int end_col, char* out, size_t out_size,
+    int* out_visible_width)
+{
+    int len = 0;
+    int visible_col = -1;
+
+    if (out && out_size > 0)
+        out[0] = '\0';
+    if (out_visible_width)
+        *out_visible_width = 0;
+    if (!scr || !scr->a || !scr->c || row < 0 || !scr->a[row]
+        || !scr->c[row] || !out || out_size == 0)
+    {
+        return;
+    }
+
+    for (int col = source_col; col < end_col
+         && len < (int)out_size - 1; col++)
+    {
+        byte a = scr->a[row][col];
+        char c = scr->c[row][col];
+        unsigned char uc = (unsigned char)c;
+
+        if (sdl_left_panel_cell_has_visible_content(a, c))
+            visible_col = col;
+
+        if ((a == 255) && (uc == 0xFF))
+            out[len++] = '~';
+        else if (uc == 0)
+            out[len++] = ' ';
+        else if (uc < 32 || uc > 126)
+            out[len++] = '?';
+        else
+            out[len++] = (char)uc;
+    }
+    out[len] = '\0';
+
+    if (out_visible_width && visible_col >= source_col)
+        *out_visible_width = visible_col - source_col + 1;
+}
+
+void sdl_left_panel_debug_log_source_row(const term* t,
+    const term_win* scr, int source_row, int source_col, int width,
+    int end_col, int dest_col, int dest_row, float content_x, int cell_w,
+    int cell_h)
+{
+    char text[LEFT_PANEL_CONTENT_WID + 1];
+    int visible_width = 0;
+
+    if (!g_left_panel_debug_dump_rows || !t || !scr)
+        return;
+
+    sdl_left_panel_debug_make_row_text(scr, source_row, source_col, end_col,
+        text, sizeof(text), &visible_width);
+    log_debug("left-panel row: src_row=%d dst_row=%d src_col=%d "
+        "requested_w=%d end_col=%d visible_w=%d dest_col=%d cell=%dx%d "
+        "content_x=%.1f text='%s'",
+        source_row, dest_row, source_col, width, end_col, visible_width,
+        dest_col, cell_w, cell_h, (double)content_x, text);
+}
+
+SDL_Color sdl_left_panel_background_color(void)
+{
+    SDL_Color color = { 0, 0, 0, 255 };
+
+    return color;
+}
+
+void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
+    int atlas_cell_h, float cell_w, float cell_h, float origin_x, int x,
+    int y, int n, const char* s, SDL_Color col)
+{
+    if (!atlas || atlas_cell_w <= 0 || atlas_cell_h <= 0
+        || cell_w <= 0.0f || cell_h <= 0.0f || n <= 0 || !s)
+    {
+        return;
+    }
+
+    SDL_SetTextureColorMod(atlas, col.r, col.g, col.b);
+    SDL_SetTextureAlphaMod(atlas, 255);
+
+    for (int i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)s[i];
+        SDL_FRect src = {
+            (float)((ch & 15) * atlas_cell_w),
+            (float)((ch >> 4) * atlas_cell_h),
+            (float)atlas_cell_w,
+            (float)atlas_cell_h,
+        };
+        SDL_FRect dst = {
+            origin_x + ((float)x + (float)i) * cell_w,
+            (float)y * cell_h,
+            cell_w,
+            cell_h,
+        };
+
+        if (use_graphics == GRAPHICS_PSEUDO && solid_walls
+            && (ch == '#' || ch == '%'))
+        {
+            SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b,
+                SDL_ALPHA_OPAQUE);
+            SDL_RenderFillRect(g_state.renderer, &dst);
+        }
+        SDL_RenderTexture(g_state.renderer, atlas, &src, &dst);
+    }
+}
+
+byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
+    int source_row, byte attr)
+{
+    int action;
+
+    if (!sdl_left_panel_pane_presentation_active())
+        return attr;
+    if (source_col < 0 || source_col >= LEFT_PANEL_CONTENT_WID
+        || source_row < 0)
+    {
+        return attr;
+    }
+
+    action = sdl_visible_character_panel_click_action_at_cell(source_col,
+        source_row);
+    if (action != SDL_PANEL_CLICK_NONE
+        && sdl_character_panel_touch_zone_selected(action, source_row))
+    {
+        return TERM_YELLOW;
+    }
+
+    return attr;
+}
+
+void sdl_render_left_panel_source_row_cells(const sdl_view* view,
+    const term* source_term, term_win* scr, int source_row, int source_col,
+    int width, int dest_col, int dest_row, float content_x, int cell_w, int cell_h,
+    SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h,
+    TTF_Font* mono_font)
+{
+    const term* t;
+    int col;
+    int end_col;
+
+    if (!view || !scr || !font_atlas || cell_w <= 0 || cell_h <= 0)
+        return;
+    if (source_row < 0 || source_col < 0 || width <= 0)
+        return;
+
+    t = source_term ? source_term : &view->t;
+    if (source_row >= t->hgt)
+        return;
+    if (!scr->a || !scr->c || !scr->a[source_row] || !scr->c[source_row])
+        return;
+
+    end_col = source_col + width;
+    if (end_col > t->wid)
+        end_col = t->wid;
+    if (end_col > LEFT_PANEL_CONTENT_WID)
+        end_col = LEFT_PANEL_CONTENT_WID;
+    if (end_col <= source_col)
+        return;
+
+    sdl_left_panel_debug_log_source_row(t, scr, source_row, source_col,
+        width, end_col, dest_col, dest_row, content_x, cell_w, cell_h);
+
+    col = source_col;
+    while (col < end_col) {
+        int out_col = dest_col + (col - source_col);
+        byte a = scr->a[source_row][col];
+        char c = scr->c[source_row][col];
+        byte ta = (scr->ta && scr->ta[source_row])
+            ? scr->ta[source_row][col]
+            : 0;
+        char tc = (scr->tc && scr->tc[source_row])
+            ? scr->tc[source_row][col]
+            : 0;
+
+        if ((a == 255) && ((byte)c == 0xFF)) {
+            col++;
+            continue;
+        }
+
+        if (sdl_left_panel_cell_is_tile(a, c)) {
+            int tile_cols = use_bigtile ? 2 : 1;
+            if (col + tile_cols > end_col)
+                tile_cols = end_col - col;
+            if (tile_cols < 1)
+                tile_cols = 1;
+
+            SDL_FRect dst = {
+                content_x + (float)(out_col * cell_w),
+                (float)(dest_row * cell_h),
+                (float)(tile_cols * cell_w),
+                (float)cell_h,
+            };
+
+            sdl_draw_map_tile_layers_at(-1, -1, a, c, ta, tc, &dst);
+            col += tile_cols;
+        } else {
+            char buf[LEFT_PANEL_CONTENT_WID + 1];
+            int start = col;
+            int start_out = out_col;
+            int len = 0;
+            SDL_Color text_col;
+
+            a = sdl_left_panel_pane_render_attr_for_cell(col, source_row, a);
+            text_col = (SDL_Color){
+                angband_color_table[a][1],
+                angband_color_table[a][2],
+                angband_color_table[a][3],
+                255
+            };
+
+            while (col < end_col && len < LEFT_PANEL_CONTENT_WID) {
+                byte run_a = scr->a[source_row][col];
+                char run_c = scr->c[source_row][col];
+
+                if ((run_a == 255) && ((byte)run_c == 0xFF))
+                    break;
+                if (sdl_left_panel_cell_is_tile(run_a, run_c))
+                    break;
+                run_a = sdl_left_panel_pane_render_attr_for_cell(col,
+                    source_row, run_a);
+                if (run_a != a)
+                    break;
+
+                buf[len++] = run_c ? run_c : ' ';
+                col++;
+            }
+            buf[len] = '\0';
+            if (len <= 0) {
+                if (col == start)
+                    col++;
+                continue;
+            }
+
+            if (mono_font && utf8_has_non_ascii_n(buf, len)) {
+                sdl_render_mono_utf8_text_cells(font_atlas, atlas_cell_w,
+                    atlas_cell_h, mono_font, (float)cell_w, (float)cell_h,
+                    content_x, start_out, dest_row, len, buf, text_col);
+            } else {
+                sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
+                    atlas_cell_h, (float)cell_w, (float)cell_h, content_x,
+                    start_out, dest_row, len, buf, text_col);
+            }
+        }
+    }
+}
+
+void sdl_left_panel_debug_log_frame(const sdl_view* view,
+    const sdl_left_panel_metrics* metrics, const SDL_FRect* dst_left,
+    int visual_cols, int visual_rows, int source_h, int visual_w,
+    int canvas_w)
+{
+    static bool have_last = false;
+    static int last_view_cell_w;
+    static int last_view_cell_h;
+    static int last_cols;
+    static int last_rows;
+    static int last_visual_cols;
+    static int last_visual_rows;
+    static int last_source_h;
+    static int last_visual_w;
+    static int last_canvas_w;
+    static int last_cell_w;
+    static int last_cell_h;
+    static int last_content_cols;
+    static int last_content_w;
+    static int last_separator_w;
+    static int last_total_w;
+    static int last_panel_rows;
+    static int last_panel_render_h;
+    static int last_bottom_border_h;
+    static int last_corner_h;
+    static int last_dst_x;
+    static int last_dst_y;
+    static int last_dst_w;
+    static int last_dst_h;
+    static int last_collapsed;
+    int dst_x;
+    int dst_y;
+    int dst_w;
+    int dst_h;
+    bool changed;
+
+    if (!view || !metrics || !dst_left)
+        return;
+
+    dst_x = (int)(dst_left->x + 0.5f);
+    dst_y = (int)(dst_left->y + 0.5f);
+    dst_w = (int)(dst_left->w + 0.5f);
+    dst_h = (int)(dst_left->h + 0.5f);
+
+    changed = !have_last
+        || last_view_cell_w != view->cell_w
+        || last_view_cell_h != view->cell_h
+        || last_cols != view->cols
+        || last_rows != view->rows
+        || last_visual_cols != visual_cols
+        || last_visual_rows != visual_rows
+        || last_source_h != source_h
+        || last_visual_w != visual_w
+        || last_canvas_w != canvas_w
+        || last_cell_w != metrics->cell_w
+        || last_cell_h != metrics->cell_h
+        || last_content_cols != metrics->content_cols
+        || last_content_w != metrics->content_w
+        || last_separator_w != metrics->separator_w
+        || last_total_w != metrics->total_w
+        || last_panel_rows != metrics->panel_rows
+        || last_panel_render_h != metrics->panel_render_h
+        || last_bottom_border_h != metrics->bottom_border_h
+        || last_corner_h != metrics->corner_h
+        || last_dst_x != dst_x
+        || last_dst_y != dst_y
+        || last_dst_w != dst_w
+        || last_dst_h != dst_h
+        || last_collapsed != (metrics->collapsed ? 1 : 0);
+
+    if (!changed)
+        return;
+
+    have_last = true;
+    last_view_cell_w = view->cell_w;
+    last_view_cell_h = view->cell_h;
+    last_cols = view->cols;
+    last_rows = view->rows;
+    last_visual_cols = visual_cols;
+    last_visual_rows = visual_rows;
+    last_source_h = source_h;
+    last_visual_w = visual_w;
+    last_canvas_w = canvas_w;
+    last_cell_w = metrics->cell_w;
+    last_cell_h = metrics->cell_h;
+    last_content_cols = metrics->content_cols;
+    last_content_w = metrics->content_w;
+    last_separator_w = metrics->separator_w;
+    last_total_w = metrics->total_w;
+    last_panel_rows = metrics->panel_rows;
+    last_panel_render_h = metrics->panel_render_h;
+    last_bottom_border_h = metrics->bottom_border_h;
+    last_corner_h = metrics->corner_h;
+    last_dst_x = dst_x;
+    last_dst_y = dst_y;
+    last_dst_w = dst_w;
+    last_dst_h = dst_h;
+    last_collapsed = metrics->collapsed ? 1 : 0;
+    g_left_panel_debug_dump_rows = true;
+
+    log_debug("left-panel frame: collapsed=%d compact_row=%d "
+        "term=%dx%d visual=%dx%d main_cell=%dx%d pane_cell=%dx%d "
+        "source_h=%d visual_w=%d canvas_w=%d content_cols=%d content_w=%d "
+        "separator_w=%d total_w=%d panel_rows=%d panel_h=%d border_h=%d "
+        "corner_h=%d dst=(%d,%d %dx%d) use_tiles=%d use_bigtile=%d",
+        metrics->collapsed ? 1 : 0, metrics->compact_row ? 1 : 0,
+        view->cols, view->rows, visual_cols, visual_rows, view->cell_w,
+        view->cell_h, metrics->cell_w, metrics->cell_h, source_h,
+        visual_w, canvas_w, metrics->content_cols, metrics->content_w,
+        metrics->separator_w, metrics->total_w, metrics->panel_rows,
+        metrics->panel_render_h, metrics->bottom_border_h, metrics->corner_h,
+        dst_x, dst_y, dst_w, dst_h, g_state.use_tiles ? 1 : 0,
+        use_bigtile ? 1 : 0);
+}
+
+bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
+    const SDL_FRect* dst_left)
+{
+    term_win* scr;
+    const char* font_path;
+    SDL_Texture* old_target;
+    SDL_Texture* font_atlas;
+    TTF_Font* mono_font;
+    SDL_Rect old_clip;
+    bool had_clip;
+    bool font_cached = false;
+    sdl_left_panel_metrics metrics;
+    int canvas_w;
+    int canvas_h;
+    int atlas_cell_w;
+    int atlas_cell_h;
+    float content_x;
+    term panel_term;
+    const term* source_term;
+    int source_rows;
+
+    if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
+        return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+    if (metrics.content_w <= 0 || metrics.total_w <= 0
+        || metrics.corner_h <= 0
+        || metrics.cell_w <= 0 || metrics.cell_h <= 0)
+    {
+        return false;
+    }
+    content_x = (float)sdl_left_panel_content_x_for_metrics(&metrics);
+
+    canvas_w = metrics.total_w;
+    canvas_h = metrics.corner_h;
+    if (!sdl_left_panel_ensure_canvas(canvas_w, canvas_h))
+        return false;
+
+    atlas_cell_w = metrics.cell_w;
+    atlas_cell_h = metrics.cell_h;
+    if (atlas_cell_w < 1) atlas_cell_w = 1;
+    if (atlas_cell_h < 1) atlas_cell_h = 1;
+
+    font_path = config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+    font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
+        atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
+        &atlas_cell_h, NULL, true);
+    if (!font_atlas)
+        return false;
+    mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
+        atlas_cell_h);
+
+    source_rows = sdl_left_panel_pane_rows_for_view(view);
+    if (source_rows < metrics.panel_rows)
+        source_rows = metrics.panel_rows;
+    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+            NULL, NULL))
+    {
+        if (!font_cached)
+            SDL_DestroyTexture(font_atlas);
+        return false;
+    }
+    scr = panel_term.scr;
+    source_term = &panel_term;
+
+    old_target = SDL_GetRenderTarget(g_state.renderer);
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+
+    SDL_SetRenderTarget(g_state.renderer, g_left_panel_canvas);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    {
+        SDL_Color bg = sdl_left_panel_background_color();
+        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
+    }
+    SDL_RenderClear(g_state.renderer);
+
+    if (metrics.collapsed) {
+        for (int i = 0; i < metrics.compact_segment_count; i++) {
+            int source_row = metrics.compact_source_rows[i];
+            int output_col = metrics.compact_output_cols[i];
+            int output_row = metrics.compact_output_rows[i];
+
+            if (metrics.compact_row && source_row == ROW_LIGHT) {
+                sdl_left_panel_compact_light_span span;
+
+                if (sdl_left_panel_compact_light_span_for_term(source_term,
+                        scr, &span))
+                {
+                    sdl_render_left_panel_source_row_cells(view, source_term,
+                        scr, source_row, 0, span.icon_cols, output_col,
+                        output_row, content_x, metrics.cell_w, metrics.cell_h,
+                        font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
+                    sdl_render_left_panel_source_row_cells(view, source_term,
+                        scr, source_row, span.text_start, span.text_width,
+                        output_col + span.icon_cols + 1, output_row,
+                        content_x, metrics.cell_w, metrics.cell_h, font_atlas,
+                        atlas_cell_w, atlas_cell_h, mono_font);
+                    continue;
+                }
+            }
+
+            sdl_render_left_panel_source_row_cells(view, source_term, scr,
+                source_row, 0, metrics.compact_widths[i], output_col,
+                output_row, content_x, metrics.cell_w, metrics.cell_h,
+                font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
+        }
+    } else {
+        for (int row = 0; row < metrics.panel_rows; row++) {
+            if (row * metrics.cell_h >= metrics.panel_render_h)
+                break;
+            sdl_render_left_panel_source_row_cells(view, source_term, scr, row, 0,
+                metrics.content_cols, 0, row, content_x, metrics.cell_w,
+                metrics.cell_h, font_atlas, atlas_cell_w, atlas_cell_h,
+                mono_font);
+        }
+    }
+    g_left_panel_debug_dump_rows = false;
+
+    SDL_SetRenderTarget(g_state.renderer, old_target);
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+    SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, NULL, dst_left);
+    if (!font_cached)
+        SDL_DestroyTexture(font_atlas);
+    term_nuke(&panel_term);
+
+    return true;
+}
+
+bool sdl_render_main_view_with_left_panel(const sdl_view* view)
+{
+    bool render_styled_left_panel = sdl_left_panel_pane_presentation_active();
+    bool skip_terminal_left_panel =
+        g_description_overlay.active && g_description_overlay.interactive
+        && sdl_left_panel_pane_layout_enabled();
+    int visual_cols;
+    int visual_rows;
+    int source_h;
+    int visual_w;
+    int canvas_w;
+    sdl_left_panel_metrics metrics;
+    SDL_FRect src_map;
+    SDL_FRect src_left;
+    SDL_FRect dst_map;
+    SDL_FRect dst_left;
+    float grid_x;
+    float grid_y;
+
+    if (!render_styled_left_panel && !skip_terminal_left_panel)
+        return false;
+    if (!view || !view->canvas || !view->term_ready)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    source_h = visual_rows * view->cell_h;
+    visual_w = visual_cols * view->cell_w;
+    canvas_w = view->cols * view->cell_w;
+    if (visual_w <= metrics.total_w || visual_rows <= 0
+        || metrics.corner_h <= 0)
+    {
+        return false;
+    }
+    if (canvas_w <= COL_MAP * view->cell_w)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    if (render_styled_left_panel)
+    {
+        if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &dst_left))
+            return false;
+        sdl_left_panel_debug_log_frame(view, &metrics, &dst_left, visual_cols,
+            visual_rows, source_h, visual_w, canvas_w);
+    }
+
+    src_map = (SDL_FRect){
+        .x = (float)(COL_MAP * view->cell_w),
+        .y = 0.0f,
+        .w = (float)visual_w,
+        .h = (float)source_h,
+    };
+    if (src_map.x + src_map.w > (float)canvas_w)
+        src_map.w = (float)canvas_w - src_map.x;
+    if (src_map.w <= 0.0f || src_map.h <= 0.0f)
+        return false;
+
+    dst_map = (SDL_FRect){
+        .x = grid_x,
+        .y = grid_y,
+        .w = src_map.w,
+        .h = src_map.h,
+    };
+    SDL_RenderTexture(g_state.renderer, view->canvas, &src_map, &dst_map);
+
+    if (!render_styled_left_panel)
+        return true;
+
+    src_left = (SDL_FRect){
+        .x = 0.0f,
+        .y = 0.0f,
+        .w = (float)(COL_MAP * view->cell_w),
+        .h = (float)MIN(source_h, metrics.corner_h),
+    };
+
+    if (!sdl_left_panel_pane_runtime_active()
+        || !sdl_render_left_panel_pane_from_cells(view, &dst_left))
+    {
+        SDL_Color bg = sdl_left_panel_background_color();
+        SDL_FRect src_content = src_left;
+        SDL_FRect dst_content = dst_left;
+
+        if (g_description_overlay.active && g_description_overlay.interactive)
+            return true;
+
+        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
+        SDL_RenderFillRect(g_state.renderer, &dst_left);
+
+        dst_content.x +=
+            (float)sdl_left_panel_content_x_for_metrics(&metrics);
+        dst_content.w = (float)metrics.content_w;
+        dst_content.h = (float)metrics.panel_render_h;
+        if (dst_content.y + dst_content.h > dst_left.y + dst_left.h)
+            dst_content.h = (dst_left.y + dst_left.h) - dst_content.y;
+        if (src_content.h > dst_content.h)
+            src_content.h = dst_content.h;
+        if (dst_content.w > 0.0f && dst_content.h > 0.0f
+            && src_content.w > 0.0f && src_content.h > 0.0f)
+        {
+            SDL_RenderTexture(g_state.renderer, view->canvas, &src_content,
+                &dst_content);
+        }
+    }
+
+    return true;
+}
+
+bool sdl_saved_screen_cell_changed(const term_win* scr,
+    const term_win* mem, int x, int y)
+{
+    if (!scr || !mem || x < 0 || y < 0)
+        return false;
+    if (!scr->a || !scr->c || !mem->a || !mem->c)
+        return false;
+    if (!scr->a[y] || !scr->c[y] || !mem->a[y] || !mem->c[y])
+        return false;
+
+    if (scr->a[y][x] != mem->a[y][x])
+        return true;
+    if (scr->c[y][x] != mem->c[y][x])
+        return true;
+    if (scr->ta && mem->ta && scr->ta[y] && mem->ta[y]
+        && scr->ta[y][x] != mem->ta[y][x])
+    {
+        return true;
+    }
+    if (scr->tc && mem->tc && scr->tc[y] && mem->tc[y]
+        && scr->tc[y][x] != mem->tc[y][x])
+    {
+        return true;
+    }
+    if (scr->story && mem->story && scr->story[y] && mem->story[y]
+        && scr->story[y][x] != mem->story[y][x])
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void sdl_redraw_saved_screen_overlay_cells(const sdl_view* view,
+    const SDL_FRect* clip_rect)
+{
+    const term* t;
+    term_win* scr;
+    term_win* mem;
+    int cols;
+    int rows;
+    int visual_cols;
+    int visual_rows;
+    float grid_x;
+    float grid_y;
+    bool had_clip;
+    SDL_Rect old_clip;
+    SDL_Rect clip;
+
+    if (!view || !clip_rect || !view->canvas)
+        return;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return;
+
+    t = &view->t;
+    scr = t->scr;
+    mem = t->mem;
+    if (!scr || !mem)
+        return;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    cols = MIN(COL_MAP, visual_cols);
+    rows = MIN(t->hgt, visual_rows);
+    if (cols <= 0 || rows <= 0)
+        return;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+    clip = (SDL_Rect){
+        .x = (int)clip_rect->x,
+        .y = (int)clip_rect->y,
+        .w = (int)(clip_rect->w + 0.5f),
+        .h = (int)(clip_rect->h + 0.5f),
+    };
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
+
+    for (int y = 0; y < rows; y++)
+    {
+        int x = 0;
+
+        while (x < cols)
+        {
+            int start;
+            int len;
+            SDL_FRect src;
+            SDL_FRect dst;
+
+            while (x < cols && !sdl_saved_screen_cell_changed(scr, mem, x, y))
+                x++;
+            if (x >= cols)
+                break;
+
+            start = x;
+            while (x < cols && sdl_saved_screen_cell_changed(scr, mem, x, y))
+                x++;
+            len = x - start;
+
+            src = (SDL_FRect){
+                .x = (float)(start * view->cell_w),
+                .y = (float)(y * view->cell_h),
+                .w = (float)(len * view->cell_w),
+                .h = (float)view->cell_h,
+            };
+            dst = (SDL_FRect){
+                .x = grid_x + src.x,
+                .y = grid_y + src.y,
+                .w = src.w,
+                .h = src.h,
+            };
+            SDL_RenderTexture(g_state.renderer, view->canvas, &src, &dst);
+        }
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+}
+
+bool sdl_render_saved_screen_left_panel_backdrop(const sdl_view* view)
+{
+    sdl_left_panel_metrics metrics;
+    SDL_FRect pane_rect;
+    SDL_FRect left_rect;
+    SDL_FRect map_src;
+    int visual_cols;
+    int visual_rows;
+    int visual_w;
+    int visual_h;
+    int canvas_w;
+    float grid_x;
+    float grid_y;
+
+    if (!sdl_saved_screen_left_panel_pane_active())
+        return false;
+    if (!sdl_left_panel_pane_layout_enabled())
+        return false;
+    if (!view || !view->canvas || !view->term_ready)
+        return false;
+    if (!view->t.mem || !view->t.scr)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    visual_w = visual_cols * view->cell_w;
+    visual_h = visual_rows * view->cell_h;
+    canvas_w = view->cols * view->cell_w;
+    if (visual_w <= 0 || visual_h <= 0 || canvas_w <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    left_rect = (SDL_FRect){
+        .x = grid_x,
+        .y = grid_y,
+        .w = (float)MIN(COL_MAP * view->cell_w, visual_w),
+        .h = (float)visual_h,
+    };
+    if (left_rect.w <= 0.0f || left_rect.h <= 0.0f)
+        return false;
+
+    map_src = (SDL_FRect){
+        .x = (float)(COL_MAP * view->cell_w),
+        .y = 0.0f,
+        .w = left_rect.w,
+        .h = left_rect.h,
+    };
+    if (map_src.x + map_src.w > (float)canvas_w)
+        map_src.w = (float)canvas_w - map_src.x;
+
+    if (map_src.w > 0.0f && map_src.h > 0.0f)
+    {
+        SDL_FRect map_dst = left_rect;
+
+        map_dst.w = map_src.w;
+        SDL_RenderTexture(g_state.renderer, view->canvas, &map_src, &map_dst);
+    }
+    else
+    {
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(g_state.renderer, &left_rect);
+    }
+
+    if (sdl_left_panel_pane_rect_for_metrics(view, &metrics, &pane_rect))
+    {
+        if (pane_rect.x < left_rect.x)
+            pane_rect.x = left_rect.x;
+        if (pane_rect.y < left_rect.y)
+            pane_rect.y = left_rect.y;
+        if (pane_rect.x + pane_rect.w > left_rect.x + left_rect.w)
+            pane_rect.w = left_rect.x + left_rect.w - pane_rect.x;
+        if (pane_rect.y + pane_rect.h > left_rect.y + left_rect.h)
+            pane_rect.h = left_rect.y + left_rect.h - pane_rect.y;
+        if (pane_rect.w > 0.0f && pane_rect.h > 0.0f)
+            (void)sdl_render_left_panel_pane_from_cells(view, &pane_rect);
+    }
+
+    sdl_redraw_saved_screen_overlay_cells(view, &left_rect);
+    return true;
+}
+
+bool sdl_render_current_window_frame(void)
+{
+    bool show_supporting_panes;
+    bool layout_matches;
+    SDL_Rect layout_screen;
+    SDL_Rect side_map_rect;
+    bool side_map_visible;
+    int visible_views = 0;
+
+    if (g_suppress_layout_refresh_present)
+        return false;
+
+    if (sdl_welcome_screen_active()) {
+        sdl_welcome_screen_render();
+        /* The yes/no confirm is modal and must stay visible above any
+         * full-screen surface (see sdl_yes_no_prompt_handle_modal_event). */
+        sdl_touch_pane_render_yes_no_prompt();
+        return true;
+    }
+
+    if (sdl_character_sheet_screen_active()) {
+        sdl_character_sheet_screen_render();
+        sdl_touch_pane_render_yes_no_prompt();
+        return true;
+    }
+
+    show_supporting_panes = sdl_should_show_supporting_panes();
+    layout_matches = sdl_layout_matches_supporting_pane_visibility();
+    if (!layout_matches)
+        return false;
+
+    SDL_SetRenderTarget(g_state.renderer, NULL);
+    SDL_SetRenderClipRect(g_state.renderer, NULL);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_RenderClear(g_state.renderer);
+    layout_screen = sdl_get_layout_screen_rect();
+    sdl_update_left_panel_pane_rect();
+    side_map_visible = sdl_side_map_pane_current_rect(&side_map_rect);
+
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        if (!g_views[i].canvas)
+            continue;
+        if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
+            continue;
+        visible_views++;
+    }
+    if (sdl_left_panel_pane_presentation_active()
+        && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
+    {
+        visible_views++;
+    }
+    if (side_map_visible)
+        visible_views++;
+
+    for (int i = 0; i < MAX_TERM_DATA; i++) {
+        sdl_view* view = &g_views[i];
+        float dst_w;
+        float dst_h;
+        int visual_cols;
+        int visual_rows;
+
+        if (!view->canvas)
+            continue;
+        if (view->cols <= 0 || view->rows <= 0 || view->cell_w <= 0 || view->cell_h <= 0)
+            continue;
+        if (!show_supporting_panes && i != PANE_MAIN)
+            continue;
+        if (i == PANE_MAIN && sdl_render_main_view_with_left_panel(view))
+            continue;
+
+        visual_cols = (i == PANE_MAIN)
+            ? sdl_main_view_visual_cols(view)
+            : view->cols;
+        visual_rows = (i == PANE_MAIN)
+            ? sdl_main_view_visual_rows(view)
+            : view->rows;
+        dst_w = (float)(visual_cols * view->cell_w);
+        dst_h = (float)(visual_rows * view->cell_h);
+        if (dst_w <= 0.0f || dst_h <= 0.0f)
+            continue;
+
+        SDL_RenderTexture(g_state.renderer, view->canvas, &(SDL_FRect){
+            .x = 0.0f,
+            .y = 0.0f,
+            .w = (float)(visual_cols * view->cell_w),
+            .h = (float)(visual_rows * view->cell_h),
+        }, &(SDL_FRect){
+            .x = (float)(view->rect.x + view->margin_x),
+            .y = (float)(view->rect.y + view->margin_y),
+            .w = dst_w,
+            .h = dst_h,
+        });
+
+        if (i == PANE_MAIN)
+            (void)sdl_render_saved_screen_left_panel_backdrop(view);
+    }
+
+    sdl_side_map_pane_render();
+    sdl_pointer_aim_render();
+    sdl_pointer_attack_render();
+    sdl_mouse_path_render();
+    sdl_status_pane_render();
+    sdl_main_menu_pane_render();
+    sdl_depth_menu_pane_render();
+    sdl_narrative_banner_render();
+    sdl_object_tooltip_render();
+    sdl_player_exchange_render();
+    sdl_player_action_menu_render();
+    sdl_touch_round_render();
+
+    if (visible_views > 1) {
+        if (config.show_pane_borders)
+            SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+        else
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+
+        for (int i = 0; i < MAX_TERM_DATA; i++) {
+            sdl_view* view = &g_views[i];
+
+            if (!view->canvas)
+                continue;
+            if (!show_supporting_panes && i != PANE_MAIN && i != PANE_TOUCH)
+                continue;
+
+            if (i == PANE_TOUCH)
+                continue;
+
+            /* Draw only internal leading edges.  This keeps separators
+             * between panes without painting a frame around the window. */
+            sdl_draw_pane_edges(&view->rect,
+                (layout_screen.w > 0 && view->rect.x > layout_screen.x),
+                (layout_screen.h > 0 && view->rect.y > layout_screen.y),
+                false,
+                false);
+        }
+
+        if (side_map_visible) {
+            sdl_draw_pane_edges(&side_map_rect,
+                (layout_screen.w > 0 && side_map_rect.x > layout_screen.x),
+                (layout_screen.h > 0 && side_map_rect.y > layout_screen.y),
+                false,
+                false);
+        }
+
+    }
+
+    sdl_touch_pane_render();
+    sdl_touch_zone_render_markers();
+    if (!g_touch_tutorial_suppress_runtime_top_panel)
+        sdl_touch_top_panel_render();
+    sdl_touch_hidden_indicator_render();
+    sdl_touch_pane_render_reset_prompt();
+    sdl_touch_pane_render_yes_no_prompt();
+    sdl_log_pane_menu_render();
+    sdl_side_pane_menu_render();
+    sdl_description_overlay_render();
+
+    return true;
+}
+
+/* When set, the renderer keeps showing the last presented frame.  Used while
+ * the program is quitting after the Halls of Mandos score screen so the
+ * restored dungeon view is never flashed on screen just before the window
+ * closes. */
+bool g_sdl_present_suppressed = false;
+
+void sdl_set_present_suppressed(bool suppressed)
+{
+    g_sdl_present_suppressed = suppressed;
+}
+
+void sdl_present_if_needed(sdl_view* d)
+{
+    if (g_sdl_present_suppressed)
+        return;
+
+    if (!g_state.need_present)
+        return;
+
+    if (!sdl_render_current_window_frame())
+        return;
+
+    SDL_RenderPresent(g_state.renderer);
+    sdl_restore_render_target(d);
+
+    g_state.need_present = false;
+}
+
+

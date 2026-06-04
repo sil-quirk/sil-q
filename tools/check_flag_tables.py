@@ -16,7 +16,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 DEFINES_PATH = SRC_DIR / "defines.h"
-INIT1_PATH = SRC_DIR / "init1.c"
+INIT_FLAGS_PATH = SRC_DIR / "init" / "init-flags.c"
 
 DEFINE_RE = re.compile(r"^\s*#define\s+(TR(?P<set>[1-4])_[A-Z0-9_]+)\b", re.M)
 TABLE_RE = re.compile(
@@ -59,8 +59,8 @@ def load_tr_defines() -> set[str]:
     return {match.group(0).split()[1] for match in DEFINE_RE.finditer(text)}
 
 
-def check_init1_table(tr_defines: set[str]) -> list[str]:
-    text = INIT1_PATH.read_text(encoding="utf-8")
+def check_init_flags_table(tr_defines: set[str]) -> list[str]:
+    text = INIT_FLAGS_PATH.read_text(encoding="utf-8")
     errors: list[str] = []
 
     for match in TABLE_RE.finditer(text):
@@ -71,14 +71,14 @@ def check_init1_table(tr_defines: set[str]) -> list[str]:
         if table_set != const_set:
             line, col = line_col(text, match.start())
             errors.append(
-                f"{INIT1_PATH.relative_to(REPO_ROOT)}:{line}:{col}: "
+                f"{INIT_FLAGS_PATH.relative_to(REPO_ROOT)}:{line}:{col}: "
                 f"table set TR{table_set} mismatches {constant}"
             )
 
         if constant not in tr_defines:
             line, col = line_col(text, match.start("constant"))
             errors.append(
-                f"{INIT1_PATH.relative_to(REPO_ROOT)}:{line}:{col}: "
+                f"{INIT_FLAGS_PATH.relative_to(REPO_ROOT)}:{line}:{col}: "
                 f"{constant} is not defined in {DEFINES_PATH.relative_to(REPO_ROOT)}"
             )
 
@@ -114,7 +114,7 @@ def check_source_usage() -> list[str]:
 
 def main() -> int:
     tr_defines = load_tr_defines()
-    errors = check_init1_table(tr_defines)
+    errors = check_init_flags_table(tr_defines)
     errors.extend(check_source_usage())
 
     if errors:

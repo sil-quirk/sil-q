@@ -138,7 +138,7 @@ typedef struct metarun
 
 } metarun;
 
-/* The *current* meta-run - defined once in metarun.c */
+/* The *current* meta-run - defined once in variable.c */
 extern metarun metar;
 
 int8_t* active_curse_stacks(void);
@@ -299,7 +299,7 @@ static inline int CURSE_BLESSING_CAP(int id)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Public helpers implemented in metarun.c                           */
+/*  Public helpers implemented by the metarun subsystem                */
 /* ------------------------------------------------------------------ */
 extern bool metarun_created;           /* Flag set when new metarun file created */
 void cleanup_old_game_files(void);     /* Clean save/score files on fresh start */
@@ -316,6 +316,7 @@ void choose_difficulty_level(void);   /* Difficulty selection menu    */
 u32b curse_flag_mask(void);            /* bitmask of active flags      */
 int  curse_flag_count_rhf(u32b rhf_flag);  /* #curses with RHF bit  */
 int  curse_flag_count_cur(u32b cur_flag);  /* #curses with CUR bit  */
+int  curse_flag_delta_cur(u32b cur_flag);  /* signed CUR curse/blessing delta */
 int  any_curse_flag_active(u32b flag);     /* CUR-only helper      */
 void metarun_clear_blessing_runtime_fields(metarun *m); /* Reset runtime blessing fields */
 void metarun_sanitize_blessing_economy(metarun *m);     /* Clamp blessing totals */

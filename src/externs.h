@@ -19,6 +19,8 @@
 #include "h-basic.h"
 #include "score/score_io.h"
 #include "score/score_ui.h"
+#include "spell/spell.h"
+#include "player/player-songs.h"
 #include "ui/story_font.h"
 // extern FILE *log_file;
 extern int max_macrotrigger;
@@ -330,7 +332,7 @@ extern names_type* n_info;
 extern style_type* style_info;
 extern skeleton_note_template* skeleton_note_info;
 extern char* skeleton_note_text;
-/* Default vein tile accessors (defined in init1.c) */
+/* Default vein tile accessors (defined in init/init-style.c) */
 byte get_default_vein_row(void);
 byte get_default_vein_col(void);
 bool get_overlay_key_enabled(void);
@@ -445,7 +447,7 @@ static inline int player_generation_depth(void)
  * Automatically generated "function declarations"
  */
 
-/* birth.c */
+/* birth/ */
 extern NavResult player_birth(void);
 extern NavResult gain_skills(void);
 extern NavResult character_creation(void);
@@ -860,7 +862,7 @@ extern bool death_spectator_active(void);
 extern void death_spectator_request_exit(void);
 extern void reset_dungeon_state(void);
 
-/* files.c */
+/* Former files.c split across fs/, ui/, game/, score/, metarun/, and platform modules */
 extern void safe_setuid_drop(void);
 extern void safe_setuid_grab(void);
 extern s16b tokenize(char* buf, s16b num, char** tokens);
@@ -967,7 +969,7 @@ extern void debug_run_quest_roulette(void);
 extern int debug_get_quest_lottery_winner(void);
 #endif /* ALLOW_DEBUG */
 
-/* init2.c */
+/* init/ lifecycle and path initialization */
 extern void init_file_paths(char* path);
 extern void display_introduction(void);
 extern void init_angband(void);
@@ -981,7 +983,7 @@ extern void cleanup_angband(void);
 extern bool load_player(void);
 extern bool load_meta(void);
 
-/* melee1.c */
+/* melee/melee-attack*.c, melee/melee-combat-display.c */
 extern int protection_roll(int typ, bool melee);
 extern int p_min(int typ, bool melee);
 extern int p_max(int typ, bool melee);
@@ -1010,7 +1012,7 @@ extern void do_cmd_combat_history(void);
 extern void display_combat_round_details(combat_history_round* round);
 extern void do_betrayal_ring_amulet();
 
-/* melee2.c */
+/* melee/melee-movement*.c, melee/melee-process.c, melee/melee-util.c */
 extern bool attacker_at(int y, int x);
 extern int adj_mon_count(int y, int x);
 extern int get_scent(int y, int x);
@@ -1084,7 +1086,7 @@ extern bool summon_specific(int y1, int x1, int lev, int type);
 extern bool reproduce_monster(int old_m_idx, int new_r_idx);
 extern void message_pain(int m_idx, int dam);
 
-/* obj-info.c */
+/* object/object-info.c */
 #ifndef OBJECT_INFO_SCREEN_ACTION_DEFINED
 #define OBJECT_INFO_SCREEN_ACTION_DEFINED
 typedef struct object_info_screen_action
@@ -1110,7 +1112,7 @@ extern void describe_item_with_comparisons(int item_index, bool include_comparis
 extern char describe_item_with_floor_actions(int item_index,
     bool include_comparisons);
 
-/* object1.c */
+/* object/object-flavor.c, object/object-flags.c, object/object-desc.c, object/object-ui-*.c */
 extern bool easter_time(void);
 extern void flavor_init(void);
 extern void reset_visuals(bool prefs);
@@ -1163,7 +1165,7 @@ extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3
 extern bool weapon_is_impale_eligible(const object_type* o_ptr);
 extern int get_paired_artefact(int art_idx);
 
-/* object2.c */
+/* object/object-*.c */
 extern void excise_object_idx(int o_idx);
 extern void delete_object_idx(int o_idx);
 extern void delete_object(int y, int x);
@@ -1415,151 +1417,6 @@ extern bool can_be_randart(const object_type* o_ptr);
 /* save.c */
 extern bool save_player(void);
 
-/* spells1.c */
-extern void teleport_away(int m_idx, int dis);
-extern void teleport_player(int dis);
-extern void teleport_player_to(int ny, int nx);
-extern void teleport_towards(int oy, int ox, int ny, int nx);
-extern void teleport_player_level(void);
-extern void stun_monster(monster_type* m_ptr, int stun);
-extern u16b bolt_pict(int y, int x, int ny, int nx, int typ);
-extern void take_hit(int dam, cptr kb_str);
-extern bool hates_acid(const object_type* o_ptr);
-extern bool hates_elec(const object_type* o_ptr);
-extern bool hates_fire(const object_type* o_ptr);
-extern bool hates_cold(const object_type* o_ptr);
-extern bool elemental_attack_destroys_object(int attack_type,
-    const object_type* o_ptr);
-extern void acid_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
-    cptr kb_str);
-extern void elec_dam(int raw_dam, int min_raw, int max_raw, int hp_dam,
-    cptr kb_str);
-extern int resist_fire(void);
-extern int resist_cold(void);
-extern int resist_pois(void);
-extern int resist_dark(void);
-extern void fire_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
-    cptr kb_str);
-extern void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void cold_dam_mixed(int raw_dam, int min_raw, int max_raw, int hp_dam,
-    cptr kb_str);
-extern void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void dark_dam_mixed(int dam, cptr kb_str);
-extern void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str);
-extern void pois_dam_mixed(int dam);
-extern void pois_dam_pure(int dd, int ds, bool update_rolls);
-extern bool inc_stat(int stat);
-extern bool dec_stat(int stat, int amount, bool permanent);
-extern bool res_stat(int stat, int points);
-extern void disease(int* damage);
-extern bool apply_disenchant(int mode);
-extern bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd,
-    int ds, int dif, int typ, u32b flg, int degrees, bool uniform);
-extern void song_of_binding(monster_type* m_ptr);
-extern void song_of_piercing(monster_type* m_ptr);
-extern void song_of_oaths(monster_type* m_ptr);
-extern void hatch_spider(monster_type* m_ptr);
-extern void change_song(int song);
-extern bool singing(int song);
-extern cptr song_voice_cost_desc(int song);
-extern void sing(void);
-extern void song_disguise_new_player_turn(void);
-extern void song_disguise_handle_monster_removed(int m_idx);
-extern void song_disguise_note_monster_attack(int m_idx);
-extern void song_disguise_note_player_attack(int m_idx);
-extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
-extern bool song_revealing_overlay(int m_idx, byte* a, char* c);
-extern void song_duels_new_player_turn(void);
-extern void song_duels_handle_monster_removed(int m_idx);
-extern void sing_song_of_shattering(int score);
-extern void shatter_in_arc(int dir, int score);
-
-/* spells2.c */
-extern bool hp_player(int x, bool percent, bool message);
-extern void warding_glyph(void);
-extern bool do_dec_stat(int stat, monster_type* m_ptr);
-extern bool do_res_stat(int stat, int points);
-extern bool do_inc_stat(int stat);
-extern void identify_pack(void);
-extern void uncurse_object(object_type* o_ptr);
-extern bool remove_curse(bool star_curse);
-extern void self_knowledge(void);
-extern void detect_all_doors_traps(void);
-extern bool detect_traps(void);
-extern bool detect_doors(void);
-extern bool detect_stairs(void);
-extern bool detect_objects_normal(int radius);
-extern bool detect_objects_magic(void);
-extern bool detect_monsters(int radius);
-extern bool detect_monsters_invis(void);
-extern bool detect_all(void);
-extern void stair_creation(void);
-extern bool item_tester_hook_digger(const object_type* o_ptr);
-extern bool item_tester_hook_ided_weapon(const object_type* o_ptr);
-extern bool item_tester_hook_weapon(const object_type* o_ptr);
-extern bool item_tester_hook_wieldable_ided_weapon(const object_type* o_ptr);
-extern bool item_tester_hook_wieldable_weapon(const object_type* o_ptr);
-extern bool item_tester_hook_ided_armour(const object_type* o_ptr);
-extern bool item_tester_hook_armour(const object_type* o_ptr);
-extern bool item_tester_hook_non_herb_food(const object_type* o_ptr);
-extern bool item_tester_hook_light_with_fuel(const object_type* o_ptr);
-extern bool item_tester_hook_enchantable_amulet(const object_type* o_ptr);
-extern int do_ident_item(int item, object_type* o_ptr);
-extern bool ident_spell(bool include_floor);
-extern bool display_unified_identify_menu(bool include_floor, int* out_item, object_type** out_object);
-extern bool item_tester_hook_recharge(const object_type* o_ptr);
-extern void recharge_staff_wand(object_type* o_ptr, int lev, int num);
-extern bool recharge(int num);
-extern bool slow_monsters(int power);
-extern bool sleep_monsters(int power);
-extern bool destroy_traps(int power);
-extern bool open_doors(int power);
-extern bool lock_doors(int power);
-extern bool lock_doors_radius(int y, int x, int radius, int power);
-extern bool turn_undead(int dd, int ds, int power);
-extern bool dispel_undead(int dd, int ds);
-extern void wake_all_monsters(int who);
-extern bool make_aggressive(void);
-extern bool banishment(void);
-extern bool mass_banishment(void);
-extern void destroy_area(int y1, int x1, int r, bool full);
-extern void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who);
-extern bool close_chasm(int y, int x, int power);
-extern bool close_chasms(int power);
-extern void light_room(int y1, int x1);
-extern void darken_room(int y1, int x1);
-extern bool light_area(int dd, int ds, int rad);
-extern bool darken_area(int dd, int ds, int rad);
-extern bool fire_bolt_or_beam(
-    int prob, int typ, int dir, int dd, int ds, int dif);
-extern bool fire_bolt_beam_special(
-    int typ, int dir, int dd, int ds, int dif, int rad, u32b flg);
-extern bool fire_ball(int typ, int dir, int dd, int ds, int dif, int rad);
-extern bool fire_arc(
-    int typ, int dir, int dd, int ds, int dif, int rad, int degrees);
-extern bool fire_bolt(int typ, int dir, int dd, int ds, int dif);
-extern bool fire_beam(int typ, int dir, int dd, int ds, int dif);
-extern bool fire_bolt_or_beam(
-    int prob, int typ, int dir, int dd, int ds, int dif);
-extern bool project_arc(int who, int rad, int y0, int x0, int y1, int x1,
-    int dd, int ds, int dif, int typ, u32b flg, int degrees);
-extern bool project_los_not_player(
-    int y1, int x1, int dd, int ds, int dif, int typ);
-extern bool project_los(int typ, int dd, int ds, int dif, bool silent);
-extern void clear_temp_array(void);
-extern void cave_temp_mark(int y, int x, bool room);
-extern void spread_cave_temp(int y1, int x1, int range, bool room);
-extern bool explosion(
-    int who, int rad, int y0, int x0, int dd, int ds, int dif, int typ);
-extern bool light_line(int dir);
-extern bool destroy_door(int dir);
-extern bool disarm_trap(int dir);
-extern bool item_tester_hook_ided_ammo(const object_type* o_ptr);
-extern bool item_tester_hook_ammo(const object_type* o_ptr);
-extern bool item_tester_hook_ordinary_ammo(const object_type* o_ptr);
-extern void identify_and_squelch_pack(void);
-extern bool mass_identify(int rad);
-
 /* squelch.c */
 extern byte squelch_level[SQUELCH_BYTES];
 extern int do_cmd_autoinscribe_item(s16b k_idx);
@@ -1682,7 +1539,7 @@ extern void sdl_character_sheet_screen_add_select_rating(cptr group,
 extern void sdl_character_sheet_screen_add_select_heading(cptr label);
 extern void sdl_character_sheet_screen_set_select_intro(cptr text);
 extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
-/* Race "book" page-turn: click ids (mouse) + navigation API for birth.c. */
+/* Race "book" page-turn: click ids (mouse) + navigation API for birth/. */
 #define SDL_SELECT_CLICK_PAGE_PREV (-20)
 #define SDL_SELECT_CLICK_PAGE_NEXT (-21)
 extern void sdl_character_sheet_screen_reset_select_page(void);
@@ -1867,7 +1724,7 @@ extern int editing_buffer_put_str(
     editing_buffer* eb_ptr, const char* str, int n);
 extern cptr get_ext_color_name(byte ext_color);
 
-/* xtra1.c */
+/* Player/status/upkeep modules */
 extern byte total_mdd(const object_type* o_ptr);
 extern byte strength_modified_ds(const object_type* o_ptr, int str_adjustment);
 extern byte total_mds(const object_type* o_ptr, int str_adjustment);
@@ -1890,6 +1747,7 @@ extern void window_stuff(void);
 extern void handle_stuff(void);
 extern void prt_frame_basic(void);
 extern int weight_limit(void);
+extern bool sprinting(void);
 extern void calc_voice(void);
 extern bool weapon_glows(const object_type* o_ptr);
 extern byte object_display_color(const object_type* o_ptr, byte base_color);
@@ -1899,7 +1757,7 @@ extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
 extern int minstrel_level(void);
 
-/* xtra2.c */
+/* Effects/world/targeting/quest modules */
 extern bool saving_throw(monster_type* m_ptr, int resistance);
 extern bool turin_resist_bad_effect(void);
 extern bool allow_player_blind(monster_type* m_ptr);
@@ -2068,7 +1926,7 @@ extern int curse_flag_count_cur(u32b cur_flag);
 extern int curse_flag_delta_cur(u32b cur_flag);
 extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
-// init1.c
+// init/init-flags.c
 extern void dbg_show_active_flags(void);
 
 // Enhanced menu system globals

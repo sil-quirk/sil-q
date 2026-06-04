@@ -183,40 +183,203 @@ add_subdirectory(src/log)
 
 set(SIL_MORE_SOURCES
     src/blitz.c
-    src/birth.c
+    src/birth/birth-allocation.c
+    src/birth/birth-blitz.c
+    src/birth/birth-choice-ui.c
+    src/birth/birth-flow.c
+    src/birth/birth-oath.c
+    src/birth/birth-selection.c
+    src/birth/birth-setup.c
+    src/birth/birth-skills.c
+    src/birth/birth-traits.c
+    src/birth/birth-ui-text.c
     src/cave.c
     src/cJSON.c
-    src/cmd1.c
-    src/cmd2.c
-    src/cmd3.c
-    src/cmd4.c
-    src/cmd5.c
-    src/cmd6.c
+    src/cmd/combat/cmd-combat.c
+    src/cmd/combat/cmd-ranged.c
+    src/cmd/item/cmd-fletchery.c
+    src/cmd/item/cmd-identify.c
+    src/cmd/item/cmd-item-activate.c
+    src/cmd/item/cmd-item-core.c
+    src/cmd/item/cmd-item-utility.c
+    src/cmd/item/cmd-pickup.c
+    src/cmd/monster/cmd-monster-alert.c
+    src/cmd/movement/cmd-depth-bonus.c
+    src/cmd/movement/cmd-movement.c
+    src/cmd/movement/cmd-run.c
+    src/cmd/ui/cmd-ui-abilities.c
+    src/cmd/ui/cmd-ui-character.c
+    src/cmd/ui/cmd-ui-common.c
+    src/cmd/ui/cmd-ui-knowledge.c
+    src/cmd/ui/cmd-ui-look.c
+    src/cmd/ui/cmd-ui-main-menu.c
+    src/cmd/ui/cmd-ui-nearby.c
+    src/cmd/ui/cmd-ui-object-display.c
+    src/cmd/ui/cmd-ui-settings.c
+    src/cmd/ui/cmd-ui-smithing.c
+    src/cmd/world/cmd-interact-chest.c
+    src/cmd/world/cmd-interact.c
     src/dungeon.c
-    src/files.c
+    src/fs/file.c
+    src/fs/pref-files.c
+    src/fs/savefile-name.c
+    src/game/game-lifecycle.c
+    src/metarun/metarun-files.c
+    src/platform-signals.c
+    src/score/score_entry.c
+    src/score/score_paths.c
+    src/score/score_postmortem.c
+    src/ui/character-dump.c
+    src/ui/character-screen.c
+    src/ui/file-viewer.c
+    src/ui/help.c
+    src/ui/story.c
     src/format.c
-    src/generate.c
+    src/level-generation/level-generation.c
+    src/level-generation/level-generation-access.c
+    src/level-generation/level-generation-finalize.c
+    src/level-generation/level-generation-layout-anchors.c
+    src/level-generation/level-generation-layout-big-cave.c
+    src/level-generation/level-generation-layout-caves.c
+    src/level-generation/level-generation-layout-connectivity.c
+    src/level-generation/level-generation-layout-doors.c
+    src/level-generation/level-generation-layout-modes.c
+    src/level-generation/level-generation-layout-room-placement.c
+    src/level-generation/level-generation-partition-population.c
+    src/level-generation/level-generation-population.c
+    src/level-generation/level-generation-quests.c
+    src/level-generation/level-generation-room-build.c
+    src/level-generation/level-generation-rooms-basic.c
+    src/level-generation/level-generation-rooms-morgoth.c
+    src/level-generation/level-generation-rooms-special.c
+    src/level-generation/level-generation-rooms-vaults.c
+    src/level-generation/level-generation-screen.c
+    src/level-generation/level-generation-state.c
+    src/level-generation/level-generation-terrain-connectivity.c
+    src/level-generation/level-generation-terrain-features.c
+    src/level-generation/level-generation-terrain-placement.c
+    src/level-generation/level-generation-terrain-tunnels.c
+    src/level-generation/level-generation-vault-special.c
     src/gen-log.c
-    src/init1.c
-    src/init2.c
+    src/init/init-arrays.c
+    src/init/init-cleanup.c
+    src/init/init-flags.c
+    src/init/init-info.c
+    src/init/init-lifecycle.c
+    src/init/init-object-bonuses.c
+    src/init/init-parse-ability.c
+    src/init/init-parse-artefact.c
+    src/init/init-parse-curses.c
+    src/init/init-parse-effects.c
+    src/init/init-parse-ego.c
+    src/init/init-parse-flavor.c
+    src/init/init-parse-history.c
+    src/init/init-parse-limits.c
+    src/init/init-parse-major-blessings.c
+    src/init/init-parse-monster.c
+    src/init/init-parse-names.c
+    src/init/init-parse-oaths.c
+    src/init/init-parse-object-kind.c
+    src/init/init-parse-player.c
+    src/init/init-parse-quests.c
+    src/init/init-parse-runtypes.c
+    src/init/init-parse-skeleton-notes.c
+    src/init/init-parse-story.c
+    src/init/init-parse-terrain.c
+    src/init/init-parse-vault.c
+    src/init/init-parser-core.c
+    src/init/init-paths.c
+    src/init/init-style.c
     src/item_set.c
     src/load.c
     src/main.c
     src/main-sdl.c
-    src/melee1.c
-    src/melee2.c
-    src/metarun.c
+    src/sdl/config/sdl-settings.c
+    src/sdl/core/sdl-events.c
+    src/sdl/core/sdl-init.c
+    src/sdl/core/sdl-layout.c
+    src/sdl/core/sdl-state.c
+    src/sdl/input/sdl-gamepad.c
+    src/sdl/input/sdl-map-geometry.c
+    src/sdl/input/sdl-mouse-path.c
+    src/sdl/input/sdl-player-actions.c
+    src/sdl/input/sdl-pointer-targeting.c
+    src/sdl/input/sdl-screen-pointer.c
+    src/sdl/input/sdl-tooltips.c
+    src/sdl/input/sdl-touch-controls.c
+    src/sdl/input/sdl-touch-tutorial.c
+    src/sdl/render/sdl-fonts.c
+    src/sdl/render/sdl-present.c
+    src/sdl/render/sdl-term-callbacks.c
+    src/sdl/render/sdl-text.c
+    src/sdl/ui/sdl-main-menu.c
+    src/sdl/ui/sdl-menus.c
+    src/sdl/ui/sdl-pane-menus.c
+    src/sdl/ui/sdl-panes.c
+    src/sdl/ui/sdl-screens.c
+    src/melee/melee-attack.c
+    src/melee/melee-attack-ranged.c
+    src/melee/melee-combat-display.c
+    src/melee/melee-movement.c
+    src/melee/melee-movement-path.c
+    src/melee/melee-movement-resolution.c
+    src/melee/melee-process.c
+    src/melee/melee-util.c
+    src/metarun/metarun-artefact-memory.c
+    src/metarun/metarun-blessing-ui.c
+    src/metarun/metarun-curses.c
+    src/metarun/metarun-difficulty-ui.c
+    src/metarun/metarun-effects-ui.c
+    src/metarun/metarun-history-ui.c
+    src/metarun/metarun-lifecycle.c
+    src/metarun/metarun-oaths.c
+    src/metarun/metarun-persistence.c
+    src/metarun/metarun-score.c
+    src/metarun/metarun-settings.c
+    src/metarun/metarun-state.c
+    src/metarun/metarun-stats-ui.c
+    src/metarun/metarun-ui-common.c
     src/metarun_legacy.c
     src/quest.c
     src/monster1.c
     src/monster2.c
-    src/obj-info.c
-    src/object1.c
-    src/object2.c
+    src/object/object-allocation.c
+    src/object/object-desc.c
+    src/object/object-flags.c
+    src/object/object-flavor.c
+    src/object/object-info.c
+    src/object/object-inventory.c
+    src/object/object-inventory-limits.c
+    src/object/object-knowledge.c
+    src/object/object-list.c
+    src/object/object-make.c
+    src/object/object-place.c
+    src/object/object-pval.c
+    src/object/object-ui-core.c
+    src/object/object-ui-enhanced.c
+    src/object/object-ui-identify.c
+    src/object/object-ui-select.c
+    src/object/object-use.c
+    src/object/object-util.c
     src/drop_system.c
     src/thrall_quest.c
+    src/player/ability-log.c
+    src/player/combat-stats.c
+    src/player/effects.c
+    src/player/experience.c
     src/player/killer.c
+    src/player/player-bonuses.c
+    src/player/player-light.c
+    src/player/player-lore.c
+    src/player/player-skills.c
+    src/player/player-upkeep.c
+    src/player/player-vitals.c
     src/pane.c
+    src/quest/quest-core.c
+    src/quest/quest-dialogue.c
+    src/quest/quest-status.c
+    src/quest/valar/other-valar.c
+    src/quest/valar/tulkas-varda.c
     src/randart.c
     src/rng.c
     src/save.c
@@ -233,10 +396,31 @@ set(SIL_MORE_SOURCES
     src/fs/path.c
     src/ui/colors.c
     src/ui/story_font.c
+    src/ui/status/status-frame.c
+    src/ui/status/status-health.c
+    src/ui/status/status-line.c
+    src/ui/status/status-panel.c
+    src/ui/story/pause-with-text.c
+    src/ui/targeting/direction.c
+    src/ui/targeting/targeting.c
     src/log/bootstrap.c
     src/log/fatal.c
-    src/spells1.c
-    src/spells2.c
+    src/player/player-song-disguise.c
+    src/player/player-song-duels.c
+    src/player/player-song-effects.c
+    src/player/player-song-monster.c
+    src/player/player-song-revealing.c
+    src/player/player-songs.c
+    src/spell/spell-damage.c
+    src/spell/spell-detection.c
+    src/spell/spell-identify.c
+    src/spell/spell-monster.c
+    src/spell/spell-projection.c
+    src/spell/spell-projection-effects.c
+    src/spell/spell-teleport.c
+    src/spell/spell-terrain.c
+    src/spell/spell-utility.c
+    src/spell/spell-visuals.c
     src/squelch.c
     src/supplies.c
     src/tables.c
@@ -245,8 +429,8 @@ set(SIL_MORE_SOURCES
     src/variable.c
     src/wizard1.c
     src/wizard2.c
-    src/xtra1.c
-    src/xtra2.c
+    src/world/monster-death.c
+    src/world/panel.c
     src/z-term.c
     src/support/strl.c
 )

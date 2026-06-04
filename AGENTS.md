@@ -19,7 +19,7 @@ High-signal repo guidance for coding agents (Codex CLI, Copilot, etc.). This is 
   - Core loop / dungeon: `src/dungeon.c`, generation: `src/generate.c`, map: `src/cave.c`
   - Commands (player input -> actions): `src/cmd1.c` ... `src/cmd6.c`
   - Monsters/combat/spells: `src/monster1.c`, `src/monster2.c`, `src/melee1.c`, `src/melee2.c`, `src/spells1.c`, `src/spells2.c`
-  - Objects/inventory: `src/object1.c`, `src/object2.c`, `src/obj-info.c`
+  - Objects/inventory: `src/object/` (`object-desc.c`, `object-inventory.c`, `object-make.c`, `object-ui-*.c`, etc.)
   - Save/load + file/path init: `src/save.c`, `src/load.c`, `src/init2.c`, `src/files.c`
   - UI plumbing: `src/z-term.c` (key queue/Term), `src/pane.c` (subwindows), `src/format.c`, `src/ui/`
   - Metarun + scoring: `src/metarun.c`, `src/metarun_legacy.c`, `src/score/`

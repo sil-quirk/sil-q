@@ -482,7 +482,7 @@
 #define QUARK_MAX 512
 
 /*
- * OPTION: Maximum number of autoinscriptions(see "object1.c")
+ * OPTION: Maximum number of autoinscriptions(see "object/object-desc.c")
  */
 #define AUTOINSCRIPTIONS_MAX 216
 
@@ -526,7 +526,7 @@
 /*
  * There is a 1 in 7 chance that special items with an inflated base-level are
  * generated when an object is turned into an special item (see
- * make_special_item() in object2.c). As above, lower values yield better
+ * make_special_item() in object/object-make.c). As above, lower values yield better
  * special items more often.
  */
 #define GREAT_SPECIAL 7
