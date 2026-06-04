@@ -118,10 +118,39 @@ typedef enum sdl_startup_device_class {
 
 enum { SDL_MAIN_VIEW_ZOOM_MIN_MAP_SQUARES = 10 };
 
+enum { STORY_FONT_SLOTS = 2 };
+
+/*
+ * Which story-font slot each UI context renders with.  Slot 0 is the default
+ * story font; slot 1 is the secondary font (config.story_font2).  This is the
+ * single place that decides "where shows which" font -- flip a context here to
+ * move it between fonts.
+ */
+enum {
+    SDL_STORY_FONT_SLOT_DEFAULT   = 0,
+    SDL_STORY_FONT_SLOT_NARRATIVE = 1, /* quest / narrative book body text */
+    SDL_STORY_FONT_SLOT_MENU      = 1, /* in-game popup selection menus */
+    SDL_STORY_FONT_SLOT_LOG       = 1, /* message log and log pane */
+    SDL_STORY_FONT_SLOT_CHAR_DESC = 1, /* character sheet description / history */
+    SDL_STORY_FONT_SLOT_CHAR_NUM  = 1  /* character sheet numeric values */
+};
+
 typedef struct story_font_entry {
     int pixel_height;
+    int slot;
     TTF_Font* font;
 } story_font_entry;
+
+typedef struct story_font_slot_cache {
+    char path[256];
+    bool bold;
+    bool italic;
+    bool underline;
+    bool strikethrough;
+    int hinting;
+    bool kerning;
+    int outline;
+} story_font_slot_cache;
 
 typedef struct mono_font_atlas_entry {
     bool valid;
@@ -198,15 +227,9 @@ typedef struct sdl_state {
     int story_font_count;
     int story_font_depth;      // Nesting counter for story font enable/disable
     bool story_font_grid;      // Whether queued story text should snap to cell grid
+    int story_font_slot;       // Which story-font slot enable/disable text uses (0 or 1)
     bool story_font_cache_valid;
-    char story_font_cache_path[256];
-    bool story_font_cache_bold;
-    bool story_font_cache_italic;
-    bool story_font_cache_underline;
-    bool story_font_cache_strikethrough;
-    int story_font_cache_hinting;
-    bool story_font_cache_kerning;
-    int story_font_cache_outline;
+    story_font_slot_cache story_font_cache[STORY_FONT_SLOTS];
     mono_font_atlas_entry mono_font_atlases[MAX_MONO_FONT_CACHE];
     mono_font_entry mono_fonts[MAX_MONO_FONT_CACHE];
     
@@ -1107,6 +1130,7 @@ typedef enum {
 
 extern const char help_sdl[];
 extern const char* const sdl_story_fallback_font;
+extern const char* const sdl_story_fallback_font2;
 extern struct sdl_config config;
 extern bool g_hide_left_panel;
 extern bool g_sdl_left_panel_pane_source_active;
@@ -1562,7 +1586,7 @@ float sdl_char_sheet_line_h(TTF_Font* font, int fallback_px, float scale);
 TTF_Font* sdl_char_sheet_font_for_rows(float available_h, int rows, int min_px, int max_px, float line_scale, float* out_line_h, int* out_px);
 SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text, byte attr, float x, float y, float max_w, float max_h, bool centered);
 void sdl_char_sheet_draw_title_text(TTF_Font* font, cptr title, byte title_attr, cptr suffix, byte suffix_attr, float x, float y, float max_w, float max_h);
-TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width, float available_h, int min_px, int max_px, float line_scale, float* out_line_h, int* out_lines, int* out_px);
+TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width, float available_h, int min_px, int max_px, float line_scale, int slot, float* out_line_h, int* out_lines, int* out_px);
 int sdl_char_sheet_font_px_for_line_height(float target_h, int min_px, int max_px);
 bool sdl_char_sheet_choice_is_valid(int choice);
 bool sdl_char_sheet_prompt_choice_is_valid(int choice);
@@ -2582,8 +2606,12 @@ SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path, int cel
 void sdl_story_font_cache_clear(void);
 bool sdl_story_font_cache_matches_config(void);
 void sdl_story_font_cache_mark_config(void);
+const char* sdl_story_font_path_for_slot(int slot);
 TTF_Font* sdl_story_font_for_height(int pixel_height);
+TTF_Font* sdl_story_font_for_height_slot(int pixel_height, int slot);
 TTF_Font* sdl_story_font_for_view(const sdl_view* d);
+TTF_Font* sdl_story_font_for_view_slot(const sdl_view* d, int slot);
+TTF_Font* sdl_story_font_slot_sibling(TTF_Font* font, int slot);
 bool sdl_mono_atlas_codepoint_visible(Uint32 ch);
 void sdl_mono_atlas_set_error(char* error_buf, size_t error_buf_size, const char* message);
 SDL_Surface* sdl_build_ttf_font_atlas_surface(const char* font_path, int cell_width, int cell_height, const mono_font_style_key* style, int* actual_font_size, char* error_buf, size_t error_buf_size);
@@ -2612,6 +2640,7 @@ void sdl_story_font_disable(void);
 bool sdl_is_story_font_enabled(void);
 void sdl_story_font_set_grid(bool grid);
 bool sdl_is_story_font_grid(void);
+void sdl_story_font_set_slot(int slot);
 void sdl_story_font_reset(void);
 int sdl_story_font_text_width(cptr text, int len);
 int sdl_get_cell_width(void);
@@ -2822,6 +2851,7 @@ void sdl_description_overlay_clear(void);
 void sdl_request_redraw(void);
 void sdl_apply_story_font_state(bool active);
 void sdl_apply_story_grid_state(bool grid);
+void sdl_apply_story_slot_state(int slot);
 void sdl_story_font_reset_state(void);
 void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w, float cell_h, float origin_x, int x, int y, int cell_offset, int cell_span, const char* s, int len, SDL_Color col);
@@ -2915,6 +2945,7 @@ bool sdl_gamepad_capture_queue_input(int type, int id);
 int sdl_gamepad_pending_timeout_ms(Uint64 now_ns);
 void sdl_apply_story_font_state(bool active);
 void sdl_apply_story_grid_state(bool grid);
+void sdl_apply_story_slot_state(int slot);
 void sdl_story_font_reset_state(void);
 void sdl_story_font_cache_clear(void);
 bool sdl_story_font_cache_matches_config(void);

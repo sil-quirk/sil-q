@@ -7,11 +7,19 @@
 
 typedef struct term term;
 
+/* Story-font slots: 0 is the default story font, 1 the secondary font that
+ * select UI contexts (menus, log) opt into. */
+enum {
+    STORY_FONT_SLOT_DEFAULT = 0,
+    STORY_FONT_SLOT_SECONDARY = 1
+};
+
 typedef struct story_font_term_state
 {
     term* t;
     bool active;
     bool grid;
+    int slot;
 } story_font_term_state;
 
 int count_wrapped_lines_story(cptr str, int wrap_cols, int indent);
@@ -23,6 +31,7 @@ bool story_character_enabled(void);
 bool story_monster_desc_enabled(void);
 
 void story_font_term_push(bool active, bool grid, story_font_term_state* prev);
+void story_font_term_push_slot(bool active, bool grid, int slot, story_font_term_state* prev);
 void story_font_term_pop(story_font_term_state* prev);
 
 void text_out_to_screen_story(byte a, cptr str);

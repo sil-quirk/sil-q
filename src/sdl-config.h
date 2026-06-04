@@ -137,6 +137,7 @@ struct sdl_config {
     
     // Custom fonts
     char story_font[256];      // Font for story/narrative text (non-monospace, e.g., "lib/xtra/font/Story.ttf")
+    char story_font2[256];     // Second story font, used by select UI contexts (e.g. menus, log, quest book)
     char monospace_font[256];  // Font for regular game text (monospace, default: VictorMono-Medium.ttf)
     
     // Monospace font rendering options
@@ -156,6 +157,15 @@ struct sdl_config {
     int story_hinting;         // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
     bool story_kerning;        // Enable kerning (default: true)
     int story_outline;         // Outline width in pixels (0=none)
+
+    // Second story font rendering options (slot 1)
+    bool story2_bold;          // Apply bold style to second story font
+    bool story2_italic;        // Apply italic style to second story font
+    bool story2_underline;     // Apply underline style to second story font
+    bool story2_strikethrough; // Apply strikethrough style to second story font
+    int story2_hinting;        // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
+    bool story2_kerning;       // Enable kerning (default: true)
+    int story2_outline;        // Outline width in pixels (0=none)
 
     // Gamepad/controller settings
     bool gamepad_enabled;                 // Enable gamepad input

@@ -499,6 +499,86 @@ SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path,
     return atlas;
 }
 
+/* Story fonts come in numbered slots (STORY_FONT_SLOTS); slot 0 is the default
+ * font used everywhere, slot 1 is the secondary font assigned to select UI
+ * contexts (quest book, popup menus, log).  Each slot has its own configured
+ * path, style options and fallback. */
+static int sdl_story_slot_clamp(int slot)
+{
+    if (slot < 0)
+        return 0;
+    if (slot >= STORY_FONT_SLOTS)
+        return STORY_FONT_SLOTS - 1;
+    return slot;
+}
+
+const char* sdl_story_font_path_for_slot(int slot)
+{
+    if (sdl_story_slot_clamp(slot) == 1)
+        return (config.story_font2[0] != '\0') ? config.story_font2 : NULL;
+    return (config.story_font[0] != '\0') ? config.story_font : NULL;
+}
+
+static const char* sdl_story_fallback_for_slot(int slot)
+{
+    return (sdl_story_slot_clamp(slot) == 1)
+        ? sdl_story_fallback_font2
+        : sdl_story_fallback_font;
+}
+
+static void sdl_story_slot_style(int slot, mono_font_style_key* out)
+{
+    if (sdl_story_slot_clamp(slot) == 1) {
+        out->bold = config.story2_bold;
+        out->italic = config.story2_italic;
+        out->underline = config.story2_underline;
+        out->strikethrough = config.story2_strikethrough;
+        out->hinting = config.story2_hinting;
+        out->kerning = config.story2_kerning;
+        out->outline = config.story2_outline;
+    } else {
+        out->bold = config.story_bold;
+        out->italic = config.story_italic;
+        out->underline = config.story_underline;
+        out->strikethrough = config.story_strikethrough;
+        out->hinting = config.story_hinting;
+        out->kerning = config.story_kerning;
+        out->outline = config.story_outline;
+    }
+}
+
+/*
+ * Load a story font for a slot, applying that slot's style and falling back to
+ * the slot's fallback font when the configured path fails to load.
+ */
+static TTF_Font* sdl_load_story_font_slot(const char* font_path, int font_size, int slot)
+{
+    mono_font_style_key style;
+    TTF_Font* font = NULL;
+
+    sdl_story_slot_style(slot, &style);
+
+    if (font_path && font_path[0] != '\0') {
+        font = TTF_OpenFont(font_path, font_size);
+        if (font) {
+            log_debug("Loaded story font (slot %d): %s at size %d", slot, font_path, font_size);
+            sdl_apply_mono_font_style_key(font, &style);
+            return font;
+        }
+        log_warn("Failed to load story font (slot %d) '%s': %s", slot, font_path, SDL_GetError());
+    }
+
+    const char* fallback = sdl_story_fallback_for_slot(slot);
+    font = TTF_OpenFont(fallback, font_size);
+    if (font) {
+        log_debug("Using fallback story font (slot %d): %s at size %d", slot, fallback, font_size);
+        sdl_apply_mono_font_style_key(font, &style);
+    } else {
+        log_error("Failed to load fallback story font (slot %d) '%s': %s", slot, fallback, SDL_GetError());
+    }
+    return font;
+}
+
 void sdl_story_font_cache_clear(void)
 {
     for (int i = 0; i < g_state.story_font_count; i++) {
@@ -507,52 +587,77 @@ void sdl_story_font_cache_clear(void)
             g_state.story_fonts[i].font = NULL;
         }
         g_state.story_fonts[i].pixel_height = 0;
+        g_state.story_fonts[i].slot = 0;
     }
     g_state.story_font_count = 0;
     g_state.story_font_cache_valid = false;
-    g_state.story_font_cache_path[0] = '\0';
+    memset(g_state.story_font_cache, 0, sizeof(g_state.story_font_cache));
 }
 
 bool sdl_story_font_cache_matches_config(void)
 {
-    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : "";
-
     if (!g_state.story_font_cache_valid)
         return false;
 
-    return streq(g_state.story_font_cache_path, font_path)
-        && g_state.story_font_cache_bold == config.story_bold
-        && g_state.story_font_cache_italic == config.story_italic
-        && g_state.story_font_cache_underline == config.story_underline
-        && g_state.story_font_cache_strikethrough == config.story_strikethrough
-        && g_state.story_font_cache_hinting == config.story_hinting
-        && g_state.story_font_cache_kerning == config.story_kerning
-        && g_state.story_font_cache_outline == config.story_outline;
+    for (int slot = 0; slot < STORY_FONT_SLOTS; slot++) {
+        const char* font_path = sdl_story_font_path_for_slot(slot);
+        const story_font_slot_cache* c = &g_state.story_font_cache[slot];
+        mono_font_style_key style;
+
+        if (!font_path)
+            font_path = "";
+        sdl_story_slot_style(slot, &style);
+
+        if (!streq(c->path, font_path)
+            || c->bold != style.bold
+            || c->italic != style.italic
+            || c->underline != style.underline
+            || c->strikethrough != style.strikethrough
+            || c->hinting != style.hinting
+            || c->kerning != style.kerning
+            || c->outline != style.outline)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void sdl_story_font_cache_mark_config(void)
 {
-    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : "";
-
     g_state.story_font_cache_valid = true;
-    SDL_strlcpy(g_state.story_font_cache_path, font_path,
-        sizeof(g_state.story_font_cache_path));
-    g_state.story_font_cache_bold = config.story_bold;
-    g_state.story_font_cache_italic = config.story_italic;
-    g_state.story_font_cache_underline = config.story_underline;
-    g_state.story_font_cache_strikethrough = config.story_strikethrough;
-    g_state.story_font_cache_hinting = config.story_hinting;
-    g_state.story_font_cache_kerning = config.story_kerning;
-    g_state.story_font_cache_outline = config.story_outline;
+
+    for (int slot = 0; slot < STORY_FONT_SLOTS; slot++) {
+        const char* font_path = sdl_story_font_path_for_slot(slot);
+        story_font_slot_cache* c = &g_state.story_font_cache[slot];
+        mono_font_style_key style;
+
+        if (!font_path)
+            font_path = "";
+        sdl_story_slot_style(slot, &style);
+
+        SDL_strlcpy(c->path, font_path, sizeof(c->path));
+        c->bold = style.bold;
+        c->italic = style.italic;
+        c->underline = style.underline;
+        c->strikethrough = style.strikethrough;
+        c->hinting = style.hinting;
+        c->kerning = style.kerning;
+        c->outline = style.outline;
+    }
 }
 
-TTF_Font* sdl_story_font_for_height(int pixel_height)
+TTF_Font* sdl_story_font_for_height_slot(int pixel_height, int slot)
 {
     if (pixel_height <= 0)
         return NULL;
 
+    slot = sdl_story_slot_clamp(slot);
+
     for (int i = 0; i < g_state.story_font_count; i++) {
-        if (g_state.story_fonts[i].pixel_height == pixel_height)
+        if (g_state.story_fonts[i].pixel_height == pixel_height
+            && g_state.story_fonts[i].slot == slot)
             return g_state.story_fonts[i].font;
     }
 
@@ -563,6 +668,8 @@ TTF_Font* sdl_story_font_for_height(int pixel_height)
         for (int i = 0; i < g_state.story_font_count; i++) {
             int delta = g_state.story_fonts[i].pixel_height - pixel_height;
 
+            if (g_state.story_fonts[i].slot != slot)
+                continue;
             if (delta < 0)
                 delta = -delta;
             if (nearest < 0 || delta < nearest_delta) {
@@ -572,30 +679,60 @@ TTF_Font* sdl_story_font_for_height(int pixel_height)
         }
 
         if (nearest >= 0) {
-            log_warn("Story font cache full; requested size %d, reusing nearest size %d",
-                pixel_height, g_state.story_fonts[nearest].pixel_height);
+            log_warn("Story font cache full; requested size %d slot %d, reusing nearest size %d",
+                pixel_height, slot, g_state.story_fonts[nearest].pixel_height);
             return g_state.story_fonts[nearest].font;
         }
 
         return NULL;
     }
 
-    const char* font_path = (config.story_font[0] != '\0') ? config.story_font : NULL;
-    TTF_Font* font = sdl_load_font_with_fallback(font_path, pixel_height, sdl_story_fallback_font);
+    const char* font_path = sdl_story_font_path_for_slot(slot);
+    TTF_Font* font = sdl_load_story_font_slot(font_path, pixel_height, slot);
     if (!font)
         return NULL;
 
     g_state.story_fonts[g_state.story_font_count].pixel_height = pixel_height;
+    g_state.story_fonts[g_state.story_font_count].slot = slot;
     g_state.story_fonts[g_state.story_font_count].font = font;
     g_state.story_font_count++;
     return font;
 }
 
-TTF_Font* sdl_story_font_for_view(const sdl_view* d)
+TTF_Font* sdl_story_font_for_height(int pixel_height)
+{
+    return sdl_story_font_for_height_slot(pixel_height, 0);
+}
+
+TTF_Font* sdl_story_font_for_view_slot(const sdl_view* d, int slot)
 {
     if (!d)
         return NULL;
-    return sdl_story_font_for_height(d->cell_h);
+    return sdl_story_font_for_height_slot(d->cell_h, slot);
+}
+
+/*
+ * Return the font of the requested slot at the SAME pixel height as an
+ * already-resolved story font.  Used to render part of a line (e.g. numeric
+ * values) in a different slot without re-deriving the layout's pixel size.
+ */
+TTF_Font* sdl_story_font_slot_sibling(TTF_Font* font, int slot)
+{
+    if (!font)
+        return NULL;
+    for (int i = 0; i < g_state.story_font_count; i++) {
+        if (g_state.story_fonts[i].font == font) {
+            TTF_Font* sibling = sdl_story_font_for_height_slot(
+                g_state.story_fonts[i].pixel_height, slot);
+            return sibling ? sibling : font;
+        }
+    }
+    return font;
+}
+
+TTF_Font* sdl_story_font_for_view(const sdl_view* d)
+{
+    return sdl_story_font_for_view_slot(d, 0);
 }
 
 bool sdl_mono_atlas_codepoint_visible(Uint32 ch)
@@ -1073,12 +1210,15 @@ void sdl_load_story_fonts(void)
         sdl_story_font_cache_mark_config();
     }
 
-    (void)sdl_story_font_for_height(main_cell_h);
+    for (int slot = 0; slot < STORY_FONT_SLOTS; slot++)
+        (void)sdl_story_font_for_height_slot(main_cell_h, slot);
     sdl_build_supporting_pane_metrics(pane_config, pane_config_count,
         pane_cell_widths, pane_cell_heights);
     for (int i = 1; i < PANE_MAX; i++) {
-        if (pane_cell_heights[i] > 0)
-            (void)sdl_story_font_for_height(pane_cell_heights[i]);
+        if (pane_cell_heights[i] > 0) {
+            for (int slot = 0; slot < STORY_FONT_SLOTS; slot++)
+                (void)sdl_story_font_for_height_slot(pane_cell_heights[i], slot);
+        }
     }
     
     // Initialize flag to false
@@ -1463,8 +1603,10 @@ void sdl_story_font_disable(void)
         g_state.story_font_depth--;
     bool active = (g_state.story_font_depth > 0);
     sdl_apply_story_font_state(active);
-    if (!active)
+    if (!active) {
         sdl_story_font_set_grid(false);
+        sdl_story_font_set_slot(0);
+    }
     log_debug("Story font DISABLED (depth=%d)", g_state.story_font_depth);
 }
 
@@ -1488,6 +1630,15 @@ void sdl_story_font_set_grid(bool grid)
 bool sdl_is_story_font_grid(void)
 {
     return (Term && Term->story_font_grid);
+}
+
+void sdl_story_font_set_slot(int slot)
+{
+    if (g_state.story_font_slot == slot)
+        return;
+    g_state.story_font_slot = slot;
+    log_trace("Story font slot %d", slot);
+    sdl_apply_story_slot_state(slot);
 }
 
 void sdl_story_font_reset(void)

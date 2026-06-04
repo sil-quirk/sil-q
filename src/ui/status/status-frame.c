@@ -413,23 +413,23 @@ static bool pane_index_has_log_display_mode(int pane)
 static void display_log_pane_with_filter(int pane, int default_filter)
 {
     int filter = default_filter;
+    story_font_term_state story_prev;
 
     if (pane_index_has_log_display_mode(pane))
         filter = sdl_log_pane_display_filter(pane);
 
+    /* Render the log/combat pane with the secondary story font. */
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &story_prev);
+
     if (filter == LOG_HISTORY_FILTER_MESSAGES)
-    {
         display_messages_in_pane();
-        return;
-    }
-
-    if (filter == LOG_HISTORY_FILTER_COMBAT)
-    {
+    else if (filter == LOG_HISTORY_FILTER_COMBAT)
         display_combat_rolls();
-        return;
-    }
+    else
+        display_combined_log_in_pane(filter);
 
-    display_combined_log_in_pane(filter);
+    story_font_term_pop(&story_prev);
 }
 
 static void fix_combat_rolls(void)

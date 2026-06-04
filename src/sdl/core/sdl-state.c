@@ -16,6 +16,7 @@ bool sdl_key_is_escape_or_back(SDL_Keycode key)
 const char help_sdl[] = "SDL3";
 
 const char* const sdl_story_fallback_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
+const char* const sdl_story_fallback_font2 = "lib/xtra/font/MarcellusSC-Regular.ttf";
 
 // SDL configuration (loaded from INI file)
 struct sdl_config config;

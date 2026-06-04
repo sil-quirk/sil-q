@@ -432,6 +432,13 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                 byte flags = story_row[term_col];
                 bool use_story = (flags & STORY_FLAG_USE) != 0;
                 bool grid_align = (flags & STORY_FLAG_CELL_ALIGN) != 0;
+                bool slot2 = (flags & STORY_FLAG_SLOT2) != 0;
+                TTF_Font* chunk_font = slot2
+                    ? sdl_story_font_for_view_slot(d, STORY_FONT_SLOT_SECONDARY)
+                    : story_font;
+
+                if (!chunk_font)
+                    chunk_font = story_font;
 
                 int chunk_remaining = n - offset;
                 int chunk_run = 1;
@@ -439,9 +446,12 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                     byte next_flags = story_row[term_col + chunk_run];
                     bool next_story = (next_flags & STORY_FLAG_USE) != 0;
                     bool next_grid = (next_flags & STORY_FLAG_CELL_ALIGN) != 0;
+                    bool next_slot2 = (next_flags & STORY_FLAG_SLOT2) != 0;
                     if (next_story != use_story)
                         break;
                     if (next_grid != grid_align)
+                        break;
+                    if (next_slot2 != slot2)
                         break;
                     if (row_attr && row_attr[term_col + chunk_run] != a)
                         break;
@@ -457,7 +467,8 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                         byte prev_flags = story_row[render_col - 1];
                         bool prev_story = (prev_flags & STORY_FLAG_USE) != 0;
                         bool prev_grid = (prev_flags & STORY_FLAG_CELL_ALIGN) != 0;
-                        if (!prev_story || prev_grid != grid_align)
+                        bool prev_slot2 = (prev_flags & STORY_FLAG_SLOT2) != 0;
+                        if (!prev_story || prev_grid != grid_align || prev_slot2 != slot2)
                             break;
                         if (row_attr && row_attr[render_col - 1] != a)
                             break;
@@ -467,7 +478,8 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                         byte next_flags = story_row[render_end];
                         bool next_story = (next_flags & STORY_FLAG_USE) != 0;
                         bool next_grid = (next_flags & STORY_FLAG_CELL_ALIGN) != 0;
-                        if (!next_story || next_grid != grid_align)
+                        bool next_slot2 = (next_flags & STORY_FLAG_SLOT2) != 0;
+                        if (!next_story || next_grid != grid_align || next_slot2 != slot2)
                             break;
                         if (row_attr && row_attr[render_end] != a)
                             break;
@@ -490,9 +502,9 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 
                 if (use_story) {
                     if (grid_align)
-                        sdl_render_story_text_grid(d, story_font, render_col, y, render_run, render_text, col);
+                        sdl_render_story_text_grid(d, chunk_font, render_col, y, render_run, render_text, col);
                     else
-                        sdl_render_story_text_free(d, story_font, render_col, y, render_run, render_text, col);
+                        sdl_render_story_text_free(d, chunk_font, render_col, y, render_run, render_text, col);
                 } else {
                     if (utf8_has_non_ascii_n(render_text, render_run)) {
                         const char* font_path = config.monospace_font[0] != '\0'

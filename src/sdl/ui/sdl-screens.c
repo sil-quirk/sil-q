@@ -1262,7 +1262,7 @@ int sdl_char_sheet_wrap_text(TTF_Font* font, cptr text, float max_w,
 }
 
 TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width,
-    float available_h, int min_px, int max_px, float line_scale,
+    float available_h, int min_px, int max_px, float line_scale, int slot,
     float* out_line_h, int* out_lines, int* out_px)
 {
     int chosen_lines = 0;
@@ -1278,11 +1278,11 @@ TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width,
         *out_px = min_px;
 
     if (!text || !text[0] || width <= 0.0f || available_h <= 0.0f)
-        return sdl_story_font_for_height(min_px);
+        return sdl_story_font_for_height_slot(min_px, slot);
 
     for (int px = max_px; px >= min_px; px--)
     {
-        TTF_Font* font = sdl_story_font_for_height(px);
+        TTF_Font* font = sdl_story_font_for_height_slot(px, slot);
         int lines;
         float line_h;
 
@@ -1981,7 +1981,11 @@ void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
         }
         else
         {
-            (void)sdl_char_sheet_draw_text(font, value,
+            /* Numeric/value column renders in the secondary story font. */
+            TTF_Font* value_font = sdl_story_font_slot_sibling(font,
+                SDL_STORY_FONT_SLOT_CHAR_NUM);
+
+            (void)sdl_char_sheet_draw_text(value_font, value,
                 sdl_char_sheet_focus_text_attr(attr, focused), x + label_w,
                 y, w - label_w, line_h * 0.92f, false);
         }
@@ -3065,8 +3069,8 @@ bool sdl_char_sheet_measure_columns_desc(sdl_panel* panels,
             desc_avail = top_line_h;
 
         (void)sdl_char_sheet_font_for_wrapped_text(desc_sizing, content_w,
-            desc_avail, 12, col_px, 1.18f, &desc_line_h, &desc_lines,
-            &desc_px);
+            desc_avail, 12, col_px, 1.18f, SDL_STORY_FONT_SLOT_CHAR_DESC,
+            &desc_line_h, &desc_lines, &desc_px);
     }
 
     if (out_desc_px)
@@ -3383,7 +3387,8 @@ void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
             if (desc_avail < top_line_h)
                 desc_avail = top_line_h;
             desc_font = sdl_char_sheet_font_for_wrapped_text(desc_measure,
-                content_w, desc_avail, 12, col_px, 1.18f, &desc_line_h,
+                content_w, desc_avail, 12, col_px, 1.18f,
+                SDL_STORY_FONT_SLOT_CHAR_DESC, &desc_line_h,
                 &desc_lines, &desc_px);
             desc_h = desc_line_h * (float)desc_lines;
             g_sdl_character_sheet_screen.last_desc_px = desc_px;
@@ -3465,7 +3470,7 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     float top_y, float region_bottom, int* page_start)
 {
     int para_count = g_sdl_character_sheet_screen.narrative_para_count;
-    TTF_Font* font = sdl_story_font_for_height(body_px);
+    TTF_Font* font = sdl_story_font_for_height_slot(body_px, SDL_STORY_FONT_SLOT_NARRATIVE);
     float book_w = sdl_char_sheet_book_width(body_px, content_w);
     float lh = sdl_char_sheet_line_h(font, body_px, 1.28f);
     float para_gap = lh * 0.6f;
@@ -3759,7 +3764,8 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float content_h;
     float y;
 
-    body_font = sdl_story_font_for_height(body_px);
+    body_font = sdl_story_font_for_height_slot(body_px,
+        narrative ? SDL_STORY_FONT_SLOT_NARRATIVE : 0);
     book_w = sdl_char_sheet_book_width(body_px, content_w);
     book_x = content_x + (content_w - book_w) * 0.5f;
     body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
@@ -4334,8 +4340,11 @@ void sdl_character_sheet_screen_render(void)
                         top_y, region_bottom, title_px);
             float book_w = sdl_char_sheet_book_width(body_px, content_w);
             float book_x = content_x + (content_w - book_w) * 0.5f;
+            int body_slot = (g_sdl_character_sheet_screen.context
+                    == SDL_CHARACTER_SHEET_NARRATIVE)
+                ? SDL_STORY_FONT_SLOT_NARRATIVE : 0;
             float body_lh = sdl_char_sheet_line_h(
-                sdl_story_font_for_height(body_px), body_px, 1.28f);
+                sdl_story_font_for_height_slot(body_px, body_slot), body_px, 1.28f);
             float mh = body_lh * SDL_BOOK_MARGIN_H;
             float page_x = book_x - mh;
             float page_w = book_w + 2.0f * mh;

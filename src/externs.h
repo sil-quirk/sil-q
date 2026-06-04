@@ -2212,6 +2212,7 @@ extern void sdl_story_font_reset(void);
 extern bool sdl_is_story_font_enabled(void);
 extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
+extern void sdl_story_font_set_slot(int slot);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
 extern int sdl_main_view_visible_col0(void);

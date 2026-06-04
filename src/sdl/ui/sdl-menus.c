@@ -105,7 +105,7 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
         return false;
 
     font_px = sdl_depth_menu_pane_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     text_w = font ? sdl_touch_pane_story_text_width(font, label)
                   : (int)strlen(label) * font_px / 2;
     if (text_w < 1)
@@ -656,7 +656,7 @@ int sdl_narrative_banner_line_count(void)
         return 0;
 
     font_px = sdl_narrative_banner_font_px(&rect);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (!font)
         return 0;
 
@@ -730,7 +730,7 @@ void sdl_narrative_banner_render(void)
         return;
 
     font_px = sdl_narrative_banner_font_px(&rect);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (!font)
         return;
 
@@ -980,7 +980,7 @@ bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
         ? g_touch_pane_yes_no_prompt_text
         : "Are you sure?";
     prompt_font_px = sdl_touch_pane_yes_no_prompt_font_px(cell_h, screen.h);
-    prompt_font = sdl_story_font_for_height(prompt_font_px);
+    prompt_font = sdl_story_font_for_height_slot(prompt_font_px, SDL_STORY_FONT_SLOT_MENU);
     prompt_text_w = sdl_touch_pane_story_text_width(prompt_font, prompt_text);
 
     margin = sdl_touch_pane_clampf(cell_h * 1.20f, 20.0f, 34.0f);
@@ -1315,13 +1315,13 @@ void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* n
         symbol_font_px = 12;
 
     if (have_name) {
-        name_font = sdl_story_font_for_height(name_font_px);
+        name_font = sdl_story_font_for_height_slot(name_font_px, SDL_STORY_FONT_SLOT_MENU);
         if (name_font)
             name_surface = TTF_RenderText_Blended(name_font, name, 0, color);
     }
 
     if (have_symbol) {
-        symbol_font = sdl_story_font_for_height(symbol_font_px);
+        symbol_font = sdl_story_font_for_height_slot(symbol_font_px, SDL_STORY_FONT_SLOT_MENU);
         if (symbol_font)
             symbol_surface = TTF_RenderText_Blended(symbol_font, symbol, 0, color);
     }
@@ -1463,7 +1463,7 @@ void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
     if (!rect || rect->w <= 0.0f || rect->h <= 0.0f)
         return;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (!font)
         return;
 

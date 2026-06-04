@@ -16,6 +16,7 @@
 /* Story font bit-flags stored per cell in term_win::story */
 #define STORY_FLAG_USE        0x01  /* Render this cell with the story font */
 #define STORY_FLAG_CELL_ALIGN 0x02  /* Snap story glyphs to cell boundaries */
+#define STORY_FLAG_SLOT2      0x04  /* Use the secondary story font (slot 1) */
 
 /*
  * A term_win is a "window" for a Term
@@ -183,6 +184,7 @@ struct term
     bool never_frosh;
     bool story_font_active;   /* Current queueing mode */
     bool story_font_grid;     /* Whether queued story text should snap to cell columns */
+    int story_font_slot;      /* Which story-font slot queued story text uses (0 or 1) */
     bool story_chunk_active;  /* Mode for the chunk being flushed */
     bool extra_cursor;        /* Draw a cursor-style frame without moving the cursor */
     bool extra_cursor_big;

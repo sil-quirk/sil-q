@@ -788,8 +788,10 @@ void display_player_xtra_info(int mode)
     /* -------------------- History (unchanged) --------------------------- */
     if (story_character_enabled()) {
         sdl_story_font_enable();
+        /* Render the character description/history in the secondary story font. */
+        sdl_story_font_set_slot(STORY_FONT_SLOT_SECONDARY);
     }
-    
+
     /* Use full terminal width for history wrapping */
     log_debug("Character history: terminal width=%d, using wrap=%d", term_wid, term_wid - 1);
     if (history_first_row >= 0 && history_first_row < term_hgt)

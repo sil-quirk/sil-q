@@ -114,7 +114,7 @@ bool story_monster_desc_enabled(void)
     return story_term_is_main() ? story_monster_desc_main : story_monster_desc_pane;
 }
 
-void story_font_term_push(bool active, bool grid, story_font_term_state* prev)
+void story_font_term_push_slot(bool active, bool grid, int slot, story_font_term_state* prev)
 {
     if (!prev)
         return;
@@ -122,12 +122,19 @@ void story_font_term_push(bool active, bool grid, story_font_term_state* prev)
     prev->t = Term;
     prev->active = (Term ? Term->story_font_active : false);
     prev->grid = (Term ? Term->story_font_grid : false);
+    prev->slot = (Term ? Term->story_font_slot : 0);
 
     if (Term)
     {
         Term->story_font_active = active;
         Term->story_font_grid = grid;
+        Term->story_font_slot = slot;
     }
+}
+
+void story_font_term_push(bool active, bool grid, story_font_term_state* prev)
+{
+    story_font_term_push_slot(active, grid, STORY_FONT_SLOT_DEFAULT, prev);
 }
 
 void story_font_term_pop(story_font_term_state* prev)
@@ -139,6 +146,7 @@ void story_font_term_pop(story_font_term_state* prev)
     {
         prev->t->story_font_active = prev->active;
         prev->t->story_font_grid = prev->grid;
+        prev->t->story_font_slot = prev->slot;
     }
 }
 

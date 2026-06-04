@@ -31,12 +31,28 @@ void sdl_apply_story_grid_state(bool grid)
         Term->story_font_grid = grid;
 }
 
+void sdl_apply_story_slot_state(int slot)
+{
+    log_trace("Story slot state apply: slot=%d term=%p", slot, (void*)Term);
+    for (int i = 0; i < MAX_TERM_DATA; i++)
+    {
+        if (g_views[i].term_ready)
+        {
+            g_views[i].t.story_font_slot = slot;
+        }
+    }
+    if (Term)
+        Term->story_font_slot = slot;
+}
+
 void sdl_story_font_reset_state(void)
 {
     g_state.story_font_depth = 0;
     sdl_apply_story_font_state(false);
     g_state.story_font_grid = false;
     sdl_apply_story_grid_state(false);
+    g_state.story_font_slot = 0;
+    sdl_apply_story_slot_state(0);
     if (Term)
         Term->story_chunk_active = false;
     log_trace("Story font state hard reset");
@@ -391,7 +407,13 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
         byte flags = story_row[x];
         bool use_story = (flags & STORY_FLAG_USE) != 0;
         bool grid_align = (flags & STORY_FLAG_CELL_ALIGN) != 0;
+        bool slot2 = (flags & STORY_FLAG_SLOT2) != 0;
         byte attr = row_attr[x];
+        TTF_Font* run_font = slot2
+            ? sdl_story_font_for_view_slot(d, STORY_FONT_SLOT_SECONDARY) : font;
+
+        if (!run_font)
+            run_font = font;
 
         int run_start = x;
 
@@ -447,6 +469,8 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
                     break;
                 if ((f & STORY_FLAG_CELL_ALIGN) == 0)
                     break;
+                if (((f & STORY_FLAG_SLOT2) != 0) != slot2)
+                    break;
                 if (row_attr[x] != attr)
                     break;
                 x++;
@@ -455,7 +479,7 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
             int run_len = x - run_start;
             SDL_Color col = sdl_color_from_attr(sdl_ui_text_fg_attr(attr));
             sdl_fill_cell_span_with_attr(d, run_start, y, run_len, attr);
-            sdl_render_story_text_grid(d, font, run_start, y, run_len, row_chars + run_start, col);
+            sdl_render_story_text_grid(d, run_font, run_start, y, run_len, row_chars + run_start, col);
             continue;
         }
 
@@ -468,6 +492,8 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
             if ((f & STORY_FLAG_USE) == 0)
                 break;
             if ((f & STORY_FLAG_CELL_ALIGN) != 0)
+                break;
+            if (((f & STORY_FLAG_SLOT2) != 0) != slot2)
                 break;
             x++;
         }
@@ -518,7 +544,7 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
             if (remaining <= 0.0f)
                 break;
 
-            int consumed = sdl_render_story_text_free_px(d, font, px_cursor, y, row_chars + seg, seg_len, seg_col,
+            int consumed = sdl_render_story_text_free_px(d, run_font, px_cursor, y, row_chars + seg, seg_len, seg_col,
                 remaining);
             if (consumed <= 0)
                 break;

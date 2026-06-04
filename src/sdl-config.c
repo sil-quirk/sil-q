@@ -1874,6 +1874,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded storyFont: %s", config->story_font);
         }
         
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyFont2");
+        if (cJSON_IsString(item)) {
+            SDL_strlcpy(config->story_font2, item->valuestring, sizeof(config->story_font2));
+            log_debug("Loaded storyFont2: %s", config->story_font2);
+        }
+
         item = cJSON_GetObjectItemCaseSensitive(sdl, "monospaceFont");
         if (cJSON_IsString(item)) {
             SDL_strlcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
@@ -1971,6 +1977,49 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         if (cJSON_IsNumber(item)) {
             config->story_outline = item->valueint;
             log_debug("Loaded storyOutline: %d", config->story_outline);
+        }
+
+        // Second story font rendering options
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Bold");
+        if (cJSON_IsBool(item)) {
+            config->story2_bold = cJSON_IsTrue(item);
+            log_debug("Loaded story2Bold: %s", config->story2_bold ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Italic");
+        if (cJSON_IsBool(item)) {
+            config->story2_italic = cJSON_IsTrue(item);
+            log_debug("Loaded story2Italic: %s", config->story2_italic ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Underline");
+        if (cJSON_IsBool(item)) {
+            config->story2_underline = cJSON_IsTrue(item);
+            log_debug("Loaded story2Underline: %s", config->story2_underline ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Strikethrough");
+        if (cJSON_IsBool(item)) {
+            config->story2_strikethrough = cJSON_IsTrue(item);
+            log_debug("Loaded story2Strikethrough: %s", config->story2_strikethrough ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Hinting");
+        if (cJSON_IsNumber(item)) {
+            config->story2_hinting = item->valueint;
+            log_debug("Loaded story2Hinting: %d", config->story2_hinting);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Kerning");
+        if (cJSON_IsBool(item)) {
+            config->story2_kerning = cJSON_IsTrue(item);
+            log_debug("Loaded story2Kerning: %s", config->story2_kerning ? "true" : "false");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "story2Outline");
+        if (cJSON_IsNumber(item)) {
+            config->story2_outline = item->valueint;
+            log_debug("Loaded story2Outline: %d", config->story2_outline);
         }
     } else {
         log_warn("'sdl' object not found in JSON");
@@ -2712,6 +2761,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     
     // Save custom fonts
     cJSON_AddStringToObject(sdl, "storyFont", config->story_font);
+    cJSON_AddStringToObject(sdl, "storyFont2", config->story_font2);
     cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
     
     // Save monospace font rendering options
@@ -2731,7 +2781,16 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "storyHinting", config->story_hinting);
     cJSON_AddBoolToObject(sdl, "storyKerning", config->story_kerning);
     cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
-    
+
+    // Save second story font rendering options
+    cJSON_AddBoolToObject(sdl, "story2Bold", config->story2_bold);
+    cJSON_AddBoolToObject(sdl, "story2Italic", config->story2_italic);
+    cJSON_AddBoolToObject(sdl, "story2Underline", config->story2_underline);
+    cJSON_AddBoolToObject(sdl, "story2Strikethrough", config->story2_strikethrough);
+    cJSON_AddNumberToObject(sdl, "story2Hinting", config->story2_hinting);
+    cJSON_AddBoolToObject(sdl, "story2Kerning", config->story2_kerning);
+    cJSON_AddNumberToObject(sdl, "story2Outline", config->story2_outline);
+
     cJSON_AddItemToObject(root, "sdl", sdl);
 
     if (active_mode < 0 || active_mode >= profile_count)
@@ -3239,6 +3298,7 @@ void sdl_config_set_defaults(struct sdl_config* config)
     
     // Default fonts
     SDL_strlcpy(config->story_font, "lib/xtra/font/Cinzel-Medium.ttf", sizeof(config->story_font));
+    SDL_strlcpy(config->story_font2, "lib/xtra/font/EBGaramond-Regular.ttf", sizeof(config->story_font2));
     SDL_strlcpy(config->monospace_font, "lib/xtra/font/VictorMono-Medium.ttf", sizeof(config->monospace_font));
     
     // Default monospace font rendering options
@@ -3258,6 +3318,15 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->story_hinting = 0;  // TTF_HINTING_NORMAL
     config->story_kerning = true;
     config->story_outline = 0;
+
+    // Default second story font rendering options
+    config->story2_bold = false;
+    config->story2_italic = false;
+    config->story2_underline = false;
+    config->story2_strikethrough = false;
+    config->story2_hinting = 0;  // TTF_HINTING_NORMAL
+    config->story2_kerning = true;
+    config->story2_outline = 0;
 
     // Default gamepad settings
     config->gamepad_enabled = true;
