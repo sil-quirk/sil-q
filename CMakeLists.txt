@@ -308,7 +308,10 @@ set(SIL_MORE_SOURCES
     src/init/init-paths.c
     src/init/init-style.c
     src/item_set.c
-    src/load.c
+    src/fs/load.c
+    src/fs/load-player.c
+    src/fs/load-notes-inventory.c
+    src/fs/load-dungeon.c
     src/main.c
     src/main-sdl.c
     src/sdl/config/sdl-settings.c
@@ -408,7 +411,10 @@ set(SIL_MORE_SOURCES
     src/quest/valar/tulkas-varda.c
     src/randart.c
     src/rng.c
-    src/save.c
+    src/fs/save.c
+    src/fs/save-player.c
+    src/fs/save-notes-inventory.c
+    src/fs/save-dungeon.c
     src/score/score_io.c
     src/score/score_logic.c
     src/score/score_guid.c
