@@ -74,16 +74,121 @@ bool sdl_player_has_singable_song(void)
     return false;
 }
 
+#define SDL_PLAYER_ACTION_MENU_PI 3.14159265f
+
+enum {
+    SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS = 12
+};
+
+static cptr sdl_player_action_menu_description_for_kind(int kind)
+{
+    switch (kind) {
+    case SDL_PLAYER_ACTION_WAIT:
+        return "Wait: pass one turn; long press rests until disturbed.";
+    case SDL_PLAYER_ACTION_USE:
+        return "Use: use an item, or use the floor item under you.";
+    case SDL_PLAYER_ACTION_STEALTH:
+        return "Stealth: toggle stealth mode.";
+    case SDL_PLAYER_ACTION_SING:
+        return "Sing: choose or stop a song.";
+    case SDL_PLAYER_ACTION_EXCHANGE:
+        return "Exchange: swap places with an adjacent monster.";
+    case SDL_PLAYER_ACTION_FLETCH:
+        return "Fletch: make arrows from available materials.";
+    case SDL_PLAYER_ACTION_EXAMINE:
+        return "Examine: look at your square or inspect the floor item.";
+    case SDL_PLAYER_ACTION_ACTIVATE:
+        return "Staff: activate your equipped staff.";
+    case SDL_PLAYER_ACTION_HORN:
+        return "Horn: blow your equipped horn.";
+    default:
+        return "";
+    }
+}
+
+static cptr sdl_player_action_menu_fallback_for_kind(int kind)
+{
+    switch (kind) {
+    case SDL_PLAYER_ACTION_WAIT: return "Z";
+    case SDL_PLAYER_ACTION_USE: return "U";
+    case SDL_PLAYER_ACTION_STEALTH: return "S";
+    case SDL_PLAYER_ACTION_SING: return "Song";
+    case SDL_PLAYER_ACTION_EXCHANGE: return "X";
+    case SDL_PLAYER_ACTION_FLETCH: return "-";
+    case SDL_PLAYER_ACTION_EXAMINE: return "?";
+    case SDL_PLAYER_ACTION_ACTIVATE: return "Staff";
+    case SDL_PLAYER_ACTION_HORN: return "Horn";
+    default: return "";
+    }
+}
+
+static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
+    char* out_char)
+{
+    byte row = 12;
+    byte col = 10;
+
+    switch (kind) {
+    case SDL_PLAYER_ACTION_WAIT:
+        row = 19; col = 8;  /* sleep icon */
+        break;
+    case SDL_PLAYER_ACTION_USE:
+        row = 5; col = 8;   /* flask/oil, a common useable item */
+        break;
+    case SDL_PLAYER_ACTION_STEALTH:
+        row = 5; col = 3;   /* shadow cloak */
+        break;
+    case SDL_PLAYER_ACTION_SING:
+        row = 11; col = 27; /* amulet, for voice/song choices */
+        break;
+    case SDL_PLAYER_ACTION_EXCHANGE:
+        row = 12; col = 30; /* seen/target icon */
+        break;
+    case SDL_PLAYER_ACTION_FLETCH:
+        row = 5; col = 27;  /* arrows */
+        break;
+    case SDL_PLAYER_ACTION_EXAMINE:
+        row = 12; col = 10; /* question mark */
+        break;
+    case SDL_PLAYER_ACTION_ACTIVATE:
+        row = 6; col = 8;   /* quarterstaff */
+        break;
+    case SDL_PLAYER_ACTION_HORN:
+        row = 4; col = 2;   /* horn-shaped atlas tile */
+        break;
+    default:
+        break;
+    }
+
+    if (out_attr)
+        *out_attr = (byte)(TILE_FLAG | row);
+    if (out_char)
+        *out_char = (char)(TILE_FLAG | col);
+}
+
 void sdl_player_action_menu_add_entry(player_action_menu_entry* entries,
     int* count, int kind, int command, cptr label)
 {
+    player_action_menu_entry* entry;
+
     if (!entries || !count || *count >= SDL_PLAYER_ACTION_MAX)
         return;
 
-    entries[*count].kind = kind;
-    entries[*count].command = command;
-    entries[*count].label = label;
-    entries[*count].rect = (SDL_FRect) { 0 };
+    entry = &entries[*count];
+    entry->kind = kind;
+    entry->command = command;
+    entry->label = label;
+    entry->description = sdl_player_action_menu_description_for_kind(kind);
+    entry->fallback = sdl_player_action_menu_fallback_for_kind(kind);
+    sdl_player_action_menu_tile_for_kind(kind, &entry->tile_attr,
+        &entry->tile_char);
+    entry->rect = (SDL_FRect) { 0 };
+    entry->center_x = 0.0f;
+    entry->center_y = 0.0f;
+    entry->inner_radius = 0.0f;
+    entry->outer_radius = 0.0f;
+    entry->start_angle = 0.0f;
+    entry->end_angle = 0.0f;
     (*count)++;
 }
 
@@ -342,12 +447,15 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     const sdl_view* view = &g_views[PANE_MAIN];
     SDL_FRect player_rect;
     SDL_FRect bounds;
-    float button_w;
-    float button_h;
-    float radius;
     float center_x;
     float center_y;
-    float larger;
+    float outer_radius;
+    float inner_radius;
+    float icon_size;
+    float icon_radius;
+    float max_outer;
+    float step;
+    float first_start;
     int count;
 
     if (!p_ptr || !entries || !out_count)
@@ -368,37 +476,52 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     if (count <= 0)
         return false;
 
-    button_w = sdl_touch_pane_clampf((float)view->cell_w * 6.8f, 74.0f,
-        108.0f);
-    button_h = sdl_touch_pane_clampf((float)view->cell_h * 2.65f, 42.0f,
-        62.0f);
-    if (button_w > bounds.w - 6.0f)
-        button_w = bounds.w - 6.0f;
-    if (button_h > bounds.h - 6.0f)
-        button_h = bounds.h - 6.0f;
-    if (button_w <= 0.0f || button_h <= 0.0f)
+    max_outer = ((bounds.w < bounds.h) ? bounds.w : bounds.h) * 0.5f - 8.0f;
+    outer_radius = sdl_touch_pane_clampf((float)view->cell_h * 5.1f,
+        96.0f, 176.0f);
+    if (outer_radius > max_outer)
+        outer_radius = max_outer;
+    if (outer_radius < 44.0f)
         return false;
 
-    larger = (button_w > button_h) ? button_w : button_h;
-    radius = sdl_touch_pane_clampf(larger * 1.34f, 84.0f, 138.0f);
     center_x = player_rect.x + player_rect.w * 0.5f;
     center_y = player_rect.y + player_rect.h * 0.5f;
+    center_x = sdl_touch_pane_clampf(center_x, bounds.x + outer_radius,
+        bounds.x + bounds.w - outer_radius);
+    center_y = sdl_touch_pane_clampf(center_y, bounds.y + outer_radius,
+        bounds.y + bounds.h - outer_radius);
+
+    inner_radius = outer_radius * 0.36f;
+    if (inner_radius < 30.0f)
+        inner_radius = 30.0f;
+    if (inner_radius > outer_radius - 34.0f)
+        inner_radius = outer_radius - 34.0f;
+
+    icon_size = sdl_touch_pane_clampf((outer_radius - inner_radius) * 0.52f,
+        26.0f, 56.0f);
+    icon_radius = inner_radius + (outer_radius - inner_radius) * 0.58f;
+    step = (SDL_PLAYER_ACTION_MENU_PI * 2.0f) / (float)count;
+    first_start = -SDL_PLAYER_ACTION_MENU_PI * 0.5f - step * 0.5f;
 
     for (int i = 0; i < count; i++) {
-        float dx;
-        float dy;
+        float start = first_start + (float)i * step;
+        float end = start + step;
+        float mid = (start + end) * 0.5f;
+        float icon_x = center_x + SDL_cosf(mid) * icon_radius;
+        float icon_y = center_y + SDL_sinf(mid) * icon_radius;
         SDL_FRect rect;
 
-        sdl_player_action_menu_slot_offset(i, count, &dx, &dy);
-        rect.w = button_w;
-        rect.h = button_h;
-        rect.x = center_x + dx * radius - rect.w * 0.5f;
-        rect.y = center_y + dy * radius - rect.h * 0.5f;
-        rect.x = sdl_touch_pane_clampf(rect.x, bounds.x,
-            bounds.x + bounds.w - rect.w);
-        rect.y = sdl_touch_pane_clampf(rect.y, bounds.y,
-            bounds.y + bounds.h - rect.h);
+        rect.w = icon_size;
+        rect.h = icon_size;
+        rect.x = icon_x - icon_size * 0.5f;
+        rect.y = icon_y - icon_size * 0.5f;
         entries[i].rect = rect;
+        entries[i].center_x = center_x;
+        entries[i].center_y = center_y;
+        entries[i].inner_radius = inner_radius;
+        entries[i].outer_radius = outer_radius;
+        entries[i].start_angle = start;
+        entries[i].end_angle = end;
     }
 
     *out_count = count;
@@ -409,16 +532,35 @@ int sdl_player_action_menu_kind_at(float x, float y)
 {
     player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
     int count = 0;
+    float dx;
+    float dy;
+    float dist;
+    float angle;
+    float step;
+    float first_start;
+    int index;
 
     if (!sdl_player_action_menu_layout(entries, &count))
         return SDL_PLAYER_ACTION_NONE;
+    if (count <= 0)
+        return SDL_PLAYER_ACTION_NONE;
 
-    for (int i = count - 1; i >= 0; i--) {
-        if (sdl_point_in_frect(&entries[i].rect, x, y))
-            return entries[i].kind;
-    }
+    dx = x - entries[0].center_x;
+    dy = y - entries[0].center_y;
+    dist = SDL_sqrtf(dx * dx + dy * dy);
+    if (dist < entries[0].inner_radius || dist > entries[0].outer_radius)
+        return SDL_PLAYER_ACTION_NONE;
 
-    return SDL_PLAYER_ACTION_NONE;
+    angle = SDL_atan2f(dy, dx);
+    step = (SDL_PLAYER_ACTION_MENU_PI * 2.0f) / (float)count;
+    first_start = entries[0].start_angle;
+    while (angle < first_start)
+        angle += SDL_PLAYER_ACTION_MENU_PI * 2.0f;
+    index = (int)((angle - first_start) / step);
+    if (index < 0 || index >= count)
+        return SDL_PLAYER_ACTION_NONE;
+
+    return entries[index].kind;
 }
 
 void sdl_player_action_menu_cancel_press(void)
@@ -1281,16 +1423,224 @@ void sdl_player_exchange_render(void)
     }
 }
 
+static SDL_FColor sdl_player_action_menu_fcolor(SDL_Color color)
+{
+    return (SDL_FColor){
+        (float)color.r / 255.0f,
+        (float)color.g / 255.0f,
+        (float)color.b / 255.0f,
+        (float)color.a / 255.0f,
+    };
+}
+
+static void sdl_player_action_menu_render_sector(
+    const player_action_menu_entry* entry, SDL_Color fill)
+{
+    SDL_Vertex vertices[(SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS + 1) * 2];
+    int indices[SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS * 6];
+    SDL_FColor color = sdl_player_action_menu_fcolor(fill);
+    int vcount = 0;
+    int icount = 0;
+
+    if (!entry)
+        return;
+
+    for (int i = 0; i <= SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS; i++) {
+        float t = (float)i / (float)SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS;
+        float angle = entry->start_angle
+            + (entry->end_angle - entry->start_angle) * t;
+        float ct = SDL_cosf(angle);
+        float st = SDL_sinf(angle);
+        SDL_FPoint inner = {
+            entry->center_x + ct * entry->inner_radius,
+            entry->center_y + st * entry->inner_radius,
+        };
+        SDL_FPoint outer = {
+            entry->center_x + ct * entry->outer_radius,
+            entry->center_y + st * entry->outer_radius,
+        };
+
+        vertices[vcount++] = (SDL_Vertex){ inner, color, { 0.0f, 0.0f } };
+        vertices[vcount++] = (SDL_Vertex){ outer, color, { 0.0f, 0.0f } };
+    }
+
+    for (int i = 0; i < SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS; i++) {
+        int inner_a = i * 2;
+        int outer_a = inner_a + 1;
+        int inner_b = inner_a + 2;
+        int outer_b = inner_a + 3;
+
+        indices[icount++] = inner_a;
+        indices[icount++] = outer_a;
+        indices[icount++] = inner_b;
+        indices[icount++] = inner_b;
+        indices[icount++] = outer_a;
+        indices[icount++] = outer_b;
+    }
+
+    SDL_RenderGeometry(g_state.renderer, NULL, vertices, vcount, indices,
+        icount);
+}
+
+static void sdl_player_action_menu_render_separator(
+    const player_action_menu_entry* entry, float angle, SDL_Color color)
+{
+    float ct;
+    float st;
+
+    if (!entry)
+        return;
+
+    ct = SDL_cosf(angle);
+    st = SDL_sinf(angle);
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        color.a);
+    SDL_RenderLine(g_state.renderer,
+        entry->center_x + ct * entry->inner_radius,
+        entry->center_y + st * entry->inner_radius,
+        entry->center_x + ct * entry->outer_radius,
+        entry->center_y + st * entry->outer_radius);
+}
+
+static bool sdl_player_action_menu_can_draw_tiles(void)
+{
+    return g_state.use_tiles && g_state.tileset;
+}
+
+static void sdl_player_action_menu_render_icon(
+    const player_action_menu_entry* entry, bool hover)
+{
+    SDL_FRect rect;
+    SDL_Color text = g_state.palette[TERM_WHITE];
+    float grow;
+
+    if (!entry)
+        return;
+
+    rect = entry->rect;
+    grow = hover ? sdl_touch_pane_clampf(rect.w * 0.12f, 3.0f, 7.0f) : 0.0f;
+    rect.x -= grow;
+    rect.y -= grow;
+    rect.w += grow * 2.0f;
+    rect.h += grow * 2.0f;
+
+    if (sdl_player_action_menu_can_draw_tiles()) {
+        if (hover)
+            SDL_SetTextureAlphaMod(g_state.tileset, 255);
+        else
+            SDL_SetTextureAlphaMod(g_state.tileset, 226);
+        sdl_draw_tileset_sprite(entry->tile_attr, entry->tile_char, &rect,
+            false);
+        sdl_restore_tileset_mod();
+    } else {
+        sdl_touch_pane_draw_button_text_scaled(&rect, NULL,
+            entry->fallback ? entry->fallback : entry->label, text, 0.34f,
+            0.48f);
+    }
+}
+
+static void sdl_player_action_menu_render_tooltip(
+    const player_action_menu_entry* entry)
+{
+    SDL_Rect screen;
+    TTF_Font* font;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect box;
+    SDL_FRect text_dst;
+    SDL_Color text_color = g_state.palette[TERM_WHITE];
+    SDL_Color border = g_state.palette[TERM_YELLOW];
+    float pad;
+    float gap;
+    float screen_margin;
+    float max_box_w;
+    float max_text_w;
+    int font_px;
+
+    if (!entry || !entry->description || !entry->description[0])
+        return;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return;
+
+    font_px = sdl_object_tooltip_font_px();
+    font = sdl_story_font_for_height(font_px);
+    if (!font)
+        return;
+
+    pad = sdl_touch_pane_clampf((float)font_px * 0.36f, 7.0f, 14.0f);
+    gap = sdl_touch_pane_clampf((float)font_px * 0.28f, 6.0f, 12.0f);
+    screen_margin = sdl_touch_pane_clampf(g_state.system_scale * 4.0f,
+        4.0f, 10.0f);
+    max_box_w = (float)screen.w - screen_margin * 2.0f;
+    if (max_box_w <= pad * 2.0f)
+        return;
+
+    max_text_w = max_box_w - pad * 2.0f;
+    surface = sdl_object_tooltip_render_text_surface(font,
+        entry->description, text_color, max_text_w);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    box.w = (float)surface->w + pad * 2.0f;
+    box.h = (float)surface->h + pad * 2.0f;
+    box.x = entry->rect.x + (entry->rect.w - box.w) * 0.5f;
+    box.y = entry->rect.y - box.h - gap;
+    if (box.y < (float)screen.y + screen_margin)
+        box.y = entry->rect.y + entry->rect.h + gap;
+    if (box.w + screen_margin * 2.0f <= (float)screen.w) {
+        box.x = sdl_touch_pane_clampf(box.x,
+            (float)screen.x + screen_margin,
+            (float)(screen.x + screen.w) - box.w - screen_margin);
+    } else {
+        box.x = (float)screen.x + screen_margin;
+    }
+    if (box.h + screen_margin * 2.0f <= (float)screen.h) {
+        box.y = sdl_touch_pane_clampf(box.y,
+            (float)screen.y + screen_margin,
+            (float)(screen.y + screen.h) - box.h - screen_margin);
+    } else {
+        box.y = (float)screen.y + screen_margin;
+    }
+
+    text_dst = (SDL_FRect){
+        .x = box.x + pad,
+        .y = box.y + pad,
+        .w = (float)surface->w,
+        .h = (float)surface->h,
+    };
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 218);
+    SDL_RenderFillRect(g_state.renderer, &box);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+        166);
+    SDL_RenderRect(g_state.renderer, &box);
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
 void sdl_player_action_menu_render(void)
 {
     player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
     int count = 0;
     SDL_Rect clip;
-    SDL_Color bg = { 16, 20, 22, 226 };
-    SDL_Color hover_bg = { 48, 54, 58, 236 };
-    SDL_Color border = g_state.palette[TERM_L_BLUE];
+    SDL_Color bg = { 22, 24, 26, 162 };
+    SDL_Color hover_bg = { 88, 82, 58, 216 };
+    SDL_Color border = { 188, 202, 210, 150 };
     SDL_Color hover_border = g_state.palette[TERM_YELLOW];
-    SDL_Color text = g_state.palette[TERM_WHITE];
+    const player_action_menu_entry* hovered = NULL;
 
     if (!g_player_action_menu.active)
         return;
@@ -1304,28 +1654,46 @@ void sdl_player_action_menu_render(void)
     SDL_SetRenderClipRect(g_state.renderer, &clip);
 
     for (int i = 0; i < count; i++) {
-        SDL_FRect shadow = entries[i].rect;
         bool hover = entries[i].kind == g_player_action_menu.hover_kind;
         SDL_Color fill = hover ? hover_bg : bg;
-        SDL_Color line = hover ? hover_border : border;
 
-        shadow.x += 2.0f;
-        shadow.y += 2.0f;
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 112);
-        SDL_RenderFillRect(g_state.renderer, &shadow);
+        sdl_player_action_menu_render_sector(&entries[i], fill);
+        if (hover)
+            hovered = &entries[i];
+    }
 
-        SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
-            fill.a);
-        SDL_RenderFillRect(g_state.renderer, &entries[i].rect);
-        SDL_SetRenderDrawColor(g_state.renderer, line.r, line.g, line.b,
-            hover ? 238 : 176);
-        SDL_RenderRect(g_state.renderer, &entries[i].rect);
+    if (count > 0) {
+        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+            entries[0].outer_radius, border);
+        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+            entries[0].outer_radius - 2.0f, border);
+        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+            entries[0].inner_radius, border);
+        for (int i = 0; i < count; i++) {
+            sdl_player_action_menu_render_separator(&entries[i],
+                entries[i].start_angle, border);
+        }
+    }
 
-        sdl_touch_pane_draw_button_text_scaled(&entries[i].rect, NULL,
-            entries[i].label, text, 0.36f, 0.48f);
+    if (hovered) {
+        sdl_touch_round_draw_circle(hovered->center_x, hovered->center_y,
+            hovered->outer_radius, hover_border);
+        sdl_touch_round_draw_circle(hovered->center_x, hovered->center_y,
+            hovered->inner_radius, hover_border);
+        sdl_player_action_menu_render_separator(hovered,
+            hovered->start_angle, hover_border);
+        sdl_player_action_menu_render_separator(hovered,
+            hovered->end_angle, hover_border);
+    }
+
+    for (int i = 0; i < count; i++) {
+        bool hover = entries[i].kind == g_player_action_menu.hover_kind;
+        sdl_player_action_menu_render_icon(&entries[i], hover);
     }
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);
+    if (hovered)
+        sdl_player_action_menu_render_tooltip(hovered);
 }
 
 

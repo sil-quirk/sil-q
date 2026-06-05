@@ -1492,8 +1492,12 @@ bool sdl_char_sheet_choice_focused(int choice)
 
 /*
  * A row is "pressable" only if clicking it actually does something.  On the
- * live sheet that is just skills (a click increases them); traits and plain
- * values are informational, so they get a hover tooltip but no highlight box.
+ * live sheet the clickable item rows are just skills (a click increases them);
+ * traits and plain values are informational, so they get a hover tooltip but
+ * no highlight box.  The bottom-row prompt commands (abilities, increase,
+ * help, notes, story, file, back) are registered as hits keyed by their
+ * command code rather than as live items, and they must stay pressable too -
+ * otherwise the pointer handlers silently drop every tap on them.
  * Birth screens draw their own focus rectangles, so their rows count as
  * pressable here.
  */
@@ -1515,7 +1519,11 @@ bool sdl_char_sheet_choice_pressable(int choice)
         return true;
     }
     item = sdl_char_sheet_live_item_by_choice(choice);
-    return item && item->kind == 0; /* CHARACTER_SHEET_ITEM_SKILL */
+    if (item)
+        return item->kind == 0; /* CHARACTER_SHEET_ITEM_SKILL */
+
+    /* Not an item row -> a bottom-row prompt command; always actionable. */
+    return true;
 }
 
 bool sdl_char_sheet_prompt_focused(int choice)

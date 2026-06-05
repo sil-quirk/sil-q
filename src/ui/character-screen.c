@@ -1477,7 +1477,6 @@ void display_character_tutorial(void)
 
         bool steamdeck = steamdeck_controls_active();
         bool birth_context = (playerturn == 0);
-        bool birth_compact_layout = birth_context && ((wid < 80) || (hgt <= 18));
 
         /* Layout: reserve bottom two rows for navigation. */
         const int header_row = 0;
@@ -1698,16 +1697,16 @@ void display_character_tutorial(void)
             ctl_pages = 1;
 
         /* Skills pagination (avoid truncation at 20 rows) */
-        const char* skills_intro = "Total = Base + stat + equip + misc. Base affects ability purchase cost.";
+        const char* skills_intro = "Each skill reads Total = Base +stat +equip +misc. You buy Base with experience; Base also sets how dear abilities are to purchase.";
         const char* skill_desc[S_MAX] = {
-            "Melee chance to hit",
-            "Ranged chance to hit",
-            "Evade attacks",
-            "Avoid detection",
-            "Notice hidden",
-            "Mental resistance",
-            "Craft items",
-            "Song power",
+            "Melee: chance to hit in close combat.",
+            "Archery: chance to hit with bow and arrow.",
+            "Evasion: avoid being hit; falls when surrounded.",
+            "Stealth: avoid waking and being noticed.",
+            "Perception: notice hidden doors, traps and foes.",
+            "Will: resist fear, magic and mental attacks.",
+            "Smithing: forge weapons, armour and items.",
+            "Song: the power of your songs, drawn from Voice.",
             ""
         };
 
@@ -1778,31 +1777,38 @@ void display_character_tutorial(void)
             history_pages = 1;
 
         /* Character creation pagination */
-        char birth_text[1200];
+        char birth_text[2400];
         int birth_pages = 0;
         if (birth_context)
         {
             size_t off = 0;
-            if (birth_compact_layout)
-            {
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "On smaller displays the character creation screens use a compact layout. All information is still available; it is just rearranged.\n\n");
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Character selection: use Up/Down to pick, and read the description/traits for the highlighted choice. On short screens, traits may be shown in a tighter, compact list.\n\n");
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Stats allocation: select a stat, then adjust it. The display may reuse the compact Stats+Skills sheet with the current stat highlighted.\n\n");
-            }
-            else
-            {
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Character selection: use Up/Down to pick, and read the description and traits for the highlighted choice.\n\n");
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Stats allocation: select a stat, then adjust it. Skills allocation works the same way.\n\n");
-                off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "If you later play on a smaller display, these screens switch to a compact layout instead of dropping information.\n\n");
-            }
+
             off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                "A highlighted entry is the one you are editing.\n\n");
+                "Sil-More builds a hero in a few short steps. This guide appears once, for your very first character.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "1. Hero & house: Up/Down moves the highlight while the side panel shows that hero's description, traits and a power rating. \"A power rating is shown during selection. New? Start with the most powerful.\"\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "2. Oath (optional): an oath grants power in exchange for a vow you must keep.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "3. Attributes: the whole character sheet is shown - Attributes on top, Skills below, your live combat and derived numbers on the left. Up/Down picks Strength, Dexterity, Constitution or Grace; Left/Right lowers or raises it.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Each attribute lists its value and, on the right, the Cost of the next point. \"Points Left\" counts the stat points you still have. Raising an attribute instantly updates every skill and derived number that depends on it, so watch the sheet react as you spend.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "4. Skills: the same sheet returns, now editing the eight skills - Melee, Archery, Evasion, Stealth, Perception, Will, Smithing and Song. Each row reads Total = Base +stat +equip +misc, with the next point's Cost on the right; here \"Points Left\" is your experience.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Cost climbs the higher a skill already is, and Base also sets how dear abilities are to buy later, so spend deliberately. \"Abilities matter: a single pick can flip a matchup.\"\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "Why it matters: \"Two opposed rolls decide hits: your Melee vs their Evasion.\" \"Evasion avoids getting hit; Armour [Protection] soaks what lands.\" Build toward a plan instead of spreading thin.\n\n");
+
+            off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
+                "The highlighted row is the one you are editing. Nothing is final until you confirm the skills step, so experiment freely.\n\n");
 
             if (steamdeck)
             {
@@ -1811,12 +1817,12 @@ void display_character_tutorial(void)
                 tutorial_prompt_label(steamdeck_confirm_key(), "A", next_label, sizeof(next_label));
                 tutorial_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
                 off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Navigation: D-pad Up/Down select, Left/Right adjust  [%s] confirm  [%s] back", next_label, back_label);
+                    "Navigation: D-pad Up/Down select, Left/Right adjust;  [%s] confirm;  [%s] back.", next_label, back_label);
             }
             else
             {
                 off += (size_t)strnfmt(birth_text + off, sizeof(birth_text) - off,
-                    "Navigation: Up/Down selects; Left/Right adjusts; Enter/Space confirms; ESC goes back.");
+                    "Navigation: Up/Down selects, Left/Right adjusts, Enter/Space confirms, Esc steps back, q returns to hero selection.");
             }
 
             int birth_cap = content_rows - 2;
@@ -1974,7 +1980,7 @@ void display_character_tutorial(void)
             Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES");
             row++;
             row += tutorial_put_wrapped_limited(
-                "Current = Base + equip + misc - drain. Green = boosted, orange = reduced.",
+                "Each attribute reads Current = Base +equip +misc -drain. Green means boosted, orange means reduced. Attributes feed your skills, so a single point ripples across the whole sheet.",
                 text_col, row, text_w, content_max_row, TERM_SLATE);
             row++;
 
@@ -1990,10 +1996,10 @@ void display_character_tutorial(void)
                 Term_putstr(2, row++, -1, a, line);
 
                 const char* desc = NULL;
-                if (stat == A_STR) desc = "Strength: melee dice and weight capacity.";
-                else if (stat == A_DEX) desc = "Dexterity: melee/evasion/archery/stealth.";
-                else if (stat == A_CON) desc = "Constitution: hit points.";
-                else if (stat == A_GRA) desc = "Grace: will/perception/song/smithing and voice.";
+                if (stat == A_STR) desc = "Strength: melee damage dice and how much you can carry.";
+                else if (stat == A_DEX) desc = "Dexterity: feeds Melee, Evasion, Archery and Stealth.";
+                else if (stat == A_CON) desc = "Constitution: your hit points and resilience.";
+                else if (stat == A_GRA) desc = "Grace: feeds Will, Perception, Song and Smithing, plus your Voice.";
                 row += tutorial_put_wrapped_limited(desc, text_col, row, text_w, content_max_row, TERM_SLATE);
             }
         }
@@ -2188,13 +2194,10 @@ void display_character_tutorial(void)
             int sub = page - page_birth_start;
             char heading[96];
             if (birth_pages > 1)
-                strnfmt(heading, sizeof(heading), birth_compact_layout
-                    ? "CHARACTER CREATION (COMPACT) (%d/%d)"
-                    : "CHARACTER CREATION (%d/%d)", sub + 1, birth_pages);
+                strnfmt(heading, sizeof(heading), "CHARACTER CREATION (%d/%d)",
+                    sub + 1, birth_pages);
             else
-                SDL_strlcpy(heading, birth_compact_layout
-                    ? "CHARACTER CREATION (COMPACT LAYOUT)"
-                    : "CHARACTER CREATION", sizeof(heading));
+                SDL_strlcpy(heading, "CHARACTER CREATION", sizeof(heading));
 
             Term_putstr(2, row++, -1, TERM_WHITE, heading);
             row++;

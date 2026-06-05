@@ -857,7 +857,17 @@ typedef struct player_action_menu_entry {
     int kind;
     int command;
     cptr label;
+    cptr description;
+    byte tile_attr;
+    char tile_char;
+    cptr fallback;
     SDL_FRect rect;
+    float center_x;
+    float center_y;
+    float inner_radius;
+    float outer_radius;
+    float start_angle;
+    float end_angle;
 } player_action_menu_entry;
 
 typedef struct player_action_menu_state {

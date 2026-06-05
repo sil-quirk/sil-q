@@ -509,6 +509,29 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
         use_bigtile ? 1 : 0);
 }
 
+static int sdl_left_panel_source_rows_for_render(
+    const sdl_view* view, const sdl_left_panel_metrics* metrics)
+{
+    int source_rows = sdl_left_panel_pane_rows_for_view(view);
+
+    if (!metrics)
+        return source_rows;
+
+    if (source_rows < metrics->panel_rows)
+        source_rows = metrics->panel_rows;
+
+    if (metrics->collapsed) {
+        for (int i = 0; i < metrics->compact_segment_count; i++) {
+            int row_count = metrics->compact_source_rows[i] + 1;
+
+            if (source_rows < row_count)
+                source_rows = row_count;
+        }
+    }
+
+    return source_rows;
+}
+
 bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     const SDL_FRect* dst_left)
 {
@@ -565,9 +588,7 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 
-    source_rows = sdl_left_panel_pane_rows_for_view(view);
-    if (source_rows < metrics.panel_rows)
-        source_rows = metrics.panel_rows;
+    source_rows = sdl_left_panel_source_rows_for_render(view, &metrics);
     if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
             NULL, NULL))
     {
