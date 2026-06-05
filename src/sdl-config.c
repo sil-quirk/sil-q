@@ -1554,6 +1554,8 @@ static bool sdl_config_profile_has_enabled_bottom_pane(
 
         if (pane->pane == PANE_TOUCH)
             continue;
+        if (pane->pane == PANE_ROLLS)
+            continue;
         if (pane->enabled && pane_placement_is_bottom(pane->where))
             return true;
     }
@@ -1589,7 +1591,9 @@ static bool sdl_config_profile_enable_default_log_pane(
     }
 
     log_pane = &profile->pane_configs[index];
-    if (log_pane->where != PLACE_BOTTOM) {
+    if (log_pane->where == 0 || !pane_type_allows_placement(PANE_LOG,
+            log_pane->where))
+    {
         log_pane->where = PLACE_BOTTOM;
         changed = true;
     }

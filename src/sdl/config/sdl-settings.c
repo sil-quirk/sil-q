@@ -680,6 +680,9 @@ void set_sdl_pane_enabled(int index, bool enabled)
 
 bool sdl_pane_group_matches(enum pane_placement where, bool side)
 {
+    if (pane_placement_is_overlay(where))
+        return false;
+
     return side ? pane_placement_is_side(where)
                 : pane_placement_is_bottom(where);
 }
@@ -712,6 +715,8 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU
+            || (pane_config[i].pane == PANE_ROLLS
+                && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;
@@ -728,6 +733,8 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU
+            || (pane_config[i].pane == PANE_ROLLS
+                && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;

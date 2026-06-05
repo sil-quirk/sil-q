@@ -517,6 +517,14 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
         if (!sdl_select)
             put_str("", TABLE_ROW + cur - top, col);
 
+        /*
+         * First-time players: guided callouts over the real selection screen.
+         * Shown on the hero list (which carries descriptions, traits and power
+         * ratings) rather than the race "book" page.
+         */
+        if (sdl_select && !book_mode)
+            birth_coach_show_once(BIRTH_COACH_SELECT);
+
         hide_cursor = true;
         c = inkey();
         hide_cursor = false;

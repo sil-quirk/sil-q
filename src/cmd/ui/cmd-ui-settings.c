@@ -3617,7 +3617,8 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
 static bool pane_type_is_overlay(enum pane_type type)
 {
     return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
-        || (type == PANE_DEPTH) || (type == PANE_MAIN_MENU);
+        || (type == PANE_DEPTH) || (type == PANE_MAIN_MENU)
+        || (type == PANE_ROLLS);
 }
 
 static const char* pane_type_display_name(enum pane_type type)
@@ -3629,6 +3630,8 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
     case PANE_MAIN_MENU: return "Main Menu";
+    case PANE_ROLLS: return "Overlay Log";
+    case PANE_LOG: return "Log";
     default: return pane_type_name(type);
     }
 }

@@ -29,7 +29,7 @@ bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
     }
 
     if (sdl_point_in_view_rect(PANE_ROLLS, x, y)) {
-        sdl_enqueue_bypassed_command(KTRL('Q'));
+        sdl_enqueue_bypassed_command(KTRL('P'));
         return true;
     }
 
@@ -38,6 +38,8 @@ bool sdl_main_screen_handle_supporting_pane_pointer(float x, float y)
 
 bool sdl_pane_layout_group_enabled(enum pane_placement where)
 {
+    if (pane_placement_is_overlay(where))
+        return false;
     if (pane_placement_is_side(where))
         return config.enable_right_panes;
     if (pane_placement_is_bottom(where))
@@ -54,6 +56,8 @@ bool sdl_pane_layout_config_draggable(int index)
     if (index < 0 || index >= pane_config_count)
         return false;
     if (!pane_config[index].enabled)
+        return false;
+    if (pane_placement_is_overlay(pane_config[index].where))
         return false;
     if (!sdl_pane_layout_group_enabled(pane_config[index].where))
         return false;
@@ -201,7 +205,7 @@ void sdl_pane_layout_drag_send_click(enum pane_type pane)
         sdl_enqueue_bypassed_command(KTRL('P'));
         break;
     case PANE_ROLLS:
-        sdl_enqueue_bypassed_command(KTRL('Q'));
+        sdl_enqueue_bypassed_command(KTRL('P'));
         break;
     default:
         break;
@@ -314,7 +318,7 @@ void sdl_log_pane_sync_display_filter_from_config(void)
     config.log_pane_display_filter = filter;
     g_log_pane_display_filters[PANE_LOG] = filter;
     if (!sdl_log_history_filter_is_valid(g_log_pane_display_filters[PANE_ROLLS]))
-        g_log_pane_display_filters[PANE_ROLLS] = LOG_HISTORY_FILTER_COMBAT;
+        g_log_pane_display_filters[PANE_ROLLS] = LOG_HISTORY_FILTER_ALL;
 }
 
 bool sdl_log_pane_is_filterable(enum pane_type pane)
@@ -332,8 +336,7 @@ int sdl_log_pane_display_filter(int pane)
     filter = g_log_pane_display_filters[pane];
     if (!sdl_log_history_filter_is_valid(filter))
     {
-        filter = (pane == PANE_ROLLS) ? LOG_HISTORY_FILTER_COMBAT
-                                      : LOG_HISTORY_FILTER_ALL;
+        filter = LOG_HISTORY_FILTER_ALL;
     }
 
     return filter;
@@ -432,16 +435,18 @@ int sdl_log_pane_config_index(enum pane_type pane)
 int sdl_log_pane_current_rows(enum pane_type pane)
 {
     int index = sdl_log_pane_config_index(pane);
+    int default_rows = (pane == PANE_ROLLS)
+        ? SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS : SDL_LOG_PANE_DEFAULT_ROWS;
     int rows;
 
     if (index < 0)
-        return SDL_LOG_PANE_DEFAULT_ROWS;
+        return default_rows;
 
     rows = get_sdl_pane_current_rows(index);
     if (rows <= 0)
         rows = pane_config[index].rect.rows;
     if (rows <= 0)
-        rows = SDL_LOG_PANE_DEFAULT_ROWS;
+        rows = default_rows;
 
     return rows;
 }
@@ -925,7 +930,8 @@ void sdl_log_pane_menu_render(void)
     SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
         150);
     SDL_RenderRect(g_state.renderer, &header);
-    sdl_touch_pane_draw_button_text_scaled(&header, NULL, "Log Pane",
+    sdl_touch_pane_draw_button_text_scaled(&header, NULL,
+        g_log_pane_menu.target_pane == PANE_ROLLS ? "Overlay Log" : "Log Pane",
         text, 0.48f, 0.63f);
 
     for (int i = 0; i < count; i++) {
@@ -958,7 +964,7 @@ const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_LOG: return "Messages";
     case PANE_MONSTERS: return "Monsters";
     case PANE_MAP: return "Map";
-    case PANE_ROLLS: return "Rolls";
+    case PANE_ROLLS: return "Overlay Log";
     case PANE_LEFT_PANEL: return "Left Panel";
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
@@ -985,7 +991,8 @@ bool sdl_side_pane_menu_config_is_entry(int index)
         return false;
     }
 
-    return pane_placement_is_side(pane_config[index].where);
+    return pane_placement_is_side(pane_config[index].where)
+        && !pane_placement_is_overlay(pane_config[index].where);
 }
 
 int sdl_side_pane_menu_collect(side_pane_menu_entry* entries)

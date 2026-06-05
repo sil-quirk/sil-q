@@ -39,7 +39,9 @@ const struct pane_config default_pane_config[] = {
     {.pane = PANE_MAIN_MENU, .where = PLACE_TOP_CENTER, .enabled = true,
         .rect.rows = 1, .rect.cols = 6},
     {.pane = PANE_DEPTH, .where = PLACE_TOP_RIGHT, .enabled = true,
-        .rect.rows = 2, .rect.cols = 12},
+        .rect.rows = 4, .rect.cols = 12},
+    {.pane = PANE_ROLLS, .where = PLACE_TOP_RIGHT, .enabled = true,
+        .rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS},
     {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
         .rect.rows = 1, .rect.cols = 24},
     {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
@@ -53,7 +55,6 @@ const struct pane_config default_pane_config[] = {
     {.pane = PANE_CHARACTER, .where = PLACE_RIGHT, .enabled = false},
     {.pane = PANE_MAP, .where = PLACE_RIGHT, .enabled = false, .rect.rows = 12},
     {.pane = PANE_TOUCH, .where = PLACE_DOUBLE_RIGHT, .enabled = false},
-    // In the bottom
     {.pane = PANE_LOG, .where = PLACE_BOTTOM, .enabled = true,
         .rect.rows = SDL_LOG_PANE_DEFAULT_ROWS},
 };
@@ -230,6 +231,19 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
     rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
         PANE_ROLLS);
 
+    if (rolls_idx < 0 && *config_count < MAX_PANE_CONFIGS) {
+        rolls_idx = *config_count;
+        configs[(*config_count)++] = (struct pane_config){
+            .pane = PANE_ROLLS,
+            .where = PLACE_TOP_RIGHT,
+            .enabled = enable_added_log,
+            .rect = { .rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS, .cols = 0 },
+            .font_size = 0,
+            .ratio = 0.0f,
+        };
+        changed = true;
+    }
+
     if (log_idx < 0 && *config_count < MAX_PANE_CONFIGS) {
         log_idx = *config_count;
         configs[(*config_count)++] = (struct pane_config){
@@ -246,33 +260,93 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
     if (log_idx >= 0) {
         struct pane_config* log = &configs[log_idx];
 
+        if (pane_placement_is_overlay(log->where)) {
+            if (rolls_idx >= 0) {
+                struct pane_config* rolls = &configs[rolls_idx];
+
+                rolls->where = log->where;
+                rolls->enabled = log->enabled;
+                rolls->rect.rows = log->rect.rows > 0
+                    ? log->rect.rows : SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+                rolls->rect.cols = 0;
+                rolls->font_size = log->font_size;
+                rolls->ratio = 0.0f;
+            }
+            log->where = PLACE_BOTTOM;
+            log->enabled = true;
+            log->rect.rows = SDL_LOG_PANE_DEFAULT_ROWS;
+            log->rect.cols = 0;
+            log->ratio = 0.0f;
+            changed = true;
+        }
         if (log->where == 0 || !pane_type_allows_placement(PANE_LOG, log->where)) {
             log->where = PLACE_BOTTOM;
             changed = true;
         }
-        if (pane_placement_is_bottom(log->where)
-            && log->rect.rows <= 0)
+        if (pane_placement_is_bottom(log->where) && log->rect.rows <= 0)
         {
             log->rect.rows = SDL_LOG_PANE_DEFAULT_ROWS;
             changed = true;
         }
-        if (rolls_idx >= 0 && configs[rolls_idx].enabled && !log->enabled) {
-            log->enabled = true;
+    }
+
+    if (rolls_idx >= 0) {
+        struct pane_config* rolls = &configs[rolls_idx];
+        bool migrate_rows_to_overlay_default = pane_placement_is_bottom(
+            rolls->where);
+
+        if (rolls->where == 0
+            || !pane_type_allows_placement(PANE_ROLLS, rolls->where)
+            || pane_placement_is_bottom(rolls->where))
+        {
+            rolls->where = PLACE_TOP_RIGHT;
+            migrate_rows_to_overlay_default = true;
+            changed = true;
+        }
+        if (pane_placement_is_overlay(rolls->where)
+            && migrate_rows_to_overlay_default
+            && rolls->rect.rows != SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS)
+        {
+            rolls->rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+            changed = true;
+        }
+        if (pane_placement_is_overlay(rolls->where)
+            && rolls->rect.rows <= 0)
+        {
+            rolls->rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+            changed = true;
+        }
+        if (pane_placement_is_overlay(rolls->where)
+            && rolls->rect.cols != 0)
+        {
+            rolls->rect.cols = 0;
+            changed = true;
+        }
+        if (pane_placement_is_overlay(rolls->where)
+            && !rolls->enabled && enable_added_log)
+        {
+            rolls->enabled = true;
             changed = true;
         }
     }
 
-    if (rolls_idx >= 0 && pane_placement_is_bottom(configs[rolls_idx].where)) {
-        struct pane_config* rolls = &configs[rolls_idx];
+    if (rolls_idx >= 0) {
+        int depth_idx = sdl_pane_config_index_in_array(configs, *config_count,
+            PANE_DEPTH);
 
-        if (rolls->enabled || rolls->rect.rows != 0 || rolls->rect.cols != 0
-            || rolls->where != PLACE_BOTTOM)
+        if (depth_idx >= 0 && rolls_idx < depth_idx
+            && configs[depth_idx].where == PLACE_TOP_RIGHT
+            && configs[rolls_idx].where == PLACE_TOP_RIGHT
+            && configs[rolls_idx].enabled
+            && configs[rolls_idx].rect.rows == SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS
+            && configs[rolls_idx].rect.cols == 0
+            && configs[rolls_idx].ratio == 0.0f)
         {
-            rolls->enabled = false;
-            rolls->where = PLACE_BOTTOM;
-            rolls->rect.rows = 0;
-            rolls->rect.cols = 0;
-            rolls->ratio = 0.0f;
+            struct pane_config rolls = configs[rolls_idx];
+
+            memmove(&configs[rolls_idx], &configs[rolls_idx + 1],
+                sizeof(configs[0]) * (depth_idx - rolls_idx));
+            configs[depth_idx] = rolls;
             changed = true;
         }
     }
@@ -554,7 +628,7 @@ log_pane_menu_state g_log_pane_menu = {
 };
 int g_log_pane_display_filters[PANE_MAX] = {
     [PANE_LOG] = LOG_HISTORY_FILTER_ALL,
-    [PANE_ROLLS] = LOG_HISTORY_FILTER_COMBAT,
+    [PANE_ROLLS] = LOG_HISTORY_FILTER_ALL,
 };
 bool g_log_pane_display_pending = false;
 enum pane_type g_log_pane_pending_pane = PANE_MAIN;

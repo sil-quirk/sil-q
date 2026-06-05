@@ -1470,6 +1470,160 @@ void sdl_touch_tutorial_run(bool full, bool mouse)
     sdl_touch_cancel_all_inputs();
 }
 
+/* ------------------------------------------------------------------------
+ * First-run character-creation coach
+ *
+ * Rather than separate text pages, the first-time tutorial draws a short set of
+ * callouts directly over the real birth screens as the player reaches them
+ * (selection -> attributes -> skills) and over the live character sheet.  The
+ * underlying screen stays visible (lightly dimmed) so the guidance points at
+ * what the player is actually looking at.  No prose - just short labels.
+ * ------------------------------------------------------------------------ */
+
+static bool g_birth_coach_ack[BIRTH_COACH_STAGE_MAX];
+
+typedef struct birth_coach_content {
+    cptr title;
+    cptr hint;   /* one short orienting line under the title */
+    cptr body;   /* short, newline-separated callout labels */
+} birth_coach_content;
+
+static const birth_coach_content* birth_coach_content_for(int stage)
+{
+    static const birth_coach_content content[BIRTH_COACH_STAGE_MAX] = {
+        [BIRTH_COACH_SELECT] = {
+            "Choosing your hero",
+            "The screen behind this is the real selection screen.",
+            "Up / Down: pick a people, then a hero\n"
+            "Beside the list: description, traits and a power rating\n"
+            "New here? Choose a high power rating\n"
+            "Enter: confirm     Esc: back"
+        },
+        [BIRTH_COACH_STATS] = {
+            "Assigning attributes",
+            "These points shape everything else.",
+            "Up / Down: pick Strength, Dexterity, Constitution, Grace\n"
+            "Left / Right: lower or raise the highlighted attribute\n"
+            "Cost: price of the next point\n"
+            "Points Left: what you still have to spend\n"
+            "Attributes feed the skills listed below"
+        },
+        [BIRTH_COACH_SKILLS] = {
+            "Buying skills",
+            "Spend your experience on the eight skills.",
+            "Up / Down: pick a skill\n"
+            "Left / Right: raise it  (Total = Base +stat +equip +misc)\n"
+            "Cost climbs the higher the skill already is\n"
+            "Points Left: your remaining experience\n"
+            "Enter: confirm     Esc: back"
+        },
+        [BIRTH_COACH_SHEET] = {
+            "Your character",
+            "Everything about your hero lives here.",
+            "Attributes and skills, each with its breakdown\n"
+            "Combat: your Melee vs their Evasion; Armour soaks hits\n"
+            "Tab: abilities     i: raise a skill     Esc: back"
+        },
+    };
+
+    if (stage < 0 || stage >= BIRTH_COACH_STAGE_MAX)
+        return NULL;
+    return &content[stage];
+}
+
+static void birth_coach_draw(int stage, const SDL_Rect* screen, bool mouse)
+{
+    const birth_coach_content* c = birth_coach_content_for(stage);
+    float header_bottom;
+    float panel_x;
+    float panel_w;
+    float panel_y;
+
+    if (!screen || !c)
+        return;
+
+    sdl_touch_tutorial_draw_screen_dim(screen, 150);
+    header_bottom = sdl_touch_tutorial_draw_header(screen, c->title, c->hint,
+        0, 1);
+
+    panel_w = (float)screen->w * 0.62f;
+    if (panel_w > 760.0f)
+        panel_w = 760.0f;
+    if (panel_w > (float)screen->w - 24.0f)
+        panel_w = (float)screen->w - 24.0f;
+    panel_x = (float)screen->x + ((float)screen->w - panel_w) * 0.5f;
+    panel_y = header_bottom + sdl_touch_pane_clampf((float)screen->h * 0.04f,
+        16.0f, 40.0f);
+
+    sdl_touch_tutorial_draw_info_panel(screen, panel_x, panel_y, panel_w,
+        "On this screen", c->body);
+    sdl_touch_tutorial_draw_footer(screen, mouse, true);
+}
+
+static void birth_coach_run_overlay(int stage)
+{
+    sdl_view* d;
+    Uint64 accept_after_ns;
+    bool mouse;
+
+    if (!g_state.window || !g_state.renderer)
+        return;
+    if (!birth_coach_content_for(stage))
+        return;
+
+    mouse = !sdl_touch_tutorial_device_available();
+    sdl_touch_cancel_all_inputs();
+    d = sdl_view_from_term(Term);
+    /* Brief guard so the tap/click that opened the coach does not dismiss it. */
+    accept_after_ns = SDL_GetTicksNS() + 250000000ULL;
+
+    for (;;) {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+        int action;
+
+        if (!sdl_rect_has_area(&screen))
+            break;
+        if (!sdl_render_current_window_frame())
+            break;
+
+        birth_coach_draw(stage, &screen, mouse);
+        SDL_RenderPresent(g_state.renderer);
+        sdl_restore_render_target(d);
+
+        action = sdl_touch_tutorial_wait_action(accept_after_ns);
+        if (action != 0)   /* next / prev / exit all close a single-screen coach */
+            break;
+        /* action == 0: window resize or redraw request -> draw again */
+    }
+
+    /* Restore the underlying screen without the overlay. */
+    if (sdl_render_current_window_frame()) {
+        SDL_RenderPresent(g_state.renderer);
+        sdl_restore_render_target(d);
+    }
+    g_state.need_present = false;
+    sdl_touch_cancel_all_inputs();
+}
+
+void birth_coach_show(int stage)
+{
+    birth_coach_run_overlay(stage);
+}
+
+void birth_coach_show_once(int stage)
+{
+    if (stage < 0 || stage >= BIRTH_COACH_STAGE_MAX)
+        return;
+    if (g_birth_coach_ack[stage])
+        return;
+    /* Only first-time players (empty score file) get the guided coach. */
+    if (!highscore_is_empty())
+        return;
+
+    g_birth_coach_ack[stage] = true;
+    birth_coach_run_overlay(stage);
+}
+
 enum {
     SDL_TOUCH_TUTORIAL_CHOICE_TOUCH_PANE = 0,
     SDL_TOUCH_TUTORIAL_CHOICE_CORNERS,

@@ -1539,6 +1539,131 @@ static void sdl_player_action_menu_render_icon(
     }
 }
 
+static bool sdl_player_action_menu_rects_intersect(
+    const SDL_FRect* a, const SDL_FRect* b)
+{
+    if (!a || !b)
+        return false;
+
+    return a->x < b->x + b->w && a->x + a->w > b->x
+        && a->y < b->y + b->h && a->y + a->h > b->y;
+}
+
+static bool sdl_player_action_menu_tooltip_candidate(SDL_FRect* box,
+    const SDL_FRect* avoid, float x, float y, const SDL_Rect* screen,
+    float screen_margin)
+{
+    SDL_FRect candidate;
+
+    if (!box || !avoid || !screen)
+        return false;
+
+    candidate = *box;
+    candidate.x = x;
+    candidate.y = y;
+
+    if (candidate.w + screen_margin * 2.0f <= (float)screen->w) {
+        candidate.x = sdl_touch_pane_clampf(candidate.x,
+            (float)screen->x + screen_margin,
+            (float)(screen->x + screen->w) - candidate.w - screen_margin);
+    } else {
+        candidate.x = (float)screen->x + screen_margin;
+    }
+
+    if (candidate.h + screen_margin * 2.0f <= (float)screen->h) {
+        candidate.y = sdl_touch_pane_clampf(candidate.y,
+            (float)screen->y + screen_margin,
+            (float)(screen->y + screen->h) - candidate.h - screen_margin);
+    } else {
+        candidate.y = (float)screen->y + screen_margin;
+    }
+
+    if (sdl_player_action_menu_rects_intersect(&candidate, avoid))
+        return false;
+
+    *box = candidate;
+    return true;
+}
+
+static void sdl_player_action_menu_place_tooltip(SDL_FRect* box,
+    const player_action_menu_entry* entry, const SDL_Rect* screen,
+    float screen_margin, float gap)
+{
+    SDL_FRect avoid;
+    float dx;
+    float dy;
+    float left_x;
+    float right_x;
+    float above_y;
+    float below_y;
+    float center_x;
+    float center_y;
+    int order[4];
+
+    if (!box || !entry || !screen)
+        return;
+
+    avoid = (SDL_FRect){
+        .x = entry->center_x - entry->outer_radius - gap,
+        .y = entry->center_y - entry->outer_radius - gap,
+        .w = (entry->outer_radius + gap) * 2.0f,
+        .h = (entry->outer_radius + gap) * 2.0f,
+    };
+
+    dx = (entry->rect.x + entry->rect.w * 0.5f) - entry->center_x;
+    dy = (entry->rect.y + entry->rect.h * 0.5f) - entry->center_y;
+    center_x = entry->center_x - box->w * 0.5f;
+    center_y = entry->center_y - box->h * 0.5f;
+    left_x = avoid.x - box->w;
+    right_x = avoid.x + avoid.w;
+    above_y = avoid.y - box->h;
+    below_y = avoid.y + avoid.h;
+
+    if (SDL_fabsf(dx) >= SDL_fabsf(dy)) {
+        order[0] = (dx >= 0.0f) ? 0 : 1;
+        order[1] = (dx >= 0.0f) ? 1 : 0;
+        order[2] = (dy >= 0.0f) ? 3 : 2;
+        order[3] = (dy >= 0.0f) ? 2 : 3;
+    } else {
+        order[0] = (dy >= 0.0f) ? 3 : 2;
+        order[1] = (dy >= 0.0f) ? 2 : 3;
+        order[2] = (dx >= 0.0f) ? 0 : 1;
+        order[3] = (dx >= 0.0f) ? 1 : 0;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        switch (order[i]) {
+        case 0:
+            if (sdl_player_action_menu_tooltip_candidate(box, &avoid,
+                    right_x, center_y, screen, screen_margin))
+                return;
+            break;
+        case 1:
+            if (sdl_player_action_menu_tooltip_candidate(box, &avoid,
+                    left_x, center_y, screen, screen_margin))
+                return;
+            break;
+        case 2:
+            if (sdl_player_action_menu_tooltip_candidate(box, &avoid,
+                    center_x, above_y, screen, screen_margin))
+                return;
+            break;
+        case 3:
+            if (sdl_player_action_menu_tooltip_candidate(box, &avoid,
+                    center_x, below_y, screen, screen_margin))
+                return;
+            break;
+        default:
+            break;
+        }
+    }
+
+    box->x = center_x;
+    box->y = below_y;
+    (void)sdl_player_action_menu_tooltip_candidate(box, &avoid, box->x,
+        box->y, screen, screen_margin);
+}
+
 static void sdl_player_action_menu_render_tooltip(
     const player_action_menu_entry* entry)
 {
@@ -1591,24 +1716,8 @@ static void sdl_player_action_menu_render_tooltip(
 
     box.w = (float)surface->w + pad * 2.0f;
     box.h = (float)surface->h + pad * 2.0f;
-    box.x = entry->rect.x + (entry->rect.w - box.w) * 0.5f;
-    box.y = entry->rect.y - box.h - gap;
-    if (box.y < (float)screen.y + screen_margin)
-        box.y = entry->rect.y + entry->rect.h + gap;
-    if (box.w + screen_margin * 2.0f <= (float)screen.w) {
-        box.x = sdl_touch_pane_clampf(box.x,
-            (float)screen.x + screen_margin,
-            (float)(screen.x + screen.w) - box.w - screen_margin);
-    } else {
-        box.x = (float)screen.x + screen_margin;
-    }
-    if (box.h + screen_margin * 2.0f <= (float)screen.h) {
-        box.y = sdl_touch_pane_clampf(box.y,
-            (float)screen.y + screen_margin,
-            (float)(screen.y + screen.h) - box.h - screen_margin);
-    } else {
-        box.y = (float)screen.y + screen_margin;
-    }
+    sdl_player_action_menu_place_tooltip(&box, entry, &screen, screen_margin,
+        gap);
 
     text_dst = (SDL_FRect){
         .x = box.x + pad,

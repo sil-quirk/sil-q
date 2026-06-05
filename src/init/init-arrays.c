@@ -196,10 +196,10 @@ extern void re_init_some_things(void)
     // Set some sensible defaults
     op_ptr->window_flag[WINDOW_INVEN] |= (PW_INVEN);
     op_ptr->window_flag[WINDOW_EQUIP] |= (PW_EQUIP);
-    op_ptr->window_flag[WINDOW_COMBAT_ROLLS] |= (PW_COMBAT_ROLLS);
+    op_ptr->window_flag[WINDOW_COMBAT_ROLLS] |= (PW_COMBAT_ROLLS | PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONSTER] |= (PW_MONSTER);
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
-    op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
+    op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE | PW_COMBAT_ROLLS);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
     op_ptr->window_flag[WINDOW_SUPPLY] |= (PW_SUPPLY);
 
@@ -319,10 +319,10 @@ errr init_other(void)
     // Set some sensible defaults
     op_ptr->window_flag[WINDOW_INVEN] |= (PW_INVEN);
     op_ptr->window_flag[WINDOW_EQUIP] |= (PW_EQUIP);
-    op_ptr->window_flag[WINDOW_COMBAT_ROLLS] |= (PW_COMBAT_ROLLS);
+    op_ptr->window_flag[WINDOW_COMBAT_ROLLS] |= (PW_COMBAT_ROLLS | PW_MESSAGE);
     op_ptr->window_flag[WINDOW_MONSTER] |= (PW_MONSTER);
     op_ptr->window_flag[WINDOW_PLAYER_0] |= (PW_PLAYER_0);
-    op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE);
+    op_ptr->window_flag[WINDOW_MESSAGE] |= (PW_MESSAGE | PW_COMBAT_ROLLS);
     op_ptr->window_flag[WINDOW_MONLIST] |= (PW_MONLIST);
     op_ptr->window_flag[WINDOW_SUPPLY] |= (PW_SUPPLY);
 

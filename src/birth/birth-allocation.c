@@ -559,46 +559,11 @@ NavResult player_birth_aux_2(int stats[A_MAX])
     /* Determine experience and things */
     get_extra();
 
-    /* Show tutorial for first-time players (when scorefile is empty) */
-    /* Do this AFTER get_extra() so character has stats/abilities to display */
-    /* Check every time - show tutorial for every new character if scores file is empty */
-    log_debug("Checking if tutorial should be shown...");
-    bool is_empty = highscore_is_empty();
-    log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
-    if (!run_mode_is_blitz() && is_empty)
-    {
-        log_info("First-time player detected - showing character screen tutorial");
-        
-        /* Initialize character stats for display - same as first iteration of stats loop */
-        for (i = 0; i < A_MAX; i++)
-        {
-            /* Obtain bonuses for race/character */
-            int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
-            
-            /* Set base stats (0 + racial/character bonuses) */
-            p_ptr->stat_base[i] = stats[i] + bonus;
-            p_ptr->stat_drain[i] = 0;
-        }
-        
-        /* Calculate bonuses and hitpoints */
-        p_ptr->update |= (PU_BONUS | PU_HP);
-        update_stuff();
-        
-        /* Fully healed */
-        p_ptr->chp = p_ptr->mhp;
-        
-        /* Fully rested */
-        calc_voice();
-        p_ptr->csp = p_ptr->msp;
-        
-        /* Now show the tutorial with a realistic character sheet */
-        display_character_tutorial();
-        log_info("Character screen tutorial completed");
-    }
-    else
-    {
-        log_info("Not showing tutorial - scores file has entries");
-    }
+    /*
+     * First-time players are coached inline: the guided callout overlay for the
+     * attributes screen is shown once, from within the loop below, after the
+     * real stats sheet has been drawn (see birth_coach_show_once).
+     */
 
     log_trace("Starting stats allocation interface");
     screen_push_touch_pane_proto();
@@ -802,6 +767,9 @@ NavResult player_birth_aux_2(int stats[A_MAX])
             stat, MAX_COST - cost);
         (void)Term_set_cursor(false);
         Term_fresh();
+
+        /* First-time players: guided callouts over the real attributes screen. */
+        birth_coach_show_once(BIRTH_COACH_STATS);
 
         /* Get key */
         hide_cursor = true;

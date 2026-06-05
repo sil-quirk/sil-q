@@ -377,6 +377,9 @@ extern NavResult gain_skills(void)
         (void)Term_set_cursor(false);
         Term_fresh();
 
+        /* First-time players: guided callouts over the real skills screen. */
+        birth_coach_show_once(BIRTH_COACH_SKILLS);
+
         /* Get key */
         hide_cursor = true;
         ch = inkey();

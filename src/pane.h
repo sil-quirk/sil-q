@@ -4,6 +4,7 @@
 #include "SDL3/SDL_rect.h"
 
 #define MAX_PANE_CONFIGS 16
+#define PANE_LOG_OVERLAY_COMBAT_COLS 65
 
 // Available pane types in the game.
 enum pane_type {

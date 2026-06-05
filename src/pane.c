@@ -50,7 +50,7 @@ static const enum pane_placement pane_default_order[] = {
 static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_INVENTORY] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_WORN] = {.placement = SIDE_PLACEMENTS, .min_rect.rows = 17, .min_rect.cols = 40},
-    [PANE_ROLLS] = {.placement = BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 65},
+    [PANE_ROLLS] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 65},
     [PANE_INFO] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 40},
     [PANE_CHARACTER] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.cols = 60},
     [PANE_LOG] = {.placement = SIDE_PLACEMENTS | BOTTOM_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
@@ -60,7 +60,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_TOUCH] = {.placement = PLACE_DOUBLE_LEFT | PLACE_DOUBLE_RIGHT, .min_rect.rows = 12, .min_rect.cols = 12},
     [PANE_LEFT_PANEL] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
     [PANE_STATUS] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 24},
-    [PANE_DEPTH] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 2, .min_rect.cols = 12},
+    [PANE_DEPTH] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 4, .min_rect.cols = 12},
     [PANE_MAIN_MENU] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 6},
     [PANE_DESCRIPTION] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
 };
@@ -144,6 +144,9 @@ static int pane_secondary_size_cells(const struct pane_config* config,
 
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where)
 {
+    if (type == PANE_ROLLS && pane_placement_is_overlay(where))
+        return PANE_LOG_OVERLAY_COMBAT_COLS;
+
     return pane_placement_is_bottom(where)
         ? pane_specs[type].min_rect.rows
         : pane_specs[type].min_rect.cols;
@@ -590,6 +593,11 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type)
         return PLACE_BOTTOM_RIGHT;
     }
     if (type == PANE_DEPTH
+        && pane_type_allows_placement(type, PLACE_TOP_RIGHT))
+    {
+        return PLACE_TOP_RIGHT;
+    }
+    if (type == PANE_ROLLS
         && pane_type_allows_placement(type, PLACE_TOP_RIGHT))
     {
         return PLACE_TOP_RIGHT;

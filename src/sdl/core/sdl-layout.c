@@ -562,8 +562,8 @@ int sdl_overlay_edge_gap_px(int area_px, int content_px)
 bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
-        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU
-        || pane == PANE_DESCRIPTION;
+        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU || pane == PANE_ROLLS
+        || pane == PANE_LOG || pane == PANE_DESCRIPTION;
 }
 
 bool sdl_migrate_legacy_main_menu_depth_pane(
@@ -588,8 +588,8 @@ bool sdl_migrate_legacy_main_menu_depth_pane(
         return false;
 
     configs[legacy_idx].pane = PANE_DEPTH;
-    if (configs[legacy_idx].rect.rows < 2)
-        configs[legacy_idx].rect.rows = 2;
+    if (configs[legacy_idx].rect.rows < 4)
+        configs[legacy_idx].rect.rows = 4;
     if (configs[legacy_idx].rect.cols < 12)
         configs[legacy_idx].rect.cols = 12;
     log_info("Migrated legacy MAIN_MENU pane config to DEPTH pane");
@@ -628,6 +628,10 @@ bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
                         configs[j].rect.cols = 0;
                         changed = true;
                     }
+                }
+                if (pane == PANE_DEPTH && configs[j].rect.rows < 4) {
+                    configs[j].rect.rows = 4;
+                    changed = true;
                 }
                 found = true;
                 break;
@@ -1884,7 +1888,7 @@ void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
         case PANE_DEPTH:
             configs[i].where = PLACE_TOP_RIGHT;
             configs[i].enabled = true;
-            configs[i].rect.rows = 2;
+            configs[i].rect.rows = 4;
             configs[i].rect.cols = 12;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
@@ -1899,11 +1903,19 @@ void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].ratio = 0.0f;
             break;
 
-        case PANE_ROLLS:
         case PANE_LOG:
             configs[i].where = PLACE_BOTTOM;
             configs[i].enabled = false;
             configs[i].rect.rows = 0;
+            configs[i].rect.cols = 0;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_ROLLS:
+            configs[i].where = PLACE_TOP_RIGHT;
+            configs[i].enabled = false;
+            configs[i].rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
             configs[i].rect.cols = 0;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
@@ -1946,8 +1958,8 @@ void sdl_mobile_disable_bottom_panes(struct pane_config* configs,
 
     if (rolls) {
         rolls->enabled = false;
-        rolls->where = PLACE_BOTTOM;
-        rolls->rect.rows = 0;
+        rolls->where = PLACE_TOP_RIGHT;
+        rolls->rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
         rolls->rect.cols = 0;
         rolls->font_size = 0;
         rolls->ratio = 0.0f;
@@ -2620,10 +2632,12 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
         bool is_main_menu_pane = (pane_config[i].pane == PANE_MAIN_MENU);
         bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
+        bool is_overlay_log_pane = (pane_config[i].pane == PANE_ROLLS)
+            && pane_placement_is_overlay(where);
 
         if (touch_only && !is_touch_pane && !is_status_pane
             && !is_left_panel && !is_depth_pane && !is_main_menu_pane
-            && !is_description_pane)
+            && !is_description_pane && !is_overlay_log_pane)
         {
             continue;
         }
@@ -2634,7 +2648,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         if (!is_touch_pane && !is_status_pane && !is_left_panel
             && !is_depth_pane
             && !is_main_menu_pane
-            && !is_description_pane)
+            && !is_description_pane && !is_overlay_log_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
@@ -2812,6 +2826,73 @@ int sdl_effective_pane_cell_height_for_type(enum pane_type type)
         sdl_effective_pane_font_size_for_type(type));
 }
 
+static int sdl_log_overlay_story_cell_width(int cell_h)
+{
+    const char sample[] =
+        "  (+7)  23  16   7  [+3]   ->  (2d7)  12  13 [4d4]";
+    const char damage_sample[] = "  ->  (2d7)  12  13 [4d4]";
+    const int damage_col = 31;
+    int fallback = cell_h / 2;
+    TTF_Font* font;
+    int measured_w = 0;
+    int measured_damage_w = 0;
+    int font_h;
+    int scaled_w;
+    int scaled_damage_w;
+    int cell_w;
+    int damage_cell_w;
+    int min_cell_w;
+
+    if (fallback < 1)
+        fallback = 1;
+
+    font = sdl_story_font_for_height_slot(cell_h, SDL_STORY_FONT_SLOT_LOG);
+    if (!font)
+        return fallback;
+
+    TTF_MeasureString(font, sample, strlen(sample), 0, &measured_w, NULL);
+    TTF_MeasureString(font, damage_sample, strlen(damage_sample), 0,
+        &measured_damage_w, NULL);
+    if (measured_w <= 0)
+        return fallback;
+
+    scaled_w = measured_w;
+    scaled_damage_w = measured_damage_w;
+    font_h = TTF_GetFontHeight(font);
+    if (font_h > 0) {
+        float scale = (float)cell_h / (float)font_h;
+
+        scaled_w = (int)((float)measured_w * scale + 0.5f);
+        scaled_damage_w = (int)((float)measured_damage_w * scale + 0.5f);
+    }
+    if (scaled_w <= 0)
+        return fallback;
+
+    scaled_w += cell_h;
+    cell_w = (scaled_w + PANE_LOG_OVERLAY_COMBAT_COLS - 1)
+        / PANE_LOG_OVERLAY_COMBAT_COLS;
+    if (scaled_damage_w > 0 && damage_col < PANE_LOG_OVERLAY_COMBAT_COLS) {
+        int damage_cols = PANE_LOG_OVERLAY_COMBAT_COLS - damage_col;
+
+        scaled_damage_w += cell_h / 2;
+        damage_cell_w = (scaled_damage_w + damage_cols - 1) / damage_cols;
+        if (damage_cell_w > cell_w)
+            cell_w = damage_cell_w;
+    }
+
+    min_cell_w = cell_h / 4;
+    if (min_cell_w < 1)
+        min_cell_w = 1;
+    if (cell_w < min_cell_w)
+        cell_w = min_cell_w;
+    if (cell_w > fallback)
+        cell_w = fallback;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    return cell_w;
+}
+
 void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
     int count, int* cell_widths, int* cell_heights)
 {
@@ -2851,7 +2932,10 @@ void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
 
         cell_h = sdl_effective_pane_cell_height_for_config(&configs[i]);
         cell_heights[type] = cell_h;
-        cell_widths[type] = cell_h / 2;
+        if (type == PANE_ROLLS && pane_placement_is_overlay(configs[i].where))
+            cell_widths[type] = sdl_log_overlay_story_cell_width(cell_h);
+        else
+            cell_widths[type] = cell_h / 2;
         if (cell_widths[type] < 1)
             cell_widths[type] = 1;
     }
@@ -3162,6 +3246,8 @@ bool sdl_active_group_has_visible(const struct pane_config* active,
 
         if (!active[i].enabled)
             continue;
+        if (pane_placement_is_overlay(active[i].where))
+            continue;
         matches = side ? pane_placement_is_side(active[i].where)
                        : pane_placement_is_bottom(active[i].where);
         if (!matches)
@@ -3385,6 +3471,8 @@ bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU
+            || (pane_config[i].pane == PANE_ROLLS
+                && pane_placement_is_overlay(where))
             || pane_config[i].pane == PANE_DESCRIPTION)
         {
             continue;

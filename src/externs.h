@@ -883,6 +883,23 @@ extern int display_player_compact_get_max_scroll(void);
 extern void display_player_compact_stats_skills_highlighted(int selected_skill);
 extern void display_player_compact_stats_skills_highlighted_stat(int selected_stat);
 extern void display_character_tutorial(void);
+
+/*
+ * First-run "coach": a guided walkthrough that overlays short callouts on the
+ * real character-creation screens (selection -> attributes -> skills) and on
+ * the live character sheet, instead of separate text pages.  Implemented in the
+ * SDL layer; a no-op on builds without an SDL window.
+ */
+enum {
+    BIRTH_COACH_SELECT = 0,
+    BIRTH_COACH_STATS,
+    BIRTH_COACH_SKILLS,
+    BIRTH_COACH_SHEET,
+    BIRTH_COACH_STAGE_MAX
+};
+extern void birth_coach_show(int stage);
+extern void birth_coach_show_once(int stage);
+
 extern errr file_character(cptr name, bool full);
 extern bool show_buffer(cptr name, int line);
 extern bool show_file(cptr name, cptr what, int line);

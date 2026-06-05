@@ -2167,11 +2167,12 @@ void do_cmd_character_sheet(void)
             }
         }
 
-        /* Tutorial / Help - '?' or RS Right */
+        /* Tutorial / Help - '?' or RS Right.
+         * Keep the live sheet visible so the coach overlay can use it as the
+         * backdrop; the loop hides/redraws the sheet after this returns. */
         else if (ch == '?' || (steamdeck && ch == steamdeck_info_key()))
         {
             sdl_hover_tooltip_clear();
-            sdl_character_sheet_screen_hide();
             display_character_tutorial();
         }
 
