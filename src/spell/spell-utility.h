@@ -17,6 +17,9 @@ void identify_pack(void);
 void uncurse_object(object_type* o_ptr);
 bool remove_curse(bool star_curse);
 void self_knowledge(void);
+void self_knowledge_defer_display_push(void);
+void self_knowledge_defer_display_pop(void);
+bool self_knowledge_display_pending(void);
 void spells2_prompt_label(int binding, const char* fallback, char* buf,
     size_t buflen);
 

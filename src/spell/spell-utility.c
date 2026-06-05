@@ -41,6 +41,12 @@ static bool self_knowledge_capture_build(char s[][200], char t[][200],
 static void self_knowledge_capture_view(const self_knowledge_capture* capture);
 static bool render_resistance_summary(const char* text);
 
+static self_knowledge_capture pending_self_knowledge_capture;
+static bool pending_self_knowledge_capture_active = false;
+static int self_knowledge_defer_display_depth = 0;
+
+#define SELF_KNOWLEDGE_CAPTURE_MARGIN_COLS 4
+
 #define TR1 0
 #define TR2 1
 #define TR3 2
@@ -88,17 +94,52 @@ static void self_knowledge_capture_free(self_knowledge_capture* capture)
     capture->height = 0;
 }
 
+void self_knowledge_defer_display_push(void)
+{
+    self_knowledge_defer_display_depth++;
+}
+
+void self_knowledge_defer_display_pop(void)
+{
+    if (self_knowledge_defer_display_depth > 0)
+        self_knowledge_defer_display_depth--;
+}
+
+bool self_knowledge_display_pending(void)
+{
+    self_knowledge_capture capture;
+
+    if (!pending_self_knowledge_capture_active)
+        return false;
+
+    capture = pending_self_knowledge_capture;
+    SDL_memset(&pending_self_knowledge_capture, 0,
+        sizeof(pending_self_knowledge_capture));
+    pending_self_knowledge_capture_active = false;
+
+    sdl_push_description_overlay_main_anchor();
+    character_icky++;
+    self_knowledge_capture_view(&capture);
+    character_icky--;
+    sdl_pop_description_overlay_main_anchor();
+
+    self_knowledge_capture_free(&capture);
+    return true;
+}
+
 static void self_knowledge_capture_render_body(char s[][200], char t[][200],
     bool good[], int count)
 {
     int term_wid = 80;
     int term_hgt = 24;
-    int line = 0;
+    int line = 2;
 
     Term_get_size(&term_wid, &term_hgt);
     (void)term_hgt;
     if (term_wid < 20)
         term_wid = 20;
+
+    Term_putstr(0, 0, -1, TERM_L_WHITE + TERM_SHADE, "Your Attributes:");
 
     text_out_hook = text_out_to_screen;
     text_out_indent = 1;
@@ -160,7 +201,10 @@ static bool self_knowledge_capture_build(char s[][200], char t[][200],
     SDL_memset(capture, 0, sizeof(*capture));
     SDL_memset(&scratch, 0, sizeof(scratch));
 
-    Term_get_size(&term_wid, &term_hgt);
+    term_wid = sdl_description_overlay_max_cols();
+    if (term_wid > SELF_KNOWLEDGE_CAPTURE_MARGIN_COLS)
+        term_wid -= SELF_KNOWLEDGE_CAPTURE_MARGIN_COLS;
+    Term_get_size(NULL, &term_hgt);
     (void)term_hgt;
     if (term_wid < 20)
         term_wid = 20;
@@ -213,110 +257,6 @@ cleanup:
     return success;
 }
 
-static void self_knowledge_capture_draw(
-    const self_knowledge_capture* capture, int scroll)
-{
-    int term_wid = 80;
-    int term_hgt = 24;
-    int body_top = 1;
-    int prompt_row;
-    int visible_rows;
-    int max_scroll;
-    char prompt[96];
-    char scroll_buf[32];
-    bool old_story_active = false;
-    bool old_story_grid = false;
-
-    if (!capture || !capture->attrs || !capture->chars || !capture->story)
-        return;
-
-    Term_get_size(&term_wid, &term_hgt);
-    if (term_wid < 1)
-        term_wid = 80;
-    if (term_hgt < 3)
-        term_hgt = 3;
-
-    prompt_row = term_hgt - 1;
-    visible_rows = MAX(1, prompt_row - body_top);
-    max_scroll = MAX(0, capture->height - visible_rows);
-
-    if (scroll < 0)
-        scroll = 0;
-    if (scroll > max_scroll)
-        scroll = max_scroll;
-
-    old_story_active = Term->story_font_active;
-    old_story_grid = Term->story_font_grid;
-
-    Term_clear();
-    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Your Attributes:");
-
-    for (int row = 0; row < visible_rows; row++)
-    {
-        int src_row = row + scroll;
-        int dst_row = body_top + row;
-
-        if (src_row >= capture->height || dst_row >= prompt_row)
-            break;
-
-        for (int col = 0; col < capture->width && col < term_wid; col++)
-        {
-            int idx = src_row * capture->width + col;
-
-            Term->story_font_active =
-                ((capture->story[idx] & STORY_FLAG_USE) != 0);
-            Term->story_font_grid =
-                ((capture->story[idx] & STORY_FLAG_CELL_ALIGN) != 0);
-
-            Term_queue_char(col, dst_row, capture->attrs[idx],
-                capture->chars[idx], 0, 0);
-        }
-    }
-
-    Term->story_font_active = old_story_active;
-    Term->story_font_grid = old_story_grid;
-
-    if (steamdeck_controls_active())
-    {
-        char confirm_label[16];
-        char back_label[16];
-
-        spells2_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        spells2_prompt_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-        strnfmt(prompt, sizeof(prompt), "D-pad scroll  %s/%s close",
-            confirm_label, back_label);
-    }
-    else if (term_wid >= 70)
-    {
-        SDL_strlcpy(prompt,
-            "Esc closes  Up/Down, wheel, or touch-drag scroll  Space/PgDn page",
-            sizeof(prompt));
-    }
-    else if (term_wid >= 42)
-    {
-        SDL_strlcpy(prompt, "Esc closes  Up/Down wheel drag scroll",
-            sizeof(prompt));
-    }
-    else
-    {
-        SDL_strlcpy(prompt, "Esc close  Up/Down scroll", sizeof(prompt));
-    }
-
-    Term_putstr(0, prompt_row, -1, TERM_SLATE, prompt);
-
-    if (max_scroll > 0)
-    {
-        strnfmt(scroll_buf, sizeof(scroll_buf), "[%d/%d]", scroll + 1,
-            max_scroll + 1);
-        Term_putstr(MAX(0, term_wid - (int)strlen(scroll_buf)), 0, -1,
-            TERM_SLATE, scroll_buf);
-    }
-
-    Term_fresh();
-}
-
 static void self_knowledge_capture_view(const self_knowledge_capture* capture)
 {
     int scroll = 0;
@@ -330,50 +270,64 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
 
     while (!done)
     {
-        int term_wid = 80;
         int term_hgt = 24;
         int prompt_row;
-        int visible_rows;
-        int max_scroll;
+        int visible_rows = 1;
+        int max_scroll = 0;
         int page_rows;
         int dir;
         char ch;
+        char footer[96];
 
-        Term_get_size(&term_wid, &term_hgt);
-        (void)term_wid;
+        Term_get_size(NULL, &term_hgt);
         if (term_hgt < 3)
             term_hgt = 3;
 
         prompt_row = term_hgt - 1;
-        visible_rows = MAX(1, prompt_row - 1);
-        max_scroll = MAX(0, capture->height - visible_rows);
-        page_rows = (visible_rows > 1) ? visible_rows - 1 : 1;
+
+        if (steamdeck_controls_active())
+        {
+            char confirm_label[16];
+            char back_label[16];
+
+            spells2_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+                sizeof(confirm_label));
+            spells2_prompt_label(steamdeck_back_key(), "B", back_label,
+                sizeof(back_label));
+            strnfmt(footer, sizeof(footer), "D-pad scroll  %s/%s close",
+                confirm_label, back_label);
+        }
+        else
+        {
+            SDL_strlcpy(footer, "Esc close  Space page  Arrows scroll",
+                sizeof(footer));
+        }
+
+        sdl_description_overlay_set_footer(footer, true);
+        sdl_description_overlay_clear_footer_actions();
+        sdl_description_overlay_add_footer_action(ESCAPE, "Esc close");
+        sdl_description_overlay_add_footer_action(' ', "Space page");
+
+        if (!sdl_description_overlay_present(capture->attrs, capture->chars,
+                NULL, NULL, capture->story, capture->width, capture->height,
+                scroll, true, &visible_rows, &max_scroll))
+        {
+            break;
+        }
 
         if (scroll < 0)
             scroll = 0;
         if (scroll > max_scroll)
             scroll = max_scroll;
 
-        self_knowledge_capture_draw(capture, scroll);
+        page_rows = (visible_rows > 1) ? visible_rows - 1 : 1;
 
-        ui_menu_click_begin();
-        ui_menu_click_add_full_row(ESCAPE, prompt_row);
-        ui_scroll_area_begin(1, prompt_row - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_begin(0, MAX(0, prompt_row),
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
-        ui_scroll_area_set_tap_key(UI_MENU_CLICK_WAKE_KEY);
+        ui_scroll_area_set_tap_key(ESCAPE);
 
         ch = inkey();
-
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action))
-            {
-                if (click_action != UI_MENU_CLICK_HOVER)
-                    ch = (char)clicked_choice;
-            }
-        }
 
         ui_menu_click_clear();
         ui_scroll_area_clear();
@@ -438,6 +392,9 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
         }
     }
 
+    sdl_description_overlay_clear();
+    sdl_description_overlay_clear_footer_actions();
+    sdl_description_overlay_set_footer(NULL, false);
     hide_cursor = saved_hide_cursor;
     ui_menu_click_clear();
     ui_scroll_area_clear();
@@ -1477,17 +1434,31 @@ void display_attributes(char s[][200], char t[][200], bool good[], int count)
     ui_menu_click_clear();
     ui_scroll_area_clear();
 
+    sdl_push_description_overlay_main_anchor();
+
     if (!self_knowledge_capture_build(s, t, good, count, &capture))
+    {
+        sdl_pop_description_overlay_main_anchor();
         return;
+    }
 
-    screen_save();
-    screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_hidden();
+    if (self_knowledge_defer_display_depth > 0)
+    {
+        if (pending_self_knowledge_capture_active)
+            self_knowledge_capture_free(&pending_self_knowledge_capture);
+        pending_self_knowledge_capture = capture;
+        pending_self_knowledge_capture_active = true;
+        sdl_pop_description_overlay_main_anchor();
+        ui_menu_click_clear();
+        ui_scroll_area_clear();
+        return;
+    }
+
+    character_icky++;
     self_knowledge_capture_view(&capture);
-    screen_pop_touch_pane_hidden();
-    screen_pop_supporting_panes_hidden();
-    screen_load();
+    character_icky--;
 
+    sdl_pop_description_overlay_main_anchor();
     self_knowledge_capture_free(&capture);
     ui_menu_click_clear();
     ui_scroll_area_clear();

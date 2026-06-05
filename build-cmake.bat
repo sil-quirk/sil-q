@@ -81,6 +81,11 @@ for %%f in (
 REM Copy game data
 if not exist sil-more-windows-sdl3\lib xcopy /E /I /Y /K lib sil-more-windows-sdl3\lib
 
+REM Always update lib/xtra/font folder to ensure latest fonts are deployed
+REM (e.g. EBGaramond-Regular.ttf and any newly added typefaces)
+if exist sil-more-windows-sdl3\lib\xtra\font rmdir /S /Q sil-more-windows-sdl3\lib\xtra\font
+xcopy /E /I /Y /K lib\xtra\font sil-more-windows-sdl3\lib\xtra\font
+
 REM Exclude non-OFL fallback font from deployment; public releases use the
 REM documented redistributable font set.
 if exist sil-more-windows-sdl3\lib\xtra\font\InputMono-Bold.ttf del /Q sil-more-windows-sdl3\lib\xtra\font\InputMono-Bold.ttf
@@ -173,6 +178,11 @@ for %%f in (
 
 REM Copy game data
 if not exist sil-more-windows-sdl3-portable\lib xcopy /E /I /Y /K lib sil-more-windows-sdl3-portable\lib
+
+REM Always update lib/xtra/font folder to ensure latest fonts are deployed
+REM (e.g. EBGaramond-Regular.ttf and any newly added typefaces)
+if exist sil-more-windows-sdl3-portable\lib\xtra\font rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\font
+xcopy /E /I /Y /K lib\xtra\font sil-more-windows-sdl3-portable\lib\xtra\font
 
 REM Exclude non-OFL fallback font from deployment; public releases use the
 REM documented redistributable font set.

@@ -96,8 +96,17 @@ static bool supplies_menu_use_entry(supply_list_entry* entry,
         do_cmd_activate_staff(o_ptr, SUPPLIES_INDEX);
         break;
     case TV_GEM:
+    {
+        bool defer_self_knowledge =
+            (o_ptr->sval == SV_GEM_SELF_KNOWLEDGE);
+
+        if (defer_self_knowledge)
+            self_knowledge_defer_display_push();
         do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
+        if (defer_self_knowledge)
+            self_knowledge_defer_display_pop();
         break;
+    }
     case TV_FLASK:
         do_cmd_refuel_lamp(o_ptr, SUPPLIES_INDEX);
         break;
@@ -8203,6 +8212,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     screen_save();
     screen_push_supporting_panes_hidden();
+    sdl_push_description_overlay_main_anchor();
     sdl_push_terminal_menu_scale();
 
     while (!flag)
@@ -9988,6 +9998,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
     sdl_pop_terminal_menu_scale();
+    sdl_pop_description_overlay_main_anchor();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -9998,6 +10009,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         handle_stuff();
         Term_fresh();
     }
+
+    (void)self_knowledge_display_pending();
 
     return acted;
 }

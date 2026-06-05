@@ -489,7 +489,7 @@ typedef struct sdl_character_sheet_screen_state {
     int skill_costs[S_MAX];
     sdl_character_sheet_live_item live_items[128];
     int live_item_count;
-    sdl_character_sheet_select_row select_rows[64];
+    sdl_character_sheet_select_row select_rows[96];
     int select_row_count;
     sdl_character_sheet_select_detail select_detail[80];
     int select_detail_count;
@@ -508,6 +508,7 @@ typedef struct sdl_character_sheet_screen_state {
     char select_frame_bottom[768]; /* book mode: framing/charge below (accent) */
     char select_desc_sizing[4096]; /* longest description, for stable layout */
     bool select_book_mode;     /* screen 1: story/explanation page, no detail */
+    bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
     int select_page;           /* book mode: current page (0 = story, 1 = choice) */
     int select_page_count;     /* book mode: number of pages (1 otherwise) */
     bool page_turn_active;     /* book mode: a page-curl animation is playing */
@@ -537,7 +538,7 @@ typedef struct sdl_character_sheet_screen_state {
     float last_body_line_h;    /* rendered row height for last column body */
     int last_desc_px;          /* last description font px */
     float last_desc_line_h;    /* rendered row height for last description */
-    sdl_character_sheet_hit hits[160];
+    sdl_character_sheet_hit hits[192];
     int hit_count;
     int hover_choice;
     int sheet_scroll;
@@ -1161,6 +1162,7 @@ extern int g_left_panel_canvas_h;
 extern bool g_left_panel_debug_dump_rows;
 extern bool g_active_side_panes;
 extern bool g_active_bottom_panes;
+extern int g_description_overlay_main_anchor_depth;
 extern bool g_supporting_panes_layout_visible;
 extern int g_inventory_pane_layout_rows;
 extern int g_supply_pane_layout_rows;
@@ -1538,6 +1540,8 @@ void sdl_status_pane_draw_text(TTF_Font* font, cptr text, SDL_Color color, float
 bool sdl_status_pane_layout(status_pane_layout* out);
 void sdl_status_pane_render(void);
 bool sdl_overlay_pane_anchor_rect(enum pane_type pane_type, SDL_Rect* out);
+void sdl_push_description_overlay_main_anchor(void);
+void sdl_pop_description_overlay_main_anchor(void);
 int sdl_main_menu_pane_font_px(void);
 bool sdl_main_menu_pane_context_visible(void);
 const char* sdl_main_menu_mono_font_path(void);
@@ -1655,6 +1659,7 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base, const int
 void sdl_select_page_turn_free(void);
 void sdl_character_sheet_screen_reset_select_page(void);
 bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title);
+void sdl_character_sheet_screen_set_select_menu_style(bool enabled);
 bool sdl_character_sheet_screen_begin_book(cptr title);
 void sdl_character_sheet_screen_add_book_paragraph(cptr text);
 void sdl_character_sheet_screen_break_book_page(void);

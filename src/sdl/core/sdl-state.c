@@ -441,6 +441,7 @@ int g_left_panel_canvas_h = 0;
 bool g_left_panel_debug_dump_rows = true;
 bool g_active_side_panes = true;
 bool g_active_bottom_panes = true;
+int g_description_overlay_main_anchor_depth = 0;
 bool g_supporting_panes_layout_visible = true;
 int g_inventory_pane_layout_rows = -1;
 int g_supply_pane_layout_rows = -1;
