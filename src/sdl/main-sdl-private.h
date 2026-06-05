@@ -80,6 +80,7 @@ enum {
     SDL_NARRATIVE_BANNER_LINE_LEN = 220,
     SDL_LOG_PANE_DEFAULT_ROWS = 4,
     SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS = 10,
+    SDL_OVERLAY_LOG_PANE_ALPHA = 220,
     SDL_LOG_PANE_MIN_ROWS = 1,
     SDL_LOG_PANE_MAX_ROWS = 20,
     SDL_LOG_PANE_MENU_MAX_ENTRIES = 5,
@@ -1359,6 +1360,9 @@ int sdl_current_min_terminal_rows(void);
 const char* sdl_min_terminal_mode_name(int mode);
 int sdl_touch_pane_visible_slot_at(int visible_index);
 sdl_view* sdl_view_from_term(term* t);
+enum pane_type sdl_view_pane_type(const sdl_view* view);
+bool sdl_view_is_overlay_log_pane(const sdl_view* view);
+Uint8 sdl_view_background_alpha(const sdl_view* view);
 bool sdl_rect_has_area(const SDL_Rect* rect);
 SDL_Rect sdl_get_window_pixel_rect(void);
 SDL_Rect sdl_window_rect_to_pixel_rect(const SDL_Rect* rect);
@@ -1474,6 +1478,8 @@ int sdl_effective_pane_font_size_for_type(enum pane_type type);
 int sdl_aux_cell_height_for_font_size(int font_size);
 int sdl_effective_pane_cell_height_for_config(const struct pane_config* pc);
 int sdl_effective_pane_cell_height_for_type(enum pane_type type);
+int sdl_supporting_pane_cell_width(enum pane_type type,
+    enum pane_placement where, int cell_h);
 void sdl_build_supporting_pane_metrics(const struct pane_config* configs, int count, int* cell_widths, int* cell_heights);
 bool sdl_prune_unusable_panes(struct pane_config* active, int active_count, SDL_Rect* panes, const int* cell_widths, const int* cell_heights);
 int sdl_inventory_pane_desired_rows(void);

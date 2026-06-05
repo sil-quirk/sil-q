@@ -15,6 +15,44 @@ sdl_view* sdl_view_from_term(term* t)
     return &g_views[idx];
 }
 
+enum pane_type sdl_view_pane_type(const sdl_view* view)
+{
+    if (!view)
+        return PANE_MAX;
+
+    for (int i = 0; i < MAX_TERM_DATA && i < PANE_MAX; i++) {
+        if (view == &g_views[i])
+            return (enum pane_type)i;
+    }
+
+    return PANE_MAX;
+}
+
+bool sdl_view_is_overlay_log_pane(const sdl_view* view)
+{
+    enum pane_type type = sdl_view_pane_type(view);
+
+    if (type != PANE_ROLLS)
+        return false;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane != PANE_ROLLS)
+            continue;
+
+        return pane_config[i].enabled
+            && pane_placement_is_overlay(pane_config[i].where);
+    }
+
+    return false;
+}
+
+Uint8 sdl_view_background_alpha(const sdl_view* view)
+{
+    return sdl_view_is_overlay_log_pane(view)
+        ? SDL_OVERLAY_LOG_PANE_ALPHA
+        : SDL_ALPHA_OPAQUE;
+}
+
 bool sdl_rect_has_area(const SDL_Rect* rect)
 {
     return (rect && rect->w > 0 && rect->h > 0);
@@ -2826,67 +2864,14 @@ int sdl_effective_pane_cell_height_for_type(enum pane_type type)
         sdl_effective_pane_font_size_for_type(type));
 }
 
-static int sdl_log_overlay_story_cell_width(int cell_h)
+int sdl_supporting_pane_cell_width(enum pane_type type,
+    enum pane_placement where, int cell_h)
 {
-    const char sample[] =
-        "  (+7)  23  16   7  [+3]   ->  (2d7)  12  13 [4d4]";
-    const char damage_sample[] = "  ->  (2d7)  12  13 [4d4]";
-    const int damage_col = 31;
-    int fallback = cell_h / 2;
-    TTF_Font* font;
-    int measured_w = 0;
-    int measured_damage_w = 0;
-    int font_h;
-    int scaled_w;
-    int scaled_damage_w;
-    int cell_w;
-    int damage_cell_w;
-    int min_cell_w;
+    int cell_w = cell_h / 2;
 
-    if (fallback < 1)
-        fallback = 1;
+    (void)type;
+    (void)where;
 
-    font = sdl_story_font_for_height_slot(cell_h, SDL_STORY_FONT_SLOT_LOG);
-    if (!font)
-        return fallback;
-
-    TTF_MeasureString(font, sample, strlen(sample), 0, &measured_w, NULL);
-    TTF_MeasureString(font, damage_sample, strlen(damage_sample), 0,
-        &measured_damage_w, NULL);
-    if (measured_w <= 0)
-        return fallback;
-
-    scaled_w = measured_w;
-    scaled_damage_w = measured_damage_w;
-    font_h = TTF_GetFontHeight(font);
-    if (font_h > 0) {
-        float scale = (float)cell_h / (float)font_h;
-
-        scaled_w = (int)((float)measured_w * scale + 0.5f);
-        scaled_damage_w = (int)((float)measured_damage_w * scale + 0.5f);
-    }
-    if (scaled_w <= 0)
-        return fallback;
-
-    scaled_w += cell_h;
-    cell_w = (scaled_w + PANE_LOG_OVERLAY_COMBAT_COLS - 1)
-        / PANE_LOG_OVERLAY_COMBAT_COLS;
-    if (scaled_damage_w > 0 && damage_col < PANE_LOG_OVERLAY_COMBAT_COLS) {
-        int damage_cols = PANE_LOG_OVERLAY_COMBAT_COLS - damage_col;
-
-        scaled_damage_w += cell_h / 2;
-        damage_cell_w = (scaled_damage_w + damage_cols - 1) / damage_cols;
-        if (damage_cell_w > cell_w)
-            cell_w = damage_cell_w;
-    }
-
-    min_cell_w = cell_h / 4;
-    if (min_cell_w < 1)
-        min_cell_w = 1;
-    if (cell_w < min_cell_w)
-        cell_w = min_cell_w;
-    if (cell_w > fallback)
-        cell_w = fallback;
     if (cell_w < 1)
         cell_w = 1;
 
@@ -2932,12 +2917,8 @@ void sdl_build_supporting_pane_metrics(const struct pane_config* configs,
 
         cell_h = sdl_effective_pane_cell_height_for_config(&configs[i]);
         cell_heights[type] = cell_h;
-        if (type == PANE_ROLLS && pane_placement_is_overlay(configs[i].where))
-            cell_widths[type] = sdl_log_overlay_story_cell_width(cell_h);
-        else
-            cell_widths[type] = cell_h / 2;
-        if (cell_widths[type] < 1)
-            cell_widths[type] = 1;
+        cell_widths[type] = sdl_supporting_pane_cell_width(type,
+            configs[i].where, cell_h);
     }
 }
 

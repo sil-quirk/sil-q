@@ -2,6 +2,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "melee/melee-combat-display.h"
+#include "pane.h"
 #include "sdl-config.h"
 
 void new_combat_round(void)
@@ -510,6 +511,331 @@ static int collect_combat_display_entries(combat_display_entry* ordered, int max
     return count;
 }
 
+static bool combat_roll_overlay_compact(void)
+{
+    return Term && PANE_ROLLS < ANGBAND_TERM_MAX
+        && angband_term[PANE_ROLLS] == Term;
+}
+
+static int combat_roll_tile_cols(void)
+{
+    return (use_bigtile && !graphics_are_ascii()) ? 2 : 1;
+}
+
+static int combat_roll_put_tile(int col, int row, byte attr, char ch)
+{
+    Term_queue_char(col, row, attr, ch, 0, 0);
+    if (combat_roll_tile_cols() > 1)
+    {
+        if ((attr & 0x80) && ((byte)ch & 0x80))
+            Term_queue_char(col + 1, row, 255, -1, 0, 0);
+        else
+            Term_queue_char(col + 1, row, TERM_WHITE, ' ', 0, 0);
+    }
+
+    return col + combat_roll_tile_cols();
+}
+
+static int combat_roll_put_text(int col, int row, byte attr, cptr text)
+{
+    int len;
+
+    if (!text)
+        return col;
+
+    len = (int)strlen(text);
+    if (len <= 0)
+        return col;
+
+    Term_putstr(col, row, -1, attr, text);
+    return col + len;
+}
+
+static int combat_roll_put_number(int col, int row, byte attr, int value)
+{
+    char buf[32];
+
+    strnfmt(buf, sizeof(buf), "%d", value);
+    return combat_roll_put_text(col, row, attr, buf);
+}
+
+static int combat_roll_text_cols(cptr text)
+{
+    if (!text)
+        return 0;
+
+    return (int)strlen(text);
+}
+
+static int combat_roll_number_cols(int value)
+{
+    char buf[32];
+
+    strnfmt(buf, sizeof(buf), "%d", value);
+    return combat_roll_text_cols(buf);
+}
+
+static int combat_roll_compact_cols(const combat_roll* roll, int res)
+{
+    char buf[80];
+    int cols = 0;
+    int net_att = 0;
+    int net_dam;
+
+    if (!roll)
+        return 0;
+
+    cols += combat_roll_text_cols(" ");
+    cols += combat_roll_tile_cols();
+    cols += combat_roll_text_cols(" ");
+
+    if (roll->att_type == COMBAT_ROLL_ROLL)
+    {
+        strnfmt(buf, sizeof(buf), "(%+d) ", roll->att);
+        cols += combat_roll_text_cols(buf);
+        cols += combat_roll_number_cols(roll->att + roll->att_roll);
+        cols += combat_roll_text_cols(" ");
+
+        net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
+        cols += (net_att > 0) ? combat_roll_number_cols(net_att)
+            : combat_roll_text_cols("-");
+        cols += combat_roll_text_cols(" ");
+
+        cols += combat_roll_number_cols(roll->evn + roll->evn_roll);
+        cols += combat_roll_text_cols(" ");
+
+        strnfmt(buf, sizeof(buf), "[%+d] ", roll->evn);
+        cols += combat_roll_text_cols(buf);
+    }
+    else if (roll->att_type == COMBAT_ROLL_AUTO)
+    {
+        cols += combat_roll_text_cols("auto ");
+    }
+    else
+    {
+        return cols;
+    }
+
+    cols += combat_roll_tile_cols();
+
+    if (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0)
+        return cols;
+
+    cols += combat_roll_text_cols(" -> ");
+    strnfmt(buf, sizeof(buf), "(%dd%d) ", roll->dd, roll->ds);
+    cols += combat_roll_text_cols(buf);
+
+    cols += combat_roll_number_cols(roll->dam);
+    cols += combat_roll_text_cols(" ");
+
+    if (roll->att_type == COMBAT_ROLL_AUTO && !roll->melee)
+    {
+        if (res > 0)
+            net_dam = (roll->dam / res) - roll->prot;
+        else
+            net_dam = (roll->dam * (-res)) - roll->prot;
+    }
+    else
+    {
+        net_dam = roll->dam - roll->prot;
+    }
+    if (net_dam < 0)
+        net_dam = 0;
+
+    cols += (net_dam > 0) ? combat_roll_number_cols(net_dam)
+        : combat_roll_text_cols("-");
+    cols += combat_roll_text_cols(" ");
+
+    cols += combat_roll_number_cols(roll->prot);
+
+    if (roll->is_defender_player)
+    {
+        if (roll->att_type == COMBAT_ROLL_AUTO && !roll->melee)
+        {
+            if (res > 1)
+            {
+                strnfmt(buf, sizeof(buf), " 1/%d then", res);
+                cols += combat_roll_text_cols(buf);
+            }
+            else if (res < 0)
+            {
+                strnfmt(buf, sizeof(buf), " x%d then", -res);
+                cols += combat_roll_text_cols(buf);
+            }
+        }
+
+        if (roll->att_type == COMBAT_ROLL_ROLL)
+        {
+            strnfmt(buf, sizeof(buf), " [%d-%d]",
+                (roll->pd * roll->prt_percent) / 100,
+                (roll->ps * roll->prt_percent) / 100);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), " [%d-%d]", roll->pd, roll->ps);
+        }
+        cols += combat_roll_text_cols(buf);
+    }
+    else if (roll->ps >= 1 && roll->pd >= 1)
+    {
+        strnfmt(buf, sizeof(buf), " [%dd%d]", roll->pd, roll->ps);
+        cols += combat_roll_text_cols(buf);
+        if ((roll->prt_percent > 0) && (roll->prt_percent < 100))
+        {
+            strnfmt(buf, sizeof(buf), " %d%%", roll->prt_percent);
+            cols += combat_roll_text_cols(buf);
+        }
+    }
+
+    return cols;
+}
+
+static void combat_roll_set_cursor_after(int row, int col)
+{
+    if (!Term || !Term->scr)
+        return;
+    if (row < 0 || row >= Term->hgt)
+        return;
+
+    if (col < 0)
+        col = 0;
+
+    Term->scr->cy = row;
+    if (col >= Term->wid)
+    {
+        Term->scr->cx = Term->wid;
+        Term->scr->cu = 1;
+    }
+    else
+    {
+        Term->scr->cx = col;
+        Term->scr->cu = 0;
+    }
+}
+
+static void draw_combat_roll_line_compact(int row, int base_col_offset,
+    const combat_roll* roll, int a_att, int a_evn, int a_hit,
+    int a_dam_roll, int a_prot_roll, int a_net_dam, int res)
+{
+    char buf[80];
+    int col = base_col_offset;
+    int net_att = 0;
+    int net_dam;
+
+    col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+    col = combat_roll_put_tile(col, row, roll->attacker_attr,
+        roll->attacker_char);
+    col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+
+    if (roll->att_type == COMBAT_ROLL_ROLL)
+    {
+        strnfmt(buf, sizeof(buf), "(%+d) ", roll->att);
+        col = combat_roll_put_text(col, row, a_att, buf);
+        col = combat_roll_put_number(col, row, a_att,
+            roll->att + roll->att_roll);
+        col = combat_roll_put_text(col, row, a_att, " ");
+
+        net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
+        if (net_att > 0)
+            col = combat_roll_put_number(col, row, a_hit, net_att);
+        else
+            col = combat_roll_put_text(col, row, TERM_SLATE, "-");
+        col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+
+        col = combat_roll_put_number(col, row, a_evn,
+            roll->evn + roll->evn_roll);
+        col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+
+        strnfmt(buf, sizeof(buf), "[%+d] ", roll->evn);
+        col = combat_roll_put_text(col, row, a_evn, buf);
+    }
+    else if (roll->att_type == COMBAT_ROLL_AUTO)
+    {
+        col = combat_roll_put_text(col, row, TERM_L_DARK, "auto ");
+    }
+    else
+    {
+        combat_roll_set_cursor_after(row, col);
+        return;
+    }
+
+    col = combat_roll_put_tile(col, row, roll->defender_attr,
+        roll->defender_char);
+
+    if (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0)
+    {
+        combat_roll_set_cursor_after(row, col);
+        return;
+    }
+
+    col = combat_roll_put_text(col, row, TERM_L_DARK, " -> ");
+    strnfmt(buf, sizeof(buf), "(%dd%d) ", roll->dd, roll->ds);
+    col = combat_roll_put_text(col, row, a_dam_roll, buf);
+
+    col = combat_roll_put_number(col, row, a_dam_roll, roll->dam);
+    col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+
+    if (roll->att_type == COMBAT_ROLL_AUTO && !roll->melee) {
+        if (res > 0)
+            net_dam = (roll->dam / res) - roll->prot;
+        else
+            net_dam = (roll->dam * (-res)) - roll->prot;
+    } else {
+        net_dam = roll->dam - roll->prot;
+    }
+    if (net_dam < 0)
+        net_dam = 0;
+
+    if (net_dam > 0)
+        col = combat_roll_put_number(col, row, a_net_dam, net_dam);
+    else
+        col = combat_roll_put_text(col, row, TERM_SLATE, "-");
+    col = combat_roll_put_text(col, row, TERM_WHITE, " ");
+
+    col = combat_roll_put_number(col, row, a_prot_roll, roll->prot);
+
+    if (roll->is_defender_player)
+    {
+        if (roll->att_type == COMBAT_ROLL_AUTO && !roll->melee)
+        {
+            if (res > 1)
+            {
+                strnfmt(buf, sizeof(buf), " 1/%d then", res);
+                col = combat_roll_put_text(col, row, TERM_L_BLUE, buf);
+            }
+            else if (res < 0)
+            {
+                strnfmt(buf, sizeof(buf), " x%d then", -res);
+                col = combat_roll_put_text(col, row, TERM_L_BLUE, buf);
+            }
+        }
+
+        if (roll->att_type == COMBAT_ROLL_ROLL)
+        {
+            strnfmt(buf, sizeof(buf), " [%d-%d]",
+                (roll->pd * roll->prt_percent) / 100,
+                (roll->ps * roll->prt_percent) / 100);
+        }
+        else
+        {
+            strnfmt(buf, sizeof(buf), " [%d-%d]", roll->pd, roll->ps);
+        }
+        col = combat_roll_put_text(col, row, a_prot_roll, buf);
+    }
+    else if (roll->ps >= 1 && roll->pd >= 1)
+    {
+        strnfmt(buf, sizeof(buf), " [%dd%d]", roll->pd, roll->ps);
+        col = combat_roll_put_text(col, row, a_prot_roll, buf);
+        if ((roll->prt_percent > 0) && (roll->prt_percent < 100))
+        {
+            strnfmt(buf, sizeof(buf), " %d%%", roll->prt_percent);
+            col = combat_roll_put_text(col, row, a_prot_roll, buf);
+        }
+    }
+
+    combat_roll_set_cursor_after(row, col);
+}
+
 static void draw_combat_roll_line(int row, int base_col_offset,
     const combat_roll* roll)
 {
@@ -576,6 +902,21 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             a_prot_roll = TERM_BLUE;
         else
             a_prot_roll = TERM_DARK;
+    }
+
+    if (combat_roll_overlay_compact())
+    {
+        int compact_cols = combat_roll_compact_cols(roll, res);
+        int compact_col = base_col_offset;
+
+        if (Term && compact_cols > 0 && Term->wid > compact_cols)
+            compact_col = Term->wid - compact_cols;
+        if (compact_col < base_col_offset)
+            compact_col = base_col_offset;
+
+        draw_combat_roll_line_compact(row, compact_col, roll, a_att,
+            a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam, res);
+        return;
     }
 
     Term_putstr(base_col_offset, row, 1, TERM_WHITE, " ");

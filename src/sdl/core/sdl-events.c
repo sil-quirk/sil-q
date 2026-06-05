@@ -185,11 +185,17 @@ void sdl_handle_renderer_reset(void)
                                          view->cols * view->cell_w,
                                          view->rows * view->cell_h);
         if (view->canvas) {
-            SDL_SetTextureBlendMode(view->canvas, SDL_BLENDMODE_NONE);
+            Uint8 bg_alpha = sdl_view_background_alpha(view);
+
+            SDL_SetTextureBlendMode(view->canvas,
+                (bg_alpha < SDL_ALPHA_OPAQUE) ? SDL_BLENDMODE_BLEND
+                                              : SDL_BLENDMODE_NONE);
             SDL_SetTextureScaleMode(view->canvas, SDL_SCALEMODE_NEAREST);
             SDL_SetRenderTarget(g_state.renderer, view->canvas);
-            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, bg_alpha);
             SDL_RenderClear(g_state.renderer);
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
         } else {
             log_error("Failed to recreate canvas for view %d: %s", i, SDL_GetError());
         }
@@ -1966,5 +1972,4 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         Term_redraw();
     }
 }
-
 

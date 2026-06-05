@@ -441,6 +441,21 @@ static int pane_corner_secondary_pixels(const struct pane_config* config,
         cell_heights) + margin_px;
 }
 
+static int pane_corner_primary_pixels(const struct pane_config* config,
+    enum pane_placement where, const int* cell_widths, const int* cell_heights,
+    int margin_px)
+{
+    int requested;
+    int minimum;
+    int cells;
+
+    requested = pane_primary_size_cells(config, where);
+    minimum = pane_primary_min_cells(config->pane, where);
+    cells = (requested > minimum) ? requested : minimum;
+    return cells * pane_primary_cell_px(config->pane, where, cell_widths,
+        cell_heights) + margin_px;
+}
+
 static int pane_overlay_edge_gap(int area_px, int content_px, int margin_px)
 {
     int requested_gap;
@@ -463,9 +478,9 @@ static void layout_overlay_group(enum pane_placement where,
     int margin_px)
 {
     int active_count = pane_group_count(config, count, where);
+    int pane_widths[MAX_PANE_CONFIGS] = { 0 };
     int pane_heights[MAX_PANE_CONFIGS] = { 0 };
-    int split_px;
-    int pane_x;
+    int split_px = 0;
     int start_y;
     int total_h = 0;
     int edge_gap_x;
@@ -475,19 +490,21 @@ static void layout_overlay_group(enum pane_placement where,
     if (active_count <= 0 || !area || area->w <= 0 || area->h <= 0)
         return;
 
-    split_px = pane_group_primary_pixels(config, count, where, cell_widths,
-        cell_heights, margin_px);
-    if (split_px <= 0)
-        return;
-    if (split_px > area->w)
-        split_px = area->w;
-
     for (int i = 0; i < count; i++) {
+        int pane_w;
         int pane_px;
         int remaining_px;
 
         if (!config[i].enabled || config[i].where != where)
             continue;
+
+        pane_w = pane_corner_primary_pixels(&config[i], where, cell_widths,
+            cell_heights, margin_px);
+        if (pane_w > area->w)
+            pane_w = area->w;
+        pane_widths[i] = pane_w;
+        if (pane_w > split_px)
+            split_px = pane_w;
 
         pane_px = pane_corner_secondary_pixels(&config[i], where, cell_widths,
             cell_heights, margin_px, area);
@@ -508,15 +525,6 @@ static void layout_overlay_group(enum pane_placement where,
     edge_gap_x = pane_overlay_edge_gap(area->w, split_px, margin_px);
     edge_gap_y = pane_overlay_edge_gap(area->h, total_h, margin_px);
 
-    if (pane_placement_is_left(where))
-        pane_x = area->x + edge_gap_x;
-    else if (pane_placement_is_right(where))
-        pane_x = area->x + area->w - split_px - edge_gap_x;
-    else if (pane_placement_is_horizontal_center(where))
-        pane_x = area->x + (area->w - split_px) / 2;
-    else
-        pane_x = area->x + edge_gap_x;
-
     bottom_edge = pane_placement_is_bottom_edge(where);
     if (bottom_edge)
         start_y = area->y + area->h - edge_gap_y;
@@ -527,21 +535,36 @@ static void layout_overlay_group(enum pane_placement where,
 
     for (int i = 0; i < count; i++) {
         SDL_Rect* pane;
+        int pane_w = pane_widths[i];
         int pane_px = pane_heights[i];
+        int pane_edge_gap_x;
+        int pane_x;
         int pane_y;
 
         if (!config[i].enabled || config[i].where != where)
             continue;
+        if (pane_w <= 0)
+            continue;
         if (pane_px <= 0)
             continue;
 
+        pane_edge_gap_x = (config[i].pane == PANE_ROLLS) ? 0 : edge_gap_x;
+
+        if (pane_placement_is_left(where))
+            pane_x = area->x + pane_edge_gap_x;
+        else if (pane_placement_is_right(where))
+            pane_x = area->x + area->w - pane_w - pane_edge_gap_x;
+        else if (pane_placement_is_horizontal_center(where))
+            pane_x = area->x + (area->w - pane_w) / 2;
+        else
+            pane_x = area->x + pane_edge_gap_x;
         pane_y = bottom_edge ? start_y - pane_px : start_y;
 
         pane = &panes[config[i].pane];
         *pane = (SDL_Rect){
             .x = pane_x,
             .y = pane_y,
-            .w = split_px,
+            .w = pane_w,
             .h = pane_px,
         };
         if (bottom_edge)

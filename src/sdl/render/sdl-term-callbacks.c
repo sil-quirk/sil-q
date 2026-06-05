@@ -199,8 +199,11 @@ errr callback_sdl_xtra(int n, int v)
         if (!d || !d->canvas)
             return 0;
         SDL_SetRenderTarget(g_state.renderer, d->canvas);
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+            sdl_view_background_alpha(d));
         SDL_RenderClear(g_state.renderer);
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
         g_state.need_present = true;
         return 0;
     case TERM_XTRA_FRESH:
@@ -302,8 +305,11 @@ errr callback_sdl_wipe(int x, int y, int n)
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
     SDL_SetRenderClipRect(g_state.renderer, &clip);
     SDL_FRect r = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0,
+        sdl_view_background_alpha(d));
     SDL_RenderFillRect(g_state.renderer, &r);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderClipRect(g_state.renderer, NULL);
     g_state.need_present = true;
     return 0;
@@ -326,6 +332,7 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     if (n <= 0)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
+    bg_col.a = sdl_view_background_alpha(d);
 
     TTF_Font* story_font = sdl_story_font_for_view(d);
     if (selected_attr)
@@ -368,9 +375,11 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             (float)(n * d->cell_w),
             (float)(d->cell_h)
         };
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
         SDL_SetRenderDrawColor(g_state.renderer, bg_col.r, bg_col.g,
             bg_col.b, bg_col.a);
         SDL_RenderFillRect(g_state.renderer, &bg);
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderClipRect(g_state.renderer, NULL);
     } else {
         SDL_SetRenderClipRect(g_state.renderer, NULL);
@@ -496,9 +505,11 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                     (float)(render_run * d->cell_w),
                     (float)d->cell_h
                 };
+                SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
                 SDL_SetRenderDrawColor(g_state.renderer, bg_col.r,
                     bg_col.g, bg_col.b, bg_col.a);
                 SDL_RenderFillRect(g_state.renderer, &clear_rect);
+                SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
                 if (use_story) {
                     if (grid_align)
@@ -537,9 +548,11 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                 (float)(n * d->cell_w),
                 (float)d->cell_h
             };
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
             SDL_SetRenderDrawColor(g_state.renderer, bg_col.r, bg_col.g,
                 bg_col.b, bg_col.a);
             SDL_RenderFillRect(g_state.renderer, &clear_rect);
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
             sdl_render_story_text_free(d, story_font, x, y, n, s, col);
         }
     } else {
@@ -2581,4 +2594,3 @@ errr sdl_view_link_term(sdl_view* d, int term_index)
 }
 
 // Helper to apply font rendering settings to a TTF_Font
-

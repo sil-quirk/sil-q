@@ -995,6 +995,7 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
     Uint64 start_ns = SDL_GetTicksNS();
     Uint64 atlas_ns;
     Uint64 canvas_ns;
+    Uint8 bg_alpha;
     bool atlas_was_cached;
     log_debug("view rect=(%d %d %d %d)", rect.x, rect.y, rect.w, rect.h);
 
@@ -1066,6 +1067,8 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
         // Non-integer scaling mode.
         d->cell_h = g_state.system_scale * font_size;
         d->cell_w = d->cell_h / 2;
+        if (d->cell_w < 1)
+            d->cell_w = 1;
     } else {
         quit("sdl_view_create: font_size and scale cannot both be zero");
     }
@@ -1132,11 +1135,16 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
                                   d->cols * d->cell_w, d->rows * d->cell_h);
     if (d->canvas) {
         log_debug("view canvas %dx%d", d->canvas->w, d->canvas->h);
-        SDL_SetTextureBlendMode(d->canvas, SDL_BLENDMODE_NONE);
+        bg_alpha = sdl_view_background_alpha(d);
+        SDL_SetTextureBlendMode(d->canvas,
+            (bg_alpha < SDL_ALPHA_OPAQUE) ? SDL_BLENDMODE_BLEND
+                                          : SDL_BLENDMODE_NONE);
         SDL_SetTextureScaleMode(d->canvas, SDL_SCALEMODE_NEAREST);
         SDL_SetRenderTarget(g_state.renderer, d->canvas);
-        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, bg_alpha);
         SDL_RenderClear(g_state.renderer);
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
         canvas_ns = SDL_GetTicksNS() - canvas_ns;
         g_state.need_present = true;
     } else {
@@ -1223,7 +1231,10 @@ void sdl_load_story_fonts(void)
     
     // Initialize flag to false
     g_state.story_font_depth = 0;
-    if (Term) Term->story_font_active = false;
+    if (Term)
+    {
+        Term->story_font_active = false;
+    }
     
     log_info("Story fonts loaded successfully");
 }
@@ -1727,4 +1738,3 @@ int sdl_main_view_visible_cols(void)
 }
 
 // Quit hook to save window configuration on exit
-

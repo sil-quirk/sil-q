@@ -231,6 +231,44 @@ void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
     }
 }
 
+static void sdl_render_texture_with_clip(SDL_Texture* texture,
+    const SDL_FRect* dst, const SDL_FRect* clip)
+{
+    bool apply_clip;
+    bool had_clip;
+    SDL_Rect old_clip = { 0 };
+    SDL_Rect clip_rect;
+
+    if (!texture || !dst)
+        return;
+
+    apply_clip = clip && clip->w > 0.0f && clip->h > 0.0f
+        && (dst->x < clip->x || dst->y < clip->y
+            || dst->x + dst->w > clip->x + clip->w
+            || dst->y + dst->h > clip->y + clip->h);
+    if (!apply_clip) {
+        SDL_RenderTexture(g_state.renderer, texture, NULL, dst);
+        return;
+    }
+
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+
+    clip_rect.x = (int)clip->x;
+    clip_rect.y = (int)clip->y;
+    clip_rect.w = (int)(clip->w + 0.5f);
+    clip_rect.h = (int)(clip->h + 0.5f);
+    if (clip_rect.w < 1)
+        clip_rect.w = 1;
+    if (clip_rect.h < 1)
+        clip_rect.h = 1;
+
+    SDL_SetRenderClipRect(g_state.renderer, &clip_rect);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, dst);
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+}
+
 void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col)
 {
@@ -254,6 +292,7 @@ void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n
         float cell_h_f = (float)d->cell_h;
         float surf_h_f = (float)text_surface->h;
         float scale = (surf_h_f > 0.0f) ? (cell_h_f / surf_h_f) : 1.0f;
+        float max_w = (float)(n * d->cell_w);
 
         SDL_FRect dst = {
             (float)(x * d->cell_w),
@@ -261,12 +300,15 @@ void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n
             (float)(text_surface->w) * scale,
             cell_h_f
         };
-
-        float max_w = (float)(n * d->cell_w);
-        if (dst.w > max_w) dst.w = max_w;
+        SDL_FRect clip = {
+            dst.x,
+            dst.y,
+            max_w,
+            cell_h_f
+        };
 
         SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
-        SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+        sdl_render_texture_with_clip(text_texture, &dst, &clip);
         SDL_DestroyTexture(text_texture);
     }
 
@@ -304,8 +346,6 @@ int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px, int y
     float advance_w = (float)adv_w_unscaled * scale;
     float render_w = (float)text_surface->w * scale;
 
-    if (max_w_px > 0.0f && render_w > max_w_px)
-        render_w = max_w_px;
     if (max_w_px > 0.0f && advance_w > max_w_px)
         advance_w = max_w_px;
 
@@ -318,9 +358,16 @@ int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px, int y
             render_w,
             cell_h_f
         };
+        SDL_FRect clip = {
+            x_px,
+            (float)(y * d->cell_h),
+            max_w_px,
+            cell_h_f
+        };
 
         SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
-        SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+        sdl_render_texture_with_clip(text_texture, &dst,
+            max_w_px > 0.0f ? &clip : NULL);
         SDL_DestroyTexture(text_texture);
     }
 
@@ -381,8 +428,11 @@ void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n,
         (float)d->cell_h
     };
 
+    bg.a = sdl_view_background_alpha(d);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
     SDL_RenderFillRect(g_state.renderer, &clear_rect);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 }
 
 void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row,
@@ -610,5 +660,3 @@ void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n
         SDL_DestroySurface(glyph_surface);
     }
 }
-
-
