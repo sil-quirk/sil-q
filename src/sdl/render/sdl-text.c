@@ -484,12 +484,10 @@ int sdl_overlay_log_wrap(const char* msg, int max_segs, int* out_off,
     int wid = Term ? Term->wid : 0;
     int margin;
     float band_px;
-    int budget;
-    int font_h;
     int n = 0;
     int pos = 0;
 
-    if (len <= 0 || max_segs <= 0 || !out_off || !out_len)
+    if (len <= 0 || max_segs <= 0 || !out_off || !out_len || !d)
         return 0;
 
     margin = (d && sdl_view_is_overlay_log_pane(d))
@@ -504,40 +502,38 @@ int sdl_overlay_log_wrap(const char* msg, int max_segs, int* out_off,
         return 1;
     }
 
-    font_h = TTF_GetFontHeight(font);
-    if (font_h < 1)
-        font_h = d->cell_h;
-    /* Convert the rendered-pixel band into the font's native measuring units. */
-    budget = (int)(band_px * (float)font_h / (float)d->cell_h);
-    if (budget < 1)
-        budget = 1;
-
     while (pos < len && n < max_segs)
     {
         int remain = len - pos;
-        int measured_w = 0;
-        size_t fit = 0;
+        int limit = remain;
+        int last_fit = 0;
+        int last_space = -1;
         int take;
 
-        TTF_MeasureString(font, msg + pos, remain, budget, &measured_w, &fit);
-        take = (int)fit;
-        if (take <= 0)
-            take = 1;
+        if (limit >= 96)
+            limit = 95;
+
+        for (int k = 1; k <= limit; k++)
+        {
+            float w = sdl_story_seg_width_px(d, font, msg + pos, k);
+
+            if (w > band_px && last_fit > 0)
+                break;
+
+            last_fit = k;
+            if (msg[pos + k - 1] == ' ')
+                last_space = k;
+
+            if (w > band_px)
+                break;
+        }
+
+        take = (last_fit > 0) ? last_fit : 1;
 
         if (take < remain)
         {
-            int brk = -1;
-
-            for (int k = take; k > 0; k--)
-            {
-                if (msg[pos + k] == ' ')
-                {
-                    brk = k;
-                    break;
-                }
-            }
-            if (brk > 0)
-                take = brk;
+            if (last_space > 0)
+                take = last_space;
         }
 
         out_off[n] = pos;
@@ -550,6 +546,36 @@ int sdl_overlay_log_wrap(const char* msg, int max_segs, int* out_off,
     }
 
     return n;
+}
+
+static void sdl_render_overlay_log_message_row_px(sdl_view* d, int y,
+    byte attr, cptr text)
+{
+    const int wid = Term->wid;
+    TTF_Font* font = sdl_story_font_for_view_slot(d,
+        STORY_FONT_SLOT_SECONDARY);
+    int margin;
+    float px;
+    float right_edge;
+    float max_w;
+    SDL_Color col;
+
+    sdl_fill_cell_span_with_attr(d, 0, y, wid, TERM_DARK);
+
+    if (!font || !text || !text[0])
+        return;
+
+    margin = sdl_view_is_overlay_log_pane(d)
+        ? pane_log_overlay_left_margin(wid) : 0;
+    px = (float)margin * (float)d->cell_w;
+    right_edge = (float)wid * (float)d->cell_w;
+    max_w = right_edge - px - (float)d->cell_w * 0.25f;
+    if (max_w <= 0.0f)
+        return;
+
+    col = sdl_color_from_attr(sdl_ui_text_fg_attr(attr));
+    sdl_render_story_text_free_px(d, font, px, y, text, (int)strlen(text),
+        col, max_w);
 }
 
 /*
@@ -624,15 +650,29 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
     const int wid = Term->wid;
     const float cell_w_f = (float)d->cell_w;
 
-    /* Combat-roll rows get a dedicated proportional, right-aligned layout. */
+    /* Overlay message/combat rows may carry side-buffered pixel layouts. */
     if (Term->scr && Term->scr->story && y >= 0 && y < Term->hgt)
     {
         for (int x = 0; x < wid; x++)
         {
             if (story_row[x] & STORY_FLAG_PIXEL_PACK)
             {
-                sdl_render_combat_roll_row_px(d, y);
-                return;
+                cptr msg = NULL;
+                byte attr = TERM_WHITE;
+
+                if (pane_log_overlay_message_row(y, &msg, &attr))
+                {
+                    sdl_render_overlay_log_message_row_px(d, y, attr, msg);
+                    return;
+                }
+
+                if (pane_log_combat_row_tokens(y, NULL) > 0)
+                {
+                    sdl_render_combat_roll_row_px(d, y);
+                    return;
+                }
+
+                break;
             }
         }
     }

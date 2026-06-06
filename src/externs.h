@@ -1030,6 +1030,8 @@ extern void display_combat_roll_line_at(int row, int base_col_offset,
 extern int combat_roll_emit_tokens(const combat_roll* roll,
     combat_roll_token* out, int max);
 extern int pane_log_combat_row_tokens(int row, const combat_roll_token** out);
+extern bool pane_log_overlay_message_row(int row, cptr* out_text,
+    byte* out_attr);
 extern void add_combat_round_to_history(void);
 extern void do_cmd_combat_history(void);
 extern void display_combat_round_details(combat_history_round* round);
@@ -2240,6 +2242,8 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern void sdl_story_font_set_slot(int slot);
 extern int sdl_story_font_text_width(cptr text, int len);
+extern int sdl_overlay_log_wrap(const char* msg, int max_segs, int* out_off,
+    int* out_len);
 extern int sdl_get_cell_width(void);
 extern int sdl_main_view_visible_col0(void);
 extern int sdl_main_view_visible_cols(void);
