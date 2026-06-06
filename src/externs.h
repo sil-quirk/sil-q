@@ -1027,6 +1027,9 @@ extern void update_combat_rolls_no_damage(void);
 extern void display_combat_rolls(void);
 extern void display_combat_roll_line_at(int row, int base_col_offset,
     const combat_roll* roll);
+extern int combat_roll_emit_tokens(const combat_roll* roll,
+    combat_roll_token* out, int max);
+extern int pane_log_combat_row_tokens(int row, const combat_roll_token** out);
 extern void add_combat_round_to_history(void);
 extern void do_cmd_combat_history(void);
 extern void display_combat_round_details(combat_history_round* round);

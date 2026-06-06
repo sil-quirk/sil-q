@@ -524,6 +524,8 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
             nsf |= STORY_FLAG_CELL_ALIGN;
         if (Term->story_font_slot == 1)
             nsf |= STORY_FLAG_SLOT2;
+        if (Term->story_pixel_pack)
+            nsf |= STORY_FLAG_PIXEL_PACK;
     }
     if (nsf) {
         log_trace("Term_queue_char: story-font ACTIVE y=%d x=%d char='%c' attr=%d story_flag=0x%02x",
@@ -606,6 +608,8 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
             nsf |= STORY_FLAG_CELL_ALIGN;
         if (Term->story_font_slot == 1)
             nsf |= STORY_FLAG_SLOT2;
+        if (Term->story_pixel_pack)
+            nsf |= STORY_FLAG_PIXEL_PACK;
     }
     if (nsf && n > 0) {
         log_trace("Term_queue_chars: story-font ACTIVE y=%d x=%d n=%d text='%.*s' story_flag=0x%02x",

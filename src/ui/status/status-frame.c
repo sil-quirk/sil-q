@@ -367,40 +367,168 @@ static void display_messages_in_pane(void)
     }
 }
 
+#define PANE_LOG_WRAP_MAX_SEGS 8
+#define PANE_LOG_WRAP_SEG_MAX 96
+
+/*
+ * Split a message into segments that each fit `avail` cells, breaking on
+ * spaces where possible.  Returns the number of segments produced.
+ */
+static int pane_log_wrap_message(cptr msg, int avail,
+    char segs[PANE_LOG_WRAP_MAX_SEGS][PANE_LOG_WRAP_SEG_MAX])
+{
+    int len = msg ? (int)strlen(msg) : 0;
+    int pos = 0;
+    int n = 0;
+
+    if (avail < 1)
+        avail = 1;
+
+    while (pos < len && n < PANE_LOG_WRAP_MAX_SEGS)
+    {
+        int remain = len - pos;
+        int take = (remain <= avail) ? remain : avail;
+        int copy;
+
+        if (take < remain)
+        {
+            /* Prefer to break at the last space inside the window. */
+            for (int k = take; k > 0; k--)
+            {
+                if (msg[pos + k] == ' ')
+                {
+                    take = k;
+                    break;
+                }
+            }
+        }
+
+        copy = take;
+        if (copy >= PANE_LOG_WRAP_SEG_MAX)
+            copy = PANE_LOG_WRAP_SEG_MAX - 1;
+        memcpy(segs[n], msg + pos, copy);
+        segs[n][copy] = '\0';
+        n++;
+
+        pos += take;
+        while (pos < len && msg[pos] == ' ')
+            pos++;
+    }
+
+    return n;
+}
+
+/*
+ * Per-row combat-roll tokens for the overlay log, captured independently of the
+ * cell grid so the SDL renderer can re-pack the full line in pixels even when
+ * the panel is too narrow in cells to hold it.
+ */
+#define PANE_LOG_COMBAT_ROW_MAX 128
+static combat_roll_token
+    g_pane_log_row_tokens[PANE_LOG_COMBAT_ROW_MAX][COMBAT_ROLL_MAX_TOKENS];
+static int g_pane_log_row_token_count[PANE_LOG_COMBAT_ROW_MAX];
+
+int pane_log_combat_row_tokens(int row, const combat_roll_token** out)
+{
+    if (row < 0 || row >= PANE_LOG_COMBAT_ROW_MAX
+        || g_pane_log_row_token_count[row] <= 0)
+    {
+        if (out)
+            *out = NULL;
+        return 0;
+    }
+
+    if (out)
+        *out = g_pane_log_row_tokens[row];
+    return g_pane_log_row_token_count[row];
+}
+
 static void display_combined_log_in_pane(int filter)
 {
     int w, h;
     int count;
+    int margin;
+    int avail;
+    bool overlay;
+    int row;
 
     Term_get_size(&w, &h);
-    for (int row = 0; row < h; row++)
-        Term_erase(0, row, 255);
+    for (int r = 0; r < h; r++)
+        Term_erase(0, r, 255);
+
+    /* Drop stale combat tokens; this frame's combat rows refill them. */
+    for (int r = 0; (r < h) && (r < PANE_LOG_COMBAT_ROW_MAX); r++)
+        g_pane_log_row_token_count[r] = 0;
+
+    /*
+     * In the overlay log the visible panel is a narrow right-hand band, so
+     * indent text to that band and wrap long messages within it.  The wide
+     * cell grid behind it still carries the full combat-roll line.
+     */
+    overlay = (PANE_ROLLS < ANGBAND_TERM_MAX) && (Term == angband_term[PANE_ROLLS]);
+    margin = overlay ? pane_log_overlay_left_margin(w) : 0;
+    avail = w - margin;
+    if (avail < 1)
+        avail = 1;
 
     count = pane_log_display_collect_entries(pane_log_display_entries,
         PANE_LOG_DISPLAY_MAX_ENTRIES, filter);
 
-    for (int i = 0; (i < h) && (i < count); i++)
+    row = h - 1;
+    for (int i = 0; (i < count) && (row >= 0); i++)
     {
         pane_log_display_entry* entry = &pane_log_display_entries[i];
-        int row = (h - 1) - i;
         int x, y;
 
         if (entry->kind == PANE_LOG_DISPLAY_MESSAGE)
         {
             cptr msg = message_str(entry->message_age);
             byte attr = message_color(entry->message_age);
+            char segs[PANE_LOG_WRAP_MAX_SEGS][PANE_LOG_WRAP_SEG_MAX];
+            int nseg;
+            int top;
 
-            Term_putstr(0, row, -1, attr, msg);
-            Term_locate(&x, &y);
-            Term_erase(x, y, 255);
+            if (!overlay)
+            {
+                Term_putstr(margin, row, -1, attr, msg ? msg : "");
+                Term_locate(&x, &y);
+                Term_erase(x, y, 255);
+                row--;
+                continue;
+            }
+
+            nseg = pane_log_wrap_message(msg, avail, segs);
+            if (nseg < 1)
+            {
+                row--;
+                continue;
+            }
+
+            /* Lay the wrapped lines top-to-bottom ending at the current row. */
+            top = row - nseg + 1;
+            for (int k = 0; k < nseg; k++)
+            {
+                int ry = top + k;
+
+                if (ry < 0 || ry >= h)
+                    continue;
+                Term_putstr(margin, ry, -1, attr, segs[k]);
+                Term_locate(&x, &y);
+                Term_erase(x, y, 255);
+            }
+            row = top - 1;
         }
         else
         {
             combat_roll* roll = entry->roll;
 
             display_combat_roll_line_at(row, 0, roll);
+            if (overlay && row >= 0 && row < PANE_LOG_COMBAT_ROW_MAX)
+                g_pane_log_row_token_count[row] = combat_roll_emit_tokens(
+                    roll, g_pane_log_row_tokens[row], COMBAT_ROLL_MAX_TOKENS);
             Term_locate(&x, &y);
             Term_erase(x, y, 255);
+            row--;
         }
     }
 }

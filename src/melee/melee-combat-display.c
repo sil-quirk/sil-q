@@ -522,8 +522,60 @@ static int combat_roll_tile_cols(void)
     return (use_bigtile && !graphics_are_ascii()) ? 2 : 1;
 }
 
+/*
+ * When a token sink is active, combat-roll drawing appends semantic tokens to
+ * it instead of writing the term cell grid.  This lets the SDL layer re-pack
+ * the full line in pixels even when the visible panel is too narrow in cells.
+ */
+static combat_roll_token* g_combat_tok_buf = NULL;
+static int g_combat_tok_max = 0;
+static int g_combat_tok_count = 0;
+
+static void combat_roll_tok_append_text(byte attr, cptr text)
+{
+    combat_roll_token* t;
+
+    if (!g_combat_tok_buf || g_combat_tok_count >= g_combat_tok_max)
+        return;
+
+    t = &g_combat_tok_buf[g_combat_tok_count++];
+    t->is_tile = false;
+    t->attr = attr;
+    t->tile_char = 0;
+    SDL_strlcpy(t->text, text, sizeof(t->text));
+}
+
+static void combat_roll_tok_append_tile(byte attr, char ch)
+{
+    combat_roll_token* t;
+
+    if (!g_combat_tok_buf || g_combat_tok_count >= g_combat_tok_max)
+        return;
+
+    t = &g_combat_tok_buf[g_combat_tok_count++];
+    t->is_tile = true;
+    t->attr = attr;
+    t->tile_char = ch;
+    t->text[0] = '\0';
+}
+
 static int combat_roll_put_tile(int col, int row, byte attr, char ch)
 {
+    if (g_combat_tok_buf)
+    {
+        /* In text (ASCII) mode the "tile" is a glyph; keep it as text. */
+        if (graphics_are_ascii())
+        {
+            char s[2] = { ch, '\0' };
+            combat_roll_tok_append_text(attr, s);
+        }
+        else
+        {
+            combat_roll_tok_append_tile(attr, ch);
+        }
+        return col + combat_roll_tile_cols();
+    }
+
     Term_queue_char(col, row, attr, ch, 0, 0);
     if (combat_roll_tile_cols() > 1)
     {
@@ -546,6 +598,12 @@ static int combat_roll_put_text(int col, int row, byte attr, cptr text)
     len = (int)strlen(text);
     if (len <= 0)
         return col;
+
+    if (g_combat_tok_buf)
+    {
+        combat_roll_tok_append_text(attr, text);
+        return col + len;
+    }
 
     Term_putstr(col, row, -1, attr, text);
     return col + len;
@@ -692,6 +750,8 @@ static int combat_roll_compact_cols(const combat_roll* roll, int res)
 
 static void combat_roll_set_cursor_after(int row, int col)
 {
+    if (g_combat_tok_buf)
+        return;
     if (!Term || !Term->scr)
         return;
     if (row < 0 || row >= Term->hgt)
@@ -836,6 +896,95 @@ static void draw_combat_roll_line_compact(int row, int base_col_offset,
     combat_roll_set_cursor_after(row, col);
 }
 
+static void combat_roll_compute_attrs(const combat_roll* roll, int* res_out,
+    int* a_att, int* a_evn, int* a_hit, int* a_dam_roll, int* a_prot_roll,
+    int* a_net_dam)
+{
+    int res = 1;
+
+    *a_net_dam = TERM_L_RED;
+
+    if (roll->is_defender_player)
+    {
+        switch (roll->dam_type)
+        {
+        case GF_FIRE:
+            res = resist_fire();
+            break;
+        case GF_COLD:
+            res = resist_cold();
+            break;
+        case GF_POIS:
+            res = resist_pois();
+            *a_net_dam = TERM_GREEN;
+            break;
+        case GF_DARK:
+            res = resist_dark();
+            break;
+        default:
+            res = 1;
+            *a_net_dam = TERM_L_RED;
+            break;
+        }
+    }
+
+    if (roll->is_attacker_player)
+    {
+        *a_att = TERM_L_BLUE;
+        *a_evn = TERM_WHITE;
+        *a_hit = TERM_L_RED;
+        *a_dam_roll = TERM_L_BLUE;
+        if (roll->prt_percent >= 100)
+            *a_prot_roll = TERM_WHITE;
+        else if (roll->prt_percent >= 1)
+            *a_prot_roll = TERM_SLATE;
+        else
+            *a_prot_roll = TERM_DARK;
+    }
+    else
+    {
+        *a_att = TERM_WHITE;
+        *a_evn = TERM_L_BLUE;
+        *a_hit = TERM_L_RED;
+        *a_dam_roll = TERM_WHITE;
+        if (roll->prt_percent >= 100)
+            *a_prot_roll = TERM_L_BLUE;
+        else if (roll->prt_percent >= 1)
+            *a_prot_roll = TERM_BLUE;
+        else
+            *a_prot_roll = TERM_DARK;
+    }
+
+    *res_out = res;
+}
+
+/*
+ * Emit the full combat-roll line as semantic tokens (text runs + tiles),
+ * bypassing the term cell grid so the line is never truncated by panel width.
+ * Returns the number of tokens written.
+ */
+int combat_roll_emit_tokens(const combat_roll* roll, combat_roll_token* out,
+    int max)
+{
+    int a_att, a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam;
+    int res;
+
+    if (!roll || !out || max <= 0)
+        return 0;
+
+    combat_roll_compute_attrs(roll, &res, &a_att, &a_evn, &a_hit, &a_dam_roll,
+        &a_prot_roll, &a_net_dam);
+
+    g_combat_tok_buf = out;
+    g_combat_tok_max = max;
+    g_combat_tok_count = 0;
+    draw_combat_roll_line_compact(0, 0, roll, a_att, a_evn, a_hit, a_dam_roll,
+        a_prot_roll, a_net_dam, res);
+    g_combat_tok_buf = NULL;
+
+    return g_combat_tok_count;
+}
+
 static void draw_combat_roll_line(int row, int base_col_offset,
     const combat_roll* roll)
 {
@@ -853,69 +1002,33 @@ static void draw_combat_roll_line(int row, int base_col_offset,
     log_trace("draw_combat_roll_line: row=%d att_type=%d attacker=%c defender=%c",
         row, roll->att_type, roll->attacker_char, roll->defender_char);
 
-    if (roll->is_defender_player)
-    {
-        switch (roll->dam_type)
-        {
-        case GF_FIRE:
-            res = resist_fire();
-            break;
-        case GF_COLD:
-            res = resist_cold();
-            break;
-        case GF_POIS:
-            res = resist_pois();
-            a_net_dam = TERM_GREEN;
-            break;
-        case GF_DARK:
-            res = resist_dark();
-            break;
-        default:
-            res = 1;
-            a_net_dam = TERM_L_RED;
-            break;
-        }
-    }
-
-    if (roll->is_attacker_player)
-    {
-        a_att = TERM_L_BLUE;
-        a_evn = TERM_WHITE;
-        a_hit = TERM_L_RED;
-        a_dam_roll = TERM_L_BLUE;
-        if (roll->prt_percent >= 100)
-            a_prot_roll = TERM_WHITE;
-        else if (roll->prt_percent >= 1)
-            a_prot_roll = TERM_SLATE;
-        else
-            a_prot_roll = TERM_DARK;
-    }
-    else
-    {
-        a_att = TERM_WHITE;
-        a_evn = TERM_L_BLUE;
-        a_hit = TERM_L_RED;
-        a_dam_roll = TERM_WHITE;
-        if (roll->prt_percent >= 100)
-            a_prot_roll = TERM_L_BLUE;
-        else if (roll->prt_percent >= 1)
-            a_prot_roll = TERM_BLUE;
-        else
-            a_prot_roll = TERM_DARK;
-    }
+    combat_roll_compute_attrs(roll, &res, &a_att, &a_evn, &a_hit, &a_dam_roll,
+        &a_prot_roll, &a_net_dam);
 
     if (combat_roll_overlay_compact())
     {
         int compact_cols = combat_roll_compact_cols(roll, res);
         int compact_col = base_col_offset;
+        bool prev_pixel_pack;
 
         if (Term && compact_cols > 0 && Term->wid > compact_cols)
             compact_col = Term->wid - compact_cols;
         if (compact_col < base_col_offset)
             compact_col = base_col_offset;
 
+        /*
+         * Mark the whole line so the SDL layer renders it proportionally in
+         * pixels (tiles inline, right-aligned to the pane edge) rather than
+         * letting the cell grid stretch it out.  The cell positions written
+         * here are only a fallback for non-pixel back-ends.
+         */
+        prev_pixel_pack = Term ? Term->story_pixel_pack : false;
+        if (Term)
+            Term->story_pixel_pack = true;
         draw_combat_roll_line_compact(row, compact_col, roll, a_att,
             a_evn, a_hit, a_dam_roll, a_prot_roll, a_net_dam, res);
+        if (Term)
+            Term->story_pixel_pack = prev_pixel_pack;
         return;
     }
 

@@ -5,6 +5,9 @@
 
 #define MAX_PANE_CONFIGS 16
 #define PANE_LOG_OVERLAY_COMBAT_COLS 48
+/* Visible (translucent) width of the overlay log; cells left of this stay
+ * transparent so the panel reads as a narrow right-hand band. */
+#define PANE_LOG_OVERLAY_VISIBLE_COLS 31
 
 // Available pane types in the game.
 enum pane_type {
@@ -97,6 +100,7 @@ bool pane_placement_is_center_border(enum pane_placement where);
 bool pane_placement_is_overlay(enum pane_placement where);
 bool pane_type_allows_placement(enum pane_type type, enum pane_placement where);
 int pane_primary_min_cells(enum pane_type type, enum pane_placement where);
+int pane_log_overlay_left_margin(int term_cols);
 int pane_secondary_min_cells(enum pane_type type, enum pane_placement where);
 enum pane_placement pane_first_allowed_placement(enum pane_type type);
 enum pane_placement pane_next_allowed_placement(enum pane_type type,

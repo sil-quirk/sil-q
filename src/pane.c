@@ -152,6 +152,19 @@ int pane_primary_min_cells(enum pane_type type, enum pane_placement where)
         : pane_specs[type].min_rect.cols;
 }
 
+/*
+ * Left margin (in cells) the overlay log keeps transparent so its visible
+ * background forms a narrow right-hand band.  The cell grid stays full width
+ * (the combat-roll line needs it), but only the rightmost VISIBLE_COLS carry
+ * the translucent panel; messages are indented to and wrapped within them.
+ */
+int pane_log_overlay_left_margin(int term_cols)
+{
+    int margin = term_cols - PANE_LOG_OVERLAY_VISIBLE_COLS;
+
+    return (margin > 0) ? margin : 0;
+}
+
 int pane_secondary_min_cells(enum pane_type type, enum pane_placement where)
 {
     return pane_placement_is_bottom(where)

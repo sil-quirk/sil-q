@@ -1064,15 +1064,37 @@ bool sdl_render_current_window_frame(void)
         if (dst_w <= 0.0f || dst_h <= 0.0f)
             continue;
 
+        /*
+         * The overlay log only shows a narrow right-hand band; blit just that
+         * sub-rectangle so the transparent left margin reveals the map behind
+         * it instead of the pane's translucent background.  Keep a few pixels
+         * of panel before the text so it does not touch the left border.
+         */
+        float src_x = 0.0f;
+        float blit_off = 0.0f;
+
+        if (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))
+        {
+            int pad = view->cell_w / 8;
+
+            if (pad < 2)
+                pad = 2;
+            blit_off = (float)(pane_log_overlay_left_margin(view->cols)
+                * view->cell_w - pad);
+            if (blit_off < 0.0f)
+                blit_off = 0.0f;
+            src_x = blit_off;
+        }
+
         SDL_RenderTexture(g_state.renderer, view->canvas, &(SDL_FRect){
-            .x = 0.0f,
+            .x = src_x,
             .y = 0.0f,
-            .w = (float)(visual_cols * view->cell_w),
+            .w = (float)(visual_cols * view->cell_w) - blit_off,
             .h = (float)(visual_rows * view->cell_h),
         }, &(SDL_FRect){
-            .x = (float)(view->rect.x + view->margin_x),
+            .x = (float)(view->rect.x + view->margin_x) + blit_off,
             .y = (float)(view->rect.y + view->margin_y),
-            .w = dst_w,
+            .w = dst_w - blit_off,
             .h = dst_h,
         });
 
@@ -1112,11 +1134,39 @@ bool sdl_render_current_window_frame(void)
 
             /* Draw only internal leading edges.  This keeps separators
              * between panes without painting a frame around the window. */
-            sdl_draw_pane_edges(&view->rect,
-                (layout_screen.w > 0 && view->rect.x > layout_screen.x),
+            SDL_Rect edge_rect = view->rect;
+            bool draw_left =
+                (layout_screen.w > 0 && view->rect.x > layout_screen.x);
+            bool draw_bottom = false;
+
+            /* The overlay log only paints a narrow right-hand band, so inset
+             * its border to where that band (and the messages) begin, and close
+             * it off with a bottom edge. */
+            if (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))
+            {
+                int pad = view->cell_w / 8;
+                int inset;
+
+                if (pad < 2)
+                    pad = 2;
+                inset = view->margin_x
+                    + pane_log_overlay_left_margin(view->cols) * view->cell_w
+                    - pad;
+
+                if (inset > 0 && inset < view->rect.w)
+                {
+                    edge_rect.x += inset;
+                    edge_rect.w -= inset;
+                    draw_left = true;
+                }
+                draw_bottom = true;
+            }
+
+            sdl_draw_pane_edges(&edge_rect,
+                draw_left,
                 (layout_screen.h > 0 && view->rect.y > layout_screen.y),
                 false,
-                false);
+                draw_bottom);
         }
 
         if (side_map_visible) {

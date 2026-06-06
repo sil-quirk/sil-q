@@ -435,6 +435,186 @@ void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n,
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 }
 
+/* Width, in pixels, the secondary story font needs for a text segment when
+ * scaled to the term cell height (matches sdl_render_story_text_free_px). */
+static float sdl_story_seg_width_px(sdl_view* d, TTF_Font* font, const char* s,
+    int n)
+{
+    char buf[256];
+    int len;
+    int adv_unscaled = 0;
+    int font_h;
+
+    if (!d || !font || !s || n <= 0)
+        return 0.0f;
+
+    len = (n < 255) ? n : 255;
+    len = utf8_safe_prefix_len(s, len);
+    if (len <= 0)
+        return 0.0f;
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char ch = (unsigned char)s[i];
+        buf[i] = (ch ? (char)ch : ' ');
+    }
+    buf[len] = '\0';
+
+    if (!TTF_MeasureString(font, buf, len, 0, &adv_unscaled, NULL))
+        return 0.0f;
+
+    font_h = TTF_GetFontHeight(font);
+    if (font_h < 1)
+        font_h = d->cell_h;
+    return (float)adv_unscaled * ((float)d->cell_h / (float)font_h);
+}
+
+/*
+ * Word-wrap a message to the overlay log's visible band, measured in pixels
+ * with the proportional secondary story font (so it wraps where the text
+ * actually reaches the band edge, not by cell count).  Fills out_off/out_len
+ * with each segment's byte offset and length and returns the segment count.
+ */
+int sdl_overlay_log_wrap(const char* msg, int max_segs, int* out_off,
+    int* out_len)
+{
+    sdl_view* d = sdl_view_from_term(Term);
+    TTF_Font* font = d ? sdl_story_font_for_view_slot(d,
+        STORY_FONT_SLOT_SECONDARY) : NULL;
+    int len = msg ? (int)strlen(msg) : 0;
+    int wid = Term ? Term->wid : 0;
+    int margin;
+    float band_px;
+    int budget;
+    int font_h;
+    int n = 0;
+    int pos = 0;
+
+    if (len <= 0 || max_segs <= 0 || !out_off || !out_len)
+        return 0;
+
+    margin = (d && sdl_view_is_overlay_log_pane(d))
+        ? pane_log_overlay_left_margin(wid) : 0;
+    band_px = (float)(wid - margin) * (float)d->cell_w
+        - (float)d->cell_w * 0.25f;
+
+    if (!font || band_px <= 0.0f)
+    {
+        out_off[0] = 0;
+        out_len[0] = len;
+        return 1;
+    }
+
+    font_h = TTF_GetFontHeight(font);
+    if (font_h < 1)
+        font_h = d->cell_h;
+    /* Convert the rendered-pixel band into the font's native measuring units. */
+    budget = (int)(band_px * (float)font_h / (float)d->cell_h);
+    if (budget < 1)
+        budget = 1;
+
+    while (pos < len && n < max_segs)
+    {
+        int remain = len - pos;
+        int measured_w = 0;
+        size_t fit = 0;
+        int take;
+
+        TTF_MeasureString(font, msg + pos, remain, budget, &measured_w, &fit);
+        take = (int)fit;
+        if (take <= 0)
+            take = 1;
+
+        if (take < remain)
+        {
+            int brk = -1;
+
+            for (int k = take; k > 0; k--)
+            {
+                if (msg[pos + k] == ' ')
+                {
+                    brk = k;
+                    break;
+                }
+            }
+            if (brk > 0)
+                take = brk;
+        }
+
+        out_off[n] = pos;
+        out_len[n] = take;
+        n++;
+
+        pos += take;
+        while (pos < len && msg[pos] == ' ')
+            pos++;
+    }
+
+    return n;
+}
+
+/*
+ * Render a combat-roll row with proportional pixel layout.
+ *
+ * The portable layer marks these rows with STORY_FLAG_PIXEL_PACK and stashes
+ * the full line as semantic tokens (text runs + tiles) in a side buffer, so the
+ * line is never truncated by the panel's cell width.  Here we re-pack those
+ * tokens tightly in pixels -- text measured with the secondary story font,
+ * tiles drawn inline -- left-aligned to the band so it starts where the
+ * messages start.
+ */
+static void sdl_render_combat_roll_row_px(sdl_view* d, int y)
+{
+    const int wid = Term->wid;
+    const float cell_w_f = (float)d->cell_w;
+    const float cell_h_f = (float)d->cell_h;
+    TTF_Font* font = sdl_story_font_for_view_slot(d, STORY_FONT_SLOT_SECONDARY);
+    const combat_roll_token* toks = NULL;
+    int ntok = pane_log_combat_row_tokens(y, &toks);
+    int tile_cols = (use_bigtile && !graphics_are_ascii()) ? 2 : 1;
+    float tile_w = (float)tile_cols * cell_w_f;
+    int margin;
+    float right_edge;
+    float px;
+
+    /* Clear the row's whole footprint so re-packed pixels leave no stragglers. */
+    sdl_fill_cell_span_with_attr(d, 0, y, wid, TERM_DARK);
+
+    if (!font || ntok <= 0 || !toks)
+        return;
+
+    /* Left-align the packed line to the visible band. */
+    margin = sdl_view_is_overlay_log_pane(d)
+        ? pane_log_overlay_left_margin(wid) : 0;
+    px = (float)margin * cell_w_f;
+    right_edge = (float)wid * cell_w_f;
+
+    for (int i = 0; i < ntok && px < right_edge; i++)
+    {
+        const combat_roll_token* t = &toks[i];
+
+        if (t->is_tile)
+        {
+            SDL_FRect dst = { px, (float)y * cell_h_f, tile_w, cell_h_f };
+
+            sdl_draw_map_tile_layers_at(-1, -1, t->attr, t->tile_char, 0, 0,
+                &dst);
+            px += tile_w;
+        }
+        else
+        {
+            int len = (int)strlen(t->text);
+            SDL_Color col;
+
+            if (len <= 0)
+                continue;
+            col = sdl_color_from_attr(sdl_ui_text_fg_attr(t->attr));
+            sdl_render_story_text_free_px(d, font, px, y, t->text, len, col,
+                right_edge - px);
+            px += sdl_story_seg_width_px(d, font, t->text, len);
+        }
+    }
+}
+
 void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row,
     const char* row_chars, const byte* row_attr)
 {
@@ -443,6 +623,19 @@ void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte*
 
     const int wid = Term->wid;
     const float cell_w_f = (float)d->cell_w;
+
+    /* Combat-roll rows get a dedicated proportional, right-aligned layout. */
+    if (Term->scr && Term->scr->story && y >= 0 && y < Term->hgt)
+    {
+        for (int x = 0; x < wid; x++)
+        {
+            if (story_row[x] & STORY_FLAG_PIXEL_PACK)
+            {
+                sdl_render_combat_roll_row_px(d, y);
+                return;
+            }
+        }
+    }
 
     int x = 0;
     while (x < wid)

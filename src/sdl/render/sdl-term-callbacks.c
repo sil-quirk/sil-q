@@ -2378,11 +2378,23 @@ errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
         d->cell_h,
     };
 
+    const byte* pict_story_row = (Term->scr && Term->scr->story
+        && y >= 0 && y < Term->hgt) ? Term->scr->story[y] : NULL;
+
     for (int i = 0; i < n; ++i, dst.x += dst.w) {
         byte a = ap[i];
         char c = cp[i];
         int dy = -1;
         int dx = -1;
+
+        /*
+         * Combat-roll tiles are drawn inline by the pixel-packed row renderer
+         * (see sdl_render_story_row_packed); skip them here so they are not
+         * also stamped at their cell position.
+         */
+        if (pict_story_row && (x + i) < Term->wid
+            && (pict_story_row[x + i] & STORY_FLAG_PIXEL_PACK))
+            continue;
 
         if (Term == term_screen) {
             int term_x = x + (i * (use_bigtile + 1));

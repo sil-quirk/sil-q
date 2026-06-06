@@ -1542,6 +1542,23 @@ struct combat_roll
                    effective) */
 };
 
+/*
+ * One drawable piece of a combat-roll line (a colored text run, or an inline
+ * tile).  These are emitted independently of the term cell grid so the full
+ * line survives even when the visible panel is too few cells wide to hold it.
+ */
+#define COMBAT_ROLL_MAX_TOKENS 48
+
+typedef struct combat_roll_token combat_roll_token;
+
+struct combat_roll_token
+{
+    bool is_tile;     /* TRUE: draw tile_char/attr as a sprite; FALSE: text */
+    byte attr;        /* text fg attr, or tile attr */
+    char tile_char;   /* tile sprite char (is_tile only) */
+    char text[20];    /* NUL-terminated text run (text tokens only) */
+};
+
 typedef struct combat_history_round combat_history_round;
 
 struct combat_history_round
