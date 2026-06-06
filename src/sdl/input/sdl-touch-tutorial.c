@@ -1482,82 +1482,334 @@ void sdl_touch_tutorial_run(bool full, bool mouse)
 
 static bool g_birth_coach_ack[BIRTH_COACH_STAGE_MAX];
 
-typedef struct birth_coach_content {
+/*
+ * A single coach step: a detailed callout pinned to one real on-screen block.
+ * SHEET steps locate their block by panel heading; the birth/selection stages
+ * locate theirs from the interactive-row hit rectangles.
+ */
+typedef struct birth_coach_step {
+    cptr heading;   /* non-NULL: locate the block by panel heading */
+    int  hit_lo;    /* heading == NULL: union the hits in [hit_lo, hit_hi] */
+    int  hit_hi;
     cptr title;
-    cptr hint;   /* one short orienting line under the title */
-    cptr body;   /* short, newline-separated callout labels */
-} birth_coach_content;
+    cptr body;      /* newline-separated callout lines */
+} birth_coach_step;
 
-static const birth_coach_content* birth_coach_content_for(int stage)
+/*
+ * The live character sheet is toured block by block, in reading order.  Only
+ * the blocks actually on screen are shown (e.g. "Combat" splits off "Vitals"
+ * only on very wide layouts).
+ */
+static const birth_coach_step birth_coach_sheet_steps[] = {
+    { "Vitals", 0, 0, "Vitals",
+        "Your live status at a glance.\n"
+        "Exp: spent / earned - the pool you spend on skills and abilities.\n"
+        "Burden: weight carried / the most you can bear before slowing.\n"
+        "Depth c/m: current depth / the shallowest you may climb back to.\n"
+        "Health and Voice: your hit points and song points.\n"
+        "Melee & Bows show (to-hit, damage); Armor shows [evasion, protection]." },
+    { "Combat", 0, 0, "Combat numbers",
+        "Your offence and defence, pulled out on wide screens.\n"
+        "Melee / Bows: (to-hit bonus, damage dice).\n"
+        "Armor: [evasion, protection] - dodge first, then soak.\n"
+        "See the two Combat steps at the end for how these are used." },
+    { "Traits", 0, 0, "Traits",
+        "Innate strengths and flaws from your hero and house.\n"
+        "++ mastery and + affinity make a skill cheaper and stronger.\n"
+        "- and -- are penalties; UNIQUE marks a special power.\n"
+        "Curses such as Doom of Mandos are shown in umber.\n"
+        "Lean into your affinities and play around your curses." },
+    { "Attributes", 0, 0, "Attributes",
+        "Str, Dex, Con, Gra - the roots every skill grows from.\n"
+        "Str: melee damage dice and carrying capacity.\n"
+        "Dex: feeds melee, evasion, archery and stealth.\n"
+        "Con: your hit points and resilience.\n"
+        "Gra: feeds will, perception, song, smithing and voice.\n"
+        "Read each as Current = Base +equip +misc -drain." },
+    { "Skills", 0, 0, "Skills",
+        "What you train by spending experience.\n"
+        "Total = Base +stat +equip +misc.\n"
+        "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
+        "Stealth / Perception: stay unseen and notice things.\n"
+        "Will resists fear & magic; Smithing forges; Song sings powers.\n"
+        "Click a skill, or press i, to raise it." },
+    { "Skills", 0, 0, "Combat: attack & evasion",
+        "Whether a blow lands is one opposed roll:\n"
+        "  you: 1d20 + Melee   vs   them: 1d20 + Evasion.\n"
+        "The higher total wins; a tie misses.\n"
+        "Evasion is active dodging, so it is reduced when you are\n"
+        "surrounded - fight in doorways and corridors to keep it.\n"
+        "Archery uses the same roll, your Archery vs their Evasion.\n"
+        "Beat their roll by a wide margin to land a critical hit,\n"
+        "which rolls extra damage dice." },
+    { "Skills", 0, 0, "Combat: damage & armour",
+        "Damage is rolled only after a hit connects:\n"
+        "  damage dice = weapon dice + Strength (capped by weapon weight).\n"
+        "A foe's armour is shown as [Evasion, Protection].\n"
+        "Protection rolls a value within that range each blow and is\n"
+        "subtracted from your damage - only the excess wounds them.\n"
+        "So heavy armour can shrug off small hits entirely;\n"
+        "criticals (extra dice) are how you punch through it.\n"
+        "Your own Armor line works the same way against their attacks." },
+};
+
+static const birth_coach_step birth_coach_select_step = {
+    NULL, 0, 8999, "Choose your hero",
+    "Up / Down: move the highlight; pick a people, then a hero.\n"
+    "The panel beside the list shows description, traits and a power rating.\n"
+    "A higher power rating means an easier start - ideal when you are new.\n"
+    "Enter confirms your choice; Esc steps back."
+};
+
+static const birth_coach_step birth_coach_stats_step = {
+    NULL, 0, 999, "Assign attributes",
+    "Spend your points across Str, Dex, Con and Gra.\n"
+    "Up / Down: pick a stat.  Left / Right: lower or raise it.\n"
+    "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
+    "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
+    "Cost = price of the next point; Points Left = your budget.\n"
+    "Every point ripples into the skills shown alongside."
+};
+
+static const birth_coach_step birth_coach_skills_step = {
+    NULL, 0, 999, "Buy skills",
+    "Spend experience on the eight skills.\n"
+    "Up / Down: pick a skill.  Left / Right: raise it.\n"
+    "Total = Base +stat +equip +misc.\n"
+    "Base also sets how dear abilities are to buy later.\n"
+    "Cost climbs the higher the skill; Points Left = your experience.\n"
+    "Enter confirms; Esc goes back a step."
+};
+
+/*
+ * Gather the steps to show for a stage.  The live sheet contributes one step per
+ * block that is actually on screen (located by panel heading); the birth and
+ * selection stages are a single step.  Returns the number written to out[].
+ */
+static int birth_coach_collect_steps(int stage, const birth_coach_step** out,
+    int max)
 {
-    static const birth_coach_content content[BIRTH_COACH_STAGE_MAX] = {
-        [BIRTH_COACH_SELECT] = {
-            "Choosing your hero",
-            "The screen behind this is the real selection screen.",
-            "Up / Down: pick a people, then a hero\n"
-            "Beside the list: description, traits and a power rating\n"
-            "New here? Choose a high power rating\n"
-            "Enter: confirm     Esc: back"
-        },
-        [BIRTH_COACH_STATS] = {
-            "Assigning attributes",
-            "These points shape everything else.",
-            "Up / Down: pick Strength, Dexterity, Constitution, Grace\n"
-            "Left / Right: lower or raise the highlighted attribute\n"
-            "Cost: price of the next point\n"
-            "Points Left: what you still have to spend\n"
-            "Attributes feed the skills listed below"
-        },
-        [BIRTH_COACH_SKILLS] = {
-            "Buying skills",
-            "Spend your experience on the eight skills.",
-            "Up / Down: pick a skill\n"
-            "Left / Right: raise it  (Total = Base +stat +equip +misc)\n"
-            "Cost climbs the higher the skill already is\n"
-            "Points Left: your remaining experience\n"
-            "Enter: confirm     Esc: back"
-        },
-        [BIRTH_COACH_SHEET] = {
-            "Your character",
-            "Everything about your hero lives here.",
-            "Attributes and skills, each with its breakdown\n"
-            "Combat: your Melee vs their Evasion; Armour soaks hits\n"
-            "Tab: abilities     i: raise a skill     Esc: back"
-        },
-    };
+    int n = 0;
 
-    if (stage < 0 || stage >= BIRTH_COACH_STAGE_MAX)
-        return NULL;
-    return &content[stage];
+    if (!out || max <= 0)
+        return 0;
+
+    switch (stage) {
+    case BIRTH_COACH_SHEET:
+        for (size_t i = 0;
+            i < N_ELEMENTS(birth_coach_sheet_steps) && n < max; i++)
+        {
+            SDL_FRect r;
+
+            if (sdl_char_sheet_panel_rect(birth_coach_sheet_steps[i].heading,
+                    &r))
+                out[n++] = &birth_coach_sheet_steps[i];
+        }
+        break;
+    case BIRTH_COACH_SELECT:
+        out[n++] = &birth_coach_select_step;
+        break;
+    case BIRTH_COACH_STATS:
+        out[n++] = &birth_coach_stats_step;
+        break;
+    case BIRTH_COACH_SKILLS:
+        out[n++] = &birth_coach_skills_step;
+        break;
+    default:
+        break;
+    }
+
+    return n;
 }
 
-static void birth_coach_draw(int stage, const SDL_Rect* screen, bool mouse)
+/*
+ * Union of the clickable-hit rectangles whose choice falls in [lo, hi].  This is
+ * how the coach finds the real on-screen widgets to point at: the character
+ * sheet registers a hit for every interactive row (attribute / skill / item /
+ * hero) while sdl_render_current_window_frame() draws the live screen.
+ */
+static bool birth_coach_zone_from_hits(int lo, int hi, SDL_FRect* out)
 {
-    const birth_coach_content* c = birth_coach_content_for(stage);
-    float header_bottom;
-    float panel_x;
-    float panel_w;
-    float panel_y;
+    bool found = false;
+    SDL_FRect box = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-    if (!screen || !c)
+    if (!out)
+        return false;
+
+    for (int i = 0; i < g_sdl_character_sheet_screen.hit_count; i++) {
+        const sdl_character_sheet_hit* h =
+            &g_sdl_character_sheet_screen.hits[i];
+
+        if (h->choice < lo || h->choice > hi)
+            continue;
+        if (h->rect.w <= 0.0f || h->rect.h <= 0.0f)
+            continue;
+
+        if (!found) {
+            box = h->rect;
+            found = true;
+        } else {
+            float right = MAX(box.x + box.w, h->rect.x + h->rect.w);
+            float bottom = MAX(box.y + box.h, h->rect.y + h->rect.h);
+
+            box.x = MIN(box.x, h->rect.x);
+            box.y = MIN(box.y, h->rect.y);
+            box.w = right - box.x;
+            box.h = bottom - box.y;
+        }
+    }
+
+    if (found)
+        *out = box;
+    return found;
+}
+
+/* Locate the on-screen rectangle a step points at (panel heading, or hits). */
+static bool birth_coach_step_zone(const birth_coach_step* step, SDL_FRect* out)
+{
+    if (!step || !out)
+        return false;
+    if (step->heading)
+        return sdl_char_sheet_panel_rect(step->heading, out);
+    return birth_coach_zone_from_hits(step->hit_lo, step->hit_hi, out);
+}
+
+/*
+ * The coach's own callout box: wider than the shared zone-prompt, left-aligned
+ * body text, an auto-shrinking font and no 14-line cap, so detailed multi-line
+ * explanations fit without being truncated.  Positioned beside the highlighted
+ * block when one is given, otherwise centred under the title.
+ */
+static void birth_coach_draw_callout(const SDL_Rect* screen,
+    const SDL_FRect* zone, cptr title, cptr body, float min_y)
+{
+    SDL_Color title_color = g_state.palette[TERM_YELLOW];
+    SDL_Color text_color = g_state.palette[TERM_L_WHITE];
+    char lines[48][SDL_TOUCH_TUTORIAL_LINE_LEN];
+    SDL_FRect box;
+    SDL_FRect shadow;
+    TTF_Font* font = NULL;
+    float pad = sdl_touch_pane_clampf((float)screen->h * 0.014f, 9.0f, 16.0f);
+    float footer_top = (float)(screen->y + screen->h)
+        - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f) - pad;
+    float box_w;
+    float text_w;
+    float box_h = 0.0f;
+    float line_h = 1.0f;
+    float title_h;
+    float avail_h;
+    float y;
+    int title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.040f,
+        22.0f, 34.0f);
+    int detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
+        16.0f, 28.0f);
+    int n = 0;
+
+    box_w = (float)screen->w * 0.52f;
+    if (box_w > 980.0f)
+        box_w = 980.0f;
+    if (box_w > (float)screen->w - pad * 2.0f)
+        box_w = (float)screen->w - pad * 2.0f;
+    if (box_w < 280.0f)
+        box_w = (float)screen->w - pad * 2.0f;
+    text_w = box_w - pad * 2.0f;
+    if (text_w < 40.0f)
+        return;
+
+    avail_h = footer_top - min_y;
+    if (avail_h < (float)screen->h * 0.40f)
+        avail_h = (float)screen->h * 0.82f;
+
+    /* Shrink the body font until the wrapped text fits the vertical budget. */
+    for (;;) {
+        font = sdl_story_font_for_height(detail_px);
+        n = sdl_touch_tutorial_wrap_lines(body, font, text_w, lines,
+            (int)N_ELEMENTS(lines));
+        line_h = (float)detail_px * 1.30f;
+        title_h = (float)title_px * 1.25f;
+        box_h = pad * 2.0f + title_h + 6.0f + (float)n * line_h;
+        if (box_h <= avail_h || detail_px <= 14)
+            break;
+        detail_px--;
+        if (title_px > detail_px + 6)
+            title_px--;
+    }
+
+    /* Place beside the block: below it if there is room, else above, else at the
+     * top of the free area; centred when no block is supplied. */
+    if (zone && zone->w > 1.0f && zone->h > 1.0f) {
+        box.x = zone->x + zone->w * 0.5f - box_w * 0.5f;
+        if (zone->y + zone->h + box_h + pad <= footer_top)
+            box.y = zone->y + zone->h + pad;
+        else if (zone->y - box_h - pad >= min_y)
+            box.y = zone->y - box_h - pad;
+        else
+            box.y = min_y;
+    } else {
+        box.x = (float)screen->x + ((float)screen->w - box_w) * 0.5f;
+        box.y = min_y;
+    }
+    box.w = box_w;
+    box.h = box_h;
+    sdl_touch_tutorial_clamp_box_to_screen(&box, screen, pad);
+
+    shadow = box;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 170);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 230);
+    SDL_RenderFillRect(g_state.renderer, &box);
+    SDL_SetRenderDrawColor(g_state.renderer, title_color.r, title_color.g,
+        title_color.b, 242);
+    SDL_RenderRect(g_state.renderer, &box);
+
+    y = box.y + pad;
+    (void)sdl_touch_tutorial_draw_text_line(title, box.x + box.w * 0.5f, y,
+        text_w, title_px, title_color, true);
+    y += title_h + 6.0f;
+    for (int i = 0; i < n; i++) {
+        (void)sdl_touch_tutorial_draw_text_line(lines[i], box.x + pad, y,
+            text_w, detail_px, text_color, false);
+        y += line_h;
+    }
+}
+
+/* Draw one step: dim the screen, frame the target block, and pin a detailed
+ * callout to it.  Falls back to a centred callout if the block is not found. */
+static void birth_coach_draw_step(const SDL_Rect* screen, bool mouse,
+    bool single_page, const SDL_FRect* zone, cptr title, cptr body)
+{
+    float min_y;
+
+    if (!screen)
         return;
 
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
-    header_bottom = sdl_touch_tutorial_draw_header(screen, c->title, c->hint,
-        0, 1);
 
-    panel_w = (float)screen->w * 0.62f;
-    if (panel_w > 760.0f)
-        panel_w = 760.0f;
-    if (panel_w > (float)screen->w - 24.0f)
-        panel_w = (float)screen->w - 24.0f;
-    panel_x = (float)screen->x + ((float)screen->w - panel_w) * 0.5f;
-    panel_y = header_bottom + sdl_touch_pane_clampf((float)screen->h * 0.04f,
-        16.0f, 40.0f);
+    /* Keep callouts clear of the screen's own title banner at the very top. */
+    min_y = (float)screen->y + sdl_touch_pane_clampf((float)screen->h * 0.12f,
+        40.0f, 120.0f);
 
-    sdl_touch_tutorial_draw_info_panel(screen, panel_x, panel_y, panel_w,
-        "On this screen", c->body);
-    sdl_touch_tutorial_draw_footer(screen, mouse, true);
+    if (zone && zone->w > 1.0f && zone->h > 1.0f) {
+        SDL_FRect z = *zone;
+        float pad = sdl_touch_pane_clampf((float)screen->h * 0.010f, 4.0f, 10.0f);
+
+        z.x -= pad;
+        z.y -= pad;
+        z.w += pad * 2.0f;
+        z.h += pad * 2.0f;
+        sdl_touch_tutorial_clamp_box_to_screen(&z, screen, 2.0f);
+
+        sdl_touch_tutorial_draw_zone_highlight(&z);
+        birth_coach_draw_callout(screen, &z, title, body, min_y);
+    } else {
+        birth_coach_draw_callout(screen, NULL, title, body, min_y);
+    }
+
+    sdl_touch_tutorial_draw_footer(screen, mouse, single_page);
 }
 
 static void birth_coach_run_overlay(int stage)
@@ -1565,10 +1817,9 @@ static void birth_coach_run_overlay(int stage)
     sdl_view* d;
     Uint64 accept_after_ns;
     bool mouse;
+    int idx = 0;
 
     if (!g_state.window || !g_state.renderer)
-        return;
-    if (!birth_coach_content_for(stage))
         return;
 
     mouse = !sdl_touch_tutorial_device_available();
@@ -1579,20 +1830,56 @@ static void birth_coach_run_overlay(int stage)
 
     for (;;) {
         SDL_Rect screen = sdl_get_layout_screen_rect();
+        const birth_coach_step* steps[8];
+        SDL_FRect zone = { 0.0f, 0.0f, 0.0f, 0.0f };
+        char title[80];
+        bool have_zone;
+        int count;
         int action;
 
         if (!sdl_rect_has_area(&screen))
             break;
+        /* Draw the live screen first: this also re-registers the panel/hit
+         * rectangles the coach points at. */
         if (!sdl_render_current_window_frame())
             break;
 
-        birth_coach_draw(stage, &screen, mouse);
+        count = birth_coach_collect_steps(stage, steps,
+            (int)N_ELEMENTS(steps));
+        if (count <= 0)
+            break;
+        if (idx >= count)
+            idx = count - 1;
+        if (idx < 0)
+            idx = 0;
+
+        have_zone = birth_coach_step_zone(steps[idx], &zone);
+
+        if (count > 1)
+            strnfmt(title, sizeof(title), "%s  (%d/%d)", steps[idx]->title,
+                idx + 1, count);
+        else
+            SDL_strlcpy(title, steps[idx]->title, sizeof(title));
+
+        birth_coach_draw_step(&screen, mouse, count == 1,
+            have_zone ? &zone : NULL, title, steps[idx]->body);
         SDL_RenderPresent(g_state.renderer);
         sdl_restore_render_target(d);
 
         action = sdl_touch_tutorial_wait_action(accept_after_ns);
-        if (action != 0)   /* next / prev / exit all close a single-screen coach */
-            break;
+        /* Re-arm the guard so a held key/tap does not skip several steps. */
+        accept_after_ns = SDL_GetTicksNS() + 90000000ULL;
+
+        if (action == 2) {
+            break;                       /* Esc / quit closes the tour */
+        } else if (action > 0) {
+            if (idx + 1 >= count)
+                break;                   /* past the last step -> close */
+            idx++;
+        } else if (action < 0) {
+            if (idx > 0)
+                idx--;                   /* page back */
+        }
         /* action == 0: window resize or redraw request -> draw again */
     }
 

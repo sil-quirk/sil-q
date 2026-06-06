@@ -1612,6 +1612,7 @@ int sdl_char_sheet_font_px_for_line_height(float target_h, int min_px, int max_p
 bool sdl_char_sheet_choice_is_valid(int choice);
 bool sdl_char_sheet_prompt_choice_is_valid(int choice);
 void sdl_char_sheet_clear_hits(void);
+bool sdl_char_sheet_panel_rect(cptr heading, SDL_FRect* out);
 void sdl_char_sheet_add_hit(SDL_FRect rect, int choice, cptr desc);
 void sdl_char_sheet_add_prompt_hit(SDL_FRect rect, int choice);
 void sdl_char_sheet_add_select_button_hit(SDL_FRect rect, int choice);

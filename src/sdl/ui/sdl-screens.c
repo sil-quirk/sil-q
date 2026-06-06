@@ -3441,6 +3441,53 @@ int sdl_char_sheet_target_ncols(float content_w, float screen_h)
  * screens) so there is neither a gap between columns and description nor wasted
  * vertical space.
  */
+/* ---- Coach: capture each drawn panel's rect by heading ------------------
+ * The first-run coach overlay (sdl-touch-tutorial.c) reads these so it can
+ * highlight and step through the real Vitals / Traits / Attributes / Skills
+ * blocks instead of guessing coordinates. */
+typedef struct sdl_char_sheet_panel_rect_entry {
+    char heading[32];
+    SDL_FRect rect;
+} sdl_char_sheet_panel_rect_entry;
+
+static sdl_char_sheet_panel_rect_entry
+    g_char_sheet_panel_rects[SDL_CHAR_SHEET_PANEL_MAX];
+static int g_char_sheet_panel_rect_count;
+
+static void sdl_char_sheet_panel_rects_reset(void)
+{
+    g_char_sheet_panel_rect_count = 0;
+}
+
+static void sdl_char_sheet_panel_rect_record(cptr heading, SDL_FRect rect)
+{
+    sdl_char_sheet_panel_rect_entry* e;
+
+    if (!heading || !heading[0])
+        return;
+    if (rect.w <= 1.0f || rect.h <= 1.0f)
+        return;
+    if (g_char_sheet_panel_rect_count >= SDL_CHAR_SHEET_PANEL_MAX)
+        return;
+
+    e = &g_char_sheet_panel_rects[g_char_sheet_panel_rect_count++];
+    SDL_strlcpy(e->heading, heading, sizeof(e->heading));
+    e->rect = rect;
+}
+
+bool sdl_char_sheet_panel_rect(cptr heading, SDL_FRect* out)
+{
+    if (!heading || !out)
+        return false;
+    for (int i = 0; i < g_char_sheet_panel_rect_count; i++) {
+        if (streq(g_char_sheet_panel_rects[i].heading, heading)) {
+            *out = g_char_sheet_panel_rects[i].rect;
+            return true;
+        }
+    }
+    return false;
+}
+
 void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
     float content_x, float top_y, float content_w, float region_h, int canvas_h,
     cptr desc, cptr desc_sizing, int ncols_bias, SDL_FRect* out_alloc_col)
@@ -3670,6 +3717,7 @@ void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
             v_off = 0.0f;
     }
 
+    sdl_char_sheet_panel_rects_reset();
     for (int c = 0; c < ncols; c++)
     {
         float y = top_y + v_off;
@@ -3684,6 +3732,9 @@ void sdl_char_sheet_render_columns(sdl_panel* panels, int panel_count,
 
             sdl_char_sheet_panel_draw(&panels[i], body, col_x[c], y, col_w[c],
                 columns_h - (y - (top_y + v_off)), top_line_h);
+            sdl_char_sheet_panel_rect_record(panels[i].heading,
+                (SDL_FRect){ col_x[c], y, col_w[c],
+                    (float)panels[i].rows * top_line_h });
             y += (float)panels[i].rows * top_line_h + top_line_h * 0.6f;
         }
     }
