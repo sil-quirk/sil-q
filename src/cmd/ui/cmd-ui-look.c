@@ -555,11 +555,6 @@ static void unified_look_put_status(cptr text)
     unified_look_put_row(text, unified_look_status_row());
 }
 
-static void unified_look_put_prompt(cptr text)
-{
-    unified_look_put_row(text, unified_look_prompt_row());
-}
-
 typedef struct unified_look_prompt_button
 {
     int key;
@@ -604,121 +599,30 @@ static bool unified_look_apply_map_hover(unified_look_state* state,
         compact_look_layout, need_redraw, selection_redraw);
 }
 
-static cptr unified_look_prompt_button_text(
-    const unified_look_prompt_button* button, int variant)
-{
-    if (!button)
-        return "";
-
-    switch (variant)
-    {
-    case 0: return button->full;
-    case 1: return button->medium;
-    case 2: return button->compact;
-    default: return button->tiny;
-    }
-}
-
-static int unified_look_prompt_buttons_width(
-    const unified_look_prompt_button* buttons, int count, int variant)
-{
-    int width = 0;
-
-    for (int i = 0; i < count; i++)
-    {
-        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
-
-        if (!text || !text[0])
-            continue;
-
-        if (width > 0)
-            width++;
-        width += (int)strlen(text) + 2;
-    }
-
-    return width;
-}
-
 static void unified_look_print_prompt_buttons(
     const unified_look_prompt_button* buttons, int count, bool register_clicks)
 {
-    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
     int row = unified_look_prompt_row();
-    int starts[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
-    int ends[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
-    int keys[UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
-    int registered = 0;
-    int variant = 3;
-    int hover_choice = 0;
-    bool has_hover_choice = ui_menu_click_get_hover_choice(&hover_choice);
-    char buf[192];
+
+    (void)register_clicks;
 
     if (!buttons || count <= 0)
     {
-        unified_look_put_prompt("");
+        sdl_unified_look_prompt_clear();
         return;
     }
 
     if (count > UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
         count = UNIFIED_LOOK_PROMPT_MAX_BUTTONS;
 
-    for (int i = 0; i < 4; i++)
-    {
-        if (unified_look_prompt_buttons_width(buttons, count, i) <= term_wid)
-        {
-            variant = i;
-            break;
-        }
-    }
-
-    buf[0] = '\0';
+    sdl_unified_look_prompt_begin(row);
     for (int i = 0; i < count; i++)
     {
-        cptr text = unified_look_prompt_button_text(&buttons[i], variant);
-        int start;
-        int end;
-
-        if (!text || !text[0])
-            continue;
-
-        if (buf[0])
-            SDL_strlcat(buf, " ", sizeof(buf));
-
-        start = (int)strlen(buf);
-        SDL_strlcat(buf, "[", sizeof(buf));
-        SDL_strlcat(buf, text, sizeof(buf));
-        SDL_strlcat(buf, "]", sizeof(buf));
-        end = (int)strlen(buf);
-
-        if (registered < UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
-        {
-            starts[registered] = start;
-            ends[registered] = end;
-            keys[registered] = buttons[i].key;
-            registered++;
-        }
+        sdl_unified_look_prompt_add(unified_look_prompt_choice(buttons[i].key),
+            buttons[i].full, buttons[i].medium, buttons[i].compact,
+            buttons[i].tiny);
     }
-
-    unified_look_put_prompt(buf);
-
-    for (int i = 0; i < registered; i++)
-    {
-        int choice = unified_look_prompt_choice(keys[i]);
-
-        if (register_clicks)
-        {
-            ui_menu_click_add_text_span(choice, 0, row, buf, starts[i],
-                ends[i]);
-        }
-        else if (has_hover_choice && hover_choice == choice)
-        {
-            Term_putstr(starts[i], row, ends[i] - starts[i], TERM_L_BLUE,
-                buf + starts[i]);
-        }
-    }
-
-    if (register_clicks)
-        ui_menu_click_add_full_row(UNIFIED_LOOK_CLICK_PROMPT_BACKGROUND, row);
+    sdl_unified_look_prompt_finish();
 }
 
 static void unified_look_print_controller_prompt(
@@ -2870,6 +2774,8 @@ cycle_display_modes:
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    sdl_unified_look_prompt_clear();
+    sdl_unified_look_sidebar_clear();
     sdl_unified_look_set_active(false);
     sdl_unified_look_set_map_hover_enabled(false);
 

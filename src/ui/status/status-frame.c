@@ -723,6 +723,18 @@ static void display_log_pane_with_filter(int pane, int default_filter)
         display_combined_log_in_pane(filter);
 
     story_font_term_pop(&story_prev);
+
+    /*
+     * The overlay log keeps its message text and combat tokens out-of-band
+     * (the term cells are only spaces carrying a pixel-pack flag), so the term's
+     * per-cell change detection cannot tell when a row's actual content changed.
+     * Unchanged cells would be skipped on the next Term_fresh, leaving the
+     * canvas showing stale or never-drawn rows (a half-rendered combat line, or
+     * an empty upper band).  Force a full re-emit so every populated row is
+     * repainted from the current out-of-band content.
+     */
+    if (pane_log_current_term_is_overlay() && Term)
+        Term->total_erase = true;
 }
 
 static void fix_combat_rolls(void)

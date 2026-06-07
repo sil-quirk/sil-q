@@ -1756,6 +1756,1108 @@ void sdl_touch_pane_render_yes_no_prompt(void)
         0.36f, 0.46f);
 }
 
+static int sdl_unified_look_log_text_font_px(void)
+{
+    const sdl_view* log_view = &g_views[PANE_LOG];
+    const sdl_view* rolls_view = &g_views[PANE_ROLLS];
+    int font_px = 0;
+
+    if (log_view->term_ready && log_view->cell_h > 0)
+        font_px = log_view->cell_h;
+    else if (sdl_view_is_overlay_log_pane(rolls_view)
+        && rolls_view->cell_h > 0)
+    {
+        font_px = rolls_view->cell_h;
+    }
+    else
+    {
+        font_px = sdl_effective_pane_cell_height_for_type(PANE_LOG);
+    }
+
+    if (font_px < 8)
+        font_px = 8;
+
+    return font_px;
+}
+
+static void sdl_unified_look_draw_centered_text(TTF_Font* font, cptr text,
+    SDL_Color color, const SDL_FRect* rect)
+{
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect dst;
+    float scale = 1.0f;
+    float max_w;
+    float max_h;
+
+    if (!font || !text || !text[0] || !rect
+        || rect->w <= 0.0f || rect->h <= 0.0f)
+    {
+        return;
+    }
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture)
+    {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    max_w = rect->w - 6.0f;
+    max_h = rect->h - 4.0f;
+    if (max_w < 1.0f)
+        max_w = rect->w;
+    if (max_h < 1.0f)
+        max_h = rect->h;
+
+    if (surface->w > 0 && (float)surface->w > max_w)
+        scale = max_w / (float)surface->w;
+    if (surface->h > 0 && (float)surface->h * scale > max_h)
+        scale = max_h / (float)surface->h;
+
+    dst.w = (float)surface->w * scale;
+    dst.h = (float)surface->h * scale;
+    dst.x = rect->x + (rect->w - dst.w) * 0.5f;
+    dst.y = rect->y + (rect->h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+typedef struct sdl_unified_look_prompt_layout_info {
+    SDL_FRect area;
+    SDL_FRect panel;
+    SDL_FRect buttons[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int count;
+    int variant;
+    int font_px;
+} sdl_unified_look_prompt_layout_info;
+
+static cptr sdl_unified_look_prompt_label(
+    const sdl_unified_look_prompt_button_state* button, int variant)
+{
+    if (!button)
+        return "";
+    if (variant < 0)
+        variant = 0;
+    if (variant >= SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS)
+        variant = SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS - 1;
+
+    for (int i = variant; i < SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS; i++)
+    {
+        if (button->labels[i][0])
+            return button->labels[i];
+    }
+    for (int i = variant - 1; i >= 0; i--)
+    {
+        if (button->labels[i][0])
+            return button->labels[i];
+    }
+
+    return "";
+}
+
+static int sdl_unified_look_prompt_text_width(TTF_Font* font, cptr text,
+    int font_px)
+{
+    int width = sdl_touch_pane_story_text_width(font, text);
+
+    if (width > 0)
+        return width;
+    if (!text || !text[0])
+        return 0;
+
+    return (int)((float)strlen(text) * (float)font_px * 0.55f);
+}
+
+static bool sdl_unified_look_prompt_try_layout(
+    sdl_unified_look_prompt_layout_info* out, int variant, TTF_Font* font,
+    const SDL_FRect* area, int anchor_row, float cell_h, float screen_margin,
+    float panel_pad, float row_gap, float button_gap, float button_pad_x,
+    float row_h, float min_button_w, int max_rows)
+{
+    float available_w;
+    float max_panel_h;
+    float button_w[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    float row_width[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int row_start[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int row_end[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+    int row_count = 1;
+    int count;
+    float current_w = 0.0f;
+    float max_row_w = 0.0f;
+    float panel_w;
+    float panel_h;
+    float anchor_bottom;
+    float y;
+
+    if (!out || !font || !area)
+        return false;
+    count = g_unified_look_prompt.count;
+    if (count <= 0)
+        return false;
+    if (count > SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        count = SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS;
+    if (max_rows < 1)
+        max_rows = 1;
+    if (max_rows > SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        max_rows = SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS;
+
+    available_w = area->w - (screen_margin * 2.0f) - (panel_pad * 2.0f);
+    if (available_w <= 20.0f)
+        return false;
+
+    row_start[0] = 0;
+    for (int i = 0; i < count; i++)
+    {
+        cptr label = sdl_unified_look_prompt_label(
+            &g_unified_look_prompt.buttons[i], variant);
+        float width = (float)sdl_unified_look_prompt_text_width(font, label,
+            out->font_px) + button_pad_x * 2.0f;
+
+        if (width < min_button_w)
+            width = min_button_w;
+        if (width > available_w)
+            width = available_w;
+        button_w[i] = width;
+
+        if (current_w > 0.0f
+            && current_w + button_gap + width > available_w)
+        {
+            row_width[row_count - 1] = current_w;
+            row_end[row_count - 1] = i;
+            row_count++;
+            if (row_count > max_rows)
+                return false;
+            row_start[row_count - 1] = i;
+            current_w = 0.0f;
+        }
+
+        if (current_w > 0.0f)
+            current_w += button_gap;
+        current_w += width;
+    }
+
+    row_width[row_count - 1] = current_w;
+    row_end[row_count - 1] = count;
+
+    for (int row = 0; row < row_count; row++)
+    {
+        if (row_width[row] > max_row_w)
+            max_row_w = row_width[row];
+    }
+
+    panel_w = max_row_w + panel_pad * 2.0f;
+    panel_h = panel_pad * 2.0f + row_h * (float)row_count
+        + row_gap * (float)(row_count - 1);
+    max_panel_h = area->h - screen_margin * 2.0f;
+    if (panel_h > max_panel_h && max_panel_h > 20.0f)
+    {
+        row_h = (max_panel_h - panel_pad * 2.0f
+            - row_gap * (float)(row_count - 1)) / (float)row_count;
+        if (row_h < 18.0f)
+            return false;
+        panel_h = max_panel_h;
+    }
+
+    out->panel = (SDL_FRect){
+        .x = area->x + (area->w - panel_w) * 0.5f,
+        .w = panel_w,
+        .h = panel_h,
+    };
+
+    anchor_bottom = area->y + area->h - screen_margin;
+    if (anchor_row >= 0 && cell_h > 0.0f)
+    {
+        float row_bottom = area->y + ((float)anchor_row + 1.0f) * cell_h;
+
+        if (row_bottom > area->y + screen_margin)
+            anchor_bottom = row_bottom;
+        if (anchor_bottom > area->y + area->h - screen_margin)
+            anchor_bottom = area->y + area->h - screen_margin;
+    }
+    out->panel.y = anchor_bottom - panel_h;
+    if (out->panel.y < area->y + screen_margin)
+        out->panel.y = area->y + screen_margin;
+    if (out->panel.y + out->panel.h > area->y + area->h - screen_margin)
+        out->panel.y = area->y + area->h - screen_margin - out->panel.h;
+
+    for (int row = 0; row < row_count; row++)
+    {
+        float x = out->panel.x + (out->panel.w - row_width[row]) * 0.5f;
+
+        y = out->panel.y + panel_pad
+            + (float)row * (row_h + row_gap);
+        for (int i = row_start[row]; i < row_end[row]; i++)
+        {
+            out->buttons[i] = (SDL_FRect){
+                .x = x,
+                .y = y,
+                .w = button_w[i],
+                .h = row_h,
+            };
+            x += button_w[i] + button_gap;
+        }
+    }
+
+    out->count = count;
+    out->variant = variant;
+    return true;
+}
+
+static bool sdl_unified_look_prompt_layout(
+    sdl_unified_look_prompt_layout_info* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int visual_cols;
+    int visual_rows;
+    float cell_w;
+    float cell_h;
+    float screen_margin;
+    float panel_pad;
+    float row_gap;
+    float button_gap;
+    float button_pad_x;
+    float row_h;
+    float min_button_w;
+    int base_font_px;
+    int min_font_px;
+    TTF_Font* font;
+
+    if (!out)
+        return false;
+    *out = (sdl_unified_look_prompt_layout_info){ 0 };
+
+    if (!g_unified_look_prompt.active || g_unified_look_prompt.count <= 0)
+        return false;
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
+    cell_w = (float)view->cell_w;
+    cell_h = (float)view->cell_h;
+    out->area = (SDL_FRect){
+        .x = (float)(view->rect.x + view->margin_x),
+        .y = (float)(view->rect.y + view->margin_y),
+        .w = (float)visual_cols * cell_w,
+        .h = (float)visual_rows * cell_h,
+    };
+    if (out->area.w <= 0.0f || out->area.h <= 0.0f)
+        return false;
+
+    screen_margin = sdl_touch_pane_clampf(cell_w * 0.65f, 5.0f, 14.0f);
+    base_font_px = sdl_unified_look_log_text_font_px();
+    min_font_px = 5;
+    if (base_font_px < min_font_px)
+        base_font_px = min_font_px;
+
+    for (int font_px = base_font_px; font_px >= min_font_px; font_px--)
+    {
+        out->font_px = font_px;
+        font = sdl_story_font_for_height_slot(font_px,
+            SDL_STORY_FONT_SLOT_LOG);
+        if (!font)
+            continue;
+
+        panel_pad = sdl_touch_pane_clampf((float)font_px * 0.45f,
+            4.0f, 12.0f);
+        row_gap = 0.0f;
+        button_gap = sdl_touch_pane_clampf((float)font_px * 0.42f,
+            2.0f, 10.0f);
+        button_pad_x = sdl_touch_pane_clampf((float)font_px * 0.70f,
+            4.0f, 16.0f);
+        row_h = (float)font_px * 1.55f;
+        if (row_h < (float)font_px + 7.0f)
+            row_h = (float)font_px + 7.0f;
+        min_button_w = sdl_touch_pane_clampf((float)font_px * 2.2f,
+            14.0f, 58.0f);
+
+        for (int variant = 0;
+             variant < SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS; variant++)
+        {
+            if (sdl_unified_look_prompt_try_layout(out, variant, font,
+                    &out->area, g_unified_look_prompt.anchor_row, cell_h,
+                    screen_margin, panel_pad, row_gap, button_gap,
+                    button_pad_x, row_h, min_button_w, 1))
+            {
+                return true;
+            }
+        }
+    }
+
+    out->font_px = min_font_px;
+    font = sdl_story_font_for_height_slot(min_font_px,
+        SDL_STORY_FONT_SLOT_LOG);
+    if (!font)
+        return false;
+
+    panel_pad = 4.0f;
+    row_gap = 0.0f;
+    button_gap = 2.0f;
+    button_pad_x = 4.0f;
+    row_h = (float)min_font_px + 7.0f;
+    min_button_w = 0.0f;
+
+    return sdl_unified_look_prompt_try_layout(out,
+        SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS - 1, font, &out->area,
+        g_unified_look_prompt.anchor_row, cell_h, screen_margin, panel_pad,
+        row_gap, button_gap, button_pad_x, row_h, min_button_w, 1);
+}
+
+void sdl_unified_look_prompt_clear(void)
+{
+    if (g_unified_look_prompt.active || g_unified_look_prompt.count > 0)
+        g_state.need_present = true;
+
+    memset(&g_unified_look_prompt, 0, sizeof(g_unified_look_prompt));
+    g_unified_look_prompt.anchor_row = -1;
+}
+
+void sdl_unified_look_prompt_begin(int anchor_row)
+{
+    g_unified_look_prompt.active = true;
+    g_unified_look_prompt.anchor_row = anchor_row;
+    g_unified_look_prompt.count = 0;
+    g_state.need_present = true;
+}
+
+static void sdl_unified_look_prompt_copy_label(char* dst, cptr src)
+{
+    if (!dst)
+        return;
+
+    SDL_strlcpy(dst, src ? src : "", SDL_UNIFIED_LOOK_PROMPT_LABEL_LEN);
+}
+
+void sdl_unified_look_prompt_add(int choice, cptr full, cptr medium,
+    cptr compact, cptr tiny)
+{
+    sdl_unified_look_prompt_button_state* button;
+
+    if (!g_unified_look_prompt.active)
+        return;
+    if (g_unified_look_prompt.count >= SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS)
+        return;
+    if ((!full || !full[0]) && (!medium || !medium[0])
+        && (!compact || !compact[0]) && (!tiny || !tiny[0]))
+    {
+        return;
+    }
+
+    button = &g_unified_look_prompt.buttons[g_unified_look_prompt.count++];
+    memset(button, 0, sizeof(*button));
+    button->choice = choice;
+    sdl_unified_look_prompt_copy_label(button->labels[0], full);
+    sdl_unified_look_prompt_copy_label(button->labels[1], medium);
+    sdl_unified_look_prompt_copy_label(button->labels[2], compact);
+    sdl_unified_look_prompt_copy_label(button->labels[3], tiny);
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_prompt_finish(void)
+{
+    if (!g_unified_look_prompt.active || g_unified_look_prompt.count <= 0)
+    {
+        sdl_unified_look_prompt_clear();
+        return;
+    }
+
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_prompt_render(void)
+{
+    sdl_unified_look_prompt_layout_info layout;
+    SDL_FRect shadow;
+    SDL_Color frame = g_state.palette[TERM_SLATE];
+    SDL_Color accent = g_state.palette[TERM_L_BLUE];
+    SDL_Color text = g_state.palette[TERM_WHITE];
+    TTF_Font* font;
+    int hover_choice = 0;
+    bool has_hover_choice;
+
+    if (!sdl_unified_look_prompt_layout(&layout))
+        return;
+
+    font = sdl_story_font_for_height_slot(layout.font_px,
+        SDL_STORY_FONT_SLOT_LOG);
+    if (!font)
+        return;
+
+    has_hover_choice = ui_menu_click_get_hover_choice(&hover_choice);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+
+    shadow = layout.panel;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 125);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 13, 15, 17, 232);
+    SDL_RenderFillRect(g_state.renderer, &layout.panel);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 178);
+    SDL_RenderRect(g_state.renderer, &layout.panel);
+
+    for (int i = 0; i < layout.count; i++)
+    {
+        const sdl_unified_look_prompt_button_state* button =
+            &g_unified_look_prompt.buttons[i];
+        cptr label = sdl_unified_look_prompt_label(button, layout.variant);
+        bool selected = has_hover_choice && hover_choice == button->choice;
+        SDL_Color border = selected ? accent : frame;
+
+        if (selected)
+            SDL_SetRenderDrawColor(g_state.renderer, 37, 47, 63, 238);
+        else
+            SDL_SetRenderDrawColor(g_state.renderer, 25, 27, 29, 225);
+        SDL_RenderFillRect(g_state.renderer, &layout.buttons[i]);
+
+        SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
+            selected ? 235 : 190);
+        SDL_RenderRect(g_state.renderer, &layout.buttons[i]);
+
+        sdl_unified_look_draw_centered_text(font, label, text,
+            &layout.buttons[i]);
+    }
+}
+
+static bool sdl_unified_look_prompt_choice_at(float x, float y,
+    int* out_choice, bool* out_in_panel)
+{
+    sdl_unified_look_prompt_layout_info layout;
+
+    if (out_choice)
+        *out_choice = 0;
+    if (out_in_panel)
+        *out_in_panel = false;
+
+    if (!sdl_unified_look_prompt_layout(&layout))
+        return false;
+    if (!sdl_point_in_frect(&layout.panel, x, y))
+        return false;
+
+    if (out_in_panel)
+        *out_in_panel = true;
+
+    for (int i = 0; i < layout.count; i++)
+    {
+        if (sdl_point_in_frect(&layout.buttons[i], x, y))
+        {
+            if (out_choice)
+                *out_choice = g_unified_look_prompt.buttons[i].choice;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void sdl_unified_look_prompt_clear_hover_if_needed(void)
+{
+    bool wake = false;
+
+    if (ui_menu_click_clear_hover(&wake))
+    {
+        g_state.need_present = true;
+        if (wake)
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    }
+}
+
+bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action)
+{
+    int choice = 0;
+    bool in_panel = false;
+    bool wake = false;
+
+    if (!g_unified_look_prompt.active)
+        return false;
+    if (!sdl_unified_look_prompt_choice_at(x, y, &choice, &in_panel))
+    {
+        if (in_panel)
+        {
+            sdl_unified_look_prompt_clear_hover_if_needed();
+            sdl_unified_look_clear_map_hover();
+            return true;
+        }
+        return false;
+    }
+
+    if (!ui_menu_click_handle_choice_action(choice, action, &wake))
+        return true;
+
+    sdl_unified_look_clear_map_hover();
+    g_state.need_present = true;
+    Term_keypress((action == UI_MENU_CLICK_SECONDARY)
+        ? UI_MENU_CLICK_WAKE_KEY
+        : '\r');
+    (void)wake;
+    return true;
+}
+
+bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y)
+{
+    int choice = 0;
+    bool in_panel = false;
+    bool wake = false;
+
+    if (!g_unified_look_prompt.active)
+        return false;
+    if (!sdl_unified_look_prompt_choice_at(x, y, &choice, &in_panel))
+    {
+        if (in_panel)
+        {
+            sdl_unified_look_prompt_clear_hover_if_needed();
+            sdl_unified_look_clear_map_hover();
+            return true;
+        }
+        return false;
+    }
+
+    if (!ui_menu_click_handle_choice_action(choice, UI_MENU_CLICK_HOVER, &wake))
+        return true;
+
+    sdl_unified_look_clear_map_hover();
+    g_state.need_present = true;
+    if (wake)
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+typedef struct sdl_unified_look_sidebar_layout_info {
+    SDL_FRect area;
+    SDL_FRect panel;
+    SDL_FRect rows[SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS];
+    int item_indices[SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS];
+    int visible_count;
+    int top_item;
+    int font_px;
+    float row_h;
+    float pad_x;
+    float pad_y;
+    float symbol_w;
+} sdl_unified_look_sidebar_layout_info;
+
+static SDL_Color sdl_unified_look_sidebar_attr_color(byte attr)
+{
+    SDL_Color color = g_state.palette[attr];
+
+    color.a = 255;
+    return color;
+}
+
+static void sdl_unified_look_sidebar_draw_clipped_text(TTF_Font* font,
+    cptr text, SDL_Color color, float x, float y, float max_w, float row_h)
+{
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect src;
+    SDL_FRect dst;
+    float scale = 1.0f;
+
+    if (!font || !text || !text[0] || max_w <= 0.0f || row_h <= 0.0f)
+        return;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture)
+    {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    if (surface->h > 0 && (float)surface->h > row_h * 0.94f)
+        scale = (row_h * 0.94f) / (float)surface->h;
+
+    src = (SDL_FRect){
+        .x = 0.0f,
+        .y = 0.0f,
+        .w = (float)surface->w,
+        .h = (float)surface->h,
+    };
+    dst = (SDL_FRect){
+        .x = x,
+        .y = y,
+        .w = (float)surface->w * scale,
+        .h = (float)surface->h * scale,
+    };
+
+    if (dst.w > max_w)
+    {
+        dst.w = max_w;
+        src.w = max_w / scale;
+        if (src.w > (float)surface->w)
+            src.w = (float)surface->w;
+    }
+    dst.y = y + (row_h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+static float sdl_unified_look_sidebar_text_width(TTF_Font* font, cptr text,
+    int font_px)
+{
+    int width;
+
+    if (!text || !text[0])
+        return 0.0f;
+
+    width = sdl_touch_pane_story_text_width(font, text);
+    if (width > 0)
+        return (float)width;
+
+    return (float)strlen(text) * (float)font_px * 0.55f;
+}
+
+static int sdl_unified_look_sidebar_selected_item_index(void)
+{
+    if (!g_unified_look_sidebar.has_selection)
+        return -1;
+
+    for (int i = 0; i < g_unified_look_sidebar.count; i++)
+    {
+        const sdl_unified_look_sidebar_item_state* item =
+            &g_unified_look_sidebar.items[i];
+
+        if (item->kind == SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY
+            && item->choice == g_unified_look_sidebar.selected_choice)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static bool sdl_unified_look_sidebar_layout(
+    sdl_unified_look_sidebar_layout_info* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int visual_cols;
+    int visual_rows;
+    float cell_w;
+    float cell_h;
+    float margin;
+    float max_panel_w;
+    float max_panel_h;
+    float measured_w = 0.0f;
+    float panel_w;
+    float panel_h;
+    int visible_capacity;
+    int selected_item;
+    int top_item = 0;
+    TTF_Font* font;
+
+    if (!out)
+        return false;
+    *out = (sdl_unified_look_sidebar_layout_info){ 0 };
+
+    if (!g_unified_look_sidebar.active || g_unified_look_sidebar.count <= 0)
+        return false;
+    if (!view->term_ready || !view->canvas)
+        return false;
+    if (view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
+    cell_w = (float)view->cell_w;
+    cell_h = (float)view->cell_h;
+    out->area = (SDL_FRect){
+        .x = (float)(view->rect.x + view->margin_x),
+        .y = (float)(view->rect.y + view->margin_y),
+        .w = (float)visual_cols * cell_w,
+        .h = (float)visual_rows * cell_h,
+    };
+    if (out->area.w <= 0.0f || out->area.h <= 0.0f)
+        return false;
+
+    margin = sdl_touch_pane_clampf(MIN(cell_w, cell_h) * 0.55f, 8.0f,
+        18.0f);
+    max_panel_w = out->area.w - margin * 2.0f;
+    if (max_panel_w < 120.0f)
+        return false;
+    max_panel_h = out->area.h - margin * 2.0f;
+
+    out->font_px = sdl_unified_look_log_text_font_px();
+    font = sdl_story_font_for_height_slot(out->font_px,
+        SDL_STORY_FONT_SLOT_LOG);
+    if (!font)
+        return false;
+
+    out->row_h = (float)out->font_px * 1.28f;
+    if (out->row_h < (float)out->font_px + 4.0f)
+        out->row_h = (float)out->font_px + 4.0f;
+    out->pad_x = sdl_touch_pane_clampf((float)out->font_px * 0.68f, 8.0f,
+        14.0f);
+    out->pad_y = sdl_touch_pane_clampf((float)out->font_px * 0.62f, 8.0f,
+        14.0f);
+    out->symbol_w = sdl_touch_pane_clampf((float)out->font_px * 1.35f,
+        18.0f, 28.0f);
+
+    if (max_panel_h < out->row_h + out->pad_y * 2.0f)
+        return false;
+
+    visible_capacity = (int)((max_panel_h - out->pad_y * 2.0f)
+        / out->row_h);
+    if (visible_capacity < 1)
+        return false;
+    if (visible_capacity > SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS)
+        visible_capacity = SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS;
+    if (visible_capacity > g_unified_look_sidebar.count)
+        visible_capacity = g_unified_look_sidebar.count;
+
+    selected_item = sdl_unified_look_sidebar_selected_item_index();
+    if (selected_item >= 0)
+    {
+        top_item = selected_item - visible_capacity / 2;
+        if (top_item < 0)
+            top_item = 0;
+        if (top_item + visible_capacity > g_unified_look_sidebar.count)
+            top_item = g_unified_look_sidebar.count - visible_capacity;
+        if (top_item < 0)
+            top_item = 0;
+    }
+
+    for (int i = 0; i < visible_capacity
+         && top_item + i < g_unified_look_sidebar.count; i++)
+    {
+        const sdl_unified_look_sidebar_item_state* item =
+            &g_unified_look_sidebar.items[top_item + i];
+        float row_w;
+
+        row_w = sdl_unified_look_sidebar_text_width(font, item->text,
+            out->font_px);
+        if (item->kind == SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY)
+        {
+            float symbol_w = sdl_unified_look_sidebar_text_width(font,
+                item->symbol, out->font_px);
+
+            if (symbol_w > out->symbol_w)
+                row_w += symbol_w;
+            else
+                row_w += out->symbol_w;
+        }
+
+        if (row_w > measured_w)
+            measured_w = row_w;
+    }
+
+    panel_w = measured_w + out->pad_x * 2.0f;
+    if (panel_w < out->pad_x * 2.0f + (float)out->font_px * 8.0f)
+        panel_w = out->pad_x * 2.0f + (float)out->font_px * 8.0f;
+    if (panel_w > max_panel_w)
+        panel_w = max_panel_w;
+
+    panel_h = out->pad_y * 2.0f + out->row_h * (float)visible_capacity;
+    if (panel_h > max_panel_h)
+        panel_h = max_panel_h;
+
+    out->panel = (SDL_FRect){
+        .x = out->area.x + margin,
+        .y = out->area.y + margin,
+        .w = panel_w,
+        .h = panel_h,
+    };
+
+    out->top_item = top_item;
+    for (int i = 0; i < visible_capacity
+         && top_item + i < g_unified_look_sidebar.count; i++)
+    {
+        out->item_indices[out->visible_count] = top_item + i;
+        out->rows[out->visible_count] = (SDL_FRect){
+            .x = out->panel.x + out->pad_x,
+            .y = out->panel.y + out->pad_y
+                + (float)i * out->row_h,
+            .w = out->panel.w - out->pad_x * 2.0f,
+            .h = out->row_h,
+        };
+        out->visible_count++;
+    }
+
+    return out->visible_count > 0;
+}
+
+void sdl_unified_look_sidebar_clear(void)
+{
+    if (g_unified_look_sidebar.active || g_unified_look_sidebar.count > 0)
+        g_state.need_present = true;
+
+    memset(&g_unified_look_sidebar, 0, sizeof(g_unified_look_sidebar));
+    g_unified_look_sidebar.selected_choice = -1;
+}
+
+void sdl_unified_look_sidebar_begin(bool compact, bool has_selection,
+    int selected_choice)
+{
+    memset(&g_unified_look_sidebar, 0, sizeof(g_unified_look_sidebar));
+    g_unified_look_sidebar.active = true;
+    g_unified_look_sidebar.compact = compact;
+    g_unified_look_sidebar.has_selection = has_selection;
+    g_unified_look_sidebar.selected_choice = selected_choice;
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_sidebar_add_header(cptr text)
+{
+    sdl_unified_look_sidebar_item_state* item;
+
+    if (!g_unified_look_sidebar.active)
+        return;
+    if (g_unified_look_sidebar.count >= SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS)
+        return;
+    if (!text || !text[0])
+        return;
+
+    item = &g_unified_look_sidebar.items[g_unified_look_sidebar.count++];
+    memset(item, 0, sizeof(*item));
+    item->kind = SDL_UNIFIED_LOOK_SIDEBAR_ITEM_HEADER;
+    item->choice = -1;
+    item->text_attr = TERM_WHITE;
+    SDL_strlcpy(item->text, text, sizeof(item->text));
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
+    int x, byte symbol_attr, byte text_attr, cptr symbol, cptr text)
+{
+    sdl_unified_look_sidebar_item_state* item;
+
+    if (!g_unified_look_sidebar.active)
+        return;
+    if (g_unified_look_sidebar.count >= SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS)
+        return;
+    if (!text || !text[0])
+        return;
+
+    item = &g_unified_look_sidebar.items[g_unified_look_sidebar.count++];
+    memset(item, 0, sizeof(*item));
+    item->kind = SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY;
+    item->choice = choice;
+    item->entity_type = entity_type;
+    item->y = y;
+    item->x = x;
+    item->symbol_attr = symbol_attr;
+    item->text_attr = text_attr;
+    SDL_strlcpy(item->symbol, symbol ? symbol : "", sizeof(item->symbol));
+    SDL_strlcpy(item->text, text, sizeof(item->text));
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_sidebar_finish(void)
+{
+    if (!g_unified_look_sidebar.active || g_unified_look_sidebar.count <= 0)
+    {
+        sdl_unified_look_sidebar_clear();
+        return;
+    }
+
+    g_state.need_present = true;
+}
+
+void sdl_unified_look_sidebar_render(void)
+{
+    sdl_unified_look_sidebar_layout_info layout;
+    SDL_FRect shadow;
+    SDL_Color frame = g_state.palette[TERM_SLATE];
+    SDL_Color accent = g_state.palette[TERM_L_BLUE];
+    SDL_Color header = g_state.palette[TERM_WHITE];
+    TTF_Font* font;
+    int hover_choice = 0;
+    bool has_hover_choice;
+
+    if (!sdl_unified_look_sidebar_layout(&layout))
+        return;
+
+    font = sdl_story_font_for_height_slot(layout.font_px,
+        SDL_STORY_FONT_SLOT_LOG);
+    if (!font)
+        return;
+
+    has_hover_choice = ui_menu_click_get_hover_choice(&hover_choice);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+
+    shadow = layout.panel;
+    shadow.x += 3.0f;
+    shadow.y += 3.0f;
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 118);
+    SDL_RenderFillRect(g_state.renderer, &shadow);
+
+    SDL_SetRenderDrawColor(g_state.renderer, 10, 12, 14, 218);
+    SDL_RenderFillRect(g_state.renderer, &layout.panel);
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, 150);
+    SDL_RenderRect(g_state.renderer, &layout.panel);
+
+    header.a = 235;
+    for (int i = 0; i < layout.visible_count; i++)
+    {
+        int item_index = layout.item_indices[i];
+        const sdl_unified_look_sidebar_item_state* item =
+            &g_unified_look_sidebar.items[item_index];
+        SDL_FRect row = layout.rows[i];
+
+        if (item->kind == SDL_UNIFIED_LOOK_SIDEBAR_ITEM_HEADER)
+        {
+            SDL_Color color = header;
+
+            color.a = 230;
+            sdl_unified_look_sidebar_draw_clipped_text(font, item->text,
+                color, row.x, row.y, row.w, row.h);
+            continue;
+        }
+
+        if (item->kind == SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY)
+        {
+            bool selected = g_unified_look_sidebar.has_selection
+                && item->choice == g_unified_look_sidebar.selected_choice;
+            bool hovered = has_hover_choice && hover_choice == item->choice;
+            SDL_Color symbol_color =
+                sdl_unified_look_sidebar_attr_color(item->symbol_attr);
+            SDL_Color text_color = selected || hovered
+                ? accent
+                : sdl_unified_look_sidebar_attr_color(item->text_attr);
+            float symbol_x = row.x;
+            float text_x = row.x + layout.symbol_w;
+            float text_w = row.w - layout.symbol_w;
+
+            if (selected || hovered)
+            {
+                SDL_SetRenderDrawColor(g_state.renderer, 36, 47, 62,
+                    selected ? 226 : 184);
+                SDL_RenderFillRect(g_state.renderer, &row);
+                SDL_SetRenderDrawColor(g_state.renderer, accent.r, accent.g,
+                    accent.b, selected ? 225 : 168);
+                SDL_RenderRect(g_state.renderer, &row);
+            }
+
+            sdl_unified_look_sidebar_draw_clipped_text(font, item->symbol,
+                symbol_color, symbol_x, row.y, layout.symbol_w, row.h);
+            sdl_unified_look_sidebar_draw_clipped_text(font, item->text,
+                text_color, text_x, row.y, text_w, row.h);
+        }
+    }
+}
+
+static bool sdl_unified_look_sidebar_choice_at(float x, float y,
+    int* out_choice, bool* out_in_panel)
+{
+    sdl_unified_look_sidebar_layout_info layout;
+
+    if (out_choice)
+        *out_choice = 0;
+    if (out_in_panel)
+        *out_in_panel = false;
+
+    if (!sdl_unified_look_sidebar_layout(&layout))
+        return false;
+    if (!sdl_point_in_frect(&layout.panel, x, y))
+        return false;
+
+    if (out_in_panel)
+        *out_in_panel = true;
+
+    for (int i = 0; i < layout.visible_count; i++)
+    {
+        int item_index = layout.item_indices[i];
+        const sdl_unified_look_sidebar_item_state* item =
+            &g_unified_look_sidebar.items[item_index];
+
+        if (item->kind != SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY)
+            continue;
+        if (sdl_point_in_frect(&layout.rows[i], x, y))
+        {
+            if (out_choice)
+                *out_choice = item->choice;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action)
+{
+    int choice = 0;
+    bool in_panel = false;
+    bool wake = false;
+
+    if (!g_unified_look_sidebar.active)
+        return false;
+    if (!sdl_unified_look_sidebar_choice_at(x, y, &choice, &in_panel))
+    {
+        if (in_panel)
+        {
+            sdl_unified_look_prompt_clear_hover_if_needed();
+            sdl_unified_look_clear_map_hover();
+            return true;
+        }
+        return false;
+    }
+
+    if (!ui_menu_click_handle_choice_action(choice, action, &wake))
+        return true;
+
+    sdl_unified_look_clear_map_hover();
+    g_state.need_present = true;
+    Term_keypress((action == UI_MENU_CLICK_SECONDARY)
+        ? UI_MENU_CLICK_WAKE_KEY
+        : '\r');
+    (void)wake;
+    return true;
+}
+
+bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y)
+{
+    int choice = 0;
+    bool in_panel = false;
+    bool wake = false;
+
+    if (!g_unified_look_sidebar.active)
+        return false;
+    if (!sdl_unified_look_sidebar_choice_at(x, y, &choice, &in_panel))
+    {
+        if (in_panel)
+        {
+            sdl_unified_look_prompt_clear_hover_if_needed();
+            sdl_unified_look_clear_map_hover();
+            return true;
+        }
+        return false;
+    }
+
+    if (!ui_menu_click_handle_choice_action(choice, UI_MENU_CLICK_HOVER, &wake))
+        return true;
+
+    sdl_unified_look_clear_map_hover();
+    g_state.need_present = true;
+    if (wake)
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
 void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf, size_t buflen)
 {
     int raw_binding;
@@ -1947,5 +3049,3 @@ void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size
 
     sdl_touch_pane_base_label_for_slot(panel, index, buf, buflen);
 }
-
-

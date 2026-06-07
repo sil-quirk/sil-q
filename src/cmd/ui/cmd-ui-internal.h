@@ -113,6 +113,7 @@ struct equipment_list_entry
     enum inventory_limit_group limit_group;
     equipment_entry_placeholder placeholder;
     bool equipped;
+    bool show_empty_slot; /* render an empty equip slot as a pickable row */
 };
 
 typedef struct knowledge_browser_layout knowledge_browser_layout;

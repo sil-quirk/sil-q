@@ -707,7 +707,9 @@ extern bool open_inventory_menu_page(supply_menu_page page);
 extern bool open_inventory_menu_category(inventory_menu_group group);
 extern bool open_inventory_replacement_menu(inventory_menu_group group,
     const object_type* incoming, bool include_equip, bool include_supplies,
-    int* replacement_item);
+    cptr reason, int* replacement_item);
+extern bool open_inventory_slot_pick_menu(const object_type* incoming,
+    const bool* enabled, cptr reason, int* slot_out);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
@@ -1648,6 +1650,18 @@ extern void sdl_mouse_path_cancel(void);
 extern void sdl_player_exchange_begin_direction_prompt(void);
 extern void sdl_player_exchange_cancel_direction_prompt(void);
 extern void sdl_unified_look_set_active(bool active);
+extern void sdl_unified_look_prompt_clear(void);
+extern void sdl_unified_look_prompt_begin(int anchor_row);
+extern void sdl_unified_look_prompt_add(int choice, cptr full, cptr medium,
+    cptr compact, cptr tiny);
+extern void sdl_unified_look_prompt_finish(void);
+extern void sdl_unified_look_sidebar_clear(void);
+extern void sdl_unified_look_sidebar_begin(bool compact, bool has_selection,
+    int selected_choice);
+extern void sdl_unified_look_sidebar_add_header(cptr text);
+extern void sdl_unified_look_sidebar_add_entry(int choice, int entity_type,
+    int y, int x, byte symbol_attr, byte text_attr, cptr symbol, cptr text);
+extern void sdl_unified_look_sidebar_finish(void);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
 extern bool sdl_unified_look_take_map_describe(int* y, int* x);

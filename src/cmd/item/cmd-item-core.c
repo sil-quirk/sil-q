@@ -262,7 +262,7 @@ bool open_inventory_menu_category(inventory_menu_group group)
 
 bool open_inventory_replacement_menu(inventory_menu_group group,
     const object_type* incoming, bool include_equip, bool include_supplies,
-    int* replacement_item)
+    cptr reason, int* replacement_item)
 {
     supply_menu_request request = {0};
 
@@ -278,7 +278,28 @@ bool open_inventory_replacement_menu(inventory_menu_group group,
     request.replacement_incoming = incoming;
     request.replacement_include_equip = include_equip;
     request.replacement_include_supplies = include_supplies;
+    request.replacement_reason = reason;
     request.replacement_item_out = replacement_item;
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
+bool open_inventory_slot_pick_menu(const object_type* incoming,
+    const bool* enabled, cptr reason, int* slot_out)
+{
+    supply_menu_request request = {0};
+
+    if (slot_out)
+        *slot_out = -1;
+
+    request.focus_page = true;
+    request.page = SUPPLY_MENU_PAGE_INVENTORY;
+    request.preview_inventory_description = true;
+    request.slot_pick_mode = true;
+    request.slot_pick_incoming = incoming;
+    request.slot_pick_enabled = enabled;
+    request.slot_pick_reason = reason;
+    request.slot_pick_item_out = slot_out;
 
     return do_cmd_knowledge_supplies(&request);
 }
@@ -1366,21 +1387,36 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
                     slot_choice = INVEN_WIELD;
             }
 
-            item_tester_hook = item_tester_hook_throw_slots;
-            item_tester_full = false;
+            /* Count the available destinations to decide if a choice is needed. */
+            int throw_dest_count = 0;
+            for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+                if (throw_slot_enabled[i])
+                    throw_dest_count++;
 
-            q = "Place throwing weapon where? ";
-            s = "Oops.";
+            bool slot_selected;
 
-            bool saved_command_see = p_ptr->command_see;
-            byte saved_command_wrk = p_ptr->command_wrk;
-            p_ptr->command_see = true;
-            p_ptr->command_wrk = (USE_EQUIP);
+            if (throw_dest_count <= 1)
+            {
+                /* Only one place it can go - no need to ask. */
+                slot_selected = true;
+            }
+            else
+            {
+                /* Route the hand-or-quiver choice through the new inventory menu. */
+                int chosen_slot = -1;
 
-            bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+                slot_selected = open_inventory_slot_pick_menu(o_ptr,
+                    throw_slot_enabled,
+                    "Place this throwing weapon: the hand wields it, "
+                    "a quiver lets you throw and swap it.",
+                    &chosen_slot);
 
-            p_ptr->command_see = saved_command_see;
-            p_ptr->command_wrk = saved_command_wrk;
+                if (slot_selected && chosen_slot >= INVEN_WIELD
+                    && chosen_slot < INVEN_TOTAL && throw_slot_enabled[chosen_slot])
+                    slot_choice = chosen_slot;
+                else
+                    slot_selected = false;
+            }
 
             if (!slot_selected)
             {

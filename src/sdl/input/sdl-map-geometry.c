@@ -536,9 +536,15 @@ void sdl_unified_look_set_active(bool active)
 {
     g_unified_look_active = active;
     if (!active)
+    {
+        sdl_unified_look_prompt_clear();
+        sdl_unified_look_sidebar_clear();
         sdl_unified_look_set_map_hover_enabled(false);
+    }
     else
+    {
         sdl_unified_look_clear_map_hover();
+    }
 }
 
 bool sdl_unified_look_pointer_input_active(void)
@@ -1633,5 +1639,3 @@ bool sdl_unified_look_handle_map_hover_pointer(float x, float y)
 
     return true;
 }
-
-

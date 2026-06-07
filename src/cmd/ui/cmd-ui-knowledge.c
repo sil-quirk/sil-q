@@ -3283,6 +3283,7 @@ static void equipment_entry_clear(equipment_list_entry* entry)
     entry->limit_group = INV_LIMIT_NONE;
     entry->placeholder = EQUIPMENT_ENTRY_PLACEHOLDER_NONE;
     entry->equipped = false;
+    entry->show_empty_slot = false;
 }
 
 static object_type* equipment_entry_object(const equipment_list_entry* entry)
@@ -3324,6 +3325,35 @@ static bool equipment_add_entry(equipment_list_entry entries[], int* count,
     entry->limit_group = INV_LIMIT_NONE;
     entry->placeholder = EQUIPMENT_ENTRY_PLACEHOLDER_NONE;
     entry->equipped = equipped;
+    entry->show_empty_slot = false;
+    (*count)++;
+    return true;
+}
+
+/*
+ * Append a row for an equipment slot the player may place an item into.
+ * Unlike equipment_add_entry, an empty destination slot still produces a
+ * visible, selectable row (see show_empty_slot).
+ */
+static bool equipment_add_slot_entry(equipment_list_entry entries[], int* count,
+    int capacity, int slot)
+{
+    equipment_list_entry* entry;
+    bool occupied;
+
+    if (!entries || !count || *count >= capacity)
+        return false;
+
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+        return false;
+
+    occupied = (inventory[slot].k_idx != 0);
+
+    entry = &entries[*count];
+    equipment_entry_clear(entry);
+    entry->equip_idx = slot;
+    entry->equipped = occupied;
+    entry->show_empty_slot = !occupied;
     (*count)++;
     return true;
 }
@@ -3873,6 +3903,34 @@ static void display_equipment_slot_entries(
                 supply_put_fitted(source_col, y, source_w, base_attr,
                     equipment_entry_source_text(entry, source_buf,
                         sizeof(source_buf)));
+            continue;
+        }
+        if ((!o_ptr || !o_ptr->k_idx) && entry->show_empty_slot
+            && entry->equip_idx >= INVEN_WIELD
+            && entry->equip_idx < INVEN_TOTAL)
+        {
+            selected = (column == 1 && idx == entry_cur);
+            base_attr = TERM_L_DARK;
+            attr = selected ? supply_browser_selected_attr(base_attr)
+                            : base_attr;
+            browser_entry_label_prefix(label_prefix, sizeof(label_prefix),
+                idx);
+            strnfmt(display_name, sizeof(display_name), "%s(empty) %s",
+                label_prefix, equipment_slot_text(entry->equip_idx));
+
+            if (selected)
+            {
+                int selection_w = supply_browser_selection_width(
+                    layout->list_col, name_col, name_w, display_name,
+                    layout->list_w);
+                supply_browser_fill_row(layout->list_col, y, selection_w,
+                    attr);
+            }
+
+            supply_put_fitted(name_col, y, name_w, attr, display_name);
+            if (source_w > 0)
+                supply_put_fitted(source_col, y, source_w, base_attr,
+                    equipment_slot_text(entry->equip_idx));
             continue;
         }
         if (!o_ptr || !o_ptr->k_idx)
@@ -5072,6 +5130,107 @@ static bool inventory_replacement_overlay_entry(
 
     objects[0] = request->replacement_incoming;
     objects[1] = candidate;
+
+    return object_info_overlay_show_multi(objects, headings, 2);
+}
+
+static bool slot_pick_slot_enabled(const supply_menu_request* request, int slot)
+{
+    if (!request || !request->slot_pick_mode || !request->slot_pick_enabled)
+        return false;
+
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+        return false;
+
+    return request->slot_pick_enabled[slot];
+}
+
+/* Which browser category a candidate destination slot is filed under. */
+static inventory_menu_group slot_pick_slot_group(int slot)
+{
+    if (slot == INVEN_QUIVER1 || slot == INVEN_QUIVER2)
+        return INVENTORY_MENU_GROUP_THROWABLES;
+
+    return INVENTORY_MENU_GROUP_WEAPONS;
+}
+
+static int count_inventory_slot_pick_group_entries(inventory_menu_group group,
+    const supply_menu_request* request)
+{
+    int count = 0;
+
+    for (int slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++)
+    {
+        if (!slot_pick_slot_enabled(request, slot))
+            continue;
+
+        if (group != INVENTORY_MENU_GROUP_ALL
+            && slot_pick_slot_group(slot) != group)
+            continue;
+
+        count++;
+    }
+
+    return count;
+}
+
+static void compute_inventory_slot_pick_group_totals(
+    int totals[INVENTORY_BROWSER_GROUP_COUNT],
+    const supply_menu_request* request)
+{
+    for (int i = 0; i < INVENTORY_BROWSER_GROUP_COUNT; i++)
+        totals[i] = count_inventory_slot_pick_group_entries(
+            inventory_browser_groups[i], request);
+}
+
+static int collect_inventory_slot_pick_entries(inventory_menu_group group,
+    equipment_list_entry entries[], int capacity,
+    const supply_menu_request* request)
+{
+    int count = 0;
+
+    if (!entries || capacity <= 0 || !request || !request->slot_pick_mode)
+        return 0;
+
+    for (int i = 0; i < capacity; i++)
+        equipment_entry_clear(&entries[i]);
+
+    for (int slot = INVEN_WIELD; slot < INVEN_TOTAL && count < capacity; slot++)
+    {
+        if (!slot_pick_slot_enabled(request, slot))
+            continue;
+
+        if (group != INVENTORY_MENU_GROUP_ALL
+            && slot_pick_slot_group(slot) != group)
+            continue;
+
+        equipment_add_slot_entry(entries, &count, capacity, slot);
+    }
+
+    return count;
+}
+
+static bool inventory_slot_pick_overlay_entry(
+    const supply_menu_request* request, equipment_list_entry* entry)
+{
+    const object_type* objects[2];
+    const char* headings[2] = { "Placing", "Currently here" };
+    object_type* current;
+
+    if (!request || !request->slot_pick_mode || !request->slot_pick_incoming
+        || !entry)
+    {
+        return false;
+    }
+
+    current = equipment_entry_object(entry);
+    objects[0] = request->slot_pick_incoming;
+
+    /* Empty destination slot: just describe the item being placed. */
+    if (!current || !current->k_idx)
+        return object_info_overlay_show_multi(objects, headings, 1);
+
+    objects[1] = current;
 
     return object_info_overlay_show_multi(objects, headings, 2);
 }
@@ -8120,6 +8279,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool drop_click_mode = false;
     bool desc_overlay_on = false;
     bool replacement_mode = false;
+    bool slot_pick_mode = false;
     int focus_floor_o_idx = -1;
     supply_floor_action floor_action = SUPPLY_FLOOR_ACTION_DEFAULT;
     supply_overlay_cache overlay_cache = { false, -1, -1, -1, -1, -1 };
@@ -8185,6 +8345,18 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             forced_action = SUPPLY_MENU_ACTION_NONE;
             drop_click_mode = false;
             *request->replacement_item_out = -1;
+        }
+        if (request->slot_pick_mode && request->slot_pick_incoming
+            && request->slot_pick_incoming->k_idx
+            && request->slot_pick_enabled && request->slot_pick_item_out)
+        {
+            slot_pick_mode = true;
+            page = SUPPLY_MENU_PAGE_INVENTORY;
+            inv_column = 1;
+            desc_overlay_on = true;
+            forced_action = SUPPLY_MENU_ACTION_NONE;
+            drop_click_mode = false;
+            *request->slot_pick_item_out = -1;
         }
     }
 
@@ -8674,9 +8846,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (replacement_mode)
                 compute_inventory_replacement_group_totals(inventory_totals,
                     request);
+            else if (slot_pick_mode)
+                compute_inventory_slot_pick_group_totals(inventory_totals,
+                    request);
             else
                 compute_inventory_browser_group_totals(inventory_totals);
-            knowledge_init_layout(&layout, inv_max, true);
+            /* Slot-pick is a flat, single-column destination list (no groups). */
+            knowledge_init_layout(&layout, inv_max, !slot_pick_mode);
             entry_page_rows = layout.list_rows;
             if (entry_page_rows < 1)
                 entry_page_rows = 1;
@@ -8686,17 +8862,30 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (inv_grp_cur < 0)
                 inv_grp_cur = 0;
 
-            selected_group = inventory_browser_groups[inv_grp_cur];
-            inventory_entry_cnt = replacement_mode
-                ? collect_inventory_replacement_entries(selected_group,
-                    equip_entries, equip_capacity, request)
-                : collect_inventory_page_entries(selected_group, equip_entries,
-                    equip_capacity);
-            inventory_choice_cnt = replacement_mode
+            if (slot_pick_mode)
+            {
+                /* One flat list of every candidate slot; keep focus on it. */
+                selected_group = INVENTORY_MENU_GROUP_ALL;
+                inv_column = 1;
+            }
+            else
+            {
+                selected_group = inventory_browser_groups[inv_grp_cur];
+            }
+            if (replacement_mode)
+                inventory_entry_cnt = collect_inventory_replacement_entries(
+                    selected_group, equip_entries, equip_capacity, request);
+            else if (slot_pick_mode)
+                inventory_entry_cnt = collect_inventory_slot_pick_entries(
+                    selected_group, equip_entries, equip_capacity, request);
+            else
+                inventory_entry_cnt = collect_inventory_page_entries(
+                    selected_group, equip_entries, equip_capacity);
+            inventory_choice_cnt = (replacement_mode || slot_pick_mode)
                 ? inventory_entry_cnt
                 : count_inventory_browser_group_entries(selected_group);
 
-            if (!replacement_mode && focus_floor_o_idx > 0)
+            if (!replacement_mode && !slot_pick_mode && focus_floor_o_idx > 0)
             {
                 for (i = 0; i < inventory_entry_cnt; i++)
                 {
@@ -8749,13 +8938,37 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
                 char incoming_name[120];
                 char incoming_line[160];
+                cptr reason = request->replacement_reason;
 
                 object_desc(incoming_name, sizeof(incoming_name),
                     request->replacement_incoming, true, 3);
-                Term_putstr(0, layout.title_row, layout.term_wid,
-                    TERM_L_WHITE + TERM_SHADE, "What to replace");
-                strnfmt(incoming_line, sizeof(incoming_line), "Picking up: %s",
-                    incoming_name);
+                if (reason && reason[0])
+                    supply_put_fitted(0, layout.title_row, layout.term_wid,
+                        TERM_YELLOW, reason);
+                else
+                    Term_putstr(0, layout.title_row, layout.term_wid,
+                        TERM_L_WHITE + TERM_SHADE, "What to replace");
+                strnfmt(incoming_line, sizeof(incoming_line),
+                    "Picking up: %s - choose one to replace", incoming_name);
+                supply_put_fitted(0, layout.tabs_row, layout.term_wid,
+                    TERM_SLATE, incoming_line);
+            }
+            else if (slot_pick_mode)
+            {
+                char incoming_name[120];
+                char incoming_line[160];
+                cptr reason = request->slot_pick_reason;
+
+                object_desc(incoming_name, sizeof(incoming_name),
+                    request->slot_pick_incoming, true, 3);
+                if (reason && reason[0])
+                    supply_put_fitted(0, layout.title_row, layout.term_wid,
+                        TERM_YELLOW, reason);
+                else
+                    Term_putstr(0, layout.title_row, layout.term_wid,
+                        TERM_L_WHITE + TERM_SHADE, "Place where");
+                strnfmt(incoming_line, sizeof(incoming_line),
+                    "Placing: %s - choose a destination", incoming_name);
                 supply_put_fitted(0, layout.tabs_row, layout.term_wid,
                     TERM_SLATE, incoming_line);
             }
@@ -8772,8 +8985,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_putstr(layout.list_col, layout.header_row, layout.list_w,
                 TERM_SLATE,
                 replacement_mode ? "Replacement candidates"
-                                 : inventory_browser_group_text(selected_group));
-            if (selected_group != INVENTORY_MENU_GROUP_ALL
+                : slot_pick_mode ? "Destination slots"
+                : inventory_browser_group_text(selected_group));
+            if ((slot_pick_mode || selected_group != INVENTORY_MENU_GROUP_ALL)
                 && layout.term_wid >= 64)
             {
                 Term_putstr(layout.term_wid - 10, layout.header_row, 10,
@@ -8782,13 +8996,15 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             for (i = 0; i < layout.term_wid; i++)
                 Term_putch(i, layout.divider_row, TERM_L_DARK, '=');
-            for (i = 0; i < layout.list_rows; i++)
-                Term_putch(layout.divider_col, layout.list_row + i,
-                    TERM_L_DARK, '|');
+            if (layout.divider_col >= 0)
+                for (i = 0; i < layout.list_rows; i++)
+                    Term_putch(layout.divider_col, layout.list_row + i,
+                        TERM_L_DARK, '|');
 
-            if (!replacement_mode)
+            if (!replacement_mode && !slot_pick_mode)
                 supply_register_page_tabs(&layout);
 
+            if (!slot_pick_mode)
             {
                 int group_selection_w = layout.group_w;
 
@@ -8799,25 +9015,26 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     layout.list_row, layout.group_w, group_selection_w,
                     layout.list_rows, inv_grp_cur, inv_grp_top,
                     inventory_totals, inventory_icons, inv_column == 0);
-            }
 
-            for (i = 0; i < layout.list_rows; i++)
-            {
-                int grp_pos = inv_grp_top + i;
-                if (grp_pos >= INVENTORY_BROWSER_GROUP_COUNT)
-                    break;
+                for (i = 0; i < layout.list_rows; i++)
+                {
+                    int grp_pos = inv_grp_top + i;
+                    if (grp_pos >= INVENTORY_BROWSER_GROUP_COUNT)
+                        break;
 
-                ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
-                    layout.group_col, layout.list_row + i,
-                    (layout.divider_col > layout.group_col)
-                        ? (layout.divider_col - layout.group_col)
-                        : layout.group_w);
+                    ui_menu_click_add(SUPPLY_CLICK_GROUP_BASE + grp_pos,
+                        layout.group_col, layout.list_row + i,
+                        (layout.divider_col > layout.group_col)
+                            ? (layout.divider_col - layout.group_col)
+                            : layout.group_w);
+                }
             }
 
             display_equipment_slot_entries(&layout, layout.list_row,
                 layout.list_rows, equip_entries, inventory_entry_cnt,
                 inv_entry_cur, inv_entry_top, inv_column,
-                selected_group != INVENTORY_MENU_GROUP_ALL);
+                slot_pick_mode
+                    || selected_group != INVENTORY_MENU_GROUP_ALL);
 
             for (i = 0; i < entry_page_rows; i++)
             {
@@ -8833,6 +9050,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
                 strnfmt(status_buf, sizeof(status_buf),
                     "%s: %d replacement candidate%s.",
+                    inventory_browser_group_text(selected_group),
+                    inventory_entry_cnt, (inventory_entry_cnt == 1) ? "" : "s");
+            }
+            else if (slot_pick_mode)
+            {
+                strnfmt(status_buf, sizeof(status_buf),
+                    "%s: %d destination slot%s.",
                     inventory_browser_group_text(selected_group),
                     inventory_entry_cnt, (inventory_entry_cnt == 1) ? "" : "s");
             }
@@ -8854,6 +9078,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 cptr prompt = (layout.term_wid <= 50)
                     ? "What to replace? Enter select  Esc"
                     : "What to replace? arrows/mouse move  Enter/Space select  Esc cancel";
+
+                Term_putstr(0, layout.prompt_row, layout.term_wid,
+                    TERM_L_DARK, prompt);
+                supply_register_prompt_clicks(&layout, prompt, NULL, "select",
+                    NULL, NULL, "Esc");
+            }
+            else if (slot_pick_mode)
+            {
+                cptr prompt = (layout.term_wid <= 50)
+                    ? "Place where? Enter select  Esc"
+                    : "Place where? arrows/mouse move  Enter/Space select  Esc cancel";
 
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt);
@@ -8933,6 +9168,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 {
                     bool shown = replacement_mode
                         ? inventory_replacement_overlay_entry(request,
+                            &equip_entries[inv_entry_cur])
+                        : slot_pick_mode
+                        ? inventory_slot_pick_overlay_entry(request,
                             &equip_entries[inv_entry_cur])
                         : equipment_menu_overlay_entry(
                             &equip_entries[inv_entry_cur], selected_slot);
@@ -9076,7 +9314,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 }
             }
 
-            if (ch == '-' && !replacement_mode && inventory_entry_cnt)
+            if (ch == '-' && !replacement_mode && !slot_pick_mode
+                && inventory_entry_cnt)
             {
                 bool found_floor = false;
 
@@ -9111,7 +9350,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 break;
 
             case KTRL('I'):
-                if (replacement_mode)
+                if (replacement_mode || slot_pick_mode)
                     break;
                 page = SUPPLY_MENU_PAGE_SUPPLIES;
                 redraw = true;
@@ -9119,7 +9358,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             case 'e':
             case 'E':
-                if (replacement_mode)
+                if (replacement_mode || slot_pick_mode)
                     break;
                 page = SUPPLY_MENU_PAGE_EQUIPPED;
                 break;
@@ -9130,7 +9369,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             case 'j':
             case 'J':
-                if (replacement_mode)
+                if (replacement_mode || slot_pick_mode)
                     break;
                 page = SUPPLY_MENU_PAGE_SUPPLIES;
                 redraw = true;
@@ -9143,7 +9382,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 #ifdef ARROW_RIGHT
             case ARROW_RIGHT:
 #endif
-                if (replacement_mode)
+                if (replacement_mode || slot_pick_mode)
                 {
                     if (inventory_entry_cnt)
                     {
@@ -9193,6 +9432,28 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     }
                     break;
                 }
+                if (slot_pick_mode)
+                {
+                    if (!inv_column && inventory_entry_cnt)
+                    {
+                        inv_column = 1;
+                    }
+                    else if (inventory_entry_cnt)
+                    {
+                        int chosen_slot =
+                            equip_entries[inv_entry_cur].equip_idx;
+
+                        if (chosen_slot >= INVEN_WIELD
+                            && chosen_slot < INVEN_TOTAL
+                            && request && request->slot_pick_item_out)
+                        {
+                            *request->slot_pick_item_out = chosen_slot;
+                            acted = true;
+                            flag = true;
+                        }
+                    }
+                    break;
+                }
                 if (!inv_column && inventory_entry_cnt)
                 {
                     inv_column = 1;
@@ -9217,7 +9478,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
             case 'z':
             case 'Z':
-                if (replacement_mode)
+                if (replacement_mode || slot_pick_mode)
                     break;
                 if (!inv_column && inventory_entry_cnt)
                 {

@@ -804,6 +804,16 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_unified_look_prompt_handle_hover_pointer(
+            (float)ev->motion.x, (float)ev->motion.y))
+        {
+            return;
+        }
+        if (sdl_unified_look_sidebar_handle_hover_pointer(
+            (float)ev->motion.x, (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_character_panel_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, true, 0))
         {
@@ -919,6 +929,18 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (sdl_player_exchange_handle_pointer_down(
                 (float)ev->button.x, (float)ev->button.y, 0, true))
+            {
+                return;
+            }
+            if (sdl_unified_look_prompt_handle_pointer(
+                    (float)ev->button.x, (float)ev->button.y,
+                    UI_MENU_CLICK_PRIMARY))
+            {
+                return;
+            }
+            if (sdl_unified_look_sidebar_handle_pointer(
+                    (float)ev->button.x, (float)ev->button.y,
+                    UI_MENU_CLICK_PRIMARY))
             {
                 return;
             }
@@ -1038,6 +1060,18 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (sdl_side_pane_menu_open_from_pointer((float)ev->button.x,
                 (float)ev->button.y))
+            {
+                return;
+            }
+            if (sdl_unified_look_prompt_handle_pointer(
+                    (float)ev->button.x, (float)ev->button.y,
+                    UI_MENU_CLICK_SECONDARY))
+            {
+                return;
+            }
+            if (sdl_unified_look_sidebar_handle_pointer(
+                    (float)ev->button.x, (float)ev->button.y,
+                    UI_MENU_CLICK_SECONDARY))
             {
                 return;
             }
@@ -1247,6 +1281,16 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_player_exchange_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false))
+        {
+            return;
+        }
+        if (sdl_unified_look_prompt_handle_pointer(x, y,
+            UI_MENU_CLICK_PRIMARY))
+        {
+            return;
+        }
+        if (sdl_unified_look_sidebar_handle_pointer(x, y,
+            UI_MENU_CLICK_PRIMARY))
         {
             return;
         }
@@ -1972,4 +2016,3 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         Term_redraw();
     }
 }
-

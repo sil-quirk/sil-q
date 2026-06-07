@@ -660,10 +660,19 @@ static pickup_failure_result prompt_replace_light_limit_item(
         if (menu_group != INVENTORY_MENU_GROUP_ALL)
         {
             bool chose_replacement;
+            char reason[160];
+
+            if (label)
+                strnfmt(reason, sizeof(reason),
+                    "No room: you already carry the most %s you can (limit %d).",
+                    label, limit);
+            else
+                SDL_strlcpy(reason, "No room: drop something to make space.",
+                    sizeof(reason));
 
             msg_print("What to replace?");
             chose_replacement = open_inventory_replacement_menu(menu_group,
-                incoming, true, true, &menu_item);
+                incoming, true, true, reason, &menu_item);
 
             if (!chose_replacement)
             {
@@ -1490,10 +1499,19 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         if (menu_group != INVENTORY_MENU_GROUP_ALL)
         {
             bool chose_replacement;
+            char reason[160];
+
+            if (label)
+                strnfmt(reason, sizeof(reason),
+                    "No room: you already carry the most %s you can (limit %d).",
+                    label, limit);
+            else
+                SDL_strlcpy(reason, "No room: drop something to make space.",
+                    sizeof(reason));
 
             msg_print("What to replace?");
             chose_replacement = open_inventory_replacement_menu(menu_group,
-                incoming, false, false, &menu_item);
+                incoming, false, false, reason, &menu_item);
 
             if (!chose_replacement)
             {

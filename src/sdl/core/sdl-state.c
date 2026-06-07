@@ -656,6 +656,8 @@ object_tooltip_state g_object_tooltip;
 description_overlay_state g_description_overlay;
 main_map_drag_state g_main_map_drag;
 bool g_unified_look_active = false;
+sdl_unified_look_prompt_state g_unified_look_prompt;
+sdl_unified_look_sidebar_state g_unified_look_sidebar;
 bool g_unified_look_map_hover_enabled = false;
 bool g_unified_look_map_hover_pending = false;
 bool g_unified_look_map_hover_wake_pending = false;

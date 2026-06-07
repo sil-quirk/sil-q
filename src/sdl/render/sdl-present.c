@@ -1244,6 +1244,8 @@ bool sdl_render_current_window_frame(void)
     sdl_touch_pane_render_yes_no_prompt();
     sdl_log_pane_menu_render();
     sdl_side_pane_menu_render();
+    sdl_unified_look_sidebar_render();
+    sdl_unified_look_prompt_render();
     sdl_description_overlay_render();
 
     return true;

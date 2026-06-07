@@ -812,6 +812,56 @@ typedef struct description_overlay_layout {
     bool footer;
 } description_overlay_layout;
 
+enum {
+    SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS = 16,
+    SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS = 4,
+    SDL_UNIFIED_LOOK_PROMPT_LABEL_LEN = 32,
+    SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS = 256,
+    SDL_UNIFIED_LOOK_SIDEBAR_SYMBOL_LEN = 8,
+    SDL_UNIFIED_LOOK_SIDEBAR_TEXT_LEN = 128
+};
+
+typedef struct sdl_unified_look_prompt_button_state {
+    int choice;
+    char labels[SDL_UNIFIED_LOOK_PROMPT_LABEL_VARIANTS]
+        [SDL_UNIFIED_LOOK_PROMPT_LABEL_LEN];
+} sdl_unified_look_prompt_button_state;
+
+typedef struct sdl_unified_look_prompt_state {
+    bool active;
+    int anchor_row;
+    int count;
+    sdl_unified_look_prompt_button_state
+        buttons[SDL_UNIFIED_LOOK_PROMPT_MAX_BUTTONS];
+} sdl_unified_look_prompt_state;
+
+typedef enum sdl_unified_look_sidebar_item_kind {
+    SDL_UNIFIED_LOOK_SIDEBAR_ITEM_HEADER = 0,
+    SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY = 1
+} sdl_unified_look_sidebar_item_kind;
+
+typedef struct sdl_unified_look_sidebar_item_state {
+    sdl_unified_look_sidebar_item_kind kind;
+    int choice;
+    int entity_type;
+    int y;
+    int x;
+    byte symbol_attr;
+    byte text_attr;
+    char symbol[SDL_UNIFIED_LOOK_SIDEBAR_SYMBOL_LEN];
+    char text[SDL_UNIFIED_LOOK_SIDEBAR_TEXT_LEN];
+} sdl_unified_look_sidebar_item_state;
+
+typedef struct sdl_unified_look_sidebar_state {
+    bool active;
+    bool compact;
+    bool has_selection;
+    int selected_choice;
+    int count;
+    sdl_unified_look_sidebar_item_state
+        items[SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS];
+} sdl_unified_look_sidebar_state;
+
 typedef struct unified_look_map_drag_state {
     bool active;
     bool mouse;
@@ -1298,6 +1348,8 @@ extern object_tooltip_state g_object_tooltip;
 extern description_overlay_state g_description_overlay;
 extern main_map_drag_state g_main_map_drag;
 extern bool g_unified_look_active;
+extern sdl_unified_look_prompt_state g_unified_look_prompt;
+extern sdl_unified_look_sidebar_state g_unified_look_sidebar;
 extern bool g_unified_look_map_hover_enabled;
 extern bool g_unified_look_map_hover_pending;
 extern bool g_unified_look_map_hover_wake_pending;
@@ -1780,6 +1832,24 @@ void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf
 void sdl_touch_pane_proto_label_for_slot(int index, char* buf, size_t buflen);
 void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen);
 void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen);
+void sdl_unified_look_prompt_clear(void);
+void sdl_unified_look_prompt_begin(int anchor_row);
+void sdl_unified_look_prompt_add(int choice, cptr full, cptr medium,
+    cptr compact, cptr tiny);
+void sdl_unified_look_prompt_finish(void);
+void sdl_unified_look_sidebar_clear(void);
+void sdl_unified_look_sidebar_begin(bool compact, bool has_selection,
+    int selected_choice);
+void sdl_unified_look_sidebar_add_header(cptr text);
+void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
+    int x, byte symbol_attr, byte text_attr, cptr symbol, cptr text);
+void sdl_unified_look_sidebar_finish(void);
+void sdl_unified_look_prompt_render(void);
+void sdl_unified_look_sidebar_render(void);
+bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action);
+bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y);
+bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action);
+bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y);
 int sdl_main_view_visual_cols(const sdl_view* view);
 int sdl_main_view_visual_rows(const sdl_view* view);
 bool sdl_term_get_size_hook(term* t, int* w, int* h);
@@ -3057,6 +3127,24 @@ void sdl_touch_pane_proto_label_for_slot(int index, char* buf, size_t buflen);
 void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t buflen);
 void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen);
 void sdl_touch_pane_render(void);
+void sdl_unified_look_prompt_clear(void);
+void sdl_unified_look_prompt_begin(int anchor_row);
+void sdl_unified_look_prompt_add(int choice, cptr full, cptr medium,
+    cptr compact, cptr tiny);
+void sdl_unified_look_prompt_finish(void);
+void sdl_unified_look_sidebar_clear(void);
+void sdl_unified_look_sidebar_begin(bool compact, bool has_selection,
+    int selected_choice);
+void sdl_unified_look_sidebar_add_header(cptr text);
+void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
+    int x, byte symbol_attr, byte text_attr, cptr symbol, cptr text);
+void sdl_unified_look_sidebar_finish(void);
+void sdl_unified_look_prompt_render(void);
+void sdl_unified_look_sidebar_render(void);
+bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action);
+bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y);
+bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action);
+bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y);
 bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_touch_pane_handle_pointer_motion(float x, float y, bool mouse, SDL_FingerID finger_id);
 void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse, SDL_FingerID finger_id);

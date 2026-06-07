@@ -1303,11 +1303,133 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
     return true;
 }
 
+static cptr unified_sidebar_object_filter_tag(int group_filter)
+{
+    switch (group_filter)
+    {
+    case LOOK_GROUP_ARTIFACT:   return "ART";
+    case LOOK_GROUP_WEAPON:     return "WEAP";
+    case LOOK_GROUP_ARMOUR:     return "ARM";
+    case LOOK_GROUP_JEWELRY:    return "JEWL";
+    case LOOK_GROUP_HERBS:      return "HERB";
+    case LOOK_GROUP_POTIONS:    return "POT";
+    case LOOK_GROUP_GEMS:       return "GEM";
+    case LOOK_GROUP_CONSUMABLE: return "CONS";
+    case LOOK_GROUP_OTHER:      return "OTHER";
+    default:                    return "ALL";
+    }
+}
+
+static bool show_unified_sidebar_pixel(unified_look_state* state)
+{
+    unified_sidebar_compact_entry* entries;
+    int max_entries;
+    int entry_count;
+    bool has_sidebar_selection;
+
+    if (!state)
+    {
+        sdl_unified_look_sidebar_clear();
+        return true;
+    }
+
+    if ((state->look_mode == 0) && !state->in_sidebar_mode
+        && (state->selected_entity < 0)
+        && ((state->cursor_y != p_ptr->py) || (state->cursor_x != p_ptr->px)))
+    {
+        (void)Term_set_extra_cursor(false, 0, 0, false);
+
+        if (state->highlighted_y >= 0 && state->highlighted_x >= 0)
+            highlight_entity_on_map(state->highlighted_y, state->highlighted_x,
+                false);
+
+        state->highlighted_y = -1;
+        state->highlighted_x = -1;
+        state->highlighted_entity_type = 0;
+    }
+
+    (void)Term_set_extra_cursor(false, 0, 0, false);
+
+    max_entries = MAX(1, mon_max + o_max);
+    entries = mem_alloc_array(max_entries, unified_sidebar_compact_entry);
+    entry_count = unified_sidebar_compact_build_entries(state, entries,
+        max_entries);
+
+    has_sidebar_selection = (state->selected_entity >= 0)
+        && (state->in_sidebar_mode || (state->look_mode == 0));
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+
+    sdl_unified_look_sidebar_begin(unified_sidebar_use_compact_layout(),
+        has_sidebar_selection, state->selected_entity);
+
+    if (state->show_monsters)
+    {
+        sdl_unified_look_sidebar_add_header("MONSTERS:");
+        for (int i = 0; i < entry_count; i++)
+        {
+            unified_sidebar_compact_entry* entry = &entries[i];
+
+            if (entry->entity_type != 1)
+                continue;
+            sdl_unified_look_sidebar_add_entry(entry->entity_index,
+                entry->entity_type, entry->y, entry->x, entry->symbol_attr,
+                entry->text_attr, entry->symbol, entry->text);
+        }
+    }
+
+    if (state->show_objects)
+    {
+        char header_buf[32];
+
+        strnfmt(header_buf, sizeof(header_buf), "OBJECTS: %s",
+            unified_sidebar_object_filter_tag(state->object_group_filter));
+        sdl_unified_look_sidebar_add_header(header_buf);
+        for (int i = 0; i < entry_count; i++)
+        {
+            unified_sidebar_compact_entry* entry = &entries[i];
+
+            if (entry->entity_type != 2)
+                continue;
+            sdl_unified_look_sidebar_add_entry(entry->entity_index,
+                entry->entity_type, entry->y, entry->x, entry->symbol_attr,
+                entry->text_attr, entry->symbol, entry->text);
+        }
+    }
+
+    if (has_sidebar_selection)
+    {
+        for (int i = 0; i < entry_count; i++)
+        {
+            unified_sidebar_compact_entry* entry = &entries[i];
+
+            if (state->selected_entity != entry->entity_index)
+                continue;
+
+            state->highlighted_y = entry->y;
+            state->highlighted_x = entry->x;
+            state->highlighted_entity_type = entry->entity_type;
+            state->cursor_y = entry->y;
+            state->cursor_x = entry->x;
+            highlight_entity_on_map_type(entry->y, entry->x, true,
+                entry->entity_type);
+            break;
+        }
+    }
+
+    sdl_unified_look_sidebar_finish();
+    entries = mem_free(entries);
+    return true;
+}
+
 /*
  * Show unified sidebar with monsters and objects
  */
 void show_unified_sidebar(unified_look_state* state)
 {
+    if (show_unified_sidebar_pixel(state))
+        return;
+
     if (show_unified_sidebar_compact(state))
         return;
 

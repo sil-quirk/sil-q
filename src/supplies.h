@@ -95,7 +95,13 @@ typedef struct supply_menu_request
     const struct object_type* replacement_incoming;
     bool replacement_include_equip;
     bool replacement_include_supplies;
+    cptr replacement_reason; /* why a replacement is needed; shown atop menu */
     int* replacement_item_out; /* inventory slot or SUPPLIES_INDEX + supply idx */
+    bool slot_pick_mode; /* choose an equip slot to place an item into */
+    const struct object_type* slot_pick_incoming; /* item being placed */
+    const bool* slot_pick_enabled; /* INVEN_TOTAL flags: selectable slots */
+    cptr slot_pick_reason; /* shown atop the slot-pick menu */
+    int* slot_pick_item_out; /* chosen equip slot */
 } supply_menu_request;
 
 void supplies_init(void);
