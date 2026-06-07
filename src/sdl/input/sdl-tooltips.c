@@ -566,7 +566,10 @@ void sdl_object_tooltip_handle_mouse_motion(float x, float y)
         sdl_object_tooltip_clear();
     }
 
-    if (g_unified_look_active || g_pointer_aim.active
+    if (g_unified_look_active)
+        return;
+
+    if (g_pointer_aim.active
         || g_player_action_menu.active || g_player_exchange_target.active)
     {
         sdl_object_tooltip_clear();
@@ -2039,5 +2042,4 @@ void sdl_mouse_path_render(void)
         SDL_RenderRect(g_state.renderer, &rect);
     }
 }
-
 

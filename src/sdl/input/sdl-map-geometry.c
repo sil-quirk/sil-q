@@ -539,6 +539,7 @@ void sdl_unified_look_set_active(bool active)
     {
         sdl_unified_look_prompt_clear();
         sdl_unified_look_sidebar_clear();
+        sdl_object_tooltip_clear();
         sdl_unified_look_set_map_hover_enabled(false);
     }
     else
@@ -1613,11 +1614,20 @@ bool sdl_unified_look_handle_map_hover_pointer(float x, float y)
     if (!sdl_unified_look_pointer_input_active())
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+    {
+        sdl_object_tooltip_clear();
         return false;
+    }
     if (ui_menu_click_has_cell(col, row))
+    {
+        sdl_object_tooltip_clear();
         return false;
+    }
     if (!sdl_main_view_point_to_look_map(x, y, &map_y, &map_x))
+    {
+        sdl_object_tooltip_clear();
         return false;
+    }
 
     if (!ui_menu_click_clear_pending_hover()
         && !g_unified_look_map_hover_pending

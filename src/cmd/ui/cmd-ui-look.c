@@ -458,6 +458,7 @@ static bool unified_look_apply_map_cell(unified_look_state* state, int map_y,
     if (map_y < 0 || map_y >= p_ptr->cur_map_hgt
         || map_x < 0 || map_x >= p_ptr->cur_map_wid)
     {
+        sdl_object_tooltip_clear();
         return true;
     }
 
@@ -468,6 +469,7 @@ static bool unified_look_apply_map_cell(unified_look_state* state, int map_y,
         && (state->selected_entity == new_selection)
         && (state->in_sidebar_mode == new_sidebar_mode))
     {
+        (void)sdl_object_tooltip_show_grid(map_y, map_x, false);
         return true;
     }
 
@@ -486,6 +488,7 @@ static bool unified_look_apply_map_cell(unified_look_state* state, int map_y,
     state->in_sidebar_mode = new_sidebar_mode;
     state->square_cycling_mode = false;
     state->current_square_entity = 0;
+    (void)sdl_object_tooltip_show_grid(map_y, map_x, false);
 
     if (need_redraw)
         *need_redraw = true;
@@ -533,21 +536,8 @@ static int unified_look_prompt_row(void)
 
 static void unified_look_put_row(cptr text, int row)
 {
-    int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    char buf[192];
-
-    SDL_strlcpy(buf, text ? text : "", sizeof(buf));
-
-    if ((int)strlen(buf) > term_wid && term_wid > 4)
-    {
-        int cut = term_wid - 4;
-        if (cut < 0)
-            cut = 0;
-        buf[cut] = '\0';
-        SDL_strlcat(buf, "...", sizeof(buf));
-    }
-
-    prt(buf, row, 0);
+    (void)text;
+    (void)row;
 }
 
 static void unified_look_put_status(cptr text)
@@ -996,6 +986,16 @@ static void unified_look_redraw_bars(const unified_look_state* state,
 
     unified_look_format_status(state, y, x, out_val, sizeof(out_val));
     unified_look_put_status(out_val);
+    if (state->in_sidebar_mode && state->selected_entity >= 0
+        && state->highlighted_y >= 0 && state->highlighted_x >= 0)
+    {
+        (void)sdl_object_tooltip_show_grid(state->highlighted_y,
+            state->highlighted_x, false);
+    }
+    else
+    {
+        (void)sdl_object_tooltip_show_grid(y, x, false);
+    }
     unified_look_update_prompt_buttons_ex(controller_controls,
         compact_look_layout, state->look_mode != 0, state->nearby_filter,
         register_clicks);

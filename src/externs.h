@@ -1663,6 +1663,8 @@ extern void sdl_unified_look_sidebar_add_entry(int choice, int entity_type,
     int y, int x, byte symbol_attr, byte text_attr, cptr symbol, cptr text);
 extern void sdl_unified_look_sidebar_finish(void);
 extern void sdl_unified_look_set_map_hover_enabled(bool enabled);
+extern void sdl_object_tooltip_clear(void);
+extern bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch);
 extern bool sdl_unified_look_take_map_hover(int* y, int* x);
 extern bool sdl_unified_look_take_map_describe(int* y, int* x);
 extern bool sdl_unified_look_take_map_target(int* y, int* x);

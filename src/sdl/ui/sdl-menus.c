@@ -2291,6 +2291,7 @@ bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action)
         {
             sdl_unified_look_prompt_clear_hover_if_needed();
             sdl_unified_look_clear_map_hover();
+            sdl_object_tooltip_clear();
             return true;
         }
         return false;
@@ -2300,6 +2301,7 @@ bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action)
         return true;
 
     sdl_unified_look_clear_map_hover();
+    sdl_object_tooltip_clear();
     g_state.need_present = true;
     Term_keypress((action == UI_MENU_CLICK_SECONDARY)
         ? UI_MENU_CLICK_WAKE_KEY
@@ -2322,6 +2324,7 @@ bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y)
         {
             sdl_unified_look_prompt_clear_hover_if_needed();
             sdl_unified_look_clear_map_hover();
+            sdl_object_tooltip_clear();
             return true;
         }
         return false;
@@ -2331,6 +2334,7 @@ bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y)
         return true;
 
     sdl_unified_look_clear_map_hover();
+    sdl_object_tooltip_clear();
     g_state.need_present = true;
     if (wake)
         Term_keypress(UI_MENU_CLICK_WAKE_KEY);
@@ -2812,6 +2816,7 @@ bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action)
         {
             sdl_unified_look_prompt_clear_hover_if_needed();
             sdl_unified_look_clear_map_hover();
+            sdl_object_tooltip_clear();
             return true;
         }
         return false;
@@ -2843,6 +2848,7 @@ bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y)
         {
             sdl_unified_look_prompt_clear_hover_if_needed();
             sdl_unified_look_clear_map_hover();
+            sdl_object_tooltip_clear();
             return true;
         }
         return false;
