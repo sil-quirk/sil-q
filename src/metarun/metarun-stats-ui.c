@@ -783,7 +783,9 @@ redraw_story_stats:
         metarun_prompt_label('x', "RS Right", blitz_label, sizeof(blitz_label));
     }
 
-    bool blitz_enabled = (op_ptr && op_ptr->opt[OPT_unlock_blitz_mode]);
+    /* Blitz can be launched from the in-game main menu; this quick-entry on
+     * the metarun stats screen only applies before a character exists. */
+    bool blitz_enabled = startup_scene;
 
     bool full_layout = (term_width >= 80 && term_height >= 24);
     int meter_col = 0;

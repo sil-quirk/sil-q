@@ -10,6 +10,7 @@ extern struct sound_config g_sound_config;
 #include "log/log.h"
 #include <ctype.h>
 #include "h-define.h"
+#include "blitz.h"
 #include "metarun.h"
 #include "score/score_artefact.h"
 #include "score/score_guid.h"
@@ -44,6 +45,7 @@ cptr main_menu_title(int choice)
     case MAIN_MENU_LOG_HISTORY: return "Log & combat history";
     case MAIN_MENU_STORY: return "The story so far";
     case MAIN_MENU_STORY_STATS: return "Story statistics";
+    case MAIN_MENU_BLITZ: return "Blitz";
     case MAIN_MENU_OPTIONS: return "Options";
     case MAIN_MENU_HELP: return "Help";
     case MAIN_MENU_ABOUT: return "About";
@@ -68,6 +70,7 @@ int main_menu_keyboard_key(int choice)
     case MAIN_MENU_LOG_HISTORY: return 'l';
     case MAIN_MENU_STORY: return 'y';
     case MAIN_MENU_STORY_STATS: return 'g';
+    case MAIN_MENU_BLITZ: return 'z';
     case MAIN_MENU_OPTIONS: return 'o';
     case MAIN_MENU_HELP: return 'h';
     case MAIN_MENU_ABOUT: return 'b';
@@ -262,6 +265,7 @@ int main_menu_choice_from_key(int key)
     case 'l': return MAIN_MENU_LOG_HISTORY;
     case 'y': return MAIN_MENU_STORY;
     case 'g': return MAIN_MENU_STORY_STATS;
+    case 'z': return MAIN_MENU_BLITZ;
     case 'o': return MAIN_MENU_OPTIONS;
     case 'h': return MAIN_MENU_HELP;
     case 'b': return MAIN_MENU_ABOUT;
@@ -1473,6 +1477,9 @@ int main_menu_aux(int* highlight)
         case 'g':
             *highlight = MAIN_MENU_STORY_STATS;
             return (*highlight); // Story statistics
+        case 'z':
+            *highlight = MAIN_MENU_BLITZ;
+            return (*highlight); // Blitz
         case 'o':
             *highlight = MAIN_MENU_OPTIONS;
             return (*highlight); // Options
@@ -1547,6 +1554,100 @@ int main_menu_aux(int* highlight)
     return (0);
 }
 
+/*
+ * Explain Blitz mode, then (on confirmation) save the current story game and
+ * arm a relaunch into a fresh Blitz session.  The current play_game() session
+ * is ended via quit_to_menu so the engine comes back up in Blitz mode (see
+ * blitz_launch_requested() handling in initial_menu() and close_game()).
+ */
+static void main_menu_blitz_text_line(int* row, int wrap, byte attr, cptr text)
+{
+    Term_gotoxy(2, *row);
+    text_out_c(attr, text);
+    *row += count_wrapped_lines(text, wrap, 2) + 1;
+}
+
+static void do_cmd_start_blitz(void)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = 2;
+    int wrap;
+
+    if (run_mode_is_blitz())
+    {
+        msg_print("You are already playing a Blitz run.");
+        return;
+    }
+
+    if (!p_ptr || !p_ptr->playing || p_ptr->is_dead
+        || death_spectator_active())
+    {
+        msg_print("You cannot start a Blitz run right now.");
+        return;
+    }
+
+    screen_save();
+    sdl_push_terminal_menu_scale();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+
+    Term_clear();
+    Term_get_size(&wid, &hgt);
+    if (wid < 1)
+        wid = 80;
+    if (hgt < 1)
+        hgt = 24;
+
+    wrap = MAX(20, wid - 4);
+    c_put_str(TERM_YELLOW, "Blitz Mode", row, MAX((wid - 10) / 2, 0));
+    row += 2;
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = wrap;
+    text_out_indent = 2;
+
+    main_menu_blitz_text_line(&row, wrap, TERM_L_WHITE,
+        "Blitz is a self-contained run, played entirely apart from your "
+        "story.");
+    main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
+        "Use it to play outside of your metaprogress, or to practise freely: "
+        "nothing you do in Blitz touches your normal metarun, saves or score.");
+    main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
+        "Blitz keeps its own separate character and score files, so your story "
+        "character stays safe and can be resumed at any time.");
+    main_menu_blitz_text_line(&row, wrap, TERM_SLATE,
+        "Starting Blitz will save your current story game first.");
+
+    Term_fresh();
+
+    if (!get_check("Save your story game and start a Blitz run now? "))
+    {
+        screen_pop_touch_pane_hidden();
+        screen_pop_supporting_panes_hidden();
+        sdl_pop_terminal_menu_scale();
+        screen_load();
+        return;
+    }
+
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
+    sdl_pop_terminal_menu_scale();
+    screen_load();
+
+    /* Persist the story game before leaving its session. */
+    save_game_quietly = true;
+    do_cmd_save_game();
+
+    /* Arm the Blitz relaunch and end the current (story) session so the game
+     * comes back up directly in Blitz mode. */
+    blitz_request_launch();
+    p_ptr->quit_to_menu = true;
+    p_ptr->playing = false;
+    p_ptr->leaving = true;
+    (void)Term_flush();
+}
+
 static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     bool* pending_hint_look, int* pending_hint_look_y,
     int* pending_hint_look_x, bool* pending_hint_map,
@@ -1610,6 +1711,11 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
     case MAIN_MENU_STORY_STATS: // Story statistics (g)
     {
         print_metarun_stats();
+        return true;
+    }
+    case MAIN_MENU_BLITZ: // Blitz (z)
+    {
+        do_cmd_start_blitz();
         return true;
     }
     case MAIN_MENU_OPTIONS: // Options (o)

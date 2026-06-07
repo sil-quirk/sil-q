@@ -806,7 +806,7 @@ static const byte app_efficiency_options[] = {
 };
 
 static const byte app_gameplay_options[] = {
-    OPT_unlock_blitz_mode, OPT_load_blitz_by_default,
+    OPT_load_blitz_by_default,
     OPT_NONE
 };
 

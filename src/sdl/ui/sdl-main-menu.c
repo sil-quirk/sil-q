@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "blitz.h"
 #include "sdl/main-sdl-private.h"
 
 int sdl_main_menu_pane_font_px(void)
@@ -510,6 +511,14 @@ void sdl_main_menu_overlay_choose(int choice)
         && (sdl_quit_transition_active() || death_spectator_active()))
     {
         log_info("sdl main menu overlay: quit choice completed; waking command loop with escape");
+        Term_keypress(ESCAPE);
+    }
+
+    /* Starting Blitz ends the current session (quit-to-menu); wake the
+     * blocked command loop so the relaunch into Blitz proceeds promptly. */
+    if (executed && choice == MAIN_MENU_BLITZ && blitz_launch_requested())
+    {
+        log_info("sdl main menu overlay: blitz launch armed; waking command loop with escape");
         Term_keypress(ESCAPE);
     }
 }

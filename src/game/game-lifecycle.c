@@ -912,9 +912,13 @@ void close_game(void)
                 log_warn("Failed to persist live run snapshot for '%s'",
                     op_ptr->full_name);
             }
-            show_scores_interactive_highlight(true, &preview);
+            /* A Blitz relaunch leaves the story session silently; the alive
+             * snapshot above is still recorded so the story run resumes, but
+             * the score screen is skipped for a seamless switch. */
+            if (!blitz_launch_requested())
+                show_scores_interactive_highlight(true, &preview);
         }
-        else
+        else if (!blitz_launch_requested())
             show_scores_interactive(true);
 
         /* Update the live character entry in the scores file so that

@@ -947,8 +947,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_stop_singing_on_rest, OPT_visual_recognition, OPT_know_monster_info,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
-        OPT_min_depth_timer_mode, OPT_unlock_blitz_mode,
-        OPT_load_blitz_by_default, OPT_NONE, OPT_NONE,
+        OPT_min_depth_timer_mode, OPT_load_blitz_by_default,
+        OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Efficiency ***/

@@ -909,9 +909,6 @@ static cptr option_menu_label(int opt)
         return compact ? "Banner layout" : "Banner message layout";
     case OPT_narrative_banner_turns:
         return compact ? "Banner turns" : "Narrative banner turns";
-    case OPT_unlock_blitz_mode:
-        return compact ? (narrow ? "Blitz unlocked" : "Unlock Blitz Mode")
-                       : "Unlock Blitz Mode";
     case OPT_load_blitz_by_default:
         return compact ? (narrow ? "Load Blitz" : "Load Blitz first")
                        : "Load Blitz by default";

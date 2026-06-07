@@ -36,6 +36,16 @@ void run_mode_set_current(run_mode mode);
 run_mode run_mode_current(void);
 bool run_mode_is_blitz(void);
 
+/*
+ * Cross-session request to (re)launch into Blitz.  Set when the player starts
+ * Blitz from the in-game menu; it survives run_mode_reset() and the
+ * between-games re-initialisation so initial_menu() can route the next
+ * play_game() straight into Blitz mode.
+ */
+void blitz_request_launch(void);
+bool blitz_launch_requested(void);
+void blitz_launch_clear(void);
+
 const char* active_score_filename(void);
 bool build_active_score_path(char* buf, size_t len);
 void build_active_savefile_stem(const char* base_name, char* out, size_t len);

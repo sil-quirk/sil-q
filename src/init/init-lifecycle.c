@@ -402,6 +402,18 @@ void init_angband(void)
 extern NavResult initial_menu(bool *start_new)
 {
     log_info("initial_menu: ENTERED - showing main menu");
+
+    /* A Blitz launch armed from the in-game menu skips the title screen and
+     * routes the next play_game() straight into Blitz mode. */
+    if (blitz_launch_requested())
+    {
+        log_info("initial_menu: blitz launch requested - entering Blitz mode");
+        blitz_launch_clear();
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        *start_new = true;
+        return NAV_OK;
+    }
+
     if (sdl_music_consume_welcome_main_once()
         || score_count_alive_entries() > 0)
         sdl_music_play_main();
