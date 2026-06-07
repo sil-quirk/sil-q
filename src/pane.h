@@ -25,7 +25,7 @@ enum pane_type {
     PANE_LEFT_PANEL = 11, // classic/compact character panel overlay
     PANE_STATUS = 12, // current character statuses, rendered as SDL overlay
     PANE_DEPTH = 13, // dungeon depth/partition and zoom overlay
-    PANE_MAIN_MENU = 14, // main menu overlay
+    PANE_MAIN_MENU = 14, // obsolete; recognized only for config migration
     PANE_DESCRIPTION = 15, // modal item/monster description overlay
     PANE_MAX = 16,
 };

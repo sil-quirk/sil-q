@@ -381,9 +381,6 @@ bool sdl_narrative_banner_top_center_pane_rect(
         return false;
 
     switch (pc->pane) {
-    case PANE_MAIN_MENU:
-        return sdl_main_menu_pane_current_rect(out);
-
     case PANE_DEPTH:
         return sdl_depth_menu_pane_current_rect(out);
 

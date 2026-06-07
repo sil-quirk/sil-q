@@ -3,7 +3,10 @@
 
 int sdl_main_menu_pane_font_px(void)
 {
-    int font_px = sdl_effective_pane_cell_height_for_type(PANE_MAIN_MENU);
+    int font_size = (config.aux_view_font_size > 0)
+        ? sdl_resolve_aux_view_font_size(config.aux_view_font_size)
+        : sdl_auto_font_size_from_main(3, 4);
+    int font_px = sdl_aux_cell_height_for_font_size(font_size);
 
     if (font_px < 8)
         font_px = 8;
@@ -32,11 +35,8 @@ typedef enum main_menu_text_align {
 
 bool sdl_main_menu_pane_context_visible(void)
 {
-    const struct pane_config* pc = sdl_main_menu_pane_config();
     SDL_Rect screen;
 
-    if (!pc || !pc->enabled)
-        return false;
     if (!character_generated || !character_dungeon || character_icky)
         return false;
     if (!p_ptr || screen_saved_fullscreen_active())
@@ -154,7 +154,6 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
 
 bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
 {
-    const struct pane_config* pc = sdl_main_menu_pane_config();
     SDL_Rect anchor;
     SDL_Rect screen;
     TTF_Font* font;
@@ -173,7 +172,7 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         return false;
 
     screen = sdl_get_layout_screen_rect();
-    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN_MENU, &anchor))
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor))
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
@@ -203,7 +202,7 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
         panel_h = (float)screen.h * 0.18f;
 
     if (out)
-        *out = sdl_overlay_panel_rect(&anchor, pc->where, (int)panel_w,
+        *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER, (int)panel_w,
             (int)panel_h, &screen);
 
     return true;
@@ -244,7 +243,6 @@ void sdl_main_menu_overlay_scroll_to_highlight(int visible_count)
 
 bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
 {
-    const struct pane_config* pc = sdl_main_menu_pane_config();
     SDL_Rect anchor;
     SDL_Rect screen;
     TTF_Font* story_font;
@@ -268,7 +266,7 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
         return false;
 
     screen = sdl_get_layout_screen_rect();
-    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN_MENU, &anchor))
+    if (!sdl_overlay_pane_anchor_rect(PANE_MAIN, &anchor))
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
@@ -332,7 +330,7 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
 
     if (out)
     {
-        out->panel = sdl_overlay_panel_rect(&anchor, pc->where,
+        out->panel = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER,
             (int)(panel_w + 0.5f), (int)(panel_h + 0.5f), &screen);
         out->pad_x = pad_x;
         out->row_h = row_h;
@@ -425,14 +423,16 @@ void sdl_main_menu_overlay_close(void)
 bool sdl_main_menu_overlay_begin(void)
 {
     main_menu_pane_layout layout;
-    extern int g_banner_force_redraw_remaining;
 
     if (!sdl_main_menu_overlay_layout(&layout))
         return false;
 
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
-        do_cmd_redraw();
+    (void)dismiss_active_narrative_banner();
+    if (p_ptr && character_generated && character_icky == 0) {
+        sdl_mark_tiles_mode_game_redraw();
+        handle_stuff();
+        if (Term)
+            Term_fresh();
     }
 
     g_main_menu_overlay_active = true;
@@ -1046,5 +1046,3 @@ bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
         return false;
     }
 }
-
-

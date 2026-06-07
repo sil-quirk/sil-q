@@ -225,16 +225,6 @@ const struct pane_config* sdl_depth_pane_config(void)
     return NULL;
 }
 
-const struct pane_config* sdl_main_menu_pane_config(void)
-{
-    for (int i = 0; i < pane_config_count; i++) {
-        if (pane_config[i].pane == PANE_MAIN_MENU)
-            return &pane_config[i];
-    }
-
-    return NULL;
-}
-
 float sdl_overlay_panel_x(const SDL_Rect* anchor,
     enum pane_placement where, int panel_w)
 {

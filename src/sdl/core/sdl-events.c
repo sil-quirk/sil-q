@@ -1010,11 +1010,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
-            if (sdl_main_screen_handle_message_line_pointer((float)ev->button.x,
-                (float)ev->button.y))
-            {
-                return;
-            }
             if (sdl_character_panel_handle_pointer_down((float)ev->button.x,
                 (float)ev->button.y, true, 0))
             {
@@ -1337,8 +1332,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             if (round_point_excluded) {
                 if (sdl_main_screen_handle_status_line_pointer(x, y))
                     return;
-                if (sdl_main_screen_handle_message_line_pointer(x, y))
-                    return;
                 if (sdl_character_panel_handle_pointer_down(x, y, false,
                         ev->tfinger.fingerID))
                 {
@@ -1396,8 +1389,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_scroll_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_main_screen_handle_status_line_pointer(x, y))
-            return;
-        if (sdl_main_screen_handle_message_line_pointer(x, y))
             return;
         if (sdl_character_panel_handle_pointer_down(x, y, false,
                 ev->tfinger.fingerID))

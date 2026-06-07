@@ -643,7 +643,8 @@ void process_player(void)
             msg_flag = false;
 
             /* Clear the top line */
-            prt("", 0, 0);
+            if (ui_message_line_enabled())
+                prt("", 0, 0);
 
             /* Process the command */
             process_command();

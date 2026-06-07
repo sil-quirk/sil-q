@@ -36,14 +36,19 @@ void get_sdl_config_info(char* buf, size_t size)
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
     int support_count = 0;
     for (int i = 0; i < pane_config_count && i < MAX_PANE_CONFIGS; i++) {
-        if (pane_config[i].pane != PANE_MAIN)
+        if (pane_config[i].pane != PANE_MAIN
+            && pane_config[i].pane != PANE_MAIN_MENU)
+        {
             support_count++;
+        }
     }
     offset += (size_t)strnfmt(buf + offset, size - offset, "Configurable Panes: %d\n\n", support_count);
 
     for (int i = 0; i < pane_config_count && i < MAX_PANE_CONFIGS; i++) {
         const struct pane_config* pc = &pane_config[i];
         if (pc->pane == PANE_MAIN)
+            continue;
+        if (pc->pane == PANE_MAIN_MENU)
             continue;
         const char* type_str = "UNKNOWN";
         const char* where_str = pane_placement_name(pc->where);
@@ -63,7 +68,6 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_LEFT_PANEL: type_str = "LEFT_PANEL"; break;
             case PANE_STATUS: type_str = "STATUS"; break;
             case PANE_DEPTH: type_str = "DEPTH"; break;
-            case PANE_MAIN_MENU: type_str = "MAIN_MENU"; break;
             case PANE_DESCRIPTION: type_str = "DESCRIPTION"; break;
             default: break;
         }
@@ -714,7 +718,6 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
-            || pane_config[i].pane == PANE_MAIN_MENU
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION)
@@ -732,7 +735,6 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
-            || pane_config[i].pane == PANE_MAIN_MENU
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION)

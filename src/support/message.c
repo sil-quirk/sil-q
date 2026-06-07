@@ -893,27 +893,3 @@ void message_discard_pending(void)
     Term_erase(0, 0, 255);
 }
 
-bool message_line_has_text(void)
-{
-    int i;
-    int limit;
-
-    if (!ui_message_line_enabled())
-        return false;
-
-    if (message_column <= 0 || !Term || !Term->scr || Term->hgt <= 0)
-        return false;
-
-    limit = message_column;
-    if (limit > Term->wid)
-        limit = Term->wid;
-
-    for (i = 0; i < limit; i++)
-    {
-        char ch = Term->scr->c[0][i];
-        if (ch && ch != Term->char_blank)
-            return true;
-    }
-
-    return false;
-}

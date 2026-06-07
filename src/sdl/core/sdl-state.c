@@ -36,8 +36,6 @@ char config_file_path[1024];
 const struct pane_config default_pane_config[] = {
     {.pane = PANE_LEFT_PANEL, .where = PLACE_TOP_LEFT, .enabled = true,
         .rect.cols = 0},
-    {.pane = PANE_MAIN_MENU, .where = PLACE_TOP_CENTER, .enabled = true,
-        .rect.rows = 1, .rect.cols = 6},
     {.pane = PANE_DEPTH, .where = PLACE_TOP_RIGHT, .enabled = true,
         .rect.rows = 4, .rect.cols = 12},
     {.pane = PANE_ROLLS, .where = PLACE_TOP_RIGHT, .enabled = true,

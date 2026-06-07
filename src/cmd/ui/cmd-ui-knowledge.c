@@ -7453,10 +7453,8 @@ void do_cmd_knowledge_browser_page(int page)
 
     FILE_TYPE(FILE_TYPE_TEXT);
 
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0)
+    if (dismiss_active_narrative_banner())
     {
-        g_banner_force_redraw_remaining = 0;
         do_cmd_redraw();
     }
 
@@ -10369,9 +10367,7 @@ void do_cmd_knowledge(void)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Clear any active banner before opening knowledge menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 

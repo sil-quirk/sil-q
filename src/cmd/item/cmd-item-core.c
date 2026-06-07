@@ -674,9 +674,7 @@ void do_cmd_wield_enhanced(void)
     log_trace("do_cmd_wield_enhanced: Starting enhanced wear/wield cycle");
     
     /* Clear any active banner before starting enhanced menu cycle */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
     
@@ -758,9 +756,7 @@ void do_cmd_use_item_enhanced(void)
     log_trace("do_cmd_use_item_enhanced: Starting enhanced use item cycle");
     
     /* Clear any active banner before starting enhanced menu cycle */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
     
@@ -844,9 +840,7 @@ void do_cmd_inven(void)
     log_debug("do_cmd_inven: Starting inventory command");
     
     /* Clear any active banner before showing the menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
     
@@ -987,9 +981,7 @@ void do_cmd_equip(void)
     log_debug("do_cmd_equip: Starting equipment command");
     
     /* Clear any active banner before showing the menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
     
@@ -3477,9 +3469,7 @@ void do_cmd_observe_enhanced(void)
     log_trace("do_cmd_observe_enhanced: Starting enhanced observe cycle");
     
     /* Clear any active banner before starting enhanced menu cycle */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
     

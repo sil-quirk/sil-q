@@ -25,6 +25,5 @@ void message(u16b message_type, s16b extra, cptr message);
 void message_format(u16b message_type, s16b extra, cptr fmt, ...);
 void message_flush(void);
 void message_discard_pending(void);
-bool message_line_has_text(void);
 
 #endif /* INCLUDED_SUPPORT_MESSAGE_H */

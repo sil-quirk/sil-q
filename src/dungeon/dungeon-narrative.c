@@ -378,6 +378,14 @@ void clear_active_narrative_banner(void)
         g_term_pre_fresh_hook = NULL;
 }
 
+bool dismiss_active_narrative_banner(void)
+{
+    bool was_visible = active_narrative_banner_visible();
+
+    clear_active_narrative_banner();
+    return was_visible;
+}
+
 /*
  * Transition templates for partition narrative.
  * Each template takes (old_S, new_S) as %s arguments.

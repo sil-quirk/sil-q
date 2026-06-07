@@ -213,24 +213,6 @@ bool sdl_main_screen_handle_menu_hover_pointer(float x, float y)
     return true;
 }
 
-bool sdl_main_screen_handle_message_line_pointer(float x, float y)
-{
-    int col = 0;
-    int row = 0;
-
-    if (!sdl_main_screen_click_shortcuts_active())
-        return false;
-    if (!message_line_has_text())
-        return false;
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
-        return false;
-    if (row != 0)
-        return false;
-
-    Term_keypress(KTRL('P'));
-    return true;
-}
-
 bool sdl_status_line_partition_label_at_col(int row, int col)
 {
     cptr long_label = "";
@@ -3516,5 +3498,4 @@ bool sdl_character_panel_flush_pending_press(Uint64 now_ns)
     sdl_character_panel_cancel_press();
     return sdl_main_screen_handle_character_panel_secondary_pointer(x, y);
 }
-
 

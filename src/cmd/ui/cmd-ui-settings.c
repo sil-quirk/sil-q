@@ -3216,7 +3216,6 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_LEFT_PANEL: return "LEFT_PANEL";
     case PANE_STATUS: return "STATUS";
     case PANE_DEPTH: return "DEPTH";
-    case PANE_MAIN_MENU: return "MAIN_MENU";
     default: return "UNKNOWN";
     }
 }
@@ -3474,7 +3473,6 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_LEFT_PANEL: return "LEFT";
     case PANE_STATUS: return "STAT";
     case PANE_DEPTH: return "DEPTH";
-    case PANE_MAIN_MENU: return "MENU";
     default: return "UNK";
     }
 }
@@ -3625,8 +3623,7 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
 static bool pane_type_is_overlay(enum pane_type type)
 {
     return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
-        || (type == PANE_DEPTH) || (type == PANE_MAIN_MENU)
-        || (type == PANE_ROLLS);
+        || (type == PANE_DEPTH) || (type == PANE_ROLLS);
 }
 
 static const char* pane_type_display_name(enum pane_type type)
@@ -3637,7 +3634,6 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_LEFT_PANEL: return "Left Panel";
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
-    case PANE_MAIN_MENU: return "Main Menu";
     case PANE_ROLLS: return "Overlay Log";
     case PANE_LOG: return "Log";
     default: return pane_type_name(type);
@@ -7559,9 +7555,7 @@ void do_cmd_options(void)
     bool return_to_game = false;
 
     /* Clear any active banner before opening options */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 
@@ -10375,9 +10369,7 @@ void do_cmd_macros(void)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Clear any active banner before opening macros menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 
@@ -12217,9 +12209,7 @@ void do_cmd_colors(void)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Clear any active banner before opening colors menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 

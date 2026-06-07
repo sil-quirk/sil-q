@@ -528,6 +528,7 @@ extern bool active_narrative_banner_visible(void);
 extern cptr active_narrative_banner_text(void);
 extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
+extern bool dismiss_active_narrative_banner(void);
 extern bool sdl_narrative_banner_overlay_enabled(void);
 extern void sdl_narrative_banner_show(bool line_delay);
 extern void styles_reload_messages_from_text(void);
@@ -785,20 +786,21 @@ extern int object_difficulty(object_type* o_ptr);
 extern void do_cmd_smithing_screen(void);
 extern void create_smithing_item(void);
 #define MAIN_MENU_CHARACTER 1
-#define MAIN_MENU_KNOWLEDGE 2
-#define MAIN_MENU_HINTS_QUESTS 3
-#define MAIN_MENU_HALLS_OF_MANDOS 4
-#define MAIN_MENU_MAP 5
-#define MAIN_MENU_LOG_HISTORY 6
-#define MAIN_MENU_STORY 7
-#define MAIN_MENU_STORY_STATS 8
-#define MAIN_MENU_OPTIONS 9
-#define MAIN_MENU_HELP 10
-#define MAIN_MENU_ABOUT 11
-#define MAIN_MENU_SAVE 12
-#define MAIN_MENU_SAVE_QUIT 13
-#define MAIN_MENU_RETURN_GAME 14
-#define MAIN_MENU_MAX 14
+#define MAIN_MENU_INVENTORY 2
+#define MAIN_MENU_KNOWLEDGE 3
+#define MAIN_MENU_HINTS_QUESTS 4
+#define MAIN_MENU_HALLS_OF_MANDOS 5
+#define MAIN_MENU_MAP 6
+#define MAIN_MENU_LOG_HISTORY 7
+#define MAIN_MENU_STORY 8
+#define MAIN_MENU_STORY_STATS 9
+#define MAIN_MENU_OPTIONS 10
+#define MAIN_MENU_HELP 11
+#define MAIN_MENU_ABOUT 12
+#define MAIN_MENU_SAVE 13
+#define MAIN_MENU_SAVE_QUIT 14
+#define MAIN_MENU_RETURN_GAME 15
+#define MAIN_MENU_MAX 15
 extern cptr main_menu_title(int choice);
 extern int main_menu_keyboard_key(int choice);
 extern void main_menu_shortcut_label(int choice, char* buf, size_t buflen);
@@ -1545,7 +1547,6 @@ extern void screen_load(void);
 extern void screen_load_quiet(void);
 extern void screen_clear_all_terms_no_fresh(void);
 extern void message_discard_pending(void);
-extern bool message_line_has_text(void);
 extern void startup_loading_overlay_arm(void);
 extern void startup_loading_overlay_disarm(void);
 extern bool sdl_welcome_screen_show_intro(int intro_style, bool show_wizard);

@@ -28,7 +28,7 @@ void do_cmd_redraw(void)
     /* Reset "inkey()" */
     flush();
 
-    if (g_banner_force_redraw_remaining <= 0)
+    if (!active_narrative_banner_visible())
         clear_active_narrative_banner();
 
     /* Hack -- React to changes */
@@ -1768,9 +1768,7 @@ void do_cmd_character_sheet(void)
     };
 
     /* Clear any active banner before opening character sheet */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 

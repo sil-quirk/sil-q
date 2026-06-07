@@ -1352,9 +1352,8 @@ void do_cmd_unified_look(void)
     int original_wy, original_wx; /* Store original viewport */
     
     /* Clear entry level banner when using look command */
-    if (g_banner_force_redraw_remaining > 0)
+    if (dismiss_active_narrative_banner())
     {
-        g_banner_force_redraw_remaining = 0;
         do_cmd_redraw();
     }
     
@@ -2932,9 +2931,8 @@ void do_cmd_locate(void)
     }
 
     /* Clear entry level banner when using L command */
-    if (g_banner_force_redraw_remaining > 0)
+    if (dismiss_active_narrative_banner())
     {
-        g_banner_force_redraw_remaining = 0;
         do_cmd_redraw();
     }
 

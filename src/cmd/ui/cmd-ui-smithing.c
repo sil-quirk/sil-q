@@ -7815,7 +7815,7 @@ static void smith_root_draw_header(void)
             star_iron_carried() / 10, star_iron_carried() % 10);
     }
 
-    smith_ui_put_fitted(col, 1, COL_SMT2 - col - 1, TERM_SLATE, status);
+    smith_ui_put_fitted(col, 1, smith_ui_line_width(col), TERM_SLATE, status);
 }
 
 static void smith_root_draw_chrome(int detail_col, int list_w)

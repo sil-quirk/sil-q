@@ -67,7 +67,7 @@ bool sdl_pane_layout_config_draggable(int index)
         return false;
     if (type == PANE_TOUCH || type == PANE_MAP || type == PANE_LEFT_PANEL
         || type == PANE_STATUS || type == PANE_DEPTH
-        || type == PANE_MAIN_MENU || type == PANE_DESCRIPTION)
+        || type == PANE_DESCRIPTION)
     {
         return false;
     }
@@ -968,7 +968,6 @@ const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_LEFT_PANEL: return "Left Panel";
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
-    case PANE_MAIN_MENU: return "Main Menu";
     case PANE_DESCRIPTION: return "Description";
     default: return "Pane";
     }
@@ -985,8 +984,7 @@ bool sdl_side_pane_menu_config_is_entry(int index)
     if (type <= PANE_MAIN || type >= PANE_MAX)
         return false;
     if (type == PANE_TOUCH || type == PANE_LEFT_PANEL || type == PANE_STATUS
-        || type == PANE_DEPTH || type == PANE_MAIN_MENU
-        || type == PANE_DESCRIPTION)
+        || type == PANE_DEPTH || type == PANE_DESCRIPTION)
     {
         return false;
     }

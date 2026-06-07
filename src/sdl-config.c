@@ -320,7 +320,6 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_LEFT_PANEL: return "LEFT_PANEL";
         case PANE_STATUS: return "STATUS";
         case PANE_DEPTH: return "DEPTH";
-        case PANE_MAIN_MENU: return "MAIN_MENU";
         case PANE_DESCRIPTION: return "DESCRIPTION";
         default: return "MAIN";
     }

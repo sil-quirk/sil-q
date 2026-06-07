@@ -36,6 +36,7 @@ cptr main_menu_title(int choice)
     switch (choice)
     {
     case MAIN_MENU_CHARACTER: return "Character sheet";
+    case MAIN_MENU_INVENTORY: return "Inventory";
     case MAIN_MENU_KNOWLEDGE: return "Known lore";
     case MAIN_MENU_HINTS_QUESTS: return "Hints & Quests";
     case MAIN_MENU_HALLS_OF_MANDOS: return "Halls of Mandos";
@@ -59,8 +60,9 @@ int main_menu_keyboard_key(int choice)
     switch (choice)
     {
     case MAIN_MENU_CHARACTER: return 'c';
+    case MAIN_MENU_INVENTORY: return 'i';
     case MAIN_MENU_KNOWLEDGE: return 'a';
-    case MAIN_MENU_HINTS_QUESTS: return 'i';
+    case MAIN_MENU_HINTS_QUESTS: return 't';
     case MAIN_MENU_HALLS_OF_MANDOS: return 'd';
     case MAIN_MENU_MAP: return 'm';
     case MAIN_MENU_LOG_HISTORY: return 'l';
@@ -252,9 +254,9 @@ int main_menu_choice_from_key(int key)
     switch (key)
     {
     case 'c': return MAIN_MENU_CHARACTER;
+    case 'i': return MAIN_MENU_INVENTORY;
     case 'a': return MAIN_MENU_KNOWLEDGE;
-    case 't':
-    case 'i': return MAIN_MENU_HINTS_QUESTS;
+    case 't': return MAIN_MENU_HINTS_QUESTS;
     case 'd': return MAIN_MENU_HALLS_OF_MANDOS;
     case 'm': return MAIN_MENU_MAP;
     case 'l': return MAIN_MENU_LOG_HISTORY;
@@ -1344,13 +1346,8 @@ int main_menu_aux(int* highlight)
         row_first = top_pad;
         menu_h = MAIN_MENU_MAX + top_pad + bottom_pad;
 
-        /* Keep the menu fixed vertically.
-         * At height 20, start at row 0 so all menu rows fit.
-         * Otherwise keep row 0 for message bar and start menu at row 1. */
-        if (Term->hgt <= 18)
-            row_top = 0;
-        else
-            row_top = (Term->hgt > 1) ? 1 : 0;
+        /* Keep the menu fixed vertically; row 0 is part of the menu now. */
+        row_top = 0;
     }
 
     if (death_view && main_menu_choice_is_disabled(*highlight))
@@ -1452,11 +1449,13 @@ int main_menu_aux(int* highlight)
         case 'c':
             *highlight = MAIN_MENU_CHARACTER;
             return (*highlight);  // Character sheet
+        case 'i':
+            *highlight = MAIN_MENU_INVENTORY;
+            return (*highlight); // Inventory
         case 'a':
             *highlight = MAIN_MENU_KNOWLEDGE;
             return (*highlight);  // Known lore
         case 't':
-        case 'i':
             *highlight = MAIN_MENU_HINTS_QUESTS;
             return (*highlight); // Hints & Quests
         case 'd':
@@ -1560,12 +1559,17 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         do_cmd_character_sheet();
         return true;
     }
+    case MAIN_MENU_INVENTORY: // Inventory (i)
+    {
+        do_cmd_inven_direct();
+        return true;
+    }
     case MAIN_MENU_KNOWLEDGE: // Known lore (a)
     {
         do_cmd_knowledge_browser_page(g_knowledge_last_page);
         return true;
     }
-    case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (i/t)
+    case MAIN_MENU_HINTS_QUESTS: // Hints & Quests (t)
     {
         do_cmd_hint_quest_menu(pending_hint_look, pending_hint_look_y,
             pending_hint_look_x, pending_hint_map, pending_hint_map_y,
@@ -1713,17 +1717,15 @@ bool do_cmd_main_menu_execute_choice(int actiontype)
  */
 void do_cmd_main_menu(void)
 {
-    /* Clear any active banner before opening main menu */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
-        do_cmd_redraw();
-    }
-
 #ifdef USE_SDL
     (void)sdl_main_menu_overlay_begin();
     return;
 #else
+    /* Clear any active banner before opening main menu */
+    if (dismiss_active_narrative_banner()) {
+        do_cmd_redraw();
+    }
+
     int actiontype = -1;
     int highlight = 1;
     bool leave_menu = false;
@@ -3376,9 +3378,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool steamdeck = steamdeck_controls_active();
 
     /* Clear any active banner before opening hint messages */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 
@@ -3795,9 +3795,7 @@ void do_cmd_messages_with_filter(int initial_filter)
     int hover_filter = -1;
 
     /* Clear any active banner before opening message history */
-    extern int g_banner_force_redraw_remaining;
-    if (g_banner_force_redraw_remaining > 0) {
-        g_banner_force_redraw_remaining = 0;
+    if (dismiss_active_narrative_banner()) {
         do_cmd_redraw();
     }
 

@@ -600,7 +600,7 @@ int sdl_overlay_edge_gap_px(int area_px, int content_px)
 bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
-        || pane == PANE_DEPTH || pane == PANE_MAIN_MENU || pane == PANE_ROLLS
+        || pane == PANE_DEPTH || pane == PANE_ROLLS
         || pane == PANE_LOG || pane == PANE_DESCRIPTION;
 }
 
@@ -634,6 +634,40 @@ bool sdl_migrate_legacy_main_menu_depth_pane(
     return true;
 }
 
+static bool sdl_remove_obsolete_main_menu_pane_configs(
+    struct pane_config* configs, int* config_count)
+{
+    int write = 0;
+    bool changed = false;
+
+    if (!configs || !config_count)
+        return false;
+    if (*config_count < 0)
+        *config_count = 0;
+    if (*config_count > MAX_PANE_CONFIGS)
+        *config_count = MAX_PANE_CONFIGS;
+
+    for (int read = 0; read < *config_count; read++) {
+        if (configs[read].pane == PANE_MAIN_MENU) {
+            changed = true;
+            continue;
+        }
+
+        if (write != read)
+            configs[write] = configs[read];
+        write++;
+    }
+
+    if (changed) {
+        memset(configs + write, 0,
+            sizeof(struct pane_config) * (MAX_PANE_CONFIGS - write));
+        *config_count = write;
+        log_info("Removed obsolete MAIN_MENU pane config");
+    }
+
+    return changed;
+}
+
 bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
     int* config_count, bool enable_new_panes)
 {
@@ -648,6 +682,8 @@ bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
         *config_count = MAX_PANE_CONFIGS;
 
     if (sdl_migrate_legacy_main_menu_depth_pane(configs, *config_count))
+        changed = true;
+    if (sdl_remove_obsolete_main_menu_pane_configs(configs, config_count))
         changed = true;
 
     for (int i = 0; i < default_pane_config_count; i++) {
@@ -1934,9 +1970,9 @@ void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
 
         case PANE_MAIN_MENU:
             configs[i].where = PLACE_TOP_CENTER;
-            configs[i].enabled = true;
-            configs[i].rect.rows = 1;
-            configs[i].rect.cols = 6;
+            configs[i].enabled = false;
+            configs[i].rect.rows = 0;
+            configs[i].rect.cols = 0;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -2668,13 +2704,14 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
         bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
         bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
-        bool is_main_menu_pane = (pane_config[i].pane == PANE_MAIN_MENU);
         bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
         bool is_overlay_log_pane = (pane_config[i].pane == PANE_ROLLS)
             && pane_placement_is_overlay(where);
 
+        if (pane_config[i].pane == PANE_MAIN_MENU)
+            continue;
         if (touch_only && !is_touch_pane && !is_status_pane
-            && !is_left_panel && !is_depth_pane && !is_main_menu_pane
+            && !is_left_panel && !is_depth_pane
             && !is_description_pane && !is_overlay_log_pane)
         {
             continue;
@@ -2685,7 +2722,6 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
             continue;
         if (!is_touch_pane && !is_status_pane && !is_left_panel
             && !is_depth_pane
-            && !is_main_menu_pane
             && !is_description_pane && !is_overlay_log_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
@@ -2788,7 +2824,7 @@ int sdl_auto_pane_font_size(enum pane_type type)
 {
     if (type == PANE_STATUS)
         return sdl_auto_font_size_from_main(1, 2);
-    if (type == PANE_LEFT_PANEL || type == PANE_MAIN_MENU)
+    if (type == PANE_LEFT_PANEL)
         return sdl_auto_font_size_from_main(3, 4);
 
     return sdl_auto_aux_view_font_size();
