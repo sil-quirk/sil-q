@@ -71,6 +71,7 @@ bool cave_style_color_force_first_variant(byte color_value);
 int cave_hallucination_style_for_display(int sidx);
 byte cave_get_active_style_color(void);
 int cave_style_primary_for_grid(int y, int x);
+int cave_style_ascii_attr(int sidx);
 
 void cave_feature_visual(const feature_type* f_ptr, byte* a, char* c);
 void cave_monster_visual(const monster_race* r_ptr, byte* a, char* c);

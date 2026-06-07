@@ -577,6 +577,86 @@ void styles_set_vault_avoid_style(int sidx)
     g_vault_avoid_style = sidx;
 }
 
+/*
+ * ASCII wall colour by style.
+ *
+ * In ASCII/text mode there are no per-style wall tiles, so we colour the wall
+ * glyph ('#' / '%') according to the colour word named in the style's S:
+ * short descriptor in style.txt (e.g. "cold grey ashstone", "sickly green
+ * slime-covered bricks", "ornate deep sapphire stone"). Returns a TERM_* attr,
+ * or -1 when the descriptor carries no recognisable colour (the caller then
+ * keeps the feature's default colour).
+ */
+
+/* Case-insensitive substring search (no portable strcasestr in the codebase). */
+static bool str_contains_ci(const char* hay, const char* needle)
+{
+    size_t nlen;
+    if (!hay || !needle) return false;
+    nlen = strlen(needle);
+    if (nlen == 0) return false;
+    for (; *hay; hay++) {
+        if (SDL_strncasecmp(hay, needle, nlen) == 0) return true;
+    }
+    return false;
+}
+
+int cave_style_ascii_attr(int sidx)
+{
+    /* Colour words mapped to TERM_* attrs, in priority order. The descriptors
+     * often mention more than one colour (e.g. "blue-grey", "purple-green",
+     * "blood-red heraldry"); earlier entries win, so the dominant/material
+     * colour is listed before accent colours. */
+    static const struct { const char* word; byte attr; } color_words[] = {
+        { "grey",       TERM_SLATE  },
+        { "gray",       TERM_SLATE  },
+        { "marble",     TERM_WHITE  },
+        { "bone",       TERM_WHITE  },
+        { "parchment",  TERM_WHITE  },
+        { "white",      TERM_WHITE  },
+        { "yellow",     TERM_YELLOW },
+        { "crimson",    TERM_RED    },
+        { "blood",      TERM_RED    },
+        { "red",        TERM_RED    },
+        { "lavender",   TERM_VIOLET },
+        { "violet",     TERM_VIOLET },
+        { "purple",     TERM_VIOLET },
+        { "pink",       TERM_VIOLET },
+        { "jade",       TERM_GREEN  },
+        { "moss",       TERM_GREEN  },
+        { "serpentine", TERM_GREEN  },
+        { "green",      TERM_GREEN  },
+        { "sapphire",   TERM_BLUE   },
+        { "blue",       TERM_BLUE   },
+        { "ember",      TERM_ORANGE },
+        { "fire",       TERM_ORANGE },
+        { "molten",     TERM_RED    },
+        { "rust",       TERM_UMBER  },
+        { "iron",       TERM_UMBER  },
+        { "brown",      TERM_UMBER  },
+        { "earth",      TERM_UMBER  },
+        { "shadow",     TERM_L_DARK },
+        { "lightless",  TERM_L_DARK },
+        { "void",       TERM_L_DARK },
+        { "black",      TERM_L_DARK },
+        { "dark",       TERM_L_DARK },
+    };
+
+    const char* desc;
+
+    if (!cave_style_index_is_valid(sidx)) return -1;
+
+    desc = styles_get_style_short_desc(sidx);
+    if (!desc || !desc[0]) return -1;
+
+    for (size_t i = 0; i < N_ELEMENTS(color_words); i++) {
+        if (str_contains_ci(desc, color_words[i].word))
+            return color_words[i].attr;
+    }
+
+    return -1;
+}
+
 int styles_decode_color_style(byte color_value)
 {
     int bases[2] = { COLOR_STYLE_BASE, COLOR_STYLE_BASE + COLOR_STYLE_FLAG_FIRSTVAR };

@@ -921,7 +921,17 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 /* Don't return early - let monster display code run */
             }
             else {
-                /* Standard lighting effects for non-wall features */
+                /* ASCII/text mode: colour wall & vein glyphs by their style. */
+                if (graphics_are_ascii() && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL) && feat != FEAT_RUBBLE)
+                {
+                    int sidx2 = cave_style_index_for_color(cave_color[y][x]);
+                    if (sidx2 < 0) sidx2 = cave_style_primary_for_grid(y, x);
+                    sidx2 = cave_hallucination_style_for_display(sidx2);
+                    int style_attr = cave_style_ascii_attr(sidx2);
+                    if (style_attr >= 0) a = (byte)style_attr;
+                }
+
+                /* Standard lighting effects (darkens unlit walls). */
                 special_lighting_wall(&a, &c, feat, info, cave_light[y][x]);
             }
 #else

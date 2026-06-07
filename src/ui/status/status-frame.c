@@ -615,14 +615,23 @@ static void display_combined_log_in_pane(int filter)
     for (int r = 0; r < h; r++)
         Term_erase(0, r, 255);
 
-    pane_log_row_state_reset(h);
-
     /*
      * In the overlay log the visible panel is a narrow right-hand band, so
      * indent text to that band and wrap long messages within it.  The wide
      * cell grid behind it still carries the full combat-roll line.
      */
     overlay = (PANE_ROLLS < ANGBAND_TERM_MAX) && (Term == angband_term[PANE_ROLLS]);
+
+    /*
+     * Only the overlay log paints from the shared out-of-band row buffers; the
+     * bottom log pane writes real cells.  Resetting the buffers here for the
+     * non-overlay pane would wipe the overlay's stored rows, so a later generic
+     * Term_redraw of the overlay (e.g. Ctrl-R) would repaint it from empty
+     * buffers and blank it.  Keep the overlay's content intact by only the
+     * overlay resetting (and then repopulating) the buffers.
+     */
+    if (overlay)
+        pane_log_row_state_reset(h);
     margin = overlay ? pane_log_overlay_left_margin(w) : 0;
     avail = w - margin;
     if (avail < 1)
@@ -715,7 +724,10 @@ static void display_log_pane_with_filter(int pane, int default_filter)
     }
     else if (filter == LOG_HISTORY_FILTER_COMBAT)
     {
-        if (Term)
+        /* Only the overlay owns the shared out-of-band buffers; see the note in
+         * display_combined_log_in_pane().  Don't let a non-overlay combat pane
+         * wipe them out from under the overlay. */
+        if (Term && pane_log_current_term_is_overlay())
             pane_log_row_state_reset(Term->hgt);
         display_combat_rolls();
     }

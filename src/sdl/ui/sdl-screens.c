@@ -1935,6 +1935,54 @@ void sdl_char_sheet_draw_heading(TTF_Font* font, cptr heading,
         line_h * 0.92f, false);
 }
 
+/*
+ * Draw a skill's "total = base mods..." breakdown with per-segment colour to
+ * match the text and birth skill tables: the total in bright green, the base
+ * ability in green, and the "=" plus every modifier column in slate.
+ */
+static void sdl_char_sheet_draw_skill_value(TTF_Font* font, cptr value,
+    bool focused, float x, float y, float w, float h)
+{
+    int full_w = sdl_char_sheet_text_width(font, value);
+    int space_w = sdl_char_sheet_text_width(font, " ");
+    float scale = (full_w > 0 && (float)full_w > w) ? w / (float)full_w : 1.0f;
+    float cursor = x;
+    const char* p = value;
+    int idx = 0;
+
+    while (*p)
+    {
+        char tok[32];
+        size_t len = 0;
+        byte attr;
+        int tok_w;
+
+        while (*p == ' ')
+            p++;
+        if (!*p)
+            break;
+        while (*p && *p != ' ' && len < sizeof(tok) - 1)
+            tok[len++] = *p++;
+        tok[len] = '\0';
+
+        if (idx == 0)
+            attr = TERM_L_GREEN;          /* total skill */
+        else if (streq(tok, "="))
+            attr = TERM_SLATE;
+        else if (idx == 2)
+            attr = TERM_GREEN;            /* base ability */
+        else
+            attr = TERM_SLATE;            /* stat / equip / misc modifiers */
+
+        tok_w = sdl_char_sheet_text_width(font, tok);
+        (void)sdl_char_sheet_draw_text(font, tok,
+            sdl_char_sheet_focus_text_attr(attr, focused), cursor, y,
+            (float)tok_w * scale + 1.0f, h, false);
+        cursor += (float)tok_w * scale + (float)space_w * scale;
+        idx++;
+    }
+}
+
 void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
     byte attr, int choice, cptr desc, float x, float y, float w, float line_h,
     float label_fraction)
@@ -2013,9 +2061,15 @@ void sdl_char_sheet_draw_labeled_line(TTF_Font* font, cptr text,
             TTF_Font* value_font = sdl_story_font_slot_sibling(font,
                 SDL_STORY_FONT_SLOT_CHAR_NUM);
 
-            (void)sdl_char_sheet_draw_text(value_font, value,
-                sdl_char_sheet_focus_text_attr(attr, focused), x + label_w,
-                y, w - label_w, line_h * 0.92f, false);
+            /* Skill rows carry a "total = base mods" breakdown; colour each
+             * column instead of painting the whole value one shade. */
+            if (strstr(value, " = "))
+                sdl_char_sheet_draw_skill_value(value_font, value, focused,
+                    x + label_w, y, w - label_w, line_h * 0.92f);
+            else
+                (void)sdl_char_sheet_draw_text(value_font, value,
+                    sdl_char_sheet_focus_text_attr(attr, focused), x + label_w,
+                    y, w - label_w, line_h * 0.92f, false);
         }
     }
     else
