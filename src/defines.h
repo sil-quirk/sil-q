@@ -449,6 +449,7 @@
 #define LOG_HISTORY_FILTER_ALL 0
 #define LOG_HISTORY_FILTER_MESSAGES 1
 #define LOG_HISTORY_FILTER_COMBAT 2
+#define LOG_HISTORY_FILTER_NOTES 3
 
 // Types of combat roll storage
 #define COMBAT_ROLL_NONE 0

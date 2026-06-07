@@ -2645,9 +2645,6 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         { "Space/I increase", 'i' },
         { "? help", '?' },
         { "Esc back", ESCAPE },
-        { "N notes", 'n' },
-        { "S story", 's' },
-        { "F file", 'f' },
 #ifdef DEBUG_CURSES
         { "C curses", 'c' },
 #endif

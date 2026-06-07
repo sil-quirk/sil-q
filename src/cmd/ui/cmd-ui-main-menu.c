@@ -663,7 +663,8 @@ static void do_cmd_log_history_menu(void)
 enum {
     LOG_HISTORY_CLICK_FILTER_ALL = -20001,
     LOG_HISTORY_CLICK_FILTER_MESSAGES = -20002,
-    LOG_HISTORY_CLICK_FILTER_COMBAT = -20003
+    LOG_HISTORY_CLICK_FILTER_COMBAT = -20003,
+    LOG_HISTORY_CLICK_FILTER_NOTES = -20004
 };
 
 typedef enum log_history_entry_kind
@@ -691,7 +692,7 @@ static log_history_entry log_history_entries[LOG_HISTORY_MAX_ENTRIES];
 static int log_history_clamp_filter(int filter)
 {
     if ((filter < LOG_HISTORY_FILTER_ALL)
-        || (filter > LOG_HISTORY_FILTER_COMBAT))
+        || (filter > LOG_HISTORY_FILTER_NOTES))
     {
         return LOG_HISTORY_FILTER_ALL;
     }
@@ -707,6 +708,8 @@ static cptr log_history_filter_label(int filter)
         return "Log";
     case LOG_HISTORY_FILTER_COMBAT:
         return "Combat";
+    case LOG_HISTORY_FILTER_NOTES:
+        return "Notes";
     default:
         return "All";
     }
@@ -732,6 +735,8 @@ static int log_history_click_to_filter(int click_choice)
         return LOG_HISTORY_FILTER_MESSAGES;
     case LOG_HISTORY_CLICK_FILTER_COMBAT:
         return LOG_HISTORY_FILTER_COMBAT;
+    case LOG_HISTORY_CLICK_FILTER_NOTES:
+        return LOG_HISTORY_FILTER_NOTES;
     default:
         return LOG_HISTORY_FILTER_ALL;
     }
@@ -745,6 +750,8 @@ static int log_history_filter_to_click(int filter)
         return LOG_HISTORY_CLICK_FILTER_MESSAGES;
     case LOG_HISTORY_FILTER_COMBAT:
         return LOG_HISTORY_CLICK_FILTER_COMBAT;
+    case LOG_HISTORY_FILTER_NOTES:
+        return LOG_HISTORY_CLICK_FILTER_NOTES;
     default:
         return LOG_HISTORY_CLICK_FILTER_ALL;
     }
@@ -758,6 +765,8 @@ static int log_history_next_filter(int filter)
         return LOG_HISTORY_FILTER_MESSAGES;
     case LOG_HISTORY_FILTER_MESSAGES:
         return LOG_HISTORY_FILTER_COMBAT;
+    case LOG_HISTORY_FILTER_COMBAT:
+        return LOG_HISTORY_FILTER_NOTES;
     default:
         return LOG_HISTORY_FILTER_ALL;
     }
@@ -866,6 +875,50 @@ static int log_history_collect_entries(log_history_entry* entries,
     return count;
 }
 
+typedef struct log_history_note_line
+{
+    const char* text;
+    int len;
+} log_history_note_line;
+
+#define LOG_HISTORY_MAX_NOTE_LINES 4096
+
+static log_history_note_line log_history_note_lines[LOG_HISTORY_MAX_NOTE_LINES];
+
+/*
+ * Split the player's notes file into displayable lines in chronological order
+ * (the character header first, then notes oldest-to-newest).  Unlike the
+ * message/combat log this is read top-down like a document, so the lines are
+ * kept in buffer order.  They point straight into notes_buffer, which is only
+ * mutated when a note is added (never while this viewer is open).
+ */
+static int log_history_collect_notes(void)
+{
+    int count = 0;
+    const char* line = notes_buffer;
+    const char* p = notes_buffer;
+
+    for (;; p++)
+    {
+        if (*p == '\n' || *p == '\0')
+        {
+            int len = (int)(p - line);
+
+            if (len > 0 && count < LOG_HISTORY_MAX_NOTE_LINES)
+            {
+                log_history_note_lines[count].text = line;
+                log_history_note_lines[count].len = len;
+                count++;
+            }
+            if (*p == '\0')
+                break;
+            line = p + 1;
+        }
+    }
+
+    return count;
+}
+
 static int log_history_draw_filter(int row, int col, cptr label, int filter,
     int active_filter, int hover_filter)
 {
@@ -904,8 +957,10 @@ static void log_history_draw_filters(int active_filter, int hover_filter,
         active_filter, hover_filter);
     col = log_history_draw_filter(1, col, "Log",
         LOG_HISTORY_FILTER_MESSAGES, active_filter, hover_filter);
-    (void)log_history_draw_filter(1, col, "Combat",
+    col = log_history_draw_filter(1, col, "Combat",
         LOG_HISTORY_FILTER_COMBAT, active_filter, hover_filter);
+    (void)log_history_draw_filter(1, col, "Notes",
+        LOG_HISTORY_FILTER_NOTES, active_filter, hover_filter);
 }
 
 static bool log_history_filter_key(char ch)
@@ -3802,8 +3857,13 @@ void do_cmd_messages_with_filter(int initial_filter)
         if (visible_rows < 1)
             visible_rows = 1;
 
-        n = log_history_collect_entries(log_history_entries,
-            LOG_HISTORY_MAX_ENTRIES, filter);
+        bool notes_mode = (filter == LOG_HISTORY_FILTER_NOTES);
+
+        if (notes_mode)
+            n = log_history_collect_notes();
+        else
+            n = log_history_collect_entries(log_history_entries,
+                LOG_HISTORY_MAX_ENTRIES, filter);
 
         max_i = (n > visible_rows) ? (n - visible_rows) : 0;
         if (i > max_i)
@@ -3820,8 +3880,46 @@ void do_cmd_messages_with_filter(int initial_filter)
         /* Dump log entries */
         for (j = 0; (j < visible_rows) && (i + j < n); j++)
         {
-            log_history_entry* entry = &log_history_entries[i + j];
-            int line_y = body_bottom - j;
+            log_history_entry* entry;
+            int line_y = notes_mode ? (body_top + j) : (body_bottom - j);
+
+            if (notes_mode)
+            {
+                const log_history_note_line* nl =
+                    &log_history_note_lines[i + j];
+                char line_buf[256];
+                int len = nl->len;
+                cptr msg;
+
+                if (len > (int)sizeof(line_buf) - 1)
+                    len = (int)sizeof(line_buf) - 1;
+                memcpy(line_buf, nl->text, len);
+                line_buf[len] = '\0';
+
+                /* Apply horizontal scroll */
+                msg = ((int)strlen(line_buf) >= q) ? (line_buf + q) : "";
+
+                Term_putstr(0, line_y, -1, TERM_WHITE, msg);
+
+                /* Hilite "shower" */
+                if (shower[0])
+                {
+                    cptr str = msg;
+
+                    while ((str = strstr(str, shower)) != NULL)
+                    {
+                        int slen = strlen(shower);
+
+                        Term_putstr(str - msg, line_y, slen, TERM_YELLOW,
+                            shower);
+                        str += slen;
+                    }
+                }
+
+                continue;
+            }
+
+            entry = &log_history_entries[i + j];
 
             if (entry->kind == LOG_HISTORY_ENTRY_COMBAT)
             {
@@ -3906,7 +4004,8 @@ void do_cmd_messages_with_filter(int initial_filter)
             {
                 if ((clicked_choice == LOG_HISTORY_CLICK_FILTER_ALL)
                     || (clicked_choice == LOG_HISTORY_CLICK_FILTER_MESSAGES)
-                    || (clicked_choice == LOG_HISTORY_CLICK_FILTER_COMBAT))
+                    || (clicked_choice == LOG_HISTORY_CLICK_FILTER_COMBAT)
+                    || (clicked_choice == LOG_HISTORY_CLICK_FILTER_NOTES))
                 {
                     int clicked_filter =
                         log_history_click_to_filter(clicked_choice);
@@ -3950,6 +4049,25 @@ void do_cmd_messages_with_filter(int initial_filter)
         /* Hack -- Save the old index */
         old_i = i;
         old_q = q;
+
+        /*
+         * The notes tab reads top-down like a document, so flip the vertical
+         * navigation keys: there "down" means a larger index (later notes),
+         * the opposite of the bottom-anchored message/combat log.
+         */
+        if (notes_mode)
+        {
+            switch (ch)
+            {
+            case '8': ch = '2'; break;
+            case '2': ch = '8'; break;
+            case '9': ch = '3'; break;
+            case '3': ch = '9'; break;
+            case '7': ch = '1'; break;
+            case '1': ch = '7'; break;
+            default: break;
+            }
+        }
 
         /* Horizontal scroll */
         if (ch == '4')
@@ -4011,8 +4129,22 @@ void do_cmd_messages_with_filter(int initial_filter)
             {
                 char search_text[160];
 
-                log_history_entry_search_text(
-                    &log_history_entries[z], search_text, sizeof(search_text));
+                if (notes_mode)
+                {
+                    const log_history_note_line* nl =
+                        &log_history_note_lines[z];
+                    int len = nl->len;
+
+                    if (len > (int)sizeof(search_text) - 1)
+                        len = (int)sizeof(search_text) - 1;
+                    memcpy(search_text, nl->text, len);
+                    search_text[len] = '\0';
+                }
+                else
+                {
+                    log_history_entry_search_text(&log_history_entries[z],
+                        search_text, sizeof(search_text));
+                }
 
                 /* Search for it */
                 if (strstr(search_text, finder))
