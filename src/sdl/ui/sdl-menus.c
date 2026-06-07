@@ -472,6 +472,56 @@ void sdl_narrative_banner_apply_top_center_avoidance(SDL_Rect* rect,
         rect->h = min_h;
 }
 
+/*
+ * Left pixel edge where the overlay log band begins, or 0 when no overlay
+ * log pane is active.  Mirrors the band geometry painted in sdl-present.c so
+ * the narrative banner can be clipped to stop before it rather than crossing
+ * the translucent log on the right-hand side.
+ */
+int sdl_narrative_banner_overlay_log_left(void)
+{
+    const sdl_view* view = &g_views[PANE_ROLLS];
+    int margin;
+    int pad;
+
+    if (!sdl_view_is_overlay_log_pane(view))
+        return 0;
+    if (view->cell_w <= 0 || view->cols <= 0)
+        return 0;
+
+    margin = pane_log_overlay_left_margin(view->cols);
+    if (margin <= 0)
+        return 0;
+
+    pad = view->cell_w / 8;
+    if (pad < 2)
+        pad = 2;
+
+    return view->rect.x + view->margin_x + margin * view->cell_w - pad;
+}
+
+void sdl_narrative_banner_apply_overlay_log_avoidance(SDL_Rect* rect)
+{
+    int log_left;
+    int right_reserve;
+
+    if (!rect || rect->w <= 0)
+        return;
+
+    log_left = sdl_narrative_banner_overlay_log_left();
+    if (log_left <= rect->x || log_left >= rect->x + rect->w)
+        return;
+
+    /*
+     * Reserve the band width on the right (where the overlay log sits) and an
+     * equal amount on the left, so the banner keeps clear of the log yet stays
+     * centered on the original midpoint of the map area.
+     */
+    right_reserve = rect->x + rect->w - log_left;
+    rect->x += right_reserve;
+    rect->w -= 2 * right_reserve;
+}
+
 bool sdl_narrative_banner_base_rect(SDL_Rect* out)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
@@ -502,6 +552,8 @@ bool sdl_narrative_banner_base_rect(SDL_Rect* out)
         rect = sdl_get_layout_screen_rect();
         sdl_narrative_banner_apply_top_center_avoidance(&rect, 1);
     }
+
+    sdl_narrative_banner_apply_overlay_log_avoidance(&rect);
 
     if (rect.w <= 0 || rect.h <= 0)
         return false;

@@ -915,6 +915,18 @@ static cptr option_menu_label(int opt)
     case OPT_load_blitz_by_default:
         return compact ? (narrow ? "Load Blitz" : "Load Blitz first")
                        : "Load Blitz by default";
+    case OPT_show_level_generation_debug:
+        return compact ? (narrow ? "Dbg lvl screen" : "Debug level screen")
+                       : "Show detailed level-generation screen info and pause before play";
+    case OPT_show_elemental_item_rolls:
+        return compact ? (narrow ? "Dbg elem items" : "Debug elemental items")
+                       : "Show elemental item break rolls and target probabilities";
+    case OPT_show_smithing_difficulty:
+        return compact ? (narrow ? "Smith dbg items" : "Debug smithing in items")
+                       : "Show {sd,wr} in item descriptions";
+    case OPT_show_smithing_difficulty_look:
+        return compact ? (narrow ? "Smith dbg look" : "Debug smithing in look")
+                       : "Show {sd,wr} in look sidebar and message";
     default:
         break;
     }
@@ -957,11 +969,7 @@ static cptr option_menu_label(int opt)
         case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
         case OPT_mirror_player_tile_facing:
             return narrow ? "Direction anim" : "Directional character animation";
-        case OPT_show_smithing_difficulty: return narrow ? "Smith dbg items" : "Debug smithing in items";
-        case OPT_show_smithing_difficulty_look: return narrow ? "Smith dbg look" : "Debug smithing in look";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
-        case OPT_show_level_generation_debug: return narrow ? "Dbg lvl screen" : "Debug level screen";
-        case OPT_show_elemental_item_rolls: return narrow ? "Dbg elem items" : "Debug elemental items";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
         case OPT_birth_no_artefacts: return narrow ? "No artefacts" : "No artefacts";
@@ -1082,7 +1090,7 @@ static void settings_semantic_line_from_menu_line(char* out, size_t outsz,
     if (!line)
         return;
 
-    colon = strchr(line, ':');
+    colon = strrchr(line, ':');
     if (!colon)
     {
         SDL_strlcpy(out, line, outsz);

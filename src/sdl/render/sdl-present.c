@@ -1072,8 +1072,10 @@ bool sdl_render_current_window_frame(void)
          */
         float src_x = 0.0f;
         float blit_off = 0.0f;
+        bool overlay_log = (i == PANE_ROLLS
+            && sdl_view_is_overlay_log_pane(view));
 
-        if (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))
+        if (overlay_log)
         {
             int pad = view->cell_w / 8;
 
@@ -1086,16 +1088,70 @@ bool sdl_render_current_window_frame(void)
             src_x = blit_off;
         }
 
+        float band_x = (float)(view->rect.x + view->margin_x) + blit_off;
+        float band_w = dst_w - blit_off;
+        float src_y = 0.0f;
+        float src_h = (float)(visual_rows * view->cell_h);
+        float dst_y = (float)(view->rect.y + view->margin_y);
+        float blit_h = dst_h;
+
+        if (overlay_log)
+        {
+            /*
+             * Bottom-anchor the content with a reasonable, panel-backed
+             * margin.  The cell grid is shorter than the band by the centered
+             * slack; left as-is that slack reads as a transparent map gap and
+             * the messages hug the lower border.  Instead we lift the content
+             * by a fraction of a cell, clip any top overflow, and paint the
+             * freed strips with the panel background so the margins match the
+             * panel rather than the map.
+             */
+            int bottom_margin = (int)((float)view->cell_h
+                * SDL_OVERLAY_LOG_VMARGIN_CELLS + 0.5f);
+            float band_top = (float)view->rect.y;
+            float band_bottom = (float)(view->rect.y + view->rect.h);
+
+            dst_y = band_bottom - (float)bottom_margin - src_h;
+            blit_h = src_h;
+            if (dst_y < band_top)
+            {
+                float clip = band_top - dst_y;
+
+                src_y += clip;
+                src_h -= clip;
+                blit_h -= clip;
+                dst_y = band_top;
+            }
+
+            SDL_Color bg = sdl_color_from_attr(TERM_DARK);
+
+            bg.a = sdl_view_background_alpha(view);
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
+
+            if (dst_y > band_top)
+                SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+                    .x = band_x, .y = band_top,
+                    .w = band_w, .h = dst_y - band_top });
+
+            float content_bottom = dst_y + blit_h;
+
+            if (content_bottom < band_bottom)
+                SDL_RenderFillRect(g_state.renderer, &(SDL_FRect){
+                    .x = band_x, .y = content_bottom,
+                    .w = band_w, .h = band_bottom - content_bottom });
+        }
+
         SDL_RenderTexture(g_state.renderer, view->canvas, &(SDL_FRect){
             .x = src_x,
-            .y = 0.0f,
+            .y = src_y,
             .w = (float)(visual_cols * view->cell_w) - blit_off,
-            .h = (float)(visual_rows * view->cell_h),
+            .h = src_h,
         }, &(SDL_FRect){
-            .x = (float)(view->rect.x + view->margin_x) + blit_off,
-            .y = (float)(view->rect.y + view->margin_y),
-            .w = dst_w - blit_off,
-            .h = dst_h,
+            .x = band_x,
+            .y = dst_y,
+            .w = band_w,
+            .h = blit_h,
         });
 
         if (i == PANE_MAIN)

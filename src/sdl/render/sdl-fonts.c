@@ -1078,6 +1078,20 @@ bool sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font
     if (scale)
         d->cols = sdl_main_view_logical_cols_for_visual_cols(d->cols);
     d->rows = rect.h / d->cell_h;
+    /*
+     * The overlay log keeps a top and bottom margin (painted as panel
+     * background by the renderer), so size it to the whole number of rows
+     * that fit inside the band once that vertical padding is reserved.  This
+     * adapts to the band height and cell/text size instead of clipping a row.
+     */
+    if (sdl_view_is_overlay_log_pane(d)) {
+        int vmargin = (int)((float)d->cell_h
+            * (SDL_OVERLAY_LOG_VMARGIN_CELLS * 2.0f) + 0.5f);
+        int avail = rect.h - vmargin;
+
+        if (avail >= d->cell_h)
+            d->rows = avail / d->cell_h;
+    }
 #if defined(__ANDROID__) || defined(SIL_IOS)
     if (scale) {
         log_info("Mobile main view: scale=%d cell=(%d,%d) cols=%d rows=%d (min=%dx%d %s)",

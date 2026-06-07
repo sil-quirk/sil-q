@@ -90,6 +90,16 @@ enum {
     SDL_DEPTH_PANE_HOVER_ZOOM_IN = 3,
 };
 
+/* Left padding (in pixels) between the overlay log band's edge and its text,
+ * scaled to the pane's cell width so the messages do not hug the border. */
+#define SDL_OVERLAY_LOG_TEXT_LEFT_PAD(d) ((float)(d)->cell_w * 0.6f)
+
+/* Top/bottom margin of the overlay log band, expressed as a fraction of a
+ * cell height.  The view reserves this above and below its rows so the
+ * content fits a whole number of lines, and the renderer paints those strips
+ * with the panel background. */
+#define SDL_OVERLAY_LOG_VMARGIN_CELLS 0.4f
+
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
 #define SIDE_PANE_MENU_SCALE 1.5f
 #define SDL_WHEEL_IDLE_RESET_NS (250ULL * 1000000ULL)
@@ -1739,6 +1749,8 @@ bool sdl_narrative_banner_overlay_enabled(void);
 bool sdl_narrative_banner_top_center_pane_rect( const struct pane_config* pc, SDL_FRect* out);
 int sdl_narrative_banner_top_center_panes_bottom(void);
 void sdl_narrative_banner_apply_top_center_avoidance(SDL_Rect* rect, int min_h);
+int sdl_narrative_banner_overlay_log_left(void);
+void sdl_narrative_banner_apply_overlay_log_avoidance(SDL_Rect* rect);
 bool sdl_narrative_banner_base_rect(SDL_Rect* out);
 int sdl_narrative_banner_font_px(const SDL_Rect* rect);
 float sdl_narrative_banner_line_h(TTF_Font* font, int font_px);
