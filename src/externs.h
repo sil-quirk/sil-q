@@ -2015,11 +2015,13 @@ extern int get_sdl_terminal_menu_scale(void);
 extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
 extern int sdl_description_overlay_max_cols(void);
+extern int sdl_description_overlay_text_px(void);
+extern int sdl_description_overlay_story_text_width(cptr text, int len, int slot);
 extern void sdl_push_description_overlay_main_anchor(void);
 extern void sdl_pop_description_overlay_main_anchor(void);
 extern bool sdl_description_overlay_present(const byte* attrs,
     const char* chars, const byte* tattrs, const char* tchars,
-    const byte* story, int width, int height, int scroll,
+    const byte* story, int width, int height, int target_cols, int scroll,
     bool interactive, int* out_visible_rows, int* out_max_scroll);
 extern void sdl_description_overlay_set_footer(cptr text, bool always);
 extern void sdl_description_overlay_clear_footer_actions(void);

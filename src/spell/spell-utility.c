@@ -310,7 +310,7 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
 
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 NULL, NULL, capture->story, capture->width, capture->height,
-                scroll, true, &visible_rows, &max_scroll))
+                capture->width, scroll, true, &visible_rows, &max_scroll))
         {
             break;
         }

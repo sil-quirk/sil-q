@@ -786,6 +786,7 @@ typedef struct description_overlay_state {
     const byte* story;
     int width;
     int height;
+    int target_cols;
     int scroll;
     int avoid_term_col;
     int avoid_term_row;
@@ -2949,7 +2950,7 @@ int get_sdl_platform_max_main_view_scale(void);
 int get_sdl_terminal_menu_scale(void);
 void sdl_push_terminal_menu_scale(void);
 void sdl_pop_terminal_menu_scale(void);
-bool sdl_description_overlay_present(const byte* attrs, const char* chars, const byte* tattrs, const char* tchars, const byte* story, int width, int height, int scroll, bool interactive, int* out_visible_rows, int* out_max_scroll);
+bool sdl_description_overlay_present(const byte* attrs, const char* chars, const byte* tattrs, const char* tchars, const byte* story, int width, int height, int target_cols, int scroll, bool interactive, int* out_visible_rows, int* out_max_scroll);
 void sdl_description_overlay_clear(void);
 void sdl_request_redraw(void);
 void sdl_apply_story_font_state(bool active);

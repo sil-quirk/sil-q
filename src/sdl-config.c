@@ -795,7 +795,8 @@ static const byte app_interface_options[] = {
 static const byte app_text_options[] = {
     OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane,
     OPT_story_lists_equip, OPT_story_lists_equip_pane, OPT_story_monster_desc,
-    OPT_story_monster_desc_pane, OPT_story_character_sheet,
+    OPT_story_monster_desc_pane, OPT_story_object_desc,
+    OPT_story_character_sheet,
     OPT_NONE
 };
 

@@ -264,7 +264,7 @@ cptr option_text[OPT_MAX] = {
     "load_blitz_by_default", /* OPT_load_blitz_by_default */
     "mirror_player_tile_facing", /* OPT_mirror_player_tile_facing */
     "handcrafted_player_tile_facing", /* OPT_handcrafted_player_tile_facing */
-    NULL, /* reserved legacy slot */
+    "story_object_desc", /* OPT_story_object_desc */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -475,7 +475,7 @@ cptr option_desc[OPT_MAX] = {
     "Render the character sheet with the story font", /* OPT_story_character_sheet */
     "Render the inventory pane with the story font", /* OPT_story_lists_inven_pane */
     "Render the equipment pane with the story font", /* OPT_story_lists_equip_pane */
-    "Render monster descriptions in the main window with the story font", /* OPT_story_monster_desc */
+    "Render monster description overlays with the story font", /* OPT_story_monster_desc */
     "Render monster descriptions in the monster pane with the story font", /* OPT_story_monster_desc_pane */
     "Disable tutorial messages in skeleton notes", /* OPT_disable_skeleton_note_tutorial */
     "Smaller level size (3 blocks smaller, min 6)", /* OPT_smaller_level_size */
@@ -509,7 +509,7 @@ cptr option_desc[OPT_MAX] = {
     "Load a living Blitz character by default when one exists", /* OPT_load_blitz_by_default */
     "Directional character animation", /* OPT_mirror_player_tile_facing */
     "Use handcrafted right-facing player tiles", /* OPT_handcrafted_player_tile_facing */
-    NULL, /* reserved legacy slot */
+    "Render object description overlays with the story font", /* OPT_story_object_desc */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -774,7 +774,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_load_blitz_by_default */
     true, /* OPT_mirror_player_tile_facing */
     true, /* OPT_handcrafted_player_tile_facing */
-    false, /* reserved legacy slot */
+    false, /* OPT_story_object_desc */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -935,9 +935,10 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Text options ***/
 
     { OPT_story_lists, OPT_story_monster_desc, OPT_story_monster_desc_pane,
-        OPT_story_lists_inven, OPT_story_lists_inven_pane, OPT_story_lists_equip,
+        OPT_story_object_desc, OPT_story_lists_inven,
+        OPT_story_lists_inven_pane, OPT_story_lists_equip,
         OPT_story_lists_equip_pane, OPT_story_character_sheet,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Game-Play ***/

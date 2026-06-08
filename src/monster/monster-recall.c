@@ -58,10 +58,16 @@ void roff_top(int r_idx)
     roff_top_live(r_idx, NULL);
 }
 
+static bool monster_recall_overlay_story_font_enabled(void)
+{
+    return story_monster_desc_main || story_monster_desc_pane;
+}
+
 typedef struct monster_recall_screen_capture
 {
     int width;
     int height;
+    int target_cols;
     byte* attrs;
     char* chars;
     byte* tattrs;
@@ -147,9 +153,11 @@ static bool monster_recall_screen_capture_build(
     bool story_pushed = false;
     bool scratch_ready = false;
     bool success = false;
-    bool use_story_font = story_monster_desc_enabled();
+    bool use_story_font = monster_recall_overlay_story_font_enabled();
     int term_wid = 80;
     int term_hgt = 24;
+    int target_wid;
+    int max_target_wid;
     int used_rows;
     int used_cols;
 
@@ -160,20 +168,30 @@ static bool monster_recall_screen_capture_build(
     SDL_memset(&scratch, 0, sizeof(scratch));
 
     Term_get_size(&term_wid, &term_hgt);
-    if (term_wid < 20)
-        term_wid = 20;
     (void)term_hgt;
+
+    target_wid = term_wid;
+    max_target_wid = sdl_description_overlay_max_cols();
+    if (max_target_wid > 0 && target_wid > max_target_wid)
+        target_wid = max_target_wid;
+    if (target_wid < 20)
+        target_wid = 20;
+
+    term_wid = use_story_font ? 200 : target_wid;
+    if (term_wid < target_wid)
+        term_wid = target_wid;
 
     if (term_init(&scratch, term_wid, 255, 16) != 0)
         goto cleanup;
     scratch_ready = true;
 
     Term_activate(&scratch);
-    story_font_term_push(use_story_font, false, &story_state);
+    story_font_term_push_slot(use_story_font, false, STORY_FONT_SLOT_SECONDARY, &story_state);
     story_pushed = true;
 
-    text_out_hook = text_out_to_screen;
-    text_out_wrap = (term_wid > 2) ? (term_wid - 1) : 0;
+    text_out_hook = use_story_font
+        ? text_out_to_screen_overlay_story : text_out_to_screen;
+    text_out_wrap = use_story_font ? target_wid : 0;
     text_out_indent = 0;
 
     Term_clear();
@@ -191,6 +209,7 @@ static bool monster_recall_screen_capture_build(
 
     capture->width = used_cols;
     capture->height = used_rows;
+    capture->target_cols = target_wid;
     capture->attrs = mem_alloc_array(capture->width * capture->height, byte);
     capture->chars = mem_alloc_array(capture->width * capture->height, char);
     capture->tattrs = mem_alloc_array(capture->width * capture->height, byte);
@@ -207,6 +226,12 @@ static bool monster_recall_screen_capture_build(
             capture->tattrs[idx] = scratch.scr->ta[y][x];
             capture->tchars[idx] = scratch.scr->tc[y][x];
             capture->story[idx] = scratch.scr->story[y][x];
+            if (use_story_font
+                && ((capture->chars[idx] != ' ')
+                    || (capture->attrs[idx] != scratch.attr_blank)))
+            {
+                capture->story[idx] |= STORY_FLAG_USE | STORY_FLAG_SLOT2;
+            }
         }
     }
 
@@ -253,8 +278,8 @@ static int monster_recall_screen_capture_view(
         Term_get_size(NULL, &term_hgt);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
-                capture->width, capture->height, scroll, true, &visible_rows,
-                &max_scroll))
+                capture->width, capture->height, capture->target_cols, scroll,
+                true, &visible_rows, &max_scroll))
         {
             exit_key = 0;
             break;
@@ -312,7 +337,7 @@ static int monster_recall_screen_capture_view(
 static void monster_recall_screen_draw_plain(
     int r_idx, const monster_type* m_ptr)
 {
-    bool use_story_font = story_monster_desc_enabled();
+    bool use_story_font = monster_recall_overlay_story_font_enabled();
     story_font_term_state story_state;
     void (*old_hook)(byte, cptr) = text_out_hook;
     int old_indent = text_out_indent;
@@ -320,7 +345,7 @@ static void monster_recall_screen_draw_plain(
     int wid = 0;
     int hgt = 0;
 
-    story_font_term_push(use_story_font, false, &story_state);
+    story_font_term_push_slot(use_story_font, false, STORY_FONT_SLOT_SECONDARY, &story_state);
 
     /* Begin recall */
     Term_erase(0, 1, 255);
@@ -401,7 +426,7 @@ void display_roff(int r_idx, const monster_type* m_ptr)
 
     bool use_story_font = story_monster_desc_enabled();
     story_font_term_state story_state;
-    story_font_term_push(use_story_font, false, &story_state);
+    story_font_term_push_slot(use_story_font, false, STORY_FONT_SLOT_SECONDARY, &story_state);
 
     /* Erase the window */
     for (y = 0; y < Term->hgt; y++)

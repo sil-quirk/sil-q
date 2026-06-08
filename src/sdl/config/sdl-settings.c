@@ -2458,8 +2458,8 @@ void sdl_pop_terminal_menu_scale(void)
 
 bool sdl_description_overlay_present(const byte* attrs, const char* chars,
     const byte* tattrs, const char* tchars, const byte* story, int width,
-    int height, int scroll, bool interactive, int* out_visible_rows,
-    int* out_max_scroll)
+    int height, int target_cols, int scroll, bool interactive,
+    int* out_visible_rows, int* out_max_scroll)
 {
     description_overlay_layout layout;
 
@@ -2483,6 +2483,7 @@ bool sdl_description_overlay_present(const byte* attrs, const char* chars,
     g_description_overlay.story = story;
     g_description_overlay.width = width;
     g_description_overlay.height = height;
+    g_description_overlay.target_cols = target_cols;
     g_description_overlay.scroll = scroll;
     if (interactive)
     {

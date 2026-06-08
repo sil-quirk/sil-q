@@ -739,9 +739,12 @@ void sdl_object_tooltip_render(void)
     SDL_DestroySurface(surface);
 }
 
-int sdl_description_overlay_font_px(void)
+static int sdl_description_overlay_font_px_for_story(bool story)
 {
     int font_px = get_sdl_terminal_menu_scale() * TILE_SIZE;
+
+    if (story)
+        font_px = (font_px * 3) / 2;
 
     if (font_px < 8)
         font_px = 8;
@@ -749,10 +752,26 @@ int sdl_description_overlay_font_px(void)
     return font_px;
 }
 
-int sdl_description_overlay_max_cols(void)
+int sdl_description_overlay_font_px(void)
+{
+    return sdl_description_overlay_font_px_for_story(false);
+}
+
+static int sdl_description_overlay_story_font_px(void)
+{
+    return sdl_description_overlay_font_px_for_story(true);
+}
+
+static int sdl_description_overlay_cell_w_for_font_px(int font_px)
+{
+    int cell_w = font_px / 2;
+
+    return (cell_w > 0) ? cell_w : 1;
+}
+
+static int sdl_description_overlay_anchor_max_cols_for_font_px(int font_px)
 {
     SDL_Rect anchor;
-    int font_px;
     int cell_w;
     int margin;
     int pad_x;
@@ -762,11 +781,7 @@ int sdl_description_overlay_max_cols(void)
     if (!sdl_overlay_pane_anchor_rect(PANE_DESCRIPTION, &anchor))
         return 80;
 
-    font_px = sdl_description_overlay_font_px();
-    cell_w = font_px / 2;
-    if (cell_w < 1)
-        cell_w = 1;
-
+    cell_w = sdl_description_overlay_cell_w_for_font_px(font_px);
     margin = sdl_overlay_margin_px();
     pad_x = cell_w;
     max_panel_w = anchor.w - margin * 2;
@@ -778,6 +793,90 @@ int sdl_description_overlay_max_cols(void)
         return 20;
 
     return max_cols;
+}
+
+int sdl_description_overlay_max_cols(void)
+{
+    int max_cols = sdl_description_overlay_anchor_max_cols_for_font_px(
+        sdl_description_overlay_font_px());
+
+    /*
+     * Match the historical item description body width, which left a small
+     * allowance inside the description pane instead of filling every column.
+     */
+    if (max_cols > 24)
+        max_cols -= 4;
+
+    return max_cols;
+}
+
+/* Pixel width available for text inside the description overlay panel.  Used to
+ * wrap proportional (story-font) descriptions so they fill the panel instead of
+ * breaking at the monospace column budget. */
+int sdl_description_overlay_text_px(void)
+{
+    int font_px = sdl_description_overlay_font_px();
+    int cell_w = sdl_description_overlay_cell_w_for_font_px(font_px);
+    int cols = sdl_description_overlay_max_cols();
+
+    if (text_out_wrap > 0 && text_out_wrap < cols)
+        cols = text_out_wrap;
+
+    return cols * cell_w;
+}
+
+/* Proportional width, in pixels, of a text run rendered in the overlay's story
+ * font for the given slot at the overlay cell height (matches the scaling used
+ * by sdl_description_overlay_render_story_run). */
+int sdl_description_overlay_story_text_width(cptr text, int len, int slot)
+{
+    int font_px;
+    int cell_h;
+    int adv = 0;
+    int font_h;
+    TTF_Font* font;
+
+    if (!text || len <= 0)
+        return 0;
+
+    len = utf8_safe_prefix_len(text, len);
+    if (len <= 0)
+        return 0;
+
+    font_px = sdl_description_overlay_story_font_px();
+    cell_h = font_px;
+    font = sdl_story_font_for_height_slot(cell_h, slot);
+    if (!font)
+        return 0;
+
+    TTF_MeasureString(font, text, len, 0, &adv, NULL);
+
+    font_h = TTF_GetFontHeight(font);
+    if (font_h > 0)
+        adv = (int)((float)adv * ((float)cell_h / (float)font_h));
+
+    return adv;
+}
+
+static bool sdl_description_overlay_has_story(
+    const description_overlay_state* overlay)
+{
+    if (!overlay || !overlay->story || overlay->width <= 0
+        || overlay->height <= 0)
+    {
+        return false;
+    }
+
+    for (int row = 0; row < overlay->height; row++)
+    {
+        for (int col = 0; col < overlay->width; col++)
+        {
+            if (overlay->story[row * overlay->width + col] & STORY_FLAG_USE)
+                return true;
+        }
+    }
+
+    return false;
 }
 
 SDL_Color sdl_description_overlay_attr_color(byte attr)
@@ -1040,8 +1139,9 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
 {
     SDL_Rect anchor;
     const description_overlay_state* overlay = &g_description_overlay;
-    cptr footer_text = sdl_description_overlay_footer_text(overlay);
+    bool has_story;
     int font_px;
+    int mono_cell_w;
     int cell_w;
     int cell_h;
     int margin;
@@ -1049,12 +1149,14 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     int pad_y;
     int max_panel_w;
     int max_panel_h;
-    int max_cols;
     int max_rows_no_footer;
     int max_rows;
+    int max_cols;
+    int target_cols;
+    int footer_cols = 0;
+    int text_px;
     int visible_cols;
     int visible_rows;
-    int footer_cols = 0;
     bool footer;
     bool footer_forced;
     float panel_w;
@@ -1073,11 +1175,12 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (!sdl_overlay_pane_anchor_rect(PANE_DESCRIPTION, &anchor))
         return false;
 
-    font_px = sdl_description_overlay_font_px();
+    has_story = sdl_description_overlay_has_story(overlay);
+    font_px = sdl_description_overlay_font_px_for_story(has_story);
     cell_h = font_px;
-    cell_w = font_px / 2;
-    if (cell_w < 1)
-        cell_w = 1;
+    cell_w = sdl_description_overlay_cell_w_for_font_px(font_px);
+    mono_cell_w = sdl_description_overlay_cell_w_for_font_px(
+        sdl_description_overlay_font_px());
 
     margin = sdl_overlay_margin_px();
     pad_x = cell_w;
@@ -1095,6 +1198,14 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (max_cols < 1 || max_rows_no_footer < 1)
         return false;
 
+    target_cols = (overlay->target_cols > 0) ? overlay->target_cols
+                                             : overlay->width;
+    if (target_cols < 1)
+        target_cols = 1;
+
+    if (overlay->interactive)
+        footer_cols = (int)strlen(sdl_description_overlay_footer_text(overlay));
+
     footer_forced = overlay->interactive
         && (overlay->footer_always || overlay->footer_text[0]);
     footer = footer_forced
@@ -1110,16 +1221,34 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
         if (visible_rows > max_rows)
             visible_rows = max_rows;
 
-        footer_cols = footer ? (int)strlen(footer_text) : 0;
-        visible_cols = overlay->width;
-        if (visible_cols < footer_cols)
-            visible_cols = footer_cols;
-        if (visible_cols > max_cols)
-            visible_cols = max_cols;
-        if (visible_cols < 1)
-            visible_cols = 1;
+        if (has_story)
+        {
+            text_px = target_cols * mono_cell_w;
+            visible_cols = (text_px + cell_w - 1) / cell_w;
+        }
+        else
+        {
+            visible_cols = target_cols;
+            text_px = visible_cols * cell_w;
+        }
 
-        panel_w = (float)(visible_cols * cell_w + pad_x * 2);
+        if (visible_cols < footer_cols)
+        {
+            visible_cols = footer_cols;
+            text_px = visible_cols * cell_w;
+        }
+        if (visible_cols > max_cols)
+        {
+            visible_cols = max_cols;
+            text_px = visible_cols * cell_w;
+        }
+        if (visible_cols < 1)
+        {
+            visible_cols = 1;
+            text_px = cell_w;
+        }
+
+        panel_w = (float)(text_px + pad_x * 2);
         panel_h = (float)((visible_rows + (footer ? 1 : 0)) * cell_h
             + pad_y * 2);
         panel_x = (float)anchor.x + ((float)anchor.w - panel_w) * 0.5f;
@@ -1294,6 +1423,173 @@ void sdl_description_overlay_render_text(SDL_Texture* atlas,
     }
 }
 
+/*
+ * Render a run of story-font glyphs inside the description overlay, scaled to
+ * the overlay cell height.  Returns the advance width in pixels so the caller
+ * can keep flowing proportional text.  The active render clip (the panel rect)
+ * keeps glyphs from spilling past the panel edges.
+ */
+static float sdl_description_overlay_render_story_run(TTF_Font* font,
+    float x_px, float y_px, float cell_h, const char* s, int n, byte attr)
+{
+    char text_buf[256];
+    int len;
+    int adv_unscaled = 0;
+    float scale;
+    float advance_w;
+    float render_w;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_Color col;
+
+    if (!font || !s || n <= 0)
+        return 0.0f;
+
+    len = (n < 255) ? n : 255;
+    len = utf8_safe_prefix_len(s, len);
+    if (len <= 0)
+        return 0.0f;
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char ch = (unsigned char)s[i];
+        text_buf[i] = ch ? (char)ch : ' ';
+    }
+    text_buf[len] = '\0';
+
+    col = sdl_description_overlay_attr_color(attr);
+    surface = TTF_RenderText_Blended(font, text_buf, 0, col);
+    if (!surface)
+        return 0.0f;
+
+    TTF_MeasureString(font, text_buf, len, 0, &adv_unscaled, NULL);
+    scale = (surface->h > 0) ? (cell_h / (float)surface->h) : 1.0f;
+    render_w = (float)surface->w * scale;
+
+    /* Advance must match sdl_description_overlay_story_text_width (which scales
+     * by the font height) so wrapping and rendering agree on line width. */
+    {
+        int font_h = TTF_GetFontHeight(font);
+        float adv_scale = (font_h > 0) ? (cell_h / (float)font_h) : scale;
+        advance_w = (float)adv_unscaled * adv_scale;
+    }
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (texture)
+    {
+        SDL_FRect dst = { x_px, y_px, render_w, cell_h };
+
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+        SDL_DestroyTexture(texture);
+    }
+
+    SDL_DestroySurface(surface);
+    return advance_w;
+}
+
+/*
+ * Render one captured overlay row.  Story-font cells (flagged during capture)
+ * are drawn proportionally with the matching story slot; plain cells fall back
+ * to the monospace atlas.  Returns nothing; positions are relative to the
+ * laid-out panel.
+ */
+static void sdl_description_overlay_render_row(
+    const description_overlay_state* overlay,
+    const description_overlay_layout* layout, SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, int src_row, float row_y)
+{
+    /* Process every captured column: proportional story lines span more columns
+     * than the panel's monospace budget, and the active panel clip keeps any
+     * overflow inside the box. */
+    int limit = overlay->width;
+
+    int col = 0;
+    while (col < limit)
+    {
+        int idx = src_row * overlay->width + col;
+        byte sflag = overlay->story ? overlay->story[idx] : 0;
+
+        if (!(sflag & STORY_FLAG_USE))
+        {
+            sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                atlas_cell_h, (float)layout->cell_w, (float)layout->cell_h,
+                layout->text_x + (float)col * (float)layout->cell_w, row_y,
+                overlay->attrs[idx], overlay->chars[idx]);
+            col++;
+            continue;
+        }
+
+        /* Gather a contiguous story region sharing slot and alignment mode. */
+        bool slot2 = (sflag & STORY_FLAG_SLOT2) != 0;
+        bool grid_align = (sflag & STORY_FLAG_CELL_ALIGN) != 0;
+        int region_start = col;
+        while (col < limit)
+        {
+            byte f = overlay->story[src_row * overlay->width + col];
+            if (!(f & STORY_FLAG_USE))
+                break;
+            if (((f & STORY_FLAG_SLOT2) != 0) != slot2)
+                break;
+            if (((f & STORY_FLAG_CELL_ALIGN) != 0) != grid_align)
+                break;
+            col++;
+        }
+        int region_end = col;
+
+        TTF_Font* font = sdl_story_font_for_height_slot(layout->cell_h,
+            slot2 ? STORY_FONT_SLOT_SECONDARY : STORY_FONT_SLOT_DEFAULT);
+        if (!font)
+        {
+            /* No story font available: fall back to the mono atlas. */
+            for (int c = region_start; c < region_end; c++)
+            {
+                int i = src_row * overlay->width + c;
+                sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                    atlas_cell_h, (float)layout->cell_w,
+                    (float)layout->cell_h,
+                    layout->text_x + (float)c * (float)layout->cell_w, row_y,
+                    overlay->attrs[i], overlay->chars[i]);
+            }
+            continue;
+        }
+
+        if (grid_align)
+        {
+            /* Snap each glyph to its cell so column alignment is preserved. */
+            for (int c = region_start; c < region_end; c++)
+            {
+                int i = src_row * overlay->width + c;
+                sdl_description_overlay_render_story_run(font,
+                    layout->text_x + (float)c * (float)layout->cell_w, row_y,
+                    (float)layout->cell_h, overlay->chars + i, 1,
+                    overlay->attrs[i]);
+            }
+            continue;
+        }
+
+        /* Free region: pack same-attr segments by measured pixel width. */
+        float px_cursor = layout->text_x
+            + (float)region_start * (float)layout->cell_w;
+        int seg = region_start;
+        while (seg < region_end)
+        {
+            byte seg_attr = overlay->attrs[src_row * overlay->width + seg];
+            int seg_end = seg + 1;
+            while (seg_end < region_end
+                && overlay->attrs[src_row * overlay->width + seg_end] == seg_attr)
+            {
+                seg_end++;
+            }
+
+            int seg_idx = src_row * overlay->width + seg;
+            px_cursor += sdl_description_overlay_render_story_run(font,
+                px_cursor, row_y, (float)layout->cell_h,
+                overlay->chars + seg_idx, seg_end - seg, seg_attr);
+            seg = seg_end;
+        }
+    }
+}
+
 void sdl_description_overlay_render(void)
 {
     description_overlay_layout layout;
@@ -1342,20 +1638,9 @@ void sdl_description_overlay_render(void)
         if (src_row >= overlay->height)
             break;
 
-        for (int col = 0; col < layout.visible_cols; col++)
-        {
-            int idx;
-
-            if (col >= overlay->width)
-                continue;
-
-            idx = src_row * overlay->width + col;
-            sdl_description_overlay_render_char(atlas, atlas_cell_w,
-                atlas_cell_h, (float)layout.cell_w, (float)layout.cell_h,
-                layout.text_x + (float)col * (float)layout.cell_w,
-                layout.text_y + (float)row * (float)layout.cell_h,
-                overlay->attrs[idx], overlay->chars[idx]);
-        }
+        sdl_description_overlay_render_row(overlay, &layout, atlas,
+            atlas_cell_w, atlas_cell_h, src_row,
+            layout.text_y + (float)row * (float)layout.cell_h);
     }
 
     if (layout.footer)
@@ -2042,4 +2327,3 @@ void sdl_mouse_path_render(void)
         SDL_RenderRect(g_state.renderer, &rect);
     }
 }
-

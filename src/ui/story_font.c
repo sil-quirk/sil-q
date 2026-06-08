@@ -114,6 +114,8 @@ bool story_monster_desc_enabled(void)
     return story_term_is_main() ? story_monster_desc_main : story_monster_desc_pane;
 }
 
+bool story_object_desc_enabled(void) { return story_object_desc; }
+
 void story_font_term_push_slot(bool active, bool grid, int slot, story_font_term_state* prev)
 {
     if (!prev)
@@ -238,6 +240,165 @@ void text_out_to_screen_story(byte a, cptr str)
     }
 
     log_trace("=== text_out_to_screen_story END === Final term_col=%d, final_pixel_pos=%d", x, current_x_pixels);
+}
+
+static void overlay_story_seed_line(char* line, int line_size, int y, int x,
+    int* line_len)
+{
+    int len;
+
+    if (!line || line_size <= 0 || !line_len)
+        return;
+
+    len = MAX(text_out_indent, x);
+    if (len >= line_size)
+        len = line_size - 1;
+
+    for (int i = 0; i < len; i++)
+        line[i] = ' ';
+
+    if (Term && Term->scr && y >= 0 && y < Term->hgt)
+    {
+        int start = MAX(0, text_out_indent);
+        int end = MIN(len, Term->wid);
+
+        for (int i = start; i < end; i++)
+        {
+            char ch = Term->scr->c[y][i];
+            line[i] = ch ? ch : ' ';
+        }
+    }
+
+    line[len] = '\0';
+    *line_len = len;
+}
+
+/*
+ * Like text_out_to_screen_story, but wraps to the description overlay panel's
+ * pixel width using the active term's story-font slot.  The terminal grid still
+ * advances one column per byte (the overlay flows the captured columns
+ * proportionally at render time); only the wrap decision is pixel-based, so the
+ * proportional text fills the panel instead of breaking at the monospace
+ * column budget.
+ */
+void text_out_to_screen_overlay_story(byte a, cptr str)
+{
+    int x, y;
+    int wid, h;
+    cptr s;
+
+    /* Mirror of the characters written to the current grid row, measured as a
+     * whole so the wrap matches how the overlay renders the line (which also
+     * measures contiguous runs rather than summing isolated words). */
+    char line[1024];
+    int line_len = 0;
+
+    (void)Term_get_size(&wid, &h);
+    (void)Term_locate(&x, &y);
+
+    int slot = (Term ? Term->story_font_slot : 0);
+    int wrap_pixels = sdl_description_overlay_text_px();
+    if (wrap_pixels <= 0)
+        wrap_pixels = wid * sdl_get_cell_width();
+
+    overlay_story_seed_line(line, sizeof(line), y, x, &line_len);
+
+    s = str;
+    while (*s)
+    {
+        if (*s == '\n')
+        {
+            x = text_out_indent;
+            y++;
+            Term_erase(x, y, 255);
+            overlay_story_seed_line(line, sizeof(line), y, x, &line_len);
+            s++;
+            continue;
+        }
+
+        /* Count the run of spaces that precedes the next word. */
+        int space_bytes = 0;
+        while (s[space_bytes] == ' ')
+            space_bytes++;
+
+        cptr word_start = s + space_bytes;
+        int word_bytes = 0;
+        while (word_start[word_bytes] && word_start[word_bytes] != ' '
+            && word_start[word_bytes] != '\n')
+        {
+            word_bytes++;
+        }
+
+        if (word_bytes == 0)
+        {
+            /* Trailing spaces with no following word: emit and stop. */
+            for (int i = 0; i < space_bytes; i++)
+            {
+                Term_addch(a, ' ');
+                x++;
+            }
+            s += space_bytes;
+            continue;
+        }
+
+        /* Would the spaces + word fit on the current line? Measure the whole
+         * prospective line, not the word alone. */
+        bool fits = true;
+        if (line_len > text_out_indent)
+        {
+            if (line_len + space_bytes + word_bytes >= (int)sizeof(line))
+            {
+                fits = false;
+            }
+            else
+            {
+                int probe_len = line_len;
+                char saved = line[probe_len];
+                for (int i = 0; i < space_bytes; i++)
+                    line[probe_len + i] = ' ';
+                memcpy(line + probe_len + space_bytes, word_start, word_bytes);
+                int probe_total = probe_len + space_bytes + word_bytes;
+                line[probe_total] = '\0';
+                int probe_px =
+                    sdl_description_overlay_story_text_width(line, probe_total, slot);
+                line[probe_len] = saved;
+                line[line_len] = '\0';
+                if (probe_px > wrap_pixels)
+                    fits = false;
+            }
+        }
+
+        bool exceeds_columns = (x + space_bytes + word_bytes >= wid);
+
+        if ((!fits || exceeds_columns) && line_len > text_out_indent)
+        {
+            /* Wrap: drop the inter-word spaces, start the word on a new line. */
+            x = text_out_indent;
+            y++;
+            Term_erase(x, y, 255);
+            overlay_story_seed_line(line, sizeof(line), y, x, &line_len);
+        }
+        else
+        {
+            /* Keep the spaces between words on the same line. */
+            for (int i = 0; i < space_bytes; i++)
+            {
+                Term_addch(a, ' ');
+                x++;
+                if (line_len < (int)sizeof(line) - 1)
+                    line[line_len++] = ' ';
+            }
+            line[line_len] = '\0';
+        }
+
+        Term_addstr(word_bytes, a, word_start);
+        x += word_bytes;
+        for (int i = 0; i < word_bytes && line_len < (int)sizeof(line) - 1; i++)
+            line[line_len++] = word_start[i];
+        line[line_len] = '\0';
+
+        s += space_bytes + word_bytes;
+    }
 }
 
 static void story_print_text_internal(int row, int col, int max_cols, byte attr, cptr text, bool force_grid)

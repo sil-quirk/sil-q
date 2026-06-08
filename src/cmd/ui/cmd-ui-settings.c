@@ -311,8 +311,8 @@ static const struct option_group_marker interface_option_groups[] = {
 
 static const struct option_group_marker text_option_groups[] = {
     { 0, "Look and Lore" },
-    { 3, "Inventory and Equipment" },
-    { 7, "Character" },
+    { 4, "Inventory and Equipment" },
+    { 8, "Character" },
     { -1, NULL }
 };
 
@@ -940,8 +940,9 @@ static cptr option_menu_label(int opt)
         case OPT_story_character_sheet: return narrow ? "Story sheet" : "Story font: char sheet";
         case OPT_story_lists_inven_pane: return narrow ? "Story inv pane" : "Story font: inv pane";
         case OPT_story_lists_equip_pane: return narrow ? "Story eq pane" : "Story font: equip pane";
-        case OPT_story_monster_desc: return narrow ? "Story mon desc" : "Story font: monster desc";
+        case OPT_story_monster_desc: return narrow ? "Story mon overlay" : "Story font: monster overlay";
         case OPT_story_monster_desc_pane: return narrow ? "Story mon pane" : "Story font: monster pane";
+        case OPT_story_object_desc: return narrow ? "Story obj overlay" : "Story font: object overlay";
         case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
         case OPT_pacifist_attack_warning: return narrow ? "Pacifist warn" : "Warn before attacks";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";

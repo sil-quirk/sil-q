@@ -29,12 +29,14 @@ bool story_equipment_enabled(void);
 bool story_look_enabled(void);
 bool story_character_enabled(void);
 bool story_monster_desc_enabled(void);
+bool story_object_desc_enabled(void);
 
 void story_font_term_push(bool active, bool grid, story_font_term_state* prev);
 void story_font_term_push_slot(bool active, bool grid, int slot, story_font_term_state* prev);
 void story_font_term_pop(story_font_term_state* prev);
 
 void text_out_to_screen_story(byte a, cptr str);
+void text_out_to_screen_overlay_story(byte a, cptr str);
 
 void story_print_text(int row, int col, int max_cols, byte attr, cptr text);
 void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text);

@@ -13,12 +13,13 @@ static bool new_paragraph = false;
 #define OBJECT_INFO_CAPTURE_MIN_ROWS 255
 #define OBJECT_INFO_CAPTURE_MAX_ROWS 2048
 #define OBJECT_INFO_CAPTURE_ROWS_PER_OBJECT 64
-#define OBJECT_INFO_CAPTURE_MARGIN_COLS 4
+#define OBJECT_INFO_CAPTURE_STORY_COLS 200
 
 typedef struct object_info_screen_capture
 {
     int width;
     int height;
+    int target_cols;
     int cursor_x;
     int cursor_y;
     bool cursor_useless;
@@ -39,14 +40,12 @@ static char object_info_screen_capture_view(
     const object_info_screen_capture* capture, cptr footer,
     const object_info_screen_action* actions, int action_count);
 
-static int object_info_screen_preferred_capture_width(void)
+static int object_info_screen_preferred_capture_width(bool use_story_font)
 {
-    int width = sdl_description_overlay_max_cols();
+    if (use_story_font)
+        return OBJECT_INFO_CAPTURE_STORY_COLS;
 
-    if (width > OBJECT_INFO_CAPTURE_MARGIN_COLS)
-        width -= OBJECT_INFO_CAPTURE_MARGIN_COLS;
-
-    return width;
+    return sdl_description_overlay_max_cols();
 }
 
 static bool object_info_blocked_by_hallucination(void)
@@ -2517,7 +2516,8 @@ static int object_info_screen_capture_used_cols(term* t, int rows)
 
 static bool object_info_screen_capture_build(
     const object_type** objects, const char** headings, int count,
-    object_info_screen_capture* capture, int preferred_width)
+    object_info_screen_capture* capture, int preferred_width,
+    bool use_story_font)
 {
     term scratch;
     term* saved_term = Term;
@@ -2525,10 +2525,14 @@ static bool object_info_screen_capture_build(
     int old_wrap = text_out_wrap;
     int old_indent = text_out_indent;
     bool old_paragraph = new_paragraph;
+    story_font_term_state story_state;
+    bool story_pushed = false;
     bool scratch_ready = false;
     bool success = false;
     int term_wid = 80;
     int term_hgt = 24;
+    int target_wid;
+    int max_target_wid;
     int capture_hgt;
     int used_rows;
     int used_cols;
@@ -2540,8 +2544,15 @@ static bool object_info_screen_capture_build(
     SDL_memset(&scratch, 0, sizeof(scratch));
 
     Term_get_size(&term_wid, &term_hgt);
-    if (preferred_width > 0 && term_wid > preferred_width)
-        term_wid = preferred_width;
+    target_wid = term_wid;
+    max_target_wid = sdl_description_overlay_max_cols();
+    if (max_target_wid > 0 && target_wid > max_target_wid)
+        target_wid = max_target_wid;
+    if (target_wid < 20)
+        target_wid = 20;
+    term_wid = use_story_font ? preferred_width : target_wid;
+    if (term_wid < target_wid)
+        term_wid = target_wid;
     if (term_wid < 20)
         term_wid = 20;
     if (term_hgt < 24)
@@ -2558,8 +2569,13 @@ static bool object_info_screen_capture_build(
     scratch_ready = true;
 
     Term_activate(&scratch);
-    text_out_hook = text_out_to_screen;
-    text_out_wrap = 0;
+    story_font_term_push_slot(use_story_font, false,
+        STORY_FONT_SLOT_SECONDARY, &story_state);
+    story_pushed = true;
+
+    text_out_hook = use_story_font
+        ? text_out_to_screen_overlay_story : text_out_to_screen;
+    text_out_wrap = use_story_font ? target_wid : 0;
     text_out_indent = 0;
     new_paragraph = false;
 
@@ -2576,6 +2592,7 @@ static bool object_info_screen_capture_build(
 
     capture->width = used_cols;
     capture->height = used_rows;
+    capture->target_cols = target_wid;
     capture->cursor_x = scratch.scr->cx;
     capture->cursor_y = scratch.scr->cy;
     capture->cursor_useless = scratch.scr->cu;
@@ -2607,6 +2624,9 @@ cleanup:
     text_out_indent = old_indent;
     new_paragraph = old_paragraph;
 
+    if (story_pushed)
+        story_font_term_pop(&story_state);
+
     if (saved_term && Term != saved_term)
         Term_activate(saved_term);
 
@@ -2624,6 +2644,7 @@ bool object_info_overlay_show_multi(const object_type** objects,
 {
     object_info_screen_capture capture;
     int overlay_width;
+    bool use_story_font;
 
     if (count <= 0 || objects == NULL)
         return false;
@@ -2632,10 +2653,11 @@ bool object_info_overlay_show_multi(const object_type** objects,
         return false;
 
     SDL_memset(&capture, 0, sizeof(capture));
-    overlay_width = object_info_screen_preferred_capture_width();
+    use_story_font = story_object_desc_enabled();
+    overlay_width = object_info_screen_preferred_capture_width(use_story_font);
 
     if (!object_info_screen_capture_build(objects, headings, count, &capture,
-            overlay_width))
+            overlay_width, use_story_font))
         return false;
 
     object_info_overlay_capture_release();
@@ -2648,7 +2670,8 @@ bool object_info_overlay_show_multi(const object_type** objects,
             object_info_overlay_capture.tchars,
             object_info_overlay_capture.story,
             object_info_overlay_capture.width,
-            object_info_overlay_capture.height, 0, false, NULL, NULL))
+            object_info_overlay_capture.height,
+            object_info_overlay_capture.target_cols, 0, false, NULL, NULL))
     {
         object_info_overlay_clear();
         return false;
@@ -2709,8 +2732,8 @@ static char object_info_screen_capture_view(
         object_info_configure_footer(footer, actions, action_count);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
-                capture->width, capture->height, scroll, true, &visible_rows,
-                &max_scroll))
+                capture->width, capture->height, capture->target_cols, scroll,
+                true, &visible_rows, &max_scroll))
         {
             break;
         }
@@ -2790,6 +2813,7 @@ char object_info_screen_multi_with_actions(const object_type** objects,
     object_info_screen_capture capture;
     bool have_capture = false;
     char result = 0;
+    bool use_story_font;
 
     if (count <= 0 || objects == NULL)
         return 0;
@@ -2798,12 +2822,14 @@ char object_info_screen_multi_with_actions(const object_type** objects,
         return 0;
 
     SDL_memset(&capture, 0, sizeof(capture));
+    use_story_font = story_object_desc_enabled();
 
     character_icky++;
 
     have_capture =
         object_info_screen_capture_build(objects, headings, count, &capture,
-            object_info_screen_preferred_capture_width());
+            object_info_screen_preferred_capture_width(use_story_font),
+            use_story_font);
     if (have_capture)
     {
         result = object_info_screen_capture_view(&capture, footer, actions,
