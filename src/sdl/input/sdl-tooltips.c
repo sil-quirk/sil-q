@@ -744,7 +744,7 @@ static int sdl_description_overlay_font_px_for_story(bool story)
     int font_px = get_sdl_terminal_menu_scale() * TILE_SIZE;
 
     if (story)
-        font_px = (font_px * 3) / 2;
+        font_px = (font_px * 7) / 5;
 
     if (font_px < 8)
         font_px = 8;
@@ -1183,7 +1183,7 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
         sdl_description_overlay_font_px());
 
     margin = sdl_overlay_margin_px();
-    pad_x = cell_w;
+    pad_x = mono_cell_w;
     pad_y = cell_h / 2;
     if (pad_y < 2)
         pad_y = 2;
