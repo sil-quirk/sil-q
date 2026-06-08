@@ -83,6 +83,9 @@
 #define SDL_TOUCH_TOP_PANEL_MODE_COUNT 2
 #define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 6
+#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN 1
+#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX 8
+#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 3
 #define SDL_PANE_PROFILE_COUNT 2
 #define SDL_LEFT_PANEL_COMPACT_COLUMN 0
 #define SDL_LEFT_PANEL_COMPACT_ROW 1
@@ -205,6 +208,7 @@ struct sdl_config {
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
     int touch_top_panel_mode;
     bool touch_top_panel_default_open;
+    int touch_top_panel_tile_scale;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     bool touch_swipe_enabled;

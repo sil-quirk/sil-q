@@ -601,7 +601,8 @@ bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
         || pane == PANE_DEPTH || pane == PANE_ROLLS
-        || pane == PANE_LOG || pane == PANE_DESCRIPTION;
+        || pane == PANE_LOG || pane == PANE_DESCRIPTION
+        || pane == PANE_OVERLAY_MENU;
 }
 
 bool sdl_migrate_legacy_main_menu_depth_pane(
@@ -1796,6 +1797,8 @@ void sdl_apply_startup_input_defaults_to_config(
         target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
         target->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
         target->touch_top_panel_default_open = false;
+        target->touch_top_panel_tile_scale =
+            SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
         target->touch_swipe_enabled = true;
     }
 }
@@ -1964,6 +1967,15 @@ void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].enabled = true;
             configs[i].rect.rows = 4;
             configs[i].rect.cols = 12;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
+        case PANE_OVERLAY_MENU:
+            configs[i].where = PLACE_BOTTOM_CENTER;
+            configs[i].enabled = true;
+            configs[i].rect.rows = 1;
+            configs[i].rect.cols = 4;
             configs[i].font_size = 0;
             configs[i].ratio = 0.0f;
             break;
@@ -2705,6 +2717,8 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
         bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
         bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
+        bool is_overlay_menu_pane =
+            (pane_config[i].pane == PANE_OVERLAY_MENU);
         bool is_overlay_log_pane = (pane_config[i].pane == PANE_ROLLS)
             && pane_placement_is_overlay(where);
 
@@ -2712,7 +2726,8 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
             continue;
         if (touch_only && !is_touch_pane && !is_status_pane
             && !is_left_panel && !is_depth_pane
-            && !is_description_pane && !is_overlay_log_pane)
+            && !is_description_pane && !is_overlay_menu_pane
+            && !is_overlay_log_pane)
         {
             continue;
         }
@@ -2722,7 +2737,8 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
             continue;
         if (!is_touch_pane && !is_status_pane && !is_left_panel
             && !is_depth_pane
-            && !is_description_pane && !is_overlay_log_pane)
+            && !is_description_pane && !is_overlay_menu_pane
+            && !is_overlay_log_pane)
         {
             if (pane_placement_is_side(where) && !include_side)
                 continue;
@@ -3490,7 +3506,8 @@ bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_MAIN_MENU
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(where))
-            || pane_config[i].pane == PANE_DESCRIPTION)
+            || pane_config[i].pane == PANE_DESCRIPTION
+            || pane_config[i].pane == PANE_OVERLAY_MENU)
         {
             continue;
         }

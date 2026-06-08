@@ -27,7 +27,8 @@ enum pane_type {
     PANE_DEPTH = 13, // dungeon depth/partition and zoom overlay
     PANE_MAIN_MENU = 14, // obsolete; recognized only for config migration
     PANE_DESCRIPTION = 15, // modal item/monster description overlay
-    PANE_MAX = 16,
+    PANE_OVERLAY_MENU = 16, // touch/mouse overlay command menu
+    PANE_MAX = 17,
 };
 
 // Where the pane is placed.

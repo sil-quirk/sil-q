@@ -44,6 +44,8 @@ const struct pane_config default_pane_config[] = {
         .rect.rows = 1, .rect.cols = 24},
     {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
         .rect.rows = 80, .rect.cols = 160},
+    {.pane = PANE_OVERLAY_MENU, .where = PLACE_BOTTOM_CENTER, .enabled = true,
+        .rect.rows = 1, .rect.cols = 4},
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT, .enabled = true},
     {.pane = PANE_SUPPLY, .where = PLACE_RIGHT, .enabled = true,
@@ -554,6 +556,7 @@ int g_default_touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
 int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
 int g_default_touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
 bool g_default_touch_top_panel_default_open = false;
+int g_default_touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
 int g_default_touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 int g_default_touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 bool g_default_touch_swipe_enabled = true;
@@ -602,6 +605,7 @@ int g_touch_round_last_dir = 0;
 bool g_player_tile_facing_right = false;
 bool g_touch_top_panel_open = true;
 int g_touch_top_panel_pressed_slot = -1;
+int g_touch_top_panel_hover_slot = -1;
 int g_touch_top_panel_flash_slot = -1;
 Uint64 g_touch_top_panel_flash_until = 0;
 menu_touch_press_state g_menu_touch_press;

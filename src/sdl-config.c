@@ -321,6 +321,7 @@ static const char* pane_type_to_string(enum pane_type type)
         case PANE_STATUS: return "STATUS";
         case PANE_DEPTH: return "DEPTH";
         case PANE_DESCRIPTION: return "DESCRIPTION";
+        case PANE_OVERLAY_MENU: return "OVERLAY_MENU";
         default: return "MAIN";
     }
 }
@@ -353,6 +354,11 @@ static enum pane_type parse_pane_type(const char* value)
         || strcmp(value, "DESCRIPTION_OVERLAY") == 0
         || strcmp(value, "DESCRIPTION OVERLAY") == 0)
         return PANE_DESCRIPTION;
+    if (strcmp(value, "OVERLAY_MENU") == 0
+        || strcmp(value, "OVERLAY MENU") == 0
+        || strcmp(value, "TOP_PANEL") == 0
+        || strcmp(value, "TOP PANEL") == 0)
+        return PANE_OVERLAY_MENU;
     return PANE_MAIN;
 }
 
@@ -494,6 +500,17 @@ static int parse_touch_top_panel_mode(const char* value)
     if (strcmp(value, "EXTENDED") == 0) return SDL_TOUCH_TOP_PANEL_MODE_LONG;
     if (strcmp(value, "SHORT") == 0) return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
     return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+}
+
+static int normalize_touch_top_panel_tile_scale(int scale)
+{
+    if (scale <= 0)
+        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
+    if (scale < SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN)
+        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN;
+    if (scale > SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX)
+        return SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX;
+    return scale;
 }
 
 static const char* touch_movement_mode_to_string(int mode)
@@ -1174,10 +1191,11 @@ static void sdl_config_migrate_touch_pane_binding(struct sdl_config* config,
 static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
 {
     static const int top_panel_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        'z', 'h', 'i', 'a', 'l', 'f',
+        GAMEPAD_BIND_NONE, 'j', '0', 'l', '\t', GAMEPAD_BIND_NONE,
     };
     static const int top_panel_long_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        'Z', '\t', 'e', 'p', 'j', 'F',
+        GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
+        GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
     };
 
     if (!config)
@@ -1187,6 +1205,34 @@ static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
         sizeof(top_panel_defaults));
     memcpy(config->touch_top_panel_long_bindings, top_panel_long_defaults,
         sizeof(top_panel_long_defaults));
+}
+
+static void sdl_config_migrate_touch_top_panel_defaults(
+    struct sdl_config* config)
+{
+    static const int previous_taps[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        'z', 'h', 'i', 'a', 'l', 'f',
+    };
+    static const int previous_longs[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
+        'Z', '\t', 'e', 'p', 'j', 'F',
+    };
+
+    if (!config)
+        return;
+
+    if (memcmp(config->touch_top_panel_bindings, previous_taps,
+            sizeof(previous_taps)) != 0)
+    {
+        return;
+    }
+    if (memcmp(config->touch_top_panel_long_bindings, previous_longs,
+            sizeof(previous_longs)) != 0)
+    {
+        return;
+    }
+
+    sdl_config_set_default_top_panel_bindings(config);
+    log_info("Migrated default overlay menu buttons to icon layout");
 }
 
 static void sdl_config_migrate_touch_top_panel_layout(
@@ -1224,7 +1270,7 @@ static void sdl_config_migrate_touch_top_panel_layout(
 
     if (old_default_taps && old_default_longs) {
         sdl_config_set_default_top_panel_bindings(config);
-        log_info("Migrated default top widget buttons to short/long layout");
+        log_info("Migrated default overlay menu buttons to icon layout");
         return;
     }
 
@@ -1242,15 +1288,15 @@ static void sdl_config_migrate_touch_top_panel_layout(
         for (int i = 0; i < 4; i++)
             config->touch_top_panel_bindings[i + 1] = old_taps[i];
         if (long_count != 4)
-            log_info("Shifted four-button top widget tap bindings into short layout");
+            log_info("Shifted four-button overlay menu tap bindings into short layout");
     }
 
     if (long_count == 4) {
         for (int i = 0; i < 4; i++)
             config->touch_top_panel_long_bindings[i + 1] = old_longs[i];
         log_info((tap_count == 4)
-            ? "Shifted four-button top widget bindings into short layout"
-            : "Shifted four-button top widget long-tap bindings into short layout");
+            ? "Shifted four-button overlay menu bindings into short layout"
+            : "Shifted four-button overlay menu long-tap bindings into short layout");
     }
 }
 
@@ -2420,6 +2466,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "topPanelMode");
                 cJSON* top_panel_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelDefaultOpen");
+                cJSON* top_panel_tile_scale = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelTileScale");
                 cJSON* top_panel_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelBindings");
                 cJSON* top_panel_long_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -2599,6 +2647,14 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         config->touch_top_panel_default_open ? "true" : "false");
                 }
 
+                if (cJSON_IsNumber(top_panel_tile_scale)) {
+                    config->touch_top_panel_tile_scale =
+                        normalize_touch_top_panel_tile_scale(
+                            top_panel_tile_scale->valueint);
+                    log_debug("Loaded touchControl.topPanelTileScale: %d",
+                        config->touch_top_panel_tile_scale);
+                }
+
                 if (cJSON_IsArray(top_panel_bindings)) {
                     int count = cJSON_GetArraySize(top_panel_bindings);
                     top_panel_bindings_count = count;
@@ -2640,12 +2696,9 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
 
         sdl_config_migrate_touch_top_panel_layout(config,
             top_panel_bindings_count, top_panel_long_bindings_count);
+        sdl_config_migrate_touch_top_panel_defaults(config);
         if (!saw_touch_control_top_panel_mode) {
-            config->touch_top_panel_mode =
-                (config->touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL
-                    || config->touch_round_movement_enabled)
-                    ? SDL_TOUCH_TOP_PANEL_MODE_LONG
-                    : SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+            config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
         }
 
         if (!saw_touch_control_swipe_enabled && cJSON_IsBool(legacy_swipe_enabled)) {
@@ -2681,6 +2734,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             normalize_touch_corner_up_down_side(config->touch_corner_up_down_side);
         config->touch_top_panel_mode =
             normalize_touch_top_panel_mode(config->touch_top_panel_mode);
+        config->touch_top_panel_tile_scale =
+            normalize_touch_top_panel_tile_scale(config->touch_top_panel_tile_scale);
         config->touch_profile =
             normalize_touch_profile(config->touch_profile);
     }
@@ -3040,6 +3095,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 touch_top_panel_mode_to_string(config->touch_top_panel_mode));
             cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
                 config->touch_top_panel_default_open);
+            cJSON_AddNumberToObject(touch_control, "topPanelTileScale",
+                config->touch_top_panel_tile_scale);
             if (top_panel_bindings) {
                 cJSON_AddItemToObject(touch_control,
                     "topPanelBindings", top_panel_bindings);
@@ -3252,6 +3309,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         sizeof(corner_action_defaults));
     config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
     config->touch_top_panel_default_open = false;
+    config->touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
     sdl_config_set_default_top_panel_bindings(config);
     config->touch_swipe_enabled = true;
     memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));

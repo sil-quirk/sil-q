@@ -69,6 +69,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_STATUS: type_str = "STATUS"; break;
             case PANE_DEPTH: type_str = "DEPTH"; break;
             case PANE_DESCRIPTION: type_str = "DESCRIPTION"; break;
+            case PANE_OVERLAY_MENU: type_str = "OVERLAY_MENU"; break;
             default: break;
         }
         
@@ -515,10 +516,12 @@ void set_sdl_pane_where(int index, int where)
 {
     enum pane_placement placement = (enum pane_placement)where;
     bool is_touch_pane;
+    bool is_overlay_menu;
 
     if (index < 0 || index >= pane_config_count)
         return;
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
+    is_overlay_menu = (pane_config[index].pane == PANE_OVERLAY_MENU);
     if (!pane_type_allows_placement(pane_config[index].pane, placement))
         placement = pane_first_allowed_placement(pane_config[index].pane);
 
@@ -527,6 +530,8 @@ void set_sdl_pane_where(int index, int where)
         sdl_touch_pane_cancel_press();
         sdl_touch_swipe_cancel();
     }
+    if (is_overlay_menu)
+        sdl_touch_top_panel_cancel_press();
 }
 
 bool get_sdl_pane_enabled(int index)
@@ -666,6 +671,7 @@ void set_sdl_pane_font_size(int index, int font_size)
 void set_sdl_pane_enabled(int index, bool enabled)
 {
     bool is_touch_pane;
+    bool is_overlay_menu;
 
     if (index < 0 || index >= pane_config_count)
         return;
@@ -674,11 +680,17 @@ void set_sdl_pane_enabled(int index, bool enabled)
         return;
     }
     is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
+    is_overlay_menu = (pane_config[index].pane == PANE_OVERLAY_MENU);
     pane_config[index].enabled = enabled;
     if (is_touch_pane) {
         g_touch_pane_mobile_open = config.touch_pane_default_open;
         sdl_touch_pane_cancel_press();
         sdl_touch_swipe_cancel();
+    }
+    if (is_overlay_menu) {
+        if (!enabled)
+            sdl_touch_top_panel_set_open(false);
+        sdl_touch_top_panel_cancel_press();
     }
 }
 
@@ -720,7 +732,8 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_DEPTH
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
-            || pane_config[i].pane == PANE_DESCRIPTION)
+            || pane_config[i].pane == PANE_DESCRIPTION
+            || pane_config[i].pane == PANE_OVERLAY_MENU)
         {
             continue;
         }
@@ -737,7 +750,8 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_DEPTH
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
-            || pane_config[i].pane == PANE_DESCRIPTION)
+            || pane_config[i].pane == PANE_DESCRIPTION
+            || pane_config[i].pane == PANE_OVERLAY_MENU)
         {
             continue;
         }
@@ -928,6 +942,8 @@ void sdl_touch_pane_load_default_bindings(void)
     g_default_touch_top_panel_mode = defaults.touch_top_panel_mode;
     g_default_touch_top_panel_default_open =
         defaults.touch_top_panel_default_open;
+    g_default_touch_top_panel_tile_scale =
+        defaults.touch_top_panel_tile_scale;
     memcpy(g_default_touch_top_panel_bindings,
         defaults.touch_top_panel_bindings,
         sizeof(g_default_touch_top_panel_bindings));
@@ -1802,6 +1818,30 @@ bool get_sdl_touch_top_panel_default_open_default(void)
 {
     sdl_touch_pane_load_default_bindings();
     return g_default_touch_top_panel_default_open;
+}
+
+int get_sdl_touch_top_panel_tile_scale(void)
+{
+    return sdl_touch_top_panel_tile_scale_normalized(
+        config.touch_top_panel_tile_scale);
+}
+
+void set_sdl_touch_top_panel_tile_scale(int scale)
+{
+    scale = sdl_touch_top_panel_tile_scale_normalized(scale);
+    if (config.touch_top_panel_tile_scale == scale)
+        return;
+
+    config.touch_top_panel_tile_scale = scale;
+    sdl_touch_top_panel_cancel_press();
+    g_state.need_present = true;
+}
+
+int get_sdl_touch_top_panel_default_tile_scale(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return sdl_touch_top_panel_tile_scale_normalized(
+        g_default_touch_top_panel_tile_scale);
 }
 
 int get_sdl_touch_top_panel_binding(int index, bool long_press)

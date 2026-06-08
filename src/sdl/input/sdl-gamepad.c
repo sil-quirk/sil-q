@@ -645,15 +645,18 @@ bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
     SDL_FRect* out_panel)
 {
     SDL_Rect screen;
+    SDL_Rect anchor;
+    enum pane_placement where;
 
     if (!sdl_touch_top_panel_layout_visible())
         return false;
     if (!g_touch_top_panel_open)
         return false;
 
-    screen = sdl_get_layout_screen_rect();
-    return sdl_touch_top_panel_compute_layout_for_screen(&screen,
-        button_rects, out_panel);
+    if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))
+        return false;
+    return sdl_touch_top_panel_compute_layout_for_anchor(&screen, &anchor,
+        where, button_rects, out_panel);
 }
 
 bool sdl_gamepad_handle_confirm_long_press_button(
@@ -1851,5 +1854,4 @@ void sdl_gamepad_shutdown(void)
         sdl_gamepad_close(id);
     }
 }
-
 

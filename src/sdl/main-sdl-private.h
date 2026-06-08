@@ -1276,6 +1276,7 @@ extern int g_default_touch_corner_up_down_side;
 extern int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
 extern int g_default_touch_top_panel_mode;
 extern bool g_default_touch_top_panel_default_open;
+extern int g_default_touch_top_panel_tile_scale;
 extern int g_default_touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 extern int g_default_touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 extern bool g_default_touch_swipe_enabled;
@@ -1314,6 +1315,7 @@ extern int g_touch_round_last_dir;
 extern bool g_player_tile_facing_right;
 extern bool g_touch_top_panel_open;
 extern int g_touch_top_panel_pressed_slot;
+extern int g_touch_top_panel_hover_slot;
 extern int g_touch_top_panel_flash_slot;
 extern Uint64 g_touch_top_panel_flash_until;
 extern menu_touch_press_state g_menu_touch_press;
@@ -2442,9 +2444,15 @@ bool sdl_touch_zone_flush_pending_press(Uint64 now_ns);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
 int sdl_touch_top_panel_mode_normalized(int mode);
+int sdl_touch_top_panel_tile_scale_normalized(int scale);
 bool sdl_touch_top_panel_long_mode(void);
 int sdl_touch_top_panel_first_visible_slot(void);
 int sdl_touch_top_panel_visible_button_count(void);
+bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
+    SDL_Rect* out_anchor, enum pane_placement* out_where);
+bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
+    const SDL_Rect* anchor, enum pane_placement where,
+    SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_compute_layout_for_screen( const SDL_Rect* screen, SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot);
 int sdl_touch_top_panel_binding_for_slot(int slot, bool long_press);
@@ -2909,6 +2917,9 @@ int get_sdl_touch_top_panel_default_mode(void);
 bool get_sdl_touch_top_panel_default_open(void);
 void set_sdl_touch_top_panel_default_open(bool value);
 bool get_sdl_touch_top_panel_default_open_default(void);
+int get_sdl_touch_top_panel_tile_scale(void);
+void set_sdl_touch_top_panel_tile_scale(int scale);
+int get_sdl_touch_top_panel_default_tile_scale(void);
 int get_sdl_touch_top_panel_binding(int index, bool long_press);
 void set_sdl_touch_top_panel_binding(int index, bool long_press, int binding);
 int get_sdl_touch_top_panel_default_binding(int index, bool long_press);
@@ -3439,6 +3450,12 @@ void sdl_touch_hidden_indicator_render(void);
 bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y, bool touch);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
+int sdl_touch_top_panel_tile_scale_normalized(int scale);
+bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
+    SDL_Rect* out_anchor, enum pane_placement* out_where);
+bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
+    const SDL_Rect* anchor, enum pane_placement where,
+    SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_compute_layout_for_screen(
     const SDL_Rect* screen, SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,

@@ -62,6 +62,7 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     [PANE_STATUS] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 24},
     [PANE_DEPTH] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 4, .min_rect.cols = 12},
     [PANE_DESCRIPTION] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
+    [PANE_OVERLAY_MENU] = {.placement = OVERLAY_PLACEMENTS, .min_rect.rows = 1, .min_rect.cols = 1},
 };
 
 static bool pane_placement_is_left(enum pane_placement where)
@@ -637,7 +638,7 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type)
     {
         return PLACE_TOP_RIGHT;
     }
-    if (type == PANE_DESCRIPTION
+    if ((type == PANE_DESCRIPTION || type == PANE_OVERLAY_MENU)
         && pane_type_allows_placement(type, PLACE_BOTTOM_CENTER))
     {
         return PLACE_BOTTOM_CENTER;

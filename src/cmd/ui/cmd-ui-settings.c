@@ -1179,6 +1179,7 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_ENABLED = 0,
     IFACE_PANE_FIELD_PLACEMENT,
     IFACE_PANE_FIELD_FONT,
+    IFACE_PANE_FIELD_TILE_SCALE,
     IFACE_PANE_FIELD_LP_LAUNCH,
     IFACE_PANE_FIELD_LP_COMPACT
 };
@@ -2263,6 +2264,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                     sdl_apply_config();
                     app_settings_dirty = true;
                 }
+                else if (prow->field == IFACE_PANE_FIELD_TILE_SCALE
+                    && get_sdl_touch_top_panel_tile_scale()
+                        != get_sdl_touch_top_panel_default_tile_scale())
+                {
+                    set_sdl_touch_top_panel_tile_scale(
+                        get_sdl_touch_top_panel_default_tile_scale());
+                    sdl_apply_config();
+                    app_settings_dirty = true;
+                }
             }
             break;
         }
@@ -3214,6 +3224,8 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_LEFT_PANEL: return "LEFT_PANEL";
     case PANE_STATUS: return "STATUS";
     case PANE_DEPTH: return "DEPTH";
+    case PANE_DESCRIPTION: return "DESCRIPTION";
+    case PANE_OVERLAY_MENU: return "OVERLAY_MENU";
     default: return "UNKNOWN";
     }
 }
@@ -3471,6 +3483,8 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_LEFT_PANEL: return "LEFT";
     case PANE_STATUS: return "STAT";
     case PANE_DEPTH: return "DEPTH";
+    case PANE_DESCRIPTION: return "DESC";
+    case PANE_OVERLAY_MENU: return "MENU";
     default: return "UNK";
     }
 }
@@ -3621,7 +3635,8 @@ static bool supporting_pane_normalize_shared_sizes(const int* pane_indices, int 
 static bool pane_type_is_overlay(enum pane_type type)
 {
     return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
-        || (type == PANE_DEPTH) || (type == PANE_ROLLS);
+        || (type == PANE_DEPTH) || (type == PANE_ROLLS)
+        || (type == PANE_OVERLAY_MENU);
 }
 
 static const char* pane_type_display_name(enum pane_type type)
@@ -3633,6 +3648,7 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
     case PANE_ROLLS: return "Overlay Log";
+    case PANE_OVERLAY_MENU: return "Overlay Menu";
     case PANE_LOG: return "Log";
     default: return pane_type_name(type);
     }
@@ -3658,7 +3674,7 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
     for (int i = 0; i < total; i++)
     {
         enum pane_type type = (enum pane_type)get_sdl_pane_type(i);
-        enum iface_pane_field fields[3];
+        enum iface_pane_field fields[4];
         int field_count = 0;
 
         if (!pane_type_is_overlay(type))
@@ -3669,6 +3685,12 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_LP_LAUNCH;
             fields[field_count++] = IFACE_PANE_FIELD_LP_COMPACT;
             fields[field_count++] = IFACE_PANE_FIELD_FONT;
+        }
+        else if (type == PANE_OVERLAY_MENU)
+        {
+            fields[field_count++] = IFACE_PANE_FIELD_ENABLED;
+            fields[field_count++] = IFACE_PANE_FIELD_PLACEMENT;
+            fields[field_count++] = IFACE_PANE_FIELD_TILE_SCALE;
         }
         else
         {
@@ -3705,6 +3727,7 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_ENABLED: return "Enabled";
     case IFACE_PANE_FIELD_PLACEMENT: return "Placement";
     case IFACE_PANE_FIELD_FONT: return "Font Size";
+    case IFACE_PANE_FIELD_TILE_SCALE: return "Tile Scale";
     case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
     default: return "?";
@@ -3732,6 +3755,9 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
     case IFACE_PANE_FIELD_FONT:
         format_font_size_value(buf, buflen, get_sdl_pane_font_size(idx),
             get_sdl_pane_effective_font_size(idx), 16);
+        break;
+    case IFACE_PANE_FIELD_TILE_SCALE:
+        strnfmt(buf, buflen, "%dx", get_sdl_touch_top_panel_tile_scale());
         break;
     case IFACE_PANE_FIELD_LP_LAUNCH:
         SDL_strlcpy(buf,
@@ -3793,6 +3819,13 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         else
             set_sdl_pane_font_size(idx, value + ((delta < 0) ? -1 : 1));
         changed = true;
+        break;
+    }
+    case IFACE_PANE_FIELD_TILE_SCALE:
+    {
+        int value = get_sdl_touch_top_panel_tile_scale();
+        set_sdl_touch_top_panel_tile_scale(value + ((delta < 0) ? -1 : 1));
+        changed = (get_sdl_touch_top_panel_tile_scale() != value);
         break;
     }
     case IFACE_PANE_FIELD_LP_LAUNCH:
