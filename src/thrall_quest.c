@@ -1035,8 +1035,8 @@ static bool choose_broken_item_to_upgrade(int* out_slot)
 
     item_tester_hook = item_tester_hook_broken_item;
 
-    if (!get_item(&slot, "Repair which item? ",
-            "You have nothing broken to mend.", (USE_EQUIP | USE_INVEN)))
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN,
+            "Repair which item? ", "You have nothing broken to mend.", &slot))
     {
         item_tester_hook = NULL;
         return false;
@@ -1186,9 +1186,9 @@ static bool choose_item_to_sanctify(int* out_slot)
 
     item_tester_hook = item_tester_hook_sanctifiable_item;
 
-    if (!get_item(&slot, "Sanctify which item? ",
-            "You have nothing fit for sanctification.",
-            (USE_EQUIP | USE_INVEN)))
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN,
+            "Sanctify which item? ",
+            "You have nothing fit for sanctification.", &slot))
     {
         item_tester_hook = NULL;
         return false;

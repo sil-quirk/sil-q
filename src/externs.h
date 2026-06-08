@@ -711,7 +711,10 @@ extern bool open_inventory_replacement_menu(inventory_menu_group group,
     cptr reason, int* replacement_item);
 extern bool open_inventory_slot_pick_menu(const object_type* incoming,
     const bool* enabled, cptr reason, int* slot_out);
+extern bool open_inventory_item_select_menu(int mode, cptr reason,
+    cptr none_msg, int* item_out);
 extern void do_cmd_destroy(void);
+extern bool do_cmd_delete_item_by_index(int item);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
 extern void do_cmd_uninscribe(void);
@@ -1178,6 +1181,8 @@ extern cptr describe_use(int i);
 extern bool object_is_searched_skeleton(const object_type* o_ptr);
 extern bool item_tester_okay(const object_type* o_ptr);
 extern int scan_floor(int* items, int size, int y, int x, int mode);
+extern bool get_item_okay(int item);
+extern bool get_item_allow(int item);
 extern void display_inven(void);
 extern void display_equip(void);
 extern void display_supplies(void);

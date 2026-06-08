@@ -304,6 +304,93 @@ bool open_inventory_slot_pick_menu(const object_type* incoming,
     return do_cmd_knowledge_supplies(&request);
 }
 
+static bool inventory_item_select_has_choice(int mode)
+{
+    if (mode & USE_EQUIP)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            if (inventory[i].k_idx && get_item_okay(i))
+                return true;
+        }
+    }
+
+    if (mode & USE_INVEN)
+    {
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            if (inventory[i].k_idx && get_item_okay(i))
+                return true;
+        }
+    }
+
+    if (mode & USE_FLOOR)
+    {
+        int floor_list[MAX_FLOOR_STACK];
+        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
+            p_ptr->px, 0x00);
+
+        for (int i = 0; i < floor_num; i++)
+        {
+            int o_idx = floor_list[i];
+
+            if (o_idx <= 0 || o_idx >= o_max)
+                continue;
+            if (!o_list[o_idx].k_idx || supplies_is_supply_object(&o_list[o_idx]))
+                continue;
+            if (get_item_okay(0 - o_idx))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+bool open_inventory_item_select_menu(int mode, cptr reason, cptr none_msg,
+    int* item_out)
+{
+    supply_menu_request request = {0};
+    bool selected;
+
+    if (!item_out)
+        return false;
+
+    *item_out = -1;
+
+    p_ptr->get_item_mode = mode;
+    if (!inventory_item_select_has_choice(mode))
+    {
+        p_ptr->get_item_mode = 0;
+        item_tester_tval = 0;
+        item_tester_hook = NULL;
+        p_ptr->command_wrk = 0;
+        p_ptr->command_see = false;
+        if (none_msg)
+            msg_print(none_msg);
+        return false;
+    }
+
+    request.focus_page = true;
+    request.page = SUPPLY_MENU_PAGE_INVENTORY;
+    request.focus_inventory_group = true;
+    request.inventory_group = INVENTORY_MENU_GROUP_ALL;
+    request.preview_inventory_description = true;
+    request.item_select_mode = true;
+    request.item_select_flags = mode;
+    request.item_select_reason = reason;
+    request.item_select_item_out = item_out;
+
+    selected = do_cmd_knowledge_supplies(&request);
+
+    p_ptr->get_item_mode = 0;
+    item_tester_tval = 0;
+    item_tester_hook = NULL;
+    p_ptr->command_wrk = 0;
+    p_ptr->command_see = false;
+
+    return selected;
+}
+
 static inventory_menu_group inventory_browser_group_for_object(
     const object_type* o_ptr)
 {
@@ -397,9 +484,6 @@ static bool open_inventory_menu_focused_on_floor(int floor_item,
 
     return do_cmd_knowledge_supplies(&request);
 }
-
-/* Flag indicating enhanced menus need to refresh the main display after closing */
-static bool enhanced_drop_refresh_pending = false;
 
 static bool handle_iron_crown_silmaril_action(object_type* o_ptr, int item)
 {
@@ -837,140 +921,7 @@ void do_cmd_equip_direct(void)
  */
 void do_cmd_inven(void)
 {
-    log_debug("do_cmd_inven: Starting inventory command");
-    
-    /* Clear any active banner before showing the menu */
-    if (dismiss_active_narrative_banner()) {
-        do_cmd_redraw();
-    }
-    
-    /* Hack -- Start in "inventory" mode */
-    p_ptr->command_wrk = (USE_INVEN);
-
-    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
-
-    extern int enhanced_menu_action;
-    extern int enhanced_inventory_selected_item;
-    extern char current_menu_command;
-
-    int action = ENHANCED_ACTION_NONE;
-    int selected_index = ENHANCED_MENU_NO_SELECTION;
-    bool death_view = death_spectator_active();
-
-    /* Save screen */
-    screen_save();
-    sdl_push_saved_screen_left_panel_pane();
-    log_debug("do_cmd_inven: Screen saved");
-
-    /* Hack -- show empty slots */
-    item_tester_full = true;
-
-    /* Force viewing mode */
-    p_ptr->command_see = true;
-
-    while (true)
-    {
-        /* Display the inventory with scrolling capability */
-        show_inven_enhanced();
-
-        action = enhanced_menu_action;
-        selected_index = enhanced_inventory_selected_item;
-
-        if (action == ENHANCED_ACTION_EXAMINE)
-        {
-            log_trace("do_cmd_inven: Examining item %d", selected_index);
-            /* Show comparisons when accessed via 'x' menu OR when
-             * examining via arrow-right in direct access. */
-            bool include_comparisons =
-                (current_menu_command == 'u' || current_menu_command == 'x'
-                    || current_menu_command == 0);
-            describe_item_with_comparisons(selected_index,
-                include_comparisons);
-            enhanced_menu_action = ENHANCED_ACTION_NONE;
-            enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
-            continue;
-        }
-
-        break;
-    }
-
-    /* Hack -- hide empty slots */
-    item_tester_full = false;
-
-    /* Load screen */
-    sdl_pop_saved_screen_left_panel_pane();
-    screen_load();
-    log_debug("do_cmd_inven: Screen loaded");
-
-    switch (action)
-    {
-    case ENHANCED_ACTION_USE:
-        if (death_view)
-        {
-            msg_print("You can no longer take that action.");
-        }
-        else
-        {
-            log_trace("do_cmd_inven: Using item %d", selected_index);
-            if (selected_index != ENHANCED_MENU_NO_SELECTION)
-                do_cmd_use_item_by_index(selected_index);
-        }
-        break;
-
-    case ENHANCED_ACTION_DROP:
-        if (death_view)
-        {
-            msg_print("You can no longer take that action.");
-        }
-        else
-        {
-            log_trace("do_cmd_inven: Dropping item %d", selected_index);
-            if (selected_index >= 0)
-                do_cmd_drop_item_by_index(selected_index);
-            else
-                bell("Cannot drop floor items from this menu!");
-        }
-        break;
-
-    case ENHANCED_ACTION_SUPPLIES:
-    {
-        log_trace("do_cmd_inven: Opening supplies menu (command=%c)", current_menu_command ? current_menu_command : '0');
-        supply_menu_action default_action = SUPPLY_MENU_ACTION_NONE;
-        bool default_hotkey = false;
-        if (current_menu_command == 'u')
-        {
-            default_action = SUPPLY_MENU_ACTION_USE;
-            default_hotkey = true;
-        }
-        else if (current_menu_command == 'd')
-        {
-            default_action = SUPPLY_MENU_ACTION_DROP;
-            default_hotkey = true;
-        }
-        open_supplies_menu_with_context(default_action, -1, false, default_hotkey);
-        break;
-    }
-
-    default:
-        break;
-    }
-
-    if (enhanced_drop_refresh_pending)
-    {
-        p_ptr->redraw |= (PR_MAP);
-        p_ptr->window |= (PW_MESSAGE);
-        enhanced_drop_refresh_pending = false;
-    }
-
-    /* Ensure the main display reflects any changes (drops, etc.) */
-    handle_stuff();
-    Term_fresh();
-
-    if (action != ENHANCED_ACTION_SWITCH)
-        enhanced_menu_action = ENHANCED_ACTION_NONE;
-    enhanced_inventory_selected_item = ENHANCED_MENU_NO_SELECTION;
-    
-    log_debug("do_cmd_inven: Exiting");
+    do_cmd_inven_direct();
 }
 
 /*
@@ -978,116 +929,7 @@ void do_cmd_inven(void)
  */
 void do_cmd_equip(void)
 {
-    log_debug("do_cmd_equip: Starting equipment command");
-    
-    /* Clear any active banner before showing the menu */
-    if (dismiss_active_narrative_banner()) {
-        do_cmd_redraw();
-    }
-    
-    /* Hack -- Start in "equipment" mode */
-    p_ptr->command_wrk = (USE_EQUIP);
-
-    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
-
-    extern int enhanced_equip_action;
-    extern int enhanced_equipment_selected_item;
-
-    int action = ENHANCED_ACTION_NONE;
-    int selected_index = ENHANCED_MENU_NO_SELECTION;
-    bool death_view = death_spectator_active();
-
-    /* Save screen */
-    screen_save();
-    sdl_push_saved_screen_left_panel_pane();
-    log_debug("do_cmd_equip: Screen saved");
-
-    /* Show every equipment slot; the menu navigates only occupied rows. */
-    item_tester_full = true;
-
-    /* Force viewing mode */
-    p_ptr->command_see = true;
-
-    while (true)
-    {
-        /* Display the equipment with scrolling capability */
-        show_equip_enhanced();
-
-        action = enhanced_equip_action;
-        selected_index = enhanced_equipment_selected_item;
-
-        if (action == ENHANCED_ACTION_EXAMINE)
-        {
-            log_trace("do_cmd_equip: Examining item %d", selected_index);
-            if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
-            {
-                describe_item_with_comparisons(selected_index, true);
-            }
-
-            enhanced_equip_action = ENHANCED_ACTION_NONE;
-            enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
-            continue;
-        }
-
-        break;
-    }
-
-    /* Keep selector state clean after closing the menu. */
-    item_tester_full = false;
-
-    /* Load screen */
-    sdl_pop_saved_screen_left_panel_pane();
-    screen_load();
-    log_debug("do_cmd_equip: Screen loaded");
-
-    switch (action)
-    {
-    case ENHANCED_ACTION_USE:
-        if (death_view)
-        {
-            msg_print("You can no longer take that action.");
-        }
-        else
-        {
-            log_trace("do_cmd_equip: Using item %d", selected_index);
-            if (selected_index != ENHANCED_MENU_NO_SELECTION)
-                do_cmd_use_item_by_index(selected_index);
-        }
-        break;
-
-    case ENHANCED_ACTION_DROP:
-        if (death_view)
-        {
-            msg_print("You can no longer take that action.");
-        }
-        else
-        {
-            log_trace("do_cmd_equip: Dropping item %d", selected_index);
-            if (selected_index >= INVEN_WIELD)
-                do_cmd_drop_item_by_index(selected_index);
-        }
-        break;
-
-    default:
-        break;
-    }
-
-    if (enhanced_drop_refresh_pending)
-    {
-        p_ptr->redraw |= (PR_MAP);
-        p_ptr->window |= (PW_MESSAGE);
-        enhanced_drop_refresh_pending = false;
-    }
-
-    /* Ensure the main display reflects any changes (drops, etc.) */
-    handle_stuff();
-    Term_fresh();
-
-    if (action != ENHANCED_ACTION_SWITCH)
-        enhanced_equip_action = ENHANCED_ACTION_NONE;
-    enhanced_equipment_selected_item = ENHANCED_MENU_NO_SELECTION;
-    
-    log_debug("do_cmd_equip: Exiting");
+    do_cmd_equip_direct();
 }
 
 /*
@@ -1147,7 +989,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Wear/Wield which item? ";
         s = "You have nothing you can wear or wield.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
             return;
 
         if (item == SUPPLIES_INDEX)
@@ -1266,7 +1109,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         q = "Replace which ring? ";
         s = "Oops.";
-        if (!get_item(&slot, q, s, USE_EQUIP))
+        if (!open_inventory_item_select_menu(USE_EQUIP, q, s, &slot))
         {
             item_tester_tval = 0;
             item_tester_hook = NULL;
@@ -1537,7 +1380,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             p_ptr->command_see = true;
             p_ptr->command_wrk = (USE_EQUIP);
 
-            bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+            bool slot_selected = open_inventory_item_select_menu(USE_EQUIP,
+                q, s, &slot_choice);
 
             p_ptr->command_see = saved_command_see;
             p_ptr->command_wrk = saved_command_wrk;
@@ -2558,7 +2402,7 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     {
         q = "Remove which item? ";
         s = "You are not wearing anything to remove.";
-        if (!get_item(&item, q, s, (USE_EQUIP)))
+        if (!open_inventory_item_select_menu(USE_EQUIP, q, s, &item))
             return;
 
         /* Get the item (in the pack) */
@@ -2733,7 +2577,6 @@ void do_cmd_drop_item_by_index(int item)
     /* Update quiver display if needed */
     p_ptr->redraw |= (PR_QUIVER);
 
-    enhanced_drop_refresh_pending = true;
 }
 
 /*
@@ -2741,81 +2584,15 @@ void do_cmd_drop_item_by_index(int item)
  */
 void do_cmd_drop(void)
 {
-    int item, amt;
+    int item;
 
-    object_type* o_ptr;
-
-    cptr q, s;
-
-    /* Get an item */
-    q = "Drop which item? ";
-    s = "You have nothing to drop.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN)))
-        return;
-
-    if (item == SUPPLIES_INDEX)
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN,
+            "Drop which item?", "You have nothing to drop.", &item))
     {
-        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
         return;
     }
 
-    /* Get the item (in the pack) */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
-    }
-
-    /* Get the item (on the floor) */
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
-
-    /* Get a quantity */
-    amt = get_quantity(NULL, o_ptr->number);
-
-    /* Allow user abort */
-    if (amt <= 0)
-        return;
-
-    if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
-    {
-        msg_print("You cannot bear to part with it.");
-        return;
-    }
-
-    /* Hack -- Cannot remove cursed items */
-    if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
-    {
-        if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
-        {
-            /* Message */
-            msg_print("With a great strength of will, you break the curse!");
-
-            /* Uncurse the object */
-            uncurse_object(o_ptr);
-        }
-        else
-        {
-            /* Oops */
-            msg_print("You cannot bear to part with it.");
-
-            /* Nope */
-            return;
-        }
-    }
-
-    /* Take a turn */
-    p_ptr->energy_use = 100;
-
-    // store the action type
-    p_ptr->previous_action[0] = ACTION_MISC;
-
-    /* Drop (some of) the item */
-    inven_drop(item, amt);
-
-    /* Update quiver display if needed */
-    p_ptr->redraw |= (PR_QUIVER);
+    do_cmd_drop_item_by_index(item);
 }
 
 /*
@@ -3278,12 +3055,9 @@ static void prise_silmaril(void)
              freed ? "true" : "false", p_ptr->morgoth_state);
 }
 
-/*
- * Destroy an item
- */
-void do_cmd_destroy(void)
+bool do_cmd_delete_item_by_index(int item)
 {
-    int item, amt;
+    int amt;
     int old_number;
     int old_charges = 0;
 
@@ -3291,44 +3065,36 @@ void do_cmd_destroy(void)
 
     char o_name[80];
 
-    char out_val[160];
-
-    cptr q, s;
-
-    item_tester_hook = item_tester_hook_destroy;
-
-    // Special case for prising Silmarils from the Iron Crown of Morgoth
-    o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    if (handle_iron_crown_silmaril_action(o_ptr, -1))
-        return;
-
-    /* Get an item */
-    q = "Destroy which item? ";
-    s = "You have nothing to destroy.";
-    if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
-        return;
-
     /* Get the item (in the pack) */
     if (item >= 0)
     {
+        if (item >= INVEN_TOTAL)
+            return false;
         o_ptr = &inventory[item];
     }
 
     /* Get the item (on the floor) */
     else
     {
-        o_ptr = &o_list[0 - item];
+        int o_idx = 0 - item;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            return false;
+        o_ptr = &o_list[o_idx];
     }
 
+    if (!o_ptr->k_idx)
+        return false;
+
     if (handle_iron_crown_silmaril_action(o_ptr, item))
-        return;
+        return true;
 
     /* Get a quantity */
     amt = get_quantity(NULL, o_ptr->number);
 
     /* Allow user abort */
     if (amt <= 0)
-        return;
+        return false;
 
     /* Describe the object */
     old_number = o_ptr->number;
@@ -3357,11 +3123,8 @@ void do_cmd_destroy(void)
     /*reverse the hack*/
     o_ptr->number = old_number;
 
-    /* Check for known special items */
-    strnfmt(out_val, sizeof(out_val), "Really destroy %s? ", o_name);
-
-    if (!get_check(out_val))
-        return;
+    if (!get_check("Do you really want to DELETE this item? "))
+        return false;
 
     /* Take a turn */
     p_ptr->energy_use = 100;
@@ -3370,7 +3133,7 @@ void do_cmd_destroy(void)
     p_ptr->previous_action[0] = ACTION_MISC;
 
     /* Message */
-    msg_format("You destroy %s.", o_name);
+    msg_format("You delete %s.", o_name);
 
     /*hack, restore the proper number of charges after the messages have printed
      * so the proper number of charges are destroyed*/
@@ -3392,6 +3155,33 @@ void do_cmd_destroy(void)
         floor_item_describe(0 - item);
         floor_item_optimize(0 - item);
     }
+
+    return true;
+}
+
+/*
+ * Destroy an item
+ */
+void do_cmd_destroy(void)
+{
+    int item;
+    object_type* o_ptr;
+
+    item_tester_hook = item_tester_hook_destroy;
+
+    // Special case for prising Silmarils from the Iron Crown of Morgoth
+    o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
+    if (handle_iron_crown_silmaril_action(o_ptr, -1))
+        return;
+
+    if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR,
+            "Delete which item?",
+            "You have nothing to delete.", &item))
+    {
+        return;
+    }
+
+    (void)do_cmd_delete_item_by_index(item);
 }
 
 /*
@@ -3609,7 +3399,8 @@ void do_cmd_uninscribe(void)
     /* Get an item */
     q = "Un-inscribe which item? ";
     s = "You have nothing to un-inscribe.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN | USE_FLOOR,
+            q, s, &item))
         return;
 
     /* Get the item (in the pack) */
@@ -3653,7 +3444,8 @@ void do_cmd_inscribe(void)
     /* Get an item */
     q = "Inscribe which item? ";
     s = "You have nothing to inscribe.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN | USE_FLOOR,
+            q, s, &item))
         return;
 
     /* Get the item (in the pack) */
@@ -3797,7 +3589,8 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
         s = "You have no sources of oil.";
         supplies_set_pending_action(SUPPLY_MENU_ACTION_USE,
             SUPPLY_GROUP_LIGHTS, true);
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
         {
             supplies_clear_pending_action();
             return;
@@ -4040,7 +3833,8 @@ void do_cmd_refuel_torch(
         /* Get an item */
         q = "Refuel with which torch? ";
         s = "You have no extra torches.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
             return;
 
         /* Get the item (in the pack) */

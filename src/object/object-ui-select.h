@@ -15,6 +15,8 @@ cptr describe_use(int i);
 bool object_is_searched_skeleton(const object_type* o_ptr);
 bool item_tester_okay(const object_type* o_ptr);
 int scan_floor(int* items, int size, int y, int x, int mode);
+bool get_item_okay(int item);
+bool get_item_allow(int item);
 bool get_item(int* cp, cptr pmt, cptr str, int mode);
 
 #endif /* INCLUDED_OBJECT_UI_SELECT_H */

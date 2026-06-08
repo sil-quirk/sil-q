@@ -55,7 +55,7 @@ static bool verify_item(cptr prompt, int item)
  *
  * The item can be negative to mean "item on floor".
  */
-static bool get_item_allow(int item)
+bool get_item_allow(int item)
 {
     cptr s;
 

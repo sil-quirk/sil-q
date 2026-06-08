@@ -186,21 +186,6 @@ void process_command(void)
         break;
     }
 
-    /* Drop an item */
-    case 'd':
-    {
-        do_cmd_drop();
-        break;
-    }
-
-    /* Destroy an item */
-    case 'k':
-    {
-        do_cmd_destroy();
-        break;
-    }
-
-    /* Equipment list */
     /* Equipment list */
     case 'e':
     {

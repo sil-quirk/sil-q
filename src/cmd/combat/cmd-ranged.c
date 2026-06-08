@@ -1491,7 +1491,8 @@ void do_cmd_throw(bool automatic)
         /* Get an item */
         q = "Throw which item? ";
         s = "You have nothing to throw.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR | USE_EQUIP)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR | USE_EQUIP,
+                q, s, &item))
             return;
     }
 

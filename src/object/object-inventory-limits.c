@@ -690,8 +690,9 @@ void inven_enforce_current_pack_limits(void)
                 pack_limit_prompt_group = group;
                 item_tester_hook = item_tester_hook_pack_limit_group;
 
-                if (!get_item(&item, inventory_limit_group_drop_prompt(group),
-                        "You have nothing suitable to drop.", USE_INVEN))
+                if (!open_inventory_item_select_menu(USE_INVEN,
+                        inventory_limit_group_drop_prompt(group),
+                        "You have nothing suitable to drop.", &item))
                 {
                     item = inventory_limit_group_last_slot(group);
                     if (item >= 0)

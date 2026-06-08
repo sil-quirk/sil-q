@@ -1922,8 +1922,6 @@ void do_cmd_unified_look(void)
             case '[':            /* View monsters */
             case ']':            /* View objects */
             case 'w':            /* Wield/Wear */
-            case 'd':            /* Drop */
-            case 'k':            /* Destroy */
             case 'r':            /* Read scroll */
             case 'a':            /* Activate */
             case 'z':            /* Zap rod */

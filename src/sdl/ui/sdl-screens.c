@@ -2641,7 +2641,7 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     } sdl_char_sheet_prompt_item;
 
     static const sdl_char_sheet_prompt_item live_items[] = {
-        { "A abilities", 'a' },
+        { "X abilities", 'x' },
         { "Space/I increase", 'i' },
         { "? help", '?' },
         { "Esc back", ESCAPE },

@@ -579,7 +579,8 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
             supplies_has_group(SUPPLY_GROUP_HERBS) ? SUPPLY_GROUP_HERBS
                                                    : SUPPLY_GROUP_FOOD,
             true);
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
         {
             supplies_clear_pending_action();
             return;
@@ -724,7 +725,8 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         q = "Quaff which potion? ";
         s = "You have no potions to quaff.";
         supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true);
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
         {
             supplies_clear_pending_action();
             return;
@@ -1151,7 +1153,8 @@ void do_cmd_use_gem(object_type* default_o_ptr, int default_item)
         q = "Use which gem? ";
         s = "You have no gems to use.";
         supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true);
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR, q, s,
+                &item))
         {
             supplies_clear_pending_action();
             return;
@@ -1305,7 +1308,7 @@ void do_cmd_activate(void)
     /* Get an item */
     q = "Activate which item? ";
     s = "You have nothing to activate.";
-    if (!get_item(&item, q, s, (USE_EQUIP)))
+    if (!open_inventory_item_select_menu(USE_EQUIP, q, s, &item))
         return;
 
     /* Get the item (in the pack) */

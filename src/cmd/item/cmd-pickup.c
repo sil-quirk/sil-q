@@ -320,8 +320,8 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     {
         int item;
 
-        if (!get_item(&item, prompt,
-                "You have nothing to replace.", (USE_INVEN)))
+        if (!open_inventory_item_select_menu(USE_INVEN, prompt,
+                "You have nothing to replace.", &item))
         {
             return false;
         }
@@ -711,8 +711,8 @@ static pickup_failure_result prompt_replace_light_limit_item(
             item = menu_item;
             have_menu_item = false;
         }
-        else if (!get_item(&item, prompt, "You have nothing to replace.",
-            USE_INVEN | USE_EQUIP))
+        else if (!open_inventory_item_select_menu(USE_INVEN | USE_EQUIP,
+            prompt, "You have nothing to replace.", &item))
         {
             break;
         }
@@ -1550,7 +1550,8 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             item = menu_item;
             have_menu_item = false;
         }
-        else if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
+        else if (!open_inventory_item_select_menu(USE_INVEN, prompt,
+            "You have nothing to replace.", &item))
             break;
 
         if (item >= SUPPLIES_INDEX)

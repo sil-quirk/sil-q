@@ -1700,7 +1700,7 @@ static void character_sheet_build_prompt(bool steamdeck, bool include_curses,
     else
     {
         const char* essential[] = {
-            "a abilities", "Space/i increase", "? help", "ESC back"
+            "x abilities", "Space/i increase", "? help", "ESC back"
         };
         const char* optional[] = {
             "n notes", "s story", "f file"
@@ -1917,7 +1917,7 @@ void do_cmd_character_sheet(void)
 
             character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE,
                 visible_prompt_buf);
-            ui_menu_click_add_text_token('a', 1, prompt_row, visible_prompt_buf,
+            ui_menu_click_add_text_token('x', 1, prompt_row, visible_prompt_buf,
                 "abilities");
             ui_menu_click_add_text_token('i', 1, prompt_row, visible_prompt_buf,
                 "increase");
@@ -2129,8 +2129,8 @@ void do_cmd_character_sheet(void)
         }
 #endif
 
-        /* Abilities - 'a', Tab, or X button */
-        else if ((ch == 'a') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
+        /* Abilities - 'x', Tab, or X button */
+        else if ((ch == 'x') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
         {
             sdl_hover_tooltip_clear();
             sdl_character_sheet_screen_hide();

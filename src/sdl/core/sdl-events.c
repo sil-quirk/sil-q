@@ -849,6 +849,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_touch_top_panel_handle_pointer_motion((float)ev->motion.x,
+            (float)ev->motion.y, 0))
+        {
+            return;
+        }
         if (sdl_unified_look_handle_map_hover_pointer((float)ev->motion.x,
             (float)ev->motion.y))
         {
@@ -944,6 +949,16 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_touch_hidden_indicator_handle_pointer_down(
+                    (float)ev->button.x, (float)ev->button.y, false))
+            {
+                return;
+            }
+            if (sdl_touch_top_panel_handle_pointer_down(
+                    (float)ev->button.x, (float)ev->button.y, 0))
+            {
+                return;
+            }
             if (sdl_unified_look_handle_map_drag_down(
                     (float)ev->button.x, (float)ev->button.y, true, 0))
             {
@@ -974,11 +989,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 {
                     return;
                 }
-            }
-            if (sdl_touch_hidden_indicator_handle_pointer_down(
-                (float)ev->button.x, (float)ev->button.y))
-            {
-                return;
             }
             if (sdl_menu_touch_handle_pointer_down((float)ev->button.x,
                 (float)ev->button.y, 0, true))
@@ -1162,6 +1172,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_touch_top_panel_handle_pointer_up((float)ev->button.x,
+                (float)ev->button.y, 0))
+            {
+                return;
+            }
             if (sdl_main_map_handle_drag_up((float)ev->button.x,
                 (float)ev->button.y, true, 0))
             {
@@ -1289,7 +1304,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        if (sdl_touch_hidden_indicator_handle_pointer_down(x, y))
+        if (sdl_touch_hidden_indicator_handle_pointer_down(x, y, true))
             return;
         if (sdl_main_screen_menu_pointer_hits_cell(x, y)
             && sdl_menu_touch_handle_pointer_down(x, y,

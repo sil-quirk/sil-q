@@ -4772,9 +4772,9 @@ static const char* touch_control_row_name(int row)
     case TOUCH_CONTROL_PANE_PLACEMENT:
         return "Touch Pane Side";
     case TOUCH_CONTROL_TOP_WIDGET_MODE:
-        return "Top Widget Length";
+        return "Overlay Menu Length";
     case TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN:
-        return "Top Widget Starts";
+        return "Overlay Menu Starts";
     case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
         return "Inventory/Equipped Touch";
     case TOUCH_CONTROL_MENU_SUPPLY:
@@ -4800,9 +4800,9 @@ static const char* touch_profile_label(int profile)
 {
     switch (profile) {
     case SDL_TOUCH_PROFILE_CORNERS:
-        return "Corners + top widget";
+        return "Corners + overlay menu";
     case SDL_TOUCH_PROFILE_ROUND_WHEEL:
-        return "Round wheel + top widget";
+        return "Round wheel + overlay menu";
     case SDL_TOUCH_PROFILE_TOUCH_PANE:
     default:
         return "Touch pane + touch screen";
@@ -5478,7 +5478,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         int row_width = settings_ui_line_width(2);
         bool pixel_menu;
 
-        pixel_menu = settings_semantic_menu_begin("Top Widget Buttons",
+        pixel_menu = settings_semantic_menu_begin("Overlay Menu Buttons",
             highlight);
         if (!pixel_menu)
         {
@@ -5487,7 +5487,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             ui_menu_click_set_hover_enabled(true);
             settings_menu_begin_scroll_area(list_start_row,
                 TOUCH_TOP_WIDGET_BUTTON_COUNT);
-            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Top Widget Buttons");
+            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Overlay Menu Buttons");
             settings_ui_put_fitted(2, 2, TERM_WHITE, "==================");
         }
 
@@ -5524,7 +5524,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_SELECTED,
                 "Reset Selected", "X", TERM_SLATE);
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
-                "Reset All Top Widget Buttons", "M", TERM_SLATE);
+                "Reset All Overlay Menu Buttons", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
                 "4/6 changes the selected action. Space cycles forward. X resets selected, M resets all. Escape or Enter returns.");
             sdl_character_sheet_screen_commit_select(highlight);
@@ -5539,7 +5539,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     "Up/Down select   4/6 action"));
             {
                 cptr prompt = settings_ui_pick_label(row_width,
-                    "x reset selected   M/Map reset all top widget buttons",
+                    "x reset selected   M/Map reset all overlay menu buttons",
                     "x reset selected   Map reset all",
                     "x reset   Map all");
                 int prompt_row = list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 3;
@@ -5644,7 +5644,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             changed = true;
             break;
         default:
-            bell("Illegal command for top widget button settings!");
+            bell("Illegal command for overlay menu button settings!");
             break;
         }
     }
@@ -5678,7 +5678,7 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
         bool pixel_menu;
         static cptr labels[TOUCH_BUTTON_MENU_COUNT] = {
             "Touch Pane Buttons",
-            "Top Widget Buttons",
+            "Overlay Menu Buttons",
             "Restore Button Defaults",
             "Return"
         };
@@ -7994,8 +7994,6 @@ void do_cmd_keybinds(void)
         {'/', NULL, "Alt action (also ctrl)", "/", false},
         {'w', NULL, "Wear / wield equipment", "w", false},
         {'r', NULL, "Remove equipment", "r", false},
-        {'d', NULL, "Drop item", "d", false},
-        {'k', NULL, "Destroy item", "k", false},
         {'g', NULL, "Pick up items", "g", false},
         {'Z', NULL, "Rest", "Z", false},
         {KTRL('F'), NULL, "Swap quivers", "\006", false},
@@ -9670,8 +9668,6 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, '/', "Alt action" },
         { CONTROLLER_ENTRY_ACTION, 'w', "Wear / wield" },
         { CONTROLLER_ENTRY_ACTION, 'r', "Remove equipment" },
-        { CONTROLLER_ENTRY_ACTION, 'd', "Drop item" },
-        { CONTROLLER_ENTRY_ACTION, 'k', "Destroy item" },
         { CONTROLLER_ENTRY_ACTION, 'g', "Pick up items" },
         { CONTROLLER_ENTRY_ACTION, 'Z', "Rest" },
         { CONTROLLER_ENTRY_ACTION, 'o', "Open door / chest" },

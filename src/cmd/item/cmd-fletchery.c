@@ -546,50 +546,22 @@ static void distribute_fletchered_arrows(const object_type* arrows)
 
 static bool fletchery_choose_source(fletch_choice_t* out_choice)
 {
-    extern int enhanced_menu_action;
-    extern int enhanced_inventory_selected_item;
-    extern char current_menu_command;
-
-    /* Prepare inventory menu to include equipment */
-    inventory_menu_set_include_equip(true);
-
     bool old_full = item_tester_full;
-    bool old_command_see = p_ptr->command_see;
-    int old_command_wrk = p_ptr->command_wrk;
-    char old_menu_command = current_menu_command;
+    int selection = -1;
 
     /* Only show fletchery candidates */
     item_tester_full = false;
     item_tester_hook = item_tester_hook_fletchery_source;
-    p_ptr->command_wrk = (USE_INVEN);
-    p_ptr->command_see = true;
-    current_menu_command = 0;
 
-    enhanced_menu_action = ENHANCED_ACTION_NONE;
-    enhanced_inventory_selected_item = -1;
-
-    screen_save();
-    sdl_push_saved_screen_left_panel_pane();
-    show_inven_enhanced();
-    sdl_pop_saved_screen_left_panel_pane();
-    screen_load();
-
-    inventory_menu_set_include_equip(false);
-
-    item_tester_hook = NULL;
-    item_tester_full = old_full;
-    p_ptr->command_see = old_command_see;
-    p_ptr->command_wrk = old_command_wrk;
-    current_menu_command = old_menu_command;
-
-    int action = enhanced_menu_action;
-    int selection = enhanced_inventory_selected_item;
-
-    enhanced_menu_action = ENHANCED_ACTION_NONE;
-    enhanced_inventory_selected_item = -1;
-
-    if (action != ENHANCED_ACTION_USE || selection == -1)
+    if (!open_inventory_item_select_menu(USE_INVEN | USE_EQUIP | USE_FLOOR,
+            "Choose fletchery source.",
+            "You have nothing suitable for fletchery.", &selection))
+    {
+        item_tester_full = old_full;
         return false;
+    }
+
+    item_tester_full = old_full;
 
     if (selection == SUPPLIES_INDEX)
     {
@@ -604,6 +576,11 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
     {
         out_choice->type = FLETCH_SOURCE_FLOOR;
         out_choice->index = 0 - selection;
+    }
+    else if (selection >= SUPPLIES_INDEX)
+    {
+        out_choice->type = FLETCH_SOURCE_SUPPLY;
+        out_choice->index = selection - SUPPLIES_INDEX;
     }
     else if (selection >= INVEN_WIELD)
     {

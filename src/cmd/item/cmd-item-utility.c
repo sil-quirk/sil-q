@@ -308,8 +308,9 @@ static int choose_pack_staff_for_swap(void)
         item_tester_hook = item_tester_hook_pack_staff;
         item_tester_full = false;
 
-        picked = get_item(&slot, "Swap with which staff? ",
-            "You have no staff in your pack to swap with.", USE_INVEN);
+        picked = open_inventory_item_select_menu(USE_INVEN,
+            "Swap with which staff? ",
+            "You have no staff in your pack to swap with.", &slot);
 
         item_tester_tval = old_item_tester_tval;
         item_tester_hook = old_item_tester_hook;

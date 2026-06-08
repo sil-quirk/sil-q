@@ -7964,8 +7964,9 @@ static bool smith_reforge_item(void)
     Term_fresh();
 
     item_tester_hook = smith_item_tester_hook_reforge_target;
-    if (!get_item(&slot, "Reforge which item? ",
-            "You have nothing to repair or reforge.", (USE_EQUIP | USE_INVEN)))
+    if (!open_inventory_item_select_menu(USE_EQUIP | USE_INVEN,
+            "Reforge which item? ",
+            "You have nothing to repair or reforge.", &slot))
     {
         item_tester_hook = NULL;
         smithing_redraw_root_after_item_picker();

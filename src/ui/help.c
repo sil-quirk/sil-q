@@ -212,12 +212,6 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case 'w':
         SDL_strlcpy(buf, "Wear / wield (w)", buflen);
         return;
-    case 'd':
-        SDL_strlcpy(buf, "Drop item (d)", buflen);
-        return;
-    case 'k':
-        SDL_strlcpy(buf, "Destroy item (k)", buflen);
-        return;
     case 'g':
         SDL_strlcpy(buf, "Pick up items (g)", buflen);
         return;
@@ -433,12 +427,6 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case 'w':
         SDL_strlcpy(buf, "Wear", buflen);
-        return;
-    case 'd':
-        SDL_strlcpy(buf, "Drop", buflen);
-        return;
-    case 'k':
-        SDL_strlcpy(buf, "Destroy", buflen);
         return;
     case 'g':
         SDL_strlcpy(buf, "Pickup", buflen);

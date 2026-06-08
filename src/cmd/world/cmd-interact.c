@@ -789,8 +789,9 @@ static bool do_cmd_tunnel_aux(int y, int x)
             item_tester_hook = item_tester_hook_digger;
 
             /* Get an item */
-            if (!get_item(&item, "Use which digger? ",
-                    "You are not carrying a shovel or mattock.", (USE_INVEN)))
+            if (!open_inventory_item_select_menu(USE_INVEN,
+                    "Use which digger? ",
+                    "You are not carrying a shovel or mattock.", &item))
                 return (false);
             else
             {

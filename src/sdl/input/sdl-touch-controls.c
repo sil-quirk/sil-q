@@ -182,7 +182,7 @@ float sdl_touch_swipe_edge_px(const SDL_Rect* screen)
     return inset;
 }
 
-bool sdl_touch_swipe_point_near_top_edge(float x, float y)
+bool sdl_touch_swipe_point_near_top_panel_edge(float x, float y)
 {
     SDL_Rect screen = sdl_get_layout_screen_rect();
     float inset;
@@ -193,8 +193,8 @@ bool sdl_touch_swipe_point_near_top_edge(float x, float y)
     inset = sdl_touch_swipe_edge_px(&screen);
     return x >= (float)screen.x
         && x < (float)(screen.x + screen.w)
-        && y >= (float)screen.y
-        && y < (float)screen.y + inset;
+        && y <= (float)(screen.y + screen.h)
+        && y > (float)(screen.y + screen.h) - inset;
 }
 
 bool sdl_touch_swipe_point_near_touch_pane_edge(float x, float y)
@@ -229,7 +229,7 @@ bool sdl_touch_swipe_round_layer_start_allowed(float x, float y)
     if (sdl_touch_pane_point_to_slot(x, y, NULL))
         return true;
     if (sdl_touch_top_panel_layout_visible()
-        && sdl_touch_swipe_point_near_top_edge(x, y))
+        && sdl_touch_swipe_point_near_top_panel_edge(x, y))
     {
         return true;
     }
@@ -254,7 +254,7 @@ bool sdl_touch_swipe_start_can_toggle_top_panel(void)
 {
     return sdl_touch_top_panel_point_to_slot(g_touch_swipe.start_x,
             g_touch_swipe.start_y, NULL)
-        || sdl_touch_swipe_point_near_top_edge(g_touch_swipe.start_x,
+        || sdl_touch_swipe_point_near_top_panel_edge(g_touch_swipe.start_x,
             g_touch_swipe.start_y);
 }
 
@@ -1856,7 +1856,7 @@ void sdl_touch_hidden_indicator_render_pane(const SDL_Rect* screen,
     sdl_touch_hidden_indicator_draw_triangle(points, fill, outline);
 }
 
-void sdl_touch_hidden_indicator_render_top(const SDL_Rect* screen,
+void sdl_touch_hidden_indicator_render_bottom(const SDL_Rect* screen,
     float size, SDL_Color fill, SDL_Color outline)
 {
     float center_x;
@@ -1869,10 +1869,10 @@ void sdl_touch_hidden_indicator_render_top(const SDL_Rect* screen,
         return;
 
     center_x = (float)screen->x + (float)screen->w * 0.5f;
-    edge_y = (float)screen->y;
+    edge_y = (float)(screen->y + screen->h - 1);
     points[0] = (SDL_FPoint){ center_x - half, edge_y };
     points[1] = (SDL_FPoint){ center_x + half, edge_y };
-    points[2] = (SDL_FPoint){ center_x, edge_y + depth };
+    points[2] = (SDL_FPoint){ center_x, edge_y - depth };
 
     sdl_touch_hidden_indicator_draw_triangle(points, fill, outline);
 }
@@ -1888,14 +1888,9 @@ void sdl_touch_hidden_indicator_render(void)
     float size;
     bool proto_touch = sdl_touch_pane_proto_mode_active();
 
-#if SIL_SDL_MOBILE_BUILD
-    if (!proto_touch && !g_direct_touch_present
-        && !sdl_touch_pane_is_config_enabled())
+    if (!proto_touch && !sdl_touch_pane_is_config_enabled()
+        && !sdl_touch_top_panel_layout_visible())
         return;
-#else
-    if (!proto_touch && !sdl_touch_pane_is_config_enabled())
-        return;
-#endif
 
     pane_hidden = !proto_touch
         && (sdl_touch_pane_hidden_mode_active()
@@ -1920,10 +1915,11 @@ void sdl_touch_hidden_indicator_render(void)
         sdl_touch_hidden_indicator_render_pane(&screen, right_side, size,
             fill, outline);
     if (top_panel_hidden)
-        sdl_touch_hidden_indicator_render_top(&screen, size, fill, outline);
+        sdl_touch_hidden_indicator_render_bottom(&screen, size, fill, outline);
 }
 
-bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y)
+bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y,
+    bool touch)
 {
     SDL_Rect screen;
     float size;
@@ -1931,7 +1927,8 @@ bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y)
     bool right_side;
     bool opened = false;
 
-    if (!sdl_touch_only_mobile_device_active())
+    if (!(touch && sdl_touch_pane_uses_mobile_toggle())
+        && !sdl_touch_top_panel_layout_visible())
         return false;
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
@@ -1945,7 +1942,8 @@ bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y)
     if (hit < 56.0f)
         hit = 56.0f;
 
-    if (sdl_touch_pane_uses_mobile_toggle()
+    if (touch
+        && sdl_touch_pane_uses_mobile_toggle()
         && !g_touch_pane_mobile_open
         && !sdl_touch_pane_hidden_mode_active())
     {
@@ -1973,7 +1971,7 @@ bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y)
     {
         SDL_FRect top_hit = {
             .x = (float)screen.x + ((float)screen.w - hit) * 0.5f,
-            .y = (float)screen.y,
+            .y = (float)(screen.y + screen.h) - hit,
             .w = hit,
             .h = hit,
         };
@@ -2162,7 +2160,7 @@ bool sdl_touch_zone_flush_pending_press(Uint64 now_ns)
 
 bool sdl_touch_top_panel_layout_visible(void)
 {
-    return sdl_touch_only_mobile_device_active()
+    return (g_direct_touch_present || config.mouse_enabled)
         && sdl_mouse_gameplay_context_active()
         && !active_narrative_banner_visible();
 }
@@ -2216,7 +2214,7 @@ bool sdl_touch_top_panel_compute_layout_for_screen(
     float short_panel_w;
     float panel_x;
     float panel_y;
-    float margin_top;
+    float margin_bottom;
     float gap;
     float panel_w;
     float panel_h;
@@ -2237,20 +2235,14 @@ bool sdl_touch_top_panel_compute_layout_for_screen(
     short_panel_w = screen_w - corner_size * 4.0f;
     panel_x = short_panel_x;
     panel_w = short_panel_w;
-    margin_top = screen_h * 0.018f;
-    panel_y = (float)screen->y + margin_top;
-    if (g_views[PANE_MAIN].cell_h > 0) {
-        float row_zero_bottom = (float)(g_views[PANE_MAIN].rect.y
-            + g_views[PANE_MAIN].margin_y + g_views[PANE_MAIN].cell_h);
-        float row_gap = screen_h * 0.006f;
-
-        if (panel_y < row_zero_bottom + row_gap)
-            panel_y = row_zero_bottom + row_gap;
-    }
     gap = short_panel_w * 0.018f;
     panel_h = screen_h * 0.12f;
     if (panel_h > corner_size * 0.48f)
         panel_h = corner_size * 0.48f;
+    margin_bottom = screen_h * 0.018f;
+    panel_y = (float)(screen->y + screen->h) - margin_bottom - panel_h;
+    if (panel_y < (float)screen->y)
+        panel_y = (float)screen->y;
 
     active_count = sdl_touch_top_panel_visible_button_count();
     first_slot = sdl_touch_top_panel_first_visible_slot();
@@ -2709,5 +2701,3 @@ bool sdl_touch_top_panel_flush_pending_press(Uint64 now_ns)
     g_state.need_present = true;
     return true;
 }
-
-

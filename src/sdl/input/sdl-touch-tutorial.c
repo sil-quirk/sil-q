@@ -309,18 +309,6 @@ float sdl_touch_tutorial_draw_header(const SDL_Rect* screen, cptr title,
         page_count, sdl_touch_tutorial_default_header_y(screen));
 }
 
-float sdl_touch_tutorial_draw_header_below(const SDL_Rect* screen,
-    cptr title, cptr body, int page, int page_count, float min_y)
-{
-    float y = sdl_touch_tutorial_default_header_y(screen);
-
-    if (y < min_y)
-        y = min_y;
-
-    return sdl_touch_tutorial_draw_header_at(screen, title, body, page,
-        page_count, y);
-}
-
 void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
     bool single_page)
 {
@@ -984,19 +972,26 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_footer(screen, mouse, page_count == 1);
 }
 
-float sdl_touch_tutorial_draw_top_widget(const SDL_Rect* screen)
+void sdl_touch_tutorial_draw_overlay_menu(const SDL_Rect* screen)
 {
     SDL_FRect button_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
-    SDL_FRect panel;
+    SDL_Rect panel_screen;
+    float footer_reserve;
 
-    if (!sdl_touch_top_panel_compute_layout_for_screen(screen,
-            button_rects, &panel))
-    {
-        return sdl_touch_tutorial_default_header_y(screen);
-    }
+    if (!screen)
+        return;
+
+    panel_screen = *screen;
+    footer_reserve = sdl_touch_pane_clampf((float)screen->h * 0.16f,
+        96.0f, 132.0f);
+    if ((float)panel_screen.h > footer_reserve)
+        panel_screen.h -= (int)footer_reserve;
+
+    if (!sdl_touch_top_panel_compute_layout_for_screen(&panel_screen,
+            button_rects, NULL))
+        return;
 
     sdl_touch_top_panel_render_buttons(button_rects);
-    return panel.y + panel.h;
 }
 
 void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
@@ -1111,15 +1106,14 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
     float x;
     float y;
     float max_w;
-    float widget_bottom;
     int font_px;
 
     sdl_touch_tutorial_draw_screen_dim(screen, 142);
-    widget_bottom = sdl_touch_tutorial_draw_top_widget(screen);
-    sdl_touch_tutorial_draw_header_below(screen,
-        "Preset: Corners + top widget",
+    sdl_touch_tutorial_draw_overlay_menu(screen);
+    sdl_touch_tutorial_draw_header(screen,
+        "Preset: Corners + overlay menu",
         "Pane hidden. Side corner zones handle movement and fast commands. Change presets any time in Touch Settings.",
-        page, page_count, widget_bottom + 14.0f);
+        page, page_count);
 
     if (sdl_touch_zone_compute_layout_for_screen(screen, zone_rects)) {
         for (int i = 0; i < TOUCH_ZONE_COUNT; i++) {
@@ -1174,14 +1168,13 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
     float panel_x;
     float panel_w;
     float panel_y;
-    float widget_bottom;
 
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
-    widget_bottom = sdl_touch_tutorial_draw_top_widget(screen);
-    header_bottom = sdl_touch_tutorial_draw_header_below(screen,
-        "Preset: Round wheel + top widget",
+    sdl_touch_tutorial_draw_overlay_menu(screen);
+    header_bottom = sdl_touch_tutorial_draw_header(screen,
+        "Preset: Round wheel + overlay menu",
         "Pane hidden by default. Drag to choose direction; pull to the outer red ring for Ctrl+direction. Swipe the edge to reveal the touch pane.",
-        page, page_count, widget_bottom + 14.0f);
+        page, page_count);
 
     content_left = (float)screen->x;
     content_right = (float)(screen->x + screen->w);
@@ -1934,13 +1927,13 @@ const sdl_touch_tutorial_choice sdl_touch_tutorial_choices[] = {
     },
     {
         SDL_TOUCH_PROFILE_CORNERS,
-        "Corners + top widget",
-        "Side corner movement zones and a short top command widget. Best when you want more map space."
+        "Corners + overlay menu",
+        "Side corner movement zones and a short overlay command menu. Best when you want more map space."
     },
     {
         SDL_TOUCH_PROFILE_ROUND_WHEEL,
-        "Round wheel + top widget",
-        "Radial movement with a longer top command widget. Best for one-thumb movement once you know the layout."
+        "Round wheel + overlay menu",
+        "Radial movement with a longer overlay command menu. Best for one-thumb movement once you know the layout."
     },
     {
         SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,
