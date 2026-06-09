@@ -328,16 +328,16 @@ bool sdl_depth_menu_pane_handle_pointer(float x, float y)
 
 int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
 {
-    int font_px = (int)(cell_h * 1.35f);
+    int font_px = (int)(cell_h * 1.75f);
 
-    if (font_px < 20)
-        font_px = 20;
-    if (font_px > 30)
+    if (font_px < 26)
+        font_px = 26;
+    if (font_px > 44)
+        font_px = 44;
+    if (screen_h < 360 && font_px > 30)
         font_px = 30;
-    if (screen_h < 360 && font_px > 24)
+    if (screen_h < 260 && font_px > 24)
         font_px = 24;
-    if (screen_h < 260 && font_px > 20)
-        font_px = 20;
 
     return font_px;
 }
@@ -1071,12 +1071,17 @@ bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
 
     prompt_line_count = sdl_touch_pane_wrap_prompt_lines(prompt_text, prompt_font,
         prompt_w, prompt_lines, SDL_TOUCH_YES_NO_MAX_LINES);
-    prompt_line_h = (float)prompt_font_px * 1.28f;
-    if (prompt_line_h < 19.0f)
-        prompt_line_h = 19.0f;
+    prompt_line_h = (float)prompt_font_px * 1.42f;
+    if (prompt_line_h < 24.0f)
+        prompt_line_h = 24.0f;
     prompt_h = prompt_line_h * (float)prompt_line_count;
 
-    max_panel_h = (float)screen.h * 0.78f;
+    /* Let the panel grow to fit every wrapped line at the fixed font size.
+     * Only as a last resort (a prompt taller than the whole screen) do we
+     * compress the text block; normally we add rows instead of shrinking. */
+    max_panel_h = (float)screen.h - 8.0f;
+    if (max_panel_h <= 0.0f)
+        max_panel_h = (float)screen.h;
     panel_h = margin * 2.0f + prompt_h + row_gap + button_h;
     if (panel_h > max_panel_h && max_panel_h > 0.0f) {
         float available_prompt_h = max_panel_h
@@ -1519,9 +1524,9 @@ void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
     if (line_count <= 0)
         return;
 
-    line_h = (float)font_px * 1.28f;
-    if (line_h < 19.0f)
-        line_h = 19.0f;
+    line_h = (float)font_px * 1.42f;
+    if (line_h < 24.0f)
+        line_h = 24.0f;
     if (line_h * (float)line_count > rect->h)
         line_h = rect->h / (float)line_count;
     if (line_h < 10.0f)
@@ -1555,8 +1560,8 @@ void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect,
             continue;
         }
 
-        max_w = rect->w * 0.98f;
-        max_h = line_h * 0.86f;
+        max_w = rect->w;
+        max_h = line_h;
         scale_w = (surface->w > 0) ? (max_w / (float)surface->w) : 1.0f;
         scale_h = (surface->h > 0) ? (max_h / (float)surface->h) : 1.0f;
         scale = (scale_w < scale_h) ? scale_w : scale_h;

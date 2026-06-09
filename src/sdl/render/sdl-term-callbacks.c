@@ -266,6 +266,10 @@ void draw_cursor(int x, int y, bool big)
         return;
     if (!Term)
         return;
+    /* While a monster/item description overlay is up, the underlying term's
+     * cursor would peek out on the first row.  Suppress it. */
+    if (g_description_overlay.active)
+        return;
     if (x < 0 || y < 0 || x >= Term->wid || y >= Term->hgt)
         return;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);

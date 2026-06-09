@@ -53,8 +53,9 @@ static bool prompt_confirm_key(int ch)
     if (steamdeck_controls_active() && ch == steamdeck_confirm_key())
         return true;
 
-    return portable_controls_active()
-        && ((ch == ' ') || (ch == '\r') || (ch == '\n'));
+    /* Space/Enter always confirm a yes/no question, on every platform, so the
+     * modal panel behaves the same regardless of the active control scheme. */
+    return (ch == ' ') || (ch == '\r') || (ch == '\n');
 }
 
 static bool prompt_cancel_key(int ch)
@@ -694,9 +695,7 @@ int get_check_other(cptr prompt, char other)
     }
     else
     {
-        strnfmt(suffix, sizeof(suffix),
-            portable_controls_active() ? "[y/n/%c/sp] " : "[y/n/%c] ",
-            other);
+        strnfmt(suffix, sizeof(suffix), "[y/n/%c/sp] ", other);
     }
     format_check_prompt(buf, sizeof(buf), prompt, suffix);
 
@@ -887,9 +886,7 @@ bool get_check_oath_multiline(cptr prompt)
     }
     else
     {
-        SDL_strlcpy(confirm_prompt,
-            portable_controls_active() ? "Are you certain? [y/n/sp]"
-                                       : "Are you certain? [y/n]",
+        SDL_strlcpy(confirm_prompt, "Are you certain? [y/n/sp]",
             sizeof(confirm_prompt));
     }
     int prompt_col = (wid - (int)strlen(confirm_prompt)) / 2;

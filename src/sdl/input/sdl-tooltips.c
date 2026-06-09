@@ -1647,6 +1647,11 @@ void sdl_description_overlay_render(void)
     {
         char scroll_buf[32];
         cptr footer_text = sdl_description_overlay_footer_text(overlay);
+        /* The command row uses the secondary story font (storyfont2), matching
+         * the menu/log UI; glyphs are snapped per-cell so footer hover/column
+         * hit-testing stays aligned with the monospace layout. */
+        TTF_Font* footer_font = sdl_story_font_for_height_slot(
+            layout.cell_h, STORY_FONT_SLOT_SECONDARY);
 
         if (overlay->interactive)
         {
@@ -1657,12 +1662,17 @@ void sdl_description_overlay_render(void)
                     overlay, footer_text, col)
                     ? TERM_L_BLUE
                     : TERM_SLATE;
+                float x = layout.text_x + (float)col * (float)layout.cell_w;
 
-                sdl_description_overlay_render_char(atlas, atlas_cell_w,
-                    atlas_cell_h, (float)layout.cell_w,
-                    (float)layout.cell_h,
-                    layout.text_x + (float)col * (float)layout.cell_w,
-                    layout.footer_y, attr, footer_text[col]);
+                if (footer_font)
+                    sdl_description_overlay_render_story_run(footer_font, x,
+                        layout.footer_y, (float)layout.cell_h,
+                        footer_text + col, 1, attr);
+                else
+                    sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                        atlas_cell_h, (float)layout.cell_w,
+                        (float)layout.cell_h, x, layout.footer_y, attr,
+                        footer_text[col]);
             }
         }
         if (layout.max_scroll > 0)
@@ -1672,11 +1682,21 @@ void sdl_description_overlay_render(void)
             int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
             if (scroll_col < 0)
                 scroll_col = 0;
-            sdl_description_overlay_render_text(atlas, atlas_cell_w,
-                atlas_cell_h, scroll_buf,
-                layout.text_x + (float)scroll_col * (float)layout.cell_w,
-                layout.footer_y, (float)layout.cell_w, (float)layout.cell_h,
-                TERM_SLATE);
+            float x = layout.text_x + (float)scroll_col * (float)layout.cell_w;
+
+            if (footer_font)
+            {
+                for (int i = 0; scroll_buf[i]; i++)
+                    sdl_description_overlay_render_story_run(footer_font,
+                        x + (float)i * (float)layout.cell_w, layout.footer_y,
+                        (float)layout.cell_h, scroll_buf + i, 1, TERM_SLATE);
+            }
+            else
+            {
+                sdl_description_overlay_render_text(atlas, atlas_cell_w,
+                    atlas_cell_h, scroll_buf, x, layout.footer_y,
+                    (float)layout.cell_w, (float)layout.cell_h, TERM_SLATE);
+            }
         }
     }
 

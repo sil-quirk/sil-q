@@ -135,8 +135,16 @@ static NavResult blitz_setup_menu(void)
     blitz_setup* setup = blitz_current_setup_mutable();
     int selected = 0;
     bool steamdeck = steamdeck_controls_active();
+    NavResult result = NAV_TO_MAIN;
 
     blitz_setup_clamp(setup);
+
+    /* Render at the inventory/supply scale: hide panes BEFORE pushing the menu
+     * scale so get_sdl_terminal_menu_scale() measures the full screen (max-1). */
+    screen_save();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+    sdl_push_terminal_menu_scale();
 
     while (1)
     {

@@ -1335,9 +1335,12 @@ static void do_cmd_start_blitz(void)
     }
 
     screen_save();
-    sdl_push_terminal_menu_scale();
+    /* Hide panes BEFORE pushing the menu scale so get_sdl_terminal_menu_scale()
+     * measures the full screen and lands on max-1, matching the inventory/supply
+     * menu rather than the smaller window-mode scale. */
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
+    sdl_push_terminal_menu_scale();
 
     Term_clear();
     Term_get_size(&wid, &hgt);
@@ -1370,16 +1373,16 @@ static void do_cmd_start_blitz(void)
 
     if (!get_check("Save your story game and start a Blitz run now? "))
     {
+        sdl_pop_terminal_menu_scale();
         screen_pop_touch_pane_hidden();
         screen_pop_supporting_panes_hidden();
-        sdl_pop_terminal_menu_scale();
         screen_load();
         return;
     }
 
+    sdl_pop_terminal_menu_scale();
     screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
-    sdl_pop_terminal_menu_scale();
     screen_load();
 
     /* Persist the story game before leaving its session. */
