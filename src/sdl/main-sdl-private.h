@@ -1480,6 +1480,7 @@ bool sdl_saved_screen_left_panel_pane_active(void);
 bool sdl_left_panel_pane_presentation_active(void);
 bool sdl_left_panel_pane_renders_character_panel(void);
 bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
+bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_left_panel_pane_runtime_active(void);
 bool sdl_left_panel_pane_collapsed(void);
 int sdl_left_panel_compact_mode_normalized(int mode);

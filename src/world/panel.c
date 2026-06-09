@@ -5,20 +5,22 @@
 #include "metarun.h"
 #include "sdl-config.h"
 
-/* Center the player in the unobscured map area when SDL panes float over it. */
-static void map_safe_center(int* center_y, int* center_x,
-    int* pane_y1, int* pane_y2, int* pane_x1, int* pane_x2)
+/* Screen-cell rectangle [x1,x2) x [y1,y2) of an SDL pane floating over the
+ * map. */
+struct map_pane_span {
+    int x1;
+    int y1;
+    int x2;
+    int y2;
+};
+
+#define MAP_PANE_SPAN_MAX 2
+
+/* Collect the panes currently obscuring the map: the styled left panel pane
+ * and the overlay log band. */
+static int map_pane_spans(struct map_pane_span* spans, int max_spans)
 {
-    int cy = SCREEN_HGT / 2;
-    int cx = SCREEN_WID / 2;
-    int y1 = 0;
-    int y2 = SCREEN_HGT;
-    int x1 = 0;
-    int x2 = SCREEN_WID;
-    int py1 = -1;
-    int py2 = -1;
-    int px1 = -1;
-    int px2 = -1;
+    int count = 0;
 
 #ifdef USE_SDL
     int pane_start_col = 0;
@@ -26,33 +28,69 @@ static void map_safe_center(int* center_y, int* center_x,
     int pane_start_row = 0;
     int pane_rows = 0;
 
-    if (sdl_left_panel_pane_map_coverage(&pane_start_col, &pane_cols,
+    if (count < max_spans
+        && sdl_left_panel_pane_map_coverage(&pane_start_col, &pane_cols,
             &pane_start_row, &pane_rows))
     {
-        int pane_end_col = pane_start_col + pane_cols;
-        int pane_end_row = pane_start_row + pane_rows;
+        spans[count].x1 = pane_start_col;
+        spans[count].y1 = pane_start_row;
+        spans[count].x2 = pane_start_col + pane_cols;
+        spans[count].y2 = pane_start_row + pane_rows;
+        count++;
+    }
 
-        py1 = pane_start_row;
-        py2 = pane_end_row;
-        px1 = pane_start_col;
-        px2 = pane_end_col;
+    if (count < max_spans
+        && sdl_overlay_log_pane_map_coverage(&pane_start_col, &pane_cols,
+            &pane_start_row, &pane_rows))
+    {
+        spans[count].x1 = pane_start_col;
+        spans[count].y1 = pane_start_row;
+        spans[count].x2 = pane_start_col + pane_cols;
+        spans[count].y2 = pane_start_row + pane_rows;
+        count++;
+    }
+#else
+    (void)spans;
+    (void)max_spans;
+#endif
 
-        if (pane_start_row <= cy && pane_end_row > cy)
+    return count;
+}
+
+/* Center the player in the unobscured map area when SDL panes float over it. */
+static void map_safe_center(int* center_y, int* center_x,
+    const struct map_pane_span* spans, int span_count)
+{
+    int cy = SCREEN_HGT / 2;
+    int cx = SCREEN_WID / 2;
+    int y1 = 0;
+    int y2 = SCREEN_HGT;
+    int x1 = 0;
+    int x2 = SCREEN_WID;
+
+    for (int i = 0; i < span_count; i++)
+    {
+        const struct map_pane_span* s = &spans[i];
+
+        if (s->y1 <= cy && s->y2 > cy)
         {
-            if (pane_start_col <= cx && pane_end_col > x1)
-                x1 = pane_end_col;
-            else if (pane_start_col > cx && pane_start_col < x2)
-                x2 = pane_start_col;
+            if (s->x1 <= cx && s->x2 > x1)
+                x1 = s->x2;
+            else if (s->x1 > cx && s->x1 < x2)
+                x2 = s->x1;
         }
 
-        if (pane_start_col <= cx && pane_end_col > cx)
+        if (s->x1 <= cx && s->x2 > cx)
         {
-            if (pane_start_row <= cy && pane_end_row > y1)
-                y1 = pane_end_row;
-            else if (pane_start_row > cy && pane_start_row < y2)
-                y2 = pane_start_row;
+            if (s->y1 <= cy && s->y2 > y1)
+                y1 = s->y2;
+            else if (s->y1 > cy && s->y1 < y2)
+                y2 = s->y1;
         }
+    }
 
+    if (span_count > 0)
+    {
         if (x1 < 0)
             x1 = 0;
         if (x2 > SCREEN_WID)
@@ -67,20 +105,11 @@ static void map_safe_center(int* center_y, int* center_x,
         if (y2 > y1)
             cy = y1 + (y2 - y1) / 2;
     }
-#endif
 
     if (center_y)
         *center_y = cy;
     if (center_x)
         *center_x = cx;
-    if (pane_y1)
-        *pane_y1 = py1;
-    if (pane_y2)
-        *pane_y2 = py2;
-    if (pane_x1)
-        *pane_x1 = px1;
-    if (pane_x2)
-        *pane_x2 = px2;
 }
 
 static int floor_div_int(int value, int divisor)
@@ -164,7 +193,16 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int panel, int big)
 
         /* Classic panel-aligned jump near the edges. */
         if (p < wv + margin || p >= wv + screen - margin)
+        {
             wv = floor_div_int(p - panel / 2, panel) * panel;
+
+            /* The panel-aligned jump knows nothing of the [lo,hi) window; if
+             * it would still leave the player outside it (i.e. under a pane),
+             * recentre on the player instead.  The jump always lands well
+             * inside a full-size viewport, so the classic feel is unchanged. */
+            if (p < wv || p >= wv + screen)
+                wv = p - screen / 2;
+        }
     }
 
     return wv - lo;
@@ -184,6 +222,8 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int panel, int big)
  */
 bool modify_panel(int wy, int wx)
 {
+    struct map_pane_span spans[MAP_PANE_SPAN_MAX];
+    int span_count = map_pane_spans(spans, MAP_PANE_SPAN_MAX);
     int center_y;
     int center_x;
     int min_wy;
@@ -191,7 +231,7 @@ bool modify_panel(int wy, int wx)
     int max_wy;
     int max_wx;
 
-    map_safe_center(&center_y, &center_x, NULL, NULL, NULL, NULL);
+    map_safe_center(&center_y, &center_x, spans, span_count);
 
     min_wy = -center_y;
     min_wx = -center_x;
@@ -294,40 +334,38 @@ void verify_panel(void)
     int banner_rows = active_narrative_banner_rows();
     int center_y = SCREEN_HGT / 2;
     int center_x = SCREEN_WID / 2;
-    int pane_y1 = -1;
-    int pane_y2 = -1;
-    int pane_x1 = -1;
-    int pane_x2 = -1;
+    struct map_pane_span spans[MAP_PANE_SPAN_MAX];
+    int span_count = map_pane_spans(spans, MAP_PANE_SPAN_MAX);
 
     int wy = p_ptr->wy;
     int wx = p_ptr->wx;
 
-    map_safe_center(&center_y, &center_x, &pane_y1, &pane_y2, &pane_x1,
-        &pane_x2);
+    map_safe_center(&center_y, &center_x, spans, span_count);
 
     /*
-     * Treat the styled pane like a sidebar: shrink the map playfield to the
-     * screen cells it leaves clear, then scroll the player inside that reduced
-     * window with the normal logic (see scroll_axis_within).  This keeps the
-     * player tile from ever sliding under the pane without pinning it to the
-     * pane edge -- the old clamp did the latter, which felt like the camera
-     * was permanently centred.  The pane hugs one screen edge or corner;
-     * reserve the band along whichever edge it is nearest, and for a corner
-     * pane reserve the axis that hides the fewest map cells (a tall, narrow
-     * panel costs a column band; a short, wide one a row band).
+     * Treat each floating pane like a sidebar: shrink the map playfield to
+     * the screen cells the panes leave clear, then scroll the player inside
+     * that reduced window with the normal logic (see scroll_axis_within).
+     * This keeps the player tile from ever sliding under a pane without
+     * pinning it to the pane edge -- the old clamp did the latter, which felt
+     * like the camera was permanently centred.  Each pane hugs one screen
+     * edge or corner; reserve the band along whichever edge it is nearest,
+     * and for a corner pane reserve the axis that hides the fewest map cells
+     * (a tall, narrow panel costs a column band; a short, wide one a row
+     * band).
      */
     int play_y_lo = 0;
     int play_y_hi = SCREEN_HGT;
     int play_x_lo = 0;
     int play_x_hi = SCREEN_WID;
 
-#ifdef USE_SDL
-    if (pane_x1 >= 0 && pane_y1 >= 0 && pane_x2 > pane_x1 && pane_y2 > pane_y1)
+    for (int i = 0; i < span_count; i++)
     {
-        int gap_left = pane_x1;
-        int gap_right = SCREEN_WID - pane_x2;
-        int gap_top = pane_y1;
-        int gap_bottom = SCREEN_HGT - pane_y2;
+        const struct map_pane_span* s = &spans[i];
+        int gap_left = s->x1;
+        int gap_right = SCREEN_WID - s->x2;
+        int gap_top = s->y1;
+        int gap_bottom = SCREEN_HGT - s->y2;
 
         /* The pane hugs the edge whose gap is smaller; equal gaps mean it is
          * centred on that axis and so cannot be cleared by scrolling. */
@@ -339,9 +377,9 @@ void verify_panel(void)
         /* Corner pane: reserve only the cheaper axis. */
         if (reserve_horizontal && reserve_vertical)
         {
-            int horiz_cost = (anchor_left ? pane_x2 : (SCREEN_WID - pane_x1))
+            int horiz_cost = (anchor_left ? s->x2 : (SCREEN_WID - s->x1))
                 * SCREEN_HGT;
-            int vert_cost = (anchor_top ? pane_y2 : (SCREEN_HGT - pane_y1))
+            int vert_cost = (anchor_top ? s->y2 : (SCREEN_HGT - s->y1))
                 * SCREEN_WID;
 
             if (horiz_cost <= vert_cost)
@@ -353,19 +391,24 @@ void verify_panel(void)
         if (reserve_horizontal)
         {
             if (anchor_left)
-                play_x_lo = pane_x2;
-            else
-                play_x_hi = pane_x1;
+            {
+                if (s->x2 > play_x_lo)
+                    play_x_lo = s->x2;
+            }
+            else if (s->x1 < play_x_hi)
+                play_x_hi = s->x1;
         }
         else if (reserve_vertical)
         {
             if (anchor_top)
-                play_y_lo = pane_y2;
-            else
-                play_y_hi = pane_y1;
+            {
+                if (s->y2 > play_y_lo)
+                    play_y_lo = s->y2;
+            }
+            else if (s->y1 < play_y_hi)
+                play_y_hi = s->y1;
         }
     }
-#endif
 
     bool do_center = center_player && (!p_ptr->running || !run_avoid_center);
 

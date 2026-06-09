@@ -1620,20 +1620,86 @@ bool sdl_left_panel_pane_renders_character_panel(void)
     return sdl_left_panel_pane_presentation_active();
 }
 
-bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
-    int* start_row, int* rows)
+/* Map a window-pixel rect to the map cells it covers on the main view.
+ * Returns false when the rect misses the map grid entirely.  The result is
+ * in map cells (the units verify_panel scrolls in), not term cells: the map
+ * origin sits at ROW_MAP/COL_MAP less the columns the view already hides,
+ * and bigtile map cells span two grid columns (see
+ * sdl_main_view_point_to_map). */
+static bool sdl_main_view_map_cell_coverage(const sdl_view* view,
+    const SDL_FRect* rect, int* start_col, int* cols, int* start_row,
+    int* rows)
 {
-    const sdl_view* view = &g_views[PANE_MAIN];
-    sdl_left_panel_metrics metrics;
-    SDL_FRect rect;
     int visual_cols;
     int visual_rows;
     int first_col;
     int last_col;
     int first_row;
     int last_row;
+    int col_origin;
     float grid_x;
     float grid_y;
+
+    visual_cols = sdl_main_view_visual_cols(view);
+    visual_rows = sdl_main_view_visual_rows(view);
+    if (visual_cols <= 0 || visual_rows <= 0)
+        return false;
+
+    grid_x = (float)(view->rect.x + view->margin_x);
+    grid_y = (float)(view->rect.y + view->margin_y);
+    first_col = (int)SDL_floorf((rect->x - grid_x) / (float)view->cell_w);
+    last_col = (int)SDL_ceilf(
+        (rect->x + rect->w - grid_x) / (float)view->cell_w);
+    first_row = (int)SDL_floorf((rect->y - grid_y) / (float)view->cell_h);
+    last_row = (int)SDL_ceilf(
+        (rect->y + rect->h - grid_y) / (float)view->cell_h);
+
+    if (first_col < 0)
+        first_col = 0;
+    if (last_col > visual_cols)
+        last_col = visual_cols;
+    if (first_row < 0)
+        first_row = 0;
+    if (last_row > visual_rows)
+        last_row = visual_rows;
+    if (last_col <= first_col || last_row <= first_row)
+        return false;
+
+    col_origin = COL_MAP - sdl_main_view_visible_col0();
+    first_col -= col_origin;
+    last_col -= col_origin;
+    first_row -= ROW_MAP;
+    last_row -= ROW_MAP;
+    if (use_bigtile) {
+        first_col = first_col / 2;
+        last_col = (last_col + 1) / 2;
+    }
+
+    if (first_col < 0)
+        first_col = 0;
+    if (first_row < 0)
+        first_row = 0;
+    if (last_col <= first_col || last_row <= first_row)
+        return false;
+
+    if (start_col)
+        *start_col = first_col;
+    if (cols)
+        *cols = last_col - first_col;
+    if (start_row)
+        *start_row = first_row;
+    if (rows)
+        *rows = last_row - first_row;
+
+    return true;
+}
+
+bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    sdl_left_panel_metrics metrics;
+    SDL_FRect rect;
 
     if (start_col)
         *start_col = 0;
@@ -1653,41 +1719,62 @@ bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
     if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &rect))
         return false;
 
-    visual_cols = sdl_main_view_visual_cols(view);
-    visual_rows = sdl_main_view_visual_rows(view);
-    if (visual_cols <= 0 || visual_rows <= 0)
-        return false;
+    return sdl_main_view_map_cell_coverage(view, &rect, start_col, cols,
+        start_row, rows);
+}
 
-    grid_x = (float)(view->rect.x + view->margin_x);
-    grid_y = (float)(view->rect.y + view->margin_y);
-    first_col = (int)SDL_floorf((rect.x - grid_x) / (float)view->cell_w);
-    last_col = (int)SDL_ceilf(
-        (rect.x + rect.w - grid_x) / (float)view->cell_w);
-    first_row = (int)SDL_floorf((rect.y - grid_y) / (float)view->cell_h);
-    last_row = (int)SDL_ceilf(
-        (rect.y + rect.h - grid_y) / (float)view->cell_h);
-
-    if (first_col < 0)
-        first_col = 0;
-    if (last_col > visual_cols)
-        last_col = visual_cols;
-    if (first_row < 0)
-        first_row = 0;
-    if (last_row > visual_rows)
-        last_row = visual_rows;
-    if (last_col <= first_col || last_row <= first_row)
-        return false;
+bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows)
+{
+    const sdl_view* main_view = &g_views[PANE_MAIN];
+    const sdl_view* view = &g_views[PANE_ROLLS];
+    SDL_FRect band;
+    float blit_off;
+    int pad;
 
     if (start_col)
-        *start_col = first_col;
+        *start_col = 0;
     if (cols)
-        *cols = last_col - first_col;
+        *cols = 0;
     if (start_row)
-        *start_row = first_row;
+        *start_row = 0;
     if (rows)
-        *rows = last_row - first_row;
+        *rows = 0;
 
-    return true;
+    if (!sdl_view_is_overlay_log_pane(view))
+        return false;
+    if (!sdl_should_show_supporting_panes())
+        return false;
+    if (!view->canvas || view->cols <= 0 || view->rows <= 0
+        || view->cell_w <= 0 || view->cell_h <= 0)
+    {
+        return false;
+    }
+    if (!main_view->term_ready || main_view->cell_w <= 0
+        || main_view->cell_h <= 0)
+    {
+        return false;
+    }
+
+    /* Mirror the present-time blit: only the band past the transparent left
+     * margin carries the translucent panel and actually covers the map. */
+    pad = view->cell_w / 8;
+    if (pad < 2)
+        pad = 2;
+    blit_off = (float)(pane_log_overlay_left_margin(view->cols) * view->cell_w
+        - pad);
+    if (blit_off < 0.0f)
+        blit_off = 0.0f;
+
+    band.x = (float)(view->rect.x + view->margin_x) + blit_off;
+    band.w = (float)(view->cols * view->cell_w) - blit_off;
+    band.y = (float)view->rect.y;
+    band.h = (float)view->rect.h;
+    if (band.w <= 0.0f || band.h <= 0.0f)
+        return false;
+
+    return sdl_main_view_map_cell_coverage(main_view, &band, start_col, cols,
+        start_row, rows);
 }
 
 bool sdl_left_panel_pane_runtime_active(void)
