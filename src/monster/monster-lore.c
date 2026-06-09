@@ -808,6 +808,12 @@ static void cheat_monster_lore(int r_idx, monster_lore* l_ptr)
         + ((r_ptr->flags1 & RF1_DROP_33) ? 1 : 0)
         + ((r_ptr->flags3 & RF3_DROP_1D3) ? 3 : 0));
 
+    /* DROP_ARTEFACT always yields at least one drop slot at runtime (see
+     * monster_death), so reflect that here even when the monster carries no
+     * count flag of its own (e.g. Ancalagon, Gorthaur). */
+    if ((r_ptr->flags3 & RF3_DROP_ARTEFACT) && l_ptr->drop_item < 1)
+        l_ptr->drop_item = 1;
+
     /* Hack -- observe many spells */
     l_ptr->ranged = MAX_UCHAR;
 

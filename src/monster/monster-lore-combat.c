@@ -222,8 +222,13 @@ void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
     {
         if (r_ptr->flags2 & (RF2_TERRITORIAL))
         {
-            /* Intro */
-            text_out(format("%^s may be found with", wd_he[msex]));
+            /* Territorial monsters do not carry loot off; they keep it.
+             * An artefact-bearer hoards its treasure rather than guarding
+             * a scattering of lesser finds. */
+            if (l_ptr->flags3 & (RF3_DROP_ARTEFACT))
+                text_out(format("%^s hoards", wd_he[msex]));
+            else
+                text_out(format("%^s may be found with", wd_he[msex]));
         }
         else
         {

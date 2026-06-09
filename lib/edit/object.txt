@@ -2577,6 +2577,7 @@ D:A small wooden chest, plain and serviceable, such as a
 D: traveller, householder, or petty captain might use for
 D: coin, letters, and keepsakes. Its boards are worn by
 D: long handling, and it promises little beyond what it holds.
+D: Even so, the items within tend to be of good quality.
 
 
 N:373:& Small steel chest~
@@ -2591,6 +2592,7 @@ D:A small chest bound in steel, made to resist rough hands
 D: and the wear of hard roads. Such coffers were kept for
 D: coin, seals, and other things a prudent keeper would not
 D: trust to wood alone.
+D: The items within tend to be of great quality.
 
 
 N:374:& Small jewelled chest~
@@ -2605,6 +2607,7 @@ D:A little casket adorned with bright stones and cunning
 D: metalwork. It has the look of a gift from some richer
 D: hall, or of a lord's keepsake-box, made for treasures too
 D: small to bear openly and too precious to neglect.
+D: The treasures within tend to be of superb quality.
 
 
 N:375:& Large wooden chest~
@@ -2618,6 +2621,8 @@ D:A large wooden chest with a stout lid and broad sides, fit
 D: for the storing of garments, household gear, or a
 D: wanderer's gathered wealth. It is humble work, but deep
 D: enough to hide something of worth from a casual eye.
+D: It holds more than a smaller chest, though its contents are
+D: still only of good quality.
 
 
 N:376:& Large steel chest~
@@ -2632,6 +2637,8 @@ D:A great chest of steel, grim and weighty, such as might
 D: stand in an armoury, treasury, or strong-room. Its very
 D: make speaks of distrust, as though what lies within were
 D: worth guarding against both thief and fire.
+D: Larger than the smaller sort, it holds several items, and
+D: those within tend to be of great quality.
 
 
 N:377:& Large jewelled chest~
@@ -2646,6 +2653,8 @@ D:A lordly coffer overlaid with bright metal and gems, wrought
 D: less for burden than for display. Such chests were set in
 D: rich chambers to hold heirlooms, jewels, and other tokens
 D: of rank that lesser folk might behold only from afar.
+D: Largest of its kind, it holds several treasures, and those
+D: within tend to be of superb quality.
 
 
 N:378:& Finely wrapped present~
@@ -2659,6 +2668,7 @@ D:A gift wrapped with uncommon care in bright cloth and cord.
 D: Its outward cheer sits strangely in the dark places of the
 D: world, and for that very reason it stirs a little wonder
 D: concerning the hand that prepared it.
+D: Whatever lies within is sure to be of superb quality.
 
 
 

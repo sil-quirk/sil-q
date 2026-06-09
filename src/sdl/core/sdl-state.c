@@ -322,12 +322,10 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
             rolls->rect.cols = 0;
             changed = true;
         }
-        if (pane_placement_is_overlay(rolls->where)
-            && !rolls->enabled && enable_added_log)
-        {
-            rolls->enabled = true;
-            changed = true;
-        }
+        /* A freshly added overlay log honours `enable_added_log` above, but an
+         * existing one keeps its stored enabled state so a deliberate disable
+         * (e.g. the narrow-screen default or a manual toggle) survives reloads
+         * instead of being forced back on every launch. */
     }
 
     if (rolls_idx >= 0) {
@@ -360,6 +358,54 @@ void sdl_normalize_unified_log_pane_profiles(bool enable_added_log)
         (void)sdl_normalize_unified_log_pane_config(
             g_pane_profiles[mode].pane_configs,
             &g_pane_profiles[mode].pane_count, enable_added_log);
+    }
+}
+
+bool sdl_screen_is_wide_for_pane_defaults(int screen_width, int screen_height)
+{
+    /* "Wide" means at least a 16:10 aspect ratio. */
+    return screen_width > 0 && screen_height > 0
+        && (long)screen_width * 10 >= (long)screen_height * 16;
+}
+
+/* Adapt the default log/depth layout to the screen shape. Wide screens show the
+ * combat log as the top/bottom-right overlay (PANE_ROLLS) and drop the depth
+ * readout into the bottom-right corner; narrower screens dock the log along the
+ * bottom (PANE_LOG) and keep depth at the top-right. */
+void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
+    int* config_count, int screen_width, int screen_height)
+{
+    bool wide;
+    int depth_idx;
+    int rolls_idx;
+    int log_idx;
+
+    if (!configs || !config_count)
+        return;
+
+    wide = sdl_screen_is_wide_for_pane_defaults(screen_width, screen_height);
+
+    depth_idx = sdl_pane_config_index_in_array(configs, *config_count,
+        PANE_DEPTH);
+    rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
+        PANE_ROLLS);
+    log_idx = sdl_pane_config_index_in_array(configs, *config_count, PANE_LOG);
+
+    if (depth_idx >= 0)
+        configs[depth_idx].where = wide ? PLACE_BOTTOM_RIGHT : PLACE_TOP_RIGHT;
+    if (rolls_idx >= 0)
+        configs[rolls_idx].enabled = wide;
+    if (log_idx >= 0)
+        configs[log_idx].enabled = !wide;
+}
+
+void sdl_apply_screen_aspect_pane_default_profiles(int screen_width,
+    int screen_height)
+{
+    for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++) {
+        sdl_apply_screen_aspect_pane_defaults(
+            g_pane_profiles[mode].pane_configs,
+            &g_pane_profiles[mode].pane_count, screen_width, screen_height);
     }
 }
 

@@ -1424,6 +1424,32 @@ void sdl_description_overlay_render_text(SDL_Texture* atlas,
 }
 
 /*
+ * Advance width, in pixels, of a story-font run at the overlay cell height.
+ * Mirrors the advance computed by sdl_description_overlay_render_story_run so
+ * hit-testing and layout agree with what is actually drawn.
+ */
+static float sdl_description_overlay_run_advance(TTF_Font* font,
+    float cell_h, const char* s, int n)
+{
+    int adv = 0;
+    int font_h;
+
+    if (!font || !s || n <= 0)
+        return 0.0f;
+
+    n = utf8_safe_prefix_len(s, n);
+    if (n <= 0)
+        return 0.0f;
+
+    TTF_MeasureString(font, s, n, 0, &adv, NULL);
+    font_h = TTF_GetFontHeight(font);
+    if (font_h > 0)
+        return (float)adv * (cell_h / (float)font_h);
+
+    return (float)adv;
+}
+
+/*
  * Render a run of story-font glyphs inside the description overlay, scaled to
  * the overlay cell height.  Returns the advance width in pixels so the caller
  * can keep flowing proportional text.  The active render clip (the panel rect)
@@ -1655,47 +1681,87 @@ void sdl_description_overlay_render(void)
 
         if (overlay->interactive)
         {
-            for (int col = 0; footer_text[col] && col < layout.visible_cols;
-                 col++)
-            {
-                byte attr = sdl_description_overlay_token_matches_hover(
-                    overlay, footer_text, col)
-                    ? TERM_L_BLUE
-                    : TERM_SLATE;
-                float x = layout.text_x + (float)col * (float)layout.cell_w;
+            int len = (int)strlen(footer_text);
 
-                if (footer_font)
-                    sdl_description_overlay_render_story_run(footer_font, x,
-                        layout.footer_y, (float)layout.cell_h,
-                        footer_text + col, 1, attr);
-                else
+            if (len > layout.visible_cols)
+                len = layout.visible_cols;
+
+            if (footer_font)
+            {
+                /* Proportional: draw contiguous runs that share a hover state
+                 * as whole words, advancing by the measured pixel width. */
+                float px = layout.text_x;
+                int col = 0;
+
+                while (col < len)
+                {
+                    bool hot = sdl_description_overlay_token_matches_hover(
+                        overlay, footer_text, col);
+                    int run_end = col + 1;
+
+                    while (run_end < len
+                        && sdl_description_overlay_token_matches_hover(
+                               overlay, footer_text, run_end) == hot)
+                    {
+                        run_end++;
+                    }
+
+                    px += sdl_description_overlay_render_story_run(footer_font,
+                        px, layout.footer_y, (float)layout.cell_h,
+                        footer_text + col, run_end - col,
+                        hot ? TERM_L_BLUE : TERM_SLATE);
+                    col = run_end;
+                }
+            }
+            else
+            {
+                for (int col = 0; col < len; col++)
+                {
+                    byte attr = sdl_description_overlay_token_matches_hover(
+                        overlay, footer_text, col)
+                        ? TERM_L_BLUE
+                        : TERM_SLATE;
+
                     sdl_description_overlay_render_char(atlas, atlas_cell_w,
                         atlas_cell_h, (float)layout.cell_w,
-                        (float)layout.cell_h, x, layout.footer_y, attr,
-                        footer_text[col]);
+                        (float)layout.cell_h,
+                        layout.text_x + (float)col * (float)layout.cell_w,
+                        layout.footer_y, attr, footer_text[col]);
+                }
             }
         }
         if (layout.max_scroll > 0)
         {
             strnfmt(scroll_buf, sizeof(scroll_buf), "%d/%d",
                 layout.scroll + 1, overlay->height);
-            int scroll_col = layout.visible_cols - (int)strlen(scroll_buf);
-            if (scroll_col < 0)
-                scroll_col = 0;
-            float x = layout.text_x + (float)scroll_col * (float)layout.cell_w;
 
             if (footer_font)
             {
-                for (int i = 0; scroll_buf[i]; i++)
-                    sdl_description_overlay_render_story_run(footer_font,
-                        x + (float)i * (float)layout.cell_w, layout.footer_y,
-                        (float)layout.cell_h, scroll_buf + i, 1, TERM_SLATE);
+                /* Right-align by the run's measured proportional width. */
+                float w = sdl_description_overlay_run_advance(footer_font,
+                    (float)layout.cell_h, scroll_buf,
+                    (int)strlen(scroll_buf));
+                float right = layout.text_x
+                    + (float)layout.visible_cols * (float)layout.cell_w;
+                float x = right - w;
+
+                if (x < layout.text_x)
+                    x = layout.text_x;
+                sdl_description_overlay_render_story_run(footer_font, x,
+                    layout.footer_y, (float)layout.cell_h, scroll_buf,
+                    (int)strlen(scroll_buf), TERM_SLATE);
             }
             else
             {
+                int scroll_col =
+                    layout.visible_cols - (int)strlen(scroll_buf);
+                if (scroll_col < 0)
+                    scroll_col = 0;
                 sdl_description_overlay_render_text(atlas, atlas_cell_w,
-                    atlas_cell_h, scroll_buf, x, layout.footer_y,
-                    (float)layout.cell_w, (float)layout.cell_h, TERM_SLATE);
+                    atlas_cell_h, scroll_buf,
+                    layout.text_x + (float)scroll_col * (float)layout.cell_w,
+                    layout.footer_y, (float)layout.cell_w,
+                    (float)layout.cell_h, TERM_SLATE);
             }
         }
     }
@@ -1728,11 +1794,48 @@ int sdl_description_overlay_footer_action_at(float x, float y)
         return 0;
     }
 
-    col = (int)((x - layout.text_x) / (float)layout.cell_w);
-    if (col < 0 || col >= layout.visible_cols)
-        return 0;
-
     footer_text = sdl_description_overlay_footer_text(overlay);
+
+    {
+        /* The command row is drawn in the proportional secondary story font,
+         * so map the pointer to a character by accumulating glyph advances
+         * (matching the render path).  Fall back to monospace columns when no
+         * story font is available. */
+        TTF_Font* footer_font = sdl_story_font_for_height_slot(
+            layout.cell_h, STORY_FONT_SLOT_SECONDARY);
+
+        if (footer_font)
+        {
+            int len = (int)strlen(footer_text);
+            float relx = x - layout.text_x;
+
+            if (len > layout.visible_cols)
+                len = layout.visible_cols;
+
+            /* Accumulate by prefix width from the string start so kerning is
+             * accounted for the same way the render measures whole runs. */
+            col = -1;
+            for (int i = 0; i < len; i++)
+            {
+                float end_px = sdl_description_overlay_run_advance(footer_font,
+                    (float)layout.cell_h, footer_text, i + 1);
+                if (relx < end_px)
+                {
+                    col = i;
+                    break;
+                }
+            }
+            if (col < 0)
+                return 0;
+        }
+        else
+        {
+            col = (int)((x - layout.text_x) / (float)layout.cell_w);
+            if (col < 0 || col >= layout.visible_cols)
+                return 0;
+        }
+    }
+
     for (int i = 0; i < overlay->footer_action_count; i++)
     {
         const description_overlay_action* action = &overlay->footer_actions[i];

@@ -181,14 +181,16 @@ static NavResult blitz_setup_menu(void)
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
         {
             ui_menu_click_clear();
-            return NAV_TO_MAIN;
+            result = NAV_TO_MAIN;
+            break;
         }
 
         if (key == '\n' || key == '\r' || key == ' '
             || (steamdeck && key == steamdeck_confirm_key()))
         {
             ui_menu_click_clear();
-            return NAV_OK;
+            result = NAV_OK;
+            break;
         }
 
         if (key == '8')
@@ -249,6 +251,12 @@ static NavResult blitz_setup_menu(void)
 
         blitz_setup_clamp(setup);
     }
+
+    sdl_pop_terminal_menu_scale();
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
+    screen_load();
+    return result;
 }
 
 NavResult blitz_character_creation(void)
@@ -643,8 +651,16 @@ static void blitz_show_effect_summary(void)
 NavResult blitz_configure_effects(void)
 {
     const blitz_setup* setup = blitz_current_setup();
+    NavResult result = NAV_OK;
 
     blitz_runtime_reset();
+
+    /* Match the inventory/supply scale for the effect-selection and summary
+     * screens: hide panes first, then push the menu scale (max-1). */
+    screen_save();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+    sdl_push_terminal_menu_scale();
 
     for (int i = 0; i < setup->curse_count; i++)
     {
@@ -653,7 +669,10 @@ NavResult blitz_configure_effects(void)
             : blitz_select_effect_from_list(false,
                 setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->curse_count);
         if (id < 0)
-            return NAV_BACK;
+        {
+            result = NAV_BACK;
+            goto done;
+        }
         blitz_apply_effect_pick(id, false);
     }
 
@@ -664,14 +683,22 @@ NavResult blitz_configure_effects(void)
             : blitz_select_effect_from_list(true,
                 setup->effect_mode == BLITZ_EFFECT_SELECTED_DESCR, i + 1, setup->blessing_count);
         if (id < 0)
-            return NAV_BACK;
+        {
+            result = NAV_BACK;
+            goto done;
+        }
         blitz_apply_effect_pick(id, true);
     }
 
     if (setup->curse_count > 0 || setup->blessing_count > 0)
         blitz_show_effect_summary();
 
-    return NAV_OK;
+done:
+    sdl_pop_terminal_menu_scale();
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
+    screen_load();
+    return result;
 }
 
 static void blitz_auto_assign_stats(int stats[A_MAX])

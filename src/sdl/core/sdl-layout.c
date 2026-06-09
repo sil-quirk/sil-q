@@ -4078,6 +4078,7 @@ bool sdl_prompt_reset_sdl_defaults(const char* issue_summary,
 
     sdl_reset_config_to_resolution_defaults(screen_width, screen_height);
     sdl_ensure_default_pane_profiles_present(false);
+    sdl_apply_screen_aspect_pane_default_profiles(screen_width, screen_height);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_ensure_touch_pane_config_present();
     sdl_touch_pane_ensure_main_panel_confirm();

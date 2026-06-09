@@ -185,6 +185,9 @@ errr init_sdl(int argc, char **argv)
     sdl_normalize_unified_log_pane_profiles(true);
     sdl_ensure_default_pane_profiles_present(false);
     sdl_normalize_unified_log_pane_profiles(true);
+    if (!config_exists)
+        sdl_apply_screen_aspect_pane_default_profiles(screen_pixels_w,
+            screen_pixels_h);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)

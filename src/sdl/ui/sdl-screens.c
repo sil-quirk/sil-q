@@ -13,7 +13,10 @@ enum {
     SDL_WELCOME_FONT_SCALE_PERCENT = 125,
     SDL_WELCOME_PROMPT_ROW = 23,
     SDL_WELCOME_SEPARATOR_ROW = 21,
-    SDL_WELCOME_WIZARD_ROW = 20
+    SDL_WELCOME_WIZARD_ROW = 20,
+    /* Welcome body text uses the secondary story font (storyfont 2);
+     * captions fall back to the primary one via sdl_welcome_slot_for_role(). */
+    SDL_WELCOME_STORY_FONT_SLOT = 1
 };
 
 const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
@@ -24,17 +27,13 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  and they sang, and he was glad.\"" },
     { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Ainulindalë" },
-    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
-    { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "In the deeps of Angband, beyond" },
     { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "gates of iron and pits of flame," },
+        "In the deeps of Angband, beyond gates of iron and pits of flame," },
     { 11, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Morgoth hoards the Silmarils —" },
-    { 12, TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "three jewels of living light." },
+        "Morgoth hoards the Silmarils — three jewels of living light." },
     { 14, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
         "Take up blade and burden. Descend." },
     { 15, TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
@@ -51,7 +50,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_feanor[] = {
     { 3, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  he shall defend, shall be held mine.\"" },
     { 4, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Oath of Fëanor" },
-    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 6, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 7, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 9, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -72,7 +71,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_feanor[] = {
 };
 
 const sdl_welcome_intro_line g_sdl_welcome_intro_twilight[] = {
-    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -110,7 +109,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_luthien[] = {
         "  of stars in shadow shimmering.\"" },
     { 5, TERM_SLATE, SDL_WELCOME_LINE_SONG_ATTRIBUTION,
         "— Of Beren and Lúthien" },
-    { 7, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 7, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 8, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 10, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -134,7 +133,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_hurin[] = {
     { 2, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "  shall see the Sun once more.\"" },
     { 3, TERM_SLATE, SDL_WELCOME_LINE_ATTRIBUTION, "— Words of Húrin" },
-    { 5, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 5, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 6, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 8, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -156,7 +155,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_hurin[] = {
 };
 
 const sdl_welcome_intro_line g_sdl_welcome_intro_starlight[] = {
-    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -185,7 +184,7 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_starlight[] = {
 };
 
 const sdl_welcome_intro_line g_sdl_welcome_intro_noldor[] = {
-    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R E" },
+    { 1, TERM_WHITE, SDL_WELCOME_LINE_TITLE, "S I L - M O R Ë" },
     { 2, TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { 4, TERM_WHITE, SDL_WELCOME_LINE_BODY,
@@ -359,6 +358,26 @@ int sdl_welcome_col_for_role(sdl_welcome_line_role role)
     }
 }
 
+int sdl_welcome_slot_for_role(sdl_welcome_line_role role)
+{
+    /* The opening quote, the title, the song credit and the subtitle tagline
+     * keep the primary story font (storyfont 1).  Everything else on the
+     * welcome screen uses the secondary story font (storyfont 2). */
+    switch (role)
+    {
+    case SDL_WELCOME_LINE_QUOTE:
+    case SDL_WELCOME_LINE_TITLE:
+    case SDL_WELCOME_LINE_SONG_ATTRIBUTION:
+    case SDL_WELCOME_LINE_SUBTITLE:
+        return SDL_STORY_FONT_SLOT_DEFAULT;
+    case SDL_WELCOME_LINE_ATTRIBUTION:
+    case SDL_WELCOME_LINE_BODY:
+    case SDL_WELCOME_LINE_ACTION:
+    default:
+        return SDL_WELCOME_STORY_FONT_SLOT;
+    }
+}
+
 bool sdl_welcome_line_centers_footer(sdl_welcome_line_role role)
 {
     switch (role)
@@ -428,7 +447,7 @@ float sdl_welcome_text_scale(const SDL_Rect* canvas, int max_cols,
 }
 
 SDL_FRect sdl_welcome_measure_story_text(const SDL_Rect* canvas, int col,
-    int row, int max_cols, cptr text)
+    int row, int max_cols, cptr text, int slot)
 {
     SDL_FRect hit = { 0 };
     TTF_Font* font;
@@ -454,7 +473,7 @@ SDL_FRect sdl_welcome_measure_story_text(const SDL_Rect* canvas, int col,
         return hit;
 
     font_px = sdl_welcome_font_px_for_canvas(canvas);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, slot);
     if (!font)
         return hit;
 
@@ -496,14 +515,16 @@ void sdl_welcome_bounds_add(sdl_welcome_picture_bounds* bounds,
 }
 
 void sdl_welcome_bounds_add_text(sdl_welcome_picture_bounds* bounds,
-    const SDL_Rect* canvas, int col, int row, int max_cols, cptr text)
+    const SDL_Rect* canvas, int col, int row, int max_cols, cptr text,
+    int slot)
 {
     sdl_welcome_bounds_add(bounds,
-        sdl_welcome_measure_story_text(canvas, col, row, max_cols, text));
+        sdl_welcome_measure_story_text(canvas, col, row, max_cols, text,
+            slot));
 }
 
 SDL_FRect sdl_welcome_draw_story_text(const SDL_Rect* canvas, int col,
-    int row, int max_cols, cptr text, byte attr, float x_offset)
+    int row, int max_cols, cptr text, byte attr, float x_offset, int slot)
 {
     SDL_FRect hit = { 0 };
     TTF_Font* font;
@@ -530,7 +551,7 @@ SDL_FRect sdl_welcome_draw_story_text(const SDL_Rect* canvas, int col,
         return hit;
 
     font_px = sdl_welcome_font_px_for_canvas(canvas);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, slot);
     if (!font)
         return hit;
 
@@ -568,7 +589,7 @@ SDL_FRect sdl_welcome_draw_story_text(const SDL_Rect* canvas, int col,
 
 SDL_FRect sdl_welcome_story_text_span_rect(const SDL_Rect* canvas,
     int col, int row, int max_cols, cptr text, int start, int end,
-    float x_offset)
+    float x_offset, int slot)
 {
     SDL_FRect rect = { 0 };
     TTF_Font* font;
@@ -596,7 +617,7 @@ SDL_FRect sdl_welcome_story_text_span_rect(const SDL_Rect* canvas,
         return rect;
 
     font_px = sdl_welcome_font_px_for_canvas(canvas);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, slot);
     if (!font)
         return rect;
 
@@ -631,7 +652,7 @@ SDL_FRect sdl_welcome_story_text_span_rect(const SDL_Rect* canvas,
 
 SDL_FRect sdl_welcome_draw_story_text_span(const SDL_Rect* canvas,
     int col, int row, int max_cols, cptr text, int start, int end, byte attr,
-    float x_offset)
+    float x_offset, int slot)
 {
     SDL_FRect hit = { 0 };
     TTF_Font* font;
@@ -664,7 +685,7 @@ SDL_FRect sdl_welcome_draw_story_text_span(const SDL_Rect* canvas,
     span[span_len] = '\0';
 
     font_px = sdl_welcome_font_px_for_canvas(canvas);
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px, slot);
     if (!font)
         return hit;
 
@@ -675,7 +696,7 @@ SDL_FRect sdl_welcome_draw_story_text_span(const SDL_Rect* canvas,
         return hit;
 
     hit = sdl_welcome_story_text_span_rect(canvas, col, row, max_cols,
-        text, start, start + span_len, x_offset);
+        text, start, start + span_len, x_offset, slot);
     if (hit.w <= 0.0f || hit.h <= 0.0f)
         return hit;
 
@@ -812,7 +833,7 @@ float sdl_welcome_intro_x_offset(const SDL_Rect* canvas)
         int col = sdl_welcome_col_for_role(lines[i].role);
         sdl_welcome_bounds_add_text(&bounds, canvas, col, lines[i].row,
             MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
-            lines[i].text);
+            lines[i].text, sdl_welcome_slot_for_role(lines[i].role));
     }
 
     return sdl_welcome_bounds_x_offset(canvas, &bounds);
@@ -831,7 +852,7 @@ float sdl_welcome_status_x_offset(const SDL_Rect* canvas)
     sdl_welcome_bounds_add_text(&bounds, canvas, col,
         SDL_WELCOME_PROMPT_ROW,
         MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
-        status);
+        status, SDL_WELCOME_STORY_FONT_SLOT);
 
     return sdl_welcome_bounds_x_offset(canvas, &bounds);
 }
@@ -855,7 +876,7 @@ float sdl_welcome_footer_x_offset(const SDL_Rect* canvas)
 
         sdl_welcome_bounds_add_text(&bounds, canvas, col, lines[i].row,
             MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
-            lines[i].text);
+            lines[i].text, sdl_welcome_slot_for_role(lines[i].role));
     }
 
     return sdl_welcome_bounds_x_offset(canvas, &bounds);
@@ -876,7 +897,8 @@ void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas,
         int col = sdl_welcome_col_for_role(lines[i].role);
         (void)sdl_welcome_draw_story_text(canvas, col, lines[i].row,
             MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
-            lines[i].text, lines[i].attr, x_offset);
+            lines[i].text, lines[i].attr, x_offset,
+            sdl_welcome_slot_for_role(lines[i].role));
     }
 }
 
@@ -892,7 +914,7 @@ void sdl_welcome_render_status_canvas(const SDL_Rect* canvas,
     col = MAX(0, (SDL_WELCOME_CANVAS_COLS - (int)strlen(status)) / 2);
     (void)sdl_welcome_draw_story_text(canvas, col, SDL_WELCOME_PROMPT_ROW,
         MIN(SDL_WELCOME_TEXT_MAX_COLS, SDL_WELCOME_CANVAS_COLS - col),
-        status, TERM_SLATE, x_offset);
+        status, TERM_SLATE, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
 }
 
 void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas,
@@ -921,7 +943,8 @@ void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas,
         quit_command, sizeof(quit_command), &primary_token);
 
     g_sdl_welcome_screen.continue_rect = sdl_welcome_draw_story_text(canvas,
-        x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, TERM_SLATE, x_offset);
+        x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, TERM_SLATE, x_offset,
+        SDL_WELCOME_STORY_FONT_SLOT);
 
     has_primary_range = sdl_welcome_text_command_range(menu_line, "[Any key]",
         primary_token, &primary_start, &primary_end);
@@ -931,28 +954,29 @@ void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas,
     if (has_primary_range)
         g_sdl_welcome_screen.continue_rect = sdl_welcome_story_text_span_rect(
             canvas, x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line,
-            primary_start, primary_end, x_offset);
+            primary_start, primary_end, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
     if (has_quit_range)
         g_sdl_welcome_screen.quit_rect = sdl_welcome_story_text_span_rect(
             canvas, x, SDL_WELCOME_PROMPT_ROW, max_cols, menu_line,
-            quit_start, quit_end, x_offset);
+            quit_start, quit_end, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
 
     if (g_sdl_welcome_screen.hover_continue && has_primary_range)
         (void)sdl_welcome_draw_story_text_span(canvas, x,
             SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, primary_start,
-            primary_end, TERM_L_BLUE, x_offset);
+            primary_end, TERM_L_BLUE, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
     if (g_sdl_welcome_screen.hover_quit && has_quit_range)
         (void)sdl_welcome_draw_story_text_span(canvas, x,
             SDL_WELCOME_PROMPT_ROW, max_cols, menu_line, quit_start,
-            quit_end, TERM_L_BLUE, x_offset);
+            quit_end, TERM_L_BLUE, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
 
     (void)sdl_welcome_draw_story_text(canvas, x, SDL_WELCOME_SEPARATOR_ROW,
-        max_cols, sep_line, TERM_L_DARK, x_offset);
+        max_cols, sep_line, TERM_L_DARK, x_offset, SDL_WELCOME_STORY_FONT_SLOT);
 
     if (g_sdl_welcome_screen.show_wizard)
     {
         (void)sdl_welcome_draw_story_text(canvas, x, SDL_WELCOME_WIZARD_ROW,
-            MIN(60, max_cols), wizard_line, TERM_BLUE, x_offset);
+            MIN(60, max_cols), wizard_line, TERM_BLUE, x_offset,
+            SDL_WELCOME_STORY_FONT_SLOT);
     }
 }
 

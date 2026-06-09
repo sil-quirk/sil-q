@@ -458,6 +458,7 @@ void sdl_reset_interface_settings_to_defaults_for_migration(void)
 
     sdl_reset_config_to_resolution_defaults(screen_w, screen_h);
     sdl_ensure_default_pane_profiles_present(false);
+    sdl_apply_screen_aspect_pane_default_profiles(screen_w, screen_h);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
     sdl_config_reset_app_options_to_defaults();
 

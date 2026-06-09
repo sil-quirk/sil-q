@@ -269,8 +269,10 @@ byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
 
     action = sdl_visible_character_panel_click_action_at_cell(source_col,
         source_row);
+    /* Pass row -1 so the whole block highlights together: any cell whose
+     * block action matches the selected action lights up, not just one row. */
     if (action != SDL_PANEL_CLICK_NONE
-        && sdl_character_panel_touch_zone_selected(action, source_row))
+        && sdl_character_panel_touch_zone_selected(action, -1))
     {
         return TERM_YELLOW;
     }

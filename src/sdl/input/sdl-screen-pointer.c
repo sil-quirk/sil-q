@@ -2994,49 +2994,53 @@ int sdl_hidden_left_panel_click_action_at_cell(int col, int row)
 
 int sdl_visible_character_panel_click_action_at_cell(int col, int row)
 {
-    int panel_width;
-
     if (col < 0 || row < 0 || get_sdl_hide_left_panel())
         return SDL_PANEL_CLICK_NONE;
-    panel_width = LEFT_PANEL_CONTENT_WID;
-    if (col >= panel_width)
+    if (col >= LEFT_PANEL_CONTENT_WID)
         return SDL_PANEL_CLICK_NONE;
 
-    if (row == ROW_HP)
-        return SDL_PANEL_CLICK_CHARACTER;
+    /*
+     * The visible character panel is sliced into four big stacked "button"
+     * blocks that tile every row (blank rows included).  Hovering or clicking
+     * anywhere inside a block targets the whole block.
+     *
+     *   top header (name + graphical health bar, and any rows above) -> compact
+     *   stats (Str/Dex/Con/Gra and the gap below)                    -> abilities
+     *   vitals (exp, health, voice, light, melee/archery/quiver)     -> inventory
+     *   armour and everything below                                  -> equipment
+     */
+    if (row < ROW_STAT)
+        return SDL_PANEL_CLICK_COMPACT;
 
-    if (row == ROW_NAME || row == ROW_NAME + 1)
-        return SDL_PANEL_CLICK_CHARACTER;
-
-    if (row == ROW_EXP)
-        return SDL_PANEL_CLICK_SKILL_DISTRIBUTION;
-
-    if (row >= ROW_STAT && row < ROW_STAT + A_GRA)
+    if (row < ROW_EXP)
         return SDL_PANEL_CLICK_ABILITIES;
 
-    if (row == ROW_STAT + A_GRA
-        || (row == ROW_STAT + A_GRA + 1 && row != ROW_EXP))
-    {
-        return SDL_PANEL_CLICK_SMITHING;
-    }
-
-    if (row == ROW_SP)
-        return SDL_PANEL_CLICK_SONG;
-
-    if (row == ROW_LIGHT)
-        return SDL_PANEL_CLICK_SUPPLIES_LIGHTS;
-
-    if (row == ROW_EVN)
+    if (row < ROW_EVN)
         return SDL_PANEL_CLICK_INVENTORY;
 
-    if ((row == ROW_SONG || row == ROW_SONG + 1)
-        && p_ptr
-        && (p_ptr->song1 != SNG_NOTHING || p_ptr->song2 != SNG_NOTHING))
-    {
-        return SDL_PANEL_CLICK_SONG;
-    }
+    return SDL_PANEL_CLICK_EQUIPMENT;
+}
 
-    return SDL_PANEL_CLICK_NONE;
+/*
+ * Topmost source row of the visible-panel block that owns the given click
+ * action.  Used to anchor the hover/long-press popup so it stays fixed for the
+ * whole block instead of jumping from row to row.
+ */
+int sdl_visible_character_panel_block_top_row(int click_action)
+{
+    switch (click_action)
+    {
+    case SDL_PANEL_CLICK_COMPACT:
+        return ROW_NAME;
+    case SDL_PANEL_CLICK_ABILITIES:
+        return ROW_STAT;
+    case SDL_PANEL_CLICK_INVENTORY:
+        return ROW_EXP;
+    case SDL_PANEL_CLICK_EQUIPMENT:
+        return ROW_EVN;
+    default:
+        return -1;
+    }
 }
 
 cptr sdl_character_panel_click_tooltip_text(int click_action)
@@ -3057,6 +3061,10 @@ cptr sdl_character_panel_click_tooltip_text(int click_action)
         return "Click: open abilities.";
     case SDL_PANEL_CLICK_SMITHING:
         return "Click: open smithing.";
+    case SDL_PANEL_CLICK_EQUIPMENT:
+        return "Click: open equipment.";
+    case SDL_PANEL_CLICK_COMPACT:
+        return "Click: collapse to compact panel.";
     default:
         return NULL;
     }
@@ -3149,11 +3157,12 @@ void sdl_character_panel_tooltip_span(int col, int row,
 }
 
 void sdl_character_panel_show_hover_tooltip(int col, int row,
-    int attack_mode, int click_action)
+    int attack_mode, int click_action, bool touch)
 {
     cptr text = NULL;
     int anchor_col = 0;
     int anchor_cols = 1;
+    int anchor_row = row;
 
     if (attack_mode != SDL_POINTER_ATTACK_NONE)
         text = sdl_character_panel_attack_tooltip_text(attack_mode);
@@ -3164,8 +3173,21 @@ void sdl_character_panel_show_hover_tooltip(int col, int row,
 
     sdl_character_panel_tooltip_span(col, row, attack_mode, click_action,
         &anchor_col, &anchor_cols);
+
+    /* Keep the popup pinned to the top of the block so it stays put while the
+     * pointer roams within the block (visible panel, click-action blocks). */
+    if (attack_mode == SDL_POINTER_ATTACK_NONE
+        && click_action != SDL_PANEL_CLICK_NONE
+        && !get_sdl_hide_left_panel())
+    {
+        int top = sdl_visible_character_panel_block_top_row(click_action);
+
+        if (top >= 0)
+            anchor_row = top;
+    }
+
     (void)sdl_object_tooltip_show_character_panel_text_at_cell(anchor_col,
-        row, anchor_cols, text, false);
+        anchor_row, anchor_cols, text, touch);
 }
 
 bool sdl_handle_character_panel_click_action(int click_action)
@@ -3195,6 +3217,13 @@ bool sdl_handle_character_panel_click_action(int click_action)
         return true;
     case SDL_PANEL_CLICK_SMITHING:
         sdl_enqueue_bypassed_command('0');
+        return true;
+    case SDL_PANEL_CLICK_EQUIPMENT:
+        sdl_enqueue_bypassed_command(
+            sdl_inventory_equipment_cycle_binding('e'));
+        return true;
+    case SDL_PANEL_CLICK_COMPACT:
+        sdl_left_panel_pane_set_expanded(false);
         return true;
     default:
         return false;
@@ -3234,7 +3263,7 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
             SDL_PANEL_CLICK_NONE, -1, active);
         sdl_pointer_attack_set_panel_hover_mode(attack_mode);
         sdl_character_panel_show_hover_tooltip(col, row, attack_mode,
-            SDL_PANEL_CLICK_NONE);
+            SDL_PANEL_CLICK_NONE, false);
         return true;
     }
 
@@ -3243,7 +3272,7 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
         click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, active);
     if (click_action != SDL_PANEL_CLICK_NONE)
         sdl_character_panel_show_hover_tooltip(col, row,
-            SDL_POINTER_ATTACK_NONE, click_action);
+            SDL_POINTER_ATTACK_NONE, click_action, false);
 
     return click_action != SDL_PANEL_CLICK_NONE;
 }
@@ -3323,20 +3352,54 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
     return true;
 }
 
+/*
+ * Show the block popup prompt for a character-panel point, the same text shown
+ * on hover.  Used by right-click and touch long-press so they surface the
+ * action of the block they land on instead of triggering it.
+ */
+bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
+{
+    int col = 0;
+    int row = 0;
+    int attack_mode = SDL_POINTER_ATTACK_NONE;
+    int click_action = SDL_PANEL_CLICK_NONE;
+
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+    if (!sdl_main_screen_cell_hits_character_panel(col, row))
+        return false;
+
+    if (get_sdl_hide_left_panel()) {
+        attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+        click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
+    } else {
+        attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col, row);
+        click_action = sdl_visible_character_panel_click_action_at_cell(col, row);
+    }
+
+    if (attack_mode == SDL_POINTER_ATTACK_NONE
+        && click_action == SDL_PANEL_CLICK_NONE)
+    {
+        return false;
+    }
+
+    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+        click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, true);
+    sdl_character_panel_show_hover_tooltip(col, row, attack_mode, click_action,
+        touch);
+    return true;
+}
+
 bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, float y)
 {
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
     if (sdl_touch_zone_controls_active())
         return false;
-    if (sdl_left_panel_pane_collapsed())
-        return false;
-    if (!sdl_left_panel_pane_hit(x, y))
+    if (!sdl_main_screen_character_panel_pointer_hit(x, y))
         return false;
 
-    sdl_left_panel_pane_set_expanded(false);
-    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
-        SDL_PANEL_CLICK_NONE, -1, false);
+    (void)sdl_main_screen_show_character_panel_popup(x, y, true);
     return true;
 }
 
@@ -3386,8 +3449,10 @@ bool sdl_character_panel_handle_pointer_down(float x, float y,
     g_character_panel_press.active = true;
     g_character_panel_press.mouse = mouse;
     g_character_panel_press.finger_id = finger_id;
+    /* Long-press surfaces the block popup prompt anywhere on the expanded
+     * panel, mirroring a right-click. */
     g_character_panel_press.secondary_enabled =
-        !sdl_left_panel_pane_collapsed() && sdl_left_panel_pane_hit(x, y);
+        !sdl_left_panel_pane_collapsed();
     g_character_panel_press.start_x = x;
     g_character_panel_press.start_y = y;
     g_character_panel_press.start_time = SDL_GetTicksNS();
