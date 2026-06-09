@@ -513,11 +513,6 @@ static bool unified_look_use_compact_layout(void)
     return Term && (Term->wid <= 60);
 }
 
-static int unified_look_status_row(void)
-{
-    return 0;
-}
-
 static int unified_look_prompt_row(void)
 {
     int row;
@@ -532,17 +527,6 @@ static int unified_look_prompt_row(void)
         row = Term->hgt - 1;
 
     return row;
-}
-
-static void unified_look_put_row(cptr text, int row)
-{
-    (void)text;
-    (void)row;
-}
-
-static void unified_look_put_status(cptr text)
-{
-    unified_look_put_row(text, unified_look_status_row());
 }
 
 typedef struct unified_look_prompt_button
@@ -840,141 +824,9 @@ static void unified_look_restore_map_cursor(const unified_look_state* state)
     move_cursor_relative(state->cursor_y, state->cursor_x);
 }
 
-static bool unified_look_format_monster_status(int m_idx, char* out_val,
-    size_t out_len)
-{
-    monster_type* m_ptr;
-    char m_name[80];
-
-    if (!out_val || !out_len || m_idx <= 0)
-        return false;
-
-    m_ptr = &mon_list[m_idx];
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
-    strnfmt(out_val, out_len, "You see %s.", m_name);
-    return true;
-}
-
-static bool unified_look_format_object_status(int o_idx, char* out_val,
-    size_t out_len)
-{
-    object_type* o_ptr;
-    char o_name[80];
-    char smith_buf[20];
-
-    if (!out_val || !out_len || o_idx <= 0)
-        return false;
-
-    o_ptr = &o_list[o_idx];
-    if (!o_ptr->k_idx || !o_ptr->marked)
-        return false;
-
-    object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
-
-    smith_buf[0] = '\0';
-    if (op_ptr->opt[OPT_show_smithing_difficulty_look]
-        && object_known_p(o_ptr)
-        && object_uses_smithing_difficulty(o_ptr))
-    {
-        int depth = (p_ptr && p_ptr->depth > 0) ? p_ptr->depth : 1;
-        int sd = object_smithing_difficulty(o_ptr);
-        int wr = object_weight_rarity(o_ptr, depth);
-        strnfmt(smith_buf, sizeof(smith_buf), " {%d,%d}", sd, wr);
-    }
-
-    strnfmt(out_val, out_len, "You see %s%s.", o_name, smith_buf);
-    return true;
-}
-
-static bool unified_look_format_feature_status(int y, int x, char* out_val,
-    size_t out_len)
-{
-    int feat;
-    cptr feature_name = NULL;
-
-    if (!out_val || !out_len)
-        return false;
-    if (!grid_info_is_available(y, x) || !(cave_info[y][x] & (CAVE_MARK)))
-        return false;
-
-    feat = cave_feat[y][x];
-
-    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
-        feature_name = f_name + f_info[feat].name;
-    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
-        feature_name = f_name + f_info[feat].name;
-    else if (feat == FEAT_OPEN)
-        feature_name = "open door";
-    else if (feat == FEAT_BROKEN)
-        feature_name = "broken door";
-    else if (feat == FEAT_LESS)
-        feature_name = "up staircase";
-    else if (feat == FEAT_MORE)
-        feature_name = "down staircase";
-    else if (feat == FEAT_LESS_SHAFT)
-        feature_name = "up shaft";
-    else if (feat == FEAT_MORE_SHAFT)
-        feature_name = "down shaft";
-
-    if (!feature_name)
-        return false;
-
-    strnfmt(out_val, out_len, "You see %s.", feature_name);
-    return true;
-}
-
-static void unified_look_format_status(const unified_look_state* state, int y,
-    int x, char* out_val, size_t out_len)
-{
-    if (!out_val || !out_len)
-        return;
-
-    out_val[0] = '\0';
-
-    if (state && state->in_sidebar_mode && state->selected_entity >= 0
-        && state->highlighted_y >= 0 && state->highlighted_x >= 0)
-    {
-        int hy = state->highlighted_y;
-        int hx = state->highlighted_x;
-
-        if (state->highlighted_entity_type == 2
-            && unified_look_can_show_marked_object_at(hy, hx)
-            && unified_look_format_object_status(cave_o_idx[hy][hx],
-                out_val, out_len))
-        {
-            return;
-        }
-
-        if (state->highlighted_entity_type == 1
-            && unified_look_can_show_monster_at(hy, hx)
-            && unified_look_format_monster_status(cave_m_idx[hy][hx],
-                out_val, out_len))
-        {
-            return;
-        }
-    }
-
-    if (unified_look_can_show_monster_at(y, x)
-        && unified_look_format_monster_status(cave_m_idx[y][x], out_val,
-            out_len))
-    {
-        return;
-    }
-
-    if (unified_look_can_show_marked_object_at(y, x)
-        && unified_look_format_object_status(cave_o_idx[y][x], out_val,
-            out_len))
-    {
-        return;
-    }
-
-    (void)unified_look_format_feature_status(y, x, out_val, out_len);
-}
-
 static void unified_look_redraw_bars(const unified_look_state* state,
     bool controller_controls, bool compact_look_layout, bool register_clicks)
 {
-    char out_val[256];
     int y;
     int x;
 
@@ -984,8 +836,6 @@ static void unified_look_redraw_bars(const unified_look_state* state,
     y = state->cursor_y;
     x = state->cursor_x;
 
-    unified_look_format_status(state, y, x, out_val, sizeof(out_val));
-    unified_look_put_status(out_val);
     if (state->in_sidebar_mode && state->selected_entity >= 0
         && state->highlighted_y >= 0 && state->highlighted_x >= 0)
     {
@@ -2916,7 +2766,7 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
  */
 void do_cmd_locate(void)
 {
-    int dir, y1, x1, y2, x2;
+    int dir, y2, x2;
     int min_y, max_y, min_x, max_x;
     int explored_min_wy, explored_max_wy;
     int explored_min_wx, explored_max_wx;
@@ -2957,37 +2807,32 @@ void do_cmd_locate(void)
     }
 
     /* Start at current panel */
-    y2 = y1 = p_ptr->wy;
-    x2 = x1 = p_ptr->wx;
+    y2 = p_ptr->wy;
+    x2 = p_ptr->wx;
 
-    /* Show panels until done */
+    /*
+     * Lightweight scroll mode: direction / arrow keys pan the viewport like
+     * scrolling the screen (it can also be panned with the mouse or touch).
+     * There is no dedicated menu or prompt; any non-direction key leaves
+     * scroll mode and recentres on the player.
+     */
+    bool saved_hide_cursor = hide_cursor;
+
+    hide_cursor = true;
     while (true)
     {
-        /* Assume no direction */
-        dir = 0;
+        char command = inkey();
 
-        /* Get a direction */
-        while (!dir)
-        {
-            char command;
+        /* Ignore pointer-wake pseudo-keys so hovering does not exit. */
+        if (command == UI_MENU_CLICK_WAKE_KEY)
+            continue;
 
-            /* Get a command (or Cancel) */
-            if (!get_com("Shift viewpoint in which direction? ", &command))
-                break;
-
-            /* Extract direction */
-            dir = target_dir(command);
-
-            /* Error */
-            if (!dir)
-                bell("Illegal direction for look (around dungeon)!");
-        }
-
-        /* No direction */
+        /* Any non-direction key leaves scroll mode. */
+        dir = target_dir(command);
         if (!dir)
             break;
 
-        /* Apply the motion */
+        /* Pan by a screenful in the chosen direction. */
         y2 += (ddy[dir] * PANEL_HGT);
         x2 += (ddx[dir] * PANEL_WID);
 
@@ -3019,6 +2864,7 @@ void do_cmd_locate(void)
             handle_stuff();
         }
     }
+    hide_cursor = saved_hide_cursor;
 
     /* Verify panel */
     p_ptr->update |= (PU_PANEL);

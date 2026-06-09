@@ -334,45 +334,6 @@ static int monster_recall_screen_capture_view(
     return exit_key;
 }
 
-static void monster_recall_screen_draw_plain(
-    int r_idx, const monster_type* m_ptr)
-{
-    bool use_story_font = monster_recall_overlay_story_font_enabled();
-    story_font_term_state story_state;
-    void (*old_hook)(byte, cptr) = text_out_hook;
-    int old_indent = text_out_indent;
-    int old_wrap = text_out_wrap;
-    int wid = 0;
-    int hgt = 0;
-
-    story_font_term_push_slot(use_story_font, false, STORY_FONT_SLOT_SECONDARY, &story_state);
-
-    /* Begin recall */
-    Term_erase(0, 1, 255);
-    Term_gotoxy(0, 1);
-
-    Term_get_size(&wid, &hgt);
-    (void)hgt;
-    text_out_indent = 0;
-    text_out_wrap = (wid > 2) ? (wid - 1) : 0;
-    text_out_hook = text_out_to_screen;
-
-    /* Recall monster */
-    describe_monster(r_idx, false, m_ptr);
-
-    /* Describe monster */
-    roff_top_live(r_idx, m_ptr);
-
-    if (Term == term_screen)
-        ui_key_wait_dismiss_begin('\r');
-
-    text_out_hook = old_hook;
-    text_out_indent = old_indent;
-    text_out_wrap = old_wrap;
-
-    story_font_term_pop(&story_state);
-}
-
 /*
  * Hack -- describe the given monster race at the top of the screen
  *
@@ -399,11 +360,8 @@ int screen_roff(int r_idx, const monster_type* m_ptr)
         int exit_key = monster_recall_screen_capture_view(&capture);
 
         monster_recall_screen_capture_free(&capture);
-        if (exit_key)
-            return exit_key;
+        return exit_key;
     }
-
-    monster_recall_screen_draw_plain(r_idx, m_ptr);
 
     return 0;
 }

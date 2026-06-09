@@ -116,7 +116,6 @@
 #define PANEL_WID_FIXED 33
 #define PANEL_WID (use_bigtile ? 16 : PANEL_WID_FIXED)
 
-#ifdef USE_SDL
 /*
  * SDL renders messages, status, and the depth/menu affordance through panes or
  * overlays.  The main terminal does not reserve classic message/status rows,
@@ -124,20 +123,12 @@
  */
 #define SIL_UI_MESSAGE_ROW_COUNT 0
 #define SIL_UI_STATUS_ROW_COUNT 0
-#else
-#define SIL_UI_MESSAGE_ROW_COUNT 1
-#define SIL_UI_STATUS_ROW_COUNT 1
-#endif
 
 #define ROW_MAP SIL_UI_MESSAGE_ROW_COUNT
 #define LEFT_PANEL_CONTENT_WID 12
 #define LEFT_PANEL_SEPARATOR_WID 1
 #define LEFT_PANEL_WID (LEFT_PANEL_CONTENT_WID + LEFT_PANEL_SEPARATOR_WID)
-#ifdef USE_SDL
 #define COL_MAP 0
-#else
-#define COL_MAP (g_hide_left_panel ? 0 : LEFT_PANEL_WID)
-#endif
 #define ROW_STATUS \
     (SIL_UI_STATUS_ROW_COUNT ? (Term->hgt - 1) : Term->hgt)
 

@@ -585,11 +585,7 @@ static void msg_flush(int x)
 
 bool ui_message_line_enabled(void)
 {
-#ifdef USE_SDL
     return false;
-#else
-    return true;
-#endif
 }
 
 static int message_column = 0;

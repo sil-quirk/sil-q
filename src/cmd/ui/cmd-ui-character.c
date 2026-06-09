@@ -137,15 +137,6 @@ typedef struct {
     cptr desc;
 } character_sheet_named_trait;
 
-typedef struct {
-    cptr label;
-    character_sheet_value_kind kind;
-    cptr desc;
-    bool skip_skill_rows;
-    bool require_digit_after_label;
-    int width;
-} character_sheet_value_desc;
-
 static const character_sheet_named_trait character_sheet_named_traits[] = {
     { "Master Artisan", "Artifacts use only 1 forge charge; fire and light items are easier to make." },
     { "Creator of Galvorn", "You may smith Galvorn armour and begin with humbler bread." },
@@ -174,27 +165,6 @@ static const character_sheet_named_trait character_sheet_named_traits[] = {
     { "Morgoth Curse", "You will encounter more dangerous creatures." },
 };
 
-typedef struct {
-    cptr label;
-    int skill;
-    u32b aff_flag;
-    u32b pen_flag;
-    bool proficiency;
-} character_sheet_skill_trait;
-
-static const character_sheet_skill_trait character_sheet_skill_traits[] = {
-    { "melee", S_MEL, RHF_MEL_AFFINITY, RHF_MEL_PENALTY, false },
-    { "evasion", S_EVN, RHF_EVN_AFFINITY, RHF_EVN_PENALTY, false },
-    { "stealth", S_STL, RHF_STL_AFFINITY, RHF_STL_PENALTY, false },
-    { "archery", S_ARC, RHF_ARC_AFFINITY, RHF_ARC_PENALTY, false },
-    { "will", S_WIL, RHF_WIL_AFFINITY, RHF_WIL_PENALTY, false },
-    { "perception", S_PER, RHF_PER_AFFINITY, RHF_PER_PENALTY, false },
-    { "smithing", S_SMT, RHF_SMT_AFFINITY, RHF_SMT_PENALTY, false },
-    { "song", S_SNG, RHF_SNG_AFFINITY, RHF_SNG_PENALTY, false },
-    { "bow", S_ARC, RHF_BOW_PROFICIENCY, 0, true },
-    { "axe", S_MEL, RHF_AXE_PROFICIENCY, 0, true },
-};
-
 static const cptr character_sheet_skill_descriptions[S_MAX] = {
     "Melee chance to hit and control in close combat.",
     "Ranged chance to hit with bows and thrown weapons.",
@@ -205,47 +175,6 @@ static const cptr character_sheet_skill_descriptions[S_MAX] = {
     "Crafting items at forges.",
     "Power and reliability of songs.",
     ""
-};
-
-static const character_sheet_value_desc character_sheet_value_descriptions[] = {
-    { "Melee x2", CHARACTER_SHEET_VALUE_MELEE_X2,
-        "Extra rapid-attack swing: (attack bonus, damage dice).", false, true, 20 },
-    { "Deep Call", CHARACTER_SHEET_VALUE_DEEP_CALL,
-        "Deep Call: pressure on the minimum-depth timer; higher values mean the call below is growing stronger.", false, true, 20 },
-    { "Depth c/m", CHARACTER_SHEET_VALUE_DEPTH,
-        "Depth c/m: current depth / minimum return depth.", false, true, 20 },
-    { "Burden", CHARACTER_SHEET_VALUE_BURDEN,
-        "Burden: carried weight / maximum carrying capacity.", false, true, 20 },
-    { "Offhand", CHARACTER_SHEET_VALUE_OFFHAND,
-        "Offhand attack: (attack bonus, damage dice) for the weapon in your other hand.", false, true, 20 },
-    { "Health", CHARACTER_SHEET_VALUE_HEALTH,
-        "Health: current / maximum hit points.", false, true, 20 },
-    { "Voice", CHARACTER_SHEET_VALUE_VOICE,
-        "Voice: current / maximum song points.", false, true, 20 },
-    { "Armor", CHARACTER_SHEET_VALUE_ARMOR,
-        "Armor: [evasion, protection] shows hit-avoid chance and damage absorption.", false, true, 20 },
-    { "Melee", CHARACTER_SHEET_VALUE_MELEE,
-        "Main-hand melee: (attack bonus, damage dice).", true, true, 20 },
-    { "Bows", CHARACTER_SHEET_VALUE_BOWS,
-        "Ranged attacks: (attack bonus, damage dice).", false, true, 20 },
-    { "Exp", CHARACTER_SHEET_VALUE_EXP,
-        "Experience: unspent / total XP.", false, true, 20 },
-    { "Depth", CHARACTER_SHEET_VALUE_DEPTH,
-        "Depth: current depth / minimum return depth.", false, true, 20 },
-    { "Turn", CHARACTER_SHEET_VALUE_TURN,
-        "Turn: total game turns elapsed.", false, true, 20 },
-    { "Light", CHARACTER_SHEET_VALUE_LIGHT,
-        "Light: current light radius.", false, true, 20 },
-    { "Song", CHARACTER_SHEET_VALUE_SONG,
-        "Song: currently active song.", true, false, 20 },
-    { "Str", CHARACTER_SHEET_VALUE_STR,
-        "Strength: melee damage dice and weight capacity.", false, true, 24 },
-    { "Dex", CHARACTER_SHEET_VALUE_DEX,
-        "Dexterity: melee, evasion, archery, and stealth.", false, true, 24 },
-    { "Con", CHARACTER_SHEET_VALUE_CON,
-        "Constitution: maximum health.", false, true, 24 },
-    { "Gra", CHARACTER_SHEET_VALUE_GRA,
-        "Grace: will, perception, smithing, song, and voice.", false, true, 24 },
 };
 
 cptr character_sheet_trait_description(cptr label)
@@ -260,503 +189,6 @@ cptr character_sheet_trait_description(cptr label)
     }
 
     return "";
-}
-
-static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
-    char* out, size_t outsz);
-
-static char character_sheet_screen_char(int row, int col)
-{
-    unsigned char ch;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return ' ';
-    if (row < 0 || row >= Term->hgt || col < 0 || col >= Term->wid)
-        return ' ';
-
-    ch = (unsigned char)Term->scr->c[row][col];
-    if (!ch || ch == (unsigned char)Term->char_blank)
-        return ' ';
-
-    return (char)ch;
-}
-
-static bool character_sheet_screen_text_matches(int row, int col, cptr text,
-    int len)
-{
-    if (!text || len <= 0)
-        return false;
-
-    for (int i = 0; i < len; i++)
-    {
-        if (character_sheet_screen_char(row, col + i) != text[i])
-            return false;
-    }
-
-    return true;
-}
-
-static bool character_sheet_screen_row_has_skill_value(int row, int start_col,
-    int end_col)
-{
-    int wid = Term ? Term->wid : 0;
-
-    if (end_col <= start_col || end_col > wid)
-        end_col = wid;
-
-    for (int col = start_col; col < end_col; col++)
-    {
-        if (character_sheet_screen_char(row, col) == '=')
-            return true;
-    }
-
-    return false;
-}
-
-static bool character_sheet_is_word_char(char ch)
-{
-    return isalnum((unsigned char)ch) || ch == '_';
-}
-
-static bool character_sheet_text_boundary_ok(int row, int col, int len,
-    int score)
-{
-    char prev;
-    char next;
-
-    if (len <= 0)
-        return false;
-
-    prev = character_sheet_screen_char(row, col - 1);
-    next = character_sheet_screen_char(row, col + len);
-
-    if (character_sheet_is_word_char(prev)
-        || character_sheet_is_word_char(next))
-    {
-        return false;
-    }
-
-    if (score == 1 && next == '+')
-        return false;
-    if (score == -1 && next == '-')
-        return false;
-
-    return true;
-}
-
-static bool character_sheet_add_item(character_sheet_item items[], int* count,
-    int max_items, character_sheet_item item)
-{
-    int wid = 80;
-
-    if (!items || !count || *count >= max_items)
-        return false;
-
-    for (int i = 0; i < *count; i++)
-    {
-        if (items[i].row == item.row && items[i].col == item.col
-            && items[i].kind == item.kind)
-        {
-            return false;
-        }
-    }
-
-    Term_get_size(&wid, NULL);
-    if (wid < 1)
-        wid = 80;
-
-    if (item.col < 0)
-        item.col = 0;
-    if (item.col >= wid)
-        return false;
-    if (item.width <= 0 || item.col + item.width > wid)
-        item.width = wid - item.col;
-    if (item.width <= 0)
-        return false;
-
-    ui_menu_click_add(CHARACTER_SHEET_CLICK_ITEM_BASE + *count, item.col,
-        item.row, item.width);
-    items[*count] = item;
-    if (items[*count].label_buf[0])
-        items[*count].label = items[*count].label_buf;
-    (*count)++;
-    return true;
-}
-
-static bool character_sheet_find_text(cptr text, int* out_row, int* out_col,
-    int* out_len, int score)
-{
-    int wid = 80;
-    int hgt = 24;
-    int len;
-
-    if (!Term || !Term->scr || !Term->scr->c || !text || !text[0])
-        return false;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    len = (int)strlen(text);
-    if (len <= 0 || len > wid)
-        return false;
-
-    for (int row = 0; row < hgt - 1; row++)
-    {
-        for (int col = 0; col <= wid - len; col++)
-        {
-            if (!character_sheet_screen_text_matches(row, col, text, len))
-                continue;
-            if (!character_sheet_text_boundary_ok(row, col, len, score))
-                continue;
-
-            if (out_row)
-                *out_row = row;
-            if (out_col)
-                *out_col = col;
-            if (out_len)
-                *out_len = len;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool character_sheet_row_has_digit_after(int row, int col)
-{
-    int wid = Term ? Term->wid : 0;
-
-    for (int i = MAX(0, col); i < wid; i++)
-    {
-        if (isdigit((unsigned char)character_sheet_screen_char(row, i)))
-            return true;
-    }
-
-    return false;
-}
-
-static bool character_sheet_row_has_nonspace_after(int row, int col)
-{
-    int wid = Term ? Term->wid : 0;
-
-    for (int i = MAX(0, col); i < wid; i++)
-    {
-        if (character_sheet_screen_char(row, i) != ' ')
-            return true;
-    }
-
-    return false;
-}
-
-static void character_sheet_collect_progress_bar_items(
-    character_sheet_item items[], int* count, int max_items)
-{
-    int wid = 80;
-    int hgt = 24;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    for (int row = 0; row < hgt - 1; row++)
-    {
-        for (int col = 0; col < wid; col++)
-        {
-            int end = col + 1;
-            character_sheet_item item;
-
-            if (character_sheet_screen_char(row, col) != '[')
-                continue;
-
-            while (end < wid)
-            {
-                char ch = character_sheet_screen_char(row, end);
-
-                if (ch == ']')
-                    break;
-                if (ch != '#' && ch != '.')
-                    break;
-                end++;
-            }
-
-            if (end >= wid || character_sheet_screen_char(row, end) != ']')
-                continue;
-            if (end - col < 8)
-                continue;
-
-            SDL_zero(item);
-            item.kind = CHARACTER_SHEET_ITEM_VALUE;
-            item.id = CHARACTER_SHEET_VALUE_DEPTH_PROGRESS;
-            item.value_kind = CHARACTER_SHEET_VALUE_DEPTH_PROGRESS;
-            item.row = row;
-            item.col = MAX(0, col - 1);
-            item.width = MIN(end - col + 3, wid - item.col);
-            item.label = "Minimum depth progress";
-            item.desc = "Progress toward the next minimum-depth increase.";
-            character_sheet_add_item(items, count, max_items, item);
-            return;
-        }
-    }
-}
-
-static int character_sheet_collect_value_items(character_sheet_item items[],
-    int* count, int max_items)
-{
-    int wid = 80;
-    int hgt = 24;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return 0;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    for (size_t i = 0; i < N_ELEMENTS(character_sheet_value_descriptions); i++)
-    {
-        const character_sheet_value_desc* desc =
-            &character_sheet_value_descriptions[i];
-        int len;
-
-        if (!desc->label || !desc->label[0])
-            continue;
-
-        len = (int)strlen(desc->label);
-        if (len <= 0 || len > wid)
-            continue;
-
-        for (int row = 0; row < hgt - 1; row++)
-        {
-            for (int col = 0; col <= wid - len; col++)
-            {
-                character_sheet_item item;
-                int width;
-
-                if (!character_sheet_screen_text_matches(row, col,
-                        desc->label, len))
-                {
-                    continue;
-                }
-                if (!character_sheet_text_boundary_ok(row, col, len, 0))
-                    continue;
-                if (desc->skip_skill_rows
-                    && character_sheet_screen_row_has_skill_value(row,
-                        col + len, col + 32))
-                {
-                    continue;
-                }
-                if (desc->require_digit_after_label
-                    && !character_sheet_row_has_digit_after(row, col + len))
-                {
-                    continue;
-                }
-                if (!desc->require_digit_after_label
-                    && !character_sheet_row_has_nonspace_after(row, col + len))
-                {
-                    continue;
-                }
-
-                SDL_zero(item);
-                width = desc->width;
-                if (width < len + 2)
-                    width = len + 2;
-
-                item.kind = CHARACTER_SHEET_ITEM_VALUE;
-                item.id = (int)desc->kind;
-                item.value_kind = (int)desc->kind;
-                item.row = row;
-                item.col = MAX(0, col - 1);
-                item.width = MIN(width, wid - item.col);
-                item.label = desc->label;
-                item.desc = desc->desc;
-                character_sheet_add_item(items, count, max_items, item);
-            }
-        }
-    }
-
-    character_sheet_collect_progress_bar_items(items, count, max_items);
-    return *count;
-}
-
-static int character_sheet_collect_skill_items(character_sheet_item items[],
-    int* count, int max_items)
-{
-    int wid = 80;
-    int hgt = 24;
-
-    if (!Term || !Term->scr || !Term->scr->c)
-        return 0;
-
-    Term_get_size(&wid, &hgt);
-    if (wid < 1)
-        wid = 80;
-    if (hgt < 1)
-        hgt = 24;
-
-    for (int skill = 0; skill < S_MAX; skill++)
-    {
-        cptr name;
-        int name_len;
-        int match_len;
-        bool found = false;
-
-        if (skill == S_SPC)
-            continue;
-
-        name = skill_names_full[skill];
-        if (!name || !name[0])
-            continue;
-
-        name_len = (int)strlen(name);
-        match_len = name_len;
-        if (match_len > 5)
-            match_len = 5;
-        if (match_len < 4)
-            match_len = name_len;
-
-        for (int row = 0; row < hgt - 1 && !found; row++)
-        {
-            for (int col = 0; col <= wid - match_len; col++)
-            {
-                int start_col;
-
-                if (!character_sheet_screen_text_matches(row, col, name,
-                    name_len)
-                    && !character_sheet_screen_text_matches(row, col, name,
-                        match_len))
-                {
-                    continue;
-                }
-
-                if (!character_sheet_screen_row_has_skill_value(row,
-                    col + match_len, col + 32))
-                {
-                    continue;
-                }
-
-                start_col = MAX(0, col - 1);
-                character_sheet_item item;
-
-                SDL_zero(item);
-                item.kind = CHARACTER_SHEET_ITEM_SKILL;
-                item.id = skill;
-                item.skill = skill;
-                item.row = row;
-                item.col = start_col;
-                item.width = MIN(28, wid - start_col);
-                item.label = name;
-                character_sheet_add_item(items, count, max_items, item);
-                found = true;
-                break;
-            }
-        }
-    }
-
-    return *count;
-}
-
-static int character_sheet_collect_trait_items(character_sheet_item items[],
-    int* count, int max_items)
-{
-    int wid = 80;
-
-    Term_get_size(&wid, NULL);
-    if (wid < 1)
-        wid = 80;
-
-    for (size_t i = 0; i < N_ELEMENTS(character_sheet_named_traits); i++)
-    {
-        int row;
-        int col;
-        int len;
-        character_sheet_item item;
-
-        if (!character_sheet_find_text(character_sheet_named_traits[i].label,
-                &row, &col, &len, 0))
-        {
-            continue;
-        }
-
-        SDL_zero(item);
-        item.kind = CHARACTER_SHEET_ITEM_TRAIT;
-        item.id = (int)i;
-        item.row = row;
-        item.col = MAX(0, col - 1);
-        item.width = MIN(len + 3, wid - item.col);
-        item.label = character_sheet_named_traits[i].label;
-        item.desc = character_sheet_named_traits[i].desc;
-        character_sheet_add_item(items, count, max_items, item);
-    }
-
-    for (size_t i = 0; i < N_ELEMENTS(character_sheet_skill_traits); i++)
-    {
-        static const int scores[] = { 2, -2, 1, -1 };
-
-        for (size_t j = 0; j < N_ELEMENTS(scores); j++)
-        {
-            int score = scores[j];
-            int row;
-            int col;
-            int len;
-            character_sheet_item item;
-            char label[32];
-
-            if (score == 2)
-                strnfmt(label, sizeof(label), "%s++",
-                    character_sheet_skill_traits[i].label);
-            else if (score == 1)
-                strnfmt(label, sizeof(label), "%s+",
-                    character_sheet_skill_traits[i].label);
-            else if (score == -1)
-                strnfmt(label, sizeof(label), "%s-",
-                    character_sheet_skill_traits[i].label);
-            else
-                strnfmt(label, sizeof(label), "%s--",
-                    character_sheet_skill_traits[i].label);
-
-            if (!character_sheet_find_text(label, &row, &col, &len, score))
-                continue;
-
-            SDL_zero(item);
-            item.kind = CHARACTER_SHEET_ITEM_TRAIT;
-            item.id = 1000 + (int)(i * 10) + (score + 2);
-            item.row = row;
-            item.col = MAX(0, col - 1);
-            item.width = MIN(len + 3, wid - item.col);
-            item.skill = character_sheet_skill_traits[i].skill;
-            item.trait_score = score;
-            item.proficiency = character_sheet_skill_traits[i].proficiency;
-            item.aff_flag = character_sheet_skill_traits[i].aff_flag;
-            item.pen_flag = character_sheet_skill_traits[i].pen_flag;
-            item.label = item.label_buf;
-            SDL_strlcpy(item.label_buf, label, sizeof(item.label_buf));
-            character_sheet_add_item(items, count, max_items, item);
-        }
-    }
-
-    return *count;
-}
-
-static int character_sheet_collect_items(character_sheet_item items[],
-    int max_items)
-{
-    int count = 0;
-
-    character_sheet_collect_value_items(items, &count, max_items);
-    character_sheet_collect_skill_items(items, &count, max_items);
-    character_sheet_collect_trait_items(items, &count, max_items);
-
-    return count;
 }
 
 static bool character_sheet_add_semantic_item(character_sheet_item items[],
@@ -1025,32 +457,6 @@ static int character_sheet_collect_semantic_items(character_sheet_item items[],
 #undef ADD_SEMANTIC_UNIQUE
 
     return count;
-}
-
-static void character_sheet_highlight_item(const character_sheet_item* item)
-{
-    cptr label;
-    int len;
-    bool story;
-
-    if (!item || !item->label)
-        return;
-
-    label = item->label;
-    len = (int)strlen(label);
-    if (len <= 0)
-        return;
-
-    story = story_character_enabled();
-    if (story)
-        sdl_story_font_enable();
-    Term_putstr(item->col
-            + ((item->col > 0
-                && character_sheet_screen_char(item->row, item->col) == ' ')
-                    ? 1 : 0),
-        item->row, len, TERM_L_BLUE, label);
-    if (story)
-        sdl_story_font_disable();
 }
 
 static int character_sheet_find_best_focus(const character_sheet_item items[],
@@ -1580,192 +986,11 @@ static void character_sheet_format_item_description(
         character_sheet_format_value_item(item, desc, descsz);
 }
 
-static void character_sheet_show_item_tooltip(const character_sheet_item* item)
-{
-    char desc[640];
-
-    character_sheet_format_item_description(item, desc, sizeof(desc));
-
-    if (!desc[0])
-        return;
-
-    (void)sdl_hover_tooltip_show_text(item->col, item->row, item->width,
-        desc, false);
-}
-
-static void character_sheet_fit_prompt_text(int col, int wid, cptr text,
-    char* out, size_t outsz)
-{
-    int max_len;
-
-    if (!out || !outsz)
-        return;
-
-    out[0] = '\0';
-
-    if (!text)
-        return;
-
-    if (wid < 1)
-        wid = 80;
-
-    max_len = wid - col - 1;
-    if (max_len < 1)
-        return;
-
-    SDL_strlcpy(out, text, outsz);
-    if ((int)strlen(out) > max_len)
-        out[max_len] = '\0';
-}
-
-static void character_sheet_put_prompt_fit(int col, int row, int wid, byte attr,
-    cptr text)
-{
-    char buf[256];
-
-    character_sheet_fit_prompt_text(col, wid, text, buf, sizeof(buf));
-    if (!buf[0])
-        return;
-
-    Term_putstr(col, row, -1, attr, buf);
-}
-
-static bool character_sheet_prompt_append(char* buf, size_t buflen, cptr token, int max_width)
-{
-    size_t cur_len;
-    size_t tok_len;
-    int sep = 0;
-
-    if (!buf || !buflen || !token || !token[0])
-        return true;
-
-    cur_len = strlen(buf);
-    tok_len = strlen(token);
-    if (cur_len > 0)
-        sep = 2;
-
-    if ((int)(cur_len + sep + tok_len) > max_width)
-        return false;
-
-    if (sep)
-        SDL_strlcat(buf, "  ", buflen);
-    SDL_strlcat(buf, token, buflen);
-    return true;
-}
-
-static void character_sheet_build_prompt(bool steamdeck, bool include_curses,
-    int wid, char* out, size_t outsz)
-{
-    int max_width;
-
-    if (!out || !outsz)
-        return;
-
-    out[0] = '\0';
-
-    if (wid < 1)
-        wid = 80;
-
-    max_width = wid - 2;
-    if (max_width < 1)
-        return;
-
-    if (steamdeck)
-    {
-        char notes_label[16], story_label[16], file_label[16];
-        char abilities_label[16], increase_label[16], help_label[16], back_label[16];
-        char token[7][64];
-
-        controller_prompt_label('n', "n", notes_label, sizeof(notes_label));
-        controller_prompt_label(steamdeck_secondary_key(), "Y", story_label, sizeof(story_label));
-        controller_prompt_label('e', "L1", file_label, sizeof(file_label));
-        controller_prompt_label(steamdeck_alt_action_key(), "X", abilities_label, sizeof(abilities_label));
-        controller_prompt_label(steamdeck_confirm_key(), "A", increase_label, sizeof(increase_label));
-        controller_prompt_label(steamdeck_info_key(), "RS", help_label, sizeof(help_label));
-        controller_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-
-        strnfmt(token[0], sizeof(token[0]), "%s abilities", abilities_label);
-        strnfmt(token[1], sizeof(token[1]), "%s increase", increase_label);
-        strnfmt(token[2], sizeof(token[2]), "%s help", help_label);
-        strnfmt(token[3], sizeof(token[3]), "%s back", back_label);
-        strnfmt(token[4], sizeof(token[4]), "%s notes", notes_label);
-        strnfmt(token[5], sizeof(token[5]), "%s story", story_label);
-        strnfmt(token[6], sizeof(token[6]), "%s file", file_label);
-
-        for (int i = 0; i < 4; i++)
-            (void)character_sheet_prompt_append(out, outsz, token[i], max_width);
-        for (int i = 4; i < 7; i++)
-            (void)character_sheet_prompt_append(out, outsz, token[i], max_width);
-    }
-    else
-    {
-        const char* essential[] = {
-            "x abilities", "Space/i increase", "? help", "ESC back"
-        };
-        const char* optional[] = {
-            "n notes", "s story", "f file"
-        };
-
-        for (int i = 0; i < (int)(sizeof(essential) / sizeof(essential[0])); i++)
-            (void)character_sheet_prompt_append(out, outsz, essential[i], max_width);
-
-        if (include_curses)
-            (void)character_sheet_prompt_append(out, outsz, "c curses", max_width);
-
-        for (int i = 0; i < (int)(sizeof(optional) / sizeof(optional[0])); i++)
-            (void)character_sheet_prompt_append(out, outsz, optional[i], max_width);
-    }
-
-    if (!out[0])
-    {
-        if (steamdeck)
-            SDL_strlcpy(out, "B back", outsz);
-        else
-            SDL_strlcpy(out, "ESC back", outsz);
-    }
-}
-
-static void character_sheet_draw_page_indicator(int sheet_page, int compact_pages,
-    int wid, int row, bool use_story_font)
-{
-    char page_buf[32];
-    int col;
-
-    if (compact_pages <= 1)
-        return;
-
-    if (wid < 1)
-        wid = 80;
-
-    strnfmt(page_buf, sizeof(page_buf), "%d/%d", sheet_page + 1, compact_pages);
-    col = wid - (int)strlen(page_buf) - 1;
-    if (col < 0)
-        col = 0;
-
-    if (use_story_font)
-        sdl_story_font_enable();
-
-    Term_putstr(col, row, -1, TERM_SLATE, page_buf);
-
-    if (use_story_font)
-        sdl_story_font_disable();
-}
-
 void do_cmd_character_sheet(void)
 {
     char ch;
-
-    int mode = 0;
-    int sheet_page = 1;
-    int body_scroll = 0;
-    int last_sheet_page = -1;
     int focus_item = -1;
     bool focus_from_pointer = false;
-
-    enum {
-        CHAR_SHEET_MODE_COMPACT_DESC_FLAGS = 100,
-        CHAR_SHEET_MODE_COMPACT_STATS_SKILLS = 101,
-    };
 
     /* Clear any active banner before opening character sheet */
     if (dismiss_active_narrative_banner()) {
@@ -1782,174 +1007,43 @@ void do_cmd_character_sheet(void)
     /* Forever */
     while (1)
     {
-        int wid = 80;
-        int hgt = 24;
-        int prompt_row;
-        int indicator_row = 1;
-        bool compact_sheet;
-        int compact_pages;
-        int max_body_scroll = 0;
         bool steamdeck = steamdeck_controls_active();
-        bool sdl_sheet = false;
         character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
-        int sheet_item_count = 0;
+        int sheet_item_count;
+        int focus_choice;
 
-        Term_get_size(&wid, &hgt);
-        if (wid < 1)
-            wid = 80;
-        if (hgt < 1)
-            hgt = 24;
-
-        compact_sheet = (wid < 80);
-        compact_pages = compact_sheet ? 2 : 1;
-        if (sheet_page >= compact_pages)
-            sheet_page = compact_pages - 1;
-        if (sheet_page < 0)
-            sheet_page = 0;
-        if (sheet_page != last_sheet_page)
-        {
-            body_scroll = 0;
-            focus_item = -1;
-            focus_from_pointer = false;
-            sdl_hover_tooltip_clear();
-            last_sheet_page = sheet_page;
-        }
-
-        if (compact_sheet)
-        {
-            switch (sheet_page)
-            {
-            case 0: mode = CHAR_SHEET_MODE_COMPACT_DESC_FLAGS; break;
-            case 1: mode = CHAR_SHEET_MODE_COMPACT_STATS_SKILLS; break;
-            default: mode = CHAR_SHEET_MODE_COMPACT_DESC_FLAGS; break;
-            }
-        }
-        else
-        {
-            mode = 0;
-        }
-
-        if (compact_sheet && sheet_page == 0)
-            display_player_compact_set_scroll(body_scroll);
-        else
-            display_player_compact_set_scroll(0);
-
-        /* Display the player */
-        display_player(mode);
-        if (compact_sheet && sheet_page == 0)
-        {
-            max_body_scroll = display_player_compact_get_max_scroll();
-            if (body_scroll > max_body_scroll)
-            {
-                body_scroll = max_body_scroll;
-                display_player_compact_set_scroll(body_scroll);
-                display_player(mode);
-            }
-        }
-
-        if (compact_sheet && hgt <= 18)
-            indicator_row = 0;
-
-        prompt_row = hgt - 1;
-        if (prompt_row < 0)
-            prompt_row = 0;
-        Term_erase(0, prompt_row, 255);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        sdl_sheet = sdl_character_sheet_screen_begin_live(-1);
-        sheet_item_count = sdl_sheet
-            ? character_sheet_collect_semantic_items(sheet_items,
-                CHARACTER_SHEET_MAX_ITEMS)
-            : character_sheet_collect_items(sheet_items,
-                CHARACTER_SHEET_MAX_ITEMS);
+
+        sheet_item_count = character_sheet_collect_semantic_items(sheet_items,
+            CHARACTER_SHEET_MAX_ITEMS);
         if (focus_item >= sheet_item_count)
         {
             focus_item = -1;
             focus_from_pointer = false;
         }
-        if (sdl_sheet)
+
+        /* Drive the pixel-semantic live overlay; it renders its own title,
+         * columns, and prompt, so nothing is drawn to the terminal. */
+        focus_choice = (focus_item >= 0)
+            ? CHARACTER_SHEET_CLICK_ITEM_BASE + focus_item
+            : -1;
+        sdl_character_sheet_screen_begin_live(focus_choice);
+        for (int i = 0; i < sheet_item_count; i++)
         {
-            int focus_choice = (focus_item >= 0)
-                ? CHARACTER_SHEET_CLICK_ITEM_BASE + focus_item
-                : -1;
+            char desc[640];
 
-            (void)sdl_character_sheet_screen_begin_live(focus_choice);
-            for (int i = 0; i < sheet_item_count; i++)
-            {
-                char desc[640];
-
-                character_sheet_format_item_description(&sheet_items[i],
-                    desc, sizeof(desc));
-                sdl_character_sheet_screen_add_live_item(
-                    CHARACTER_SHEET_CLICK_ITEM_BASE + i,
-                    (int)sheet_items[i].kind, sheet_items[i].skill,
-                    sheet_items[i].value_kind, sheet_items[i].label, desc);
-            }
-            sdl_hover_tooltip_clear();
+            character_sheet_format_item_description(&sheet_items[i],
+                desc, sizeof(desc));
+            sdl_character_sheet_screen_add_live_item(
+                CHARACTER_SHEET_CLICK_ITEM_BASE + i,
+                (int)sheet_items[i].kind, sheet_items[i].skill,
+                sheet_items[i].value_kind, sheet_items[i].label, desc);
         }
-        else if (focus_item >= 0 && sheet_item_count > 0)
-        {
-            character_sheet_highlight_item(&sheet_items[focus_item]);
-            character_sheet_show_item_tooltip(&sheet_items[focus_item]);
-        }
-        else
-        {
-            sdl_hover_tooltip_clear();
-        }
+        sdl_hover_tooltip_clear();
 
-        /* Prompt - dynamic, width-aware, and user-friendly for new players */
-        {
-            char prompt_buf[256];
-            char visible_prompt_buf[256];
-#ifdef DEBUG_CURSES
-            const bool include_curses = true;
-#else
-            const bool include_curses = false;
-#endif
-
-            character_sheet_build_prompt(steamdeck, include_curses, wid, prompt_buf, sizeof(prompt_buf));
-            character_sheet_fit_prompt_text(1, wid, prompt_buf,
-                visible_prompt_buf, sizeof(visible_prompt_buf));
-
-            if (story_character_enabled())
-                sdl_story_font_enable();
-
-            character_sheet_put_prompt_fit(1, prompt_row, wid, TERM_L_WHITE,
-                visible_prompt_buf);
-            ui_menu_click_add_text_token('x', 1, prompt_row, visible_prompt_buf,
-                "abilities");
-            ui_menu_click_add_text_token('i', 1, prompt_row, visible_prompt_buf,
-                "increase");
-            ui_menu_click_add_text_token('?', 1, prompt_row, visible_prompt_buf,
-                "help");
-            ui_menu_click_add_text_token(ESCAPE, 1, prompt_row, visible_prompt_buf,
-                "back");
-            ui_menu_click_add_text_token('n', 1, prompt_row, visible_prompt_buf,
-                "notes");
-            ui_menu_click_add_text_token('s', 1, prompt_row, visible_prompt_buf,
-                "story");
-            ui_menu_click_add_text_token('f', 1, prompt_row, visible_prompt_buf,
-                "file");
-#ifdef DEBUG_CURSES
-            ui_menu_click_add_text_token('c', 1, prompt_row, visible_prompt_buf,
-                "curses");
-#endif
-
-            character_sheet_draw_page_indicator(sheet_page, compact_pages, wid,
-                indicator_row,
-                story_character_enabled());
-
-            if (story_character_enabled())
-                sdl_story_font_disable();
-        }
-
-        (void)Term_set_cursor(false);
-        Term_fresh();  /* Render commands */
-
-        if (story_character_enabled()) {
-            sdl_story_font_disable();
-        }
+        Term_fresh();  /* Present the live character-sheet overlay. */
 
         /* Keep the cursor hidden while the character sheet is active. */
         {
@@ -2032,10 +1126,8 @@ void do_cmd_character_sheet(void)
 
         {
             int d = target_dir((char)ch);
-            bool allow_item_nav = sheet_item_count > 0
-                && (!compact_sheet || sheet_page == 1 || focus_item >= 0);
 
-            if (d && allow_item_nav)
+            if (d && sheet_item_count > 0)
             {
                 int next_focus = character_sheet_find_best_focus(sheet_items,
                     sheet_item_count, focus_item, ddx[d], ddy[d]);
@@ -2053,36 +1145,6 @@ void do_cmd_character_sheet(void)
                     focus_from_pointer = false;
                     continue;
                 }
-            }
-        }
-
-        if (compact_pages > 1)
-        {
-            if (sheet_page == 0 && max_body_scroll > 0)
-            {
-                if (ch == '8')
-                {
-                    if (body_scroll > 0)
-                        body_scroll--;
-                    continue;
-                }
-                if (ch == '2')
-                {
-                    if (body_scroll < max_body_scroll)
-                        body_scroll++;
-                    continue;
-                }
-            }
-
-            if ((ch == '4') || ((ch == '8') && !(sheet_page == 0 && max_body_scroll > 0)))
-            {
-                sheet_page = (sheet_page + compact_pages - 1) % compact_pages;
-                continue;
-            }
-            if ((ch == '6') || ((ch == '2') && !(sheet_page == 0 && max_body_scroll > 0)))
-            {
-                sheet_page = (sheet_page + 1) % compact_pages;
-                continue;
             }
         }
 
@@ -2209,11 +1271,7 @@ void do_cmd_character_sheet(void)
 void character_sheet_show_birth_preview(void)
 {
     character_sheet_item sheet_items[CHARACTER_SHEET_MAX_ITEMS];
-    bool sdl_sheet;
-    int prompt_row = -1;
-    int prompt_col = 0;
-    int prompt_len = 0;
-    cptr prompt = "Continue to Stats";
+    int count;
 
     if (!p_ptr)
         return;
@@ -2222,51 +1280,25 @@ void character_sheet_show_birth_preview(void)
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_proto();
 
-    sdl_sheet = sdl_character_sheet_screen_begin_birth_preview();
-    if (sdl_sheet)
+    sdl_character_sheet_screen_begin_birth_preview();
+    count = character_sheet_collect_semantic_items(sheet_items,
+        CHARACTER_SHEET_MAX_ITEMS);
+    for (int i = 0; i < count; i++)
     {
-        int count = character_sheet_collect_semantic_items(sheet_items,
-            CHARACTER_SHEET_MAX_ITEMS);
+        char desc[640];
 
-        (void)sdl_character_sheet_screen_begin_birth_preview();
-        for (int i = 0; i < count; i++)
-        {
-            char desc[640];
-
-            character_sheet_format_item_description(&sheet_items[i], desc,
-                sizeof(desc));
-            sdl_character_sheet_screen_add_live_item(
-                CHARACTER_SHEET_CLICK_ITEM_BASE + i,
-                (int)sheet_items[i].kind, sheet_items[i].skill,
-                sheet_items[i].value_kind, sheet_items[i].label, desc);
-        }
-        sdl_hover_tooltip_clear();
+        character_sheet_format_item_description(&sheet_items[i], desc,
+            sizeof(desc));
+        sdl_character_sheet_screen_add_live_item(
+            CHARACTER_SHEET_CLICK_ITEM_BASE + i,
+            (int)sheet_items[i].kind, sheet_items[i].skill,
+            sheet_items[i].value_kind, sheet_items[i].label, desc);
     }
-    else
-    {
-        /* Terminal fallback. */
-        int wid = 80;
-        int hgt = 24;
-
-        display_player(0);
-        Term_get_size(&wid, &hgt);
-        if (wid < 1)
-            wid = 80;
-        if (hgt < 1)
-            hgt = 24;
-
-        prompt_row = hgt - 1;
-        prompt_len = (int)strlen(prompt);
-        prompt_col = (wid > prompt_len) ? (wid - prompt_len) / 2 : 0;
-        Term_erase(0, prompt_row, 255);
-        Term_putstr(prompt_col, prompt_row, -1, TERM_L_BLUE, prompt);
-    }
+    sdl_hover_tooltip_clear();
 
     /* Wait for a fresh key or click to continue (hover wakeups are ignored). */
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
-    if (!sdl_sheet && prompt_row >= 0)
-        ui_menu_click_add('\r', prompt_col, prompt_row, prompt_len);
     Term_fresh();
     flush();
     while (1)

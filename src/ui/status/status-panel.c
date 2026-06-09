@@ -9,27 +9,12 @@
 
 bool ui_hide_left_panel(void)
 {
-#ifdef USE_SDL
     return !g_sdl_left_panel_pane_source_active;
-#else
-    return get_sdl_hide_left_panel();
-#endif
 }
-
-#ifndef USE_SDL
-static bool ui_compact_width(void)
-{
-    return (Term && (Term->wid < 80));
-}
-#endif
 
 bool ui_status_system_compact(void)
 {
-#ifdef USE_SDL
     return false;
-#else
-    return ui_compact_width() || ui_hide_left_panel();
-#endif
 }
 
 bool ui_compact_height(void)
@@ -39,31 +24,12 @@ bool ui_compact_height(void)
 
 bool ui_compact_status_line_handles_song(void)
 {
-#ifdef USE_SDL
     return false;
-#else
-    bool nominal_compact = ui_compact_width();
-
-    /*
-     * When only the left panel is compact, keep song out of the overlay and
-     * let the packed status line carry it.  On genuinely compact status bars,
-     * song belongs to the panel when the panel is compact, and to the classic
-     * left panel otherwise.
-     */
-    return ui_hide_left_panel() && !nominal_compact;
-#endif
 }
 
 bool ui_compact_status_line_handles_wounds(void)
 {
-#ifdef USE_SDL
     return false;
-#else
-    /* Poison and bleeding move to the packed status line only when the left
-     * panel is compact.  The full left panel owns them in all other layouts.
-     */
-    return ui_hide_left_panel();
-#endif
 }
 
 bool ui_wound_rows_overlap_status_line(void)
@@ -73,20 +39,12 @@ bool ui_wound_rows_overlap_status_line(void)
 
 bool ui_status_pane_owns_left_panel_statuses(void)
 {
-#ifdef USE_SDL
     return true;
-#else
-    return false;
-#endif
 }
 
 bool ui_depth_menu_owns_left_panel_depth(void)
 {
-#ifdef USE_SDL
     return true;
-#else
-    return false;
-#endif
 }
 
 
@@ -1078,11 +1036,7 @@ static enum pane_placement hidden_left_panel_placement(void)
 
 bool hidden_left_panel_visible(void)
 {
-#ifdef USE_SDL
     return false;
-#else
-    return ui_hide_left_panel() && !g_suppress_hidden_left_panel_overlay;
-#endif
 }
 
 static bool hidden_left_panel_placement_is_right(enum pane_placement where)

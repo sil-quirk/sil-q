@@ -561,19 +561,17 @@ bool sdl_narrative_banner_base_rect(SDL_Rect* out)
 
 int sdl_narrative_banner_font_px(const SDL_Rect* rect)
 {
-    float font_px;
+    int font_px;
 
     if (!rect || rect->h <= 0)
         return 0;
 
-    font_px = (float)rect->h * 0.040f;
-    font_px = sdl_touch_pane_clampf(font_px, 18.0f, 38.0f);
-    if (rect->h < 420 && font_px > 24.0f)
-        font_px = 24.0f;
-    if (rect->h < 300 && font_px > 20.0f)
-        font_px = 20.0f;
+    /* Use the same font size as the message log pane. */
+    font_px = sdl_effective_pane_cell_height_for_type(PANE_LOG);
+    if (font_px < 8)
+        font_px = 8;
 
-    return (int)(font_px + 0.5f);
+    return font_px;
 }
 
 float sdl_narrative_banner_line_h(TTF_Font* font, int font_px)
