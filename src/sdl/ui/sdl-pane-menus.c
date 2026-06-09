@@ -514,13 +514,33 @@ int sdl_log_pane_menu_collect(enum pane_type pane,
     return count;
 }
 
+int sdl_log_pane_menu_font_px(enum pane_type pane)
+{
+    const sdl_view* view = &g_views[pane];
+    int font_px = 0;
+
+    if (pane == PANE_ROLLS) {
+        if (sdl_view_is_overlay_log_pane(view) && view->cell_h > 0)
+            font_px = view->cell_h;
+    } else if (view->term_ready && view->cell_h > 0) {
+        font_px = view->cell_h;
+    }
+
+    if (font_px <= 0)
+        font_px = sdl_effective_pane_cell_height_for_type(pane);
+    if (font_px < 8)
+        font_px = 8;
+
+    return font_px;
+}
+
 bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
     int* out_count, SDL_FRect* out_panel)
 {
     SDL_Rect screen = sdl_get_layout_screen_rect();
     int count;
     float cell_w = (float)g_views[PANE_MAIN].cell_w;
-    float cell_h = (float)g_views[PANE_MAIN].cell_h;
+    float font_px;
     float pad;
     float header_h;
     float row_h;
@@ -541,25 +561,35 @@ bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
 
     if (cell_w <= 0.0f)
         cell_w = 8.0f;
-    if (cell_h <= 0.0f)
-        cell_h = 16.0f;
+
+    font_px = (float)sdl_log_pane_menu_font_px(g_log_pane_menu.target_pane);
 
     pad = sdl_touch_pane_clampf(g_state.system_scale * 7.0f
         * SIDE_PANE_MENU_SCALE, 9.0f, 18.0f);
     gap = sdl_touch_pane_clampf(g_state.system_scale * 8.0f
         * SIDE_PANE_MENU_SCALE, 12.0f, 21.0f);
-    header_h = sdl_touch_pane_clampf(cell_h * 2.0f
-        * SIDE_PANE_MENU_SCALE, 48.0f, 66.0f);
-    row_h = sdl_touch_pane_clampf(cell_h * 2.5f
-        * SIDE_PANE_MENU_SCALE, 58.0f, 78.0f);
+    header_h = font_px * 1.9f;
+    if (header_h < 48.0f)
+        header_h = 48.0f;
+    row_h = font_px * 2.4f;
+    if (row_h < 50.0f)
+        row_h = 50.0f;
     panel_w = sdl_touch_pane_clampf(cell_w * 26.0f
         * SIDE_PANE_MENU_SCALE, 270.0f, 390.0f);
+    if (panel_w < font_px * 9.0f)
+        panel_w = font_px * 9.0f;
     if (panel_w > (float)screen.w - 8.0f)
         panel_w = (float)screen.w - 8.0f;
     if (panel_w < 120.0f)
         panel_w = 120.0f;
 
     panel_h = pad * 2.0f + header_h + row_h * (float)count;
+    if (panel_h > (float)screen.h - 12.0f) {
+        row_h -= (panel_h - ((float)screen.h - 12.0f)) / (float)count;
+        if (row_h < 34.0f)
+            row_h = 34.0f;
+        panel_h = pad * 2.0f + header_h + row_h * (float)count;
+    }
 
     x = g_log_pane_menu.anchor_x + gap;
     if (g_log_pane_menu.anchor_x > (float)screen.x + (float)screen.w * 0.5f)
@@ -897,11 +927,18 @@ void sdl_log_pane_menu_render(void)
     SDL_Color hover_border = g_state.palette[TERM_YELLOW];
     SDL_Color text = g_state.palette[TERM_WHITE];
     float pad;
+    int font_px;
+    int hint_px;
 
     if (!g_log_pane_menu.active)
         return;
     if (!sdl_log_pane_menu_layout(entries, &count, &panel))
         return;
+
+    font_px = sdl_log_pane_menu_font_px(g_log_pane_menu.target_pane);
+    hint_px = (font_px * 4) / 5;
+    if (hint_px < 10)
+        hint_px = 10;
 
     pad = sdl_touch_pane_clampf(g_state.system_scale * 7.0f
         * SIDE_PANE_MENU_SCALE, 9.0f, 18.0f);
@@ -930,9 +967,9 @@ void sdl_log_pane_menu_render(void)
     SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b,
         150);
     SDL_RenderRect(g_state.renderer, &header);
-    sdl_touch_pane_draw_button_text_scaled(&header, NULL,
+    sdl_touch_pane_draw_button_text_px(&header, NULL,
         g_log_pane_menu.target_pane == PANE_ROLLS ? "Overlay Log" : "Log Pane",
-        text, 0.48f, 0.63f);
+        text, font_px, font_px);
 
     for (int i = 0; i < count; i++) {
         bool hover = (i == g_log_pane_menu.hover_index);
@@ -948,8 +985,8 @@ void sdl_log_pane_menu_render(void)
             hover ? 238 : 166);
         SDL_RenderRect(g_state.renderer, rect);
 
-        sdl_touch_pane_draw_button_text_scaled(rect, entries[i].label,
-            entries[i].hint, text, 0.31f, 0.40f);
+        sdl_touch_pane_draw_button_text_px(rect, entries[i].label,
+            entries[i].hint, text, font_px, hint_px);
     }
 }
 

@@ -1828,6 +1828,7 @@ bool sdl_touch_pane_handle_yes_no_prompt_hover(float x, float y);
 bool sdl_touch_pane_handle_yes_no_prompt_pointer(float x, float y);
 void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color color);
 void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* name, const char* symbol, SDL_Color color, float single_text_font_ratio, float single_text_height_ratio);
+void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect, const char* name, const char* symbol, SDL_Color color, int name_px, int symbol_px);
 void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol, SDL_Color color);
 void sdl_touch_pane_draw_wrapped_prompt(const SDL_FRect* rect, cptr text, SDL_Color color, int font_px);
 void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen);
@@ -2331,6 +2332,7 @@ int sdl_log_pane_current_rows(enum pane_type pane);
 void sdl_log_pane_set_rows(enum pane_type pane, int rows);
 void sdl_log_pane_menu_add_entry(log_pane_menu_entry* entries, int* count, log_pane_menu_action action, int filter, int row_delta, cptr label, cptr hint);
 int sdl_log_pane_menu_collect(enum pane_type pane, log_pane_menu_entry* entries);
+int sdl_log_pane_menu_font_px(enum pane_type pane);
 bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries, int* out_count, SDL_FRect* out_panel);
 int sdl_log_pane_menu_index_at(float x, float y);
 void sdl_log_pane_menu_clear_long_press(void);
@@ -3129,6 +3131,8 @@ void sdl_touch_pane_draw_arrow(const SDL_FRect* rect, int binding, SDL_Color col
 void sdl_touch_pane_draw_button_text_scaled(const SDL_FRect* rect, const char* name,
     const char* symbol, SDL_Color color, float single_text_font_ratio,
     float single_text_height_ratio);
+void sdl_touch_pane_draw_button_text_px(const SDL_FRect* rect, const char* name,
+    const char* symbol, SDL_Color color, int name_px, int symbol_px);
 void sdl_touch_pane_draw_button_text(const SDL_FRect* rect, const char* name, const char* symbol,
     SDL_Color color);
 void sdl_touch_pane_binding_symbol(int binding, char* buf, size_t buflen);
