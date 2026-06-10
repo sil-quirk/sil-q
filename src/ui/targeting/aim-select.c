@@ -45,8 +45,17 @@ static void aim_select_show_prompt(bool manual, bool allow_vertical)
     char up_tiny[8];
     char up_key = aim_select_up_key();
 
-    target_prompt_label('f', "f", fire_label, sizeof(fire_label));
-    target_prompt_label(ESCAPE, "Esc", cancel_label, sizeof(cancel_label));
+    /* Gamepad binding labels only when controller controls are active */
+    if (steamdeck_controls_active())
+    {
+        target_prompt_label('f', "f", fire_label, sizeof(fire_label));
+        target_prompt_label(ESCAPE, "Esc", cancel_label, sizeof(cancel_label));
+    }
+    else
+    {
+        SDL_strlcpy(fire_label, "f", sizeof(fire_label));
+        SDL_strlcpy(cancel_label, "Esc", sizeof(cancel_label));
+    }
 
     strnfmt(fire_full, sizeof(fire_full), "%s Fire", fire_label);
     strnfmt(cancel_full, sizeof(cancel_full), "%s Cancel", cancel_label);

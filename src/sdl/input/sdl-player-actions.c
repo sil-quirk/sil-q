@@ -101,6 +101,14 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
         return "Staff: activate your equipped staff.";
     case SDL_PLAYER_ACTION_HORN:
         return "Horn: blow your equipped horn.";
+    case SDL_PLAYER_ACTION_SHOOT:
+        return "Shoot: fire an arrow from your 1st quiver.";
+    case SDL_PLAYER_ACTION_REST:
+        return "Rest: rest until disturbed or fully recovered.";
+    case SDL_PLAYER_ACTION_SWAP_QUIVERS:
+        return "Swap quivers: exchange your 1st and 2nd quivers.";
+    case SDL_PLAYER_ACTION_CHANGE_STAFF:
+        return "Swap staff: exchange your staff with one from your pack.";
     default:
         return "";
     }
@@ -118,6 +126,10 @@ static cptr sdl_player_action_menu_fallback_for_kind(int kind)
     case SDL_PLAYER_ACTION_EXAMINE: return "?";
     case SDL_PLAYER_ACTION_ACTIVATE: return "Staff";
     case SDL_PLAYER_ACTION_HORN: return "Horn";
+    case SDL_PLAYER_ACTION_SHOOT: return "f";
+    case SDL_PLAYER_ACTION_REST: return "Rest";
+    case SDL_PLAYER_ACTION_SWAP_QUIVERS: return "Swap";
+    case SDL_PLAYER_ACTION_CHANGE_STAFF: return "Swap";
     default: return "";
     }
 }
@@ -156,6 +168,16 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     case SDL_PLAYER_ACTION_HORN:
         row = 4; col = 2;   /* horn-shaped atlas tile */
         break;
+    case SDL_PLAYER_ACTION_SHOOT:
+        row = 5; col = 29;  /* shortbow */
+        break;
+    case SDL_PLAYER_ACTION_REST:
+        row = 19; col = 8;  /* sleep icon */
+        break;
+    case SDL_PLAYER_ACTION_SWAP_QUIVERS:
+    case SDL_PLAYER_ACTION_CHANGE_STAFF:
+        row = 12; col = 30; /* swap/target icon */
+        break;
     default:
         break;
     }
@@ -192,6 +214,15 @@ void sdl_player_action_menu_add_entry(player_action_menu_entry* entries,
     (*count)++;
 }
 
+static bool sdl_player_can_shoot_entry(void)
+{
+    return (inventory[INVEN_BOW].k_idx
+               && inventory[INVEN_BOW].tval == TV_BOW)
+        || inventory[INVEN_QUIVER1].k_idx
+        || inventory[INVEN_QUIVER2].k_idx
+        || (p_ptr && p_ptr->active_ability[S_ARC][ARC_FLETCHERY]);
+}
+
 int sdl_player_action_menu_collect(player_action_menu_entry* entries)
 {
     int count = 0;
@@ -200,19 +231,15 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
         'z', "Wait");
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_USE,
         'u', "Use");
+    if (sdl_player_can_shoot_entry()) {
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_SHOOT, 'f', "Shoot");
+    }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_STEALTH, 'S', "Stealth");
     if (sdl_player_has_singable_song()) {
         sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_SING,
             's', "Sing");
-    }
-    if (p_ptr && p_ptr->active_ability[S_STL][STL_EXCHANGE_PLACES]) {
-        sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_EXCHANGE, 'X', "Xchg");
-    }
-    if (p_ptr && p_ptr->active_ability[S_ARC][ARC_FLETCHERY]) {
-        sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_FLETCH, '-', "Fletch");
     }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_EXAMINE, 'x', "Desc");
@@ -226,6 +253,80 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
     }
 
     return count;
+}
+
+/*
+ * Secondary actions shown as an outer ring segment while their primary
+ * sector is hovered.
+ */
+int sdl_player_action_menu_collect_secondary(int primary_kind,
+    player_action_menu_entry* entries)
+{
+    int count = 0;
+
+    switch (primary_kind) {
+    case SDL_PLAYER_ACTION_WAIT:
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_REST, 'Z', "Rest");
+        break;
+    case SDL_PLAYER_ACTION_SHOOT:
+        if (p_ptr && p_ptr->active_ability[S_ARC][ARC_FLETCHERY]) {
+            sdl_player_action_menu_add_entry(entries, &count,
+                SDL_PLAYER_ACTION_FLETCH, '-', "Fletch");
+        }
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_SWAP_QUIVERS, KTRL('F'), "Quivers");
+        break;
+    case SDL_PLAYER_ACTION_STEALTH:
+        if (p_ptr && p_ptr->active_ability[S_STL][STL_EXCHANGE_PLACES]) {
+            sdl_player_action_menu_add_entry(entries, &count,
+                SDL_PLAYER_ACTION_EXCHANGE, 'X', "Xchg");
+        }
+        break;
+    case SDL_PLAYER_ACTION_ACTIVATE:
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_CHANGE_STAFF, KTRL('A'), "Swap");
+        break;
+    default:
+        break;
+    }
+
+    return count;
+}
+
+/* The primary sector a secondary action belongs to (or NONE) */
+int sdl_player_action_menu_secondary_owner(int kind)
+{
+    switch (kind) {
+    case SDL_PLAYER_ACTION_REST:
+        return SDL_PLAYER_ACTION_WAIT;
+    case SDL_PLAYER_ACTION_FLETCH:
+    case SDL_PLAYER_ACTION_SWAP_QUIVERS:
+        return SDL_PLAYER_ACTION_SHOOT;
+    case SDL_PLAYER_ACTION_EXCHANGE:
+        return SDL_PLAYER_ACTION_STEALTH;
+    case SDL_PLAYER_ACTION_CHANGE_STAFF:
+        return SDL_PLAYER_ACTION_ACTIVATE;
+    default:
+        return SDL_PLAYER_ACTION_NONE;
+    }
+}
+
+/* Whether two kinds share a primary/secondary relationship (used to keep a
+ * press alive while dragging between a sector and its outer ring) */
+static bool sdl_player_action_menu_kinds_related(int a, int b)
+{
+    int owner_a;
+    int owner_b;
+
+    if (a == SDL_PLAYER_ACTION_NONE || b == SDL_PLAYER_ACTION_NONE)
+        return false;
+
+    owner_a = sdl_player_action_menu_secondary_owner(a);
+    owner_b = sdl_player_action_menu_secondary_owner(b);
+
+    return (owner_a == b) || (owner_b == a)
+        || (owner_a != SDL_PLAYER_ACTION_NONE && owner_a == owner_b);
 }
 
 bool sdl_player_has_floor_item_underfoot(void)
@@ -288,16 +389,30 @@ void sdl_player_action_menu_select_default(void)
     }
 }
 
+/* Left/right d-pad: cycle the inner ring of primaries. A secondary hover is
+ * first mapped back to its owning primary. */
 void sdl_player_action_menu_move_hover(int delta)
 {
     player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
     int count = sdl_player_action_menu_collect(entries);
-    int index;
+    int hover = g_player_action_menu.hover_kind;
+    int owner;
+    int index = -1;
 
     if (count <= 0)
         return;
 
-    index = sdl_player_action_menu_hover_index(entries, count);
+    owner = sdl_player_action_menu_secondary_owner(hover);
+    if (owner == SDL_PLAYER_ACTION_NONE)
+        owner = hover;
+
+    for (int i = 0; i < count; i++) {
+        if (entries[i].kind == owner) {
+            index = i;
+            break;
+        }
+    }
+
     if (index < 0) {
         index = (delta < 0) ? count - 1 : 0;
     } else {
@@ -308,6 +423,59 @@ void sdl_player_action_menu_move_hover(int delta)
 
     if (g_player_action_menu.hover_kind != entries[index].kind) {
         g_player_action_menu.hover_kind = entries[index].kind;
+        g_state.need_present = true;
+    }
+}
+
+/* Up/down d-pad: drill between a primary and its secondary ring. The vertical
+ * column is the owner primary followed by its secondaries; movement clamps at
+ * the ends (up from the primary or down from the last secondary do nothing). */
+void sdl_player_action_menu_move_hover_vertical(int delta)
+{
+    player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
+    int kinds[SDL_PLAYER_ACTION_MAX + 1];
+    int total = 0;
+    int hover = g_player_action_menu.hover_kind;
+    int owner;
+    int sec_count;
+    int index = -1;
+
+    if (hover == SDL_PLAYER_ACTION_NONE) {
+        sdl_player_action_menu_select_default();
+        hover = g_player_action_menu.hover_kind;
+        if (hover == SDL_PLAYER_ACTION_NONE)
+            return;
+    }
+
+    owner = sdl_player_action_menu_secondary_owner(hover);
+    if (owner == SDL_PLAYER_ACTION_NONE)
+        owner = hover;
+
+    kinds[total++] = owner;
+    sec_count = sdl_player_action_menu_collect_secondary(owner, secondary);
+    for (int j = 0; j < sec_count; j++)
+        kinds[total++] = secondary[j].kind;
+
+    if (total <= 1)
+        return;
+
+    for (int i = 0; i < total; i++) {
+        if (kinds[i] == hover) {
+            index = i;
+            break;
+        }
+    }
+    if (index < 0)
+        index = 0;
+
+    index += delta;
+    if (index < 0)
+        index = 0;
+    if (index >= total)
+        index = total - 1;
+
+    if (g_player_action_menu.hover_kind != kinds[index]) {
+        g_player_action_menu.hover_kind = kinds[index];
         g_state.need_present = true;
     }
 }
@@ -528,6 +696,79 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     return true;
 }
 
+/*
+ * Lay out the secondary ring for a hovered primary: an outer annulus
+ * spanning just the owner sector's angles, split between its secondaries.
+ */
+static bool sdl_player_action_menu_layout_secondary(int owner_kind,
+    player_action_menu_entry* entries, int* out_count)
+{
+    player_action_menu_entry primary[SDL_PLAYER_ACTION_MAX];
+    const player_action_menu_entry* owner = NULL;
+    int count = 0;
+    int sec_count;
+    float ring_inner;
+    float ring_outer;
+    float icon_size;
+    float icon_radius;
+    float step;
+
+    if (!entries || !out_count)
+        return false;
+
+    *out_count = 0;
+    if (owner_kind == SDL_PLAYER_ACTION_NONE)
+        return false;
+    if (!sdl_player_action_menu_layout(primary, &count))
+        return false;
+
+    for (int i = 0; i < count; i++) {
+        if (primary[i].kind == owner_kind) {
+            owner = &primary[i];
+            break;
+        }
+    }
+    if (!owner)
+        return false;
+
+    sec_count = sdl_player_action_menu_collect_secondary(owner_kind, entries);
+    if (sec_count <= 0)
+        return false;
+
+    ring_inner = owner->outer_radius;
+    ring_outer = ring_inner
+        + sdl_touch_pane_clampf(
+            (owner->outer_radius - owner->inner_radius) * 0.62f, 34.0f, 58.0f);
+    icon_size = sdl_touch_pane_clampf((ring_outer - ring_inner) * 0.62f,
+        22.0f, 48.0f);
+    icon_radius = ring_inner + (ring_outer - ring_inner) * 0.5f;
+    step = (owner->end_angle - owner->start_angle) / (float)sec_count;
+
+    for (int i = 0; i < sec_count; i++) {
+        float start = owner->start_angle + step * (float)i;
+        float end = start + step;
+        float mid = (start + end) * 0.5f;
+        float icon_x = owner->center_x + SDL_cosf(mid) * icon_radius;
+        float icon_y = owner->center_y + SDL_sinf(mid) * icon_radius;
+
+        entries[i].rect = (SDL_FRect) {
+            icon_x - icon_size * 0.5f,
+            icon_y - icon_size * 0.5f,
+            icon_size,
+            icon_size,
+        };
+        entries[i].center_x = owner->center_x;
+        entries[i].center_y = owner->center_y;
+        entries[i].inner_radius = ring_inner;
+        entries[i].outer_radius = ring_outer;
+        entries[i].start_angle = start;
+        entries[i].end_angle = end;
+    }
+
+    *out_count = sec_count;
+    return true;
+}
+
 int sdl_player_action_menu_kind_at(float x, float y)
 {
     player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
@@ -548,9 +789,12 @@ int sdl_player_action_menu_kind_at(float x, float y)
     dx = x - entries[0].center_x;
     dy = y - entries[0].center_y;
     dist = SDL_sqrtf(dx * dx + dy * dy);
-    if (dist < entries[0].inner_radius || dist > entries[0].outer_radius)
+
+    if (dist < entries[0].inner_radius)
         return SDL_PLAYER_ACTION_NONE;
 
+    /* Work out the sector this angle falls in (shared by the primary ring
+     * and any secondary ring stacked outside it). */
     angle = SDL_atan2f(dy, dx);
     step = (SDL_PLAYER_ACTION_MENU_PI * 2.0f) / (float)count;
     first_start = entries[0].start_angle;
@@ -560,7 +804,34 @@ int sdl_player_action_menu_kind_at(float x, float y)
     if (index < 0 || index >= count)
         return SDL_PLAYER_ACTION_NONE;
 
-    return entries[index].kind;
+    /* Inside the primary annulus: the primary itself. */
+    if (dist <= entries[0].outer_radius)
+        return entries[index].kind;
+
+    /* Outside it: the always-shown secondary ring for that sector, if any. */
+    {
+        player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
+        int sec_count = 0;
+
+        if (!sdl_player_action_menu_layout_secondary(entries[index].kind,
+                secondary, &sec_count)
+            || sec_count <= 0)
+        {
+            return SDL_PLAYER_ACTION_NONE;
+        }
+        if (dist > secondary[0].outer_radius)
+            return SDL_PLAYER_ACTION_NONE;
+
+        for (int i = 0; i < sec_count; i++) {
+            if (angle >= secondary[i].start_angle
+                && angle < secondary[i].end_angle)
+            {
+                return secondary[i].kind;
+            }
+        }
+    }
+
+    return SDL_PLAYER_ACTION_NONE;
 }
 
 void sdl_player_action_menu_cancel_press(void)
@@ -953,6 +1224,18 @@ void sdl_player_action_menu_activate_kind(int kind, bool secondary)
     case SDL_PLAYER_ACTION_HORN:
         command = 'p';
         break;
+    case SDL_PLAYER_ACTION_SHOOT:
+        command = 'f';
+        break;
+    case SDL_PLAYER_ACTION_REST:
+        command = 'Z';
+        break;
+    case SDL_PLAYER_ACTION_SWAP_QUIVERS:
+        command = KTRL('F');
+        break;
+    case SDL_PLAYER_ACTION_CHANGE_STAFF:
+        command = KTRL('A');
+        break;
     default:
         return;
     }
@@ -998,7 +1281,6 @@ bool sdl_player_action_menu_handle_gamepad_button(
     }
 
     switch (button) {
-    case SDL_GAMEPAD_BUTTON_DPAD_UP:
     case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
         if (down) {
             if (g_player_action_menu.press_active
@@ -1010,7 +1292,6 @@ bool sdl_player_action_menu_handle_gamepad_button(
         }
         return true;
 
-    case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
     case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
         if (down) {
             if (g_player_action_menu.press_active
@@ -1019,6 +1300,28 @@ bool sdl_player_action_menu_handle_gamepad_button(
                 sdl_player_action_menu_cancel_press();
             }
             sdl_player_action_menu_move_hover(1);
+        }
+        return true;
+
+    case SDL_GAMEPAD_BUTTON_DPAD_UP:
+        if (down) {
+            if (g_player_action_menu.press_active
+                && g_player_action_menu.press_gamepad)
+            {
+                sdl_player_action_menu_cancel_press();
+            }
+            sdl_player_action_menu_move_hover_vertical(-1);
+        }
+        return true;
+
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
+        if (down) {
+            if (g_player_action_menu.press_active
+                && g_player_action_menu.press_gamepad)
+            {
+                sdl_player_action_menu_cancel_press();
+            }
+            sdl_player_action_menu_move_hover_vertical(1);
         }
         return true;
 
@@ -1162,8 +1465,23 @@ bool sdl_player_action_menu_handle_pointer_motion(float x, float y,
     if (dy < 0.0f)
         dy = -dy;
 
-    if (kind != g_player_action_menu.press_kind
-        || dx > sdl_touch_swipe_threshold_px()
+    if (kind != g_player_action_menu.press_kind)
+    {
+        /* Allow dragging between a sector and its secondary ring */
+        if (kind != SDL_PLAYER_ACTION_NONE
+            && sdl_player_action_menu_kinds_related(kind,
+                g_player_action_menu.press_kind))
+        {
+            g_player_action_menu.press_kind = kind;
+            g_player_action_menu.press_start_x = x;
+            g_player_action_menu.press_start_y = y;
+        }
+        else
+        {
+            sdl_player_action_menu_cancel_press();
+        }
+    }
+    else if (dx > sdl_touch_swipe_threshold_px()
         || dy > sdl_touch_swipe_threshold_px())
     {
         sdl_player_action_menu_cancel_press();
@@ -1502,6 +1820,32 @@ static void sdl_player_action_menu_render_separator(
         entry->center_y + st * entry->outer_radius);
 }
 
+/* Draw a partial arc over the entry's angular range at the given radius */
+static void sdl_player_action_menu_render_arc(
+    const player_action_menu_entry* entry, float radius, SDL_Color color)
+{
+    float prev_x = 0.0f;
+    float prev_y = 0.0f;
+
+    if (!entry)
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        color.a);
+    for (int i = 0; i <= SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS; i++) {
+        float t = (float)i / (float)SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS;
+        float angle = entry->start_angle
+            + (entry->end_angle - entry->start_angle) * t;
+        float px = entry->center_x + SDL_cosf(angle) * radius;
+        float py = entry->center_y + SDL_sinf(angle) * radius;
+
+        if (i > 0)
+            SDL_RenderLine(g_state.renderer, prev_x, prev_y, px, py);
+        prev_x = px;
+        prev_y = py;
+    }
+}
+
 static bool sdl_player_action_menu_can_draw_tiles(void)
 {
     return g_state.use_tiles && g_state.tileset;
@@ -1586,8 +1930,8 @@ static bool sdl_player_action_menu_tooltip_candidate(SDL_FRect* box,
 }
 
 static void sdl_player_action_menu_place_tooltip(SDL_FRect* box,
-    const player_action_menu_entry* entry, const SDL_Rect* screen,
-    float screen_margin, float gap)
+    const player_action_menu_entry* entry, float avoid_radius,
+    const SDL_Rect* screen, float screen_margin, float gap)
 {
     SDL_FRect avoid;
     float dx;
@@ -1603,11 +1947,16 @@ static void sdl_player_action_menu_place_tooltip(SDL_FRect* box,
     if (!box || !entry || !screen)
         return;
 
+    /* Avoid the whole wheel, including the secondary rings stacked outside
+     * the primary annulus, so the popup never crosses a wheel segment. */
+    if (avoid_radius < entry->outer_radius)
+        avoid_radius = entry->outer_radius;
+
     avoid = (SDL_FRect){
-        .x = entry->center_x - entry->outer_radius - gap,
-        .y = entry->center_y - entry->outer_radius - gap,
-        .w = (entry->outer_radius + gap) * 2.0f,
-        .h = (entry->outer_radius + gap) * 2.0f,
+        .x = entry->center_x - avoid_radius - gap,
+        .y = entry->center_y - avoid_radius - gap,
+        .w = (avoid_radius + gap) * 2.0f,
+        .h = (avoid_radius + gap) * 2.0f,
     };
 
     dx = (entry->rect.x + entry->rect.w * 0.5f) - entry->center_x;
@@ -1665,7 +2014,7 @@ static void sdl_player_action_menu_place_tooltip(SDL_FRect* box,
 }
 
 static void sdl_player_action_menu_render_tooltip(
-    const player_action_menu_entry* entry)
+    const player_action_menu_entry* entry, float avoid_radius)
 {
     SDL_Rect screen;
     TTF_Font* font;
@@ -1717,8 +2066,8 @@ static void sdl_player_action_menu_render_tooltip(
 
     box.w = (float)surface->w + pad * 2.0f;
     box.h = (float)surface->h + pad * 2.0f;
-    sdl_player_action_menu_place_tooltip(&box, entry, &screen, screen_margin,
-        gap);
+    sdl_player_action_menu_place_tooltip(&box, entry, avoid_radius, &screen,
+        screen_margin, gap);
 
     text_dst = (SDL_FRect){
         .x = box.x + pad,
@@ -1744,66 +2093,138 @@ static void sdl_player_action_menu_render_tooltip(
 void sdl_player_action_menu_render(void)
 {
     player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
+    player_action_menu_entry hovered_entry;
     int count = 0;
     SDL_Rect clip;
     SDL_Color bg = { 22, 24, 26, 162 };
     SDL_Color hover_bg = { 88, 82, 58, 216 };
     SDL_Color border = { 188, 202, 210, 150 };
     SDL_Color hover_border = g_state.palette[TERM_YELLOW];
-    const player_action_menu_entry* hovered = NULL;
+    bool has_hover = false;
+    bool hover_is_secondary = false;
+    int hover_owner;
+    float avoid_radius;
 
     if (!g_player_action_menu.active)
         return;
     if (!sdl_main_screen_click_shortcuts_active())
         return;
-    if (!sdl_player_action_menu_layout(entries, &count))
+    if (!sdl_player_action_menu_layout(entries, &count) || count <= 0)
         return;
+
+    hover_owner = sdl_player_action_menu_secondary_owner(
+        g_player_action_menu.hover_kind);
+    avoid_radius = entries[0].outer_radius;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     clip = g_views[PANE_MAIN].rect;
     SDL_SetRenderClipRect(g_state.renderer, &clip);
 
+    /* Primary sectors (owner stays lit while one of its secondaries is
+     * hovered) */
     for (int i = 0; i < count; i++) {
-        bool hover = entries[i].kind == g_player_action_menu.hover_kind;
-        SDL_Color fill = hover ? hover_bg : bg;
+        bool hover = entries[i].kind == g_player_action_menu.hover_kind
+            || entries[i].kind == hover_owner;
 
-        sdl_player_action_menu_render_sector(&entries[i], fill);
-        if (hover)
-            hovered = &entries[i];
-    }
-
-    if (count > 0) {
-        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
-            entries[0].outer_radius, border);
-        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
-            entries[0].outer_radius - 2.0f, border);
-        sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
-            entries[0].inner_radius, border);
-        for (int i = 0; i < count; i++) {
-            sdl_player_action_menu_render_separator(&entries[i],
-                entries[i].start_angle, border);
+        sdl_player_action_menu_render_sector(&entries[i],
+            hover ? hover_bg : bg);
+        if (entries[i].kind == g_player_action_menu.hover_kind) {
+            hovered_entry = entries[i];
+            has_hover = true;
+            hover_is_secondary = false;
         }
     }
 
-    if (hovered) {
-        sdl_touch_round_draw_circle(hovered->center_x, hovered->center_y,
-            hovered->outer_radius, hover_border);
-        sdl_touch_round_draw_circle(hovered->center_x, hovered->center_y,
-            hovered->inner_radius, hover_border);
-        sdl_player_action_menu_render_separator(hovered,
-            hovered->start_angle, hover_border);
-        sdl_player_action_menu_render_separator(hovered,
-            hovered->end_angle, hover_border);
+    /* Primary ring frame */
+    sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+        entries[0].outer_radius, border);
+    sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+        entries[0].outer_radius - 2.0f, border);
+    sdl_touch_round_draw_circle(entries[0].center_x, entries[0].center_y,
+        entries[0].inner_radius, border);
+    for (int i = 0; i < count; i++) {
+        sdl_player_action_menu_render_separator(&entries[i],
+            entries[i].start_angle, border);
     }
 
+    /* Primary icons */
     for (int i = 0; i < count; i++) {
         bool hover = entries[i].kind == g_player_action_menu.hover_kind;
+
         sdl_player_action_menu_render_icon(&entries[i], hover);
     }
 
+    /* Secondary rings: always shown, one outer ring per primary that has
+     * secondaries */
+    for (int p = 0; p < count; p++) {
+        player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
+        int sec_count = 0;
+
+        if (!sdl_player_action_menu_layout_secondary(entries[p].kind,
+                secondary, &sec_count)
+            || sec_count <= 0)
+        {
+            continue;
+        }
+
+        avoid_radius = secondary[0].outer_radius;
+
+        for (int i = 0; i < sec_count; i++) {
+            bool hover = secondary[i].kind == g_player_action_menu.hover_kind;
+
+            sdl_player_action_menu_render_sector(&secondary[i],
+                hover ? hover_bg : bg);
+            if (hover) {
+                hovered_entry = secondary[i];
+                has_hover = true;
+                hover_is_secondary = true;
+            }
+        }
+
+        for (int i = 0; i < sec_count; i++) {
+            sdl_player_action_menu_render_separator(&secondary[i],
+                secondary[i].start_angle, border);
+            sdl_player_action_menu_render_arc(&secondary[i],
+                secondary[i].outer_radius, border);
+        }
+        sdl_player_action_menu_render_separator(&secondary[sec_count - 1],
+            secondary[sec_count - 1].end_angle, border);
+
+        for (int i = 0; i < sec_count; i++) {
+            bool hover = secondary[i].kind == g_player_action_menu.hover_kind;
+
+            sdl_player_action_menu_render_icon(&secondary[i], hover);
+        }
+    }
+
+    /* Highlight the hovered entry on top */
+    if (has_hover) {
+        if (hover_is_secondary) {
+            sdl_player_action_menu_render_separator(&hovered_entry,
+                hovered_entry.start_angle, hover_border);
+            sdl_player_action_menu_render_separator(&hovered_entry,
+                hovered_entry.end_angle, hover_border);
+            sdl_player_action_menu_render_arc(&hovered_entry,
+                hovered_entry.outer_radius, hover_border);
+            sdl_player_action_menu_render_arc(&hovered_entry,
+                hovered_entry.inner_radius, hover_border);
+        } else {
+            sdl_touch_round_draw_circle(hovered_entry.center_x,
+                hovered_entry.center_y, hovered_entry.outer_radius,
+                hover_border);
+            sdl_touch_round_draw_circle(hovered_entry.center_x,
+                hovered_entry.center_y, hovered_entry.inner_radius,
+                hover_border);
+            sdl_player_action_menu_render_separator(&hovered_entry,
+                hovered_entry.start_angle, hover_border);
+            sdl_player_action_menu_render_separator(&hovered_entry,
+                hovered_entry.end_angle, hover_border);
+        }
+    }
+
     SDL_SetRenderClipRect(g_state.renderer, NULL);
-    if (hovered)
-        sdl_player_action_menu_render_tooltip(hovered);
+    if (has_hover)
+        sdl_player_action_menu_render_tooltip(&hovered_entry, avoid_radius);
 }
 
 

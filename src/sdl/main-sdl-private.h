@@ -912,7 +912,11 @@ enum {
     SDL_PLAYER_ACTION_EXAMINE,
     SDL_PLAYER_ACTION_ACTIVATE,
     SDL_PLAYER_ACTION_HORN,
-    SDL_PLAYER_ACTION_MAX = 9,
+    SDL_PLAYER_ACTION_SHOOT,
+    SDL_PLAYER_ACTION_REST,
+    SDL_PLAYER_ACTION_SWAP_QUIVERS,
+    SDL_PLAYER_ACTION_CHANGE_STAFF,
+    SDL_PLAYER_ACTION_MAX = 14,
     SDL_PLAYER_EXCHANGE_MAX_TARGETS = 8,
 };
 
@@ -2130,12 +2134,15 @@ bool sdl_player_has_equipped_horn(void);
 bool sdl_player_has_singable_song(void);
 void sdl_player_action_menu_add_entry(player_action_menu_entry* entries, int* count, int kind, int command, cptr label);
 int sdl_player_action_menu_collect(player_action_menu_entry* entries);
+int sdl_player_action_menu_collect_secondary(int primary_kind, player_action_menu_entry* entries);
+int sdl_player_action_menu_secondary_owner(int kind);
 bool sdl_player_has_floor_item_underfoot(void);
 bool sdl_player_action_menu_kind_supports_secondary(int kind);
 int sdl_player_action_menu_default_kind(void);
 int sdl_player_action_menu_hover_index( player_action_menu_entry* entries, int count);
 void sdl_player_action_menu_select_default(void);
 void sdl_player_action_menu_move_hover(int delta);
+void sdl_player_action_menu_move_hover_vertical(int delta);
 void sdl_player_action_menu_activate_hover(void);
 void sdl_player_action_menu_start_gamepad_press(int button, int kind);
 bool sdl_player_action_menu_handle_gamepad_confirm(int button, bool down);
