@@ -1758,6 +1758,14 @@
 #define TARGET_UNIFIED 0x80
 
 /*
+ * Pointer events reported by the SDL layer to the aim-select targeting UI
+ * (see sdl_pointer_aim_select_take_event)
+ */
+#define AIM_SELECT_EVENT_HOVER 1
+#define AIM_SELECT_EVENT_CLICK 2
+#define AIM_SELECT_EVENT_TAP 3
+
+/*
  * Bit flags for the "monster_desc" function
  */
 #define MDESC_OBJE 0x01 /* Objective (or Reflexive) */

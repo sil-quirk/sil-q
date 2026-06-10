@@ -608,6 +608,11 @@ void sdl_object_tooltip_handle_mouse_motion(float x, float y)
     if (g_unified_look_active)
         return;
 
+    /* The aim-select loop drives the tooltip from game code; mouse motion
+     * must not clear or retarget it here. */
+    if (g_pointer_aim.active && g_pointer_aim.select_mode)
+        return;
+
     if (g_pointer_aim.active
         || g_player_action_menu.active || g_player_exchange_target.active)
     {

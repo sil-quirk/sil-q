@@ -2380,6 +2380,18 @@ void sdl_unified_look_prompt_render(void)
     }
 }
 
+bool sdl_unified_look_prompt_contains_point(float x, float y)
+{
+    sdl_unified_look_prompt_layout_info layout;
+
+    if (!g_unified_look_prompt.active)
+        return false;
+    if (!sdl_unified_look_prompt_layout(&layout))
+        return false;
+
+    return sdl_point_in_frect(&layout.panel, x, y);
+}
+
 static bool sdl_unified_look_prompt_choice_at(float x, float y,
     int* out_choice, bool* out_in_panel)
 {

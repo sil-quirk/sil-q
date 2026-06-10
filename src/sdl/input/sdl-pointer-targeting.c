@@ -1091,6 +1091,9 @@ bool sdl_pointer_aim_point_to_map(float x, float y, int* out_y,
     {
         return false;
     }
+    /* Let the aim-select command bar handle its own pointer input. */
+    if (g_pointer_aim.select_mode && sdl_unified_look_prompt_contains_point(x, y))
+        return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
     if (sdl_main_screen_cell_hits_character_panel(col, row))
@@ -1263,6 +1266,121 @@ bool sdl_pointer_aim_take_direction(int* dir)
     return (*dir != 0);
 }
 
+static void sdl_pointer_aim_select_clear_event(void)
+{
+    g_pointer_aim.event_pending = false;
+    g_pointer_aim.event_kind = 0;
+    g_pointer_aim.event_y = 0;
+    g_pointer_aim.event_x = 0;
+    g_pointer_aim.event_wake = false;
+}
+
+void sdl_pointer_aim_select_begin(int range, bool allow_vertical)
+{
+    sdl_pointer_aim_begin(range, allow_vertical);
+    g_pointer_aim.select_mode = true;
+    g_pointer_aim.select_manual = false;
+    g_pointer_aim.select_visible = false;
+    g_pointer_aim.select_y = 0;
+    g_pointer_aim.select_x = 0;
+    sdl_pointer_aim_select_clear_event();
+    sdl_pointer_attack_clear_pending();
+    g_state.need_present = true;
+}
+
+void sdl_pointer_aim_select_end(void)
+{
+    g_pointer_aim.select_mode = false;
+    g_pointer_aim.select_manual = false;
+    g_pointer_aim.select_visible = false;
+    g_pointer_aim.select_y = 0;
+    g_pointer_aim.select_x = 0;
+    sdl_pointer_aim_select_clear_event();
+    sdl_pointer_aim_end();
+}
+
+void sdl_pointer_aim_select_set_manual(bool manual)
+{
+    if (g_pointer_aim.select_manual == manual)
+        return;
+
+    g_pointer_aim.select_manual = manual;
+    g_state.need_present = true;
+}
+
+void sdl_pointer_aim_select_update(int y, int x)
+{
+    if (!g_pointer_aim.select_mode)
+        return;
+    if (g_pointer_aim.select_visible && g_pointer_aim.select_y == y
+        && g_pointer_aim.select_x == x)
+    {
+        return;
+    }
+
+    g_pointer_aim.select_visible = true;
+    g_pointer_aim.select_y = y;
+    g_pointer_aim.select_x = x;
+    g_state.need_present = true;
+}
+
+bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x)
+{
+    if (!g_pointer_aim.event_pending)
+        return false;
+
+    if (g_pointer_aim.event_wake)
+    {
+        (void)sdl_mouse_consume_wake_key();
+        g_pointer_aim.event_wake = false;
+    }
+
+    if (kind)
+        *kind = g_pointer_aim.event_kind;
+    if (y)
+        *y = g_pointer_aim.event_y;
+    if (x)
+        *x = g_pointer_aim.event_x;
+
+    sdl_pointer_aim_select_clear_event();
+    return true;
+}
+
+/* In aim-select mode, hover only moves the selection between monsters the
+ * game-side target list would accept; manual mode roams any square. */
+static bool sdl_pointer_aim_select_grid_hoverable(int y, int x)
+{
+    int m_idx;
+
+    if (g_pointer_aim.select_manual)
+        return true;
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0)
+        return false;
+    if (!target_able(m_idx))
+        return false;
+
+    return sdl_pointer_aim_in_range(y, x);
+}
+
+static void sdl_pointer_aim_select_push_event(int kind, int y, int x)
+{
+    if (g_pointer_aim.event_pending && g_pointer_aim.event_kind == kind
+        && g_pointer_aim.event_y == y && g_pointer_aim.event_x == x)
+    {
+        return;
+    }
+
+    g_pointer_aim.event_pending = true;
+    g_pointer_aim.event_kind = kind;
+    g_pointer_aim.event_y = y;
+    g_pointer_aim.event_x = x;
+    g_pointer_aim.event_wake = true;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+}
+
 bool sdl_pointer_aim_update_hover_grid(int map_y, int map_x)
 {
     int dir = 0;
@@ -1299,6 +1417,20 @@ bool sdl_pointer_aim_handle_motion(float x, float y)
         return false;
     }
 
+    if (g_pointer_aim.select_mode)
+    {
+        if (sdl_pointer_aim_select_grid_hoverable(map_y, map_x)
+            && !(g_pointer_aim.select_visible
+                && g_pointer_aim.select_y == map_y
+                && g_pointer_aim.select_x == map_x))
+        {
+            sdl_pointer_aim_select_push_event(AIM_SELECT_EVENT_HOVER, map_y,
+                map_x);
+        }
+        sdl_mouse_path_cancel();
+        return true;
+    }
+
     (void)sdl_pointer_aim_update_hover_grid(map_y, map_x);
     sdl_mouse_path_cancel();
     return true;
@@ -1311,6 +1443,13 @@ bool sdl_pointer_aim_handle_left_click(float x, float y)
 
     if (!sdl_pointer_aim_point_to_map(x, y, &map_y, &map_x))
         return false;
+
+    if (g_pointer_aim.select_mode)
+    {
+        sdl_pointer_aim_select_push_event(AIM_SELECT_EVENT_CLICK, map_y,
+            map_x);
+        return true;
+    }
 
     (void)sdl_pointer_aim_update_hover_grid(map_y, map_x);
     (void)sdl_pointer_aim_queue_grid(map_y, map_x);
@@ -1393,6 +1532,13 @@ bool sdl_pointer_aim_handle_touch_up(float x, float y,
     repeat_target = g_pointer_aim.touch_repeat_target;
 
     sdl_pointer_aim_cancel_touch_press();
+    if (g_pointer_aim.select_mode)
+    {
+        if (same_cell)
+            sdl_pointer_aim_select_push_event(AIM_SELECT_EVENT_TAP, map_y,
+                map_x);
+        return true;
+    }
     if (same_cell)
     {
         if (repeat_target)
@@ -1534,6 +1680,50 @@ void sdl_pointer_aim_render_cone(int dir, int target_y, int target_x,
         target_color);
 }
 
+/* Render the aim-select selection: the projected shot path up to the
+ * selected square, or a blocked highlight when the square cannot be
+ * reached. */
+static void sdl_pointer_aim_render_selection(void)
+{
+    int y = g_pointer_aim.select_y;
+    int x = g_pointer_aim.select_x;
+    int range = (g_pointer_aim.range > 0) ? g_pointer_aim.range : MAX_RANGE;
+    int ty = y;
+    int tx = x;
+    u16b path[256];
+    int path_n;
+    bool reached = false;
+    SDL_Color path_color = g_state.palette[TERM_UMBER];
+    SDL_Color target_color = g_state.palette[TERM_L_RED];
+    SDL_Color blocked_color = g_state.palette[TERM_SLATE];
+
+    if (!g_pointer_aim.select_visible)
+        return;
+    if ((y == p_ptr->py) && (x == p_ptr->px))
+        return;
+
+    path_n = project_path(path, range, p_ptr->py, p_ptr->px, &ty, &tx,
+        PROJECT_THRU | PROJECT_INVISIPASS);
+
+    for (int i = 0; i < path_n; i++)
+    {
+        int gy = GRID_Y(path[i]);
+        int gx = GRID_X(path[i]);
+        bool target = (gy == y) && (gx == x);
+
+        sdl_pointer_attack_render_cell(gy, gx,
+            target ? target_color : path_color, target);
+        if (target)
+        {
+            reached = true;
+            break;
+        }
+    }
+
+    if (!reached)
+        sdl_pointer_attack_render_cell(y, x, blocked_color, true);
+}
+
 void sdl_pointer_aim_render(void)
 {
     int y = 0;
@@ -1548,6 +1738,14 @@ void sdl_pointer_aim_render(void)
     {
         return;
     }
+
+    if (g_pointer_aim.select_mode)
+    {
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+        sdl_pointer_aim_render_selection();
+        return;
+    }
+
     if (!sdl_pointer_aim_take_render_target(&y, &x))
         return;
     if (!sdl_pointer_aim_resolve_grid(y, x, &dir, &exact_target))

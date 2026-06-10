@@ -1102,6 +1102,19 @@ typedef struct pointer_aim_state {
     bool pending;
     int pending_dir;
     bool pending_wake;
+    /* aim-select mode: the interactive fire-targeting UI drives selection
+     * from game code; pointer input is reported as events instead of
+     * resolving to a direction here. */
+    bool select_mode;
+    bool select_manual;
+    bool select_visible;
+    int select_y;
+    int select_x;
+    bool event_pending;
+    int event_kind;
+    int event_y;
+    int event_x;
+    bool event_wake;
 } pointer_aim_state;
 
 enum {
@@ -1854,6 +1867,7 @@ void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
 void sdl_unified_look_sidebar_finish(void);
 void sdl_unified_look_prompt_render(void);
 void sdl_unified_look_sidebar_render(void);
+bool sdl_unified_look_prompt_contains_point(float x, float y);
 bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action);
 bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y);
 bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action);
@@ -2026,6 +2040,11 @@ bool sdl_pointer_aim_queue_grid(int map_y, int map_x);
 void sdl_pointer_aim_begin(int range, bool allow_vertical);
 void sdl_pointer_aim_end(void);
 bool sdl_pointer_aim_take_direction(int* dir);
+void sdl_pointer_aim_select_begin(int range, bool allow_vertical);
+void sdl_pointer_aim_select_end(void);
+void sdl_pointer_aim_select_set_manual(bool manual);
+void sdl_pointer_aim_select_update(int y, int x);
+bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x);
 bool sdl_pointer_aim_update_hover_grid(int map_y, int map_x);
 bool sdl_pointer_aim_handle_motion(float x, float y);
 bool sdl_pointer_aim_handle_left_click(float x, float y);
