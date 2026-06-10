@@ -103,178 +103,18 @@ void player_set_visual_facing_target_immediate(int y, int x)
  * This function tracks and uses the "global direction", and uses
  * that as the "desired direction", if it is set.
  *
- * Note that "Force Target", if set, will pre-empt user interaction,
- * if there is a usable target already set.
+ * When no direction was pre-supplied, the interactive aim selection
+ * (target_select_aim) is opened: it centres on the closest target,
+ * moves the selection with direction keys or mouse hover, and fires
+ * on f/click/tap.
  *
  * If the range variable is 0, there is no range limit.
  *
  * Currently this function applies confusion directly.
  */
-static char get_aim_vertical_up_key(void)
-{
-    return hjkl_movement ? 'c' : 'u';
-}
-
-static void get_aim_prompt(char* buf, size_t buflen, bool has_target,
-    bool allow_vertical)
-{
-    char up_key;
-    char fire_label[24];
-    char confirm_label[24];
-    char select_label[24];
-    char up_label[24];
-    char down_label[24];
-    char cancel_label[24];
-
-    if (!buf || !buflen)
-        return;
-
-    up_key = get_aim_vertical_up_key();
-
-    if (!steamdeck_controls_active())
-    {
-        if (allow_vertical)
-        {
-            if (has_target)
-            {
-                strnfmt(buf, buflen,
-                    "Aim: arrows/touch, f/Space target, * select, %c up, d down, Esc? ",
-                    up_key);
-            }
-            else
-            {
-                strnfmt(buf, buflen,
-                    "Aim: arrows/touch, f/Space closest, * select, %c up, d down, Esc? ",
-                    up_key);
-            }
-        }
-        else
-        {
-            if (has_target)
-            {
-                SDL_strlcpy(buf,
-                    "Aim: arrows/touch, f/Space target, * select, Esc? ",
-                    buflen);
-            }
-            else
-            {
-                SDL_strlcpy(buf,
-                    "Aim: arrows/touch, f/Space closest, * select, Esc? ",
-                    buflen);
-            }
-        }
-        return;
-    }
-
-    target_prompt_label('f', "B", fire_label, sizeof(fire_label));
-    target_prompt_label(INPUT_BIND_CONFIRM, "A", confirm_label,
-        sizeof(confirm_label));
-    target_prompt_label('s', "Y", select_label, sizeof(select_label));
-    target_prompt_label(up_key, hjkl_movement ? "c" : "u", up_label,
-        sizeof(up_label));
-    target_prompt_label('d', "d", down_label, sizeof(down_label));
-    target_prompt_label(ESCAPE, "Start", cancel_label, sizeof(cancel_label));
-
-    if (has_target)
-    {
-        if (allow_vertical)
-        {
-            strnfmt(buf, buflen,
-                "Aim (%s/%s target, %s select, %s up, %s down, %s cancel)? ",
-                fire_label, confirm_label, select_label, up_label,
-                down_label, cancel_label);
-            if (strlen(buf) > 49)
-                strnfmt(buf, buflen,
-                    "Aim (%s/%s tgt, %s sel, %s up, %s down, %s cancel)? ",
-                    fire_label, confirm_label, select_label, up_label,
-                    down_label, cancel_label);
-        }
-        else
-        {
-            strnfmt(buf, buflen,
-                "Aim (%s/%s target, %s select, %s cancel)? ", fire_label,
-                confirm_label, select_label, cancel_label);
-            if (strlen(buf) > 49)
-                strnfmt(buf, buflen,
-                    "Aim (%s/%s tgt, %s sel, %s cancel)? ", fire_label,
-                    confirm_label, select_label, cancel_label);
-        }
-    }
-    else
-    {
-        if (allow_vertical)
-        {
-            strnfmt(buf, buflen,
-                "Aim (%s/%s closest, %s select, %s up, %s down, %s cancel)? ",
-                fire_label, confirm_label, select_label, up_label,
-                down_label, cancel_label);
-            if (strlen(buf) > 49)
-                strnfmt(buf, buflen,
-                    "Aim (%s/%s close, %s sel, %s up, %s down, %s cancel)? ",
-                    fire_label, confirm_label, select_label, up_label,
-                    down_label, cancel_label);
-        }
-        else
-        {
-            strnfmt(buf, buflen,
-                "Aim (%s/%s closest, %s select, %s cancel)? ", fire_label,
-                confirm_label, select_label, cancel_label);
-            if (strlen(buf) > 49)
-                strnfmt(buf, buflen,
-                    "Aim (%s/%s close, %s sel, %s cancel)? ", fire_label,
-                    confirm_label, select_label, cancel_label);
-        }
-    }
-}
-
-static bool get_aim_com(cptr prompt, bool has_target, int range,
-    bool allow_vertical, char* command)
-{
-    char up_key = get_aim_vertical_up_key();
-    char ch;
-    int clicked_choice = 0;
-
-    message_flush();
-
-    ui_menu_click_begin();
-    ui_menu_click_set_hover_enabled(true);
-    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-    sdl_pointer_aim_begin(range, allow_vertical);
-    prt(prompt, 0, 0);
-
-    ui_menu_click_add_text_token('f', 0, 0, prompt,
-        has_target ? "target" : "closest");
-    ui_menu_click_add_text_token('*', 0, 0, prompt, "select");
-    if (allow_vertical)
-    {
-        ui_menu_click_add_text_token(up_key, 0, 0, prompt, "up");
-        ui_menu_click_add_text_token('d', 0, 0, prompt, "down");
-    }
-    ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "Esc");
-    ui_menu_click_add_text_token(ESCAPE, 0, 0, prompt, "cancel");
-
-    ch = inkey();
-    if ((ch == UI_MENU_CLICK_WAKE_KEY || ch == '\r' || ch == '\n')
-        && ui_menu_click_take(&clicked_choice))
-    {
-        ch = (char)clicked_choice;
-    }
-
-    sdl_pointer_aim_end();
-    ui_menu_click_clear();
-    prt("", 0, 0);
-
-    *command = ch;
-    return (ch != ESCAPE);
-}
-
 static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
 {
     int dir;
-
-    char ch;
-
-    char prompt[80];
 
 #ifdef ALLOW_REPEAT
 
@@ -297,139 +137,18 @@ static bool get_aim_dir_aux(int* dp, int range, bool allow_vertical)
     /* Initialize */
     (*dp) = 0;
 
-    /* Global direction */
+    /* Global direction (e.g. supplied by a pointer-attack map click) */
     dir = p_ptr->command_dir;
     if ((dir == 5) && !target_okay(range))
         dir = 0;
     if ((dir == DIRECTION_UP) || (dir == DIRECTION_DOWN))
         dir = 0;
 
-    /* Hack -- auto-target if requested */
-    //	if (use_old_target && target_okay(range)) dir = 5;
-
-    /* Ask until satisfied */
-    while (!dir)
+    /* No direction given: run the interactive aim selection */
+    if (!dir)
     {
-        bool has_target = target_okay(range);
-
-        /* Choose a prompt */
-        get_aim_prompt(prompt, sizeof(prompt), has_target, allow_vertical);
-
-        /* Get a command (or Cancel) */
-        if (!get_aim_com(prompt, has_target, range, allow_vertical, &ch))
-            break;
-
-        /* Analyze */
-        switch (ch)
-        {
-        /* Set new target, use target if legal */
-        case 's':
-        case '*':
-        {
-            if (target_set_interactive(TARGET_KILL, range))
-                dir = 5;
-            break;
-        }
-
-        /* Use current target, if set and legal, otherwise pick next target */
-        case 'f':
-        case 'F':
-        case 't':
-        case '5':
-        case 'z':
-        case ' ':
-        case '\r':
-        case '\n':
-        case INPUT_BIND_CONFIRM:
-        {
-            if (target_okay(range))
-                dir = 5;
-            else
-            {
-                /* Prepare the "temp" array */
-                get_sorted_target_list(TARGET_KILL, range);
-
-                /* Monster */
-                if (temp_n)
-                {
-                    target_set_monster(cave_m_idx[temp_y[0]][temp_x[0]]);
-                    health_track(cave_m_idx[temp_y[0]][temp_x[0]]);
-                    dir = 5;
-                }
-            }
-            break;
-        }
-
-        case 'u':
-        case 'U':
-        case 'c':
-        case 'C':
-        {
-            if (allow_vertical
-                && (tolower((unsigned char)ch) == get_aim_vertical_up_key()))
-            {
-                dir = DIRECTION_UP;
-            }
-            break;
-        }
-
-        case 'd':
-        case 'D':
-        {
-            if (allow_vertical)
-                dir = DIRECTION_DOWN;
-            break;
-        }
-
-        case UI_MENU_CLICK_WAKE_KEY:
-        {
-            int mouse_command = 0;
-            int mouse_dir = 0;
-
-            if (sdl_pointer_aim_take_direction(&dir))
-            {
-                /* Direction supplied by a mouse or touch map target. */
-            }
-            else if (sdl_pointer_attack_take_command(&mouse_command, &mouse_dir)
-                && ((mouse_command == 'f') || (mouse_command == 'F'))
-                && mouse_dir)
-            {
-                dir = mouse_dir;
-            }
-            else
-            {
-                continue;
-            }
-            break;
-        }
-
-            // Sil-y: there is some chance that these UP and DOWN things
-            //        will cause trouble elsewhere
-
-        case '>':
-        {
-            dir = DIRECTION_DOWN;
-            break;
-        }
-        case '<':
-        {
-            dir = DIRECTION_UP;
-            break;
-        }
-
-        /* Possible direction */
-        default:
-        {
-            dir = target_dir(ch);
-            if ((dir == 5) && !target_okay(range))
-                dir = 0;
-            break;
-        }
-        }
-
-        /* Error */
-        if (!dir)
-            bell("Illegal aim direction!");
+        if (!target_select_aim(range, allow_vertical, &dir))
+            return (false);
     }
 
     /* No direction */

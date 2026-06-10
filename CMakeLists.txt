@@ -434,6 +434,7 @@ set(SIL_MORE_SOURCES
     src/ui/status/status-line.c
     src/ui/status/status-panel.c
     src/ui/story/pause-with-text.c
+    src/ui/targeting/aim-select.c
     src/ui/targeting/direction.c
     src/ui/targeting/targeting.c
     src/log/bootstrap.c
