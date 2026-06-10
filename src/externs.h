@@ -754,7 +754,6 @@ extern void character_sheet_format_trait_description(cptr label, int skill,
     int trait_score, bool proficiency, u32b aff_flag, u32b pen_flag,
     cptr desc, char* buf, size_t buflen);
 extern void do_cmd_change_song(void);
-extern void show_songs_with_highlight(int highlight);
 extern void wipe_screen_from(int col);
 extern int ability_index(int skilltype, int abilitynum);
 extern void ability_log_reset(void);
@@ -2044,6 +2043,13 @@ extern void sdl_description_overlay_clear_avoid(void);
 extern bool sdl_description_overlay_scroll_by(int rows);
 extern bool sdl_description_overlay_scroll_page(int direction);
 extern void sdl_description_overlay_clear(void);
+extern void sdl_song_menu_begin(cptr title);
+extern void sdl_song_menu_add_entry(int choice, cptr letter, cptr text,
+    byte attr);
+extern void sdl_song_menu_add_text(cptr text, byte attr);
+extern void sdl_song_menu_set_highlight(int choice);
+extern void sdl_song_menu_finish(void);
+extern void sdl_song_menu_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);
 extern void sdl_set_present_suppressed(bool suppressed);

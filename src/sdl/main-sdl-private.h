@@ -144,7 +144,8 @@ enum {
     SDL_STORY_FONT_SLOT_MENU      = 1, /* in-game popup selection menus */
     SDL_STORY_FONT_SLOT_LOG       = 1, /* message log and log pane */
     SDL_STORY_FONT_SLOT_CHAR_DESC = 1, /* character sheet description / history */
-    SDL_STORY_FONT_SLOT_CHAR_NUM  = 1  /* character sheet numeric values */
+    SDL_STORY_FONT_SLOT_CHAR_NUM  = 1, /* character sheet numeric values */
+    SDL_STORY_FONT_SLOT_CHAR_SELECT = 1 /* character selection (race/house) book body */
 };
 
 typedef struct story_font_entry {
@@ -863,6 +864,28 @@ typedef struct sdl_unified_look_sidebar_state {
         items[SDL_UNIFIED_LOOK_SIDEBAR_MAX_ITEMS];
 } sdl_unified_look_sidebar_state;
 
+enum {
+    SDL_SONG_MENU_MAX_ENTRIES = 24,
+    SDL_SONG_MENU_LETTER_LEN = 4,
+    SDL_SONG_MENU_TEXT_LEN = 64,
+    SDL_SONG_MENU_TITLE_LEN = 32
+};
+
+typedef struct sdl_song_menu_entry_state {
+    int choice;
+    byte text_attr;
+    char letter[SDL_SONG_MENU_LETTER_LEN];
+    char text[SDL_SONG_MENU_TEXT_LEN];
+} sdl_song_menu_entry_state;
+
+typedef struct sdl_song_menu_state {
+    bool active;
+    int count;
+    int highlight; /* choice highlighted by keyboard navigation, -1 none */
+    char title[SDL_SONG_MENU_TITLE_LEN];
+    sdl_song_menu_entry_state entries[SDL_SONG_MENU_MAX_ENTRIES];
+} sdl_song_menu_state;
+
 typedef struct unified_look_map_drag_state {
     bool active;
     bool mouse;
@@ -916,7 +939,9 @@ enum {
     SDL_PLAYER_ACTION_REST,
     SDL_PLAYER_ACTION_SWAP_QUIVERS,
     SDL_PLAYER_ACTION_CHANGE_STAFF,
-    SDL_PLAYER_ACTION_MAX = 14,
+    SDL_PLAYER_ACTION_CLOSE_DOOR,
+    SDL_PLAYER_ACTION_BASH_DOOR,
+    SDL_PLAYER_ACTION_MAX = 16,
     SDL_PLAYER_EXCHANGE_MAX_TARGETS = 8,
 };
 
@@ -1370,6 +1395,7 @@ extern main_map_drag_state g_main_map_drag;
 extern bool g_unified_look_active;
 extern sdl_unified_look_prompt_state g_unified_look_prompt;
 extern sdl_unified_look_sidebar_state g_unified_look_sidebar;
+extern sdl_song_menu_state g_song_menu;
 extern bool g_unified_look_map_hover_enabled;
 extern bool g_unified_look_map_hover_pending;
 extern bool g_unified_look_map_hover_wake_pending;
@@ -3191,6 +3217,9 @@ bool sdl_unified_look_prompt_handle_pointer(float x, float y, int action);
 bool sdl_unified_look_prompt_handle_hover_pointer(float x, float y);
 bool sdl_unified_look_sidebar_handle_pointer(float x, float y, int action);
 bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y);
+void sdl_song_menu_render(void);
+bool sdl_song_menu_handle_pointer(float x, float y, int action);
+bool sdl_song_menu_handle_hover_pointer(float x, float y);
 bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_touch_pane_handle_pointer_motion(float x, float y, bool mouse, SDL_FingerID finger_id);
 void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse, SDL_FingerID finger_id);

@@ -826,115 +826,75 @@ static void song_menu_mark_used(int song)
     song_menu_last_used[song] = ++song_menu_use_counter;
 }
 
-static void song_menu_register_row(int choice, int row, int col)
-{
-    (void)col;
-    ui_menu_click_add_full_row(choice, row);
-}
-
 /*
- * Display the available songs (modelled on show_inven) with optional highlighting.
+ * Present the available songs in the small SDL overlay panel.  Choices are
+ * sequential line indices matching song_menu_choice_from_highlight; pointer
+ * input comes back through ui_menu_click_take_action.
  */
-void show_songs_with_highlight(int highlight)
+static void song_menu_show_overlay(const int songs[], int song_count,
+    int highlight)
 {
-    int i, j;
-    int current_line = 0;
     bool steamdeck = steamdeck_controls_active();
+    char letter[4];
+    int line = 0;
 
-    int col = 26;
-    int label_col = steamdeck ? indexed_menu_prefix_col(col) : col;
-    int text_col = steamdeck ? col : col + 3;
+    sdl_song_menu_begin("Songs");
 
-    char tmp_val[80];
+    sdl_song_menu_add_entry(line, steamdeck ? "" : "s)", "Stop Singing",
+        TERM_SLATE);
+    line++;
 
-    int songs[SNG_MAX];
-    int song_count = song_menu_collect_available(songs, SNG_MAX);
-
-    // add a line for the 'stop singing' command
-
-    /* Clear the line */
-    prt("", 1, col - 2);
-
-    /* Clear the line with the (possibly indented) index */
-    put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "s)",
-        1, col);
-
-    /* Display the entry itself - highlight if selected */
-    if (highlight == current_line)
-        c_put_str(TERM_L_BLUE, "Stop Singing", 1, text_col);
-    else
-        c_put_str(TERM_SLATE, "Stop Singing", 1, text_col);
-    song_menu_register_row(current_line, 1, col);
-    current_line++;
-
-    /* Output each entry */
-    for (j = 0; j < song_count; j++)
+    for (int j = 0; j < song_count; j++)
     {
-        cptr desc;
+        int i = songs[j];
+        cptr desc = b_name + (&b_info[ability_index(S_SNG, i)])->name;
 
-        /* Get the index */
-        i = songs[j];
-        desc = b_name + (&b_info[ability_index(S_SNG, i)])->name;
-
-        /* Clear the line */
-        prt("", j + 2, col - 2);
-
-        /* Prepare an index --(-- */
-        if (steamdeck)
-            SDL_strlcpy(tmp_val, (highlight == current_line) ? "> " : "  ",
-                sizeof(tmp_val));
-        else
-            sprintf(tmp_val, "%c)", song_menu_letter(i));
-
-        /* Clear the line with the (possibly indented) index */
-        put_str(tmp_val, j + 2, label_col);
-
-        /* Display the entry itself - highlight if selected */
-        if (highlight == current_line)
-            c_put_str(TERM_L_BLUE, desc, j + 2, text_col);
-        else
-            c_put_str(TERM_L_WHITE, desc, j + 2, text_col);
-        song_menu_register_row(current_line, j + 2, col);
-        current_line++;
+        sprintf(letter, "%c)", song_menu_letter(i));
+        sdl_song_menu_add_entry(line, steamdeck ? "" : letter, desc,
+            TERM_L_WHITE);
+        line++;
     }
 
-    // add a line for the 'exchange themes' command
     if (p_ptr->song2 != SNG_NOTHING)
     {
-        /* Clear the line */
-        prt("", j + 2, col - 2);
-
-        /* Clear the line with the (possibly indented) index */
-        put_str(steamdeck ? ((highlight == current_line) ? "> " : "  ") : "x)",
-            j + 2, col);
-
-        /* Display the entry itself - highlight if selected */
-        if (highlight == current_line)
-            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, text_col);
-        else
-            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, text_col);
-
-        song_menu_register_row(current_line, j + 2, col);
-        current_line++;
-        j++;
+        sdl_song_menu_add_entry(line, steamdeck ? "" : "x)",
+            "Exchange themes", TERM_L_BLUE);
+        line++;
     }
 
-    /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < 23))
-        prt("", j + 2, col - 2);
+    sdl_song_menu_set_highlight(highlight);
+    sdl_song_menu_finish();
 }
 
 /*
- * Display the available songs (modelled on show_inven).
+ * Show an information-only song panel (no selectable rows) and wait for a
+ * key or click to dismiss it.
  */
-void show_songs(void)
+static void song_menu_show_message(cptr text)
 {
-    show_songs_with_highlight(-1); // No highlighting
+    bool saved_hide_cursor = hide_cursor;
+
+    /* request_command erased the top line; repaint the map behind the
+     * overlay before blocking for input */
+    p_ptr->redraw |= (PR_MAP);
+    handle_stuff();
+    Term_fresh();
+
+    sdl_song_menu_begin("Songs");
+    sdl_song_menu_add_text(text, TERM_L_WHITE);
+    sdl_song_menu_finish();
+
+    hide_cursor = true;
+    ui_key_wait_dismiss_begin(ESCAPE);
+    while (inkey() == UI_MENU_CLICK_WAKE_KEY)
+        ;
+    ui_key_wait_dismiss_clear();
+    hide_cursor = saved_hide_cursor;
+    sdl_song_menu_clear();
 }
 
 void do_cmd_change_song()
 {
-    int i;
     bool done = false;
 
     int songs[SNG_MAX];
@@ -942,20 +902,21 @@ void do_cmd_change_song()
     int song_choice = -1;
     int highlight = 0; // Add highlight tracking
 
-    char out_val[80];
-    char tmp_val[80];
-
     char which;
     bool steamdeck = steamdeck_controls_active();
+    bool saved_hide_cursor = hide_cursor;
 
     log_debug("Player opening song selection menu");
 
     // Check for song lockout timer first
     if (p_ptr->song_lockout_timer > 0)
     {
-        msg_format("You cannot sing for %d more turn%s.",
+        char buf[80];
+
+        strnfmt(buf, sizeof(buf), "You cannot sing for %d more turn%s.",
             p_ptr->song_lockout_timer,
             (p_ptr->song_lockout_timer == 1) ? "" : "s");
+        song_menu_show_message(buf);
         return;
     }
 
@@ -965,91 +926,28 @@ void do_cmd_change_song()
     if (song_count == 0)
     {
         log_trace("No songs available - player knows no songs of power");
-        msg_print("You do not know any songs of power.");
+        song_menu_show_message("You do not know any songs of power.");
         return;
     }
 
     log_debug("Player has %d songs available", song_count);
 
-    /* Flush the prompt */
+    /* request_command erased the top line; repaint the map behind the
+     * overlay before blocking for input */
+    p_ptr->redraw |= (PR_MAP);
+    handle_stuff();
     Term_fresh();
 
-    /* Song selectors always start with the list visible. */
-    p_ptr->command_see = true;
-
-    /* Start out in "display" mode */
-    if (p_ptr->command_see)
-    {
-        /* Save screen */
-        screen_save();
-    }
+    /* The overlay panel owns the selection; never show the term cursor */
+    hide_cursor = true;
 
     /* Repeat until done */
     while (!done)
     {
-        /* Redraw if needed */
-        if (p_ptr->command_see)
-        {
-            ui_menu_click_begin();
-            ui_menu_click_set_hover_enabled(true);
-            ui_menu_click_set_outside_cancel_enabled(true);
-            show_songs_with_highlight(highlight);
-        }
-        else
-        {
-            ui_menu_click_clear();
-        }
-
-        /* Begin the prompt */
-        if (steamdeck)
-            sprintf(out_val, "D-pad choose");
-        else
-            sprintf(out_val, "Songs: s");
-
-        for (i = 0; i < song_count; i++)
-        {
-            if (!steamdeck)
-            {
-                SDL_strlcat(out_val, ",", sizeof(out_val));
-                sprintf(tmp_val, "%c", song_menu_letter(songs[i]));
-
-                /* Append */
-                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
-            }
-        }
-
-        // add an 'x' option if using woven themes
-        if (p_ptr->song2 != SNG_NOTHING)
-        {
-            /* Append */
-            if (!steamdeck)
-                SDL_strlcat(out_val, ",x", sizeof(out_val));
-        }
-
-        /* Indicate ability to "view" */
-        if (!p_ptr->command_see)
-            SDL_strlcat(out_val, ", * to see", sizeof(out_val));
-        else if (steamdeck)
-        {
-            char confirm_label[16];
-            char back_label[16];
-
-            controller_prompt_label(steamdeck_confirm_key(), "A",
-                confirm_label, sizeof(confirm_label));
-            controller_prompt_label(steamdeck_back_key(), "B", back_label,
-                sizeof(back_label));
-            SDL_strlcat(out_val, ", ", sizeof(out_val));
-            SDL_strlcat(out_val, confirm_label, sizeof(out_val));
-            SDL_strlcat(out_val, " select, ", sizeof(out_val));
-            SDL_strlcat(out_val, back_label, sizeof(out_val));
-            SDL_strlcat(out_val, " back", sizeof(out_val));
-        }
-
-        /* Build the prompt */
-        strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
-
-        /* Show the prompt */
-        prt(tmp_val, 0, 0);
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
+        song_menu_show_overlay(songs, song_count, highlight);
 
         /* Get a key */
         which = inkey();
@@ -1100,110 +998,47 @@ void do_cmd_change_song()
         /* Parse it */
         switch (which)
         {
-        case '\r': // Enter - select highlighted item when menu is visible, otherwise exit
+        case '\r': // Enter - select the highlighted entry
+        case ' ': // Space - select the highlighted entry
         {
-            if (p_ptr->command_see)
-            {
-                song_choice =
-                    song_menu_choice_from_highlight(highlight, songs, song_count);
+            song_choice =
+                song_menu_choice_from_highlight(highlight, songs, song_count);
 
-                if (song_choice >= 0)
-                {
-                    done = true;
-                }
-            }
-            else
+            if (song_choice >= 0)
             {
-                log_trace("Song selection cancelled by player");
                 done = true;
             }
             break;
         }
 
         case '*':
-        case '?':
-        {
-            /* Hide the list */
-            if (p_ptr->command_see)
-            {
-                /* Flip flag */
-                p_ptr->command_see = false;
-                ui_menu_click_clear();
-
-                /* Load screen */
-                screen_load();
-            }
-
-            /* Show the list */
-            else
-            {
-                /* Save screen */
-                screen_save();
-
-                /* Flip flag */
-                p_ptr->command_see = true;
-            }
-
+        case '?': // the overlay list is always visible
             break;
-        }
-
-        case ' ': // Space - select highlighted item when menu is visible, otherwise toggle menu
-        {
-            if (p_ptr->command_see)
-            {
-                song_choice =
-                    song_menu_choice_from_highlight(highlight, songs, song_count);
-
-                if (song_choice >= 0)
-                {
-                    done = true;
-                }
-            }
-            else
-            {
-                /* Show the list */
-                /* Save screen */
-                screen_save();
-
-                /* Flip flag */
-                p_ptr->command_see = true;
-            }
-            break;
-        }
 
         case '2': // Down arrow / scroll down
         {
-            if (p_ptr->command_see)
-            {
-                int total_options = song_menu_total_options(song_count);
+            int total_options = song_menu_total_options(song_count);
 
-                highlight = (highlight + 1) % total_options;
-            }
+            highlight = (highlight + 1) % total_options;
             break;
         }
 
         case '8': // Up arrow / scroll up
         {
-            if (p_ptr->command_see)
-            {
-                int total_options = song_menu_total_options(song_count);
+            int total_options = song_menu_total_options(song_count);
 
-                highlight = (highlight - 1 + total_options) % total_options;
-            }
+            highlight = (highlight - 1 + total_options) % total_options;
             break;
         }
 
         case '6': // Right arrow / select highlighted
         {
-            if (p_ptr->command_see)
-            {
-                song_choice =
-                    song_menu_choice_from_highlight(highlight, songs, song_count);
+            song_choice =
+                song_menu_choice_from_highlight(highlight, songs, song_count);
 
-                if (song_choice >= 0)
-                {
-                    done = true;
-                }
+            if (song_choice >= 0)
+            {
+                done = true;
             }
             break;
         }
@@ -1275,20 +1110,9 @@ void do_cmd_change_song()
         }
     }
 
+    hide_cursor = saved_hide_cursor;
+    sdl_song_menu_clear();
     ui_menu_click_clear();
-
-    /* Fix the screen if necessary */
-    if (p_ptr->command_see)
-    {
-        /* Load screen */
-        screen_load();
-
-        /* Hack -- Cancel "display" */
-        p_ptr->command_see = false;
-    }
-
-    /* Clear the prompt line */
-    prt("", 0, 0);
 
     if (song_choice >= 0)
     {

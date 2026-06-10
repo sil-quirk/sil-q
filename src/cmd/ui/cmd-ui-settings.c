@@ -902,6 +902,9 @@ static cptr option_menu_label(int opt)
     case OPT_supply_menu_hide_flavor_compact:
         return compact ? (narrow ? "Hide flavors" : "Hide supply flavors")
                        : "Hide supply flavors in compact mode";
+    case OPT_hide_secondary_action_ring:
+        return compact ? (narrow ? "Hide 2nd ring" : "Hide 2nd wheel ring")
+                       : "Hide the action wheel's secondary ring until hovered";
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";

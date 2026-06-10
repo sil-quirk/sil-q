@@ -109,6 +109,11 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
         return "Swap quivers: exchange your 1st and 2nd quivers.";
     case SDL_PLAYER_ACTION_CHANGE_STAFF:
         return "Swap staff: exchange your staff with one from your pack.";
+    case SDL_PLAYER_ACTION_CLOSE_DOOR:
+        return "Close: shut an adjacent open door. Doors open automatically "
+               "when you move into them.";
+    case SDL_PLAYER_ACTION_BASH_DOOR:
+        return "Bash: force open a stuck or locked door.";
     default:
         return "";
     }
@@ -130,6 +135,8 @@ static cptr sdl_player_action_menu_fallback_for_kind(int kind)
     case SDL_PLAYER_ACTION_REST: return "Rest";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS: return "Swap";
     case SDL_PLAYER_ACTION_CHANGE_STAFF: return "Swap";
+    case SDL_PLAYER_ACTION_CLOSE_DOOR: return "Close";
+    case SDL_PLAYER_ACTION_BASH_DOOR: return "Bash";
     default: return "";
     }
 }
@@ -178,6 +185,12 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     case SDL_PLAYER_ACTION_CHANGE_STAFF:
         row = 12; col = 30; /* swap/target icon */
         break;
+    case SDL_PLAYER_ACTION_CLOSE_DOOR:
+        row = 0; col = 11;  /* open door (the door you close) */
+        break;
+    case SDL_PLAYER_ACTION_BASH_DOOR:
+        row = 0; col = 10;  /* closed door (the door you bash) */
+        break;
     default:
         break;
     }
@@ -223,6 +236,51 @@ static bool sdl_player_can_shoot_entry(void)
         || (p_ptr && p_ptr->active_ability[S_ARC][ARC_FLETCHERY]);
 }
 
+/* Whether an adjacent known grid satisfies the given feature test. */
+static bool sdl_player_adjacent_feat(bool (*test)(int feat))
+{
+    if (!p_ptr)
+        return false;
+
+    for (int d = 0; d < 8; d++) {
+        int yy = p_ptr->py + ddy_ddd[d];
+        int xx = p_ptr->px + ddx_ddd[d];
+
+        if (!in_bounds_fully(yy, xx))
+            continue;
+        if (!(cave_info[yy][xx] & (CAVE_MARK)))
+            continue;
+        if (test(cave_feat[yy][xx]))
+            return true;
+    }
+
+    return false;
+}
+
+static bool sdl_player_door_is_open(int feat)
+{
+    return feat == FEAT_OPEN;
+}
+
+static bool sdl_player_door_is_closed(int feat)
+{
+    return (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
+        || feat == FEAT_WARDED || feat == FEAT_WARDED2
+        || feat == FEAT_WARDED3;
+}
+
+/* A door you can close (open) is adjacent. */
+static bool sdl_player_has_adjacent_open_door(void)
+{
+    return sdl_player_adjacent_feat(sdl_player_door_is_open);
+}
+
+/* A door you can bash (closed/warded) is adjacent. */
+static bool sdl_player_has_adjacent_closed_door(void)
+{
+    return sdl_player_adjacent_feat(sdl_player_door_is_closed);
+}
+
 int sdl_player_action_menu_collect(player_action_menu_entry* entries)
 {
     int count = 0;
@@ -243,6 +301,16 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
     }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_EXAMINE, 'x', "Desc");
+    /* Close door when an open door is adjacent (Bash rides along as its
+     * secondary); when only a closed door is adjacent, promote Bash to the
+     * primary ring on its own. */
+    if (sdl_player_has_adjacent_open_door()) {
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_CLOSE_DOOR, 'c', "Close");
+    } else if (sdl_player_has_adjacent_closed_door()) {
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_BASH_DOOR, 'b', "Bash");
+    }
     if (sdl_player_has_equipped_staff()) {
         sdl_player_action_menu_add_entry(entries, &count,
             SDL_PLAYER_ACTION_ACTIVATE, 'a', "Staff");
@@ -287,6 +355,12 @@ int sdl_player_action_menu_collect_secondary(int primary_kind,
         sdl_player_action_menu_add_entry(entries, &count,
             SDL_PLAYER_ACTION_CHANGE_STAFF, KTRL('A'), "Swap");
         break;
+    case SDL_PLAYER_ACTION_CLOSE_DOOR:
+        if (sdl_player_has_adjacent_closed_door()) {
+            sdl_player_action_menu_add_entry(entries, &count,
+                SDL_PLAYER_ACTION_BASH_DOOR, 'b', "Bash");
+        }
+        break;
     default:
         break;
     }
@@ -307,9 +381,55 @@ int sdl_player_action_menu_secondary_owner(int kind)
         return SDL_PLAYER_ACTION_STEALTH;
     case SDL_PLAYER_ACTION_CHANGE_STAFF:
         return SDL_PLAYER_ACTION_ACTIVATE;
+    case SDL_PLAYER_ACTION_BASH_DOOR:
+        /* Bash is Close's secondary only when Close is on the ring (an open
+         * door is adjacent); otherwise Bash is itself a promoted primary. */
+        return sdl_player_has_adjacent_open_door()
+            ? SDL_PLAYER_ACTION_CLOSE_DOOR
+            : SDL_PLAYER_ACTION_NONE;
     default:
         return SDL_PLAYER_ACTION_NONE;
     }
+}
+
+/* Whether the secondary rings are hidden until their sector is hovered. This
+ * is an interface option, defaulting on everywhere except touch-only devices
+ * (where the whole wheel is always shown). */
+static bool sdl_player_action_menu_secondary_hidden(void)
+{
+    return hide_secondary_action_ring && !sdl_touch_only_device_active();
+}
+
+/* When the secondary rings are hidden, the primary whose ring should be shown
+ * for the current hover (the hovered secondary's owner, or a hovered primary
+ * that has secondaries). NONE when nothing relevant is hovered. */
+static int sdl_player_action_menu_open_owner(int hover_kind)
+{
+    player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
+    int owner;
+
+    if (hover_kind == SDL_PLAYER_ACTION_NONE)
+        return SDL_PLAYER_ACTION_NONE;
+
+    owner = sdl_player_action_menu_secondary_owner(hover_kind);
+    if (owner != SDL_PLAYER_ACTION_NONE)
+        return owner;
+
+    if (sdl_player_action_menu_collect_secondary(hover_kind, secondary) > 0)
+        return hover_kind;
+
+    return SDL_PLAYER_ACTION_NONE;
+}
+
+/* Whether the given primary's secondary ring is currently visible (and so
+ * hit-testable): always when not hiding, else only the open owner's ring. */
+static bool sdl_player_action_menu_secondary_visible(int primary_kind)
+{
+    if (!sdl_player_action_menu_secondary_hidden())
+        return true;
+
+    return primary_kind
+        == sdl_player_action_menu_open_owner(g_player_action_menu.hover_kind);
 }
 
 /* Whether two kinds share a primary/secondary relationship (used to keep a
@@ -808,10 +928,13 @@ int sdl_player_action_menu_kind_at(float x, float y)
     if (dist <= entries[0].outer_radius)
         return entries[index].kind;
 
-    /* Outside it: the always-shown secondary ring for that sector, if any. */
+    /* Outside it: the secondary ring for that sector, if shown. */
     {
         player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
         int sec_count = 0;
+
+        if (!sdl_player_action_menu_secondary_visible(entries[index].kind))
+            return SDL_PLAYER_ACTION_NONE;
 
         if (!sdl_player_action_menu_layout_secondary(entries[index].kind,
                 secondary, &sec_count)
@@ -1235,6 +1358,12 @@ void sdl_player_action_menu_activate_kind(int kind, bool secondary)
         break;
     case SDL_PLAYER_ACTION_CHANGE_STAFF:
         command = KTRL('A');
+        break;
+    case SDL_PLAYER_ACTION_CLOSE_DOOR:
+        command = 'c';
+        break;
+    case SDL_PLAYER_ACTION_BASH_DOOR:
+        command = 'b';
         break;
     default:
         return;
@@ -2096,9 +2225,9 @@ void sdl_player_action_menu_render(void)
     player_action_menu_entry hovered_entry;
     int count = 0;
     SDL_Rect clip;
-    SDL_Color bg = { 22, 24, 26, 162 };
-    SDL_Color hover_bg = { 88, 82, 58, 216 };
-    SDL_Color border = { 188, 202, 210, 150 };
+    SDL_Color bg = { 22, 24, 26, 236 };
+    SDL_Color hover_bg = { 88, 82, 58, 248 };
+    SDL_Color border = { 188, 202, 210, 215 };
     SDL_Color hover_border = g_state.palette[TERM_YELLOW];
     bool has_hover = false;
     bool hover_is_secondary = false;
@@ -2154,11 +2283,14 @@ void sdl_player_action_menu_render(void)
         sdl_player_action_menu_render_icon(&entries[i], hover);
     }
 
-    /* Secondary rings: always shown, one outer ring per primary that has
-     * secondaries */
+    /* Secondary rings: one outer ring per primary that has secondaries. Shown
+     * for every primary, or (when hiding is on) only for the hovered owner. */
     for (int p = 0; p < count; p++) {
         player_action_menu_entry secondary[SDL_PLAYER_ACTION_MAX];
         int sec_count = 0;
+
+        if (!sdl_player_action_menu_secondary_visible(entries[p].kind))
+            continue;
 
         if (!sdl_player_action_menu_layout_secondary(entries[p].kind,
                 secondary, &sec_count)

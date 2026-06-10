@@ -814,6 +814,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_song_menu_handle_hover_pointer((float)ev->motion.x,
+            (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_character_panel_handle_pointer_motion((float)ev->motion.x,
             (float)ev->motion.y, true, 0))
         {
@@ -949,6 +954,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_song_menu_handle_pointer((float)ev->button.x,
+                    (float)ev->button.y, UI_MENU_CLICK_PRIMARY))
+            {
+                return;
+            }
             if (sdl_touch_hidden_indicator_handle_pointer_down(
                     (float)ev->button.x, (float)ev->button.y, false))
             {
@@ -1077,6 +1087,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             if (sdl_unified_look_sidebar_handle_pointer(
                     (float)ev->button.x, (float)ev->button.y,
                     UI_MENU_CLICK_SECONDARY))
+            {
+                return;
+            }
+            if (sdl_song_menu_handle_pointer((float)ev->button.x,
+                    (float)ev->button.y, UI_MENU_CLICK_SECONDARY))
             {
                 return;
             }
@@ -1304,6 +1319,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_song_menu_handle_pointer(x, y, UI_MENU_CLICK_PRIMARY))
+            return;
         if (sdl_touch_hidden_indicator_handle_pointer_down(x, y, true))
             return;
         if (sdl_main_screen_menu_pointer_hits_cell(x, y)

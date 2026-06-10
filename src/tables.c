@@ -265,7 +265,7 @@ cptr option_text[OPT_MAX] = {
     "mirror_player_tile_facing", /* OPT_mirror_player_tile_facing */
     "handcrafted_player_tile_facing", /* OPT_handcrafted_player_tile_facing */
     "story_object_desc", /* OPT_story_object_desc */
-    NULL, /* reserved legacy slot */
+    "hide_secondary_action_ring", /* OPT_hide_secondary_action_ring */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -510,7 +510,7 @@ cptr option_desc[OPT_MAX] = {
     "Directional character animation", /* OPT_mirror_player_tile_facing */
     "Use handcrafted right-facing player tiles", /* OPT_handcrafted_player_tile_facing */
     "Render object description overlays with the story font", /* OPT_story_object_desc */
-    NULL, /* reserved legacy slot */
+    "Hide the action wheel's secondary ring until its sector is hovered", /* OPT_hide_secondary_action_ring */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -775,7 +775,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_mirror_player_tile_facing */
     true, /* OPT_handcrafted_player_tile_facing */
     false, /* OPT_story_object_desc */
-    false, /* reserved legacy slot */
+    true, /* OPT_hide_secondary_action_ring */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -928,8 +928,9 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_hjkl_movement, OPT_angband_keyset,
         OPT_inventory_selection_square, OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
+        OPT_hide_secondary_action_ring,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/

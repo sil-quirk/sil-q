@@ -805,7 +805,7 @@ static const byte app_interface_options[] = {
     OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
     OPT_inventory_selection_square, OPT_supply_menu_random_icons,
-    OPT_supply_menu_hide_flavor_compact,
+    OPT_supply_menu_hide_flavor_compact, OPT_hide_secondary_action_ring,
     OPT_NONE
 };
 
@@ -870,6 +870,11 @@ static bool sdl_config_default_app_bool(int opt)
 {
     if (opt == OPT_hide_supporting_panes_fullscreen)
         return true;
+
+    /* Hide the action wheel's secondary ring by default everywhere except
+     * touch-only devices, where the full wheel is shown at once. */
+    if (opt == OPT_hide_secondary_action_ring)
+        return !sdl_touch_only_device_active();
 
     if (opt >= 0 && opt < OPT_MAX)
         return option_norm[opt];

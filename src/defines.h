@@ -2886,6 +2886,7 @@
 #define OPT_mirror_player_tile_facing 115
 #define OPT_handcrafted_player_tile_facing 116
 #define OPT_story_object_desc 117
+#define OPT_hide_secondary_action_ring 118
 
 /*
  * Settings retired by the 0.9.7 interface refactor. These are not legacy
@@ -3079,6 +3080,7 @@
 #define story_monster_desc_main op_ptr->opt[OPT_story_monster_desc]
 #define story_monster_desc_pane op_ptr->opt[OPT_story_monster_desc_pane]
 #define story_object_desc op_ptr->opt[OPT_story_object_desc]
+#define hide_secondary_action_ring op_ptr->opt[OPT_hide_secondary_action_ring]
 #define disable_skeleton_note_tutorial                                           \
     op_ptr->opt[OPT_disable_skeleton_note_tutorial]
 #define smaller_level_size op_ptr->opt[OPT_smaller_level_size]

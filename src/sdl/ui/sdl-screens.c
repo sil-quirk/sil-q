@@ -4149,7 +4149,8 @@ int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
 
     for (int px = title_px; px >= min_px; px -= 2)
     {
-        TTF_Font* f = sdl_story_font_for_height(px);
+        TTF_Font* f = sdl_story_font_for_height_slot(px,
+            SDL_STORY_FONT_SLOT_CHAR_SELECT);
         float lh = sdl_char_sheet_line_h(f, px, 1.28f);
         float candidate_w = sdl_char_sheet_book_width(px, content_w);
         float avail = region_h - 2.0f * (lh * SDL_BOOK_MARGIN_V);
@@ -4353,7 +4354,8 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float y;
 
     body_font = sdl_story_font_for_height_slot(body_px,
-        narrative ? SDL_STORY_FONT_SLOT_NARRATIVE : 0);
+        narrative ? SDL_STORY_FONT_SLOT_NARRATIVE
+                  : SDL_STORY_FONT_SLOT_CHAR_SELECT);
     book_w = sdl_char_sheet_book_width(body_px, content_w);
     book_x = content_x + (content_w - book_w) * 0.5f;
     body_lh = sdl_char_sheet_line_h(body_font, body_px, 1.28f);
@@ -4943,7 +4945,8 @@ void sdl_character_sheet_screen_render(void)
             float book_x = content_x + (content_w - book_w) * 0.5f;
             int body_slot = (g_sdl_character_sheet_screen.context
                     == SDL_CHARACTER_SHEET_NARRATIVE)
-                ? SDL_STORY_FONT_SLOT_NARRATIVE : 0;
+                ? SDL_STORY_FONT_SLOT_NARRATIVE
+                : SDL_STORY_FONT_SLOT_CHAR_SELECT;
             float body_lh = sdl_char_sheet_line_h(
                 sdl_story_font_for_height_slot(body_px, body_slot), body_px, 1.28f);
             float mh = body_lh * SDL_BOOK_MARGIN_H;
