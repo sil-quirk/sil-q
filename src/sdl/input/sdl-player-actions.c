@@ -1690,7 +1690,8 @@ static void sdl_player_action_menu_render_tooltip(
         return;
 
     font_px = sdl_object_tooltip_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px,
+        STORY_FONT_SLOT_SECONDARY);
     if (!font)
         return;
 

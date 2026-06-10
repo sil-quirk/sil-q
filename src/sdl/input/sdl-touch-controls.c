@@ -3013,7 +3013,8 @@ static void sdl_touch_top_panel_render_tooltip(const SDL_FRect* anchor,
         return;
 
     font_px = sdl_object_tooltip_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px,
+        STORY_FONT_SLOT_SECONDARY);
     if (!font)
         return;
 

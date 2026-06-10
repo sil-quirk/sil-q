@@ -224,15 +224,37 @@ void sdl_object_tooltip_clear(void)
     g_state.need_present = true;
 }
 
+/* Append text to buf, recording the attr of each appended byte in the
+ * parallel attrs array (when provided; it must hold at least buflen
+ * entries). */
+static void sdl_object_tooltip_append_text(char* buf, size_t buflen,
+    byte* attrs, cptr text, byte attr)
+{
+    size_t old_len;
+    size_t new_len;
+
+    if (!buf || !buflen || !text || !text[0])
+        return;
+
+    old_len = strlen(buf);
+    SDL_strlcat(buf, text, buflen);
+
+    if (!attrs)
+        return;
+    new_len = strlen(buf);
+    for (size_t i = old_len; i < new_len; i++)
+        attrs[i] = attr;
+}
+
 void sdl_object_tooltip_append_part(char* buf, size_t buflen,
-    cptr text)
+    byte* attrs, cptr text, byte attr)
 {
     if (!buf || !buflen || !text || !text[0])
         return;
 
     if (buf[0])
-        SDL_strlcat(buf, "; ", buflen);
-    SDL_strlcat(buf, text, buflen);
+        sdl_object_tooltip_append_text(buf, buflen, attrs, "; ", TERM_WHITE);
+    sdl_object_tooltip_append_text(buf, buflen, attrs, text, attr);
 }
 
 bool sdl_object_tooltip_feature_name(int y, int x, cptr* out_name)
@@ -289,11 +311,13 @@ bool sdl_object_tooltip_feature_name(int y, int x, cptr* out_name)
 }
 
 void sdl_object_tooltip_monster_morale_text(monster_type* m_ptr,
-    char* out, size_t out_len)
+    char* out, size_t out_len, byte* out_attr)
 {
     int color = TERM_WHITE;
     int morale_num;
 
+    if (out_attr)
+        *out_attr = TERM_WHITE;
     if (!out || !out_len)
         return;
 
@@ -301,8 +325,11 @@ void sdl_object_tooltip_monster_morale_text(monster_type* m_ptr,
     if (!m_ptr)
         return;
 
-    if (get_alertness_text(m_ptr, (int)out_len, out, &color))
+    if (get_alertness_text(m_ptr, (int)out_len, out, &color)) {
+        if (out_attr)
+            *out_attr = (byte)color;
         return;
+    }
 
     morale_num = (m_ptr->morale >= 0) ? ((m_ptr->morale + 9) / 10)
                                       : (m_ptr->morale / 10);
@@ -310,7 +337,7 @@ void sdl_object_tooltip_monster_morale_text(monster_type* m_ptr,
 }
 
 bool sdl_object_tooltip_format_grid(int y, int x, char* out,
-    size_t out_len)
+    size_t out_len, byte* attrs)
 {
     char local[sizeof(g_object_tooltip.text)];
     char* buf = out ? out : local;
@@ -331,28 +358,35 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
         char m_name[80];
         char hp_bar[10];
         char morale_text[24];
-        char m_label[144];
+        byte morale_attr = TERM_WHITE;
 
         monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
         sdl_object_tooltip_monster_morale_text(m_ptr, morale_text,
-            sizeof(morale_text));
+            sizeof(morale_text), &morale_attr);
+        sdl_object_tooltip_append_part(buf, buflen, attrs, m_name,
+            TERM_WHITE);
         if (m_ptr->maxhp > 0) {
             monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
-            if (morale_text[0])
-                strnfmt(m_label, sizeof(m_label), "%s [HP: %s, Morale: %s]",
-                    m_name, hp_bar[0] ? hp_bar : "-", morale_text);
-            else
-                strnfmt(m_label, sizeof(m_label), "%s [HP: %s]", m_name,
-                    hp_bar[0] ? hp_bar : "-");
-            sdl_object_tooltip_append_part(buf, buflen, m_label);
-        } else {
+            sdl_object_tooltip_append_text(buf, buflen, attrs, " [HP: ",
+                TERM_WHITE);
+            sdl_object_tooltip_append_text(buf, buflen, attrs,
+                hp_bar[0] ? hp_bar : "-",
+                health_attr(m_ptr->hp, m_ptr->maxhp));
             if (morale_text[0]) {
-                strnfmt(m_label, sizeof(m_label), "%s [Morale: %s]", m_name,
-                    morale_text);
-                sdl_object_tooltip_append_part(buf, buflen, m_label);
-            } else {
-                sdl_object_tooltip_append_part(buf, buflen, m_name);
+                sdl_object_tooltip_append_text(buf, buflen, attrs,
+                    ", Morale: ", TERM_WHITE);
+                sdl_object_tooltip_append_text(buf, buflen, attrs,
+                    morale_text, morale_attr);
             }
+            sdl_object_tooltip_append_text(buf, buflen, attrs, "]",
+                TERM_WHITE);
+        } else if (morale_text[0]) {
+            sdl_object_tooltip_append_text(buf, buflen, attrs, " [Morale: ",
+                TERM_WHITE);
+            sdl_object_tooltip_append_text(buf, buflen, attrs, morale_text,
+                morale_attr);
+            sdl_object_tooltip_append_text(buf, buflen, attrs, "]",
+                TERM_WHITE);
         }
     }
 
@@ -372,19 +406,22 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
                 continue;
 
             object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
-            sdl_object_tooltip_append_part(buf, buflen, o_name);
+            sdl_object_tooltip_append_part(buf, buflen, attrs, o_name,
+                TERM_WHITE);
         }
 
         if (object_count > 2) {
             char more[32];
 
             strnfmt(more, sizeof(more), "+%d more", object_count - 2);
-            sdl_object_tooltip_append_part(buf, buflen, more);
+            sdl_object_tooltip_append_part(buf, buflen, attrs, more,
+                TERM_WHITE);
         }
     }
 
     if (sdl_object_tooltip_feature_name(y, x, &feature_name))
-        sdl_object_tooltip_append_part(buf, buflen, feature_name);
+        sdl_object_tooltip_append_part(buf, buflen, attrs, feature_name,
+            TERM_WHITE);
 
     return buf[0] != '\0';
 }
@@ -394,7 +431,9 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     char name[sizeof(g_object_tooltip.text)];
     Uint64 expires_at = 0;
 
-    if (!sdl_object_tooltip_format_grid(map_y, map_x, name, sizeof(name))) {
+    if (!sdl_object_tooltip_format_grid(map_y, map_x, name, sizeof(name),
+            NULL))
+    {
         sdl_object_tooltip_clear();
         return false;
     }
@@ -614,23 +653,185 @@ bool sdl_object_tooltip_flush_expired(Uint64 now_ns)
     return true;
 }
 
+/* A colored, word-wrapped slice of the tooltip text: byte range, color and
+ * laid-out position (line index plus pixel offset within the line). */
+typedef struct object_tooltip_text_run {
+    int start;
+    int len;
+    byte attr;
+    int line;
+    float x;
+} object_tooltip_text_run;
+
+enum { SDL_OBJECT_TOOLTIP_MAX_RUNS = 128 };
+
+static float sdl_object_tooltip_measure_text(TTF_Font* font, cptr text,
+    int len)
+{
+    int adv = 0;
+
+    if (!font || !text || len <= 0)
+        return 0.0f;
+
+    len = utf8_safe_prefix_len(text, len);
+    if (len <= 0)
+        return 0.0f;
+
+    TTF_MeasureString(font, text, (size_t)len, 0, &adv, NULL);
+    return (float)adv;
+}
+
+/*
+ * Split tooltip text into same-color runs, word-wrapped to max_text_w.
+ * Returns the run count; *out_lines and *out_max_w receive the line count
+ * and the widest laid-out line in pixels.
+ */
+static int sdl_object_tooltip_layout_runs(TTF_Font* font, cptr text,
+    const byte* attrs, float max_text_w, object_tooltip_text_run* runs,
+    int max_runs, int* out_lines, float* out_max_w)
+{
+    int run_count = 0;
+    int line = 0;
+    float line_w = 0.0f;
+    float max_w = 0.0f;
+    int len = (int)strlen(text);
+    int pos = 0;
+
+    while (pos < len && run_count < max_runs) {
+        bool is_space = (text[pos] == ' ');
+        int tok_start = pos;
+        int tok_len;
+        float tok_w;
+        int sub;
+
+        while (pos < len && (text[pos] == ' ') == is_space)
+            pos++;
+        tok_len = pos - tok_start;
+
+        /* Drop spaces at the start of a wrapped line. */
+        if (is_space && line_w <= 0.0f && line > 0)
+            continue;
+
+        tok_w = sdl_object_tooltip_measure_text(font, text + tok_start,
+            tok_len);
+        if (!is_space && line_w > 0.0f && line_w + tok_w > max_text_w) {
+            line++;
+            line_w = 0.0f;
+        }
+
+        /* Hard-break a single token wider than the box. */
+        if (!is_space && tok_w > max_text_w) {
+            int off = 0;
+
+            while (off < tok_len && run_count < max_runs) {
+                size_t fit_len = 0;
+                int fit_w = 0;
+
+                if (!TTF_MeasureString(font, text + tok_start + off,
+                        (size_t)(tok_len - off), (int)max_text_w, &fit_w,
+                        &fit_len)
+                    || fit_len < 1)
+                {
+                    fit_len = (size_t)(tok_len - off);
+                    fit_w = (int)tok_w;
+                }
+
+                runs[run_count++] = (object_tooltip_text_run){
+                    .start = tok_start + off,
+                    .len = (int)fit_len,
+                    .attr = attrs[tok_start + off],
+                    .line = line,
+                    .x = 0.0f,
+                };
+                line_w = (float)fit_w;
+                if (line_w > max_w)
+                    max_w = line_w;
+                off += (int)fit_len;
+                if (off < tok_len) {
+                    line++;
+                    line_w = 0.0f;
+                }
+            }
+            continue;
+        }
+
+        /* Emit the token as one run per color, merging with the previous
+         * run when contiguous and same-colored. */
+        sub = tok_start;
+        while (sub < tok_start + tok_len) {
+            byte attr = attrs[sub];
+            int sub_end = sub + 1;
+            float sub_w;
+
+            while (sub_end < tok_start + tok_len && attrs[sub_end] == attr)
+                sub_end++;
+
+            sub_w = sdl_object_tooltip_measure_text(font, text + sub,
+                sub_end - sub);
+            if (run_count > 0
+                && runs[run_count - 1].line == line
+                && runs[run_count - 1].attr == attr
+                && runs[run_count - 1].start + runs[run_count - 1].len == sub)
+            {
+                runs[run_count - 1].len += sub_end - sub;
+            } else {
+                if (run_count >= max_runs)
+                    break;
+                runs[run_count++] = (object_tooltip_text_run){
+                    .start = sub,
+                    .len = sub_end - sub,
+                    .attr = attr,
+                    .line = line,
+                    .x = line_w,
+                };
+            }
+            line_w += sub_w;
+            sub = sub_end;
+        }
+        if (line_w > max_w)
+            max_w = line_w;
+    }
+
+    if (out_lines)
+        *out_lines = line + 1;
+    if (out_max_w)
+        *out_max_w = max_w;
+    return run_count;
+}
+
+static float sdl_object_tooltip_clamp_box_y(float y, float box_h,
+    const SDL_Rect* screen, float screen_margin)
+{
+    if (box_h + screen_margin * 2.0f <= (float)screen->h)
+        return sdl_touch_pane_clampf(y, (float)screen->y + screen_margin,
+            (float)(screen->y + screen->h) - box_h - screen_margin);
+
+    return (float)screen->y + screen_margin;
+}
+
 void sdl_object_tooltip_render(void)
 {
     char current[sizeof(g_object_tooltip.text)];
+    byte attrs[sizeof(g_object_tooltip.text)];
+    object_tooltip_text_run runs[SDL_OBJECT_TOOLTIP_MAX_RUNS];
+    int run_count;
+    int line_count = 1;
+    float text_w = 0.0f;
     SDL_FRect cell_rect;
     SDL_Rect screen;
     TTF_Font* font;
-    SDL_Surface* surface;
-    SDL_Texture* texture;
     SDL_FRect box;
-    SDL_FRect text_dst;
-    SDL_Color text_color = g_state.palette[TERM_WHITE];
+    SDL_FRect player_rect;
     float pad;
     float gap;
     float screen_margin;
     float max_box_w;
     float max_text_w;
+    float above_y;
+    float below_y;
+    bool prefer_above;
     int font_px;
+    int line_h;
 
     if (!g_object_tooltip.active)
         return;
@@ -640,6 +841,8 @@ void sdl_object_tooltip_render(void)
         sdl_object_tooltip_clear();
         return;
     }
+
+    SDL_memset(attrs, TERM_WHITE, sizeof(attrs));
     if (g_object_tooltip.term_cell) {
         if (!g_object_tooltip.text[0]
             || !(g_object_tooltip.character_panel_cell
@@ -656,7 +859,7 @@ void sdl_object_tooltip_render(void)
     } else {
         if (!sdl_mouse_gameplay_context_active()
             || !sdl_object_tooltip_format_grid(g_object_tooltip.map_y,
-                g_object_tooltip.map_x, current, sizeof(current))
+                g_object_tooltip.map_x, current, sizeof(current), attrs)
             || !sdl_player_map_rect(g_object_tooltip.map_y,
                 g_object_tooltip.map_x, &cell_rect))
         {
@@ -673,7 +876,8 @@ void sdl_object_tooltip_render(void)
         return;
 
     font_px = sdl_object_tooltip_font_px();
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_story_font_for_height_slot(font_px,
+        STORY_FONT_SLOT_SECONDARY);
     if (!font)
         return;
 
@@ -686,24 +890,23 @@ void sdl_object_tooltip_render(void)
         return;
 
     max_text_w = max_box_w - pad * 2.0f;
-    surface = sdl_object_tooltip_render_text_surface(font,
-        g_object_tooltip.text, text_color, max_text_w);
-    if (!surface)
+    run_count = sdl_object_tooltip_layout_runs(font, g_object_tooltip.text,
+        attrs, max_text_w, runs, SDL_OBJECT_TOOLTIP_MAX_RUNS, &line_count,
+        &text_w);
+    if (run_count < 1 || text_w < 1.0f)
         return;
 
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
+    line_h = TTF_GetFontHeight(font);
+    if (line_h < 1)
+        line_h = font_px;
 
-    box.w = (float)surface->w + pad * 2.0f;
-    box.h = (float)surface->h + pad * 2.0f;
+    box.w = text_w + pad * 2.0f;
+    box.h = (float)(line_count * line_h) + pad * 2.0f;
+    above_y = cell_rect.y - box.h - gap;
+    below_y = cell_rect.y + cell_rect.h + gap;
+    prefer_above = (above_y >= (float)screen.y + screen_margin);
+
     box.x = cell_rect.x + (cell_rect.w - box.w) * 0.5f;
-    box.y = cell_rect.y - box.h - gap;
-
-    if (box.y < (float)screen.y + screen_margin)
-        box.y = cell_rect.y + cell_rect.h + gap;
     if (box.w + screen_margin * 2.0f <= (float)screen.w) {
         box.x = sdl_touch_pane_clampf(box.x,
             (float)screen.x + screen_margin,
@@ -711,20 +914,40 @@ void sdl_object_tooltip_render(void)
     } else {
         box.x = (float)screen.x + screen_margin;
     }
-    if (box.h + screen_margin * 2.0f <= (float)screen.h) {
-        box.y = sdl_touch_pane_clampf(box.y,
-            (float)screen.y + screen_margin,
-            (float)(screen.y + screen.h) - box.h - screen_margin);
-    } else {
-        box.y = (float)screen.y + screen_margin;
-    }
+    box.y = sdl_object_tooltip_clamp_box_y(prefer_above ? above_y : below_y,
+        box.h, &screen, screen_margin);
 
-    text_dst = (SDL_FRect){
-        .x = box.x + pad,
-        .y = box.y + pad,
-        .w = (float)surface->w,
-        .h = (float)surface->h,
-    };
+    /* Keep the popup off the player's tile: flip to the other side of the
+     * hovered cell, or dodge sideways when both sides would cover it. */
+    if (!g_object_tooltip.term_cell
+        && sdl_player_map_rect(p_ptr->py, p_ptr->px, &player_rect)
+        && sdl_description_overlay_rects_intersect(&box, &player_rect))
+    {
+        SDL_FRect alt = box;
+
+        alt.y = sdl_object_tooltip_clamp_box_y(
+            prefer_above ? below_y : above_y, box.h, &screen, screen_margin);
+        if (!sdl_description_overlay_rects_intersect(&alt, &player_rect)) {
+            box.y = alt.y;
+        } else {
+            float right_x = player_rect.x + player_rect.w + gap;
+            float left_x = player_rect.x - box.w - gap;
+            bool right_ok = right_x + box.w + screen_margin
+                <= (float)(screen.x + screen.w);
+            bool left_ok = left_x >= (float)screen.x + screen_margin;
+            float d_right = right_x - box.x;
+            float d_left = box.x - left_x;
+
+            if (d_right < 0.0f)
+                d_right = -d_right;
+            if (d_left < 0.0f)
+                d_left = -d_left;
+            if (right_ok && (!left_ok || d_right <= d_left))
+                box.x = right_x;
+            else if (left_ok)
+                box.x = left_x;
+        }
+    }
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 210);
@@ -732,11 +955,43 @@ void sdl_object_tooltip_render(void)
     SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 130);
     SDL_RenderRect(g_state.renderer, &box);
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
+    for (int i = 0; i < run_count; i++) {
+        const object_tooltip_text_run* run = &runs[i];
+        char run_text[sizeof(g_object_tooltip.text)];
+        SDL_Surface* surface;
+        SDL_Texture* texture;
+        SDL_FRect text_dst;
+        int copy_len = run->len;
 
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
+        if (copy_len >= (int)sizeof(run_text))
+            copy_len = (int)sizeof(run_text) - 1;
+        SDL_memcpy(run_text, g_object_tooltip.text + run->start,
+            (size_t)copy_len);
+        run_text[copy_len] = '\0';
+
+        surface = TTF_RenderText_Blended(font, run_text, 0,
+            g_state.palette[run->attr]);
+        if (!surface)
+            continue;
+
+        texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+        if (!texture) {
+            SDL_DestroySurface(surface);
+            continue;
+        }
+
+        text_dst = (SDL_FRect){
+            .x = box.x + pad + run->x,
+            .y = box.y + pad + (float)(run->line * line_h),
+            .w = (float)surface->w,
+            .h = (float)surface->h,
+        };
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
+
+        SDL_DestroyTexture(texture);
+        SDL_DestroySurface(surface);
+    }
 }
 
 static int sdl_description_overlay_font_px_for_story(bool story)
@@ -1993,7 +2248,7 @@ bool sdl_mouse_grid_has_recallable_content(int y, int x)
 bool sdl_mouse_grid_has_describable_content(int y, int x)
 {
     return sdl_mouse_grid_has_recallable_content(y, x)
-        || sdl_object_tooltip_format_grid(y, x, NULL, 0);
+        || sdl_object_tooltip_format_grid(y, x, NULL, 0, NULL);
 }
 
 void sdl_mouse_recall_object(object_type* o_ptr)
@@ -2109,7 +2364,8 @@ bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
         return false;
     feature_action_target = sdl_mouse_feature_action_for_grid(map_y, map_x,
         NULL, NULL);
-    tooltip_target = sdl_object_tooltip_format_grid(map_y, map_x, NULL, 0);
+    tooltip_target = sdl_object_tooltip_format_grid(map_y, map_x, NULL, 0,
+        NULL);
     if (config.touch_movement_mode == SDL_TOUCH_MOVEMENT_OFF
         && (map_y != p_ptr->py || map_x != p_ptr->px)
         && !feature_action_target
@@ -2365,7 +2621,7 @@ bool sdl_mouse_recall_process_pending(void)
     {
         char desc[sizeof(g_object_tooltip.text)];
 
-        if (sdl_object_tooltip_format_grid(y, x, desc, sizeof(desc))) {
+        if (sdl_object_tooltip_format_grid(y, x, desc, sizeof(desc), NULL)) {
             msg_format("You see %s.", desc);
             return true;
         }
