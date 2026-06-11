@@ -74,7 +74,7 @@ void do_cmd_go_up(void)
         msg_print("Nienna's voice echoes in your mind:");
         msg_print("'If you leave now, you will have failed the mercy quest.'");
         msg_print("'All the compassion you have shown will be for naught.'");
-        if (!get_check("Are you sure you wish to abandon the quest and ascend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the quest and ascend? "))
         {
             return;
         }
@@ -85,7 +85,7 @@ void do_cmd_go_up(void)
     {
         msg_print("The forge fires dim as you prepare to leave...");
         msg_print("Abandoning Aulë's forge will mean failure of the quest.");
-        if (!get_check("Are you sure you wish to abandon the forge and ascend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the forge and ascend? "))
         {
             return;
         }
@@ -96,7 +96,7 @@ void do_cmd_go_up(void)
     {
         msg_print("The spirits in the tomb grow restless as you prepare to leave...");
         msg_print("Abandoning the tomb will mean failure of Mandos' quest.");
-        if (!get_check("Are you sure you wish to abandon the tomb and ascend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the tomb and ascend? "))
         {
             return;
         }
@@ -426,7 +426,7 @@ void do_cmd_go_down(void)
         msg_print("Nienna's voice echoes in your mind:");
         msg_print("'If you leave now, you will have failed the mercy quest.'");
         msg_print("'All the compassion you have shown will be for naught.'");
-        if (!get_check("Are you sure you wish to abandon the quest and descend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the quest and descend? "))
         {
             return;
         }
@@ -437,7 +437,7 @@ void do_cmd_go_down(void)
     {
         msg_print("The forge fires dim as you prepare to leave...");
         msg_print("Abandoning Aulë's forge will mean failure of the quest.");
-        if (!get_check("Are you sure you wish to abandon the forge and descend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the forge and descend? "))
         {
             return;
         }
@@ -448,7 +448,7 @@ void do_cmd_go_down(void)
     {
         msg_print("The spirits in the tomb grow restless as you prepare to leave...");
         msg_print("Abandoning the tomb will mean failure of Mandos' quest.");
-        if (!get_check("Are you sure you wish to abandon the tomb and descend? "))
+        if (!get_check_near(p_ptr->py, p_ptr->px, "Are you sure you wish to abandon the tomb and descend? "))
         {
             return;
         }

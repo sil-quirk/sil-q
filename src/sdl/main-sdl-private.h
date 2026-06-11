@@ -886,6 +886,37 @@ typedef struct sdl_song_menu_state {
     sdl_song_menu_entry_state entries[SDL_SONG_MENU_MAX_ENTRIES];
 } sdl_song_menu_state;
 
+enum {
+    SDL_QUESTION_MENU_MAX_ENTRIES = 26,
+    SDL_QUESTION_MENU_LETTER_LEN = 4,
+    SDL_QUESTION_MENU_TEXT_LEN = 96,
+    SDL_QUESTION_MENU_TITLE_LEN = 80,
+    SDL_QUESTION_MENU_DESC_LEN = 480
+};
+
+typedef struct sdl_question_menu_entry_state {
+    int choice;
+    byte text_attr;
+    char letter[SDL_QUESTION_MENU_LETTER_LEN];
+    char text[SDL_QUESTION_MENU_TEXT_LEN];
+} sdl_question_menu_entry_state;
+
+/* Generic question overlay: a titled panel with an optional wrapped
+ * description block and selectable answer rows.  Local questions anchor
+ * next to a map grid (the door/trap/wall being asked about); global
+ * questions centre on the map view. */
+typedef struct sdl_question_menu_state {
+    bool active;
+    bool has_anchor;
+    int anchor_y; /* map grid the question is about (local placement) */
+    int anchor_x;
+    int count;
+    int highlight; /* choice highlighted by keyboard navigation, -1 none */
+    char title[SDL_QUESTION_MENU_TITLE_LEN];
+    char desc[SDL_QUESTION_MENU_DESC_LEN];
+    sdl_question_menu_entry_state entries[SDL_QUESTION_MENU_MAX_ENTRIES];
+} sdl_question_menu_state;
+
 typedef struct unified_look_map_drag_state {
     bool active;
     bool mouse;
@@ -1203,6 +1234,9 @@ typedef struct mouse_path_state {
     int stuck_door_bash_y;
     int stuck_door_bash_x;
     int stuck_door_bash_dir;
+    bool grid_question_pending;
+    int grid_question_y;
+    int grid_question_x;
     bool last_step_door_pending;
     int last_step_door_y;
     int last_step_door_x;
@@ -1349,6 +1383,9 @@ extern bool g_touch_pane_yes_no_prompt_active;
 extern char g_touch_pane_yes_no_prompt_text[SDL_TOUCH_YES_NO_LINE_LEN];
 extern sdl_touch_yes_no_prompt_placement g_touch_pane_yes_no_prompt_placement;
 extern sdl_touch_yes_no_prompt_hover g_touch_pane_yes_no_prompt_hover;
+extern bool g_touch_pane_yes_no_prompt_anchor_active;
+extern int g_touch_pane_yes_no_prompt_anchor_y;
+extern int g_touch_pane_yes_no_prompt_anchor_x;
 extern bool g_touch_pane_mobile_open;
 extern touch_pane_press_state g_touch_pane_press;
 extern bool g_touch_mouse_fallback_active;
@@ -1404,6 +1441,7 @@ extern bool g_unified_look_active;
 extern sdl_unified_look_prompt_state g_unified_look_prompt;
 extern sdl_unified_look_sidebar_state g_unified_look_sidebar;
 extern sdl_song_menu_state g_song_menu;
+extern sdl_question_menu_state g_question_menu;
 extern bool g_unified_look_map_hover_enabled;
 extern bool g_unified_look_map_hover_pending;
 extern bool g_unified_look_map_hover_wake_pending;
@@ -3004,6 +3042,7 @@ void sdl_touch_pane_reset_bindings_to_default(void);
 void sdl_touch_pane_begin_yes_no_prompt_impl(cptr prompt, sdl_touch_yes_no_prompt_placement placement);
 void sdl_touch_pane_begin_yes_no_prompt(cptr prompt);
 void sdl_touch_pane_begin_yes_no_prompt_lower(cptr prompt);
+void sdl_touch_pane_begin_yes_no_prompt_near(cptr prompt, int map_y, int map_x);
 void sdl_touch_pane_end_yes_no_prompt(void);
 cptr get_sdl_touch_pane_slot_name(int index);
 void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);
@@ -3230,6 +3269,12 @@ bool sdl_unified_look_sidebar_handle_hover_pointer(float x, float y);
 void sdl_song_menu_render(void);
 bool sdl_song_menu_handle_pointer(float x, float y, int action);
 bool sdl_song_menu_handle_hover_pointer(float x, float y);
+void sdl_question_menu_render(void);
+bool sdl_question_menu_handle_pointer(float x, float y, int action);
+bool sdl_question_menu_handle_hover_pointer(float x, float y);
+bool sdl_map_grid_cell_rect(int y, int x, SDL_FRect* out);
+bool sdl_grid_question_queue(int map_y, int map_x);
+bool sdl_grid_question_take_command(int* command, int* dir);
 bool sdl_touch_pane_handle_pointer_down(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_touch_pane_handle_pointer_motion(float x, float y, bool mouse, SDL_FingerID finger_id);
 void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse, SDL_FingerID finger_id);

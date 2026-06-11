@@ -67,27 +67,6 @@ static bool prompt_cancel_key(int ch)
     return (ch == ESCAPE);
 }
 
-static void format_check_prompt(char* buf, size_t buflen, cptr prompt,
-    cptr suffix)
-{
-    int term_wid = active_term_width();
-    int suffix_wid = suffix ? (int)strlen(suffix) : 0;
-    int prompt_wid = term_wid - suffix_wid;
-
-    if (!buf || !buflen)
-        return;
-
-    if (!prompt)
-        prompt = "";
-    if (!suffix)
-        suffix = "";
-
-    if (prompt_wid < 0)
-        prompt_wid = 0;
-
-    strnfmt(buf, buflen, "%.*s%s", prompt_wid, prompt, suffix);
-}
-
 bool askfor_aux(char* buf, size_t len)
 {
     int y, x;
@@ -332,60 +311,49 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
  *
  * Allow "p_ptr->command_arg" to specify a quantity
  */
-#define QUANTITY_CLICK_DECREASE -1001
-#define QUANTITY_CLICK_CONFIRM  -1002
-#define QUANTITY_CLICK_INCREASE -1003
-#define QUANTITY_CLICK_ALL      -1004
-#define QUANTITY_CLICK_ZERO     -1005
-#define QUANTITY_CLICK_CANCEL   -1006
+/* Choice ids for the quantity overlay rows (must be >= 0: the question
+ * menu treats negative choices as non-clickable info lines). */
+#define QUANTITY_CLICK_DECREASE 1001
+#define QUANTITY_CLICK_CONFIRM  1002
+#define QUANTITY_CLICK_INCREASE 1003
+#define QUANTITY_CLICK_ALL      1004
+#define QUANTITY_CLICK_ZERO     1005
+#define QUANTITY_CLICK_CANCEL   1006
 
+/*
+ * Show the quantity picker as a question overlay panel (never the top
+ * message rows).  The +/- rows adjust the count without closing; digits
+ * and 8/2 still edit it from the keyboard.
+ */
 static void quantity_prompt_draw(cptr prompt, int current, int max,
     int touch_category)
 {
-    char header[180];
-    char actions[120];
-    char pick_token[32];
-    cptr cancel_token = "[Cancel]";
-    int term_wid = 80;
-
-    if (Term)
-    {
-        int term_hgt = 0;
-        Term_get_size(&term_wid, &term_hgt);
-        (void)term_hgt;
-    }
+    char line[80];
 
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
     ui_menu_click_set_touch_category(touch_category);
 
-    strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
-    prt(header, 0, 0);
+    sdl_question_menu_begin(prompt);
 
-    strnfmt(pick_token, sizeof(pick_token), "[Pick %d]", current);
-    strnfmt(actions, sizeof(actions), "[-] %s [+] [All] [0] [Cancel]",
-        pick_token);
+    strnfmt(line, sizeof(line), "Take %d", current);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_CONFIRM, "", line,
+        TERM_L_BLUE);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_INCREASE, "+)", "More",
+        TERM_L_WHITE);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_DECREASE, "-)", "Fewer",
+        TERM_L_WHITE);
+    strnfmt(line, sizeof(line), "All (%d)", max);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_ALL, "a)", line,
+        TERM_L_WHITE);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_ZERO, "0)", "None",
+        TERM_L_WHITE);
+    sdl_question_menu_add_entry(QUANTITY_CLICK_CANCEL, "", "Cancel",
+        TERM_SLATE);
 
-    if ((int)strlen(actions) > term_wid)
-    {
-        SDL_strlcpy(pick_token, "[OK]", sizeof(pick_token));
-        SDL_strlcpy(actions, "[-] [OK] [+] [All] [0] [Esc]",
-            sizeof(actions));
-        cancel_token = "[Esc]";
-    }
-
-    prt(actions, 1, 0);
-    ui_menu_click_add_text_token(QUANTITY_CLICK_DECREASE, 0, 1, actions,
-        "[-]");
-    ui_menu_click_add_text_token(QUANTITY_CLICK_CONFIRM, 0, 1, actions,
-        pick_token);
-    ui_menu_click_add_text_token(QUANTITY_CLICK_INCREASE, 0, 1, actions,
-        "[+]");
-    ui_menu_click_add_text_token(QUANTITY_CLICK_ALL, 0, 1, actions, "[All]");
-    ui_menu_click_add_text_token(QUANTITY_CLICK_ZERO, 0, 1, actions, "[0]");
-    ui_menu_click_add_text_token(QUANTITY_CLICK_CANCEL, 0, 1, actions,
-        cancel_token);
+    sdl_question_menu_set_highlight(QUANTITY_CLICK_CONFIRM);
+    sdl_question_menu_finish();
 
     Term_fresh();
 }
@@ -419,11 +387,12 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
         int current = amt;
         bool done = false;
         bool canceled = false;
+        bool saved_hide_cursor = hide_cursor;
         int ch;
 
         if (!prompt)
         {
-            strnfmt(prompt_buf, sizeof(prompt_buf), "Quantity (0-%d): ", max);
+            strnfmt(prompt_buf, sizeof(prompt_buf), "How many? (0-%d)", max);
             prompt = prompt_buf;
         }
 
@@ -431,6 +400,9 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
             max = 0;
 
         current = MAX(0, MIN(current, max));
+
+        /* The overlay panel owns the selection; never show the term cursor */
+        hide_cursor = true;
 
         while (!done)
         {
@@ -578,6 +550,14 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
                 break;
 #endif
 
+            case 'a':
+            case 'A':
+                current = max;
+                entry_len = 0;
+                entry_buf[0] = '\0';
+                done = true;
+                break;
+
             case '\b':
             case 0x7F:
                 if (entry_len > 0)
@@ -613,9 +593,10 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
             }
         }
 
-        prt("", 0, 0);
-        prt("", 1, 0);
+        hide_cursor = saved_hide_cursor;
+        sdl_question_menu_clear();
         ui_menu_click_clear();
+        Term_fresh();
 
         if (canceled)
             return (0);
@@ -656,98 +637,14 @@ s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
 }
 
 /*
- * Hack - duplication of get_check prompt to give option of setting destroyed
- * option to squelch.
- *
- * 0 - No
- * 1 = Yes
- * 2 = third option
- *
- * The "prompt" should take the form "Query? "
- *
- * Note that a compact confirmation suffix is appended to the prompt.
- */
-int get_check_other(cptr prompt, char other)
-{
-    char ch;
-    char buf[160];
-    char suffix[32];
-    bool steamdeck = steamdeck_controls_active();
-
-    /*default set to no*/
-    int result = 0;
-
-    /* Paranoia XXX XXX XXX */
-    message_flush();
-
-    /* Hack -- Build a "useful" prompt */
-    if (steamdeck)
-    {
-        char confirm_label[16];
-        char back_label[16];
-
-        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        prompt_controller_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-        strnfmt(suffix, sizeof(suffix), "[%s/%s/%c] ", confirm_label,
-            back_label, other);
-    }
-    else
-    {
-        strnfmt(suffix, sizeof(suffix), "[y/n/%c/sp] ", other);
-    }
-    format_check_prompt(buf, sizeof(buf), prompt, suffix);
-
-    ui_menu_click_clear_pending_hover();
-
-    /* Prompt for it */
-    prt(buf, 0, 0);
-
-    /* Get an acceptable answer */
-    while (true)
-    {
-        ch = inkey();
-        if (ch == UI_MENU_CLICK_WAKE_KEY)
-            continue;
-        if (quick_messages)
-            break;
-        if (prompt_cancel_key(ch))
-            break;
-        if (strchr("YyNn", ch))
-            break;
-        if (prompt_confirm_key(ch))
-            break;
-        if (ch == toupper(other))
-            break;
-        if (ch == tolower(other))
-            break;
-        bell("Illegal response to question!");
-    }
-
-    /* Erase the prompt */
-    prt("", 0, 0);
-
-    /* Normal negation */
-    if ((ch == 'Y') || (ch == 'y') || prompt_confirm_key(ch))
-        result = 1;
-    /*other option*/
-    else if ((ch == toupper(other)) || (ch == tolower(other)))
-        result = 2;
-    /*all else default to no*/
-
-    /* Success */
-    return (result);
-}
-
-/*
  * Verify something with the user
  *
  * The "prompt" should take the form "Query? "
  *
- * Note that a compact confirmation suffix is appended to the prompt.
+ * Global questions centre the modal yes/no panel; local questions (about a
+ * specific map grid) anchor it next to that grid.
  */
-bool get_check(cptr prompt)
+static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x)
 {
     char ch;
 
@@ -757,7 +654,10 @@ bool get_check(cptr prompt)
     ui_menu_click_clear_pending_hover();
 
     /* Ask through the modal yes/no question menu instead of a top-line prompt */
-    sdl_touch_pane_begin_yes_no_prompt(prompt);
+    if ((anchor_y >= 0) && (anchor_x >= 0))
+        sdl_touch_pane_begin_yes_no_prompt_near(prompt, anchor_y, anchor_x);
+    else
+        sdl_touch_pane_begin_yes_no_prompt(prompt);
     Term_fresh();
 
     /* Get an acceptable answer */
@@ -786,6 +686,20 @@ bool get_check(cptr prompt)
 
     /* Success */
     return (true);
+}
+
+bool get_check(cptr prompt)
+{
+    return get_check_aux(prompt, -1, -1);
+}
+
+/*
+ * Local yes/no question about a specific map grid (a trap, door, stair,
+ * chasm, monster, ...): the panel spawns next to that grid.
+ */
+bool get_check_near(int y, int x, cptr prompt)
+{
+    return get_check_aux(prompt, y, x);
 }
 
 /*
@@ -922,145 +836,6 @@ bool get_check_oath_multiline(cptr prompt)
     
     /* Success */
     return (true);
-}
-
-/*
- * Give a prompt, then get a choice withing a certain range.
- */
-int get_menu_choice(s16b max, char* prompt)
-{
-    int choice = -1;
-    int highlight = 0;
-    int ch;
-    bool steamdeck = steamdeck_controls_active();
-    bool done = false;
-    char prompt_buf[160];
-
-    if (steamdeck)
-    {
-        char confirm_label[16];
-        char back_label[16];
-
-        prompt_controller_label(steamdeck_confirm_key(), "A", confirm_label,
-            sizeof(confirm_label));
-        prompt_controller_label(steamdeck_back_key(), "B", back_label,
-            sizeof(back_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-            "%s D-pad choose, %s select, %s cancel", prompt, confirm_label,
-            back_label);
-    }
-    else
-        SDL_strlcpy(prompt_buf, prompt, sizeof(prompt_buf));
-
-    prt(prompt_buf, 0, 0);
-
-    while (!done)
-    {
-        ui_menu_click_begin();
-        ui_menu_click_set_hover_enabled(true);
-        for (int i = 0; i < max; i++)
-            ui_menu_click_add_full_row(i, i + 1);
-
-        if (steamdeck && max > 0)
-        {
-            for (int i = 0; i < max; i++)
-                Term_putstr(0, i + 1, 1,
-                    (i == highlight) ? TERM_L_BLUE : TERM_SLATE,
-                    (i == highlight) ? ">" : " ");
-            Term_gotoxy(0, highlight + 1);
-            Term_fresh();
-        }
-
-        ch = inkey();
-
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && clicked_choice >= 0 && clicked_choice < max)
-            {
-                highlight = clicked_choice;
-                if (click_action == UI_MENU_CLICK_HOVER)
-                    continue;
-
-                choice = clicked_choice;
-                done = true;
-                continue;
-            }
-        }
-
-        /* Letters are used for selection */
-        if (!steamdeck && isalpha((unsigned char)ch))
-        {
-            if (islower((unsigned char)ch))
-            {
-                choice = A2I(ch);
-            }
-            else
-            {
-                choice = ch - 'A' + 26;
-            }
-
-            /* Validate input */
-            if ((choice > -1) && (choice < max))
-            {
-                done = true;
-            }
-
-            else
-            {
-                bell("Illegal response to question!");
-            }
-        }
-        else if (steamdeck && max > 0 && (ch == '8'
-#ifdef ARROW_UP
-            || ch == ARROW_UP
-#endif
-            ))
-        {
-            highlight = (highlight + max - 1) % max;
-        }
-        else if (steamdeck && max > 0 && (ch == '2'
-#ifdef ARROW_DOWN
-            || ch == ARROW_DOWN
-#endif
-            ))
-        {
-            highlight = (highlight + 1) % max;
-        }
-        else if (steamdeck && max > 0
-            && ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
-                || (ch == steamdeck_confirm_key())))
-        {
-            choice = highlight;
-            done = true;
-        }
-
-        /* Allow user to exit the fuction */
-        else if ((ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
-        {
-            /* Mark as no choice made */
-            choice = -1;
-
-            done = true;
-        }
-        else if (steamdeck && isalpha((unsigned char)ch))
-        {
-            bell("Use D-pad and confirm to select in this mode.");
-        }
-
-        /* Invalid input */
-        else
-            bell("Illegal response to question!");
-    }
-
-    /* Clear the prompt */
-    ui_menu_click_clear();
-    prt("", 0, 0);
-
-    /* Return */
-    return (choice);
 }
 
 /*

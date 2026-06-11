@@ -1108,6 +1108,31 @@ bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     {
         y = (float)screen.y + ((float)screen.h - panel_h) * 0.5f;
     }
+
+    /* Local questions spawn next to the map grid they are about (below the
+     * cell, else above), so the player can see the object being asked
+     * about; fall back to the centred placement when it is off-screen. */
+    if (g_touch_pane_yes_no_prompt_anchor_active)
+    {
+        SDL_FRect anchor_cell;
+
+        if (sdl_map_grid_cell_rect(g_touch_pane_yes_no_prompt_anchor_y,
+                g_touch_pane_yes_no_prompt_anchor_x, &anchor_cell))
+        {
+            float gap = sdl_touch_pane_clampf(cell_h * 0.45f, 6.0f, 16.0f);
+
+            x = anchor_cell.x + anchor_cell.w * 0.5f - panel_w * 0.5f;
+            y = anchor_cell.y + anchor_cell.h + gap;
+            if (y + panel_h > (float)screen.y + (float)screen.h - gap)
+                y = anchor_cell.y - panel_h - gap;
+
+            if (x + panel_w > (float)screen.x + (float)screen.w - gap)
+                x = (float)screen.x + (float)screen.w - gap - panel_w;
+            if (y + panel_h > (float)screen.y + (float)screen.h - gap)
+                y = (float)screen.y + (float)screen.h - gap - panel_h;
+        }
+    }
+
     if (x < (float)screen.x)
         x = (float)screen.x;
     if (y < (float)screen.y)
@@ -1224,6 +1249,9 @@ void sdl_touch_pane_clear_yes_no_prompt(void)
     g_touch_pane_yes_no_prompt_text[0] = '\0';
     g_touch_pane_yes_no_prompt_placement = SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
     g_touch_pane_yes_no_prompt_hover = SDL_TOUCH_YES_NO_HOVER_NONE;
+    g_touch_pane_yes_no_prompt_anchor_active = false;
+    g_touch_pane_yes_no_prompt_anchor_y = 0;
+    g_touch_pane_yes_no_prompt_anchor_x = 0;
     g_state.need_present = true;
 }
 

@@ -898,6 +898,9 @@ void sdl_mouse_path_cancel(void)
     g_mouse_path.stuck_door_bash_y = 0;
     g_mouse_path.stuck_door_bash_x = 0;
     g_mouse_path.stuck_door_bash_dir = 0;
+    g_mouse_path.grid_question_pending = false;
+    g_mouse_path.grid_question_y = 0;
+    g_mouse_path.grid_question_x = 0;
     g_mouse_path.last_step_door_pending = false;
     g_mouse_path.last_step_door_y = 0;
     g_mouse_path.last_step_door_x = 0;
@@ -1050,13 +1053,14 @@ bool sdl_mouse_path_handle_left_click(float x, float y)
     return sdl_mouse_path_handle_movement_click(x, y);
 }
 
+/*
+ * True when right-clicking / long-pressing the given grid should open the
+ * grid interaction popup (adjacent doors, traps, walls, veins, chests,
+ * skeletons and empty/dark squares).
+ */
 bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
     int* out_command, int* out_dir)
 {
-    int dir;
-    int feat;
-    int command = 0;
-
     if (out_command)
         *out_command = 0;
     if (out_dir)
@@ -1065,63 +1069,33 @@ bool sdl_mouse_feature_action_for_grid(int map_y, int map_x,
         return false;
     if (!p_ptr || !in_bounds(map_y, map_x))
         return false;
-    if (!sdl_mouse_feature_known_for_action(map_y, map_x))
-        return false;
-    if (sdl_mouse_grid_has_visible_monster(map_y, map_x, NULL))
+
+    return grid_interact_available(map_y, map_x);
+}
+
+/*
+ * Queue the grid interaction question for the game loop: the popup itself
+ * (and any blocking input) must run in game context, not in the SDL event
+ * handler, so this just records the grid and wakes the command loop;
+ * sdl_grid_question_take_command picks it up from request_command.
+ */
+bool sdl_grid_question_queue(int map_y, int map_x)
+{
+    if (!sdl_mouse_feature_action_for_grid(map_y, map_x, NULL, NULL))
         return false;
 
-    dir = motion_dir(p_ptr->py, p_ptr->px, map_y, map_x);
-    if (dir < 1 || dir > 9)
-        return false;
-    if ((map_y != p_ptr->py + ddy[dir])
-        || (map_x != p_ptr->px + ddx[dir]))
-    {
-        return false;
-    }
-
-    feat = cave_feat[map_y][map_x];
-    if (feat == FEAT_OPEN)
-        command = 'c';
-    else if (feat == FEAT_QUARTZ)
-        command = 'T';
-    else if (feat == FEAT_RUBBLE)
-        command = 'T';
-    else if (cave_known_closed_door_bold(map_y, map_x))
-        command = 'b';
-    else if (cave_trap_bold(map_y, map_x)
-        && !cave_floorlike_bold(map_y, map_x))
-    {
-        command = 'D';
-    }
-    else
-        return false;
-
-    if (dir == 5 && command != 'D')
-        return false;
-
-    if (out_command)
-        *out_command = command;
-    if (out_dir)
-        *out_dir = dir;
+    sdl_mouse_path_cancel();
+    g_mouse_path.grid_question_pending = true;
+    g_mouse_path.grid_question_y = map_y;
+    g_mouse_path.grid_question_x = map_x;
+    g_state.need_present = true;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
     return true;
 }
 
 bool sdl_mouse_feature_action_queue_grid(int map_y, int map_x)
 {
-    int command = 0;
-    int dir = 0;
-
-    if (sdl_mouse_stuck_door_bash_queue_prompt(map_y, map_x))
-        return true;
-
-    if (!sdl_mouse_feature_action_for_grid(map_y, map_x, &command, &dir))
-        return false;
-
-    sdl_mouse_path_cancel();
-    sdl_mouse_note_feature_for_action(map_y, map_x);
-    sdl_enqueue_bypassed_command(command);
-    Term_keypress('0' + dir);
-    return true;
+    return sdl_grid_question_queue(map_y, map_x);
 }
 
 bool sdl_mouse_path_handle_right_movement_click(float x, float y)

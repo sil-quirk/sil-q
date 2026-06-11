@@ -2,6 +2,7 @@
 #include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
+#include "ui/question.h"
 
 static void prise_silmaril(void);
 
@@ -2364,19 +2365,26 @@ bool do_cmd_jewelry_preset_clear(int preset)
 
 void do_cmd_jewelry_preset_shortcut(void)
 {
-    char ch;
+    ui_question_option options[JEWELRY_PRESET_MAX];
+    char labels[JEWELRY_PRESET_MAX][32];
+    int choice;
 
-    if (!get_com("Jewelry set (1-5): ", &ch))
-        return;
-
-    if (ch < '1' || ch > ('0' + JEWELRY_PRESET_MAX))
+    for (int i = 0; i < JEWELRY_PRESET_MAX; i++)
     {
-        bell("Invalid jewelry set.");
-        msg_print("Choose jewelry set 1-5.");
-        return;
+        strnfmt(labels[i], sizeof(labels[i]), "Jewelry set %d%s", i + 1,
+            jewelry_preset_is_set(i) ? "" : " (empty)");
+        options[i].key = (char)('1' + i);
+        options[i].label = labels[i];
+        options[i].attr
+            = jewelry_preset_is_set(i) ? TERM_L_WHITE : TERM_SLATE;
     }
 
-    (void)do_cmd_jewelry_preset_apply(D2I(ch) - 1);
+    choice = ui_question_ask("Wear which jewelry set?", NULL, options,
+        JEWELRY_PRESET_MAX, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 0);
+    if (choice < 0)
+        return;
+
+    (void)do_cmd_jewelry_preset_apply(choice);
 }
 
 /*

@@ -4,6 +4,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "ui/question.h"
 
 static bool item_tester_hook_fletchery_source(const object_type* o_ptr)
 {
@@ -237,7 +238,10 @@ static bool choose_fletchery_supply_torch(int* out_sval)
 {
     int wooden = count_fletchery_supply_torches(SV_LIGHT_TORCH);
     int mallorn = count_fletchery_supply_torches(SV_LIGHT_MALLORN);
-    char ch;
+    char wooden_label[40];
+    char mallorn_label[40];
+    ui_question_option options[2];
+    int choice;
 
     if (!out_sval)
         return false;
@@ -260,28 +264,19 @@ static bool choose_fletchery_supply_torch(int* out_sval)
         return true;
     }
 
-    while (true)
-    {
-        if (!get_com("Use [w]ooden or [m]allorn torches from supplies? ", &ch))
-            return false;
+    strnfmt(wooden_label, sizeof(wooden_label), "Wooden torches (%d)", wooden);
+    strnfmt(mallorn_label, sizeof(mallorn_label), "Mallorn torches (%d)",
+        mallorn);
+    options[0] = (ui_question_option){ 'w', wooden_label, TERM_L_WHITE };
+    options[1] = (ui_question_option){ 'm', mallorn_label, TERM_L_WHITE };
 
-        switch (ch)
-        {
-        case 'w':
-        case 'W':
-            *out_sval = SV_LIGHT_TORCH;
-            return true;
+    choice = ui_question_ask("Use which torches from supplies?", NULL,
+        options, 2, UI_QUESTION_GLOBAL, UI_QUESTION_GLOBAL, 0);
+    if (choice < 0)
+        return false;
 
-        case 'm':
-        case 'M':
-            *out_sval = SV_LIGHT_MALLORN;
-            return true;
-
-        default:
-            bell("Please choose 'w' or 'm'.");
-            break;
-        }
-    }
+    *out_sval = (choice == 1) ? SV_LIGHT_MALLORN : SV_LIGHT_TORCH;
+    return true;
 }
 
 static bool build_fletchery_supply_source(

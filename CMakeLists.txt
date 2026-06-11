@@ -338,6 +338,7 @@ set(SIL_MORE_SOURCES
     src/sdl/ui/sdl-panes.c
     src/sdl/ui/sdl-screens.c
     src/sdl/ui/sdl-song-menu.c
+    src/sdl/ui/sdl-question-menu.c
     src/melee/melee-attack.c
     src/melee/melee-attack-ranged.c
     src/melee/melee-combat-display.c
@@ -429,6 +430,7 @@ set(SIL_MORE_SOURCES
     src/fs/path.c
     src/ui/colors.c
     src/ui/menu-click.c
+    src/ui/question.c
     src/ui/story_font.c
     src/ui/status/status-frame.c
     src/ui/status/status-health.c

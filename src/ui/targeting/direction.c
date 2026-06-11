@@ -205,6 +205,154 @@ bool get_aim_dir_vertical(int* dp, int range)
 }
 
 /*
+ * Interactive "which adjacent grid?" selection shared by every command
+ * that used to ask for a direction on the top message row.
+ *
+ * Each candidate grid is highlighted on the map and a small popup prompt
+ * is shown next to the player (never the top message row).  The player
+ * can click or tap a candidate, hover to move the highlight, cycle with
+ * +/-, press the direction toward a candidate to pick it directly, or
+ * confirm the highlight with Enter/Space.  Escape cancels.
+ *
+ * Returns true and stores the chosen direction in *dp; false on cancel.
+ */
+bool get_grid_choice_dir(cptr prompt, const int ys[], const int xs[],
+    const int dirs[], int count, int* dp)
+{
+    int sel = 0;
+    bool done = false;
+    bool chosen = false;
+    char query;
+
+    if (!dp || (count <= 0))
+        return false;
+
+    message_flush();
+
+    sdl_pointer_aim_select_begin(1, false);
+    sdl_pointer_aim_select_set_choices(ys, xs, count, prompt);
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+
+    /* request_command blanked the map's top row before this handler ran;
+     * repaint the map so the highlights/popup sit over a clean view. */
+    p_ptr->redraw |= (PR_MAP);
+
+    while (!done)
+    {
+        sdl_pointer_aim_select_update(ys[sel], xs[sel]);
+        handle_stuff();
+        move_cursor_relative(ys[sel], xs[sel]);
+
+        query = inkey();
+
+        /* Pointer events from the map: hover moves the highlight, a click or
+         * tap on a candidate confirms it. */
+        if (query == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int kind = 0, ey = 0, ex = 0;
+
+            if (!sdl_pointer_aim_select_take_event(&kind, &ey, &ex))
+                continue;
+
+            for (int i = 0; i < count; i++)
+            {
+                if ((ys[i] == ey) && (xs[i] == ex))
+                {
+                    sel = i;
+                    if ((kind == AIM_SELECT_EVENT_CLICK)
+                        || (kind == AIM_SELECT_EVENT_TAP))
+                    {
+                        chosen = true;
+                        done = true;
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+
+        switch (query)
+        {
+        case ESCAPE:
+        case 'q':
+            done = true;
+            break;
+
+        case '*':
+        case '+':
+            sel = (sel + 1) % count;
+            break;
+
+        case '-':
+            sel = (sel + count - 1) % count;
+            break;
+
+        case ' ':
+        case '\r':
+        case '\n':
+        case 't':
+        case INPUT_BIND_CONFIRM:
+            chosen = true;
+            done = true;
+            break;
+
+        default:
+        {
+            int d = target_dir(query);
+
+            if (d)
+            {
+                bool matched = false;
+
+                /* Press the direction toward a candidate to pick it. */
+                for (int i = 0; i < count; i++)
+                {
+                    if (dirs[i] == d)
+                    {
+                        sel = i;
+                        chosen = true;
+                        done = true;
+                        matched = true;
+                        break;
+                    }
+                }
+
+                /* '5' with no self candidate confirms the highlight. */
+                if (!matched && (d == 5))
+                {
+                    chosen = true;
+                    done = true;
+                }
+                else if (!matched)
+                {
+                    bell("Nothing that way.");
+                }
+            }
+            else
+            {
+                bell("Illegal direction.");
+            }
+            break;
+        }
+        }
+    }
+
+    sdl_object_tooltip_clear();
+    sdl_pointer_aim_select_end();
+    ui_menu_click_clear();
+    verify_panel();
+    handle_stuff();
+
+    if (!chosen)
+        return false;
+
+    *dp = dirs[sel];
+    return true;
+}
+
+/*
  * Request a "movement" direction (1,2,3,4,5,6,7,8,9) from the user.
  *
  * Return true if a direction was chosen, otherwise return false.
@@ -213,14 +361,17 @@ bool get_aim_dir_vertical(int* dp, int range)
  *
  * This function tracks and uses the "global direction", and uses
  * that as the "desired direction", if it is set.
+ *
+ * When no direction was pre-supplied, the adjacent squares are offered
+ * through the interactive grid selection (click, tap, arrows or a
+ * direction key) instead of the old top-row "Direction?" prompt.
  */
 bool get_rep_dir(int* dp)
 {
     int dir;
 
-    char ch;
-
-    cptr p;
+    int ys[9], xs[9], dirs[9];
+    int count = 0;
 
 #ifdef ALLOW_REPEAT
 
@@ -237,22 +388,33 @@ bool get_rep_dir(int* dp)
     /* Global direction */
     dir = p_ptr->command_dir;
 
-    /* Get a direction */
-    while (!dir)
+    /* Get a direction interactively (own square first, then neighbours) */
+    if (!dir)
     {
-        /* Choose a prompt */
-        p = "Direction (Escape to cancel)? ";
+        ys[count] = p_ptr->py;
+        xs[count] = p_ptr->px;
+        dirs[count] = 5;
+        count++;
 
-        /* Get a command (or Cancel) */
-        if (!get_com(p, &ch))
-            break;
+        for (int d = 0; d < 8; d++)
+        {
+            int yy = p_ptr->py + ddy_ddd[d];
+            int xx = p_ptr->px + ddx_ddd[d];
 
-        /* Convert keypress into a direction */
-        dir = target_dir(ch);
+            if (!in_bounds_fully(yy, xx))
+                continue;
 
-        /* Oops */
-        if (!dir)
-            bell("Illegal repeatable direction!");
+            ys[count] = yy;
+            xs[count] = xx;
+            dirs[count] = dir_from_delta(yy - p_ptr->py, xx - p_ptr->px);
+            count++;
+        }
+
+        if (!get_grid_choice_dir("Which direction?", ys, xs, dirs, count,
+                &dir))
+        {
+            dir = 0;
+        }
     }
 
     /* Aborted */

@@ -4,7 +4,31 @@
 #include "player/killer.h"
 #include "metarun.h"
 #include "sdl-config.h"
+#include "ui/question.h"
 #include <math.h>
+
+/*
+ * One-shot allowance to step onto a known trap without the usual
+ * confirmation: granted when the player already chose "step onto it" in
+ * the trap popup (so we never ask the same question twice in a row).
+ */
+static int allow_trap_step_y = -1;
+static int allow_trap_step_x = -1;
+
+void player_allow_trap_step(int y, int x)
+{
+    allow_trap_step_y = y;
+    allow_trap_step_x = x;
+}
+
+static bool player_take_trap_step_allowance(int y, int x)
+{
+    bool allowed = (allow_trap_step_y == y) && (allow_trap_step_x == x);
+
+    allow_trap_step_y = -1;
+    allow_trap_step_x = -1;
+    return allowed;
+}
 
 static bool move_target_exits_gates(int y, int x)
 {
@@ -266,7 +290,7 @@ void move_player(int dir)
                         }
 
                         // if you say 'yes' to the prompt, then try to leap
-                        if (!confirm || get_check(prompt))
+                        if (!confirm || get_check_near(y_end, x_end, prompt))
                         {
                             // at this point attack any invisible monster that
                             // may be there
@@ -319,7 +343,7 @@ void move_player(int dir)
                     if (p_ptr->depth >= MORGOTH_DEPTH)
                         prompt = "Step into the chasm? You will surely die. ";
 
-                    if (!get_check(prompt))
+                    if (!get_check_near(y, x, prompt))
                     {
                         // don't take a turn...
                         p_ptr->energy_use = 0;
@@ -330,18 +354,58 @@ void move_player(int dir)
             }
 
             // traps
-            if ((cave_trap_bold(y, x) && !cave_floorlike_bold(y, x)))
+            if ((cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
+                && !player_take_trap_step_allowance(y, x))
             {
+                ui_question_option options[2];
+                char title[80];
+                int choice;
+                int disarm_choice = -1;
+                int step_choice = 0;
+                int count = 0;
+                cptr name = (f_name + f_info[cave_feat[y][x]].name);
+
                 /* Disturb the player */
                 disturb(0, 0);
 
                 /* Flush input */
                 flush();
 
-                if (!get_check("Step on the trap? Right-click/long tap to disarm. "))
+                strnfmt(title, sizeof(title), "%^s in the way", name);
+
+                /* Offer disarming when the trap allows it */
+                if (trap_disarm_power(cave_feat[y][x], NULL))
+                {
+                    options[count].key = 'd';
+                    options[count].label = "Disarm it";
+                    options[count].attr = TERM_L_WHITE;
+                    disarm_choice = count;
+                    count++;
+                }
+
+                options[count].key = 'w';
+                options[count].label = "Step onto it";
+                options[count].attr = TERM_L_WHITE;
+                step_choice = count;
+                count++;
+
+                choice = ui_question_ask(title, NULL, options, count, y, x,
+                    step_choice);
+
+                if (choice < 0)
                 {
                     // don't take a turn...
                     p_ptr->energy_use = 0;
+
+                    return;
+                }
+
+                if ((disarm_choice >= 0) && (choice == disarm_choice))
+                {
+                    /* Disarm instead of moving; this takes the turn */
+                    p_ptr->previous_action[0] = ACTION_MISC;
+                    if (!do_cmd_disarm_aux(y, x))
+                        disturb(0, 0);
 
                     return;
                 }

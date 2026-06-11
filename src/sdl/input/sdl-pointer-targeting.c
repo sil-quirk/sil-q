@@ -1947,7 +1947,8 @@ bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir)
             bash_y, bash_x);
         return true;
     }
-    if (!get_check("Stuck door, do you want to bash it? "))
+    if (!get_check_near(bash_y, bash_x,
+            "Stuck door, do you want to bash it? "))
         return true;
     if (!sdl_mouse_stuck_door_bash_target(bash_y, bash_x, &bash_dir))
     {
@@ -1959,6 +1960,46 @@ bool sdl_mouse_stuck_door_bash_take_command(int* command, int* dir)
     sdl_mouse_note_feature_for_action(bash_y, bash_x);
     *command = 'b';
     *dir = bash_dir;
+    return true;
+}
+
+/*
+ * Run the queued grid interaction popup (right-click / long-press on an
+ * adjacent grid) in game context and translate the answer into a normal
+ * game command.  Consumes the pending request even when cancelled.
+ */
+bool sdl_grid_question_take_command(int* command, int* dir)
+{
+    int ask_y;
+    int ask_x;
+
+    if (!command || !dir)
+        return false;
+    if (!g_mouse_path.grid_question_pending)
+        return false;
+
+    (void)sdl_mouse_consume_wake_key();
+
+    ask_y = g_mouse_path.grid_question_y;
+    ask_x = g_mouse_path.grid_question_x;
+    g_mouse_path.grid_question_pending = false;
+    g_mouse_path.grid_question_y = 0;
+    g_mouse_path.grid_question_x = 0;
+
+    *command = ' ';
+    *dir = 0;
+
+    if (!sdl_mouse_gameplay_context_active())
+        return true;
+
+    if (!grid_interact_question(ask_y, ask_x, command, dir))
+    {
+        *command = ' ';
+        *dir = 0;
+        return true;
+    }
+
+    sdl_mouse_note_feature_for_action(ask_y, ask_x);
     return true;
 }
 

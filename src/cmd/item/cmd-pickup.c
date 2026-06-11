@@ -4,6 +4,7 @@
 #include "player/killer.h"
 #include "metarun.h"
 #include "sdl-config.h"
+#include "ui/question.h"
 #include <math.h>
 
 static bool queue_deferred_pickup_pack_drop(int item, int amount, bool refill_oil_pool);
@@ -1323,11 +1324,12 @@ void do_cmd_pickup_from_pile(void)
     {
         int item;
 
-        char prompt[80];
-
         int floor_list[MAX_FLOOR_STACK];
 
         int floor_num;
+
+        ui_question_option options[MAX_FLOOR_STACK];
+        char names[MAX_FLOOR_STACK][80];
 
         /*start with everything updated*/
         handle_stuff();
@@ -1346,33 +1348,29 @@ void do_cmd_pickup_from_pile(void)
             break;
         }
 
-        /* Save screen */
-        screen_save();
+        /* Offer the pile through the question overlay, next to the player */
+        for (int i = 0; i < floor_num; i++)
+        {
+            object_type* o_ptr = &o_list[floor_list[i]];
 
-        /* Display */
-        show_floor(floor_list, floor_num);
+            object_desc(names[i], sizeof(names[i]), o_ptr, true, 3);
+            options[i].key = (i < 26) ? (char)('a' + i) : 0;
+            options[i].label = names[i];
+            options[i].attr = TERM_L_WHITE;
+        }
 
-        SDL_strlcpy(
-            prompt, "Pick up which object? (ESC to cancel):", sizeof(prompt));
-
-        /* Get the object number to be bought */
-        item = get_menu_choice(floor_num, prompt);
+        item = ui_question_ask("Pick up which object?", NULL, options,
+            floor_num, p_ptr->py, p_ptr->px, 0);
 
         /*player chose escape*/
-        if (item == -1)
-        {
-            screen_load();
+        if (item < 0)
             break;
-        }
 
         /* Pick up the object */
         py_pickup_aux(floor_list[item]);
 
         /*Mark that we picked something up*/
         picked_up_item = true;
-
-        /* Load screen */
-        screen_load();
     }
 
     /* Combine / Reorder the pack */

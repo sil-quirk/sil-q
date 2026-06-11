@@ -24,6 +24,8 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
         return false;
     if (sdl_mouse_stuck_door_bash_take_command(command, dir))
         return true;
+    if (sdl_grid_question_take_command(command, dir))
+        return true;
     if (!g_mouse_path.follow_active)
         return false;
 
@@ -95,7 +97,8 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
 
             if (sdl_mouse_stuck_door_bash_target(target_y, target_x,
                     &bash_dir)
-                && get_check("Stuck door, do you want to bash it? "))
+                && get_check_near(target_y, target_x,
+                    "Stuck door, do you want to bash it? "))
             {
                 sdl_mouse_path_cancel();
                 sdl_mouse_note_feature_for_action(target_y, target_x);

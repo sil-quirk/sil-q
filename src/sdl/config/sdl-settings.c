@@ -1958,6 +1958,9 @@ void sdl_touch_pane_begin_yes_no_prompt_impl(cptr prompt,
     sdl_menu_touch_cancel();
     g_touch_pane_yes_no_prompt_placement = placement;
     g_touch_pane_yes_no_prompt_hover = SDL_TOUCH_YES_NO_HOVER_NONE;
+    g_touch_pane_yes_no_prompt_anchor_active = false;
+    g_touch_pane_yes_no_prompt_anchor_y = 0;
+    g_touch_pane_yes_no_prompt_anchor_x = 0;
     g_touch_pane_yes_no_prompt_active = true;
     g_state.need_present = true;
 }
@@ -1972,6 +1975,19 @@ void sdl_touch_pane_begin_yes_no_prompt_lower(cptr prompt)
 {
     sdl_touch_pane_begin_yes_no_prompt_impl(prompt,
         SDL_TOUCH_YES_NO_PLACEMENT_LOWER);
+}
+
+/* Local yes/no question: same modal panel, but spawned next to the map
+ * grid the question is about (the trap, door, stair, ...) instead of the
+ * screen centre. */
+void sdl_touch_pane_begin_yes_no_prompt_near(cptr prompt, int map_y,
+    int map_x)
+{
+    sdl_touch_pane_begin_yes_no_prompt_impl(prompt,
+        SDL_TOUCH_YES_NO_PLACEMENT_CENTER);
+    g_touch_pane_yes_no_prompt_anchor_active = true;
+    g_touch_pane_yes_no_prompt_anchor_y = map_y;
+    g_touch_pane_yes_no_prompt_anchor_x = map_x;
 }
 
 void sdl_touch_pane_end_yes_no_prompt(void)

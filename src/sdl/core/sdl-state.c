@@ -627,6 +627,9 @@ sdl_touch_yes_no_prompt_placement g_touch_pane_yes_no_prompt_placement =
     SDL_TOUCH_YES_NO_PLACEMENT_CENTER;
 sdl_touch_yes_no_prompt_hover g_touch_pane_yes_no_prompt_hover =
     SDL_TOUCH_YES_NO_HOVER_NONE;
+bool g_touch_pane_yes_no_prompt_anchor_active = false;
+int g_touch_pane_yes_no_prompt_anchor_y = 0;
+int g_touch_pane_yes_no_prompt_anchor_x = 0;
 bool g_touch_pane_mobile_open = true;
 touch_pane_press_state g_touch_pane_press;
 bool g_touch_mouse_fallback_active = false;
@@ -707,6 +710,7 @@ bool g_unified_look_active = false;
 sdl_unified_look_prompt_state g_unified_look_prompt;
 sdl_unified_look_sidebar_state g_unified_look_sidebar;
 sdl_song_menu_state g_song_menu = { .highlight = -1 };
+sdl_question_menu_state g_question_menu = { .highlight = -1 };
 bool g_unified_look_map_hover_enabled = false;
 bool g_unified_look_map_hover_pending = false;
 bool g_unified_look_map_hover_wake_pending = false;

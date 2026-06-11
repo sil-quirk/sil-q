@@ -685,7 +685,7 @@ void process_player(void)
                 && (p_ptr->previous_action[1] != 5))
             {
                 // allow the player to decline to pick up the object
-                if (get_check(out_val))
+                if (get_check_near(p_ptr->py, p_ptr->px, out_val))
                 {
                     /* Handle "objects" */
                     py_pickup();

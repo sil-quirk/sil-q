@@ -6,6 +6,7 @@
 #include "metarun.h"
 #include "sdl-config.h"
 #include "cmd/world/cmd-interact-chest.h"
+#include "ui/question.h"
 
 static bool is_open(int feat) { return (feat == FEAT_OPEN); }
 
@@ -134,6 +135,12 @@ static int coords_to_dir(int y, int x)
 {
     return (motion_dir(p_ptr->py, p_ptr->px, y, x));
 }
+
+static bool get_interact_dir(cptr prompt, bool (*test)(int y, int x),
+    bool under, int* dp);
+static bool grid_is_open_target(int y, int x);
+static bool grid_is_disarm_target(int y, int x);
+static bool grid_is_tunnel_target(int y, int x);
 
 /*
  * Determine if a given grid may be "opened"
@@ -269,21 +276,20 @@ void do_cmd_open(void)
     /* Count chests (locked) */
     num_chests = count_chests(&y, &x, false);
 
-    /* See if only one target */
-    if ((num_doors + num_chests) == 1)
-    {
-        p_ptr->command_dir = coords_to_dir(y, x);
-    }
-
-    else if ((num_doors + num_chests) == 0)
+    if ((num_doors + num_chests) == 0)
     {
         msg_print("There is nothing in your square (or adjacent) to open.");
         return;
     }
 
-    /* Get a direction (or abort) */
-    if (!get_rep_dir(&dir))
+    /* Honour a pre-supplied direction, else pick a target interactively */
+    if (p_ptr->command_dir)
+        dir = p_ptr->command_dir;
+    else if (!get_interact_dir("Open what?", grid_is_open_target, false,
+                 &dir))
         return;
+
+    p_ptr->command_dir = dir;
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -446,23 +452,19 @@ static bool do_cmd_close_aux(int y, int x)
  * Close an open door.
  */
 /*
- * Interactive "which adjacent door?" selection for the close/bash commands.
- *
- * Each candidate door is highlighted on the map and a small popup prompt is
- * shown (never the top message row). The player can click or tap a door, move
- * the highlight with the direction keys, or press the direction toward a door.
- * A single candidate resolves immediately; with none, false is returned.
+ * Interactive "which adjacent grid?" selection used by the door, disarm,
+ * open and tunnel commands.  Candidates are collected with a grid
+ * predicate; each is highlighted on the map and a small popup prompt is
+ * shown (never the top message row) by get_grid_choice_dir.  A single
+ * candidate resolves immediately; with none, false is returned.
  *
  * Returns true and stores the chosen direction in *dp; false on cancel.
  */
-static bool get_door_dir(cptr prompt, bool (*test)(int feat), int* dp)
+static bool get_interact_dir(cptr prompt, bool (*test)(int y, int x),
+    bool under, int* dp)
 {
-    int ys[8], xs[8], dirs[8];
+    int ys[9], xs[9], dirs[9];
     int count = 0;
-    int sel = 0;
-    bool done = false;
-    bool chosen = false;
-    char query;
 
 #ifdef ALLOW_REPEAT
     /* Reuse the stored direction while a command repeats (e.g. bashing). */
@@ -470,17 +472,15 @@ static bool get_door_dir(cptr prompt, bool (*test)(int feat), int* dp)
         return true;
 #endif
 
-    /* Collect adjacent candidate doors (known grids only) */
-    for (int d = 0; d < 8; d++)
+    /* Collect adjacent (and optionally under) candidate grids */
+    for (int d = 0; d < (under ? 9 : 8); d++)
     {
         int yy = p_ptr->py + ddy_ddd[d];
         int xx = p_ptr->px + ddx_ddd[d];
 
         if (!in_bounds_fully(yy, xx))
             continue;
-        if (!(cave_info[yy][xx] & (CAVE_MARK)))
-            continue;
-        if (!test(cave_feat[yy][xx]))
+        if (!test(yy, xx))
             continue;
 
         ys[count] = yy;
@@ -502,124 +502,631 @@ static bool get_door_dir(cptr prompt, bool (*test)(int feat), int* dp)
         return true;
     }
 
-    message_flush();
-
-    sdl_pointer_aim_select_begin(1, false);
-    sdl_pointer_aim_select_set_choices(ys, xs, count, prompt);
-    ui_menu_click_begin();
-    ui_menu_click_set_hover_enabled(true);
-    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-
-    /* request_command blanked the map's top row before this handler ran;
-     * repaint the map so the highlights/popup sit over a clean view. */
-    p_ptr->redraw |= (PR_MAP);
-
-    while (!done)
-    {
-        sdl_pointer_aim_select_update(ys[sel], xs[sel]);
-        handle_stuff();
-        move_cursor_relative(ys[sel], xs[sel]);
-
-        query = inkey();
-
-        /* Pointer events from the map: hover moves the highlight, a click or
-         * tap on a candidate confirms it. */
-        if (query == UI_MENU_CLICK_WAKE_KEY)
-        {
-            int kind = 0, ey = 0, ex = 0;
-
-            if (!sdl_pointer_aim_select_take_event(&kind, &ey, &ex))
-                continue;
-
-            for (int i = 0; i < count; i++)
-            {
-                if ((ys[i] == ey) && (xs[i] == ex))
-                {
-                    sel = i;
-                    if ((kind == AIM_SELECT_EVENT_CLICK)
-                        || (kind == AIM_SELECT_EVENT_TAP))
-                    {
-                        chosen = true;
-                        done = true;
-                    }
-                    break;
-                }
-            }
-            continue;
-        }
-
-        switch (query)
-        {
-        case ESCAPE:
-        case 'q':
-            done = true;
-            break;
-
-        case '*':
-        case '+':
-            sel = (sel + 1) % count;
-            break;
-
-        case '-':
-            sel = (sel + count - 1) % count;
-            break;
-
-        case ' ':
-        case '\r':
-        case '\n':
-        case 't':
-        case '5':
-        case INPUT_BIND_CONFIRM:
-            chosen = true;
-            done = true;
-            break;
-
-        default:
-        {
-            int d = target_dir(query);
-
-            if (d)
-            {
-                bool matched = false;
-
-                /* Press the direction toward a door to pick it. */
-                for (int i = 0; i < count; i++)
-                {
-                    if (dirs[i] == d)
-                    {
-                        sel = i;
-                        chosen = true;
-                        done = true;
-                        matched = true;
-                        break;
-                    }
-                }
-
-                if (!matched)
-                    bell("No door that way.");
-            }
-            else
-            {
-                bell("Illegal door direction.");
-            }
-            break;
-        }
-        }
-    }
-
-    sdl_object_tooltip_clear();
-    sdl_pointer_aim_select_end();
-    ui_menu_click_clear();
-    verify_panel();
-    handle_stuff();
-
-    if (!chosen)
+    if (!get_grid_choice_dir(prompt, ys, xs, dirs, count, dp))
         return false;
 
-    *dp = dirs[sel];
 #ifdef ALLOW_REPEAT
     repeat_push(*dp);
 #endif
+    return true;
+}
+
+/* Grid predicates for get_interact_dir */
+static bool grid_is_known_open_door(int y, int x)
+{
+    return (cave_info[y][x] & (CAVE_MARK)) && is_open(cave_feat[y][x]);
+}
+
+static bool grid_is_known_closed_door(int y, int x)
+{
+    return (cave_info[y][x] & (CAVE_MARK)) && is_closed(cave_feat[y][x]);
+}
+
+static bool grid_is_closed_chest(int y, int x)
+{
+    s16b o_idx = chest_check(y, x);
+
+    return (o_idx != 0) && (o_list[o_idx].pval != 0);
+}
+
+static bool grid_is_known_trapped_chest(int y, int x)
+{
+    s16b o_idx = chest_check(y, x);
+    object_type* o_ptr;
+
+    if (!o_idx)
+        return false;
+
+    o_ptr = &o_list[o_idx];
+    return (o_ptr->pval > 0) && object_known_p(o_ptr)
+        && object_chest_trap_flags(o_ptr);
+}
+
+static bool grid_is_open_target(int y, int x)
+{
+    return grid_is_known_closed_door(y, x) || grid_is_closed_chest(y, x);
+}
+
+static bool grid_is_known_trap(int y, int x)
+{
+    return (cave_info[y][x] & (CAVE_MARK)) && is_trap(cave_feat[y][x]);
+}
+
+static bool grid_is_disarm_target(int y, int x)
+{
+    return grid_is_known_trap(y, x) || grid_is_known_trapped_chest(y, x);
+}
+
+static bool grid_is_tunnel_target(int y, int x)
+{
+    if (!(cave_info[y][x] & (CAVE_MARK)))
+        return false;
+    if (cave_floor_bold(y, x))
+        return false;
+    if (cave_known_closed_door_bold(y, x))
+        return false;
+    if (cave_feat[y][x] == FEAT_WALL_PERM)
+        return false;
+
+    return true;
+}
+
+static bool get_door_dir(cptr prompt, bool (*test)(int y, int x), int* dp)
+{
+    return get_interact_dir(prompt, test, false, dp);
+}
+
+/*
+ * ------------------------------------------------------------------------
+ * Grid interaction popup: the question overlay shown when right-clicking
+ * (or long-pressing) an adjacent door, trap, wall, vein, chest, skeleton
+ * or empty/dark square.  Describes the grid and offers every applicable
+ * action; the answer is translated into a normal game command so the
+ * existing command code (open/close/bash/disarm/tunnel/alter/walk) runs
+ * unchanged.
+ * ------------------------------------------------------------------------
+ */
+
+/* Disarm difficulty of a trap feature; false when it cannot be disarmed.
+ * Keep the powers in sync with do_cmd_disarm_aux. */
+bool trap_disarm_power(int feat, int* power)
+{
+    int p = 0;
+
+    switch (feat)
+    {
+    case FEAT_TRAP_PIT:
+    case FEAT_TRAP_SPIKED_PIT:
+    case FEAT_TRAP_ROOST:
+    case FEAT_TRAP_WEB:
+        return false;
+    case FEAT_TRAP_false_FLOOR:
+        p = 1;
+        break;
+    case FEAT_TRAP_DART:
+        p = 3;
+        break;
+    case FEAT_TRAP_GAS_CONF:
+    case FEAT_TRAP_GAS_MEMORY:
+        p = 5;
+        break;
+    case FEAT_TRAP_ALARM:
+        p = 2;
+        break;
+    case FEAT_TRAP_FLASH:
+        p = 4;
+        break;
+    case FEAT_TRAP_CALTROPS:
+        p = 1;
+        break;
+    case FEAT_TRAP_DEADFALL:
+        p = 7;
+        break;
+    case FEAT_TRAP_ACID:
+        p = 1;
+        break;
+    case FEAT_TRAP_IMPRISONMENT:
+        p = 4;
+        break;
+    default:
+        p = 0;
+        break;
+    }
+
+    if (power)
+        *power = p;
+    return true;
+}
+
+/* Short flavour line for a trap feature. */
+static cptr trap_flavor_text(int feat)
+{
+    switch (feat)
+    {
+    case FEAT_TRAP_false_FLOOR:
+        return "The floor here is a fragile shell over a drop to the level "
+               "below.";
+    case FEAT_TRAP_PIT:
+        return "A simple pit. Not deadly, but climbing out takes time.";
+    case FEAT_TRAP_SPIKED_PIT:
+        return "A pit lined with cruel spikes.";
+    case FEAT_TRAP_DART:
+        return "A concealed dart-thrower aimed at whoever treads here.";
+    case FEAT_TRAP_GAS_CONF:
+        return "A hidden bladder of confusing vapours.";
+    case FEAT_TRAP_GAS_MEMORY:
+        return "A hidden bladder of vapours that fog the memory.";
+    case FEAT_TRAP_ALARM:
+        return "A trip-wire rigged to raise a clamour and wake the level.";
+    case FEAT_TRAP_FLASH:
+        return "An alchemical charge that erupts in blinding light.";
+    case FEAT_TRAP_CALTROPS:
+        return "Sharp caltrops strewn to lame the unwary.";
+    case FEAT_TRAP_ROOST:
+        return "A roost of bats that bursts upward when disturbed.";
+    case FEAT_TRAP_WEB:
+        return "A great web of sticky strands.";
+    case FEAT_TRAP_DEADFALL:
+        return "A mass of rock rigged to come crashing down.";
+    case FEAT_TRAP_ACID:
+        return "A spray of corrosive liquid waits beneath this square.";
+    case FEAT_TRAP_IMPRISONMENT:
+        return "A rune of binding that holds the unwary fast.";
+    case FEAT_GLYPH:
+        return "A glyph of warding.";
+    default:
+        return "A hidden danger.";
+    }
+}
+
+/* The best digging tool carried (wielded weapon first), or NULL. */
+static object_type* grid_question_best_digger(int* out_score)
+{
+    object_type* o_ptr = &inventory[INVEN_WIELD];
+    object_type* best = NULL;
+    int best_score = 0;
+    u32b f1, f2, f3;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+    if (o_ptr->k_idx && (f1 & (TR1_TUNNEL)))
+    {
+        best = o_ptr;
+        best_score = o_ptr->pval;
+    }
+    else
+    {
+        for (int i = 0; i < INVEN_PACK; i++)
+        {
+            o_ptr = &inventory[i];
+            if (!o_ptr->k_idx)
+                continue;
+
+            object_flags(o_ptr, &f1, &f2, &f3);
+            if ((f1 & (TR1_TUNNEL)) && (o_ptr->pval > best_score))
+            {
+                best = o_ptr;
+                best_score = o_ptr->pval;
+            }
+        }
+    }
+
+    if (out_score)
+        *out_score = best_score;
+    return best;
+}
+
+/* Append a sentence to a description buffer with a joining space. */
+static void grid_question_append(char* buf, size_t buflen, cptr text)
+{
+    if (!text || !text[0])
+        return;
+    if (buf[0])
+        SDL_strlcat(buf, " ", buflen);
+    SDL_strlcat(buf, text, buflen);
+}
+
+/*
+ * True when right-clicking the given adjacent grid should open the
+ * interaction popup (rather than fall through to the describe/recall
+ * popup).  Must stay in sync with grid_interact_question below.
+ */
+bool grid_interact_available(int y, int x)
+{
+    int dir;
+
+    if (!p_ptr || !character_dungeon || !in_bounds(y, x))
+        return false;
+
+    /* Adjacent squares only: these are the ctrl+direction alt actions */
+    dir = coords_to_dir(y, x);
+    if (dir < 1 || dir > 9 || dir == 5)
+        return false;
+    if ((y != p_ptr->py + ddy[dir]) || (x != p_ptr->px + ddx[dir]))
+        return false;
+
+    /* Monsters keep their recall popup */
+    if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml)
+        return false;
+
+    /* Dark/unknown squares: strike into the darkness */
+    if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
+        return true;
+
+    /* Known doors, traps, walls and rubble */
+    if (is_open(cave_feat[y][x]) || (cave_feat[y][x] == FEAT_BROKEN))
+        return true;
+    if (cave_known_closed_door_bold(y, x))
+        return true;
+    if (cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
+        return true;
+    if (cave_wall_bold(y, x) || (cave_feat[y][x] == FEAT_RUBBLE))
+        return true;
+
+    /* Chests and unsearched skeletons */
+    if (chest_check(y, x))
+        return true;
+    if (cave_o_idx[y][x])
+    {
+        object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+
+        if ((o_ptr->tval == TV_SKELETON)
+            && !object_is_searched_skeleton(o_ptr) && o_ptr->marked)
+        {
+            return true;
+        }
+
+        /* Other visible objects keep the describe popup */
+        for (o_ptr = get_first_object(y, x); o_ptr;
+             o_ptr = get_next_object(o_ptr))
+        {
+            if (o_ptr->k_idx && o_ptr->marked)
+                return false;
+        }
+    }
+
+    /* Empty floor: strike at the square without stepping in */
+    if (cave_floorlike_bold(y, x))
+        return true;
+
+    return false;
+}
+
+/*
+ * Build and run the interaction popup for an adjacent grid.  On success
+ * stores the chosen game command and direction and returns true; returns
+ * false when the player cancels (or nothing applies).
+ */
+bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
+{
+    ui_question_option options[6];
+    char commands[6];
+    int count = 0;
+    int dir;
+    int feat;
+    int choice;
+    bool step_choice[6];
+    char title[80];
+    char desc[480];
+    char line[160];
+
+    if (out_command)
+        *out_command = 0;
+    if (out_dir)
+        *out_dir = 0;
+
+    if (!grid_interact_available(y, x))
+        return false;
+
+    dir = coords_to_dir(y, x);
+    feat = cave_feat[y][x];
+    title[0] = '\0';
+    desc[0] = '\0';
+    memset(step_choice, 0, sizeof(step_choice));
+
+#define GRID_Q_ADD(cmd_, key_, label_, attr_)                                 \
+    do                                                                        \
+    {                                                                         \
+        options[count].key = (key_);                                          \
+        options[count].label = (label_);                                      \
+        options[count].attr = (attr_);                                        \
+        commands[count] = (cmd_);                                             \
+        count++;                                                              \
+    } while (0)
+
+    /* --- Dark / unknown square --- */
+    if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
+    {
+        SDL_strlcpy(title, "Darkness", sizeof(title));
+        SDL_strlcpy(desc,
+            "You cannot make out what lies there. You could strike into the "
+            "darkness without stepping in - an unseen enemy might lurk "
+            "there, or your blow may just find a wall.",
+            sizeof(desc));
+        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_WHITE);
+    }
+
+    /* --- Open / broken doors --- */
+    else if (is_open(feat))
+    {
+        SDL_strlcpy(title, "Open door", sizeof(title));
+        SDL_strlcpy(desc,
+            "An open doorway. Closing it would slow pursuers and block line "
+            "of sight.",
+            sizeof(desc));
+        GRID_Q_ADD('c', 'c', "Close it", TERM_L_WHITE);
+    }
+    else if (feat == FEAT_BROKEN)
+    {
+        SDL_strlcpy(title, "Broken door", sizeof(title));
+        SDL_strlcpy(desc,
+            "The door has been smashed beyond use; it can no longer be "
+            "closed.",
+            sizeof(desc));
+        GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
+    }
+
+    /* --- Closed, locked, stuck and warded doors --- */
+    else if (cave_known_closed_door_bold(y, x))
+    {
+        bool warded = (feat == FEAT_WARDED) || (feat == FEAT_WARDED2)
+            || (feat == FEAT_WARDED3);
+        int power = (feat >= FEAT_DOOR_HEAD) ? (feat - FEAT_DOOR_HEAD) : 0;
+        int bash_power = power & 0x07;
+
+        if (power >= 0x08)
+        {
+            /* Stuck door: bashing is the only way through */
+            SDL_strlcpy(title, "Stuck door", sizeof(title));
+            strnfmt(desc, sizeof(desc),
+                "The door is stuck fast (jam %d). It cannot be opened "
+                "normally: it must be forced with your shoulder, and the "
+                "crash will carry. Bashing tests your Strength.",
+                bash_power);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+        }
+        else if (power >= 0x01)
+        {
+            /* Locked door */
+            SDL_strlcpy(title, "Locked door", sizeof(title));
+            strnfmt(desc, sizeof(desc),
+                "The door is locked (lock difficulty %d). Picking the lock "
+                "quietly tests your Perception; bashing it down tests your "
+                "Strength and makes a great noise.",
+                power + 5);
+            GRID_Q_ADD('o', 'o', "Pick the lock", TERM_L_WHITE);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+        }
+        else
+        {
+            /* Plain closed (possibly warded) door */
+            SDL_strlcpy(title, warded ? "Warded door" : "Closed door",
+                sizeof(title));
+            SDL_strlcpy(desc,
+                "A closed door, and it is not locked. Opening it is quiet; "
+                "bashing it down is fast but loud, and may break the door "
+                "for good.",
+                sizeof(desc));
+            if (warded)
+            {
+                grid_question_append(desc, sizeof(desc),
+                    "Words of warding glimmer about its frame.");
+            }
+            GRID_Q_ADD('o', 'o', "Open it", TERM_L_WHITE);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+        }
+    }
+
+    /* --- Traps (known) --- */
+    else if (cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
+    {
+        int power = 0;
+        bool disarmable = trap_disarm_power(feat, &power);
+        cptr name = (f_name + f_info[feat].name);
+
+        strnfmt(title, sizeof(title), "%^s", name);
+        SDL_strlcpy(desc, trap_flavor_text(feat), sizeof(desc));
+
+        if (disarmable)
+        {
+            strnfmt(line, sizeof(line),
+                "Disarming it tests your Perception (difficulty %d); failing "
+                "badly may set it off.",
+                power);
+            grid_question_append(desc, sizeof(desc), line);
+            GRID_Q_ADD('D', 'd', "Disarm it", TERM_L_WHITE);
+        }
+        else
+        {
+            strnfmt(line, sizeof(line), "The %s cannot be disarmed.", name);
+            grid_question_append(desc, sizeof(desc), line);
+        }
+
+        GRID_Q_ADD(';', 'w', "Step onto it", TERM_L_WHITE);
+        step_choice[count - 1] = true;
+    }
+
+    /* --- Walls, veins and rubble --- */
+    else if (cave_wall_bold(y, x) || (feat == FEAT_RUBBLE))
+    {
+        int digging_score = 0;
+        object_type* digger = grid_question_best_digger(&digging_score);
+        int difficulty;
+
+        if (feat == FEAT_WALL_PERM)
+        {
+            SDL_strlcpy(title, "Unbreakable wall", sizeof(title));
+            SDL_strlcpy(desc,
+                "This wall has stood since the delving of the fortress; no "
+                "tool you could carry will bite on it.",
+                sizeof(desc));
+            GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
+        }
+        else
+        {
+            if (feat == FEAT_RUBBLE)
+            {
+                difficulty = 1;
+                SDL_strlcpy(title, "Pile of rubble", sizeof(title));
+                SDL_strlcpy(desc,
+                    "Broken rock blocks the way. It is the easiest of "
+                    "obstacles to dig through (difficulty 1).",
+                    sizeof(desc));
+            }
+            else if (feat == FEAT_QUARTZ)
+            {
+                level_partition_kind part_kind
+                    = level_partition_kind_for_point(y, x);
+                bool in_chasm_area
+                    = (cave_info[y][x] & CAVE_CHASM_AREA) != 0;
+                bool loot_ground = ((part_kind == LEVEL_PART_CAVEY)
+                    || (part_kind == LEVEL_PART_BIG_CAVE))
+                    && ((cave_info[y][x] & CAVE_ROOM) != 0) && !in_chasm_area;
+                bool star_ground
+                    = (part_kind == LEVEL_PART_CHASM) && in_chasm_area;
+
+                difficulty = 2;
+                SDL_strlcpy(title, "Quartz vein", sizeof(title));
+                SDL_strlcpy(desc,
+                    "A vein of milky quartz seams the rock (digging "
+                    "difficulty 2). Miners tell that veins in great caverns "
+                    "can hold gems below 500 ft and even mithril below 600 "
+                    "ft, and that veins in the chasm's depths may yield "
+                    "star-iron.",
+                    sizeof(desc));
+                if ((loot_ground || star_ground) && (p_ptr->depth >= 10))
+                {
+                    grid_question_append(desc, sizeof(desc),
+                        "This one lies in promising ground.");
+                }
+            }
+            else
+            {
+                /* Granite (secret doors look the same; say nothing) */
+                difficulty = 3;
+                SDL_strlcpy(title, "Granite wall", sizeof(title));
+                SDL_strlcpy(desc,
+                    "A wall of solid granite (digging difficulty 3).",
+                    sizeof(desc));
+            }
+
+            if (digger)
+            {
+                char o_name[80];
+
+                object_desc(o_name, sizeof(o_name), digger, false, -1);
+                if ((digging_score >= difficulty)
+                    && (p_ptr->stat_use[A_STR] >= difficulty))
+                {
+                    strnfmt(line, sizeof(line),
+                        "Your %s (digging %d) is up to the task, though the "
+                        "noise will carry.",
+                        o_name, digging_score);
+                }
+                else if (digging_score >= difficulty)
+                {
+                    strnfmt(line, sizeof(line),
+                        "Your %s (digging %d) could bite here, but you lack "
+                        "the Strength (%d needed).",
+                        o_name, digging_score, difficulty);
+                }
+                else
+                {
+                    strnfmt(line, sizeof(line),
+                        "Your %s (digging %d) is not up to it.", o_name,
+                        digging_score);
+                }
+                grid_question_append(desc, sizeof(desc), line);
+                GRID_Q_ADD('T', 't', "Tunnel through", TERM_L_WHITE);
+            }
+            else
+            {
+                grid_question_append(desc, sizeof(desc),
+                    "You carry no shovel or mattock to dig with.");
+                GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
+            }
+        }
+    }
+
+    /* --- Chests --- */
+    else if (chest_check(y, x))
+    {
+        s16b o_idx = chest_check(y, x);
+        object_type* o_ptr = &o_list[o_idx];
+        char o_name[80];
+
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        strnfmt(title, sizeof(title), "%^s", o_name);
+
+        if (o_ptr->pval == 0)
+        {
+            SDL_strlcpy(desc, "The chest stands open and empty.",
+                sizeof(desc));
+            GRID_Q_ADD(0, 0, "Never mind", TERM_SLATE);
+        }
+        else
+        {
+            SDL_strlcpy(desc, "A closed chest.", sizeof(desc));
+            if (grid_is_known_trapped_chest(y, x))
+            {
+                grid_question_append(desc, sizeof(desc),
+                    "You have found a trap on it: disarm the trap before "
+                    "opening it, or chance setting it off.");
+                GRID_Q_ADD('D', 'd', "Disarm the trap", TERM_L_WHITE);
+            }
+            else if (!object_known_p(o_ptr))
+            {
+                grid_question_append(desc, sizeof(desc),
+                    "It has not been searched for traps.");
+            }
+            GRID_Q_ADD('o', 'o', "Open it", TERM_L_WHITE);
+        }
+    }
+
+    /* --- Skeletons --- */
+    else if (cave_o_idx[y][x]
+        && (o_list[cave_o_idx[y][x]].tval == TV_SKELETON)
+        && !object_is_searched_skeleton(&o_list[cave_o_idx[y][x]]))
+    {
+        char o_name[80];
+
+        object_desc(o_name, sizeof(o_name), &o_list[cave_o_idx[y][x]], true,
+            3);
+        strnfmt(title, sizeof(title), "%^s", o_name);
+        SDL_strlcpy(desc,
+            "The bones of some unfortunate. Searching them may turn up "
+            "something of use.",
+            sizeof(desc));
+        GRID_Q_ADD('/', 's', "Search it", TERM_L_WHITE);
+    }
+
+    /* --- Empty floor --- */
+    else
+    {
+        SDL_strlcpy(title, "Empty square", sizeof(title));
+        SDL_strlcpy(desc,
+            "Nothing lies there that you can see. You could strike at the "
+            "square without stepping in - an unseen enemy might lurk there.",
+            sizeof(desc));
+        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_WHITE);
+    }
+
+#undef GRID_Q_ADD
+
+    if (count == 0)
+        return false;
+
+    choice = ui_question_ask(title, desc, options, count, y, x, 0);
+    if ((choice < 0) || (choice >= count) || !commands[choice])
+        return false;
+
+    /* Stepping onto a trap from the popup is deliberate: don't ask again */
+    if (step_choice[choice])
+        player_allow_trap_step(y, x);
+
+    if (out_command)
+        *out_command = commands[choice];
+    if (out_dir)
+        *out_dir = dir;
     return true;
 }
 
@@ -639,7 +1146,7 @@ void do_cmd_close(void)
     /* Honour a pre-supplied direction, else pick a door interactively */
     if (p_ptr->command_dir)
         dir = p_ptr->command_dir;
-    else if (!get_door_dir("Close which door?", is_open, &dir))
+    else if (!get_door_dir("Close which door?", grid_is_known_open_door, &dir))
         return;
 
     p_ptr->command_dir = dir;
@@ -1175,9 +1682,32 @@ void do_cmd_tunnel(void)
 
     bool more = false;
 
-    /* Get a direction (or abort) */
-    if (!get_rep_dir(&dir))
+    int num_targets = 0;
+
+    /* Count adjacent diggable grids */
+    for (int d = 0; d < 8; d++)
+    {
+        y = p_ptr->py + ddy_ddd[d];
+        x = p_ptr->px + ddx_ddd[d];
+
+        if (in_bounds_fully(y, x) && grid_is_tunnel_target(y, x))
+            num_targets++;
+    }
+
+    if (!p_ptr->command_dir && (num_targets == 0))
+    {
+        msg_print("There is nothing nearby that you can tunnel through.");
         return;
+    }
+
+    /* Honour a pre-supplied direction, else pick a target interactively */
+    if (p_ptr->command_dir)
+        dir = p_ptr->command_dir;
+    else if (!get_interact_dir("Tunnel where?", grid_is_tunnel_target, false,
+                 &dir))
+        return;
+
+    p_ptr->command_dir = dir;
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -1335,7 +1865,7 @@ bool break_free_of_web(void)
  *
  * Returns true if repeated commands may continue
  */
-static bool do_cmd_disarm_aux(int y, int x)
+bool do_cmd_disarm_aux(int y, int x)
 {
     int score, difficulty, result;
     int power = 0; // default to soothe compiler warnings
@@ -1517,16 +2047,20 @@ void do_cmd_disarm(void)
     /* Count chests (trapped) */
     num_chests = count_chests(&y, &x, true);
 
-    /* See if only one target */
-    if (num_traps || num_chests)
+    if ((num_traps + num_chests) == 0)
     {
-        if (num_traps + num_chests <= 1)
-            p_ptr->command_dir = coords_to_dir(y, x);
+        msg_print("There is nothing in your square (or adjacent) to disarm.");
+        return;
     }
 
-    /* Get a direction (or abort) */
-    if (!get_rep_dir(&dir))
+    /* Honour a pre-supplied direction, else pick a target interactively */
+    if (p_ptr->command_dir)
+        dir = p_ptr->command_dir;
+    else if (!get_interact_dir("Disarm what?", grid_is_disarm_target, true,
+                 &dir))
         return;
+
+    p_ptr->command_dir = dir;
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -1818,7 +2352,7 @@ void do_cmd_bash(void)
     /* Honour a pre-supplied direction, else pick a door interactively */
     if (p_ptr->command_dir)
         dir = p_ptr->command_dir;
-    else if (!get_door_dir("Bash which door?", is_closed, &dir))
+    else if (!get_door_dir("Bash which door?", grid_is_known_closed_door, &dir))
         return;
 
     p_ptr->command_dir = dir;
@@ -2049,7 +2583,7 @@ void do_cmd_alter(void)
     else if ((dir == 5) && ((feat == FEAT_LESS) || (feat == FEAT_LESS_SHAFT)))
     {
         /* Ascend */
-        if (get_check("Are you sure you wish to ascend? "))
+        if (get_check_near(y, x, "Are you sure you wish to ascend? "))
             do_cmd_go_up();
     }
 
@@ -2057,7 +2591,7 @@ void do_cmd_alter(void)
     else if ((dir == 5) && ((feat == FEAT_MORE) || (feat == FEAT_MORE_SHAFT)))
     {
         /* Descend */
-        if (get_check("Are you sure you wish to descend? "))
+        if (get_check_near(y, x, "Are you sure you wish to descend? "))
             do_cmd_go_down();
     }
 

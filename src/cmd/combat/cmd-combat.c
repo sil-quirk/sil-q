@@ -2656,26 +2656,31 @@ void py_attack_aux(int y, int x, int attack_type)
             || weapon_has_attack_confirmation_inscription(o_ptr))
         && !p_ptr->truce && m_ptr->ml)
     {
-        if (!get_check("Are you sure you wish to attack? "))
+        if (!get_check_near(m_ptr->fy, m_ptr->fx,
+                "Are you sure you wish to attack? "))
             abort_attack = true;
     }
 
     // Warning about breaking the truce
-    if ((p_ptr->truce) && !get_check("Are you sure you wish to attack? "))
+    if ((p_ptr->truce)
+        && !get_check_near(m_ptr->fy, m_ptr->fx,
+            "Are you sure you wish to attack? "))
     {
         abort_attack = true;
     }
 
     // Warn about fighting with fists
     if ((o_ptr->weight == 0)
-        && !get_check("Are you sure you wish to attack with no weapon? "))
+        && !get_check_near(m_ptr->fy, m_ptr->fx,
+            "Are you sure you wish to attack with no weapon? "))
     {
         abort_attack = true;
     }
 
     // Warn about fighting with shovel
     if ((o_ptr->tval == TV_DIGGING) && (o_ptr->sval == SV_SHOVEL)
-        && !get_check("Are you sure you wish to attack with your shovel? "))
+        && !get_check_near(m_ptr->fy, m_ptr->fx,
+            "Are you sure you wish to attack with your shovel? "))
     {
         abort_attack = true;
     }

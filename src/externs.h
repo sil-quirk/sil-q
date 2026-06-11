@@ -635,6 +635,7 @@ extern void py_attack_aux(int y, int x, int attack_type);
 extern void py_attack(int y, int x, int attack_type);
 extern void flanking_or_retreat(int y, int x);
 extern void move_player(int dir);
+extern void player_allow_trap_step(int y, int x);
 extern const byte cycle[];
 extern const byte chome[];
 extern void run_step(int dir);
@@ -660,10 +661,15 @@ extern void do_cmd_fletchery(void);
 extern void finish_fletching(int);
 extern void do_cmd_tunnel(void);
 extern bool break_free_of_web(void);
+extern bool do_cmd_disarm_aux(int y, int x);
+extern bool trap_disarm_power(int feat, int* power);
 extern void do_cmd_disarm(void);
 extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
 extern void do_cmd_alter(void);
+extern bool grid_interact_available(int y, int x);
+extern bool grid_interact_question(int y, int x, int* out_command,
+    int* out_dir);
 extern void do_cmd_spike(void);
 extern void chest_release_contents(struct object_type* o_ptr, int y, int x,
     int destroy_typ);
@@ -1712,10 +1718,9 @@ extern s16b get_quantity_touch_category(cptr prompt, int max,
     int touch_category);
 extern s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
     int touch_category);
-extern int get_check_other(cptr prompt, char other);
 extern bool get_check(cptr prompt);
+extern bool get_check_near(int y, int x, cptr prompt);
 extern bool get_check_oath_multiline(cptr prompt);
-extern int get_menu_choice(s16b max, char* prompt);
 extern void ui_menu_click_clear(void);
 extern void ui_menu_click_begin(void);
 extern void ui_menu_click_set_hover_enabled(bool enabled);
@@ -1937,6 +1942,8 @@ extern void player_set_visual_facing_target_immediate(int y, int x);
 extern bool get_aim_dir(int* dp, int range);
 extern bool get_aim_dir_vertical(int* dp, int range);
 extern bool get_rep_dir(int* dp);
+extern bool get_grid_choice_dir(cptr prompt, const int ys[], const int xs[],
+    const int dirs[], int count, int* dp);
 extern bool confuse_dir(int* dp);
 extern const char tutorial_leave_text[][100];
 extern const char tutorial_win_text[][100];
@@ -2052,6 +2059,15 @@ extern void sdl_song_menu_add_text(cptr text, byte attr);
 extern void sdl_song_menu_set_highlight(int choice);
 extern void sdl_song_menu_finish(void);
 extern void sdl_song_menu_clear(void);
+extern void sdl_question_menu_begin(cptr title);
+extern void sdl_question_menu_set_anchor_grid(int y, int x);
+extern void sdl_question_menu_set_desc(cptr text);
+extern void sdl_question_menu_add_entry(int choice, cptr letter, cptr text,
+    byte attr);
+extern void sdl_question_menu_add_text(cptr text, byte attr);
+extern void sdl_question_menu_set_highlight(int choice);
+extern void sdl_question_menu_finish(void);
+extern void sdl_question_menu_clear(void);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
 extern void sdl_resume_main_view_zoom_for_saved_screen(void);
 extern void sdl_set_present_suppressed(bool suppressed);
@@ -2197,6 +2213,8 @@ extern int get_sdl_touch_pane_default_binding_for_panel(int panel, int index);
 extern void sdl_touch_pane_reset_bindings_to_default(void);
 extern void sdl_touch_pane_begin_yes_no_prompt(cptr prompt);
 extern void sdl_touch_pane_begin_yes_no_prompt_lower(cptr prompt);
+extern void sdl_touch_pane_begin_yes_no_prompt_near(cptr prompt, int map_y,
+    int map_x);
 extern void sdl_touch_pane_end_yes_no_prompt(void);
 extern cptr get_sdl_touch_pane_slot_name(int index);
 extern void get_sdl_touch_pane_button_label(int index, char* buf, size_t buflen);
