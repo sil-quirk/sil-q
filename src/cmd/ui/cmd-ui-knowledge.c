@@ -3100,6 +3100,22 @@ static void supply_register_page_tabs(const knowledge_browser_layout* layout)
     }
 }
 
+static void knowledge_begin_touch_scroll_area(
+    const knowledge_browser_layout* layout, int touch_category)
+{
+    int bottom_row;
+
+    if (!layout)
+        return;
+
+    bottom_row = layout->status_row - 1;
+    if (bottom_row < layout->list_row)
+        bottom_row = layout->list_row;
+
+    ui_scroll_area_begin(layout->list_row, bottom_row, touch_category);
+    ui_scroll_area_set_keys('8', '2', '6', '4');
+}
+
 static int supply_browser_hover_page(void)
 {
     int hover_choice;
@@ -6516,6 +6532,8 @@ static void knowledge_begin_clicks(const knowledge_browser_layout* layout)
 {
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    knowledge_begin_touch_scroll_area(layout, SDL_TOUCH_MENU_CATEGORY_OTHER);
     knowledge_register_tabs(layout);
 }
 
@@ -8243,6 +8261,7 @@ void do_cmd_knowledge_browser_page(int page)
     mem_free_null(artefact_idx);
 
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();
@@ -8625,6 +8644,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             ui_menu_click_set_touch_category(
+                SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+            knowledge_begin_touch_scroll_area(&layout,
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
 
             Term_clear();
@@ -9114,6 +9135,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             ui_menu_click_set_touch_category(
+                SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+            knowledge_begin_touch_scroll_area(&layout,
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
 
             Term_clear();
@@ -9992,6 +10015,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+        knowledge_begin_touch_scroll_area(&draw_layout,
+            SDL_TOUCH_MENU_CATEGORY_SUPPLY);
         supply_draw_page_header(&draw_layout, page,
             supply_browser_hover_page(), title_label);
         supply_register_page_tabs(&draw_layout);
@@ -10533,6 +10558,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     mem_free_null(equip_entries);
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     sdl_pop_terminal_menu_scale();
     sdl_pop_description_overlay_main_anchor();
     screen_pop_supporting_panes_hidden();
@@ -10698,6 +10724,7 @@ void do_cmd_knowledge(void)
             break;
 
         ui_menu_click_clear();
+        ui_scroll_area_clear();
 
         /* Known lore browser */
         if (ch == '1')
@@ -10750,6 +10777,7 @@ void do_cmd_knowledge(void)
 
     /* Load screen */
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     screen_pop_supporting_panes_hidden();
     screen_load();
 }

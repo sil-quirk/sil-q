@@ -1219,6 +1219,8 @@ bool sdl_main_map_handle_drag_down(float x, float y,
 
     if (g_player_action_menu.active || g_player_exchange_target.active)
         return false;
+    if (!mouse && sdl_touch_movement_point_blocked_by_overlay(x, y))
+        return false;
     if (!sdl_main_map_point_to_drag_map(x, y))
         return false;
     if (!mouse && sdl_main_view_point_to_map(x, y, &map_y, &map_x)

@@ -101,7 +101,11 @@ enum {
 #define SDL_OVERLAY_LOG_VMARGIN_CELLS 0.4f
 
 #define TOUCH_MOUSE_FALLBACK_FINGER_ID ((SDL_FingerID)~(SDL_FingerID)0)
+#if SIL_SDL_MOBILE_BUILD
+#define SIDE_PANE_MENU_SCALE 1.6f
+#else
 #define SIDE_PANE_MENU_SCALE 1.5f
+#endif
 #define SDL_WHEEL_IDLE_RESET_NS (250ULL * 1000000ULL)
 #define SDL_WHEEL_DISCRETE_STEP_UNITS 1.0f
 #define SDL_WHEEL_SMOOTH_STEP_UNITS 3.0f
@@ -2177,6 +2181,7 @@ bool sdl_description_overlay_scroll_to_layout( const description_overlay_layout*
 bool sdl_description_overlay_scroll_by(int rows);
 bool sdl_description_overlay_scroll_page(int direction);
 bool sdl_description_overlay_handle_mouse_wheel( const SDL_MouseWheelEvent* wheel);
+bool sdl_description_overlay_contains_point(float x, float y);
 void sdl_description_overlay_render_char(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h, float x, float y, byte attr, char ch);
 void sdl_description_overlay_render_text(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, const char* text, float x, float y, float cell_w, float cell_h, byte attr);
 void sdl_description_overlay_render(void);
@@ -2499,6 +2504,7 @@ void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse, SDL_FingerID
 bool sdl_touch_round_layer_config_enabled(void);
 bool sdl_touch_round_layer_controls_active(void);
 bool sdl_touch_round_point_excluded(float x, float y);
+bool sdl_touch_movement_point_blocked_by_overlay(float x, float y);
 float sdl_touch_round_radius_px(void);
 float sdl_touch_round_ctrl_radius_px(float radius);
 bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip);
@@ -3380,6 +3386,7 @@ bool sdl_menu_scroll_handle_pointer_up(SDL_FingerID finger_id);
 void sdl_menu_scroll_cancel(void);
 bool sdl_description_overlay_handle_mouse_wheel(
     const SDL_MouseWheelEvent* wheel);
+bool sdl_description_overlay_contains_point(float x, float y);
 bool sdl_side_map_pane_current_rect(SDL_Rect* out_rect);
 void sdl_side_map_pane_render(void);
 bool sdl_side_map_pane_handle_mouse_wheel(
@@ -3558,6 +3565,7 @@ void sdl_touch_zone_render_markers(void);
 bool sdl_touch_round_point_excluded(float x, float y);
 bool sdl_touch_round_layer_controls_active(void);
 bool sdl_touch_round_layer_config_enabled(void);
+bool sdl_touch_movement_point_blocked_by_overlay(float x, float y);
 bool sdl_touch_round_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id);
 bool sdl_touch_round_handle_pointer_motion(float x, float y,

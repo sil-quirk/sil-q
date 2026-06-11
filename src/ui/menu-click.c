@@ -248,6 +248,11 @@ void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
         }
     }
 
+#ifdef SIL_MOBILE
+    token_col -= 2;
+    token_width += 4;
+#endif
+
     ui_menu_click_add(choice, token_col, row, token_width);
 
     if (ui_menu_click_hover_current && ui_menu_click_hover_choice == choice)

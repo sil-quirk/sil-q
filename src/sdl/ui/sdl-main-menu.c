@@ -294,13 +294,17 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
 
     pad_x = (float)font_px * 0.64f;
     pad_y = (float)font_px * 0.22f;
+#if !SIL_SDL_MOBILE_BUILD
     row_h = (float)font_px * 1.12f;
+#endif
     if (pad_x < 11.0f)
         pad_x = 11.0f;
     if (pad_y < 5.0f)
         pad_y = 5.0f;
+#if !SIL_SDL_MOBILE_BUILD
     if (row_h < (float)font_px + 3.0f)
         row_h = (float)font_px + 3.0f;
+#endif
 
     shortcut_gap = shortcut_w > 0 ? (float)font_px * 0.38f : 0.0f;
     if (shortcut_w > 0 && shortcut_gap < 5.0f)
@@ -314,6 +318,21 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
         max_panel_w = (float)screen.w;
     panel_w = sdl_touch_pane_clampf(panel_w, 1.0f, max_panel_w);
 
+#if SIL_SDL_MOBILE_BUILD
+    {
+        float overlay_margin = (float)sdl_overlay_margin_px();
+
+        max_panel_h = (float)screen.h - overlay_margin * 2.0f;
+        if (max_panel_h < 1.0f)
+            max_panel_h = (float)screen.h;
+
+        panel_h = max_panel_h;
+        row_h = (panel_h - pad_y * 2.0f) / (float)MAIN_MENU_MAX;
+        if (row_h < 1.0f)
+            row_h = 1.0f;
+        visible_count = MAIN_MENU_MAX;
+    }
+#else
     panel_h = pad_y * 2.0f + row_h * (float)MAIN_MENU_MAX;
     max_panel_h = (float)screen.h - 12.0f;
     if (max_panel_h < 1.0f)
@@ -326,6 +345,7 @@ bool sdl_main_menu_overlay_layout(main_menu_pane_layout* out)
             visible_count = MAIN_MENU_MAX;
         panel_h = pad_y * 2.0f + row_h * (float)visible_count;
     }
+#endif
 
     sdl_main_menu_overlay_scroll_to_highlight(visible_count);
 

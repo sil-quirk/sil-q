@@ -173,6 +173,9 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
         return false;
 
     font_px = sdl_main_menu_pane_font_px();
+#if SIL_SDL_MOBILE_BUILD
+    font_px = (int)((float)font_px * 1.18f + 0.5f);
+#endif
     story_font = sdl_story_font_for_height_slot(font_px,
         SDL_STORY_FONT_SLOT_MENU);
     if (!story_font)

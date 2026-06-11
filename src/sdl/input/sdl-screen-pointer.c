@@ -100,13 +100,9 @@ bool sdl_main_screen_click_shortcuts_active(void)
         && !ui_menu_click_is_active();
 }
 
-bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action)
+static bool sdl_main_screen_handle_menu_cell_action(int col, int row,
+    int action)
 {
-    int col = 0;
-    int row = 0;
-
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
-        return false;
     if (!ui_menu_click_handle_cell_action(col, row, action))
         return false;
 
@@ -115,6 +111,67 @@ bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action)
         ? UI_MENU_CLICK_WAKE_KEY
         : '\r');
     return true;
+}
+
+bool sdl_main_screen_handle_menu_text_pointer(float x, float y, int action)
+{
+    int col = 0;
+    int row = 0;
+
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+
+    return sdl_main_screen_handle_menu_cell_action(col, row, action);
+}
+
+static bool sdl_menu_touch_point_to_click_cell(float x, float y,
+    bool expanded, int* out_col, int* out_row)
+{
+#if SIL_SDL_MOBILE_BUILD
+    static const int offsets[][2] = {
+        {  0, -1 }, {  0,  1 },
+        { -1,  0 }, {  1,  0 },
+        { -1, -1 }, {  1, -1 }, { -1,  1 }, {  1,  1 },
+        { -2,  0 }, {  2,  0 },
+        { -2, -1 }, {  2, -1 }, { -2,  1 }, {  2,  1 },
+    };
+#endif
+    int col = 0;
+    int row = 0;
+
+    if (!out_col || !out_row)
+        return false;
+    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+        return false;
+
+    if (ui_menu_click_has_cell(col, row))
+    {
+        *out_col = col;
+        *out_row = row;
+        return true;
+    }
+
+#if SIL_SDL_MOBILE_BUILD
+    if (!expanded)
+        return false;
+
+    for (int i = 0; i < (int)N_ELEMENTS(offsets); i++)
+    {
+        int test_col = col + offsets[i][0];
+        int test_row = row + offsets[i][1];
+
+        if (!ui_menu_click_has_cell(test_col, test_row))
+            continue;
+
+        *out_col = test_col;
+        *out_row = test_row;
+        return true;
+    }
+#else
+    (void)expanded;
+#endif
+
+    return false;
 }
 
 bool sdl_main_screen_menu_pointer_hits_cell(float x, float y)
@@ -851,9 +908,7 @@ bool sdl_menu_touch_handle_pointer_down(float x, float y,
     int col = 0;
     int row = 0;
 
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
-        return false;
-    if (!ui_menu_click_has_cell(col, row))
+    if (!sdl_menu_touch_point_to_click_cell(x, y, !mouse, &col, &row))
         return false;
 
     if (!mouse
@@ -885,7 +940,7 @@ bool sdl_menu_touch_handle_pointer_motion(float x, float y,
         || g_menu_touch_press.finger_id != finger_id)
         return false;
 
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
+    if (!sdl_menu_touch_point_to_click_cell(x, y, !mouse, &col, &row))
     {
         sdl_menu_touch_cancel();
         return true;
@@ -934,7 +989,7 @@ bool sdl_menu_touch_handle_pointer_up(float x, float y,
         || g_menu_touch_press.finger_id != finger_id)
         return false;
 
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row)
+    if (!sdl_menu_touch_point_to_click_cell(x, y, !mouse, &col, &row)
         || col != g_menu_touch_press.col || row != g_menu_touch_press.row)
     {
         sdl_menu_touch_cancel();
@@ -942,8 +997,8 @@ bool sdl_menu_touch_handle_pointer_up(float x, float y,
     }
 
     sdl_menu_touch_cancel();
-    return sdl_main_screen_handle_menu_text_pointer(
-        x, y, UI_MENU_CLICK_PRIMARY);
+    return sdl_main_screen_handle_menu_cell_action(
+        col, row, UI_MENU_CLICK_PRIMARY);
 }
 
 int sdl_menu_touch_pending_timeout_ms(Uint64 now_ns)

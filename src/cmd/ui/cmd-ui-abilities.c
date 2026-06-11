@@ -1562,6 +1562,17 @@ int bane_menu(int* highlight)
         }
     }
 
+    if (options > 0)
+    {
+        ui_scroll_area_begin(list_first_row, list_first_row + options - 1,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+    }
+    else
+    {
+        ui_scroll_area_clear();
+    }
+
     if (*highlight < 1)
         *highlight = 1;
     if (*highlight > options)
@@ -1610,8 +1621,20 @@ int bane_menu(int* highlight)
     {
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
             "8/2 - Navigate");
-        Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
-            "Enter Select  Esc Back");
+        {
+            cptr prompt = "Enter Select  Esc Back";
+
+            Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
+                prompt);
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_ACTION,
+                desc_col, nav_row_2, prompt, "Enter");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_ACTION,
+                desc_col, nav_row_2, prompt, "Select");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
+                desc_col, nav_row_2, prompt, "Esc");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
+                desc_col, nav_row_2, prompt, "Back");
+        }
     }
 
     /* Flush the prompt */
@@ -1629,12 +1652,24 @@ int bane_menu(int* highlight)
         int clicked_choice = -1;
         int click_action = UI_MENU_CLICK_PRIMARY;
 
-        if (ui_menu_click_take_action(&clicked_choice, &click_action)
-            && clicked_choice >= 1 && clicked_choice <= options)
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
         {
-            *highlight = clicked_choice;
-            if (click_action != UI_MENU_CLICK_HOVER)
-                return (*highlight);
+            if (clicked_choice == ABILITY_MENU_CLICK_EXIT)
+            {
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    return (BANE_TYPES + 1);
+            }
+            else if (clicked_choice == ABILITY_MENU_CLICK_ACTION)
+            {
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    return (*highlight);
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= options)
+            {
+                *highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    return (*highlight);
+            }
             return (0);
         }
     }
@@ -1914,6 +1949,17 @@ int oath_menu(int* highlight)
         visible_count++;
     }
 
+    if (visible_count > 0)
+    {
+        ui_scroll_area_begin(4, 4 + visible_count - 1,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+    }
+    else
+    {
+        ui_scroll_area_clear();
+    }
+
     // Display detailed description for highlighted oath in description column
     if (*highlight >= 1 && *highlight <= visible_count)
     {
@@ -1981,9 +2027,23 @@ int oath_menu(int* highlight)
         // Navigation instructions at bottom
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
             compact_layout ? "8/2 - Navigate" : "2/8 - Navigate");
-        Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
-            compact_layout ? "Enter Select  Esc Back"
-                           : "Enter - Select  ESC - Back");
+        {
+            cptr prompt = compact_layout ? "Enter Select  Esc Back"
+                                         : "Enter - Select  ESC - Back";
+
+            Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
+                prompt);
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_ACTION,
+                desc_col, nav_row_2, prompt, "Enter");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_ACTION,
+                desc_col, nav_row_2, prompt, "Select");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
+                desc_col, nav_row_2, prompt, "Esc");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
+                desc_col, nav_row_2, prompt, "ESC");
+            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
+                desc_col, nav_row_2, prompt, "Back");
+        }
     }
 
     // Ensure highlight is within valid range
@@ -2002,12 +2062,24 @@ int oath_menu(int* highlight)
         int clicked_choice = -1;
         int click_action = UI_MENU_CLICK_PRIMARY;
 
-        if (ui_menu_click_take_action(&clicked_choice, &click_action)
-            && clicked_choice >= 1 && clicked_choice <= visible_count)
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
         {
-            *highlight = clicked_choice;
-            if (click_action != UI_MENU_CLICK_HOVER)
-                return visible_oaths[*highlight - 1];
+            if (clicked_choice == ABILITY_MENU_CLICK_EXIT)
+            {
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    return OATH_TYPES + 1;
+            }
+            else if (clicked_choice == ABILITY_MENU_CLICK_ACTION)
+            {
+                if (click_action != UI_MENU_CLICK_HOVER && visible_count > 0)
+                    return visible_oaths[*highlight - 1];
+            }
+            else if (clicked_choice >= 1 && clicked_choice <= visible_count)
+            {
+                *highlight = clicked_choice;
+                if (click_action != UI_MENU_CLICK_HOVER)
+                    return visible_oaths[*highlight - 1];
+            }
             return (0);
         }
     }

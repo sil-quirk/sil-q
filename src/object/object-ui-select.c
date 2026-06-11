@@ -980,6 +980,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_clear();
 
         if (p_ptr->command_see)
         {
@@ -1014,6 +1015,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     click_rows = display_rows;
                 for (int click_row = 0; click_row < click_rows; click_row++)
                     ui_menu_click_add_full_row(click_row, click_row + 1);
+            }
+
+            if (click_rows > 0)
+            {
+                ui_scroll_area_begin(1, click_rows,
+                    SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+                ui_scroll_area_set_keys('8', '2', '6', '4');
             }
         }
 
@@ -1630,6 +1638,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    ui_scroll_area_clear();
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)

@@ -641,6 +641,9 @@ void show_inven_enhanced(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_begin(1, visible_rows,
+            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
         bool square_selection = inventory_selection_uses_square();
 
         /* Show the prompt - different text based on how menu was opened */
@@ -1556,6 +1559,7 @@ void show_inven_enhanced(void)
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);
@@ -1718,6 +1722,22 @@ void show_equip_enhanced(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        {
+            int visible_rows = inventory_menu_visible_rows_for_height(
+                menu_term_height());
+            int scroll_rows = MIN(k, visible_rows);
+
+            if (scroll_rows > 0)
+            {
+                ui_scroll_area_begin(1, scroll_rows,
+                    SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+                ui_scroll_area_set_keys('8', '2', '6', '4');
+            }
+            else
+            {
+                ui_scroll_area_clear();
+            }
+        }
         bool square_selection = inventory_selection_uses_square();
 
         /* Display equipment list */
@@ -2185,6 +2205,7 @@ void show_equip_enhanced(void)
     
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     hide_cursor = saved_hide_cursor;
     (void)Term_set_cursor(saved_cursor);
     story_font_term_pop(&story_state);

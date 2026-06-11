@@ -2688,7 +2688,11 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     const sdl_char_sheet_prompt_item* items = birth_items;
     int item_count = (int)N_ELEMENTS(birth_items);
     float cursor_x = x;
+#if SIL_SDL_MOBILE_BUILD
+    float spacing = MAX(8.0f, h * 0.45f);
+#else
     float spacing = MAX(12.0f, h * 0.68f);
+#endif
     float total_w = 0.0f;
 
     (void)prompt;
@@ -2721,8 +2725,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
             total_w += spacing;
     }
     if (total_w > w && item_count > 1)
-        spacing = MAX(6.0f, (w - (total_w - spacing * (float)(item_count - 1)))
-            / (float)(item_count - 1));
+        spacing =
+#if SIL_SDL_MOBILE_BUILD
+            MAX(4.0f,
+#else
+            MAX(6.0f,
+#endif
+                (w - (total_w - spacing * (float)(item_count - 1)))
+                    / (float)(item_count - 1));
 
     for (int i = 0; i < item_count; i++)
     {
@@ -2740,6 +2750,15 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
 
         {
             SDL_FRect hit = { cursor_x, y, (float)text_w + 4.0f, h };
+#if SIL_SDL_MOBILE_BUILD
+            if (!preview_prompt)
+            {
+                float pad_x = MAX(10.0f, h * 0.32f);
+
+                hit.x = MAX(x, cursor_x - pad_x * 0.5f);
+                hit.w = MIN(x + w - hit.x, (float)text_w + 4.0f + pad_x);
+            }
+#endif
             if (preview_prompt)
             {
                 SDL_Color fill = g_state.palette[TERM_BLUE];
@@ -2948,10 +2967,17 @@ static float sdl_char_sheet_menu_longest_row_w(TTF_Font* font,
 static TTF_Font* sdl_char_sheet_menu_font_for_width(float content_w,
     int canvas_h, float* out_line_h, int* out_px)
 {
+#if SIL_SDL_MOBILE_BUILD
+    int min_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.034f),
+        24, 36);
+    int max_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.058f),
+        38, 68);
+#else
     int min_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.028f),
         20, 28);
     int max_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.046f),
         30, 56);
+#endif
     int chosen_px = min_px;
     float chosen_line_h = 1.0f;
     TTF_Font* chosen_font = NULL;
@@ -4782,6 +4808,7 @@ void sdl_character_sheet_screen_render(void)
     float title_h;
     float prompt_y;
     float prompt_h;
+    float prompt_line_scale;
     float gap;
     float top_y;
     float top_h;
@@ -4835,13 +4862,22 @@ void sdl_character_sheet_screen_render(void)
 
     title_px = sdl_char_sheet_clampi((int)((float)canvas.h * 0.046f), 24,
         64);
+#if SIL_SDL_MOBILE_BUILD
+    prompt_px = sdl_char_sheet_clampi(
+        (int)((float)canvas.h * (menu_select ? 0.062f : 0.052f)),
+        menu_select ? 34 : 30, menu_select ? 66 : 58);
+    prompt_line_scale = 1.26f;
+#else
     prompt_px = sdl_char_sheet_clampi(
         (int)((float)canvas.h * (menu_select ? 0.033f : 0.025f)),
         menu_select ? 18 : 13, menu_select ? 38 : 30);
+    prompt_line_scale = 1.02f;
+#endif
     title_font = sdl_story_font_for_height_slot(title_px, ui_font_slot);
     prompt_font = sdl_story_font_for_height_slot(prompt_px, ui_font_slot);
     title_h = sdl_char_sheet_line_h(title_font, title_px, 1.02f);
-    prompt_h = sdl_char_sheet_line_h(prompt_font, prompt_px, 1.02f);
+    prompt_h = sdl_char_sheet_line_h(prompt_font, prompt_px,
+        prompt_line_scale);
     title_y = (float)canvas.y + margin_top;
     prompt_y = (float)(canvas.y + canvas.h) - margin_bottom - prompt_h;
 

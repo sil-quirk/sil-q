@@ -614,9 +614,15 @@ bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
     header_h = font_px * 1.9f;
     if (header_h < 48.0f)
         header_h = 48.0f;
+#if SIL_SDL_MOBILE_BUILD
+    row_h = font_px * 2.8f;
+    if (row_h < 58.0f)
+        row_h = 58.0f;
+#else
     row_h = font_px * 2.4f;
     if (row_h < 50.0f)
         row_h = 50.0f;
+#endif
     panel_w = sdl_touch_pane_clampf(cell_w * 26.0f
         * SIDE_PANE_MENU_SCALE, 270.0f, 390.0f);
     if (panel_w < font_px * 9.0f)
@@ -631,6 +637,10 @@ bool sdl_log_pane_menu_layout(log_pane_menu_entry* entries,
         row_h -= (panel_h - ((float)screen.h - 12.0f)) / (float)count;
         if (row_h < 34.0f)
             row_h = 34.0f;
+#if SIL_SDL_MOBILE_BUILD
+        if (row_h < 44.0f)
+            row_h = 44.0f;
+#endif
         panel_h = pad * 2.0f + header_h + row_h * (float)count;
     }
 
@@ -1170,8 +1180,13 @@ bool sdl_side_pane_menu_layout(side_pane_menu_entry* entries,
         * SIDE_PANE_MENU_SCALE, 12.0f, 21.0f);
     header_h = sdl_touch_pane_clampf(cell_h * 2.2f
         * SIDE_PANE_MENU_SCALE, 51.0f, 72.0f);
+#if SIL_SDL_MOBILE_BUILD
+    row_h = sdl_touch_pane_clampf(cell_h * 3.0f
+        * SIDE_PANE_MENU_SCALE, 70.0f, 98.0f);
+#else
     row_h = sdl_touch_pane_clampf(cell_h * 2.7f
         * SIDE_PANE_MENU_SCALE, 63.0f, 87.0f);
+#endif
     panel_w = sdl_touch_pane_clampf(cell_w * 24.0f
         * SIDE_PANE_MENU_SCALE, 270.0f, 375.0f);
     if (panel_w > (float)screen.w - 8.0f)
@@ -1182,8 +1197,13 @@ bool sdl_side_pane_menu_layout(side_pane_menu_entry* entries,
     panel_h = pad * 2.0f + header_h + row_h * (float)count;
     if (panel_h > (float)screen.h - 8.0f && count > 0) {
         float available = (float)screen.h - 8.0f - pad * 2.0f - header_h;
+#if SIL_SDL_MOBILE_BUILD
+        float minimum_compressed_row_h = 52.0f;
+#else
+        float minimum_compressed_row_h = 42.0f;
+#endif
 
-        if (available > (float)count * 42.0f)
+        if (available > (float)count * minimum_compressed_row_h)
             row_h = available / (float)count;
         panel_h = pad * 2.0f + header_h + row_h * (float)count;
     }

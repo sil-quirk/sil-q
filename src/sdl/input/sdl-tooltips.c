@@ -1639,6 +1639,16 @@ bool sdl_description_overlay_handle_mouse_wheel(
         layout.scroll - steps);
 }
 
+bool sdl_description_overlay_contains_point(float x, float y)
+{
+    description_overlay_layout layout;
+
+    if (!sdl_description_overlay_layout(&layout))
+        return false;
+
+    return sdl_point_in_frect(&layout.panel, x, y);
+}
+
 void sdl_description_overlay_render_char(SDL_Texture* atlas,
     int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h,
     float x, float y, byte attr, char ch)
@@ -2361,6 +2371,8 @@ bool sdl_map_touch_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
     bool feature_action_target;
     bool tooltip_target;
 
+    if (sdl_touch_movement_point_blocked_by_overlay(x, y))
+        return false;
     if (sdl_touch_round_layer_controls_active()
         && !sdl_touch_round_point_excluded(x, y))
     {

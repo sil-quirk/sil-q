@@ -795,6 +795,17 @@ static void smith_ui_add_back_click_target(int col, int row, cptr text)
     ui_menu_click_add_text_token(SMITH_CLICK_BACK, col, row, text, "return");
 }
 
+static void smith_ui_begin_touch_scroll_area(void)
+{
+    int bottom_row = smith_ui_term_hgt() - 2;
+
+    if (bottom_row < 1)
+        bottom_row = 1;
+
+    ui_scroll_area_begin(1, bottom_row, SDL_TOUCH_MENU_CATEGORY_OTHER);
+    ui_scroll_area_set_keys('8', '2', '6', '4');
+}
+
 static int smith_ui_column_width(int col)
 {
     int next_col = smith_ui_term_wid();
@@ -4027,6 +4038,7 @@ int create_sval_menu_aux(int tval, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(list_col));
@@ -4234,6 +4246,7 @@ int create_tval_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
@@ -4613,6 +4626,7 @@ int numbers_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
@@ -5099,6 +5113,7 @@ static int smith_bonus_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
 
@@ -5565,6 +5580,7 @@ static int reforge_prefix_menu(const object_type* source)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
+        smith_ui_begin_touch_scroll_area();
 
         wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
         smith_ui_put_section_header(COL_SMT2, 1, "Prefix");
@@ -5786,6 +5802,7 @@ static int enchant_menu_aux(int* highlight, int fixed_prefix, int fixed_suffix,
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
@@ -6314,6 +6331,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
@@ -6777,6 +6795,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT3));
@@ -7147,6 +7166,7 @@ int artefact_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
@@ -7388,6 +7408,7 @@ int melt_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     // clear the right of the screen
     wipe_screen_from(indexed_menu_prefix_col(COL_SMT2));
@@ -7940,6 +7961,7 @@ static void smithing_redraw_root_after_item_picker(void)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     smith_root_build_entries(valid, menu_attr, labels);
     smith_root_draw(highlight, valid, menu_attr, labels);
@@ -8108,6 +8130,7 @@ int smithing_menu_aux(int* highlight)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    smith_ui_begin_touch_scroll_area();
 
     smith_root_build_entries(valid, menu_attr, labels);
     smith_root_draw(*highlight, valid, menu_attr, labels);
@@ -8444,6 +8467,7 @@ void do_cmd_smithing_screen(void)
     /* Load screen */
     smith_ui_reset_description_state();
     ui_menu_click_clear();
+    ui_scroll_area_clear();
     sdl_pop_terminal_menu_scale();
     screen_pop_supporting_panes_hidden();
     screen_load();

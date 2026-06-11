@@ -576,6 +576,35 @@ bool sdl_touch_round_layer_controls_active(void)
         && sdl_main_screen_click_shortcuts_active();
 }
 
+bool sdl_touch_movement_point_blocked_by_overlay(float x, float y)
+{
+    SDL_Rect touch_rect;
+    SDL_FRect panel;
+
+    if (sdl_description_overlay_contains_point(x, y))
+        return true;
+    if (sdl_main_menu_pane_hit(x, y, NULL))
+        return true;
+    if (sdl_depth_menu_pane_hit_action(x, y, NULL)
+        != SDL_DEPTH_PANE_HOVER_NONE)
+    {
+        return true;
+    }
+    if (sdl_touch_pane_current_rect(&touch_rect)
+        && sdl_point_in_rect(&touch_rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_touch_top_panel_layout_visible()
+        && sdl_touch_top_panel_compute_layout(NULL, &panel)
+        && sdl_point_in_frect(&panel, x, y))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 bool sdl_touch_round_point_excluded(float x, float y)
 {
     int map_y = 0;
@@ -588,6 +617,8 @@ bool sdl_touch_round_point_excluded(float x, float y)
     if (!sdl_touch_round_layer_controls_active())
         return false;
     if (sdl_main_view_point_hits_outer_cell(x, y))
+        return true;
+    if (sdl_main_screen_character_panel_pointer_hit(x, y))
         return true;
     if (!p_ptr)
         return false;
@@ -746,6 +777,8 @@ bool sdl_touch_round_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id)
 {
     if (!sdl_touch_round_layer_controls_active())
+        return false;
+    if (sdl_touch_movement_point_blocked_by_overlay(x, y))
         return false;
     if (!sdl_point_in_view_rect(PANE_MAIN, x, y))
         return false;
@@ -2207,6 +2240,8 @@ bool sdl_touch_zone_handle_pointer_down(float x, float y,
 
     if (!sdl_touch_zone_controls_active())
         return false;
+    if (sdl_touch_movement_point_blocked_by_overlay(x, y))
+        return false;
     if (sdl_main_view_point_is_player_grid(x, y))
         return false;
     if (!sdl_touch_zone_point_to_zone(x, y, &zone))
@@ -2472,7 +2507,6 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
 {
     float screen_w;
     float icon_size;
-    float pad;
     float side_margin;
     float max_panel_w;
     float gap;
@@ -2482,6 +2516,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     SDL_FRect panel;
     int active_count;
     int first_slot;
+    int columns;
+    int rows;
 
     if (!screen || !anchor || !sdl_rect_has_area(screen)
         || !sdl_rect_has_area(anchor))
@@ -2495,12 +2531,50 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     if (active_count <= 0)
         return false;
 
+    side_margin = sdl_touch_pane_clampf(screen_w * 0.02f, 6.0f, 18.0f);
+    max_panel_w = screen_w - side_margin * 2.0f;
     icon_size = (float)(TILE_SIZE * get_sdl_touch_top_panel_tile_scale());
+#if SIL_SDL_MOBILE_BUILD
+    button_size = sdl_touch_pane_clampf(icon_size * 2.75f, 76.0f, 112.0f);
+    gap = sdl_touch_pane_clampf(button_size * 0.12f, 8.0f, 18.0f);
+    columns = active_count;
+    rows = 1;
+    panel_w = button_size * (float)columns + gap * (float)(columns - 1);
+    if (panel_w > max_panel_w && active_count > 1) {
+        columns = (int)((max_panel_w + gap) / (button_size + gap));
+        if (columns < 1)
+            columns = 1;
+        if (columns > active_count)
+            columns = active_count;
+
+        while (columns > 1) {
+            float fit_size =
+                (max_panel_w - gap * (float)(columns - 1)) / (float)columns;
+
+            if (fit_size >= 64.0f || columns == 1) {
+                if (fit_size < button_size)
+                    button_size = fit_size;
+                break;
+            }
+            columns--;
+        }
+    }
+    if (columns < 1)
+        return false;
+    if (button_size > max_panel_w)
+        button_size = max_panel_w;
+    if (button_size < 1.0f)
+        return false;
+    rows = (active_count + columns - 1) / columns;
+    panel_w = button_size * (float)columns + gap * (float)(columns - 1);
+#else
+    float pad;
+
     pad = sdl_touch_pane_clampf(icon_size * 0.18f, 6.0f, 14.0f);
     gap = sdl_touch_pane_clampf(icon_size * 0.18f, 6.0f, 14.0f);
     button_size = icon_size + pad * 2.0f;
-    side_margin = sdl_touch_pane_clampf(screen_w * 0.02f, 6.0f, 18.0f);
-    max_panel_w = screen_w - side_margin * 2.0f;
+    columns = active_count;
+    rows = 1;
     if (max_panel_w <= gap * (float)(active_count - 1))
         return false;
 
@@ -2513,8 +2587,9 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     }
     if (button_size <= 0.0f)
         return false;
+#endif
 
-    panel_h = button_size;
+    panel_h = button_size * (float)rows + gap * (float)(rows - 1);
     panel = sdl_overlay_panel_rect(anchor, where, (int)(panel_w + 0.5f),
         (int)(panel_h + 0.5f), screen);
     panel_w = panel.w;
@@ -2524,15 +2599,32 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
         *out_panel = panel;
 
     if (button_rects) {
+        float grid_h = button_size * (float)rows + gap * (float)(rows - 1);
+        float grid_y = panel.y + (panel.h - grid_h) * 0.5f;
+
         for (int i = 0; i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++)
             button_rects[i] = (SDL_FRect){ 0 };
 
         for (int i = 0; i < active_count; i++) {
             int slot = first_slot + i;
+            int row = i / columns;
+            int col = i % columns;
+            float row_x = panel.x;
+
+#if SIL_SDL_MOBILE_BUILD
+            int row_count = active_count - row * columns;
+            float row_w;
+
+            if (row_count > columns)
+                row_count = columns;
+            row_w = button_size * (float)row_count
+                + gap * (float)(row_count - 1);
+            row_x = panel.x + (panel.w - row_w) * 0.5f;
+#endif
 
             button_rects[slot] = (SDL_FRect){
-                .x = panel.x + (button_size + gap) * (float)i,
-                .y = panel.y + (panel_h - button_size) * 0.5f,
+                .x = row_x + (button_size + gap) * (float)col,
+                .y = grid_y + (button_size + gap) * (float)row,
                 .w = button_size,
                 .h = button_size,
             };
@@ -2860,9 +2952,17 @@ static void sdl_touch_top_panel_render_icon(const SDL_FRect* button_rect,
     if (!button_rect)
         return;
 
+#if SIL_SDL_MOBILE_BUILD
+    icon_size = MIN(button_rect->w, button_rect->h) * 0.68f;
+    if (icon_size < (float)(TILE_SIZE * get_sdl_touch_top_panel_tile_scale()))
+        icon_size = (float)(TILE_SIZE * get_sdl_touch_top_panel_tile_scale());
+    max_icon = MIN(button_rect->w, button_rect->h)
+        - sdl_touch_pane_clampf(button_rect->w * 0.14f, 8.0f, 18.0f);
+#else
     icon_size = (float)(TILE_SIZE * get_sdl_touch_top_panel_tile_scale());
     max_icon = MIN(button_rect->w, button_rect->h)
         - sdl_touch_pane_clampf(button_rect->w * 0.18f, 6.0f, 14.0f);
+#endif
     if (max_icon < 4.0f)
         max_icon = MIN(button_rect->w, button_rect->h);
     if (icon_size > max_icon)
@@ -2901,7 +3001,12 @@ static void sdl_touch_top_panel_render_icon(const SDL_FRect* button_rect,
     }
 
     sdl_touch_pane_draw_button_text_scaled(&rect, NULL, fallback, color,
-        0.34f, 0.48f);
+#if SIL_SDL_MOBILE_BUILD
+        0.42f, 0.58f
+#else
+        0.34f, 0.48f
+#endif
+        );
 }
 
 static void sdl_touch_top_panel_description_for_binding(int binding,
