@@ -217,6 +217,10 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
 {
     int log_idx;
     int rolls_idx;
+    bool originally_had_log;
+    bool originally_had_rolls;
+    bool log_added = false;
+    bool rolls_added = false;
     bool changed = false;
 
     if (!configs || !config_count)
@@ -230,17 +234,20 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
     log_idx = sdl_pane_config_index_in_array(configs, *config_count, PANE_LOG);
     rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
         PANE_ROLLS);
+    originally_had_log = (log_idx >= 0);
+    originally_had_rolls = (rolls_idx >= 0);
 
     if (rolls_idx < 0 && *config_count < MAX_PANE_CONFIGS) {
         rolls_idx = *config_count;
         configs[(*config_count)++] = (struct pane_config){
             .pane = PANE_ROLLS,
             .where = PLACE_TOP_RIGHT,
-            .enabled = enable_added_log,
+            .enabled = enable_added_log && !originally_had_log,
             .rect = { .rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS, .cols = 0 },
             .font_size = 0,
             .ratio = 0.0f,
         };
+        rolls_added = true;
         changed = true;
     }
 
@@ -249,11 +256,12 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
         configs[(*config_count)++] = (struct pane_config){
             .pane = PANE_LOG,
             .where = PLACE_BOTTOM,
-            .enabled = enable_added_log,
+            .enabled = enable_added_log && !originally_had_rolls,
             .rect = { .rows = SDL_LOG_PANE_DEFAULT_ROWS, .cols = 0 },
             .font_size = 0,
             .ratio = 0.0f,
         };
+        log_added = true;
         changed = true;
     }
 
@@ -273,7 +281,7 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
                 rolls->ratio = 0.0f;
             }
             log->where = PLACE_BOTTOM;
-            log->enabled = true;
+            log->enabled = false;
             log->rect.rows = SDL_LOG_PANE_DEFAULT_ROWS;
             log->rect.cols = 0;
             log->ratio = 0.0f;
@@ -322,10 +330,23 @@ bool sdl_normalize_unified_log_pane_config(struct pane_config* configs,
             rolls->rect.cols = 0;
             changed = true;
         }
-        /* A freshly added overlay log honours `enable_added_log` above, but an
-         * existing one keeps its stored enabled state so a deliberate disable
-         * (e.g. the narrow-screen default or a manual toggle) survives reloads
-         * instead of being forced back on every launch. */
+        /* Existing log pane choices keep their stored enabled state; a
+         * compatibility sibling added above starts off unless there was no log
+         * pane at all, so deliberate disables survive reloads. */
+    }
+
+    if (log_idx >= 0 && rolls_idx >= 0
+        && configs[log_idx].enabled && configs[rolls_idx].enabled)
+    {
+        if (rolls_added && !log_added)
+            configs[rolls_idx].enabled = false;
+        else if (log_added && !rolls_added)
+            configs[log_idx].enabled = false;
+        else if (log_idx < rolls_idx)
+            configs[rolls_idx].enabled = false;
+        else
+            configs[log_idx].enabled = false;
+        changed = true;
     }
 
     if (rolls_idx >= 0) {

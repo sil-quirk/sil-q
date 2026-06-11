@@ -1586,6 +1586,7 @@ bool sdl_left_panel_pane_rect_for_metrics(const sdl_view* view,
 bool sdl_left_panel_pane_layout_enabled(void)
 {
     return !g_hide_left_panel
+        && sdl_should_show_supporting_panes()
         && sdl_left_panel_pane_config_enabled();
 }
 
@@ -3576,6 +3577,9 @@ bool sdl_hide_supporting_panes_mode_effective(void)
 
     /* Startup hidden mode must be able to take effect before persistent
      * options have been loaded into op_ptr. */
+    if (explicit_hide)
+        return true;
+
     if (!explicit_hide && op_ptr
         && !op_ptr->opt[OPT_hide_supporting_panes_fullscreen])
         return false;
@@ -3587,12 +3591,9 @@ bool sdl_hide_supporting_panes_mode_effective(void)
             continue;
         if (pane_config[i].pane == PANE_MAIN
             || pane_config[i].pane == PANE_TOUCH
-            || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
             || pane_config[i].pane == PANE_MAIN_MENU
-            || (pane_config[i].pane == PANE_ROLLS
-                && pane_placement_is_overlay(where))
             || pane_config[i].pane == PANE_DESCRIPTION
             || pane_config[i].pane == PANE_OVERLAY_MENU)
         {

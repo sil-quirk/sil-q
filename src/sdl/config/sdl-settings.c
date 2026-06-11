@@ -671,6 +671,7 @@ void set_sdl_pane_font_size(int index, int font_size)
 
 void set_sdl_pane_enabled(int index, bool enabled)
 {
+    enum pane_type type;
     bool is_touch_pane;
     bool is_overlay_menu;
 
@@ -680,9 +681,18 @@ void set_sdl_pane_enabled(int index, bool enabled)
         pane_config[index].enabled = true;
         return;
     }
-    is_touch_pane = (pane_config[index].pane == PANE_TOUCH);
-    is_overlay_menu = (pane_config[index].pane == PANE_OVERLAY_MENU);
+    type = pane_config[index].pane;
+    is_touch_pane = (type == PANE_TOUCH);
+    is_overlay_menu = (type == PANE_OVERLAY_MENU);
     pane_config[index].enabled = enabled;
+    if (enabled && (type == PANE_LOG || type == PANE_ROLLS)) {
+        enum pane_type other = (type == PANE_LOG) ? PANE_ROLLS : PANE_LOG;
+
+        for (int i = 0; i < pane_config_count; i++) {
+            if (i != index && pane_config[i].pane == other)
+                pane_config[i].enabled = false;
+        }
+    }
     if (is_touch_pane) {
         g_touch_pane_mobile_open = config.touch_pane_default_open;
         sdl_touch_pane_cancel_press();

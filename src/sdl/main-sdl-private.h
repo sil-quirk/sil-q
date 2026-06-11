@@ -83,7 +83,7 @@ enum {
     SDL_OVERLAY_LOG_PANE_ALPHA = 220,
     SDL_LOG_PANE_MIN_ROWS = 1,
     SDL_LOG_PANE_MAX_ROWS = 20,
-    SDL_LOG_PANE_MENU_MAX_ENTRIES = 5,
+    SDL_LOG_PANE_MENU_MAX_ENTRIES = 6,
     SDL_DEPTH_PANE_HOVER_NONE = 0,
     SDL_DEPTH_PANE_HOVER_LABEL = 1,
     SDL_DEPTH_PANE_HOVER_ZOOM_OUT = 2,
@@ -708,7 +708,8 @@ typedef struct status_pane_layout {
 
 typedef enum log_pane_menu_action {
     LOG_PANE_MENU_FILTER,
-    LOG_PANE_MENU_ROWS
+    LOG_PANE_MENU_ROWS,
+    LOG_PANE_MENU_SWITCH
 } log_pane_menu_action;
 
 typedef struct log_pane_menu_entry {

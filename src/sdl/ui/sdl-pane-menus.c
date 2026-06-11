@@ -326,6 +326,44 @@ bool sdl_log_pane_is_filterable(enum pane_type pane)
     return pane == PANE_LOG || pane == PANE_ROLLS;
 }
 
+static enum pane_type sdl_log_pane_other(enum pane_type pane)
+{
+    return (pane == PANE_ROLLS) ? PANE_LOG : PANE_ROLLS;
+}
+
+static void sdl_log_pane_switch_to(enum pane_type pane)
+{
+    int index = sdl_log_pane_config_index(pane);
+
+    if (!sdl_log_pane_is_filterable(pane))
+        return;
+    if (index < 0)
+        return;
+
+    if (pane == PANE_LOG) {
+        if (!pane_placement_is_bottom(pane_config[index].where))
+            pane_config[index].where = PLACE_BOTTOM;
+        if (pane_config[index].rect.rows <= 0)
+            pane_config[index].rect.rows = SDL_LOG_PANE_DEFAULT_ROWS;
+        config.enable_bottom_panes = true;
+    } else if (pane == PANE_ROLLS) {
+        if (!pane_placement_is_overlay(pane_config[index].where))
+            pane_config[index].where = PLACE_TOP_RIGHT;
+        if (pane_config[index].rect.rows <= 0)
+            pane_config[index].rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS;
+        pane_config[index].rect.cols = 0;
+    }
+
+    set_sdl_pane_enabled(index, true);
+    sdl_store_active_pane_profile(config.min_terminal_mode);
+    sdl_apply_config();
+    (void)save_pane_config_to_json();
+
+    if (p_ptr)
+        p_ptr->window |= (PW_MESSAGE | PW_COMBAT_ROLLS);
+    g_state.need_present = true;
+}
+
 int sdl_log_pane_display_filter(int pane)
 {
     int filter;
@@ -496,6 +534,7 @@ int sdl_log_pane_menu_collect(enum pane_type pane,
 {
     int count = 0;
     int rows = sdl_log_pane_current_rows(pane);
+    enum pane_type other = sdl_log_pane_other(pane);
     char rows_hint[32];
 
     strnfmt(rows_hint, sizeof(rows_hint), "currently %d", rows);
@@ -510,6 +549,10 @@ int sdl_log_pane_menu_collect(enum pane_type pane,
         LOG_HISTORY_FILTER_ALL, -1, "Rows -", rows_hint);
     sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_ROWS,
         LOG_HISTORY_FILTER_ALL, 1, "Rows +", rows_hint);
+    sdl_log_pane_menu_add_entry(entries, &count, LOG_PANE_MENU_SWITCH,
+        LOG_HISTORY_FILTER_ALL, 0,
+        (other == PANE_ROLLS) ? "Use overlay" : "Use bottom",
+        "switch");
 
     return count;
 }
@@ -725,6 +768,8 @@ void sdl_log_pane_menu_activate(int menu_index)
     if (entry.action == LOG_PANE_MENU_ROWS)
         sdl_log_pane_set_rows(target_pane,
             sdl_log_pane_current_rows(target_pane) + entry.row_delta);
+    else if (entry.action == LOG_PANE_MENU_SWITCH)
+        sdl_log_pane_switch_to(sdl_log_pane_other(target_pane));
     else
         sdl_log_pane_queue_display_filter(target_pane, entry.filter);
 }
