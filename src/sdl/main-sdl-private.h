@@ -1144,6 +1144,14 @@ typedef struct pointer_aim_state {
     int event_y;
     int event_x;
     bool event_wake;
+    /* aim-select "adjacent choices" flavour: pick one of a small set of
+     * highlighted grids (e.g. which door to close/bash). When set, hover/click
+     * only act on the listed cells and a small prompt popup is drawn. */
+    bool select_adjacent;
+    int select_choice_count;
+    int select_choice_y[9];
+    int select_choice_x[9];
+    char select_prompt[64];
 } pointer_aim_state;
 
 enum {
@@ -2075,6 +2083,8 @@ void sdl_pointer_aim_select_end(void);
 void sdl_pointer_aim_select_set_manual(bool manual);
 void sdl_pointer_aim_select_update(int y, int x);
 bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x);
+void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
+    int count, cptr prompt);
 bool sdl_pointer_aim_update_hover_grid(int map_y, int map_x);
 bool sdl_pointer_aim_handle_motion(float x, float y);
 bool sdl_pointer_aim_handle_left_click(float x, float y);

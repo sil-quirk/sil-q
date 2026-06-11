@@ -4,6 +4,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "sdl-config.h"
 #include "cmd/world/cmd-interact-chest.h"
 
 static bool is_open(int feat) { return (feat == FEAT_OPEN); }
@@ -444,27 +445,204 @@ static bool do_cmd_close_aux(int y, int x)
 /*
  * Close an open door.
  */
+/*
+ * Interactive "which adjacent door?" selection for the close/bash commands.
+ *
+ * Each candidate door is highlighted on the map and a small popup prompt is
+ * shown (never the top message row). The player can click or tap a door, move
+ * the highlight with the direction keys, or press the direction toward a door.
+ * A single candidate resolves immediately; with none, false is returned.
+ *
+ * Returns true and stores the chosen direction in *dp; false on cancel.
+ */
+static bool get_door_dir(cptr prompt, bool (*test)(int feat), int* dp)
+{
+    int ys[8], xs[8], dirs[8];
+    int count = 0;
+    int sel = 0;
+    bool done = false;
+    bool chosen = false;
+    char query;
+
+#ifdef ALLOW_REPEAT
+    /* Reuse the stored direction while a command repeats (e.g. bashing). */
+    if (repeat_pull(dp))
+        return true;
+#endif
+
+    /* Collect adjacent candidate doors (known grids only) */
+    for (int d = 0; d < 8; d++)
+    {
+        int yy = p_ptr->py + ddy_ddd[d];
+        int xx = p_ptr->px + ddx_ddd[d];
+
+        if (!in_bounds_fully(yy, xx))
+            continue;
+        if (!(cave_info[yy][xx] & (CAVE_MARK)))
+            continue;
+        if (!test(cave_feat[yy][xx]))
+            continue;
+
+        ys[count] = yy;
+        xs[count] = xx;
+        dirs[count] = coords_to_dir(yy, xx);
+        count++;
+    }
+
+    if (count == 0)
+        return false;
+
+    /* A single candidate needs no interaction. */
+    if (count == 1)
+    {
+        *dp = dirs[0];
+#ifdef ALLOW_REPEAT
+        repeat_push(*dp);
+#endif
+        return true;
+    }
+
+    message_flush();
+
+    sdl_pointer_aim_select_begin(1, false);
+    sdl_pointer_aim_select_set_choices(ys, xs, count, prompt);
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+
+    /* request_command blanked the map's top row before this handler ran;
+     * repaint the map so the highlights/popup sit over a clean view. */
+    p_ptr->redraw |= (PR_MAP);
+
+    while (!done)
+    {
+        sdl_pointer_aim_select_update(ys[sel], xs[sel]);
+        handle_stuff();
+        move_cursor_relative(ys[sel], xs[sel]);
+
+        query = inkey();
+
+        /* Pointer events from the map: hover moves the highlight, a click or
+         * tap on a candidate confirms it. */
+        if (query == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int kind = 0, ey = 0, ex = 0;
+
+            if (!sdl_pointer_aim_select_take_event(&kind, &ey, &ex))
+                continue;
+
+            for (int i = 0; i < count; i++)
+            {
+                if ((ys[i] == ey) && (xs[i] == ex))
+                {
+                    sel = i;
+                    if ((kind == AIM_SELECT_EVENT_CLICK)
+                        || (kind == AIM_SELECT_EVENT_TAP))
+                    {
+                        chosen = true;
+                        done = true;
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+
+        switch (query)
+        {
+        case ESCAPE:
+        case 'q':
+            done = true;
+            break;
+
+        case '*':
+        case '+':
+            sel = (sel + 1) % count;
+            break;
+
+        case '-':
+            sel = (sel + count - 1) % count;
+            break;
+
+        case ' ':
+        case '\r':
+        case '\n':
+        case 't':
+        case '5':
+        case INPUT_BIND_CONFIRM:
+            chosen = true;
+            done = true;
+            break;
+
+        default:
+        {
+            int d = target_dir(query);
+
+            if (d)
+            {
+                bool matched = false;
+
+                /* Press the direction toward a door to pick it. */
+                for (int i = 0; i < count; i++)
+                {
+                    if (dirs[i] == d)
+                    {
+                        sel = i;
+                        chosen = true;
+                        done = true;
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched)
+                    bell("No door that way.");
+            }
+            else
+            {
+                bell("Illegal door direction.");
+            }
+            break;
+        }
+        }
+    }
+
+    sdl_object_tooltip_clear();
+    sdl_pointer_aim_select_end();
+    ui_menu_click_clear();
+    verify_panel();
+    handle_stuff();
+
+    if (!chosen)
+        return false;
+
+    *dp = dirs[sel];
+#ifdef ALLOW_REPEAT
+    repeat_push(*dp);
+#endif
+    return true;
+}
+
 void do_cmd_close(void)
 {
     int y, x, dir;
 
     bool more = false;
 
-    /* Count open doors */
-    if (count_feats(&y, &x, is_open, false) == 1)
-    {
-        p_ptr->command_dir = coords_to_dir(y, x);
-    }
-
-    else if (count_feats(&y, &x, is_open, false) == 0)
+    /* No open door adjacent */
+    if (count_feats(&y, &x, is_open, false) == 0)
     {
         msg_print("There is no adjacent door to close.");
         return;
     }
 
-    /* Get a direction (or abort) */
-    if (!get_rep_dir(&dir))
+    /* Honour a pre-supplied direction, else pick a door interactively */
+    if (p_ptr->command_dir)
+        dir = p_ptr->command_dir;
+    else if (!get_door_dir("Close which door?", is_open, &dir))
         return;
+
+    p_ptr->command_dir = dir;
 
     /* Get location */
     y = p_ptr->py + ddy[dir];
@@ -1630,9 +1808,20 @@ void do_cmd_bash(void)
 {
     int y, x, dir;
 
-    /* Get a direction (or abort) */
-    if (!get_rep_dir(&dir))
+    /* No closed door adjacent */
+    if (count_feats(&y, &x, is_closed, false) == 0)
+    {
+        msg_print("There is no adjacent door to bash.");
         return;
+    }
+
+    /* Honour a pre-supplied direction, else pick a door interactively */
+    if (p_ptr->command_dir)
+        dir = p_ptr->command_dir;
+    else if (!get_door_dir("Bash which door?", is_closed, &dir))
+        return;
+
+    p_ptr->command_dir = dir;
 
     /* Get location */
     y = p_ptr->py + ddy[dir];

@@ -1655,6 +1655,8 @@ extern void sdl_pointer_aim_select_end(void);
 extern void sdl_pointer_aim_select_set_manual(bool manual);
 extern void sdl_pointer_aim_select_update(int y, int x);
 extern bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x);
+extern void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
+    int count, cptr prompt);
 extern bool sdl_mouse_path_take_step_command(int* command, int* dir);
 extern bool sdl_mouse_recall_process_pending(void);
 extern bool sdl_log_pane_display_process_pending(void);

@@ -1283,6 +1283,9 @@ void sdl_pointer_aim_select_begin(int range, bool allow_vertical)
     g_pointer_aim.select_visible = false;
     g_pointer_aim.select_y = 0;
     g_pointer_aim.select_x = 0;
+    g_pointer_aim.select_adjacent = false;
+    g_pointer_aim.select_choice_count = 0;
+    g_pointer_aim.select_prompt[0] = '\0';
     sdl_pointer_aim_select_clear_event();
     sdl_pointer_attack_clear_pending();
     g_state.need_present = true;
@@ -1295,8 +1298,47 @@ void sdl_pointer_aim_select_end(void)
     g_pointer_aim.select_visible = false;
     g_pointer_aim.select_y = 0;
     g_pointer_aim.select_x = 0;
+    g_pointer_aim.select_adjacent = false;
+    g_pointer_aim.select_choice_count = 0;
+    g_pointer_aim.select_prompt[0] = '\0';
     sdl_pointer_aim_select_clear_event();
     sdl_pointer_aim_end();
+}
+
+void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
+    int count, cptr prompt)
+{
+    int max = (int)(sizeof(g_pointer_aim.select_choice_y)
+        / sizeof(g_pointer_aim.select_choice_y[0]));
+
+    if (count < 0)
+        count = 0;
+    if (count > max)
+        count = max;
+
+    g_pointer_aim.select_adjacent = true;
+    g_pointer_aim.select_choice_count = count;
+    for (int i = 0; i < count; i++) {
+        g_pointer_aim.select_choice_y[i] = ys ? ys[i] : 0;
+        g_pointer_aim.select_choice_x[i] = xs ? xs[i] : 0;
+    }
+
+    SDL_strlcpy(g_pointer_aim.select_prompt, prompt ? prompt : "",
+        sizeof(g_pointer_aim.select_prompt));
+    g_state.need_present = true;
+}
+
+static bool sdl_pointer_aim_select_is_choice(int y, int x)
+{
+    for (int i = 0; i < g_pointer_aim.select_choice_count; i++) {
+        if (g_pointer_aim.select_choice_y[i] == y
+            && g_pointer_aim.select_choice_x[i] == x)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void sdl_pointer_aim_select_set_manual(bool manual)
@@ -1347,10 +1389,14 @@ bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x)
 }
 
 /* In aim-select mode, hover only moves the selection between monsters the
- * game-side target list would accept; manual mode roams any square. */
+ * game-side target list would accept; manual mode roams any square. In the
+ * adjacent-choice flavour, only the listed cells (e.g. doors) are hoverable. */
 static bool sdl_pointer_aim_select_grid_hoverable(int y, int x)
 {
     int m_idx;
+
+    if (g_pointer_aim.select_adjacent)
+        return sdl_pointer_aim_select_is_choice(y, x);
 
     if (g_pointer_aim.select_manual)
         return true;
@@ -1724,6 +1770,115 @@ static void sdl_pointer_aim_render_selection(void)
         sdl_pointer_attack_render_cell(y, x, blocked_color, true);
 }
 
+/* Pixel rect of a map cell, or false when it is off the current panel. */
+static bool sdl_pointer_aim_cell_rect(int y, int x, SDL_FRect* out)
+{
+    int cell_cols = use_bigtile ? 2 : 1;
+    int term_row = ROW_MAP + (y - p_ptr->wy);
+    int term_col = COL_MAP + (x - p_ptr->wx) * cell_cols;
+
+    if (!panel_contains(y, x))
+        return false;
+    return sdl_main_cell_rect(term_col, term_row, cell_cols, 1, out);
+}
+
+/* Draw the small prompt popup ("Close which door?") for adjacent-choice
+ * selection, anchored just outside the player's 3x3 door ring so it sits
+ * next to the doors without covering them. */
+static void sdl_pointer_aim_render_choice_prompt(void)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    TTF_Font* font;
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect box;
+    SDL_FRect text_dst;
+    SDL_FRect player_rect;
+    SDL_Color text_color = g_state.palette[TERM_WHITE];
+    SDL_Color border = g_state.palette[TERM_YELLOW];
+    float pad;
+    float gap;
+    int font_px;
+    float view_x = (float)(view->rect.x + view->margin_x);
+    float view_y = (float)(view->rect.y + view->margin_y);
+    float view_w = (float)(sdl_main_view_visual_cols(view) * view->cell_w);
+    float view_h = (float)(sdl_main_view_visual_rows(view) * view->cell_h);
+    float cell_h = (float)view->cell_h;
+
+    if (!g_pointer_aim.select_prompt[0])
+        return;
+    if (!sdl_pointer_aim_cell_rect(p_ptr->py, p_ptr->px, &player_rect))
+        return;
+
+    font_px = sdl_object_tooltip_font_px();
+    font = sdl_story_font_for_height_slot(font_px, STORY_FONT_SLOT_SECONDARY);
+    if (!font)
+        return;
+
+    pad = sdl_touch_pane_clampf((float)font_px * 0.4f, 8.0f, 16.0f);
+    gap = sdl_touch_pane_clampf(cell_h * 0.4f, 6.0f, 14.0f);
+    surface = sdl_object_tooltip_render_text_surface(font,
+        g_pointer_aim.select_prompt, text_color, view_w - pad * 2.0f);
+    if (!surface)
+        return;
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    box.w = (float)surface->w + pad * 2.0f;
+    box.h = (float)surface->h + pad * 2.0f;
+
+    /* Centre on the player horizontally and sit just below the bottom row of
+     * adjacent doors; flip above if there is no room below. */
+    box.x = player_rect.x + player_rect.w * 0.5f - box.w * 0.5f;
+    box.y = player_rect.y + player_rect.h + cell_h + gap;
+    if (box.y + box.h > view_y + view_h - gap)
+        box.y = player_rect.y - cell_h - box.h - gap;
+
+    /* Keep the popup within the map view. */
+    if (box.x < view_x + gap)
+        box.x = view_x + gap;
+    if (box.x + box.w > view_x + view_w - gap)
+        box.x = view_x + view_w - gap - box.w;
+    if (box.y < view_y + gap)
+        box.y = view_y + gap;
+    if (box.y + box.h > view_y + view_h - gap)
+        box.y = view_y + view_h - gap - box.h;
+
+    text_dst = (SDL_FRect){ box.x + pad, box.y + pad, (float)surface->w,
+        (float)surface->h };
+
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 232);
+    SDL_RenderFillRect(g_state.renderer, &box);
+    SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g, border.b, 200);
+    SDL_RenderRect(g_state.renderer, &box);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &text_dst);
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+/* Highlight each adjacent candidate grid; the current selection is brighter. */
+static void sdl_pointer_aim_render_choices(void)
+{
+    SDL_Color choice_color = g_state.palette[TERM_L_BLUE];
+    SDL_Color target_color = g_state.palette[TERM_L_RED];
+
+    for (int i = 0; i < g_pointer_aim.select_choice_count; i++) {
+        int cy = g_pointer_aim.select_choice_y[i];
+        int cx = g_pointer_aim.select_choice_x[i];
+        bool selected = g_pointer_aim.select_visible
+            && g_pointer_aim.select_y == cy && g_pointer_aim.select_x == cx;
+
+        sdl_pointer_attack_render_cell(cy, cx,
+            selected ? target_color : choice_color, selected);
+    }
+
+    sdl_pointer_aim_render_choice_prompt();
+}
+
 void sdl_pointer_aim_render(void)
 {
     int y = 0;
@@ -1742,7 +1897,10 @@ void sdl_pointer_aim_render(void)
     if (g_pointer_aim.select_mode)
     {
         SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-        sdl_pointer_aim_render_selection();
+        if (g_pointer_aim.select_adjacent)
+            sdl_pointer_aim_render_choices();
+        else
+            sdl_pointer_aim_render_selection();
         return;
     }
 
