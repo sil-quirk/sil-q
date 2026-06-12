@@ -14,10 +14,10 @@ struct map_pane_span {
     int y2;
 };
 
-#define MAP_PANE_SPAN_MAX 2
+#define MAP_PANE_SPAN_MAX 3
 
 /* Collect the panes currently obscuring the map: the styled left panel pane
- * and the overlay log band. */
+ * the combat overlay, and the overlay log band. */
 static int map_pane_spans(struct map_pane_span* spans, int max_spans)
 {
     int count = 0;
@@ -30,6 +30,17 @@ static int map_pane_spans(struct map_pane_span* spans, int max_spans)
 
     if (count < max_spans
         && sdl_left_panel_pane_map_coverage(&pane_start_col, &pane_cols,
+            &pane_start_row, &pane_rows))
+    {
+        spans[count].x1 = pane_start_col;
+        spans[count].y1 = pane_start_row;
+        spans[count].x2 = pane_start_col + pane_cols;
+        spans[count].y2 = pane_start_row + pane_rows;
+        count++;
+    }
+
+    if (count < max_spans
+        && sdl_combat_overlay_pane_map_coverage(&pane_start_col, &pane_cols,
             &pane_start_row, &pane_rows))
     {
         spans[count].x1 = pane_start_col;

@@ -93,8 +93,8 @@ void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_C
 }
 
 void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w,
-    float cell_h, float origin_x, int x, int y, int cell_offset,
-    int cell_span, const char* s, int len, SDL_Color col)
+    float cell_h, float origin_x, float origin_y, int x, int y,
+    int cell_offset, int cell_span, const char* s, int len, SDL_Color col)
 {
     char text_buf[8];
     SDL_Surface* text_surface;
@@ -141,7 +141,7 @@ void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w,
 
         dst.x = origin_x + ((float)(x + cell_offset) * cell_w)
             + ((max_w - render_w) * 0.5f);
-        dst.y = (float)y * cell_h;
+        dst.y = origin_y + (float)y * cell_h;
         dst.w = render_w;
         dst.h = cell_h;
 
@@ -153,10 +153,10 @@ void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w,
     SDL_DestroySurface(text_surface);
 }
 
-void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
+void sdl_render_mono_utf8_text_cells_at(SDL_Texture* atlas,
     int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
-    float cell_h, float origin_x, int x, int y, int n, const char* s,
-    SDL_Color col)
+    float cell_h, float origin_x, float origin_y, int x, int y, int n,
+    const char* s, SDL_Color col)
 {
     int byte_pos = 0;
     int cell_offset = 0;
@@ -192,7 +192,7 @@ void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
                 };
                 SDL_FRect dst = {
                     origin_x + ((float)(x + cell_offset) * cell_w),
-                    (float)y * cell_h,
+                    origin_y + (float)y * cell_h,
                     cell_w,
                     cell_h,
                 };
@@ -217,18 +217,29 @@ void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
         if (char_width <= 0)
         {
             int overlay_offset = (cell_offset > 0) ? (cell_offset - 1) : 0;
-            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x, x, y,
-                overlay_offset, 1, s + byte_pos, char_len, col);
+            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x,
+                origin_y, x, y, overlay_offset, 1, s + byte_pos, char_len,
+                col);
         }
         else
         {
-            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x, x, y,
-                cell_offset, char_width, s + byte_pos, char_len, col);
+            sdl_render_mono_utf8_glyph(font, cell_w, cell_h, origin_x,
+                origin_y, x, y, cell_offset, char_width, s + byte_pos,
+                char_len, col);
             cell_offset += char_width;
         }
 
         byte_pos += char_len;
     }
+}
+
+void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, int x, int y, int n, const char* s,
+    SDL_Color col)
+{
+    sdl_render_mono_utf8_text_cells_at(atlas, atlas_cell_w, atlas_cell_h,
+        font, cell_w, cell_h, origin_x, 0.0f, x, y, n, s, col);
 }
 
 static void sdl_render_texture_with_clip(SDL_Texture* texture,

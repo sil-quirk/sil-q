@@ -60,7 +60,7 @@ C:A word forms on your lips. To give it voice is to shatter the solemn vow you h
 M:The quiet strength you held is lost in a cacophony of your own making. Your voice, once held in check, now feels alien and weak.
 E:The profound stillness you swore to keep is drowned by a single sound. Your Oath of Silence is forever broken, lost to a moment of weakness in this age.
 Q:You passed from the world, and your story ended not with a deed, but with a hollow sound. You will be remembered as one whose resolve was as fleeting as a spoken word.
-Z:OATH OF SILENCE SUNDERED—Thy vow is drowned in empty sound, thy purpose lost. Wisdom has fled from a tongue so quick to betray its own promise. The stillness you forsook shall grant you no peace in this age of the world. Marked forever as one who shattered their silence.
+Z:OATH OF SILENCE SUNDERED—Thy vow is drowned in empty sound, thy purpose lost. Wisdom has fled from a tongue so quick to betray its own promise. The stillness thou hast forsaken shall grant thee no peace in this age of the world. Marked forever as one who shattered the silence.
 
 # Oath of Iron
 O:3:Oath of Iron
@@ -77,7 +77,7 @@ C:The path of escape lies before you, a refuge for the weary and the weak. To ta
 M:As you turn from your purpose, the iron will within you turns to brittle rust. The despair you swore to defy now rushes in to claim your heart.
 E:Your great purpose is abandoned. Your Oath of Iron is forever shattered, proof that you chose flight over fate in this age.
 Q:You passed from the world, having fled from your great doom. You will be remembered not for your strength, but as one whose will was found wanting at the final test.
-Z:OATH OF IRON SHATTERED—Thy will is broken, thy purpose abandoned in the dark. You have fled from the doom you embraced, and no glory shall be found in weakness. The shadow of your cowardice shall not be lifted in this age of the world. Marked forever as one whose will was broken.
+Z:OATH OF IRON SHATTERED—Thy will is broken, thy purpose abandoned in the dark. Thou hast fled from the doom thou didst embrace, and no glory shall be found in weakness. The shadow of thy cowardice shall not be lifted in this age of the world. Marked forever as one whose will was broken.
 
 # Oath of the Smith
 O:4:Oath of the Smith
@@ -95,24 +95,24 @@ C:Your hand reaches for a tool not of your own making. To take it up is to scorn
 M:As you grasp the foreign craft, the fire of your own forge grows dim within you. A shadow of doubt now clouds your eye and makes your own hands feel clumsy.
 E:You have cast aside self-reliance for the fleeting ease of another's work. Your Oath of the Smith is forever broken, a tribute to the craft you forsook in this age.
 Q:You passed from the world, armed not with your own mastery, but with the craft of another. You will be remembered as a smith who lost faith in his own hands.
-Z:OATH OF THE SMITH FORSAKEN—Thy forge is cold, thy hammer idle. You have scorned the work of your own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned their craft.
+Z:OATH OF THE SMITH FORSAKEN—Thy forge is cold, thy hammer idle. Thou hast scorned the work of thine own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned the craft.
 
 # Oath of the Valorous Heart
-O:5:Oath of Valor
-T:To fight with honor and restraint
-D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honorable restraint of those who have proven their valor in fair combat.
-P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honorable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.
+O:5:Oath of Valour
+T:To fight with honour and restraint
+D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honourable restraint of those who have proven their valour in fair combat.
+P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honourable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.
 F:Attack or deal damage to enemies that are fleeing in terror
-R:+1 Strength—Honed physical prowess through honorable combat
+R:+1 Strength—Honed physical prowess through honourable combat
 A:8:7
 S:1:0:0:0
 B:Cannot attack creatures with M_FEAR flag (fleeing in terror)
 U:Complete the Quest of Tulkas the Strong
-C:Your foe's will has shattered; it turns and flees for its life. To strike it now is to stain your victory with a craven's blow and dishonor the strength you swore to uphold. Are you certain you wish to break your Oath of the Valorous Heart?
-M:As your weapon strikes the fleeing foe, the glory of the battle turns to shame. The warrior's pride within you falters, a curse born of a dishonorable act.
-E:You have chosen a brute's work over a warrior's honor. Your Oath of the Valorous Heart is forever broken, a testament to the valor you have discarded in this age.
-Q:You passed from the world, and your tale is a tainted one. You will be remembered as a warrior who lacked honor, striking down the terrified who fled your might.
-Z:OATH OF THE VALOROUS HEART SUNDERED—Thy blade is stained by a coward's stroke. The noble spirit of honorable combat has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.
+C:Your foe's will has shattered; it turns and flees for its life. To strike it now is to stain your victory with a craven's blow and dishonour the strength you swore to uphold. Are you certain you wish to break your Oath of the Valorous Heart?
+M:As your weapon strikes the fleeing foe, the glory of the battle turns to shame. The warrior's pride within you falters, a curse born of a dishonourable act.
+E:You have chosen a brute's work over a warrior's honour. Your Oath of the Valorous Heart is forever broken, a testament to the valour you have discarded in this age.
+Q:You passed from the world, and your tale is a tainted one. You will be remembered as a warrior who lacked honour, striking down the terrified who fled your might.
+Z:OATH OF THE VALOROUS HEART SUNDERED—Thy blade is stained by a coward's stroke. The noble spirit of honourable battle has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.
 
 # Oath of Light
 O:6:Oath of Light
@@ -129,4 +129,4 @@ C:Your hand closes on a shadowed thing. To take it up is to smother the starligh
 M:The light within you gutters and fades as you embrace the shadowed gear. The stars of Varda withdraw their radiance, leaving your path cold and dim.
 E:The flame you vowed to guard is smothered by your own hand. Your Oath of Light is forever broken, a testament to the radiance you forsook in this age.
 Q:You passed from the world with your light quenched by shadow. You will be remembered as one who bore the gift of starlight and cast it aside.
-Z:OATH OF LIGHT EXTINGUISHED—Thy hand has chosen shadow over starlight. The radiance of the Kindler has fled from thee, and no star shall answer thy call. The light you foreswore shall grant you no comfort in this age of the world. Marked forever as one who broke the light.
+Z:OATH OF LIGHT EXTINGUISHED—Thy hand has chosen shadow over starlight. The radiance of the Kindler has fled from thee, and no star shall answer thy call. The light thou hast forsworn shall grant thee no comfort in this age of the world. Marked forever as one who broke the light.

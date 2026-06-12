@@ -216,8 +216,8 @@ SDL_Color sdl_left_panel_background_color(void)
 }
 
 void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
-    int atlas_cell_h, float cell_w, float cell_h, float origin_x, int x,
-    int y, int n, const char* s, SDL_Color col)
+    int atlas_cell_h, float cell_w, float cell_h, float origin_x,
+    float origin_y, int x, int y, int n, const char* s, SDL_Color col)
 {
     if (!atlas || atlas_cell_w <= 0 || atlas_cell_h <= 0
         || cell_w <= 0.0f || cell_h <= 0.0f || n <= 0 || !s)
@@ -238,7 +238,7 @@ void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w,
         };
         SDL_FRect dst = {
             origin_x + ((float)x + (float)i) * cell_w,
-            (float)y * cell_h,
+            origin_y + (float)y * cell_h,
             cell_w,
             cell_h,
         };
@@ -282,8 +282,8 @@ byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
 
 void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     const term* source_term, term_win* scr, int source_row, int source_col,
-    int width, int dest_col, int dest_row, float content_x, int cell_w, int cell_h,
-    SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h,
+    int width, int dest_col, int dest_row, float content_x, float content_y,
+    int cell_w, int cell_h, SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h,
     TTF_Font* mono_font)
 {
     const term* t;
@@ -338,7 +338,7 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
 
             SDL_FRect dst = {
                 content_x + (float)(out_col * cell_w),
-                (float)(dest_row * cell_h),
+                content_y + (float)(dest_row * cell_h),
                 (float)(tile_cols * cell_w),
                 (float)cell_h,
             };
@@ -382,7 +382,7 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
                 SDL_Color bg = sdl_color_from_attr(sdl_ui_text_bg_attr(a));
                 SDL_FRect bg_rect = {
                     content_x + (float)(start_out * cell_w),
-                    (float)(dest_row * cell_h),
+                    content_y + (float)(dest_row * cell_h),
                     (float)(len * cell_w),
                     (float)cell_h,
                 };
@@ -393,13 +393,14 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
             }
 
             if (mono_font && utf8_has_non_ascii_n(buf, len)) {
-                sdl_render_mono_utf8_text_cells(font_atlas, atlas_cell_w,
+                sdl_render_mono_utf8_text_cells_at(font_atlas, atlas_cell_w,
                     atlas_cell_h, mono_font, (float)cell_w, (float)cell_h,
-                    content_x, start_out, dest_row, len, buf, text_col);
+                    content_x, content_y, start_out, dest_row, len, buf,
+                    text_col);
             } else {
                 sdl_render_mono_text_scaled(font_atlas, atlas_cell_w,
                     atlas_cell_h, (float)cell_w, (float)cell_h, content_x,
-                    start_out, dest_row, len, buf, text_col);
+                    content_y, start_out, dest_row, len, buf, text_col);
             }
         }
     }
@@ -637,30 +638,37 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
                 {
                     sdl_render_left_panel_source_row_cells(view, source_term,
                         scr, source_row, 0, span.icon_cols, output_col,
-                        output_row, content_x, metrics.cell_w, metrics.cell_h,
-                        font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
+                        output_row, content_x, 0.0f, metrics.cell_w,
+                        metrics.cell_h, font_atlas, atlas_cell_w,
+                        atlas_cell_h, mono_font);
                     sdl_render_left_panel_source_row_cells(view, source_term,
                         scr, source_row, span.text_start, span.text_width,
                         output_col + span.icon_cols + 1, output_row,
-                        content_x, metrics.cell_w, metrics.cell_h, font_atlas,
-                        atlas_cell_w, atlas_cell_h, mono_font);
+                        content_x, 0.0f, metrics.cell_w, metrics.cell_h,
+                        font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
                     continue;
                 }
             }
 
             sdl_render_left_panel_source_row_cells(view, source_term, scr,
                 source_row, 0, metrics.compact_widths[i], output_col,
-                output_row, content_x, metrics.cell_w, metrics.cell_h,
+                output_row, content_x, 0.0f, metrics.cell_w, metrics.cell_h,
                 font_atlas, atlas_cell_w, atlas_cell_h, mono_font);
         }
     } else {
-        for (int row = 0; row < metrics.panel_rows; row++) {
-            if (row * metrics.cell_h >= metrics.panel_render_h)
+        int output_row = 0;
+
+        for (int source_row = 0; source_row < metrics.panel_rows; source_row++) {
+            if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+                continue;
+            if (output_row * metrics.cell_h >= metrics.panel_render_h)
                 break;
-            sdl_render_left_panel_source_row_cells(view, source_term, scr, row, 0,
-                metrics.content_cols, 0, row, content_x, metrics.cell_w,
+            sdl_render_left_panel_source_row_cells(view, source_term, scr,
+                source_row, 0, metrics.content_cols, 0, output_row, content_x,
+                0.0f, metrics.cell_w,
                 metrics.cell_h, font_atlas, atlas_cell_w, atlas_cell_h,
                 mono_font);
+            output_row++;
         }
     }
     g_left_panel_debug_dump_rows = false;
@@ -673,6 +681,123 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     term_nuke(&panel_term);
 
     return true;
+}
+
+void sdl_combat_overlay_pane_render(void)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    SDL_Rect pane;
+    SDL_FRect pane_rect;
+    const char* font_path;
+    SDL_Texture* font_atlas;
+    TTF_Font* mono_font;
+    term panel_term;
+    term_win* scr;
+    const term* source_term;
+    SDL_Rect old_clip;
+    bool had_clip;
+    bool font_cached = false;
+    int cell_h;
+    int cell_w;
+    int atlas_cell_w;
+    int atlas_cell_h;
+    int panel_cols;
+    int panel_rows;
+    int row_count;
+    int start_row;
+    int source_rows;
+
+    if (!sdl_combat_overlay_pane_current_rect(&pane))
+        return;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return;
+
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    cell_w = cell_h / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    panel_cols = pane.w / cell_w;
+    panel_rows = pane.h / cell_h;
+    if (panel_cols > PANE_COMBAT_OVERLAY_COLS)
+        panel_cols = PANE_COMBAT_OVERLAY_COLS;
+    if (panel_cols <= 0 || panel_rows <= 0)
+        return;
+
+    row_count = sdl_combat_overlay_source_row_count();
+    start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
+    if (row_count <= 0 || start_row >= panel_rows)
+        return;
+
+    atlas_cell_w = cell_w;
+    atlas_cell_h = cell_h;
+    font_path = config.monospace_font[0] != '\0'
+        ? config.monospace_font
+        : "lib/xtra/font/VictorMono-Medium.ttf";
+    font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
+        atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
+        &atlas_cell_h, NULL, true);
+    if (!font_atlas)
+        return;
+    mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
+        atlas_cell_h);
+
+    source_rows = MAX(sdl_left_panel_pane_rows_for_view(view), ROW_QUIVER + 1);
+    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
+            NULL, NULL))
+    {
+        if (!font_cached)
+            SDL_DestroyTexture(font_atlas);
+        return;
+    }
+    scr = panel_term.scr;
+    source_term = &panel_term;
+
+    had_clip = SDL_RenderClipEnabled(g_state.renderer);
+    if (had_clip)
+        SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+    SDL_SetRenderClipRect(g_state.renderer, &pane);
+
+    pane_rect = (SDL_FRect){
+        .x = (float)pane.x,
+        .y = (float)pane.y,
+        .w = (float)pane.w,
+        .h = (float)pane.h,
+    };
+    {
+        SDL_Color bg = sdl_color_from_attr(TERM_DARK);
+
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, 224);
+        SDL_RenderFillRect(g_state.renderer, &pane_rect);
+    }
+
+    for (int i = 0; i < row_count; i++) {
+        int source_row = -1;
+        int dest_row = start_row + i;
+
+        if (dest_row >= panel_rows)
+            break;
+        if (!sdl_combat_overlay_source_row_at_index(i, &source_row))
+            continue;
+
+        sdl_render_left_panel_source_row_cells(view, source_term, scr,
+            source_row, 0, panel_cols, 0, dest_row, (float)pane.x,
+            (float)pane.y, cell_w, cell_h, font_atlas, atlas_cell_w,
+            atlas_cell_h, mono_font);
+    }
+
+    if (config.show_pane_borders) {
+        SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
+        sdl_draw_pane_edges(&pane, true, true, true, true);
+    }
+
+    SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+    if (!font_cached)
+        SDL_DestroyTexture(font_atlas);
+    term_nuke(&panel_term);
 }
 
 bool sdl_render_main_view_with_left_panel(const sdl_view* view)
@@ -1173,6 +1298,7 @@ bool sdl_render_current_window_frame(void)
     sdl_pointer_aim_render();
     sdl_pointer_attack_render();
     sdl_mouse_path_render();
+    sdl_combat_overlay_pane_render();
     sdl_status_pane_render();
     sdl_main_menu_pane_render();
     sdl_depth_menu_pane_render();

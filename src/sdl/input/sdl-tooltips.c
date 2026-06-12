@@ -217,11 +217,13 @@ void sdl_object_tooltip_clear(void)
     g_object_tooltip.touch = false;
     g_object_tooltip.term_cell = false;
     g_object_tooltip.character_panel_cell = false;
+    g_object_tooltip.screen_rect = false;
     g_object_tooltip.map_y = 0;
     g_object_tooltip.map_x = 0;
     g_object_tooltip.cell_col = 0;
     g_object_tooltip.cell_row = 0;
     g_object_tooltip.cell_cols = 0;
+    g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = 0;
     g_object_tooltip.text[0] = '\0';
     g_state.need_present = true;
@@ -447,6 +449,7 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
 
     if (g_object_tooltip.active
         && !g_object_tooltip.term_cell
+        && !g_object_tooltip.screen_rect
         && g_object_tooltip.touch == touch
         && g_object_tooltip.map_y == map_y
         && g_object_tooltip.map_x == map_x
@@ -461,11 +464,13 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     g_object_tooltip.touch = touch;
     g_object_tooltip.term_cell = false;
     g_object_tooltip.character_panel_cell = false;
+    g_object_tooltip.screen_rect = false;
     g_object_tooltip.map_y = map_y;
     g_object_tooltip.map_x = map_x;
     g_object_tooltip.cell_col = 0;
     g_object_tooltip.cell_row = 0;
     g_object_tooltip.cell_cols = 0;
+    g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = expires_at;
     SDL_strlcpy(g_object_tooltip.text, name, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
@@ -492,6 +497,7 @@ bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
     if (g_object_tooltip.active
         && g_object_tooltip.term_cell
         && g_object_tooltip.character_panel_cell == character_panel_cell
+        && !g_object_tooltip.screen_rect
         && g_object_tooltip.touch == touch
         && g_object_tooltip.cell_col == col
         && g_object_tooltip.cell_row == row
@@ -507,11 +513,13 @@ bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
     g_object_tooltip.touch = touch;
     g_object_tooltip.term_cell = true;
     g_object_tooltip.character_panel_cell = character_panel_cell;
+    g_object_tooltip.screen_rect = false;
     g_object_tooltip.map_y = 0;
     g_object_tooltip.map_x = 0;
     g_object_tooltip.cell_col = col;
     g_object_tooltip.cell_row = row;
     g_object_tooltip.cell_cols = cols;
+    g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = expires_at;
     SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
@@ -530,6 +538,51 @@ bool sdl_object_tooltip_show_character_panel_text_at_cell(int col,
 {
     return sdl_object_tooltip_show_text_at_cell_ex(col, row, cols, text,
         touch, true);
+}
+
+bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text,
+    bool touch)
+{
+    Uint64 expires_at = 0;
+
+    if (!text || !text[0] || !rect || rect->w <= 0.0f || rect->h <= 0.0f) {
+        sdl_object_tooltip_clear();
+        return false;
+    }
+
+    if (touch)
+        expires_at = SDL_GetTicksNS()
+            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
+
+    if (g_object_tooltip.active
+        && g_object_tooltip.screen_rect
+        && g_object_tooltip.touch == touch
+        && g_object_tooltip.rect.x == rect->x
+        && g_object_tooltip.rect.y == rect->y
+        && g_object_tooltip.rect.w == rect->w
+        && g_object_tooltip.rect.h == rect->h
+        && SDL_strcmp(g_object_tooltip.text, text) == 0)
+    {
+        if (touch)
+            g_object_tooltip.expires_at = expires_at;
+        return true;
+    }
+
+    g_object_tooltip.active = true;
+    g_object_tooltip.touch = touch;
+    g_object_tooltip.term_cell = false;
+    g_object_tooltip.character_panel_cell = false;
+    g_object_tooltip.screen_rect = true;
+    g_object_tooltip.map_y = 0;
+    g_object_tooltip.map_x = 0;
+    g_object_tooltip.cell_col = 0;
+    g_object_tooltip.cell_row = 0;
+    g_object_tooltip.cell_cols = 0;
+    g_object_tooltip.rect = *rect;
+    g_object_tooltip.expires_at = expires_at;
+    SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
+    g_state.need_present = true;
+    return true;
 }
 
 bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text,
@@ -579,7 +632,14 @@ bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y)
     int col = 0;
     int row = 0;
 
-    if (!g_object_tooltip.active || !g_object_tooltip.term_cell)
+    if (!g_object_tooltip.active)
+        return false;
+    if (g_object_tooltip.screen_rect)
+        return x >= g_object_tooltip.rect.x
+            && y >= g_object_tooltip.rect.y
+            && x < g_object_tooltip.rect.x + g_object_tooltip.rect.w
+            && y < g_object_tooltip.rect.y + g_object_tooltip.rect.h;
+    if (!g_object_tooltip.term_cell)
         return false;
     if (g_object_tooltip.character_panel_cell) {
         if (!sdl_main_view_point_to_cell(x, y, &col, &row)
@@ -602,7 +662,9 @@ void sdl_object_tooltip_handle_mouse_motion(float x, float y)
     int map_y = 0;
     int map_x = 0;
 
-    if (g_object_tooltip.active && g_object_tooltip.term_cell) {
+    if (g_object_tooltip.active
+        && (g_object_tooltip.term_cell || g_object_tooltip.screen_rect))
+    {
         if (sdl_object_tooltip_pointer_hits_term_cell(x, y))
             return;
         sdl_object_tooltip_clear();
@@ -851,7 +913,16 @@ void sdl_object_tooltip_render(void)
     }
 
     SDL_memset(attrs, TERM_WHITE, sizeof(attrs));
-    if (g_object_tooltip.term_cell) {
+    if (g_object_tooltip.screen_rect) {
+        if (!g_object_tooltip.text[0]
+            || g_object_tooltip.rect.w <= 0.0f
+            || g_object_tooltip.rect.h <= 0.0f)
+        {
+            sdl_object_tooltip_clear();
+            return;
+        }
+        cell_rect = g_object_tooltip.rect;
+    } else if (g_object_tooltip.term_cell) {
         if (!g_object_tooltip.text[0]
             || !(g_object_tooltip.character_panel_cell
                 ? sdl_left_panel_source_cell_rect(g_object_tooltip.cell_col,

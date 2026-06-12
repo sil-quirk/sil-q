@@ -600,7 +600,7 @@ int sdl_overlay_edge_gap_px(int area_px, int content_px)
 bool sdl_pane_default_enabled_on_migration(enum pane_type pane)
 {
     return pane == PANE_SUPPLY || pane == PANE_LEFT_PANEL || pane == PANE_STATUS
-        || pane == PANE_DEPTH || pane == PANE_ROLLS
+        || pane == PANE_DEPTH || pane == PANE_COMBAT || pane == PANE_ROLLS
         || pane == PANE_LOG || pane == PANE_DESCRIPTION
         || pane == PANE_OVERLAY_MENU;
 }
@@ -707,6 +707,16 @@ bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
                 if (pane == PANE_DEPTH && configs[j].rect.rows < 4) {
                     configs[j].rect.rows = 4;
                     changed = true;
+                }
+                if (pane == PANE_COMBAT) {
+                    if (configs[j].rect.rows < PANE_COMBAT_OVERLAY_ROWS) {
+                        configs[j].rect.rows = PANE_COMBAT_OVERLAY_ROWS;
+                        changed = true;
+                    }
+                    if (configs[j].rect.cols < PANE_COMBAT_OVERLAY_COLS) {
+                        configs[j].rect.cols = PANE_COMBAT_OVERLAY_COLS;
+                        changed = true;
+                    }
                 }
                 found = true;
                 break;
@@ -1621,6 +1631,106 @@ bool sdl_left_panel_pane_renders_character_panel(void)
     return sdl_left_panel_pane_presentation_active();
 }
 
+bool sdl_combat_overlay_pane_presentation_active(void)
+{
+    return sdl_should_show_supporting_panes()
+        && sdl_layout_matches_supporting_pane_visibility()
+        && character_generated
+        && character_dungeon
+        && p_ptr
+        && character_icky == 0
+        && p_ptr->playing
+        && !p_ptr->is_dead
+        && !death_spectator_active();
+}
+
+bool sdl_combat_overlay_melee_uses_offhand_row(void)
+{
+    return inventory
+        && (ROW_MEL - 1) != ROW_LIGHT
+        && inventory[INVEN_ARM].k_idx
+        && inventory[INVEN_ARM].tval != TV_SHIELD;
+}
+
+int sdl_combat_overlay_source_row_count(void)
+{
+    return sdl_combat_overlay_melee_uses_offhand_row() ? 4 : 3;
+}
+
+bool sdl_combat_overlay_source_row_at_index(int index, int* out_row)
+{
+    int rows[4];
+    int count = 0;
+
+    if (out_row)
+        *out_row = -1;
+    if (index < 0)
+        return false;
+
+    if (sdl_combat_overlay_melee_uses_offhand_row())
+        rows[count++] = ROW_MEL - 1;
+    rows[count++] = ROW_MEL;
+    rows[count++] = ROW_ARC;
+    rows[count++] = ROW_QUIVER;
+
+    if (index >= count)
+        return false;
+
+    if (out_row)
+        *out_row = rows[index];
+    return true;
+}
+
+bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row)
+{
+    if (source_row < 0)
+        return false;
+    if (!sdl_combat_overlay_pane_current_rect(NULL))
+        return false;
+    if (source_row == ROW_MEL || source_row == ROW_ARC
+        || source_row == ROW_QUIVER)
+    {
+        return true;
+    }
+    return sdl_combat_overlay_melee_uses_offhand_row()
+        && source_row == ROW_MEL - 1;
+}
+
+int sdl_left_panel_output_row_for_source_row(int source_row)
+{
+    int output_row = 0;
+
+    if (source_row < 0)
+        return -1;
+    if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+        return -1;
+
+    for (int row = 0; row < source_row; row++) {
+        if (!sdl_left_panel_source_row_hidden_by_combat_overlay(row))
+            output_row++;
+    }
+
+    return output_row;
+}
+
+int sdl_left_panel_source_row_for_output_row(int output_row)
+{
+    int visible_row = 0;
+
+    if (output_row < 0)
+        return -1;
+
+    for (int source_row = 0; source_row < ROW_EVN + 16; source_row++) {
+        if (sdl_left_panel_source_row_hidden_by_combat_overlay(source_row))
+            continue;
+        if (visible_row == output_row)
+            return source_row;
+        visible_row++;
+    }
+
+    return -1;
+}
+
 /* Map a window-pixel rect to the map cells it covers on the main view.
  * Returns false when the rect misses the map grid entirely.  The result is
  * in map cells (the units verify_panel scrolls in), not term cells: the map
@@ -1719,6 +1829,38 @@ bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
         return false;
     if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &rect))
         return false;
+
+    return sdl_main_view_map_cell_coverage(view, &rect, start_col, cols,
+        start_row, rows);
+}
+
+bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    SDL_Rect pane_rect;
+    SDL_FRect rect;
+
+    if (start_col)
+        *start_col = 0;
+    if (cols)
+        *cols = 0;
+    if (start_row)
+        *start_row = 0;
+    if (rows)
+        *rows = 0;
+
+    if (!sdl_combat_overlay_pane_current_rect(&pane_rect))
+        return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
+
+    rect = (SDL_FRect){
+        .x = (float)pane_rect.x,
+        .y = (float)pane_rect.y,
+        .w = (float)pane_rect.w,
+        .h = (float)pane_rect.h,
+    };
 
     return sdl_main_view_map_cell_coverage(view, &rect, start_col, cols,
         start_row, rows);
@@ -2059,6 +2201,15 @@ void sdl_mobile_reset_default_pane_configs(struct pane_config* configs,
             configs[i].ratio = 0.0f;
             break;
 
+        case PANE_COMBAT:
+            configs[i].where = PLACE_BOTTOM_LEFT;
+            configs[i].enabled = true;
+            configs[i].rect.rows = PANE_COMBAT_OVERLAY_ROWS;
+            configs[i].rect.cols = PANE_COMBAT_OVERLAY_COLS;
+            configs[i].font_size = 0;
+            configs[i].ratio = 0.0f;
+            break;
+
         case PANE_OVERLAY_MENU:
             configs[i].where = PLACE_BOTTOM_CENTER;
             configs[i].enabled = true;
@@ -2265,8 +2416,11 @@ bool sdl_mobile_enabled_panes_fit(const struct pane_config* configs,
             continue;
         if (configs[i].pane <= PANE_MAIN || configs[i].pane >= PANE_MAX)
             continue;
-        if (configs[i].pane == PANE_LEFT_PANEL)
+        if (configs[i].pane == PANE_LEFT_PANEL
+            || configs[i].pane == PANE_COMBAT)
+        {
             continue;
+        }
 
         cols = sdl_mobile_pane_cols(panes, cell_widths, configs[i].pane);
         rows = sdl_mobile_pane_rows(panes, cell_heights, configs[i].pane);
@@ -2310,8 +2464,11 @@ bool sdl_mobile_layout_fits(const SDL_Rect* screen, int scale,
 
     active_count = 0;
     for (int i = 0; i < count && active_count < MAX_PANE_CONFIGS; i++) {
-        if (configs[i].pane == PANE_LEFT_PANEL)
+        if (configs[i].pane == PANE_LEFT_PANEL
+            || configs[i].pane == PANE_COMBAT)
+        {
             continue;
+        }
         active[active_count++] = configs[i];
     }
 
@@ -2804,6 +2961,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         bool is_status_pane = (pane_config[i].pane == PANE_STATUS);
         bool is_left_panel = (pane_config[i].pane == PANE_LEFT_PANEL);
         bool is_depth_pane = (pane_config[i].pane == PANE_DEPTH);
+        bool is_combat_pane = (pane_config[i].pane == PANE_COMBAT);
         bool is_description_pane = (pane_config[i].pane == PANE_DESCRIPTION);
         bool is_overlay_menu_pane =
             (pane_config[i].pane == PANE_OVERLAY_MENU);
@@ -2814,6 +2972,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
             continue;
         if (touch_only && !is_touch_pane && !is_status_pane
             && !is_left_panel && !is_depth_pane
+            && !is_combat_pane
             && !is_description_pane && !is_overlay_menu_pane
             && !is_overlay_log_pane)
         {
@@ -2824,7 +2983,7 @@ int sdl_build_active_pane_config(struct pane_config* active, bool include_side,
         if (is_touch_pane && !proto_touch && !sdl_touch_pane_mobile_layout_open())
             continue;
         if (!is_touch_pane && !is_status_pane && !is_left_panel
-            && !is_depth_pane
+            && !is_depth_pane && !is_combat_pane
             && !is_description_pane && !is_overlay_menu_pane
             && !is_overlay_log_pane)
         {
@@ -2928,7 +3087,7 @@ int sdl_auto_pane_font_size(enum pane_type type)
 {
     if (type == PANE_STATUS)
         return sdl_auto_font_size_from_main(1, 2);
-    if (type == PANE_LEFT_PANEL)
+    if (type == PANE_LEFT_PANEL || type == PANE_COMBAT)
         return sdl_auto_font_size_from_main(3, 4);
 
     return sdl_auto_aux_view_font_size();
@@ -3593,6 +3752,7 @@ bool sdl_hide_supporting_panes_mode_effective(void)
             || pane_config[i].pane == PANE_TOUCH
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
+            || pane_config[i].pane == PANE_COMBAT
             || pane_config[i].pane == PANE_MAIN_MENU
             || pane_config[i].pane == PANE_DESCRIPTION
             || pane_config[i].pane == PANE_OVERLAY_MENU)
@@ -3668,6 +3828,8 @@ void sdl_draw_pane_edges(const SDL_Rect* rect, bool draw_left,
 
 bool sdl_should_show_supporting_panes(void)
 {
+    if (sdl_main_menu_overlay_hides_supporting_panes())
+        return false;
     if (!sdl_hide_supporting_panes_mode_effective())
         return true;
     if (screen_startup_supporting_panes_hidden_active())

@@ -2,6 +2,31 @@
 #include "blitz.h"
 #include "sdl/main-sdl-private.h"
 
+static bool main_menu_overlay_hides_supporting_panes = false;
+
+static bool sdl_main_menu_overlay_should_hide_supporting_panes(void)
+{
+#if SIL_SDL_MOBILE_BUILD
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool sdl_main_menu_overlay_hides_supporting_panes(void)
+{
+    return main_menu_overlay_hides_supporting_panes;
+}
+
+static void sdl_main_menu_overlay_set_supporting_panes_hidden(bool hidden)
+{
+    if (main_menu_overlay_hides_supporting_panes == hidden)
+        return;
+
+    main_menu_overlay_hides_supporting_panes = hidden;
+    sdl_refresh_supporting_panes_layout();
+}
+
 int sdl_main_menu_pane_font_px(void)
 {
     int font_size = (config.aux_view_font_size > 0)
@@ -432,9 +457,13 @@ void sdl_main_menu_overlay_reset_nav_input(void)
 void sdl_main_menu_overlay_close(void)
 {
     if (!g_main_menu_overlay_active)
+    {
+        sdl_main_menu_overlay_set_supporting_panes_hidden(false);
         return;
+    }
 
     g_main_menu_overlay_active = false;
+    sdl_main_menu_overlay_set_supporting_panes_hidden(false);
     g_main_menu_overlay_hover_choice = 0;
     g_main_menu_pane_hover = false;
     sdl_main_menu_overlay_reset_nav_input();
@@ -444,9 +473,19 @@ void sdl_main_menu_overlay_close(void)
 bool sdl_main_menu_overlay_begin(void)
 {
     main_menu_pane_layout layout;
+    bool hide_supporting_panes =
+        sdl_main_menu_overlay_should_hide_supporting_panes();
+    bool was_hiding_supporting_panes =
+        sdl_main_menu_overlay_hides_supporting_panes();
 
+    if (hide_supporting_panes)
+        sdl_main_menu_overlay_set_supporting_panes_hidden(true);
     if (!sdl_main_menu_overlay_layout(&layout))
+    {
+        if (hide_supporting_panes && !was_hiding_supporting_panes)
+            sdl_main_menu_overlay_set_supporting_panes_hidden(false);
         return false;
+    }
 
     (void)dismiss_active_narrative_banner();
     if (p_ptr && character_generated && character_icky == 0) {

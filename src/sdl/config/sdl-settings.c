@@ -70,6 +70,7 @@ void get_sdl_config_info(char* buf, size_t size)
             case PANE_DEPTH: type_str = "DEPTH"; break;
             case PANE_DESCRIPTION: type_str = "DESCRIPTION"; break;
             case PANE_OVERLAY_MENU: type_str = "OVERLAY_MENU"; break;
+            case PANE_COMBAT: type_str = "COMBAT"; break;
             default: break;
         }
         
@@ -741,6 +742,7 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
+            || pane_config[i].pane == PANE_COMBAT
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION
@@ -759,6 +761,7 @@ void sdl_enable_default_panes_for_empty_group(bool side)
             || pane_config[i].pane == PANE_LEFT_PANEL
             || pane_config[i].pane == PANE_STATUS
             || pane_config[i].pane == PANE_DEPTH
+            || pane_config[i].pane == PANE_COMBAT
             || (pane_config[i].pane == PANE_ROLLS
                 && pane_placement_is_overlay(pane_config[i].where))
             || pane_config[i].pane == PANE_DESCRIPTION

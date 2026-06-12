@@ -268,21 +268,182 @@ bool sdl_left_panel_source_cell_rect(int col, int row, int cols,
         return false;
     if (cols > metrics.content_cols - col)
         cols = metrics.content_cols - col;
-    if (rows > metrics.panel_rows - row)
-        rows = metrics.panel_rows - row;
     if (cols <= 0 || rows <= 0)
         return false;
 
-    *out = (SDL_FRect){
-        .x = panel_content_x + (float)(col * metrics.cell_w),
-        .y = panel_rect.y + (float)(row * metrics.cell_h),
-        .w = (float)(cols * metrics.cell_w),
-        .h = (float)(rows * metrics.cell_h),
-    };
-    if (out->y + out->h > panel_rect.y + (float)metrics.panel_render_h)
-        out->h = panel_rect.y + (float)metrics.panel_render_h - out->y;
+    {
+        bool have = false;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        float x2 = 0.0f;
+        float y2 = 0.0f;
+        int end_row = row + rows;
+
+        if (end_row < row || end_row > metrics.panel_rows)
+            end_row = metrics.panel_rows;
+
+        for (int source_row = row; source_row < end_row; source_row++) {
+            int output_row = sdl_left_panel_output_row_for_source_row(
+                source_row);
+            SDL_FRect r;
+
+            if (output_row < 0)
+                continue;
+            if (output_row >= metrics.panel_rows)
+                continue;
+
+            r = (SDL_FRect){
+                .x = panel_content_x + (float)(col * metrics.cell_w),
+                .y = panel_rect.y + (float)(output_row * metrics.cell_h),
+                .w = (float)(cols * metrics.cell_w),
+                .h = (float)metrics.cell_h,
+            };
+            if (r.y + r.h > panel_rect.y + (float)metrics.panel_render_h)
+                r.h = panel_rect.y + (float)metrics.panel_render_h - r.y;
+            sdl_merge_frect_bounds(&r, &have, &x1, &y1, &x2, &y2);
+        }
+
+        if (!have)
+            return false;
+
+        *out = (SDL_FRect){ .x = x1, .y = y1, .w = x2 - x1, .h = y2 - y1 };
+    }
 
     return out->w > 0.0f && out->h > 0.0f;
+}
+
+bool sdl_combat_overlay_cell_rect(int col, int source_row, int cols,
+    int rows, SDL_FRect* out)
+{
+    SDL_Rect pane;
+    int cell_h;
+    int cell_w;
+    int panel_cols;
+    int panel_rows;
+    int row_count;
+    int start_row;
+    int source_index = -1;
+
+    if (!out)
+        return false;
+    *out = (SDL_FRect){ 0 };
+    if (!sdl_combat_overlay_pane_current_rect(&pane))
+        return false;
+
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    cell_w = cell_h / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    panel_cols = pane.w / cell_w;
+    panel_rows = pane.h / cell_h;
+    if (panel_cols > PANE_COMBAT_OVERLAY_COLS)
+        panel_cols = PANE_COMBAT_OVERLAY_COLS;
+    if (panel_cols <= 0 || panel_rows <= 0)
+        return false;
+
+    row_count = sdl_combat_overlay_source_row_count();
+    start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
+    for (int i = 0; i < row_count; i++) {
+        int row_at_index = -1;
+
+        if (!sdl_combat_overlay_source_row_at_index(i, &row_at_index))
+            continue;
+        if (row_at_index == source_row) {
+            source_index = i;
+            break;
+        }
+    }
+    if (source_index < 0 || start_row + source_index >= panel_rows)
+        return false;
+
+    if (col < 0 || source_row < 0 || cols <= 0 || rows <= 0)
+        return false;
+    if (col >= panel_cols)
+        return false;
+    if (cols > panel_cols - col)
+        cols = panel_cols - col;
+    if (cols <= 0)
+        return false;
+
+    *out = (SDL_FRect){
+        .x = (float)pane.x + (float)(col * cell_w),
+        .y = (float)pane.y + (float)((start_row + source_index) * cell_h),
+        .w = (float)(cols * cell_w),
+        .h = (float)cell_h,
+    };
+    if (out->x + out->w > (float)(pane.x + pane.w))
+        out->w = (float)(pane.x + pane.w) - out->x;
+    if (out->y + out->h > (float)(pane.y + pane.h))
+        out->h = (float)(pane.y + pane.h) - out->y;
+    (void)rows;
+
+    return out->w > 0.0f && out->h > 0.0f;
+}
+
+bool sdl_combat_overlay_point_to_cell(float x, float y, int* out_col,
+    int* out_source_row)
+{
+    SDL_Rect pane;
+    int cell_h;
+    int cell_w;
+    int panel_cols;
+    int panel_rows;
+    int row_count;
+    int start_row;
+    int local_col;
+    int local_row;
+    int row_index;
+    int source_row = -1;
+
+    if (!out_col || !out_source_row)
+        return false;
+    *out_col = 0;
+    *out_source_row = 0;
+    if (!sdl_combat_overlay_pane_current_rect(&pane))
+        return false;
+    if (x < (float)pane.x || y < (float)pane.y
+        || x >= (float)(pane.x + pane.w)
+        || y >= (float)(pane.y + pane.h))
+    {
+        return false;
+    }
+
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    cell_w = cell_h / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    panel_cols = pane.w / cell_w;
+    panel_rows = pane.h / cell_h;
+    if (panel_cols > PANE_COMBAT_OVERLAY_COLS)
+        panel_cols = PANE_COMBAT_OVERLAY_COLS;
+    if (panel_cols <= 0 || panel_rows <= 0)
+        return false;
+
+    local_col = (int)((x - (float)pane.x) / (float)cell_w);
+    local_row = (int)((y - (float)pane.y) / (float)cell_h);
+    if (local_col < 0 || local_col >= panel_cols
+        || local_row < 0 || local_row >= panel_rows)
+    {
+        return false;
+    }
+
+    row_count = sdl_combat_overlay_source_row_count();
+    start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
+    row_index = local_row - start_row;
+    if (row_index < 0 || row_index >= row_count)
+        return false;
+    if (!sdl_combat_overlay_source_row_at_index(row_index, &source_row))
+        return false;
+
+    *out_col = local_col;
+    *out_source_row = source_row;
+    return true;
 }
 
 bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
@@ -359,6 +520,9 @@ bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
             {
                 *out_col = LEFT_PANEL_CONTENT_WID;
                 *out_row = (int)(panel_local_y / (float)metrics.cell_h);
+                if (!metrics.collapsed)
+                    *out_row = sdl_left_panel_source_row_for_output_row(
+                        *out_row);
                 return (*out_row >= 0 && *out_row < metrics.panel_rows);
             }
 
@@ -398,6 +562,10 @@ bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row)
 
                 return false;
             }
+
+            *out_row = sdl_left_panel_source_row_for_output_row(*out_row);
+            if (*out_row < 0 || *out_row >= metrics.panel_rows)
+                return false;
 
             g_last_main_cell_hit_left_panel = true;
             return true;

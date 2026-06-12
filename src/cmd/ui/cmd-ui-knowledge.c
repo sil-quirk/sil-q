@@ -2985,6 +2985,22 @@ static cptr supply_browser_page_text(int page)
     }
 }
 
+#define SUPPLY_BROWSER_PREV_PAGE_KEY KTRL('P')
+#define SUPPLY_BROWSER_NEXT_PAGE_KEY KTRL('N')
+
+static supply_menu_page supply_browser_turn_page(
+    supply_menu_page page, int direction)
+{
+    int next = (int)page + ((direction < 0) ? -1 : 1);
+
+    if (next < SUPPLY_MENU_PAGE_EQUIPPED)
+        next = SUPPLY_MENU_PAGE_SUPPLIES;
+    else if (next > SUPPLY_MENU_PAGE_SUPPLIES)
+        next = SUPPLY_MENU_PAGE_EQUIPPED;
+
+    return (supply_menu_page)next;
+}
+
 static int supply_browser_page_tab_col(int page)
 {
     int col = 0;
@@ -8787,6 +8803,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_erase(0, layout.prompt_row, 255);
             if (steamdeck_controls_active())
             {
+                char prev_label[16];
+                char next_label[16];
                 char use_label[16];
                 char confirm_label[16];
                 char drop_label[16];
@@ -8797,6 +8815,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 char prompt_short[96];
                 const char* variants[3];
 
+                controller_prompt_label(steamdeck_prev_page_key(), "L1",
+                    prev_label, sizeof(prev_label));
+                controller_prompt_label(steamdeck_next_page_key(), "R1",
+                    next_label, sizeof(next_label));
                 controller_prompt_label(steamdeck_alt_action_key(), "X",
                     use_label, sizeof(use_label));
                 controller_prompt_label(steamdeck_confirm_key(), "A",
@@ -8806,11 +8828,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 controller_prompt_label(ESCAPE, "Start", back_label,
                     sizeof(back_label));
                 strnfmt(prompt_full, sizeof(prompt_full),
-                    "D-pad move  [%s/%s] equip  [%s] drop  [%s] back",
-                    use_label, confirm_label, drop_label, back_label);
+                    "D-pad move  [%s/%s] page  [%s/%s] equip  [%s] drop  [%s] back",
+                    prev_label, next_label, use_label, confirm_label,
+                    drop_label, back_label);
                 strnfmt(prompt_mid, sizeof(prompt_mid),
-                    "[%s/%s] equip  [%s] drop  [%s] back",
-                    use_label, confirm_label, drop_label, back_label);
+                    "[%s/%s] page  [%s/%s] equip  [%s] drop",
+                    prev_label, next_label, use_label, confirm_label,
+                    drop_label);
                 strnfmt(prompt_short, sizeof(prompt_short),
                     "[%s] equip  [%s] drop", confirm_label, drop_label);
                 variants[0] = prompt_full;
@@ -8991,7 +9015,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
 
             if (!click_generated_command)
-                ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+                ch = (char)steamdeck_menu_key(ch,
+                    SUPPLY_BROWSER_PREV_PAGE_KEY,
+                    SUPPLY_BROWSER_NEXT_PAGE_KEY);
 
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
@@ -9026,6 +9052,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
             case ESCAPE:
                 flag = true;
+                break;
+
+            case SUPPLY_BROWSER_PREV_PAGE_KEY:
+                page = supply_browser_turn_page(page, -1);
+                redraw = true;
+                break;
+
+            case SUPPLY_BROWSER_NEXT_PAGE_KEY:
+                page = supply_browser_turn_page(page, 1);
+                redraw = true;
                 break;
 
             case KTRL('I'):
@@ -9545,6 +9581,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             else if (steamdeck_controls_active())
             {
+                char prev_label[16];
+                char next_label[16];
                 char preview_label[16];
                 char use_label[16];
                 char confirm_label[16];
@@ -9556,6 +9594,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 char prompt_short[96];
                 const char* variants[3];
 
+                controller_prompt_label(steamdeck_prev_page_key(), "L1",
+                    prev_label, sizeof(prev_label));
+                controller_prompt_label(steamdeck_next_page_key(), "R1",
+                    next_label, sizeof(next_label));
                 controller_prompt_label(steamdeck_info_key(), "RS Right",
                     preview_label, sizeof(preview_label));
                 controller_prompt_label(steamdeck_alt_action_key(), "X",
@@ -9567,13 +9609,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 controller_prompt_label(ESCAPE, "Start", back_label,
                     sizeof(back_label));
                 strnfmt(prompt_full, sizeof(prompt_full),
-                    "D-pad move  [%s] preview  [%s/%s] use  [%s] drop  [%s] back",
-                    preview_label, use_label, confirm_label, drop_label,
-                    back_label);
+                    "D-pad move  [%s/%s] page  [%s] preview  [%s/%s] use  [%s] drop  [%s] back",
+                    prev_label, next_label, preview_label, use_label,
+                    confirm_label, drop_label, back_label);
                 strnfmt(prompt_mid, sizeof(prompt_mid),
-                    "[%s] preview  [%s/%s] use  [%s] drop  [%s] back",
-                    preview_label, use_label, confirm_label, drop_label,
-                    back_label);
+                    "[%s/%s] page  [%s/%s] use  [%s] drop",
+                    prev_label, next_label, use_label, confirm_label,
+                    drop_label);
                 strnfmt(prompt_short, sizeof(prompt_short),
                     "[%s/%s] use  [%s] drop", use_label, confirm_label,
                     drop_label);
@@ -9778,7 +9820,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
 
             if (!click_generated_command)
-                ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+                ch = (char)steamdeck_menu_key(ch,
+                    SUPPLY_BROWSER_PREV_PAGE_KEY,
+                    SUPPLY_BROWSER_NEXT_PAGE_KEY);
 
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
@@ -9834,6 +9878,20 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
             case ESCAPE:
                 flag = true;
+                break;
+
+            case SUPPLY_BROWSER_PREV_PAGE_KEY:
+                if (replacement_mode || slot_pick_mode || item_select_mode)
+                    break;
+                page = supply_browser_turn_page(page, -1);
+                redraw = true;
+                break;
+
+            case SUPPLY_BROWSER_NEXT_PAGE_KEY:
+                if (replacement_mode || slot_pick_mode || item_select_mode)
+                    break;
+                page = supply_browser_turn_page(page, 1);
+                redraw = true;
                 break;
 
             case KTRL('I'):
@@ -10321,6 +10379,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         /* Bottom bar: grey text with white first letters */
         Term_erase(0, draw_layout.prompt_row, 255);
         if (steamdeck_controls_active()) {
+            char prev_label[16];
+            char next_label[16];
             char recall_label[16];
             char use_label[16];
             char confirm_label[16];
@@ -10333,6 +10393,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             const char* variants[3];
 
             /* Steam Deck UI: RS Right=recall, X=use, A=confirm, B=drop, Start=back */
+            controller_prompt_label(steamdeck_prev_page_key(), "L1",
+                prev_label, sizeof(prev_label));
+            controller_prompt_label(steamdeck_next_page_key(), "R1",
+                next_label, sizeof(next_label));
             controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
             controller_prompt_label(steamdeck_alt_action_key(), "X", use_label, sizeof(use_label));
             controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
@@ -10340,12 +10404,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             controller_prompt_label(ESCAPE, "Start", back_label, sizeof(back_label));
 
             strnfmt(prompt_full, sizeof(prompt_full),
-                "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
-                recall_label, use_label, confirm_label, drop_label,
-                back_label);
+                "D-pad move  [%s/%s] page  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
+                prev_label, next_label, recall_label, use_label, confirm_label,
+                drop_label, back_label);
             strnfmt(prompt_mid, sizeof(prompt_mid),
-                "[%s/%s] use  [%s] drop  [%s] back",
-                use_label, confirm_label, drop_label, back_label);
+                "[%s/%s] page  [%s/%s] use  [%s] drop",
+                prev_label, next_label, use_label, confirm_label, drop_label);
             strnfmt(prompt_short, sizeof(prompt_short),
                 "[%s/%s] use  [%s] drop", use_label, confirm_label,
                 drop_label);
@@ -10528,7 +10592,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
         }
         if (!click_generated_command)
-            ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+            ch = (char)steamdeck_menu_key(ch, SUPPLY_BROWSER_PREV_PAGE_KEY,
+                SUPPLY_BROWSER_NEXT_PAGE_KEY);
 
         if (steamdeck_controls_active() && ch == 'f')
             ch = 'z';
@@ -10583,6 +10648,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
         case ESCAPE:
             flag = true;
+            break;
+
+        case SUPPLY_BROWSER_PREV_PAGE_KEY:
+            page = supply_browser_turn_page(page, -1);
+            redraw = true;
+            break;
+
+        case SUPPLY_BROWSER_NEXT_PAGE_KEY:
+            page = supply_browser_turn_page(page, 1);
+            redraw = true;
             break;
 
         case KTRL('I'):

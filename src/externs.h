@@ -2313,6 +2313,8 @@ extern int sdl_main_view_visible_col0(void);
 extern int sdl_main_view_visible_cols(void);
 extern bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols,
     int* start_row, int* rows);
+extern bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols,
+    int* start_row, int* rows);
 extern bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols,
     int* start_row, int* rows);
 extern void binding_action_label(int binding, char* buf, size_t buflen);

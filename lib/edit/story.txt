@@ -73,7 +73,7 @@ N:9:Chapter 9. Rest of Este
 T:0
 O:9
 R:*
-D:Soft words rise clearly within your mind: "Estel brillies teni mornie canta." Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt—a comforting gift from gentle Este.
+D:Soft words rise clearly within your mind: "Estel síla ancalima íre mornië utúlië." Hope shines brightest when darkness has come. Calm spreads gently through you, easing pain and doubt—a comforting gift from gentle Este.
 
 N:10:Chapter 10. Horn of Oromë
 T:0
@@ -184,7 +184,7 @@ N:25:Spent Breath
 T:1
 O:10
 R:*
-D: Words stir within you—Estel brillies...—yet your breath freezes in your lungs.
+D: Words stir within you—Estel síla ancalima...—yet your breath freezes in your lungs.
 D: No rest comes; your spirit is compelled once more into torment, or oblivion.
 
 N:26:Far Horn, Near Chains

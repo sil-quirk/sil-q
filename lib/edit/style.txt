@@ -47,7 +47,7 @@ F:23:0 23:12 23:18
 D:0:10 20:6 20:9 20:12 20:15
 S:stark checkered flagstone
 M1:The way shifts to a floor of starkly checkered stone, a cold and loveless pattern.
-M2:You are a piece in a game of sentient, a move upon a board laid by a masterful, evil mind.
+M2:You are a piece upon a board, moved at the pleasure of a cold and masterful mind.
 M1:A calculated order governs these halls, a design as sharp and unforgiving as a tyrant's law.
 M2:This is the thought of Sauron given form, a place where all freedom is an illusion.
 M1:You tread a path where every step feels foreseen, each tile a square in an inescapable trap.
@@ -135,7 +135,7 @@ M2:This is no natural rock, but a substance born of alchemy and a dragon's thoug
 M1:A faint, harmonious hum vibrates through the jade-like walls, a music that gnaws at your resolve.
 M2:It is a song of enthrallment, a lure for the lost children of Húrin.
 M1:The elegance of the chamber is a lie, its beauty as cold and sharp as a shard of glass.
-M2:It is the calculated perfection of the Serpent's gaze, mesmerizing and utterly deadly.
+M2:It is the calculated perfection of the Serpent's gaze, which binds the will even as it slays.
 N:9:Shadow0 #BigCrudeShadow
 W:16:2
 #Y:18:6
@@ -158,7 +158,7 @@ M1:The very masonry is built of the faces of the dead, their silent screams froz
 M2:You have come to a place where valour and despair are the mortar that binds the walls.
 M1:You walk now through a catacomb of sorrow, where the slain of the Nirnaeth Arnoediad form the foundation.
 M2:A curse lies on this place, the weight of Tears Unnumbered.
-M1:The air is cold with the breath of the unhoused fear, their last cries trapped within the rock.
+M1:The air is cold with the breath of unhoused fëar, their last cries trapped within the rock.
 M2:You feel the gaze of a thousand skulls that have no eyes.
 N:11:Shadow2 #PurpleGreen
 W:17:10
@@ -167,9 +167,9 @@ F:23:6 23:8
 D:20:9 20:15 20:18 20:21 20:24 20:27
 S:mottled purple-green sorcerous stone
 M1:You stand in a chamber of mottled purple and green, the colours of a deep and poisoned wound.
-M2:The very air shimmers with a malevolent, sorcerous energy, the craft of the Necromancer.
+M2:The very air trembles with malevolent sorcery, the craft of the Necromancer.
 M1:The stone is neither living nor dead, but trapped in a state of foul enchantment.
-M2:The patterns swirl like oil on black water, mesmerizing and corrupting the senses.
+M2:The patterns swirl like oil on black water, snaring and corrupting the senses.
 M1:A low, discordant hum emanates from the walls, a vibration felt in your teeth and bones.
 M2:It is the sound of mighty spells being woven, shaping the very fabric of this dungeon.
 N:12:Shadow3 #PurpleBlue
@@ -311,10 +311,10 @@ F:23:12 23:18
 D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
 S:dark sorcerous glowing metal
 M1:The walls are of a dark, purplish metal, almost black, marked with a faint, glowing sigil.
-M2:The heat is gone, replaced by a chilling, magnetic pull of sorcery.
+M2:The heat is gone, and in its place a chill sorcery draws you onward, as the lodestone draws iron.
 M1:You feel a strange power emanating from the symbols, a fell magic bound into the very iron.
-M2:This is not the work of smiths alone, but of the great Necromancers of the age.
-M1:The air is still and cold, carrying a faint scent of ozone and deep shadow.
+M2:This is not the work of smiths alone, but of the Necromancer, mightiest servant of the Enemy.
+M1:The air is still and cold, with a tang upon it as of riven air after lightning, and of deep shadow.
 M2:You are walking through a conduit of immense and unseen power, a channel for despair.
 N:24:FireRust5 #Cross1
 W:18:20
@@ -336,7 +336,7 @@ D:20:6 20:9 20:21
 S:molten bleeding mountain-heart
 M1:You have come to the heart of the fire, where the walls are not stone but the slow blood of the mountain.
 M2:Here the very heart of Arda is enslaved to a will of flame and shadow.
-M1:The roar of the fire-falls is a song of pure destruction, a symphony for the birth of dragons.
+M1:The roar of the fire-falls is a song of pure destruction, a birth-hymn for dragons.
 M2:You are near the end, in the furnace where the great plagues of the North are forged.
 M1:Hope itself seems to melt and turn to ash in this overwhelming heat.
 M2:Here is only the primal fire of creation, now enslaved to the singular purpose of utter ruin.
@@ -386,7 +386,7 @@ S:rune-carved purple stonework
 M1:The purple stone is now carved with intricate and flowing designs, a testament to a great and lost craft.
 M2:It is the art of the Dwarves of Belegost, their skill now enslaved to the Enemy.
 M1:You feel a conflict in this place, the beauty of the making warring with the evil of its purpose.
-M2:The stones themselves seem to cry out from their bondage, a symphony of silent sorrow.
+M2:The stones themselves seem to cry out from their bondage, a soundless lament of stone.
 M1:A faint, magical light gleams from the carved runes in the walls.
 M2:They are words of power, but also words of imprisonment, binding this place together with spells of grief.
 N:30:Purple2 #Crystals

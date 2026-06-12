@@ -760,11 +760,13 @@ typedef struct object_tooltip_state {
     bool touch;
     bool term_cell;
     bool character_panel_cell;
+    bool screen_rect;
     int map_y;
     int map_x;
     int cell_col;
     int cell_row;
     int cell_cols;
+    SDL_FRect rect;
     Uint64 expires_at;
     char text[640];
 } object_tooltip_state;
@@ -1573,7 +1575,15 @@ bool sdl_left_panel_pane_layout_enabled(void);
 bool sdl_saved_screen_left_panel_pane_active(void);
 bool sdl_left_panel_pane_presentation_active(void);
 bool sdl_left_panel_pane_renders_character_panel(void);
+bool sdl_combat_overlay_pane_presentation_active(void);
+bool sdl_combat_overlay_melee_uses_offhand_row(void);
+int sdl_combat_overlay_source_row_count(void);
+bool sdl_combat_overlay_source_row_at_index(int index, int* out_row);
+bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row);
+int sdl_left_panel_output_row_for_source_row(int source_row);
+int sdl_left_panel_source_row_for_output_row(int output_row);
 bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
+bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_left_panel_pane_runtime_active(void);
 bool sdl_left_panel_pane_collapsed(void);
@@ -1702,6 +1712,8 @@ float sdl_overlay_panel_x(const SDL_Rect* anchor, enum pane_placement where, int
 float sdl_overlay_panel_y(const SDL_Rect* anchor, enum pane_placement where, int panel_h);
 SDL_FRect sdl_overlay_panel_rect(const SDL_Rect* anchor, enum pane_placement where, int panel_w, int panel_h, const SDL_Rect* screen);
 bool sdl_status_pane_current_rect(SDL_Rect* out_rect, enum pane_placement* out_where);
+const struct pane_config* sdl_combat_overlay_pane_config(void);
+bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect);
 float sdl_touch_pane_clampf(float value, float min_value, float max_value);
 int sdl_touch_pane_story_text_width(TTF_Font* font, cptr text);
 SDL_Color sdl_status_pane_color(byte attr);
@@ -1869,6 +1881,7 @@ void sdl_main_menu_overlay_scroll_to_highlight(int visible_count);
 bool sdl_main_menu_pane_current_rect(SDL_FRect* out);
 bool sdl_main_menu_choice_disabled_now(int choice);
 void sdl_main_menu_overlay_reset_nav_input(void);
+bool sdl_main_menu_overlay_hides_supporting_panes(void);
 void sdl_main_menu_overlay_close(void);
 bool sdl_main_menu_overlay_begin(void);
 void sdl_main_menu_overlay_move(int delta);
@@ -1961,6 +1974,8 @@ void sdl_update_left_panel_pane_rect(void);
 void sdl_merge_frect_bounds(const SDL_FRect* rect, bool* have, float* x1, float* y1, float* x2, float* y2);
 bool sdl_main_cell_rect(int col, int row, int cols, int rows, SDL_FRect* out);
 bool sdl_left_panel_source_cell_rect(int col, int row, int cols, int rows, SDL_FRect* out);
+bool sdl_combat_overlay_cell_rect(int col, int source_row, int cols, int rows, SDL_FRect* out);
+bool sdl_combat_overlay_point_to_cell(float x, float y, int* out_col, int* out_source_row);
 bool sdl_main_view_point_to_cell(float x, float y, int* out_col, int* out_row);
 bool sdl_mouse_gameplay_context_active(void);
 bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x);
@@ -2153,6 +2168,7 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch);
 bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols, cptr text, bool touch, bool character_panel_cell);
 bool sdl_object_tooltip_show_text_at_cell(int col, int row, int cols, cptr text, bool touch);
 bool sdl_object_tooltip_show_character_panel_text_at_cell(int col, int row, int cols, cptr text, bool touch);
+bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text, bool touch);
 bool sdl_hover_tooltip_show_text(int col, int row, int cols, cptr text, bool touch);
 void sdl_hover_tooltip_clear(void);
 int sdl_object_tooltip_font_px(void);
@@ -2682,11 +2698,12 @@ bool sdl_left_panel_cell_is_tile(byte a, char c);
 void sdl_left_panel_debug_make_row_text(const term_win* scr, int row, int source_col, int end_col, char* out, size_t out_size, int* out_visible_width);
 void sdl_left_panel_debug_log_source_row(const term* t, const term_win* scr, int source_row, int source_col, int width, int end_col, int dest_col, int dest_row, float content_x, int cell_w, int cell_h);
 SDL_Color sdl_left_panel_background_color(void);
-void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h, float origin_x, int x, int y, int n, const char* s, SDL_Color col);
+void sdl_render_mono_text_scaled(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h, float origin_x, float origin_y, int x, int y, int n, const char* s, SDL_Color col);
 byte sdl_left_panel_pane_render_attr_for_cell(int source_col, int source_row, byte attr);
-void sdl_render_left_panel_source_row_cells(const sdl_view* view, const term* source_term, term_win* scr, int source_row, int source_col, int width, int dest_col, int dest_row, float content_x, int cell_w, int cell_h, SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* mono_font);
+void sdl_render_left_panel_source_row_cells(const sdl_view* view, const term* source_term, term_win* scr, int source_row, int source_col, int width, int dest_col, int dest_row, float content_x, float content_y, int cell_w, int cell_h, SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* mono_font);
 void sdl_left_panel_debug_log_frame(const sdl_view* view, const sdl_left_panel_metrics* metrics, const SDL_FRect* dst_left, int visual_cols, int visual_rows, int source_h, int visual_w, int canvas_w);
 bool sdl_render_left_panel_pane_from_cells(const sdl_view* view, const SDL_FRect* dst_left);
+void sdl_combat_overlay_pane_render(void);
 bool sdl_render_main_view_with_left_panel(const sdl_view* view);
 bool sdl_saved_screen_cell_changed(const term_win* scr, const term_win* mem, int x, int y);
 void sdl_redraw_saved_screen_overlay_cells(const sdl_view* view, const SDL_FRect* clip_rect);
@@ -3088,8 +3105,9 @@ void sdl_apply_story_grid_state(bool grid);
 void sdl_apply_story_slot_state(int slot);
 void sdl_story_font_reset_state(void);
 void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
-void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w, float cell_h, float origin_x, int x, int y, int cell_offset, int cell_span, const char* s, int len, SDL_Color col);
+void sdl_render_mono_utf8_glyph(TTF_Font* font, float cell_w, float cell_h, float origin_x, float origin_y, int x, int y, int cell_offset, int cell_span, const char* s, int len, SDL_Color col);
 void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w, float cell_h, float origin_x, int x, int y, int n, const char* s, SDL_Color col);
+void sdl_render_mono_utf8_text_cells_at(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w, float cell_h, float origin_x, float origin_y, int x, int y, int n, const char* s, SDL_Color col);
 void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s, SDL_Color col);
 int sdl_render_story_text_free_px(sdl_view* d, TTF_Font* font, float x_px, int y, const char* s, int n, SDL_Color col, float max_w_px);
 bool sdl_story_cell_is_text(byte a, char c);
@@ -3721,6 +3739,10 @@ void sdl_render_mono_utf8_text_cells(SDL_Texture* atlas,
     int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
     float cell_h, float origin_x, int x, int y, int n, const char* s,
     SDL_Color col);
+void sdl_render_mono_utf8_text_cells_at(SDL_Texture* atlas,
+    int atlas_cell_w, int atlas_cell_h, TTF_Font* font, float cell_w,
+    float cell_h, float origin_x, float origin_y, int x, int y, int n,
+    const char* s, SDL_Color col);
 void sdl_render_story_text_free(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,
     SDL_Color col);
 void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s,

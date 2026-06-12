@@ -249,25 +249,25 @@ M:ELF:LABYRINTH:100:Do not chase echoes in the labyrinth. They will lead you in 
 M:ELF:LABYRINTH:100:In the maze the dark waits at every turning. If you must pass, pass swiftly and in silence. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
 
 # Human
-M:HUMAN:LABYRINTH:100:There's a labyrinth here. I got turned around twice before I escaped. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:Twisting corridors and dead ends. If you go in, keep track of where you came from. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:I thought I knew the way. The maze proved me wrong. Don't trust your sense of direction. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:This level has a maze of stone halls. Easy to get lost, easy to get cornered. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:The labyrinth eats time. If you're low on light, stay out of it. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:In the maze, every sound comes back to you. It feels like something is listening. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:If you must fight in the labyrinth, choose a narrow place and do not get surrounded. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:HUMAN:LABYRINTH:100:Don't run blind in the maze. You'll only run deeper into trouble. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
+M:HUMAN:LABYRINTH:100:There's a labyrinth here. I got turned around twice before I escaped. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:Twisting corridors and dead ends. If you go in, keep track of where you came from. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:I thought I knew the way. The maze proved me wrong. Don't trust your sense of direction. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:This level has a maze of stone halls. Easy to get lost, easy to get cornered. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:The labyrinth eats time. If you're low on light, stay out of it. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:In the maze, every sound comes back to you. It feels like something is listening. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:If you must fight in the labyrinth, choose a narrow place and do not get surrounded. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
+M:HUMAN:LABYRINTH:100:Don't run blind in the maze. You'll only run deeper into trouble. It lies {DIST} {DIR}. Folk lose rings and trinkets in there.
 
 # Orc
-M:ORC:LABYRINTH:100:Maze here. Walls all same. Snaga get lost. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:Twisty halls. You go in, you don't come out. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:Labyrinth. No good for running. No good for finding. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:I walked and walked. Same corner. Hate this place. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:In the maze, you hear steps behind you. Might be yours. Might not. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:Don't chase in maze. You'll chase yourself. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:Boss sends snaga into maze. Boss keeps loot. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:If you smell blood in labyrinth, turn back. You won't find the way out. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
-M:ORC:LABYRINTH:100:Marked walls with blood. Found same mark twice. It lies {DIST} {DIR}; rings and trinkets are oft lost there.
+M:ORC:LABYRINTH:100:Maze here. Walls all same. Snaga get lost. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:Twisty halls. You go in, you don't come out. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:Labyrinth. No good for running. No good for finding. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:I walked and walked. Same corner. Hate this place. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:In the maze, you hear steps behind you. Might be yours. Might not. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:Don't chase in maze. You'll chase yourself. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:Boss sends snaga into maze. Boss keeps loot. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:If you smell blood in labyrinth, turn back. You won't find the way out. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
+M:ORC:LABYRINTH:100:Marked walls with blood. Found same mark twice. It's {DIST} {DIR}. Lost ones drop rings. Shiny for you.
 
 # --- Chasm ---
 
@@ -283,25 +283,25 @@ M:ELF:CHASM:100:Stone pillars rise from the abyss like broken teeth. Do not thin
 M:ELF:CHASM:100:The abyss breathes cold air upward, as though the world is hollow beneath. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
 
 # Human
-M:HUMAN:CHASM:100:There's a chasm on this level. One wrong step and you're gone. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:Bridges over a black drop. Don't rush, even if something's behind you. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:The chasm makes everything feel colder. The dark below doesn't echo like it should. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:I crossed the bridges with my heart in my throat. Don't fight there if you can avoid it. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:Watch your footing: narrow crossings, broken stone, and no room to dodge. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:If you hear a stone fall, don't look down. Keep moving. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:The chasm splits the level and makes retreat hard. Plan your way back. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:Light behaves strangely near the gulf. Shadows look deeper than they are. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:HUMAN:CHASM:100:I dropped a stone and counted heartbeats. I stopped counting. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
+M:HUMAN:CHASM:100:There's a chasm on this level. One wrong step and you're gone. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:Bridges over a black drop. Don't rush, even if something's behind you. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:The chasm makes everything feel colder. The dark below doesn't echo like it should. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:I crossed the bridges with my heart in my throat. Don't fight there if you can avoid it. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:Watch your footing: narrow crossings, broken stone, and no room to dodge. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:If you hear a stone fall, don't look down. Keep moving. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:The chasm splits the level and makes retreat hard. Plan your way back. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:Light behaves strangely near the gulf. Shadows look deeper than they are. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
+M:HUMAN:CHASM:100:I dropped a stone and counted heartbeats. I stopped counting. It lies {DIST} {DIR}. Dropped weapons and bright gear turn up near the edge.
 
 # Orc
-M:ORC:CHASM:100:Big hole. Dark. Don't fall. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:Chasm here. Bridges thin. Feet slow. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:I saw snaga slip. Gone. No sound after. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:Don't fight on bridge. You get pushed, you die. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:The dark down there eats torchlight. Hate it. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:Chasm splits halls. Bad for packs. Good for traps. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:If you run, don't run near the edge. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
-M:ORC:CHASM:100:Boss says cross. I say find another way. It lies {DIST} {DIR}; fallen arms and bright things are oft found by its edge.
+M:ORC:CHASM:100:Big hole. Dark. Don't fall. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:Chasm here. Bridges thin. Feet slow. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:I saw snaga slip. Gone. No sound after. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:Don't fight on bridge. You get pushed, you die. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:The dark down there eats torchlight. Hate it. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:Chasm splits halls. Bad for packs. Good for traps. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:If you run, don't run near the edge. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
+M:ORC:CHASM:100:Boss says cross. I say find another way. It's {DIST} {DIR}. Dead ones drop blades and shiny by the edge.
 
 # --- Great Cavern ---
 
@@ -316,25 +316,25 @@ M:ELF:CAVE:100:In the cavern, arrows find you. Keep a wall to your side. It lies
 M:ELF:CAVE:100:There are places where the earth is hollowed wide. Do not trust that emptiness. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
 
 # Human
-M:HUMAN:CAVE:100:There's a big cavern here. You can see far, but so can everything else. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:Wide open ground. I felt exposed the whole time I crossed it. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:In the cavern every sound carries. If you're trying to sneak, it's a bad place. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:I spotted movement across the open cavern. Couldn't tell what it was. Didn't like it. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:If you have to fight, don't do it in the open cavern. Find stone and hold it. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:The cavern is too open for retreat. Keep to the edges. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:In the big cavern, light feels thin. Shadows stretch a long way. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:Crossing that cavern took more nerve than I had. Be ready before you step in. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:HUMAN:CAVE:100:I felt like an ant under a boot that hadn't fallen yet. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
+M:HUMAN:CAVE:100:There's a big cavern here. You can see far, but so can everything else. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:Wide open ground. I felt exposed the whole time I crossed it. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:In the cavern every sound carries. If you're trying to sneak, it's a bad place. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:I spotted movement across the open cavern. Couldn't tell what it was. Didn't like it. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:If you have to fight, don't do it in the open cavern. Find stone and hold it. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:The cavern is too open for retreat. Keep to the edges. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:In the big cavern, light feels thin. Shadows stretch a long way. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:Crossing that cavern took more nerve than I had. Be ready before you step in. It lies {DIST} {DIR}. Torches and provisions get left behind there.
+M:HUMAN:CAVE:100:I felt like an ant under a boot that hadn't fallen yet. It lies {DIST} {DIR}. Torches and provisions get left behind there.
 
 # Orc
-M:ORC:CAVE:100:Big cave. No hiding. Bad. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:Wide cavern. You get seen. You get shot. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:In big cave, noise goes far. Boss hears everything. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:Open ground. Hard to run. Hard to hide. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:If you cross cavern, stick to wall. Don't be a fool. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:Big cave makes me feel small. Hate it. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:Things watch you from far away in cavern. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
-M:ORC:CAVE:100:If you see light across cavern, it's trouble. It lies {DIST} {DIR}; torches and provisions are oft scattered there.
+M:ORC:CAVE:100:Big cave. No hiding. Bad. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:Wide cavern. You get seen. You get shot. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:In big cave, noise goes far. Boss hears everything. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:Open ground. Hard to run. Hard to hide. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:If you cross cavern, stick to wall. Don't be a fool. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:Big cave makes me feel small. Hate it. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:Things watch you from far away in cavern. It's {DIST} {DIR}. Torches and food left all over. Grab them.
+M:ORC:CAVE:100:If you see light across cavern, it's trouble. It's {DIST} {DIR}. Torches and food left all over. Grab them.
 
 # --- Ice Cavern ---
 
@@ -350,24 +350,24 @@ M:ELF:CAVE_ICE:100:I felt the chill before I saw the frost. The ice cavern is {D
 M:ELF:CAVE_ICE:100:The ice cavern {DIST} {DIR} swallowed sound like snow swallows footsteps. I called out and heard nothing. Supplies are oft cast aside there.
 
 # Human
-M:HUMAN:CAVE_ICE:100:Found a huge ice cavern {DIST} {DIR}. The cold hit me like a wall. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:The floor in the ice cave {DIST} {DIR} is slick. Don't rush; you'll fall. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:My hands went numb just walking through the frozen cavern {DIST} {DIR}. Keep your light close. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:Frost everywhere {DIST} {DIR}. Breath loud. I felt like the dark could hear me. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:In the ice cavern {DIST} {DIR}, there's nowhere warm to hide. Cross it fast and steady. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:If you see glittering walls {DIST} {DIR}, it's the ice cave. Watch your footing. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:The cold makes you slow and clumsy. Don't pick a fight in the ice cavern {DIST} {DIR}. Supplies are oft cast aside there.
-M:HUMAN:CAVE_ICE:100:That frozen cavern {DIST} {DIR} felt endless. Save your strength before you go in. Supplies are oft cast aside there.
+M:HUMAN:CAVE_ICE:100:Found a huge ice cavern {DIST} {DIR}. The cold hit me like a wall. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:The floor in the ice cave {DIST} {DIR} is slick. Don't rush; you'll fall. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:My hands went numb just walking through the frozen cavern {DIST} {DIR}. Keep your light close. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:Frost everywhere {DIST} {DIR}. Breath loud. I felt like the dark could hear me. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:In the ice cavern {DIST} {DIR}, there's nowhere warm to hide. Cross it fast and steady. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:If you see glittering walls {DIST} {DIR}, it's the ice cave. Watch your footing. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:The cold makes you slow and clumsy. Don't pick a fight in the ice cavern {DIST} {DIR}. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_ICE:100:That frozen cavern {DIST} {DIR} felt endless. Save your strength before you go in. Supplies get dropped there in the rush.
 
 # Orc
-M:ORC:CAVE_ICE:100:Ice cave {DIST} {DIR}. Cold hurts. Feet slip. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:Frost walls {DIST} {DIR}. Breath loud. Bad for sneaking. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:I hate the cold cavern {DIST} {DIR}. Makes arms weak. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:Don't run in ice cave {DIST} {DIR}. You fall, you die. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:Cold bites through leather {DIST} {DIR}. Boss don't care. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:If you see white rock {DIST} {DIR}, that's the ice cave. Watch step. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:Ice cavern {DIST} {DIR} has no cover. Cold and open. Worst. Supplies are oft cast aside there.
-M:ORC:CAVE_ICE:100:Snaga froze {DIST} {DIR}. Snaga slowed. Snaga dead. Supplies are oft cast aside there.
+M:ORC:CAVE_ICE:100:Ice cave {DIST} {DIR}. Cold hurts. Feet slip. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:Frost walls {DIST} {DIR}. Breath loud. Bad for sneaking. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:I hate the cold cavern {DIST} {DIR}. Makes arms weak. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:Don't run in ice cave {DIST} {DIR}. You fall, you die. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:Cold bites through leather {DIST} {DIR}. Boss don't care. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:If you see white rock {DIST} {DIR}, that's the ice cave. Watch step. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:Ice cavern {DIST} {DIR} has no cover. Cold and open. Worst. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_ICE:100:Snaga froze {DIST} {DIR}. Snaga slowed. Snaga dead. Dropped packs everywhere. Take what you find.
 
 # --- Fire Cavern ---
 
@@ -382,25 +382,25 @@ M:ELF:CAVE_FIRE:100:Even iron feels soft in the heat {DIST} {DIR}. Do not tarry,
 M:ELF:CAVE_FIRE:100:I heard a low roaring in the fire cavern {DIST} {DIR}, as of a beast that never sleeps. Supplies are oft cast aside there.
 
 # Human
-M:HUMAN:CAVE_FIRE:100:There's a huge fire cavern {DIST} {DIR}. The heat makes it hard to breathe. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:Smoke and red light everywhere {DIST} {DIR}. Don't stay long; it wears you down. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:The stone is hot underfoot in the fire cave {DIST} {DIR}. I burned myself just standing still. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:In the fiery cavern {DIST} {DIR}, you can see far, but the glare messes with your eyes. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:The air tastes like ash {DIST} {DIR}. If you're wounded, don't go in there. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:If you see a red glow ahead {DIST} {DIR}, it's the fire cavern. Be ready before you enter. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:I coughed the whole way through the fire cave {DIST} {DIR}. Not a place to fight. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:The heat makes you careless {DIST} {DIR}. I almost paid for it. Keep your head. Supplies are oft cast aside there.
-M:HUMAN:CAVE_FIRE:100:The fire cave {DIST} {DIR} turned my shield-arm red. Even resting hurts in there. Supplies are oft cast aside there.
+M:HUMAN:CAVE_FIRE:100:There's a huge fire cavern {DIST} {DIR}. The heat makes it hard to breathe. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:Smoke and red light everywhere {DIST} {DIR}. Don't stay long; it wears you down. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:The stone is hot underfoot in the fire cave {DIST} {DIR}. I burned myself just standing still. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:In the fiery cavern {DIST} {DIR}, you can see far, but the glare messes with your eyes. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:The air tastes like ash {DIST} {DIR}. If you're wounded, don't go in there. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:If you see a red glow ahead {DIST} {DIR}, it's the fire cavern. Be ready before you enter. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:I coughed the whole way through the fire cave {DIST} {DIR}. Not a place to fight. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:The heat makes you careless {DIST} {DIR}. I almost paid for it. Keep your head. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_FIRE:100:The fire cave {DIST} {DIR} turned my shield-arm red. Even resting hurts in there. Supplies get dropped there in the rush.
 
 # Orc
-M:ORC:CAVE_FIRE:100:Fire cave {DIST} {DIR}. Hot. Smoke. Bad lungs. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Red light {DIST} {DIR}. Can't see right. Hate it. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Stone burns feet in fire cavern {DIST} {DIR}. Move fast. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Smoke makes you cough {DIST} {DIR}. Cough makes you die. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Boss likes fire {DIST} {DIR}. Boss not the one breathing it. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:If you smell ash {DIST} {DIR}, that's fire cave. Keep mouth shut. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Fire cavern {DIST} {DIR} shows you to everyone. No hiding. Supplies are oft cast aside there.
-M:ORC:CAVE_FIRE:100:Don't fight long in fire cave {DIST} {DIR}. You get tired fast. Supplies are oft cast aside there.
+M:ORC:CAVE_FIRE:100:Fire cave {DIST} {DIR}. Hot. Smoke. Bad lungs. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Red light {DIST} {DIR}. Can't see right. Hate it. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Stone burns feet in fire cavern {DIST} {DIR}. Move fast. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Smoke makes you cough {DIST} {DIR}. Cough makes you die. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Boss likes fire {DIST} {DIR}. Boss not the one breathing it. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:If you smell ash {DIST} {DIR}, that's fire cave. Keep mouth shut. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Fire cavern {DIST} {DIR} shows you to everyone. No hiding. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_FIRE:100:Don't fight long in fire cave {DIST} {DIR}. You get tired fast. Dropped packs everywhere. Take what you find.
 
 # --- Poison Cavern ---
 
@@ -415,25 +415,25 @@ M:ELF:CAVE_POIS:100:In the green haze {DIST} {DIR}, shadows seem to move of thei
 M:ELF:CAVE_POIS:100:I saw the vapour pool in hollows like water {DIST} {DIR}. Avoid the low places. Supplies are oft cast aside there.
 
 # Human
-M:HUMAN:CAVE_POIS:100:There's a poison cavern {DIST} {DIR}. The air burns your throat. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:Green fog near the ground {DIST} {DIR}. It made me cough and my eyes water. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:I stepped into a cavern full of foul vapour {DIST} {DIR}. Had to back out fast. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:The poison haze {DIST} {DIR} hides the floor. I nearly walked into trouble I couldn't see. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:If you have to cross the poison cavern {DIST} {DIR}, do it quickly and don't dally in the low spots. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:The stink clings to you {DIST} {DIR}. After that cavern, I couldn't stop coughing. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:In the green fog {DIST} {DIR}, it's hard to tell distance. Don't charge in blind. Supplies are oft cast aside there.
-M:HUMAN:CAVE_POIS:100:That poison cavern {DIST} {DIR} will wear you down even without a fight. Be careful. Supplies are oft cast aside there.
+M:HUMAN:CAVE_POIS:100:There's a poison cavern {DIST} {DIR}. The air burns your throat. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:Green fog near the ground {DIST} {DIR}. It made me cough and my eyes water. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:I stepped into a cavern full of foul vapour {DIST} {DIR}. Had to back out fast. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:The poison haze {DIST} {DIR} hides the floor. I nearly walked into trouble I couldn't see. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:If you have to cross the poison cavern {DIST} {DIR}, do it quickly and don't dally in the low spots. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:The stink clings to you {DIST} {DIR}. After that cavern, I couldn't stop coughing. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:In the green fog {DIST} {DIR}, it's hard to tell distance. Don't charge in blind. Supplies get dropped there in the rush.
+M:HUMAN:CAVE_POIS:100:That poison cavern {DIST} {DIR} will wear you down even without a fight. Be careful. Supplies get dropped there in the rush.
 
 # Orc
-M:ORC:CAVE_POIS:100:Poison cave {DIST} {DIR}. Green stink. Burns throat. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:Fumes low {DIST} {DIR}. Snaga cough. Snaga slow. Snaga dead. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:I hate the green cave {DIST} {DIR}. Can't breathe right. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:Don't sit in poison cavern {DIST} {DIR}. You sleep, you never wake. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:In the haze {DIST} {DIR} you can't see feet. Bad. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:Poison cave {DIST} {DIR} makes eyes water. Can't fight. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:If you smell rot {DIST} {DIR}, that's poison cave. Turn back. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:Boss says 'go' {DIST} {DIR}. Boss not the one choking. Supplies are oft cast aside there.
-M:ORC:CAVE_POIS:100:Green air {DIST} {DIR} tastes like licking copper. Lungs burn after. Supplies are oft cast aside there.
+M:ORC:CAVE_POIS:100:Poison cave {DIST} {DIR}. Green stink. Burns throat. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:Fumes low {DIST} {DIR}. Snaga cough. Snaga slow. Snaga dead. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:I hate the green cave {DIST} {DIR}. Can't breathe right. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:Don't sit in poison cavern {DIST} {DIR}. You sleep, you never wake. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:In the haze {DIST} {DIR} you can't see feet. Bad. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:Poison cave {DIST} {DIR} makes eyes water. Can't fight. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:If you smell rot {DIST} {DIR}, that's poison cave. Turn back. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:Boss says 'go' {DIST} {DIR}. Boss not the one choking. Dropped packs everywhere. Take what you find.
+M:ORC:CAVE_POIS:100:Green air {DIST} {DIR} tastes like licking copper. Lungs burn after. Dropped packs everywhere. Take what you find.
 
 # --- Unique Monster ---
 
@@ -513,7 +513,7 @@ M:HUMAN:QUEST:100:Mark this: {SITE} is {DIST} {DIR}. Don't stumble into it by ac
 M:ORC:QUEST:100:Saw {SITE} {DIST} {DIR}. Bad feeling.
 M:ORC:QUEST:100:Don't go near {SITE}. It's {DIST} {DIR}.
 M:ORC:QUEST:100:Boss said 'no'. {SITE_CAP} is {DIST} {DIR}.
-M:ORC:QUEST:100:If you want die, go {DIR}. {SITE_CAP} is {DIST}.
+M:ORC:QUEST:100:If you want to die, go {DIR}. {SITE_CAP} is {DIST}.
 M:ORC:QUEST:100:Too quiet {DIR}. Saw {SITE} {DIST} {DIR}.
 M:ORC:QUEST:100:{DIST} {DIR} is {SITE}. Snaga don't belong there.
 

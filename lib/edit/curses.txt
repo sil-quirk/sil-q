@@ -31,7 +31,7 @@ F:
 A:2/3
 D:A faint quiver deep within; calm dissolves beneath hidden tremors.
 P:Dexterity -1
-B:Blessing of Steady Leaves
+B:Blessing of the Windless Bough
 E:A gentle hush steadies your hands; tremors fade into stillness.
 H:Dexterity +1
 
@@ -88,25 +88,25 @@ E:Quiet veils your path; every step becomes a whisper.
 H:Stealth Affinity
 G:STL_AFFINITY
 
-N:7:Curse of the Hourglass' Pause
+N:7:Curse of the Laggard Hour
 S:0:0:0:0
 F:EVN_PENALTY
 A:3/2
 D:The present blurs, responses lingering too long at the edge of thought.
 P:Evasion Penalty
-B:Blessing of Fleet Time
+B:Blessing of the Fleet Hour
 E:Moments quicken; you move before danger can arise.
 H:Evasion Affinity
 G:EVN_AFFINITY
 
-N:8:Curse of Clouded Mirrors
+N:8:Curse of the Clouded Eye
 S:0:0:0:0
 F:PER_PENALTY
 A:3/2
-D:Subtle truths blur gently, forever dancing just beyond sight.
+D:A film comes over your sight, and subtle truths dance forever just beyond it.
 P:Perception Penalty
-B:Blessing of Clear Mirrors
-E:Reflections sharpen; every detail returns bright and true.
+B:Blessing of the Unclouded Eye
+E:Your sight clears; each thing stands forth sharp and true.
 H:Perception Affinity
 G:PER_AFFINITY
 
@@ -137,7 +137,7 @@ S:0:0:0:0
 F:SNG_PENALTY
 A:3/2
 D:Voice drifts silently away, words unraveling softly before heard.
-P:Song_Penalty
+P:Song Penalty
 B:Blessing of Echoed Song
 E:Your voice returns, weaving melodies anew through the dark.
 H:Song Affinity
@@ -148,7 +148,7 @@ S:0:0:0:0
 U:NOCHOICE
 F:
 A:2/1
-D:Gone is the grace of choice; your path twisted by the cruel whims of fate. Destiny mocks your struggle, leaving only bitter fortune.
+D:Gone is the grace of choice; your path is bent by a doom not of your making. The Shadow mocks your striving, and leaves you only bitter fortune.
 P:Instead of choosing from curses, one is forced upon you.
 
 N:13:Burden of the Exile
@@ -181,7 +181,7 @@ U:MONSTERHP_U
 Y:MONSTERHP_U
 F:
 A:3/3
-D:Named terrors regain ancient potency, their dark legends burn brighter. Heroes must now reckon with foes whose names echo louder in the dark.
+D:Named terrors regain their ancient potency, and their dark legends burn the brighter. You must reckon now with foes whose names echo loud in the dark.
 P:Unique monsters' HP increased by 20%.
 B:Blessing of Humbled Legends
 E:Great names fade; legends diminish before your growing might.
@@ -223,12 +223,12 @@ B:Blessing of Shattered Resolve
 E:Their wills crumble; defiance turns to doubt and fear.
 H:Monster Will -2
 
-N:19:Scales of Anfauglith
+N:19:Scales of the Great Worm
 S:0:0:0:0
 U:MON_ARM_DICE
 F:
 A:1/3
-D:Enemy hides harden, mirroring the harsh lands of Anfauglith. Blades ring uselessly against scales tempered by despair.
+D:Enemy hides harden after the fashion of Glaurung's iron fell. Blades ring vainly upon scales tempered in the Worm's lingering malice.
 P:Monster armour dice +1.
 
 N:20:Halls of Adamant
@@ -237,10 +237,10 @@ U:MON_ARM_SIDE
 Y:MON_ARM_SIDE
 F:
 A:3/3
-D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
+D:A fell enchantment coats your foes in armour forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
 P:Monster armour dice sides +1.
 B:Blessing of Sundered Steel
-E:Fell enchantments break; their armor turns to rust.
+E:Fell enchantments break; their armour turns to rust.
 H:Monster armour dice sides -1
 
 N:21:The Naked Path 
@@ -294,7 +294,7 @@ S:0:0:0:0
 U:TRAPS
 A:3/2
 D:Paths twist treacherously beneath your feet, snares multiplying at every step. Each shadow holds hidden peril, waiting hungrily to catch the unwary.
-P:Traps are more frequient.
+P:Traps are more frequent.
 
 N:28:Host of Angband
 S:0:0:0:0
@@ -310,8 +310,8 @@ Y:HUNGER
 A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate is increased
-B:Blessing of Sustenance
-E:Your hunger fades; sustenance lingers longer within you.
+B:Blessing of the Waybread
+E:As with the waybread of the Elves, a little food sustains you long upon the road.
 H:Digestion rate is decreased
 
 N:30:Draught of Delirium
@@ -327,7 +327,7 @@ F:
 U:RES_FEAR_SHIFT
 Y:RES_FEAR_SHIFT
 A:3/1
-D:An unseen whisper seeps through your heart, unraveling valor into trembling dread.
+D:An unseen whisper seeps through your heart, unravelling valour into trembling dread.
 P:Fear resistance -1
 B:Blessing of the Unfaltering Heart
 E:Courage floods your chest; dread shatters against your will.

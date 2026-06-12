@@ -225,6 +225,39 @@ const struct pane_config* sdl_depth_pane_config(void)
     return NULL;
 }
 
+const struct pane_config* sdl_combat_overlay_pane_config(void)
+{
+    for (int i = 0; i < pane_config_count; i++) {
+        if (pane_config[i].pane == PANE_COMBAT)
+            return &pane_config[i];
+    }
+
+    return NULL;
+}
+
+bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
+{
+    const struct pane_config* pc = sdl_combat_overlay_pane_config();
+    const SDL_Rect* pane;
+
+    if (out_rect)
+        *out_rect = (SDL_Rect){ 0 };
+    if (!pc || !pc->enabled)
+        return false;
+    if (screen_saved_fullscreen_active())
+        return false;
+    if (!sdl_combat_overlay_pane_presentation_active())
+        return false;
+
+    pane = &g_pane_rects[PANE_COMBAT];
+    if (pane->w <= 0 || pane->h <= 0)
+        return false;
+
+    if (out_rect)
+        *out_rect = *pane;
+    return true;
+}
+
 float sdl_overlay_panel_x(const SDL_Rect* anchor,
     enum pane_placement where, int panel_w)
 {

@@ -5,6 +5,8 @@
 
 #define MAX_PANE_CONFIGS 16
 #define PANE_LOG_OVERLAY_COMBAT_COLS 48
+#define PANE_COMBAT_OVERLAY_COLS 12
+#define PANE_COMBAT_OVERLAY_ROWS 4
 /* Visible (translucent) width of the overlay log; cells left of this stay
  * transparent so the panel reads as a narrow right-hand band. */
 #define PANE_LOG_OVERLAY_VISIBLE_COLS 31
@@ -28,7 +30,8 @@ enum pane_type {
     PANE_MAIN_MENU = 14, // obsolete; recognized only for config migration
     PANE_DESCRIPTION = 15, // modal item/monster description overlay
     PANE_OVERLAY_MENU = 16, // touch/mouse overlay command menu
-    PANE_MAX = 17,
+    PANE_COMBAT = 17, // detached melee/archery/quiver overlay
+    PANE_MAX = 18,
 };
 
 // Where the pane is placed.

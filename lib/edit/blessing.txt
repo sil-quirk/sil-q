@@ -8,13 +8,13 @@ V:0.9.7
 N:0:Supply Covenant
 E:SUPPLY_LIMIT
 S:Supplies weight bonus
-D:Increases the supplies cache limit to 50 lbs.
-M:You seal the Supply Covenant. Your caches can now carry far more weight.
+D:A provision is sworn between you and the Powers: the stores laid up against your long war shall be deepened. (Cache limit raised to 50 lbs.)
+M:You seal the Supply Covenant; the larders of your long war are deepened, and your caches may bear far greater weight.
 C:2
 
-N:1:Artefact Patronage
+N:1:Gift out of the West
 E:START_ARTIFACT
 S:Starting artefact boon
-D:Each new hero begins their tale carrying a gifted artefact.
-M:You earn Artefact Patronage. Future heroes will begin with a treasured gift.
+D:The Valar do not send their champions naked into the dark: each hero hereafter shall bear out of the West some treasure of the Elder Days. (Heroes begin with an artefact.)
+M:A gift is appointed you out of the West: each hero hereafter shall begin their tale bearing a treasure of the Elder Days.
 C:2

@@ -21,6 +21,22 @@ extern struct sound_config g_sound_config;
  */
 static cptr dump_seperator = "#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#";
 
+enum {
+    SETTINGS_PREV_OPTION_PAGE = -1001,
+    SETTINGS_NEXT_OPTION_PAGE = -1002
+};
+
+static int settings_option_page_turn = 0;
+
+static int settings_menu_key(int key, int prev_page_key, int next_page_key,
+    bool click_generated)
+{
+    if (click_generated)
+        return key;
+
+    return steamdeck_menu_key(key, prev_page_key, next_page_key);
+}
+
 static void dump_visual_pair(
     SDL_IOStream* fff, const char* tag, int index, byte attr, byte chr)
 {
@@ -1204,7 +1220,7 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta);
 
 extern void do_cmd_options_aux(int page, cptr info)
 {
-    char ch;
+    int ch;
 
     int i, k = 0, n = 0;
     int scroll = 0;
@@ -1227,6 +1243,8 @@ extern void do_cmd_options_aux(int page, cptr info)
     bool sound_settings_dirty = false;
     const struct option_group_marker* groups = get_option_groups_for_page(page);
     struct sound_config* sound_cfg = sdl_sound_get_config();
+
+    settings_option_page_turn = 0;
 
     /* Scan the options */
     for (i = 0; i < OPT_PAGE_PER; i++)
@@ -1686,6 +1704,7 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -1696,18 +1715,21 @@ extern void do_cmd_options_aux(int page, cptr info)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == -2)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ' ';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RETURN)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
@@ -1722,15 +1744,24 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = settings_menu_key(ch, SETTINGS_PREV_OPTION_PAGE,
+                SETTINGS_NEXT_OPTION_PAGE, click_generated);
         }
+
+        if (ch == SETTINGS_PREV_OPTION_PAGE)
+            settings_option_page_turn = -1;
+        else if (ch == SETTINGS_NEXT_OPTION_PAGE)
+            settings_option_page_turn = 1;
 
         /*
          * HACK - Try to translate the key into a direction
          * to allow using the roguelike keys for navigation.
          */
-        dir = target_dir(ch);
+        dir = target_dir((char)ch);
         if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
             ch = I2D(dir);
 
@@ -1738,6 +1769,8 @@ extern void do_cmd_options_aux(int page, cptr info)
         switch (ch)
         {
         case ESCAPE:
+        case SETTINGS_PREV_OPTION_PAGE:
+        case SETTINGS_NEXT_OPTION_PAGE:
         case '\n':
         case '\r':
         {
@@ -2824,6 +2857,7 @@ void do_cmd_pane_settings(void)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -2832,6 +2866,7 @@ void do_cmd_pane_settings(void)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
@@ -2846,8 +2881,11 @@ void do_cmd_pane_settings(void)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         /* Try to translate the key into a direction */
@@ -3229,6 +3267,7 @@ static const char* pane_type_name(enum pane_type type)
     case PANE_DEPTH: return "DEPTH";
     case PANE_DESCRIPTION: return "DESCRIPTION";
     case PANE_OVERLAY_MENU: return "OVERLAY_MENU";
+    case PANE_COMBAT: return "COMBAT";
     default: return "UNKNOWN";
     }
 }
@@ -3376,6 +3415,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             {
                 int clicked_choice = 0;
                 int click_action = UI_MENU_CLICK_PRIMARY;
+                bool click_generated = false;
 
                 if (ui_menu_click_take_action(&clicked_choice, &click_action))
                 {
@@ -3384,6 +3424,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
                         ch = ESCAPE;
+                        click_generated = true;
                     }
                     else if (clicked_choice >= 0 && clicked_choice < pane_count)
                     {
@@ -3398,8 +3439,11 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
                         ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                        click_generated = true;
                     }
                 }
+
+                ch = (char)settings_menu_key(ch, 0, 0, click_generated);
             }
 
             dir = target_dir(ch);
@@ -3488,6 +3532,7 @@ static const char* pane_type_short_name(enum pane_type type)
     case PANE_DEPTH: return "DEPTH";
     case PANE_DESCRIPTION: return "DESC";
     case PANE_OVERLAY_MENU: return "MENU";
+    case PANE_COMBAT: return "COM";
     default: return "UNK";
     }
 }
@@ -3639,7 +3684,7 @@ static bool pane_type_is_overlay(enum pane_type type)
 {
     return (type == PANE_LEFT_PANEL) || (type == PANE_STATUS)
         || (type == PANE_DEPTH) || (type == PANE_ROLLS)
-        || (type == PANE_OVERLAY_MENU);
+        || (type == PANE_OVERLAY_MENU) || (type == PANE_COMBAT);
 }
 
 static const char* pane_type_display_name(enum pane_type type)
@@ -3652,6 +3697,7 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_DEPTH: return "Depth";
     case PANE_ROLLS: return "Overlay Log";
     case PANE_OVERLAY_MENU: return "Overlay Menu";
+    case PANE_COMBAT: return "Combat";
     case PANE_LOG: return "Log";
     default: return pane_type_name(type);
     }
@@ -4084,6 +4130,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -4092,6 +4139,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice >= SETTINGS_CLICK_PANE_FIELD_BASE
                     && clicked_choice < SETTINGS_CLICK_PANE_FIELD_BASE + pane_count * 4)
@@ -4104,6 +4152,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < pane_count)
                 {
@@ -4120,8 +4169,11 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : ' ';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         dir = target_dir(ch);
@@ -5244,6 +5296,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -5252,36 +5305,42 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_SWITCH_GROUP)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\t';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'x';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RENAME_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'l';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RENAME_GROUP)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'p';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < total_rows)
                 {
@@ -5296,8 +5355,11 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, '\t', '\t', click_generated);
         }
 
         {
@@ -5604,6 +5666,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -5611,14 +5674,17 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 } else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED) {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'x';
+                    click_generated = true;
                 } else if (clicked_choice == SETTINGS_CLICK_RESET_ALL) {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
                 } else if (clicked_choice >= 0
                     && clicked_choice < TOUCH_TOP_WIDGET_BUTTON_COUNT)
                 {
@@ -5633,8 +5699,11 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         {
@@ -5767,6 +5836,7 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -5774,6 +5844,7 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 } else if (clicked_choice >= 0
                     && clicked_choice < TOUCH_BUTTON_MENU_COUNT)
                 {
@@ -5781,8 +5852,11 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\r';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, '8', '2', click_generated);
         }
 
         {
@@ -5927,6 +6001,7 @@ static void do_cmd_touch_profile_settings(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -5934,6 +6009,7 @@ static void do_cmd_touch_profile_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 } else if (clicked_choice >= 0
                     && clicked_choice < (int)N_ELEMENTS(profiles))
                 {
@@ -5941,8 +6017,11 @@ static void do_cmd_touch_profile_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\r';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, '8', '2', click_generated);
         }
 
         {
@@ -6090,6 +6169,7 @@ static void do_cmd_touch_settings(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -6097,6 +6177,7 @@ static void do_cmd_touch_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 } else if (clicked_choice >= 0
                     && clicked_choice < TOUCH_SETTINGS_COUNT)
                 {
@@ -6104,8 +6185,11 @@ static void do_cmd_touch_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\r';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, '8', '2', click_generated);
         }
 
         {
@@ -6365,6 +6449,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -6373,18 +6458,21 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'x';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < total_rows)
                 {
@@ -6399,8 +6487,11 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         {
@@ -6720,6 +6811,7 @@ static void do_cmd_mouse_settings(bool* settings_changed)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -6728,18 +6820,21 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'x';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < MOUSE_SETTING_COUNT)
                 {
@@ -6754,8 +6849,11 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                         ch = ' ';
                     else
                         continue;
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         {
@@ -6979,6 +7077,8 @@ static int legacy_options_menu(int* highlight)
             return (*highlight);
         }
     }
+
+    ch = settings_menu_key(ch, '8', '2', false);
 
     if ((ch == 'j') || (ch == 'J'))
     {
@@ -7279,6 +7379,8 @@ int options_menu(int* highlight)
         }
     }
 
+    ch = settings_menu_key(ch, '8', '2', false);
+
     if (menu_letters && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
@@ -7477,6 +7579,8 @@ static int input_options_menu(int* highlight)
         }
     }
 
+    ch = settings_menu_key(ch, '8', '2', false);
+
     if (menu_letters && ((ch == 'a') || (ch == 'A')))
     {
         *highlight = 1;
@@ -7574,6 +7678,44 @@ static void do_cmd_input_options_submenu(int* highlight)
     }
 }
 
+static bool options_debug_page_available(void)
+{
+#ifdef SHOW_DEBUG_OPTIONS_MENU
+    return p_ptr && p_ptr->noscore;
+#else
+    return false;
+#endif
+}
+
+static int options_menu_page_choice_turn(int choice, int direction)
+{
+    int page_choices[] = { 3, 4, 5, 6, 7, 8, 11 };
+    int count = options_debug_page_available()
+        ? (int)N_ELEMENTS(page_choices)
+        : (int)N_ELEMENTS(page_choices) - 1;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (page_choices[i] == choice)
+        {
+            int next = (direction < 0) ? i + count - 1 : i + 1;
+            return page_choices[next % count];
+        }
+    }
+
+    return choice;
+}
+
+static void options_queue_page_turn(int choice, int* queued_choice)
+{
+    if (!queued_choice || !settings_option_page_turn)
+        return;
+
+    *queued_choice = options_menu_page_choice_turn(choice,
+        settings_option_page_turn);
+    settings_option_page_turn = 0;
+}
+
 /*
  * Set or unset various options.
  *
@@ -7585,6 +7727,7 @@ void do_cmd_options(void)
     int choice = 0;
     int highlight = 1;
     int input_highlight = 1;
+    int queued_choice = 0;
 
     bool return_to_game = false;
 
@@ -7607,7 +7750,16 @@ void do_cmd_options(void)
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
     {
-        choice = options_menu(&highlight);
+        if (queued_choice)
+        {
+            choice = queued_choice;
+            queued_choice = 0;
+            highlight = choice;
+        }
+        else
+        {
+            choice = options_menu(&highlight);
+        }
         settings_semantic_menu_hide();
 
         switch (choice)
@@ -7631,36 +7783,42 @@ void do_cmd_options(void)
         case 3:
         {
             do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
         case 4:
         {
             do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
         case 5:
         {
             do_cmd_options_aux(TEXT_PAGE, "Text Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
         case 6:
         {
             do_cmd_options_aux(GAMEPLAY_PAGE, "Gameplay Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
         case 7:
         {
             do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
         case 8:
         {
             do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
@@ -7684,6 +7842,7 @@ void do_cmd_options(void)
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
+            options_queue_page_turn(choice, &queued_choice);
             Term_clear();
             break;
         }
@@ -8329,6 +8488,7 @@ void do_cmd_keybinds(void)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -8337,24 +8497,28 @@ void do_cmd_keybinds(void)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_SWITCH_GROUP)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\t';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_SAVE)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 's';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'r';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < num_keybinds)
                 {
@@ -8363,8 +8527,11 @@ void do_cmd_keybinds(void)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\r';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, '\t', '\t', click_generated);
         }
 
         /* Handle input */
@@ -9933,6 +10100,7 @@ void do_cmd_controller_settings(void)
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
 
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
@@ -9941,18 +10109,21 @@ void do_cmd_controller_settings(void)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = ESCAPE;
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'r';
+                    click_generated = true;
                 }
                 else if (clicked_choice == SETTINGS_CLICK_RESET_ALL)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'R';
+                    click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < entry_count)
                 {
@@ -9960,8 +10131,11 @@ void do_cmd_controller_settings(void)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = '\r';
+                    click_generated = true;
                 }
             }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
         }
 
         if (ch == ESCAPE || ch == 'q' || ch == 'Q' || (steamdeck && ch == steamdeck_back_key())) {
