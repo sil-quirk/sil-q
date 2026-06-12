@@ -171,6 +171,7 @@ static NavResult blitz_setup_menu(void)
 
         blitz_setup_draw(setup, selected);
         key = inkey();
+        bool click_generated_command = false;
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
@@ -187,15 +188,22 @@ static NavResult blitz_setup_menu(void)
                         continue;
                     }
                     key = '6';
+                    click_generated_command = true;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
-                else if (clicked_choice == -1)
+                else if (clicked_choice == -1) {
                     key = ESCAPE;
-                else if (clicked_choice == -2)
+                    click_generated_command = true;
+                } else if (clicked_choice == -2) {
                     key = '\r';
+                    click_generated_command = true;
+                }
             }
         }
+
+        if (!click_generated_command)
+            key = (char)steamdeck_menu_key(key, 0, 0);
 
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
         {
@@ -583,6 +591,7 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                 "back");
         }
         key = inkey();
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -600,15 +609,22 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                         continue;
                     }
                     key = '\r';
+                    click_generated_command = true;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
-                else if (clicked_choice == -1)
+                else if (clicked_choice == -1) {
                     key = ESCAPE;
-                else if (clicked_choice == -2)
+                    click_generated_command = true;
+                } else if (clicked_choice == -2) {
                     key = '\r';
+                    click_generated_command = true;
+                }
             }
         }
+
+        if (!click_generated_command)
+            key = (char)steamdeck_menu_key(key, 0, 0);
 
         if (key == ESCAPE || (steamdeck && key == steamdeck_back_key()))
         {

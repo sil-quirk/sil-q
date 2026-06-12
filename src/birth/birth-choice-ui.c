@@ -566,6 +566,7 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
         hide_cursor = true;
         c = inkey();
         hide_cursor = false;
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -597,6 +598,7 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     && allow_full_description_screen)
                 {
                     c = ESCAPE;
+                    click_generated_command = true;
                     clicked_choice = BIRTH_CHOICE_CLICK_BACK;
                     click_action = UI_MENU_CLICK_PRIMARY;
                 }
@@ -636,10 +638,10 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
 
                 switch (clicked_choice)
                 {
-                case BIRTH_CHOICE_CLICK_BACK: c = ESCAPE; break;
-                case BIRTH_CHOICE_CLICK_SELECT: c = '\r'; break;
-                case BIRTH_CHOICE_CLICK_DETAILS: c = 'f'; break;
-                case BIRTH_CHOICE_CLICK_RANDOM: c = 'r'; break;
+                case BIRTH_CHOICE_CLICK_BACK: c = ESCAPE; click_generated_command = true; break;
+                case BIRTH_CHOICE_CLICK_SELECT: c = '\r'; click_generated_command = true; break;
+                case BIRTH_CHOICE_CLICK_DETAILS: c = 'f'; click_generated_command = true; break;
+                case BIRTH_CHOICE_CLICK_RANDOM: c = 'r'; click_generated_command = true; break;
                 case BIRTH_CHOICE_CLICK_RIGHT_BACK: break;
                 default: break;
                 }
@@ -660,6 +662,9 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 sdl_hover_tooltip_clear();
             }
         }
+
+        if (!click_generated_command)
+            c = (char)steamdeck_menu_key(c, '4', '6');
 
         /* Exit the game */
         if ((c == 'Q') || (c == 'q'))

@@ -407,6 +407,7 @@ extern NavResult gain_skills(void)
         hide_cursor = true;
         ch = inkey();
         hide_cursor = false;
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -425,17 +426,25 @@ extern NavResult gain_skills(void)
                         continue;
                     }
                     ch = (click_action == UI_MENU_CLICK_SECONDARY) ? '4' : '6';
+                    click_generated_command = true;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
-                else if (clicked_choice == -1)
+                else if (clicked_choice == -1) {
                     ch = ESCAPE;
-                else if (clicked_choice == -2)
+                    click_generated_command = true;
+                } else if (clicked_choice == -2) {
                     ch = '\r';
-                else if (clicked_choice == -3)
+                    click_generated_command = true;
+                } else if (clicked_choice == -3) {
                     ch = 'q';
+                    click_generated_command = true;
+                }
             }
         }
+
+        if (!click_generated_command)
+            ch = (char)steamdeck_menu_key(ch, 0, 0);
 
         /* Return to character selection before the game starts */
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {

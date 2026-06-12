@@ -2282,6 +2282,9 @@ extern int get_sdl_touch_swipe_default_binding(int dir);
 /* Controller UI menu helpers - get key bindings for menu actions */
 extern int steamdeck_back_key(void);      /* B button (EAST) - for back/quit */
 extern int steamdeck_confirm_key(void);   /* A button (SOUTH) - for confirm/ok */
+extern int steamdeck_prev_page_key(void); /* L1 button - for previous page/tab */
+extern int steamdeck_next_page_key(void); /* R1 button - for next page/tab */
+extern int steamdeck_menu_key(int key, int prev_page_key, int next_page_key);
 extern int steamdeck_info_key(void);      /* RS Right - for info/recall */
 extern int steamdeck_alt_action_key(void);/* X button (WEST) - for alternate action */
 extern int steamdeck_secondary_key(void); /* Y button (NORTH) - for secondary action */

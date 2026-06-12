@@ -6438,8 +6438,10 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
         char prompt_short[80];
         const char* variants[3];
 
-        controller_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-        controller_prompt_label('i', "R1", next_label, sizeof(next_label));
+        controller_prompt_label(steamdeck_prev_page_key(), "L1", prev_label,
+            sizeof(prev_label));
+        controller_prompt_label(steamdeck_next_page_key(), "R1", next_label,
+            sizeof(next_label));
         controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
             sizeof(confirm_label));
         controller_prompt_label(steamdeck_back_key(), "B", back_label,
@@ -7657,8 +7659,8 @@ static bool knowledge_is_recall_input(int ch)
 {
     int confirm_key = steamdeck_confirm_key();
 
-    if (ch == ' ' || ch == 'R' || ch == 'r' || ch == 'X' || ch == 'x'
-        || ch == INPUT_BIND_CONFIRM)
+    if (ch == '\r' || ch == '\n' || ch == ' ' || ch == 'R' || ch == 'r'
+        || ch == 'X' || ch == 'x' || ch == INPUT_BIND_CONFIRM)
     {
         return true;
     }
@@ -7851,8 +7853,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            if (steamdeck_controls_active() && ch == steamdeck_back_key())
-                ch = ESCAPE;
+            ch = steamdeck_menu_key(ch, 'e', 'i');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8011,8 +8012,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            if (steamdeck_controls_active() && ch == steamdeck_back_key())
-                ch = ESCAPE;
+            ch = steamdeck_menu_key(ch, 'e', 'i');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8161,8 +8161,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            if (steamdeck_controls_active() && ch == steamdeck_back_key())
-                ch = ESCAPE;
+            ch = steamdeck_menu_key(ch, 'e', 'i');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8259,8 +8258,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            if (steamdeck_controls_active() && ch == steamdeck_back_key())
-                ch = ESCAPE;
+            ch = steamdeck_menu_key(ch, 'e', 'i');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus, (curse_cnt <= 0) || (state.entry_cur[page] == 0)))
@@ -8991,6 +8989,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     }
                 }
             }
+
+            if (!click_generated_command)
+                ch = (char)steamdeck_menu_key(ch, 'e', 'i');
 
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
@@ -9776,6 +9777,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 }
             }
 
+            if (!click_generated_command)
+                ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+
             if (steamdeck_controls_active() && ch == 'f')
                 ch = 'z';
 
@@ -10523,6 +10527,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 }
             }
         }
+        if (!click_generated_command)
+            ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+
         if (steamdeck_controls_active() && ch == 'f')
             ch = 'z';
 

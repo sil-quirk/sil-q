@@ -1202,8 +1202,8 @@ void do_cmd_character_sheet(void)
             handle_stuff();
         }
 
-        /* File dump - 'f' or L1 ('e') */
-        else if (ch == 'f' || (steamdeck && ch == 'e'))
+        /* File dump - 'f' or L1 */
+        else if (ch == 'f' || (steamdeck && ch == steamdeck_prev_page_key()))
         {
             char ftmp[80];
 

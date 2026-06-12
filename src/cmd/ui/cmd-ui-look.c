@@ -630,8 +630,10 @@ static void unified_look_print_controller_prompt(
     cptr obj_action = compact_look_layout ? "View" : "Objects";
     cptr mode_action = cursor_mode ? "Cursor" : "Pan";
 
-    unified_look_prompt_label('e', "L1", prev_label, sizeof(prev_label));
-    unified_look_prompt_label('i', "R1", next_label, sizeof(next_label));
+    unified_look_prompt_label(steamdeck_prev_page_key(), "L1", prev_label,
+        sizeof(prev_label));
+    unified_look_prompt_label(steamdeck_next_page_key(), "R1", next_label,
+        sizeof(next_label));
     unified_look_prompt_label(' ', "A", exam_label, sizeof(exam_label));
     unified_look_prompt_label('f', "B", target_label, sizeof(target_label));
     unified_look_prompt_label('u', "X", obj_label, sizeof(obj_label));
@@ -1316,6 +1318,7 @@ void do_cmd_unified_look(void)
         
         /* Get input */
         query = inkey();
+        query = steamdeck_menu_key(query, 'e', 'i');
         log_trace("Unified look key input: '%c' (%d) [char: %c, isupper: %d]", 
                  query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
                  (query >= 'A' && query <= 'Z') ? 1 : 0);

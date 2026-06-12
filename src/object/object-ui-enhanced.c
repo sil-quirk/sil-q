@@ -64,8 +64,10 @@ static bool enhanced_menu_format_prompt(char* out, size_t out_size,
         char cycle_label[16] = "";
         bool show_cycle = false;
 
-        inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-        inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
+        inventory_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        inventory_prompt_label(steamdeck_info_key(), "RS Right", desc_label,
+            sizeof(desc_label));
 
         if (current_menu_command == 'u' || current_menu_command == 'x')
         {
@@ -76,7 +78,8 @@ static bool enhanced_menu_format_prompt(char* out, size_t out_size,
         }
         else if (inventory_menu_same_button_cycle_enabled())
         {
-            inventory_prompt_label(equipment ? 'e' : 'i',
+            inventory_prompt_label(
+                equipment ? steamdeck_prev_page_key() : steamdeck_next_page_key(),
                 equipment ? "L1" : "R1", cycle_label, sizeof(cycle_label));
             show_cycle = true;
         }
@@ -1420,6 +1423,7 @@ void show_inven_enhanced(void)
             if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
                 continue;
         }
+        which = steamdeck_menu_key(which, 'e', 'i');
         
         log_trace("show_inven_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         
@@ -2075,6 +2079,7 @@ void show_equip_enhanced(void)
             if (!click_taken && which == UI_MENU_CLICK_WAKE_KEY)
                 continue;
         }
+        which = steamdeck_menu_key(which, 'e', 'i');
         
         log_trace("show_equip_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
         

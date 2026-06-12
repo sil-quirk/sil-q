@@ -2974,6 +2974,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
             if (ch == UI_MENU_CLICK_WAKE_KEY)
                 continue;
         }
+        ch = (char)steamdeck_menu_key(ch, 0, 0);
         break;
     }
 
@@ -3092,6 +3093,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
             if (ch == UI_MENU_CLICK_WAKE_KEY)
                 continue;
         }
+        ch = (char)steamdeck_menu_key(ch, 0, 0);
 
         if (steamdeck && ch == steamdeck_back_key())
             break;
@@ -3309,6 +3311,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
 
         Term_fresh();
         ch = inkey();
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -3352,6 +3355,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
                         ch = '\r';
+                        click_generated_command = true;
                     }
                     else if (click_action == UI_MENU_CLICK_HOVER)
                     {
@@ -3372,18 +3376,23 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                     {
                     case HINT_MESSAGE_CLICK_TOGGLE_TIPS:
                         ch = 'h';
+                        click_generated_command = true;
                         break;
                     case HINT_MESSAGE_CLICK_LOOK:
                         ch = 'l';
+                        click_generated_command = true;
                         break;
                     case HINT_MESSAGE_CLICK_MAP:
                         ch = 'm';
+                        click_generated_command = true;
                         break;
                     case HINT_MESSAGE_CLICK_BACK:
                         ch = ESCAPE;
+                        click_generated_command = true;
                         break;
                     case HINT_MESSAGE_CLICK_CONTINUE:
                         ch = '\r';
+                        click_generated_command = true;
                         break;
                     default:
                         break;
@@ -3395,6 +3404,9 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                 continue;
             }
         }
+
+        if (!click_generated_command)
+            ch = (char)steamdeck_menu_key(ch, 'e', 'i');
 
         if (switch_to_quests)
             break;
@@ -3761,14 +3773,44 @@ void do_cmd_messages_with_filter(int initial_filter)
 
         /* Display prompt */
         {
-            const char* variants[] = {
-                "e/i filter  Up/Down line  PgUp/PgDn page  / find  = highlight  Left/Right pan  Esc",
-                "e/i filter  Up/Down line  Pg page  / find  Left/Right pan  Esc",
-                "e/i filter  / find  Left/Right pan  Esc",
-                "Esc"
-            };
-            terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
-                variants, N_ELEMENTS(variants));
+            if (steamdeck_controls_active())
+            {
+                char prev_label[16];
+                char next_label[16];
+                char prompt_full[160];
+                char prompt_mid[128];
+                char prompt_short[80];
+                const char* variants[3];
+
+                controller_prompt_label(steamdeck_prev_page_key(), "L1",
+                    prev_label, sizeof(prev_label));
+                controller_prompt_label(steamdeck_next_page_key(), "R1",
+                    next_label, sizeof(next_label));
+                strnfmt(prompt_full, sizeof(prompt_full),
+                    "%s/%s page  Up/Down line  / find  = highlight  Left/Right pan  Esc",
+                    prev_label, next_label);
+                strnfmt(prompt_mid, sizeof(prompt_mid),
+                    "%s/%s page  Up/Down line  / find  Esc",
+                    prev_label, next_label);
+                strnfmt(prompt_short, sizeof(prompt_short),
+                    "%s/%s page  Esc", prev_label, next_label);
+                variants[0] = prompt_full;
+                variants[1] = prompt_mid;
+                variants[2] = prompt_short;
+                terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
+                    variants, N_ELEMENTS(variants));
+            }
+            else
+            {
+                const char* variants[] = {
+                    "e/i filter  Up/Down line  PgUp/PgDn page  / find  = highlight  Left/Right pan  Esc",
+                    "e/i filter  Up/Down line  Pg page  / find  Left/Right pan  Esc",
+                    "e/i filter  / find  Left/Right pan  Esc",
+                    "Esc"
+                };
+                terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
+                    variants, N_ELEMENTS(variants));
+            }
         }
         prt(prompt, hgt - 1, 0);
         ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
@@ -3832,6 +3874,7 @@ void do_cmd_messages_with_filter(int initial_filter)
                 continue;
             }
         }
+        ch = (char)steamdeck_menu_key(ch, 'p', 'n');
 
         if (log_history_filter_key(ch))
         {

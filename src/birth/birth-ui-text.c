@@ -127,6 +127,7 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
         hide_cursor = true;
         key = inkey();
         hide_cursor = false;
+        key = (char)steamdeck_menu_key(key, 0, 0);
 
         if (ui_menu_click_take(&clicked_choice))
         {
@@ -139,9 +140,6 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
             confirmed = true;
             break;
         }
-        if (steamdeck && key == steamdeck_back_key())
-            break;
-
         if (key == 'y' || key == 'Y')
         {
             confirmed = true;
@@ -201,9 +199,7 @@ bool birth_show_compact_description_after_assignment(bool steamdeck)
         hide_cursor = true;
         ch = inkey();
         hide_cursor = false;
-
-        if (steamdeck && ch == steamdeck_back_key())
-            ch = ESCAPE;
+        ch = (char)steamdeck_menu_key(ch, 0, 0);
 
         if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
             return false;

@@ -2133,15 +2133,21 @@ void do_cmd_help(void)
         {
             char nav[128];
             if (steamdeck_controls_active()) {
+                char prev_label[16];
+                char next_page_label[16];
                 char next_label[16];
                 char back_label[16];
+                help_prompt_label(steamdeck_prev_page_key(), "L1",
+                    prev_label, sizeof(prev_label));
+                help_prompt_label(steamdeck_next_page_key(), "R1",
+                    next_page_label, sizeof(next_page_label));
                 help_prompt_label(steamdeck_confirm_key(), "A", next_label,
                     sizeof(next_label));
                 help_prompt_label(steamdeck_back_key(), "B", back_label,
                     sizeof(back_label));
                 strnfmt(nav, sizeof(nav),
-                    "Navigation: D-pad left/right Prev/Next  [%s] Next  [%s] Back",
-                    next_label, back_label);
+                    "Navigation: [%s/%s] Prev/Next  [%s] Next  [%s] Back",
+                    prev_label, next_page_label, next_label, back_label);
             } else {
                 strnfmt(nav, sizeof(nav),
                     "Navigation: [Left] Prev  [Right] Next  [X+1-%d] Page  [Q/Esc] Quit",
@@ -2150,8 +2156,7 @@ void do_cmd_help(void)
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);
         }
         ch = inkey();
-        if (steamdeck_controls_active() && ch == steamdeck_back_key())
-            ch = ESCAPE;
+        ch = steamdeck_menu_key(ch, '4', '6');
 
         /* Enhanced navigation */
         if (ch != EOF)

@@ -45,6 +45,8 @@ static void file_viewer_draw_prompt(int row, int wid, bool large_file)
     {
         char confirm_label[16];
         char back_label[16];
+        char prev_label[16];
+        char next_label[16];
         char prompt_full[160];
         char prompt_short[96];
         const char* variants[2];
@@ -53,14 +55,18 @@ static void file_viewer_draw_prompt(int row, int wid, bool large_file)
             confirm_label, sizeof(confirm_label));
         file_viewer_prompt_label(steamdeck_back_key(), "B",
             back_label, sizeof(back_label));
+        file_viewer_prompt_label(steamdeck_prev_page_key(), "L1",
+            prev_label, sizeof(prev_label));
+        file_viewer_prompt_label(steamdeck_next_page_key(), "R1",
+            next_label, sizeof(next_label));
 
         if (large_file)
         {
             strnfmt(prompt_full, sizeof(prompt_full),
-                "D-pad scroll  %s page  %s exit", confirm_label,
-                back_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "%s page  %s exit",
-                confirm_label, back_label);
+                "D-pad scroll  %s/%s page  %s next  %s exit",
+                prev_label, next_label, confirm_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s/%s page  %s exit", prev_label, next_label, back_label);
         }
         else
         {
@@ -202,10 +208,14 @@ bool show_buffer(cptr main_buffer, int line)
 
         /* Get a keypress */
         ch = inkey();
+        ch = (char)steamdeck_menu_key(ch, '9', '3');
 
         dir = target_dir(ch);
         if (dir == 8 || dir == 2)
             ch = I2D(dir);
+
+        bool controller_confirm =
+            steamdeck_controls_active() && (ch == '\r' || ch == '\n');
 
         /* Back up one line */
         if ((ch == '8') || (ch == '='))
@@ -215,14 +225,22 @@ bool show_buffer(cptr main_buffer, int line)
                 line = 0;
         }
 
+        /* Back up one full page */
+        if (ch == '9')
+        {
+            line = line - (hgt - 5);
+            if (line < 0)
+                line = 0;
+        }
+
         /* Advance one line */
-        if ((ch == '2') || (ch == '\n') || (ch == '\r'))
+        if ((ch == '2') || (!controller_confirm && ((ch == '\n') || (ch == '\r'))))
         {
             line = line + 1;
         }
 
         /* Advance one full page */
-        if ((ch == '3') || (ch == ' '))
+        if ((ch == '3') || (ch == ' ') || controller_confirm)
         {
             line = line + (hgt - 5);
         }
@@ -574,6 +592,9 @@ bool show_file(cptr name, cptr what, int line)
 
         /* Get a keypress */
         ch = inkey();
+        ch = (char)steamdeck_menu_key(ch, '9', '3');
+        bool controller_confirm =
+            steamdeck_controls_active() && (ch == '\r' || ch == '\n');
 
         /* Exit the help */
         if (ch == '?')
@@ -657,7 +678,7 @@ bool show_file(cptr name, cptr what, int line)
         }
 
         /* Advance one line */
-        if ((ch == '2') || (ch == '\n') || (ch == '\r'))
+        if ((ch == '2') || (!controller_confirm && ((ch == '\n') || (ch == '\r'))))
         {
             line = line + 1;
         }
@@ -669,7 +690,7 @@ bool show_file(cptr name, cptr what, int line)
         }
 
         /* Advance one full page */
-        if ((ch == '3') || (ch == ' '))
+        if ((ch == '3') || (ch == ' ') || controller_confirm)
         {
             line = line + (hgt - 5);
         }

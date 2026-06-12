@@ -1203,6 +1203,7 @@ static char display_scores_pages(const high_score* entries, int count,
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
             char ch;
+            bool click_generated_command = false;
             bool saved_hide_cursor = hide_cursor;
             hide_cursor = true;
             ch = inkey();
@@ -1215,11 +1216,14 @@ static char display_scores_pages(const high_score* entries, int count,
                     continue;
                 if (clicked_choice == SCORE_CLICK_HISTORY)
                     return 'r';
+                click_generated_command = true;
                 break;
             }
 
             if (ch == UI_MENU_CLICK_WAKE_KEY)
                 continue;
+            if (!click_generated_command)
+                ch = (char)steamdeck_menu_key(ch, 0, 0);
             if ((steamdeck && ch == steamdeck_info_key())
                 || ch == 'r' || ch == 'R' || ch == 'h' || ch == 'H')
             {
@@ -1380,6 +1384,7 @@ static char display_scores_pages(const high_score* entries, int count,
         hide_cursor = true;
         char ch = inkey();
         hide_cursor = saved_hide_cursor;
+        bool click_generated_command = false;
         prt("", footer_row, 0);
 
         {
@@ -1404,13 +1409,13 @@ static char display_scores_pages(const high_score* entries, int count,
 
                 switch (clicked_choice)
                 {
-                case SCORE_CLICK_ORDER: ch = 's'; break;
-                case SCORE_CLICK_LAYOUT: ch = 'l'; break;
-                case SCORE_CLICK_EXIT: ch = ESCAPE; break;
-                case SCORE_CLICK_OPEN: ch = '\r'; break;
-                case SCORE_CLICK_HISTORY: ch = 'r'; break;
-                case SCORE_CLICK_PREV: ch = 'p'; break;
-                case SCORE_CLICK_NEXT: ch = 'n'; break;
+                case SCORE_CLICK_ORDER: ch = 's'; click_generated_command = true; break;
+                case SCORE_CLICK_LAYOUT: ch = 'l'; click_generated_command = true; break;
+                case SCORE_CLICK_EXIT: ch = ESCAPE; click_generated_command = true; break;
+                case SCORE_CLICK_OPEN: ch = '\r'; click_generated_command = true; break;
+                case SCORE_CLICK_HISTORY: ch = 'r'; click_generated_command = true; break;
+                case SCORE_CLICK_PREV: ch = 'p'; click_generated_command = true; break;
+                case SCORE_CLICK_NEXT: ch = 'n'; click_generated_command = true; break;
                 default: break;
                 }
             }
@@ -1420,6 +1425,9 @@ static char display_scores_pages(const high_score* entries, int count,
 
         if (ch == UI_MENU_CLICK_WAKE_KEY)
             continue;
+
+        if (!click_generated_command)
+            ch = (char)steamdeck_menu_key(ch, 'p', 'n');
 
         if (steamdeck) {
             int back_key = steamdeck_back_key();
@@ -2539,6 +2547,7 @@ void do_cmd_run_history(void)
         hide_cursor = true;
         int ch = inkey();
         hide_cursor = saved_hide_cursor;
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -2575,6 +2584,7 @@ void do_cmd_run_history(void)
                     case RUN_HISTORY_CLICK_NEXT: ch = 'n'; break;
                     default: break;
                     }
+                    click_generated_command = true;
                 }
             }
             else {
@@ -2582,6 +2592,9 @@ void do_cmd_run_history(void)
                 ui_scroll_area_clear();
             }
         }
+
+        if (!click_generated_command)
+            ch = steamdeck_menu_key(ch, 'p', 'n');
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())
@@ -3686,6 +3699,7 @@ static void run_history_show_detail(const run_history_entry* entry)
         int ch = inkey();
         hide_cursor = saved_hide_cursor;
         bool skip_command = false;
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -3734,18 +3748,23 @@ static void run_history_show_detail(const run_history_entry* entry)
                     switch (clicked_choice) {
                     case RUN_DETAIL_CLICK_BACK:
                         ch = ESCAPE;
+                        click_generated_command = true;
                         break;
                     case RUN_DETAIL_CLICK_PREV_PANEL:
                         ch = '4';
+                        click_generated_command = true;
                         break;
                     case RUN_DETAIL_CLICK_NEXT_PANEL:
                         ch = '6';
+                        click_generated_command = true;
                         break;
                     case RUN_DETAIL_CLICK_INSPECT:
                         ch = '\r';
+                        click_generated_command = true;
                         break;
                     case RUN_DETAIL_CLICK_SORT:
                         ch = 's';
+                        click_generated_command = true;
                         break;
                     default:
                         skip_command = true;
@@ -3762,6 +3781,9 @@ static void run_history_show_detail(const run_history_entry* entry)
 
         if (skip_command)
             continue;
+
+        if (!click_generated_command)
+            ch = steamdeck_menu_key(ch, '4', '6');
 
         if (steamdeck) {
             if (ch == steamdeck_back_key())

@@ -1268,6 +1268,35 @@ int steamdeck_confirm_key(void)
     return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_SOUTH);
 }
 
+int steamdeck_prev_page_key(void)
+{
+    /* L1 button (LEFT_SHOULDER) - for previous page/tab in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+}
+
+int steamdeck_next_page_key(void)
+{
+    /* R1 button (RIGHT_SHOULDER) - for next page/tab in menus */
+    return get_sdl_gamepad_button_binding(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+}
+
+int steamdeck_menu_key(int key, int prev_page_key, int next_page_key)
+{
+    if (!steamdeck_controls_active())
+        return key;
+
+    if (key == steamdeck_back_key())
+        return ESCAPE;
+    if (key == steamdeck_confirm_key())
+        return '\r';
+    if (prev_page_key && key == steamdeck_prev_page_key())
+        return prev_page_key;
+    if (next_page_key && key == steamdeck_next_page_key())
+        return next_page_key;
+
+    return key;
+}
+
 int steamdeck_info_key(void)
 {
     /* RS Right - for info/recall in menus */

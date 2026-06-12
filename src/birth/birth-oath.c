@@ -785,6 +785,7 @@ NavResult select_oath(void)
 
         Term_fresh();
         key = inkey();
+        bool click_generated_command = false;
 
         {
             int clicked_choice = 0;
@@ -813,6 +814,7 @@ NavResult select_oath(void)
                     }
 
                     key = '\r';
+                    click_generated_command = true;
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
@@ -820,15 +822,18 @@ NavResult select_oath(void)
                 {
                     switch (clicked_choice)
                     {
-                    case OATH_CLICK_BACK: key = ESCAPE; break;
-                    case OATH_CLICK_SELECT: key = '\r'; break;
-                    case OATH_CLICK_DETAILS: key = '6'; break;
-                    case OATH_CLICK_LIST: key = '4'; break;
+                    case OATH_CLICK_BACK: key = ESCAPE; click_generated_command = true; break;
+                    case OATH_CLICK_SELECT: key = '\r'; click_generated_command = true; break;
+                    case OATH_CLICK_DETAILS: key = '6'; click_generated_command = true; break;
+                    case OATH_CLICK_LIST: key = '4'; click_generated_command = true; break;
                     default: break;
                     }
                 }
             }
         }
+
+        if (!click_generated_command)
+            key = (char)steamdeck_menu_key(key, '4', '6');
 
         if (steamdeck && key == steamdeck_back_key())
         {

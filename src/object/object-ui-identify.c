@@ -354,6 +354,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         rows_to_clear = base_rows;
 
         int key = inkey();
+        bool click_generated_command = false;
         {
             int clicked_choice = 0;
             int click_action = UI_MENU_CLICK_PRIMARY;
@@ -373,6 +374,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
                     {
                         highlight = clicked_choice;
                         key = '4';
+                        click_generated_command = true;
                     }
                     else if (clicked_choice != highlight)
                     {
@@ -380,24 +382,29 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
                         continue;
                     }
                     else
+                    {
                         key = ' ';
+                        click_generated_command = true;
+                    }
                 }
                 else if (click_action == UI_MENU_CLICK_HOVER)
                     continue;
-                else if (clicked_choice == -1)
+                else if (clicked_choice == -1) {
                     key = ESCAPE;
-                else if (clicked_choice == -2)
+                    click_generated_command = true;
+                } else if (clicked_choice == -2) {
                     key = ' ';
-                else if (clicked_choice == -3)
+                    click_generated_command = true;
+                } else if (clicked_choice == -3) {
                     key = '4';
+                    click_generated_command = true;
+                }
             }
         }
 
-        if (controller_controls && key == steamdeck_back_key())
-            key = ESCAPE;
-        else if (controller_controls && key == steamdeck_confirm_key())
-            key = ' ';
-        else if (controller_controls && key == steamdeck_info_key())
+        if (!click_generated_command)
+            key = steamdeck_menu_key(key, 0, 0);
+        if (controller_controls && key == steamdeck_info_key())
             key = '4';
 
         switch (key)
