@@ -546,9 +546,22 @@ NavResult select_oath(void)
                         confirm_label, sizeof(confirm_label));
                     birth_prompt_label(steamdeck_back_key(), "B",
                         back_label, sizeof(back_label));
-                    strnfmt(prompt_buf, sizeof(prompt_buf),
-                        "D-pad Nav/Page  %s Select  %s Back",
-                        confirm_label, back_label);
+                    {
+                        char prompt_full[96];
+                        char prompt_short[80];
+                        const char* variants[2];
+
+                        strnfmt(prompt_full, sizeof(prompt_full),
+                            "D-pad Nav/Page  %s Select  %s Back",
+                            confirm_label, back_label);
+                        strnfmt(prompt_short, sizeof(prompt_short),
+                            "%s Select  %s Back", confirm_label, back_label);
+                        variants[0] = prompt_full;
+                        variants[1] = prompt_short;
+                        terminal_prompt_pick_variant(prompt_buf,
+                            sizeof(prompt_buf), wid - 4, false, variants,
+                            N_ELEMENTS(variants));
+                    }
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
                     ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
                         prompt_row, prompt_buf, "Select");
@@ -558,10 +571,15 @@ NavResult select_oath(void)
                 else
                 {
                     char prompt_buf[96];
+                    const char* variants[] = {
+                        "Dir Nav  Right Details  Enter Select  Esc Back",
+                        "Dir Nav  Enter Select  Esc Back",
+                        "Enter Select  Esc Back"
+                    };
 
-                    SDL_strlcpy(prompt_buf,
-                        "8/2 Nav  6 Details  Enter/Space Select  Esc Back",
-                        sizeof(prompt_buf));
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), wid - 4, false, variants,
+                        N_ELEMENTS(variants));
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
                         prompt_buf);
                     ui_menu_click_add_text_token(OATH_CLICK_DETAILS, 2,
@@ -616,9 +634,22 @@ NavResult select_oath(void)
                         confirm_label, sizeof(confirm_label));
                     birth_prompt_label(steamdeck_back_key(), "B",
                         back_label, sizeof(back_label));
-                    strnfmt(prompt_buf, sizeof(prompt_buf),
-                        "D-pad Scroll/Page  %s Select  %s Back",
-                        confirm_label, back_label);
+                    {
+                        char prompt_full[96];
+                        char prompt_short[80];
+                        const char* variants[2];
+
+                        strnfmt(prompt_full, sizeof(prompt_full),
+                            "D-pad Scroll/Page  %s Select  %s Back",
+                            confirm_label, back_label);
+                        strnfmt(prompt_short, sizeof(prompt_short),
+                            "%s Select  %s Back", confirm_label, back_label);
+                        variants[0] = prompt_full;
+                        variants[1] = prompt_short;
+                        terminal_prompt_pick_variant(prompt_buf,
+                            sizeof(prompt_buf), wid - 4, false, variants,
+                            N_ELEMENTS(variants));
+                    }
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
                     ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
                         prompt_row, prompt_buf, "Select");
@@ -628,10 +659,15 @@ NavResult select_oath(void)
                 else
                 {
                     char prompt_buf[96];
+                    const char* variants[] = {
+                        "Dir Scroll  Left List  Enter Select  Esc Back",
+                        "Dir Scroll  Enter Select  Esc Back",
+                        "Enter Select  Esc Back"
+                    };
 
-                    SDL_strlcpy(prompt_buf,
-                        "8/2 Scroll  4 List  Enter/Space Select  Esc Back",
-                        sizeof(prompt_buf));
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), wid - 4, false, variants,
+                        N_ELEMENTS(variants));
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
                         prompt_buf);
                     ui_menu_click_add_text_token(OATH_CLICK_LIST, 2,
@@ -706,9 +742,22 @@ NavResult select_oath(void)
                     confirm_label, sizeof(confirm_label));
                 birth_prompt_label(steamdeck_back_key(), "B",
                     back_label, sizeof(back_label));
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad Navigate  %s Select  %s Back",
-                    confirm_label, back_label);
+                {
+                    char prompt_full[128];
+                    char prompt_short[80];
+                    const char* variants[2];
+
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "D-pad Navigate  %s Select  %s Back",
+                        confirm_label, back_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s Select  %s Back", confirm_label, back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), wid - 4, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
                 ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
                     prompt_row, prompt_buf, "Select");
@@ -718,10 +767,13 @@ NavResult select_oath(void)
             else
             {
                 char prompt_buf[96];
+                const char* variants[] = {
+                    "Dir Navigate  Enter Select  Esc Back",
+                    "Enter Select  Esc Back"
+                };
 
-                SDL_strlcpy(prompt_buf,
-                    "8/2 Navigate  Enter/Space Select  Esc Back",
-                    sizeof(prompt_buf));
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    wid - 4, false, variants, N_ELEMENTS(variants));
                 oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
                     prompt_buf);
                 ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,

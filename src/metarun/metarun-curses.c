@@ -214,6 +214,8 @@ int menu_choose_one_curse(int n)
     }
 
     /* Show the prompt immediately without fade */
+    char curse_prompt[96];
+    curse_prompt[0] = '\0';
     if (steamdeck)
     {
         char accept_label[16];
@@ -224,22 +226,48 @@ int menu_choose_one_curse(int n)
             sizeof(accept_label));
         metarun_prompt_label(steamdeck_back_key(), "B", back_label,
             sizeof(back_label));
-        strnfmt(hint_buf, sizeof(hint_buf),
-            "D-pad to navigate     [%s] accept     [%s] cancel",
-            accept_label, back_label);
+        {
+            char prompt_full[96];
+            char prompt_short[80];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad navigate  [%s] accept  [%s] cancel",
+                accept_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] accept  [%s] cancel", accept_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(hint_buf, sizeof(hint_buf),
+                metarun_term_width() - 2, false, variants,
+                N_ELEMENTS(variants));
+        }
+        SDL_strlcpy(curse_prompt, hint_buf, sizeof(curse_prompt));
         c_put_str(TERM_L_DARK, hint_buf, row + 1, 2);
     }
     else if (menu_letters)
     {
-        c_put_str(TERM_L_DARK,
-            "Arrows to navigate     Space/Enter Accept     a/b/c Select",
-            row + 1, 2);
+        char prompt[96];
+        const char* variants[] = {
+            "Dir navigate  Enter accept  a/b/c select",
+            "Enter accept  a/b/c select"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt),
+            metarun_term_width() - 2, false, variants, N_ELEMENTS(variants));
+        SDL_strlcpy(curse_prompt, prompt, sizeof(curse_prompt));
+        c_put_str(TERM_L_DARK, prompt, row + 1, 2);
     }
     else
     {
-        c_put_str(TERM_L_DARK,
-            "Arrows to navigate     Space/Enter Accept",
-            row + 1, 2);
+        char prompt[96];
+        const char* variants[] = {
+            "Dir navigate  Enter accept",
+            "Enter accept"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt),
+            metarun_term_width() - 2, false, variants, N_ELEMENTS(variants));
+        SDL_strlcpy(curse_prompt, prompt, sizeof(curse_prompt));
+        c_put_str(TERM_L_DARK, prompt, row + 1, 2);
     }
 
     /* Menu navigation variables */
@@ -285,7 +313,7 @@ int menu_choose_one_curse(int n)
             ui_menu_click_add(i, 2, option_rows[i], metarun_term_width() - 4);
         }
         ui_menu_click_add_text_token(-1, 2, row + 1,
-            "D-pad to navigate     [A] accept     [B] cancel", "cancel");
+            curse_prompt, "cancel");
 
         /* Position cursor at the end of the highlighted option text */
         curse_type *highlighted_cu = &cu_info[pick[highlight]];

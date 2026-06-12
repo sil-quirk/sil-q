@@ -1018,10 +1018,10 @@ static void describe_supply_group_status(int group_idx, int term_wid,
         if (term_wid <= 42)
             SDL_strlcpy(buf, "s save, u equip, c clear, Alt+1-5", len);
         else if (term_wid <= 62)
-            SDL_strlcpy(buf, "s save, u/Space equip, c clear, Alt+1-5", len);
+            SDL_strlcpy(buf, "s save, u equip, c clear, Alt+1-5", len);
         else
             SDL_strlcpy(buf,
-                "Use s to save current jewelry, u/Space or Alt+1-5 to equip, c to clear.",
+                "Use s to save current jewelry, u or Alt+1-5 to equip, c to clear.",
                 len);
         break;
     default:
@@ -3854,13 +3854,59 @@ static cptr equipment_entry_source_text(const equipment_list_entry* entry,
     return "";
 }
 
+static int equipment_entry_source_column_width(
+    const knowledge_browser_layout* layout, equipment_list_entry entries[],
+    int entry_cnt, int entry_top, int per_page, bool show_source)
+{
+    int width = 0;
+    int max_width;
+    int sym_w = use_bigtile ? 2 : 1;
+    int name_col;
+
+    if (!show_source || !layout || !entries || layout->term_wid < 64)
+        return 0;
+
+    name_col = layout->list_col + sym_w + 1;
+    max_width = layout->term_wid - name_col - 8;
+    if (max_width < (int)strlen("Where"))
+        return 0;
+
+    width = (int)strlen("Where");
+
+    for (int i = 0; i < per_page; i++)
+    {
+        int idx = entry_top + i;
+        char source_buf[24];
+        cptr source;
+        int len;
+
+        if (idx < 0 || idx >= entry_cnt)
+            continue;
+
+        source = equipment_entry_source_text(&entries[idx], source_buf,
+            sizeof(source_buf));
+        if (!source || !source[0])
+            continue;
+
+        len = (int)strlen(source);
+        if (len > width)
+            width = len;
+    }
+
+    if (width > max_width)
+        width = max_width;
+
+    return width;
+}
+
 static void display_equipment_slot_entries(
     const knowledge_browser_layout* layout, int row, int per_page,
     equipment_list_entry entries[], int entry_cnt, int entry_cur,
     int entry_top, int column, bool show_source)
 {
     int sym_w = use_bigtile ? 2 : 1;
-    int source_w = (show_source && layout->term_wid >= 64) ? 10 : 0;
+    int source_w = equipment_entry_source_column_width(layout, entries,
+        entry_cnt, 0, entry_cnt, show_source);
     int source_col = layout->term_wid - source_w;
     int name_col = layout->list_col + sym_w + 1;
     int name_w = layout->term_wid - name_col - (source_w ? source_w + 1 : 0);
@@ -6386,27 +6432,43 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
         char prev_label[16];
         char next_label[16];
         char confirm_label[16];
-        char recall_label[16];
         char back_label[16];
+        char prompt_full[128];
+        char prompt_mid[96];
+        char prompt_short[80];
+        const char* variants[3];
 
         controller_prompt_label('e', "L1", prev_label, sizeof(prev_label));
         controller_prompt_label('i', "R1", next_label, sizeof(next_label));
         controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
             sizeof(confirm_label));
-        controller_prompt_label(steamdeck_info_key(), "RS", recall_label,
-            sizeof(recall_label));
         controller_prompt_label(steamdeck_back_key(), "B", back_label,
             sizeof(back_label));
-        strnfmt(prompt, sizeof(prompt),
-            "D-pad move  [%s/%s] page  [%s/%s] recall  [%s] back",
-            prev_label, next_label, confirm_label, recall_label, back_label);
+        strnfmt(prompt_full, sizeof(prompt_full),
+            "D-pad move  [%s/%s] page  [%s] recall  [%s] back",
+            prev_label, next_label, confirm_label, back_label);
+        strnfmt(prompt_mid, sizeof(prompt_mid),
+            "[%s/%s] page  [%s] recall  [%s] back",
+            prev_label, next_label, confirm_label, back_label);
+        strnfmt(prompt_short, sizeof(prompt_short),
+            "[%s] recall  [%s] back", confirm_label, back_label);
+        variants[0] = prompt_full;
+        variants[1] = prompt_mid;
+        variants[2] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->term_wid,
+            false, variants, N_ELEMENTS(variants));
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_L_DARK, prompt);
         knowledge_register_prompt_clicks(layout, prompt);
     }
     else
     {
-        SDL_strlcpy(prompt, "Dir move  e/i page  Up at top=tabs  Space/r recall  Esc",
-            sizeof(prompt));
+        const char* variants[] = {
+            "Dir move  e/i page  Space recall  Esc",
+            "e/i page  Space recall  Esc",
+            "Space recall  Esc"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->term_wid,
+            false, variants, N_ELEMENTS(variants));
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_SLATE, prompt);
         knowledge_register_prompt_clicks(layout, prompt);
     }
@@ -8305,6 +8367,7 @@ static void supply_register_prompt_clicks(const knowledge_browser_layout* layout
     ui_menu_click_add_text_token(SUPPLY_CLICK_DELETE, 0, row, prompt,
         "y delete");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "back");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "cancel");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "Esc");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, back_label);
 }
@@ -8648,6 +8711,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             knowledge_begin_touch_scroll_area(&layout,
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
 
+            int source_w = equipment_entry_source_column_width(&layout,
+                equip_entries, equip_entry_cnt, 0, equip_entry_cnt, true);
+
             Term_clear();
             supply_draw_page_header(&layout, page,
                 supply_browser_hover_page(), "Equipped");
@@ -8658,8 +8724,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 "Slot");
             Term_putstr(layout.list_col, layout.header_row, layout.list_w,
                 TERM_SLATE, equipment_slot_text(selected_slot));
-            if (layout.term_wid >= 64)
-                Term_putstr(layout.term_wid - 10, layout.header_row, 10,
+            if (source_w > 0)
+                Term_putstr(layout.term_wid - source_w, layout.header_row,
+                    source_w,
                     TERM_SLATE, "Where");
 
             for (i = 0; i < layout.term_wid; i++)
@@ -8727,6 +8794,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 char drop_label[16];
                 char back_label[16];
                 char prompt_buf[160];
+                char prompt_full[160];
+                char prompt_mid[128];
+                char prompt_short[96];
+                const char* variants[3];
 
                 controller_prompt_label(steamdeck_alt_action_key(), "X",
                     use_label, sizeof(use_label));
@@ -8736,9 +8807,19 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     sizeof(drop_label));
                 controller_prompt_label(ESCAPE, "Start", back_label,
                     sizeof(back_label));
-                strnfmt(prompt_buf, sizeof(prompt_buf),
+                strnfmt(prompt_full, sizeof(prompt_full),
                     "D-pad move  [%s/%s] equip  [%s] drop  [%s] back",
                     use_label, confirm_label, drop_label, back_label);
+                strnfmt(prompt_mid, sizeof(prompt_mid),
+                    "[%s/%s] equip  [%s] drop  [%s] back",
+                    use_label, confirm_label, drop_label, back_label);
+                strnfmt(prompt_short, sizeof(prompt_short),
+                    "[%s] equip  [%s] drop", confirm_label, drop_label);
+                variants[0] = prompt_full;
+                variants[1] = prompt_mid;
+                variants[2] = prompt_short;
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, N_ELEMENTS(variants));
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt_buf);
                 supply_register_prompt_clicks(&layout, prompt_buf, NULL,
@@ -8746,27 +8827,39 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             else
             {
-                cptr prompt;
+                char prompt_buf[160];
+                const char* const* variants;
+                size_t variant_count;
+                static const char* letter_variants[] = {
+                    "letter use  Dir move  x preview  u equip  z drop  Tab  Esc",
+                    "letter use  x preview  z drop  Tab  Esc",
+                    "letter use  z drop  Tab  Esc"
+                };
+                static const char* move_variants[] = {
+                    "Dir move  x preview  u equip  z drop  Tab  Esc",
+                    "x preview  u equip  z drop  Tab  Esc",
+                    "u equip  z drop  Esc"
+                };
 
                 if (indexed_menu_letters_enabled())
                 {
-                    prompt = (layout.term_wid <= 50)
-                        ? "letter use  arrows move  x preview  z drop  Tab  Esc"
-                        : "letter use  arrows move  x/-> preview  u/Space equip/take off  z drop  Tab page  Esc";
+                    variants = letter_variants;
+                    variant_count = N_ELEMENTS(letter_variants);
                 }
                 else
                 {
-                    prompt = (layout.term_wid <= 50)
-                        ? "Dir move  x preview  u/Space equip  z drop  Tab  Esc"
-                        : "Dir move  x/-> preview  u/Space equip/take off  z drop  Tab page  Esc";
+                    variants = move_variants;
+                    variant_count = N_ELEMENTS(move_variants);
                 }
 
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, variant_count);
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
-                    TERM_SLATE, prompt);
-                supply_register_prompt_clicks(&layout, prompt, NULL, NULL,
+                    TERM_SLATE, prompt_buf);
+                supply_register_prompt_clicks(&layout, prompt_buf, NULL, NULL,
                     NULL, NULL, NULL);
                 if (drop_click_mode)
-                    supply_highlight_prompt_token(&layout, prompt, "drop",
+                    supply_highlight_prompt_token(&layout, prompt_buf, "drop",
                         TERM_YELLOW);
             }
 
@@ -9139,6 +9232,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             knowledge_begin_touch_scroll_area(&layout,
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
 
+            bool show_source =
+                slot_pick_mode || selected_group != INVENTORY_MENU_GROUP_ALL;
+            int source_w = equipment_entry_source_column_width(&layout,
+                equip_entries, inventory_entry_cnt, 0, inventory_entry_cnt,
+                show_source);
+
             Term_clear();
             if (replacement_mode)
             {
@@ -9207,10 +9306,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 : slot_pick_mode ? "Destination slots"
                 : item_select_mode ? "Matching items"
                 : inventory_browser_group_text(selected_group));
-            if ((slot_pick_mode || selected_group != INVENTORY_MENU_GROUP_ALL)
-                && layout.term_wid >= 64)
+            if (source_w > 0)
             {
-                Term_putstr(layout.term_wid - 10, layout.header_row, 10,
+                Term_putstr(layout.term_wid - source_w, layout.header_row,
+                    source_w,
                     TERM_SLATE, "Where");
             }
 
@@ -9253,8 +9352,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             display_equipment_slot_entries(&layout, layout.list_row,
                 layout.list_rows, equip_entries, inventory_entry_cnt,
                 inv_entry_cur, inv_entry_top, inv_column,
-                slot_pick_mode
-                    || selected_group != INVENTORY_MENU_GROUP_ALL);
+                show_source);
 
             for (i = 0; i < entry_page_rows; i++)
             {
@@ -9302,10 +9400,43 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             Term_erase(0, layout.prompt_row, 255);
             if (replacement_mode)
             {
-                cptr prompt = (layout.term_wid <= 50)
-                    ? "What to replace? Enter select  Esc"
-                    : "What to replace? arrows/mouse move  Enter/Space select  Esc cancel";
+                char prompt[160];
 
+                if (steamdeck_controls_active())
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    controller_prompt_label(steamdeck_confirm_key(), "A",
+                        confirm_label, sizeof(confirm_label));
+                    controller_prompt_label(steamdeck_back_key(), "B",
+                        back_label, sizeof(back_label));
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "Replace: D-pad move  [%s] select  [%s] cancel",
+                        confirm_label, back_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "Replace: [%s] select  [%s] cancel", confirm_label,
+                        back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else
+                {
+                    const char* variants[] = {
+                        "Replace: Dir/mouse move  Enter select  Esc cancel",
+                        "Replace: Enter select  Esc cancel",
+                        "Enter select  Esc cancel"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt);
                 supply_register_prompt_clicks(&layout, prompt, NULL, "select",
@@ -9313,10 +9444,43 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             else if (slot_pick_mode)
             {
-                cptr prompt = (layout.term_wid <= 50)
-                    ? "Place where? Enter select  Esc"
-                    : "Place where? arrows/mouse move  Enter/Space select  Esc cancel";
+                char prompt[160];
 
+                if (steamdeck_controls_active())
+                {
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    controller_prompt_label(steamdeck_confirm_key(), "A",
+                        confirm_label, sizeof(confirm_label));
+                    controller_prompt_label(steamdeck_back_key(), "B",
+                        back_label, sizeof(back_label));
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "Place: D-pad move  [%s] select  [%s] cancel",
+                        confirm_label, back_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "Place: [%s] select  [%s] cancel", confirm_label,
+                        back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else
+                {
+                    const char* variants[] = {
+                        "Place: Dir/mouse move  Enter select  Esc cancel",
+                        "Place: Enter select  Esc cancel",
+                        "Enter select  Esc cancel"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt);
                 supply_register_prompt_clicks(&layout, prompt, NULL, "select",
@@ -9324,10 +9488,51 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             else if (item_select_mode)
             {
-                cptr prompt = (layout.term_wid <= 50)
-                    ? "Enter select  x preview  Esc"
-                    : "Choose item: arrows/mouse move  Enter/Space select  x preview  Esc cancel";
+                char prompt[160];
 
+                if (steamdeck_controls_active())
+                {
+                    char preview_label[16];
+                    char confirm_label[16];
+                    char back_label[16];
+                    char prompt_full[160];
+                    char prompt_mid[128];
+                    char prompt_short[96];
+                    const char* variants[3];
+
+                    controller_prompt_label(steamdeck_info_key(), "RS Right",
+                        preview_label, sizeof(preview_label));
+                    controller_prompt_label(steamdeck_confirm_key(), "A",
+                        confirm_label, sizeof(confirm_label));
+                    controller_prompt_label(steamdeck_back_key(), "B",
+                        back_label, sizeof(back_label));
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "Choose: D-pad move  [%s] select  [%s] preview  [%s] cancel",
+                        confirm_label, preview_label, back_label);
+                    strnfmt(prompt_mid, sizeof(prompt_mid),
+                        "Choose: [%s] select  [%s] preview  [%s] cancel",
+                        confirm_label, preview_label, back_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "[%s] select  [%s] cancel", confirm_label,
+                        back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_mid;
+                    variants[2] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else
+                {
+                    const char* variants[] = {
+                        "Choose: Dir/mouse move  Enter select  x preview  Esc cancel",
+                        "Enter select  x preview  Esc cancel",
+                        "Enter select  Esc cancel"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt);
                 supply_register_prompt_clicks(&layout, prompt, NULL, "select",
@@ -9345,6 +9550,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 char drop_label[16];
                 char back_label[16];
                 char prompt_buf[160];
+                char prompt_full[160];
+                char prompt_mid[128];
+                char prompt_short[96];
+                const char* variants[3];
 
                 controller_prompt_label(steamdeck_info_key(), "RS Right",
                     preview_label, sizeof(preview_label));
@@ -9356,10 +9565,22 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     sizeof(drop_label));
                 controller_prompt_label(ESCAPE, "Start", back_label,
                     sizeof(back_label));
-                strnfmt(prompt_buf, sizeof(prompt_buf),
+                strnfmt(prompt_full, sizeof(prompt_full),
                     "D-pad move  [%s] preview  [%s/%s] use  [%s] drop  [%s] back",
                     preview_label, use_label, confirm_label, drop_label,
                     back_label);
+                strnfmt(prompt_mid, sizeof(prompt_mid),
+                    "[%s] preview  [%s/%s] use  [%s] drop  [%s] back",
+                    preview_label, use_label, confirm_label, drop_label,
+                    back_label);
+                strnfmt(prompt_short, sizeof(prompt_short),
+                    "[%s/%s] use  [%s] drop", use_label, confirm_label,
+                    drop_label);
+                variants[0] = prompt_full;
+                variants[1] = prompt_mid;
+                variants[2] = prompt_short;
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, N_ELEMENTS(variants));
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
                     TERM_L_DARK, prompt_buf);
                 supply_register_prompt_clicks(&layout, prompt_buf, NULL,
@@ -9369,27 +9590,39 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             }
             else
             {
-                cptr prompt;
+                char prompt_buf[160];
+                const char* const* variants;
+                size_t variant_count;
+                static const char* letter_variants[] = {
+                    "letter use  Dir move  x preview  z drop  y delete  Tab  Esc",
+                    "letter use  x preview  z drop  y delete  Tab  Esc",
+                    "letter use  z drop  Tab  Esc"
+                };
+                static const char* move_variants[] = {
+                    "Dir move  x preview  u use  z drop  y delete  Tab  Esc",
+                    "x preview  u use  z drop  y delete  Tab  Esc",
+                    "u use  z drop  Esc"
+                };
 
                 if (indexed_menu_letters_enabled())
                 {
-                    prompt = (layout.term_wid <= 50)
-                        ? "letter use  arrows move  x/-> preview  z drop  y delete  Tab  Esc"
-                        : "letter use  arrows move  x/-> preview  u/Space use  z drop  y delete  Tab page  Esc";
+                    variants = letter_variants;
+                    variant_count = N_ELEMENTS(letter_variants);
                 }
                 else
                 {
-                    prompt = (layout.term_wid <= 50)
-                        ? "Dir move  x/-> preview  u/Space use  z drop  y delete  Tab  Esc"
-                        : "Dir move  x/-> preview  u/Space use  z drop  y delete  Tab page  Esc";
+                    variants = move_variants;
+                    variant_count = N_ELEMENTS(move_variants);
                 }
 
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, variant_count);
                 Term_putstr(0, layout.prompt_row, layout.term_wid,
-                    TERM_SLATE, prompt);
-                supply_register_prompt_clicks(&layout, prompt, NULL, NULL,
+                    TERM_SLATE, prompt_buf);
+                supply_register_prompt_clicks(&layout, prompt_buf, NULL, NULL,
                     NULL, NULL, NULL);
                 if (drop_click_mode)
-                    supply_highlight_prompt_token(&layout, prompt, "drop",
+                    supply_highlight_prompt_token(&layout, prompt_buf, "drop",
                         TERM_YELLOW);
             }
 
@@ -10090,6 +10323,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             char drop_label[16];
             char back_label[16];
             char prompt_buf[160];
+            char prompt_full[160];
+            char prompt_mid[128];
+            char prompt_short[96];
+            const char* variants[3];
 
             /* Steam Deck UI: RS Right=recall, X=use, A=confirm, B=drop, Start=back */
             controller_prompt_label(steamdeck_info_key(), "RS Right", recall_label, sizeof(recall_label));
@@ -10098,18 +10335,21 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             controller_prompt_label('f', "B", drop_label, sizeof(drop_label));
             controller_prompt_label(ESCAPE, "Start", back_label, sizeof(back_label));
 
-            if (draw_layout.term_wid <= 50)
-            {
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad move  [%s/%s] use  [%s] drop  [%s] back",
-                    use_label, confirm_label, drop_label, back_label);
-            }
-            else
-            {
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
-                    recall_label, use_label, confirm_label, drop_label, back_label);
-            }
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad move  [%s] recall  [%s/%s] use  [%s] drop  [%s] back",
+                recall_label, use_label, confirm_label, drop_label,
+                back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid),
+                "[%s/%s] use  [%s] drop  [%s] back",
+                use_label, confirm_label, drop_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s/%s] use  [%s] drop", use_label, confirm_label,
+                drop_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_mid;
+            variants[2] = prompt_short;
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                draw_layout.term_wid, false, variants, N_ELEMENTS(variants));
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
                 TERM_L_DARK, prompt_buf);
             supply_register_prompt_clicks(&draw_layout, prompt_buf,
@@ -10119,40 +10359,51 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
                     TERM_YELLOW);
         } else {
-            cptr prompt;
+            char prompt_buf[160];
+            const char* const* variants;
+            size_t variant_count;
+            static const char* jewelry_variants[] = {
+                "Dir move  x preview  u equip  s save  c clear  Tab  Alt+1-5  Esc",
+                "Dir move  u equip  s save  c clear  Tab  Esc",
+                "u equip  s save  c clear  Esc"
+            };
+            static const char* letter_variants[] = {
+                "letter use  Dir move  x preview  z drop  Tab  Esc",
+                "letter use  x preview  z drop  Tab  Esc",
+                "letter use  z drop  Esc"
+            };
+            static const char* move_variants[] = {
+                "Dir move  x preview  u use  z drop  Tab  Esc",
+                "x preview  u use  z drop  Tab  Esc",
+                "u use  z drop  Esc"
+            };
 
             if (grp_idx[grp_cur] == SUPPLY_GROUP_JEWELRY_PRESETS)
             {
-                if (draw_layout.term_wid <= 34)
-                    prompt = "u equip  s save  c clear";
-                else if (draw_layout.term_wid <= 50)
-                    prompt = "Dir move  u equip  s save  c clear  Tab  Esc";
-                else if (draw_layout.term_wid <= 70)
-                    prompt = "Dir move  u equip  s save  c clear  Tab  Alt+1-5  Esc";
-                else
-                    prompt = "Dir move  x/-> preview  u/Space equip  s save  c clear  Tab page  Esc";
+                variants = jewelry_variants;
+                variant_count = N_ELEMENTS(jewelry_variants);
             }
             else
             {
                 if (indexed_menu_letters_enabled())
                 {
-                    prompt = (draw_layout.term_wid <= 50)
-                        ? "letter use  arrows move  x preview  z drop  Tab  Esc"
-                        : "letter use  arrows move  x/-> preview  u/Space use  z drop  Tab page  Esc";
+                    variants = letter_variants;
+                    variant_count = N_ELEMENTS(letter_variants);
                 }
                 else
                 {
-                    prompt = (draw_layout.term_wid <= 50)
-                        ? "Dir move  x preview  u/Space use  z drop  Tab  Esc"
-                        : "Dir move  x/-> preview  u/Space use  z drop  Tab page  Esc";
+                    variants = move_variants;
+                    variant_count = N_ELEMENTS(move_variants);
                 }
             }
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                draw_layout.term_wid, false, variants, variant_count);
             Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
-                TERM_SLATE, prompt);
-            supply_register_prompt_clicks(&draw_layout, prompt,
+                TERM_SLATE, prompt_buf);
+            supply_register_prompt_clicks(&draw_layout, prompt_buf,
                 NULL, NULL, NULL, NULL, NULL);
             if (drop_click_mode)
-                supply_highlight_prompt_token(&draw_layout, prompt, "drop",
+                supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
                     TERM_YELLOW);
         }
 

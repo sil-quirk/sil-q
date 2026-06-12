@@ -205,26 +205,35 @@ void show_all_active_curses(void)
             /* Steam Deck UI: A=ok, B=back */
             metarun_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
             if (total_pages > 1) {
-                snprintf(footer_buf, sizeof footer_buf,
-                         "D-pad navigate  [%s] ok  [%s] back", accept_label, back_label);
-            } else {
-                snprintf(footer_buf, sizeof footer_buf,
+                char prompt_full[100];
+                char prompt_short[80];
+                const char* variants[2];
+
+                snprintf(prompt_full, sizeof prompt_full,
+                         "D-pad navigate  [%s] ok  [%s] back",
+                         accept_label, back_label);
+                snprintf(prompt_short, sizeof prompt_short,
                          "[%s] ok  [%s] back", accept_label, back_label);
+                variants[0] = prompt_full;
+                variants[1] = prompt_short;
+                terminal_prompt_pick_variant(footer_buf, sizeof footer_buf,
+                    term_width, false, variants, N_ELEMENTS(variants));
+            } else {
+                snprintf(footer_buf, sizeof footer_buf, "[%s] ok  [%s] back",
+                         accept_label, back_label);
             }
         } else {
             if (total_pages > 1) {
-                snprintf(footer_buf, sizeof footer_buf,
-                         "Use arrows (left/right) to navigate. Any other key to return.");
+                const char* variants[] = {
+                    "Dir left/right pages  Any key returns",
+                    "Dir pages  Any key returns",
+                    "Any key returns"
+                };
+                terminal_prompt_pick_variant(footer_buf, sizeof footer_buf,
+                    term_width, false, variants, N_ELEMENTS(variants));
             } else {
                 SDL_strlcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
             }
-        }
-
-        /* Ensure minimum 80 width for footer */
-        size_t footer_len = strlen(footer_buf);
-        if (footer_len < 80 && footer_len + 2 < sizeof footer_buf) {
-            memset(footer_buf + footer_len, ' ', 80 - footer_len);
-            footer_buf[80] = '\0';
         }
 
         Term_putstr(0, term_height - 1, -1, TERM_L_DARK, footer_buf);

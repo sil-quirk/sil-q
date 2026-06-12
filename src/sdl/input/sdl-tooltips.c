@@ -1160,7 +1160,7 @@ cptr sdl_description_overlay_footer_text(
     if (overlay && overlay->footer_text[0])
         return overlay->footer_text;
 
-    return "Esc close  Space page  Arrows scroll";
+    return "Esc close  Space page  Dir scroll";
 }
 
 void sdl_description_overlay_set_footer(cptr text, bool always)

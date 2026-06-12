@@ -1062,7 +1062,7 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             float margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
                 18.0f, 36.0f);
             cptr body =
-                "Tap: use the command printed on the button. Tap 2nd Panel to swap panes, then tap it again to return.\nSecond panel: Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the f key.\nConfirm (pick): confirms prompts, picks up, enters, or waits depending on context.\nArrows: step in one of eight directions; long-touch movement uses the active profile's alternate movement behavior.\nPresets: change this layout any time in Options > Input Options > Touch Settings.";
+                "Tap: use the command printed on the button. Tap 2nd Panel to swap panes, then tap it again to return.\nSecond panel: Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the f key.\nConfirm (pick): confirms prompts, picks up, enters, or waits depending on context.\nDirection buttons: step in one of eight directions; long-touch movement uses the active profile's alternate movement behavior.\nPresets: change this layout any time in Options > Input Options > Touch Settings.";
 
             if (pane.x < screen->x + screen->w / 2) {
                 panel_x = (float)(pane.x + pane.w) + margin;

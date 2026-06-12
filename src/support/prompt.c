@@ -37,6 +37,108 @@ static int active_term_width(void)
     return wid;
 }
 
+bool terminal_prompt_fits(cptr prompt, int max_width, bool use_story_font)
+{
+    size_t len;
+
+    if (!prompt)
+        return true;
+
+    if (max_width <= 0)
+        return false;
+
+    len = strlen(prompt);
+    if (len > (size_t)max_width)
+        return false;
+
+    if (use_story_font && sdl_is_story_font_enabled())
+    {
+        int cell_width = sdl_get_cell_width();
+
+        if (cell_width <= 0)
+            return true;
+
+        return sdl_story_font_text_width(prompt, (int)len)
+            <= max_width * cell_width;
+    }
+
+    return true;
+}
+
+void terminal_prompt_trim(char* prompt, int max_width, bool use_story_font)
+{
+    size_t len;
+
+    if (!prompt)
+        return;
+
+    if (max_width <= 0)
+    {
+        prompt[0] = '\0';
+        return;
+    }
+
+    len = strlen(prompt);
+    while (len > 0 && !terminal_prompt_fits(prompt, max_width, use_story_font))
+    {
+        prompt[--len] = '\0';
+        while (len > 0 && isspace((unsigned char)prompt[len - 1]))
+            prompt[--len] = '\0';
+    }
+}
+
+void terminal_prompt_pick_variant(char* out, size_t out_size, int max_width,
+    bool use_story_font, const char* const variants[], size_t variant_count)
+{
+    cptr fallback = "";
+
+    if (!out || out_size == 0)
+        return;
+
+    out[0] = '\0';
+
+    if (!variants || variant_count == 0)
+        return;
+
+    for (size_t i = 0; i < variant_count; i++)
+    {
+        cptr variant = variants[i];
+
+        if (!variant)
+            continue;
+
+        fallback = variant;
+        if (terminal_prompt_fits(variant, max_width, use_story_font))
+        {
+            SDL_strlcpy(out, variant, out_size);
+            return;
+        }
+    }
+
+    SDL_strlcpy(out, fallback, out_size);
+    terminal_prompt_trim(out, max_width, use_story_font);
+}
+
+void terminal_prompt_put_variant(int col, int row, int max_width, byte attr,
+    bool use_story_font, const char* const variants[], size_t variant_count)
+{
+    char prompt[256];
+    int term_wid = active_term_width();
+    int width = max_width;
+
+    if (col < 0)
+        col = 0;
+
+    if (width <= 0 || col + width > term_wid)
+        width = term_wid - col;
+    if (width < 0)
+        width = 0;
+
+    terminal_prompt_pick_variant(prompt, sizeof(prompt), width,
+        use_story_font, variants, variant_count);
+    Term_putstr(col, row, width, attr, prompt);
+}
+
 static void prompt_controller_label(int binding, const char* fallback,
     char* buf, size_t buflen)
 {

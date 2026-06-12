@@ -345,20 +345,43 @@ extern NavResult gain_skills(void)
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
                 birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad -allocate      %s-back     %s-confirm     %s-char",
-                    back_label, confirm_label, quit_label);
+                {
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "D-pad allocate  %s back  %s confirm  %s char",
+                        back_label, confirm_label, quit_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s confirm  %s back  %s char", confirm_label,
+                        back_label, quit_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), Term ? Term->wid - QUESTION_COL
+                                                  : 80 - QUESTION_COL,
+                        story_character_enabled(), variants,
+                        N_ELEMENTS(variants));
+                }
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
                 birth_register_allocation_prompt_clicks(prompt_row,
                     prompt_buf, QUESTION_COL, back_label, confirm_label,
                     quit_label);
             } else {
-                cptr prompt_text =
-                    "Arrows -allocate      ESC -back     SPACE/ENTER -confirm     q -character";
+                char prompt_text[160];
+                const char* variants[] = {
+                    "Dir allocate  Esc back  Enter confirm  q character",
+                    "Dir allocate  Esc back  Enter confirm",
+                    "Enter confirm  Esc back"
+                };
+                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    story_character_enabled(), variants, N_ELEMENTS(variants));
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
                 birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_text, QUESTION_COL, "ESC", "SPACE/ENTER", "q");
+                    prompt_text, QUESTION_COL, "Esc", "Enter", "q");
             }
 
             if (story_character_enabled()) {

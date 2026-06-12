@@ -172,16 +172,36 @@ void choose_difficulty_menu(void)
         /* Instructions */
         if (steamdeck) {
             char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
+            char prompt_full[96];
+            char prompt_short[80];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad navigate  [%s] accept  [%s] cancel", accept_label,
+                back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] accept  [%s] cancel", accept_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(hint_buf, sizeof(hint_buf),
+                metarun_term_width() - 2, false, variants,
+                N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_WHITE, hint_buf);
             ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
         } else {
-            cptr prompt_text =
-                "Arrows to navigate     Space/Enter Accept     Esc Cancel";
+            char prompt_text[96];
+            const char* variants[] = {
+                "Dir navigate  Enter accept  Esc cancel",
+                "Enter accept  Esc cancel"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                metarun_term_width() - 2, false, variants,
+                N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_WHITE, prompt_text);
             ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
                 "Esc Cancel");
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "Esc cancel");
         }
 
         /* Get input */

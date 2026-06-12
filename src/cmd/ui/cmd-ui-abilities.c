@@ -1620,9 +1620,26 @@ int bane_menu(int* highlight)
     if (compact_layout)
     {
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            "8/2 - Navigate");
+            steamdeck ? "D-pad navigate" : "Dir navigate");
         {
-            cptr prompt = "Enter Select  Esc Back";
+            char prompt[96];
+            if (steamdeck)
+            {
+                char confirm_label[16];
+                char back_label[16];
+
+                controller_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                controller_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
+                strnfmt(prompt, sizeof(prompt), "%s Select  %s Back",
+                    confirm_label, back_label);
+            }
+            else
+            {
+                SDL_strlcpy(prompt, "Enter Select  Esc Back",
+                    sizeof(prompt));
+            }
 
             Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
                 prompt);
@@ -1888,7 +1905,6 @@ int oath_menu(int* highlight)
     int visible_count = 0;
     int term_hgt = (Term && Term->hgt > 0) ? Term->hgt : 24;
     int term_wid = (Term && Term->wid > 0) ? Term->wid : 80;
-    bool compact_layout = ability_menu_use_compact_layout();
     int ability_col = ability_menu_list_col();
     int desc_col = ability_menu_description_col();
     int nav_row_1 = MAX(0, term_hgt - 2);
@@ -2026,10 +2042,26 @@ int oath_menu(int* highlight)
 
         // Navigation instructions at bottom
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            compact_layout ? "8/2 - Navigate" : "2/8 - Navigate");
+            steamdeck ? "D-pad navigate" : "Dir navigate");
         {
-            cptr prompt = compact_layout ? "Enter Select  Esc Back"
-                                         : "Enter - Select  ESC - Back";
+            char prompt[96];
+            if (steamdeck)
+            {
+                char confirm_label[16];
+                char back_label[16];
+
+                controller_prompt_label(steamdeck_confirm_key(), "A",
+                    confirm_label, sizeof(confirm_label));
+                controller_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
+                strnfmt(prompt, sizeof(prompt), "%s Select  %s Back",
+                    confirm_label, back_label);
+            }
+            else
+            {
+                SDL_strlcpy(prompt, "Enter Select  Esc Back",
+                    sizeof(prompt));
+            }
 
             Term_putstr(desc_col, nav_row_2, term_wid - desc_col, TERM_SLATE,
                 prompt);
@@ -2039,8 +2071,6 @@ int oath_menu(int* highlight)
                 desc_col, nav_row_2, prompt, "Select");
             ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
                 desc_col, nav_row_2, prompt, "Esc");
-            ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
-                desc_col, nav_row_2, prompt, "ESC");
             ui_menu_click_add_text_token(ABILITY_MENU_CLICK_EXIT,
                 desc_col, nav_row_2, prompt, "Back");
         }
@@ -3820,6 +3850,9 @@ static void ability_browser_register_prompt_clicks(
     ui_menu_click_add_text_token(ABILITY_MENU_CLICK_PREV_SKILL,
         layout->visible_col,
         layout->prompt_row, prompt, "[/]");
+    ui_menu_click_add_text_token(ABILITY_MENU_CLICK_PREV_SKILL,
+        layout->visible_col,
+        layout->prompt_row, prompt, "prev skill");
     ui_menu_click_add_text_token(ABILITY_MENU_CLICK_SCROLL_UP,
         layout->visible_col,
         layout->prompt_row, prompt, "9/3");
@@ -3844,6 +3877,10 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
         char confirm_label[16];
         char train_label[16];
         char back_label[16];
+        char prompt_full[180];
+        char prompt_mid[140];
+        char prompt_short[100];
+        const char* variants[3];
 
         controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
             sizeof(confirm_label));
@@ -3852,19 +3889,32 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
         controller_prompt_label(steamdeck_back_key(), "B", back_label,
             sizeof(back_label));
 
-        strnfmt(prompt, sizeof(prompt),
-            "D-pad move/scroll  Tab skill  [%s] buy/toggle  [%s] train  i skills  [%s] back",
+        strnfmt(prompt_full, sizeof(prompt_full),
+            "D-pad move/scroll  [%s] buy/toggle  [%s] train  [%s] back",
             confirm_label, train_label, back_label);
+        strnfmt(prompt_mid, sizeof(prompt_mid),
+            "[%s] buy/toggle  [%s] train  [%s] back",
+            confirm_label, train_label, back_label);
+        strnfmt(prompt_short, sizeof(prompt_short), "[%s] buy  [%s] back",
+            confirm_label, back_label);
+        variants[0] = prompt_full;
+        variants[1] = prompt_mid;
+        variants[2] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,
+            false, variants, N_ELEMENTS(variants));
         ability_browser_put_fitted(layout->visible_col, layout->prompt_row,
             layout->visible_w, TERM_L_DARK, prompt);
     }
     else
     {
-        cptr text = (layout->visible_w <= 70)
-            ? "Dir move  Tab/[] skill  Space buy/toggle  + train  9/3 scroll  Esc"
-            : "Dir move/focus  Tab or [/] switch skill  Space buy/toggle  + train  9/3 scroll info  i skills  Esc";
+        const char* variants[] = {
+            "Dir move  Tab skill  Space buy/toggle  + train  Pg scroll  i skills  Esc",
+            "Dir move  Tab skill  Space buy/toggle  + train  Esc",
+            "Space buy/toggle  + train  Esc"
+        };
 
-        SDL_strlcpy(prompt, text, sizeof(prompt));
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,
+            false, variants, N_ELEMENTS(variants));
         ability_browser_put_fitted(layout->visible_col, layout->prompt_row,
             layout->visible_w, TERM_SLATE, prompt);
     }

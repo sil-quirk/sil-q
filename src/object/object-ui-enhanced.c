@@ -41,6 +41,162 @@ static void enhanced_menu_highlight_prompt_token(cptr text, cptr token,
     Term_putstr((int)(match - text), 0, (int)strlen(token), attr, token);
 }
 
+static bool enhanced_menu_format_prompt(char* out, size_t out_size,
+    int term_wid, bool use_story_font, bool equipment)
+{
+    const bool controller_controls = steamdeck_controls_active();
+    const bool examine_mode = (current_menu_command == 'x');
+    const char* context = equipment ? " (Equipped)" : " (Inventory)";
+    const char* action = equipment ? "remove" : (examine_mode ? "examine" : "use");
+    char full[192];
+    char medium[192];
+    char short_form[160];
+    char tiny[128];
+    const char* variants[4];
+
+    if (!out || out_size == 0)
+        return false;
+
+    if (controller_controls)
+    {
+        char confirm_label[16];
+        char desc_label[16];
+        char cycle_label[16] = "";
+        bool show_cycle = false;
+
+        inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
+        inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
+
+        if (current_menu_command == 'u' || current_menu_command == 'x')
+        {
+            inventory_prompt_label(current_menu_command,
+                current_menu_command == 'u' ? "X" : "RS Right",
+                cycle_label, sizeof(cycle_label));
+            show_cycle = true;
+        }
+        else if (inventory_menu_same_button_cycle_enabled())
+        {
+            inventory_prompt_label(equipment ? 'e' : 'i',
+                equipment ? "L1" : "R1", cycle_label, sizeof(cycle_label));
+            show_cycle = true;
+        }
+
+        if (examine_mode)
+        {
+            if (show_cycle)
+            {
+                strnfmt(full, sizeof(full),
+                    "%s %s  D-pad left drop  %s cycle%s",
+                    confirm_label, action, cycle_label, context);
+                strnfmt(medium, sizeof(medium),
+                    "%s %s  D-left drop  %s cycle",
+                    confirm_label, action, cycle_label);
+                strnfmt(short_form, sizeof(short_form), "%s %s  %s cycle",
+                    confirm_label, action, cycle_label);
+                strnfmt(tiny, sizeof(tiny), "%s %s", confirm_label, action);
+            }
+            else
+            {
+                strnfmt(full, sizeof(full), "%s %s  D-pad left drop%s",
+                    confirm_label, action, context);
+                strnfmt(medium, sizeof(medium), "%s %s  D-left drop",
+                    confirm_label, action);
+                strnfmt(short_form, sizeof(short_form), "%s %s",
+                    confirm_label, action);
+                SDL_strlcpy(tiny, short_form, sizeof(tiny));
+            }
+        }
+        else if (show_cycle)
+        {
+            strnfmt(full, sizeof(full),
+                "%s %s  %s details  D-pad left drop  %s cycle%s",
+                confirm_label, action, desc_label, cycle_label, context);
+            strnfmt(medium, sizeof(medium),
+                "%s %s  %s details  D-left drop  %s cycle",
+                confirm_label, action, desc_label, cycle_label);
+            strnfmt(short_form, sizeof(short_form),
+                "%s %s  %s details  %s cycle",
+                confirm_label, action, desc_label, cycle_label);
+            strnfmt(tiny, sizeof(tiny), "%s %s  D-left drop",
+                confirm_label, action);
+        }
+        else
+        {
+            strnfmt(full, sizeof(full),
+                "%s %s  %s details  D-pad left drop%s",
+                confirm_label, action, desc_label, context);
+            strnfmt(medium, sizeof(medium),
+                "%s %s  %s details  D-left drop",
+                confirm_label, action, desc_label);
+            strnfmt(short_form, sizeof(short_form), "%s %s  %s details",
+                confirm_label, action, desc_label);
+            strnfmt(tiny, sizeof(tiny), "%s %s", confirm_label, action);
+        }
+    }
+    else
+    {
+        bool show_cycle = (current_menu_command == 'u'
+            || current_menu_command == 'x');
+
+        if (examine_mode)
+        {
+            if (show_cycle)
+            {
+                strnfmt(full, sizeof(full),
+                    "Space examine  Left drop  %c cycle%s",
+                    current_menu_command, context);
+                strnfmt(medium, sizeof(medium),
+                    "Space examine  Left drop  %c cycle",
+                    current_menu_command);
+                strnfmt(short_form, sizeof(short_form),
+                    "Space examine  %c cycle", current_menu_command);
+                SDL_strlcpy(tiny, "Space examine", sizeof(tiny));
+            }
+            else
+            {
+                strnfmt(full, sizeof(full), "Space examine  Left drop%s",
+                    context);
+                SDL_strlcpy(medium, "Space examine  Left drop",
+                    sizeof(medium));
+                SDL_strlcpy(short_form, "Space examine", sizeof(short_form));
+                SDL_strlcpy(tiny, short_form, sizeof(tiny));
+            }
+        }
+        else if (show_cycle)
+        {
+            strnfmt(full, sizeof(full),
+                "Space %s  Right details  Left drop  %c cycle%s",
+                action, current_menu_command, context);
+            strnfmt(medium, sizeof(medium),
+                "Space %s  Right details  Left drop  %c cycle",
+                action, current_menu_command);
+            strnfmt(short_form, sizeof(short_form),
+                "Space %s  Details  Drop  %c cycle",
+                action, current_menu_command);
+            strnfmt(tiny, sizeof(tiny), "Space %s  Drop", action);
+        }
+        else
+        {
+            strnfmt(full, sizeof(full),
+                "Space %s  Right details  Left drop%s", action, context);
+            strnfmt(medium, sizeof(medium),
+                "Space %s  Right details  Left drop", action);
+            strnfmt(short_form, sizeof(short_form),
+                "Space %s  Details  Drop", action);
+            strnfmt(tiny, sizeof(tiny), "Space %s", action);
+        }
+    }
+
+    variants[0] = full;
+    variants[1] = medium;
+    variants[2] = short_form;
+    variants[3] = tiny;
+    terminal_prompt_pick_variant(out, out_size, term_wid - 1, use_story_font,
+        variants, N_ELEMENTS(variants));
+
+    return strstr(out, context) != NULL;
+}
+
 static void append_compare_slot(int* slots, int* count, int slot)
 {
     if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
@@ -645,53 +801,19 @@ void show_inven_enhanced(void)
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         ui_scroll_area_set_keys('8', '2', '6', '4');
         bool square_selection = inventory_selection_uses_square();
-
-        /* Show the prompt - different text based on how menu was opened */
-        extern char current_menu_command;
         const bool controller_controls = steamdeck_controls_active();
-        if (controller_controls) {
-            char confirm_label[16];
-            char desc_label[16];
-            char cycle_label[16];
-            bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
 
-            inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-            inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
-
-            if (current_menu_command == 'u') {
-                inventory_prompt_label('u', "X", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-use  %s-desc  <- drop  %s-cycle (Inventory)",
-                    confirm_label, desc_label, cycle_label);
-            } else if (current_menu_command == 'x') {
-                inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-examine  %s-desc  <- drop  %s-cycle (Inventory)",
-                    confirm_label, desc_label, cycle_label);
-            } else if (same_button_cycle) {
-                inventory_prompt_label('i', "R1", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-use  %s-desc  <- drop  %s-cycle (Inventory)",
-                    confirm_label, desc_label, cycle_label);
-            } else {
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-use  %s-desc  <- drop (Inventory)",
-                    confirm_label, desc_label);
-            }
-        } else if (current_menu_command == 'u') {
-            sprintf(out_val, "Space-Use, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
-        }
-        else if (current_menu_command == 'x') {
-            sprintf(out_val, "Space-Examine, -> description, <- drop, %c again-cycle  (Inventory)", current_menu_command);
-        }
-        else {
-            sprintf(out_val, "Space-Use, -> description, <- drop  (Inventory)");
-        }
+        bool prompt_context_visible = enhanced_menu_format_prompt(out_val,
+            sizeof(out_val), term_wid, use_story_font, false);
         prt(out_val, 0, 0);
         ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
             out_val, "drop");
-        ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
-            out_val, "Inventory");
+        if (prompt_context_visible)
+            ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+                out_val, "Inventory");
+        else
+            ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+                out_val, "cycle");
         if (drop_click_mode)
             enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
 
@@ -1454,7 +1576,7 @@ void show_inven_enhanced(void)
                 /* Letter selection is hidden/disabled only in controller UI mode. */
                 allow_letters = !controller_controls;
                 if (!allow_letters) {
-                    bell("Use arrow keys and Space to select items in this mode");
+                    bell("Use directions and Space to select items in this mode");
                     break;
                 }
                 if (death_spectator_active()) {
@@ -1793,62 +1915,18 @@ void show_equip_enhanced(void)
             log_trace("show_equip_enhanced: show_equip() FINISHED");
         }
         
-        /* Show the prompt - different text based on how menu was opened */
-        extern char current_menu_command;
         const bool controller_controls = steamdeck_controls_active();
-        const char* prompt_suffix = " (Equipped)";
-        bool prompt_context_visible;
-        if (controller_controls) {
-            char confirm_label[16];
-            char desc_label[16];
-            char cycle_label[16];
-            bool same_button_cycle = inventory_menu_same_button_cycle_enabled();
-
-            inventory_prompt_label(' ', "A", confirm_label, sizeof(confirm_label));
-            inventory_prompt_label('x', "RS Right", desc_label, sizeof(desc_label));
-
-            if (current_menu_command == 'u') {
-                inventory_prompt_label('u', "X", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
-                    confirm_label, desc_label, cycle_label, prompt_suffix);
-            } else if (current_menu_command == 'x') {
-                inventory_prompt_label('x', "RS Right", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
-                    confirm_label, desc_label, cycle_label, prompt_suffix);
-            } else if (same_button_cycle) {
-                inventory_prompt_label('e', "L1", cycle_label, sizeof(cycle_label));
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop  %s-cycle%s",
-                    confirm_label, desc_label, cycle_label, prompt_suffix);
-            } else {
-                strnfmt(out_val, sizeof(out_val),
-                    "%s-remove  %s-desc  <- drop%s",
-                    confirm_label, desc_label, prompt_suffix);
-            }
-        } else if (current_menu_command == 'u') {
-            sprintf(out_val,
-                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
-                current_menu_command);
-        }
-        else if (current_menu_command == 'x') {
-            sprintf(out_val,
-                "Space-Remove, -> description, <- drop, %c again-cycle  (Equipped)",
-                current_menu_command);
-        }
-        else {
-            sprintf(out_val,
-                "Space-Remove, -> description, <- drop  (Equipped)");
-        }
-        prompt_context_visible = menu_prompt_drop_suffix_if_wrapped(out_val,
-            prompt_suffix, term_wid, use_story_font);
+        bool prompt_context_visible = enhanced_menu_format_prompt(out_val,
+            sizeof(out_val), term_wid, use_story_font, true);
         prt(out_val, 0, 0);
         ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_DROP, 0, 0,
             out_val, "drop");
         if (prompt_context_visible)
             ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
                 out_val, "Equipped");
+        else
+            ui_menu_click_add_text_token(ENHANCED_MENU_CLICK_SWITCH, 0, 0,
+                out_val, "cycle");
         if (drop_click_mode)
             enhanced_menu_highlight_prompt_token(out_val, "drop", TERM_YELLOW);
         
@@ -2155,7 +2233,7 @@ void show_equip_enhanced(void)
                 allow_letters = !controller_controls;
                 
                 if (!allow_letters) {
-                    bell("Use arrow keys and Space to select items in this mode");
+                    bell("Use directions and Space to select items in this mode");
                     break;
                 }
                 if (death_spectator_active()) {

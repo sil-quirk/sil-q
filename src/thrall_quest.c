@@ -1807,15 +1807,26 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
             char confirm_label[16];
             char back_label[16];
             char prompt_buf[120];
+            char prompt_full[120];
+            char prompt_short[80];
+            const char* variants[2];
 
             thrall_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
                 sizeof(confirm_label));
             thrall_prompt_label(steamdeck_back_key(), "B", back_label,
                 sizeof(back_label));
-            strnfmt(prompt_buf, sizeof(prompt_buf),
+            strnfmt(prompt_full, sizeof(prompt_full),
                 compact ? "D-pad move  %s choose  %s later"
                         : "D-pad navigate  %s accept  %s later",
                 confirm_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                compact ? "%s choose  %s later"
+                        : "%s accept  %s later",
+                confirm_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
             Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_buf);
             ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "choose");
@@ -1826,28 +1837,41 @@ static int choose_thrall_reward(monster_type* m_ptr, bool pending_reward)
         }
         else if (menu_letters)
         {
-            cptr prompt_text = compact ? "8/2 move  Enter choose  ESC later"
-                : "8/2 or arrows navigate  Enter accept  Letter select  ESC later";
+            char prompt_buf[120];
+            const char* variants[] = {
+                compact ? "Dir move  Enter choose  Letter select  Esc later"
+                        : "Dir navigate  Enter accept  Letter select  Esc later",
+                "Enter accept  Letter select  Esc later",
+                "Enter accept  Esc later"
+            };
 
-            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "choose");
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "accept");
-            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
                 "later");
         }
         else
         {
-            cptr prompt_text = compact ? "8/2 move  Enter choose  ESC later"
-                : "8/2 or arrows navigate  Enter accept  ESC later";
+            char prompt_buf[96];
+            const char* variants[] = {
+                compact ? "Dir move  Enter choose  Esc later"
+                        : "Dir navigate  Enter accept  Esc later",
+                "Enter accept  Esc later"
+            };
 
-            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
+            Term_putstr(0, prompt_row, term_wid, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "choose");
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "accept");
-            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
                 "later");
         }
 

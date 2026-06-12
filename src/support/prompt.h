@@ -15,5 +15,11 @@ bool get_check_near(int y, int x, cptr prompt);
 bool get_check_oath_multiline(cptr prompt);
 bool get_com(cptr prompt, char* command);
 void pause_line(int row);
+bool terminal_prompt_fits(cptr prompt, int max_width, bool use_story_font);
+void terminal_prompt_trim(char* prompt, int max_width, bool use_story_font);
+void terminal_prompt_pick_variant(char* out, size_t out_size, int max_width,
+    bool use_story_font, const char* const variants[], size_t variant_count);
+void terminal_prompt_put_variant(int col, int row, int max_width, byte attr,
+    bool use_story_font, const char* const variants[], size_t variant_count);
 
 #endif /* INCLUDED_SUPPORT_PROMPT_H */

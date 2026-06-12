@@ -466,23 +466,61 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     sizeof(random_label));
 
                 if (allow_full_description_screen)
-                    strnfmt(prompt, sizeof(prompt),
+                {
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    strnfmt(prompt_full, sizeof(prompt_full),
                         "D-pad move  %s select  %s details  %s back  %s random",
                         confirm_label, detail_label, back_label, random_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s select  %s details  %s back", confirm_label,
+                        detail_label, back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                        false, variants, N_ELEMENTS(variants));
+                }
                 else
-                    strnfmt(prompt, sizeof(prompt),
+                {
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    strnfmt(prompt_full, sizeof(prompt_full),
                         "D-pad move  %s select  %s back  %s random",
                         confirm_label, back_label, random_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s select  %s back", confirm_label, back_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                        false, variants, N_ELEMENTS(variants));
+                }
             }
             else if (allow_full_description_screen)
             {
-                strnfmt(prompt, sizeof(prompt),
-                    "SPACE/ENTER select  f description  ESC back  r random");
+                const char* variants[] = {
+                    "Enter select  f description  Esc back  r random",
+                    "Enter select  f details  Esc back",
+                    "Enter select  Esc back"
+                };
+                terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    false, variants, N_ELEMENTS(variants));
             }
             else
             {
-                strnfmt(prompt, sizeof(prompt),
-                    "SPACE/ENTER select  ESC back  r random");
+                const char* variants[] = {
+                    "Enter select  Esc back  r random",
+                    "Enter select  Esc back"
+                };
+                terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    false, variants, N_ELEMENTS(variants));
             }
             Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt);
             ui_menu_click_add_text_token(BIRTH_CHOICE_CLICK_SELECT,

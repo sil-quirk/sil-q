@@ -1644,7 +1644,7 @@ extern void do_cmd_options_aux(int page, cptr info)
             if (playerturn == 0)
             {
                 settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
-                    "(tap/click select; tap selected or 4/6 set; drag/wheel scroll; Return/Escape accept)",
+                    "(tap/click select; tap selected or Left/Right set; drag/wheel scroll; Enter/Esc accept)",
                     "(tap select/set; drag/wheel scroll; Enter/Esc accept)",
                     "(tap set; drag/wheel; Enter/Esc)");
                 ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
@@ -1661,7 +1661,7 @@ extern void do_cmd_options_aux(int page, cptr info)
         else if (!pixel_menu)
         {
             settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
-                "(tap/click select; tap selected or 4/6 set; drag/wheel scroll; Return/Escape accept)",
+                "(tap/click select; tap selected or Left/Right set; drag/wheel scroll; Enter/Esc accept)",
                 "(tap select/set; drag/wheel scroll; Enter/Esc accept)",
                 "(tap set; drag/wheel; Enter/Esc)");
             ui_menu_click_add_full_row(SETTINGS_CLICK_RETURN, Term->hgt - 1);
@@ -2812,8 +2812,8 @@ void do_cmd_pane_settings(void)
             }
             settings_ui_put_return_prompt(y++, 2, TERM_SLATE,
                 "(direction keys to set, 0 = auto font, o = open config, Return/Escape to accept)",
-                "(arrows move, 4/6 or y/n set, 0 auto, o open config, Enter/Esc)",
-                "(arrows move, 4/6 set, 0 auto, o config, Enter/Esc)");
+                "(Dir move, Left/Right set, 0 auto, o open config, Enter/Esc)",
+                "(Dir move, Left/Right set, 0 auto, o config, Enter/Esc)");
         }
 
         /* Get key */
@@ -3345,7 +3345,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             if (pixel_menu)
             {
                 sdl_character_sheet_screen_set_select_description(
-                    "Up and down select a pane. 4/6 or N/Y change the font size. 0 sets the selected pane font to auto. Changes apply immediately.");
+                    "Up and down select a pane. Left/Right or N/Y change the font size. 0 sets the selected pane font to auto. Changes apply immediately.");
                 sdl_character_sheet_screen_commit_select(sel);
             }
             else
@@ -3353,9 +3353,9 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                 int y = Term->hgt - 4;
                 settings_ui_put_fitted(y++, 2, TERM_SLATE,
                     settings_ui_pick_label(term_wid - 2,
-                        "Up/Down: select pane   4/6 (or n/y): change font size",
-                        "Up/Down select pane   4/6 set font size",
-                        "Up/Down select   4/6 set"));
+                        "Up/Down: select pane   Left/Right: change font size",
+                        "Up/Down select pane   Left/Right set font size",
+                        "Up/Down select   Left/Right set"));
                 settings_ui_put_fitted(y++, 2, TERM_SLATE,
                     settings_ui_pick_label(term_wid - 2,
                         "0: auto (uses default aux font / auto main-based size)",
@@ -4048,7 +4048,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
         if (pixel_menu)
         {
             sdl_character_sheet_screen_set_select_description(
-                "Up and down select a pane. Space chooses the active field. 4/6 or N/Y toggle, cycle, or adjust the active value. 0 sets rows or columns to auto. Changes apply immediately.");
+                "Up and down select a pane. Space chooses the active field. Left/Right or N/Y toggles, cycles, or adjusts the active value. 0 sets rows or columns to auto. Changes apply immediately.");
             sdl_character_sheet_screen_commit_select(sel);
         }
         else
@@ -4059,11 +4059,11 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                     "Up/Down: select pane   Space: choose on/off, where, rows, cols",
                     "Up/Down select pane   Space switch field",
                     "Up/Down select   Space field"));
-            settings_ui_put_fitted(y++, 2, TERM_SLATE,
-                settings_ui_pick_label(term_wid - 2,
-                    "4/6 (or n/y): toggle, cycle, or +/- value   0: set rows/cols to auto",
-                    "4/6 or y/n: toggle, cycle, or +/- value   0: auto",
-                    "4/6 cycle/set   0 auto"));
+                settings_ui_put_fitted(y++, 2, TERM_SLATE,
+                    settings_ui_pick_label(term_wid - 2,
+                    "Left/Right: toggle, cycle, or +/- value   0: set rows/cols to auto",
+                    "Left/Right: toggle, cycle, or +/- value   0: auto",
+                    "Left/Right set   0 auto"));
             settings_ui_put_fitted(y++, 2, TERM_SLATE,
                 settings_ui_pick_label(term_wid - 2,
                     "Each side/overlay slot shares cols with its first pane; each bottom slot shares rows",
@@ -4159,7 +4159,7 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             int idx = pane_indices[sel];
             if (field == 0 || field == 1)
             {
-                bell("Use 4/6 to toggle enabled or cycle placement");
+                bell("Use Left/Right to toggle enabled or cycle placement");
                 break;
             }
             if (field == 2 && supporting_pane_rows_locked(pane_indices, pane_count, idx))
@@ -5167,7 +5167,7 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                 settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                     "Reset Panel Buttons", "M", TERM_SLATE);
                 strnfmt(desc, sizeof(desc),
-                    "%s. 4/6 changes the selected action. Space cycles forward. Main panel must keep Confirm on at least one button.",
+                    "%s. Left/Right changes the selected action. Space cycles forward. Main panel must keep Confirm on at least one button.",
                     info_buf);
                 sdl_character_sheet_screen_set_select_description(desc);
                 sdl_character_sheet_screen_commit_select(highlight);
@@ -5182,9 +5182,9 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
             row = list_start_row + visible_rows + 1;
             {
                 cptr prompt = settings_ui_pick_label(row_width,
-                    "Up/Down: select setting/button   4/6: previous/next value   l/View: rename button label",
-                    "Up/Down select   4/6 value   l/View rename",
-                    "Up/Down select   4/6 value");
+                    "Up/Down: select setting/button   Left/Right: previous/next value   l/View: rename button label",
+                    "Up/Down select   Left/Right value   l/View rename",
+                    "Up/Down select   Left/Right value");
                 int prompt_row = row++;
 
                 settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
@@ -5562,7 +5562,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                 "Reset All Overlay Menu Buttons", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
-                "4/6 changes the selected action. Space cycles forward. X resets selected, M resets all. Escape or Enter returns.");
+                "Left/Right changes the selected action. Space cycles forward. X resets selected, M resets all. Escape or Enter returns.");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -5570,9 +5570,9 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             settings_ui_put_fitted(list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 2,
                 2, TERM_SLATE,
                 settings_ui_pick_label(row_width,
-                    "Up/Down: select button   4/6: previous/next action   Space cycle",
-                    "Up/Down select   4/6 action   Space cycle",
-                    "Up/Down select   4/6 action"));
+                    "Up/Down: select button   Left/Right: previous/next action   Space cycle",
+                    "Up/Down select   Left/Right action   Space cycle",
+                    "Up/Down select   Left/Right action"));
             {
                 cptr prompt = settings_ui_pick_label(row_width,
                     "x reset selected   M/Map reset all overlay menu buttons",
@@ -5911,8 +5911,8 @@ static void do_cmd_touch_profile_settings(bool* settings_changed)
             settings_ui_put_fitted(list_start_row + (int)N_ELEMENTS(profiles) + 2,
                 2, TERM_SLATE,
                 settings_ui_pick_label(row_width,
-                    "Space/Enter apply the highlighted profile defaults.",
-                    "Space/Enter apply profile defaults.",
+                    "Enter applies the highlighted profile defaults.",
+                    "Enter applies profile defaults.",
                     "Space apply profile."));
             settings_ui_put_return_prompt(list_start_row + (int)N_ELEMENTS(profiles) + 3,
                 2, TERM_SLATE, "Esc: return", "Esc: return", "Esc return");
@@ -6071,7 +6071,7 @@ static void do_cmd_touch_settings(bool* settings_changed)
         if (pixel_menu)
         {
             sdl_character_sheet_screen_set_select_description(
-                "Enter or Space opens or toggles the selected row. 4/6 changes values where available. Escape returns.");
+                "Enter opens or toggles the selected row. Left/Right changes values where available. Escape returns.");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -6322,7 +6322,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                 "Reset All Touch Controls", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
-                "Controls touch menus, game-screen layers, movement, overlays, and swipes. 4/6 changes values, Space toggles or cycles, X resets selected, M resets all.");
+                "Controls touch menus, game-screen layers, movement, overlays, and swipes. Left/Right changes values, Space toggles or cycles, X resets selected, M resets all.");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -6330,9 +6330,9 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             row = list_start_row + visible_rows + 1;
             settings_ui_put_fitted(row++, 2, TERM_SLATE,
                 settings_ui_pick_label(row_width,
-                    "Up/Down: select item   4/6: previous/next value   Space toggle or cycle",
-                    "Up/Down select   4/6 value   Space toggle/cycle",
-                    "Up/Down select   4/6 value"));
+                    "Up/Down: select item   Left/Right: previous/next value   Space toggle or cycle",
+                    "Up/Down select   Left/Right value   Space toggle/cycle",
+                    "Up/Down select   Left/Right value"));
             {
                 cptr prompt = settings_ui_pick_label(row_width,
                     "x reset selected   M/Map reset all touch control settings",
@@ -6676,7 +6676,7 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                 "Reset All", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
-                "Controls desktop mouse input and map movement. 4/6 changes values, Space toggles or opens tutorial, X resets selected, M resets all.");
+                "Controls desktop mouse input and map movement. Left/Right changes values, Space toggles or opens tutorial, X resets selected, M resets all.");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -6684,9 +6684,9 @@ static void do_cmd_mouse_settings(bool* settings_changed)
             settings_ui_put_fitted(list_start_row + MOUSE_SETTING_COUNT + 2, 2,
                 TERM_SLATE,
                 settings_ui_pick_label(row_width,
-                    "Up/Down: select item   4/6: previous/next value   Space toggle, cycle, or show",
-                    "Up/Down select   4/6 value   Space toggle/cycle/show",
-                    "Up/Down select   4/6 value"));
+                    "Up/Down: select item   Left/Right: previous/next value   Space toggle, cycle, or show",
+                    "Up/Down select   Left/Right value   Space toggle/cycle/show",
+                    "Up/Down select   Left/Right value"));
             {
                 cptr prompt = settings_ui_pick_label(row_width,
                     "x reset selected   M/Map reset all mouse input settings",
@@ -8168,7 +8168,7 @@ void do_cmd_keybinds(void)
             settings_ui_put_fitted(1, 0, TERM_WHITE, "Keybind Configuration");
             if (compact_width)
             {
-                cptr nav_prompt = "8/2 move  Enter bind  Tab switch  Esc return";
+                cptr nav_prompt = "Up/Down move  Enter bind  Tab switch  Esc return";
                 settings_ui_put_fitted(2, 0, TERM_WHITE,
                     nav_prompt);
                 settings_ui_add_return_click_targets(2, 0, nav_prompt);
@@ -9806,8 +9806,8 @@ void do_cmd_controller_settings(void)
                 settings_ui_add_return_click_targets(2, 0, prompt_buf);
             } else {
                 cptr nav_prompt = compact_width
-                    ? "8/2 move  Enter add  Esc return"
-                    : "Arrow to navigate, Enter to add, Escape to return";
+                    ? "Up/Down move  Enter add  Esc return"
+                    : "Directions navigate, Enter add, Escape return";
                 settings_ui_put_fitted(2, 0, TERM_WHITE,
                     nav_prompt);
                 settings_ui_add_return_click_targets(2, 0, nav_prompt);
@@ -10831,7 +10831,7 @@ static void askfor_shade(byte* attr, int y)
         Term_erase(0, y, 255);
 
         /* Format the query */
-        msg = format("1. Choose base color (use arrows) " COLOR_SAMPLE
+        msg = format("1. Choose base color (Left/Right) " COLOR_SAMPLE
                      " %s (attr = %d) ",
             color_names[base], base);
 
@@ -10898,7 +10898,7 @@ static void askfor_shade(byte* attr, int y)
         temp = MAKE_EXTENDED_COLOR(base, shade);
 
         /* Format the message */
-        msg = format("2. Choose shade (use arrows) " COLOR_SAMPLE
+        msg = format("2. Choose shade (Left/Right) " COLOR_SAMPLE
                      " %s (attr = %d) ",
             get_ext_color_name(temp), temp);
 
@@ -11880,7 +11880,7 @@ static void modify_colors(void)
     x = 42;
     c_put_str(TERM_WHITE, "Commands:", y, x);
     c_put_str(TERM_WHITE, "ESC: Return", y + 2, x);
-    c_put_str(TERM_WHITE, "Arrows: Move to color", y + 3, x);
+    c_put_str(TERM_WHITE, "Left/Right: Move to color", y + 3, x);
     c_put_str(TERM_WHITE, "k,K: Incr,Decr extra value", y + 4, x);
     c_put_str(TERM_WHITE, "r,R: Incr,Decr red value", y + 5, x);
     c_put_str(TERM_WHITE, "g,G: Incr,Decr green value", y + 6, x);

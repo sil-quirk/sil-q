@@ -537,11 +537,11 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
     if (steamdeck)
     {
         strnfmt(full, sizeof(full),
-            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move  N/P Page %d/%d",
+            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move %d/%d",
             open_label, history_label, order_label, layout_label, exit_label,
             page + 1, total_pages);
         strnfmt(medium, sizeof(medium),
-            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad  %d/%d",
+            "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  %d/%d",
             open_label, history_label, order_label, layout_label, exit_label,
             page + 1, total_pages);
         strnfmt(short1, sizeof(short1),
@@ -558,13 +558,13 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
     else
     {
         strnfmt(full, sizeof(full),
-            "[Enter/Right] Open  [R] Run History  [S] Order  [L] Layout  [Esc] Exit  [Up/Down] Move  [N] Next  [P] Prev %d/%d",
+            "Dir Move/Open  N/P Page  Enter Open  R Runs  S Order  L Layout  Esc Exit %d/%d",
             page + 1, total_pages);
         strnfmt(medium, sizeof(medium),
-            "Enter Open  R Runs  S Order  L Layout  Esc Exit  Up/Down Move  N/P Page %d/%d",
+            "Enter Open  R Runs  S Order  L Layout  Esc Exit  N/P Page %d/%d",
             page + 1, total_pages);
         strnfmt(short1, sizeof(short1),
-            "Enter Open  R Runs  S Ord  L Lay  Esc Exit  Up/Down  N/P %d/%d",
+            "Enter Open  R Runs  S Ord  L Lay  Esc Exit  N/P %d/%d",
             page + 1, total_pages);
         strnfmt(short2, sizeof(short2),
             "Enter Open  R Runs  Esc Exit  %d/%d",
@@ -2484,10 +2484,20 @@ void do_cmd_run_history(void)
 
         if (steamdeck) {
             char footer[160];
+            char footer_full[160];
+            char footer_short[120];
+            const char* variants[2];
 
-            strnfmt(footer, sizeof(footer),
-                "[%s] details  [%s] sort  [%s] back  [Up/Down] move  [Left/Right] page",
+            strnfmt(footer_full, sizeof(footer_full),
+                "D-pad move/page  [%s] details  [%s] sort  [%s] back",
                 confirm_label, sort_label, back_label);
+            strnfmt(footer_short, sizeof(footer_short),
+                "[%s] details  [%s] sort  [%s] back",
+                confirm_label, sort_label, back_label);
+            variants[0] = footer_full;
+            variants[1] = footer_short;
+            terminal_prompt_pick_variant(footer, sizeof(footer), term_wid,
+                false, variants, N_ELEMENTS(variants));
             score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
             ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
                 footer_row, footer, "details");
@@ -2500,9 +2510,15 @@ void do_cmd_run_history(void)
             ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
                 footer_row, footer, "Right");
         } else {
-            const char *footer =
-                "[Space/Enter/Right] details  [R] sort  [Esc] back  [Up/Down] move  [N/P/3/7] page";
+            char footer[160];
+            const char* variants[] = {
+                "Dir move/page  Enter details  R sort  Esc back",
+                "Enter details  R sort  Esc back",
+                "Enter details  Esc back"
+            };
 
+            terminal_prompt_pick_variant(footer, sizeof(footer), term_wid,
+                false, variants, N_ELEMENTS(variants));
             score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
             ui_menu_click_add_text_token(RUN_HISTORY_CLICK_DETAILS, 0,
                 footer_row, footer, "details");
@@ -3547,11 +3563,11 @@ static void run_history_show_detail(const run_history_entry* entry)
                 view.general_top, term_hgt, term_wid);
             footer = steamdeck
                 ? ((general_total_lines > text_rows)
-                    ? "[Up/Down] scroll  [Left/Right] view  [%s] back"
-                    : "[Left/Right] view  [%s] back")
+                    ? "D-pad scroll/view  [%s] back"
+                    : "D-pad view  [%s] back")
                 : ((general_total_lines > text_rows)
-                    ? "[Up/Down] scroll  [Left/Right] view  [Esc] back"
-                    : "[Left/Right] view  [Esc] back");
+                    ? "Dir scroll/view  Esc back"
+                    : "Left/Right view  Esc back");
             scroll_first_row = 3;
             scroll_rows = text_rows;
             enable_scroll_area = true;
@@ -3564,11 +3580,11 @@ static void run_history_show_detail(const run_history_entry* entry)
                 view.stats_top, term_hgt, term_wid);
             footer = steamdeck
                 ? ((stats_total_lines > text_rows)
-                    ? "[Up/Down] scroll  [Left/Right] view  [%s] back"
-                    : "[Left/Right] view  [%s] back")
+                    ? "D-pad scroll/view  [%s] back"
+                    : "D-pad view  [%s] back")
                 : ((stats_total_lines > text_rows)
-                    ? "[Up/Down] scroll  [Left/Right] view  [Esc] back"
-                    : "[Left/Right] view  [Esc] back");
+                    ? "Dir scroll/view  Esc back"
+                    : "Left/Right view  Esc back");
             scroll_first_row = 3;
             scroll_rows = text_rows;
             enable_scroll_area = true;
@@ -3576,8 +3592,8 @@ static void run_history_show_detail(const run_history_entry* entry)
         case RUN_PANEL_ABILITIES:
             ability_rows = run_history_draw_abilities_panel(&details, &view.abilities, term_hgt);
             footer = steamdeck
-                ? "[Up/Down] navigate  [Left/Right] view  [%s] back"
-                : "[Up/Down] navigate  [Left/Right] view  [Esc] back";
+                ? "D-pad navigate/view  [%s] back"
+                : "Dir navigate/view  Esc back";
             active_list_rows = ability_rows;
             active_list_total = run_history_detail_panel_total(&details, panel);
             scroll_first_row = 5;
@@ -3587,8 +3603,8 @@ static void run_history_show_detail(const run_history_entry* entry)
         case RUN_PANEL_MILESTONES:
             milestone_rows = run_history_draw_milestones_panel(&details, &view.milestones, term_hgt);
             footer = steamdeck
-                ? "[Up/Down] navigate  [Left/Right] view  [%s] back"
-                : "[Up/Down] navigate  [Left/Right] view  [Esc] back";
+                ? "D-pad navigate/view  [%s] back"
+                : "Dir navigate/view  Esc back";
             active_list_rows = milestone_rows;
             active_list_total = run_history_detail_panel_total(&details, panel);
             scroll_first_row = 5;
@@ -3598,8 +3614,8 @@ static void run_history_show_detail(const run_history_entry* entry)
         case RUN_PANEL_ARTEFACTS:
             artefact_rows = run_history_draw_artefact_panel(&details, &view.artefacts, term_hgt);
             footer = steamdeck
-                ? "[Up/Down] navigate  [Left/Right] view  [%s] inspect  [%s] back"
-                : "[Up/Down] navigate  [Space/Enter] inspect  [Left/Right] view  [Esc] back";
+                ? "D-pad navigate/view  [%s] inspect  [%s] back"
+                : "Dir navigate/view  Enter inspect  Esc back";
             active_list_rows = artefact_rows;
             active_list_total = run_history_detail_panel_total(&details, panel);
             scroll_first_row = 5;
@@ -3610,8 +3626,8 @@ static void run_history_show_detail(const run_history_entry* entry)
             monster_rows = run_history_draw_monster_panel(&details, &view.monsters,
                 view.monster_sort_mode, term_hgt);
             footer = steamdeck
-                ? "[Up/Down] navigate  [Left/Right] view  [%s] inspect  [%s] sort  [%s] back"
-                : "[Up/Down] navigate  [Space/Enter] inspect  [S] sort  [Left/Right] view  [Esc] back";
+                ? "D-pad navigate/view  [%s] inspect  [%s] sort  [%s] back"
+                : "Dir navigate/view  Enter inspect  S sort  Esc back";
             active_list_rows = monster_rows;
             active_list_total = run_history_detail_panel_total(&details, panel);
             scroll_first_row = 5;

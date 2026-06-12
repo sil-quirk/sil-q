@@ -2666,7 +2666,7 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
 
     static const sdl_char_sheet_prompt_item live_items[] = {
         { "X abilities", 'x' },
-        { "Space/I increase", 'i' },
+        { "I increase", 'i' },
         { "? help", '?' },
         { "Esc back", ESCAPE },
 #ifdef DEBUG_CURSES
@@ -2675,12 +2675,12 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     };
     static const sdl_char_sheet_prompt_item birth_items[] = {
         { "Esc back", -1 },
-        { "Space/Enter confirm", -2 },
+        { "Enter confirm", -2 },
         { "Q character", -3 },
     };
     static const sdl_char_sheet_prompt_item select_items[] = {
         { "Esc back", -1 },
-        { "Space/Enter select", -2 },
+        { "Enter select", -2 },
     };
     static const sdl_char_sheet_prompt_item preview_items[] = {
         { "Continue to Stats", -2 },

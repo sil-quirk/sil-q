@@ -23,6 +23,76 @@ static void string_lower(char* buf)
         *s = tolower((unsigned char)*s);
 }
 
+static void file_viewer_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
+static void file_viewer_draw_prompt(int row, int wid, bool large_file)
+{
+    char prompt[160];
+
+    if (wid < 1)
+        wid = 80;
+
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char prompt_full[160];
+        char prompt_short[96];
+        const char* variants[2];
+
+        file_viewer_prompt_label(steamdeck_confirm_key(), "A",
+            confirm_label, sizeof(confirm_label));
+        file_viewer_prompt_label(steamdeck_back_key(), "B",
+            back_label, sizeof(back_label));
+
+        if (large_file)
+        {
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad scroll  %s page  %s exit", confirm_label,
+                back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "%s page  %s exit",
+                confirm_label, back_label);
+        }
+        else
+        {
+            strnfmt(prompt_full, sizeof(prompt_full), "%s exit", back_label);
+            SDL_strlcpy(prompt_short, prompt_full, sizeof(prompt_short));
+        }
+
+        variants[0] = prompt_full;
+        variants[1] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), wid - 2, false,
+            variants, N_ELEMENTS(variants));
+    }
+    else
+    {
+        const char* small_variants[] = {
+            "Esc exit"
+        };
+        const char* large_variants[] = {
+            "Esc exit  Space page  Dir scroll",
+            "Esc exit  Space page",
+            "Esc exit"
+        };
+
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), wid - 2, false,
+            large_file ? large_variants : small_variants,
+            large_file ? N_ELEMENTS(large_variants)
+                       : N_ELEMENTS(small_variants));
+    }
+
+    Term_putstr(1, row, wid - 1, TERM_SLATE, prompt);
+}
+
 /*
  * Show the contents of a char buffer on the screen and allow scrolling.
  * Based on show_file.
@@ -117,24 +187,13 @@ bool show_buffer(cptr main_buffer, int line)
         /* Prompt -- small files */
         if (size <= hgt - 5)
         {
-            /* Wait for it */
-            Term_putstr(1, hgt - 2, -1, TERM_SLATE, "(press ESC to exit)");
-            Term_putstr(8, hgt - 2, -1, TERM_L_WHITE, "ESC");
-            Term_putstr(20, hgt - 2, -1, TERM_L_WHITE, "");
+            file_viewer_draw_prompt(hgt - 2, wid, false);
         }
 
         /* Prompt -- large files */
         else
         {
-            /* Wait for it */
-            Term_putstr(1, hgt - 2, -1, TERM_SLATE,
-                "(press ESC to exit, Space for next page, Arrows/Keypad to "
-                "scroll)");
-            Term_putstr(8, hgt - 2, -1, TERM_L_WHITE, "ESC");
-            Term_putstr(21, hgt - 2, -1, TERM_L_WHITE, "Space");
-            Term_putstr(42, hgt - 2, -1, TERM_L_WHITE, "Arrows");
-            Term_putstr(49, hgt - 2, -1, TERM_L_WHITE, "Keypad");
-            Term_putstr(67, hgt - 2, -1, TERM_L_WHITE, "");
+            file_viewer_draw_prompt(hgt - 2, wid, true);
         }
 
         ui_scroll_area_begin(0, hgt - 1, SDL_TOUCH_MENU_CATEGORY_OTHER);
@@ -491,30 +550,26 @@ bool show_file(cptr name, cptr what, int line)
         if (menu)
         {
             /* Wait for it */
-            prt("[Press a Number, or ESC to exit.]", hgt - 1, 0);
+            {
+                const char* variants[] = {
+                    "Number select  Esc exit",
+                    "Esc exit"
+                };
+                terminal_prompt_put_variant(0, hgt - 1, wid, TERM_SLATE,
+                    false, variants, N_ELEMENTS(variants));
+            }
         }
 
         /* Prompt -- small files */
         else if (size <= hgt - 5)
         {
-            /* Wait for it */
-            Term_putstr(1, hgt - 2, -1, TERM_SLATE, "(press ESC to exit)");
-            Term_putstr(8, hgt - 2, -1, TERM_L_WHITE, "ESC");
-            Term_putstr(20, hgt - 2, -1, TERM_L_WHITE, "");
+            file_viewer_draw_prompt(hgt - 2, wid, false);
         }
 
         /* Prompt -- large files */
         else
         {
-            /* Wait for it */
-            Term_putstr(1, hgt - 2, -1, TERM_SLATE,
-                "(press ESC to exit, Space for next page, Arrows/Keypad to "
-                "scroll)");
-            Term_putstr(8, hgt - 2, -1, TERM_L_WHITE, "ESC");
-            Term_putstr(21, hgt - 2, -1, TERM_L_WHITE, "Space");
-            Term_putstr(42, hgt - 2, -1, TERM_L_WHITE, "Arrows");
-            Term_putstr(49, hgt - 2, -1, TERM_L_WHITE, "Keypad");
-            Term_putstr(67, hgt - 2, -1, TERM_L_WHITE, "");
+            file_viewer_draw_prompt(hgt - 2, wid, true);
         }
 
         /* Get a keypress */

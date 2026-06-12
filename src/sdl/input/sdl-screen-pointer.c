@@ -2808,9 +2808,9 @@ void sdl_minimap_draw_prompt(sdl_view* d, int canvas_w, int canvas_h)
     if (steamdeck_controls_active())
         prompt = "Minimap  d-pad pan  L1/R1 zoom  A/B closes";
     else if (d->cols >= 66)
-        prompt = "Minimap  drag/arrows pan  +/- wheel pinch zoom  Esc closes";
+        prompt = "Minimap  drag/dir pan  +/- wheel pinch zoom  Esc closes";
     else
-        prompt = "Minimap  drag/arrows pan  +/- zoom  Esc closes";
+        prompt = "Minimap  drag/dir pan  +/- zoom  Esc closes";
 
     len = (int)strlen(prompt);
     if (len > d->cols)

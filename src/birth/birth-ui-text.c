@@ -88,7 +88,7 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "SPACE/y continue  n/ESC keep allocating");
+        strnfmt(buf, sizeof(buf), "Enter/y continue  n/Esc keep allocating");
     }
 
     birth_put_str_fit(TERM_SLATE, buf, prompt_row, 1);
@@ -111,8 +111,10 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     else
     {
         ui_menu_click_add_text_token(1, 1, prompt_row, buf, "SPACE/y");
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, "Enter/y");
         ui_menu_click_add_text_token(1, 1, prompt_row, buf, "continue");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/ESC");
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/Esc");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "keep allocating");
     }
     sdl_touch_pane_begin_yes_no_prompt(warning_buf);
@@ -191,7 +193,7 @@ bool birth_show_compact_description_after_assignment(bool steamdeck)
         }
         else
         {
-            strnfmt(buf, sizeof(buf), "ESC back to assignment  SPACE/ENTER continue");
+            strnfmt(buf, sizeof(buf), "Esc back to assignment  Enter continue");
         }
 
         c_put_str(TERM_SLATE, buf, prompt_row, 1);

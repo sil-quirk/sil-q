@@ -287,20 +287,31 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
 
         if (steamdeck_controls_active())
         {
-            char confirm_label[16];
             char back_label[16];
+            char prompt_full[96];
+            char prompt_short[80];
+            const char* variants[2];
 
-            spells2_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-                sizeof(confirm_label));
             spells2_prompt_label(steamdeck_back_key(), "B", back_label,
                 sizeof(back_label));
-            strnfmt(footer, sizeof(footer), "D-pad scroll  %s/%s close",
-                confirm_label, back_label);
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad scroll  %s close", back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "%s close",
+                back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(footer, sizeof(footer), 80, false,
+                variants, N_ELEMENTS(variants));
         }
         else
         {
-            SDL_strlcpy(footer, "Esc close  Space page  Arrows scroll",
-                sizeof(footer));
+            const char* variants[] = {
+                "Esc close  Space page  Dir scroll",
+                "Esc close  Space page",
+                "Esc close"
+            };
+            terminal_prompt_pick_variant(footer, sizeof(footer), 80, false,
+                variants, N_ELEMENTS(variants));
         }
 
         sdl_description_overlay_set_footer(footer, true);

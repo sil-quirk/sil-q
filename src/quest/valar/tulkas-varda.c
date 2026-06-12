@@ -570,15 +570,24 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
             char inspect_label[16];
             char confirm_label[16];
             char prompt_buf[120];
+            char prompt_full[120];
+            char prompt_short[80];
+            const char* variants[2];
 
             target_prompt_label(steamdeck_alt_action_key(), "X",
                 inspect_label, sizeof(inspect_label));
             target_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
                 sizeof(confirm_label));
-            strnfmt(prompt_buf, sizeof(prompt_buf),
+            strnfmt(prompt_full, sizeof(prompt_full),
                 compact ? "D-pad move  %s inspect  %s choose"
                         : "D-pad navigate   %s Inspect   %s accept",
                 inspect_label, confirm_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s inspect  %s choose", inspect_label, confirm_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                wid - 2, false, variants, N_ELEMENTS(variants));
             Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
             ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "inspect");
             ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "Inspect");
@@ -587,23 +596,36 @@ static int prompt_varda_reward_choice_menu(const int* choices, int choice_count,
         }
         else if (menu_letters)
         {
-            cptr prompt_text = compact ? "8/2 move  x inspect  Enter choose"
-                : "Arrows navigate   'x' Inspect   Space/Enter accept   Letter select";
+            char prompt_buf[120];
+            const char* variants[] = {
+                compact ? "Dir move  x inspect  Enter choose"
+                        : "Dir navigate  x inspect  Enter accept  Letter select",
+                "x inspect  Enter accept  Letter select",
+                "Enter accept  x inspect"
+            };
 
-            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "inspect");
-            ui_menu_click_add_text_token(-2, 2, row, prompt_text, "Inspect");
-            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
-            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                wid - 2, false, variants, N_ELEMENTS(variants));
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "inspect");
+            ui_menu_click_add_text_token(-2, 2, row, prompt_buf, "Inspect");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "accept");
         }
         else
         {
-            cptr prompt_text = compact ? "8/2 move  Enter choose"
-                : "Arrows navigate   Space/Enter accept";
+            char prompt_buf[96];
+            const char* variants[] = {
+                compact ? "Dir move  Enter choose"
+                        : "Dir navigate  Enter accept",
+                "Enter accept"
+            };
 
-            Term_putstr(2, row, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "choose");
-            ui_menu_click_add_text_token(-1, 2, row, prompt_text, "accept");
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                wid - 2, false, variants, N_ELEMENTS(variants));
+            Term_putstr(2, row, -1, TERM_L_DARK, prompt_buf);
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "choose");
+            ui_menu_click_add_text_token(-1, 2, row, prompt_buf, "accept");
         }
 
         /* Position cursor at selection */

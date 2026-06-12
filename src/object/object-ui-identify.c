@@ -294,6 +294,10 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             char confirm_label[16];
             char inspect_label[16];
             char back_label[16];
+            const char* variants[4];
+            char prompt_full[96];
+            char prompt_mid[96];
+            char prompt_short[80];
 
             inventory_prompt_label(steamdeck_confirm_key(), "A",
                 confirm_label, sizeof(confirm_label));
@@ -301,23 +305,39 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
                 inspect_label, sizeof(inspect_label));
             inventory_prompt_label(steamdeck_back_key(), "B", back_label,
                 sizeof(back_label));
-            strnfmt(prompt, sizeof(prompt),
-                "Identify: %s, %s Inspect, %s cancel", confirm_label,
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "Identify: %s select  %s inspect  %s cancel", confirm_label,
                 inspect_label, back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid),
+                "%s select  %s inspect  %s cancel", confirm_label,
+                inspect_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s select  %s cancel", confirm_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_mid;
+            variants[2] = prompt_short;
+            variants[3] = "Select  Cancel";
+            terminal_prompt_pick_variant(prompt, sizeof(prompt), term_wid,
+                false, variants, N_ELEMENTS(variants));
             prt(prompt, 0, 0);
             ui_menu_click_add_text_token(-2, 0, 0, prompt, confirm_label);
             ui_menu_click_add_text_token(-3, 0, 0, prompt, inspect_label);
-            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "inspect");
             ui_menu_click_add_text_token(-1, 0, 0, prompt, back_label);
             ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
         }
         else
         {
-            strnfmt(prompt, sizeof(prompt),
-                "Identify: Space, <- Inspect, ESC to cancel");
+            const char* variants[] = {
+                "Identify: Space select  Left inspect  Esc cancel",
+                "Space select  Left inspect  Esc cancel",
+                "Space select  Esc cancel"
+            };
+            terminal_prompt_pick_variant(prompt, sizeof(prompt), term_wid,
+                false, variants, N_ELEMENTS(variants));
             prt(prompt, 0, 0);
             ui_menu_click_add_text_token(-2, 0, 0, prompt, "Space");
-            ui_menu_click_add_text_token(-3, 0, 0, prompt, "Inspect");
+            ui_menu_click_add_text_token(-3, 0, 0, prompt, "inspect");
             ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
         }
 

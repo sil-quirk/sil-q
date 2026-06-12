@@ -1623,9 +1623,8 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
         put_role(ROLE_KEY,   "1 2 3", row + 4, col);
 
-        put_role(ROLE_SUBTLE, "Use the numbers or arrow keys", row + 0, col2);
-        put_role(ROLE_KEY,    "numbers", row + 0, col2 + 8);
-        put_role(ROLE_KEY,    "arrow keys", row + 0, col2 + 19);
+        put_role(ROLE_SUBTLE, "Use direction keys", row + 0, col2);
+        put_role(ROLE_KEY,    "direction keys", row + 0, col2 + 4);
         put_role(ROLE_SUBTLE, "to move, attack, or open doors", row + 1, col2);
         put_role(ROLE_SUBTLE, "(You may need numlock)", row + 2, col2);
         put_role(ROLE_KEY,    "numlock", row + 2, col2 + 14);
@@ -2145,7 +2144,7 @@ void do_cmd_help(void)
                     next_label, back_label);
             } else {
                 strnfmt(nav, sizeof(nav),
-                    "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
+                    "Navigation: [Left] Prev  [Right] Next  [X+1-%d] Page  [Q/Esc] Quit",
                     total_pages);
             }
             c_put_str(TERM_WHITE, nav, hgt - 1, 1);

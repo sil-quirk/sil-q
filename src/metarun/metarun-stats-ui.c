@@ -492,6 +492,11 @@ static void adjust_blessing_threshold_menu(void)
     screen_save();
 
     while (true) {
+        int term_width = 80;
+        int term_height = 24;
+
+        Term_get_size(&term_width, &term_height);
+
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
@@ -544,22 +549,48 @@ static void adjust_blessing_threshold_menu(void)
 
         if (steamdeck) {
             char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to choose  [%s] accept  [%s] cancel", accept_label, back_label);
+            char prompt_full[96];
+            char prompt_short[80];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad choose  [%s] accept  [%s] cancel", accept_label,
+                back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] accept  [%s] cancel", accept_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(hint_buf, sizeof(hint_buf),
+                term_width - 2, false, variants, N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
         } else if (menu_letters) {
-            cptr prompt_text =
-                "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.";
+            char prompt_text[96];
+            const char* variants[] = {
+                "Dir choose  a/b/c select  Enter accept  Esc cancel",
+                "a/b/c select  Enter accept  Esc cancel",
+                "Enter accept  Esc cancel"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                term_width - 2, false, variants, N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
                 "Esc cancels");
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "Esc cancel");
         } else {
-            cptr prompt_text =
-                "Use arrows to choose. Enter accepts, Esc cancels.";
+            char prompt_text[96];
+            const char* variants[] = {
+                "Dir choose  Enter accept  Esc cancel",
+                "Enter accept  Esc cancel"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                term_width - 2, false, variants, N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
             ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
                 "Esc cancels");
+            ui_menu_click_add_text_token(-1, 2, row + 1, prompt_text,
+                "Esc cancel");
         }
 
         char key = metarun_inkey_hidden();

@@ -114,16 +114,35 @@ static void blitz_setup_draw(const blitz_setup* setup, int selected)
             sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label,
             sizeof(back_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-            "D-pad navigate/change  %s begin  %s back",
-            confirm_label, back_label);
+        {
+            char prompt_full[96];
+            char prompt_short[80];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad navigate/change  %s begin  %s back",
+                confirm_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s begin  %s back", confirm_label, back_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                wid - 4, false, variants, N_ELEMENTS(variants));
+        }
         birth_put_str_fit(TERM_L_DARK, prompt_buf, 13, 2);
         ui_menu_click_add_text_token(-2, 2, 13, prompt_buf, "begin");
         ui_menu_click_add_text_token(-1, 2, 13, prompt_buf, "back");
     }
     else
     {
-        cptr prompt_text = "8/2 navigate  4/6 change  Enter begin  Esc back";
+        char prompt_text[96];
+        const char* variants[] = {
+            "Dir navigate/change  Enter begin  Esc back",
+            "Dir change  Enter begin  Esc back",
+            "Enter begin  Esc back"
+        };
+        terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+            wid - 4, false, variants, N_ELEMENTS(variants));
         birth_put_str_fit(TERM_L_DARK, prompt_text, 13, 2);
         ui_menu_click_add_text_token(-2, 2, 13, prompt_text, "begin");
         ui_menu_click_add_text_token(-1, 2, 13, prompt_text, "back");
@@ -527,9 +546,21 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
                 sizeof(confirm_label));
             birth_prompt_label(steamdeck_back_key(), "B", back_label,
                 sizeof(back_label));
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad navigate  %s select  %s back",
-                confirm_label, back_label);
+            {
+                char prompt_full[96];
+                char prompt_short[80];
+                const char* variants[2];
+
+                strnfmt(prompt_full, sizeof(prompt_full),
+                    "D-pad navigate  %s select  %s back",
+                    confirm_label, back_label);
+                strnfmt(prompt_short, sizeof(prompt_short),
+                    "%s select  %s back", confirm_label, back_label);
+                variants[0] = prompt_full;
+                variants[1] = prompt_short;
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    wid - 4, false, variants, N_ELEMENTS(variants));
+            }
             birth_put_str_fit(TERM_L_DARK, prompt_buf, hgt - 1, 2);
             ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_buf,
                 "select");
@@ -538,7 +569,13 @@ static int blitz_select_effect_from_list(bool blessing, bool show_effects, int o
         }
         else
         {
-            cptr prompt_text = "8/2 navigate  Enter select  Esc back";
+            char prompt_text[96];
+            const char* variants[] = {
+                "Dir navigate  Enter select  Esc back",
+                "Enter select  Esc back"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                wid - 4, false, variants, N_ELEMENTS(variants));
             birth_put_str_fit(TERM_L_DARK, prompt_text, hgt - 1, 2);
             ui_menu_click_add_text_token(-2, 2, hgt - 1, prompt_text,
                 "select");

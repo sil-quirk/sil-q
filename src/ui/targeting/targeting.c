@@ -1474,7 +1474,7 @@ static void target_mode_prompt(
 
     if (valid_target)
     {
-        strnfmt(info, info_len, "Space/Enter=target, (s)%s, <dir>",
+        strnfmt(info, info_len, "Space=target, (s)%s, <dir>",
             toggle_name);
     }
     else

@@ -721,13 +721,45 @@ static int do_cmd_squelch_aux(void)
             {
                 if (layout.compact)
                 {
+                    bool steamdeck = steamdeck_controls_active();
+                    char prompt_buf[96];
+
                     squelch_put_fit(TERM_L_BLUE, "CTRL-N none  CTRL-S squelch",
                         1, 0, &layout);
                     squelch_put_fit(TERM_L_GREEN, "CTRL-L never  CTRL-A always",
                         2, 0, &layout);
-                    squelch_put_fit(TERM_WHITE,
-                        "Enter inscribe  +/- toggle  8/2 move  4/6 page",
-                        3, 0, &layout);
+                    if (steamdeck)
+                    {
+                        char confirm_label[16];
+
+                        sdl_gamepad_action_binding_short_label(
+                            steamdeck_confirm_key(), confirm_label,
+                            sizeof(confirm_label));
+                        if (!confirm_label[0] || streq(confirm_label,
+                            "(unbound)") || streq(confirm_label, "Multiple"))
+                            SDL_strlcpy(confirm_label, "A",
+                                sizeof(confirm_label));
+                        strnfmt(prompt_buf, sizeof(prompt_buf),
+                            "D-pad move/page  [%s] inscribe",
+                            confirm_label);
+                        if (!terminal_prompt_fits(prompt_buf, layout.term_wid,
+                            false))
+                            strnfmt(prompt_buf, sizeof(prompt_buf),
+                                "[%s] inscribe", confirm_label);
+                    }
+                    else
+                    {
+                        const char* variants[] = {
+                            "Enter inscribe  +/- toggle  Dir move/page",
+                            "Enter inscribe  +/- toggle",
+                            "Enter inscribe"
+                        };
+
+                        terminal_prompt_pick_variant(prompt_buf,
+                            sizeof(prompt_buf), layout.term_wid, false,
+                            variants, N_ELEMENTS(variants));
+                    }
+                    squelch_put_fit(TERM_WHITE, prompt_buf, 3, 0, &layout);
                     squelch_put_fit(TERM_SLATE,
                         format("Page %d/%d", (page_base / page_size) + 1,
                             MAX(1, (max_num + page_size - 1) / page_size)),
@@ -953,12 +985,42 @@ static void do_qual_squelch(void)
 
             if (layout.compact)
             {
+                bool steamdeck = steamdeck_controls_active();
+                char prompt_buf[96];
+
                 squelch_put_fit(TERM_WHITE,
                     "n/c/v/g/w/a/o set current  N/C/V/G/W/A/O set all",
                     layout.status_row, 0, &layout);
-                squelch_put_fit(TERM_WHITE,
-                    "8/2 move  4/6 cycle  Esc back",
-                    layout.footer_row, 0, &layout);
+                if (steamdeck)
+                {
+                    char back_label[16];
+
+                    sdl_gamepad_action_binding_short_label(
+                        steamdeck_back_key(), back_label, sizeof(back_label));
+                    if (!back_label[0] || streq(back_label, "(unbound)")
+                        || streq(back_label, "Multiple"))
+                        SDL_strlcpy(back_label, "B", sizeof(back_label));
+                    strnfmt(prompt_buf, sizeof(prompt_buf),
+                        "D-pad move/cycle  [%s] back", back_label);
+                    if (!terminal_prompt_fits(prompt_buf, layout.term_wid,
+                        false))
+                        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] back",
+                            back_label);
+                }
+                else
+                {
+                    const char* variants[] = {
+                        "Dir move/cycle  Esc back",
+                        "Dir cycle  Esc back",
+                        "Esc back"
+                    };
+
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                squelch_put_fit(TERM_WHITE, prompt_buf, layout.footer_row, 0,
+                    &layout);
             }
             else
             {
@@ -973,7 +1035,7 @@ static void do_qual_squelch(void)
                 prt("O  : Squelch Chests After Opening", 10, 30);
 
                 prt("Commands:", 12, 30);
-                prt("Arrows: Move and adjust settings", 14, 30);
+                prt("Direction keys: Move and adjust settings", 14, 30);
                 prt("ncvgao : Change a single setting", 15, 30);
                 prt("NCVGWAO : Change all allowable settings", 16, 30);
                 prt("ESC   : Exit Secondary Menu", 17, 30);

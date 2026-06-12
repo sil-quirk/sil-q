@@ -21,6 +21,75 @@ static void blessing_spend_points(int cost)
     metar.blessing_points_spent = (u16b)spent;
 }
 
+static void blessing_put_choice_prompt(int row, bool steamdeck,
+    bool menu_letters, cptr accept_label, cptr back_label, cptr back_word)
+{
+    char prompt[128];
+    int width = metarun_term_width() - 2;
+
+    if (width < 1)
+        width = 1;
+
+    if (steamdeck)
+    {
+        char prompt_full[128];
+        char prompt_short[96];
+        const char* variants[2];
+
+        strnfmt(prompt_full, sizeof(prompt_full),
+            "D-pad navigate  [%s] accept  [%s] %s", accept_label,
+            back_label, back_word ? back_word : "cancel");
+        strnfmt(prompt_short, sizeof(prompt_short), "[%s] accept  [%s] %s",
+            accept_label, back_label, back_word ? back_word : "cancel");
+        variants[0] = prompt_full;
+        variants[1] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), width, false,
+            variants, N_ELEMENTS(variants));
+    }
+    else if (menu_letters)
+    {
+        char prompt_full[128];
+        char prompt_mid[96];
+        char prompt_short[80];
+        const char* variants[3];
+
+        strnfmt(prompt_full, sizeof(prompt_full),
+            "Dir navigate  Enter accept  Letter select  Esc %s",
+            back_word ? back_word : "cancel");
+        strnfmt(prompt_mid, sizeof(prompt_mid),
+            "Dir navigate  Enter accept  Esc %s",
+            back_word ? back_word : "cancel");
+        strnfmt(prompt_short, sizeof(prompt_short), "Enter accept  Esc %s",
+            back_word ? back_word : "cancel");
+        variants[0] = prompt_full;
+        variants[1] = prompt_mid;
+        variants[2] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), width, false,
+            variants, N_ELEMENTS(variants));
+    }
+    else
+    {
+        char prompt_full[96];
+        char prompt_short[80];
+        const char* variants[2];
+
+        strnfmt(prompt_full, sizeof(prompt_full),
+            "Dir navigate  Enter accept  Esc %s",
+            back_word ? back_word : "cancel");
+        strnfmt(prompt_short, sizeof(prompt_short), "Enter accept  Esc %s",
+            back_word ? back_word : "cancel");
+        variants[0] = prompt_full;
+        variants[1] = prompt_short;
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), width, false,
+            variants, N_ELEMENTS(variants));
+    }
+
+    Term_putstr(2, row, -1, TERM_L_DARK, prompt);
+    ui_menu_click_add_text_token(-1, 2, row, prompt,
+        back_word ? back_word : "cancel");
+    ui_menu_click_add_text_token(-1, 2, row, prompt, "Esc cancel");
+}
+
 static void blessing_commit_changes(bool apply_runtime)
 {
     if (!sync_current_metarun_slot(false)) {
@@ -128,26 +197,8 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             ui_menu_click_add(i, 2, option_line, click_width);
         }
 
-        if (steamdeck) {
-            char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
-            ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
-                "cancel");
-        } else if (menu_letters) {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        } else {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        }
+        blessing_put_choice_prompt(line + 1, steamdeck, menu_letters,
+            accept_label, back_label, "cancel");
         char key = metarun_inkey_hidden();
 
         {
@@ -422,26 +473,8 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             ui_menu_click_add(i, 2, option_line, click_width);
         }
 
-        if (steamdeck) {
-            char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
-            ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
-                "cancel");
-        } else if (menu_letters) {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        } else {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        }
+        blessing_put_choice_prompt(line + 1, steamdeck, menu_letters,
+            accept_label, back_label, "cancel");
         char key = metarun_inkey_hidden();
 
         {
@@ -670,26 +703,8 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         snprintf(points_msg, sizeof points_msg, "Available blessing points: %d", available);
         Term_putstr(2, line++, -1, TERM_L_BLUE, points_msg);
 
-        if (steamdeck) {
-            char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to navigate  [%s] accept  [%s] cancel", accept_label, back_label);
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, hint_buf);
-            ui_menu_click_add_text_token(-1, 2, line + 1, hint_buf,
-                "cancel");
-        } else if (menu_letters) {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        } else {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Esc cancel";
-            Term_putstr(2, line + 1, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, line + 1, prompt_text,
-                "Esc cancel");
-        }
+        blessing_put_choice_prompt(line + 1, steamdeck, menu_letters,
+            accept_label, back_label, "cancel");
 
         char key = metarun_inkey_hidden();
         bool selected_from_confirm = false;
@@ -937,26 +952,8 @@ void open_blessing_exchange(void)
                 menu_letters ? "u) Unlock a major blessing (none available)"
                              : "Unlock a major blessing (none available)");
         }
-        if (steamdeck) {
-            char hint_buf[96];
-            strnfmt(hint_buf, sizeof(hint_buf),
-                    "D-pad to navigate  [%s] accept  [%s] leave", accept_label, back_label);
-            Term_putstr(2, 12, -1, TERM_L_DARK, hint_buf);
-            ui_menu_click_add_text_token(-1, 2, 12, hint_buf,
-                "leave");
-        } else if (menu_letters) {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  Letter select  ESC leave";
-            Term_putstr(2, 12, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, 12, prompt_text,
-                "ESC leave");
-        } else {
-            cptr prompt_text =
-                "Arrows to navigate  Space/Enter accept  ESC leave";
-            Term_putstr(2, 12, -1, TERM_L_DARK, prompt_text);
-            ui_menu_click_add_text_token(-1, 2, 12, prompt_text,
-                "ESC leave");
-        }
+        blessing_put_choice_prompt(12, steamdeck, menu_letters, accept_label,
+            back_label, "leave");
 
         /* Display status message if present */
         if (status_msg[0] != '\0') {

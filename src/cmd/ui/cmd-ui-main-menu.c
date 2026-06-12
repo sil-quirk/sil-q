@@ -2053,23 +2053,23 @@ static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
     static const char* const tip_list_prompts[] = {
-        "[e/i tabs, Dir move, Up at top=tabs, Enter read, h level hints, ESC]",
-        "[e/i tabs, 8/2 move, Up=tabs, Enter read, h=level hints, ESC]",
-        "[e/i, 8/2, Up=tabs, Enter, h, ESC]"
+        "[e/i tabs, Dir move, Enter read, h level hints, Esc]",
+        "[e/i tabs, Enter read, h hints, Esc]",
+        "[e/i, Enter, h, Esc]"
     };
     static const char* const level_list_prompts[] = {
-        "[e/i tabs, Dir move, Up at top=tabs, Enter read, h tips, l look, m map, ESC]",
-        "[e/i tabs, 8/2 move, Up=tabs, Enter, h tips, l look, m map, ESC]",
-        "[e/i, 8/2, Up=tabs, Enter, h, l, m, ESC]"
+        "[e/i tabs, Dir move, Enter read, h tips, l look, m map, Esc]",
+        "[e/i tabs, Enter, h tips, l look, m map, Esc]",
+        "[e/i, Enter, h, l, m, Esc]"
     };
     static const char* const no_level_with_tips_prompts[] = {
-        "[No level hint messages. e/i tabs, Up=tabs, h all tips, ESC]",
-        "[No level hints. e/i tabs, Up=tabs, h=tips, ESC]",
-        "[No hints. e/i, h, ESC]"
+        "[No level hint messages. e/i tabs, h all tips, Esc]",
+        "[No level hints. e/i tabs, h tips, Esc]",
+        "[No hints. e/i, h, Esc]"
     };
     static const char* const no_level_prompts[] = {
-        "[No level hint messages. e/i tabs, Up=tabs, ESC]",
-        "[No level hints. e/i, ESC]"
+        "[No level hint messages. e/i tabs, Esc]",
+        "[No level hints. e/i, Esc]"
     };
 
     if (steamdeck_controls_active())
@@ -3578,8 +3578,7 @@ void do_cmd_messages_with_filter(int initial_filter)
 
     int i, j, n, q;
     int wid, hgt;
-    cptr prompt =
-        "e/i filter  Up/Down line  PgUp/PgDn page  Wheel/drag  / find  = highlight  Left/Right pan  Esc";
+    char prompt[160];
 
     char shower[80];
     char finder[80];
@@ -3761,6 +3760,16 @@ void do_cmd_messages_with_filter(int initial_filter)
             (body_top > 0) ? body_top - 1 : 0, 0);
 
         /* Display prompt */
+        {
+            const char* variants[] = {
+                "e/i filter  Up/Down line  PgUp/PgDn page  / find  = highlight  Left/Right pan  Esc",
+                "e/i filter  Up/Down line  Pg page  / find  Left/Right pan  Esc",
+                "e/i filter  / find  Left/Right pan  Esc",
+                "Esc"
+            };
+            terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
+                variants, N_ELEMENTS(variants));
+        }
         prt(prompt, hgt - 1, 0);
         ui_menu_click_add_text_token('8', 0, hgt - 1, prompt, "Up");
         ui_menu_click_add_text_token('2', 0, hgt - 1, prompt, "Down");

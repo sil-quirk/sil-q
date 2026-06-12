@@ -404,7 +404,7 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     int hgt = 24;
     char buf[160];
     char stat_buf[16];
-    char confirm_label[16] = "SPACE/ENTER";
+    char confirm_label[16] = "Enter";
     char back_label[16] = "ESC";
     char quit_label[16] = "q";
     int prompt_row;
@@ -448,17 +448,32 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s char",
-            back_label, confirm_label, quit_label);
+        {
+            char prompt_full[160];
+            char prompt_short[96];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad allocate  %s back  %s ok  %s char",
+                back_label, confirm_label, quit_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s ok  %s back  %s char", confirm_label, back_label,
+                quit_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+                story_character_enabled(), variants, N_ELEMENTS(variants));
+        }
     }
     else
     {
-        if (wid < 52)
-            strnfmt(buf, sizeof(buf),
-                "8/2 4/6  ESC back  Enter ok  q char");
-        else
-            strnfmt(buf, sizeof(buf),
-                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q char");
+        const char* variants[] = {
+            "Dir select/adjust  Esc back  Enter ok  q char",
+            "Dir adjust  Esc back  Enter ok  q char",
+            "Enter ok  Esc back  q char"
+        };
+        terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+            story_character_enabled(), variants, N_ELEMENTS(variants));
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -472,7 +487,7 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     int wid = 80;
     int hgt = 24;
     char buf[160];
-    char confirm_label[16] = "SPACE/ENTER";
+    char confirm_label[16] = "Enter";
     char back_label[16] = "ESC";
     char quit_label[16] = "q";
     int prompt_row;
@@ -518,17 +533,32 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
         birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-        strnfmt(buf, sizeof(buf), "D-pad alloc  %s back  %s ok  %s char",
-            back_label, confirm_label, quit_label);
+        {
+            char prompt_full[160];
+            char prompt_short[96];
+            const char* variants[2];
+
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad allocate  %s back  %s ok  %s char",
+                back_label, confirm_label, quit_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "%s ok  %s back  %s char", confirm_label, back_label,
+                quit_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_short;
+            terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+                story_character_enabled(), variants, N_ELEMENTS(variants));
+        }
     }
     else
     {
-        if (wid < 52)
-            strnfmt(buf, sizeof(buf),
-                "8/2 4/6  ESC back  Enter ok  q char");
-        else
-            strnfmt(buf, sizeof(buf),
-                "8/2 select  4/6 adjust  ESC back  SPACE/ENTER ok  q char");
+        const char* variants[] = {
+            "Dir select/adjust  Esc back  Enter ok  q char",
+            "Dir adjust  Esc back  Enter ok  q char",
+            "Enter ok  Esc back  q char"
+        };
+        terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+            story_character_enabled(), variants, N_ELEMENTS(variants));
     }
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
@@ -742,20 +772,43 @@ NavResult player_birth_aux_2(int stats[A_MAX])
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
                 birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
-                strnfmt(prompt_buf, sizeof(prompt_buf),
-                    "D-pad allocate  %s back  %s confirm  %s char",
-                    back_label, confirm_label, quit_label);
+                {
+                    char prompt_full[160];
+                    char prompt_short[96];
+                    const char* variants[2];
+
+                    strnfmt(prompt_full, sizeof(prompt_full),
+                        "D-pad allocate  %s back  %s confirm  %s char",
+                        back_label, confirm_label, quit_label);
+                    strnfmt(prompt_short, sizeof(prompt_short),
+                        "%s confirm  %s back  %s char", confirm_label,
+                        back_label, quit_label);
+                    variants[0] = prompt_full;
+                    variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), Term ? Term->wid - QUESTION_COL
+                                                  : 80 - QUESTION_COL,
+                        story_character_enabled(), variants,
+                        N_ELEMENTS(variants));
+                }
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
                 birth_register_allocation_prompt_clicks(prompt_row,
                     prompt_buf, QUESTION_COL, back_label, confirm_label,
                     quit_label);
             } else {
-                cptr prompt_text =
-                    "Arrows -allocate    ESC -back   SPACE/ENTER -confirm   q -character";
+                char prompt_text[160];
+                const char* variants[] = {
+                    "Dir allocate  Esc back  Enter confirm  q character",
+                    "Dir allocate  Esc back  Enter confirm",
+                    "Enter confirm  Esc back"
+                };
+                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    story_character_enabled(), variants, N_ELEMENTS(variants));
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
                 birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_text, QUESTION_COL, "ESC", "SPACE/ENTER", "q");
+                    prompt_text, QUESTION_COL, "Esc", "Enter", "q");
             }
 
             if (story_character_enabled()) {

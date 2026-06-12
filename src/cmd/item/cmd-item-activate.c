@@ -339,14 +339,27 @@ static bool sanctity_choose_target_from_entries(
             char confirm_label[16];
             char back_label[16];
             char prompt_buf[80];
+            const char* variants[3];
+            char prompt_full[80];
+            char prompt_mid[80];
+            char prompt_short[80];
 
             cmd6_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
                 sizeof(confirm_label));
             cmd6_prompt_label(steamdeck_back_key(), "B", back_label,
                 sizeof(back_label));
-            strnfmt(prompt_buf, sizeof(prompt_buf),
-                "D-pad choose, %s select, %s cancel", confirm_label,
+            strnfmt(prompt_full, sizeof(prompt_full),
+                "D-pad choose  %s select  %s cancel", confirm_label,
                 back_label);
+            strnfmt(prompt_mid, sizeof(prompt_mid), "%s select  %s cancel",
+                confirm_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short), "%s select",
+                confirm_label);
+            variants[0] = prompt_full;
+            variants[1] = prompt_mid;
+            variants[2] = prompt_short;
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
             prt(prompt_buf, prompt_row, 0);
             ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "select");
@@ -355,12 +368,18 @@ static bool sanctity_choose_target_from_entries(
         }
         else
         {
-            cptr prompt_text =
-                "Letters/8/2/arrows choose, Enter select, ESC cancel";
-            prt(prompt_text, prompt_row, 0);
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_text,
+            char prompt_buf[80];
+            const char* variants[] = {
+                "Letters choose  Dir move  Enter select  Esc cancel",
+                "Letters choose  Enter select  Esc cancel",
+                "Enter select  Esc cancel"
+            };
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
+            prt(prompt_buf, prompt_row, 0);
+            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
                 "select");
-            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_text,
+            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
                 "cancel");
         }
         Term_fresh();
