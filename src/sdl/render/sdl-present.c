@@ -353,12 +353,7 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
             SDL_Color text_col;
 
             a = sdl_left_panel_pane_render_attr_for_cell(col, source_row, a);
-            text_col = (SDL_Color){
-                angband_color_table[a][1],
-                angband_color_table[a][2],
-                angband_color_table[a][3],
-                255
-            };
+            text_col = sdl_color_from_attr(sdl_ui_text_fg_attr(a));
 
             while (col < end_col && len < LEFT_PANEL_CONTENT_WID) {
                 byte run_a = scr->a[source_row][col];
@@ -381,6 +376,20 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
                 if (col == start)
                     col++;
                 continue;
+            }
+
+            if (a >= TERM_UI_SELECTED) {
+                SDL_Color bg = sdl_color_from_attr(sdl_ui_text_bg_attr(a));
+                SDL_FRect bg_rect = {
+                    content_x + (float)(start_out * cell_w),
+                    (float)(dest_row * cell_h),
+                    (float)(len * cell_w),
+                    (float)cell_h,
+                };
+
+                SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b,
+                    255);
+                SDL_RenderFillRect(g_state.renderer, &bg_rect);
             }
 
             if (mono_font && utf8_has_non_ascii_n(buf, len)) {

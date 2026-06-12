@@ -2996,6 +2996,27 @@ int sdl_left_panel_quiver_attack_mode_at_col(int col)
     return SDL_POINTER_ATTACK_NONE;
 }
 
+static bool sdl_visible_character_panel_attack_row(int row)
+{
+    bool melee_uses_two_rows;
+
+    if (row < 0)
+        return false;
+
+    melee_uses_two_rows = (ROW_MEL - 1) != ROW_LIGHT
+        && inventory[INVEN_ARM].k_idx
+        && inventory[INVEN_ARM].tval != TV_SHIELD;
+
+    if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1))
+        return true;
+    if (row == ROW_ARC)
+        return true;
+    if (row == ROW_QUIVER)
+        return true;
+
+    return false;
+}
+
 int sdl_visible_character_panel_attack_mode_at_cell(int col, int row)
 {
     bool melee_uses_two_rows;
@@ -3005,7 +3026,8 @@ int sdl_visible_character_panel_attack_mode_at_cell(int col, int row)
     if (col >= LEFT_PANEL_CONTENT_WID)
         return SDL_POINTER_ATTACK_NONE;
 
-    melee_uses_two_rows = inventory[INVEN_ARM].k_idx
+    melee_uses_two_rows = (ROW_MEL - 1) != ROW_LIGHT
+        && inventory[INVEN_ARM].k_idx
         && inventory[INVEN_ARM].tval != TV_SHIELD;
 
     if (row == ROW_MEL || (melee_uses_two_rows && row == ROW_MEL - 1))
@@ -3061,7 +3083,8 @@ int sdl_visible_character_panel_click_action_at_cell(int col, int row)
      *
      *   top header (name + graphical health bar, and any rows above) -> compact
      *   stats (Str/Dex/Con/Gra and the gap below)                    -> abilities
-     *   vitals (exp, health, voice, light, melee/archery/quiver)     -> inventory
+     *   vitals (exp, health, voice, light)                           -> inventory
+     *   melee/archery/quiver                                         -> attack only
      *   armour and everything below                                  -> equipment
      */
     if (row < ROW_STAT)
@@ -3069,6 +3092,9 @@ int sdl_visible_character_panel_click_action_at_cell(int col, int row)
 
     if (row < ROW_EXP)
         return SDL_PANEL_CLICK_ABILITIES;
+
+    if (sdl_visible_character_panel_attack_row(row))
+        return SDL_PANEL_CLICK_NONE;
 
     if (row < ROW_EVN)
         return SDL_PANEL_CLICK_INVENTORY;

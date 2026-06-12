@@ -336,7 +336,7 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     if (n <= 0)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
-    bg_col.a = sdl_view_background_alpha(d);
+    bg_col.a = selected_attr ? 255 : sdl_view_background_alpha(d);
 
     TTF_Font* story_font = sdl_story_font_for_view(d);
     if (selected_attr)

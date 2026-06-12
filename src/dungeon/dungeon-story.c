@@ -396,10 +396,10 @@ void print_story_intro(void)
         "whose courage you borrow, but whose fates are not your own.\n",
 
         "This is the trial set by the Valar:\n"
-        "to reclaim your forgotten name,\n"
-        "to balance shadow and light,\n"
-        "and to find within the borrowed glory of others\n"
-        "your true self.\n",
+        "to walk the narrow way between shadow and light,\n"
+        "to bear the borrowed glory of the great,\n"
+        "and to win back at last\n"
+        "the name that was taken from you.\n",
 
         "Now the path before you opens,\n"
         "and your trial begins.\n"

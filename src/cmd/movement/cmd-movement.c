@@ -42,7 +42,7 @@ void do_cmd_go_up(void)
     /* Ironman */
     if (birth_ironman && (silmarils_possessed() == 0))
     {
-        msg_print("You have vowed to not to return until you hold a Silmaril.");
+        msg_print("You have vowed not to return until you hold a Silmaril.");
         return;
     }
 

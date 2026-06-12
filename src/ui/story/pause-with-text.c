@@ -62,7 +62,7 @@ const char tutorial_early_death_text[][100] = { { "You have been slain." },
     { "It is thus a challenging game where you need to really *think*." },
     { " " },
     { "However, it is a bit frustrating to die before the end of the" },
-    { "tutorial, so we evidentally made it a bit too deadly." }, { " " },
+    { "tutorial, so we evidently made it a bit too deadly." }, { " " },
     { "Just restart the tutorial and you should be back to where you" },
     { "were in a couple of minutes. Remember that if combat is not going" },
     { "your way, you can try to escape and heal, then either come back" },
@@ -132,14 +132,14 @@ const char throne_poetry2[][100] =
 */
 
 const char ultimate_bug_text[][100]
-    = { { "Against all hope, you defeated the Dark Enemy," },
-          { "  and destroyed his physical form." },
-          { "    For the rest of this age at least," },
-          { "      Arda shall be free from the tyrant's shadow." },
-          { "But there will be time later for reflection" },
-          { "  on this great change to Arda's fate." },
-          { "    You are buried still in Angband's vaults" },
-          { "      -- make quick your bold escape!" },
+    = { { "Against all hope, the Black Foe of the World is cast down," },
+          { "  his form broken, his fire quenched in the wreck of his pride." },
+          { "    Though malice so great may not wholly perish," },
+          { "      for this age of Arda his shadow is lifted." },
+          { "But Angband groans above its fallen master," },
+          { "  and you are buried still beneath the roots of the North." },
+          { "    The songs must be sung under open sky --" },
+          { "      run now, and bear the light out of the dark!" },
 
           { "" } };
 

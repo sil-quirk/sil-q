@@ -428,7 +428,7 @@ void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n,
         (float)d->cell_h
     };
 
-    bg.a = sdl_view_background_alpha(d);
+    bg.a = (attr >= TERM_UI_SELECTED) ? 255 : sdl_view_background_alpha(d);
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
     SDL_RenderFillRect(g_state.renderer, &clear_rect);
