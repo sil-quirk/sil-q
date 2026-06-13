@@ -602,6 +602,8 @@ bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x)
 {
     int col = 0;
     int row = 0;
+    int combat_col = 0;
+    int combat_row = 0;
     int map_row;
     int map_col;
     int map_y;
@@ -610,6 +612,8 @@ bool sdl_main_view_point_to_map(float x, float y, int* out_y, int* out_x)
     if (!out_y || !out_x)
         return false;
     if (!sdl_mouse_gameplay_context_active())
+        return false;
+    if (sdl_combat_overlay_point_to_cell(x, y, &combat_col, &combat_row))
         return false;
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;

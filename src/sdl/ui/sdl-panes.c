@@ -239,6 +239,11 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
 {
     const struct pane_config* pc = sdl_combat_overlay_pane_config();
     const SDL_Rect* pane;
+    SDL_Rect rect;
+    int cell_h;
+    int cell_w;
+    int content_w;
+    int content_h;
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
@@ -253,8 +258,48 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     if (pane->w <= 0 || pane->h <= 0)
         return false;
 
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    cell_w = cell_h / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    content_w = PANE_COMBAT_OVERLAY_COLS * cell_w;
+    content_h = sdl_combat_overlay_source_row_count() * cell_h;
+    if (content_w < 1 || content_h < 1)
+        return false;
+
+    rect = *pane;
+    if (rect.w > content_w) {
+        if (pc->where == PLACE_TOP_RIGHT || pc->where == PLACE_RIGHT_CENTER
+            || pc->where == PLACE_BOTTOM_RIGHT)
+        {
+            rect.x += rect.w - content_w;
+        }
+        else if (pc->where == PLACE_TOP_CENTER
+            || pc->where == PLACE_BOTTOM_CENTER)
+        {
+            rect.x += (rect.w - content_w) / 2;
+        }
+        rect.w = content_w;
+    }
+    if (rect.h > content_h) {
+        if (pc->where == PLACE_BOTTOM_LEFT || pc->where == PLACE_BOTTOM_CENTER
+            || pc->where == PLACE_BOTTOM_RIGHT)
+        {
+            rect.y += rect.h - content_h;
+        }
+        else if (pc->where == PLACE_LEFT_CENTER
+            || pc->where == PLACE_RIGHT_CENTER)
+        {
+            rect.y += (rect.h - content_h) / 2;
+        }
+        rect.h = content_h;
+    }
+
     if (out_rect)
-        *out_rect = *pane;
+        *out_rect = rect;
     return true;
 }
 

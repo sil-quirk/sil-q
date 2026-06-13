@@ -727,7 +727,7 @@ void sdl_combat_overlay_pane_render(void)
         return;
 
     row_count = sdl_combat_overlay_source_row_count();
-    start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
+    start_row = 0;
     if (row_count <= 0 || start_row >= panel_rows)
         return;
 
@@ -787,11 +787,6 @@ void sdl_combat_overlay_pane_render(void)
             source_row, 0, panel_cols, 0, dest_row, (float)pane.x,
             (float)pane.y, cell_w, cell_h, font_atlas, atlas_cell_w,
             atlas_cell_h, mono_font);
-    }
-
-    if (config.show_pane_borders) {
-        SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
-        sdl_draw_pane_edges(&pane, true, true, true, true);
     }
 
     SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
@@ -1122,6 +1117,7 @@ bool sdl_render_saved_screen_left_panel_backdrop(const sdl_view* view)
 bool sdl_render_current_window_frame(void)
 {
     bool show_supporting_panes;
+    bool hide_main_menu_supporting_panes;
     bool layout_matches;
     SDL_Rect layout_screen;
     SDL_Rect side_map_rect;
@@ -1146,9 +1142,13 @@ bool sdl_render_current_window_frame(void)
     }
 
     show_supporting_panes = sdl_should_show_supporting_panes();
+    hide_main_menu_supporting_panes =
+        sdl_main_menu_overlay_hides_supporting_panes();
     layout_matches = sdl_layout_matches_supporting_pane_visibility();
     if (!layout_matches)
         return false;
+    if (hide_main_menu_supporting_panes)
+        show_supporting_panes = false;
 
     SDL_SetRenderTarget(g_state.renderer, NULL);
     SDL_SetRenderClipRect(g_state.renderer, NULL);
@@ -1156,7 +1156,8 @@ bool sdl_render_current_window_frame(void)
     SDL_RenderClear(g_state.renderer);
     layout_screen = sdl_get_layout_screen_rect();
     sdl_update_left_panel_pane_rect();
-    side_map_visible = sdl_side_map_pane_current_rect(&side_map_rect);
+    side_map_visible = !hide_main_menu_supporting_panes
+        && sdl_side_map_pane_current_rect(&side_map_rect);
 
     for (int i = 0; i < MAX_TERM_DATA; i++) {
         if (!g_views[i].canvas)
@@ -1165,7 +1166,7 @@ bool sdl_render_current_window_frame(void)
             continue;
         visible_views++;
     }
-    if (sdl_left_panel_pane_presentation_active()
+    if (show_supporting_panes && sdl_left_panel_pane_presentation_active()
         && sdl_rect_has_area(&g_pane_rects[PANE_LEFT_PANEL]))
     {
         visible_views++;
@@ -1186,7 +1187,8 @@ bool sdl_render_current_window_frame(void)
             continue;
         if (!show_supporting_panes && i != PANE_MAIN)
             continue;
-        if (i == PANE_MAIN && sdl_render_main_view_with_left_panel(view))
+        if (i == PANE_MAIN && show_supporting_panes
+            && sdl_render_main_view_with_left_panel(view))
             continue;
 
         visual_cols = (i == PANE_MAIN)

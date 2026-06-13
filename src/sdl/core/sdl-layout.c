@@ -1398,6 +1398,21 @@ void sdl_left_panel_compact_metrics_for_view(const sdl_view* view,
     }
 }
 
+static int sdl_left_panel_visible_row_count_for_source_rows(int source_rows)
+{
+    int visible_rows = 0;
+
+    if (source_rows <= 0)
+        return 0;
+
+    for (int row = 0; row < source_rows; row++) {
+        if (!sdl_left_panel_source_row_hidden_by_combat_overlay(row))
+            visible_rows++;
+    }
+
+    return visible_rows;
+}
+
 bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     sdl_left_panel_metrics* metrics)
 {
@@ -1405,6 +1420,7 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     int cell_h;
     int content_cols = LEFT_PANEL_CONTENT_WID;
     int panel_rows;
+    int render_rows;
     int panel_render_h;
     int bottom_border_h;
     int corner_h;
@@ -1453,6 +1469,11 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         content_cols = 1;
     if (panel_rows < 1)
         panel_rows = 1;
+    render_rows = sdl_left_panel_pane_collapsed()
+        ? panel_rows
+        : sdl_left_panel_visible_row_count_for_source_rows(panel_rows);
+    if (render_rows < 1)
+        render_rows = 1;
 
     sdl_left_panel_pane_cell_size_for_view(view, content_cols, &cell_w,
         &cell_h);
@@ -1462,8 +1483,8 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     source_h = sdl_main_view_visual_rows(view) * view->cell_h;
     if (source_h <= 0)
         return false;
-    if (panel_rows > 0) {
-        int max_cell_h = source_h / (panel_rows + 1);
+    if (render_rows > 0) {
+        int max_cell_h = source_h / (render_rows + 1);
 
         if (max_cell_h < 1)
             max_cell_h = 1;
@@ -1476,7 +1497,7 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
     }
 
     bottom_border_h = cell_h;
-    panel_render_h = panel_rows * cell_h;
+    panel_render_h = render_rows * cell_h;
     if (panel_render_h + bottom_border_h > source_h) {
         int available_content_h = source_h - bottom_border_h;
 
@@ -1484,10 +1505,10 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
             bottom_border_h = 0;
             available_content_h = source_h;
         }
-        panel_rows = available_content_h / cell_h;
-        if (panel_rows < 1)
-            panel_rows = 1;
-        panel_render_h = panel_rows * cell_h;
+        render_rows = available_content_h / cell_h;
+        if (render_rows < 1)
+            render_rows = 1;
+        panel_render_h = render_rows * cell_h;
         if (panel_render_h > source_h)
             panel_render_h = source_h;
         bottom_border_h = source_h - panel_render_h;
@@ -3087,7 +3108,7 @@ int sdl_auto_pane_font_size(enum pane_type type)
 {
     if (type == PANE_STATUS)
         return sdl_auto_font_size_from_main(1, 2);
-    if (type == PANE_LEFT_PANEL || type == PANE_COMBAT)
+    if (type == PANE_LEFT_PANEL || type == PANE_COMBAT || type == PANE_LOG)
         return sdl_auto_font_size_from_main(3, 4);
 
     return sdl_auto_aux_view_font_size();
@@ -3828,8 +3849,6 @@ void sdl_draw_pane_edges(const SDL_Rect* rect, bool draw_left,
 
 bool sdl_should_show_supporting_panes(void)
 {
-    if (sdl_main_menu_overlay_hides_supporting_panes())
-        return false;
     if (!sdl_hide_supporting_panes_mode_effective())
         return true;
     if (screen_startup_supporting_panes_hidden_active())

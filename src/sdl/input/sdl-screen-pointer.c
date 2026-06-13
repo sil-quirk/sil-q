@@ -41,9 +41,12 @@ bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
     if (pane == PANE_LEFT_PANEL)
         return sdl_left_panel_pane_runtime_active()
             && sdl_point_in_rect(&g_pane_rects[PANE_LEFT_PANEL], x, y);
-    if (pane == PANE_COMBAT)
-        return sdl_combat_overlay_pane_current_rect(NULL)
-            && sdl_point_in_rect(&g_pane_rects[PANE_COMBAT], x, y);
+    if (pane == PANE_COMBAT) {
+        SDL_Rect rect;
+
+        return sdl_combat_overlay_pane_current_rect(&rect)
+            && sdl_point_in_rect(&rect, x, y);
+    }
     if ((int)pane >= MAX_TERM_DATA)
         return false;
 

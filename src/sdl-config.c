@@ -300,7 +300,7 @@ static const struct resolution_profile resolution_profiles[] = {
 #endif
 
 enum {
-    SDL_CONFIG_DEFAULT_LOG_PANE_ROWS = 4,
+    SDL_CONFIG_DEFAULT_LOG_PANE_ROWS = 5,
 };
 
 static const char* pane_type_to_string(enum pane_type type)

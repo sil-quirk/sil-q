@@ -598,7 +598,7 @@ void sdl_hover_tooltip_clear(void)
 
 int sdl_object_tooltip_font_px(void)
 {
-    int font_size = sdl_auto_font_size_from_main(1, 2);
+    int font_size = sdl_auto_font_size_from_main(3, 4);
     int font_px = sdl_aux_cell_height_for_font_size(font_size);
 
     return (font_px > 0) ? font_px : SDL_OBJECT_TOOLTIP_FONT_SIZE;
