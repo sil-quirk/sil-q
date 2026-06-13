@@ -100,12 +100,24 @@ errr init_sdl(int argc, char **argv)
     // On Windows/Linux (no scaling): 1920x1080 logical x 1.0 density = 1920x1080 physical
     int screen_pixels_w = (int)(desktop_mode->w * pixel_density + 0.5f);
     int screen_pixels_h = (int)(desktop_mode->h * pixel_density + 0.5f);
+    int profile_pixels_w = screen_pixels_w;
+    int profile_pixels_h = screen_pixels_h;
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    if (profile_pixels_w < profile_pixels_h) {
+        int tmp = profile_pixels_w;
+
+        profile_pixels_w = profile_pixels_h;
+        profile_pixels_h = tmp;
+    }
+#endif
     
     log_info("primary display desktop mode: %dx%d @%.2fHz, pixel_density=%.2f",
              desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate, pixel_density);
     log_info("primary display physical resolution for defaults: %dx%d",
              screen_pixels_w, screen_pixels_h);
-    sdl_store_platform_max_main_view_scales(screen_pixels_w, screen_pixels_h);
+    sdl_store_platform_max_main_view_scales(profile_pixels_w,
+        profile_pixels_h);
     
     // Save config file path for later use on exit
     char config_file[1024];
@@ -175,7 +187,8 @@ errr init_sdl(int argc, char **argv)
     } else {
         // Config file doesn't exist - use dynamic first-run defaults.
         log_debug("Config file not found, using dynamic defaults");
-        sdl_reset_config_to_resolution_defaults(screen_pixels_w, screen_pixels_h);
+        sdl_reset_config_to_resolution_defaults(profile_pixels_w,
+            profile_pixels_h);
         
         log_debug("After resolution defaults: scale=%d, default_aux_font=%d, margin=%d, fullscreen=%d, tiles=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
@@ -186,8 +199,8 @@ errr init_sdl(int argc, char **argv)
     sdl_ensure_default_pane_profiles_present(false);
     sdl_normalize_unified_log_pane_profiles(true);
     if (!config_exists)
-        sdl_apply_screen_aspect_pane_default_profiles(screen_pixels_w,
-            screen_pixels_h);
+        sdl_apply_screen_aspect_pane_default_profiles(profile_pixels_w,
+            profile_pixels_h);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
 #if defined(__ANDROID__) || defined(SIL_IOS)
@@ -220,8 +233,8 @@ errr init_sdl(int argc, char **argv)
     if (config_exists) {
         int mobile_min_cols = sdl_current_min_terminal_cols();
         int mobile_min_rows = sdl_current_min_terminal_rows();
-        int mobile_max_scale_w = (screen_pixels_w / mobile_min_cols) * 2 / TILE_SIZE;
-        int mobile_max_scale_h = screen_pixels_h / mobile_min_rows / TILE_SIZE;
+        int mobile_max_scale_w = (profile_pixels_w / mobile_min_cols) * 2 / TILE_SIZE;
+        int mobile_max_scale_h = profile_pixels_h / mobile_min_rows / TILE_SIZE;
         int mobile_max_scale = mobile_max_scale_w;
 
         if (mobile_max_scale_h < mobile_max_scale)
@@ -411,6 +424,8 @@ errr init_sdl(int argc, char **argv)
     sdl_window_create(window_width, window_height, config.fullscreen, config.tiles);
 
     sdl_refresh_safe_area();
+    sdl_refresh_platform_max_main_view_scales_for_current_layout(
+        "startup window layout");
     if (!config_exists) {
         (void)sdl_apply_default_main_scale_for_layout("startup");
     } else {
@@ -451,8 +466,8 @@ errr init_sdl(int argc, char **argv)
     if (config_exists && startup_issue_summary[0]) {
         bool old_fullscreen = config.fullscreen;
 
-        if (sdl_prompt_reset_sdl_defaults(startup_issue_summary, screen_pixels_w,
-                screen_pixels_h))
+        if (sdl_prompt_reset_sdl_defaults(startup_issue_summary,
+                profile_pixels_w, profile_pixels_h))
         {
             if (old_fullscreen != config.fullscreen)
                 set_sdl_fullscreen(config.fullscreen);

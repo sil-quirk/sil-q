@@ -474,6 +474,63 @@ void sdl_store_platform_max_main_view_scales(int screen_width,
         g_platform_max_main_view_scale[SDL_MIN_TERMINAL_COMPACT]);
 }
 
+void sdl_refresh_platform_max_main_view_scales_for_current_layout(
+    const char* reason)
+{
+#if SIL_SDL_MOBILE_BUILD
+    SDL_Rect window_pixels;
+    int screen_w;
+    int screen_h;
+    int old_normal;
+    int old_compact;
+
+    if (!g_state.window)
+        return;
+
+    window_pixels = sdl_get_window_pixel_rect();
+    if (!sdl_rect_has_area(&window_pixels))
+        return;
+
+    /* Platform max is a device capability cap, not a fit-to-layout limit:
+     * use full window pixels in landscape orientation so portrait windows
+     * and safe-area insets cannot lower it below what the device supports.
+     * Fitting the view to the actual layout is enforced separately by the
+     * zoom clamps. */
+    screen_w = window_pixels.w;
+    screen_h = window_pixels.h;
+    if (screen_w < screen_h) {
+        int tmp = screen_w;
+
+        screen_w = screen_h;
+        screen_h = tmp;
+    }
+
+    old_normal = g_platform_max_main_view_scale[SDL_MIN_TERMINAL_NORMAL];
+    old_compact = g_platform_max_main_view_scale[SDL_MIN_TERMINAL_COMPACT];
+    for (int mode = 0; mode < SDL_PANE_PROFILE_COUNT; mode++)
+    {
+        g_platform_max_main_view_scale[mode] =
+            sdl_default_main_scale_for_screen_size(screen_w, screen_h, mode);
+    }
+
+    if (old_normal != g_platform_max_main_view_scale[SDL_MIN_TERMINAL_NORMAL]
+        || old_compact !=
+            g_platform_max_main_view_scale[SDL_MIN_TERMINAL_COMPACT])
+    {
+        log_info("%s: platform max main view scale refreshed for window "
+                 "%dx%d: normal=%d->%d compact=%d->%d",
+            reason ? reason : "layout",
+            screen_w, screen_h,
+            old_normal,
+            g_platform_max_main_view_scale[SDL_MIN_TERMINAL_NORMAL],
+            old_compact,
+            g_platform_max_main_view_scale[SDL_MIN_TERMINAL_COMPACT]);
+    }
+#else
+    (void)reason;
+#endif
+}
+
 void sdl_reset_config_to_resolution_defaults(int screen_width,
     int screen_height)
 {

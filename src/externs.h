@@ -2029,6 +2029,7 @@ extern int get_sdl_main_view_scale(void);
 extern void set_sdl_main_view_scale(int value);
 extern int get_sdl_effective_main_view_scale(void);
 extern bool set_sdl_main_view_zoom_scale(int value);
+extern bool sdl_prepare_first_gameplay_main_view_zoom(int delta);
 extern int get_sdl_min_main_view_scale(void);
 extern int get_sdl_platform_max_main_view_scale(void);
 extern int get_sdl_terminal_menu_scale(void);

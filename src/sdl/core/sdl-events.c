@@ -2001,6 +2001,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         || ev->type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
         sdl_refresh_safe_area();
+        sdl_refresh_platform_max_main_view_scales_for_current_layout(
+            "window resize");
         (void)sdl_recover_layout_for_current_window("window resize", true, NULL);
         sdl_clamp_main_view_zoom_to_current_layout();
 #if SIL_SDL_HANDHELD_DEFAULTS_BUILD
@@ -2027,6 +2029,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
 
         sdl_refresh_safe_area();
+        sdl_refresh_platform_max_main_view_scales_for_current_layout(
+            "display scale change");
         (void)sdl_recover_layout_for_current_window("display scale change",
             true, NULL);
         sdl_clamp_main_view_zoom_to_current_layout();

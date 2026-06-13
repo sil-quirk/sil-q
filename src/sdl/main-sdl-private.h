@@ -1516,6 +1516,7 @@ void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs, int* con
 void sdl_apply_screen_aspect_pane_default_profiles(int screen_width, int screen_height);
 int sdl_default_main_scale_for_screen_size(int screen_width, int screen_height, int mode);
 void sdl_store_platform_max_main_view_scales(int screen_width, int screen_height);
+void sdl_refresh_platform_max_main_view_scales_for_current_layout(const char* reason);
 void sdl_reset_config_to_resolution_defaults(int screen_width, int screen_height);
 int sdl_min_terminal_cols_for_mode(int mode);
 int sdl_min_terminal_rows_for_mode(int mode);

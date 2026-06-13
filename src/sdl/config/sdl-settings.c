@@ -2439,8 +2439,76 @@ void sdl_apply_config_no_redraw(void)
     sdl_apply_config_impl(false);
 }
 
+bool sdl_prepare_first_gameplay_main_view_zoom(int delta)
+{
+#if SIL_SDL_MOBILE_BUILD
+    Uint64 start_ns;
+    Uint64 story_ns;
+    Uint64 resize_ns;
+    int old_scale;
+    int target_scale;
+    bool old_skip_main_redraw;
+    bool old_defer_resize_handle_stuff;
+
+    if (delta == 0)
+        return false;
+    if (!g_state.window) {
+        log_warn("sdl_prepare_first_gameplay_main_view_zoom: no window, skipping");
+        return false;
+    }
+
+    old_scale = get_sdl_effective_main_view_scale();
+    target_scale = sdl_main_screen_clamp_main_view_scale(old_scale + delta);
+    if (target_scale == old_scale)
+        return false;
+
+    start_ns = SDL_GetTicksNS();
+    set_sdl_main_view_zoom_scale(target_scale);
+    sdl_refresh_safe_area();
+    sdl_clamp_main_view_zoom_to_current_layout();
+    target_scale = get_sdl_effective_main_view_scale();
+    if (target_scale == old_scale)
+        return false;
+
+    g_auto_aux_main_cell_h_override = config.main_view_scale * TILE_SIZE;
+    story_ns = SDL_GetTicksNS();
+    sdl_load_story_fonts();
+    story_ns = SDL_GetTicksNS() - story_ns;
+
+    old_skip_main_redraw = g_skip_main_redraw_on_layout_refresh;
+    old_defer_resize_handle_stuff = g_defer_resize_handle_stuff;
+    g_skip_main_redraw_on_layout_refresh = true;
+    g_defer_resize_handle_stuff = true;
+    resize_ns = SDL_GetTicksNS();
+    sdl_resize_for_current_layout();
+    resize_ns = SDL_GetTicksNS() - resize_ns;
+    g_defer_resize_handle_stuff = old_defer_resize_handle_stuff;
+    g_skip_main_redraw_on_layout_refresh = old_skip_main_redraw;
+    g_auto_aux_main_cell_h_override = 0;
+
+    g_state.need_present = false;
+    sdl_queue_main_view_scale_neighbors_prewarm("first gameplay zoom");
+
+    log_info("Mobile first gameplay zoom prepared before redraw: %d -> %d "
+             "in %llu ms (story=%llu ms resize=%llu ms)",
+        old_scale, target_scale,
+        (unsigned long long)((SDL_GetTicksNS() - start_ns) / 1000000ULL),
+        (unsigned long long)(story_ns / 1000000ULL),
+        (unsigned long long)(resize_ns / 1000000ULL));
+
+    return true;
+#else
+    (void)delta;
+    return false;
+#endif
+}
+
 int get_sdl_platform_max_main_view_scale(void)
 {
+#if SIL_SDL_MOBILE_BUILD
+    sdl_refresh_platform_max_main_view_scales_for_current_layout(
+        "platform max query");
+#endif
     return sdl_platform_max_main_view_scale_for_mode(config.min_terminal_mode);
 }
 
