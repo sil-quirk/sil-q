@@ -245,6 +245,19 @@ int menu_choose_one_curse(int n)
         SDL_strlcpy(curse_prompt, hint_buf, sizeof(curse_prompt));
         c_put_str(TERM_L_DARK, hint_buf, row + 1, 2);
     }
+    else if (sdl_touch_only_device_active())
+    {
+        char prompt[96];
+        const char* variants[] = {
+            "Tap a row to choose your curse",
+            "Tap a row to choose",
+            "Tap to choose"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt),
+            metarun_term_width() - 2, false, variants, N_ELEMENTS(variants));
+        SDL_strlcpy(curse_prompt, prompt, sizeof(curse_prompt));
+        c_put_str(TERM_L_DARK, prompt, row + 1, 2);
+    }
     else if (menu_letters)
     {
         char prompt[96];

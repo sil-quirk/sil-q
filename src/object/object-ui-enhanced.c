@@ -57,6 +57,24 @@ static bool enhanced_menu_format_prompt(char* out, size_t out_size,
     if (!out || out_size == 0)
         return false;
 
+    if (sdl_touch_only_device_active())
+    {
+        char touch_long[64];
+        char touch_mid[48];
+        const char* touch_variants[3];
+
+        strnfmt(touch_long, sizeof(touch_long),
+            "Tap a row to %s, tap away to exit", action);
+        strnfmt(touch_mid, sizeof(touch_mid), "Tap to %s, tap away to exit",
+            action);
+        touch_variants[0] = touch_long;
+        touch_variants[1] = touch_mid;
+        touch_variants[2] = "Tap a row";
+        terminal_prompt_pick_variant(out, out_size, term_wid - 1,
+            use_story_font, touch_variants, N_ELEMENTS(touch_variants));
+        return false;
+    }
+
     if (controller_controls)
     {
         char confirm_label[16];
@@ -799,6 +817,7 @@ void show_inven_enhanced(void)
         visible_rows = inventory_menu_visible_rows_for_height(term_hgt);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         ui_scroll_area_begin(1, visible_rows,
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
@@ -1847,6 +1866,7 @@ void show_equip_enhanced(void)
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         {
             int visible_rows = inventory_menu_visible_rows_for_height(

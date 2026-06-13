@@ -130,6 +130,15 @@ static void story_intro_final_prompt_draw(int h)
         story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
             prompt_buf, hover_choice == STORY_INTRO_CLICK_FINISH);
     }
+    else if (sdl_touch_only_device_active())
+    {
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
+            difficulty_row, "Tap to change difficulty (experienced players)",
+            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
+        story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
+            "Tap here to finish",
+            hover_choice == STORY_INTRO_CLICK_FINISH);
+    }
     else
     {
         story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
@@ -433,6 +442,10 @@ void print_story_intro(void)
                 strnfmt(prompt_buf, sizeof(prompt_buf),
                     "[%s] continue  [%s] skip", confirm_label, back_label);
                 Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(Tap to continue)");
             }
             else
             {

@@ -944,8 +944,24 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Finish the prompt */
         SDL_strlcat(out_val, " ESC", sizeof(out_val));
 
-        /* Build the prompt */
-        strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
+        /* Touch-only users tap rows (and switch via the on-screen panes)
+         * rather than pressing letter/symbol keys, so show a tap-oriented
+         * prompt instead of keyboard shortcuts. */
+        if (sdl_touch_only_device_active())
+        {
+            cptr touch_label =
+                (p_ptr->command_wrk == (USE_EQUIP)) ? "a piece of equipment"
+              : (p_ptr->command_wrk == (USE_FLOOR)) ? "a floor item"
+              : "an item";
+
+            strnfmt(tmp_val, sizeof(tmp_val),
+                "(Tap %s, tap away to cancel) %s", touch_label, pmt);
+        }
+        else
+        {
+            /* Build the prompt */
+            strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
+        }
 
         if (inventory_choice_debug_logging && p_ptr->command_wrk == (USE_INVEN))
         {
@@ -980,6 +996,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_touch_category(
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
+        /* Touch-only users have no Esc key, so let a tap outside the list
+         * cancel the selection. */
+        if (sdl_touch_only_device_active())
+            ui_menu_click_set_outside_cancel_enabled(true);
         ui_scroll_area_clear();
 
         if (p_ptr->command_see)

@@ -35,11 +35,13 @@ static void quest_typewriter_draw_title(cptr title, byte title_color, int wid)
 static bool quest_typewriter_next_page(cptr title, byte title_color, int wid,
     int hgt, int *row, int *col)
 {
-    cptr prompt = "(press any key to continue)";
+    char prompt[48];
     int prompt_row = MAX(0, hgt - 1);
-    int prompt_col = MAX(0, (wid - (int)strlen(prompt)) / 2);
+    int prompt_col;
     char k;
 
+    any_key_prompt_text(prompt, sizeof(prompt), "continue");
+    prompt_col = MAX(0, (wid - (int)strlen(prompt)) / 2);
     Term_erase(0, prompt_row, 255);
     Term_putstr(prompt_col, prompt_row, -1, TERM_L_WHITE, prompt);
     Term_fresh();
@@ -403,7 +405,11 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     if (skipped) Term_fresh();
 
     /* Final prompt */
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
+    {
+        char prompt_buf[48];
+        any_key_prompt_text(prompt_buf, sizeof(prompt_buf), "continue");
+        Term_putstr(15, h - 1, -1, TERM_L_WHITE, prompt_buf);
+    }
     ui_menu_click_begin();
     for (int click_row = 0; click_row < h; click_row++)
         ui_menu_click_add_full_row('\r', click_row);

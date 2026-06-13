@@ -79,6 +79,7 @@ void choose_difficulty_menu(void)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
 
         /* Title */
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Select Difficulty Level ===");
@@ -188,6 +189,17 @@ void choose_difficulty_menu(void)
                 N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_WHITE, hint_buf);
             ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
+        } else if (sdl_touch_only_device_active()) {
+            char prompt_text[96];
+            const char* variants[] = {
+                "Tap a row to select, tap away to exit",
+                "Tap to select, tap away to exit",
+                "Tap to select"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                metarun_term_width() - 2, false, variants,
+                N_ELEMENTS(variants));
+            Term_putstr(2, row + 1, -1, TERM_L_WHITE, prompt_text);
         } else {
             char prompt_text[96];
             const char* variants[] = {

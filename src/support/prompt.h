@@ -14,6 +14,7 @@ bool get_check(cptr prompt);
 bool get_check_near(int y, int x, cptr prompt);
 bool get_check_oath_multiline(cptr prompt);
 bool get_com(cptr prompt, char* command);
+void any_key_prompt_text(char* buf, size_t len, cptr action);
 void pause_line(int row);
 bool terminal_prompt_fits(cptr prompt, int max_width, bool use_story_font);
 void terminal_prompt_trim(char* prompt, int max_width, bool use_story_font);

@@ -874,6 +874,9 @@ NavResult character_creation(void)
             "%s-random  %s-back  %s-options  %s-scores  %s-description  %s-help  %s-quit",
             random_label, back_label, options_label, scores_label, full_desc_label, help_label, quit_label);
         Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
+    } else if (sdl_touch_only_device_active()) {
+        Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
+            "Tap a row to choose, tap away to go back");
     } else {
         Term_putstr(QUESTION_COL, birth_prompt_row(), -1, TERM_SLATE,
             "r -random   ESC -back   o -options   s -scores   f -description   h -help   q -quit");

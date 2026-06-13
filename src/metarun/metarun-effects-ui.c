@@ -137,6 +137,8 @@ void show_all_active_curses(void)
             char hint_buf[64];
             strnfmt(hint_buf, sizeof(hint_buf), "Press [%s] to return.", accept_label);
             Term_putstr(2, 5, -1, TERM_L_DARK, hint_buf);
+        } else if (sdl_touch_only_device_active()) {
+            Term_putstr(2, 5, -1, TERM_L_DARK, "Tap to return");
         } else {
             Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
         }
@@ -222,6 +224,8 @@ void show_all_active_curses(void)
                 snprintf(footer_buf, sizeof footer_buf, "[%s] ok  [%s] back",
                          accept_label, back_label);
             }
+        } else if (sdl_touch_only_device_active()) {
+            SDL_strlcpy(footer_buf, "Tap to return", sizeof footer_buf);
         } else {
             if (total_pages > 1) {
                 const char* variants[] = {

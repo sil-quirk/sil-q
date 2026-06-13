@@ -46,6 +46,16 @@ static void blessing_put_choice_prompt(int row, bool steamdeck,
         terminal_prompt_pick_variant(prompt, sizeof(prompt), width, false,
             variants, N_ELEMENTS(variants));
     }
+    else if (sdl_touch_only_device_active())
+    {
+        const char* variants[] = {
+            "Tap a row to select, tap away to exit",
+            "Tap to select, tap away to exit",
+            "Tap to select"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), width, false,
+            variants, N_ELEMENTS(variants));
+    }
     else if (menu_letters)
     {
         char prompt_full[128];
@@ -148,6 +158,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
 
         Term_putstr(2, 1, -1, TERM_YELLOW, "Remove a Curse (cost 1 blessing point)");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Choose which curse to lift:");
@@ -437,6 +448,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
 
         Term_putstr(2, 1, -1, TERM_YELLOW, "Receive a Blessing (cost 1 blessing point)");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Select a gift to accept:");
@@ -648,6 +660,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
 
         Term_putstr(2, 1, -1, TERM_YELLOW, "Unlock a Major Blessing");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Select which covenant to forge:");
@@ -893,6 +906,7 @@ void open_blessing_exchange(void)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         int click_width = (metarun_term_width() > 6) ? metarun_term_width() - 4 : 76;
 
         Term_putstr(2, 1, -1, TERM_YELLOW, "Blessing Exchange");

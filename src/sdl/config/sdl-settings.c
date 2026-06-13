@@ -1617,7 +1617,7 @@ void sdl_touch_apply_profile(int profile)
         pane_default_open = false;
         top_panel_default_open = true;
         top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
-        movement_mode = SDL_TOUCH_MOVEMENT_OFF;
+        movement_mode = SDL_TOUCH_MOVEMENT_ON;
         round_enabled = true;
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
         break;

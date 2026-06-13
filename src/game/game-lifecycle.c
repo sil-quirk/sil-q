@@ -337,6 +337,9 @@ static void show_info(void)
     bool old_item_tester_full = item_tester_full;
     byte old_item_tester_tval = item_tester_tval;
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
+    char anykey_buf[48];
+
+    any_key_prompt_text(anykey_buf, sizeof(anykey_buf), NULL);
 
     Term_get_size(&term_wid, &term_hgt);
 
@@ -345,7 +348,7 @@ static void show_info(void)
 
     /* Prompt for inventory */
     Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
-        "(press any key)");
+        anykey_buf);
 
     /* Allow abort at this point */
     if (inkey() == ESCAPE)
@@ -361,7 +364,7 @@ static void show_info(void)
         show_equip();
         prt("You are using:", 0, 0);
         Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
-            "(press any key)");
+            anykey_buf);
         if (inkey() == ESCAPE)
             goto cleanup;
         item_tester_full = false;
@@ -375,7 +378,7 @@ static void show_info(void)
         show_inven();
         prt("You are carrying:", 0, 0);
         Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
-            -1, TERM_L_WHITE, "(press any key)");
+            -1, TERM_L_WHITE, anykey_buf);
         if (inkey() == ESCAPE)
             goto cleanup;
         item_tester_full = false;

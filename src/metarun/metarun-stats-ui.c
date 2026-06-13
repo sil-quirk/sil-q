@@ -500,6 +500,7 @@ static void adjust_blessing_threshold_menu(void)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Blessing Threshold ===");
 
         char buf[160];
@@ -564,6 +565,16 @@ static void adjust_blessing_threshold_menu(void)
                 term_width - 2, false, variants, N_ELEMENTS(variants));
             Term_putstr(2, row + 1, -1, TERM_L_DARK, hint_buf);
             ui_menu_click_add_text_token(-1, 2, row + 1, hint_buf, "cancel");
+        } else if (sdl_touch_only_device_active()) {
+            char prompt_text[96];
+            const char* variants[] = {
+                "Tap a row to select, tap away to exit",
+                "Tap to select, tap away to exit",
+                "Tap to select"
+            };
+            terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                term_width - 2, false, variants, N_ELEMENTS(variants));
+            Term_putstr(2, row + 1, -1, TERM_L_DARK, prompt_text);
         } else if (menu_letters) {
             char prompt_text[96];
             const char* variants[] = {
@@ -716,6 +727,8 @@ void print_metarun_stats(void)
             metarun_prompt_label(steamdeck_confirm_key(), "A", label, sizeof(label));
             strnfmt(buf, sizeof(buf), "Press %s to return.", label);
             Term_putstr(2, 8, -1, TERM_L_DARK, buf);
+        } else if (sdl_touch_only_device_active()) {
+            Term_putstr(2, 8, -1, TERM_L_DARK, "Tap to return");
         } else {
             Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
         }

@@ -2132,7 +2132,11 @@ void do_cmd_help(void)
         /* Better navigation prompt */
         {
             char nav[128];
-            if (steamdeck_controls_active()) {
+            if (sdl_touch_only_device_active()) {
+                SDL_strlcpy(nav,
+                    "Swipe to turn pages",
+                    sizeof(nav));
+            } else if (steamdeck_controls_active()) {
                 char prev_label[16];
                 char next_page_label[16];
                 char next_label[16];

@@ -6478,6 +6478,18 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
         Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_L_DARK, prompt);
         knowledge_register_prompt_clicks(layout, prompt);
     }
+    else if (sdl_touch_only_device_active())
+    {
+        const char* variants[] = {
+            "Tap a row to recall, tap away to exit",
+            "Tap to recall, tap away to exit",
+            "Tap to recall"
+        };
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->term_wid,
+            false, variants, N_ELEMENTS(variants));
+        Term_putstr(0, layout->prompt_row, layout->term_wid, TERM_SLATE, prompt);
+        knowledge_register_prompt_clicks(layout, prompt);
+    }
     else
     {
         const char* variants[] = {
@@ -6612,6 +6624,7 @@ static void knowledge_begin_clicks(const knowledge_browser_layout* layout)
 {
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
     knowledge_begin_touch_scroll_area(layout, SDL_TOUCH_MENU_CATEGORY_OTHER);
     knowledge_register_tabs(layout);
@@ -8720,6 +8733,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             (void)Term_set_extra_cursor(false, 0, 0, false);
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_outside_cancel_enabled(true);
             ui_menu_click_set_touch_category(
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
             knowledge_begin_touch_scroll_area(&layout,
@@ -8846,6 +8860,22 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     TERM_L_DARK, prompt_buf);
                 supply_register_prompt_clicks(&layout, prompt_buf, NULL,
                     use_label, confirm_label, drop_label, back_label);
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                char prompt_buf[160];
+                const char* variants[] = {
+                    "Tap a row to equip, tap away to exit",
+                    "Tap to equip, tap away to exit",
+                    "Tap to equip"
+                };
+
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, N_ELEMENTS(variants));
+                Term_putstr(0, layout.prompt_row, layout.term_wid,
+                    TERM_SLATE, prompt_buf);
+                supply_register_prompt_clicks(&layout, prompt_buf, NULL, NULL,
+                    NULL, NULL, NULL);
             }
             else
             {
@@ -9264,6 +9294,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             (void)Term_set_extra_cursor(false, 0, 0, false);
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_outside_cancel_enabled(true);
             ui_menu_click_set_touch_category(
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
             knowledge_begin_touch_scroll_area(&layout,
@@ -9463,6 +9494,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         layout.term_wid, false, variants,
                         N_ELEMENTS(variants));
                 }
+                else if (sdl_touch_only_device_active())
+                {
+                    const char* variants[] = {
+                        "Replace: tap a row to select, tap away to exit",
+                        "Tap a row to select, tap away to exit",
+                        "Tap to select"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 else
                 {
                     const char* variants[] = {
@@ -9503,6 +9545,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         back_label);
                     variants[0] = prompt_full;
                     variants[1] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else if (sdl_touch_only_device_active())
+                {
+                    const char* variants[] = {
+                        "Place: tap a row to select, tap away to exit",
+                        "Tap a row to select, tap away to exit",
+                        "Tap to select"
+                    };
                     terminal_prompt_pick_variant(prompt, sizeof(prompt),
                         layout.term_wid, false, variants,
                         N_ELEMENTS(variants));
@@ -9555,6 +9608,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     variants[0] = prompt_full;
                     variants[1] = prompt_mid;
                     variants[2] = prompt_short;
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else if (sdl_touch_only_device_active())
+                {
+                    const char* variants[] = {
+                        "Choose: tap a row to select, tap away to exit",
+                        "Tap a row to select, tap away to exit",
+                        "Tap to select"
+                    };
                     terminal_prompt_pick_variant(prompt, sizeof(prompt),
                         layout.term_wid, false, variants,
                         N_ELEMENTS(variants));
@@ -9630,6 +9694,22 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     use_label, confirm_label, drop_label, back_label);
                 ui_menu_click_add_text_token(SUPPLY_CLICK_PREVIEW, 0,
                     layout.prompt_row, prompt_buf, preview_label);
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                char prompt_buf[160];
+                const char* variants[] = {
+                    "Tap a row to use, tap away to exit",
+                    "Tap to use, tap away to exit",
+                    "Tap to use"
+                };
+
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    layout.term_wid, false, variants, N_ELEMENTS(variants));
+                Term_putstr(0, layout.prompt_row, layout.term_wid,
+                    TERM_SLATE, prompt_buf);
+                supply_register_prompt_clicks(&layout, prompt_buf, NULL, NULL,
+                    NULL, NULL, NULL);
             }
             else
             {
@@ -10309,6 +10389,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
         knowledge_begin_touch_scroll_area(&draw_layout,
             SDL_TOUCH_MENU_CATEGORY_SUPPLY);
@@ -10423,6 +10504,23 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             supply_register_prompt_clicks(&draw_layout, prompt_buf,
                 recall_label, use_label, confirm_label, drop_label,
                 back_label);
+            if (drop_click_mode)
+                supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
+                    TERM_YELLOW);
+        } else if (sdl_touch_only_device_active()) {
+            char prompt_buf[160];
+            const char* variants[] = {
+                "Tap a row to use, tap away to exit",
+                "Tap to use, tap away to exit",
+                "Tap to use"
+            };
+
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                draw_layout.term_wid, false, variants, N_ELEMENTS(variants));
+            Term_putstr(0, draw_layout.prompt_row, draw_layout.term_wid,
+                TERM_SLATE, prompt_buf);
+            supply_register_prompt_clicks(&draw_layout, prompt_buf,
+                NULL, NULL, NULL, NULL, NULL);
             if (drop_click_mode)
                 supply_highlight_prompt_token(&draw_layout, prompt_buf, "drop",
                     TERM_YELLOW);

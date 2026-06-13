@@ -534,7 +534,20 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
 
     footer[0] = '\0';
 
-    if (steamdeck)
+    if (sdl_touch_only_device_active())
+    {
+        strnfmt(full, sizeof(full),
+            "Tap a row to view, tap away to exit  %d/%d",
+            page + 1, total_pages);
+        strnfmt(medium, sizeof(medium),
+            "Tap to view, tap away to exit  %d/%d", page + 1, total_pages);
+        strnfmt(short1, sizeof(short1), "Tap to view  %d/%d",
+            page + 1, total_pages);
+        SDL_strlcpy(short2, short1, sizeof(short2));
+        SDL_strlcpy(tiny, short1, sizeof(tiny));
+        strnfmt(minimum, sizeof(minimum), "%d/%d", page + 1, total_pages);
+    }
+    else if (steamdeck)
     {
         strnfmt(full, sizeof(full),
             "[%s] Open  [%s] Runs  [%s] Order  [%s] Layout  [%s] Exit  D-pad Move %d/%d",
@@ -1179,7 +1192,10 @@ static char display_scores_pages(const high_score* entries, int count,
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
         c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
         char hint_buf[96];
-        if (steamdeck)
+        if (sdl_touch_only_device_active())
+            SDL_strlcpy(hint_buf, "Tap Run History  tap away to exit",
+                sizeof(hint_buf));
+        else if (steamdeck)
             strnfmt(hint_buf, sizeof(hint_buf), "[%s] Run History  [%s] Exit",
                 history_label, exit_label);
         else
@@ -2274,6 +2290,7 @@ void do_cmd_run_history(void)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_scroll_area_clear();
 
         if (steamdeck) {
@@ -2517,6 +2534,17 @@ void do_cmd_run_history(void)
                 footer_row, footer, "Left");
             ui_menu_click_add_text_token(RUN_HISTORY_CLICK_NEXT, 0,
                 footer_row, footer, "Right");
+        } else if (sdl_touch_only_device_active()) {
+            char footer[160];
+            const char* variants[] = {
+                "Tap a row to view, tap away to exit",
+                "Tap to view, tap away to exit",
+                "Tap to view"
+            };
+
+            terminal_prompt_pick_variant(footer, sizeof(footer), term_wid,
+                false, variants, N_ELEMENTS(variants));
+            score_ui_put_fit(TERM_L_DARK, footer, footer_row, 0, term_wid);
         } else {
             char footer[160];
             const char* variants[] = {
@@ -3545,6 +3573,7 @@ static void run_history_show_detail(const run_history_entry* entry)
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_scroll_area_clear();
 
         if (steamdeck) {
@@ -3652,7 +3681,11 @@ static void run_history_show_detail(const run_history_entry* entry)
         }
 
         if (footer) {
-            if (steamdeck) {
+            if (sdl_touch_only_device_active()) {
+                SDL_strlcpy(footer_buf,
+                    "Swipe to scroll, tap a tab to switch, tap away to close",
+                    sizeof(footer_buf));
+            } else if (steamdeck) {
                 if (panel == RUN_PANEL_GENERAL || panel == RUN_PANEL_STATS ||
                     panel == RUN_PANEL_ABILITIES || panel == RUN_PANEL_MILESTONES) {
                     strnfmt(footer_buf, sizeof(footer_buf), footer, back_label);

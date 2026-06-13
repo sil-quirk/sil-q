@@ -971,14 +971,51 @@ bool get_com(cptr prompt, char* command)
 }
 
 /*
+ * Compose a control-appropriate "press any key" style prompt into buf.
+ *
+ * Controller users see the confirm-button label (e.g. "[A] continue"); on
+ * keyboard and touch-only devices the text keeps the literal "press any key"
+ * wording, which the touch layer recognises (see sdl_screen_shows_any_key_
+ * prompt) so that a tap anywhere dismisses the prompt.  "action" is an
+ * optional verb phrase such as "continue" or "return"; pass NULL for the
+ * bare form.
+ */
+void any_key_prompt_text(char* buf, size_t len, cptr action)
+{
+    if (!buf || !len)
+        return;
+
+    if (steamdeck_controls_active())
+    {
+        char label[16];
+
+        prompt_controller_label(steamdeck_confirm_key(), "A", label,
+            sizeof(label));
+        strnfmt(buf, len, "[%s] %s", label,
+            (action && action[0]) ? action : "continue");
+    }
+    else if (action && action[0])
+    {
+        strnfmt(buf, len, "(press any key to %s)", action);
+    }
+    else
+    {
+        SDL_strlcpy(buf, "(press any key)", len);
+    }
+}
+
+/*
  * Pause for user response
  *
  * This function is stupid.  XXX XXX XXX
  */
 void pause_line(int row)
 {
+    char buf[48];
+
+    any_key_prompt_text(buf, sizeof(buf), NULL);
     prt("", row, 0);
-    put_str("(press any key)", row, 23);
+    put_str(buf, row, 23);
     (void)inkey();
     prt("", row, 0);
 }

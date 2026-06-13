@@ -283,6 +283,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         ui_scroll_area_begin(1, term_hgt - 1,
@@ -325,6 +326,17 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             ui_menu_click_add_text_token(-3, 0, 0, prompt, "inspect");
             ui_menu_click_add_text_token(-1, 0, 0, prompt, back_label);
             ui_menu_click_add_text_token(-1, 0, 0, prompt, "cancel");
+        }
+        else if (sdl_touch_only_device_active())
+        {
+            const char* variants[] = {
+                "Tap a row to identify, tap away to exit",
+                "Tap to identify, tap away to exit",
+                "Tap to identify"
+            };
+            terminal_prompt_pick_variant(prompt, sizeof(prompt), term_wid,
+                false, variants, N_ELEMENTS(variants));
+            prt(prompt, 0, 0);
         }
         else
         {

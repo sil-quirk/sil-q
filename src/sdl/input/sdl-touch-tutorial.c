@@ -1173,7 +1173,7 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_overlay_menu(screen);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
         "Preset: Round wheel + overlay menu",
-        "Pane hidden by default. Drag to choose direction; pull to the outer red ring for Ctrl+direction. Swipe the edge to reveal the touch pane.",
+        "Pane hidden by default. Tap adjacent squares to move; drag to choose direction; pull to the outer red ring for Ctrl+direction.",
         page, page_count);
 
     content_left = (float)screen->x;
@@ -1225,7 +1225,7 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
 
     sdl_touch_tutorial_draw_info_panel(screen,
         panel_x, panel_y, panel_w, "Round wheel preset",
-        "Drag: start near the wheel center and pull toward a direction.\nOuter red ring: Ctrl+direction, labelled with the actual action.\nRelease: send the selected move or printed outer-ring command.\nCenter: repeats the last direction.\nSwipe edge: reveal or hide the touch pane.\nWidget: tap a top button for its command; hold it for the long-touch command.");
+        "Tap: select an adjacent square, then tap it again to move.\nDrag: start near the wheel center and pull toward a direction.\nOuter red ring: Ctrl+direction, labelled with the actual action.\nRelease: send the selected move or printed outer-ring command.\nCenter: repeats the last direction.\nSwipe edge: reveal or hide the touch pane.\nWidget: tap a top button for its command; hold it for the long-touch command.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }

@@ -41,7 +41,23 @@ static void file_viewer_draw_prompt(int row, int wid, bool large_file)
     if (wid < 1)
         wid = 80;
 
-    if (steamdeck_controls_active())
+    if (sdl_touch_only_device_active())
+    {
+        const char* large_variants[] = {
+            "Swipe or tap to scroll, tap away to close",
+            "Swipe to scroll, tap away to close",
+            "Tap away to close"
+        };
+        const char* small_variants[] = {
+            "Tap away to close"
+        };
+
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), wid - 2, false,
+            large_file ? large_variants : small_variants,
+            large_file ? N_ELEMENTS(large_variants)
+                       : N_ELEMENTS(small_variants));
+    }
+    else if (steamdeck_controls_active())
     {
         char confirm_label[16];
         char back_label[16];

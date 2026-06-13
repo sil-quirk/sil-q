@@ -88,6 +88,8 @@ void list_metaruns(void)
                 char hint_buf[64];
                 strnfmt(hint_buf, sizeof(hint_buf), "[more - press %s]", accept_label);
                 c_put_str(TERM_L_DARK, hint_buf, footer_row, 2);
+            } else if (sdl_touch_only_device_active()) {
+                c_put_str(TERM_L_DARK, "[more - tap to continue]", footer_row, 2);
             } else {
                 c_put_str(TERM_L_DARK, "[more - any key]", footer_row, 2);
             }
@@ -104,6 +106,9 @@ void list_metaruns(void)
         char hint_buf[64];
         strnfmt(hint_buf, sizeof(hint_buf), "Press %s to return.", accept_label);
         c_put_str(TERM_L_DARK, hint_buf, MIN(row + 1, footer_row), 2);
+    } else if (sdl_touch_only_device_active()) {
+        c_put_str(TERM_L_DARK, "Tap to return",
+            MIN(row + 1, footer_row), 2);
     } else {
         c_put_str(TERM_L_DARK, "Press any key to return.",
             MIN(row + 1, footer_row), 2);

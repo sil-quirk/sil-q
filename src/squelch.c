@@ -13,6 +13,8 @@
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-config.h"
+#include "ui/menu-click.h"
 
 static void do_qual_squelch(void);
 static int do_ego_item_squelch(void);
@@ -747,6 +749,18 @@ static int do_cmd_squelch_aux(void)
                             strnfmt(prompt_buf, sizeof(prompt_buf),
                                 "[%s] inscribe", confirm_label);
                     }
+                    else if (sdl_touch_only_device_active())
+                    {
+                        const char* variants[] = {
+                            "Tap an item to cycle squelch, tap away to exit",
+                            "Tap to cycle, tap away to exit",
+                            "Tap to cycle"
+                        };
+
+                        terminal_prompt_pick_variant(prompt_buf,
+                            sizeof(prompt_buf), layout.term_wid, false,
+                            variants, N_ELEMENTS(variants));
+                    }
                     else
                     {
                         const char* variants[] = {
@@ -784,6 +798,19 @@ static int do_cmd_squelch_aux(void)
             display_all = 0;
             old_active = -1;
 
+            /* Register clickable rows so mouse/touch can drive the list */
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            ui_menu_click_set_outside_cancel_enabled(true);
+            ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+            for (int cnum = page_base; cnum < page_end; cnum++)
+            {
+                int display_idx = cnum - page_base;
+                int crow = 5 + (display_idx % rows_per_page);
+                int ccol = col_width * (display_idx / rows_per_page);
+                ui_menu_click_add(cnum, ccol, crow, col_width);
+            }
+
             /* Choose! */
             if (!get_com(format("%s : Command? ", tval_desc2), &ch))
                 return (1);
@@ -791,6 +818,29 @@ static int do_cmd_squelch_aux(void)
             /* Bugfix - Avoid crashes */
             if (!max_num)
                 continue;
+
+            /* Resolve a mouse/touch click: tap to move, tap the selected row
+             * to cycle its squelch setting (same as the '+' key). */
+            {
+                int click_choice = 0;
+                int click_action = UI_MENU_CLICK_PRIMARY;
+
+                if (ui_menu_click_take_action(&click_choice, &click_action))
+                {
+                    if (click_choice < 0 || click_choice >= max_num)
+                        continue;
+
+                    if (click_action == UI_MENU_CLICK_HOVER
+                        || click_choice != active)
+                    {
+                        old_active = active;
+                        active = click_choice;
+                        continue;
+                    }
+
+                    ch = '+';
+                }
+            }
 
             /*Switch to Never Squelch Option*/
             if (ch == KTRL('N'))
@@ -1007,6 +1057,18 @@ static void do_qual_squelch(void)
                         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] back",
                             back_label);
                 }
+                else if (sdl_touch_only_device_active())
+                {
+                    const char* variants[] = {
+                        "Tap a row to cycle, tap away to exit",
+                        "Tap to cycle, tap away to exit",
+                        "Tap to cycle"
+                    };
+
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
                 else
                 {
                     const char* variants[] = {
@@ -1051,11 +1113,47 @@ static void do_qual_squelch(void)
         /* Need to know maximum index */
         max_num = num;
 
+        /* Register clickable rows so mouse/touch can drive the list */
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+        for (i = 0; i < max_num; i++)
+        {
+            int crow = 2 + (i % rows_per_col);
+            int ccol = col_step * (i / rows_per_col);
+            ui_menu_click_add(i, ccol, crow, col_step);
+        }
+
         /* Place the cursor */
         move_cursor(2 + (index % rows_per_col), 1 + ((index / rows_per_col) * col_step));
 
         /* Get a key */
         ch = inkey();
+
+        /* Resolve a mouse/touch click: tap a row to move there, tap the
+         * selected row again to cycle its setting (same as the '6' key). */
+        {
+            int click_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&click_choice, &click_action))
+            {
+                if (click_choice < 0 || click_choice >= max_num)
+                    continue;
+
+                if (click_action == UI_MENU_CLICK_HOVER
+                    || click_choice != index)
+                {
+                    old_index = index;
+                    index = click_choice;
+                    continue;
+                }
+
+                /* Tap on the selected row cycles the quality setting */
+                ch = '6';
+            }
+        }
 
         /* Analyze */
         switch (ch)
@@ -1537,11 +1635,52 @@ static int do_ego_item_squelch(void)
                 c_put_str(TERM_WHITE, "-more-", layout.footer_row - 1, 4);
 
             /* Page foot */
-            msg = layout.compact
-                ? "2/8 move 3/9 page 1/7 ends  Enter toggle"
-                : "Navigation: 2, 8, 3, 9, 1, 7 or movement keys - Shorcut: First letter";
+            {
+                char foot_buf[96];
 
-            c_put_str(TERM_WHITE, msg, layout.footer_row, 0);
+                if (steamdeck_controls_active())
+                {
+                    char confirm_label[16];
+
+                    sdl_gamepad_action_binding_short_label(
+                        steamdeck_confirm_key(), confirm_label,
+                        sizeof(confirm_label));
+                    if (!confirm_label[0]
+                        || streq(confirm_label, "(unbound)")
+                        || streq(confirm_label, "Multiple"))
+                        SDL_strlcpy(confirm_label, "A",
+                            sizeof(confirm_label));
+                    strnfmt(foot_buf, sizeof(foot_buf),
+                        "D-pad move/page  [%s] toggle", confirm_label);
+                }
+                else if (sdl_touch_only_device_active())
+                {
+                    const char* variants[] = {
+                        "Tap an item to toggle squelch, tap away to exit",
+                        "Tap to toggle, tap away to exit",
+                        "Tap to toggle"
+                    };
+
+                    terminal_prompt_pick_variant(foot_buf, sizeof(foot_buf),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+                else
+                {
+                    const char* variants[] = {
+                        "Arrows move  PgUp/PgDn page  Home/End ends  "
+                        "Enter toggle  Letter jump",
+                        "Arrows move  PgUp/PgDn page  Enter toggle",
+                        "Arrows move  Enter toggle"
+                    };
+
+                    terminal_prompt_pick_variant(foot_buf, sizeof(foot_buf),
+                        layout.term_wid, false, variants,
+                        N_ELEMENTS(variants));
+                }
+
+                c_put_str(TERM_WHITE, foot_buf, layout.footer_row, 0);
+            }
         }
 
         /* Only show a portion of the list */
@@ -1561,6 +1700,14 @@ static int do_ego_item_squelch(void)
         display_all = false;
         old_active = -1;
 
+        /* Register clickable rows so mouse/touch can drive the list */
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+        for (i = first; i <= last; i++)
+            ui_menu_click_add(i, 0, i - first + 3, layout.term_wid);
+
         /* Get a command */
         msg = layout.compact
             ? "Command? (Enter toggles, Esc returns) "
@@ -1571,6 +1718,30 @@ static int do_ego_item_squelch(void)
         /* Avoid crash */
         if (max_num < 1)
             continue;
+
+        /* Resolve a mouse/touch click: first tap highlights a row, a tap on
+         * the already-selected row toggles it (mirrors the keyboard Enter). */
+        {
+            int click_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&click_choice, &click_action))
+            {
+                if (click_choice < 0 || click_choice >= max_num)
+                    continue;
+
+                if (click_action == UI_MENU_CLICK_HOVER
+                    || click_choice != active)
+                {
+                    old_active = active;
+                    active = click_choice;
+                    continue;
+                }
+
+                /* Tap on the selected row toggles squelch */
+                ch = ' ';
+            }
+        }
 
         /* Get the selected special item type */
         e_ptr = &e_info[choice[active]];

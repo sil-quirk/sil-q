@@ -1620,7 +1620,8 @@ int bane_menu(int* highlight)
     if (compact_layout)
     {
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            steamdeck ? "D-pad navigate" : "Dir navigate");
+            sdl_touch_only_device_active() ? "Tap a row to select"
+                : (steamdeck ? "D-pad navigate" : "Dir navigate"));
         {
             char prompt[96];
             if (steamdeck)
@@ -1634,6 +1635,10 @@ int bane_menu(int* highlight)
                     back_label, sizeof(back_label));
                 strnfmt(prompt, sizeof(prompt), "%s Select  %s Back",
                     confirm_label, back_label);
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                SDL_strlcpy(prompt, "Tap Back to exit", sizeof(prompt));
             }
             else
             {
@@ -2042,7 +2047,8 @@ int oath_menu(int* highlight)
 
         // Navigation instructions at bottom
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            steamdeck ? "D-pad navigate" : "Dir navigate");
+            sdl_touch_only_device_active() ? "Tap a row to select"
+                : (steamdeck ? "D-pad navigate" : "Dir navigate"));
         {
             char prompt[96];
             if (steamdeck)
@@ -2056,6 +2062,10 @@ int oath_menu(int* highlight)
                     back_label, sizeof(back_label));
                 strnfmt(prompt, sizeof(prompt), "%s Select  %s Back",
                     confirm_label, back_label);
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                SDL_strlcpy(prompt, "Tap Back to exit", sizeof(prompt));
             }
             else
             {
@@ -3905,6 +3915,19 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
         ability_browser_put_fitted(layout->visible_col, layout->prompt_row,
             layout->visible_w, TERM_L_DARK, prompt);
     }
+    else if (sdl_touch_only_device_active())
+    {
+        const char* variants[] = {
+            "Tap a row to buy/toggle, tap away to exit",
+            "Tap to buy/toggle, tap away to exit",
+            "Tap to buy/toggle"
+        };
+
+        terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,
+            false, variants, N_ELEMENTS(variants));
+        ability_browser_put_fitted(layout->visible_col, layout->prompt_row,
+            layout->visible_w, TERM_SLATE, prompt);
+    }
     else
     {
         const char* variants[] = {
@@ -5074,6 +5097,7 @@ void do_cmd_ability_screen(void)
         (void)Term_set_extra_cursor(false, 0, 0, false);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_begin(layout.list_row,
             MAX(layout.list_row, layout.status_row - 1),

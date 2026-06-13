@@ -129,7 +129,17 @@ void wait_for_keypress_with_prompt(cptr prompt)
 
     // Clear bottom line and show prompt
     Term_erase(0, h - 1, w);
-    c_prt(TERM_L_WHITE, prompt ? prompt : "[Press any key to continue]", h - 1, 2);
+    if (prompt)
+    {
+        c_prt(TERM_L_WHITE, prompt, h - 1, 2);
+    }
+    else
+    {
+        char buf[48];
+
+        any_key_prompt_text(buf, sizeof(buf), "continue");
+        c_prt(TERM_L_WHITE, buf, h - 1, 2);
+    }
     Term_fresh();
 
     metarun_wait_hidden();

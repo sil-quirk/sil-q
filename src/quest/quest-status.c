@@ -388,9 +388,11 @@ static void quest_status_reset_page(int col, int *row)
 static void quest_status_wait_for_next_page(int col, int hgt, int *row)
 {
     int prompt_row = MAX(0, hgt - 1);
+    char prompt_buf[48];
 
     Term_erase(0, prompt_row, 255);
-    Term_putstr(col, prompt_row, -1, TERM_L_WHITE, "Press any key to continue.");
+    any_key_prompt_text(prompt_buf, sizeof(prompt_buf), "continue");
+    Term_putstr(col, prompt_row, -1, TERM_L_WHITE, prompt_buf);
     Term_fresh();
     while (true)
     {
@@ -1196,9 +1198,18 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
 
     quest_status_put_line(col, hgt, &row, TERM_WHITE, "");
     quest_status_ensure_rows(col, hgt, &row, 1);
-    Term_putstr(col, row, -1, TERM_L_WHITE,
-        tabbed ? "e/i or Left/Right Hints  Esc/any key return."
-               : "Press any key to return.");
+    if (tabbed)
+    {
+        Term_putstr(col, row, -1, TERM_L_WHITE,
+            "e/i or Left/Right Hints  Esc/any key return.");
+    }
+    else
+    {
+        char return_prompt[48];
+
+        any_key_prompt_text(return_prompt, sizeof(return_prompt), "return");
+        Term_putstr(col, row, -1, TERM_L_WHITE, return_prompt);
+    }
     while (true) {
         if (tabbed && quest_status_tabs_focus)
             Term_gotoxy(hint_quest_tab_cursor_col(true), 1);

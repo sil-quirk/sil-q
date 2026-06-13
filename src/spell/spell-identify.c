@@ -340,6 +340,7 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
         Term_clear();
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         ui_scroll_area_begin(list_row, help_row - 1,
@@ -452,6 +453,18 @@ static bool recharge_choose_target(const recharge_target_entry entries[],
                 "select");
             ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
                 "cancel");
+        }
+        else if (sdl_touch_only_device_active())
+        {
+            char prompt_buf[80];
+            const char* variants[] = {
+                "Tap a row to recharge, tap away to exit",
+                "Tap to recharge, tap away to exit",
+                "Tap to recharge"
+            };
+            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                term_wid, false, variants, N_ELEMENTS(variants));
+            prt(prompt_buf, prompt_row, 0);
         }
         else
         {

@@ -1766,6 +1766,7 @@ extern int ui_key_wait_dismiss_get_key(void);
 extern void ui_reset_transient_state_for_new_session(void);
 extern bool get_com(cptr prompt, char* command);
 extern bool preconfirm_enter_morgoth_hall(void);
+extern void any_key_prompt_text(char* buf, size_t len, cptr action);
 extern void pause_line(int row);
 extern void request_command(void);
 extern int int_exp(int base, int power);
