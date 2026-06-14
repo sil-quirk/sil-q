@@ -327,7 +327,7 @@ bool sdl_combat_overlay_cell_rect(int col, int source_row, int cols,
     if (!out)
         return false;
     *out = (SDL_FRect){ 0 };
-    if (!sdl_combat_overlay_pane_current_rect(&pane))
+    if (!sdl_combat_overlay_pane_content_rect(&pane))
         return false;
 
     cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
@@ -344,13 +344,16 @@ bool sdl_combat_overlay_cell_rect(int col, int source_row, int cols,
     if (panel_cols <= 0 || panel_rows <= 0)
         return false;
 
-    row_count = sdl_combat_overlay_source_row_count();
+    row_count = sdl_combat_overlay_visible_row_count(panel_rows);
     start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
     for (int i = 0; i < row_count; i++) {
         int row_at_index = -1;
 
-        if (!sdl_combat_overlay_source_row_at_index(i, &row_at_index))
+        if (!sdl_combat_overlay_visible_source_row_at_index(i, panel_rows,
+                &row_at_index))
+        {
             continue;
+        }
         if (row_at_index == source_row) {
             source_index = i;
             break;
@@ -402,7 +405,7 @@ bool sdl_combat_overlay_point_to_cell(float x, float y, int* out_col,
         return false;
     *out_col = 0;
     *out_source_row = 0;
-    if (!sdl_combat_overlay_pane_current_rect(&pane))
+    if (!sdl_combat_overlay_pane_content_rect(&pane))
         return false;
     if (x < (float)pane.x || y < (float)pane.y
         || x >= (float)(pane.x + pane.w)
@@ -433,13 +436,16 @@ bool sdl_combat_overlay_point_to_cell(float x, float y, int* out_col,
         return false;
     }
 
-    row_count = sdl_combat_overlay_source_row_count();
+    row_count = sdl_combat_overlay_visible_row_count(panel_rows);
     start_row = (panel_rows > row_count) ? panel_rows - row_count : 0;
     row_index = local_row - start_row;
     if (row_index < 0 || row_index >= row_count)
         return false;
-    if (!sdl_combat_overlay_source_row_at_index(row_index, &source_row))
+    if (!sdl_combat_overlay_visible_source_row_at_index(row_index,
+            panel_rows, &source_row))
+    {
         return false;
+    }
 
     *out_col = local_col;
     *out_source_row = source_row;

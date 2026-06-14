@@ -744,9 +744,14 @@ bool grid_interact_available(int y, int x)
     if ((y != p_ptr->py + ddy[dir]) || (x != p_ptr->px + ddx[dir]))
         return false;
 
-    /* Monsters keep their recall popup */
+    /* Alert thralls are peaceful quest givers, so expose Talk here. */
     if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml)
+    {
+        if (is_alert_thrall(&mon_list[cave_m_idx[y][x]]))
+            return true;
+
         return false;
+    }
 
     /* Dark/unknown squares: strike into the darkness */
     if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
@@ -833,8 +838,25 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
         count++;                                                              \
     } while (0)
 
+    /* --- Alert thrall --- */
+    if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml
+        && is_alert_thrall(&mon_list[cave_m_idx[y][x]]))
+    {
+        monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+        char m_name[80];
+
+        monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+        strnfmt(title, sizeof(title), "%^s", m_name);
+        SDL_strlcpy(desc,
+            "This captive is alert, but not hostile. You can speak with the "
+            "thrall to hear the request, offer the needed item, or claim an "
+            "earned reward.",
+            sizeof(desc));
+        GRID_Q_ADD(';', 't', "Talk", TERM_L_WHITE);
+    }
+
     /* --- Dark / unknown square --- */
-    if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
+    else if (!(cave_info[y][x] & (CAVE_MARK | CAVE_SEEN)))
     {
         SDL_strlcpy(title, "Darkness", sizeof(title));
         SDL_strlcpy(desc,

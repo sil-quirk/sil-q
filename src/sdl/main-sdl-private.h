@@ -494,6 +494,16 @@ typedef struct sdl_character_sheet_select_rating {
     char desc[256];
 } sdl_character_sheet_select_rating;
 
+typedef struct menu_scroll_drag_state {
+    bool active;
+    bool dragged;
+    SDL_FingerID finger_id;
+    float start_x;
+    float start_y;
+    float last_y;
+    float accum_y;
+} menu_scroll_drag_state;
+
 typedef struct sdl_character_sheet_screen_state {
     sdl_character_sheet_context context;
     int focus_choice;
@@ -518,7 +528,7 @@ typedef struct sdl_character_sheet_screen_state {
     char select_description[4096];
     char select_title[96];
     char select_focus_title[96];
-    char select_title_suffix[16];
+    char select_title_suffix[64];
     byte select_title_suffix_attr;
     char select_intro[2048];   /* book mode: chronicle text (white) */
     char select_frame_top[768];    /* book mode: framing line above (accent) */
@@ -560,6 +570,8 @@ typedef struct sdl_character_sheet_screen_state {
     int hover_choice;
     int sheet_scroll;
     int sheet_scroll_max;
+    SDL_FRect select_scroll_rect;
+    menu_scroll_drag_state select_scroll_drag;
 } sdl_character_sheet_screen_state;
 
 typedef struct sdl_welcome_picture_bounds {
@@ -626,16 +638,6 @@ typedef struct screen_back_touch_press_state {
     float start_y;
     Uint64 start_time;
 } screen_back_touch_press_state;
-
-typedef struct menu_scroll_drag_state {
-    bool active;
-    bool dragged;
-    SDL_FingerID finger_id;
-    float start_x;
-    float start_y;
-    float last_y;
-    float accum_y;
-} menu_scroll_drag_state;
 
 typedef struct sdl_wheel_step_state {
     float accum_x;
@@ -1580,6 +1582,10 @@ bool sdl_combat_overlay_pane_presentation_active(void);
 bool sdl_combat_overlay_melee_uses_offhand_row(void);
 int sdl_combat_overlay_source_row_count(void);
 bool sdl_combat_overlay_source_row_at_index(int index, int* out_row);
+int sdl_combat_overlay_visible_row_count(int panel_rows);
+bool sdl_combat_overlay_visible_source_row_at_index(int index,
+    int panel_rows, int* out_row);
+bool sdl_combat_overlay_source_row_visible(int source_row);
 bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row);
 int sdl_left_panel_output_row_for_source_row(int source_row);
 int sdl_left_panel_source_row_for_output_row(int output_row);
@@ -1716,6 +1722,7 @@ SDL_FRect sdl_overlay_panel_rect(const SDL_Rect* anchor, enum pane_placement whe
 bool sdl_status_pane_current_rect(SDL_Rect* out_rect, enum pane_placement* out_where);
 const struct pane_config* sdl_combat_overlay_pane_config(void);
 bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect);
+bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect);
 float sdl_touch_pane_clampf(float value, float min_value, float max_value);
 int sdl_touch_pane_story_text_width(TTF_Font* font, cptr text);
 SDL_Color sdl_status_pane_color(byte attr);
@@ -3136,6 +3143,8 @@ SDL_Rect sdl_get_layout_screen_rect(void);
 void sdl_log_mouse_devices(void);
 bool sdl_mobile_prefer_safe_edge_alignment(void);
 void sdl_resize_for_current_layout(void);
+bool sdl_finger_event_to_render_coords(const SDL_TouchFingerEvent* finger,
+    float* out_x, float* out_y);
 void sdl_handle_event(sdl_state* st, SDL_Event* ev);
 bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
     const SDL_Event* ev);

@@ -1158,10 +1158,17 @@ bool sdl_screen_back_gesture_handle_event(const SDL_Event* ev)
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return false;
         sdl_screen_back_touch_cancel();
+        {
+            float x;
+            float y;
+
+            if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+                return false;
+            g_screen_back_touch_press.start_x = x;
+            g_screen_back_touch_press.start_y = y;
+        }
         g_screen_back_touch_press.active = true;
         g_screen_back_touch_press.finger_id = ev->tfinger.fingerID;
-        g_screen_back_touch_press.start_x = ev->tfinger.x;
-        g_screen_back_touch_press.start_y = ev->tfinger.y;
         g_screen_back_touch_press.start_time = SDL_GetTicksNS();
         return false;
 
@@ -1174,22 +1181,15 @@ bool sdl_screen_back_gesture_handle_event(const SDL_Event* ev)
             return false;
         }
         {
-            int window_w = 0;
-            int window_h = 0;
             float x;
             float y;
-            float start_x;
-            float start_y;
             float dx;
             float dy;
 
-            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-            x = ev->tfinger.x * (float)window_w;
-            y = ev->tfinger.y * (float)window_h;
-            start_x = g_screen_back_touch_press.start_x * (float)window_w;
-            start_y = g_screen_back_touch_press.start_y * (float)window_h;
-            dx = x - start_x;
-            dy = y - start_y;
+            if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+                return false;
+            dx = x - g_screen_back_touch_press.start_x;
+            dy = y - g_screen_back_touch_press.start_y;
             if (dx < 0.0f)
                 dx = -dx;
             if (dy < 0.0f)
@@ -2496,8 +2496,6 @@ bool sdl_minimap_handle_event(const SDL_Event* ev)
     case SDL_EVENT_FINGER_UP:
     case SDL_EVENT_FINGER_CANCELED:
     {
-        int window_w = 0;
-        int window_h = 0;
         float x;
         float y;
 
@@ -2505,12 +2503,8 @@ bool sdl_minimap_handle_event(const SDL_Event* ev)
             return true;
 
         sdl_note_touch_event_device(ev->tfinger.touchID);
-        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-        if (window_w <= 0 || window_h <= 0)
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return true;
-
-        x = ev->tfinger.x * (float)window_w;
-        y = ev->tfinger.y * (float)window_h;
 
         if (ev->type == SDL_EVENT_FINGER_DOWN)
             return sdl_minimap_handle_touch_down(x, y,
@@ -3370,6 +3364,7 @@ bool sdl_handle_character_panel_click_action(int click_action)
 
 bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
 {
+    SDL_Rect combat_rect;
     int col = 0;
     int row = 0;
     bool active = sdl_main_screen_click_shortcuts_active();
@@ -3383,6 +3378,16 @@ bool sdl_main_screen_handle_character_panel_hover_pointer(float x, float y)
     {
         attack_mode = sdl_combat_overlay_attack_mode_at_cell(col, row);
         combat_hit = true;
+    }
+    else if (active
+        && !sdl_touch_zone_controls_active()
+        && sdl_combat_overlay_pane_current_rect(&combat_rect)
+        && sdl_point_in_rect(&combat_rect, x, y))
+    {
+        sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            SDL_PANEL_CLICK_NONE, -1, active);
+        return true;
     }
     else if (active
         && !sdl_touch_zone_controls_active()
@@ -3453,6 +3458,7 @@ bool sdl_binding_opens_pane_menu(int binding)
 
 bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
 {
+    SDL_Rect combat_rect;
     int col = 0;
     int row = 0;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
@@ -3471,6 +3477,11 @@ bool sdl_main_screen_handle_character_panel_pointer(float x, float y)
                 SDL_PANEL_CLICK_NONE, -1, false);
             sdl_pointer_attack_set_mode(attack_mode);
         }
+        return true;
+    }
+    if (sdl_combat_overlay_pane_current_rect(&combat_rect)
+        && sdl_point_in_rect(&combat_rect, x, y))
+    {
         return true;
     }
     if (sdl_left_panel_pane_collapsed()
@@ -3577,6 +3588,7 @@ bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, float y)
 
 bool sdl_main_screen_character_panel_pointer_hit(float x, float y)
 {
+    SDL_Rect combat_rect;
     int col = 0;
     int row = 0;
 
@@ -3588,6 +3600,11 @@ bool sdl_main_screen_character_panel_pointer_hit(float x, float y)
         return true;
     if (sdl_combat_overlay_point_to_cell(x, y, &col, &row))
         return true;
+    if (sdl_combat_overlay_pane_current_rect(&combat_rect)
+        && sdl_point_in_rect(&combat_rect, x, y))
+    {
+        return true;
+    }
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
         return false;
 

@@ -687,6 +687,7 @@ void sdl_combat_overlay_pane_render(void)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
     SDL_Rect pane;
+    SDL_Rect content;
     SDL_FRect pane_rect;
     const char* font_path;
     SDL_Texture* font_atlas;
@@ -709,6 +710,8 @@ void sdl_combat_overlay_pane_render(void)
 
     if (!sdl_combat_overlay_pane_current_rect(&pane))
         return;
+    if (!sdl_combat_overlay_pane_content_rect(&content))
+        return;
     if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
         return;
 
@@ -719,14 +722,14 @@ void sdl_combat_overlay_pane_render(void)
     if (cell_w < 1)
         cell_w = 1;
 
-    panel_cols = pane.w / cell_w;
-    panel_rows = pane.h / cell_h;
+    panel_cols = content.w / cell_w;
+    panel_rows = content.h / cell_h;
     if (panel_cols > PANE_COMBAT_OVERLAY_COLS)
         panel_cols = PANE_COMBAT_OVERLAY_COLS;
     if (panel_cols <= 0 || panel_rows <= 0)
         return;
 
-    row_count = sdl_combat_overlay_source_row_count();
+    row_count = sdl_combat_overlay_visible_row_count(panel_rows);
     start_row = 0;
     if (row_count <= 0 || start_row >= panel_rows)
         return;
@@ -767,10 +770,10 @@ void sdl_combat_overlay_pane_render(void)
         .h = (float)pane.h,
     };
     {
-        SDL_Color bg = sdl_color_from_attr(TERM_DARK);
+        SDL_Color bg = sdl_left_panel_background_color();
 
         SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, 224);
+        SDL_SetRenderDrawColor(g_state.renderer, bg.r, bg.g, bg.b, bg.a);
         SDL_RenderFillRect(g_state.renderer, &pane_rect);
     }
 
@@ -780,12 +783,15 @@ void sdl_combat_overlay_pane_render(void)
 
         if (dest_row >= panel_rows)
             break;
-        if (!sdl_combat_overlay_source_row_at_index(i, &source_row))
+        if (!sdl_combat_overlay_visible_source_row_at_index(i, panel_rows,
+                &source_row))
+        {
             continue;
+        }
 
         sdl_render_left_panel_source_row_cells(view, source_term, scr,
-            source_row, 0, panel_cols, 0, dest_row, (float)pane.x,
-            (float)pane.y, cell_w, cell_h, font_atlas, atlas_cell_w,
+            source_row, 0, panel_cols, 0, dest_row, (float)content.x,
+            (float)content.y, cell_w, cell_h, font_atlas, atlas_cell_w,
             atlas_cell_h, mono_font);
     }
 

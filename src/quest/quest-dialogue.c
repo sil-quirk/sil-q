@@ -166,8 +166,19 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
                 && action != UI_MENU_CLICK_HOVER
                 && !sdl_character_sheet_screen_page_turning())
             {
-                sdl_character_sheet_screen_begin_page_turn(
-                    (clicked == SDL_SELECT_CLICK_PAGE_NEXT) ? +1 : -1);
+                page = sdl_character_sheet_screen_select_page();
+                count = sdl_character_sheet_screen_select_page_count();
+                if (clicked == SDL_SELECT_CLICK_PAGE_NEXT)
+                {
+                    if (page < count - 1)
+                        sdl_character_sheet_screen_begin_page_turn(+1);
+                    else
+                        done = true;
+                }
+                else if (page > 0)
+                {
+                    sdl_character_sheet_screen_begin_page_turn(-1);
+                }
             }
             continue;
         }

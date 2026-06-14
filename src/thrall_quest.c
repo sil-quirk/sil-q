@@ -11,6 +11,7 @@
 #include "metarun.h"
 #include "supplies.h"
 #include "thrall_quest.h"
+#include "ui/question.h"
 
 static s16b get_upgrade_kind(const object_type* o_ptr);
 static byte damaged_ego_index(const object_type* o_ptr, bool* is_prefix);
@@ -497,6 +498,28 @@ static void thrall_thanks_dialog(monster_type* m_ptr)
         show_thrall_dialog(m_ptr, elf_thanks_texts[variant]);
     else
         show_thrall_dialog(m_ptr, human_thanks_texts[variant]);
+}
+
+static int thrall_give_item_question(monster_type* m_ptr)
+{
+    ui_question_option options[2];
+    char title[80];
+    char desc[160];
+    cptr item_name;
+
+    if (!m_ptr)
+        return -1;
+
+    item_name = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
+    strnfmt(title, sizeof(title), "Give %s?", item_name);
+    strnfmt(desc, sizeof(desc),
+        "The thrall has asked for %s and will offer a reward in return.",
+        item_name);
+
+    options[0] = (ui_question_option){ 'g', "Give it", TERM_L_WHITE };
+    options[1] = (ui_question_option){ 'n', "Not now", TERM_SLATE };
+
+    return ui_question_ask(title, desc, options, 2, m_ptr->fy, m_ptr->fx, 0);
 }
 
 /*
@@ -2133,6 +2156,7 @@ bool handle_thrall_interaction(monster_type* m_ptr)
 {
     char m_name[80];
     int item_slot;
+    bool showed_request = false;
     
     /* Only handle alert thralls */
     if (!is_alert_thrall(m_ptr)) return false;
@@ -2166,7 +2190,7 @@ bool handle_thrall_interaction(monster_type* m_ptr)
     {
         thrall_request_dialog(m_ptr);
         m_ptr->thrall_quest_requested = 1;
-        return true;
+        showed_request = true;
     }
     
     /* Check if player has the item */
@@ -2182,29 +2206,31 @@ bool handle_thrall_interaction(monster_type* m_ptr)
         identify_thrall_quest_item_before_offer(
             m_ptr->thrall_quest_item, item_slot);
 
-        if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-            show_thrall_dialog(m_ptr, elf_pre_give_texts[variant]);
-        else
-            show_thrall_dialog(m_ptr, human_pre_give_texts[variant]);
-
-        char prompt[200];
-        strnfmt(prompt, sizeof(prompt), 
-            "Give %s? ",
-            get_thrall_quest_item_name(m_ptr->thrall_quest_item));
-        
-        if (get_check(prompt))
+        if (!showed_request)
         {
-            complete_thrall_quest(m_ptr, item_slot);
+            if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+                show_thrall_dialog(m_ptr, elf_pre_give_texts[variant]);
+            else
+                show_thrall_dialog(m_ptr, human_pre_give_texts[variant]);
         }
-        else
+
+        switch (thrall_give_item_question(m_ptr))
         {
+        case 0:
+            complete_thrall_quest(m_ptr, item_slot);
+            break;
+        case 1:
             msg_format("%^s sinks back into the shadows, and the light in those eyes grows dim.", m_name);
+            break;
+        default:
+            break;
         }
     }
     else
     {
         /* Player doesn't have the item - repeat the request */
-        thrall_request_dialog(m_ptr);
+        if (!showed_request)
+            thrall_request_dialog(m_ptr);
     }
     
     return true;

@@ -527,13 +527,55 @@ bool sdl_try_handle_touch_mouse_fallback_event(sdl_state* st,
     }
 }
 
+bool sdl_finger_event_to_render_coords(const SDL_TouchFingerEvent* finger,
+    float* out_x, float* out_y)
+{
+    int window_w = 0;
+    int window_h = 0;
+    float x;
+    float y;
+
+    if (!finger || !out_x || !out_y || !g_state.window)
+        return false;
+
+    /*
+     * Mouse fallback events are synthesized after mouse coordinates have
+     * already been normalized to renderer space.  Preserve that round trip
+     * instead of applying the window-to-render transform a second time.
+     */
+    if (finger->touchID == SDL_MOUSE_TOUCHID
+        || finger->fingerID == TOUCH_MOUSE_FALLBACK_FINGER_ID)
+    {
+        SDL_Rect pixels = sdl_get_window_pixel_rect();
+
+        if (!sdl_rect_has_area(&pixels))
+            return false;
+        *out_x = finger->x * (float)pixels.w;
+        *out_y = finger->y * (float)pixels.h;
+        return true;
+    }
+
+    SDL_GetWindowSize(g_state.window, &window_w, &window_h);
+    if (window_w <= 0 || window_h <= 0)
+        return false;
+
+    x = finger->x * (float)window_w;
+    y = finger->y * (float)window_h;
+    if (g_state.renderer)
+        SDL_RenderCoordinatesFromWindow(g_state.renderer, x, y, &x, &y);
+
+    *out_x = x;
+    *out_y = y;
+    return true;
+}
+
 /* The renderer is created with SDL_WINDOW_HIGH_PIXEL_DENSITY and the rest of
- * the code consumes coordinates in renderer/pixel space (SDL_GetWindowSizeInPixels).
+ * the code consumes coordinates in renderer/pixel space.
  * SDL3 mouse events arrive in window-point space, so on Retina/HiDPI displays
  * the reported (x, y) is half (or 1/scale of) the rendered position. Convert
  * mouse motion/button/wheel coordinates to renderer space here so every
  * downstream handler sees pixel-space coordinates. Touch finger coordinates
- * are normalized (0..1) and are left alone. */
+ * are normalized (0..1) and converted by sdl_finger_event_to_render_coords(). */
 void sdl_normalize_event_to_render_coords(SDL_Event* ev)
 {
     if (!ev || !g_state.renderer)
@@ -710,15 +752,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP) {
             return;
         } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
-            int window_w = 0;
-            int window_h = 0;
+            float x;
+            float y;
 
             if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
                 return;
             sdl_note_touch_event_device(ev->tfinger.touchID);
-            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-            sdl_touch_pane_handle_reset_prompt_pointer(ev->tfinger.x * (float)window_w,
-                ev->tfinger.y * (float)window_h);
+            if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+                sdl_touch_pane_handle_reset_prompt_pointer(x, y);
             return;
         } else if (ev->type == SDL_EVENT_FINGER_UP || ev->type == SDL_EVENT_FINGER_CANCELED) {
             return;
@@ -1245,8 +1286,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
         }
     } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
-        int window_w = 0;
-        int window_h = 0;
         float x;
         float y;
         bool mobile_pane_swipe;
@@ -1254,10 +1293,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
-
-        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-        x = ev->tfinger.x * (float)window_w;
-        y = ev->tfinger.y * (float)window_h;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return;
         mobile_pane_swipe = sdl_touch_pane_uses_mobile_toggle()
             && g_touch_pane_mobile_open
             && !sdl_touch_round_layer_controls_active();
@@ -1460,18 +1497,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
     } else if (ev->type == SDL_EVENT_FINGER_MOTION) {
-        int window_w = 0;
-        int window_h = 0;
         float x;
         float y;
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
-
-        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-        x = ev->tfinger.x * (float)window_w;
-        y = ev->tfinger.y * (float)window_h;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return;
         if (sdl_log_pane_menu_handle_long_press_motion(x, y,
             ev->tfinger.fingerID))
         {
@@ -1597,17 +1630,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_touch_swipe_handle_pointer_motion(x, y, ev->tfinger.fingerID))
             return;
     } else if (ev->type == SDL_EVENT_FINGER_UP) {
-        int window_w = 0;
-        int window_h = 0;
         float x;
         float y;
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
-        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-        x = ev->tfinger.x * (float)window_w;
-        y = ev->tfinger.y * (float)window_h;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return;
         if (sdl_log_pane_menu_handle_long_press_up(x, y,
             ev->tfinger.fingerID))
         {

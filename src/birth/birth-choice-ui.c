@@ -699,38 +699,44 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
             quit(NULL);
 
         /*
-         * Race "book" navigation.  The story page (0) turns forward to the
-         * choice page (1) on Right/Space/Enter; the choice page turns back on
-         * Left.  Esc still backs out of the screen entirely.  Arrow keys reach
+         * Race "book" navigation.  Any page before the final choice page turns
+         * forward on Right/Space/Enter; the final page accepts Enter as the
+         * selected race.  Left turns back from later pages, while Left on the
+         * first page still backs out of the screen entirely.  Arrow keys reach
          * us as '4'/'6'.
          */
         if (book_mode)
         {
             int bpage = sdl_character_sheet_screen_select_page();
             int pcount = sdl_character_sheet_screen_select_page_count();
+            int final_page = pcount - 1;
 
             /* Ignore keys while a page-curl is mid-flight. */
             if (sdl_character_sheet_screen_page_turning())
                 continue;
 
-            if (bpage <= 0 && pcount > 1)
+            if (final_page < 0)
+                final_page = 0;
+
+            if (bpage > 0 && c == '4')
+            {
+                sdl_character_sheet_screen_begin_page_turn(-1);
+                continue;
+            }
+
+            if (bpage < final_page)
             {
                 if (c == '6' || birth_confirm_input(c, steamdeck))
                 {
                     sdl_character_sheet_screen_begin_page_turn(+1);
                     continue;
                 }
-                /* No list on the story page; swallow vertical movement. */
+                /* No list on story pages; swallow vertical movement. */
                 if (c == '8' || c == '2')
                     continue;
             }
-            else if (bpage > 0)
+            else
             {
-                if (c == '4')
-                {
-                    sdl_character_sheet_screen_begin_page_turn(-1);
-                    continue;
-                }
                 /* No page beyond the choice page: Right is a no-op. */
                 if (c == '6')
                     continue;

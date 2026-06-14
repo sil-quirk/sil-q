@@ -362,6 +362,7 @@ void print_story_intro(void)
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
     sdl_story_font_enable();
+    sdl_story_font_set_slot(STORY_FONT_SLOT_SECONDARY);
     sdl_music_play_main_full();
     int wid, h;
     const int indent = 2;

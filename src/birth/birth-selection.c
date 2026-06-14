@@ -236,14 +236,15 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
     if (character >= 0)
     {
         char pretty_name[40];
-        char title_stars[16];
+        char title_stars[32];
         char stars[16];
         byte star_attr;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        cptr power_label = NULL;
+#endif
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
         int power_counts[4];
 
-        strnfmt(pretty_name, sizeof(pretty_name), "%s%s",
-            c_name + c_info[character].name,
-            c_name + c_info[character].alt_name);
         birth_count_alive_character_powers(power_counts);
 
         sdl_character_sheet_screen_begin_select_rating_summary("Heroes Power");
@@ -263,9 +264,32 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
             &star_attr, NULL);
         sdl_character_sheet_screen_add_select_rating("Weak", stars,
             power_counts[0], star_attr, "Weak heroes still alive.");
+#endif
 
+        strnfmt(pretty_name, sizeof(pretty_name), "%s%s",
+            c_name + c_info[character].name,
+            c_name + c_info[character].alt_name);
+
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        birth_format_character_power(c_info[character].power, true,
+            stars, sizeof(stars), &star_attr, &power_label);
+        if (power_label && power_label[0])
+        {
+            char power_word[16];
+
+            SDL_strlcpy(power_word, power_label, sizeof(power_word));
+            power_word[0] = (char)tolower((unsigned char)power_word[0]);
+            strnfmt(title_stars, sizeof(title_stars), "%s %s", stars,
+                power_word);
+        }
+        else
+        {
+            SDL_strlcpy(title_stars, stars, sizeof(title_stars));
+        }
+#else
         birth_format_character_power(c_info[character].power, true,
             title_stars, sizeof(title_stars), &star_attr, NULL);
+#endif
 
         sdl_character_sheet_screen_set_select_title_detail(pretty_name,
             title_stars, star_attr);
@@ -573,8 +597,26 @@ static void character_aux_hook(birth_menu c_str)
     /* Add power stars to the character name */
     char power_stars[16];
     byte star_attr;
+#if defined(__ANDROID__) || defined(SIL_IOS)
+    cptr power_label = NULL;
+    char power_suffix[32];
+
+    birth_format_character_power(c_info[character_idx].power, true,
+        power_stars, sizeof(power_stars), &star_attr, &power_label);
+    if (power_label && power_label[0])
+    {
+        char power_word[16];
+
+        SDL_strlcpy(power_word, power_label, sizeof(power_word));
+        power_word[0] = (char)tolower((unsigned char)power_word[0]);
+        strnfmt(power_suffix, sizeof(power_suffix), "%s %s", power_stars,
+            power_word);
+        SDL_strlcpy(power_stars, power_suffix, sizeof(power_stars));
+    }
+#else
     birth_format_character_power(c_info[character_idx].power, true,
         power_stars, sizeof(power_stars), &star_attr, NULL);
+#endif
     
     fallback_name_col = QUESTION_COL
         + utf8_display_width_n(character_selection_header_text(true),
@@ -640,6 +682,7 @@ static void character_aux_hook(birth_menu c_str)
     print_rh_flags(
         p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
 
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
     {
         int legend_col = 2;  /* Left side */
         int legend_row = (compact_layout && tight_height) ? 9 : 10;
@@ -689,6 +732,7 @@ static void character_aux_hook(birth_menu c_str)
             Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
         }
     }
+#endif
 }
 /*
  * Player character template selection

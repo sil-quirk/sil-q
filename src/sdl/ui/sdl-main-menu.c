@@ -1027,8 +1027,6 @@ bool sdl_main_menu_overlay_handle_gamepad_button(
 
 bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
 {
-    int window_w = 0;
-    int window_h = 0;
     float x;
     float y;
 
@@ -1069,9 +1067,8 @@ bool sdl_main_menu_overlay_handle_event(const SDL_Event* ev)
     case SDL_EVENT_FINGER_MOTION:
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return true;
-        SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-        x = ev->tfinger.x * (float)window_w;
-        y = ev->tfinger.y * (float)window_h;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return true;
         if (sdl_main_menu_overlay_handle_touch_pane_point(x, y,
                 ev->type == SDL_EVENT_FINGER_DOWN))
         {

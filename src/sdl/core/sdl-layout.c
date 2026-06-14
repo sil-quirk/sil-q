@@ -1702,19 +1702,78 @@ bool sdl_combat_overlay_source_row_at_index(int index, int* out_row)
     return true;
 }
 
-bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row)
+int sdl_combat_overlay_visible_row_count(int panel_rows)
 {
+    int source_count = sdl_combat_overlay_source_row_count();
+
+    if (panel_rows < 0)
+        panel_rows = 0;
+    return (panel_rows < source_count) ? panel_rows : source_count;
+}
+
+bool sdl_combat_overlay_visible_source_row_at_index(int index,
+    int panel_rows, int* out_row)
+{
+    int source_count = sdl_combat_overlay_source_row_count();
+    int visible_count = sdl_combat_overlay_visible_row_count(panel_rows);
+    int source_index = index;
+
+    if (out_row)
+        *out_row = -1;
+    if (index < 0 || index >= visible_count)
+        return false;
+
+    /*
+     * If the overlay is clipped to three rows, keep the primary combat rows
+     * visible and drop the optional offhand row first.
+     */
+    if (panel_rows < source_count
+        && sdl_combat_overlay_melee_uses_offhand_row())
+    {
+        source_index++;
+    }
+
+    return sdl_combat_overlay_source_row_at_index(source_index, out_row);
+}
+
+bool sdl_combat_overlay_source_row_visible(int source_row)
+{
+    SDL_Rect pane;
+    int cell_h;
+    int panel_rows;
+    int visible_count;
+
     if (source_row < 0)
         return false;
-    if (!sdl_combat_overlay_pane_current_rect(NULL))
+    if (!sdl_combat_overlay_pane_content_rect(&pane))
         return false;
-    if (source_row == ROW_MEL || source_row == ROW_ARC
-        || source_row == ROW_QUIVER)
-    {
-        return true;
+
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    panel_rows = pane.h / cell_h;
+    if (panel_rows <= 0)
+        return false;
+
+    visible_count = sdl_combat_overlay_visible_row_count(panel_rows);
+    for (int i = 0; i < visible_count; i++) {
+        int row_at_index = -1;
+
+        if (!sdl_combat_overlay_visible_source_row_at_index(i, panel_rows,
+                &row_at_index))
+        {
+            continue;
+        }
+        if (row_at_index == source_row)
+            return true;
     }
-    return sdl_combat_overlay_melee_uses_offhand_row()
-        && source_row == ROW_MEL - 1;
+
+    return false;
+}
+
+bool sdl_left_panel_source_row_hidden_by_combat_overlay(int source_row)
+{
+    return sdl_combat_overlay_source_row_visible(source_row);
 }
 
 int sdl_left_panel_output_row_for_source_row(int source_row)
@@ -3335,6 +3394,8 @@ bool sdl_prune_unusable_panes(struct pane_config* active,
             min_cols = pane_secondary_min_cells(type, pc->where);
             min_rows = pane_primary_min_cells(type, pc->where);
         }
+        if (type == PANE_COMBAT && min_rows > PANE_COMBAT_OVERLAY_MIN_ROWS)
+            min_rows = PANE_COMBAT_OVERLAY_MIN_ROWS;
 
         if (cols >= min_cols && rows >= min_rows)
             continue;

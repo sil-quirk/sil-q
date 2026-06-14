@@ -402,6 +402,19 @@ bool sdl_touch_tutorial_view_rect(enum pane_type pane, SDL_FRect* out)
         return false;
     if (!sdl_rect_has_area(&view->rect))
         return false;
+    if (pane == PANE_ROLLS && sdl_view_is_overlay_log_pane(view)) {
+        SDL_Rect band;
+
+        if (!sdl_overlay_log_pane_current_rect(&band))
+            return false;
+        *out = (SDL_FRect){
+            .x = (float)band.x,
+            .y = (float)band.y,
+            .w = (float)band.w,
+            .h = (float)band.h,
+        };
+        return true;
+    }
 
     *out = (SDL_FRect){
         .x = (float)view->rect.x,
@@ -2299,8 +2312,6 @@ int sdl_touch_tutorial_choose_profile(void)
         }
 
         if (ev.type == SDL_EVENT_FINGER_DOWN) {
-            int window_w = 0;
-            int window_h = 0;
             float x;
             float y;
             int hit;
@@ -2310,12 +2321,8 @@ int sdl_touch_tutorial_choose_profile(void)
             sdl_note_touch_event_device(ev.tfinger.touchID);
             if (now_ns < accept_after_ns)
                 continue;
-            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-            if (window_w <= 0 || window_h <= 0)
+            if (!sdl_finger_event_to_render_coords(&ev.tfinger, &x, &y))
                 continue;
-
-            x = ev.tfinger.x * (float)window_w;
-            y = ev.tfinger.y * (float)window_h;
             hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
             if (hit >= 0) {
                 pressed_choice = hit;
@@ -2328,8 +2335,6 @@ int sdl_touch_tutorial_choose_profile(void)
         }
 
         if (ev.type == SDL_EVENT_FINGER_MOTION) {
-            int window_w = 0;
-            int window_h = 0;
             float x;
             float y;
             int hit;
@@ -2343,11 +2348,8 @@ int sdl_touch_tutorial_choose_profile(void)
                 continue;
             }
 
-            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-            if (window_w <= 0 || window_h <= 0)
+            if (!sdl_finger_event_to_render_coords(&ev.tfinger, &x, &y))
                 continue;
-            x = ev.tfinger.x * (float)window_w;
-            y = ev.tfinger.y * (float)window_h;
             hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
             if (hit != highlighted && hit >= 0) {
                 highlighted = hit;
@@ -2357,8 +2359,6 @@ int sdl_touch_tutorial_choose_profile(void)
         }
 
         if (ev.type == SDL_EVENT_FINGER_UP) {
-            int window_w = 0;
-            int window_h = 0;
             float x;
             float y;
             int hit;
@@ -2371,12 +2371,8 @@ int sdl_touch_tutorial_choose_profile(void)
             if (!finger_pressed || ev.tfinger.fingerID != active_finger)
                 continue;
 
-            SDL_GetWindowSizeInPixels(g_state.window, &window_w, &window_h);
-            if (window_w <= 0 || window_h <= 0)
+            if (!sdl_finger_event_to_render_coords(&ev.tfinger, &x, &y))
                 continue;
-
-            x = ev.tfinger.x * (float)window_w;
-            y = ev.tfinger.y * (float)window_h;
             hit = sdl_touch_tutorial_choice_hit(choice_rects, x, y);
             if (hit >= 0 && hit == pressed_choice)
                 return sdl_touch_tutorial_choices[hit].result;

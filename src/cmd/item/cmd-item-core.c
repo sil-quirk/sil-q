@@ -178,22 +178,6 @@ static int first_floor_item_under_player(void)
     return 0;
 }
 
-static bool item_tester_hook_throw_slots(const object_type* o_ptr)
-{
-    if (!throw_slot_menu_active)
-        return false;
-
-    if (!o_ptr)
-        return false;
-
-    if ((o_ptr < inventory) || (o_ptr >= inventory + INVEN_TOTAL))
-        return false;
-
-    int slot = (int)(o_ptr - inventory);
-
-    return throw_slot_enabled[slot];
-}
-
 static bool smith_oath_takeoff_hits_pack(const object_type* o_ptr, int source_item)
 {
     if (!smith_oath_forbids_object(o_ptr))
@@ -311,7 +295,7 @@ static bool inventory_item_select_has_choice(int mode)
     {
         for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
-            if (inventory[i].k_idx && get_item_okay(i))
+            if (get_item_okay(i))
                 return true;
         }
     }
@@ -1370,22 +1354,16 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
                     slot_choice = INVEN_QUIVER2;
             }
 
-            item_tester_hook = item_tester_hook_throw_slots;
-            item_tester_full = false;
+            bool slot_selected = open_inventory_slot_pick_menu(o_ptr,
+                throw_slot_enabled,
+                "Place arrows in a quiver.",
+                &slot_choice);
 
-            q = "Place arrows in which quiver? ";
-            s = "Oops.";
-
-            bool saved_command_see = p_ptr->command_see;
-            byte saved_command_wrk = p_ptr->command_wrk;
-            p_ptr->command_see = true;
-            p_ptr->command_wrk = (USE_EQUIP);
-
-            bool slot_selected = open_inventory_item_select_menu(USE_EQUIP,
-                q, s, &slot_choice);
-
-            p_ptr->command_see = saved_command_see;
-            p_ptr->command_wrk = saved_command_wrk;
+            if (!slot_selected || slot_choice < INVEN_WIELD
+                || slot_choice >= INVEN_TOTAL || !throw_slot_enabled[slot_choice])
+            {
+                slot_selected = false;
+            }
 
             if (!slot_selected)
             {

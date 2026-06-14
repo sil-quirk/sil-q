@@ -240,10 +240,13 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     const struct pane_config* pc = sdl_combat_overlay_pane_config();
     const SDL_Rect* pane;
     SDL_Rect rect;
+    SDL_Rect screen;
     int cell_h;
     int cell_w;
     int content_w;
     int content_h;
+    int panel_w;
+    int panel_h;
 
     if (out_rect)
         *out_rect = (SDL_Rect){ 0 };
@@ -269,34 +272,136 @@ bool sdl_combat_overlay_pane_current_rect(SDL_Rect* out_rect)
     content_h = sdl_combat_overlay_source_row_count() * cell_h;
     if (content_w < 1 || content_h < 1)
         return false;
+    panel_w = content_w + cell_w * 2;
+    panel_h = content_h + cell_h;
 
     rect = *pane;
-    if (rect.w > content_w) {
+    if (rect.w > panel_w) {
         if (pc->where == PLACE_TOP_RIGHT || pc->where == PLACE_RIGHT_CENTER
             || pc->where == PLACE_BOTTOM_RIGHT)
         {
-            rect.x += rect.w - content_w;
+            rect.x += rect.w - panel_w;
         }
         else if (pc->where == PLACE_TOP_CENTER
             || pc->where == PLACE_BOTTOM_CENTER)
         {
-            rect.x += (rect.w - content_w) / 2;
+            rect.x += (rect.w - panel_w) / 2;
         }
-        rect.w = content_w;
+        rect.w = panel_w;
     }
-    if (rect.h > content_h) {
+    else if (rect.w < panel_w) {
+        int delta = panel_w - rect.w;
+
+        if (pc->where == PLACE_TOP_RIGHT || pc->where == PLACE_RIGHT_CENTER
+            || pc->where == PLACE_BOTTOM_RIGHT)
+        {
+            rect.x -= delta;
+        }
+        else if (pc->where == PLACE_TOP_CENTER
+            || pc->where == PLACE_BOTTOM_CENTER)
+        {
+            rect.x -= delta / 2;
+        }
+        rect.w = panel_w;
+    }
+    if (rect.h > panel_h) {
         if (pc->where == PLACE_BOTTOM_LEFT || pc->where == PLACE_BOTTOM_CENTER
             || pc->where == PLACE_BOTTOM_RIGHT)
         {
-            rect.y += rect.h - content_h;
+            rect.y += rect.h - panel_h;
         }
         else if (pc->where == PLACE_LEFT_CENTER
             || pc->where == PLACE_RIGHT_CENTER)
         {
-            rect.y += (rect.h - content_h) / 2;
+            rect.y += (rect.h - panel_h) / 2;
         }
-        rect.h = content_h;
+        rect.h = panel_h;
     }
+    else if (rect.h < panel_h) {
+        int delta = panel_h - rect.h;
+
+        if (pc->where == PLACE_BOTTOM_LEFT || pc->where == PLACE_BOTTOM_CENTER
+            || pc->where == PLACE_BOTTOM_RIGHT)
+        {
+            rect.y -= delta;
+        }
+        else if (pc->where == PLACE_LEFT_CENTER
+            || pc->where == PLACE_RIGHT_CENTER)
+        {
+            rect.y -= delta / 2;
+        }
+        rect.h = panel_h;
+    }
+
+    screen = sdl_get_layout_screen_rect();
+    if (sdl_rect_has_area(&screen)) {
+        int screen_right = screen.x + screen.w;
+        int screen_bottom = screen.y + screen.h;
+
+        if (rect.x < screen.x) {
+            rect.w -= screen.x - rect.x;
+            rect.x = screen.x;
+        }
+        if (rect.y < screen.y) {
+            rect.h -= screen.y - rect.y;
+            rect.y = screen.y;
+        }
+        if (rect.x + rect.w > screen_right)
+            rect.w = screen_right - rect.x;
+        if (rect.y + rect.h > screen_bottom)
+            rect.h = screen_bottom - rect.y;
+    }
+    if (rect.w <= 0 || rect.h <= 0)
+        return false;
+
+    if (out_rect)
+        *out_rect = rect;
+    return true;
+}
+
+bool sdl_combat_overlay_pane_content_rect(SDL_Rect* out_rect)
+{
+    SDL_Rect panel;
+    SDL_Rect rect;
+    int cell_h;
+    int cell_w;
+    int content_w;
+    int content_h;
+    int margin_x;
+
+    if (out_rect)
+        *out_rect = (SDL_Rect){ 0 };
+    if (!sdl_combat_overlay_pane_current_rect(&panel))
+        return false;
+
+    cell_h = sdl_effective_pane_cell_height_for_type(PANE_COMBAT);
+    if (cell_h < 1)
+        cell_h = 1;
+    cell_w = cell_h / 2;
+    if (cell_w < 1)
+        cell_w = 1;
+
+    content_w = PANE_COMBAT_OVERLAY_COLS * cell_w;
+    content_h = sdl_combat_overlay_source_row_count() * cell_h;
+    if (content_w < 1 || content_h < 1)
+        return false;
+
+    margin_x = (panel.w > content_w) ? (panel.w - content_w) / 2 : 0;
+    if (margin_x > cell_w)
+        margin_x = cell_w;
+
+    rect = (SDL_Rect){
+        .x = panel.x + margin_x,
+        .y = panel.y,
+        .w = panel.w - margin_x * 2,
+        .h = panel.h,
+    };
+    if (rect.w > content_w)
+        rect.w = content_w;
+    if (rect.h > content_h)
+        rect.h = content_h;
+    if (rect.w <= 0 || rect.h <= 0)
+        return false;
 
     if (out_rect)
         *out_rect = rect;
