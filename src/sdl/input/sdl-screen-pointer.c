@@ -53,6 +53,15 @@ bool sdl_point_in_view_rect(enum pane_type pane, float x, float y)
     view = &g_views[pane];
     if (!view->term_ready || !view->canvas)
         return false;
+    /* The overlay log only paints a narrow right-hand band; hit-test that
+     * visible strip so taps on the transparent left margin fall through to the
+     * map behind it instead of being swallowed by the pane's full grid rect. */
+    if (pane == PANE_ROLLS && sdl_view_is_overlay_log_pane(view)) {
+        SDL_Rect band;
+
+        return sdl_overlay_log_pane_current_rect(&band)
+            && sdl_point_in_rect(&band, x, y);
+    }
     return sdl_point_in_rect(&view->rect, x, y);
 }
 

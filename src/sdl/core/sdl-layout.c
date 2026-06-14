@@ -1941,6 +1941,55 @@ bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols,
         start_row, rows);
 }
 
+/*
+ * Pixel rectangle of the overlay log's *visible* band (the translucent
+ * right-hand strip past the transparent left margin).  Mirrors the present-time
+ * blit so pointer hit-testing matches exactly what the player sees, and so taps
+ * on the transparent margin still fall through to the map behind it.
+ */
+bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect)
+{
+    const sdl_view* view = &g_views[PANE_ROLLS];
+    float blit_off;
+    int pad;
+    int x;
+    int w;
+
+    if (out_rect)
+        *out_rect = (SDL_Rect){ 0 };
+
+    if (!sdl_view_is_overlay_log_pane(view))
+        return false;
+    if (!sdl_should_show_supporting_panes())
+        return false;
+    if (!view->canvas || view->cols <= 0 || view->cell_w <= 0
+        || view->rect.w <= 0 || view->rect.h <= 0)
+    {
+        return false;
+    }
+
+    pad = view->cell_w / 8;
+    if (pad < 2)
+        pad = 2;
+    blit_off = (float)(pane_log_overlay_left_margin(view->cols) * view->cell_w
+        - pad);
+    if (blit_off < 0.0f)
+        blit_off = 0.0f;
+
+    x = view->rect.x + view->margin_x + (int)blit_off;
+    w = view->cols * view->cell_w - (int)blit_off;
+    if (w <= 0)
+        return false;
+
+    if (out_rect) {
+        out_rect->x = x;
+        out_rect->y = view->rect.y;
+        out_rect->w = w;
+        out_rect->h = view->rect.h;
+    }
+    return true;
+}
+
 bool sdl_left_panel_pane_runtime_active(void)
 {
     return sdl_left_panel_pane_presentation_active()

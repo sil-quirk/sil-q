@@ -1586,6 +1586,7 @@ int sdl_left_panel_source_row_for_output_row(int output_row);
 bool sdl_left_panel_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_combat_overlay_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
 bool sdl_overlay_log_pane_map_coverage(int* start_col, int* cols, int* start_row, int* rows);
+bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect);
 bool sdl_left_panel_pane_runtime_active(void);
 bool sdl_left_panel_pane_collapsed(void);
 int sdl_left_panel_compact_mode_normalized(int mode);

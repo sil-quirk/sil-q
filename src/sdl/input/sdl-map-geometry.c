@@ -1388,11 +1388,21 @@ bool sdl_main_map_handle_drag_down(float x, float y,
 {
     int map_y = 0;
     int map_x = 0;
+    SDL_Rect log_band;
 
     if (g_player_action_menu.active || g_player_exchange_target.active)
         return false;
     if (!mouse && sdl_touch_movement_point_blocked_by_overlay(x, y))
         return false;
+    /* The overlay log sits on top of the map; a press on its visible band must
+     * open the log rather than start a map drag/move.  Unlike the touch-only
+     * overlay block above, this also guards mouse clicks, which reach the map
+     * drag handler before the supporting-pane handler. */
+    if (sdl_overlay_log_pane_current_rect(&log_band)
+        && sdl_point_in_rect(&log_band, x, y))
+    {
+        return false;
+    }
     if (!sdl_main_map_point_to_drag_map(x, y))
         return false;
     if (!mouse && sdl_main_view_point_to_map(x, y, &map_y, &map_x)
