@@ -501,6 +501,34 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                         false, variants, N_ELEMENTS(variants));
                 }
             }
+            else if (sdl_touch_only_device_active())
+            {
+                /* Keep the secondary action words (details, back, random)
+                 * present so the tappable tokens registered below still
+                 * resolve on touch; the choices themselves are tappable rows. */
+                if (allow_full_description_screen)
+                {
+                    const char* tvar[] = {
+                        "Tap a row to select  details  back  random",
+                        "Tap a row to select  details  back",
+                        "Tap a row to select"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                        false, tvar, N_ELEMENTS(tvar));
+                }
+                else
+                {
+                    const char* tvar[] = {
+                        "Tap a row to select  back  random",
+                        "Tap a row to select  back",
+                        "Tap a row to select"
+                    };
+                    terminal_prompt_pick_variant(prompt, sizeof(prompt),
+                        Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                        false, tvar, N_ELEMENTS(tvar));
+                }
+            }
             else if (allow_full_description_screen)
             {
                 const char* variants[] = {

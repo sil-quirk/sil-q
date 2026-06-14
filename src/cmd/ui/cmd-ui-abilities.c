@@ -3917,10 +3917,15 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
     }
     else if (sdl_touch_only_device_active())
     {
+        /* Keep the tappable action words (buy/toggle, train, prev skill,
+         * scroll, i skills) present: ability_browser_register_prompt_clicks()
+         * below scans this string for them, so dropping them would remove
+         * those tap targets on touch. */
         const char* variants[] = {
-            "Tap a row to buy/toggle, tap away to exit",
-            "Tap to buy/toggle, tap away to exit",
-            "Tap to buy/toggle"
+            "Tap a row to buy/toggle, train, prev skill, scroll, i skills, "
+            "tap away to exit",
+            "Tap row: buy/toggle, train, scroll, i skills",
+            "Tap to buy/toggle, tap away to exit"
         };
 
         terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,

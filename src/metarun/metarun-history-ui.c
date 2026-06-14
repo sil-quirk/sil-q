@@ -93,7 +93,13 @@ void list_metaruns(void)
             } else {
                 c_put_str(TERM_L_DARK, "[more - any key]", footer_row, 2);
             }
+            /* Register a full-screen tap target so touch-only users (whose
+             * prompt no longer says "any key") can advance the page. */
+            ui_menu_click_begin();
+            for (int r = 0; r < (Term ? Term->hgt : 24); r++)
+                ui_menu_click_add_full_row('\r', r);
             metarun_wait_hidden();  Term_clear();
+            ui_menu_click_clear();
             row = 4;
             c_prt(TERM_L_GREEN, "Meta-run history (cont.)", 1, 2);
             c_put_str(TERM_L_DARK,
@@ -113,6 +119,11 @@ void list_metaruns(void)
         c_put_str(TERM_L_DARK, "Press any key to return.",
             MIN(row + 1, footer_row), 2);
     }
+    /* Register a full-screen tap target so touch-only users can dismiss. */
+    ui_menu_click_begin();
+    for (int r = 0; r < (Term ? Term->hgt : 24); r++)
+        ui_menu_click_add_full_row('\r', r);
     metarun_wait_hidden();
+    ui_menu_click_clear();
     screen_load();
 }

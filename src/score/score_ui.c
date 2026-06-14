@@ -536,12 +536,26 @@ static void score_ui_build_halls_footer(char* footer, size_t footer_len,
 
     if (sdl_touch_only_device_active())
     {
-        strnfmt(full, sizeof(full),
-            "Tap a row to view, tap away to exit  %d/%d",
-            page + 1, total_pages);
-        strnfmt(medium, sizeof(medium),
-            "Tap to view, tap away to exit  %d/%d", page + 1, total_pages);
-        strnfmt(short1, sizeof(short1), "Tap to view  %d/%d",
+        /* Keep Runs/Order/Layout/Prev/Next present so the consumer's tappable
+         * tokens still register on touch (it scans this footer for them). */
+        if (total_pages > 1)
+        {
+            strnfmt(full, sizeof(full),
+                "Tap a row to view  Runs  Order  Layout  Prev/Next  "
+                "tap away to exit  %d/%d", page + 1, total_pages);
+            strnfmt(medium, sizeof(medium),
+                "Tap view  Runs  Order  Layout  Prev/Next  %d/%d",
+                page + 1, total_pages);
+        }
+        else
+        {
+            strnfmt(full, sizeof(full),
+                "Tap a row to view  Runs  Order  Layout  "
+                "tap away to exit  %d/%d", page + 1, total_pages);
+            strnfmt(medium, sizeof(medium),
+                "Tap view  Runs  Order  Layout  %d/%d", page + 1, total_pages);
+        }
+        strnfmt(short1, sizeof(short1), "Tap view  Runs  Order  %d/%d",
             page + 1, total_pages);
         SDL_strlcpy(short2, short1, sizeof(short2));
         SDL_strlcpy(tiny, short1, sizeof(tiny));

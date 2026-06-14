@@ -568,6 +568,29 @@ NavResult select_oath(void)
                     ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
                         prompt_row, prompt_buf, "Back");
                 }
+                else if (sdl_touch_only_device_active())
+                {
+                    char prompt_buf[96];
+                    /* Oaths are tappable rows; keep Details/Select/Back words
+                     * present so their tap tokens still register on touch. */
+                    const char* variants[] = {
+                        "Tap an oath to Select  Details  Back",
+                        "Tap to Select  Details  Back",
+                        "Tap to Select  Back"
+                    };
+
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), wid - 4, false, variants,
+                        N_ELEMENTS(variants));
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_DETAILS, 2,
+                        prompt_row, prompt_buf, "Details");
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
+                }
                 else
                 {
                     char prompt_buf[96];
@@ -651,6 +674,29 @@ NavResult select_oath(void)
                             N_ELEMENTS(variants));
                     }
                     oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                        prompt_row, prompt_buf, "Select");
+                    ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                        prompt_row, prompt_buf, "Back");
+                }
+                else if (sdl_touch_only_device_active())
+                {
+                    char prompt_buf[96];
+                    /* Keep List/Select/Back words present for their tap
+                     * tokens; the detail text scrolls by swipe. */
+                    const char* variants[] = {
+                        "Swipe to scroll  Tap List  Select  Back",
+                        "Tap List  Select  Back",
+                        "Tap Select  Back"
+                    };
+
+                    terminal_prompt_pick_variant(prompt_buf,
+                        sizeof(prompt_buf), wid - 4, false, variants,
+                        N_ELEMENTS(variants));
+                    oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                        prompt_buf);
+                    ui_menu_click_add_text_token(OATH_CLICK_LIST, 2,
+                        prompt_row, prompt_buf, "List");
                     ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
                         prompt_row, prompt_buf, "Select");
                     ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
@@ -759,6 +805,24 @@ NavResult select_oath(void)
                         N_ELEMENTS(variants));
                 }
                 oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE, prompt_buf);
+                ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
+                    prompt_row, prompt_buf, "Select");
+                ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,
+                    prompt_row, prompt_buf, "Back");
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                char prompt_buf[96];
+                const char* variants[] = {
+                    "Tap an oath to Select  Back",
+                    "Tap to Select  Back",
+                    "Tap to Select"
+                };
+
+                terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
+                    wid - 4, false, variants, N_ELEMENTS(variants));
+                oath_putstr_fit(2, prompt_row, wid - 4, TERM_SLATE,
+                    prompt_buf);
                 ui_menu_click_add_text_token(OATH_CLICK_SELECT, 2,
                     prompt_row, prompt_buf, "Select");
                 ui_menu_click_add_text_token(OATH_CLICK_BACK, 2,

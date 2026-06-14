@@ -368,6 +368,22 @@ extern NavResult gain_skills(void)
                 birth_register_allocation_prompt_clicks(prompt_row,
                     prompt_buf, QUESTION_COL, back_label, confirm_label,
                     quit_label);
+            } else if (sdl_touch_only_device_active()) {
+                char prompt_text[160];
+                /* Keep confirm/back/char tappable on touch; skills are
+                 * tappable rows for allocation. */
+                const char* variants[] = {
+                    "Tap a skill to allocate  confirm  back  char",
+                    "Tap a skill to allocate  confirm  back",
+                    "Tap a skill, confirm"
+                };
+                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    story_character_enabled(), variants, N_ELEMENTS(variants));
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
+                    prompt_text);
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_text, QUESTION_COL, "back", "confirm", "char");
             } else {
                 char prompt_text[160];
                 const char* variants[] = {

@@ -465,6 +465,17 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
                 story_character_enabled(), variants, N_ELEMENTS(variants));
         }
     }
+    else if (sdl_touch_only_device_active())
+    {
+        /* Keep ok/back/char tappable on touch; rows are tappable to allocate. */
+        const char* variants[] = {
+            "Tap a row to allocate  ok  back  char",
+            "Tap a row to allocate  ok  back",
+            "Tap a row, ok"
+        };
+        terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+            story_character_enabled(), variants, N_ELEMENTS(variants));
+    }
     else
     {
         const char* variants[] = {
@@ -549,6 +560,17 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
             terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
                 story_character_enabled(), variants, N_ELEMENTS(variants));
         }
+    }
+    else if (sdl_touch_only_device_active())
+    {
+        /* Keep ok/back/char tappable on touch; rows are tappable to allocate. */
+        const char* variants[] = {
+            "Tap a row to allocate  ok  back  char",
+            "Tap a row to allocate  ok  back",
+            "Tap a row, ok"
+        };
+        terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
+            story_character_enabled(), variants, N_ELEMENTS(variants));
     }
     else
     {
@@ -795,6 +817,22 @@ NavResult player_birth_aux_2(int stats[A_MAX])
                 birth_register_allocation_prompt_clicks(prompt_row,
                     prompt_buf, QUESTION_COL, back_label, confirm_label,
                     quit_label);
+            } else if (sdl_touch_only_device_active()) {
+                char prompt_text[160];
+                /* Keep confirm/back/char tappable on touch; stats are
+                 * tappable rows for allocation. */
+                const char* variants[] = {
+                    "Tap a stat to allocate  confirm  back  char",
+                    "Tap a stat to allocate  confirm  back",
+                    "Tap a stat, confirm"
+                };
+                terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
+                    Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
+                    story_character_enabled(), variants, N_ELEMENTS(variants));
+                Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
+                    prompt_text);
+                birth_register_allocation_prompt_clicks(prompt_row,
+                    prompt_text, QUESTION_COL, "back", "confirm", "char");
             } else {
                 char prompt_text[160];
                 const char* variants[] = {

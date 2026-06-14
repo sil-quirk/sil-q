@@ -59,13 +59,16 @@ static bool enhanced_menu_format_prompt(char* out, size_t out_size,
 
     if (sdl_touch_only_device_active())
     {
-        char touch_long[64];
-        char touch_mid[48];
+        char touch_long[96];
+        char touch_mid[64];
         const char* touch_variants[3];
 
+        /* The callers register tappable tokens by scanning this string for
+         * the words "drop" and "cycle", so keep them present on the wider
+         * variants or those affordances would silently disappear on touch. */
         strnfmt(touch_long, sizeof(touch_long),
-            "Tap a row to %s, tap away to exit", action);
-        strnfmt(touch_mid, sizeof(touch_mid), "Tap to %s, tap away to exit",
+            "Tap a row to %s, tap drop or cycle, tap away to exit", action);
+        strnfmt(touch_mid, sizeof(touch_mid), "Tap to %s; drop; cycle",
             action);
         touch_variants[0] = touch_long;
         touch_variants[1] = touch_mid;

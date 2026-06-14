@@ -8864,10 +8864,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             else if (sdl_touch_only_device_active())
             {
                 char prompt_buf[160];
+                /* Keep "preview"/"drop" present so supply_register_prompt_
+                 * clicks() still finds those tappable tokens on touch. */
                 const char* variants[] = {
-                    "Tap a row to equip, tap away to exit",
-                    "Tap to equip, tap away to exit",
-                    "Tap to equip"
+                    "Tap a row to equip, tap preview or drop, tap away to exit",
+                    "Tap row: equip, preview, drop",
+                    "Tap to equip, tap away to exit"
                 };
 
                 terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
@@ -9698,10 +9700,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             else if (sdl_touch_only_device_active())
             {
                 char prompt_buf[160];
+                /* Keep "preview"/"drop"/"delete" present so supply_register_
+                 * prompt_clicks() still finds those tappable tokens on touch. */
                 const char* variants[] = {
-                    "Tap a row to use, tap away to exit",
-                    "Tap to use, tap away to exit",
-                    "Tap to use"
+                    "Tap a row to use, tap preview, drop or delete, "
+                    "tap away to exit",
+                    "Tap row: use, preview, drop, delete",
+                    "Tap to use, tap away to exit"
                 };
 
                 terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
