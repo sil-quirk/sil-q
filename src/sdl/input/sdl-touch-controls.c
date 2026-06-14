@@ -1,6 +1,11 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+#define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.58f
+#define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.42f
+#define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.36f
+#define SDL_TOUCH_ROUND_HIT_SLOP_FRAC 0.18f
+
 void sdl_touch_pane_send_confirm_action(void)
 {
     if (character_dungeon) {
@@ -605,42 +610,138 @@ bool sdl_touch_movement_point_blocked_by_overlay(float x, float y)
     return false;
 }
 
-bool sdl_touch_round_point_excluded(float x, float y)
+static float sdl_touch_round_inner_radius_px(float radius)
 {
-    int map_y = 0;
-    int map_x = 0;
-    int map_row;
-    int map_col;
-    int dy;
-    int dx;
+    return radius * SDL_TOUCH_ROUND_INNER_RADIUS_FRAC;
+}
 
-    if (!sdl_touch_round_layer_controls_active())
+static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
+    float* out_radius, float* out_inner_radius, SDL_Rect* out_clip)
+{
+    SDL_Rect clip;
+    float radius;
+    float inner_radius;
+    float margin;
+    float max_radius;
+    float cx;
+    float cy;
+    bool anchor_right;
+
+    if (!sdl_touch_round_compute_clip_rect(&clip))
         return false;
-    if (sdl_main_view_point_hits_outer_cell(x, y))
-        return true;
-    if (sdl_main_screen_character_panel_pointer_hit(x, y))
-        return true;
-    if (!p_ptr)
-        return false;
-    if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
+    if (!sdl_rect_has_area(&clip))
         return false;
 
-    map_row = map_y - p_ptr->wy;
-    map_col = map_x - p_ptr->wx;
-    if (map_row <= 0 || map_col <= 0
-        || map_row >= SCREEN_HGT - 1 || map_col >= SCREEN_WID - 1)
+    radius = sdl_touch_round_radius_px();
+    margin = radius * 0.12f;
+    if (margin < 8.0f)
+        margin = 8.0f;
+
+    max_radius = ((float)clip.w - margin * 2.0f) * 0.5f;
+    if ((float)clip.h - margin * 2.0f < max_radius * 2.0f)
+        max_radius = ((float)clip.h - margin * 2.0f) * 0.5f;
+    if (max_radius > 0.0f && radius > max_radius)
+        radius = max_radius;
+    if (radius < 28.0f)
+        return false;
+
+    inner_radius = sdl_touch_round_inner_radius_px(radius);
+    anchor_right = sdl_touch_pane_is_left_placement();
+    cx = anchor_right
+        ? (float)(clip.x + clip.w) - margin - radius
+        : (float)clip.x + margin + radius;
+    cy = (float)(clip.y + clip.h) - margin - radius;
+
+    if (cx - radius < (float)clip.x)
+        cx = (float)clip.x + radius;
+    if (cx + radius > (float)(clip.x + clip.w))
+        cx = (float)(clip.x + clip.w) - radius;
+    if (cy - radius < (float)clip.y)
+        cy = (float)clip.y + radius;
+    if (cy + radius > (float)(clip.y + clip.h))
+        cy = (float)(clip.y + clip.h) - radius;
+
+    if (out_cx)
+        *out_cx = cx;
+    if (out_cy)
+        *out_cy = cy;
+    if (out_radius)
+        *out_radius = radius;
+    if (out_inner_radius)
+        *out_inner_radius = inner_radius;
+    if (out_clip)
+        *out_clip = clip;
+
+    return true;
+}
+
+static bool sdl_touch_round_point_to_wheel(float x, float y,
+    float* out_cx, float* out_cy, float* out_radius,
+    float* out_inner_radius, bool* out_outer_button, int* out_dir,
+    float* out_dist)
+{
+    float cx;
+    float cy;
+    float radius;
+    float inner_radius;
+    float dx;
+    float dy;
+    float dist;
+    bool outer_button;
+
+    if (out_outer_button)
+        *out_outer_button = false;
+    if (out_dir)
+        *out_dir = 0;
+    if (out_dist)
+        *out_dist = 0.0f;
+
+    if (!sdl_touch_round_compute_layout(&cx, &cy, &radius, &inner_radius,
+            NULL))
     {
-        return true;
+        return false;
     }
 
-    dy = map_y - p_ptr->py;
-    dx = map_x - p_ptr->px;
-    if (dy < 0)
-        dy = -dy;
-    if (dx < 0)
-        dx = -dx;
+    dx = x - cx;
+    dy = y - cy;
+    dist = SDL_sqrtf(dx * dx + dy * dy);
+    if (dist > radius)
+        return false;
 
-    return dy <= 1 && dx <= 1;
+    outer_button = (dist >= inner_radius);
+    if (out_cx)
+        *out_cx = cx;
+    if (out_cy)
+        *out_cy = cy;
+    if (out_radius)
+        *out_radius = radius;
+    if (out_inner_radius)
+        *out_inner_radius = inner_radius;
+    if (out_outer_button)
+        *out_outer_button = outer_button;
+    if (out_dir
+        && (outer_button
+            || dist >= inner_radius * SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC))
+    {
+        *out_dir = sdl_touch_round_dir_for_delta(dx, dy);
+    }
+    if (out_dist)
+        *out_dist = dist;
+
+    return true;
+}
+
+bool sdl_touch_round_point_excluded(float x, float y)
+{
+    if (!sdl_touch_round_layer_controls_active())
+        return false;
+    if (!sdl_point_in_view_rect(PANE_MAIN, x, y))
+        return true;
+    if (sdl_touch_movement_point_blocked_by_overlay(x, y))
+        return true;
+
+    return !sdl_touch_round_point_to_wheel(x, y, NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL);
 }
 
 float sdl_touch_round_radius_px(void)
@@ -671,11 +772,6 @@ float sdl_touch_round_radius_px(void)
         radius = 32.0f;
 
     return radius;
-}
-
-float sdl_touch_round_ctrl_radius_px(float radius)
-{
-    return radius * 3.0f;
 }
 
 bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip)
@@ -767,8 +863,11 @@ void sdl_touch_round_cancel_press(void)
     g_touch_round_press.center_y = 0.0f;
     g_touch_round_press.current_x = 0.0f;
     g_touch_round_press.current_y = 0.0f;
+    g_touch_round_press.radius = 0.0f;
+    g_touch_round_press.inner_radius = 0.0f;
     g_touch_round_press.selected_dir = 0;
-    g_touch_round_press.selected_ctrl = false;
+    g_touch_round_press.button_press = false;
+    g_touch_round_press.button_dir = 0;
     g_touch_round_press.start_time = 0;
     g_state.need_present = true;
 }
@@ -776,14 +875,24 @@ void sdl_touch_round_cancel_press(void)
 bool sdl_touch_round_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id)
 {
+    float cx;
+    float cy;
+    float radius;
+    float inner_radius;
+    bool outer_button;
+    int dir;
+
     if (!sdl_touch_round_layer_controls_active())
         return false;
     if (sdl_touch_movement_point_blocked_by_overlay(x, y))
         return false;
     if (!sdl_point_in_view_rect(PANE_MAIN, x, y))
         return false;
-    if (sdl_touch_round_point_excluded(x, y))
+    if (!sdl_touch_round_point_to_wheel(x, y, &cx, &cy, &radius,
+            &inner_radius, &outer_button, &dir, NULL))
+    {
         return false;
+    }
 
     sdl_menu_touch_cancel();
     sdl_menu_scroll_cancel();
@@ -796,12 +905,15 @@ bool sdl_touch_round_handle_pointer_down(float x, float y,
 
     g_touch_round_press.active = true;
     g_touch_round_press.finger_id = finger_id;
-    g_touch_round_press.center_x = x;
-    g_touch_round_press.center_y = y;
+    g_touch_round_press.center_x = cx;
+    g_touch_round_press.center_y = cy;
     g_touch_round_press.current_x = x;
     g_touch_round_press.current_y = y;
-    g_touch_round_press.selected_dir = 0;
-    g_touch_round_press.selected_ctrl = false;
+    g_touch_round_press.radius = radius;
+    g_touch_round_press.inner_radius = inner_radius;
+    g_touch_round_press.selected_dir = outer_button ? dir : 0;
+    g_touch_round_press.button_press = outer_button;
+    g_touch_round_press.button_dir = outer_button ? dir : 0;
     g_touch_round_press.start_time = SDL_GetTicksNS();
     g_state.need_present = true;
     return true;
@@ -824,17 +936,34 @@ bool sdl_touch_round_handle_pointer_motion(float x, float y,
     dx = x - g_touch_round_press.center_x;
     dy = y - g_touch_round_press.center_y;
     dist = SDL_sqrtf(dx * dx + dy * dy);
-    radius = sdl_touch_round_radius_px();
+    radius = g_touch_round_press.radius;
+    if (radius <= 0.0f)
+        radius = sdl_touch_round_radius_px();
 
     g_touch_round_press.current_x = x;
     g_touch_round_press.current_y = y;
-    if (dist >= radius * 0.78f) {
+    if (g_touch_round_press.button_press) {
+        if (dist >= g_touch_round_press.inner_radius
+            && dist <= radius * (1.0f + SDL_TOUCH_ROUND_HIT_SLOP_FRAC))
+        {
+            g_touch_round_press.selected_dir =
+                sdl_touch_round_dir_for_delta(dx, dy);
+            g_touch_round_press.button_dir =
+                g_touch_round_press.selected_dir;
+        } else if (dist >= g_touch_round_press.inner_radius
+                * SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC) {
+            g_touch_round_press.selected_dir =
+                sdl_touch_round_dir_for_delta(dx, dy);
+            g_touch_round_press.button_dir = 0;
+        } else {
+            g_touch_round_press.selected_dir = 0;
+            g_touch_round_press.button_dir = 0;
+        }
+    } else if (dist >= g_touch_round_press.inner_radius
+            * SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC) {
         g_touch_round_press.selected_dir = sdl_touch_round_dir_for_delta(dx, dy);
-        g_touch_round_press.selected_ctrl =
-            dist >= sdl_touch_round_ctrl_radius_px(radius);
     } else {
         g_touch_round_press.selected_dir = 0;
-        g_touch_round_press.selected_ctrl = false;
     }
 
     g_state.need_present = true;
@@ -850,7 +979,6 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     float radius;
     Uint64 press_time;
     int dir = 0;
-    bool ctrl = false;
 
     if (!g_touch_round_press.active
         || g_touch_round_press.finger_id != finger_id)
@@ -861,23 +989,33 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     dx = x - g_touch_round_press.center_x;
     dy = y - g_touch_round_press.center_y;
     dist = SDL_sqrtf(dx * dx + dy * dy);
-    radius = sdl_touch_round_radius_px();
+    radius = g_touch_round_press.radius;
+    if (radius <= 0.0f)
+        radius = sdl_touch_round_radius_px();
     press_time = SDL_GetTicksNS() - g_touch_round_press.start_time;
 
-    if (dist <= radius * 0.34f) {
+    if (g_touch_round_press.button_press) {
+        if (dist >= g_touch_round_press.inner_radius
+            && dist <= radius * (1.0f + SDL_TOUCH_ROUND_HIT_SLOP_FRAC))
+        {
+            dir = sdl_touch_round_dir_for_delta(dx, dy);
+        } else if (g_touch_round_press.button_dir) {
+            dir = g_touch_round_press.button_dir;
+        }
+    } else if (dist <= g_touch_round_press.inner_radius
+            * SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC) {
         if (press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
             dir = g_touch_round_last_dir;
-    } else if (dist >= radius * 0.78f) {
+    } else if (dist >= g_touch_round_press.inner_radius
+            * SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC) {
         dir = sdl_touch_round_dir_for_delta(dx, dy);
-        ctrl = (dist >= sdl_touch_round_ctrl_radius_px(radius));
     } else if (g_touch_round_press.selected_dir) {
         dir = g_touch_round_press.selected_dir;
-        ctrl = g_touch_round_press.selected_ctrl;
     }
 
     sdl_touch_round_cancel_press();
     if (dir)
-        sdl_touch_round_send_dir(dir, ctrl);
+        sdl_touch_round_send_dir(dir, false);
     return true;
 }
 
@@ -1165,18 +1303,62 @@ void sdl_touch_round_render_ctrl_action_label(int dir, float radius,
         0.76f);
 }
 
+static void sdl_touch_round_render_button_arrows(float cx, float cy,
+    float inner_radius, float radius, int target_dir, bool active)
+{
+    static const int dirs[] = { 7, 8, 9, 4, 6, 1, 2, 3 };
+    SDL_Color arrow = g_state.palette[TERM_WHITE];
+    SDL_Color chosen = g_state.palette[TERM_YELLOW];
+    float mid = (inner_radius + radius) * 0.5f;
+    float ring_w = radius - inner_radius;
+    float button_size = ring_w * 1.14f;
+
+    if (button_size < 28.0f)
+        button_size = 28.0f;
+    if (button_size > radius * 0.48f)
+        button_size = radius * 0.48f;
+
+    for (int i = 0; i < (int)N_ELEMENTS(dirs); i++) {
+        int dir = dirs[i];
+        float ux = (float)ddx[dir];
+        float uy = (float)ddy[dir];
+        float len = SDL_sqrtf(ux * ux + uy * uy);
+        SDL_Color color;
+        SDL_FRect rect;
+
+        if (len <= 0.0f)
+            continue;
+        ux /= len;
+        uy /= len;
+
+        color = (dir == target_dir) ? chosen : arrow;
+        color.a = (dir == target_dir) ? 242 : (active ? 172 : 128);
+        rect = (SDL_FRect){
+            .x = cx + ux * mid - button_size * 0.5f,
+            .y = cy + uy * mid - button_size * 0.5f,
+            .w = button_size,
+            .h = button_size,
+        };
+
+        if (dir == target_dir)
+            sdl_touch_round_draw_circle(rect.x + rect.w * 0.5f,
+                rect.y + rect.h * 0.5f, button_size * 0.42f, color);
+        sdl_touch_pane_draw_arrow(&rect, '0' + dir, color);
+    }
+}
+
 void sdl_touch_round_render(void)
 {
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color accent = g_state.palette[TERM_L_BLUE];
     SDL_Color selected = g_state.palette[TERM_YELLOW];
-    SDL_Color ctrl_selected = g_state.palette[TERM_L_RED];
-    SDL_Color ctrl_ring;
     SDL_Color line_color;
     SDL_FRect center_arrow;
     SDL_Rect clip;
+    bool active = g_touch_round_press.active;
+    float cx;
+    float cy;
     float radius;
-    float ctrl_radius;
     float inner_radius;
     float dx;
     float dy;
@@ -1187,82 +1369,92 @@ void sdl_touch_round_render(void)
     bool center_repeat;
     int target_dir;
     int dir;
-    bool target_ctrl;
 
-    if (!g_touch_round_press.active)
-        return;
     if (!sdl_rect_has_area(&g_views[PANE_MAIN].rect))
         return;
 
-    if (!sdl_touch_round_compute_clip_rect(&clip))
-        return;
-    SDL_SetRenderClipRect(g_state.renderer, &clip);
-
-    radius = sdl_touch_round_radius_px();
-    ctrl_radius = sdl_touch_round_ctrl_radius_px(radius);
-    inner_radius = radius * 0.34f;
-    frame.a = 150;
-    accent.a = 190;
-    selected.a = 230;
-    ctrl_selected.a = 235;
-
-    dx = g_touch_round_press.current_x - g_touch_round_press.center_x;
-    dy = g_touch_round_press.current_y - g_touch_round_press.center_y;
-    dist = SDL_sqrtf(dx * dx + dy * dy);
-    target_ctrl = (g_touch_round_press.selected_dir
-        && g_touch_round_press.selected_ctrl);
-    press_time = SDL_GetTicksNS() - g_touch_round_press.start_time;
-    center_repeat = (dist <= inner_radius
-        && press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL
-        && g_touch_round_last_dir != 0);
-    target_dir = g_touch_round_press.selected_dir
-        ? g_touch_round_press.selected_dir
-        : (center_repeat ? g_touch_round_last_dir : 0);
-
-    if (target_dir)
-        sdl_touch_round_render_target_square(target_dir, target_ctrl);
-
-    sdl_touch_round_draw_circle(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, radius, frame);
-    sdl_touch_round_draw_circle(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, radius - 2.0f, frame);
-    sdl_touch_round_draw_circle(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, inner_radius, accent);
-    sdl_touch_round_draw_sector_lines(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, inner_radius, radius, frame);
-    ctrl_ring = target_ctrl ? ctrl_selected : frame;
-    ctrl_ring.a = target_ctrl ? 230 : 118;
-    sdl_touch_round_draw_circle(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, ctrl_radius, ctrl_ring);
-    sdl_touch_round_draw_sector_lines(g_touch_round_press.center_x,
-        g_touch_round_press.center_y, radius, ctrl_radius, ctrl_ring);
-
-    end_x = g_touch_round_press.current_x;
-    end_y = g_touch_round_press.current_y;
-    if (dist > ctrl_radius && dist > 0.0f) {
-        end_x = g_touch_round_press.center_x + dx * ctrl_radius / dist;
-        end_y = g_touch_round_press.center_y + dy * ctrl_radius / dist;
+    if (active) {
+        if (!sdl_touch_round_compute_clip_rect(&clip))
+            return;
+        cx = g_touch_round_press.center_x;
+        cy = g_touch_round_press.center_y;
+        radius = g_touch_round_press.radius;
+        inner_radius = g_touch_round_press.inner_radius;
+        if (radius <= 0.0f)
+            radius = sdl_touch_round_radius_px();
+        if (inner_radius <= 0.0f)
+            inner_radius = sdl_touch_round_inner_radius_px(radius);
+    } else {
+        if (!sdl_touch_round_layer_controls_active())
+            return;
+        if (!sdl_mouse_gameplay_context_active())
+            return;
+        if (!sdl_touch_round_compute_layout(&cx, &cy, &radius,
+                &inner_radius, &clip))
+        {
+            return;
+        }
+        if (sdl_touch_movement_point_blocked_by_overlay(cx, cy))
+            return;
     }
 
-    line_color = target_ctrl ? ctrl_selected : accent;
-    SDL_SetRenderDrawColor(g_state.renderer, line_color.r, line_color.g,
-        line_color.b, line_color.a);
-    SDL_RenderLine(g_state.renderer, g_touch_round_press.center_x,
-        g_touch_round_press.center_y, end_x, end_y);
+    SDL_SetRenderClipRect(g_state.renderer, &clip);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+
+    frame.a = active ? 166 : 112;
+    accent.a = active ? 190 : 138;
+    selected.a = 230;
+
+    dx = active ? g_touch_round_press.current_x - cx : 0.0f;
+    dy = active ? g_touch_round_press.current_y - cy : 0.0f;
+    dist = SDL_sqrtf(dx * dx + dy * dy);
+    press_time = active ? SDL_GetTicksNS() - g_touch_round_press.start_time : 0;
+    center_repeat = active
+        && !g_touch_round_press.button_press
+        && dist <= inner_radius * SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC
+        && press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL
+        && g_touch_round_last_dir != 0;
+    target_dir = active
+        ? (g_touch_round_press.selected_dir
+            ? g_touch_round_press.selected_dir
+            : (center_repeat ? g_touch_round_last_dir : 0))
+        : 0;
+
+    if (target_dir)
+        sdl_touch_round_render_target_square(target_dir, false);
+
+    sdl_touch_round_draw_circle(cx, cy, radius, frame);
+    sdl_touch_round_draw_circle(cx, cy, radius - 2.0f, frame);
+    sdl_touch_round_draw_circle(cx, cy, inner_radius, accent);
+    sdl_touch_round_draw_sector_lines(cx, cy, inner_radius, radius, frame);
+    sdl_touch_round_render_button_arrows(cx, cy, inner_radius, radius,
+        target_dir, active);
+
+    if (active && !g_touch_round_press.button_press) {
+        end_x = g_touch_round_press.current_x;
+        end_y = g_touch_round_press.current_y;
+        if (dist > inner_radius && dist > 0.0f) {
+            end_x = cx + dx * inner_radius / dist;
+            end_y = cy + dy * inner_radius / dist;
+        }
+
+        line_color = accent;
+        SDL_SetRenderDrawColor(g_state.renderer, line_color.r, line_color.g,
+            line_color.b, line_color.a);
+        SDL_RenderLine(g_state.renderer, cx, cy, end_x, end_y);
+    }
 
     dir = target_dir;
     if (dir) {
-        SDL_Color arrow_color = target_ctrl ? ctrl_selected : selected;
+        SDL_Color arrow_color = selected;
 
         center_arrow = (SDL_FRect){
-            .x = g_touch_round_press.center_x - inner_radius,
-            .y = g_touch_round_press.center_y - inner_radius,
+            .x = cx - inner_radius,
+            .y = cy - inner_radius,
             .w = inner_radius * 2.0f,
             .h = inner_radius * 2.0f,
         };
         sdl_touch_pane_draw_arrow(&center_arrow, '0' + dir, arrow_color);
-        if (target_ctrl)
-            sdl_touch_round_render_ctrl_action_label(dir, ctrl_radius, &clip);
     }
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);

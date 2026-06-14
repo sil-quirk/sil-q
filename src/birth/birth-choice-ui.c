@@ -622,6 +622,27 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     }
                     continue;
                 }
+                else if (clicked_choice == SDL_SELECT_CLICK_CAROUSEL_PREV
+                    || clicked_choice == SDL_SELECT_CLICK_CAROUSEL_NEXT)
+                {
+                    /* Mobile hero carousel triangles: step to the adjacent
+                     * hero (a tap, not a hover). */
+                    if (click_action != UI_MENU_CLICK_HOVER)
+                    {
+                        int ncur = cur
+                            + ((clicked_choice == SDL_SELECT_CLICK_CAROUSEL_NEXT)
+                                ? 1 : -1);
+
+                        if (ncur >= 0 && ncur < num)
+                        {
+                            sdl_hover_tooltip_clear();
+                            cur = ncur;
+                            if (cur < top || cur > top + hgt)
+                                top = cur;
+                        }
+                    }
+                    continue;
+                }
                 else if (click_action == UI_MENU_CLICK_SECONDARY
                     && allow_full_description_screen)
                 {
@@ -741,6 +762,25 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 if (c == '6')
                     continue;
             }
+        }
+
+        /*
+         * Mobile hero carousel: Left/Right (also fed by swipes and the on-screen
+         * triangles) step between heroes instead of meaning back/confirm.  Esc
+         * still backs out and Enter/tap-name still confirms.
+         */
+        if (sdl_character_sheet_screen_mobile_carousel_active()
+            && (c == '4' || c == '6'))
+        {
+            int ncur = cur + ((c == '6') ? 1 : -1);
+
+            if (ncur >= 0 && ncur < num)
+            {
+                cur = ncur;
+                if (cur < top || cur > top + hgt)
+                    top = cur;
+            }
+            continue;
         }
 
         /* Hack - go back */

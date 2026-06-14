@@ -1111,10 +1111,22 @@ bool sdl_left_panel_render_source_term(const sdl_view* view,
 
     source_w = MAX(view->t.wid, LEFT_PANEL_WID);
     source_h = source_rows;
-    if (source_h >= 23)
-        source_h = MAX(source_h, 24);
     if (source_h < 1)
         source_h = 1;
+    /*
+     * prt_frame_basic() picks its compact (<24 rows) vs normal sidebar layout
+     * from this scratch term's own height, while every caller reads rows back
+     * out using the ROW_* macros, which key off the *active* term's height
+     * (SIL_UI_COMPACT_HEIGHT).  Force the scratch term to the active term's
+     * compactness so a row index computed by the caller maps to the same row
+     * drawn here.  Otherwise a short scratch term (e.g. the collapsed left
+     * panel, which only needs a few rows) renders the compact layout while
+     * non-compact indices are read, shifting every row -- melee/quiver/evasion
+     * surface where HP/melee/archery belong, in both the combat overlay and the
+     * compact left panel.
+     */
+    if (!SIL_UI_COMPACT_HEIGHT)
+        source_h = MAX(source_h, 24);
 
     if (term_init(panel_term, source_w, source_h, 16) != 0)
         return false;

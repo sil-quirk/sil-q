@@ -5078,10 +5078,22 @@ void do_cmd_ability_screen(void)
                 entry_cur = 0;
         }
 
-        if (entry_cur < entry_top)
-            entry_top = entry_cur;
-        if (entry_cur >= entry_top + layout.list_rows)
-            entry_top = entry_cur - layout.list_rows + 1;
+        if (sdl_touch_only_device_active()
+            && ui_scroll_area_take_touch_scrolled())
+        {
+            /* A finger drag panned the list; keep the offset rather than
+             * snapping it back to follow the selected entry. */
+            int max_entry_top = MAX(0, entry_count - layout.list_rows);
+            if (entry_top > max_entry_top)
+                entry_top = max_entry_top;
+        }
+        else
+        {
+            if (entry_cur < entry_top)
+                entry_top = entry_cur;
+            if (entry_cur >= entry_top + layout.list_rows)
+                entry_top = entry_cur - layout.list_rows + 1;
+        }
         if (entry_top < 0)
             entry_top = 0;
 
@@ -5108,6 +5120,13 @@ void do_cmd_ability_screen(void)
             MAX(layout.list_row, layout.status_row - 1),
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
+        if (column == 0 && sdl_touch_only_device_active())
+        {
+            /* Touch-only: drag pans the ability list without moving the
+             * selection (tap an ability to pick it). */
+            ui_scroll_area_set_offset_target(&entry_top,
+                MAX(0, entry_count - layout.list_rows));
+        }
 
         ability_browser_draw_frame(&layout, skilltype);
 

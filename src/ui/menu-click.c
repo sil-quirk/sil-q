@@ -36,6 +36,9 @@ static int ui_scroll_area_negative_y_key = '2';
 static int ui_scroll_area_positive_x_key = '6';
 static int ui_scroll_area_negative_x_key = '4';
 static int ui_scroll_area_tap_key = 0;
+static int* ui_scroll_area_offset_ptr = NULL;
+static int ui_scroll_area_offset_max = 0;
+static bool ui_scroll_area_touch_scrolled = false;
 static bool ui_key_wait_dismiss_active = false;
 static int ui_key_wait_dismiss_key = '\r';
 
@@ -517,6 +520,9 @@ void ui_scroll_area_clear(void)
     ui_scroll_area_positive_x_key = '6';
     ui_scroll_area_negative_x_key = '4';
     ui_scroll_area_tap_key = 0;
+    ui_scroll_area_offset_ptr = NULL;
+    ui_scroll_area_offset_max = 0;
+    ui_scroll_area_touch_scrolled = false;
 }
 
 void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
@@ -556,6 +562,13 @@ void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category)
     ui_scroll_area_positive_x_key = '6';
     ui_scroll_area_negative_x_key = '4';
     ui_scroll_area_tap_key = 0;
+    /*
+     * The offset target is re-registered every frame after begin(); clear the
+     * pointer here but preserve any pending touch-scroll flag so the owning
+     * menu can consume it on its next redraw.
+     */
+    ui_scroll_area_offset_ptr = NULL;
+    ui_scroll_area_offset_max = 0;
 }
 
 bool ui_scroll_area_has_cell(int col, int row)
@@ -620,6 +633,62 @@ void ui_scroll_area_set_tap_key(int key)
 int ui_scroll_area_get_tap_key(void)
 {
     return ui_scroll_area_tap_key;
+}
+
+/*
+ * Register a menu-owned viewport offset that touch dragging should scroll
+ * directly, instead of moving the highlighted/selected row.  This lets a
+ * touch-only drag pan the list without changing the selection: the list
+ * scrolls under the finger and the user picks an entry by tapping it.
+ *
+ * The pointer must remain valid until the next ui_scroll_area_begin()/clear();
+ * menus typically re-register it every frame.  Passing a NULL pointer (or a
+ * non-positive max) disables offset scrolling and the drag falls back to the
+ * cursor-moving key behaviour.
+ */
+void ui_scroll_area_set_offset_target(int* offset, int max_offset)
+{
+    if (max_offset < 0)
+        max_offset = 0;
+
+    ui_scroll_area_offset_ptr = (max_offset > 0) ? offset : NULL;
+    ui_scroll_area_offset_max = max_offset;
+}
+
+bool ui_scroll_area_has_offset_target(void)
+{
+    return ui_scroll_area_offset_ptr != NULL;
+}
+
+bool ui_scroll_area_offset_scroll(int delta)
+{
+    int value;
+    int clamped;
+
+    if (!ui_scroll_area_offset_ptr || delta == 0)
+        return false;
+
+    value = *ui_scroll_area_offset_ptr;
+    clamped = value + delta;
+    if (clamped < 0)
+        clamped = 0;
+    if (clamped > ui_scroll_area_offset_max)
+        clamped = ui_scroll_area_offset_max;
+
+    if (clamped == value)
+        return false;
+
+    *ui_scroll_area_offset_ptr = clamped;
+    ui_scroll_area_touch_scrolled = true;
+    return true;
+}
+
+bool ui_scroll_area_take_touch_scrolled(void)
+{
+    bool scrolled = ui_scroll_area_touch_scrolled;
+
+    ui_scroll_area_touch_scrolled = false;
+    return scrolled;
 }
 
 void ui_key_wait_dismiss_begin(int key)

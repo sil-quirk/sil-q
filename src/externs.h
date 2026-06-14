@@ -451,6 +451,7 @@ static inline int player_generation_depth(void)
 extern NavResult player_birth(void);
 extern NavResult gain_skills(void);
 extern NavResult character_creation(void);
+extern NavResult character_creation_resume_character(void);
 extern NavResult blitz_character_creation(void);
 void player_wipe(void);
 
@@ -1597,6 +1598,10 @@ extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
 /* Race "book" page-turn: click ids (mouse) + navigation API for birth/. */
 #define SDL_SELECT_CLICK_PAGE_PREV (-20)
 #define SDL_SELECT_CLICK_PAGE_NEXT (-21)
+/* Mobile character carousel: triangle ids that step to the prev/next hero. */
+#define SDL_SELECT_CLICK_CAROUSEL_PREV (-22)
+#define SDL_SELECT_CLICK_CAROUSEL_NEXT (-23)
+extern bool sdl_character_sheet_screen_mobile_carousel_active(void);
 extern void sdl_character_sheet_screen_reset_select_page(void);
 extern int sdl_character_sheet_screen_select_page(void);
 extern int sdl_character_sheet_screen_select_page_count(void);
@@ -1759,6 +1764,10 @@ extern int ui_scroll_area_get_vertical_key(int direction);
 extern int ui_scroll_area_get_horizontal_key(int direction);
 extern void ui_scroll_area_set_tap_key(int key);
 extern int ui_scroll_area_get_tap_key(void);
+extern void ui_scroll_area_set_offset_target(int* offset, int max_offset);
+extern bool ui_scroll_area_has_offset_target(void);
+extern bool ui_scroll_area_offset_scroll(int delta);
+extern bool ui_scroll_area_take_touch_scrolled(void);
 extern void ui_key_wait_dismiss_begin(int key);
 extern void ui_key_wait_dismiss_clear(void);
 extern bool ui_key_wait_dismiss_is_active(void);

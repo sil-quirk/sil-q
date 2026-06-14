@@ -747,7 +747,15 @@ void sdl_combat_overlay_pane_render(void)
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 
-    source_rows = MAX(sdl_left_panel_pane_rows_for_view(view), ROW_QUIVER + 1);
+    /*
+     * We read fixed sidebar rows (ROW_MEL/ROW_ARC/ROW_QUIVER) out of the scratch
+     * prt_frame_basic render, so just request enough rows to include the quiver.
+     * Do NOT tie this to sdl_left_panel_pane_rows_for_view(), which collapses to
+     * a few rows when the left panel is collapsed; sdl_left_panel_render_source_term()
+     * forces the scratch to the active term's compact/non-compact layout so the
+     * row indices line up.
+     */
+    source_rows = ROW_QUIVER + 1;
     if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
             NULL, NULL))
     {

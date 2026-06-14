@@ -2892,6 +2892,36 @@ bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
         g_menu_scroll_drag.dragged = true;
     }
 
+    if (ui_scroll_area_has_offset_target())
+    {
+        /*
+         * Touch-only list menus register a viewport offset: drag the list
+         * itself without moving (or committing) the selection.  A positive
+         * vertical key normally moves the cursor up one row, which reveals
+         * earlier entries, i.e. a one-row decrease of the viewport offset.
+         */
+        while (g_menu_scroll_drag.accum_y >= (float)cell_h)
+        {
+            (void)ui_scroll_area_offset_scroll(-1);
+            g_menu_scroll_drag.accum_y -= (float)cell_h;
+            sent_key = true;
+        }
+        while (g_menu_scroll_drag.accum_y <= -(float)cell_h)
+        {
+            (void)ui_scroll_area_offset_scroll(1);
+            g_menu_scroll_drag.accum_y += (float)cell_h;
+            sent_key = true;
+        }
+
+        if (sent_key)
+        {
+            g_menu_scroll_drag.dragged = true;
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+
+        return true;
+    }
+
     while (g_menu_scroll_drag.accum_y >= (float)cell_h)
     {
         Term_keypress(ui_scroll_area_get_vertical_key(1));

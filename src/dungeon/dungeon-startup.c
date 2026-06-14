@@ -237,17 +237,33 @@ PlayResult play_game(void)
           character_loaded_dead = false;
      }
 
+    bool resume_character_selection = false;
+    byte resume_prace = 0;
+    byte resume_pcharacter = 0;
+
     for (;;)
     {
         /* If we already loaded a living character, break to init */
         if (character_loaded) break;
 
-        /* Wipe the player each time we (re)enter creation */
-        player_wipe();
+        /* Wipe the player each time we enter a fresh creation sequence. */
+        if (!resume_character_selection)
+            player_wipe();
+        else
+        {
+            p_ptr->prace = resume_prace;
+            p_ptr->pcharacter = resume_pcharacter;
+            if (z_info && p_ptr->prace < z_info->p_max)
+                rp_ptr = &p_info[p_ptr->prace];
+            if (z_info && p_ptr->pcharacter < z_info->c_max)
+                current_character_profile = &c_info[p_ptr->pcharacter];
+        }
 
-    log_info("Choosing character");
+        log_info("Choosing character");
         NavResult cr = run_mode_is_blitz() ? blitz_character_creation()
-                                           : character_creation();
+            : (resume_character_selection ? character_creation_resume_character()
+                                          : character_creation());
+        resume_character_selection = false;
         if (cr == NAV_TO_MAIN) {
             log_info("Returning to main menu from character creation");
             sdl_music_stop_main();
@@ -329,6 +345,13 @@ PlayResult play_game(void)
         NavResult br = player_birth();
         if (br == NAV_BACK) {
             log_debug("Returning to character selection from birth");
+            if (!run_mode_is_blitz())
+            {
+                resume_prace = p_ptr->prace;
+                resume_pcharacter = p_ptr->pcharacter;
+                player_wipe();
+                resume_character_selection = true;
+            }
             /* back to Character Selection */
             continue;
         }

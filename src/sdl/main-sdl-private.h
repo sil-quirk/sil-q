@@ -561,7 +561,7 @@ typedef struct sdl_character_sheet_screen_state {
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     int narrative_paginated_for_w; /* content width the page breaks were built for */
     touch_swipe_state birth_swipe;
-    int last_body_px;          /* last column body font px (tooltip = half) */
+    int last_body_px;          /* last column/list body font px for tooltips */
     float last_body_line_h;    /* rendered row height for last column body */
     int last_desc_px;          /* last description font px */
     float last_desc_line_h;    /* rendered row height for last description */
@@ -605,8 +605,11 @@ typedef struct touch_round_press_state {
     float center_y;
     float current_x;
     float current_y;
+    float radius;
+    float inner_radius;
     int selected_dir;
-    bool selected_ctrl;
+    bool button_press;
+    int button_dir;
     Uint64 start_time;
 } touch_round_press_state;
 
@@ -2531,7 +2534,6 @@ bool sdl_touch_round_layer_controls_active(void);
 bool sdl_touch_round_point_excluded(float x, float y);
 bool sdl_touch_movement_point_blocked_by_overlay(float x, float y);
 float sdl_touch_round_radius_px(void);
-float sdl_touch_round_ctrl_radius_px(float radius);
 bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip);
 int sdl_touch_round_dir_for_delta(float dx, float dy);
 void sdl_touch_round_send_dir(int dir, bool ctrl);

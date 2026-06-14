@@ -820,9 +820,24 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     if (p_ptr->command_wrk == (USE_INVEN))
     {
         int display_rows = inventory_menu_visible_rows_for_height(menu_term_height());
-        inventory_menu_scroll_offset = inventory_menu_scroll_to_selection(
-            inventory_menu_scroll_offset, highlight_row, vis_inven_cnt,
-            display_rows, 0);
+        int max_scroll_offset = MAX(0, vis_inven_cnt - display_rows);
+
+        if (sdl_touch_only_device_active()
+            && ui_scroll_area_take_touch_scrolled())
+        {
+            /* The finger dragged the list; keep that offset, don't snap it
+             * back to follow the (now possibly off-screen) selection. */
+            if (inventory_menu_scroll_offset > max_scroll_offset)
+                inventory_menu_scroll_offset = max_scroll_offset;
+            if (inventory_menu_scroll_offset < 0)
+                inventory_menu_scroll_offset = 0;
+        }
+        else
+        {
+            inventory_menu_scroll_offset = inventory_menu_scroll_to_selection(
+                inventory_menu_scroll_offset, highlight_row, vis_inven_cnt,
+                display_rows, 0);
+        }
     }
     else
     {
@@ -1042,6 +1057,15 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 ui_scroll_area_begin(1, click_rows,
                     SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
                 ui_scroll_area_set_keys('8', '2', '6', '4');
+                if (p_ptr->command_wrk == (USE_INVEN)
+                    && sdl_touch_only_device_active())
+                {
+                    /* Touch-only: drag pans the inventory list without moving
+                     * the selection (tap a row to pick it). */
+                    ui_scroll_area_set_offset_target(
+                        &inventory_menu_scroll_offset,
+                        MAX(0, vis_inven_cnt - display_rows));
+                }
             }
         }
 

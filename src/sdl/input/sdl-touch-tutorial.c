@@ -1168,12 +1168,12 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
     int page, int page_count)
 {
     SDL_Color wheel = g_state.palette[TERM_YELLOW];
-    SDL_Color ctrl_wheel = g_state.palette[TERM_L_RED];
+    SDL_Color inner_wheel = g_state.palette[TERM_L_BLUE];
     SDL_Rect touch_pane_rect;
     float cx;
     float cy;
     float radius;
-    float ctrl_radius;
+    float inner_radius;
     float content_left;
     float content_right;
     float content_w;
@@ -1185,8 +1185,8 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
     sdl_touch_tutorial_draw_overlay_menu(screen);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
-        "Preset: Round wheel + overlay menu",
-        "Pane hidden by default. Tap adjacent squares to move; drag to choose direction; pull to the outer red ring for Ctrl+direction.",
+        "Preset: Button wheel + overlay menu",
+        "Pane hidden by default. Tap an outer arrow to move, or drag inside the wheel to choose a direction.",
         page, page_count);
 
     content_left = (float)screen->x;
@@ -1205,27 +1205,53 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
 
     radius = sdl_touch_pane_clampf((float)screen->h * 0.115f,
         58.0f, 122.0f);
-    ctrl_radius = sdl_touch_round_ctrl_radius_px(radius);
+    inner_radius = radius * 0.58f;
     cx = content_left + content_w * 0.72f;
-    cy = header_bottom + ctrl_radius + sdl_touch_pane_clampf(
+    cy = header_bottom + radius + sdl_touch_pane_clampf(
         (float)screen->h * 0.12f, 52.0f, 84.0f);
-    if (cy + ctrl_radius > (float)(screen->y + screen->h)
+    if (cy + radius > (float)(screen->y + screen->h)
             - sdl_touch_pane_clampf((float)screen->h * 0.14f,
                 82.0f, 112.0f))
     {
         cy = (float)(screen->y + screen->h)
             - sdl_touch_pane_clampf((float)screen->h * 0.14f,
-                82.0f, 112.0f) - ctrl_radius;
+                82.0f, 112.0f) - radius;
     }
-    if (cy < header_bottom + ctrl_radius + 20.0f)
-        cy = header_bottom + ctrl_radius + 20.0f;
+    if (cy < header_bottom + radius + 20.0f)
+        cy = header_bottom + radius + 20.0f;
 
     wheel.a = 248;
-    ctrl_wheel.a = 210;
+    inner_wheel.a = 210;
     sdl_touch_round_draw_circle(cx, cy, radius, wheel);
-    sdl_touch_round_draw_circle(cx, cy, radius * 0.34f, wheel);
-    sdl_touch_round_draw_sector_lines(cx, cy, radius * 0.34f, radius, wheel);
-    sdl_touch_round_draw_circle(cx, cy, ctrl_radius, ctrl_wheel);
+    sdl_touch_round_draw_circle(cx, cy, inner_radius, inner_wheel);
+    sdl_touch_round_draw_sector_lines(cx, cy, inner_radius, radius, wheel);
+    {
+        static const int dirs[] = { 7, 8, 9, 4, 6, 1, 2, 3 };
+        float mid = (inner_radius + radius) * 0.5f;
+        float button_size = (radius - inner_radius) * 1.14f;
+
+        if (button_size < 28.0f)
+            button_size = 28.0f;
+        for (int i = 0; i < (int)N_ELEMENTS(dirs); i++) {
+            int dir = dirs[i];
+            float ux = (float)ddx[dir];
+            float uy = (float)ddy[dir];
+            float len = SDL_sqrtf(ux * ux + uy * uy);
+            SDL_FRect arrow_rect;
+
+            if (len <= 0.0f)
+                continue;
+            ux /= len;
+            uy /= len;
+            arrow_rect = (SDL_FRect){
+                .x = cx + ux * mid - button_size * 0.5f,
+                .y = cy + uy * mid - button_size * 0.5f,
+                .w = button_size,
+                .h = button_size,
+            };
+            sdl_touch_pane_draw_arrow(&arrow_rect, '0' + dir, wheel);
+        }
+    }
 
     panel_x = content_left + content_w * 0.06f;
     panel_w = content_w * 0.46f;
@@ -1237,8 +1263,8 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
         (float)screen->h * 0.035f, 18.0f, 32.0f);
 
     sdl_touch_tutorial_draw_info_panel(screen,
-        panel_x, panel_y, panel_w, "Round wheel preset",
-        "Tap: select an adjacent square, then tap it again to move.\nDrag: start near the wheel center and pull toward a direction.\nOuter red ring: Ctrl+direction, labelled with the actual action.\nRelease: send the selected move or printed outer-ring command.\nCenter: repeats the last direction.\nSwipe edge: reveal or hide the touch pane.\nWidget: tap a top button for its command; hold it for the long-touch command.");
+        panel_x, panel_y, panel_w, "Button wheel preset",
+        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nWidget: tap a top button for its command; hold it for the long-touch command.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
@@ -1945,8 +1971,8 @@ const sdl_touch_tutorial_choice sdl_touch_tutorial_choices[] = {
     },
     {
         SDL_TOUCH_PROFILE_ROUND_WHEEL,
-        "Round wheel + overlay menu",
-        "Radial movement with a longer overlay command menu. Best for one-thumb movement once you know the layout."
+        "Button wheel + overlay menu",
+        "Outer movement buttons with an inner drag wheel and a longer overlay command menu. Best for one-thumb movement once you know the layout."
     },
     {
         SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,

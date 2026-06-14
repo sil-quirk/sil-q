@@ -874,12 +874,22 @@ static bool get_character_profile(void)
  * This function allows the player to select a race and character template, and
  * modify options (including the birth options).
  */
-NavResult character_creation(void)
+static NavResult character_creation_from_phase(int initial_phase)
 {
     int i;
 
-    int phase = 1;
+    int phase = initial_phase;
     NavResult result = NAV_OK;
+
+    if (phase < 1 || phase > 2)
+        phase = 1;
+    if (phase == 2)
+    {
+        if (!p_ptr || !z_info || p_ptr->prace >= z_info->p_max)
+            phase = 1;
+        else
+            rp_ptr = &p_info[p_ptr->prace];
+    }
 
     screen_push_touch_pane_proto();
 
@@ -982,4 +992,14 @@ cleanup:
     screen_pop_touch_pane_proto();
     return result;
 
+}
+
+NavResult character_creation(void)
+{
+    return character_creation_from_phase(1);
+}
+
+NavResult character_creation_resume_character(void)
+{
+    return character_creation_from_phase(2);
 }

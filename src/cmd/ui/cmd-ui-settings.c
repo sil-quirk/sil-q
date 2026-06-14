@@ -1317,12 +1317,20 @@ extern void do_cmd_options_aux(int page, cptr info)
         if (max_scroll < 0)
             max_scroll = 0;
 
-        if (selected_display_row < scroll)
+        if (sdl_touch_only_device_active()
+            && ui_scroll_area_take_touch_scrolled())
+        {
+            /* A finger drag panned the option list; keep that offset instead
+             * of snapping it back to follow the highlighted option. */
+        }
+        else if (selected_display_row < scroll)
             scroll = selected_display_row;
         else if (selected_display_row >= scroll + visible_rows)
             scroll = selected_display_row - visible_rows + 1;
         if (scroll > max_scroll)
             scroll = max_scroll;
+        if (scroll < 0)
+            scroll = 0;
 
         pixel_menu = settings_semantic_menu_begin(info, k);
         if (pixel_menu && page == CHALLENGE_PAGE)
@@ -1338,6 +1346,12 @@ extern void do_cmd_options_aux(int page, cptr info)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             settings_menu_begin_scroll_area(first_row, visible_rows);
+            if (sdl_touch_only_device_active())
+            {
+                /* Touch-only: drag pans the option list without moving the
+                 * highlighted option (tap an option to select it). */
+                ui_scroll_area_set_offset_target(&scroll, max_scroll);
+            }
 
             /* Prompt XXX XXX XXX */
             strnfmt(buf, sizeof(buf), "%s", info);
@@ -1700,6 +1714,10 @@ extern void do_cmd_options_aux(int page, cptr info)
         hide_cursor = true;
         ch = inkey();
         hide_cursor = false;
+
+        /* A touch-scroll redraw posts a wake key with no pending click. */
+        if (ch == UI_MENU_CLICK_WAKE_KEY && !ui_menu_click_has_pending())
+            continue;
 
         {
             int clicked_choice = 0;
@@ -4890,7 +4908,7 @@ static const char* touch_profile_label(int profile)
     case SDL_TOUCH_PROFILE_CORNERS:
         return "Corners + overlay menu";
     case SDL_TOUCH_PROFILE_ROUND_WHEEL:
-        return "Round wheel + overlay menu";
+        return "Button wheel + overlay menu";
     case SDL_TOUCH_PROFILE_TOUCH_PANE:
     default:
         return "Touch pane + touch screen";
