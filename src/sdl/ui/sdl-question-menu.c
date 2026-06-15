@@ -442,6 +442,67 @@ void sdl_question_menu_finish(void)
     g_state.need_present = true;
 }
 
+void sdl_question_menu_set_blocking_input(bool blocking)
+{
+    if (!g_question_menu.active)
+        return;
+
+    g_question_menu.blocking_input = blocking;
+}
+
+bool sdl_question_menu_blocks_input(void)
+{
+    return g_question_menu.active && g_question_menu.blocking_input;
+}
+
+void sdl_question_menu_set_nonblocking(bool nonblocking)
+{
+    if (!g_question_menu.active)
+        return;
+
+    g_question_menu.nonblocking = nonblocking;
+}
+
+void sdl_question_menu_set_timeout_ms(int ms)
+{
+    if (!g_question_menu.active)
+        return;
+
+    if (ms <= 0)
+    {
+        g_question_menu.expires_at_ns = 0;
+        sdl_question_menu_clear();
+        return;
+    }
+
+    g_question_menu.expires_at_ns =
+        SDL_GetTicksNS() + (Uint64)ms * 1000000ULL;
+}
+
+int sdl_question_menu_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 remaining_ns;
+
+    if (!g_question_menu.active || !g_question_menu.expires_at_ns)
+        return -1;
+    if (now_ns >= g_question_menu.expires_at_ns)
+        return 0;
+
+    remaining_ns = g_question_menu.expires_at_ns - now_ns;
+    return (int)((remaining_ns + 999999ULL) / 1000000ULL);
+}
+
+bool sdl_question_menu_flush_expired(Uint64 now_ns)
+{
+    if (!g_question_menu.active || !g_question_menu.expires_at_ns)
+        return false;
+    if (now_ns < g_question_menu.expires_at_ns)
+        return false;
+
+    sdl_question_menu_clear();
+    return true;
+}
+
 void sdl_question_menu_render(void)
 {
     sdl_question_menu_layout_info layout;
@@ -452,6 +513,9 @@ void sdl_question_menu_render(void)
     SDL_Rect clip;
     int hover_choice = 0;
     bool has_hover_choice;
+
+    if (sdl_question_menu_flush_expired(SDL_GetTicksNS()))
+        return;
 
     if (!sdl_question_menu_layout(&layout))
         return;
@@ -617,6 +681,10 @@ bool sdl_question_menu_handle_pointer(float x, float y, int action)
 
     if (!g_question_menu.active)
         return false;
+    if (g_question_menu.blocking_input)
+        return true;
+    if (g_question_menu.nonblocking)
+        return false;
     if (!sdl_question_menu_choice_at(x, y, &choice, &in_panel))
         return in_panel;
 
@@ -638,6 +706,10 @@ bool sdl_question_menu_handle_hover_pointer(float x, float y)
     bool wake = false;
 
     if (!g_question_menu.active)
+        return false;
+    if (g_question_menu.blocking_input)
+        return true;
+    if (g_question_menu.nonblocking)
         return false;
     if (!sdl_question_menu_choice_at(x, y, &choice, &in_panel))
     {

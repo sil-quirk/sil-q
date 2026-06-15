@@ -585,7 +585,7 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (o_ptr->name1 != j_ptr->name1)
             return (false);
 
-        log_debug("object_similar: checking egos - o_ptr prefix=%d suffix=%d, j_ptr prefix=%d suffix=%d",
+        log_trace("object_similar: checking egos - o_ptr prefix=%d suffix=%d, j_ptr prefix=%d suffix=%d",
                   (int)object_ego_prefix(o_ptr), (int)object_ego_suffix(o_ptr),
                   (int)object_ego_prefix(j_ptr), (int)object_ego_suffix(j_ptr));
 
@@ -593,11 +593,11 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (object_ego_prefix(o_ptr) != object_ego_prefix(j_ptr)
             || object_ego_suffix(o_ptr) != object_ego_suffix(j_ptr))
         {
-            log_debug("object_similar: DIFFERENT egos, returning false");
+            log_trace("object_similar: DIFFERENT egos, returning false");
             return (false);
         }
 
-        log_debug("object_similar: checking timeout - o_ptr=%d, j_ptr=%d",
+        log_trace("object_similar: checking timeout - o_ptr=%d, j_ptr=%d",
                   o_ptr->timeout, j_ptr->timeout);
 
         /* Mega-Hack -- Handle lights */

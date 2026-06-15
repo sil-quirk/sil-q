@@ -2,10 +2,10 @@
 #include "sdl/main-sdl-private.h"
 
 #define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.58f
-#define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.42f
+#define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.62f
 /* The whole inner disc (up to the drag threshold) repeats the last direction,
  * so the centre reads as a single "repeat" button with no dead band. */
-#define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.42f
+#define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.62f
 #define SDL_TOUCH_ROUND_HIT_SLOP_FRAC 0.18f
 
 void sdl_touch_pane_send_confirm_action(void)
@@ -566,15 +566,27 @@ static float sdl_touch_round_inner_radius_px(float radius)
  * right-anchored wheel lands in the open gap between them. Panes that do not
  * reach the right portion of the map are ignored, so moving one elsewhere
  * hands its space back to the wheel. */
-static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* clip,
-    float* top, float* bottom)
+static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
+    float right_edge, float* top, float* bottom)
 {
-    const float right_threshold = (float)clip->x + (float)clip->w * 0.55f;
-    const float mid_y = (float)clip->y + (float)clip->h * 0.5f;
+    float slop;
+    float right_threshold;
+    float mid_y;
     SDL_Rect rects[4];
     int count = 0;
     SDL_Rect rect;
     SDL_FRect frect;
+
+    if (!bounds || !top || !bottom)
+        return;
+
+    slop = (float)bounds->w * 0.12f;
+    if (slop < 64.0f)
+        slop = 64.0f;
+    if (slop > 180.0f)
+        slop = 180.0f;
+    right_threshold = right_edge - slop;
+    mid_y = (float)bounds->y + (float)bounds->h * 0.5f;
 
     if (sdl_depth_menu_pane_current_rect(&frect)) {
         rects[count++] = (SDL_Rect){ (int)frect.x, (int)frect.y,
@@ -607,27 +619,6 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* clip,
     }
 }
 
-/* On touch-only devices widen the wheel's render/clip rect from the map area
- * out to the physical window border, so the wheel can sit flush against the
- * right edge of the screen rather than the (inset) right edge of the map. */
-static void sdl_touch_round_extend_clip_to_screen(SDL_Rect* clip)
-{
-    SDL_Rect screen;
-    SDL_Rect touch_rect;
-
-    if (!clip || !sdl_touch_only_device_active())
-        return;
-    if (!sdl_touch_pane_is_left_placement()
-        && sdl_touch_pane_current_rect(&touch_rect))
-    {
-        return;
-    }
-
-    screen = sdl_get_layout_screen_rect();
-    if (sdl_rect_has_area(&screen) && screen.x + screen.w > clip->x + clip->w)
-        clip->w = (screen.x + screen.w) - clip->x;
-}
-
 static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip)
 {
@@ -650,36 +641,63 @@ static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
         return false;
 
     margin = 8.0f;
-    anchor_right = sdl_touch_pane_is_left_placement();
+    anchor_right = sdl_touch_round_layer_config_enabled()
+        || sdl_touch_pane_is_left_placement();
     render_clip = clip;
     right_edge = (float)(clip.x + clip.w);
     right_margin = margin;
 
-    /* Touch-only devices: pin the wheel to the right edge and grow it to fill
-     * the vertical gap left between the right-hand overlay panes. */
-    if (sdl_touch_only_device_active()) {
-        float band_top = (float)clip.y + margin;
-        float band_bottom = (float)(clip.y + clip.h) - margin;
+    /* The round movement wheel is a right-edge control.  Right-side panes
+     * choose the vertical lane, but transient overlay redraws must not resize
+     * the wheel into a tiny top-gap control. */
+    if (sdl_touch_round_layer_config_enabled()) {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+        SDL_Rect touch_rect;
+        float band_top;
+        float band_bottom;
         float band_h;
         float max_r_w;
 
-        sdl_touch_round_clip_band_to_panes(&clip, &band_top, &band_bottom);
+        if (!sdl_rect_has_area(&screen))
+            return false;
+
+        right_edge = (float)(screen.x + screen.w);
+        if (!sdl_touch_pane_is_left_placement()
+            && sdl_touch_pane_current_rect(&touch_rect))
+        {
+            right_edge = (float)touch_rect.x;
+        }
+        if (right_edge <= (float)screen.x + 56.0f)
+            return false;
+
+        band_top = (float)screen.y + margin;
+        band_bottom = (float)(screen.y + screen.h) - margin;
+        sdl_touch_round_clip_band_to_panes(&screen, right_edge, &band_top,
+            &band_bottom);
         band_h = band_bottom - band_top;
-        max_r_w = ((float)clip.w - margin * 2.0f) * 0.5f;
+        if (band_h < 56.0f)
+            return false;
 
         radius = band_h * 0.5f;
-        if (radius > max_r_w)
+        max_r_w = (right_edge - (float)screen.x - margin * 2.0f) * 0.5f;
+        if (max_r_w > 0.0f && radius > max_r_w)
             radius = max_r_w;
-        if (radius >= 32.0f) {
-            anchor_right = true;
-            cy = (band_top + band_bottom) * 0.5f;
-            sized = true;
-            /* Reach across the strip between the map and the window border so
-             * the wheel can be drawn flush with the right screen edge. */
-            sdl_touch_round_extend_clip_to_screen(&render_clip);
-            right_edge = (float)(render_clip.x + render_clip.w);
-            right_margin = 0.0f;
-        }
+        if (radius < 28.0f)
+            return false;
+
+        render_clip = (SDL_Rect){
+            .x = screen.x,
+            .y = (int)band_top,
+            .w = (int)(right_edge - (float)screen.x),
+            .h = (int)(band_h + 0.5f),
+        };
+        if (!sdl_rect_has_area(&render_clip))
+            return false;
+
+        clip = render_clip;
+        right_margin = 0.0f;
+        cy = (band_top + band_bottom) * 0.5f;
+        sized = true;
     }
 
     if (!sized) {
@@ -706,8 +724,7 @@ static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
         ? right_edge - right_margin - radius
         : (float)clip.x + margin + radius;
 
-    /* Horizontal bounds use the (possibly extended) render rect; vertical
-     * bounds stay inside the map area. */
+    /* Clamp to the same rectangle that will be used for rendering. */
     if (cx - radius < (float)render_clip.x)
         cx = (float)render_clip.x + radius;
     if (cx + radius > right_edge)
@@ -787,19 +804,18 @@ static bool sdl_touch_round_point_to_wheel(float x, float y,
     return true;
 }
 
-/* True when (x,y) lies in the area the wheel can occupy: the map view, plus —
- * on touch-only — the strip out to the window border the wheel now spans. */
+/* True when (x,y) lies in the area the wheel can occupy: the map view, plus
+ * the right-edge strip used by the round movement wheel. */
 static bool sdl_touch_round_point_in_bounds(float x, float y)
 {
     SDL_Rect clip;
 
     if (sdl_point_in_view_rect(PANE_MAIN, x, y))
         return true;
-    if (!sdl_touch_only_device_active())
+    if (!sdl_touch_round_layer_config_enabled())
         return false;
-    if (!sdl_touch_round_compute_clip_rect(&clip))
+    if (!sdl_touch_round_compute_layout(NULL, NULL, NULL, NULL, &clip))
         return false;
-    sdl_touch_round_extend_clip_to_screen(&clip);
     return x >= (float)clip.x && x < (float)(clip.x + clip.w)
         && y >= (float)clip.y && y < (float)(clip.y + clip.h);
 }
@@ -1447,9 +1463,8 @@ void sdl_touch_round_render(void)
         return;
 
     if (active) {
-        if (!sdl_touch_round_compute_clip_rect(&clip))
+        if (!sdl_touch_round_compute_layout(NULL, NULL, NULL, NULL, &clip))
             return;
-        sdl_touch_round_extend_clip_to_screen(&clip);
         cx = g_touch_round_press.center_x;
         cy = g_touch_round_press.center_y;
         radius = g_touch_round_press.radius;
@@ -1461,20 +1476,10 @@ void sdl_touch_round_render(void)
     } else {
         if (!sdl_touch_round_layer_config_enabled())
             return;
-        if (!sdl_touch_only_device_active()
-            && !sdl_touch_round_layer_controls_active())
-            return;
         if (!sdl_mouse_gameplay_context_active())
             return;
         if (!sdl_touch_round_compute_layout(&cx, &cy, &radius,
                 &inner_radius, &clip))
-        {
-            return;
-        }
-        /* Touch-only keeps the wheel permanently on screen; other devices
-         * still hide it when its centre falls under an overlay pane. */
-        if (!sdl_touch_only_device_active()
-            && sdl_touch_movement_point_blocked_by_overlay(cx, cy))
         {
             return;
         }

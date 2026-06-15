@@ -5078,12 +5078,13 @@ void do_cmd_ability_screen(void)
                 entry_cur = 0;
         }
 
-        if (sdl_touch_only_device_active()
-            && ui_scroll_area_take_touch_scrolled())
+        if (sdl_touch_only_device_active())
         {
-            /* A finger drag panned the list; keep the offset rather than
-             * snapping it back to follow the selected entry. */
+            /* Touch-only menus are viewport-driven: dragging pans the list,
+             * and tapping selects.  Do not let the off-screen selection pull
+             * the viewport back on the next redraw. */
             int max_entry_top = MAX(0, entry_count - layout.list_rows);
+            (void)ui_scroll_area_take_touch_scrolled();
             if (entry_top > max_entry_top)
                 entry_top = max_entry_top;
         }

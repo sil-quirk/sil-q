@@ -1827,7 +1827,7 @@ errr Term_erase(int x, int y, int n)
     /* Log for line 0 */
     if (y == 0)
     {
-        log_debug("Term_erase: row=0 x=%d n=%d story_font_active=%d", x, n, Term->story_font_active ? 1 : 0);
+        log_trace("Term_erase: row=0 x=%d n=%d story_font_active=%d", x, n, Term->story_font_active ? 1 : 0);
     }
 
     /* Scan every column */

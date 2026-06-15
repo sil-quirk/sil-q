@@ -93,6 +93,9 @@
 #define SDL_MAIN_VIEW_MIN_SCALE 1
 #define SDL_MAIN_VIEW_PREFERRED_MIN_SCALE 2
 #define SDL_MAIN_VIEW_MAX_SCALE 20
+#define SDL_DICE_ROLL_LOCK_DEFAULT_MS 3000
+#define SDL_DICE_ROLL_OVERLAY_DEFAULT_MS 5000
+#define SDL_DICE_ROLL_TIMING_MAX_MS 10000
 
 enum sdl_min_terminal_mode {
     SDL_MIN_TERMINAL_NORMAL = 0,
@@ -131,6 +134,8 @@ struct sdl_config {
     int left_panel_compact_mode;
     int min_terminal_mode;
     int log_pane_display_filter;
+    int dice_roll_lock_ms;
+    int dice_roll_overlay_ms;
     
     // Window position and size for windowed mode
     int window_x;

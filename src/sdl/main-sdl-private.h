@@ -930,9 +930,12 @@ typedef struct sdl_question_menu_entry_state {
  * questions centre on the map view. */
 typedef struct sdl_question_menu_state {
     bool active;
+    bool blocking_input;
+    bool nonblocking;
     bool has_anchor;
     int anchor_y; /* map grid the question is about (local placement) */
     int anchor_x;
+    Uint64 expires_at_ns;
     int count;
     int highlight; /* choice highlighted by keyboard navigation, -1 none */
     char title[SDL_QUESTION_MENU_TITLE_LEN];
@@ -3322,6 +3325,12 @@ bool sdl_song_menu_handle_hover_pointer(float x, float y);
 void sdl_question_menu_render(void);
 bool sdl_question_menu_handle_pointer(float x, float y, int action);
 bool sdl_question_menu_handle_hover_pointer(float x, float y);
+void sdl_question_menu_set_blocking_input(bool blocking);
+bool sdl_question_menu_blocks_input(void);
+void sdl_question_menu_set_nonblocking(bool nonblocking);
+void sdl_question_menu_set_timeout_ms(int ms);
+int sdl_question_menu_pending_timeout_ms(Uint64 now_ns);
+bool sdl_question_menu_flush_expired(Uint64 now_ns);
 bool sdl_map_grid_cell_rect(int y, int x, SDL_FRect* out);
 bool sdl_grid_question_queue(int map_y, int map_x);
 bool sdl_grid_question_take_command(int* command, int* dir);

@@ -7,28 +7,57 @@
 #include "sdl-config.h"
 #include "cmd/world/cmd-interact-chest.h"
 #include "ui/question.h"
+#include <SDL3/SDL_timer.h>
 
-#define INTERACTION_ROLL_ANIM_FRAMES 14
-#define INTERACTION_ROLL_ANIM_FRAME_MS 80
-#define INTERACTION_ROLL_RESULT_MS 850
+#define INTERACTION_ROLL_ANIM_FRAME_MS 250
 
 static bool is_open(int feat) { return (feat == FEAT_OPEN); }
 
-static int interaction_roll_visual_die(
-    const skill_roll_details* roll, int frame, int salt)
+static u32b interaction_roll_mix32(u32b x)
 {
-    u32b x = (u32b)(frame + 1) * 1103515245u;
-
-    x ^= (u32b)(roll->skill + 31) * 2654435761u;
-    x ^= (u32b)(roll->difficulty + 17) * 2246822519u;
-    x ^= (u32b)(roll->skill_die_primary + 3) * 3266489917u;
-    x ^= (u32b)(roll->difficulty_die_primary + 5) * 668265263u;
-    x ^= (u32b)(salt + 1) * 374761393u;
     x ^= x >> 16;
     x *= 2246822519u;
     x ^= x >> 13;
+    x *= 3266489917u;
+    x ^= x >> 16;
 
-    return (int)(x % 10u) + 1;
+    return x;
+}
+
+static u32b interaction_roll_visual_seed(cptr title, cptr action, int y, int x,
+    int skill, int difficulty)
+{
+    Uint64 ticks = SDL_GetTicksNS();
+    u32b seed = (u32b)ticks ^ (u32b)(ticks >> 32);
+
+    seed ^= (u32b)(y + 257) * 2654435761u;
+    seed ^= (u32b)(x + 263) * 2246822519u;
+    seed ^= (u32b)(skill + 31) * 3266489917u;
+    seed ^= (u32b)(difficulty + 17) * 668265263u;
+
+    for (const unsigned char* p = (const unsigned char*)title; p && *p; p++)
+        seed = interaction_roll_mix32(seed ^ (u32b)*p);
+    for (const unsigned char* p = (const unsigned char*)action; p && *p; p++)
+        seed = interaction_roll_mix32(seed ^ ((u32b)*p << 1));
+
+    return interaction_roll_mix32(seed);
+}
+
+static int interaction_roll_visual_die(u32b seed, int frame, int salt,
+    int previous)
+{
+    u32b x = seed;
+    int die;
+
+    x ^= (u32b)(frame + 1) * 1103515245u;
+    x ^= (u32b)(salt + 1) * 374761393u;
+    x = interaction_roll_mix32(x);
+
+    die = (int)(x % 10u) + 1;
+    if (die == previous)
+        die = (die % 10) + 1;
+
+    return die;
 }
 
 static void interaction_roll_format_total(
@@ -38,9 +67,16 @@ static void interaction_roll_format_total(
         (bonus < 0) ? '-' : '+', ABS(bonus), die + bonus);
 }
 
+static void interaction_roll_present_frame(void)
+{
+    Term_fresh();
+    Term_xtra(TERM_XTRA_EVENT, 0);
+    Term_fresh();
+}
+
 static void interaction_roll_render_overlay(cptr title, cptr action, int y,
     int x, const skill_roll_details* roll, int skill_die, int difficulty_die,
-    bool final)
+    bool final, bool blocking, int timeout_ms)
 {
     char line[96];
     char result[96];
@@ -103,16 +139,43 @@ static void interaction_roll_render_overlay(cptr title, cptr action, int y,
     }
 
     sdl_question_menu_finish();
-    Term_fresh();
+    if (blocking)
+    {
+        sdl_question_menu_set_blocking_input(true);
+    }
+    else if (final)
+    {
+        sdl_question_menu_set_blocking_input(false);
+        sdl_question_menu_set_nonblocking(true);
+        sdl_question_menu_set_timeout_ms(timeout_ms);
+    }
+    interaction_roll_present_frame();
 }
 
-void show_interaction_skill_roll_animation(cptr title, cptr action, int y,
-    int x, const skill_roll_details* roll)
+int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
+    int x, int skill, int difficulty, skill_roll_details* roll)
 {
+    skill_roll_details local_roll;
+    skill_roll_details preview_roll;
     bool saved_hide_cursor;
+    int lock_ms;
+    int overlay_ms;
+    int elapsed_ms = 0;
+    int frame = 0;
+    int prev_skill_die = 0;
+    int prev_difficulty_die = 0;
+    int result;
+    u32b visual_seed;
 
-    if (!roll || !Term || character_icky)
-        return;
+    if (!roll)
+        roll = &local_roll;
+
+    if (!Term || character_icky)
+        return skill_check_details(PLAYER, skill, difficulty, NULL, roll);
+
+    memset(&preview_roll, 0, sizeof(preview_roll));
+    preview_roll.skill = skill;
+    preview_roll.difficulty = difficulty;
 
     if (p_ptr)
     {
@@ -122,24 +185,37 @@ void show_interaction_skill_roll_animation(cptr title, cptr action, int y,
 
     saved_hide_cursor = hide_cursor;
     hide_cursor = true;
+    lock_ms = get_sdl_dice_roll_lock_ms();
+    overlay_ms = get_sdl_dice_roll_overlay_ms();
+    visual_seed = interaction_roll_visual_seed(title, action, y, x, skill,
+        difficulty);
 
-    for (int frame = 0; frame < INTERACTION_ROLL_ANIM_FRAMES; frame++)
+    while (elapsed_ms < lock_ms)
     {
-        int skill_die = interaction_roll_visual_die(roll, frame, 0);
-        int difficulty_die = interaction_roll_visual_die(roll, frame, 1);
+        int skill_die = interaction_roll_visual_die(visual_seed, frame, 0,
+            prev_skill_die);
+        int difficulty_die = interaction_roll_visual_die(visual_seed, frame, 1,
+            prev_difficulty_die);
+        int delay_ms = MIN(INTERACTION_ROLL_ANIM_FRAME_MS,
+            lock_ms - elapsed_ms);
 
-        interaction_roll_render_overlay(title, action, y, x, roll, skill_die,
-            difficulty_die, false);
-        Term_xtra(TERM_XTRA_DELAY, INTERACTION_ROLL_ANIM_FRAME_MS);
+        interaction_roll_render_overlay(title, action, y, x, &preview_roll,
+            skill_die, difficulty_die, false, true, 0);
+        Term_xtra(TERM_XTRA_DELAY, delay_ms);
+        elapsed_ms += delay_ms;
+        prev_skill_die = skill_die;
+        prev_difficulty_die = difficulty_die;
+        frame++;
     }
 
+    result = skill_check_details(PLAYER, skill, difficulty, NULL, roll);
     interaction_roll_render_overlay(title, action, y, x, roll, roll->skill_die,
-        roll->difficulty_die, true);
-    Term_xtra(TERM_XTRA_DELAY, INTERACTION_ROLL_RESULT_MS);
+        roll->difficulty_die, true, false, overlay_ms);
 
-    sdl_question_menu_clear();
     hide_cursor = saved_hide_cursor;
-    Term_fresh();
+    interaction_roll_present_frame();
+
+    return result;
 }
 
 /*
@@ -346,9 +422,8 @@ bool do_cmd_open_aux(int y, int x)
         if (p_ptr->confused)
             difficulty += 5;
 
-        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
-        show_interaction_skill_roll_animation("Picking the lock",
-            "Working the lockpick", y, x, &roll);
+        result = show_interaction_skill_roll_animation("Picking the lock",
+            "Working the lockpick", y, x, score, difficulty, &roll);
 
         /* Success */
         if (result > 0)
@@ -2140,9 +2215,8 @@ bool do_cmd_disarm_aux(int y, int x)
         difficulty += 5;
 
     // perform the check
-    result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
-    show_interaction_skill_roll_animation("Disarming trap",
-        "Testing the mechanism", y, x, &roll);
+    result = show_interaction_skill_roll_animation("Disarming trap",
+        "Testing the mechanism", y, x, score, difficulty, &roll);
 
     /* Success, always succeed with player trap */
     if (result > 0)
@@ -2404,9 +2478,8 @@ static bool do_cmd_bash_aux(int y, int x)
         difficulty = 0;
         difficulty += power;
 
-        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
-        show_interaction_skill_roll_animation("Bashing the door",
-            "Putting your shoulder into it", y, x, &roll);
+        result = show_interaction_skill_roll_animation("Bashing the door",
+            "Putting your shoulder into it", y, x, score, difficulty, &roll);
 
         if (result > 0)
         {

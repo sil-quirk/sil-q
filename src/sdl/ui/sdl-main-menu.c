@@ -21,7 +21,12 @@ int sdl_main_menu_pane_font_px(void)
 {
     int font_size = (config.aux_view_font_size > 0)
         ? sdl_resolve_aux_view_font_size(config.aux_view_font_size)
+#if SIL_SDL_MOBILE_BUILD
+        /* Mobile: enlarge popup-menu font one notch (3/4 -> 4/5 of main). */
+        : sdl_auto_font_size_from_main(4, 5);
+#else
         : sdl_auto_font_size_from_main(3, 4);
+#endif
     int font_px = sdl_aux_cell_height_for_font_size(font_size);
 
     if (font_px < 8)

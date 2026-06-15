@@ -185,11 +185,11 @@ void dungeon(void)
 
     /* Redraw stuff */
     log_debug("Running redraw_stuff");
-    redraw_stuff();
+    TIME_PHASE("redraw_stuff", redraw_stuff());
 
     /* Redraw stuff */
     log_debug("Running window_stuff");
-    window_stuff();
+    TIME_PHASE("window_stuff", window_stuff());
 
     /* Hack -- Decrease "xtra" depth */
     log_debug("Decreasing character_xtra depth after display setup");
@@ -213,11 +213,11 @@ void dungeon(void)
 
     /* Redraw stuff */
     log_debug("Running final redraw_stuff");
-    redraw_stuff();
+    TIME_PHASE("redraw_stuff", redraw_stuff());
 
     /* Window stuff */
     log_debug("Running final window_stuff");
-    window_stuff();
+    TIME_PHASE("window_stuff", window_stuff());
 
     /* Refresh */
     log_debug("Final terminal refresh");
@@ -337,7 +337,7 @@ void dungeon(void)
 
                 /* Process monster with even more energy first */
             log_trace("[LOOP] process_monsters pre-player: threshold=%d", p_ptr->energy + 1);
-            process_monsters(p_ptr->energy + 1);
+            TIME_PHASE("monsters(pre-player)", process_monsters(p_ptr->energy + 1));
             log_trace("[LOOP] after process_monsters pre-player: combat_number=%d old=%d", combat_number, combat_number_old);
 
             /* If still alive */
@@ -350,12 +350,12 @@ void dungeon(void)
 
                 /* Redraw stuff */
                 if (p_ptr->redraw) {
-                    redraw_stuff();
+                    TIME_PHASE("redraw_stuff", redraw_stuff());
                 }
 
                 /* Process the player */
                 log_trace("[LOOP] process_player start");
-                process_player();
+                TIME_PHASE("process_player", process_player());
                 log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
                 
                 /* Scan for artifacts near player and mark as seen */
@@ -380,12 +380,12 @@ void dungeon(void)
 
         /* Redraw stuff */
         if (p_ptr->redraw) {
-            redraw_stuff();
+            TIME_PHASE("redraw_stuff", redraw_stuff());
         }
 
         /* Redraw stuff */
         if (p_ptr->window) {
-            window_stuff();
+            TIME_PHASE("window_stuff", window_stuff());
         }
 
         /* Place the cursor on the player or target */
@@ -406,7 +406,7 @@ void dungeon(void)
 
         /* Process monsters (any that haven't had a chance to move yet) */
     log_trace("[LOOP] process_monsters post-player: threshold=100");
-    process_monsters(100);
+    TIME_PHASE("monsters(post-player)", process_monsters(100));
     log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
     
         /* Set combat rolls window flag after all monster actions complete */
@@ -424,11 +424,11 @@ void dungeon(void)
 
         /* Redraw stuff */
         if (p_ptr->redraw)
-            redraw_stuff();
+            TIME_PHASE("redraw_stuff", redraw_stuff());
 
         /* Redraw stuff */
         if (p_ptr->window)
-            window_stuff();
+            TIME_PHASE("window_stuff", window_stuff());
 
         /* Place the cursor on the player or target */
         if (hilite_player)
@@ -445,7 +445,7 @@ void dungeon(void)
             break;
 
         /* Process the world */
-        process_world();
+        TIME_PHASE("process_world", process_world());
 
         /* Notice stuff */
         if (p_ptr->notice)
@@ -457,11 +457,11 @@ void dungeon(void)
 
         /* Redraw stuff */
         if (p_ptr->redraw)
-            redraw_stuff();
+            TIME_PHASE("redraw_stuff", redraw_stuff());
 
         /* Window stuff */
         if (p_ptr->window)
-            window_stuff();
+            TIME_PHASE("window_stuff", window_stuff());
 
         /* Place the cursor on the player or target */
         if (hilite_player)

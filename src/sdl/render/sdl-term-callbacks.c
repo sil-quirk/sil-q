@@ -54,6 +54,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_side_pane_menu_pending_timeout_ms(now_ns);
             int select_page_turn_timeout_ms =
                 sdl_select_page_turn_timeout_ms(now_ns);
+            int question_menu_timeout_ms =
+                sdl_question_menu_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
@@ -108,6 +110,11 @@ errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = select_page_turn_timeout_ms;
             }
+            if (timeout_ms < 0 || (question_menu_timeout_ms >= 0
+                    && question_menu_timeout_ms < timeout_ms))
+            {
+                timeout_ms = question_menu_timeout_ms;
+            }
             g_sdl_blocking_key_wait = true;
             if (timeout_ms >= 0) {
                 if (SDL_WaitEventTimeout(&ev, timeout_ms))
@@ -130,6 +137,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
+            sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
@@ -156,6 +164,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
+            sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
@@ -188,6 +197,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_pointer_attack_flush_pending_press(flush_ns);
             sdl_map_touch_flush_pending_press(flush_ns);
             sdl_object_tooltip_flush_expired(flush_ns);
+            sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
@@ -238,6 +248,7 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_pointer_attack_flush_pending_press(flush_ns);
                 sdl_map_touch_flush_pending_press(flush_ns);
                 sdl_object_tooltip_flush_expired(flush_ns);
+                sdl_question_menu_flush_expired(flush_ns);
                 sdl_touch_zone_flush_pending_press(flush_ns);
                 sdl_touch_top_panel_flush_pending_press(flush_ns);
                 sdl_log_pane_menu_flush_pending_press(flush_ns);

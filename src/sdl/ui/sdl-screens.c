@@ -3301,7 +3301,7 @@ static TTF_Font* sdl_char_sheet_menu_font_for_width(float content_w,
 }
 
 void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
-    int choice, float x, float y, float w, float line_h)
+    int choice, float x, float y, float w, float line_h, float value_col_x)
 {
     char label[160];
     char value[96];
@@ -3328,14 +3328,29 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
         float gap = sdl_char_sheet_menu_pair_gap(line_h);
         float label_w;
         float value_w;
+        float value_x;
 
         if (!value_font)
             value_font = font;
         value_need = sdl_char_sheet_text_width(value_font, value);
-        if ((float)(label_need + value_need) + gap <= w)
+        if (value_col_x > x && value_col_x < x + w)
+        {
+            /* Shared column: every row's value starts at the same x, so the
+             * gap sits just past the longest label rather than the far right
+             * edge.  The caller picks value_col_x for the whole list. */
+            value_x = value_col_x;
+            label_w = value_col_x - x - gap;
+            if (label_w < 1.0f)
+                label_w = 1.0f;
+            value_w = (x + w) - value_x;
+            if (value_w < 1.0f)
+                value_w = 1.0f;
+        }
+        else if ((float)(label_need + value_need) + gap <= w)
         {
             value_w = (float)value_need;
             label_w = w - value_w - gap;
+            value_x = x + label_w + gap;
         }
         else
         {
@@ -3349,13 +3364,14 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
             }
             if (value_w < 1.0f)
                 value_w = 1.0f;
+            value_x = x + label_w + gap;
         }
 
         (void)sdl_char_sheet_draw_text(font, label,
             focused ? TERM_DARK : TERM_WHITE, x, y, label_w,
             line_h * 0.94f, false);
         (void)sdl_char_sheet_draw_text(value_font, value,
-            focused ? TERM_DARK : attr, x + label_w + gap, y, value_w,
+            focused ? TERM_DARK : attr, value_x, y, value_w,
             line_h * 0.94f, false);
     }
     else
@@ -3384,6 +3400,7 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     int best_px = 0;
     float best_line_h = 1.0f;
     TTF_Font* best_font = NULL;
+    float value_col_x = 0.0f;
     float row_region_h;
     int selected_row = -1;
     int scroll;
@@ -3484,6 +3501,59 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     last_selected_index = g_sdl_character_sheet_screen.selected_index;
     last_row_count = row_count;
 
+    /*
+     * Align every row's value to a single column placed just past the widest
+     * label, keeping a reasonable, screen-scaled gap instead of shoving the
+     * values against the far right edge.  value_col_x stays 0 (per-row right
+     * align) when no row has a value or when the list is too wide to fit.
+     */
+    {
+        TTF_Font* value_font = sdl_story_font_slot_sibling(best_font,
+            SDL_STORY_FONT_SLOT_MENU);
+        float max_label_w = 0.0f;
+        float max_value_w = 0.0f;
+        bool any_value = false;
+
+        if (!value_font)
+            value_font = best_font;
+        for (int i = 0; i < row_count; i++)
+        {
+            const sdl_character_sheet_select_row* r =
+                &g_sdl_character_sheet_screen.select_rows[i];
+            char label[160];
+            char value[96];
+            float lw;
+            float vw;
+
+            if (r->is_heading)
+                continue;
+            sdl_char_sheet_split_menu_row(r->label, label, sizeof(label),
+                value, sizeof(value));
+            if (!value[0])
+                continue;
+
+            any_value = true;
+            lw = (float)sdl_char_sheet_text_width(best_font, label);
+            vw = (float)sdl_char_sheet_text_width(value_font, value);
+            if (lw > max_label_w)
+                max_label_w = lw;
+            if (vw > max_value_w)
+                max_value_w = vw;
+        }
+
+        if (any_value)
+        {
+            float gap = sdl_char_sheet_clampf(content_w * 0.06f, 24.0f, 140.0f);
+            float min_gap = sdl_char_sheet_menu_pair_gap(best_line_h);
+
+            value_col_x = content_x + max_label_w + gap;
+            if (value_col_x + max_value_w > content_x + content_w)
+                value_col_x = content_x + content_w - max_value_w;
+            if (value_col_x < content_x + max_label_w + min_gap)
+                value_col_x = 0.0f;
+        }
+    }
+
     had_clip = SDL_RenderClipEnabled(g_state.renderer);
     if (had_clip)
         SDL_GetRenderClipRect(g_state.renderer, &old_clip);
@@ -3513,7 +3583,7 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         else
         {
             sdl_char_sheet_draw_menu_row(best_font, r->label, r->attr,
-                r->choice, content_x, y, content_w, best_line_h);
+                r->choice, content_x, y, content_w, best_line_h, value_col_x);
         }
     }
 

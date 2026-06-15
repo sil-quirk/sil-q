@@ -1616,7 +1616,7 @@ void sdl_story_font_enable(void)
     g_state.story_font_depth++;
     if (g_state.story_font_depth == 1)
         sdl_apply_story_font_state(true);
-    log_debug("Story font ENABLED (depth=%d)", g_state.story_font_depth);
+    log_trace("Story font ENABLED (depth=%d)", g_state.story_font_depth);
 }
 
 /*
@@ -1632,7 +1632,7 @@ void sdl_story_font_disable(void)
         sdl_story_font_set_grid(false);
         sdl_story_font_set_slot(0);
     }
-    log_debug("Story font DISABLED (depth=%d)", g_state.story_font_depth);
+    log_trace("Story font DISABLED (depth=%d)", g_state.story_font_depth);
 }
 
 /*

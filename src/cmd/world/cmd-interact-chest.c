@@ -4392,9 +4392,8 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
         if (p_ptr->confused)
             difficulty += 5;
 
-        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
-        show_interaction_skill_roll_animation("Picking the chest lock",
-            "Working the lockpick", y, x, &roll);
+        result = show_interaction_skill_roll_animation("Picking the chest lock",
+            "Working the lockpick", y, x, score, difficulty, &roll);
 
         /* Success -- May still have traps */
         if (result > 0)
@@ -4468,9 +4467,8 @@ bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
         difficulty += 5;
 
     // perform the check
-    result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
-    show_interaction_skill_roll_animation("Disarming chest",
-        "Testing the mechanism", y, x, &roll);
+    result = show_interaction_skill_roll_animation("Disarming chest",
+        "Testing the mechanism", y, x, score, difficulty, &roll);
 
     /* Must find the trap first. */
     if (!object_known_p(o_ptr))

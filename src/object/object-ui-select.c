@@ -822,11 +822,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int display_rows = inventory_menu_visible_rows_for_height(menu_term_height());
         int max_scroll_offset = MAX(0, vis_inven_cnt - display_rows);
 
-        if (sdl_touch_only_device_active()
-            && ui_scroll_area_take_touch_scrolled())
+        if (sdl_touch_only_device_active())
         {
-            /* The finger dragged the list; keep that offset, don't snap it
-             * back to follow the (now possibly off-screen) selection. */
+            /* Touch-only inventory is viewport-driven: dragging pans the
+             * list, and tapping selects.  Keep the finger-chosen offset. */
+            (void)ui_scroll_area_take_touch_scrolled();
             if (inventory_menu_scroll_offset > max_scroll_offset)
                 inventory_menu_scroll_offset = max_scroll_offset;
             if (inventory_menu_scroll_offset < 0)

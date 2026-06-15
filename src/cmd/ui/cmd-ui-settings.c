@@ -1193,6 +1193,7 @@ static void option_set_player_tile_facing_mode(byte mode)
 #define IFACE_PANE_ROW_BASE 4096
 #define IFACE_PANE_ROW_MAX 32
 #define IFACE_PANE_GROUP_MAX 8
+#define IFACE_DICE_ROLL_MS_STEP 500
 
 enum iface_pane_field {
     IFACE_PANE_FIELD_ENABLED = 0,
@@ -1200,7 +1201,9 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_FONT,
     IFACE_PANE_FIELD_TILE_SCALE,
     IFACE_PANE_FIELD_LP_LAUNCH,
-    IFACE_PANE_FIELD_LP_COMPACT
+    IFACE_PANE_FIELD_LP_COMPACT,
+    IFACE_PANE_FIELD_DICE_LOCK,
+    IFACE_PANE_FIELD_DICE_OVERLAY
 };
 
 struct iface_pane_row {
@@ -1317,11 +1320,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         if (max_scroll < 0)
             max_scroll = 0;
 
-        if (sdl_touch_only_device_active()
-            && ui_scroll_area_take_touch_scrolled())
+        if (sdl_touch_only_device_active())
         {
-            /* A finger drag panned the option list; keep that offset instead
-             * of snapping it back to follow the highlighted option. */
+            /* Touch-only menus are viewport-driven: dragging pans the list,
+             * and tapping selects/sets.  Do not let the highlighted option
+             * pull the viewport back after the drag event is consumed. */
+            (void)ui_scroll_area_take_touch_scrolled();
         }
         else if (selected_display_row < scroll)
             scroll = selected_display_row;
@@ -2328,6 +2332,22 @@ extern void do_cmd_options_aux(int page, cptr info)
                     set_sdl_touch_top_panel_tile_scale(
                         get_sdl_touch_top_panel_default_tile_scale());
                     sdl_apply_config();
+                    app_settings_dirty = true;
+                }
+                else if (prow->field == IFACE_PANE_FIELD_DICE_LOCK
+                    && get_sdl_dice_roll_lock_ms()
+                        != SDL_DICE_ROLL_LOCK_DEFAULT_MS)
+                {
+                    set_sdl_dice_roll_lock_ms(
+                        SDL_DICE_ROLL_LOCK_DEFAULT_MS);
+                    app_settings_dirty = true;
+                }
+                else if (prow->field == IFACE_PANE_FIELD_DICE_OVERLAY
+                    && get_sdl_dice_roll_overlay_ms()
+                        != SDL_DICE_ROLL_OVERLAY_DEFAULT_MS)
+                {
+                    set_sdl_dice_roll_overlay_ms(
+                        SDL_DICE_ROLL_OVERLAY_DEFAULT_MS);
                     app_settings_dirty = true;
                 }
             }
@@ -3785,9 +3805,39 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
         }
     }
 
+    if (row_count + 2 <= max_rows && mark_count < IFACE_PANE_GROUP_MAX)
+    {
+        markers[mark_count].before_index = base_index + row_count;
+        markers[mark_count].label = "Dice Roll Overlay";
+        mark_count++;
+
+        rows[row_count].pane_cfg_index = -1;
+        rows[row_count].type = PANE_MAX;
+        rows[row_count].field = IFACE_PANE_FIELD_DICE_LOCK;
+        row_count++;
+
+        rows[row_count].pane_cfg_index = -1;
+        rows[row_count].type = PANE_MAX;
+        rows[row_count].field = IFACE_PANE_FIELD_DICE_OVERLAY;
+        row_count++;
+    }
+
     if (marker_count)
         *marker_count = mark_count;
     return row_count;
+}
+
+static void iface_format_ms_value(char* buf, size_t buflen, int ms)
+{
+    int tenths;
+
+    if (!buf || !buflen)
+        return;
+
+    if (ms < 0)
+        ms = 0;
+    tenths = (ms + 50) / 100;
+    strnfmt(buf, buflen, "%d.%ds", tenths / 10, tenths % 10);
 }
 
 static cptr iface_pane_row_label(const struct iface_pane_row* row)
@@ -3800,6 +3850,8 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_TILE_SCALE: return "Tile Scale";
     case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
+    case IFACE_PANE_FIELD_DICE_LOCK: return "Lock Time";
+    case IFACE_PANE_FIELD_DICE_OVERLAY: return "Result Time";
     default: return "?";
     }
 }
@@ -3838,6 +3890,12 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
             get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW
                 ? "row" : "column",
             buflen);
+        break;
+    case IFACE_PANE_FIELD_DICE_LOCK:
+        iface_format_ms_value(buf, buflen, get_sdl_dice_roll_lock_ms());
+        break;
+    case IFACE_PANE_FIELD_DICE_OVERLAY:
+        iface_format_ms_value(buf, buflen, get_sdl_dice_roll_overlay_ms());
         break;
     default:
         SDL_strlcpy(buf, "", buflen);
@@ -3916,6 +3974,24 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
                 : SDL_LEFT_PANEL_COMPACT_ROW);
         changed = true;
         break;
+    case IFACE_PANE_FIELD_DICE_LOCK:
+    {
+        int value = get_sdl_dice_roll_lock_ms();
+        int next = value + ((delta < 0) ? -IFACE_DICE_ROLL_MS_STEP
+                                        : IFACE_DICE_ROLL_MS_STEP);
+        set_sdl_dice_roll_lock_ms(next);
+        changed = (get_sdl_dice_roll_lock_ms() != value);
+        break;
+    }
+    case IFACE_PANE_FIELD_DICE_OVERLAY:
+    {
+        int value = get_sdl_dice_roll_overlay_ms();
+        int next = value + ((delta < 0) ? -IFACE_DICE_ROLL_MS_STEP
+                                        : IFACE_DICE_ROLL_MS_STEP);
+        set_sdl_dice_roll_overlay_ms(next);
+        changed = (get_sdl_dice_roll_overlay_ms() != value);
+        break;
+    }
     default:
         break;
     }
@@ -3927,6 +4003,9 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         case IFACE_PANE_FIELD_LP_LAUNCH:
         case IFACE_PANE_FIELD_LP_COMPACT:
             sdl_request_redraw();
+            break;
+        case IFACE_PANE_FIELD_DICE_LOCK:
+        case IFACE_PANE_FIELD_DICE_OVERLAY:
             break;
         default:
             sdl_apply_config();

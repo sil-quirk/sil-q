@@ -264,6 +264,36 @@ void set_sdl_aux_view_font_size(int value)
         config.aux_view_font_size = value;
 }
 
+int get_sdl_dice_roll_lock_ms(void)
+{
+    return config.dice_roll_lock_ms;
+}
+
+void set_sdl_dice_roll_lock_ms(int value)
+{
+    if (value < 0)
+        value = 0;
+    if (value > SDL_DICE_ROLL_TIMING_MAX_MS)
+        value = SDL_DICE_ROLL_TIMING_MAX_MS;
+
+    config.dice_roll_lock_ms = value;
+}
+
+int get_sdl_dice_roll_overlay_ms(void)
+{
+    return config.dice_roll_overlay_ms;
+}
+
+void set_sdl_dice_roll_overlay_ms(int value)
+{
+    if (value < 0)
+        value = 0;
+    if (value > SDL_DICE_ROLL_TIMING_MAX_MS)
+        value = SDL_DICE_ROLL_TIMING_MAX_MS;
+
+    config.dice_roll_overlay_ms = value;
+}
+
 int get_sdl_margin(void)
 {
     return config.margin;

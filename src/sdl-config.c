@@ -1901,6 +1901,28 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded logPaneDisplayFilter: %d",
                 config->log_pane_display_filter);
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "diceRollLockMs");
+        if (cJSON_IsNumber(item)) {
+            config->dice_roll_lock_ms = item->valueint;
+            if (config->dice_roll_lock_ms < 0)
+                config->dice_roll_lock_ms = 0;
+            if (config->dice_roll_lock_ms > SDL_DICE_ROLL_TIMING_MAX_MS)
+                config->dice_roll_lock_ms = SDL_DICE_ROLL_TIMING_MAX_MS;
+            log_debug("Loaded diceRollLockMs: %d",
+                config->dice_roll_lock_ms);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "diceRollOverlayMs");
+        if (cJSON_IsNumber(item)) {
+            config->dice_roll_overlay_ms = item->valueint;
+            if (config->dice_roll_overlay_ms < 0)
+                config->dice_roll_overlay_ms = 0;
+            if (config->dice_roll_overlay_ms > SDL_DICE_ROLL_TIMING_MAX_MS)
+                config->dice_roll_overlay_ms = SDL_DICE_ROLL_TIMING_MAX_MS;
+            log_debug("Loaded diceRollOverlayMs: %d",
+                config->dice_roll_overlay_ms);
+        }
         
         // Window position and size for windowed mode
         item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
@@ -2821,6 +2843,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddStringToObject(sdl, "minTerminalMode", min_terminal_mode_to_string(config->min_terminal_mode));
     cJSON_AddNumberToObject(sdl, "logPaneDisplayFilter",
         config->log_pane_display_filter);
+    cJSON_AddNumberToObject(sdl, "diceRollLockMs", config->dice_roll_lock_ms);
+    cJSON_AddNumberToObject(sdl, "diceRollOverlayMs",
+        config->dice_roll_overlay_ms);
     
     // Save window position and size for windowed mode
     cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
@@ -3361,6 +3386,8 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->min_terminal_mode = SDL_MIN_TERMINAL_NORMAL;
 #endif
     config->log_pane_display_filter = LOG_HISTORY_FILTER_ALL;
+    config->dice_roll_lock_ms = SDL_DICE_ROLL_LOCK_DEFAULT_MS;
+    config->dice_roll_overlay_ms = SDL_DICE_ROLL_OVERLAY_DEFAULT_MS;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

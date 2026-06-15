@@ -3229,7 +3229,12 @@ int sdl_auto_pane_font_size(enum pane_type type)
     if (type == PANE_STATUS)
         return sdl_auto_font_size_from_main(1, 2);
     if (type == PANE_LEFT_PANEL || type == PANE_COMBAT || type == PANE_LOG)
+#if SIL_SDL_MOBILE_BUILD
+        /* Mobile: enlarge left-panel/combat/log fonts one notch (3/4 -> 4/5). */
+        return sdl_auto_font_size_from_main(4, 5);
+#else
         return sdl_auto_font_size_from_main(3, 4);
+#endif
 
     return sdl_auto_aux_view_font_size();
 }

@@ -736,6 +736,23 @@ bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
 void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
+    /* Diagnostic (temporary): how long a real input event sat in the queue
+     * before we handled it.  A large value means the game was busy (not idle
+     * in inkey) when the key/button was pressed -- i.e. a genuine stall, not
+     * think-time.  Remove with the [SLOWTURN] timers once the stall is found. */
+    if (ev->type == SDL_EVENT_KEY_DOWN
+        || ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN
+        || ev->type == SDL_EVENT_MOUSE_BUTTON_UP)
+    {
+        Uint64 _now_ns = SDL_GetTicksNS();
+        if (ev->common.timestamp && _now_ns > ev->common.timestamp) {
+            Uint64 _lag_ms = (_now_ns - ev->common.timestamp) / 1000000ULL;
+            if (_lag_ms >= 150)
+                log_warn("[INPUTLAG] %s waited %llu ms before handling",
+                    ev->type == SDL_EVENT_KEY_DOWN ? "key" : "mouse",
+                    (unsigned long long)_lag_ms);
+        }
+    }
     sdl_normalize_event_to_render_coords(ev);
     if (sdl_sound_try_handle_event(ev)) {
         return;
@@ -754,6 +771,27 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         Term_keypress(27); // ESC or define a quit signal
     } else if (sdl_quit_transition_consume_event(ev)) {
         return;
+    } else if (sdl_question_menu_blocks_input()) {
+        switch (ev->type)
+        {
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_TEXT_INPUT:
+        case SDL_EVENT_MOUSE_MOTION:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        case SDL_EVENT_MOUSE_WHEEL:
+        case SDL_EVENT_FINGER_DOWN:
+        case SDL_EVENT_FINGER_UP:
+        case SDL_EVENT_FINGER_MOTION:
+        case SDL_EVENT_FINGER_CANCELED:
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+            return;
+        default:
+            break;
+        }
     } else if (g_touch_pane_reset_confirm_active) {
         if (ev->type == SDL_EVENT_KEY_DOWN) {
             if (sdl_key_is_escape_or_back(ev->key.key)) {

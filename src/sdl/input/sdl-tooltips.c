@@ -84,7 +84,15 @@ bool sdl_mouse_path_take_step_command(int* command, int* dir)
         return false;
     }
 
-    if (!sdl_mouse_path_compute(target_y, target_x)) {
+    Uint64 _tsc0 = SDL_GetTicksNS();
+    bool _tsc_ok = sdl_mouse_path_compute(target_y, target_x);
+    {
+        Uint64 _tsc_ms = (SDL_GetTicksNS() - _tsc0) / 1000000ULL;
+        if (_tsc_ms >= 150)
+            log_warn("[INPUTLAG] take_step compute %llu ms (path_len=%d)",
+                (unsigned long long)_tsc_ms, g_mouse_path.path_len);
+    }
+    if (!_tsc_ok) {
         sdl_mouse_path_cancel();
         bell("Mouse path blocked.");
         return false;
@@ -598,7 +606,12 @@ void sdl_hover_tooltip_clear(void)
 
 int sdl_object_tooltip_font_px(void)
 {
+#if SIL_SDL_MOBILE_BUILD
+    /* Mobile: enlarge tooltip/character-wheel-description font (3/4 -> 4/5). */
+    int font_size = sdl_auto_font_size_from_main(4, 5);
+#else
     int font_size = sdl_auto_font_size_from_main(3, 4);
+#endif
     int font_px = sdl_aux_cell_height_for_font_size(font_size);
 
     return (font_px > 0) ? font_px : SDL_OBJECT_TOOLTIP_FONT_SIZE;

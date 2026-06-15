@@ -1013,11 +1013,11 @@ void show_inven_enhanced(void)
             }
         }
 
-        if (sdl_touch_only_device_active()
-            && ui_scroll_area_take_touch_scrolled())
+        if (sdl_touch_only_device_active())
         {
             int max_scroll_top = MAX(0, k - visible_rows);
 
+            (void)ui_scroll_area_take_touch_scrolled();
             if (scroll_top > max_scroll_top)
                 scroll_top = max_scroll_top;
             if (scroll_top < 0)

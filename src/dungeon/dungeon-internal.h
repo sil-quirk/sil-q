@@ -17,6 +17,22 @@
 #include <string.h>
 #include <time.h>
 
+/*
+ * Temporary diagnostic (remove once the intermittent per-turn stall is found):
+ * time a phase and emit a WARN only when it blocks longer than SLOW_PHASE_MS,
+ * so the offending phase + its duration land in log.txt without spamming.
+ */
+#define SLOW_PHASE_MS 150
+#define TIME_PHASE(label, stmt) \
+    do { \
+        Uint64 _spt0 = SDL_GetTicks(); \
+        stmt; \
+        Uint64 _spdt = SDL_GetTicks() - _spt0; \
+        if (_spdt >= (Uint64)SLOW_PHASE_MS) \
+            log_warn("[SLOWTURN] %-22s %5llu ms (depth=%d)", (label), \
+                (unsigned long long)_spdt, p_ptr->depth); \
+    } while (0)
+
 extern int last_player_y;
 extern int last_player_x;
 extern bool was_in_morgoth_vault;

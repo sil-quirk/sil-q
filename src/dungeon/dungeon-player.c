@@ -709,7 +709,7 @@ void process_player(void)
                 p_ptr->restoring = false;
 
                 /* Get a command (normal) */
-                request_command();
+                TIME_PHASE("request_command", request_command());
                 if (p_ptr->leaving)
                 {
                     log_debug("process_player: leaving set while waiting for command; command=%d playing=%d",
@@ -718,7 +718,7 @@ void process_player(void)
                 }
 
                 /* Process the command */
-                process_command();
+                TIME_PHASE("process_command", process_command());
             }
 
             // check the item under the player
