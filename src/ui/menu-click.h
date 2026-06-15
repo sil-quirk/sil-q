@@ -23,6 +23,8 @@ void ui_menu_click_add_text_span(int choice, int col, int row, cptr text,
     int start_offset, int end_offset);
 void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
     cptr token);
+int ui_menu_click_put_button(int choice, int row, int col, byte attr,
+    cptr label);
 bool ui_menu_click_has_cell(int col, int row);
 bool ui_menu_click_handle_hover_cell(int col, int row, bool* wake);
 bool ui_menu_click_clear_hover(bool* wake);

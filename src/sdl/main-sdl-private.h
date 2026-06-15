@@ -910,7 +910,7 @@ typedef struct sdl_song_menu_state {
 } sdl_song_menu_state;
 
 enum {
-    SDL_QUESTION_MENU_MAX_ENTRIES = 26,
+    SDL_QUESTION_MENU_MAX_ENTRIES = 96,
     SDL_QUESTION_MENU_LETTER_LEN = 4,
     SDL_QUESTION_MENU_TEXT_LEN = 96,
     SDL_QUESTION_MENU_TITLE_LEN = 80,
@@ -1386,6 +1386,7 @@ extern int g_default_touch_corner_up_down_side;
 extern int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
 extern int g_default_touch_top_panel_mode;
 extern bool g_default_touch_top_panel_default_open;
+extern int g_default_touch_top_panel_button_count;
 extern int g_default_touch_top_panel_tile_scale;
 extern int g_default_touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
 extern int g_default_touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
@@ -2600,9 +2601,9 @@ bool sdl_touch_zone_flush_pending_press(Uint64 now_ns);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
 int sdl_touch_top_panel_mode_normalized(int mode);
+int sdl_touch_top_panel_button_count_normalized(int count);
 int sdl_touch_top_panel_tile_scale_normalized(int scale);
 bool sdl_touch_top_panel_long_mode(void);
-int sdl_touch_top_panel_first_visible_slot(void);
 int sdl_touch_top_panel_visible_button_count(void);
 bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     SDL_Rect* out_anchor, enum pane_placement* out_where);
@@ -2611,6 +2612,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_compute_layout_for_screen( const SDL_Rect* screen, SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot);
+bool sdl_touch_top_panel_pointer_claims_point(float x, float y);
 int sdl_touch_top_panel_binding_for_slot(int slot, bool long_press);
 void sdl_touch_top_panel_label_for_slot(int slot, bool long_press, char* buf, size_t buflen);
 void sdl_touch_top_panel_render_buttons( const SDL_FRect* button_rects);
@@ -3077,6 +3079,9 @@ int get_sdl_touch_top_panel_default_mode(void);
 bool get_sdl_touch_top_panel_default_open(void);
 void set_sdl_touch_top_panel_default_open(bool value);
 bool get_sdl_touch_top_panel_default_open_default(void);
+int get_sdl_touch_top_panel_button_count(void);
+void set_sdl_touch_top_panel_button_count(int count);
+int get_sdl_touch_top_panel_default_button_count(void);
 int get_sdl_touch_top_panel_tile_scale(void);
 void set_sdl_touch_top_panel_tile_scale(int scale);
 int get_sdl_touch_top_panel_default_tile_scale(void);
@@ -3328,6 +3333,7 @@ bool sdl_question_menu_handle_pointer(float x, float y, int action);
 bool sdl_question_menu_handle_hover_pointer(float x, float y);
 void sdl_question_menu_set_blocking_input(bool blocking);
 bool sdl_question_menu_blocks_input(void);
+bool sdl_question_menu_captures_pointer(void);
 void sdl_question_menu_set_nonblocking(bool nonblocking);
 void sdl_question_menu_set_timeout_ms(int ms);
 int sdl_question_menu_pending_timeout_ms(Uint64 now_ns);
@@ -3633,6 +3639,7 @@ void sdl_touch_hidden_indicator_render(void);
 bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y, bool touch);
 bool sdl_touch_top_panel_layout_visible(void);
 void sdl_touch_top_panel_set_open(bool open);
+int sdl_touch_top_panel_button_count_normalized(int count);
 int sdl_touch_top_panel_tile_scale_normalized(int scale);
 bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     SDL_Rect* out_anchor, enum pane_placement* out_where);
@@ -3646,6 +3653,7 @@ bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
 void sdl_touch_top_panel_render_buttons(
     const SDL_FRect* button_rects);
 bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot);
+bool sdl_touch_top_panel_pointer_claims_point(float x, float y);
 void sdl_touch_top_panel_render(void);
 bool sdl_touch_top_panel_handle_pointer_down(float x, float y,
     SDL_FingerID finger_id);

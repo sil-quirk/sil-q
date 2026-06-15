@@ -2049,6 +2049,27 @@ static void hint_message_detail_register_prompt(const char* prompt,
         prompt, "'m'");
 }
 
+/*
+ * Touch-only command buttons for the hint detail screen.  Replaces the
+ * keyboard-key prompt with tap targets: Look / Map (when the hint points at a
+ * map location) plus Back.  Any non-Look/Map click in the detail loop closes
+ * the screen, so the Back button needs no special handling.
+ */
+static void hint_message_detail_touch_buttons(int row, bool has_source)
+{
+    int col = 0;
+
+    if (has_source)
+    {
+        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_LOOK, row, col,
+            TERM_L_WHITE, "Look");
+        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_MAP, row, col,
+            TERM_L_WHITE, "Map");
+    }
+    (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK, row, col,
+        TERM_L_WHITE, "Back");
+}
+
 static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
@@ -2228,6 +2249,24 @@ static void hint_message_list_register_prompt(const char* prompt, int row,
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
             prompt, "m,");
     }
+}
+
+/*
+ * Touch-only command buttons for the hint list screen.  The Quests tab is
+ * already a tappable button at the top and reading a hint is done by tapping
+ * its row, so the footer only needs the tips toggle (when tutorial tips exist)
+ * and Back.  Per-hint Look/Map live on the detail screen.
+ */
+static void hint_message_list_touch_buttons(int row, bool show_all_tips,
+    int tip_n)
+{
+    int col = 0;
+
+    if (tip_n > 0)
+        col = ui_menu_click_put_button(HINT_MESSAGE_CLICK_TOGGLE_TIPS, row, col,
+            TERM_L_WHITE, show_all_tips ? "Level Hints" : "All Tips");
+    (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK, row, col,
+        TERM_L_WHITE, "Back");
 }
 
 typedef struct hint_message_display_line {
@@ -2948,6 +2987,11 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
             ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
         }
 
+        if (sdl_touch_only_device_active())
+        {
+            hint_message_detail_touch_buttons(hgt - 1, false);
+        }
+        else
         {
             const char* prompt = hint_message_detail_prompt(false, wid);
             prt(prompt, hgt - 1, 0);
@@ -3046,9 +3090,19 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
 
         {
             bool has_source = hint_message_has_source(&meta);
-            const char* prompt = hint_message_detail_prompt(has_source, wid);
-            prt(prompt, hgt - 1, 0);
-            hint_message_detail_register_prompt(prompt, hgt - 1, has_source);
+
+            if (sdl_touch_only_device_active())
+            {
+                hint_message_detail_touch_buttons(hgt - 1, has_source);
+            }
+            else
+            {
+                const char* prompt = hint_message_detail_prompt(has_source,
+                    wid);
+                prt(prompt, hgt - 1, 0);
+                hint_message_detail_register_prompt(prompt, hgt - 1,
+                    has_source);
+            }
         }
 
         Term_fresh();
@@ -3264,6 +3318,11 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         else
             prt(format("Hint Messages (%d)", level_n), 2, 0);
 
+        if (sdl_touch_only_device_active())
+        {
+            hint_message_list_touch_buttons(hgt - 1, show_all_tips, tip_n);
+        }
+        else
         {
             const char* prompt = hint_message_list_prompt(show_all_tips,
                 level_n, tip_n, wid);

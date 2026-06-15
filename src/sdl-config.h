@@ -49,6 +49,8 @@
 #define TOUCH_PANE_BIND_INHERIT -6
 #define TOUCH_BIND_TOP_PANEL_OPEN -7
 #define TOUCH_BIND_TOP_PANEL_CLOSE -8
+#define TOUCH_BIND_MAIN_MENU_KNOWLEDGE -9
+#define TOUCH_BIND_MAIN_MENU_HINTS_QUESTS -10
 
 #define SDL_TOUCH_PANE_BUTTON_COLS 3
 #define SDL_TOUCH_PANE_BUTTON_ROWS 8
@@ -83,9 +85,15 @@
 #define SDL_TOUCH_TOP_PANEL_MODE_COUNT 2
 #define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 6
+#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN 0
+#define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT
 #define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MIN 1
 #define SDL_TOUCH_TOP_PANEL_TILE_SCALE_MAX 8
+#if defined(__ANDROID__) || defined(SIL_IOS)
 #define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 3
+#else
+#define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 6
+#endif
 #define SDL_PANE_PROFILE_COUNT 2
 #define SDL_LEFT_PANEL_COMPACT_COLUMN 0
 #define SDL_LEFT_PANEL_COMPACT_ROW 1
@@ -213,6 +221,7 @@ struct sdl_config {
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
     int touch_top_panel_mode;
     bool touch_top_panel_default_open;
+    int touch_top_panel_button_count;
     int touch_top_panel_tile_scale;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];

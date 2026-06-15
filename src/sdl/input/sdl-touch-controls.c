@@ -33,6 +33,16 @@ void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press
         return;
     }
 
+    if (binding == TOUCH_BIND_MAIN_MENU_KNOWLEDGE) {
+        (void)do_cmd_main_menu_execute_choice(MAIN_MENU_KNOWLEDGE);
+        return;
+    }
+
+    if (binding == TOUCH_BIND_MAIN_MENU_HINTS_QUESTS) {
+        (void)do_cmd_main_menu_execute_choice(MAIN_MENU_HINTS_QUESTS);
+        return;
+    }
+
     if (binding == GAMEPAD_BIND_SHIFT) {
         g_touch_pane_second_panel = !g_touch_pane_second_panel;
         g_state.need_present = true;
@@ -2265,6 +2275,7 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
     float cx;
     float cy;
     float edge_pos;
+    bool panel_ready = false;
 
     if (out_hit)
         *out_hit = (SDL_FRect){ 0 };
@@ -2276,12 +2287,9 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
 
     if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))
         return false;
-    if (open
-        && !sdl_touch_top_panel_compute_layout_for_anchor(&screen, &anchor,
-            where, NULL, &panel))
-    {
-        return false;
-    }
+    if (open)
+        panel_ready = sdl_touch_top_panel_compute_layout_for_anchor(&screen,
+            &anchor, where, NULL, &panel);
 
     size = sdl_touch_top_panel_indicator_size_for_screen(&screen);
     if (size <= 0.0f)
@@ -2295,60 +2303,63 @@ static bool sdl_touch_top_panel_indicator_geometry(bool open,
     edge = sdl_touch_top_panel_indicator_edge_for_placement(where);
     switch (edge) {
     case TOUCH_TOP_PANEL_INDICATOR_TOP:
-        cx = open ? panel.x + panel.w * 0.5f
-                  : (float)anchor.x + (float)anchor.w * 0.5f;
-        edge_pos = open ? panel.y : (float)anchor.y;
-        cy = open ? edge_pos - depth * 0.5f : edge_pos + depth * 0.5f;
+        cx = panel_ready ? panel.x + panel.w * 0.5f
+                         : (float)anchor.x + (float)anchor.w * 0.5f;
+        edge_pos = panel_ready ? panel.y : (float)anchor.y;
+        cy = panel_ready ? edge_pos - depth * 0.5f : edge_pos + depth * 0.5f;
         if (points) {
             points[0] = (SDL_FPoint){ cx - half, edge_pos };
             points[1] = (SDL_FPoint){ cx + half, edge_pos };
             points[2] = (SDL_FPoint){ cx,
-                open ? edge_pos - depth : edge_pos + depth };
+                panel_ready ? edge_pos - depth : edge_pos + depth };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
 
     case TOUCH_TOP_PANEL_INDICATOR_RIGHT:
-        cy = open ? panel.y + panel.h * 0.5f
-                  : (float)anchor.y + (float)anchor.h * 0.5f;
-        edge_pos = open ? panel.x + panel.w
-                        : (float)(anchor.x + anchor.w - 1);
-        cx = open ? edge_pos + depth * 0.5f : edge_pos - depth * 0.5f;
+        cy = panel_ready ? panel.y + panel.h * 0.5f
+                         : (float)anchor.y + (float)anchor.h * 0.5f;
+        edge_pos = panel_ready ? panel.x + panel.w
+                               : (float)(anchor.x + anchor.w - 1);
+        cx = panel_ready ? edge_pos + depth * 0.5f
+                         : edge_pos - depth * 0.5f;
         if (points) {
             points[0] = (SDL_FPoint){ edge_pos, cy - half };
             points[1] = (SDL_FPoint){ edge_pos, cy + half };
             points[2] = (SDL_FPoint){
-                open ? edge_pos + depth : edge_pos - depth, cy };
+                panel_ready ? edge_pos + depth : edge_pos - depth, cy };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
 
     case TOUCH_TOP_PANEL_INDICATOR_LEFT:
-        cy = open ? panel.y + panel.h * 0.5f
-                  : (float)anchor.y + (float)anchor.h * 0.5f;
-        edge_pos = open ? panel.x : (float)anchor.x;
-        cx = open ? edge_pos - depth * 0.5f : edge_pos + depth * 0.5f;
+        cy = panel_ready ? panel.y + panel.h * 0.5f
+                         : (float)anchor.y + (float)anchor.h * 0.5f;
+        edge_pos = panel_ready ? panel.x : (float)anchor.x;
+        cx = panel_ready ? edge_pos - depth * 0.5f
+                         : edge_pos + depth * 0.5f;
         if (points) {
             points[0] = (SDL_FPoint){ edge_pos, cy - half };
             points[1] = (SDL_FPoint){ edge_pos, cy + half };
             points[2] = (SDL_FPoint){
-                open ? edge_pos - depth : edge_pos + depth, cy };
+                panel_ready ? edge_pos - depth : edge_pos + depth, cy };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
 
     case TOUCH_TOP_PANEL_INDICATOR_BOTTOM:
     default:
-        cx = open ? panel.x + panel.w * 0.5f
-                  : (float)anchor.x + (float)anchor.w * 0.5f;
-        edge_pos = open ? panel.y + panel.h
-                        : (float)(anchor.y + anchor.h - 1);
-        cy = open ? edge_pos + depth * 0.5f : edge_pos - depth * 0.5f;
+        cx = panel_ready ? panel.x + panel.w * 0.5f
+                         : (float)anchor.x + (float)anchor.w * 0.5f;
+        edge_pos = panel_ready ? panel.y + panel.h
+                               : (float)(anchor.y + anchor.h - 1);
+        cy = panel_ready ? edge_pos + depth * 0.5f
+                         : edge_pos - depth * 0.5f;
         if (points) {
             points[0] = (SDL_FPoint){ cx - half, edge_pos };
             points[1] = (SDL_FPoint){ cx + half, edge_pos };
             points[2] = (SDL_FPoint){ cx,
-                open ? edge_pos + depth : edge_pos - depth };
+                panel_ready ? edge_pos + depth : edge_pos - depth };
         }
         sdl_touch_top_panel_indicator_hit_rect(cx, cy, hit, out_hit);
         break;
@@ -2414,6 +2425,24 @@ bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y,
         && sdl_point_in_frect(&top_hit, x, y))
     {
         sdl_touch_top_panel_set_open(!g_touch_top_panel_open);
+        return true;
+    }
+
+    return false;
+}
+
+bool sdl_touch_top_panel_pointer_claims_point(float x, float y)
+{
+    SDL_FRect top_hit;
+
+    if (!sdl_touch_top_panel_layout_visible())
+        return false;
+    if (sdl_touch_top_panel_point_to_slot(x, y, NULL))
+        return true;
+    if (sdl_touch_top_panel_indicator_geometry(
+            g_touch_top_panel_open, &top_hit, NULL)
+        && sdl_point_in_frect(&top_hit, x, y))
+    {
         return true;
     }
 
@@ -2626,8 +2655,7 @@ bool sdl_touch_top_panel_layout_visible(void)
     return sdl_touch_top_panel_pane_enabled()
         && (g_direct_touch_present || config.mouse_enabled)
         && sdl_mouse_gameplay_context_active()
-        && !g_main_menu_overlay_active
-        && !active_narrative_banner_visible();
+        && !g_main_menu_overlay_active;
 }
 
 static void sdl_touch_top_panel_set_hover_slot(int slot)
@@ -2664,6 +2692,15 @@ int sdl_touch_top_panel_mode_normalized(int mode)
     return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
 }
 
+int sdl_touch_top_panel_button_count_normalized(int count)
+{
+    if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
+        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
+    if (count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    return count;
+}
+
 int sdl_touch_top_panel_tile_scale_normalized(int scale)
 {
     if (scale <= 0)
@@ -2677,20 +2714,59 @@ int sdl_touch_top_panel_tile_scale_normalized(int scale)
 
 bool sdl_touch_top_panel_long_mode(void)
 {
-    return sdl_touch_top_panel_mode_normalized(config.touch_top_panel_mode)
-        == SDL_TOUCH_TOP_PANEL_MODE_LONG;
+    return sdl_touch_top_panel_button_count_normalized(
+        config.touch_top_panel_button_count)
+        > SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT;
 }
 
-int sdl_touch_top_panel_first_visible_slot(void)
+static int sdl_touch_top_panel_configured_button_count(void)
 {
-    return sdl_touch_top_panel_long_mode() ? 0 : 1;
+    return sdl_touch_top_panel_button_count_normalized(
+        config.touch_top_panel_button_count);
+}
+
+static int sdl_touch_top_panel_slot_for_display_index(int index,
+    int configured_count)
+{
+    if (index < 0 || index >= configured_count)
+        return -1;
+    if (configured_count <= SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT)
+        return index + 1;
+    return index;
+}
+
+static bool sdl_touch_top_panel_slot_assigned(int slot)
+{
+    if (slot < 0 || slot >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return false;
+
+    return config.touch_top_panel_bindings[slot] != GAMEPAD_BIND_NONE
+        || config.touch_top_panel_long_bindings[slot] != GAMEPAD_BIND_NONE;
+}
+
+static int sdl_touch_top_panel_visible_slots(int* slots, int max_slots)
+{
+    int configured_count = sdl_touch_top_panel_configured_button_count();
+    int visible_count = 0;
+
+    for (int i = 0; i < configured_count; i++) {
+        int slot = sdl_touch_top_panel_slot_for_display_index(i,
+            configured_count);
+
+        if (!sdl_touch_top_panel_slot_assigned(slot))
+            continue;
+
+        if (slots && visible_count < max_slots)
+            slots[visible_count] = slot;
+        visible_count++;
+    }
+
+    return visible_count;
 }
 
 int sdl_touch_top_panel_visible_button_count(void)
 {
-    return sdl_touch_top_panel_long_mode()
-        ? SDL_TOUCH_TOP_PANEL_BUTTON_COUNT
-        : SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT;
+    return sdl_touch_top_panel_visible_slots(NULL, 0);
 }
 
 bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
@@ -2749,8 +2825,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     float panel_h;
     float button_size;
     SDL_FRect panel;
+    int visible_slots[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int active_count;
-    int first_slot;
     int columns;
     int rows;
 
@@ -2761,8 +2837,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     }
 
     screen_w = (float)screen->w;
-    active_count = sdl_touch_top_panel_visible_button_count();
-    first_slot = sdl_touch_top_panel_first_visible_slot();
+    active_count = sdl_touch_top_panel_visible_slots(visible_slots,
+        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
     if (active_count <= 0)
         return false;
 
@@ -2841,7 +2917,7 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
             button_rects[i] = (SDL_FRect){ 0 };
 
         for (int i = 0; i < active_count; i++) {
-            int slot = first_slot + i;
+            int slot = visible_slots[i];
             int row = i / columns;
             int col = i % columns;
             float row_x = panel.x;
@@ -2879,8 +2955,9 @@ bool sdl_touch_top_panel_compute_layout_for_screen(
 bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot)
 {
     SDL_FRect button_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
-    int first_slot = sdl_touch_top_panel_first_visible_slot();
-    int active_count = sdl_touch_top_panel_visible_button_count();
+    int visible_slots[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int active_count = sdl_touch_top_panel_visible_slots(visible_slots,
+        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
 
     if (out_slot)
         *out_slot = -1;
@@ -2888,7 +2965,7 @@ bool sdl_touch_top_panel_point_to_slot(float x, float y, int* out_slot)
         return false;
 
     for (int i = 0; i < active_count; i++) {
-        int slot = first_slot + i;
+        int slot = visible_slots[i];
         const SDL_FRect* rect = &button_rects[slot];
 
         if (x >= rect->x && x < rect->x + rect->w
@@ -2912,6 +2989,16 @@ int sdl_touch_top_panel_binding_for_slot(int slot, bool long_press)
                       : config.touch_top_panel_bindings[slot];
 }
 
+static int sdl_touch_top_panel_display_binding_for_slot(int slot)
+{
+    int binding = sdl_touch_top_panel_binding_for_slot(slot, false);
+
+    if (binding != GAMEPAD_BIND_NONE)
+        return binding;
+
+    return sdl_touch_top_panel_binding_for_slot(slot, true);
+}
+
 void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
     char* buf, size_t buflen)
 {
@@ -2927,6 +3014,15 @@ void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
     binding = sdl_touch_top_panel_binding_for_slot(slot, long_press);
     if (binding == GAMEPAD_BIND_NONE) {
         SDL_strlcpy(buf, "Off", buflen);
+        return;
+    }
+
+    if (binding == TOUCH_BIND_MAIN_MENU_KNOWLEDGE) {
+        SDL_strlcpy(buf, "Known Lore", buflen);
+        return;
+    }
+    if (binding == TOUCH_BIND_MAIN_MENU_HINTS_QUESTS) {
+        SDL_strlcpy(buf, "Hints", buflen);
         return;
     }
 
@@ -3053,7 +3149,11 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     case 'l':
     case 'M':
     case 'L':
+    case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
         row = 12; col = 30; fallback = "V";    /* seen/view icon */
+        break;
+    case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
+        row = 12; col = 30; fallback = "?";
         break;
     case '\t':
         row = 11; col = 27; fallback = "Ab";   /* amulet/ability */
@@ -3076,6 +3176,7 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     case 'i':
     case 'e':
     case 'h':
+    case '@':
         row = 1; col = 0; fallback = "I";
         break;
     case 's':
@@ -3263,6 +3364,13 @@ static void sdl_touch_top_panel_description_for_binding(int binding,
     case TOUCH_BIND_TOP_PANEL_CLOSE:
         SDL_strlcpy(buf, "Overlay menu: close the shortcut menu.", buflen);
         return;
+    case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
+        SDL_strlcpy(buf, "Known Lore: open the lore browser.", buflen);
+        return;
+    case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
+        SDL_strlcpy(buf, "Hints & Quests: open saved hints and quest notes.",
+            buflen);
+        return;
     case 'j':
         SDL_strlcpy(buf, "Supply: open supplies and carried resources.",
             buflen);
@@ -3310,6 +3418,15 @@ static void sdl_touch_top_panel_description_for_slot(int slot, char* buf,
     hold_binding = sdl_touch_top_panel_binding_for_slot(slot, true);
     sdl_touch_top_panel_description_for_binding(tap_binding, tap_desc,
         sizeof(tap_desc));
+
+    if (tap_binding == GAMEPAD_BIND_NONE
+        && hold_binding != GAMEPAD_BIND_NONE)
+    {
+        sdl_touch_top_panel_description_for_binding(hold_binding, hold_desc,
+            sizeof(hold_desc));
+        strnfmt(buf, buflen, "Hold: %s", hold_desc);
+        return;
+    }
 
     if (hold_binding != GAMEPAD_BIND_NONE && hold_binding != tap_binding) {
         sdl_touch_top_panel_description_for_binding(hold_binding, hold_desc,
@@ -3429,8 +3546,9 @@ void sdl_touch_top_panel_render_buttons(
     SDL_Color frame = g_state.palette[TERM_WHITE];
     SDL_Color muted = g_state.palette[TERM_SLATE];
     SDL_Color selected = g_state.palette[TERM_YELLOW];
-    int first_slot = sdl_touch_top_panel_first_visible_slot();
-    int active_count = sdl_touch_top_panel_visible_button_count();
+    int visible_slots[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    int active_count = sdl_touch_top_panel_visible_slots(visible_slots,
+        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
     int tooltip_slot = -1;
     const SDL_FRect* tooltip_rect = NULL;
 
@@ -3438,11 +3556,11 @@ void sdl_touch_top_panel_render_buttons(
         return;
 
     for (int i = 0; i < active_count; i++) {
-        int slot = first_slot + i;
+        int slot = visible_slots[i];
         SDL_Color icon_color;
         SDL_Color border_color;
         SDL_FRect shadow = button_rects[slot];
-        int binding = sdl_touch_top_panel_binding_for_slot(slot, false);
+        int binding = sdl_touch_top_panel_display_binding_for_slot(slot);
         bool toggled = sdl_pointer_attack_binding_toggled(binding);
         bool hovered = slot == g_touch_top_panel_hover_slot;
         bool pressed = slot == g_touch_top_panel_pressed_slot;

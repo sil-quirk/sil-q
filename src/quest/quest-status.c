@@ -261,12 +261,18 @@ static int quest_wrapped_rows(int col, cptr text, int max_width)
 
 enum {
     HINT_QUEST_CLICK_HINTS_TAB = -20101,
-    HINT_QUEST_CLICK_QUESTS_TAB = -20102
+    HINT_QUEST_CLICK_QUESTS_TAB = -20102,
+    HINT_QUEST_CLICK_RETURN = -20103,
+    HINT_QUEST_CLICK_CONTINUE = -20104
 };
 
 static bool quest_status_tabs_active = false;
 static int quest_status_hover_tab = 0;
 static bool quest_status_tabs_focus = false;
+/* On touch-only devices the screen shows tappable command buttons instead of
+ * keyboard-key prompts, which also requires the click machinery to be live
+ * even in the non-tabbed entry point. */
+static bool quest_status_touch_active = false;
 
 static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
     bool hovered, int click_choice)
@@ -376,7 +382,7 @@ static void quest_status_draw_header(int col)
 static void quest_status_reset_page(int col, int *row)
 {
     Term_clear();
-    if (quest_status_tabs_active)
+    if (quest_status_tabs_active || quest_status_touch_active)
     {
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
@@ -391,12 +397,35 @@ static void quest_status_wait_for_next_page(int col, int hgt, int *row)
     char prompt_buf[48];
 
     Term_erase(0, prompt_row, 255);
-    any_key_prompt_text(prompt_buf, sizeof(prompt_buf), "continue");
-    Term_putstr(col, prompt_row, -1, TERM_L_WHITE, prompt_buf);
+    if (quest_status_touch_active)
+    {
+        (void)ui_menu_click_put_button(HINT_QUEST_CLICK_CONTINUE, prompt_row,
+            col, TERM_L_WHITE, "Continue");
+    }
+    else
+    {
+        any_key_prompt_text(prompt_buf, sizeof(prompt_buf), "continue");
+        Term_putstr(col, prompt_row, -1, TERM_L_WHITE, prompt_buf);
+    }
     Term_fresh();
     while (true)
     {
         char ch = inkey();
+
+        if (quest_status_touch_active && !quest_status_tabs_active)
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                break;
+            }
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
 
         if (quest_status_tabs_active)
         {
@@ -721,6 +750,7 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
     quest_status_tabs_active = tabbed;
     quest_status_hover_tab = 0;
     quest_status_tabs_focus = tabbed;
+    quest_status_touch_active = sdl_touch_only_device_active();
 
     /* Get terminal size for wrapping */
     Term_get_size(&wid, &hgt);
@@ -1198,7 +1228,15 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
 
     quest_status_put_line(col, hgt, &row, TERM_WHITE, "");
     quest_status_ensure_rows(col, hgt, &row, 1);
-    if (tabbed)
+    if (quest_status_touch_active)
+    {
+        /* Touch-only: tap buttons instead of keyboard keys.  The Hints tab is
+         * already a tappable button at the top of the screen, so the footer
+         * only needs the Back command. */
+        (void)ui_menu_click_put_button(HINT_QUEST_CLICK_RETURN, row, col,
+            TERM_L_WHITE, "Back");
+    }
+    else if (tabbed)
     {
         Term_putstr(col, row, -1, TERM_L_WHITE,
             "e/i or Left/Right Hints  Esc/any key return.");
@@ -1218,8 +1256,15 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
         int clicked_choice = 0;
         int click_action = UI_MENU_CLICK_PRIMARY;
 
-        if (tabbed && ui_menu_click_take_action(&clicked_choice, &click_action))
+        if ((tabbed || quest_status_touch_active)
+            && ui_menu_click_take_action(&clicked_choice, &click_action))
         {
+            if (clicked_choice == HINT_QUEST_CLICK_RETURN)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                break;
+            }
             if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
@@ -1250,7 +1295,8 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
             }
             break;
         }
-        if (tabbed && ch == UI_MENU_CLICK_WAKE_KEY)
+        if ((tabbed || quest_status_touch_active)
+            && ch == UI_MENU_CLICK_WAKE_KEY)
             continue;
         if (tabbed && hint_quest_tab_key(ch))
         {
@@ -1267,11 +1313,12 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
         break;
     }
 
-    if (tabbed)
+    if (tabbed || quest_status_touch_active)
         ui_menu_click_clear();
     quest_status_tabs_active = false;
     quest_status_hover_tab = 0;
     quest_status_tabs_focus = false;
+    quest_status_touch_active = false;
     if (manage_screen)
     {
         screen_pop_supporting_panes_hidden();

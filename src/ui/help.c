@@ -92,6 +92,12 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case TOUCH_BIND_TOP_PANEL_CLOSE:
         SDL_strlcpy(buf, "Close quick access", buflen);
         return;
+    case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
+        SDL_strlcpy(buf, "Known lore", buflen);
+        return;
+    case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
+        SDL_strlcpy(buf, "Hints & Quests", buflen);
+        return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift modifier", buflen);
         return;
@@ -307,6 +313,12 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case TOUCH_BIND_TOP_PANEL_CLOSE:
         SDL_strlcpy(buf, "Top Close", buflen);
+        return;
+    case TOUCH_BIND_MAIN_MENU_KNOWLEDGE:
+        SDL_strlcpy(buf, "Lore", buflen);
+        return;
+    case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
+        SDL_strlcpy(buf, "Hints", buflen);
         return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift", buflen);

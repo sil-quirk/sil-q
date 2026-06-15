@@ -38,8 +38,9 @@ static void ui_question_show(cptr title, cptr desc,
     sdl_question_menu_finish();
 }
 
-int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
-    int count, int anchor_y, int anchor_x, int default_index)
+static int ui_question_ask_aux(cptr title, cptr desc,
+    const ui_question_option* options, int count, int anchor_y, int anchor_x,
+    int default_index, bool repaint_background)
 {
     int highlight;
     int result = -1;
@@ -55,13 +56,16 @@ int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
         ? default_index
         : 0;
 
-    /* Flush pending -more- prompts before taking over input */
-    message_flush();
+    if (repaint_background)
+    {
+        /* Flush pending -more- prompts before taking over input */
+        message_flush();
 
-    /* request_command may have erased the top line; repaint the map so the
-     * overlay sits over a clean view while we block for input. */
-    p_ptr->redraw |= (PR_MAP);
-    handle_stuff();
+        /* request_command may have erased the top line; repaint the map so the
+         * overlay sits over a clean view while we block for input. */
+        p_ptr->redraw |= (PR_MAP);
+        handle_stuff();
+    }
     Term_fresh();
 
     /* The overlay panel owns the selection; never show the term cursor */
@@ -166,4 +170,19 @@ int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
     Term_fresh();
 
     return result;
+}
+
+int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
+    int count, int anchor_y, int anchor_x, int default_index)
+{
+    return ui_question_ask_aux(title, desc, options, count, anchor_y, anchor_x,
+        default_index, true);
+}
+
+int ui_question_ask_overlay(cptr title, cptr desc,
+    const ui_question_option* options, int count, int anchor_y, int anchor_x,
+    int default_index)
+{
+    return ui_question_ask_aux(title, desc, options, count, anchor_y, anchor_x,
+        default_index, false);
 }

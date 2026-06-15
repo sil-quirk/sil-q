@@ -986,6 +986,8 @@ void sdl_touch_pane_load_default_bindings(void)
     g_default_touch_top_panel_mode = defaults.touch_top_panel_mode;
     g_default_touch_top_panel_default_open =
         defaults.touch_top_panel_default_open;
+    g_default_touch_top_panel_button_count =
+        defaults.touch_top_panel_button_count;
     g_default_touch_top_panel_tile_scale =
         defaults.touch_top_panel_tile_scale;
     memcpy(g_default_touch_top_panel_bindings,
@@ -1630,6 +1632,7 @@ void sdl_touch_apply_profile(int profile)
     bool pane_default_open = true;
     bool top_panel_default_open = false;
     int top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    int top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
     int movement_mode = SDL_TOUCH_MOVEMENT_ON;
     bool round_enabled = false;
     int zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
@@ -1647,6 +1650,7 @@ void sdl_touch_apply_profile(int profile)
         pane_default_open = false;
         top_panel_default_open = true;
         top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
+        top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
         movement_mode = SDL_TOUCH_MOVEMENT_ON;
         round_enabled = true;
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
@@ -1664,6 +1668,8 @@ void sdl_touch_apply_profile(int profile)
         config.touch_menu_command_enabled[i] = true;
     config.touch_pane_default_open = pane_default_open;
     config.touch_top_panel_mode = top_panel_mode;
+    config.touch_top_panel_button_count =
+        sdl_touch_top_panel_button_count_normalized(top_panel_button_count);
     config.touch_top_panel_default_open = top_panel_default_open;
     config.touch_movement_mode = sdl_touch_movement_normalized_mode(movement_mode);
     config.touch_round_movement_enabled = round_enabled;
@@ -1836,6 +1842,10 @@ void set_sdl_touch_top_panel_mode(int mode)
         return;
 
     config.touch_top_panel_mode = mode;
+    config.touch_top_panel_button_count =
+        (mode == SDL_TOUCH_TOP_PANEL_MODE_LONG)
+            ? SDL_TOUCH_TOP_PANEL_BUTTON_COUNT
+            : SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
     sdl_touch_top_panel_cancel_press();
     g_state.need_present = true;
 }
@@ -1862,6 +1872,34 @@ bool get_sdl_touch_top_panel_default_open_default(void)
 {
     sdl_touch_pane_load_default_bindings();
     return g_default_touch_top_panel_default_open;
+}
+
+int get_sdl_touch_top_panel_button_count(void)
+{
+    return sdl_touch_top_panel_button_count_normalized(
+        config.touch_top_panel_button_count);
+}
+
+void set_sdl_touch_top_panel_button_count(int count)
+{
+    count = sdl_touch_top_panel_button_count_normalized(count);
+    if (config.touch_top_panel_button_count == count)
+        return;
+
+    config.touch_top_panel_button_count = count;
+    config.touch_top_panel_mode =
+        (count > SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT)
+            ? SDL_TOUCH_TOP_PANEL_MODE_LONG
+            : SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    sdl_touch_top_panel_cancel_press();
+    g_state.need_present = true;
+}
+
+int get_sdl_touch_top_panel_default_button_count(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return sdl_touch_top_panel_button_count_normalized(
+        g_default_touch_top_panel_button_count);
 }
 
 int get_sdl_touch_top_panel_tile_scale(void)

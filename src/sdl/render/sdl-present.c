@@ -1152,6 +1152,11 @@ bool sdl_render_current_window_frame(void)
     if (sdl_character_sheet_screen_active()) {
         sdl_character_sheet_screen_render();
         sdl_touch_pane_render_yes_no_prompt();
+        /* In-menu value pickers (ui_question_ask_overlay) draw on top of the
+         * settings/character-sheet screen without repainting it, so render the
+         * question overlay here too; otherwise the early return below skips it
+         * and the picker is hidden behind the menu it was opened from. */
+        sdl_question_menu_render();
         return true;
     }
 

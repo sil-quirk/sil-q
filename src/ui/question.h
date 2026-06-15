@@ -28,4 +28,13 @@ typedef struct ui_question_option {
 int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
     int count, int anchor_y, int anchor_x, int default_index);
 
+/*
+ * Same modal overlay, but preserves whatever screen/menu is already painted
+ * behind it.  Use this for in-menu value pickers; ui_question_ask() still
+ * repaints the map first for dungeon-local questions.
+ */
+int ui_question_ask_overlay(cptr title, cptr desc,
+    const ui_question_option* options, int count, int anchor_y, int anchor_x,
+    int default_index);
+
 #endif /* INCLUDED_UI_QUESTION_H */

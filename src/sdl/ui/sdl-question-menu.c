@@ -21,6 +21,8 @@ typedef struct sdl_question_menu_layout_info {
     float letter_w;
     float letter_gap;
     int font_px;
+    int first_entry;
+    int visible_count;
     bool has_title;
     bool has_desc;
     bool has_divider;
@@ -339,11 +341,45 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
         out->has_desc = false;
     }
 
+    {
+        float rows_bottom = out->panel.y + out->panel.h - pad_y;
+        float rows_h = rows_bottom - rows_top;
+        int visible_count = (int)(rows_h / row_h);
+        int highlight_index = 0;
+        int first_entry = 0;
+
+        if (visible_count < 1)
+            visible_count = 1;
+        if (visible_count > g_question_menu.count)
+            visible_count = g_question_menu.count;
+
+        for (int i = 0; i < g_question_menu.count; i++)
+        {
+            if (g_question_menu.entries[i].choice == g_question_menu.highlight)
+            {
+                highlight_index = i;
+                break;
+            }
+        }
+
+        if (g_question_menu.count > visible_count)
+        {
+            first_entry = highlight_index - visible_count / 2;
+            if (first_entry < 0)
+                first_entry = 0;
+            if (first_entry + visible_count > g_question_menu.count)
+                first_entry = g_question_menu.count - visible_count;
+        }
+
+        out->first_entry = first_entry;
+        out->visible_count = visible_count;
+    }
+
     for (int i = 0; i < g_question_menu.count; i++)
     {
         out->rows[i] = (SDL_FRect){
             .x = out->panel.x + pad_x,
-            .y = rows_top + (float)i * row_h,
+            .y = rows_top + (float)(i - out->first_entry) * row_h,
             .w = out->panel.w - pad_x * 2.0f,
             .h = row_h,
         };
@@ -453,6 +489,19 @@ void sdl_question_menu_set_blocking_input(bool blocking)
 bool sdl_question_menu_blocks_input(void)
 {
     return g_question_menu.active && g_question_menu.blocking_input;
+}
+
+/*
+ * True only for an interactive overlay such as the in-menu value picker.  A
+ * blocking_input popup swallows every event (handled separately) and a
+ * nonblocking one deliberately lets input pass through, so neither should
+ * make the overlay capture pointer/touch input.
+ */
+bool sdl_question_menu_captures_pointer(void)
+{
+    return g_question_menu.active
+        && !g_question_menu.blocking_input
+        && !g_question_menu.nonblocking;
 }
 
 void sdl_question_menu_set_nonblocking(bool nonblocking)
@@ -600,7 +649,10 @@ void sdl_question_menu_render(void)
         }
     }
 
-    for (int i = 0; i < g_question_menu.count; i++)
+    for (int i = layout.first_entry;
+         i < g_question_menu.count
+             && i < layout.first_entry + layout.visible_count;
+         i++)
     {
         const sdl_question_menu_entry_state* entry
             = &g_question_menu.entries[i];
@@ -658,7 +710,10 @@ static bool sdl_question_menu_choice_at(float x, float y, int* out_choice,
     if (out_in_panel)
         *out_in_panel = true;
 
-    for (int i = 0; i < g_question_menu.count; i++)
+    for (int i = layout.first_entry;
+         i < g_question_menu.count
+             && i < layout.first_entry + layout.visible_count;
+         i++)
     {
         if (g_question_menu.entries[i].choice < 0)
             continue;

@@ -1531,7 +1531,12 @@ bool sdl_char_sheet_choice_focused(int choice)
         return true;
     if (sdl_char_sheet_menu_command_choice(choice))
         return false;
-    if (ui_menu_click_get_hover_choice(&hover_choice)
+    /* While an interactive value picker (question overlay) is open over the
+     * sheet it owns the shared menu-click hover; ignore that hover here, or the
+     * row whose index matches the picker's cursor lights up on the sheet too
+     * and the selection appears to move in two places at once. */
+    if (!sdl_question_menu_captures_pointer()
+        && ui_menu_click_get_hover_choice(&hover_choice)
         && hover_choice == choice)
     {
         return true;
@@ -1590,7 +1595,10 @@ bool sdl_char_sheet_prompt_focused(int choice)
     {
         return false;
     }
-    if (ui_menu_click_get_hover_choice(&hover_choice)
+    /* See sdl_char_sheet_choice_focused: don't borrow the picker's shared
+     * hover while a value picker is modal over the sheet. */
+    if (!sdl_question_menu_captures_pointer()
+        && ui_menu_click_get_hover_choice(&hover_choice)
         && hover_choice == choice)
     {
         return true;
@@ -2838,6 +2846,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         { "Confirm", -2 },
         { "Hero", -3 },
     };
+    /* Touch-first labels for the live in-game character sheet (same tappable
+     * keycodes the keyboard handler uses, but rendered as tap buttons). */
+    static const sdl_char_sheet_prompt_item live_items_touch[] = {
+        { "Abilities", 'x' },
+        { "Increase", 'i' },
+        { "Help", '?' },
+        { "Back", ESCAPE },
+    };
 #endif
     static const sdl_char_sheet_prompt_item preview_items[] = {
         { "Continue to Stats", -2 },
@@ -2867,6 +2883,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     {
         items = live_items;
         item_count = (int)N_ELEMENTS(live_items);
+#if SIL_SDL_MOBILE_BUILD
+        if (sdl_touch_only_device_active())
+        {
+            items = live_items_touch;
+            item_count = (int)N_ELEMENTS(live_items_touch);
+            touch_buttons = true;
+        }
+#endif
     }
     else if (g_sdl_character_sheet_screen.context
         == SDL_CHARACTER_SHEET_BIRTH_PREVIEW)

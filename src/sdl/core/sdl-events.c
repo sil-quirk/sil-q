@@ -648,11 +648,41 @@ static bool sdl_event_is_narrative_banner_input(const SDL_Event* ev)
     }
 }
 
+static bool sdl_event_targets_touch_top_panel(const SDL_Event* ev)
+{
+    float x;
+    float y;
+
+    if (!ev)
+        return false;
+
+    if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+    {
+        if (ev->button.which == SDL_TOUCH_MOUSEID)
+            return false;
+        return sdl_touch_top_panel_pointer_claims_point(
+            (float)ev->button.x, (float)ev->button.y);
+    }
+
+    if (ev->type == SDL_EVENT_FINGER_DOWN)
+    {
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return false;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return false;
+        return sdl_touch_top_panel_pointer_claims_point(x, y);
+    }
+
+    return false;
+}
+
 static bool sdl_narrative_banner_consume_input_event(const SDL_Event* ev)
 {
     if (!active_narrative_banner_consumes_input())
         return false;
     if (!sdl_event_is_narrative_banner_input(ev))
+        return false;
+    if (sdl_event_targets_touch_top_panel(ev))
         return false;
 
     clear_active_narrative_banner();
@@ -673,6 +703,11 @@ static bool sdl_narrative_banner_handle_pointer_event(const SDL_Event* ev)
     {
         if (ev->button.which == SDL_TOUCH_MOUSEID)
             return false;
+        if (sdl_touch_top_panel_pointer_claims_point(
+                (float)ev->button.x, (float)ev->button.y))
+        {
+            return false;
+        }
         return sdl_narrative_banner_handle_pointer(
             (float)ev->button.x, (float)ev->button.y);
     }
@@ -682,6 +717,8 @@ static bool sdl_narrative_banner_handle_pointer_event(const SDL_Event* ev)
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return false;
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return false;
+        if (sdl_touch_top_panel_pointer_claims_point(x, y))
             return false;
         return sdl_narrative_banner_handle_pointer(x, y);
     }
@@ -801,6 +838,78 @@ bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
     }
 }
 
+/*
+ * While an interactive question overlay (the in-menu value picker) is up it is
+ * modal: it must own every pointer/touch event so input never leaks to the
+ * screen behind it (e.g. the settings menu it was opened from, whose own
+ * pointer handler would otherwise keep moving its selection).  In-panel motion
+ * and clicks drive the picker; a click/tap outside the panel cancels it, the
+ * same as the keyboard Escape path.  Returns true when the event was a
+ * pointer/touch event and was consumed; keyboard and gamepad events return
+ * false so they still reach inkey() through the normal handlers below.
+ */
+static bool sdl_question_overlay_consume_pointer(const SDL_Event* ev)
+{
+    float x;
+    float y;
+
+    switch (ev->type)
+    {
+    case SDL_EVENT_MOUSE_MOTION:
+        if (ev->motion.which != SDL_TOUCH_MOUSEID)
+            sdl_question_menu_handle_hover_pointer((float)ev->motion.x,
+                (float)ev->motion.y);
+        return true;
+
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (ev->button.which != SDL_TOUCH_MOUSEID)
+        {
+            int action = (ev->button.button == SDL_BUTTON_RIGHT)
+                ? UI_MENU_CLICK_SECONDARY
+                : UI_MENU_CLICK_PRIMARY;
+
+            if (!sdl_question_menu_handle_pointer((float)ev->button.x,
+                    (float)ev->button.y, action))
+            {
+                Term_keypress(ESCAPE);
+            }
+        }
+        return true;
+
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        return true;
+
+    case SDL_EVENT_FINGER_DOWN:
+        if (ev->tfinger.windowID == SDL_GetWindowID(g_state.window))
+        {
+            sdl_note_touch_event_device(ev->tfinger.touchID);
+            if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y)
+                && !sdl_question_menu_handle_pointer(x, y,
+                       UI_MENU_CLICK_PRIMARY))
+            {
+                Term_keypress(ESCAPE);
+            }
+        }
+        return true;
+
+    case SDL_EVENT_FINGER_MOTION:
+        if (ev->tfinger.windowID == SDL_GetWindowID(g_state.window)
+            && sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+        {
+            sdl_question_menu_handle_hover_pointer(x, y);
+        }
+        return true;
+
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
@@ -883,6 +992,9 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (sdl_narrative_banner_handle_pointer_event(ev)) {
         return;
     } else if (sdl_screen_back_gesture_handle_event(ev)) {
+        return;
+    } else if (sdl_question_menu_captures_pointer()
+        && sdl_question_overlay_consume_pointer(ev)) {
         return;
     } else if (sdl_character_sheet_screen_handle_pointer_event(ev)) {
         return;

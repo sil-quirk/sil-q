@@ -276,6 +276,25 @@ void ui_menu_click_add_text_token(int choice, int col, int row, cptr text,
     }
 }
 
+int ui_menu_click_put_button(int choice, int row, int col, byte attr,
+    cptr label)
+{
+    char buf[64];
+    int width;
+
+    if (!label)
+        label = "";
+
+    strnfmt(buf, sizeof(buf), "[ %s ]", label);
+    width = (int)strlen(buf);
+
+    Term_putstr(col, row, -1, attr, buf);
+    ui_menu_click_add(choice, col, row, width);
+
+    /* Advance past the button plus a one-cell gap. */
+    return col + width + 2;
+}
+
 static const ui_menu_click_entry* ui_menu_click_find_cell(int col, int row)
 {
     if (!ui_menu_click_active)

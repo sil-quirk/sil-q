@@ -497,6 +497,15 @@ static int normalize_touch_top_panel_mode(int mode)
     return SDL_TOUCH_TOP_PANEL_MODE_SHORT;
 }
 
+static int normalize_touch_top_panel_button_count(int count)
+{
+    if (count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
+        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
+    if (count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    return count;
+}
+
 static int parse_touch_top_panel_mode(const char* value)
 {
     if (!value)
@@ -2330,6 +2339,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         bool saw_touch_control_swipe_enabled = false;
         bool saw_touch_control_swipe_bindings = false;
         bool saw_touch_control_top_panel_mode = false;
+        bool saw_touch_control_top_panel_button_count = false;
         int top_panel_bindings_count = -1;
         int top_panel_long_bindings_count = -1;
         cJSON* touch_pane = cJSON_GetObjectItemCaseSensitive(root, "touchPane");
@@ -2498,6 +2508,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "topPanelMode");
                 cJSON* top_panel_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelDefaultOpen");
+                cJSON* top_panel_button_count = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelButtonCount");
                 cJSON* top_panel_tile_scale = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelTileScale");
                 cJSON* top_panel_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -2679,6 +2691,15 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         config->touch_top_panel_default_open ? "true" : "false");
                 }
 
+                if (cJSON_IsNumber(top_panel_button_count)) {
+                    saw_touch_control_top_panel_button_count = true;
+                    config->touch_top_panel_button_count =
+                        normalize_touch_top_panel_button_count(
+                            top_panel_button_count->valueint);
+                    log_debug("Loaded touchControl.topPanelButtonCount: %d",
+                        config->touch_top_panel_button_count);
+                }
+
                 if (cJSON_IsNumber(top_panel_tile_scale)) {
                     config->touch_top_panel_tile_scale =
                         normalize_touch_top_panel_tile_scale(
@@ -2732,6 +2753,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         if (!saw_touch_control_top_panel_mode) {
             config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
         }
+        if (!saw_touch_control_top_panel_button_count) {
+            config->touch_top_panel_button_count =
+                (config->touch_top_panel_mode == SDL_TOUCH_TOP_PANEL_MODE_LONG)
+                    ? SDL_TOUCH_TOP_PANEL_BUTTON_COUNT
+                    : SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
+        }
 
         if (!saw_touch_control_swipe_enabled && cJSON_IsBool(legacy_swipe_enabled)) {
             config->touch_swipe_enabled = cJSON_IsTrue(legacy_swipe_enabled);
@@ -2768,6 +2795,9 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             normalize_touch_top_panel_mode(config->touch_top_panel_mode);
         config->touch_top_panel_tile_scale =
             normalize_touch_top_panel_tile_scale(config->touch_top_panel_tile_scale);
+        config->touch_top_panel_button_count =
+            normalize_touch_top_panel_button_count(
+                config->touch_top_panel_button_count);
         config->touch_profile =
             normalize_touch_profile(config->touch_profile);
     }
@@ -3130,6 +3160,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 touch_top_panel_mode_to_string(config->touch_top_panel_mode));
             cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
                 config->touch_top_panel_default_open);
+            cJSON_AddNumberToObject(touch_control, "topPanelButtonCount",
+                config->touch_top_panel_button_count);
             cJSON_AddNumberToObject(touch_control, "topPanelTileScale",
                 config->touch_top_panel_tile_scale);
             if (top_panel_bindings) {
@@ -3344,6 +3376,8 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         sizeof(corner_action_defaults));
     config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
     config->touch_top_panel_default_open = false;
+    config->touch_top_panel_button_count =
+        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
     config->touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
     sdl_config_set_default_top_panel_bindings(config);
     config->touch_swipe_enabled = true;
