@@ -87,10 +87,10 @@ void binding_action_label(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Main panel button", buflen);
         return;
     case TOUCH_BIND_TOP_PANEL_OPEN:
-        SDL_strlcpy(buf, "Open top panel", buflen);
+        SDL_strlcpy(buf, "Open quick access", buflen);
         return;
     case TOUCH_BIND_TOP_PANEL_CLOSE:
-        SDL_strlcpy(buf, "Close top panel", buflen);
+        SDL_strlcpy(buf, "Close quick access", buflen);
         return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift modifier", buflen);

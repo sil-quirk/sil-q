@@ -471,6 +471,9 @@ bool sdl_main_menu_overlay_begin(void)
         return false;
 
     (void)dismiss_active_narrative_banner();
+    sdl_player_action_menu_cancel();
+    sdl_touch_round_cancel_press();
+    sdl_touch_top_panel_cancel_press();
     if (p_ptr && character_generated && character_icky == 0) {
         sdl_mark_tiles_mode_game_redraw();
         handle_stuff();

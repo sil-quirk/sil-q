@@ -1062,7 +1062,7 @@ const char* sdl_side_pane_menu_label(enum pane_type pane)
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
     case PANE_DESCRIPTION: return "Description";
-    case PANE_OVERLAY_MENU: return "Overlay Menu";
+    case PANE_OVERLAY_MENU: return "Quick Access";
     case PANE_COMBAT: return "Combat";
     default: return "Pane";
     }

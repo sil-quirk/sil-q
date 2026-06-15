@@ -1242,7 +1242,7 @@ static void sdl_config_migrate_touch_top_panel_defaults(
     }
 
     sdl_config_set_default_top_panel_bindings(config);
-    log_info("Migrated default overlay menu buttons to icon layout");
+    log_info("Migrated default quick access buttons to icon layout");
 }
 
 static void sdl_config_migrate_touch_top_panel_layout(
@@ -1280,7 +1280,7 @@ static void sdl_config_migrate_touch_top_panel_layout(
 
     if (old_default_taps && old_default_longs) {
         sdl_config_set_default_top_panel_bindings(config);
-        log_info("Migrated default overlay menu buttons to icon layout");
+        log_info("Migrated default quick access buttons to icon layout");
         return;
     }
 
@@ -1298,15 +1298,15 @@ static void sdl_config_migrate_touch_top_panel_layout(
         for (int i = 0; i < 4; i++)
             config->touch_top_panel_bindings[i + 1] = old_taps[i];
         if (long_count != 4)
-            log_info("Shifted four-button overlay menu tap bindings into short layout");
+            log_info("Shifted four-button quick access tap bindings into short layout");
     }
 
     if (long_count == 4) {
         for (int i = 0; i < 4; i++)
             config->touch_top_panel_long_bindings[i + 1] = old_longs[i];
         log_info((tap_count == 4)
-            ? "Shifted four-button overlay menu bindings into short layout"
-            : "Shifted four-button overlay menu long-tap bindings into short layout");
+            ? "Shifted four-button quick access bindings into short layout"
+            : "Shifted four-button quick access long-tap bindings into short layout");
     }
 }
 
@@ -2755,7 +2755,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 TOUCH_BIND_TOP_PANEL_CLOSE;
             config->touch_swipe_bindings[TOUCH_SWIPE_DIR_DOWN] =
                 TOUCH_BIND_TOP_PANEL_OPEN;
-            log_info("Migrated default touch swipe up/down bindings to top panel actions");
+            log_info("Migrated default touch swipe up/down bindings to quick access actions");
         }
 
         config->touch_movement_mode =

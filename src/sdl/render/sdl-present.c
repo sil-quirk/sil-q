@@ -1425,6 +1425,11 @@ void sdl_present_if_needed(sdl_view* d)
     if (!g_state.need_present)
         return;
 
+    /* Diagnostic (temporary): flag slow frames.  A frequently-slow frame here
+     * means the per-frame render (e.g. the left-panel pane rebuild) is the
+     * cost behind the "overlay moving"/sluggish feel. */
+    Uint64 _fr0 = SDL_GetTicksNS();
+
     if (!sdl_render_current_window_frame())
         return;
 
@@ -1432,6 +1437,13 @@ void sdl_present_if_needed(sdl_view* d)
     sdl_restore_render_target(d);
 
     g_state.need_present = false;
+
+    {
+        Uint64 _fr_ms = (SDL_GetTicksNS() - _fr0) / 1000000ULL;
+        if (_fr_ms >= 100)
+            log_warn("[SLOWPRESENT] frame render+present %llu ms",
+                (unsigned long long)_fr_ms);
+    }
 }
 
 

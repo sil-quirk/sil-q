@@ -2747,13 +2747,15 @@ void sdl_mouse_path_render(void)
     if (!g_mouse_path.follow_active && !g_mouse_path.hover_visible)
         return;
 
-    if (!g_mouse_path.path_valid
-        || g_mouse_path.source_y != p_ptr->py
-        || g_mouse_path.source_x != p_ptr->px)
-    {
-        if (!sdl_mouse_path_compute(g_mouse_path.target_y, g_mouse_path.target_x))
-            return;
-    }
+    /* Draw only the already-computed path.  This is the per-frame render path,
+     * so it must never run the (heavy, on large levels) search itself.  The old
+     * code recomputed here whenever the path was invalid or the player had
+     * moved -- which, for an unreachable/far hover target, re-ran the full A*
+     * every presented frame and was the in-battle "slow redraw"/left-panel
+     * churn.  The hover (handle_motion) and follow (take_step) paths keep
+     * g_mouse_path fresh; if it is not valid here, simply skip drawing. */
+    if (!g_mouse_path.path_valid)
+        return;
 
     blocked_target = g_mouse_path.blocked_target_kind
         != SDL_MOUSE_PATH_BLOCKED_NONE;

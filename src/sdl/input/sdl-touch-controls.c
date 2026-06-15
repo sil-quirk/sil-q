@@ -1,7 +1,7 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
-#define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.58f
+#define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.50f
 #define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.62f
 /* The whole inner disc (up to the drag threshold) repeats the last direction,
  * so the centre reads as a single "repeat" button with no dead band. */
@@ -524,6 +524,7 @@ bool sdl_touch_round_layer_config_enabled(void)
 bool sdl_touch_round_layer_controls_active(void)
 {
     return sdl_touch_round_layer_config_enabled()
+        && !g_main_menu_overlay_active
         && sdl_main_screen_click_shortcuts_active();
 }
 
@@ -572,6 +573,9 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     float slop;
     float right_threshold;
     float mid_y;
+    /* Keep the wheel from sitting flush against an adjacent pane (e.g. the
+     * log layer above): leave a small visual margin between them. */
+    const float pane_gap = 12.0f;
     SDL_Rect rects[4];
     int count = 0;
     SDL_Rect rect;
@@ -611,10 +615,10 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
             continue;
 
         if (pane_mid <= mid_y) {
-            if (pane_bottom > *top)
-                *top = pane_bottom;
-        } else if (pane_top < *bottom) {
-            *bottom = pane_top;
+            if (pane_bottom + pane_gap > *top)
+                *top = pane_bottom + pane_gap;
+        } else if (pane_top - pane_gap < *bottom) {
+            *bottom = pane_top - pane_gap;
         }
     }
 }
@@ -1404,8 +1408,8 @@ static void sdl_touch_round_render_button_arrows(float cx, float cy,
 
     if (button_size < 28.0f)
         button_size = 28.0f;
-    if (button_size > radius * 0.48f)
-        button_size = radius * 0.48f;
+    if (button_size > radius * 0.54f)
+        button_size = radius * 0.54f;
 
     for (int i = 0; i < (int)N_ELEMENTS(dirs); i++) {
         int dir = dirs[i];
@@ -1461,6 +1465,10 @@ void sdl_touch_round_render(void)
 
     if (!sdl_rect_has_area(&g_views[PANE_MAIN].rect))
         return;
+    if (g_main_menu_overlay_active) {
+        sdl_touch_round_cancel_press();
+        return;
+    }
 
     if (active) {
         if (!sdl_touch_round_compute_layout(NULL, NULL, NULL, NULL, &clip))
@@ -2618,6 +2626,7 @@ bool sdl_touch_top_panel_layout_visible(void)
     return sdl_touch_top_panel_pane_enabled()
         && (g_direct_touch_present || config.mouse_enabled)
         && sdl_mouse_gameplay_context_active()
+        && !g_main_menu_overlay_active
         && !active_narrative_banner_visible();
 }
 

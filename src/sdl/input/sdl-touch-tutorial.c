@@ -1124,7 +1124,7 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_screen_dim(screen, 142);
     sdl_touch_tutorial_draw_overlay_menu(screen);
     sdl_touch_tutorial_draw_header(screen,
-        "Preset: Corners + overlay menu",
+        "Preset: Corners + quick access",
         "Pane hidden. Side corner zones handle movement and fast commands. Change presets any time in Touch Settings.",
         page, page_count);
 
@@ -1185,7 +1185,7 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
     sdl_touch_tutorial_draw_overlay_menu(screen);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
-        "Preset: Button wheel + overlay menu",
+        "Preset: Button wheel + quick access",
         "Pane hidden by default. Tap an outer arrow to move, or drag inside the wheel to choose a direction.",
         page, page_count);
 
@@ -1264,7 +1264,7 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
 
     sdl_touch_tutorial_draw_info_panel(screen,
         panel_x, panel_y, panel_w, "Button wheel preset",
-        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nWidget: tap a top button for its command; hold it for the long-touch command.");
+        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nQuick access: tap a button for its command; hold it for the long-touch command.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
@@ -1968,13 +1968,13 @@ const sdl_touch_tutorial_choice sdl_touch_tutorial_choices[] = {
     },
     {
         SDL_TOUCH_PROFILE_CORNERS,
-        "Corners + overlay menu",
-        "Side corner movement zones and a short overlay command menu. Best when you want more map space."
+        "Corners + quick access",
+        "Side corner movement zones and a short quick-access command pane. Best when you want more map space."
     },
     {
         SDL_TOUCH_PROFILE_ROUND_WHEEL,
-        "Button wheel + overlay menu",
-        "Outer movement buttons with an inner drag wheel and a longer overlay command menu. Best for one-thumb movement once you know the layout."
+        "Button wheel + quick access",
+        "Outer movement buttons with an inner drag wheel and a longer quick-access command pane. Best for one-thumb movement once you know the layout."
     },
     {
         SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,

@@ -714,49 +714,14 @@ int sdl_narrative_banner_line_count(void)
         SDL_NARRATIVE_BANNER_MAX_LINES);
 }
 
-void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text,
-    SDL_Color color, float center_x, float y, float max_w, float line_h)
-{
-    SDL_Surface* surface;
-    SDL_Texture* texture;
-    SDL_FRect dst;
-    float scale = 1.0f;
-
-    if (!font || !text || !text[0] || max_w <= 0.0f || line_h <= 0.0f)
-        return;
-
-    surface = TTF_RenderText_Blended(font, text, 0, color);
-    if (!surface)
-        return;
-
-    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
-    if (!texture) {
-        SDL_DestroySurface(surface);
-        return;
-    }
-
-    if (surface->w > 0 && (float)surface->w > max_w)
-        scale = max_w / (float)surface->w;
-
-    dst = (SDL_FRect){
-        .w = (float)surface->w * scale,
-        .h = (float)surface->h * scale,
-    };
-    dst.x = center_x - dst.w * 0.5f;
-    dst.y = y + (line_h - dst.h) * 0.5f;
-
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
-
-    SDL_DestroyTexture(texture);
-    SDL_DestroySurface(surface);
-}
-
-void sdl_narrative_banner_render(void)
+static bool sdl_narrative_banner_layout(SDL_FRect* out_panel,
+    float* out_pad_x, float* out_pad_y, float* out_line_h,
+    int* out_shown_lines,
+    char lines[][SDL_NARRATIVE_BANNER_LINE_LEN], int max_lines,
+    TTF_Font** out_font)
 {
     SDL_Rect rect;
     TTF_Font* font;
-    char lines[SDL_NARRATIVE_BANNER_MAX_LINES][SDL_NARRATIVE_BANNER_LINE_LEN];
     int font_px;
     int line_count;
     int shown_lines;
@@ -769,25 +734,24 @@ void sdl_narrative_banner_render(void)
     float panel_h;
     float top_gap;
     SDL_FRect panel;
-    SDL_Color text_color;
 
     if (!sdl_narrative_banner_overlay_enabled())
-        return;
+        return false;
     if (!active_narrative_banner_visible() || character_icky > 0)
-        return;
+        return false;
     if (!sdl_narrative_banner_base_rect(&rect))
-        return;
+        return false;
 
     font_px = sdl_narrative_banner_font_px(&rect);
     font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (!font)
-        return;
+        return false;
 
     max_text_w = sdl_narrative_banner_max_text_w(&rect, font_px);
     line_count = sdl_narrative_banner_wrap_lines(active_narrative_banner_text(),
-        font, max_text_w, lines, SDL_NARRATIVE_BANNER_MAX_LINES);
+        font, max_text_w, lines, max_lines);
     if (line_count <= 0)
-        return;
+        return false;
 
     shown_lines = line_count;
     if (g_narrative_banner_line_limit > 0
@@ -796,7 +760,7 @@ void sdl_narrative_banner_render(void)
         shown_lines = g_narrative_banner_line_limit;
     }
     if (shown_lines <= 0)
-        return;
+        return false;
 
     for (int i = 0; i < shown_lines; i++) {
         int width = sdl_touch_pane_story_text_width(font, lines[i]);
@@ -832,6 +796,77 @@ void sdl_narrative_banner_render(void)
     if (panel.x + panel.w > (float)(rect.x + rect.w) - 4.0f)
         panel.x = (float)(rect.x + rect.w) - 4.0f - panel.w;
 
+    if (out_panel)
+        *out_panel = panel;
+    if (out_pad_x)
+        *out_pad_x = pad_x;
+    if (out_pad_y)
+        *out_pad_y = pad_y;
+    if (out_line_h)
+        *out_line_h = line_h;
+    if (out_shown_lines)
+        *out_shown_lines = shown_lines;
+    if (out_font)
+        *out_font = font;
+
+    return true;
+}
+
+void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text,
+    SDL_Color color, float left_x, float y, float max_w, float line_h)
+{
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect dst;
+    float scale = 1.0f;
+
+    if (!font || !text || !text[0] || max_w <= 0.0f || line_h <= 0.0f)
+        return;
+
+    surface = TTF_RenderText_Blended(font, text, 0, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(g_state.renderer, surface);
+    if (!texture) {
+        SDL_DestroySurface(surface);
+        return;
+    }
+
+    if (surface->w > 0 && (float)surface->w > max_w)
+        scale = max_w / (float)surface->w;
+
+    dst = (SDL_FRect){
+        .w = (float)surface->w * scale,
+        .h = (float)surface->h * scale,
+    };
+    dst.x = left_x;
+    dst.y = y + (line_h - dst.h) * 0.5f;
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+
+    SDL_DestroyTexture(texture);
+    SDL_DestroySurface(surface);
+}
+
+void sdl_narrative_banner_render(void)
+{
+    TTF_Font* font;
+    char lines[SDL_NARRATIVE_BANNER_MAX_LINES][SDL_NARRATIVE_BANNER_LINE_LEN];
+    int shown_lines;
+    float pad_x;
+    float pad_y;
+    float line_h;
+    SDL_FRect panel;
+    SDL_Color text_color;
+
+    if (!sdl_narrative_banner_layout(&panel, &pad_x, &pad_y, &line_h,
+            &shown_lines, lines, SDL_NARRATIVE_BANNER_MAX_LINES, &font))
+    {
+        return;
+    }
+
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_state.renderer, 4, 5, 7, 212);
     SDL_RenderFillRect(g_state.renderer, &panel);
@@ -847,10 +882,33 @@ void sdl_narrative_banner_render(void)
 
     for (int i = 0; i < shown_lines; i++) {
         sdl_narrative_banner_draw_line(font, lines[i], text_color,
-            panel.x + panel.w * 0.5f,
+            panel.x + pad_x,
             panel.y + pad_y + line_h * (float)i,
             panel.w - pad_x * 2.0f, line_h);
     }
+}
+
+bool sdl_narrative_banner_handle_pointer(float x, float y)
+{
+    SDL_FRect panel;
+    char lines[SDL_NARRATIVE_BANNER_MAX_LINES][SDL_NARRATIVE_BANNER_LINE_LEN];
+
+    if (!sdl_narrative_banner_layout(&panel, NULL, NULL, NULL,
+            NULL, lines, SDL_NARRATIVE_BANNER_MAX_LINES, NULL))
+    {
+        return false;
+    }
+
+    if (x < panel.x || x >= panel.x + panel.w
+        || y < panel.y || y >= panel.y + panel.h)
+    {
+        return false;
+    }
+
+    (void)dismiss_active_narrative_banner();
+    do_cmd_redraw();
+    g_state.need_present = true;
+    return true;
 }
 
 void sdl_narrative_banner_show(bool line_delay)

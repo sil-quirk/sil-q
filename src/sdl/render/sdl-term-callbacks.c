@@ -116,11 +116,21 @@ errr callback_sdl_xtra(int n, int v)
                 timeout_ms = question_menu_timeout_ms;
             }
             g_sdl_blocking_key_wait = true;
-            if (timeout_ms >= 0) {
-                if (SDL_WaitEventTimeout(&ev, timeout_ms))
-                    sdl_handle_event(&g_state, &ev);
-            } else {
-                if (SDL_WaitEvent(&ev))
+            {
+                /* Diagnostic (temporary): measure how long we actually BLOCK
+                 * here waiting for input.  If a slow request_command turn has a
+                 * matching long [IDLEWAIT], the game was idle (think-time, no
+                 * bug); if it is slow with no long [IDLEWAIT], it was busy
+                 * (a real stall). */
+                Uint64 _wb0 = SDL_GetTicksNS();
+                bool _wb_got = (timeout_ms >= 0)
+                    ? SDL_WaitEventTimeout(&ev, timeout_ms)
+                    : SDL_WaitEvent(&ev);
+                Uint64 _wb_ms = (SDL_GetTicksNS() - _wb0) / 1000000ULL;
+                if (_wb_ms >= 300)
+                    log_warn("[IDLEWAIT] blocked %llu ms waiting for input",
+                        (unsigned long long)_wb_ms);
+                if (_wb_got)
                     sdl_handle_event(&g_state, &ev);
             }
             g_sdl_blocking_key_wait = old_blocking_key_wait;

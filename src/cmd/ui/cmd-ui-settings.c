@@ -3737,7 +3737,7 @@ static const char* pane_type_display_name(enum pane_type type)
     case PANE_STATUS: return "Status";
     case PANE_DEPTH: return "Depth";
     case PANE_ROLLS: return "Overlay Log";
-    case PANE_OVERLAY_MENU: return "Overlay Menu";
+    case PANE_OVERLAY_MENU: return "Quick Access";
     case PANE_COMBAT: return "Combat";
     case PANE_LOG: return "Log";
     default: return pane_type_name(type);
@@ -4696,29 +4696,29 @@ static const touch_control_binding_row touch_control_binding_rows[] = {
 };
 
 static const touch_control_binding_row touch_top_widget_binding_rows[] = {
-    { TOUCH_TOP_WIDGET_BUTTON_1_TAP, "Top Button 1 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_1_TAP, "Quick Access 1 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 0, false },
-    { TOUCH_TOP_WIDGET_BUTTON_1_LONG_TAP, "Top Button 1 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_1_LONG_TAP, "Quick Access 1 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 0, true },
-    { TOUCH_TOP_WIDGET_BUTTON_2_TAP, "Top Button 2 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_2_TAP, "Quick Access 2 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 1, false },
-    { TOUCH_TOP_WIDGET_BUTTON_2_LONG_TAP, "Top Button 2 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_2_LONG_TAP, "Quick Access 2 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 1, true },
-    { TOUCH_TOP_WIDGET_BUTTON_3_TAP, "Top Button 3 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_3_TAP, "Quick Access 3 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 2, false },
-    { TOUCH_TOP_WIDGET_BUTTON_3_LONG_TAP, "Top Button 3 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_3_LONG_TAP, "Quick Access 3 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 2, true },
-    { TOUCH_TOP_WIDGET_BUTTON_4_TAP, "Top Button 4 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_4_TAP, "Quick Access 4 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 3, false },
-    { TOUCH_TOP_WIDGET_BUTTON_4_LONG_TAP, "Top Button 4 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_4_LONG_TAP, "Quick Access 4 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 3, true },
-    { TOUCH_TOP_WIDGET_BUTTON_5_TAP, "Top Button 5 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_5_TAP, "Quick Access 5 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 4, false },
-    { TOUCH_TOP_WIDGET_BUTTON_5_LONG_TAP, "Top Button 5 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_5_LONG_TAP, "Quick Access 5 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 4, true },
-    { TOUCH_TOP_WIDGET_BUTTON_6_TAP, "Top Button 6 Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_6_TAP, "Quick Access 6 Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 5, false },
-    { TOUCH_TOP_WIDGET_BUTTON_6_LONG_TAP, "Top Button 6 Long Tap",
+    { TOUCH_TOP_WIDGET_BUTTON_6_LONG_TAP, "Quick Access 6 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 5, true },
 };
 
@@ -4960,9 +4960,9 @@ static const char* touch_control_row_name(int row)
     case TOUCH_CONTROL_PANE_PLACEMENT:
         return "Touch Pane Side";
     case TOUCH_CONTROL_TOP_WIDGET_MODE:
-        return "Overlay Menu Length";
+        return "Quick Access Length";
     case TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN:
-        return "Overlay Menu Starts";
+        return "Quick Access Starts";
     case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
         return "Inventory/Equipped Touch";
     case TOUCH_CONTROL_MENU_SUPPLY:
@@ -4988,9 +4988,9 @@ static const char* touch_profile_label(int profile)
 {
     switch (profile) {
     case SDL_TOUCH_PROFILE_CORNERS:
-        return "Corners + overlay menu";
+        return "Corners + quick access";
     case SDL_TOUCH_PROFILE_ROUND_WHEEL:
-        return "Button wheel + overlay menu";
+        return "Button wheel + quick access";
     case SDL_TOUCH_PROFILE_TOUCH_PANE:
     default:
         return "Touch pane + touch screen";
@@ -5676,7 +5676,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         int row_width = settings_ui_line_width(2);
         bool pixel_menu;
 
-        pixel_menu = settings_semantic_menu_begin("Overlay Menu Buttons",
+        pixel_menu = settings_semantic_menu_begin("Quick Access Buttons",
             highlight);
         if (!pixel_menu)
         {
@@ -5685,8 +5685,8 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             ui_menu_click_set_hover_enabled(true);
             settings_menu_begin_scroll_area(list_start_row,
                 TOUCH_TOP_WIDGET_BUTTON_COUNT);
-            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Overlay Menu Buttons");
-            settings_ui_put_fitted(2, 2, TERM_WHITE, "==================");
+            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Quick Access Buttons");
+            settings_ui_put_fitted(2, 2, TERM_WHITE, "====================");
         }
 
         for (int i = 0; i < TOUCH_TOP_WIDGET_BUTTON_COUNT; i++)
@@ -5722,7 +5722,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_SELECTED,
                 "Reset Selected", "X", TERM_SLATE);
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
-                "Reset All Overlay Menu Buttons", "M", TERM_SLATE);
+                "Reset All Quick Access Buttons", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
                 "Left/Right changes the selected action. Space cycles forward. X resets selected, M resets all. Escape or Enter returns.");
             sdl_character_sheet_screen_commit_select(highlight);
@@ -5737,7 +5737,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     "Up/Down select   Left/Right action"));
             {
                 cptr prompt = settings_ui_pick_label(row_width,
-                    "x reset selected   M/Map reset all overlay menu buttons",
+                    "x reset selected   M/Map reset all quick access buttons",
                     "x reset selected   Map reset all",
                     "x reset   Map all");
                 int prompt_row = list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 3;
@@ -5849,7 +5849,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             changed = true;
             break;
         default:
-            bell("Illegal command for overlay menu button settings!");
+            bell("Illegal command for quick access button settings!");
             break;
         }
     }
@@ -5883,7 +5883,7 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
         bool pixel_menu;
         static cptr labels[TOUCH_BUTTON_MENU_COUNT] = {
             "Touch Pane Buttons",
-            "Overlay Menu Buttons",
+            "Quick Access Buttons",
             "Restore Button Defaults",
             "Return"
         };

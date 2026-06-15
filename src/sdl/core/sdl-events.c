@@ -621,6 +621,74 @@ void sdl_normalize_event_to_render_coords(SDL_Event* ev)
     }
 }
 
+static bool sdl_event_is_narrative_banner_input(const SDL_Event* ev)
+{
+    int deadzone;
+
+    if (!ev)
+        return false;
+
+    switch (ev->type) {
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_TEXT_INPUT:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_WHEEL:
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        return true;
+
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        deadzone = config.gamepad_deadzone;
+        if (deadzone < 0)
+            deadzone = 0;
+        return ABS(ev->gaxis.value) > deadzone;
+
+    default:
+        return false;
+    }
+}
+
+static bool sdl_narrative_banner_consume_input_event(const SDL_Event* ev)
+{
+    if (!active_narrative_banner_consumes_input())
+        return false;
+    if (!sdl_event_is_narrative_banner_input(ev))
+        return false;
+
+    clear_active_narrative_banner();
+    do_cmd_redraw();
+    g_state.need_present = true;
+    return true;
+}
+
+static bool sdl_narrative_banner_handle_pointer_event(const SDL_Event* ev)
+{
+    float x;
+    float y;
+
+    if (!ev)
+        return false;
+
+    if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+    {
+        if (ev->button.which == SDL_TOUCH_MOUSEID)
+            return false;
+        return sdl_narrative_banner_handle_pointer(
+            (float)ev->button.x, (float)ev->button.y);
+    }
+
+    if (ev->type == SDL_EVENT_FINGER_DOWN)
+    {
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return false;
+        if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return false;
+        return sdl_narrative_banner_handle_pointer(x, y);
+    }
+
+    return false;
+}
+
 bool sdl_quit_transition_active(void)
 {
     return character_generated
@@ -736,23 +804,6 @@ bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
 void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 {
     (void)st;
-    /* Diagnostic (temporary): how long a real input event sat in the queue
-     * before we handled it.  A large value means the game was busy (not idle
-     * in inkey) when the key/button was pressed -- i.e. a genuine stall, not
-     * think-time.  Remove with the [SLOWTURN] timers once the stall is found. */
-    if (ev->type == SDL_EVENT_KEY_DOWN
-        || ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN
-        || ev->type == SDL_EVENT_MOUSE_BUTTON_UP)
-    {
-        Uint64 _now_ns = SDL_GetTicksNS();
-        if (ev->common.timestamp && _now_ns > ev->common.timestamp) {
-            Uint64 _lag_ms = (_now_ns - ev->common.timestamp) / 1000000ULL;
-            if (_lag_ms >= 150)
-                log_warn("[INPUTLAG] %s waited %llu ms before handling",
-                    ev->type == SDL_EVENT_KEY_DOWN ? "key" : "mouse",
-                    (unsigned long long)_lag_ms);
-        }
-    }
     sdl_normalize_event_to_render_coords(ev);
     if (sdl_sound_try_handle_event(ev)) {
         return;
@@ -826,6 +877,10 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (sdl_main_menu_overlay_handle_event(ev)) {
         return;
     } else if (g_minimap.active && sdl_minimap_handle_event(ev)) {
+        return;
+    } else if (sdl_narrative_banner_consume_input_event(ev)) {
+        return;
+    } else if (sdl_narrative_banner_handle_pointer_event(ev)) {
         return;
     } else if (sdl_screen_back_gesture_handle_event(ev)) {
         return;

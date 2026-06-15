@@ -979,6 +979,14 @@ void sdl_mouse_path_handle_motion(float x, float y)
     if (g_mouse_path.follow_active)
         return;
 
+    /* Only refresh the hover path while idle, waiting for the player's command.
+     * During turn processing (movement, combat, animations) the event pump
+     * still delivers motion events, but recomputing the path and re-presenting
+     * then just churns the overlay and spins the loop -- leave the existing
+     * preview as-is until it is the player's turn again. */
+    if (!g_sdl_blocking_key_wait)
+        return;
+
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x)) {
         if (g_mouse_path.hover_visible || g_mouse_path.path_valid) {
             g_mouse_path.hover_visible = false;
@@ -993,6 +1001,41 @@ void sdl_mouse_path_handle_motion(float x, float y)
         && (map_y != g_map_touch_selected_y || map_x != g_map_touch_selected_x))
     {
         g_map_touch_selected = false;
+    }
+
+    /* The hover path only depends on the target grid and the (stationary)
+     * player position.  A single map cell spans many pixels, so dragging the
+     * cursor fires a burst of motion events that all map to the same grid;
+     * recomputing the full search and re-presenting for each one spins the
+     * event loop and churns the path overlay.  Skip when we already have a
+     * hover path for this exact grid from the current player position. */
+    if (g_mouse_path.hover_visible
+        && map_y == g_mouse_path.target_y
+        && map_x == g_mouse_path.target_x
+        && g_mouse_path.source_y == p_ptr->py
+        && g_mouse_path.source_x == p_ptr->px)
+    {
+        return;
+    }
+
+    /* Rate-limit the recompute.  On a large level (this one is 187x187, ~1.1M
+     * search states) a single hover search is heavy, and sweeping the cursor
+     * toward a target crosses many cells; without this, each crossed cell
+     * re-runs the search and re-presents the frame, which is the residual
+     * "delay"/overlay churn while aiming.  Recompute at most ~10x/second.  The
+     * dedupe above leaves the target grid unchanged when we skip, so the next
+     * motion still refreshes once the cursor settles, and clicking always
+     * computes a fresh path via sdl_mouse_path_start_follow_grid(). */
+    {
+        static Uint64 last_hover_compute_ns = 0;
+        Uint64 now_ns = SDL_GetTicksNS();
+
+        if (last_hover_compute_ns != 0
+            && now_ns - last_hover_compute_ns < 100000000ULL)
+        {
+            return;
+        }
+        last_hover_compute_ns = now_ns;
     }
 
     g_mouse_path.hover_visible = true;
