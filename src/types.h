@@ -1507,6 +1507,27 @@ typedef struct high_score high_score;
 /* C89-friendly compile-time size check (negative array size => error) */
 typedef char high_score_size_must_be_133[(sizeof(struct high_score) == 133) ? 1 : -1];
 
+typedef struct skill_roll_details skill_roll_details;
+
+struct skill_roll_details
+{
+    int skill;             /* Adjusted skill used by the check */
+    int difficulty;        /* Adjusted difficulty used by the check */
+    int skill_die;         /* Final d10 used on the skill side */
+    int difficulty_die;    /* Final d10 used on the difficulty side */
+    int skill_die_primary; /* First skill-side d10 */
+    int difficulty_die_primary; /* First difficulty-side d10 */
+    int skill_die_alt;     /* Alternate skill-side d10 for curses */
+    int difficulty_die_alt; /* Alternate difficulty-side d10 for curses */
+    int skill_total;
+    int difficulty_total;
+    int result;
+    bool skill_curse_active;
+    bool difficulty_curse_active;
+    bool skill_alt_used;
+    bool difficulty_alt_used;
+};
+
 
 
 typedef struct combat_roll combat_roll;

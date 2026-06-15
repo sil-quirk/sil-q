@@ -19,6 +19,13 @@ enum {
     SDL_WELCOME_STORY_FONT_SLOT = 1
 };
 
+enum {
+    SDL_CHAR_SHEET_INFO_CHOICE_BASE = 9000,
+    SDL_CHAR_SHEET_BIRTH_STAT_INFO_BASE = 9200,
+    SDL_CHAR_SHEET_BIRTH_SKILL_INFO_BASE = 9300,
+    SDL_CHAR_SHEET_BIRTH_TRAIT_INFO_BASE = 9400
+};
+
 const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "\"In the beginning Eru, the One," },
@@ -1019,7 +1026,7 @@ enum {
     SDL_CHAR_SHEET_TEXT_LEN = 768,
     SDL_CHAR_SHEET_MAX_LINES = 80,
     SDL_CHAR_SHEET_LIVE_ITEM_MAX = 128,
-    SDL_CHAR_SHEET_HIT_MAX = 160
+    SDL_CHAR_SHEET_HIT_MAX = 224
 };
 
 typedef struct sdl_char_sheet_line {
@@ -1028,6 +1035,9 @@ typedef struct sdl_char_sheet_line {
     int choice;
     char desc[256];
 } sdl_char_sheet_line;
+
+void sdl_char_sheet_add_line(sdl_char_sheet_line* lines, int* count,
+    int max_count, cptr text, byte attr, int choice, cptr desc);
 
 float sdl_char_sheet_clampf(float value, float min_value,
     float max_value)
@@ -1502,7 +1512,13 @@ static bool sdl_char_sheet_menu_command_choice(int choice)
 {
     return g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SELECT
         && g_sdl_character_sheet_screen.select_menu_style
-        && choice >= 9000;
+        && choice >= SDL_CHAR_SHEET_INFO_CHOICE_BASE;
+}
+
+static bool sdl_char_sheet_info_only_choice(int choice)
+{
+    return choice >= SDL_CHAR_SHEET_INFO_CHOICE_BASE
+        && choice < 10000;
 }
 
 bool sdl_char_sheet_choice_focused(int choice)
@@ -1545,12 +1561,14 @@ bool sdl_char_sheet_choice_pressable(int choice)
     {
         if (g_sdl_character_sheet_screen.select_menu_style)
             return true;
-        return choice < 9000;
+        return choice < SDL_CHAR_SHEET_INFO_CHOICE_BASE;
     }
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_LIVE
         && g_sdl_character_sheet_screen.context
             != SDL_CHARACTER_SHEET_BIRTH_PREVIEW)
     {
+        if (sdl_char_sheet_info_only_choice(choice))
+            return false;
         return true;
     }
     item = sdl_char_sheet_live_item_by_choice(choice);
@@ -1679,6 +1697,56 @@ void sdl_char_sheet_song_name(byte song, char* out, size_t outsz)
     SDL_strlcpy(out, name, outsz);
 }
 
+static bool sdl_char_sheet_birth_assignment_context(void)
+{
+    return g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS
+        || g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SKILLS;
+}
+
+static int sdl_char_sheet_trait_info_choice(int line_index, cptr desc)
+{
+    if (!desc || !desc[0] || !sdl_char_sheet_birth_assignment_context())
+        return -1;
+    return SDL_CHAR_SHEET_BIRTH_TRAIT_INFO_BASE + line_index;
+}
+
+static void sdl_char_sheet_add_trait_line(sdl_char_sheet_line* lines,
+    int* count, int max_count, cptr text, byte attr, int skill,
+    int trait_score, bool proficiency, u32b aff_flag, u32b pen_flag,
+    cptr desc_label)
+{
+    const sdl_character_sheet_live_item* item;
+    char desc[256];
+    cptr item_desc = "";
+    int choice;
+
+    if (!lines || !count || !text || !text[0])
+        return;
+
+    item = sdl_char_sheet_live_label_item(text);
+    if (item && item->desc[0])
+        item_desc = item->desc;
+    else
+    {
+        cptr named_desc = "";
+
+        if (desc_label && desc_label[0])
+            named_desc = character_sheet_trait_description(desc_label);
+        else if (skill < 0)
+            named_desc = character_sheet_trait_description(text);
+
+        character_sheet_format_trait_description(text, skill, trait_score,
+            proficiency, aff_flag, pen_flag, named_desc, desc, sizeof(desc));
+        item_desc = desc;
+    }
+
+    choice = item ? item->choice
+                  : sdl_char_sheet_trait_info_choice(*count, item_desc);
+    sdl_char_sheet_add_line(lines, count, max_count, text, attr, choice,
+        item_desc);
+}
+
 void sdl_char_sheet_add_line(sdl_char_sheet_line* lines, int* count,
     int max_count, cptr text, byte attr, int choice, cptr desc)
 {
@@ -1803,10 +1871,10 @@ int sdl_char_sheet_collect_vitals(sdl_char_sheet_line* lines,
 }
 
 void sdl_char_sheet_collect_skill_trait(sdl_char_sheet_line* lines,
-    int* count, int max_count, cptr label, int score)
+    int* count, int max_count, cptr label, int skill, int score,
+    bool proficiency, u32b aff_flag, u32b pen_flag)
 {
     char text[64];
-    const sdl_character_sheet_live_item* item;
     byte attr;
 
     if (score == 0)
@@ -1834,9 +1902,8 @@ void sdl_char_sheet_collect_skill_trait(sdl_char_sheet_line* lines,
         attr = TERM_L_RED;
     }
 
-    item = sdl_char_sheet_live_label_item(text);
-    sdl_char_sheet_add_line(lines, count, max_count, text, attr,
-        item ? item->choice : -1, item ? item->desc : "");
+    sdl_char_sheet_add_trait_line(lines, count, max_count, text, attr, skill,
+        score, proficiency, aff_flag, pen_flag, NULL);
 }
 
 int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
@@ -1845,7 +1912,6 @@ int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
     int count = 0;
     int race;
     int character;
-    const sdl_character_sheet_live_item* item;
 
     if (!p_ptr || !p_info || !c_info)
         return 0;
@@ -1857,9 +1923,8 @@ int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
     do {                                                                        \
         if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG)))\
         {                                                                       \
-            item = sdl_char_sheet_live_label_item((LABEL));                     \
-            sdl_char_sheet_add_line(lines, &count, max_count, (LABEL), (ATTR),  \
-                item ? item->choice : -1, item ? item->desc : "");             \
+            sdl_char_sheet_add_trait_line(lines, &count, max_count, (LABEL),    \
+                (ATTR), -1, 0, false, 0, 0, (LABEL));                           \
         }                                                                       \
     } while (0)
 
@@ -1867,13 +1932,12 @@ int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
     do {                                                                        \
         if (c_info[character].flags_u & (FLAG))                                 \
         {                                                                       \
-            item = sdl_char_sheet_live_label_item((LABEL));                     \
-            sdl_char_sheet_add_line(lines, &count, max_count, (LABEL), (ATTR),  \
-                item ? item->choice : -1, item ? item->desc : "");             \
+            sdl_char_sheet_add_trait_line(lines, &count, max_count, (LABEL),    \
+                (ATTR), -1, 0, false, 0, 0, (LABEL));                           \
         }                                                                       \
     } while (0)
 
-#define ADD_SKILL_TRAIT(LABEL, AFF, PEN)                                        \
+#define ADD_SKILL_TRAIT(LABEL, SKILL, AFF, PEN, PROFICIENCY)                    \
     do {                                                                        \
         int score = 0;                                                          \
         if (p_info[race].flags & (AFF)) score++;                                \
@@ -1883,7 +1947,7 @@ int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
         score += curse_flag_count_rhf(AFF);                                     \
         if (PEN) score -= curse_flag_count_rhf(PEN);                            \
         sdl_char_sheet_collect_skill_trait(lines, &count, max_count, (LABEL),   \
-            score);                                                             \
+            (SKILL), score, (PROFICIENCY), (AFF), (PEN));                       \
     } while (0)
 
     ADD_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
@@ -1912,16 +1976,24 @@ int sdl_char_sheet_collect_traits(sdl_char_sheet_line* lines,
     ADD_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
     ADD_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
 
-    ADD_SKILL_TRAIT("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
-    ADD_SKILL_TRAIT("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
-    ADD_SKILL_TRAIT("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
-    ADD_SKILL_TRAIT("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
-    ADD_SKILL_TRAIT("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
-    ADD_SKILL_TRAIT("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
-    ADD_SKILL_TRAIT("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
-    ADD_SKILL_TRAIT("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
-    ADD_SKILL_TRAIT("bow", RHF_BOW_PROFICIENCY, 0);
-    ADD_SKILL_TRAIT("axe", RHF_AXE_PROFICIENCY, 0);
+    ADD_SKILL_TRAIT("melee", S_MEL, RHF_MEL_AFFINITY, RHF_MEL_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("evasion", S_EVN, RHF_EVN_AFFINITY, RHF_EVN_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("stealth", S_STL, RHF_STL_AFFINITY, RHF_STL_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("archery", S_ARC, RHF_ARC_AFFINITY, RHF_ARC_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("will", S_WIL, RHF_WIL_AFFINITY, RHF_WIL_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("perception", S_PER, RHF_PER_AFFINITY, RHF_PER_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("smithing", S_SMT, RHF_SMT_AFFINITY, RHF_SMT_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("song", S_SNG, RHF_SNG_AFFINITY, RHF_SNG_PENALTY,
+        false);
+    ADD_SKILL_TRAIT("bow", S_ARC, RHF_BOW_PROFICIENCY, 0, true);
+    ADD_SKILL_TRAIT("axe", S_MEL, RHF_AXE_PROFICIENCY, 0, true);
 
 #undef ADD_SKILL_TRAIT
 #undef ADD_UNIQUE_U
@@ -2320,6 +2392,8 @@ void sdl_char_sheet_draw_birth_stat_table_row(TTF_Font* font,
     char label[32];
     char value[32];
     char cost[32];
+    char desc[384];
+    char hint[192];
     bool focused = false;
     SDL_FRect row_rect;
 
@@ -2354,8 +2428,30 @@ void sdl_char_sheet_draw_birth_stat_table_row(TTF_Font* font,
             g_sdl_character_sheet_screen.stat_costs[stat]);
         sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 33, 4,
             TERM_L_WHITE, cost, focused);
-        sdl_char_sheet_add_hit(row_rect, stat,
-            "Click to select; click selected row to increase, right-click to decrease.");
+    }
+
+    hint[0] = '\0';
+    character_sheet_format_stat_hint(stat, 0, false, hint, sizeof(hint));
+    if (allocation)
+    {
+#if SIL_SDL_MOBILE_BUILD
+        if (sdl_touch_only_device_active())
+        {
+            strnfmt(desc, sizeof(desc),
+                "%s Cost to raise now: %d. Tap to select; tap the selected row to increase, long tap the selected row to decrease.",
+                hint, g_sdl_character_sheet_screen.stat_costs[stat]);
+        }
+        else
+#endif
+        strnfmt(desc, sizeof(desc),
+            "%s Cost to raise now: %d. Click/tap to select; click/tap the selected row to increase, right-click to decrease.",
+            hint, g_sdl_character_sheet_screen.stat_costs[stat]);
+        sdl_char_sheet_add_hit(row_rect, stat, desc);
+    }
+    else
+    {
+        sdl_char_sheet_add_hit(row_rect,
+            SDL_CHAR_SHEET_BIRTH_STAT_INFO_BASE + stat, hint);
     }
 }
 
@@ -2364,6 +2460,8 @@ void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
     bool allocation)
 {
     char buf[32];
+    char desc[384];
+    cptr hint;
     bool focused;
     SDL_FRect row_rect;
 
@@ -2415,8 +2513,35 @@ void sdl_char_sheet_draw_birth_skill_table_row(TTF_Font* font,
             g_sdl_character_sheet_screen.skill_costs[skill]);
         sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 31, 6,
             TERM_L_WHITE, buf, focused);
-        sdl_char_sheet_add_hit(row_rect, skill,
-            "Click to select; click selected row to increase, right-click to decrease.");
+    }
+
+    hint = character_sheet_skill_description(skill);
+    if (!hint || !hint[0])
+        hint = "Skill total and starting base value.";
+    if (allocation)
+    {
+#if SIL_SDL_MOBILE_BUILD
+        if (sdl_touch_only_device_active())
+        {
+            strnfmt(desc, sizeof(desc),
+                "%s: %s Cost to raise now: %d. Tap to select; tap the selected row to increase, long tap the selected row to decrease.",
+                skill_names_full[skill], hint,
+                g_sdl_character_sheet_screen.skill_costs[skill]);
+        }
+        else
+#endif
+        strnfmt(desc, sizeof(desc),
+            "%s: %s Cost to raise now: %d. Click/tap to select; click/tap the selected row to increase, right-click to decrease.",
+            skill_names_full[skill], hint,
+            g_sdl_character_sheet_screen.skill_costs[skill]);
+        sdl_char_sheet_add_hit(row_rect, skill, desc);
+    }
+    else
+    {
+        strnfmt(desc, sizeof(desc), "%s: %s", skill_names_full[skill],
+            hint);
+        sdl_char_sheet_add_hit(row_rect,
+            SDL_CHAR_SHEET_BIRTH_SKILL_INFO_BASE + skill, desc);
     }
 }
 
@@ -2426,28 +2551,48 @@ void sdl_char_sheet_draw_birth_status_row(TTF_Font* font, float x,
     SDL_FRect hit;
     bool confirm_focused;
     bool back_focused;
+#if SIL_SDL_MOBILE_BUILD
+    bool touch = sdl_touch_only_device_active();
+    cptr confirm_text = touch ? "Confirm" : "[Confirm]";
+    cptr back_text = touch ? "Back" : "[Esc]";
+    int status_span = touch ? 18 : 20;
+    int confirm_col = touch ? 19 : 23;
+    int confirm_span = touch ? 10 : 9;
+    int back_col = touch ? 30 : 33;
+    int back_span = touch ? 8 : 5;
+#else
+    cptr confirm_text = "[Confirm]";
+    cptr back_text = "[Esc]";
+    int status_span = 20;
+    int confirm_col = 23;
+    int confirm_span = 9;
+    int back_col = 33;
+    int back_span = 5;
+#endif
 
     if (!sdl_char_sheet_alloc_row_visible(y, h, line_h, row))
         return;
 
-    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, 20,
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 0, status_span,
         TERM_L_BLUE, status, false);
 
     confirm_focused = sdl_char_sheet_prompt_focused(-2);
     back_focused = sdl_char_sheet_prompt_focused(-1);
 
-    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 23, 9);
+    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, confirm_col,
+        confirm_span);
     if (confirm_focused)
         sdl_char_sheet_draw_focus_rect(hit, true);
-    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 23, 9,
-        TERM_SLATE, "[Confirm]", confirm_focused);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, confirm_col,
+        confirm_span, TERM_SLATE, confirm_text, confirm_focused);
     sdl_char_sheet_add_prompt_hit(hit, -2);
 
-    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, 33, 5);
+    hit = sdl_char_sheet_alloc_rect(x, y, w, line_h, row, back_col,
+        back_span);
     if (back_focused)
         sdl_char_sheet_draw_focus_rect(hit, true);
-    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, 33, 5,
-        TERM_SLATE, "[Esc]", back_focused);
+    sdl_char_sheet_alloc_text(font, x, y, w, line_h, row, back_col,
+        back_span, TERM_SLATE, back_text, back_focused);
     sdl_char_sheet_add_prompt_hit(hit, -1);
 }
 
@@ -2688,6 +2833,11 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         { "Back", -1 },
         { "Choose", -2 },
     };
+    static const sdl_char_sheet_prompt_item birth_items_touch[] = {
+        { "Back", -1 },
+        { "Confirm", -2 },
+        { "Hero", -3 },
+    };
 #endif
     static const sdl_char_sheet_prompt_item preview_items[] = {
         { "Continue to Stats", -2 },
@@ -2695,8 +2845,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     const sdl_char_sheet_prompt_item* items = birth_items;
     int item_count = (int)N_ELEMENTS(birth_items);
     float cursor_x = x;
+    int text_widths[16];
+    float item_widths[16];
+    bool preview_prompt = g_sdl_character_sheet_screen.context
+        == SDL_CHARACTER_SHEET_BIRTH_PREVIEW;
 #if SIL_SDL_MOBILE_BUILD
     float spacing = MAX(8.0f, h * 0.45f);
+    bool touch_buttons = false;
+    float touch_button_pad_x = 0.0f;
 #else
     float spacing = MAX(12.0f, h * 0.68f);
 #endif
@@ -2728,13 +2884,40 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         {
             items = select_items_touch;
             item_count = (int)N_ELEMENTS(select_items_touch);
+            touch_buttons = true;
         }
 #endif
     }
+#if SIL_SDL_MOBILE_BUILD
+    else if ((g_sdl_character_sheet_screen.context
+                 == SDL_CHARACTER_SHEET_BIRTH_STATS
+              || g_sdl_character_sheet_screen.context
+                 == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
+        && sdl_touch_only_device_active())
+    {
+        items = birth_items_touch;
+        item_count = (int)N_ELEMENTS(birth_items_touch);
+        touch_buttons = true;
+    }
+#endif
+
+    if (item_count > (int)N_ELEMENTS(text_widths))
+        item_count = (int)N_ELEMENTS(text_widths);
+
+#if SIL_SDL_MOBILE_BUILD
+    if (touch_buttons)
+        touch_button_pad_x = MAX(16.0f, h * 0.58f);
+#endif
 
     for (int i = 0; i < item_count; i++)
     {
-        total_w += (float)sdl_char_sheet_text_width(font, items[i].label);
+        text_widths[i] = sdl_char_sheet_text_width(font, items[i].label);
+        item_widths[i] = (float)text_widths[i];
+#if SIL_SDL_MOBILE_BUILD
+        if (touch_buttons)
+            item_widths[i] += touch_button_pad_x * 2.0f;
+#endif
+        total_w += item_widths[i];
         if (i + 1 < item_count)
             total_w += spacing;
     }
@@ -2747,37 +2930,58 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
 #endif
                 (w - (total_w - spacing * (float)(item_count - 1)))
                     / (float)(item_count - 1));
+#if SIL_SDL_MOBILE_BUILD
+    if (touch_buttons && total_w < w)
+        cursor_x = x + (w - total_w) * 0.5f;
+#endif
 
     for (int i = 0; i < item_count; i++)
     {
         cptr label = items[i].label;
-        int text_w = sdl_char_sheet_text_width(font, label);
+        int text_w = text_widths[i];
+        float item_w = item_widths[i];
         int choice = items[i].choice;
         bool focused = (choice >= 0)
             ? sdl_char_sheet_choice_focused(choice)
             : sdl_char_sheet_prompt_focused(choice);
-        bool preview_prompt = g_sdl_character_sheet_screen.context
-            == SDL_CHARACTER_SHEET_BIRTH_PREVIEW;
 
-        if (!preview_prompt && cursor_x + (float)text_w > x + w)
+        if (!preview_prompt && cursor_x + item_w > x + w)
             break;
 
         {
-            SDL_FRect hit = { cursor_x, y, (float)text_w + 4.0f, h };
+            SDL_FRect hit = { cursor_x, y, item_w + 4.0f, h };
 #if SIL_SDL_MOBILE_BUILD
-            if (!preview_prompt)
+            if (!preview_prompt && !touch_buttons)
             {
                 float pad_x = MAX(10.0f, h * 0.32f);
 
                 hit.x = MAX(x, cursor_x - pad_x * 0.5f);
                 hit.w = MIN(x + w - hit.x, (float)text_w + 4.0f + pad_x);
             }
+            if (touch_buttons)
+            {
+                SDL_Color fill = focused ? (SDL_Color){ 245, 245, 245, 255 }
+                                         : (SDL_Color){ 156, 156, 156, 238 };
+                SDL_Color border = focused ? (SDL_Color){ 0, 0, 0, 255 }
+                                           : (SDL_Color){ 28, 28, 28, 230 };
+
+                hit.w = item_w;
+                SDL_SetRenderDrawBlendMode(g_state.renderer,
+                    SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g,
+                    fill.b, fill.a);
+                SDL_RenderFillRect(g_state.renderer, &hit);
+                SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g,
+                    border.b, border.a);
+                SDL_RenderRect(g_state.renderer, &hit);
+            }
 #endif
             if (preview_prompt)
             {
-                SDL_Color fill = g_state.palette[TERM_BLUE];
-                SDL_Color border = g_state.palette[focused ? TERM_WHITE
-                                                           : TERM_L_BLUE];
+                SDL_Color fill = focused ? (SDL_Color){ 245, 245, 245, 255 }
+                                         : (SDL_Color){ 156, 156, 156, 238 };
+                SDL_Color border = focused ? (SDL_Color){ 0, 0, 0, 255 }
+                                           : (SDL_Color){ 28, 28, 28, 230 };
                 float pad_x = MAX(14.0f, h * 0.72f);
 
                 hit.w = MIN(w, (float)text_w + pad_x * 2.0f);
@@ -2785,24 +2989,40 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
                 SDL_SetRenderDrawBlendMode(g_state.renderer,
                     SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g,
-                    fill.b, focused ? 230 : 150);
+                    fill.b, fill.a);
                 SDL_RenderFillRect(g_state.renderer, &hit);
                 SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g,
-                    border.b, focused ? 255 : 190);
+                    border.b, border.a);
                 SDL_RenderRect(g_state.renderer, &hit);
             }
-            if (focused)
+            if (focused && !preview_prompt
+#if SIL_SDL_MOBILE_BUILD
+                && !touch_buttons
+#endif
+                )
                 sdl_char_sheet_draw_focus_rect(hit, true);
             (void)sdl_char_sheet_draw_text(font, label,
-                focused ? TERM_DARK : TERM_L_WHITE,
-                preview_prompt ? hit.x : cursor_x, y, hit.w, h,
-                preview_prompt);
+                (preview_prompt
+#if SIL_SDL_MOBILE_BUILD
+                    || touch_buttons
+#endif
+                    ) ? TERM_DARK : (focused ? TERM_DARK : TERM_L_WHITE),
+                (preview_prompt
+#if SIL_SDL_MOBILE_BUILD
+                    || touch_buttons
+#endif
+                    ) ? hit.x : cursor_x, y, hit.w, h,
+                preview_prompt
+#if SIL_SDL_MOBILE_BUILD
+                    || touch_buttons
+#endif
+                );
             if (choice >= 0)
                 sdl_char_sheet_add_hit(hit, choice, "");
             else
                 sdl_char_sheet_add_prompt_hit(hit, choice);
         }
-        cursor_x += (float)text_w + spacing;
+        cursor_x += item_w + spacing;
     }
 }
 
@@ -3257,6 +3477,10 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     }
     g_sdl_character_sheet_screen.sheet_scroll = scroll;
     g_sdl_character_sheet_screen.sheet_scroll_max = max_scroll;
+    /* Publish the scrollable list region so a touch drag here pans the list
+     * (without selecting) instead of moving the highlight. */
+    g_sdl_character_sheet_screen.select_scroll_rect =
+        (SDL_FRect){ content_x, top_y, content_w, row_region_h };
     last_selected_index = g_sdl_character_sheet_screen.selected_index;
     last_row_count = row_count;
 
@@ -3374,31 +3598,35 @@ void sdl_char_sheet_render_hover_tooltip(void)
 
     if (g_sdl_character_sheet_screen.last_desc_px > 0)
     {
-        font_px = g_sdl_character_sheet_screen.last_desc_px;
+        int max_px = sdl_char_sheet_clampi((int)((float)screen.h * 0.040f),
+            24, 48);
+
+        font_px = (g_sdl_character_sheet_screen.last_desc_px * 6) / 5;
+        font_px = sdl_char_sheet_clampi(font_px, 14, max_px);
     }
     else if (g_sdl_character_sheet_screen.last_body_line_h > 0.0f)
     {
         float target_h = g_sdl_character_sheet_screen.last_body_line_h
-            * (sdl_char_sheet_birth_context() ? 0.92f : 0.72f);
+            * (sdl_char_sheet_birth_context() ? 1.08f : 0.90f);
         int max_px = g_sdl_character_sheet_screen.last_body_px;
 
-        if (max_px < 10)
-            max_px = 10;
-        font_px = sdl_char_sheet_font_px_for_line_height(target_h, 10,
+        if (max_px < 14)
+            max_px = 14;
+        font_px = sdl_char_sheet_font_px_for_line_height(target_h, 12,
             max_px);
     }
     else
-        font_px = sdl_char_sheet_clampi((int)((float)screen.h * 0.014f), 10,
-            20);
+        font_px = sdl_char_sheet_clampi((int)((float)screen.h * 0.020f), 14,
+            30);
     font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (!font)
         return;
 
-    pad = sdl_char_sheet_clampf((float)font_px * 0.36f, 7.0f, 14.0f);
-    gap = sdl_char_sheet_clampf((float)font_px * 0.32f, 6.0f, 12.0f);
-    margin = sdl_char_sheet_clampf((float)screen.h * 0.009f, 6.0f, 14.0f);
-    max_box_w = MIN((float)screen.w * 0.48f, 820.0f);
-    max_box_w = MAX(max_box_w, MIN((float)screen.w - margin * 2.0f, 300.0f));
+    pad = sdl_char_sheet_clampf((float)font_px * 0.44f, 9.0f, 18.0f);
+    gap = sdl_char_sheet_clampf((float)font_px * 0.38f, 7.0f, 16.0f);
+    margin = sdl_char_sheet_clampf((float)screen.h * 0.010f, 7.0f, 18.0f);
+    max_box_w = MIN((float)screen.w * 0.62f, 980.0f);
+    max_box_w = MAX(max_box_w, MIN((float)screen.w - margin * 2.0f, 360.0f));
     max_text_w = max_box_w - pad * 2.0f;
     if (max_text_w <= 1.0f)
         return;
@@ -4183,6 +4411,19 @@ static void sdl_character_sheet_select_counter(int* out_current,
         *out_total = total;
 }
 
+/*
+ * Drag-to-scroll is also wanted on the generic select-menu-style lists
+ * (options, etc.), not only the hero carousel.  Enable it whenever such a menu
+ * actually overflows its visible region; tapping a row still selects it.
+ */
+static bool sdl_character_sheet_select_menu_scroll_active(void)
+{
+    return g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SELECT
+        && g_sdl_character_sheet_screen.select_menu_style
+        && g_sdl_character_sheet_screen.sheet_scroll_max > 0;
+}
+
 static void sdl_character_sheet_select_scroll_cancel(void)
 {
     SDL_zero(g_sdl_character_sheet_screen.select_scroll_drag);
@@ -4203,7 +4444,8 @@ static bool sdl_character_sheet_select_scroll_begin(float x, float y,
     menu_scroll_drag_state* drag =
         &g_sdl_character_sheet_screen.select_scroll_drag;
 
-    if (!sdl_character_sheet_mobile_character_select_active())
+    if (!sdl_character_sheet_mobile_character_select_active()
+        && !sdl_character_sheet_select_menu_scroll_active())
         return false;
     if (!sdl_character_sheet_select_scroll_point_inside(x, y))
         return false;
@@ -6068,6 +6310,96 @@ bool sdl_character_sheet_screen_birth_sequence_active(void)
         || g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SKILLS;
 }
 
+static bool sdl_character_sheet_touch_allocation_choice(int choice)
+{
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_STATS)
+        return choice >= 0 && choice < A_MAX;
+    if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
+        return choice >= 0 && choice < S_MAX && choice != S_SPC;
+    return false;
+}
+
+static void sdl_character_sheet_touch_press_cancel(void)
+{
+    SDL_zero(g_sdl_character_sheet_screen.touch_press);
+}
+
+static void sdl_character_sheet_touch_press_begin(float x, float y,
+    SDL_FingerID finger_id)
+{
+    const sdl_character_sheet_hit* hit = sdl_char_sheet_hit_at(x, y);
+    character_sheet_touch_press_state* press =
+        &g_sdl_character_sheet_screen.touch_press;
+
+    sdl_character_sheet_touch_press_cancel();
+    if (!hit || !sdl_character_sheet_touch_allocation_choice(hit->choice))
+        return;
+
+    press->active = true;
+    press->finger_id = finger_id;
+    press->choice = hit->choice;
+    press->start_x = x;
+    press->start_y = y;
+    press->start_time = SDL_GetTicksNS();
+}
+
+static bool sdl_character_sheet_touch_press_moved(float x, float y)
+{
+    const character_sheet_touch_press_state* press =
+        &g_sdl_character_sheet_screen.touch_press;
+    float threshold = sdl_touch_swipe_threshold_px() * 0.35f;
+    float dx;
+    float dy;
+
+    if (!press->active)
+        return false;
+    if (threshold < 18.0f)
+        threshold = 18.0f;
+    dx = x - press->start_x;
+    dy = y - press->start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+    return dx > threshold || dy > threshold;
+}
+
+static void sdl_character_sheet_touch_press_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    character_sheet_touch_press_state* press =
+        &g_sdl_character_sheet_screen.touch_press;
+
+    if (!press->active || press->finger_id != finger_id)
+        return;
+    if (sdl_character_sheet_touch_press_moved(x, y))
+        sdl_character_sheet_touch_press_cancel();
+}
+
+static int sdl_character_sheet_touch_press_release_action(float x, float y,
+    SDL_FingerID finger_id)
+{
+    const sdl_character_sheet_hit* hit;
+    const character_sheet_touch_press_state* press =
+        &g_sdl_character_sheet_screen.touch_press;
+    Uint64 held_ns;
+
+    if (!press->active || press->finger_id != finger_id)
+        return UI_MENU_CLICK_PRIMARY;
+    if (sdl_character_sheet_touch_press_moved(x, y))
+        return UI_MENU_CLICK_PRIMARY;
+
+    hit = sdl_char_sheet_hit_at(x, y);
+    if (!hit || hit->choice != press->choice)
+        return UI_MENU_CLICK_PRIMARY;
+
+    held_ns = SDL_GetTicksNS() - press->start_time;
+    if (held_ns >= 500000000ULL)
+        return UI_MENU_CLICK_SECONDARY;
+
+    return UI_MENU_CLICK_PRIMARY;
+}
+
 void sdl_character_sheet_birth_swipe_cancel(void)
 {
     touch_swipe_state* swipe = &g_sdl_character_sheet_screen.birth_swipe;
@@ -6701,7 +7033,8 @@ void sdl_character_sheet_screen_render(void)
             /* Stat/trait rows are hoverable for a tooltip (a distinct id range
              * so a click never reads as a selection); rows without a tooltip
              * stay inert. */
-            detail_lines[i].choice = (d->desc[0]) ? (9000 + i) : -1;
+            detail_lines[i].choice = (d->desc[0])
+                ? (SDL_CHAR_SHEET_INFO_CHOICE_BASE + i) : -1;
         }
 
         SDL_zero(panels);
@@ -6952,6 +7285,25 @@ void sdl_character_sheet_screen_render(void)
 
         if (birth)
         {
+#if SIL_SDL_MOBILE_BUILD
+            panels[n].kind = SDL_PANEL_KIND_ALLOC_STATS;
+            panels[n].heading = "Attributes";
+            panels[n].lines = NULL;
+            panels[n].line_count = 0;
+            panels[n].label_fraction = 0.44f;
+            panels[n].weight = 2;
+            panels[n].rows = A_MAX + 1;
+            n++;
+
+            panels[n].kind = SDL_PANEL_KIND_ALLOC_SKILLS;
+            panels[n].heading = "Skills";
+            panels[n].lines = NULL;
+            panels[n].line_count = 0;
+            panels[n].label_fraction = 0.44f;
+            panels[n].weight = 4;
+            panels[n].rows = S_MAX;
+            n++;
+#else
             panels[n].kind = SDL_PANEL_KIND_ALLOC;
             panels[n].heading = "Attributes / Skills";
             panels[n].lines = NULL;
@@ -6963,6 +7315,7 @@ void sdl_character_sheet_screen_render(void)
                 (g_sdl_character_sheet_screen.context
                     == SDL_CHARACTER_SHEET_BIRTH_STATS);
             n++;
+#endif
         }
         else
         {
@@ -6988,10 +7341,9 @@ void sdl_character_sheet_screen_render(void)
         if (birth)
         {
             /*
-             * Birth/assign: one fewer column than the live sheet (more vertical
-             * space for the grid), the description hidden, and a footer with
-             * Points Left + [Confirm] [Esc] placed directly under the column
-             * being distributed.
+             * Birth/assign: use one fewer column than the live character
+             * sheet. There is no description band here, so the grid has enough
+             * vertical room while each column gets more width.
              */
             int fpx = sdl_char_sheet_clampi((int)((float)canvas.h * 0.030f),
                 18, 40);
@@ -6999,9 +7351,10 @@ void sdl_character_sheet_screen_render(void)
             float flh = sdl_char_sheet_line_h(ffont, fpx, 1.1f);
             char status[64];
             SDL_FRect alloc_col = { content_x, top_y, content_w, top_h };
+            int ncols_bias = -1;
 
             sdl_char_sheet_render_columns(panels, n, content_x, top_y,
-                content_w, top_h - flh - gap, canvas.h, "", NULL, -1,
+                content_w, top_h - flh - gap, canvas.h, "", NULL, ncols_bias,
                 &alloc_col);
             strnfmt(status, sizeof(status), "Points Left: %d",
                 g_sdl_character_sheet_screen.points_left);
@@ -7052,6 +7405,7 @@ void sdl_character_sheet_screen_hide(void)
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     sdl_character_sheet_birth_swipe_cancel();
+    sdl_character_sheet_touch_press_cancel();
     sdl_char_sheet_clear_hits();
     ui_menu_click_clear_pending_hover();
     g_state.need_present = true;
@@ -7073,6 +7427,7 @@ bool sdl_character_sheet_screen_begin_live(int focus_choice)
     g_sdl_character_sheet_screen.points_left = 0;
     g_sdl_character_sheet_screen.select_menu_style = false;
     g_sdl_character_sheet_screen.live_item_count = 0;
+    sdl_character_sheet_touch_press_cancel();
     g_state.need_present = true;
     return true;
 }
@@ -7089,6 +7444,7 @@ bool sdl_character_sheet_screen_begin_birth_preview(void)
         g_sdl_character_sheet_screen.sheet_scroll_max = 0;
     }
     sdl_character_sheet_birth_swipe_cancel();
+    sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_PREVIEW;
     g_sdl_character_sheet_screen.focus_choice = -1;
     g_sdl_character_sheet_screen.selected_index = -1;
@@ -7134,6 +7490,7 @@ bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
         return false;
 
     sdl_character_sheet_birth_swipe_cancel();
+    sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_STATS;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
@@ -7159,6 +7516,7 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
         return false;
 
     sdl_character_sheet_birth_swipe_cancel();
+    sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SKILLS;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
@@ -7217,6 +7575,7 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     }
     g_sdl_character_sheet_screen.select_page_count = 1;
     sdl_character_sheet_birth_swipe_cancel();
+    sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SELECT;
     g_sdl_character_sheet_screen.focus_choice = focus_choice;
     g_sdl_character_sheet_screen.selected_index = focus_choice;
@@ -7697,13 +8056,18 @@ bool sdl_character_sheet_screen_handle_pointer_event(
         if (sdl_character_sheet_select_scroll_begin(x, y,
                 ev->tfinger.fingerID))
         {
-            sdl_character_sheet_birth_swipe_begin(x, y,
-                ev->tfinger.fingerID);
+            /* Only the hero carousel uses a horizontal swipe to change
+             * selection; option-style lists just scroll vertically. */
+            if (sdl_character_sheet_mobile_character_select_active())
+                sdl_character_sheet_birth_swipe_begin(x, y,
+                    ev->tfinger.fingerID);
             return true;
         }
 #endif
         if (sdl_character_sheet_screen_birth_sequence_active())
         {
+            sdl_character_sheet_touch_press_begin(x, y,
+                ev->tfinger.fingerID);
             sdl_character_sheet_birth_swipe_begin(x, y, ev->tfinger.fingerID);
             return true;
         }
@@ -7729,8 +8093,15 @@ bool sdl_character_sheet_screen_handle_pointer_event(
             && g_sdl_character_sheet_screen.birth_swipe.finger_id
                 == ev->tfinger.fingerID)
         {
-            return sdl_character_sheet_birth_swipe_motion(x, y,
+            bool handled;
+
+            sdl_character_sheet_touch_press_motion(x, y,
                 ev->tfinger.fingerID);
+            handled = sdl_character_sheet_birth_swipe_motion(x, y,
+                ev->tfinger.fingerID);
+            if (g_sdl_character_sheet_screen.birth_swipe.triggered)
+                sdl_character_sheet_touch_press_cancel();
+            return handled;
         }
         return sdl_character_sheet_screen_handle_pointer_motion(x, y);
 
@@ -7761,8 +8132,16 @@ bool sdl_character_sheet_screen_handle_pointer_event(
                     sdl_character_sheet_birth_swipe_cancel();
                 }
                 if (tap)
+                {
+                    int action =
+                        sdl_character_sheet_touch_press_release_action(x, y,
+                            ev->tfinger.fingerID);
+
+                    sdl_character_sheet_touch_press_cancel();
                     return sdl_character_sheet_screen_handle_pointer_button(x,
-                        y, UI_MENU_CLICK_PRIMARY);
+                        y, action);
+                }
+                sdl_character_sheet_touch_press_cancel();
                 return true;
             }
         }
@@ -7772,15 +8151,21 @@ bool sdl_character_sheet_screen_handle_pointer_event(
                 == ev->tfinger.fingerID)
         {
             bool triggered;
+            int action;
 
+            sdl_character_sheet_touch_press_motion(x, y,
+                ev->tfinger.fingerID);
             (void)sdl_character_sheet_birth_swipe_motion(x, y,
                 ev->tfinger.fingerID);
             triggered = g_sdl_character_sheet_screen.birth_swipe.triggered;
+            action = sdl_character_sheet_touch_press_release_action(x, y,
+                ev->tfinger.fingerID);
             sdl_character_sheet_birth_swipe_cancel();
+            sdl_character_sheet_touch_press_cancel();
             if (!triggered)
             {
                 return sdl_character_sheet_screen_handle_pointer_button(x,
-                    y, UI_MENU_CLICK_PRIMARY);
+                    y, action);
             }
         }
         return true;
@@ -7799,6 +8184,12 @@ bool sdl_character_sheet_screen_handle_pointer_event(
                 == ev->tfinger.fingerID)
         {
             sdl_character_sheet_birth_swipe_cancel();
+        }
+        if (g_sdl_character_sheet_screen.touch_press.active
+            && g_sdl_character_sheet_screen.touch_press.finger_id
+                == ev->tfinger.fingerID)
+        {
+            sdl_character_sheet_touch_press_cancel();
         }
         return true;
 

@@ -80,7 +80,6 @@ typedef struct birth_compact_flag_line
     cptr desc_label;
 } birth_compact_flag_line;
 
-extern bool birth_pending_compact_description_confirm;
 extern const int birth_stat_costs[11];
 
 int get_start_xp(void);
@@ -97,7 +96,6 @@ void birth_prompt_label(int binding, const char* fallback, char* buf,
     size_t buflen);
 bool birth_confirm_input(int ch, bool steamdeck);
 bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck);
-bool birth_show_compact_description_after_assignment(bool steamdeck);
 int character_choice_index_by_name(cptr choice_name);
 bool character_description_has_room(void);
 bool character_selection_tight_height(void);

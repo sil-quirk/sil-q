@@ -822,9 +822,14 @@ void show_inven_enhanced(void)
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
-        ui_scroll_area_begin(1, visible_rows,
+        ui_scroll_area_begin_cols(col, term_wid - 1, 1, visible_rows,
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
         ui_scroll_area_set_keys('8', '2', '6', '4');
+        if (sdl_touch_only_device_active())
+        {
+            ui_scroll_area_set_offset_target(&scroll_top,
+                MAX(0, k - visible_rows));
+        }
         bool square_selection = inventory_selection_uses_square();
         const bool controller_controls = steamdeck_controls_active();
 
@@ -1008,8 +1013,22 @@ void show_inven_enhanced(void)
             }
         }
 
-        scroll_top = inventory_menu_scroll_to_selection(scroll_top,
-            highlight_row, k, visible_rows, allow_compare ? compare_count : 0);
+        if (sdl_touch_only_device_active()
+            && ui_scroll_area_take_touch_scrolled())
+        {
+            int max_scroll_top = MAX(0, k - visible_rows);
+
+            if (scroll_top > max_scroll_top)
+                scroll_top = max_scroll_top;
+            if (scroll_top < 0)
+                scroll_top = 0;
+        }
+        else
+        {
+            scroll_top = inventory_menu_scroll_to_selection(scroll_top,
+                highlight_row, k, visible_rows,
+                allow_compare ? compare_count : 0);
+        }
 
         int clear_rows = 0;
         for (int row_idx = scroll_top; row_idx < k && clear_rows < visible_rows;

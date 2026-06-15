@@ -8,7 +8,139 @@
 #include "cmd/world/cmd-interact-chest.h"
 #include "ui/question.h"
 
+#define INTERACTION_ROLL_ANIM_FRAMES 14
+#define INTERACTION_ROLL_ANIM_FRAME_MS 80
+#define INTERACTION_ROLL_RESULT_MS 850
+
 static bool is_open(int feat) { return (feat == FEAT_OPEN); }
+
+static int interaction_roll_visual_die(
+    const skill_roll_details* roll, int frame, int salt)
+{
+    u32b x = (u32b)(frame + 1) * 1103515245u;
+
+    x ^= (u32b)(roll->skill + 31) * 2654435761u;
+    x ^= (u32b)(roll->difficulty + 17) * 2246822519u;
+    x ^= (u32b)(roll->skill_die_primary + 3) * 3266489917u;
+    x ^= (u32b)(roll->difficulty_die_primary + 5) * 668265263u;
+    x ^= (u32b)(salt + 1) * 374761393u;
+    x ^= x >> 16;
+    x *= 2246822519u;
+    x ^= x >> 13;
+
+    return (int)(x % 10u) + 1;
+}
+
+static void interaction_roll_format_total(
+    char* buf, size_t buf_sz, cptr label, int die, int bonus)
+{
+    strnfmt(buf, buf_sz, "%-10s d10 %2d %c %d = %d", label, die,
+        (bonus < 0) ? '-' : '+', ABS(bonus), die + bonus);
+}
+
+static void interaction_roll_render_overlay(cptr title, cptr action, int y,
+    int x, const skill_roll_details* roll, int skill_die, int difficulty_die,
+    bool final)
+{
+    char line[96];
+    char result[96];
+    int skill_total = skill_die + roll->skill;
+    int difficulty_total = difficulty_die + roll->difficulty;
+    int margin = skill_total - difficulty_total;
+
+    sdl_question_menu_begin(title);
+    if ((y >= 0) && (x >= 0))
+        sdl_question_menu_set_anchor_grid(y, x);
+    sdl_question_menu_set_desc(final ? "Final throw" : "Throwing...");
+
+    sdl_question_menu_add_text(action, final ? TERM_L_WHITE : TERM_L_BLUE);
+
+    interaction_roll_format_total(
+        line, sizeof(line), "You", skill_die, roll->skill);
+    sdl_question_menu_add_text(line, TERM_WHITE);
+
+    interaction_roll_format_total(
+        line, sizeof(line), "Difficulty", difficulty_die, roll->difficulty);
+    sdl_question_menu_add_text(line, TERM_WHITE);
+
+    if (final)
+    {
+        if (roll->result > 0)
+        {
+            strnfmt(result, sizeof(result), "Result     success by %d",
+                roll->result);
+            sdl_question_menu_add_text(result, TERM_L_GREEN);
+        }
+        else if (roll->result == 0)
+        {
+            sdl_question_menu_add_text("Result     failure (tie)", TERM_L_RED);
+        }
+        else
+        {
+            strnfmt(result, sizeof(result), "Result     failure by %d",
+                ABS(roll->result));
+            sdl_question_menu_add_text(result, TERM_L_RED);
+        }
+
+        if (roll->skill_curse_active)
+        {
+            strnfmt(line, sizeof(line), "Curse      lower player die kept (%d/%d)",
+                roll->skill_die_primary, roll->skill_die_alt);
+            sdl_question_menu_add_text(line, TERM_SLATE);
+        }
+        else if (roll->difficulty_curse_active)
+        {
+            strnfmt(line, sizeof(line),
+                "Curse      lower difficulty die kept (%d/%d)",
+                roll->difficulty_die_primary, roll->difficulty_die_alt);
+            sdl_question_menu_add_text(line, TERM_SLATE);
+        }
+    }
+    else
+    {
+        strnfmt(result, sizeof(result), "Margin     %+d", margin);
+        sdl_question_menu_add_text(result, TERM_SLATE);
+    }
+
+    sdl_question_menu_finish();
+    Term_fresh();
+}
+
+void show_interaction_skill_roll_animation(cptr title, cptr action, int y,
+    int x, const skill_roll_details* roll)
+{
+    bool saved_hide_cursor;
+
+    if (!roll || !Term || character_icky)
+        return;
+
+    if (p_ptr)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        handle_stuff();
+    }
+
+    saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
+
+    for (int frame = 0; frame < INTERACTION_ROLL_ANIM_FRAMES; frame++)
+    {
+        int skill_die = interaction_roll_visual_die(roll, frame, 0);
+        int difficulty_die = interaction_roll_visual_die(roll, frame, 1);
+
+        interaction_roll_render_overlay(title, action, y, x, roll, skill_die,
+            difficulty_die, false);
+        Term_xtra(TERM_XTRA_DELAY, INTERACTION_ROLL_ANIM_FRAME_MS);
+    }
+
+    interaction_roll_render_overlay(title, action, y, x, roll, roll->skill_die,
+        roll->difficulty_die, true);
+    Term_xtra(TERM_XTRA_DELAY, INTERACTION_ROLL_RESULT_MS);
+
+    sdl_question_menu_clear();
+    hide_cursor = saved_hide_cursor;
+    Term_fresh();
+}
 
 /*
  * Return true if the given feature is a closed door
@@ -180,7 +312,8 @@ static bool do_cmd_open_test(int y, int x)
  */
 bool do_cmd_open_aux(int y, int x)
 {
-    int score, power, difficulty;
+    int score, power, difficulty, result;
+    skill_roll_details roll;
 
     bool more = false;
 
@@ -213,8 +346,12 @@ bool do_cmd_open_aux(int y, int x)
         if (p_ptr->confused)
             difficulty += 5;
 
+        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
+        show_interaction_skill_roll_animation("Picking the lock",
+            "Working the lockpick", y, x, &roll);
+
         /* Success */
-        if (skill_check(PLAYER, score, difficulty, NULL) > 0)
+        if (result > 0)
         {
             /* Message */
             message(MSG_OPENDOOR, 0, "You have picked the lock.");
@@ -1891,6 +2028,7 @@ bool do_cmd_disarm_aux(int y, int x)
 {
     int score, difficulty, result;
     int power = 0; // default to soothe compiler warnings
+    skill_roll_details roll;
 
     cptr name;
 
@@ -2002,7 +2140,9 @@ bool do_cmd_disarm_aux(int y, int x)
         difficulty += 5;
 
     // perform the check
-    result = skill_check(PLAYER, score, difficulty, NULL);
+    result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
+    show_interaction_skill_roll_animation("Disarming trap",
+        "Testing the mechanism", y, x, &roll);
 
     /* Success, always succeed with player trap */
     if (result > 0)
@@ -2192,7 +2332,8 @@ static bool do_cmd_bash_test(int y, int x)
  */
 static bool do_cmd_bash_aux(int y, int x)
 {
-    int score, difficulty, power;
+    int score, difficulty, power, result;
+    skill_roll_details roll;
 
     bool more = false;
     bool success = false;
@@ -2263,7 +2404,11 @@ static bool do_cmd_bash_aux(int y, int x)
         difficulty = 0;
         difficulty += power;
 
-        if (skill_check(PLAYER, score, difficulty, NULL) > 0)
+        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
+        show_interaction_skill_roll_animation("Bashing the door",
+            "Putting your shoulder into it", y, x, &roll);
+
+        if (result > 0)
         {
             success = true;
 

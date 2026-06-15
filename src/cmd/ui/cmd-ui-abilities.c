@@ -5031,7 +5031,7 @@ void do_cmd_ability_screen(void)
 
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
     sdl_push_terminal_menu_scale();
     sdl_screen_back_gesture_begin();
 
@@ -5116,16 +5116,27 @@ void do_cmd_ability_screen(void)
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
-        ui_scroll_area_begin(layout.list_row,
+        ui_scroll_area_begin_cols(layout.ability_col,
+            layout.ability_col + layout.ability_w - 1, layout.list_row,
             MAX(layout.list_row, layout.status_row - 1),
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
-        if (column == 0 && sdl_touch_only_device_active())
+        if (sdl_touch_only_device_active())
         {
             /* Touch-only: drag pans the ability list without moving the
              * selection (tap an ability to pick it). */
             ui_scroll_area_set_offset_target(&entry_top,
                 MAX(0, entry_count - layout.list_rows));
+        }
+        if (layout.desc_w > 0)
+        {
+            (void)ui_scroll_area_add_cols(layout.desc_col,
+                layout.desc_col + layout.desc_w - 1, layout.list_row,
+                MAX(layout.list_row, layout.status_row - 1),
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('8', '2', '6', '4');
+            if (sdl_touch_only_device_active())
+                ui_scroll_area_set_offset_target(&desc_top, desc_max_top);
         }
 
         ability_browser_draw_frame(&layout, skilltype);
@@ -5209,11 +5220,16 @@ void do_cmd_ability_screen(void)
                     if (clicked_entry >= 0 && clicked_entry < entry_count)
                     {
                         bool same = (entry_cur == clicked_entry);
+                        bool touch_primary =
+                            sdl_touch_only_device_active()
+                            && click_action == UI_MENU_CLICK_PRIMARY;
 
                         entry_cur = clicked_entry;
                         column = 0;
                         desc_top = 0;
-                        if (click_action == UI_MENU_CLICK_HOVER || !same)
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        if (!same && !touch_primary)
                             continue;
                         ch = ' ';
                     }
@@ -5413,7 +5429,7 @@ void do_cmd_ability_screen(void)
     ui_scroll_area_clear();
     sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -5448,7 +5464,7 @@ static void do_cmd_ability_screen_legacy(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
     sdl_screen_back_gesture_begin();
 
     /* Clear screen */
@@ -5829,7 +5845,7 @@ static void do_cmd_ability_screen_legacy(void)
     /* Load screen */
     ui_menu_click_clear();
     sdl_screen_back_gesture_end();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     screen_load();
 

@@ -29,7 +29,6 @@ void birth_prompt_label(int binding, const char* fallback, char* buf, size_t buf
         SDL_strlcpy(buf, fallback, buflen);
 }
 
-bool birth_pending_compact_description_confirm = false;
 bool birth_confirm_input(int ch, bool steamdeck)
 {
     if (ch == '\r' || ch == '\n' || ch == ' ' || ch == INPUT_BIND_CONFIRM)
@@ -70,7 +69,8 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     Term_erase(0, prompt_row, 255);
 
     strnfmt(warning_buf, sizeof(warning_buf),
-        "Unused stat points: %d. Continue anyway?", points_left);
+        "%d unassigned attribute point%s. Continue anyway?", points_left,
+        (points_left == 1) ? "" : "s");
     birth_put_str_fit(TERM_YELLOW, warning_buf, message_row, 1);
 
     if (steamdeck)
@@ -88,7 +88,12 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     }
     else
     {
-        strnfmt(buf, sizeof(buf), "Enter/y continue  n/Esc keep allocating");
+        if (sdl_touch_only_device_active())
+            strnfmt(buf, sizeof(buf),
+                "Tap Yes to continue  No to keep allocating");
+        else
+            strnfmt(buf, sizeof(buf),
+                "Enter/y continue  n/Esc keep allocating");
     }
 
     birth_put_str_fit(TERM_SLATE, buf, prompt_row, 1);
@@ -112,9 +117,11 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     {
         ui_menu_click_add_text_token(1, 1, prompt_row, buf, "SPACE/y");
         ui_menu_click_add_text_token(1, 1, prompt_row, buf, "Enter/y");
+        ui_menu_click_add_text_token(1, 1, prompt_row, buf, "Yes");
         ui_menu_click_add_text_token(1, 1, prompt_row, buf, "continue");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/ESC");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "n/Esc");
+        ui_menu_click_add_text_token(0, 1, prompt_row, buf, "No");
         ui_menu_click_add_text_token(0, 1, prompt_row, buf, "keep allocating");
     }
     sdl_touch_pane_begin_yes_no_prompt(warning_buf);
@@ -154,59 +161,6 @@ bool birth_confirm_unspent_stat_points(int points_left, bool steamdeck)
     sdl_touch_pane_end_yes_no_prompt();
     ui_menu_click_clear();
     return confirmed;
-}
-
-bool birth_show_compact_description_after_assignment(bool steamdeck)
-{
-    char ch;
-    char buf[160];
-
-    while (1)
-    {
-        int wid = 80;
-        int hgt = 24;
-        int prompt_row;
-
-        Term_get_size(&wid, &hgt);
-        if (wid < 1)
-            wid = 80;
-        if (hgt < 1)
-            hgt = 24;
-
-        display_player(100);
-
-        prompt_row = hgt - 1;
-        if (prompt_row < 0)
-            prompt_row = 0;
-        Term_erase(0, prompt_row, 255);
-
-        if (steamdeck)
-        {
-            char confirm_label[16];
-            char back_label[16];
-
-            birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
-            birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-            strnfmt(buf, sizeof(buf), "%s back  %s continue", back_label, confirm_label);
-        }
-        else
-        {
-            strnfmt(buf, sizeof(buf), "Esc back to assignment  Enter continue");
-        }
-
-        c_put_str(TERM_SLATE, buf, prompt_row, 1);
-
-        hide_cursor = true;
-        ch = inkey();
-        hide_cursor = false;
-        ch = (char)steamdeck_menu_key(ch, 0, 0);
-
-        if ((ch == ESCAPE) || (ch == '4') || (ch == 'q') || (ch == 'Q'))
-            return false;
-
-        if (birth_confirm_input(ch, steamdeck) || (ch == '6'))
-            return true;
-    }
 }
 
 int character_choice_index_by_name(cptr choice_name)

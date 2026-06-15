@@ -370,6 +370,13 @@ static void race_aux_hook(birth_menu r_str)
             attr = TERM_L_BLUE;
 
         Term_putstr(RACE_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
+        {
+            char desc[256];
+
+            character_sheet_format_stat_hint(i, adj, true, desc,
+                sizeof(desc));
+            birth_detail_hover_add(RACE_AUX_COL, TABLE_ROW + i, 8, desc);
+        }
     }
 
     /* Display the race flags */
@@ -807,7 +814,7 @@ static bool get_character_profile(void)
         }
     }
 
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
     {
         birth_select_page page = {
             "Whose fate will you carry?", /* title (the borrowing voice) */
@@ -822,7 +829,7 @@ static bool get_character_profile(void)
             character_menu, character, previous_choice, CLASS_COL, 22,
             character_aux_hook, true, &page);
     }
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
 
     /* No selection? */
     if (character_choice == INVALID_CHOICE)
@@ -891,7 +898,7 @@ static NavResult character_creation_from_phase(int initial_phase)
             rp_ptr = &p_info[p_ptr->prace];
     }
 
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
 
     /*** Instructions ***/
 
@@ -989,7 +996,7 @@ cleanup:
      * screens (oath selection, etc.) and the main menu are visible again. */
     sdl_character_sheet_screen_hide();
     ui_menu_click_clear();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     return result;
 
 }

@@ -4362,7 +4362,8 @@ void do_cmd_search_skeleton(int y, int x, s16b o_idx)
  */
 bool do_cmd_open_chest(int y, int x, s16b o_idx)
 {
-    int score, power, difficulty;
+    int score, power, difficulty, result;
+    skill_roll_details roll;
 
     bool flag = true;
 
@@ -4391,8 +4392,12 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
         if (p_ptr->confused)
             difficulty += 5;
 
+        result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
+        show_interaction_skill_roll_animation("Picking the chest lock",
+            "Working the lockpick", y, x, &roll);
+
         /* Success -- May still have traps */
-        if (skill_check(PLAYER, score, difficulty, NULL) > 0)
+        if (result > 0)
         {
             message(MSG_LOCKPICK_FAIL, 0, "You have picked the lock.");
             flag = true;
@@ -4441,6 +4446,7 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
 bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
 {
     int score, power, difficulty, result;
+    skill_roll_details roll;
 
     bool more = false;
 
@@ -4462,7 +4468,9 @@ bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
         difficulty += 5;
 
     // perform the check
-    result = skill_check(PLAYER, score, difficulty, NULL);
+    result = skill_check_details(PLAYER, score, difficulty, NULL, &roll);
+    show_interaction_skill_roll_animation("Disarming chest",
+        "Testing the mechanism", y, x, &roll);
 
     /* Must find the trap first. */
     if (!object_known_p(o_ptr))

@@ -16,7 +16,6 @@ static NavResult player_birth_aux(void)
 {
 
     log_debug("Initializing character data and history");
-    birth_pending_compact_description_confirm = true;
 
     SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
@@ -63,24 +62,17 @@ static NavResult player_birth_aux(void)
         for (int i = 0; i < A_MAX; i++)
             stat_alloc[i] = p_ptr->stat_base[i];
 
-        /* Show the complete character sheet once ("full at first") before
-         * dropping into stat allocation, then skills. */
-        character_sheet_show_birth_preview();
-
         for (;;)
         {
-            if (!sdl_character_sheet_screen_active())
-                display_player(0);
-
             /* Stats allocation screen */
             log_debug("Entering stats allocation");
             NavResult s = player_birth_aux_2(stat_alloc);
             if (s == NAV_OK) {
                 /* Skill allocation: Esc returns to stats; q returns to character selection. */
                 log_debug("Stats accepted, entering skills allocation");
-                screen_push_touch_pane_proto();
+                screen_push_touch_pane_hidden();
                 NavResult g = gain_skills();
-                screen_pop_touch_pane_proto();
+                screen_pop_touch_pane_hidden();
                 if (g == NAV_BACK) continue;
                 if (g == NAV_TO_CHARACTER) return NAV_BACK;
                 if (g != NAV_OK) return g;
@@ -185,8 +177,6 @@ NavResult player_birth()
 
     return NAV_OK;
 }
-
-
 
 
 

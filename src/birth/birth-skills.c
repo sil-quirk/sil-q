@@ -371,11 +371,11 @@ extern NavResult gain_skills(void)
             } else if (sdl_touch_only_device_active()) {
                 char prompt_text[160];
                 /* Keep confirm/back/char tappable on touch; skills are
-                 * tappable rows for allocation. */
+                 * tap-to-add and long-tap-to-subtract rows. */
                 const char* variants[] = {
-                    "Tap a skill to allocate  confirm  back  char",
-                    "Tap a skill to allocate  confirm  back",
-                    "Tap a skill, confirm"
+                    "Tap skill +  long tap -  confirm  back  char",
+                    "Tap skill +  long tap -  confirm  back",
+                    "Tap +  long tap -  confirm"
                 };
                 terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
                     Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
@@ -480,13 +480,6 @@ extern NavResult gain_skills(void)
         /* Done */
         if (birth_confirm_input(ch, steamdeck))
         {
-            if (compact && birth_pending_compact_description_confirm)
-            {
-                sdl_character_sheet_screen_hide();
-                if (!birth_show_compact_description_after_assignment(steamdeck))
-                    continue;
-                birth_pending_compact_description_confirm = false;
-            }
             ui_menu_click_clear();
             ui_scroll_area_clear();
             result = NAV_OK;

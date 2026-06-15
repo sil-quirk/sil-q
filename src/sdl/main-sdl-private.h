@@ -395,6 +395,15 @@ typedef struct touch_swipe_state {
     float last_y;
 } touch_swipe_state;
 
+typedef struct character_sheet_touch_press_state {
+    bool active;
+    SDL_FingerID finger_id;
+    int choice;
+    float start_x;
+    float start_y;
+    Uint64 start_time;
+} character_sheet_touch_press_state;
+
 typedef struct welcome_touch_press_state {
     bool active;
     SDL_FingerID finger_id;
@@ -498,6 +507,7 @@ typedef struct menu_scroll_drag_state {
     bool active;
     bool dragged;
     SDL_FingerID finger_id;
+    int area_index;
     float start_x;
     float start_y;
     float last_y;
@@ -561,11 +571,12 @@ typedef struct sdl_character_sheet_screen_state {
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     int narrative_paginated_for_w; /* content width the page breaks were built for */
     touch_swipe_state birth_swipe;
+    character_sheet_touch_press_state touch_press;
     int last_body_px;          /* last column/list body font px for tooltips */
     float last_body_line_h;    /* rendered row height for last column body */
     int last_desc_px;          /* last description font px */
     float last_desc_line_h;    /* rendered row height for last description */
-    sdl_character_sheet_hit hits[192];
+    sdl_character_sheet_hit hits[224];
     int hit_count;
     int hover_choice;
     int sheet_scroll;
@@ -2514,9 +2525,7 @@ float sdl_touch_swipe_threshold_px(void);
 int sdl_touch_swipe_direction_for_delta(float dx, float dy, float threshold);
 float sdl_touch_swipe_edge_px(const SDL_Rect* screen);
 bool sdl_touch_swipe_point_near_top_panel_edge(float x, float y);
-bool sdl_touch_swipe_point_near_touch_pane_edge(float x, float y);
 bool sdl_touch_swipe_round_layer_start_allowed(float x, float y);
-bool sdl_touch_swipe_start_can_toggle_touch_pane(void);
 bool sdl_touch_swipe_start_can_toggle_top_panel(void);
 bool sdl_touch_swipe_binding_is_top_panel_action(int binding);
 void sdl_touch_swipe_cancel(void);

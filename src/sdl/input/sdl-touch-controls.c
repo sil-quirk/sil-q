@@ -3,7 +3,9 @@
 
 #define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.58f
 #define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.42f
-#define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.36f
+/* The whole inner disc (up to the drag threshold) repeats the last direction,
+ * so the centre reads as a single "repeat" button with no dead band. */
+#define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.42f
 #define SDL_TOUCH_ROUND_HIT_SLOP_FRAC 0.18f
 
 void sdl_touch_pane_send_confirm_action(void)
@@ -202,29 +204,6 @@ bool sdl_touch_swipe_point_near_top_panel_edge(float x, float y)
         && y > (float)(screen.y + screen.h) - inset;
 }
 
-bool sdl_touch_swipe_point_near_touch_pane_edge(float x, float y)
-{
-    SDL_Rect screen = sdl_get_layout_screen_rect();
-    float inset;
-    bool left_side;
-
-    if (!sdl_rect_has_area(&screen))
-        return false;
-
-    inset = sdl_touch_swipe_edge_px(&screen);
-    left_side = sdl_touch_pane_is_left_placement();
-    if (y < (float)screen.y || y >= (float)(screen.y + screen.h))
-        return false;
-
-    if (left_side) {
-        return x >= (float)screen.x
-            && x < (float)screen.x + inset;
-    }
-
-    return x <= (float)(screen.x + screen.w)
-        && x > (float)(screen.x + screen.w) - inset;
-}
-
 bool sdl_touch_swipe_round_layer_start_allowed(float x, float y)
 {
     if (!sdl_touch_round_layer_controls_active())
@@ -238,21 +217,8 @@ bool sdl_touch_swipe_round_layer_start_allowed(float x, float y)
     {
         return true;
     }
-    if (sdl_touch_pane_uses_mobile_toggle()
-        && sdl_touch_swipe_point_near_touch_pane_edge(x, y))
-    {
-        return true;
-    }
 
     return false;
-}
-
-bool sdl_touch_swipe_start_can_toggle_touch_pane(void)
-{
-    return sdl_touch_pane_point_to_slot(g_touch_swipe.start_x,
-            g_touch_swipe.start_y, NULL)
-        || sdl_touch_swipe_point_near_touch_pane_edge(g_touch_swipe.start_x,
-            g_touch_swipe.start_y);
 }
 
 bool sdl_touch_swipe_start_can_toggle_top_panel(void)
@@ -283,7 +249,6 @@ void sdl_touch_swipe_cancel(void)
 bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_id)
 {
     int slot = -1;
-    bool mobile_toggle = sdl_touch_pane_uses_mobile_toggle();
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
@@ -291,11 +256,10 @@ bool sdl_touch_swipe_handle_pointer_down(float x, float y, SDL_FingerID finger_i
     {
         return false;
     }
-    if (!config.touch_swipe_enabled && !mobile_toggle)
+    if (!config.touch_swipe_enabled)
         return false;
     if (sdl_touch_pane_is_config_enabled()
-        && sdl_touch_pane_point_to_slot(x, y, &slot)
-        && !(mobile_toggle && g_touch_pane_mobile_open))
+        && sdl_touch_pane_point_to_slot(x, y, &slot))
     {
         return false;
     }
@@ -337,24 +301,6 @@ bool sdl_touch_swipe_handle_pointer_motion(float x, float y, SDL_FingerID finger
     dir = sdl_touch_swipe_direction_for_delta(dx, dy, sdl_touch_swipe_threshold_px());
     if (!dir)
         return true;
-
-    if (sdl_touch_pane_uses_mobile_toggle()
-        && (dir == 4 || dir == 6))
-    {
-        bool open = sdl_touch_pane_is_left_placement()
-            ? (dir == 6)
-            : (dir == 4);
-
-        if (sdl_touch_round_layer_controls_active()
-            && !sdl_touch_swipe_start_can_toggle_touch_pane())
-        {
-            sdl_touch_swipe_cancel();
-            return false;
-        }
-        sdl_touch_pane_set_mobile_open(open);
-        g_touch_swipe.triggered = true;
-        return true;
-    }
 
     if (!config.touch_swipe_enabled) {
         sdl_touch_swipe_cancel();
@@ -615,47 +561,157 @@ static float sdl_touch_round_inner_radius_px(float radius)
     return radius * SDL_TOUCH_ROUND_INNER_RADIUS_FRAC;
 }
 
+/* Pull the [*top, *bottom] band in to clear the overlay panes anchored against
+ * the right edge of the map (depth/log above, status/combat below), so a
+ * right-anchored wheel lands in the open gap between them. Panes that do not
+ * reach the right portion of the map are ignored, so moving one elsewhere
+ * hands its space back to the wheel. */
+static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* clip,
+    float* top, float* bottom)
+{
+    const float right_threshold = (float)clip->x + (float)clip->w * 0.55f;
+    const float mid_y = (float)clip->y + (float)clip->h * 0.5f;
+    SDL_Rect rects[4];
+    int count = 0;
+    SDL_Rect rect;
+    SDL_FRect frect;
+
+    if (sdl_depth_menu_pane_current_rect(&frect)) {
+        rects[count++] = (SDL_Rect){ (int)frect.x, (int)frect.y,
+            (int)frect.w, (int)frect.h };
+    }
+    if (sdl_overlay_log_pane_current_rect(&rect))
+        rects[count++] = rect;
+    if (sdl_status_pane_current_rect(&rect, NULL))
+        rects[count++] = rect;
+    if (sdl_combat_overlay_pane_current_rect(&rect))
+        rects[count++] = rect;
+
+    for (int i = 0; i < count; i++) {
+        float pane_right = (float)(rects[i].x + rects[i].w);
+        float pane_top = (float)rects[i].y;
+        float pane_bottom = (float)(rects[i].y + rects[i].h);
+        float pane_mid = (pane_top + pane_bottom) * 0.5f;
+
+        if (rects[i].w <= 0 || rects[i].h <= 0)
+            continue;
+        if (pane_right < right_threshold)
+            continue;
+
+        if (pane_mid <= mid_y) {
+            if (pane_bottom > *top)
+                *top = pane_bottom;
+        } else if (pane_top < *bottom) {
+            *bottom = pane_top;
+        }
+    }
+}
+
+/* On touch-only devices widen the wheel's render/clip rect from the map area
+ * out to the physical window border, so the wheel can sit flush against the
+ * right edge of the screen rather than the (inset) right edge of the map. */
+static void sdl_touch_round_extend_clip_to_screen(SDL_Rect* clip)
+{
+    SDL_Rect screen;
+    SDL_Rect touch_rect;
+
+    if (!clip || !sdl_touch_only_device_active())
+        return;
+    if (!sdl_touch_pane_is_left_placement()
+        && sdl_touch_pane_current_rect(&touch_rect))
+    {
+        return;
+    }
+
+    screen = sdl_get_layout_screen_rect();
+    if (sdl_rect_has_area(&screen) && screen.x + screen.w > clip->x + clip->w)
+        clip->w = (screen.x + screen.w) - clip->x;
+}
+
 static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip)
 {
     SDL_Rect clip;
+    SDL_Rect render_clip;
     float radius;
     float inner_radius;
     float margin;
     float max_radius;
     float cx;
     float cy;
+    float right_edge;
+    float right_margin;
     bool anchor_right;
+    bool sized = false;
 
     if (!sdl_touch_round_compute_clip_rect(&clip))
         return false;
     if (!sdl_rect_has_area(&clip))
         return false;
 
-    radius = sdl_touch_round_radius_px();
-    margin = radius * 0.12f;
-    if (margin < 8.0f)
-        margin = 8.0f;
+    margin = 8.0f;
+    anchor_right = sdl_touch_pane_is_left_placement();
+    render_clip = clip;
+    right_edge = (float)(clip.x + clip.w);
+    right_margin = margin;
 
-    max_radius = ((float)clip.w - margin * 2.0f) * 0.5f;
-    if ((float)clip.h - margin * 2.0f < max_radius * 2.0f)
-        max_radius = ((float)clip.h - margin * 2.0f) * 0.5f;
-    if (max_radius > 0.0f && radius > max_radius)
-        radius = max_radius;
+    /* Touch-only devices: pin the wheel to the right edge and grow it to fill
+     * the vertical gap left between the right-hand overlay panes. */
+    if (sdl_touch_only_device_active()) {
+        float band_top = (float)clip.y + margin;
+        float band_bottom = (float)(clip.y + clip.h) - margin;
+        float band_h;
+        float max_r_w;
+
+        sdl_touch_round_clip_band_to_panes(&clip, &band_top, &band_bottom);
+        band_h = band_bottom - band_top;
+        max_r_w = ((float)clip.w - margin * 2.0f) * 0.5f;
+
+        radius = band_h * 0.5f;
+        if (radius > max_r_w)
+            radius = max_r_w;
+        if (radius >= 32.0f) {
+            anchor_right = true;
+            cy = (band_top + band_bottom) * 0.5f;
+            sized = true;
+            /* Reach across the strip between the map and the window border so
+             * the wheel can be drawn flush with the right screen edge. */
+            sdl_touch_round_extend_clip_to_screen(&render_clip);
+            right_edge = (float)(render_clip.x + render_clip.w);
+            right_margin = 0.0f;
+        }
+    }
+
+    if (!sized) {
+        radius = sdl_touch_round_radius_px();
+        margin = radius * 0.12f;
+        if (margin < 8.0f)
+            margin = 8.0f;
+
+        max_radius = ((float)clip.w - margin * 2.0f) * 0.5f;
+        if ((float)clip.h - margin * 2.0f < max_radius * 2.0f)
+            max_radius = ((float)clip.h - margin * 2.0f) * 0.5f;
+        if (max_radius > 0.0f && radius > max_radius)
+            radius = max_radius;
+        cy = (float)(clip.y + clip.h) - margin - radius;
+        right_edge = (float)(clip.x + clip.w);
+        right_margin = margin;
+    }
+
     if (radius < 28.0f)
         return false;
 
     inner_radius = sdl_touch_round_inner_radius_px(radius);
-    anchor_right = sdl_touch_pane_is_left_placement();
     cx = anchor_right
-        ? (float)(clip.x + clip.w) - margin - radius
+        ? right_edge - right_margin - radius
         : (float)clip.x + margin + radius;
-    cy = (float)(clip.y + clip.h) - margin - radius;
 
-    if (cx - radius < (float)clip.x)
-        cx = (float)clip.x + radius;
-    if (cx + radius > (float)(clip.x + clip.w))
-        cx = (float)(clip.x + clip.w) - radius;
+    /* Horizontal bounds use the (possibly extended) render rect; vertical
+     * bounds stay inside the map area. */
+    if (cx - radius < (float)render_clip.x)
+        cx = (float)render_clip.x + radius;
+    if (cx + radius > right_edge)
+        cx = right_edge - radius;
     if (cy - radius < (float)clip.y)
         cy = (float)clip.y + radius;
     if (cy + radius > (float)(clip.y + clip.h))
@@ -670,7 +726,7 @@ static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     if (out_inner_radius)
         *out_inner_radius = inner_radius;
     if (out_clip)
-        *out_clip = clip;
+        *out_clip = render_clip;
 
     return true;
 }
@@ -731,11 +787,28 @@ static bool sdl_touch_round_point_to_wheel(float x, float y,
     return true;
 }
 
+/* True when (x,y) lies in the area the wheel can occupy: the map view, plus —
+ * on touch-only — the strip out to the window border the wheel now spans. */
+static bool sdl_touch_round_point_in_bounds(float x, float y)
+{
+    SDL_Rect clip;
+
+    if (sdl_point_in_view_rect(PANE_MAIN, x, y))
+        return true;
+    if (!sdl_touch_only_device_active())
+        return false;
+    if (!sdl_touch_round_compute_clip_rect(&clip))
+        return false;
+    sdl_touch_round_extend_clip_to_screen(&clip);
+    return x >= (float)clip.x && x < (float)(clip.x + clip.w)
+        && y >= (float)clip.y && y < (float)(clip.y + clip.h);
+}
+
 bool sdl_touch_round_point_excluded(float x, float y)
 {
     if (!sdl_touch_round_layer_controls_active())
         return false;
-    if (!sdl_point_in_view_rect(PANE_MAIN, x, y))
+    if (!sdl_touch_round_point_in_bounds(x, y))
         return true;
     if (sdl_touch_movement_point_blocked_by_overlay(x, y))
         return true;
@@ -886,7 +959,7 @@ bool sdl_touch_round_handle_pointer_down(float x, float y,
         return false;
     if (sdl_touch_movement_point_blocked_by_overlay(x, y))
         return false;
-    if (!sdl_point_in_view_rect(PANE_MAIN, x, y))
+    if (!sdl_touch_round_point_in_bounds(x, y))
         return false;
     if (!sdl_touch_round_point_to_wheel(x, y, &cx, &cy, &radius,
             &inner_radius, &outer_button, &dir, NULL))
@@ -1376,6 +1449,7 @@ void sdl_touch_round_render(void)
     if (active) {
         if (!sdl_touch_round_compute_clip_rect(&clip))
             return;
+        sdl_touch_round_extend_clip_to_screen(&clip);
         cx = g_touch_round_press.center_x;
         cy = g_touch_round_press.center_y;
         radius = g_touch_round_press.radius;
@@ -1385,7 +1459,10 @@ void sdl_touch_round_render(void)
         if (inner_radius <= 0.0f)
             inner_radius = sdl_touch_round_inner_radius_px(radius);
     } else {
-        if (!sdl_touch_round_layer_controls_active())
+        if (!sdl_touch_round_layer_config_enabled())
+            return;
+        if (!sdl_touch_only_device_active()
+            && !sdl_touch_round_layer_controls_active())
             return;
         if (!sdl_mouse_gameplay_context_active())
             return;
@@ -1394,8 +1471,13 @@ void sdl_touch_round_render(void)
         {
             return;
         }
-        if (sdl_touch_movement_point_blocked_by_overlay(cx, cy))
+        /* Touch-only keeps the wheel permanently on screen; other devices
+         * still hide it when its centre falls under an overlay pane. */
+        if (!sdl_touch_only_device_active()
+            && sdl_touch_movement_point_blocked_by_overlay(cx, cy))
+        {
             return;
+        }
     }
 
     SDL_SetRenderClipRect(g_state.renderer, &clip);
@@ -2278,37 +2360,25 @@ void sdl_touch_hidden_indicator_render(void)
     SDL_Rect screen;
     SDL_Color fill = g_state.palette[TERM_YELLOW];
     SDL_Color outline = g_state.palette[TERM_WHITE];
-    bool pane_hidden;
     bool top_panel_indicator;
-    bool right_side;
-    float size;
     bool proto_touch = sdl_touch_pane_proto_mode_active();
 
     if (!proto_touch && !sdl_touch_pane_is_config_enabled()
         && !sdl_touch_top_panel_layout_visible())
         return;
 
-    pane_hidden = !proto_touch
-        && (sdl_touch_pane_hidden_mode_active()
-            || (sdl_touch_pane_uses_mobile_toggle()
-                && !g_touch_pane_mobile_open));
     top_panel_indicator = sdl_touch_top_panel_layout_visible();
-    if (!pane_hidden && !top_panel_indicator)
+    if (!top_panel_indicator)
         return;
 
     screen = sdl_get_layout_screen_rect();
     if (!sdl_rect_has_area(&screen))
         return;
 
-    size = sdl_touch_hidden_indicator_size_for_screen(&screen);
-    right_side = !sdl_touch_pane_is_left_placement();
     fill.a = 224;
     outline.a = 255;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    if (pane_hidden)
-        sdl_touch_hidden_indicator_render_pane(&screen, right_side, size,
-            fill, outline);
     if (top_panel_indicator)
         sdl_touch_top_panel_indicator_render(g_touch_top_panel_open, fill,
             outline);
@@ -2317,65 +2387,24 @@ void sdl_touch_hidden_indicator_render(void)
 bool sdl_touch_hidden_indicator_handle_pointer_down(float x, float y,
     bool touch)
 {
-    SDL_Rect screen;
-    float size;
-    float hit;
-    bool right_side;
-    bool handled = false;
+    SDL_FRect top_hit;
 
-    if (!(touch && sdl_touch_pane_uses_mobile_toggle())
-        && !sdl_touch_top_panel_layout_visible())
+    (void)touch;
+
+    if (!sdl_touch_top_panel_layout_visible())
         return false;
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
 
-    screen = sdl_get_layout_screen_rect();
-    if (!sdl_rect_has_area(&screen))
-        return false;
-
-    size = sdl_touch_hidden_indicator_size_for_screen(&screen);
-    hit = size * 2.0f;
-    if (hit < 56.0f)
-        hit = 56.0f;
-
-    if (touch
-        && sdl_touch_pane_uses_mobile_toggle()
-        && !g_touch_pane_mobile_open
-        && !sdl_touch_pane_hidden_mode_active())
+    if (sdl_touch_top_panel_indicator_geometry(
+            g_touch_top_panel_open, &top_hit, NULL)
+        && sdl_point_in_frect(&top_hit, x, y))
     {
-        SDL_FRect pane_hit;
-        float center_y = (float)screen.y + (float)screen.h * 0.5f;
-
-        right_side = !sdl_touch_pane_is_left_placement();
-        pane_hit = (SDL_FRect){
-            .x = right_side ? (float)(screen.x + screen.w) - hit
-                            : (float)screen.x,
-            .y = center_y - hit * 0.5f,
-            .w = hit,
-            .h = hit,
-        };
-
-        if (sdl_point_in_frect(&pane_hit, x, y)) {
-            sdl_touch_pane_set_mobile_open(true);
-            handled = true;
-        }
+        sdl_touch_top_panel_set_open(!g_touch_top_panel_open);
+        return true;
     }
 
-    if (!handled
-        && sdl_touch_top_panel_layout_visible())
-    {
-        SDL_FRect top_hit;
-
-        if (sdl_touch_top_panel_indicator_geometry(
-                g_touch_top_panel_open, &top_hit, NULL)
-            && sdl_point_in_frect(&top_hit, x, y))
-        {
-            sdl_touch_top_panel_set_open(!g_touch_top_panel_open);
-            handled = true;
-        }
-    }
-
-    return handled;
+    return false;
 }
 
 void sdl_touch_zone_send(int zone, bool long_press)

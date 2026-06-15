@@ -167,13 +167,21 @@ extern int success_chance(int sides, int skill, int difficulty)
  * once for all monsters) so if something changes here, remember to change it
  * there.
  */
-int skill_check(
-    monster_type* m_ptr1, int skill, int difficulty, monster_type* m_ptr2)
+int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
+    monster_type* m_ptr2, skill_roll_details* details)
 {
     int skill_total;
     int difficulty_total;
     int skill_total_alt;
     int difficulty_total_alt;
+    int skill_die;
+    int difficulty_die;
+    int skill_die_alt;
+    int difficulty_die_alt;
+    bool skill_curse_active = false;
+    bool difficulty_curse_active = false;
+    bool skill_alt_used = false;
+    bool difficulty_alt_used = false;
 
     // bonuses against your enemy of choice
     if ((m_ptr1 == PLAYER) && (m_ptr2 != NULL))
@@ -197,13 +205,46 @@ int skill_check(
     skill_total_alt = dieroll(10) + skill;
     difficulty_total_alt = dieroll(10) + difficulty;
 
+    skill_die = skill_total - skill;
+    difficulty_die = difficulty_total - difficulty;
+    skill_die_alt = skill_total_alt - skill;
+    difficulty_die_alt = difficulty_total_alt - difficulty;
+
     // player curse?
     if (p_ptr->cursed)
     {
+        skill_curse_active = (m_ptr1 == PLAYER);
+        difficulty_curse_active = (m_ptr2 == PLAYER);
         if (m_ptr1 == PLAYER)
+        {
+            skill_alt_used = (skill_total_alt < skill_total);
             skill_total = MIN(skill_total, skill_total_alt);
+        }
         if (m_ptr2 == PLAYER)
+        {
+            difficulty_alt_used = (difficulty_total_alt < difficulty_total);
             difficulty_total = MIN(difficulty_total, difficulty_total_alt);
+        }
+    }
+
+    if (details)
+    {
+        memset(details, 0, sizeof(*details));
+        details->skill = skill;
+        details->difficulty = difficulty;
+        details->skill_die = skill_total - skill;
+        details->difficulty_die = difficulty_total - difficulty;
+        details->skill_die_primary = skill_die;
+        details->difficulty_die_primary = difficulty_die;
+        details->skill_die_alt = skill_die_alt;
+        details->difficulty_die_alt = difficulty_die_alt;
+        details->skill_total = skill_total;
+        details->difficulty_total = difficulty_total;
+        details->result = skill_total - difficulty_total;
+        details->skill_curse_active = skill_curse_active;
+        details->difficulty_curse_active = difficulty_curse_active;
+        details->skill_alt_used = skill_alt_used;
+        details->difficulty_alt_used = difficulty_alt_used;
     }
 
     /* Debugging message */
@@ -215,6 +256,12 @@ int skill_check(
     }
 
     return (skill_total - difficulty_total);
+}
+
+int skill_check(
+    monster_type* m_ptr1, int skill, int difficulty, monster_type* m_ptr2)
+{
+    return skill_check_details(m_ptr1, skill, difficulty, m_ptr2, NULL);
 }
 
 /*

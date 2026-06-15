@@ -1752,13 +1752,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
                     bool was_current = (clicked_choice == k);
+                    bool touch_primary =
+                        sdl_touch_only_device_active()
+                        && click_action == UI_MENU_CLICK_PRIMARY;
 
                     k = clicked_choice;
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     if (click_action == UI_MENU_CLICK_SECONDARY)
                         ch = '4';
-                    else if (was_current)
+                    else if (was_current || touch_primary)
                         ch = ' ';
                     else
                         continue;
@@ -7757,7 +7760,7 @@ void do_cmd_options(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
     sdl_push_terminal_menu_scale();
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
@@ -7873,7 +7876,7 @@ void do_cmd_options(void)
     /* Load screen */
     sdl_character_sheet_screen_hide();
     sdl_pop_terminal_menu_scale();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     screen_load();
     if (p_ptr && p_ptr->playing)

@@ -38,7 +38,13 @@ bool ui_menu_click_take(int* choice);
 
 void ui_scroll_area_clear(void);
 void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category);
+void ui_scroll_area_begin_cols(int left_col, int right_col, int top_row,
+    int bottom_row, int touch_category);
+bool ui_scroll_area_add_cols(int left_col, int right_col, int top_row,
+    int bottom_row, int touch_category);
 bool ui_scroll_area_has_cell(int col, int row);
+int ui_scroll_area_selected_index(void);
+bool ui_scroll_area_select_index(int index);
 int ui_scroll_area_get_touch_category(void);
 void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
     int positive_x_key, int negative_x_key);

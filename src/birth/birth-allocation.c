@@ -467,11 +467,11 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     }
     else if (sdl_touch_only_device_active())
     {
-        /* Keep ok/back/char tappable on touch; rows are tappable to allocate. */
+        /* Keep ok/back/char tappable on touch; rows tap to add and long tap to subtract. */
         const char* variants[] = {
-            "Tap a row to allocate  ok  back  char",
-            "Tap a row to allocate  ok  back",
-            "Tap a row, ok"
+            "Tap row +  long tap -  ok  back  char",
+            "Tap row +  long tap -  ok  back",
+            "Tap +  long tap -  ok"
         };
         terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
             story_character_enabled(), variants, N_ELEMENTS(variants));
@@ -563,11 +563,11 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     }
     else if (sdl_touch_only_device_active())
     {
-        /* Keep ok/back/char tappable on touch; rows are tappable to allocate. */
+        /* Keep ok/back/char tappable on touch; rows tap to add and long tap to subtract. */
         const char* variants[] = {
-            "Tap a row to allocate  ok  back  char",
-            "Tap a row to allocate  ok  back",
-            "Tap a row, ok"
+            "Tap row +  long tap -  ok  back  char",
+            "Tap row +  long tap -  ok  back",
+            "Tap +  long tap -  ok"
         };
         terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
             story_character_enabled(), variants, N_ELEMENTS(variants));
@@ -618,7 +618,7 @@ NavResult player_birth_aux_2(int stats[A_MAX])
      */
 
     log_trace("Starting stats allocation interface");
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
 
     /* Interact */
     while (1)
@@ -820,11 +820,11 @@ NavResult player_birth_aux_2(int stats[A_MAX])
             } else if (sdl_touch_only_device_active()) {
                 char prompt_text[160];
                 /* Keep confirm/back/char tappable on touch; stats are
-                 * tappable rows for allocation. */
+                 * tap-to-add and long-tap-to-subtract rows. */
                 const char* variants[] = {
-                    "Tap a stat to allocate  confirm  back  char",
-                    "Tap a stat to allocate  confirm  back",
-                    "Tap a stat, confirm"
+                    "Tap stat +  long tap -  confirm  back  char",
+                    "Tap stat +  long tap -  confirm  back",
+                    "Tap +  long tap -  confirm"
                 };
                 terminal_prompt_pick_variant(prompt_text, sizeof(prompt_text),
                     Term ? Term->wid - QUESTION_COL : 80 - QUESTION_COL,
@@ -962,7 +962,7 @@ NavResult player_birth_aux_2(int stats[A_MAX])
     /* Shouldn't reach; default to back */
 cleanup:
     sdl_character_sheet_screen_hide();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     ui_scroll_area_clear();
     return result;
 }

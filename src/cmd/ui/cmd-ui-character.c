@@ -1000,7 +1000,7 @@ void do_cmd_character_sheet(void)
     /* Save screen */
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
     sdl_push_terminal_menu_scale();
     sdl_screen_back_gesture_begin();
 
@@ -1253,7 +1253,7 @@ void do_cmd_character_sheet(void)
     sdl_character_sheet_screen_hide();
     sdl_pop_terminal_menu_scale();
     sdl_screen_back_gesture_end();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     screen_load();
 
@@ -1278,7 +1278,7 @@ void character_sheet_show_birth_preview(void)
 
     screen_save();
     screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_proto();
+    screen_push_touch_pane_hidden();
 
     sdl_character_sheet_screen_begin_birth_preview();
     count = character_sheet_collect_semantic_items(sheet_items,
@@ -1315,7 +1315,7 @@ void character_sheet_show_birth_preview(void)
     ui_menu_click_clear();
     sdl_hover_tooltip_clear();
     sdl_character_sheet_screen_hide();
-    screen_pop_touch_pane_proto();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     screen_load();
 }

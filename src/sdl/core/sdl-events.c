@@ -693,6 +693,9 @@ bool sdl_quit_transition_consume_event(const SDL_Event* ev)
  * Keyboard events are deliberately left to fall through so y/n/ESC still work. */
 bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
 {
+    float x;
+    float y;
+
     if (!ev || !g_touch_pane_yes_no_prompt_active)
         return false;
 
@@ -709,6 +712,22 @@ bool sdl_yes_no_prompt_handle_modal_event(const SDL_Event* ev)
             return false;
         return sdl_touch_pane_handle_yes_no_prompt_pointer(
             (float)ev->button.x, (float)ev->button.y);
+    case SDL_EVENT_FINGER_DOWN:
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return true;
+        sdl_note_touch_event_device(ev->tfinger.touchID);
+        if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return sdl_touch_pane_handle_yes_no_prompt_pointer(x, y);
+        return true;
+    case SDL_EVENT_FINGER_MOTION:
+        if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+            return true;
+        if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return sdl_touch_pane_handle_yes_no_prompt_hover(x, y);
+        return true;
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_CANCELED:
+        return true;
     default:
         return false;
     }
@@ -1288,16 +1307,12 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
     } else if (ev->type == SDL_EVENT_FINGER_DOWN) {
         float x;
         float y;
-        bool mobile_pane_swipe;
 
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return;
-        mobile_pane_swipe = sdl_touch_pane_uses_mobile_toggle()
-            && g_touch_pane_mobile_open
-            && !sdl_touch_round_layer_controls_active();
         if (sdl_log_pane_menu_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false))
         {
@@ -1466,8 +1481,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        if (mobile_pane_swipe)
-            (void)sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID);
         if (sdl_touch_pane_handle_pointer_down(x, y, false, ev->tfinger.fingerID))
             return;
         if (sdl_touch_top_panel_handle_pointer_down(x, y, ev->tfinger.fingerID))
@@ -1491,8 +1504,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         if (sdl_map_touch_handle_pointer_down(x, y, ev->tfinger.fingerID))
             return;
-        if (!mobile_pane_swipe
-            && sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
+        if (sdl_touch_swipe_handle_pointer_down(x, y, ev->tfinger.fingerID))
         {
             return;
         }

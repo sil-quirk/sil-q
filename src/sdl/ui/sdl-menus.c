@@ -328,16 +328,18 @@ bool sdl_depth_menu_pane_handle_pointer(float x, float y)
 
 int sdl_touch_pane_yes_no_prompt_font_px(float cell_h, int screen_h)
 {
-    int font_px = (int)(cell_h * 1.75f);
+    int font_px = (int)(cell_h * 2.15f);
 
-    if (font_px < 26)
-        font_px = 26;
-    if (font_px > 44)
+    if (font_px < 32)
+        font_px = 32;
+    if (font_px > 56)
+        font_px = 56;
+    if (screen_h < 480 && font_px > 44)
         font_px = 44;
-    if (screen_h < 360 && font_px > 30)
-        font_px = 30;
-    if (screen_h < 260 && font_px > 24)
-        font_px = 24;
+    if (screen_h < 360 && font_px > 34)
+        font_px = 34;
+    if (screen_h < 260 && font_px > 28)
+        font_px = 28;
 
     return font_px;
 }
@@ -1030,15 +1032,15 @@ bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect,
     prompt_font = sdl_story_font_for_height_slot(prompt_font_px, SDL_STORY_FONT_SLOT_MENU);
     prompt_text_w = sdl_touch_pane_story_text_width(prompt_font, prompt_text);
 
-    margin = sdl_touch_pane_clampf(cell_h * 1.20f, 20.0f, 34.0f);
-    button_gap = sdl_touch_pane_clampf(cell_w * 1.50f, 14.0f, 26.0f);
-    row_gap = sdl_touch_pane_clampf(cell_h * 0.90f, 15.0f, 25.0f);
-    button_w = sdl_touch_pane_clampf(cell_w * 10.20f, 104.0f, 148.0f);
-    button_h = sdl_touch_pane_clampf(cell_h * 2.95f, 58.0f, 76.0f);
+    margin = sdl_touch_pane_clampf(cell_h * 1.45f, 24.0f, 46.0f);
+    button_gap = sdl_touch_pane_clampf(cell_w * 1.90f, 18.0f, 34.0f);
+    row_gap = sdl_touch_pane_clampf(cell_h * 1.10f, 18.0f, 34.0f);
+    button_w = sdl_touch_pane_clampf(cell_w * 13.50f, 136.0f, 220.0f);
+    button_h = sdl_touch_pane_clampf(cell_h * 3.80f, 72.0f, 112.0f);
 
-    max_panel_w = (float)screen.w * 0.90f;
-    if (max_panel_w > cell_w * 70.0f)
-        max_panel_w = cell_w * 70.0f;
+    max_panel_w = (float)screen.w * 0.94f;
+    if (max_panel_w > cell_w * 82.0f)
+        max_panel_w = cell_w * 82.0f;
     if (max_panel_w < 272.0f)
         max_panel_w = (float)screen.w - 8.0f;
     if (max_panel_w > (float)screen.w - 8.0f)
@@ -1853,9 +1855,8 @@ void sdl_touch_pane_render_yes_no_prompt(void)
     float cell_h = 16.0f;
     int prompt_font_px;
     SDL_Color frame = g_state.palette[TERM_SLATE];
-    SDL_Color accent = g_state.palette[TERM_L_BLUE];
-    SDL_Color muted = g_state.palette[TERM_SLATE];
     SDL_Color text = g_state.palette[TERM_WHITE];
+    SDL_Color button_text = (SDL_Color){ 0, 0, 0, 255 };
     bool yes_highlight;
     bool no_highlight;
     SDL_Color yes_fill;
@@ -1885,12 +1886,14 @@ void sdl_touch_pane_render_yes_no_prompt(void)
         (g_touch_pane_yes_no_prompt_hover != SDL_TOUCH_YES_NO_HOVER_NO);
     no_highlight =
         (g_touch_pane_yes_no_prompt_hover == SDL_TOUCH_YES_NO_HOVER_NO);
-    yes_fill = yes_highlight ? (SDL_Color){ 37, 47, 63, 255 }
-                             : (SDL_Color){ 31, 31, 31, 255 };
-    no_fill = no_highlight ? (SDL_Color){ 37, 47, 63, 255 }
-                           : (SDL_Color){ 31, 31, 31, 255 };
-    yes_border = yes_highlight ? accent : muted;
-    no_border = no_highlight ? accent : muted;
+    yes_fill = yes_highlight ? (SDL_Color){ 245, 245, 245, 255 }
+                             : (SDL_Color){ 156, 156, 156, 238 };
+    no_fill = no_highlight ? (SDL_Color){ 245, 245, 245, 255 }
+                           : (SDL_Color){ 156, 156, 156, 238 };
+    yes_border = yes_highlight ? (SDL_Color){ 0, 0, 0, 255 }
+                               : (SDL_Color){ 28, 28, 28, 230 };
+    no_border = no_highlight ? (SDL_Color){ 0, 0, 0, 255 }
+                             : (SDL_Color){ 28, 28, 28, 230 };
 
     /* Composite explicitly: this overlay draws straight to the window after a
      * chain of other renderers, so the blend mode must not be left to chance or
@@ -1924,10 +1927,10 @@ void sdl_touch_pane_render_yes_no_prompt(void)
 
     sdl_touch_pane_draw_wrapped_prompt(&prompt_rect, prompt_text, text,
         prompt_font_px);
-    sdl_touch_pane_draw_button_text_scaled(&yes_rect, NULL, "Yes", text,
-        0.36f, 0.46f);
-    sdl_touch_pane_draw_button_text_scaled(&no_rect, NULL, "No", text,
-        0.36f, 0.46f);
+    sdl_touch_pane_draw_button_text_scaled(&yes_rect, NULL, "Yes",
+        button_text, 0.44f, 0.58f);
+    sdl_touch_pane_draw_button_text_scaled(&no_rect, NULL, "No", button_text,
+        0.44f, 0.58f);
 }
 
 static int sdl_unified_look_log_text_font_px(void)

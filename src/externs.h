@@ -576,6 +576,8 @@ extern void perceive(void);
 extern int success_chance(int sides, int skill, int difficulty);
 extern int skill_check(
     monster_type* m_ptr1, int skill, int difficulty, monster_type* m_ptr2);
+extern int skill_check_details(monster_type* m_ptr1, int skill, int difficulty,
+    monster_type* m_ptr2, skill_roll_details* details);
 extern int light_penalty(const monster_type* m_ptr);
 extern bool check_hit(int power, bool display_roll);
 extern int hit_roll(int att, int evn, const monster_type* m_ptr1,
@@ -664,6 +666,8 @@ extern void do_cmd_tunnel(void);
 extern bool break_free_of_web(void);
 extern bool do_cmd_disarm_aux(int y, int x);
 extern bool trap_disarm_power(int feat, int* power);
+extern void show_interaction_skill_roll_animation(cptr title, cptr action,
+    int y, int x, const skill_roll_details* roll);
 extern void do_cmd_disarm(void);
 extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
@@ -1756,7 +1760,13 @@ extern bool ui_menu_click_take(int* choice);
 extern bool ui_menu_click_take_action(int* choice, int* action);
 extern void ui_scroll_area_clear(void);
 extern void ui_scroll_area_begin(int top_row, int bottom_row, int touch_category);
+extern void ui_scroll_area_begin_cols(int left_col, int right_col, int top_row,
+    int bottom_row, int touch_category);
+extern bool ui_scroll_area_add_cols(int left_col, int right_col, int top_row,
+    int bottom_row, int touch_category);
 extern bool ui_scroll_area_has_cell(int col, int row);
+extern int ui_scroll_area_selected_index(void);
+extern bool ui_scroll_area_select_index(int index);
 extern int ui_scroll_area_get_touch_category(void);
 extern void ui_scroll_area_set_keys(int positive_y_key, int negative_y_key,
     int positive_x_key, int negative_x_key);

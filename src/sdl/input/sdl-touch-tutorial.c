@@ -1587,10 +1587,12 @@ static const birth_coach_step birth_coach_sheet_steps[] = {
 
 static const birth_coach_step birth_coach_select_step = {
     NULL, 0, 8999, "Choose your hero",
-    "Up / Down: move the highlight; pick a people, then a hero.\n"
-    "The panel beside the list shows description, traits and a power rating.\n"
+    "On touch: swipe or tap the side arrows to browse heroes.\n"
+    "Tap the hero name or Choose to confirm; Back returns to peoples.\n"
+    "Keyboard / gamepad: move the highlight, Enter confirms, Esc steps back.\n"
+    "The screen shows description, traits and a power rating.\n"
     "A higher power rating means an easier start - ideal when you are new.\n"
-    "Enter confirms your choice; Esc steps back."
+    "Pick the hero whose strengths match the run you want."
 };
 
 static const birth_coach_step birth_coach_stats_step = {
@@ -1721,7 +1723,7 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     SDL_FRect box;
     SDL_FRect shadow;
     TTF_Font* font = NULL;
-    float pad = sdl_touch_pane_clampf((float)screen->h * 0.014f, 9.0f, 16.0f);
+    float pad = sdl_touch_pane_clampf((float)screen->h * 0.017f, 12.0f, 22.0f);
     float footer_top = (float)(screen->y + screen->h)
         - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f) - pad;
     float box_w;
@@ -1731,18 +1733,18 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     float title_h;
     float avail_h;
     float y;
-    int title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.040f,
-        22.0f, 34.0f);
-    int detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
-        16.0f, 28.0f);
+    int title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.050f,
+        28.0f, 44.0f);
+    int detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
+        22.0f, 36.0f);
     int n = 0;
 
-    box_w = (float)screen->w * 0.52f;
-    if (box_w > 980.0f)
-        box_w = 980.0f;
+    box_w = (float)screen->w * 0.64f;
+    if (box_w > 1160.0f)
+        box_w = 1160.0f;
     if (box_w > (float)screen->w - pad * 2.0f)
         box_w = (float)screen->w - pad * 2.0f;
-    if (box_w < 280.0f)
+    if (box_w < 340.0f)
         box_w = (float)screen->w - pad * 2.0f;
     text_w = box_w - pad * 2.0f;
     if (text_w < 40.0f)
@@ -1760,10 +1762,10 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
         line_h = (float)detail_px * 1.30f;
         title_h = (float)title_px * 1.25f;
         box_h = pad * 2.0f + title_h + 6.0f + (float)n * line_h;
-        if (box_h <= avail_h || detail_px <= 14)
+        if (box_h <= avail_h || detail_px <= 18)
             break;
         detail_px--;
-        if (title_px > detail_px + 6)
+        if (title_px > detail_px + 8)
             title_px--;
     }
 
