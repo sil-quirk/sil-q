@@ -2844,7 +2844,6 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     static const sdl_char_sheet_prompt_item birth_items_touch[] = {
         { "Back", -1 },
         { "Confirm", -2 },
-        { "Hero", -3 },
     };
     /* Touch-first labels for the live in-game character sheet (same tappable
      * keycodes the keyboard handler uses, but rendered as tap buttons). */

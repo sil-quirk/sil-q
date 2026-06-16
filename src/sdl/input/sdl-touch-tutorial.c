@@ -309,6 +309,17 @@ float sdl_touch_tutorial_draw_header(const SDL_Rect* screen, cptr title,
         page_count, sdl_touch_tutorial_default_header_y(screen));
 }
 
+static void sdl_touch_tutorial_prompt_label(int binding, const char* fallback,
+    char* buf, size_t buflen)
+{
+    if (!buf || buflen == 0)
+        return;
+
+    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
+    if (streq(buf, "(unbound)") || streq(buf, "Multiple"))
+        SDL_strlcpy(buf, fallback, buflen);
+}
+
 void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
     bool single_page)
 {
@@ -316,7 +327,8 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
     int font_px;
     float line_h;
     float y;
-    cptr advance_text;
+    char advance_text[96];
+    char page_text[96];
 
     if (!screen)
         return;
@@ -336,16 +348,47 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
         .h = (float)(screen->y + screen->h) - y + 8.0f,
     });
 
-    advance_text = mouse
-        ? (single_page ? "Click or Space to close" : "Click or Space for next")
-        : (single_page ? "Tap or Space to close" : "Tap or Space for next");
+    if (steamdeck_controls_active())
+    {
+        char confirm_label[16];
+        char back_label[16];
+        char prev_label[16];
+        char next_label[16];
+
+        sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+            confirm_label, sizeof(confirm_label));
+        sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
+            back_label, sizeof(back_label));
+        sdl_touch_tutorial_prompt_label(steamdeck_prev_page_key(), "L1",
+            prev_label, sizeof(prev_label));
+        sdl_touch_tutorial_prompt_label(steamdeck_next_page_key(), "R1",
+            next_label, sizeof(next_label));
+
+        strnfmt(advance_text, sizeof(advance_text), "%s to %s",
+            confirm_label, single_page ? "close" : "continue");
+        strnfmt(page_text, sizeof(page_text),
+            "%s/%s changes page   %s closes", prev_label, next_label,
+            back_label);
+    }
+    else
+    {
+        SDL_strlcpy(advance_text,
+            mouse
+                ? (single_page ? "Click or Space to close"
+                               : "Click or Space for next")
+                : (single_page ? "Tap or Space to close"
+                               : "Tap or Space for next"),
+            sizeof(advance_text));
+        SDL_strlcpy(page_text, "Left/Right changes page   Esc closes",
+            sizeof(page_text));
+    }
 
     (void)sdl_touch_tutorial_draw_text_line(
         advance_text,
         (float)screen->x + (float)screen->w * 0.5f, y,
         (float)screen->w * 0.90f, font_px, text_color, true);
     (void)sdl_touch_tutorial_draw_text_line(
-        "Left/Right changes page   Esc closes",
+        page_text,
         (float)screen->x + (float)screen->w * 0.5f, y + line_h,
         (float)screen->w * 0.90f, font_px, text_color, true);
 }
@@ -1587,9 +1630,6 @@ static const birth_coach_step birth_coach_sheet_steps[] = {
 
 static const birth_coach_step birth_coach_select_step = {
     NULL, 0, 8999, "Choose your hero",
-    "On touch: swipe or tap the side arrows to browse heroes.\n"
-    "Tap the hero name or Choose to confirm; Back returns to peoples.\n"
-    "Keyboard / gamepad: move the highlight, Enter confirms, Esc steps back.\n"
     "The screen shows description, traits and a power rating.\n"
     "A higher power rating means an easier start - ideal when you are new.\n"
     "Pick the hero whose strengths match the run you want."
@@ -1598,7 +1638,6 @@ static const birth_coach_step birth_coach_select_step = {
 static const birth_coach_step birth_coach_stats_step = {
     NULL, 0, 999, "Assign attributes",
     "Spend your points across Str, Dex, Con and Gra.\n"
-    "Up / Down: pick a stat.  Left / Right: lower or raise it.\n"
     "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
     "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
     "Cost = price of the next point; Points Left = your budget.\n"
@@ -1608,12 +1647,193 @@ static const birth_coach_step birth_coach_stats_step = {
 static const birth_coach_step birth_coach_skills_step = {
     NULL, 0, 999, "Buy skills",
     "Spend experience on the eight skills.\n"
-    "Up / Down: pick a skill.  Left / Right: raise it.\n"
     "Total = Base +stat +equip +misc.\n"
     "Base also sets how dear abilities are to buy later.\n"
-    "Cost climbs the higher the skill; Points Left = your experience.\n"
-    "Enter confirms; Esc goes back a step."
+    "Cost climbs the higher the skill; Points Left = your experience."
 };
+
+static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
+    size_t buflen)
+{
+    char confirm_label[16];
+    char back_label[16];
+
+    if (!step)
+        return "";
+    if (!buf || buflen == 0)
+        return step->body ? step->body : "";
+
+    buf[0] = '\0';
+
+    if (step == &birth_coach_select_step)
+    {
+        if (sdl_touch_only_device_active())
+        {
+            SDL_strlcpy(buf,
+                "Swipe or tap the side arrows to browse heroes.\n"
+                "Tap the hero name or Choose to confirm; Back returns to peoples.\n"
+                "The screen shows description, traits and a power rating.\n"
+                "A higher power rating means an easier start - ideal when you are new.\n"
+                "Pick the hero whose strengths match the run you want.",
+                buflen);
+        }
+        else if (steamdeck_controls_active())
+        {
+            sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
+                back_label, sizeof(back_label));
+            strnfmt(buf, buflen,
+                "D-pad/left stick Up/Down moves the highlight.\n"
+                "Right or %s confirms; Left or %s returns to peoples.\n"
+                "The screen shows description, traits and a power rating.\n"
+                "A higher power rating means an easier start - ideal when you are new.\n"
+                "Pick the hero whose strengths match the run you want.",
+                confirm_label, back_label);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "Use Up/Down to move the highlight, or click a hero to highlight it.\n"
+                "Enter confirms; Esc returns to peoples.\n"
+                "Click the highlighted hero again to confirm.\n"
+                "The screen shows description, traits and a power rating.\n"
+                "A higher power rating means an easier start - ideal when you are new.\n"
+                "Pick the hero whose strengths match the run you want.",
+                buflen);
+        }
+        return buf;
+    }
+
+    if (step == &birth_coach_stats_step)
+    {
+        if (sdl_touch_only_device_active())
+        {
+            SDL_strlcpy(buf,
+                "Spend your points across Str, Dex, Con and Gra.\n"
+                "Tap a stat to select it; tap it again to raise it.\n"
+                "Long-tap a stat to lower it. Confirm accepts; Back returns to heroes.\n"
+                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
+                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
+                "Cost = price of the next point; Points Left = your budget.",
+                buflen);
+        }
+        else if (steamdeck_controls_active())
+        {
+            sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
+                back_label, sizeof(back_label));
+            strnfmt(buf, buflen,
+                "Spend your points across Str, Dex, Con and Gra.\n"
+                "D-pad Up/Down picks a stat; Left/Right lowers or raises it.\n"
+                "%s accepts; %s returns to heroes.\n"
+                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
+                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
+                "Cost = price of the next point; Points Left = your budget.",
+                confirm_label, back_label);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "Spend your points across Str, Dex, Con and Gra.\n"
+                "Up/Down picks a stat; Left/Right lowers or raises it.\n"
+                "Enter accepts; Esc returns to heroes.\n"
+                "Click a stat to select it; click again to raise; right-click lowers.\n"
+                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
+                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
+                "Cost = price of the next point; Points Left = your budget.",
+                buflen);
+        }
+        return buf;
+    }
+
+    if (step == &birth_coach_skills_step)
+    {
+        if (sdl_touch_only_device_active())
+        {
+            SDL_strlcpy(buf,
+                "Spend experience on the eight skills.\n"
+                "Tap a skill to select it; tap it again to raise it.\n"
+                "Long-tap a skill to lower it. Confirm accepts; Back returns to attributes.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Base also sets how dear abilities are to buy later.\n"
+                "Cost climbs the higher the skill; Points Left = your experience.",
+                buflen);
+        }
+        else if (steamdeck_controls_active())
+        {
+            sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
+                back_label, sizeof(back_label));
+            strnfmt(buf, buflen,
+                "Spend experience on the eight skills.\n"
+                "D-pad Up/Down picks a skill; Left/Right lowers or raises it.\n"
+                "%s accepts; %s returns to attributes.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Base also sets how dear abilities are to buy later.\n"
+                "Cost climbs the higher the skill; Points Left = your experience.",
+                confirm_label, back_label);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "Spend experience on the eight skills.\n"
+                "Up/Down picks a skill; Left/Right lowers or raises it.\n"
+                "Enter accepts; Esc returns to attributes.\n"
+                "Click a skill to select it; click again to raise; right-click lowers.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Base also sets how dear abilities are to buy later.\n"
+                "Cost climbs the higher the skill; Points Left = your experience.",
+                buflen);
+        }
+        return buf;
+    }
+
+    if (step->heading && streq(step->heading, "Skills")
+        && step->title && streq(step->title, "Skills"))
+    {
+        if (sdl_touch_only_device_active())
+        {
+            SDL_strlcpy(buf,
+                "What you train by spending experience.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
+                "Stealth / Perception: stay unseen and notice things.\n"
+                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
+                "Tap a skill once to focus it, then tap again or tap Increase to raise it.",
+                buflen);
+        }
+        else if (steamdeck_controls_active())
+        {
+            sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+                confirm_label, sizeof(confirm_label));
+            strnfmt(buf, buflen,
+                "What you train by spending experience.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
+                "Stealth / Perception: stay unseen and notice things.\n"
+                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
+                "D-pad or left stick moves focus; %s raises the focused skill.",
+                confirm_label);
+        }
+        else
+        {
+            SDL_strlcpy(buf,
+                "What you train by spending experience.\n"
+                "Total = Base +stat +equip +misc.\n"
+                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
+                "Stealth / Perception: stay unseen and notice things.\n"
+                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
+                "Click a skill twice, or press i/Space, to raise skills.",
+                buflen);
+        }
+        return buf;
+    }
+
+    return step->body ? step->body : "";
+}
 
 /*
  * Gather the steps to show for a stage.  The live sheet contributes one step per
@@ -1867,6 +2087,8 @@ static void birth_coach_run_overlay(int stage)
         const birth_coach_step* steps[8];
         SDL_FRect zone = { 0.0f, 0.0f, 0.0f, 0.0f };
         char title[80];
+        char body[2048];
+        cptr body_text;
         bool have_zone;
         int count;
         int action;
@@ -1895,8 +2117,10 @@ static void birth_coach_run_overlay(int stage)
         else
             SDL_strlcpy(title, steps[idx]->title, sizeof(title));
 
+        body_text = birth_coach_body_for_step(steps[idx], body,
+            sizeof(body));
         birth_coach_draw_step(&screen, mouse, count == 1,
-            have_zone ? &zone : NULL, title, steps[idx]->body);
+            have_zone ? &zone : NULL, title, body_text);
         SDL_RenderPresent(g_state.renderer);
         sdl_restore_render_target(d);
 
