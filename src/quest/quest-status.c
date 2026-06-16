@@ -311,16 +311,7 @@ static void hint_quest_draw_tabs(bool quest_active, int term_wid)
 
 static bool hint_quest_tab_key(char ch)
 {
-    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
-        || (ch == '\t');
-}
-
-static int hint_quest_tab_cursor_col(bool quest_active)
-{
-    if (!quest_active)
-        return 0;
-
-    return (int)strlen(" Hints ") + 1;
+    return (ch == '\t');
 }
 
 static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
@@ -359,6 +350,30 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
     }
 
     return false;
+}
+
+/*
+ * Draw the desktop tabbed footer prompt and register its clickable command
+ * tokens.  The "Tab" word switches to the Hints tab and "Esc" returns; both
+ * light up (TERM_L_BLUE) while hovered, courtesy of ui_menu_click_add_text_token.
+ */
+static void quest_status_draw_tab_footer(int col, int row)
+{
+    cptr tab_prompt = "Tab or Left/Right Hints  Esc/any key return.";
+
+    Term_erase(0, row, 255);
+    Term_putstr(col, row, -1, TERM_L_WHITE, tab_prompt);
+    ui_menu_click_add_text_token(HINT_QUEST_CLICK_HINTS_TAB, col, row,
+        tab_prompt, "Tab");
+    ui_menu_click_add_text_token(HINT_QUEST_CLICK_RETURN, col, row,
+        tab_prompt, "Esc");
+}
+
+/* Redraw the tabs and footer so the currently-hovered command highlights. */
+static void quest_status_redraw_tab_chrome(int col, int row, int wid)
+{
+    hint_quest_draw_tabs(true, wid);
+    quest_status_draw_tab_footer(col, row);
 }
 
 static void quest_status_draw_header(int col)
@@ -410,7 +425,12 @@ static void quest_status_wait_for_next_page(int col, int hgt, int *row)
     Term_fresh();
     while (true)
     {
-        char ch = inkey();
+        bool saved_hide_cursor = hide_cursor;
+        char ch;
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = saved_hide_cursor;
 
         if (quest_status_touch_active && !quest_status_tabs_active)
         {
@@ -1238,8 +1258,7 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
     }
     else if (tabbed)
     {
-        Term_putstr(col, row, -1, TERM_L_WHITE,
-            "e/i or Left/Right Hints  Esc/any key return.");
+        quest_status_draw_tab_footer(col, row);
     }
     else
     {
@@ -1249,20 +1268,32 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
         Term_putstr(col, row, -1, TERM_L_WHITE, return_prompt);
     }
     while (true) {
-        if (tabbed && quest_status_tabs_focus)
-            Term_gotoxy(hint_quest_tab_cursor_col(true), 1);
-
-        char ch = inkey();
+        char ch;
+        bool saved_hide_cursor = hide_cursor;
         int clicked_choice = 0;
         int click_action = UI_MENU_CLICK_PRIMARY;
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = saved_hide_cursor;
 
         if ((tabbed || quest_status_touch_active)
             && ui_menu_click_take_action(&clicked_choice, &click_action))
         {
+            bool desktop_tabs = tabbed && !quest_status_touch_active;
+
             if (clicked_choice == HINT_QUEST_CLICK_RETURN)
             {
                 if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    if (desktop_tabs)
+                    {
+                        quest_status_hover_tab = 0;
+                        quest_status_redraw_tab_chrome(col, row, wid);
+                        Term_fresh();
+                    }
                     continue;
+                }
                 break;
             }
             if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
@@ -1271,7 +1302,10 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
                 {
                     quest_status_hover_tab = clicked_choice;
                     quest_status_tabs_focus = false;
-                    hint_quest_draw_tabs(true, wid);
+                    if (desktop_tabs)
+                        quest_status_redraw_tab_chrome(col, row, wid);
+                    else
+                        hint_quest_draw_tabs(true, wid);
                     Term_fresh();
                     continue;
                 }
@@ -1283,7 +1317,10 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
             {
                 quest_status_hover_tab = clicked_choice;
                 quest_status_tabs_focus = false;
-                hint_quest_draw_tabs(true, wid);
+                if (desktop_tabs)
+                    quest_status_redraw_tab_chrome(col, row, wid);
+                else
+                    hint_quest_draw_tabs(true, wid);
                 Term_fresh();
                 continue;
             }
@@ -1291,6 +1328,11 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
             {
                 quest_status_hover_tab = 0;
                 quest_status_tabs_focus = false;
+                if (desktop_tabs)
+                {
+                    quest_status_redraw_tab_chrome(col, row, wid);
+                    Term_fresh();
+                }
                 continue;
             }
             break;

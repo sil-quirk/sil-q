@@ -573,6 +573,57 @@ bool get_sdl_pane_enabled(int index)
     return pane_config[index].enabled;
 }
 
+/*
+ * The canonical default config entry for the pane at a live index: the first
+ * default entry of the same pane type.  Used by the per-row "Reset" buttons to
+ * restore a pane's default placement/enabled/size.
+ */
+static int sdl_pane_default_config_index(int index)
+{
+    enum pane_type type;
+
+    if (index < 0 || index >= pane_config_count)
+        return -1;
+    type = pane_config[index].pane;
+    for (int i = 0; i < default_pane_config_count; i++) {
+        if (default_pane_config[i].pane == type)
+            return i;
+    }
+    return -1;
+}
+
+bool get_sdl_pane_default_enabled(int index)
+{
+    int di = sdl_pane_default_config_index(index);
+    if (di < 0)
+        return get_sdl_pane_enabled(index);
+    return default_pane_config[di].enabled;
+}
+
+int get_sdl_pane_default_where(int index)
+{
+    int di = sdl_pane_default_config_index(index);
+    if (di < 0)
+        return get_sdl_pane_where(index);
+    return (int)default_pane_config[di].where;
+}
+
+int get_sdl_pane_default_rows(int index)
+{
+    int di = sdl_pane_default_config_index(index);
+    if (di < 0)
+        return 0;
+    return default_pane_config[di].rect.rows;
+}
+
+int get_sdl_pane_default_cols(int index)
+{
+    int di = sdl_pane_default_config_index(index);
+    if (di < 0)
+        return 0;
+    return default_pane_config[di].rect.cols;
+}
+
 int get_sdl_pane_rows(int index)
 {
     if (index < 0 || index >= pane_config_count)
@@ -1156,6 +1207,55 @@ void set_sdl_gamepad_use_left_stick(bool value)
         g_gamepad_state.left_bind_dir = -1;
         sdl_gamepad_clear_pending_left_stick();
     }
+}
+
+static void sdl_gamepad_toggle_defaults(struct sdl_config* defaults)
+{
+    sdl_config_set_defaults(defaults);
+    sdl_apply_startup_input_defaults_to_config(defaults,
+        g_startup_device_class);
+}
+
+bool get_sdl_gamepad_default_enabled(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.gamepad_enabled;
+}
+
+bool get_sdl_gamepad_default_auto_mode(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.gamepad_auto_mode;
+}
+
+bool get_sdl_steamdeck_default_mode(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.steamdeck_mode;
+}
+
+bool get_sdl_steamdeck_default_inv_equip_same_button_cycle(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.steamdeck_inv_equip_same_button_cycle;
+}
+
+bool get_sdl_gamepad_default_use_dpad(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.gamepad_use_dpad;
+}
+
+bool get_sdl_gamepad_default_use_left_stick(void)
+{
+    struct sdl_config defaults;
+    sdl_gamepad_toggle_defaults(&defaults);
+    return defaults.gamepad_use_left_stick;
 }
 
 int get_sdl_gamepad_button_binding(int button)

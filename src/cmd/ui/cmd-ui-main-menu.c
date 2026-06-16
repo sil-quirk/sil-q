@@ -1197,16 +1197,7 @@ static void hint_quest_draw_tabs(bool quest_active, int hover_tab, int term_wid)
 
 static bool hint_quest_tab_key(char ch)
 {
-    return (ch == 'e') || (ch == 'E') || (ch == 'i') || (ch == 'I')
-        || (ch == '\t');
-}
-
-static int hint_quest_tab_cursor_col(bool quest_active)
-{
-    if (!quest_active)
-        return 0;
-
-    return (int)strlen(" Hints ") + 1;
+    return (ch == '\t');
 }
 
 static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
@@ -2074,23 +2065,23 @@ static const char* hint_message_list_prompt(bool show_all_tips,
     int level_n, int tip_n, int wid)
 {
     static const char* const tip_list_prompts[] = {
-        "[e/i tabs, Dir move, Enter read, h level hints, Esc]",
-        "[e/i tabs, Enter read, h hints, Esc]",
-        "[e/i, Enter, h, Esc]"
+        "[Tab tabs, Dir move, Enter read, h level hints, Esc]",
+        "[Tab tabs, Enter read, h hints, Esc]",
+        "[Tab, Enter, h, Esc]"
     };
     static const char* const level_list_prompts[] = {
-        "[e/i tabs, Dir move, Enter read, h tips, l look, m map, Esc]",
-        "[e/i tabs, Enter, h tips, l look, m map, Esc]",
-        "[e/i, Enter, h, l, m, Esc]"
+        "[Tab tabs, Dir move, Enter read, h tips, l look, m map, Esc]",
+        "[Tab tabs, Enter, h tips, l look, m map, Esc]",
+        "[Tab, Enter, h, l, m, Esc]"
     };
     static const char* const no_level_with_tips_prompts[] = {
-        "[No level hint messages. e/i tabs, h all tips, Esc]",
-        "[No level hints. e/i tabs, h tips, Esc]",
-        "[No hints. e/i, h, Esc]"
+        "[No level hint messages. Tab tabs, h all tips, Esc]",
+        "[No level hints. Tab tabs, h tips, Esc]",
+        "[No hints. Tab, h, Esc]"
     };
     static const char* const no_level_prompts[] = {
-        "[No level hint messages. e/i tabs, Esc]",
-        "[No level hints. e/i, Esc]"
+        "[No level hint messages. Tab tabs, Esc]",
+        "[No level hints. Tab, Esc]"
     };
 
     if (steamdeck_controls_active())
@@ -2209,16 +2200,23 @@ static void hint_message_list_register_prompt(const char* prompt, int row,
     if (!prompt)
         return;
 
+    /* The "Tab" command word switches to the Quests tab, mirroring the tab
+     * buttons at the top of the screen. */
+    ui_menu_click_add_text_token(HINT_QUEST_CLICK_QUESTS_TAB, 0, row,
+        prompt, "Tab");
+
     if (tip_n > 0)
     {
+        /* Include the leading "h " so the whole command (not just the word)
+         * lights up on hover. */
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, show_all_tips ? "level hints" : "all tips");
+            row, prompt, "h level hints");
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, show_all_tips ? "hints" : "tips");
+            row, prompt, "h all tips");
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "'h'");
+            row, prompt, "h hints");
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
-            row, prompt, "h=");
+            row, prompt, "h tips");
         ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_TOGGLE_TIPS, 0,
             row, prompt, "h,");
     }
@@ -2231,6 +2229,8 @@ static void hint_message_list_register_prompt(const char* prompt, int row,
         prompt, "ESCAPE");
     ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
         prompt, "ESC");
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "Esc");
     ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
         prompt, "back");
 
@@ -3365,11 +3365,14 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             draw_row += used;
         }
 
-        if (tabs_focus)
-            Term_gotoxy(hint_quest_tab_cursor_col(false), 1);
-
         Term_fresh();
-        ch = inkey();
+        {
+            bool saved_hide_cursor = hide_cursor;
+
+            hide_cursor = true;
+            ch = inkey();
+            hide_cursor = saved_hide_cursor;
+        }
         bool click_generated_command = false;
 
         {
@@ -3465,7 +3468,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         }
 
         if (!click_generated_command)
-            ch = (char)steamdeck_menu_key(ch, 'e', 'i');
+            ch = (char)steamdeck_menu_key(ch, '\t', '\t');
 
         if (switch_to_quests)
             break;

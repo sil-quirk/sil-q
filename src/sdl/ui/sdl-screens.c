@@ -3325,20 +3325,34 @@ static TTF_Font* sdl_char_sheet_menu_font_for_width(float content_w,
 }
 
 void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
-    int choice, float x, float y, float w, float line_h, float value_col_x)
+    int choice, float x, float y, float w, float line_h, float value_col_x,
+    int reset_choice, float reset_w)
 {
     char label[160];
     char value[96];
     SDL_FRect hit;
     bool focused;
+    float content_w = w;
+    float btn_gap = sdl_char_sheet_clampf(line_h * 0.18f, 4.0f, 12.0f);
 
     if (!font || !text || !text[0] || w <= 0.0f || line_h <= 0.0f)
         return;
 
+    if (reset_choice >= 0 && reset_w > btn_gap)
+    {
+        content_w = w - reset_w;
+        if (content_w < w * 0.35f)
+            content_w = w * 0.35f;
+    }
+    else
+    {
+        reset_choice = -1;
+    }
+
     sdl_char_sheet_split_menu_row(text, label, sizeof(label), value,
         sizeof(value));
 
-    hit = (SDL_FRect){ x, y, w, line_h };
+    hit = (SDL_FRect){ x, y, content_w, line_h };
     focused = sdl_char_sheet_choice_focused(choice);
     if (focused)
         sdl_char_sheet_draw_focus_rect(hit, true);
@@ -3357,7 +3371,7 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
         if (!value_font)
             value_font = font;
         value_need = sdl_char_sheet_text_width(value_font, value);
-        if (value_col_x > x && value_col_x < x + w)
+        if (value_col_x > x && value_col_x < x + content_w)
         {
             /* Shared column: every row's value starts at the same x, so the
              * gap sits just past the longest label rather than the far right
@@ -3366,25 +3380,25 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
             label_w = value_col_x - x - gap;
             if (label_w < 1.0f)
                 label_w = 1.0f;
-            value_w = (x + w) - value_x;
+            value_w = (x + content_w) - value_x;
             if (value_w < 1.0f)
                 value_w = 1.0f;
         }
-        else if ((float)(label_need + value_need) + gap <= w)
+        else if ((float)(label_need + value_need) + gap <= content_w)
         {
             value_w = (float)value_need;
-            label_w = w - value_w - gap;
+            label_w = content_w - value_w - gap;
             value_x = x + label_w + gap;
         }
         else
         {
             value_w = sdl_char_sheet_clampf((float)value_need,
-                MIN(w * 0.18f, 90.0f), w * 0.46f);
-            label_w = w - value_w - gap;
-            if (label_w < w * 0.48f)
+                MIN(content_w * 0.18f, 90.0f), content_w * 0.46f);
+            label_w = content_w - value_w - gap;
+            if (label_w < content_w * 0.48f)
             {
-                label_w = w * 0.48f;
-                value_w = w - label_w - gap;
+                label_w = content_w * 0.48f;
+                value_w = content_w - label_w - gap;
             }
             if (value_w < 1.0f)
                 value_w = 1.0f;
@@ -3401,11 +3415,52 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
     else
     {
         (void)sdl_char_sheet_draw_text(font, label,
-            focused ? TERM_DARK : attr, x, y, w, line_h * 0.94f, false);
+            focused ? TERM_DARK : attr, x, y, content_w, line_h * 0.94f,
+            false);
     }
 
     if (choice >= 0)
         sdl_char_sheet_add_hit(hit, choice, "");
+
+    if (reset_choice >= 0)
+    {
+        TTF_Font* btn_font = sdl_story_font_slot_sibling(font,
+            SDL_STORY_FONT_SLOT_MENU);
+        SDL_FRect btn = { x + content_w + btn_gap, y + line_h * 0.12f,
+            reset_w - btn_gap, line_h * 0.76f };
+        bool reset_hover =
+            (g_sdl_character_sheet_screen.hover_choice == reset_choice);
+        SDL_Color fill = reset_hover ? (SDL_Color){ 245, 245, 245, 255 }
+                                     : (SDL_Color){ 116, 116, 116, 214 };
+        SDL_Color border = reset_hover ? (SDL_Color){ 0, 0, 0, 255 }
+                                       : (SDL_Color){ 28, 28, 28, 224 };
+
+        if (!btn_font)
+            btn_font = font;
+        if (btn.w > 1.0f && btn.h > 1.0f)
+        {
+            SDL_FRect drawn;
+
+            SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
+                fill.a);
+            SDL_RenderFillRect(g_state.renderer, &btn);
+            SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g,
+                border.b, border.a);
+            SDL_RenderRect(g_state.renderer, &btn);
+
+            drawn = sdl_char_sheet_draw_text(btn_font, "Reset",
+                reset_hover ? TERM_DARK : TERM_L_WHITE,
+                btn.x + btn.w * 0.08f,
+                btn.y + (btn.h - line_h * 0.62f) * 0.5f,
+                btn.w * 0.84f, line_h * 0.62f, true);
+            (void)drawn;
+
+            /* No hover desc: a tooltip here would re-pop on every pointer
+             * move over the small button and read as a blinking popup. */
+            sdl_char_sheet_add_hit(btn, reset_choice, "");
+        }
+    }
 }
 
 void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
@@ -3425,6 +3480,8 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     float best_line_h = 1.0f;
     TTF_Font* best_font = NULL;
     float value_col_x = 0.0f;
+    float reset_reserve = 0.0f;
+    float list_content_w;
     float row_region_h;
     int selected_row = -1;
     int scroll;
@@ -3477,6 +3534,24 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     }
     g_sdl_character_sheet_screen.last_body_px = best_px;
     g_sdl_character_sheet_screen.last_body_line_h = best_line_h * 0.94f;
+
+    /* Reserve a right-hand strip for per-row "Reset" buttons when any row asks
+     * for one, so the buttons line up and never overlap a row's value. */
+    for (int i = 0; i < row_count; i++)
+    {
+        if (g_sdl_character_sheet_screen.select_rows[i].reset_choice >= 0)
+        {
+            reset_reserve = sdl_char_sheet_clampf(content_w * 0.20f, 56.0f,
+                132.0f);
+            break;
+        }
+    }
+    list_content_w = content_w - reset_reserve;
+    if (list_content_w < content_w * 0.45f)
+    {
+        list_content_w = content_w * 0.45f;
+        reset_reserve = content_w - list_content_w;
+    }
 
     for (int i = 0; i < row_count; i++)
     {
@@ -3571,8 +3646,8 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
             float min_gap = sdl_char_sheet_menu_pair_gap(best_line_h);
 
             value_col_x = content_x + max_label_w + gap;
-            if (value_col_x + max_value_w > content_x + content_w)
-                value_col_x = content_x + content_w - max_value_w;
+            if (value_col_x + max_value_w > content_x + list_content_w)
+                value_col_x = content_x + list_content_w - max_value_w;
             if (value_col_x < content_x + max_label_w + min_gap)
                 value_col_x = 0.0f;
         }
@@ -3607,7 +3682,8 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         else
         {
             sdl_char_sheet_draw_menu_row(best_font, r->label, r->attr,
-                r->choice, content_x, y, content_w, best_line_h, value_col_x);
+                r->choice, content_x, y, content_w, best_line_h,
+                value_col_x, r->reset_choice, reset_reserve);
         }
     }
 
@@ -7815,10 +7891,30 @@ void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     row = &g_sdl_character_sheet_screen
                .select_rows[g_sdl_character_sheet_screen.select_row_count++];
     row->choice = choice;
+    row->reset_choice = -1;
     row->attr = (byte)attr;
     row->is_heading = false;
     SDL_strlcpy(row->label, label ? label : "", sizeof(row->label));
     SDL_strlcpy(row->desc, desc ? desc : "", sizeof(row->desc));
+}
+
+/*
+ * Attach a tappable per-row "Reset" button to the most recently added select
+ * row.  reset_choice is the menu-click id the button reports when clicked or
+ * tapped; pass -1 to remove the button.  Only meaningful for menu-style select
+ * lists (settings menus); other select screens leave reset_choice at -1.
+ */
+void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice)
+{
+    int count = g_sdl_character_sheet_screen.select_row_count;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (count <= 0)
+        return;
+
+    g_sdl_character_sheet_screen.select_rows[count - 1].reset_choice =
+        reset_choice;
 }
 
 /* Book mode: a non-selectable heading/blurb row (e.g. "The Noldor ..."). */
@@ -7839,6 +7935,7 @@ void sdl_character_sheet_screen_add_select_heading(cptr label)
     row = &g_sdl_character_sheet_screen
                .select_rows[g_sdl_character_sheet_screen.select_row_count++];
     row->choice = -1;
+    row->reset_choice = -1;
     row->attr = TERM_L_DARK;
     row->is_heading = true;
     SDL_strlcpy(row->label, label, sizeof(row->label));

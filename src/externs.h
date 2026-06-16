@@ -1587,6 +1587,8 @@ extern bool sdl_character_sheet_screen_begin_select(int focus_choice,
 extern void sdl_character_sheet_screen_set_select_menu_style(bool enabled);
 extern void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     int attr, cptr desc);
+extern void sdl_character_sheet_screen_set_last_select_row_reset(
+    int reset_choice);
 extern void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
     cptr desc);
 extern void sdl_character_sheet_screen_set_select_detail_size_hint(
@@ -2149,6 +2151,10 @@ extern int get_sdl_pane_type(int index);
 extern int get_sdl_pane_where(int index);
 extern void set_sdl_pane_where(int index, int where);
 extern bool get_sdl_pane_enabled(int index);
+extern bool get_sdl_pane_default_enabled(int index);
+extern int get_sdl_pane_default_where(int index);
+extern int get_sdl_pane_default_rows(int index);
+extern int get_sdl_pane_default_cols(int index);
 extern int get_sdl_pane_rows(int index);
 extern int get_sdl_pane_cols(int index);
 extern int get_sdl_pane_font_size(int index);
@@ -2188,6 +2194,12 @@ extern bool get_sdl_gamepad_use_dpad(void);
 extern void set_sdl_gamepad_use_dpad(bool value);
 extern bool get_sdl_gamepad_use_left_stick(void);
 extern void set_sdl_gamepad_use_left_stick(bool value);
+extern bool get_sdl_gamepad_default_enabled(void);
+extern bool get_sdl_gamepad_default_auto_mode(void);
+extern bool get_sdl_steamdeck_default_mode(void);
+extern bool get_sdl_steamdeck_default_inv_equip_same_button_cycle(void);
+extern bool get_sdl_gamepad_default_use_dpad(void);
+extern bool get_sdl_gamepad_default_use_left_stick(void);
 extern int get_sdl_gamepad_button_binding(int button);
 extern void set_sdl_gamepad_button_binding(int button, int binding);
 extern int get_sdl_gamepad_trigger_binding(int index);

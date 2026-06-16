@@ -630,6 +630,12 @@ static void settings_ui_put_fitted(int row, int col, byte attr, cptr text)
 #define SETTINGS_CLICK_RENAME_SELECTED 32005
 #define SETTINGS_CLICK_RENAME_GROUP 32006
 #define SETTINGS_CLICK_PANE_FIELD_BASE 32100
+/*
+ * Per-row "Reset to default" buttons in the pixel/semantic settings menus.
+ * A row's reset button reports SETTINGS_CLICK_RESET_ROW_BASE + row_index so a
+ * mouse or touch user can reset a single setting without a keyboard key.
+ */
+#define SETTINGS_CLICK_RESET_ROW_BASE 32200
 
 static void settings_ui_add_return_click_targets(int row, int col, cptr text)
 {
@@ -1617,7 +1623,151 @@ static bool sound_option_pick_value(int index, struct sound_config* sound_cfg,
 static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
     bool* handled);
 static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta);
+static bool iface_pane_row_resettable(const struct iface_pane_row* row);
+static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row);
 static void do_cmd_touch_top_widget_button_editor(bool* settings_changed);
+
+/*
+ * Reset the option on row k of an options page back to its default value, and
+ * flag the matching persistence store dirty.  Drives the per-row "Reset"
+ * buttons so a mouse/touch/controller user can reset one setting without a key.
+ * Overlay-pane rows on the Interface page are handled by their own editor and
+ * are not reset here.
+ */
+static void options_aux_reset_to_default(int page, const int* opt, int k,
+    bool metarun_page, struct sound_config* sound_cfg,
+    bool* app_dirty, bool* sound_dirty, bool* metarun_dirty)
+{
+    int o;
+
+    if (page == SOUND_PAGE)
+    {
+        struct sound_config def;
+
+        sound_config_set_defaults(&def);
+        switch (k)
+        {
+        case SOUND_OPT_ENABLED:
+            sound_cfg->enabled = def.enabled;
+            use_sound = sound_cfg->enabled;
+            break;
+        case SOUND_OPT_COMBAT_ENABLED:
+            sound_cfg->enable_combat = def.enable_combat;
+            break;
+        case SOUND_OPT_MONSTER_HITS_ENABLED:
+            sound_cfg->enable_monster_hits = def.enable_monster_hits;
+            break;
+        case SOUND_OPT_INVENTORY_ENABLED:
+            sound_cfg->enable_inventory = def.enable_inventory;
+            break;
+        case SOUND_OPT_WALK_ENABLED:
+            sound_cfg->enable_walk = def.enable_walk;
+            break;
+        case SOUND_OPT_DOORS_ENABLED:
+            sound_cfg->enable_doors = def.enable_doors;
+            break;
+        case SOUND_OPT_TRAPS_ENABLED:
+            sound_cfg->enable_traps = def.enable_traps;
+            break;
+        case SOUND_OPT_COMBAT_VOLUME:
+            sound_cfg->volume_combat = def.volume_combat;
+            break;
+        case SOUND_OPT_MONSTER_HITS_VOLUME:
+            sound_cfg->volume_monster_hits = def.volume_monster_hits;
+            break;
+        case SOUND_OPT_INVENTORY_VOLUME:
+            sound_cfg->volume_inventory = def.volume_inventory;
+            break;
+        case SOUND_OPT_WALK_VOLUME:
+            sound_cfg->volume_walk = def.volume_walk;
+            break;
+        case SOUND_OPT_DOORS_VOLUME:
+            sound_cfg->volume_doors = def.volume_doors;
+            break;
+        case SOUND_OPT_TRAPS_VOLUME:
+            sound_cfg->volume_traps = def.volume_traps;
+            break;
+        case SOUND_OPT_OTHER_VOLUME:
+            sound_cfg->volume_other = def.volume_other;
+            break;
+        case SOUND_OPT_MUSIC_MAIN_ENABLED:
+            sound_cfg->music_main_enabled = def.music_main_enabled;
+            break;
+        case SOUND_OPT_MUSIC_AMBIENT_ENABLED:
+            sound_cfg->music_ambient_enabled = def.music_ambient_enabled;
+            break;
+        case SOUND_OPT_MUSIC_MAIN_VOLUME:
+            sound_cfg->music_main_volume = def.music_main_volume;
+            break;
+        case SOUND_OPT_MUSIC_AMBIENT_VOLUME:
+            sound_cfg->music_ambient_volume = def.music_ambient_volume;
+            break;
+        default:
+            return;
+        }
+        if (sound_dirty)
+            *sound_dirty = true;
+        return;
+    }
+
+    o = opt[k];
+    switch (o)
+    {
+    case OPT_delay_factor:
+        op_ptr->delay_factor = 5;
+        break;
+    case OPT_hitpoint_warning:
+        op_ptr->hitpoint_warn = 3;
+        break;
+    case OPT_show_level_entry_banner:
+        op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
+        break;
+    case OPT_show_partition_narrative:
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        break;
+    case OPT_ability_desc_mode:
+        op_ptr->ability_desc_mode = 0;
+        break;
+    case OPT_vault_drop_frequency:
+        op_ptr->vault_drop_frequency = VDF_NORMAL;
+        break;
+    case OPT_min_depth_timer_mode:
+        op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
+        break;
+    case OPT_narrative_banner_turns:
+        op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+        break;
+    case OPT_intro_style:
+        op_ptr->intro_style = INTRO_STYLE_RANDOM;
+        break;
+    case OPT_noble_item_spawn_mode:
+        op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
+        break;
+    case OPT_mirror_player_tile_facing:
+        option_set_player_tile_facing_mode(
+            option_norm[OPT_mirror_player_tile_facing]
+                ? (option_norm[OPT_handcrafted_player_tile_facing]
+                    ? PLAYER_TILE_FACING_HANDCRAFTED
+                    : PLAYER_TILE_FACING_MIRROR)
+                : PLAYER_TILE_FACING_OFF);
+        break;
+    default:
+        op_ptr->opt[o] = option_norm[o];
+        option_apply_side_effects(o);
+        break;
+    }
+
+    if (option_is_app_persistent(o))
+    {
+        if (app_dirty)
+            *app_dirty = true;
+    }
+    else if (metarun_page)
+    {
+        if (metarun_dirty)
+            *metarun_dirty = true;
+    }
+}
 
 extern void do_cmd_options_aux(int page, cptr info)
 {
@@ -2046,6 +2196,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 settings_semantic_line_from_menu_line(semantic_buf,
                     sizeof(semantic_buf), buf);
                 settings_semantic_add_row(i, semantic_buf, a);
+                if (page == INTERFACE_PAGE && opt[i] >= IFACE_PANE_ROW_BASE)
+                {
+                    if (iface_pane_row_resettable(&pane_rows[i - n_real]))
+                        sdl_character_sheet_screen_set_last_select_row_reset(
+                            SETTINGS_CLICK_RESET_ROW_BASE + i);
+                }
+                else if (page != CHALLENGE_PAGE || playerturn == 0)
+                    sdl_character_sheet_screen_set_last_select_row_reset(
+                        SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else if (row >= first_row && row < first_row + visible_rows)
             {
@@ -2150,6 +2309,24 @@ extern void do_cmd_options_aux(int page, cptr info)
                         continue;
                     ch = ESCAPE;
                     click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE + n)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    k = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
+                    {
+                        if (iface_pane_row_reset_to_default(
+                                &pane_rows[k - n_real]))
+                            app_settings_dirty = true;
+                    }
+                    else if ((page != CHALLENGE_PAGE) || (playerturn == 0))
+                        options_aux_reset_to_default(page, opt, k, metarun_page,
+                            sound_cfg, &app_settings_dirty,
+                            &sound_settings_dirty, &metarun_settings_dirty);
+                    continue;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
@@ -3051,6 +3228,9 @@ void do_cmd_pane_settings(void)
                 settings_semantic_line_from_menu_line(semantic_line,           \
                     sizeof(semantic_line), (TEXT));                            \
                 settings_semantic_add_row((CHOICE), semantic_line, (ATTR));    \
+                if ((CHOICE) < PANE_SETTING_VIEW_PANE_CONFIGURATION)           \
+                    sdl_character_sheet_screen_set_last_select_row_reset(      \
+                        SETTINGS_CLICK_RESET_ROW_BASE + (CHOICE));             \
             }                                                                  \
             else                                                               \
             {                                                                  \
@@ -3268,6 +3448,55 @@ void do_cmd_pane_settings(void)
                         continue;
                     ch = ESCAPE;
                     click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE + n)
+                {
+                    struct sdl_config def;
+
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    k = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    sdl_config_set_defaults(&def);
+                    switch (k)
+                    {
+                    case PANE_SETTING_MIN_TERMINAL_SIZE:
+                        set_sdl_min_terminal_mode(def.min_terminal_mode);
+                        break;
+                    case PANE_SETTING_MAIN_VIEW_SCALE:
+                        set_sdl_main_view_scale(def.main_view_scale);
+                        break;
+                    case PANE_SETTING_ENABLE_SIDE_PANES:
+                        set_sdl_enable_right_panes(def.enable_right_panes);
+                        break;
+                    case PANE_SETTING_ENABLE_BOTTOM_PANES:
+                        set_sdl_enable_bottom_panes(def.enable_bottom_panes);
+                        break;
+                    case PANE_SETTING_FULLSCREEN:
+                        set_sdl_fullscreen(def.fullscreen);
+                        break;
+                    case PANE_SETTING_TILES:
+                        set_sdl_tiles(def.tiles);
+                        break;
+                    case PANE_SETTING_USE_UNSAFE_AREA:
+                        set_sdl_use_unsafe_area(def.use_unsafe_area);
+                        break;
+                    case PANE_SETTING_WHITE_PANE_BORDERS:
+                        set_sdl_show_pane_borders(def.show_pane_borders);
+                        break;
+                    case PANE_SETTING_HIDE_FULLSCREEN_PANES:
+                        op_ptr->opt[OPT_hide_supporting_panes_fullscreen] =
+                            option_norm[OPT_hide_supporting_panes_fullscreen];
+                        break;
+                    case PANE_SETTING_AUX_VIEW_FONT_SIZE:
+                        set_sdl_aux_view_font_size(0);
+                        break;
+                    default:
+                        break;
+                    }
+                    settings_changed = true;
+                    sdl_apply_config();
+                    continue;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < n)
                 {
@@ -3774,6 +4003,8 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                     settings_semantic_line_from_menu_line(semantic_line,
                         sizeof(semantic_line), line_buf);
                     settings_semantic_add_row(i, semantic_line, a);
+                    sdl_character_sheet_screen_set_last_select_row_reset(
+                        SETTINGS_CLICK_RESET_ROW_BASE + i);
                 }
                 else if ((y0 + i) < Term->hgt - 5)
                 {
@@ -3785,7 +4016,7 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
             if (pixel_menu)
             {
                 sdl_character_sheet_screen_set_select_description(
-                    "Up and down select a pane. Left/Right or N/Y change the font size. 0 sets the selected pane font to auto. Changes apply immediately.");
+                    "Up and down select a pane. Left/Right or N/Y change the font size. 0 (or the row's Reset) sets the selected pane font to auto. Changes apply immediately.");
                 sdl_character_sheet_screen_commit_select(sel);
             }
             else
@@ -3825,6 +4056,16 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
                         ch = ESCAPE;
+                        click_generated = true;
+                    }
+                    else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                        && clicked_choice
+                            < SETTINGS_CLICK_RESET_ROW_BASE + pane_count)
+                    {
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        sel = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                        ch = '0';
                         click_generated = true;
                     }
                     else if (clicked_choice >= 0 && clicked_choice < pane_count)
@@ -4622,6 +4863,123 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
     return changed;
 }
 
+/*
+ * Whether an inline interface-pane row exposes a value that has a meaningful
+ * "default" the per-row Reset button can restore.  Enabled/Placement are the
+ * user's deliberate layout choices (no per-pane default getter) and Assignments
+ * just opens an editor, so those rows get no reset button.
+ */
+static bool iface_pane_row_resettable(const struct iface_pane_row* row)
+{
+    if (!row)
+        return false;
+
+    /* Everything except "Assignments" (which just opens a sub-editor) maps to a
+     * value with a known default the Reset button can restore. */
+    return row->field != IFACE_PANE_FIELD_BUTTONS;
+}
+
+static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
+{
+    int idx;
+    struct sdl_config def;
+    bool changed = false;
+
+    if (!row)
+        return false;
+
+    idx = row->pane_cfg_index;
+    sdl_config_set_defaults(&def);
+
+    switch (row->field)
+    {
+    case IFACE_PANE_FIELD_ENABLED:
+    {
+        bool d = get_sdl_pane_default_enabled(idx);
+        if (get_sdl_pane_enabled(idx) != d)
+        {
+            set_sdl_pane_enabled(idx, d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_PLACEMENT:
+    {
+        int d = get_sdl_pane_default_where(idx);
+        if (get_sdl_pane_where(idx) != d)
+        {
+            set_sdl_pane_where(idx, d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_FONT:
+        if (get_sdl_pane_font_size(idx) != 0)
+        {
+            set_sdl_pane_font_size(idx, 0);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_TILE_SCALE:
+    {
+        int d = get_sdl_touch_top_panel_default_tile_scale();
+        if (get_sdl_touch_top_panel_tile_scale() != d)
+        {
+            set_sdl_touch_top_panel_tile_scale(d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_BUTTON_COUNT:
+    {
+        int d = get_sdl_touch_top_panel_default_button_count();
+        if (get_sdl_touch_top_panel_button_count() != d)
+        {
+            set_sdl_touch_top_panel_button_count(d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_LP_LAUNCH:
+        if (get_sdl_left_panel_expanded_on_launch()
+            != def.left_panel_expanded_on_launch)
+        {
+            set_sdl_left_panel_expanded_on_launch(
+                def.left_panel_expanded_on_launch);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_LP_COMPACT:
+        if (get_sdl_left_panel_compact_mode() != def.left_panel_compact_mode)
+        {
+            set_sdl_left_panel_compact_mode(def.left_panel_compact_mode);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_DICE_LOCK:
+        if (get_sdl_dice_roll_lock_ms() != def.dice_roll_lock_ms)
+        {
+            set_sdl_dice_roll_lock_ms(def.dice_roll_lock_ms);
+            changed = true;
+        }
+        break;
+    case IFACE_PANE_FIELD_DICE_OVERLAY:
+        if (get_sdl_dice_roll_overlay_ms() != def.dice_roll_overlay_ms)
+        {
+            set_sdl_dice_roll_overlay_ms(def.dice_roll_overlay_ms);
+            changed = true;
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (changed)
+        iface_pane_row_apply_change(row);
+
+    return changed;
+}
+
 static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
 {
     enum { MAX_PANES_LOCAL = MAX_PANE_CONFIGS };
@@ -4768,6 +5126,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             if (pixel_menu)
             {
                 settings_semantic_add_row(i, line_buf, a);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else if ((y0 + i) < Term->hgt - 5)
             {
@@ -4846,6 +5206,34 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
                         continue;
                     ch = ESCAPE;
                     click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + pane_count)
+                {
+                    int idx;
+
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    sel = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    idx = pane_indices[sel];
+                    /* Restore the whole pane row to its default: enabled,
+                     * placement and (where editable) size. */
+                    set_sdl_pane_enabled(idx, get_sdl_pane_default_enabled(idx));
+                    set_sdl_pane_where(idx, get_sdl_pane_default_where(idx));
+                    if (!supporting_pane_rows_locked(pane_indices, pane_count,
+                            idx))
+                        set_sdl_pane_rows(idx, get_sdl_pane_default_rows(idx));
+                    if (!supporting_pane_cols_locked(pane_indices, pane_count,
+                            idx))
+                        set_sdl_pane_cols(idx, get_sdl_pane_default_cols(idx));
+                    supporting_pane_normalize_shared_sizes(pane_indices,
+                        pane_count);
+                    supporting_pane_ensure_editable_field(&field, pane_indices,
+                        pane_count, sel);
+                    changed = true;
+                    sdl_apply_config();
+                    continue;
                 }
                 else if (clicked_choice >= SETTINGS_CLICK_PANE_FIELD_BASE
                     && clicked_choice < SETTINGS_CLICK_PANE_FIELD_BASE + pane_count * 4)
@@ -5974,6 +6362,8 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                 settings_semantic_line_from_menu_line(semantic_line,
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line, a);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -6126,6 +6516,16 @@ static void do_cmd_touch_pane_button_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'p';
+                    click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + total_rows)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'x';
                     click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < total_rows)
@@ -6433,6 +6833,8 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                 settings_semantic_line_from_menu_line(semantic_line,
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line, a);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -6508,6 +6910,15 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
+                } else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE
+                        + TOUCH_TOP_WIDGET_BUTTON_COUNT)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'x';
                     click_generated = true;
                 } else if (clicked_choice >= 0
                     && clicked_choice < TOUCH_TOP_WIDGET_BUTTON_COUNT)
@@ -6965,6 +7376,9 @@ static void do_cmd_touch_settings(bool* settings_changed)
                 settings_semantic_line_from_menu_line(semantic_line,
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line, a);
+                if (i == TOUCH_SETTINGS_CORNER_UP_DOWN_SIDE)
+                    sdl_character_sheet_screen_set_last_select_row_reset(
+                        SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -7004,6 +7418,19 @@ static void do_cmd_touch_settings(bool* settings_changed)
                         continue;
                     ch = ESCAPE;
                     click_generated = true;
+                } else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE
+                        + TOUCH_SETTINGS_COUNT)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    if (highlight == TOUCH_SETTINGS_CORNER_UP_DOWN_SIDE) {
+                        set_sdl_touch_corner_up_down_side(
+                            get_sdl_touch_corner_up_down_default_side());
+                        changed = true;
+                    }
+                    continue;
                 } else if (clicked_choice >= 0
                     && clicked_choice < TOUCH_SETTINGS_COUNT)
                 {
@@ -7215,6 +7642,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                 settings_semantic_line_from_menu_line(semantic_line,
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line, a);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -7297,6 +7726,16 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + total_rows)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'x';
                     click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < total_rows)
@@ -7585,6 +8024,9 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                 settings_semantic_line_from_menu_line(semantic_line,
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line, a);
+                if (i != MOUSE_SETTING_TUTORIAL)
+                    sdl_character_sheet_screen_set_last_select_row_reset(
+                        SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -7667,6 +8109,16 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
                     ch = 'M';
+                    click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + MOUSE_SETTING_COUNT)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'x';
                     click_generated = true;
                 }
                 else if (clicked_choice >= 0 && clicked_choice < MOUSE_SETTING_COUNT)
@@ -9342,6 +9794,8 @@ void do_cmd_keybinds(void)
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line,
                     (i == highlight) ? TERM_L_BLUE : TERM_WHITE);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else
             {
@@ -9480,6 +9934,17 @@ void do_cmd_keybinds(void)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
+                    ch = 'r';
+                    click_generated = true;
+                }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + num_keybinds)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    *highlight_ptr = highlight;
                     ch = 'r';
                     click_generated = true;
                 }
@@ -10590,6 +11055,26 @@ static void controller_set_toggle(int toggle_id, bool value)
     }
 }
 
+static bool controller_toggle_default_value(int toggle_id)
+{
+    switch (toggle_id) {
+    case CONTROLLER_TOGGLE_ENABLED:
+        return get_sdl_gamepad_default_enabled();
+    case CONTROLLER_TOGGLE_AUTO_MODE:
+        return get_sdl_gamepad_default_auto_mode();
+    case CONTROLLER_TOGGLE_STEAMDECK_MODE:
+        return get_sdl_steamdeck_default_mode();
+    case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+        return get_sdl_steamdeck_default_inv_equip_same_button_cycle();
+    case CONTROLLER_TOGGLE_DPAD:
+        return get_sdl_gamepad_default_use_dpad();
+    case CONTROLLER_TOGGLE_LEFT_STICK:
+        return get_sdl_gamepad_default_use_left_stick();
+    default:
+        return false;
+    }
+}
+
 static void controller_clear_action_bindings(int binding, int skip_type, int skip_id)
 {
     if (binding == GAMEPAD_BIND_NONE)
@@ -10975,6 +11460,8 @@ void do_cmd_controller_settings(void)
                     sizeof(semantic_line), line_buf);
                 settings_semantic_add_row(i, semantic_line,
                     (i == highlight) ? TERM_L_BLUE : TERM_WHITE);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
             }
             else {
                 if (i == highlight) {
@@ -11006,7 +11493,7 @@ void do_cmd_controller_settings(void)
                     detail_value_buf);
             } else {
                 strnfmt(desc, sizeof(desc),
-                    "Enter or Space toggles %s. R resets selected action bindings, M resets all bindings. Changes are saved on exit.",
+                    "Enter or Space toggles %s. R resets it to default, M resets all bindings. Changes are saved on exit.",
                     entries[highlight].label);
             }
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_SELECTED,
@@ -11099,6 +11586,16 @@ void do_cmd_controller_settings(void)
                     ch = 'R';
                     click_generated = true;
                 }
+                else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice
+                        < SETTINGS_CLICK_RESET_ROW_BASE + entry_count)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'r';
+                    click_generated = true;
+                }
                 else if (clicked_choice >= 0 && clicked_choice < entry_count)
                 {
                     highlight = clicked_choice;
@@ -11126,6 +11623,11 @@ void do_cmd_controller_settings(void)
                 } else {
                     msg_print("No default binding for action.");
                 }
+                message_flush();
+            } else {
+                controller_set_toggle(entries[highlight].id,
+                    controller_toggle_default_value(entries[highlight].id));
+                msg_format("Reset %s to default.", entries[highlight].label);
                 message_flush();
             }
         } else if (ch == 'R' || (steamdeck && ch == steamdeck_secondary_key())) {

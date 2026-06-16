@@ -482,6 +482,7 @@ typedef struct sdl_character_sheet_hit {
  * non-selectable heading/blurb (book-page mode, screen 1). */
 typedef struct sdl_character_sheet_select_row {
     int choice;        /* choice id consumed by get_player_choice (>= 0) */
+    int reset_choice;  /* >=0: draw a tappable per-row "Reset" button, this id */
     byte attr;
     bool is_heading;   /* book mode: non-selectable heading/blurb text */
     char label[160];
@@ -1886,6 +1887,7 @@ void sdl_character_sheet_screen_break_book_page(void);
 void sdl_character_sheet_screen_highlight_book_paragraph(void);
 void sdl_character_sheet_screen_commit_book(void);
 void sdl_character_sheet_screen_add_select_row(int choice, cptr label, int attr, cptr desc);
+void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice);
 void sdl_character_sheet_screen_add_select_heading(cptr label);
 void sdl_character_sheet_screen_set_select_intro(cptr text);
 int sdl_character_sheet_screen_select_page(void);
@@ -3000,6 +3002,12 @@ bool get_sdl_gamepad_use_dpad(void);
 void set_sdl_gamepad_use_dpad(bool value);
 bool get_sdl_gamepad_use_left_stick(void);
 void set_sdl_gamepad_use_left_stick(bool value);
+bool get_sdl_gamepad_default_enabled(void);
+bool get_sdl_gamepad_default_auto_mode(void);
+bool get_sdl_steamdeck_default_mode(void);
+bool get_sdl_steamdeck_default_inv_equip_same_button_cycle(void);
+bool get_sdl_gamepad_default_use_dpad(void);
+bool get_sdl_gamepad_default_use_left_stick(void);
 int get_sdl_gamepad_button_binding(int button);
 void set_sdl_gamepad_button_binding(int button, int binding);
 int get_sdl_gamepad_trigger_binding(int index);

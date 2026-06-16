@@ -474,6 +474,12 @@ bool sdl_main_menu_overlay_begin(void)
     sdl_player_action_menu_cancel();
     sdl_touch_round_cancel_press();
     sdl_touch_top_panel_cancel_press();
+    /* Drop any active hover tooltip (e.g. a terrain "granite wall" popup).
+     * While the overlay is open it consumes mouse-motion events, so the
+     * tooltip's own motion handler never runs to clear it, and the overlay
+     * doesn't set character_icky, so the render-time safety net keeps drawing
+     * it on top of the menu. */
+    sdl_object_tooltip_clear();
     if (p_ptr && character_generated && character_icky == 0) {
         sdl_mark_tiles_mode_game_redraw();
         handle_stuff();

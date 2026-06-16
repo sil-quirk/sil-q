@@ -6493,8 +6493,8 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
     else
     {
         const char* variants[] = {
-            "Dir move  e/i page  Space recall  Esc",
-            "e/i page  Space recall  Esc",
+            "Dir move  Tab page  Space recall  Esc",
+            "Tab page  Space recall  Esc",
             "Space recall  Esc"
         };
         terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->term_wid,
@@ -6612,8 +6612,8 @@ static void knowledge_register_prompt_clicks(
         prompt, "back");
     ui_menu_click_add_text_token(KNOWLEDGE_CLICK_BACK, 0, layout->prompt_row,
         prompt, "Esc");
-    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_PREV_PAGE, 0,
-        layout->prompt_row, prompt, "e/i");
+    ui_menu_click_add_text_token(KNOWLEDGE_CLICK_NEXT_PAGE, 0,
+        layout->prompt_row, prompt, "Tab");
     ui_menu_click_add_text_token(KNOWLEDGE_CLICK_PREV_PAGE, 0,
         layout->prompt_row, prompt, "L1");
     ui_menu_click_add_text_token(KNOWLEDGE_CLICK_NEXT_PAGE, 0,
@@ -6696,8 +6696,8 @@ static bool knowledge_consume_click(int* ch, int* page,
     {
     case KNOWLEDGE_CLICK_BACK: *ch = ESCAPE; return false;
     case KNOWLEDGE_CLICK_RECALL: *ch = 'r'; return false;
-    case KNOWLEDGE_CLICK_PREV_PAGE: *ch = 'e'; return false;
-    case KNOWLEDGE_CLICK_NEXT_PAGE: *ch = 'i'; return false;
+    case KNOWLEDGE_CLICK_PREV_PAGE: *ch = '['; return false;
+    case KNOWLEDGE_CLICK_NEXT_PAGE: *ch = ']'; return false;
     default: return true;
     }
 }
@@ -7622,13 +7622,9 @@ static bool knowledge_handle_page_input(char ch, int* page)
         break;
     case '\t':
     case ']':
-    case 'I':
-    case 'i':
         next_page = (*page + 1) % 4;
         break;
     case '[':
-    case 'E':
-    case 'e':
         next_page = (*page + 3) % 4;
         break;
     default:
@@ -7771,10 +7767,17 @@ void do_cmd_knowledge_browser_page(int page)
     if (p_ptr && p_ptr->playing)
         sdl_music_play_menu_theme();
 
+    bool saved_hide_cursor = hide_cursor;
+
     while (!done)
     {
         knowledge_browser_layout layout;
         int ch;
+
+        /* These lists highlight the selection directly, so keep the blinking
+         * text cursor hidden.  Re-asserted each iteration in case a recall
+         * sub-screen turned it back on. */
+        hide_cursor = true;
 
         switch (page)
         {
@@ -7882,7 +7885,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            ch = steamdeck_menu_key(ch, 'e', 'i');
+            ch = steamdeck_menu_key(ch, '[', ']');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8041,7 +8044,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            ch = steamdeck_menu_key(ch, 'e', 'i');
+            ch = steamdeck_menu_key(ch, '[', ']');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8190,7 +8193,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            ch = steamdeck_menu_key(ch, 'e', 'i');
+            ch = steamdeck_menu_key(ch, '[', ']');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus,
@@ -8287,7 +8290,7 @@ void do_cmd_knowledge_browser_page(int page)
             {
                 break;
             }
-            ch = steamdeck_menu_key(ch, 'e', 'i');
+            ch = steamdeck_menu_key(ch, '[', ']');
 
             if (knowledge_handle_tab_navigation((char)ch, &page,
                 &state.tabs_focus, (curse_cnt <= 0) || (state.entry_cur[page] == 0)))
@@ -8344,6 +8347,8 @@ void do_cmd_knowledge_browser_page(int page)
         }
     }
 
+    hide_cursor = saved_hide_cursor;
+
     mem_free_null(curse_idx);
     mem_free_null(mon_idx);
     mem_free_null(object_idx);
@@ -8377,6 +8382,8 @@ static void supply_register_prompt_clicks(const knowledge_browser_layout* layout
     ui_menu_click_add_text_token(SUPPLY_CLICK_RECALL, 0, row, prompt,
         recall_label);
     ui_menu_click_add_text_token(SUPPLY_CLICK_PREVIEW, 0, row, prompt,
+        "x preview");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_PREVIEW, 0, row, prompt,
         "preview");
     ui_menu_click_add_text_token(SUPPLY_CLICK_PREVIEW, 0, row, prompt,
         "x/->");
@@ -8393,6 +8400,7 @@ static void supply_register_prompt_clicks(const knowledge_browser_layout* layout
     ui_menu_click_add_text_token(SUPPLY_CLICK_DELETE, 0, row, prompt, "delete");
     ui_menu_click_add_text_token(SUPPLY_CLICK_DELETE, 0, row, prompt,
         "y delete");
+    ui_menu_click_add_text_token(SUPPLY_CLICK_TAB, 0, row, prompt, "Tab");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "back");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "cancel");
     ui_menu_click_add_text_token(SUPPLY_CLICK_BACK, 0, row, prompt, "Esc");
@@ -9040,6 +9048,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         case SUPPLY_CLICK_DROP:
                             drop_click_mode = !drop_click_mode;
                             continue;
+                        case SUPPLY_CLICK_TAB:
+                            ch = KTRL('I');
+                            click_generated_command = true;
+                            break;
                         default: break;
                         }
                     }
@@ -9898,6 +9910,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             ch = 'y';
                             click_generated_command = true;
                             break;
+                        case SUPPLY_CLICK_TAB:
+                            ch = KTRL('I');
+                            click_generated_command = true;
+                            break;
                         default: break;
                         }
                     }
@@ -10681,6 +10697,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         ch = 'x';
                         click_generated_command = true;
                         break;
+                    case SUPPLY_CLICK_PREVIEW:
+                        ch = 'x';
+                        click_generated_command = true;
+                        break;
                     case SUPPLY_CLICK_USE:
                         ch = 'u';
                         click_generated_command = true;
@@ -10689,6 +10709,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         drop_click_mode = !drop_click_mode;
                         redraw = true;
                         continue;
+                    case SUPPLY_CLICK_TAB:
+                        ch = KTRL('I');
+                        click_generated_command = true;
+                        break;
                     default: break;
                     }
                 }
