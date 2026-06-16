@@ -3050,6 +3050,118 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     }
 }
 
+/*
+ * Floating "Exit" overlay button for touch-only full-screen terminal menus
+ * (inventory, equipment, supplies, knowledge/lore, abilities).  Those menus
+ * blanket the screen with list/scroll/click cells, so a "tap away to exit"
+ * affordance has nowhere to land.  This draws a single tappable button in the
+ * bottom-right corner of the main view -- styled like the character sheet's
+ * touch buttons -- and a tap injects ESCAPE to close.  A menu opts in each
+ * frame via ui_menu_click_set_touch_exit_button(true).
+ */
+static int sdl_touch_exit_button_font_px(float button_h)
+{
+    return sdl_char_sheet_clampi((int)(button_h * 0.58f), 16, 52);
+}
+
+static bool sdl_touch_exit_button_rect(SDL_FRect* out)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    int cols;
+    int rows;
+    float content_x;
+    float content_y;
+    float content_w;
+    float content_h;
+    float bh;
+    float bw;
+    float margin;
+    int font_px;
+    TTF_Font* font;
+    int text_w;
+    float pad_x;
+
+    if (!out)
+        return false;
+    *out = (SDL_FRect){ 0 };
+
+    if (!ui_menu_click_touch_exit_button_active())
+        return false;
+    if (!sdl_touch_only_device_active())
+        return false;
+    if (!g_state.renderer)
+        return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0
+        || view->rect.w <= 0 || view->rect.h <= 0)
+        return false;
+
+    cols = sdl_main_view_visual_cols(view);
+    rows = sdl_main_view_visual_rows(view);
+    if (cols <= 0 || rows <= 0)
+        return false;
+
+    content_x = (float)(view->rect.x + view->margin_x);
+    content_y = (float)(view->rect.y + view->margin_y);
+    content_w = (float)(cols * view->cell_w);
+    content_h = (float)(rows * view->cell_h);
+
+    bh = sdl_char_sheet_clampf(content_h * 0.060f, 36.0f, 84.0f);
+    font_px = sdl_touch_exit_button_font_px(bh);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
+    text_w = font ? sdl_char_sheet_text_width(font, "Exit") : (int)(bh * 1.4f);
+    pad_x = MAX(18.0f, bh * 0.62f);
+    bw = (float)text_w + pad_x * 2.0f;
+    margin = sdl_char_sheet_clampf(content_h * 0.018f, 8.0f, 26.0f);
+
+    out->w = bw;
+    out->h = bh;
+    out->x = content_x + content_w - margin - bw;
+    out->y = content_y + content_h - margin - bh;
+    return true;
+}
+
+void sdl_touch_exit_button_render(void)
+{
+    SDL_FRect rect;
+    int font_px;
+    TTF_Font* font;
+
+    if (!sdl_touch_exit_button_rect(&rect))
+        return;
+
+    /* Match the character sheet's default (unfocused) touch button chrome. */
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 156, 156, 156, 238);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, 28, 28, 28, 230);
+    SDL_RenderRect(g_state.renderer, &rect);
+
+    font_px = sdl_touch_exit_button_font_px(rect.h);
+    font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
+    if (font)
+    {
+        float line_h = sdl_char_sheet_line_h(font, font_px, 1.0f);
+        float text_y = rect.y + (rect.h - line_h) * 0.5f;
+
+        (void)sdl_char_sheet_draw_text(font, "Exit", TERM_DARK, rect.x, text_y,
+            rect.w, rect.h, true);
+    }
+}
+
+bool sdl_touch_exit_button_handle_pointer(float x, float y)
+{
+    SDL_FRect rect;
+
+    if (!sdl_touch_exit_button_rect(&rect))
+        return false;
+    if (!sdl_point_in_frect(&rect, x, y))
+        return false;
+
+    ui_menu_click_clear_pending_hover();
+    Term_keypress(ESCAPE);
+    return true;
+}
+
 static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
     float content_x, float content_w, float prompt_y, float prompt_h,
     int page, int page_count)

@@ -216,6 +216,35 @@ bool sdl_mouse_grid_has_marked_object(int y, int x, object_type** out_obj)
     return true;
 }
 
+/*
+ * When set, a touch tooltip shown while the flag is active does not auto-expire
+ * after SDL_OBJECT_TOOLTIP_TOUCH_MS; it stays up until the next press, matching
+ * the persistent right-click popup on the mouse.  Scoped tightly around the
+ * long-press popup via sdl_object_tooltip_begin/end_persistent.
+ */
+static bool g_object_tooltip_persistent_scope = false;
+
+void sdl_object_tooltip_begin_persistent(void)
+{
+    g_object_tooltip_persistent_scope = true;
+}
+
+void sdl_object_tooltip_end_persistent(void)
+{
+    g_object_tooltip_persistent_scope = false;
+}
+
+/* Expiry time for a freshly shown tooltip: touch tooltips auto-expire unless
+ * shown inside a persistent scope; mouse tooltips never auto-expire. */
+static Uint64 sdl_object_tooltip_expiry(bool touch)
+{
+    if (touch && !g_object_tooltip_persistent_scope)
+        return SDL_GetTicksNS()
+            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
+
+    return 0;
+}
+
 void sdl_object_tooltip_clear(void)
 {
     if (!g_object_tooltip.active)
@@ -233,8 +262,22 @@ void sdl_object_tooltip_clear(void)
     g_object_tooltip.cell_cols = 0;
     g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = 0;
+    g_object_tooltip.persistent = false;
     g_object_tooltip.text[0] = '\0';
     g_state.need_present = true;
+}
+
+/*
+ * Dismiss a persistent touch popup on the next press, the way moving the mouse
+ * dismisses the hovered right-click popup.  Returns true if one was cleared.
+ */
+bool sdl_object_tooltip_dismiss_persistent_on_press(void)
+{
+    if (!g_object_tooltip.active || !g_object_tooltip.persistent)
+        return false;
+
+    sdl_object_tooltip_clear();
+    return true;
 }
 
 /* Append text to buf, recording the attr of each appended byte in the
@@ -442,7 +485,8 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
 bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
 {
     char name[sizeof(g_object_tooltip.text)];
-    Uint64 expires_at = 0;
+    Uint64 expires_at = sdl_object_tooltip_expiry(touch);
+    bool persistent = touch && expires_at == 0;
 
     if (!sdl_object_tooltip_format_grid(map_y, map_x, name, sizeof(name),
             NULL))
@@ -450,10 +494,6 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
         sdl_object_tooltip_clear();
         return false;
     }
-
-    if (touch)
-        expires_at = SDL_GetTicksNS()
-            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
 
     if (g_object_tooltip.active
         && !g_object_tooltip.term_cell
@@ -463,8 +503,10 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
         && g_object_tooltip.map_x == map_x
         && SDL_strcmp(g_object_tooltip.text, name) == 0)
     {
-        if (touch)
+        if (touch) {
             g_object_tooltip.expires_at = expires_at;
+            g_object_tooltip.persistent = persistent;
+        }
         return true;
     }
 
@@ -480,6 +522,7 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
     g_object_tooltip.cell_cols = 0;
     g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = expires_at;
+    g_object_tooltip.persistent = persistent;
     SDL_strlcpy(g_object_tooltip.text, name, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
     return true;
@@ -488,7 +531,8 @@ bool sdl_object_tooltip_show_grid(int map_y, int map_x, bool touch)
 bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
     cptr text, bool touch, bool character_panel_cell)
 {
-    Uint64 expires_at = 0;
+    Uint64 expires_at = sdl_object_tooltip_expiry(touch);
+    bool persistent = touch && expires_at == 0;
 
     if (!text || !text[0] || col < 0 || row < 0) {
         sdl_object_tooltip_clear();
@@ -497,10 +541,6 @@ bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
 
     if (cols < 1)
         cols = 1;
-
-    if (touch)
-        expires_at = SDL_GetTicksNS()
-            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
 
     if (g_object_tooltip.active
         && g_object_tooltip.term_cell
@@ -512,8 +552,10 @@ bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
         && g_object_tooltip.cell_cols == cols
         && SDL_strcmp(g_object_tooltip.text, text) == 0)
     {
-        if (touch)
+        if (touch) {
             g_object_tooltip.expires_at = expires_at;
+            g_object_tooltip.persistent = persistent;
+        }
         return true;
     }
 
@@ -529,6 +571,7 @@ bool sdl_object_tooltip_show_text_at_cell_ex(int col, int row, int cols,
     g_object_tooltip.cell_cols = cols;
     g_object_tooltip.rect = (SDL_FRect){ 0 };
     g_object_tooltip.expires_at = expires_at;
+    g_object_tooltip.persistent = persistent;
     SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
     return true;
@@ -551,16 +594,13 @@ bool sdl_object_tooltip_show_character_panel_text_at_cell(int col,
 bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text,
     bool touch)
 {
-    Uint64 expires_at = 0;
+    Uint64 expires_at = sdl_object_tooltip_expiry(touch);
+    bool persistent = touch && expires_at == 0;
 
     if (!text || !text[0] || !rect || rect->w <= 0.0f || rect->h <= 0.0f) {
         sdl_object_tooltip_clear();
         return false;
     }
-
-    if (touch)
-        expires_at = SDL_GetTicksNS()
-            + (Uint64)SDL_OBJECT_TOOLTIP_TOUCH_MS * 1000000ULL;
 
     if (g_object_tooltip.active
         && g_object_tooltip.screen_rect
@@ -571,8 +611,10 @@ bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text,
         && g_object_tooltip.rect.h == rect->h
         && SDL_strcmp(g_object_tooltip.text, text) == 0)
     {
-        if (touch)
+        if (touch) {
             g_object_tooltip.expires_at = expires_at;
+            g_object_tooltip.persistent = persistent;
+        }
         return true;
     }
 
@@ -588,6 +630,7 @@ bool sdl_object_tooltip_show_text_at_rect(const SDL_FRect* rect, cptr text,
     g_object_tooltip.cell_cols = 0;
     g_object_tooltip.rect = *rect;
     g_object_tooltip.expires_at = expires_at;
+    g_object_tooltip.persistent = persistent;
     SDL_strlcpy(g_object_tooltip.text, text, sizeof(g_object_tooltip.text));
     g_state.need_present = true;
     return true;

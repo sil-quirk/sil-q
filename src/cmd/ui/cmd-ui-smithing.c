@@ -802,6 +802,11 @@ static void smith_ui_begin_touch_scroll_area(void)
     if (bottom_row < 1)
         bottom_row = 1;
 
+    /* Every smithing menu calls this right after ui_menu_click_begin(), so it
+     * is the single chokepoint that enables the floating touch Exit button for
+     * all of them (root screen exits smithing; sub-screens go back a level). */
+    ui_menu_click_set_touch_exit_button(true);
+
     ui_scroll_area_begin(1, bottom_row, SDL_TOUCH_MENU_CATEGORY_OTHER);
     ui_scroll_area_set_keys('8', '2', '6', '4');
 }

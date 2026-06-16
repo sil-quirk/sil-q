@@ -1407,6 +1407,7 @@ bool sdl_render_current_window_frame(void)
     sdl_song_menu_render();
     sdl_question_menu_render();
     sdl_description_overlay_render();
+    sdl_touch_exit_button_render();
 
     return true;
 }

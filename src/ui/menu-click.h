@@ -13,6 +13,8 @@ void ui_menu_click_begin(void);
 void ui_menu_click_set_hover_enabled(bool enabled);
 void ui_menu_click_set_outside_cancel_enabled(bool enabled);
 bool ui_menu_click_outside_cancel_enabled(void);
+void ui_menu_click_set_touch_exit_button(bool enabled);
+bool ui_menu_click_touch_exit_button_active(void);
 bool ui_menu_click_is_active(void);
 void ui_menu_click_set_touch_category(int category);
 int ui_menu_click_get_touch_category(void);

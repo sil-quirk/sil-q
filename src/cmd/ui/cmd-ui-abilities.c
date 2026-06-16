@@ -3922,10 +3922,9 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
          * below scans this string for them, so dropping them would remove
          * those tap targets on touch. */
         const char* variants[] = {
-            "Tap a row to buy/toggle, train, prev skill, scroll, i skills, "
-            "tap away to exit",
+            "Tap a row to buy/toggle, train, prev skill, scroll, i skills",
             "Tap row: buy/toggle, train, scroll, i skills",
-            "Tap to buy/toggle, tap away to exit"
+            "Tap to buy/toggle"
         };
 
         terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,
@@ -5116,6 +5115,7 @@ void do_cmd_ability_screen(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
+        ui_menu_click_set_touch_exit_button(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_begin_cols(layout.ability_col,
             layout.ability_col + layout.ability_w - 1, layout.list_row,

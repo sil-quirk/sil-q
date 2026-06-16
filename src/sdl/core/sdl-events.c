@@ -1167,6 +1167,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (ev->button.button == SDL_BUTTON_LEFT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_touch_exit_button_handle_pointer((float)ev->button.x,
+                    (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_pointer_activate_welcome_screen_at((float)ev->button.x,
                 (float)ev->button.y))
             {
@@ -1517,6 +1522,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+            return;
+        /* A persistent long-press popup stays up until the next press; dismiss
+         * it here so any touch clears it, mirroring the mouse right-click. */
+        (void)sdl_object_tooltip_dismiss_persistent_on_press();
+        if (sdl_touch_exit_button_handle_pointer(x, y))
             return;
         if (sdl_log_pane_menu_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false))

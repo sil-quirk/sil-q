@@ -1737,6 +1737,8 @@ extern void ui_menu_click_begin(void);
 extern void ui_menu_click_set_hover_enabled(bool enabled);
 extern void ui_menu_click_set_outside_cancel_enabled(bool enabled);
 extern bool ui_menu_click_outside_cancel_enabled(void);
+extern void ui_menu_click_set_touch_exit_button(bool enabled);
+extern bool ui_menu_click_touch_exit_button_active(void);
 extern bool ui_menu_click_is_active(void);
 extern void ui_menu_click_set_touch_category(int category);
 extern int ui_menu_click_get_touch_category(void);

@@ -6481,8 +6481,8 @@ static void knowledge_draw_prompt(const knowledge_browser_layout* layout)
     else if (sdl_touch_only_device_active())
     {
         const char* variants[] = {
-            "Tap a row to recall, tap away to exit",
-            "Tap to recall, tap away to exit",
+            "Tap a row to recall",
+            "Tap to recall",
             "Tap to recall"
         };
         terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->term_wid,
@@ -6625,6 +6625,7 @@ static void knowledge_begin_clicks(const knowledge_browser_layout* layout)
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
+    ui_menu_click_set_touch_exit_button(true);
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
     knowledge_begin_touch_scroll_area(layout, SDL_TOUCH_MENU_CATEGORY_OTHER);
     knowledge_register_tabs(layout);
@@ -8742,6 +8743,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             ui_menu_click_set_outside_cancel_enabled(true);
+            ui_menu_click_set_touch_exit_button(true);
             ui_menu_click_set_touch_category(
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
             knowledge_begin_touch_scroll_area(&layout,
@@ -8875,9 +8877,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 /* Keep "preview"/"drop" present so supply_register_prompt_
                  * clicks() still finds those tappable tokens on touch. */
                 const char* variants[] = {
-                    "Tap a row to equip, tap preview or drop, tap away to exit",
+                    "Tap a row to equip, tap preview or drop",
                     "Tap row: equip, preview, drop",
-                    "Tap to equip, tap away to exit"
+                    "Tap to equip"
                 };
 
                 terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
@@ -9309,6 +9311,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             ui_menu_click_set_outside_cancel_enabled(true);
+            ui_menu_click_set_touch_exit_button(true);
             ui_menu_click_set_touch_category(
                 SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
             knowledge_begin_touch_scroll_area(&layout,
@@ -9511,8 +9514,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 else if (sdl_touch_only_device_active())
                 {
                     const char* variants[] = {
-                        "Replace: tap a row to select, tap away to exit",
-                        "Tap a row to select, tap away to exit",
+                        "Replace: tap a row to select",
+                        "Tap a row to select",
                         "Tap to select"
                     };
                     terminal_prompt_pick_variant(prompt, sizeof(prompt),
@@ -9566,8 +9569,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 else if (sdl_touch_only_device_active())
                 {
                     const char* variants[] = {
-                        "Place: tap a row to select, tap away to exit",
-                        "Tap a row to select, tap away to exit",
+                        "Place: tap a row to select",
+                        "Tap a row to select",
                         "Tap to select"
                     };
                     terminal_prompt_pick_variant(prompt, sizeof(prompt),
@@ -9629,8 +9632,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 else if (sdl_touch_only_device_active())
                 {
                     const char* variants[] = {
-                        "Choose: tap a row to select, tap away to exit",
-                        "Tap a row to select, tap away to exit",
+                        "Choose: tap a row to select",
+                        "Tap a row to select",
                         "Tap to select"
                     };
                     terminal_prompt_pick_variant(prompt, sizeof(prompt),
@@ -9715,10 +9718,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 /* Keep "preview"/"drop"/"delete" present so supply_register_
                  * prompt_clicks() still finds those tappable tokens on touch. */
                 const char* variants[] = {
-                    "Tap a row to use, tap preview, drop or delete, "
-                    "tap away to exit",
+                    "Tap a row to use, tap preview, drop or delete",
                     "Tap row: use, preview, drop, delete",
-                    "Tap to use, tap away to exit"
+                    "Tap to use"
                 };
 
                 terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
@@ -10411,6 +10413,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         ui_menu_click_set_outside_cancel_enabled(true);
+        ui_menu_click_set_touch_exit_button(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_SUPPLY);
         knowledge_begin_touch_scroll_area(&draw_layout,
             SDL_TOUCH_MENU_CATEGORY_SUPPLY);
@@ -10531,8 +10534,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         } else if (sdl_touch_only_device_active()) {
             char prompt_buf[160];
             const char* variants[] = {
-                "Tap a row to use, tap away to exit",
-                "Tap to use, tap away to exit",
+                "Tap a row to use",
+                "Tap to use",
                 "Tap to use"
             };
 

@@ -98,6 +98,56 @@ bool sdl_menu_pointer_hits_non_main_pane(float x, float y)
     return false;
 }
 
+/*
+ * True when the point falls on a pane drawn on top of the main map: the combat
+ * overlay, the overlay log band, the status / depth overlays, a non-modal
+ * description overlay, or the side-map / touch pads.  Pointer-to-map conversion
+ * treats these as "not the map" so hover popups and mouse/touch pathfinding act
+ * on the visible pane instead of the map cell hidden behind it.  (The character
+ * panel is handled separately by sdl_main_screen_cell_hits_character_panel,
+ * which also covers the compact overlay shown when the panel is hidden.)
+ */
+bool sdl_main_screen_point_over_overlay_pane(float x, float y)
+{
+    SDL_Rect rect;
+    SDL_FRect frect;
+
+    if (sdl_combat_overlay_pane_current_rect(&rect)
+        && sdl_point_in_rect(&rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_overlay_log_pane_current_rect(&rect)
+        && sdl_point_in_rect(&rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_status_pane_current_rect(&rect, NULL)
+        && sdl_point_in_rect(&rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_depth_menu_pane_current_rect(&frect)
+        && sdl_point_in_frect(&frect, x, y))
+    {
+        return true;
+    }
+    if (sdl_side_map_pane_current_rect(&rect)
+        && sdl_point_in_rect(&rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_touch_pane_current_rect(&rect)
+        && sdl_point_in_rect(&rect, x, y))
+    {
+        return true;
+    }
+    if (sdl_description_overlay_contains_point(x, y))
+        return true;
+
+    return false;
+}
+
 bool sdl_pane_command_shortcuts_active(void)
 {
     return character_generated
@@ -3590,42 +3640,52 @@ bool sdl_main_screen_show_character_panel_popup(float x, float y, bool touch)
     int row = 0;
     int attack_mode = SDL_POINTER_ATTACK_NONE;
     int click_action = SDL_PANEL_CLICK_NONE;
+    bool shown = false;
+
+    /* The popup mirrors a right-click: it should stay up until the next press
+     * instead of fading like a transient touch hover tooltip, so show it inside
+     * a persistent scope (no-op for the mouse, which never auto-expires). */
+    sdl_object_tooltip_begin_persistent();
 
     if (sdl_combat_overlay_point_to_cell(x, y, &col, &row)) {
         attack_mode = sdl_combat_overlay_attack_mode_at_cell(col, row);
-        if (attack_mode == SDL_POINTER_ATTACK_NONE)
-            return false;
-
-        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
-            SDL_PANEL_CLICK_NONE, -1, true);
-        sdl_combat_overlay_show_hover_tooltip(col, row, attack_mode, touch);
-        return true;
+        if (attack_mode != SDL_POINTER_ATTACK_NONE) {
+            sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+                SDL_PANEL_CLICK_NONE, -1, true);
+            sdl_combat_overlay_show_hover_tooltip(col, row, attack_mode, touch);
+            shown = true;
+        }
+        sdl_object_tooltip_end_persistent();
+        return shown;
     }
 
-    if (!sdl_main_view_point_to_cell(x, y, &col, &row))
-        return false;
-    if (!sdl_main_screen_cell_hits_character_panel(col, row))
-        return false;
-
-    if (get_sdl_hide_left_panel()) {
-        attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
-        click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
-    } else {
-        attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col, row);
-        click_action = sdl_visible_character_panel_click_action_at_cell(col, row);
-    }
-
-    if (attack_mode == SDL_POINTER_ATTACK_NONE
-        && click_action == SDL_PANEL_CLICK_NONE)
+    if (sdl_main_view_point_to_cell(x, y, &col, &row)
+        && sdl_main_screen_cell_hits_character_panel(col, row))
     {
-        return false;
+        if (get_sdl_hide_left_panel()) {
+            attack_mode = sdl_hidden_left_panel_attack_mode_at_cell(col, row);
+            click_action = sdl_hidden_left_panel_click_action_at_cell(col, row);
+        } else {
+            attack_mode = sdl_visible_character_panel_attack_mode_at_cell(col,
+                row);
+            click_action = sdl_visible_character_panel_click_action_at_cell(col,
+                row);
+        }
+
+        if (attack_mode != SDL_POINTER_ATTACK_NONE
+            || click_action != SDL_PANEL_CLICK_NONE)
+        {
+            sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+                click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1,
+                true);
+            sdl_character_panel_show_hover_tooltip(col, row, attack_mode,
+                click_action, touch);
+            shown = true;
+        }
     }
 
-    sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
-        click_action, click_action != SDL_PANEL_CLICK_NONE ? row : -1, true);
-    sdl_character_panel_show_hover_tooltip(col, row, attack_mode, click_action,
-        touch);
-    return true;
+    sdl_object_tooltip_end_persistent();
+    return shown;
 }
 
 bool sdl_main_screen_handle_character_panel_secondary_pointer(float x, float y)
