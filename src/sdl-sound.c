@@ -295,6 +295,42 @@ static bool sdl_sound_is_audio_file(const char* filename)
         SDL_strcasecmp(ext, ".opus") == 0;
 }
 
+#ifdef __ANDROID__
+/* On Android the read-only game data lives inside the APK asset tree. SDL can
+ * *open* an asset through a plain relative path (SDL_IOFromFile falls back to
+ * the asset manager), which is why streamed music works. However it can only
+ * *enumerate* an asset directory when the path uses the explicit "assets://"
+ * scheme: for a relative path SDL_EnumerateDirectory rewrites it against the
+ * internal-storage root and never falls back to the APK, so the per-event
+ * folder scan finds zero samples and no sound effects play. Rewrite
+ * asset-relative paths to the asset URI so both scanning and loading reach the
+ * APK assets. */
+static void sdl_sound_to_asset_uri(char* path, size_t path_len)
+{
+    if (!path || !path[0]) {
+        return;
+    }
+
+    /* Leave explicit URIs and absolute real-filesystem paths untouched. */
+    if (SDL_strncmp(path, "assets://", 9) == 0 || path[0] == '/') {
+        return;
+    }
+
+    const char* rel = path;
+    if (rel[0] == '.' && (rel[1] == '/' || rel[1] == '\\')) {
+        rel += 2;
+    }
+    while (*rel == '/' || *rel == '\\') {
+        rel++;
+    }
+
+    char rewritten[1024];
+    SDL_strlcpy(rewritten, "assets://", sizeof(rewritten));
+    SDL_strlcat(rewritten, rel, sizeof(rewritten));
+    SDL_strlcpy(path, rewritten, path_len);
+}
+#endif
+
 static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len)
 {
     if (!base_path || !base_path[0]) {
@@ -326,6 +362,10 @@ static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_le
     }
 
     path_build(dst, dst_len, anchor, base_path);
+
+#ifdef __ANDROID__
+    sdl_sound_to_asset_uri(dst, dst_len);
+#endif
 }
 
 static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUND_NAME_LEN],
