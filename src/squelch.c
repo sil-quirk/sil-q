@@ -1668,8 +1668,7 @@ static int do_ego_item_squelch(void)
                 else
                 {
                     const char* variants[] = {
-                        "Arrows move  PgUp/PgDn page  Home/End ends  "
-                        "Enter toggle  Letter jump",
+                        "Arrows move  PgUp/PgDn page  Home/End ends  Enter toggle  Letter jump",
                         "Arrows move  PgUp/PgDn page  Enter toggle",
                         "Arrows move  Enter toggle"
                     };

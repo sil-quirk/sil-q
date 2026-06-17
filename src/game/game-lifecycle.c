@@ -175,8 +175,6 @@ void do_cmd_morgoth_victory(void)
  */
 void do_cmd_suicide(void)
 {
-    char ch;
-
     /* Flush input */
     flush();
 
@@ -184,12 +182,8 @@ void do_cmd_suicide(void)
     if (!get_check("This will destroy the current character: are you sure? "))
         return;
 
-    /* Special Verification for suicide */
-    prt("Please verify ABORTING by typing the '~' sign: ", 0, 0);
-    flush();
-    ch = inkey();
-    prt("", 0, 0);
-    if (ch != '~')
+    /* Special Verification for suicide (second confirm panel) */
+    if (!get_check("Really abandon this character for good? "))
         return;
 
     /* Commit suicide */
@@ -218,11 +212,6 @@ void do_cmd_save_game(void)
     // in final deployment versions, you cannot save in the tutorial
     if (DEPLOYMENT && p_ptr->game_type != 0)
     {
-        if (!save_game_quietly)
-        {
-            /* Message */
-            msg_print("You cannot save games during the tutorial.");
-        }
         return;
     }
 
@@ -234,8 +223,8 @@ void do_cmd_save_game(void)
 
     if (!save_game_quietly)
     {
-        /* Message */
-        prt("Saving game...", 0, 0);
+        /* Message (in-game message log, not row 0) */
+        msg_print("Saving game...");
     }
 
     /* Refresh */
@@ -259,7 +248,7 @@ void do_cmd_save_game(void)
     log_debug("Game saved successfully");
         if (!save_game_quietly)
         {
-            prt("Saving game... done.", 0, 0);
+            msg_print("Saving game... done.");
         }
 
         /* Desktop quit still upserts from close_game().  Mobile also updates
@@ -282,7 +271,10 @@ void do_cmd_save_game(void)
     else
     {
     log_error("Game save failed");
-        prt("Saving game... failed!", 0, 0);
+        if (!save_game_quietly)
+        {
+            msg_print("Saving game... failed!");
+        }
     }
 
     /* Allow suspend again */

@@ -1082,6 +1082,7 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     float radius;
     Uint64 press_time;
     int dir = 0;
+    bool ctrl = false;
 
     if (!g_touch_round_press.active
         || g_touch_round_press.finger_id != finger_id)
@@ -1105,6 +1106,12 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
         } else if (g_touch_round_press.button_dir) {
             dir = g_touch_round_press.button_dir;
         }
+        /* Holding a direct direction button long enough makes it act like
+         * Ctrl+direction (alter: attack/tunnel/disarm...), matching the touch
+         * command pane.  Only direct button presses get this; the inner-disc
+         * "drag to move" path stays plain movement. */
+        if (dir && press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+            ctrl = true;
     } else if (dist <= g_touch_round_press.inner_radius
             * SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC) {
         if (press_time < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
@@ -1118,8 +1125,46 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
 
     sdl_touch_round_cancel_press();
     if (dir)
-        sdl_touch_round_send_dir(dir, false);
+        sdl_touch_round_send_dir(dir, ctrl);
     return true;
+}
+
+/* Time (ms) until a held direct button press crosses the long-press threshold
+ * and turns into a Ctrl+direction action, so the event loop can wake to redraw
+ * the wheel with its Ctrl preview.  -1 once there is nothing to wait for. */
+int sdl_touch_round_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_touch_round_press.active)
+        return -1;
+    if (!g_touch_round_press.button_press)
+        return -1;
+
+    elapsed = now_ns - g_touch_round_press.start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return -1;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+/* Once a direct button press has been held past the long-press threshold,
+ * request a redraw so the wheel shows the Ctrl target square and action label.
+ * The Ctrl+direction key only fires on release, so this neither sends a key nor
+ * cancels the press. */
+void sdl_touch_round_flush_pending_highlight(Uint64 now_ns)
+{
+    if (!g_touch_round_press.active)
+        return;
+    if (!g_touch_round_press.button_press)
+        return;
+    if (now_ns - g_touch_round_press.start_time
+        < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return;
+    }
+
+    g_state.need_present = true;
 }
 
 void sdl_touch_round_draw_circle(float cx, float cy, float radius,
@@ -1470,6 +1515,7 @@ void sdl_touch_round_render(void)
     float end_y;
     Uint64 press_time;
     bool center_repeat;
+    bool ctrl_preview;
     int target_dir;
     int dir;
 
@@ -1525,8 +1571,16 @@ void sdl_touch_round_render(void)
             : (center_repeat ? g_touch_round_last_dir : 0))
         : 0;
 
+    /* A direct button press held past the long-press threshold previews the
+     * Ctrl+direction action (released as Ctrl+dir).  The inner-disc drag is
+     * plain movement, so it never previews Ctrl. */
+    ctrl_preview = active
+        && g_touch_round_press.button_press
+        && target_dir != 0
+        && press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL;
+
     if (target_dir)
-        sdl_touch_round_render_target_square(target_dir, false);
+        sdl_touch_round_render_target_square(target_dir, ctrl_preview);
 
     sdl_touch_round_draw_circle(cx, cy, radius, frame);
     sdl_touch_round_draw_circle(cx, cy, radius - 2.0f, frame);
@@ -1551,7 +1605,9 @@ void sdl_touch_round_render(void)
 
     dir = target_dir;
     if (dir) {
-        SDL_Color arrow_color = selected;
+        SDL_Color arrow_color = ctrl_preview
+            ? g_state.palette[TERM_L_RED]
+            : selected;
 
         center_arrow = (SDL_FRect){
             .x = cx - inner_radius,
@@ -1561,6 +1617,9 @@ void sdl_touch_round_render(void)
         };
         sdl_touch_pane_draw_arrow(&center_arrow, '0' + dir, arrow_color);
     }
+
+    if (ctrl_preview)
+        sdl_touch_round_render_ctrl_action_label(target_dir, radius, &clip);
 
     SDL_SetRenderClipRect(g_state.renderer, NULL);
 }

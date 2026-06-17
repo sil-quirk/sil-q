@@ -352,7 +352,7 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
         case ' ':
         case '\r':
         case '\n':
-        case INPUT_BIND_CONFIRM:
+        case (char)INPUT_BIND_CONFIRM: /* truncate so it matches under unsigned char (ARM) */
         {
             if (aim_select_try_confirm(adjusted_range, y, x))
             {

@@ -168,6 +168,7 @@ static void birth_format_character_power(byte power, bool leading_space,
         *label = power_label;
 }
 
+#if !defined(__ANDROID__) && !defined(SIL_IOS)
 static void birth_count_alive_character_powers(int power_counts[4])
 {
     int i;
@@ -193,6 +194,7 @@ static void birth_count_alive_character_powers(int power_counts[4])
             power_counts[power]++;
     }
 }
+#endif /* !__ANDROID__ && !SIL_IOS (only used by the desktop power summary) */
 
 static void birth_select_emit_detail(int race, int character, bool affinities_vary)
 {

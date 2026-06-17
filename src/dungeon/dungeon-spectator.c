@@ -32,7 +32,6 @@ bool death_spectator_command_allowed(int command)
     case '[':
     case ']':
     case KTRL('E'):
-    case KTRL('O'):
     case KTRL('P'):
     case KTRL('Q'):
     case KTRL('R'):

@@ -5723,9 +5723,9 @@ static int reforge_prefix_menu(const object_type* source)
             screen_load();
             return 0;
         }
-        else if ((ch == '8')
+        else if (ch == '8'
 #ifdef ARROW_UP
-            || (ch == ARROW_UP)
+            || ch == ARROW_UP
 #endif
             )
         {
@@ -5734,9 +5734,9 @@ static int reforge_prefix_menu(const object_type* source)
             else
                 highlight = entry_count;
         }
-        else if ((ch == '2')
+        else if (ch == '2'
 #ifdef ARROW_DOWN
-            || (ch == ARROW_DOWN)
+            || ch == ARROW_DOWN
 #endif
             )
         {

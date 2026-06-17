@@ -56,6 +56,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_select_page_turn_timeout_ms(now_ns);
             int question_menu_timeout_ms =
                 sdl_question_menu_pending_timeout_ms(now_ns);
+            int round_wheel_timeout_ms =
+                sdl_touch_round_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
@@ -115,6 +117,11 @@ errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = question_menu_timeout_ms;
             }
+            if (timeout_ms < 0 || (round_wheel_timeout_ms >= 0
+                    && round_wheel_timeout_ms < timeout_ms))
+            {
+                timeout_ms = round_wheel_timeout_ms;
+            }
             g_sdl_blocking_key_wait = true;
             {
                 /* Diagnostic (temporary): measure how long we actually BLOCK
@@ -152,6 +159,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
+            sdl_touch_round_flush_pending_highlight(flush_ns);
             sdl_music_update(); /* Update music after handling event */
         } else {
             /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
@@ -179,6 +187,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_touch_top_panel_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
+            sdl_touch_round_flush_pending_highlight(flush_ns);
 
             /* Avoid pegging a CPU core when we're repeatedly asked to poll */
             if (!handled) {

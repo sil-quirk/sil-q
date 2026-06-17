@@ -56,6 +56,8 @@ int ui_scroll_area_get_vertical_key(int direction);
 int ui_scroll_area_get_horizontal_key(int direction);
 void ui_scroll_area_set_tap_key(int key);
 int ui_scroll_area_get_tap_key(void);
+void ui_scroll_area_set_page_mode(bool enabled);
+bool ui_scroll_area_is_page_mode(void);
 void ui_scroll_area_set_offset_target(int* offset, int max_offset);
 bool ui_scroll_area_has_offset_target(void);
 bool ui_scroll_area_offset_scroll(int delta);

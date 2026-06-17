@@ -179,7 +179,7 @@ errr parse_skeleton_note_info(char* buf, header* head)
     }
     else
     {
-        cursor = cursor;
+        /* no separator on this line: cursor already points at the value */
     }
 
     if (weight < 0 || weight > 255)

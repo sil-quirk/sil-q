@@ -293,7 +293,7 @@ bool get_grid_choice_dir(cptr prompt, const int ys[], const int xs[],
         case '\r':
         case '\n':
         case 't':
-        case INPUT_BIND_CONFIRM:
+        case (char)INPUT_BIND_CONFIRM: /* truncate so it matches under unsigned char (ARM) */
             chosen = true;
             done = true;
             break;

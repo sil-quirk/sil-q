@@ -1404,6 +1404,7 @@ void sdl_menu_scroll_cancel(void)
 {
     g_menu_scroll_drag.active = false;
     g_menu_scroll_drag.dragged = false;
+    g_menu_scroll_drag.page_fired = false;
     g_menu_scroll_drag.finger_id = 0;
     g_menu_scroll_drag.area_index = -1;
     g_menu_scroll_drag.start_x = 0.0f;
@@ -2915,6 +2916,7 @@ bool sdl_menu_scroll_handle_pointer_down(float x, float y,
     sdl_menu_scroll_cancel();
     g_menu_scroll_drag.active = true;
     g_menu_scroll_drag.dragged = false;
+    g_menu_scroll_drag.page_fired = false;
     g_menu_scroll_drag.finger_id = finger_id;
     g_menu_scroll_drag.area_index = ui_scroll_area_selected_index();
     g_menu_scroll_drag.start_x = x;
@@ -2961,6 +2963,40 @@ bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
         || total_dy > sdl_touch_swipe_threshold_px())
     {
         g_menu_scroll_drag.dragged = true;
+    }
+
+    if (ui_scroll_area_is_page_mode())
+    {
+        float threshold = sdl_touch_swipe_threshold_px();
+        float sdx = x - g_menu_scroll_drag.start_x;
+        float sdy = y - g_menu_scroll_drag.start_y;
+        int page_key;
+
+        /*
+         * Fire exactly one page turn per gesture: once page_fired is latched
+         * nothing more is sent until the finger lifts and a fresh drag starts.
+         * dragged is also set so pointer-up does not additionally fire the tap
+         * key, keeping a swipe and a tap mutually exclusive.
+         */
+        if (g_menu_scroll_drag.page_fired)
+            return true;
+        if (dx < threshold && total_dy < threshold)
+            return true;
+
+        if (dx >= total_dy)
+            page_key = (sdx < 0.0f)
+                ? ui_scroll_area_get_horizontal_key(-1)
+                : ui_scroll_area_get_horizontal_key(1);
+        else
+            page_key = (sdy < 0.0f)
+                ? ui_scroll_area_get_vertical_key(-1)
+                : ui_scroll_area_get_vertical_key(1);
+
+        g_menu_scroll_drag.dragged = true;
+        g_menu_scroll_drag.page_fired = true;
+        if (page_key)
+            Term_keypress(page_key);
+        return true;
     }
 
     if (ui_scroll_area_has_offset_target())

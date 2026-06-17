@@ -1149,7 +1149,7 @@ void do_cmd_character_sheet(void)
         }
 
         /* Increase skills - 'i', Space, or confirm button */
-        if (ch == 'i' || ch == ' ' || ch == INPUT_BIND_CONFIRM
+        if (ch == 'i' || ch == ' ' || ch == (char)INPUT_BIND_CONFIRM
             || (steamdeck && ch == steamdeck_confirm_key()))
         {
             sdl_hover_tooltip_clear();

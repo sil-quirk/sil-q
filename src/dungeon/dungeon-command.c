@@ -578,13 +578,6 @@ void process_command(void)
         break;
     }
 
-    /* Show previous message */
-    case KTRL('O'):
-    {
-        do_cmd_message_one();
-        break;
-    }
-
     /* Show previous messages */
     case KTRL('P'):
     {
@@ -666,7 +659,7 @@ void process_command(void)
     /* Hack -- Unknown command */
     default:
     {
-        prt("Type '?' for help.", 0, 0);
+        msg_print("Type '?' for help.");
         break;
     }
     }

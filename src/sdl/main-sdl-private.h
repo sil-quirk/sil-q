@@ -507,6 +507,7 @@ typedef struct sdl_character_sheet_select_rating {
 typedef struct menu_scroll_drag_state {
     bool active;
     bool dragged;
+    bool page_fired;
     SDL_FingerID finger_id;
     int area_index;
     float start_x;
@@ -2564,6 +2565,8 @@ void sdl_touch_round_cancel_press(void);
 bool sdl_touch_round_handle_pointer_down(float x, float y, SDL_FingerID finger_id);
 bool sdl_touch_round_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 bool sdl_touch_round_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
+int sdl_touch_round_pending_timeout_ms(Uint64 now_ns);
+void sdl_touch_round_flush_pending_highlight(Uint64 now_ns);
 void sdl_touch_round_draw_circle(float cx, float cy, float radius, SDL_Color color);
 void sdl_touch_round_draw_sector_lines(float cx, float cy, float inner_radius, float outer_radius, SDL_Color color);
 bool sdl_touch_round_dir_to_map_rect(int dir, SDL_FRect* out_rect);

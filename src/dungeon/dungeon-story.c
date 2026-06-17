@@ -11,7 +11,7 @@ static bool story_intro_skip_requested(void)
     {
         Term_inkey(&check_key, false, true);
         if (check_key == ESCAPE || check_key == '\n' || check_key == '\r'
-            || check_key == ' ' || check_key == INPUT_BIND_CONFIRM)
+            || check_key == ' ' || check_key == (char)INPUT_BIND_CONFIRM)
             return true;
         if (steamdeck_controls_active()
             && (check_key == steamdeck_confirm_key()
@@ -411,8 +411,7 @@ void print_story_intro(void)
         "and to win back at last\n"
         "the name that was taken from you.\n",
 
-        "Now the path before you opens,\n"
-        "and your trial begins.\n"
+        "Now the path before you opens,\nand your trial begins.\n"
     };
 
     int total = sizeof(intro_texts) / sizeof(intro_texts[0]);

@@ -464,6 +464,7 @@ static void main_menu_about(void)
         sdl_music_play_death();
 
     screen_save();
+    screen_push_supporting_panes_hidden();
     sdl_push_terminal_menu_scale();
 
     Term_get_size(&wid, &hgt);
@@ -631,6 +632,7 @@ static void main_menu_about(void)
     (void)ch;
 
     sdl_pop_terminal_menu_scale();
+    screen_pop_supporting_panes_hidden();
     screen_load();
 
     if (p_ptr && p_ptr->playing)
@@ -1565,15 +1567,6 @@ bool do_cmd_main_menu_execute_choice(int actiontype)
 void do_cmd_main_menu(void)
 {
     (void)sdl_main_menu_overlay_begin();
-}
-
-/*
- * Recall the most recent message
- */
-void do_cmd_message_one(void)
-{
-    /* Recall one message XXX XXX XXX */
-    c_prt(message_color(0), format("> %s", message_str(0)), 0, 0);
 }
 
 static bool hint_message_has_source(const hint_message_meta* meta)

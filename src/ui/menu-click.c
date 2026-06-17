@@ -29,6 +29,7 @@ typedef struct ui_scroll_area_entry
     int tap_key;
     int* offset_ptr;
     int offset_max;
+    bool page_mode;
 } ui_scroll_area_entry;
 
 static ui_menu_click_entry ui_menu_click_entries[UI_MENU_CLICK_MAX_ENTRIES];
@@ -654,6 +655,7 @@ bool ui_scroll_area_add_cols(int left_col, int right_col, int top_row,
     entry->tap_key = 0;
     entry->offset_ptr = NULL;
     entry->offset_max = 0;
+    entry->page_mode = false;
     ui_scroll_area_current = ui_scroll_area_entry_count - 1;
     return true;
 }
@@ -797,6 +799,27 @@ int ui_scroll_area_get_tap_key(void)
     ui_scroll_area_entry* entry = ui_scroll_area_current_entry();
 
     return entry ? entry->tap_key : 0;
+}
+
+/*
+ * Page-mode scroll areas treat a touch drag as a single discrete "turn the
+ * page" gesture: one vertical/horizontal key is sent when the swipe first
+ * crosses the gesture threshold, rather than one key per scrolled cell.  This
+ * suits paginated screens (help, etc.) where each key advances a whole page.
+ */
+void ui_scroll_area_set_page_mode(bool enabled)
+{
+    ui_scroll_area_entry* entry = ui_scroll_area_current_entry();
+
+    if (entry)
+        entry->page_mode = enabled;
+}
+
+bool ui_scroll_area_is_page_mode(void)
+{
+    ui_scroll_area_entry* entry = ui_scroll_area_current_entry();
+
+    return entry && entry->page_mode;
 }
 
 /*

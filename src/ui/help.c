@@ -2043,13 +2043,20 @@ static void show_help_screen_legacy(int i, bool include_header)
 
 
 
+/* Click targets for pointer / touch navigation in the help viewer. */
+enum {
+    HELP_CLICK_PREV = 1,
+    HELP_CLICK_NEXT,
+    HELP_CLICK_QUIT
+};
+
 /*
  * Peruse the On-Line-Help
  */
 void do_cmd_help(void)
 {
     int i = 1;
-    char ch;
+    int ch; /* int (not char) so EOF and negative key bindings compare correctly */
     bool row_has_content[HELP_DOC_MAX_ROWS];
     bool row_has_heading[HELP_DOC_MAX_ROWS];
     int page_starts[HELP_DOC_MAX_PAGES];
@@ -2141,12 +2148,16 @@ void do_cmd_help(void)
             show_help_screen_dynamic_document(i, total_pages, hgt, start_y, end_y);
         }
 
-        /* Better navigation prompt */
+        /* Navigation prompt + pointer / touch hit regions */
         {
-            char nav[128];
+            char nav[192];
+            int nav_row = hgt - 1;
+            int mid_col = wid / 2;
+
             if (sdl_touch_only_device_active()) {
                 SDL_strlcpy(nav,
-                    "Swipe to turn pages",
+                    "Swipe or tap left/right to turn pages   "
+                    "tap Exit to close",
                     sizeof(nav));
             } else if (steamdeck_controls_active()) {
                 char prev_label[16];
@@ -2166,12 +2177,73 @@ void do_cmd_help(void)
                     prev_label, next_page_label, next_label, back_label);
             } else {
                 strnfmt(nav, sizeof(nav),
-                    "Navigation: [Left] Prev  [Right] Next  [X+1-%d] Page  [Q/Esc] Quit",
+                    "Prev   Next   Quit    "
+                    "[Left] Prev  [Right] Next  [X+1-%d] Page  [Q/Esc] Quit",
                     total_pages);
             }
-            c_put_str(TERM_WHITE, nav, hgt - 1, 1);
+            c_put_str(TERM_WHITE, nav, nav_row, 1);
+
+            /*
+             * Pointer / touch navigation.  The footer words are clickable
+             * (mouse), a floating Exit button covers touch quit, and the page
+             * body is split into a left ("previous") and right ("next") tap
+             * zone that also accept page-turning swipes and the mouse wheel.
+             * The scroll areas inject the same '4'/'6' keys the keyboard path
+             * uses, so they flow through the navigation switch below.
+             */
+            ui_menu_click_begin();
+            ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_menu_click_set_touch_exit_button(true);
+            ui_menu_click_add_text_token(HELP_CLICK_PREV, 1, nav_row, nav,
+                "Prev");
+            ui_menu_click_add_text_token(HELP_CLICK_NEXT, 1, nav_row, nav,
+                "Next");
+            ui_menu_click_add_text_token(HELP_CLICK_QUIT, 1, nav_row, nav,
+                "Quit");
+
+            if (mid_col < 1)
+                mid_col = 1;
+            ui_scroll_area_begin_cols(0, mid_col - 1, 2, nav_row - 1,
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('4', '6', '4', '6');
+            ui_scroll_area_set_tap_key('4');
+            ui_scroll_area_set_page_mode(true);
+            ui_scroll_area_add_cols(mid_col, wid - 1, 2, nav_row - 1,
+                SDL_TOUCH_MENU_CATEGORY_OTHER);
+            ui_scroll_area_set_keys('4', '6', '4', '6');
+            ui_scroll_area_set_tap_key('6');
+            ui_scroll_area_set_page_mode(true);
         }
+
         ch = inkey();
+
+        /* Resolve a mouse / touch click into a navigation command. */
+        {
+            int choice = 0;
+            int action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&choice, &action)) {
+                ui_menu_click_clear();
+                if (action != UI_MENU_CLICK_HOVER) {
+                    switch (choice) {
+                    case HELP_CLICK_PREV: ch = '4'; break;
+                    case HELP_CLICK_NEXT: ch = '6'; break;
+                    case HELP_CLICK_QUIT: ch = ESCAPE; break;
+                    default: break;
+                    }
+                }
+            } else {
+                ui_menu_click_clear();
+            }
+        }
+        ui_scroll_area_clear();
+
+        /* Bare wake (hover or non-actionable click): redraw without paging. */
+        if (ch == UI_MENU_CLICK_WAKE_KEY) {
+            message_flush();
+            continue;
+        }
+
         ch = steamdeck_menu_key(ch, '4', '6');
 
         /* Enhanced navigation */
