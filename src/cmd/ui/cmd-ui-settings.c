@@ -333,9 +333,8 @@ static const struct option_group_marker interface_option_groups[] = {
 };
 
 static const struct option_group_marker text_option_groups[] = {
-    { 0, "Look and Lore" },
-    { 4, "Inventory and Equipment" },
-    { 8, "Character" },
+    { 0, "Overlays" },
+    { 2, "Panes" },
     { -1, NULL }
 };
 

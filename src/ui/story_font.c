@@ -98,16 +98,16 @@ static bool story_term_is_main(void)
 
 bool story_inventory_enabled(void)
 {
-    return story_term_is_main() ? story_inventory_lists : story_inventory_lists_pane;
+    return story_term_is_main() ? true : story_inventory_lists_pane;
 }
 
 bool story_equipment_enabled(void)
 {
-    return story_term_is_main() ? story_equipment_lists : story_equipment_lists_pane;
+    return story_term_is_main() ? true : story_equipment_lists_pane;
 }
 
-bool story_look_enabled(void) { return story_display_lists; }
-bool story_character_enabled(void) { return story_character_sheet; }
+bool story_look_enabled(void) { return true; }
+bool story_character_enabled(void) { return true; }
 
 bool story_monster_desc_enabled(void)
 {

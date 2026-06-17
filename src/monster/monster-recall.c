@@ -60,7 +60,7 @@ void roff_top(int r_idx)
 
 static bool monster_recall_overlay_story_font_enabled(void)
 {
-    return story_monster_desc_main || story_monster_desc_pane;
+    return story_monster_desc_main;
 }
 
 typedef struct monster_recall_screen_capture

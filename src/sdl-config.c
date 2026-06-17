@@ -824,10 +824,9 @@ static const byte app_interface_options[] = {
 };
 
 static const byte app_text_options[] = {
-    OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_inven_pane,
-    OPT_story_lists_equip, OPT_story_lists_equip_pane, OPT_story_monster_desc,
-    OPT_story_monster_desc_pane, OPT_story_object_desc,
-    OPT_story_character_sheet,
+    OPT_story_object_desc, OPT_story_monster_desc,
+    OPT_story_monster_desc_pane, OPT_story_lists_inven_pane,
+    OPT_story_lists_equip_pane,
     OPT_NONE
 };
 
@@ -864,6 +863,19 @@ static bool option_list_contains(const byte* ids, int opt)
     return false;
 }
 
+static bool option_is_retired_app_text_option(int opt)
+{
+    switch (opt) {
+    case OPT_story_lists:
+    case OPT_story_lists_inven:
+    case OPT_story_lists_equip:
+    case OPT_story_character_sheet:
+        return true;
+    default:
+        return false;
+    }
+}
+
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
@@ -872,6 +884,8 @@ bool option_is_app_persistent(int opt)
         || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
         || opt == OPT_show_partition_narrative
         || opt == OPT_narrative_banner_turns)
+        return true;
+    if (option_is_retired_app_text_option(opt))
         return true;
     return option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
