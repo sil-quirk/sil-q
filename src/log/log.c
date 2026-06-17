@@ -22,7 +22,7 @@
 
 #include "log.h"
 
-#if defined(__ANDROID__) && !defined(NDEBUG)
+#if defined(__ANDROID__)
 #include <android/log.h>
 #endif
 
@@ -84,7 +84,7 @@ static void file_callback(log_Event *ev) {
   fflush(ev->udata);
 }
 
-#if defined(__ANDROID__) && !defined(NDEBUG)
+#if defined(__ANDROID__)
 static int android_log_priority(int level) {
   switch (level) {
   case LOG_TRACE: return ANDROID_LOG_VERBOSE;
@@ -177,8 +177,18 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
     va_end(ev.ap);
   }
 
-#if defined(__ANDROID__) && !defined(NDEBUG)
-  if (level >= L.level) {
+#if defined(__ANDROID__)
+  /* logcat sink. Release builds are not debuggable, so the on-device log.txt
+   * cannot be pulled via run-as; mirroring INFO and above to logcat keeps field
+   * diagnosis possible without flooding the ring buffer with per-line DEBUG
+   * (the file log still records every level).  Debug builds mirror the
+   * configured level for full development output. */
+#ifdef NDEBUG
+  const int logcat_min = LOG_INFO;
+#else
+  const int logcat_min = L.level;
+#endif
+  if (level >= logcat_min) {
     init_event(&ev, NULL);
     va_start(ev.ap, fmt);
     android_callback(&ev);

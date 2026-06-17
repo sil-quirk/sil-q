@@ -200,6 +200,22 @@ bool set_sdl_main_view_zoom_scale(int value)
     return true;
 }
 
+/*
+ * Drop any active gameplay main-view zoom back to the configured default and
+ * resize the terminal to match.  Called when a new session begins so a zoom
+ * carried over from a previous session does not leave the grid too short --
+ * notably when relaunching into Blitz from the in-game menu, which never passes
+ * through the title screen (or a screen_save) that would otherwise reset it.
+ */
+void sdl_reset_main_view_zoom(void)
+{
+    if (g_main_view_zoom_scale == 0)
+        return;
+
+    g_main_view_zoom_scale = 0;
+    sdl_apply_config_no_redraw();
+}
+
 void sdl_suspend_main_view_zoom_for_saved_screen(void)
 {
     int saved_zoom = 0;

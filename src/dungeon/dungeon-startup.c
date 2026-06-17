@@ -161,7 +161,10 @@ PlayResult play_game(void)
         SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
+    bool explicit_blitz_launch = blitz_launch_requested();
     run_mode_activate_pending();
+    if (explicit_blitz_launch)
+        blitz_launch_clear();
 
     bool prefer_blitz_startup = !run_mode_is_blitz()
         && op_ptr && op_ptr->opt[OPT_load_blitz_by_default];
@@ -208,8 +211,12 @@ PlayResult play_game(void)
     {
         bool startup_score_empty = highscore_is_empty();
 
-        if (startup_try_autoload_current_mode(
-                run_mode_is_blitz() ? "Blitz" : "story"))
+        if (explicit_blitz_launch && run_mode_is_blitz())
+        {
+            log_info("Explicit fresh Blitz launch requested; skipping Blitz autoload");
+        }
+        else if (startup_try_autoload_current_mode(
+                     run_mode_is_blitz() ? "Blitz" : "story"))
         {
             new_game = false;
         }

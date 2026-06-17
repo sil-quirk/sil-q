@@ -217,6 +217,65 @@ static void metarun_register_continue_clicks(int term_height)
         ui_menu_click_add_full_row('\r', row);
 }
 
+/* Input-specific phrase telling the player how to open the full effects list. */
+static const char *metarun_view_all_hint(bool steamdeck, const char *full_label)
+{
+    static char buf[48];
+
+    if (steamdeck) {
+        strnfmt(buf, sizeof(buf), "press [%s]",
+                (full_label && full_label[0]) ? full_label : "Start");
+        return buf;
+    }
+    if (sdl_touch_only_device_active())
+        return "tap Full list";
+    return "press 'u'";
+}
+
+/*
+ * Touch-only action bar for the story-statistics screen.  Replaces the
+ * keyboard-letter prompt with tappable command buttons laid out across the
+ * two reserved bottom rows.  Each button maps to the same choice the keyboard
+ * handler already understands ('b','f','c','u','s','x') plus a Done button
+ * (ESCAPE) that exits.  Register these before metarun_register_continue_clicks
+ * so the buttons win over the tap-anywhere-to-exit full rows.
+ */
+static void metarun_register_touch_action_buttons(int term_width,
+    int term_height, bool blitz_enabled)
+{
+    struct { int choice; const char *label; } items[8];
+    int n = 0;
+    int row;
+    int col;
+
+    if (term_height < 2 || term_width < 8)
+        return;
+
+    items[n].choice = 'b'; items[n].label = "Spend blessings"; n++;
+    items[n].choice = 'f'; items[n].label = "Threshold"; n++;
+    items[n].choice = 'c'; items[n].label = "Difficulty"; n++;
+    items[n].choice = 'u'; items[n].label = "Full list"; n++;
+    items[n].choice = 's'; items[n].label = "History"; n++;
+    if (blitz_enabled) { items[n].choice = 'x'; items[n].label = "Blitz"; n++; }
+    items[n].choice = ESCAPE; items[n].label = "Done"; n++;
+
+    row = term_height - 2;
+    col = 0;
+    for (int i = 0; i < n; i++) {
+        int w = (int)strlen(items[i].label) + 4; /* "[ " + label + " ]" */
+        if (col != 0 && col + w > term_width) {
+            if (row < term_height - 1) {
+                row++;
+                col = 0;
+            } else {
+                break; /* no more room to lay out buttons */
+            }
+        }
+        col = ui_menu_click_put_button(items[i].choice, row, col,
+            TERM_L_WHITE, items[i].label);
+    }
+}
+
 typedef struct {
     char variants[4][64];
     int variant_count;
@@ -704,6 +763,30 @@ static void adjust_blessing_threshold_menu(void)
     screen_load();
 }
 
+/*
+ * Run a story-statistics sub-menu without flashing the underlying gameplay
+ * screen.  print_metarun_stats() keeps its own screen_save() for the whole
+ * session; each sub-menu saves and restores its own screen on top of the stats
+ * view.  We deliberately do NOT screen_load() here - restoring the main screen
+ * between the stats view and the sub-menu made the gameplay screen blink.  We
+ * only drop the pane-hide / menu scale (which the sub-menus render without) and
+ * restore them when the sub-menu returns.
+ */
+static void metarun_run_substats_menu(bool startup_scene, void (*fn)(void))
+{
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
+    if (!startup_scene)
+        sdl_pop_terminal_menu_scale();
+
+    fn();
+
+    if (!startup_scene)
+        sdl_push_terminal_menu_scale();
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+}
+
 /* Updated print_metarun_stats(): prettier layout, star & death bars, curses list */
 void print_metarun_stats(void)
 {
@@ -743,6 +826,28 @@ void print_metarun_stats(void)
         return;
     }
 
+    bool startup_scene = (!character_generated || !p_ptr || !p_ptr->playing);
+
+    /* Save the screen and hide panes ONCE for the whole stats session.  Each
+     * sub-menu saves/restores its own screen on top of this view, so we must
+     * not restore the underlying main screen between them (that flashed the
+     * gameplay screen).  Loop in place instead, recomputing after each
+     * sub-menu returns. */
+    if (!startup_scene) {
+        screen_save();
+        sdl_push_terminal_menu_scale();
+    }
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+
+    bool exit_stats = false;
+    bool launch_blitz = false;
+
+    while (!exit_stats)
+    {
+    /* Re-read live score/state each pass so changes made in a sub-menu
+     * (spending blessings, difficulty, threshold) show up on return. */
+    refresh_current_metar_score();
     compute_blessing_pool();
     metarun_sanitize_major_blessing_bits(&metar);
 
@@ -780,14 +885,6 @@ void print_metarun_stats(void)
     int earned_points = metar.blessing_points;
     int spent_points = metar.blessing_points_spent;
     int available_points = earned_points - spent_points;
-    bool startup_scene = (!character_generated || !p_ptr || !p_ptr->playing);
-
-    if (!startup_scene) {
-        screen_save();
-        sdl_push_terminal_menu_scale();
-    }
-    screen_push_supporting_panes_hidden();
-    screen_push_touch_pane_hidden();
 
 redraw_story_stats:
     row = 1;
@@ -889,6 +986,9 @@ redraw_story_stats:
         if (steamdeck) {
             snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, [%s] to change)",
                      (unsigned long)total_pool, threshold_mode, threshold_label);
+        } else if (sdl_touch_only_device_active()) {
+            snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, tap Threshold to change)",
+                     (unsigned long)total_pool, threshold_mode);
         } else {
             snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
                      (unsigned long)total_pool, threshold_mode);
@@ -971,6 +1071,11 @@ redraw_story_stats:
                         (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
                 strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s  [%s]",
                         (unsigned long)remainder, (unsigned long)threshold, threshold_mode, threshold_label);
+            } else if (sdl_touch_only_device_active()) {
+                strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, tap Threshold)",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
+                strnfmt(line2, sizeof(line2), "Pool:%lu/%lu  %s",
+                        (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
             } else {
                 strnfmt(line1, sizeof(line1), "Blessing Pool:%lu/%lu (%s, press 'f')",
                         (unsigned long)remainder, (unsigned long)threshold, threshold_mode);
@@ -1043,13 +1148,9 @@ redraw_story_stats:
             Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
         } else if (available_lines <= 0) {
             curses_truncated = true;
-            if (steamdeck) {
-                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
-                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
-            } else {
-                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                            "List truncated - press 'u' to view all effects");
-            }
+            snprintf(buf, sizeof buf, "List truncated - %s to view all effects",
+                     metarun_view_all_hint(steamdeck, full_label));
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
         } else {
             int lines_remaining = available_lines;
             int entries_remaining = active_count;
@@ -1109,39 +1210,36 @@ redraw_story_stats:
 
             if (curses_truncated && lines_remaining > 0) {
                 if (entries_remaining > 0) {
-                    if (steamdeck) {
-                        snprintf(buf, sizeof buf, "... and %d more effect%s (press [%s] to view all)",
-                                 entries_remaining, (entries_remaining == 1) ? "" : "s", full_label);
-                    } else {
-                        snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
-                                 entries_remaining, (entries_remaining == 1) ? "" : "s");
-                    }
+                    snprintf(buf, sizeof buf, "... and %d more effect%s (%s to view all)",
+                             entries_remaining, (entries_remaining == 1) ? "" : "s",
+                             metarun_view_all_hint(steamdeck, full_label));
                 } else {
-                    if (steamdeck) {
-                        snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
-                    } else {
-                        SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
-                                  sizeof buf);
-                    }
+                    snprintf(buf, sizeof buf, "List truncated - %s to view all effects",
+                             metarun_view_all_hint(steamdeck, full_label));
                 }
                 Term_putstr(col, row++, -1, TERM_L_DARK, buf);
             }
         }
 
         /* Prompt line (full): dynamically packed to width */
-        char prompt_buf[256];
-        metarun_build_action_prompt(term_width, steamdeck,
-                                    spend_label, threshold_label, diff_label,
-                                    full_label, history_label, blitz_label,
-                                    blitz_enabled,
-                                    prompt_buf, sizeof(prompt_buf));
-        metarun_truncate_for_width(prompt_buf, term_width);
-        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
-        metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
-                                             spend_label, threshold_label,
-                                             diff_label, full_label,
-                                             history_label, blitz_label,
-                                             blitz_enabled);
+        if (sdl_touch_only_device_active()) {
+            metarun_register_touch_action_buttons(term_width, term_height,
+                                                  blitz_enabled);
+        } else {
+            char prompt_buf[256];
+            metarun_build_action_prompt(term_width, steamdeck,
+                                        spend_label, threshold_label, diff_label,
+                                        full_label, history_label, blitz_label,
+                                        blitz_enabled,
+                                        prompt_buf, sizeof(prompt_buf));
+            metarun_truncate_for_width(prompt_buf, term_width);
+            metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+            metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
+                                                 spend_label, threshold_label,
+                                                 diff_label, full_label,
+                                                 history_label, blitz_label,
+                                                 blitz_enabled);
+        }
         metarun_register_continue_clicks(term_height);
     } else {
         /* --- Compact layout --- */
@@ -1162,14 +1260,10 @@ redraw_story_stats:
             Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
         } else if (available_lines <= 0) {
             curses_truncated = true;
-            if (steamdeck) {
-                snprintf(buf, sizeof buf, "List truncated - press [%s] to view all effects", full_label);
-                metarun_truncate_for_width(buf, term_width - col - 1);
-                Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
-            } else {
-                Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                            "List truncated - press 'u' to view all effects");
-            }
+            snprintf(buf, sizeof buf, "List truncated - %s to view all effects",
+                     metarun_view_all_hint(steamdeck, full_label));
+            metarun_truncate_for_width(buf, term_width - col - 1);
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
         } else {
             int lines_remaining = available_lines;
             int entries_remaining = active_count;
@@ -1244,6 +1338,11 @@ redraw_story_stats:
                                  entries_remaining, full_label);
                         snprintf(line3, sizeof line3, "... %d more [%s]", entries_remaining, full_label);
                         snprintf(line4, sizeof line4, "... %d more", entries_remaining);
+                    } else if (sdl_touch_only_device_active()) {
+                        snprintf(line1, sizeof line1, "... and %d more effects (tap Full list)", entries_remaining);
+                        snprintf(line2, sizeof line2, "... and %d more (tap Full list)", entries_remaining);
+                        snprintf(line3, sizeof line3, "... %d more", entries_remaining);
+                        snprintf(line4, sizeof line4, "... %d more", entries_remaining);
                     } else {
                         snprintf(line1, sizeof line1, "... and %d more effects (press 'u' for full list)", entries_remaining);
                         snprintf(line2, sizeof line2, "... and %d more (press 'u' for list)", entries_remaining);
@@ -1255,6 +1354,11 @@ redraw_story_stats:
                         snprintf(line1, sizeof line1, "List truncated - press [%s] to view all effects", full_label);
                         snprintf(line2, sizeof line2, "List truncated - press [%s]", full_label);
                         snprintf(line3, sizeof line3, "Truncated [%s]", full_label);
+                        SDL_strlcpy(line4, "Truncated", sizeof(line4));
+                    } else if (sdl_touch_only_device_active()) {
+                        SDL_strlcpy(line1, "List truncated - tap Full list to view all effects", sizeof(line1));
+                        SDL_strlcpy(line2, "List truncated - tap Full list", sizeof(line2));
+                        SDL_strlcpy(line3, "Truncated", sizeof(line3));
                         SDL_strlcpy(line4, "Truncated", sizeof(line4));
                     } else {
                         SDL_strlcpy(line1, "List truncated - press 'u' to view all effects", sizeof(line1));
@@ -1269,19 +1373,24 @@ redraw_story_stats:
             }
         }
 
-        char prompt_buf[256];
-        metarun_build_action_prompt(term_width, steamdeck,
-                                    spend_label, threshold_label, diff_label,
-                                    full_label, history_label, blitz_label,
-                                    blitz_enabled,
-                                    prompt_buf, sizeof(prompt_buf));
-        metarun_truncate_for_width(prompt_buf, term_width);
-        metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
-        metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
-                                             spend_label, threshold_label,
-                                             diff_label, full_label,
-                                             history_label, blitz_label,
-                                             blitz_enabled);
+        if (sdl_touch_only_device_active()) {
+            metarun_register_touch_action_buttons(term_width, term_height,
+                                                  blitz_enabled);
+        } else {
+            char prompt_buf[256];
+            metarun_build_action_prompt(term_width, steamdeck,
+                                        spend_label, threshold_label, diff_label,
+                                        full_label, history_label, blitz_label,
+                                        blitz_enabled,
+                                        prompt_buf, sizeof(prompt_buf));
+            metarun_truncate_for_width(prompt_buf, term_width);
+            metarun_put_prompt_line(term_width, term_height, TERM_L_DARK, prompt_buf);
+            metarun_register_stats_prompt_clicks(prompt_buf, term_height - 1,
+                                                 spend_label, threshold_label,
+                                                 diff_label, full_label,
+                                                 history_label, blitz_label,
+                                                 blitz_enabled);
+        }
         metarun_register_continue_clicks(term_height);
     }
 
@@ -1316,22 +1425,10 @@ redraw_story_stats:
 
         if (key == back_key) {
             /* B button = exit/back */
-            screen_pop_touch_pane_hidden();
-            screen_pop_supporting_panes_hidden();
-            if (!startup_scene) {
-                sdl_pop_terminal_menu_scale();
-                screen_load();
-            }
-            return;
+            exit_stats = true;
         } else if (key == confirm_key || key == ' ' || key == '\r' || key == '\n') {
             /* A button = continue (exit) */
-            screen_pop_touch_pane_hidden();
-            screen_pop_supporting_panes_hidden();
-            if (!startup_scene) {
-                sdl_pop_terminal_menu_scale();
-                screen_load();
-            }
-            return;
+            exit_stats = true;
         } else if (key == alt_key) {
             /* X button = spend blessings */
             key = 'b';
@@ -1349,73 +1446,44 @@ redraw_story_stats:
             key = 'u';
         }
     }
-    if (key == 'b' || key == 'B') {
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        open_blessing_exchange();
-        print_metarun_stats();
-        return;
+
+    if (exit_stats) {
+        /* Leave the loop and tear the stats screen down once below. */
+    } else if (key == 'b' || key == 'B') {
+        metarun_run_substats_menu(startup_scene, open_blessing_exchange);
+        continue;
     } else if (key == 'c' || key == 'C') {
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        choose_difficulty_menu();
-        return;
+        metarun_run_substats_menu(startup_scene, choose_difficulty_menu);
+        continue;
     } else if (key == 'f' || key == 'F') {
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        adjust_blessing_threshold_menu();
-        print_metarun_stats();
-        return;
+        metarun_run_substats_menu(startup_scene, adjust_blessing_threshold_menu);
+        continue;
     } else if (key == 'u' || key == 'U') {
         /* Show the full list of active curses/blessings separately */
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        show_all_active_curses();
-        print_metarun_stats();
-        return;
+        metarun_run_substats_menu(startup_scene, show_all_active_curses);
+        continue;
     } else if (key == 's' || key == 'S') {
         /* Show history only */
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        list_metaruns();
-        print_metarun_stats();
-        return;
+        metarun_run_substats_menu(startup_scene, list_metaruns);
+        continue;
     } else if ((key == 'x' || key == 'X') && blitz_enabled) {
-        screen_pop_touch_pane_hidden();
-        screen_pop_supporting_panes_hidden();
-        if (!startup_scene) {
-            sdl_pop_terminal_menu_scale();
-            screen_load();
-        }
-        run_mode_set_pending(RUN_MODE_BLITZ);
-        run_mode_set_current(RUN_MODE_BLITZ);
-        return;
+        launch_blitz = true;
+        exit_stats = true;
+    } else {
+        /* Any other key (including Esc / Done) exits the stats screen. */
+        exit_stats = true;
     }
+    } /* end while (!exit_stats) */
 
     screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     if (!startup_scene) {
         sdl_pop_terminal_menu_scale();
         screen_load();
+    }
+
+    if (launch_blitz) {
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
     }
 }

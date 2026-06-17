@@ -11,6 +11,7 @@ s16b get_quantity_touch_category(cptr prompt, int max, int touch_category);
 s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
     int touch_category);
 bool get_check(cptr prompt);
+bool get_check_lower(cptr prompt);
 bool get_check_near(int y, int x, cptr prompt);
 bool get_check_oath_multiline(cptr prompt);
 bool get_com(cptr prompt, char* command);

@@ -744,9 +744,11 @@ s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
  * The "prompt" should take the form "Query? "
  *
  * Global questions centre the modal yes/no panel; local questions (about a
- * specific map grid) anchor it next to that grid.
+ * specific map grid) anchor it next to that grid.  Full-screen confirms that
+ * already draw their own descriptive text pass lower=true so the panel sits at
+ * the bottom of the screen instead of covering that text.
  */
-static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x)
+static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x, bool lower)
 {
     char ch;
 
@@ -758,6 +760,8 @@ static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x)
     /* Ask through the modal yes/no question menu instead of a top-line prompt */
     if ((anchor_y >= 0) && (anchor_x >= 0))
         sdl_touch_pane_begin_yes_no_prompt_near(prompt, anchor_y, anchor_x);
+    else if (lower)
+        sdl_touch_pane_begin_yes_no_prompt_lower(prompt);
     else
         sdl_touch_pane_begin_yes_no_prompt(prompt);
     Term_fresh();
@@ -792,7 +796,17 @@ static bool get_check_aux(cptr prompt, int anchor_y, int anchor_x)
 
 bool get_check(cptr prompt)
 {
-    return get_check_aux(prompt, -1, -1);
+    return get_check_aux(prompt, -1, -1, false);
+}
+
+/*
+ * Yes/no question for a full-screen confirm that already shows its own text
+ * (e.g. the Blitz intro): the panel is anchored to the bottom of the screen so
+ * it does not cover that text, matching the "Enter Morgoth's hall?" prompt.
+ */
+bool get_check_lower(cptr prompt)
+{
+    return get_check_aux(prompt, -1, -1, true);
 }
 
 /*
@@ -801,7 +815,7 @@ bool get_check(cptr prompt)
  */
 bool get_check_near(int y, int x, cptr prompt)
 {
-    return get_check_aux(prompt, y, x);
+    return get_check_aux(prompt, y, x, false);
 }
 
 /*

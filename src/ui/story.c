@@ -374,8 +374,52 @@ static void story_prompt_label(int binding, const char* fallback, char* buf, siz
         SDL_strlcpy(buf, fallback, buflen);
 }
 
-static void story_print_hint(int indent, int h)
+/* Register a clickable/hoverable "[label]" token mapped to choice (mouse). */
+static void story_add_key_token(int choice, int row, const char *prompt,
+    const char *label)
 {
+    char token[32];
+
+    if (!prompt || !label || !label[0])
+        return;
+
+    strnfmt(token, sizeof(token), "[%s]", label);
+    ui_menu_click_add_text_token(choice, 0, row, prompt, token);
+}
+
+/*
+ * Draw the bottom-row story prompt and register its click/hover targets.
+ * The prompt is specific to the active input device:
+ *   - touch-only devices get tappable [ Next ]/[ Skip ] (or [ Continue ])
+ *     buttons;
+ *   - controllers show their confirm/back button labels;
+ *   - keyboard/mouse shows the key hint with clickable [Enter]/[Esc] tokens.
+ * Must be called after ui_menu_click_begin().
+ */
+static void story_register_prompt(int indent, int wid, int h, bool final)
+{
+    int row;
+
+    if (h < 1)
+        return;
+
+    row = h - 1;
+    Term_erase(0, row, wid);
+
+    if (sdl_touch_only_device_active()) {
+        int col = indent;
+        if (final) {
+            (void)ui_menu_click_put_button('\r', row, col, TERM_L_WHITE,
+                "Continue");
+        } else {
+            col = ui_menu_click_put_button('\r', row, col, TERM_L_WHITE,
+                "Next");
+            (void)ui_menu_click_put_button(ESCAPE, row, col, TERM_L_WHITE,
+                "Skip");
+        }
+        return;
+    }
+
     if (steamdeck_controls_active()) {
         char next_label[16];
         char esc_label[16];
@@ -383,30 +427,84 @@ static void story_print_hint(int indent, int h)
 
         story_prompt_label(steamdeck_confirm_key(), "A", next_label,
             sizeof(next_label));
-        story_prompt_label(steamdeck_back_key(), "B", esc_label,
-            sizeof(esc_label));
 
-        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] next  *  [%s] fast forward", next_label, esc_label);
-        Term_putstr(indent, h - 1, -1, TERM_SLATE, prompt_buf);
+        if (final) {
+            strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue",
+                next_label);
+            Term_putstr(indent, row, -1, TERM_L_WHITE, prompt_buf);
+            story_add_key_token('\r', row, prompt_buf, next_label);
+        } else {
+            story_prompt_label(steamdeck_back_key(), "B", esc_label,
+                sizeof(esc_label));
+            strnfmt(prompt_buf, sizeof(prompt_buf),
+                "[%s] next  *  [%s] fast forward", next_label, esc_label);
+            Term_putstr(indent, row, -1, TERM_SLATE, prompt_buf);
+            story_add_key_token('\r', row, prompt_buf, next_label);
+            story_add_key_token(ESCAPE, row, prompt_buf, esc_label);
+        }
+        return;
+    }
+
+    if (final) {
+        const char *prompt_buf = "[Press any key to continue]";
+        Term_putstr(indent, row, -1, TERM_L_WHITE, prompt_buf);
+        story_add_key_token('\r', row, prompt_buf, "Press any key to continue");
     } else {
-        Term_putstr(indent, h - 1, -1, TERM_SLATE, "[Enter] next  *  [Esc] fast forward");
+        const char *prompt_buf = "[Enter] next  *  [Esc] fast forward";
+        Term_putstr(indent, row, -1, TERM_SLATE, prompt_buf);
+        story_add_key_token('\r', row, prompt_buf, "Enter");
+        story_add_key_token(ESCAPE, row, prompt_buf, "Esc");
     }
 }
 
-static void story_touch_confirm_begin(int h)
+/* Begin click tracking for a story prompt: body rows advance, bottom row
+ * carries the input-specific prompt drawn by story_register_prompt(). */
+static void story_begin_prompt(int indent, int wid, int h, bool final,
+    bool enable_hover)
 {
     if (h < 1)
         return;
 
     ui_menu_click_begin();
+    ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+    if (enable_hover)
+        ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_outside_cancel_enabled(true);
-    for (int row = 0; row < h; row++)
+    /* Tapping the story body advances to the next page. */
+    for (int row = 0; row < h - 1; row++)
         ui_menu_click_add_full_row('\r', row);
+    story_register_prompt(indent, wid, h, final);
 }
 
-static void story_touch_confirm_end(void)
+/*
+ * Draw a story prompt and block until the user supplies a real (non-hover)
+ * input, resolving touch/mouse clicks to the matching key.  Returns the
+ * resolved key: ESCAPE for skip/fast-forward, '\r' (or any key) to continue.
+ */
+static char story_prompt_wait(int indent, int wid, int h, bool final)
 {
-    ui_menu_click_clear();
+    for (;;) {
+        int choice = 0;
+        int action = UI_MENU_CLICK_PRIMARY;
+        char ch;
+
+        story_begin_prompt(indent, wid, h, final, true);
+        Term_fresh();
+
+        ch = inkey();
+
+        if (ui_menu_click_take_action(&choice, &action)) {
+            if (action == UI_MENU_CLICK_HOVER)
+                continue; /* redraw to refresh the hover highlight */
+            ui_menu_click_clear();
+            return (char)choice;
+        }
+        if (ch == UI_MENU_CLICK_WAKE_KEY)
+            continue;
+
+        ui_menu_click_clear();
+        return ch;
+    }
 }
 
 void print_story(int last_parts, bool fade_in)
@@ -420,10 +518,6 @@ void print_story(int last_parts, bool fade_in)
 
     log_debug("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
     log_debug("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
-
-    /* Convenience macro to keep the bottom-line hint fresh */
-#define REDRAW_HINT() \
-    story_print_hint(indent, h)
 
     /* Build list of matching entries ------------------------ */
     int sils   = metar.silmarils;
@@ -489,7 +583,6 @@ void print_story(int last_parts, bool fade_in)
 
     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
     int row = 2;
-    REDRAW_HINT();
 
     /* Main loop -------------------------------------------- */
     for (int idx = start; idx < total; idx++)
@@ -512,24 +605,21 @@ void print_story(int last_parts, bool fade_in)
         {
             if (!fast_forward)
             {
+                char ch;
                 show_page_instantly = false;
-                REDRAW_HINT();
-                story_touch_confirm_begin(h);
-                char ch = inkey();
-                story_touch_confirm_end();
+                ch = story_prompt_wait(indent, wid, h, false);
                 if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in = false;
                     Term_erase(0, h - 1, wid);
-                    log_debug("User pressed ESC - enabling fast forward mode");
+                    log_debug("User chose skip - enabling fast forward mode");
                 }
                 else
                 {
                     row = 2;
                     Term_clear();
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
-                    REDRAW_HINT();
                 }
             }
             else
@@ -552,14 +642,25 @@ void print_story(int last_parts, bool fade_in)
              *   0 = completed normally
              *   1 = other key pressed (skip this paragraph)
              *   2 = ESC pressed (enable fast-forward) */
-            story_touch_confirm_begin(h);
-            int fade_result = print_paragraph_fade(text, row, indent, wrap_width);
-            story_touch_confirm_end();
-            if (fade_result == 2) {
-                /* ESC pressed - enable fast-forward mode */
+            int choice = 0;
+            int action = UI_MENU_CLICK_PRIMARY;
+            bool skip_click;
+            int fade_result;
+
+            /* No hover during the fade: a hover wake would abort it early. */
+            story_begin_prompt(indent, wid, h, false, false);
+            fade_result = print_paragraph_fade(text, row, indent, wrap_width);
+            /* A tap on the [ Skip ] button arms fast-forward even though the
+             * fade itself only sees the generic advance keypress. */
+            skip_click = ui_menu_click_take_action(&choice, &action)
+                && action != UI_MENU_CLICK_HOVER
+                && (char)choice == ESCAPE;
+            ui_menu_click_clear();
+            if (fade_result == 2 || skip_click) {
+                /* Fast-forward through the rest of the story. */
                 fast_forward = true;
                 fade_in = false;
-                log_debug("ESC pressed during fade - enabling fast forward mode");
+                log_debug("Skip during fade - enabling fast forward mode");
             }
             /* If fade_result == 1, just continue to next paragraph normally */
         }
@@ -593,19 +694,17 @@ void print_story(int last_parts, bool fade_in)
             paginated = true;
             if (!fast_forward)
             {
+                char ch;
                 /* Reset show_page_instantly for next page */
                 show_page_instantly = false;
-                
-                REDRAW_HINT();
-                story_touch_confirm_begin(h);
-                char ch = inkey();
-                story_touch_confirm_end();
+
+                ch = story_prompt_wait(indent, wid, h, false);
                 if (story_fast_forward_key(ch))
                 {
                     fast_forward = true;
                     fade_in      = false;   /* Disable delays for rest of story */
                     Term_erase(0, h - 1, wid); /* clear hint line */
-                    log_debug("User pressed ESC - enabling fast forward mode");
+                    log_debug("User chose skip - enabling fast forward mode");
                 }
                 else /* Enter */
                 {
@@ -614,7 +713,6 @@ void print_story(int last_parts, bool fade_in)
                     sdl_story_font_enable();
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
                     sdl_story_font_disable();
-                    REDRAW_HINT();
                     continue;
                 }
             }
@@ -636,22 +734,8 @@ void print_story(int last_parts, bool fade_in)
     }
 
     /* Footer ------------------------------------------------ */
-    Term_erase(0, h - 1, wid); /* clear bottom line entirely */
-    if (steamdeck_controls_active()) {
-        char next_label[16];
-        char prompt_buf[64];
-        story_prompt_label(steamdeck_confirm_key(), "A", next_label,
-            sizeof(next_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue", next_label);
-        Term_putstr(indent, h - 1, -1, TERM_L_WHITE, prompt_buf);
-    } else {
-        Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
-                    "[Press any key to continue]");
-    }
-    story_touch_confirm_begin(h);
-    (void)inkey();
-    story_touch_confirm_end();
-    
+    (void)story_prompt_wait(indent, wid, h, true);
+
     /* Flush any queued keypresses that accumulated during the story */
     Term_flush();
     
@@ -663,7 +747,5 @@ void print_story(int last_parts, bool fade_in)
     hide_cursor = _saved_hide_cursor;
 
     log_debug("Story display completed");
-
-#undef REDRAW_HINT
 }
 

@@ -1362,7 +1362,7 @@ static void do_cmd_start_blitz(void)
 
     Term_fresh();
 
-    if (!get_check("Save your story game and start a Blitz run now? "))
+    if (!get_check_lower("Save your story game and start a Blitz run now? "))
     {
         sdl_pop_terminal_menu_scale();
         screen_pop_touch_pane_hidden();
@@ -3739,6 +3739,7 @@ void do_cmd_messages_with_filter(int initial_filter)
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_exit_button(true);
 
         /* Dump log entries */
         for (j = 0; (j < visible_rows) && (i + j < n); j++)
@@ -3839,6 +3840,7 @@ void do_cmd_messages_with_filter(int initial_filter)
             {
                 char prev_label[16];
                 char next_label[16];
+                char back_label[16];
                 char prompt_full[160];
                 char prompt_mid[128];
                 char prompt_short[80];
@@ -3848,17 +3850,29 @@ void do_cmd_messages_with_filter(int initial_filter)
                     prev_label, sizeof(prev_label));
                 controller_prompt_label(steamdeck_next_page_key(), "R1",
                     next_label, sizeof(next_label));
+                controller_prompt_label(steamdeck_back_key(), "B",
+                    back_label, sizeof(back_label));
                 strnfmt(prompt_full, sizeof(prompt_full),
-                    "%s/%s page  Up/Down line  / find  = highlight  Left/Right pan  Esc",
-                    prev_label, next_label);
+                    "%s/%s page  Up/Down line  / find  = highlight  Left/Right pan  %s back",
+                    prev_label, next_label, back_label);
                 strnfmt(prompt_mid, sizeof(prompt_mid),
-                    "%s/%s page  Up/Down line  / find  Esc",
-                    prev_label, next_label);
+                    "%s/%s page  Up/Down line  / find  %s back",
+                    prev_label, next_label, back_label);
                 strnfmt(prompt_short, sizeof(prompt_short),
-                    "%s/%s page  Esc", prev_label, next_label);
+                    "%s/%s page  %s back", prev_label, next_label, back_label);
                 variants[0] = prompt_full;
                 variants[1] = prompt_mid;
                 variants[2] = prompt_short;
+                terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
+                    variants, N_ELEMENTS(variants));
+            }
+            else if (sdl_touch_only_device_active())
+            {
+                const char* variants[] = {
+                    "Tap a tab to filter, drag to scroll",
+                    "Tap a tab, drag to scroll",
+                    "Tap a tab to filter"
+                };
                 terminal_prompt_pick_variant(prompt, sizeof(prompt), wid, false,
                     variants, N_ELEMENTS(variants));
             }

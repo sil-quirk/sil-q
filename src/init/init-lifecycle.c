@@ -401,17 +401,23 @@ void init_angband(void)
 /* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
 extern NavResult initial_menu(bool *start_new)
 {
+    int ch;
+    NavResult result = NAV_BACK;
+    bool intro_story_font = false;
+
     log_info("initial_menu: ENTERED - showing main menu");
 
     /* A Blitz launch armed from the in-game menu skips the title screen and
-     * routes the next play_game() straight into Blitz mode. */
+     * routes the next play_game() straight into Blitz mode.  Still run the
+     * shared menu cleanup: re_init_some_things() has just displayed the intro,
+     * and leaving that welcome screen active hides the Blitz setup on mobile. */
     if (blitz_launch_requested())
     {
-        log_info("initial_menu: blitz launch requested - entering Blitz mode");
-        blitz_launch_clear();
+        log_info("initial_menu: blitz launch requested - entering fresh Blitz mode");
         run_mode_set_pending(RUN_MODE_BLITZ);
         *start_new = true;
-        return NAV_OK;
+        result = NAV_OK;
+        goto menu_done;
     }
 
     if (sdl_music_consume_welcome_main_once()
@@ -420,9 +426,7 @@ extern NavResult initial_menu(bool *start_new)
     else
         sdl_music_play_main_full();
 
-    int ch;
-    NavResult result = NAV_BACK;
-    bool intro_story_font = true;
+    intro_story_font = true;
     screen_set_startup_touch_pane_hidden(true);
     sdl_story_font_enable();
 
