@@ -406,7 +406,6 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     char stat_buf[16];
     char confirm_label[16] = "Enter";
     char back_label[16] = "ESC";
-    char quit_label[16] = "q";
     int prompt_row;
     int info_row;
 
@@ -446,7 +445,6 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     {
         birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
         {
             char prompt_full[160];
@@ -454,11 +452,10 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
             const char* variants[2];
 
             strnfmt(prompt_full, sizeof(prompt_full),
-                "D-pad allocate  %s back  %s ok  %s char",
-                back_label, confirm_label, quit_label);
+                "D-pad allocate  %s back  %s ok",
+                back_label, confirm_label);
             strnfmt(prompt_short, sizeof(prompt_short),
-                "%s ok  %s back  %s char", confirm_label, back_label,
-                quit_label);
+                "%s ok  %s back", confirm_label, back_label);
             variants[0] = prompt_full;
             variants[1] = prompt_short;
             terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
@@ -467,9 +464,8 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     }
     else if (sdl_touch_only_device_active())
     {
-        /* Keep ok/back/char tappable on touch; rows tap to add and long tap to subtract. */
+        /* Rows tap to add and long tap to subtract on touch. */
         const char* variants[] = {
-            "Tap row +  long tap -  ok  back  char",
             "Tap row +  long tap -  ok  back",
             "Tap +  long tap -  ok"
         };
@@ -479,9 +475,9 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
     else
     {
         const char* variants[] = {
-            "Dir select/adjust  Esc back  Enter ok  q char",
-            "Dir adjust  Esc back  Enter ok  q char",
-            "Enter ok  Esc back  q char"
+            "Dir select/adjust  Esc back  Enter ok",
+            "Dir adjust  Esc back  Enter ok",
+            "Enter ok  Esc back"
         };
         terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
             story_character_enabled(), variants, N_ELEMENTS(variants));
@@ -489,7 +485,7 @@ static void birth_display_stats_allocation_compact(const int stats[A_MAX],
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
     birth_register_allocation_prompt_clicks(prompt_row, buf, 1,
-        back_label, confirm_label, quit_label);
+        back_label, confirm_label, "q");
 }
 
 void birth_display_skill_allocation_compact(int selected_skill, const int old_base[S_MAX],
@@ -500,7 +496,6 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     char buf[160];
     char confirm_label[16] = "Enter";
     char back_label[16] = "ESC";
-    char quit_label[16] = "q";
     int prompt_row;
     int info_row;
 
@@ -542,19 +537,16 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     {
         birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
         birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-        birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
-
         {
             char prompt_full[160];
             char prompt_short[96];
             const char* variants[2];
 
             strnfmt(prompt_full, sizeof(prompt_full),
-                "D-pad allocate  %s back  %s ok  %s char",
-                back_label, confirm_label, quit_label);
+                "D-pad allocate  %s back  %s ok",
+                back_label, confirm_label);
             strnfmt(prompt_short, sizeof(prompt_short),
-                "%s ok  %s back  %s char", confirm_label, back_label,
-                quit_label);
+                "%s ok  %s back", confirm_label, back_label);
             variants[0] = prompt_full;
             variants[1] = prompt_short;
             terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
@@ -563,9 +555,8 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     }
     else if (sdl_touch_only_device_active())
     {
-        /* Keep ok/back/char tappable on touch; rows tap to add and long tap to subtract. */
+        /* Rows tap to add and long tap to subtract on touch. */
         const char* variants[] = {
-            "Tap row +  long tap -  ok  back  char",
             "Tap row +  long tap -  ok  back",
             "Tap +  long tap -  ok"
         };
@@ -575,9 +566,9 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
     else
     {
         const char* variants[] = {
-            "Dir select/adjust  Esc back  Enter ok  q char",
-            "Dir adjust  Esc back  Enter ok  q char",
-            "Enter ok  Esc back  q char"
+            "Dir select/adjust  Esc back  Enter ok",
+            "Dir adjust  Esc back  Enter ok",
+            "Enter ok  Esc back"
         };
         terminal_prompt_pick_variant(buf, sizeof(buf), wid - 2,
             story_character_enabled(), variants, N_ELEMENTS(variants));
@@ -585,7 +576,7 @@ void birth_display_skill_allocation_compact(int selected_skill, const int old_ba
 
     c_put_str(TERM_SLATE, buf, prompt_row, 1);
     birth_register_allocation_prompt_clicks(prompt_row, buf, 1,
-        back_label, confirm_label, quit_label);
+        back_label, confirm_label, "q");
 }
 
 /*
@@ -800,11 +791,10 @@ NavResult player_birth_aux_2(int stats[A_MAX])
                     const char* variants[2];
 
                     strnfmt(prompt_full, sizeof(prompt_full),
-                        "D-pad allocate  %s back  %s confirm  %s char",
-                        back_label, confirm_label, quit_label);
+                        "D-pad allocate  %s back  %s confirm",
+                        back_label, confirm_label);
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s confirm  %s back  %s char", confirm_label,
-                        back_label, quit_label);
+                        "%s confirm  %s back", confirm_label, back_label);
                     variants[0] = prompt_full;
                     variants[1] = prompt_short;
                     terminal_prompt_pick_variant(prompt_buf,
@@ -819,10 +809,8 @@ NavResult player_birth_aux_2(int stats[A_MAX])
                     quit_label);
             } else if (sdl_touch_only_device_active()) {
                 char prompt_text[160];
-                /* Keep confirm/back/char tappable on touch; stats are
-                 * tap-to-add and long-tap-to-subtract rows. */
+                /* Stats are tap-to-add and long-tap-to-subtract rows on touch. */
                 const char* variants[] = {
-                    "Tap stat +  long tap -  confirm  back  char",
                     "Tap stat +  long tap -  confirm  back",
                     "Tap +  long tap -  confirm"
                 };
@@ -836,7 +824,6 @@ NavResult player_birth_aux_2(int stats[A_MAX])
             } else {
                 char prompt_text[160];
                 const char* variants[] = {
-                    "Dir allocate  Esc back  Enter confirm  q character",
                     "Dir allocate  Esc back  Enter confirm",
                     "Enter confirm  Esc back"
                 };

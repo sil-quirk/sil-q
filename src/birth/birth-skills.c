@@ -337,13 +337,11 @@ extern NavResult gain_skills(void)
             if (steamdeck) {
                 char confirm_label[16];
                 char back_label[16];
-                char quit_label[16];
                 char prompt_buf[160];
 
-                /* Steam Deck UI: A=confirm, B=back, q=character selection */
+                /* Steam Deck UI: A=confirm, B=back */
                 birth_prompt_label(steamdeck_confirm_key(), "A", confirm_label, sizeof(confirm_label));
                 birth_prompt_label(steamdeck_back_key(), "B", back_label, sizeof(back_label));
-                birth_prompt_label('q', "q", quit_label, sizeof(quit_label));
 
                 {
                     char prompt_full[160];
@@ -351,11 +349,10 @@ extern NavResult gain_skills(void)
                     const char* variants[2];
 
                     strnfmt(prompt_full, sizeof(prompt_full),
-                        "D-pad allocate  %s back  %s confirm  %s char",
-                        back_label, confirm_label, quit_label);
+                        "D-pad allocate  %s back  %s confirm",
+                        back_label, confirm_label);
                     strnfmt(prompt_short, sizeof(prompt_short),
-                        "%s confirm  %s back  %s char", confirm_label,
-                        back_label, quit_label);
+                        "%s confirm  %s back", confirm_label, back_label);
                     variants[0] = prompt_full;
                     variants[1] = prompt_short;
                     terminal_prompt_pick_variant(prompt_buf,
@@ -367,13 +364,11 @@ extern NavResult gain_skills(void)
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE, prompt_buf);
                 birth_register_allocation_prompt_clicks(prompt_row,
                     prompt_buf, QUESTION_COL, back_label, confirm_label,
-                    quit_label);
+                    "q");
             } else if (sdl_touch_only_device_active()) {
                 char prompt_text[160];
-                /* Keep confirm/back/char tappable on touch; skills are
-                 * tap-to-add and long-tap-to-subtract rows. */
+                /* Skills are tap-to-add and long-tap-to-subtract rows. */
                 const char* variants[] = {
-                    "Tap skill +  long tap -  confirm  back  char",
                     "Tap skill +  long tap -  confirm  back",
                     "Tap +  long tap -  confirm"
                 };
@@ -383,11 +378,10 @@ extern NavResult gain_skills(void)
                 Term_putstr(QUESTION_COL, prompt_row, -1, TERM_SLATE,
                     prompt_text);
                 birth_register_allocation_prompt_clicks(prompt_row,
-                    prompt_text, QUESTION_COL, "back", "confirm", "char");
+                    prompt_text, QUESTION_COL, "back", "confirm", "q");
             } else {
                 char prompt_text[160];
                 const char* variants[] = {
-                    "Dir allocate  Esc back  Enter confirm  q character",
                     "Dir allocate  Esc back  Enter confirm",
                     "Enter confirm  Esc back"
                 };

@@ -2829,7 +2829,6 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     static const sdl_char_sheet_prompt_item birth_items[] = {
         { "Esc back", -1 },
         { "Enter confirm", -2 },
-        { "Q character", -3 },
     };
     static const sdl_char_sheet_prompt_item select_items[] = {
         { "Esc back", -1 },
@@ -2859,13 +2858,23 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     };
     const sdl_char_sheet_prompt_item* items = birth_items;
     int item_count = (int)N_ELEMENTS(birth_items);
+    sdl_char_sheet_prompt_item birth_controller_items[2];
+    sdl_char_sheet_prompt_item select_controller_items[2];
+    char controller_back_label[16];
+    char controller_confirm_label[16];
+    char birth_controller_back_text[32];
+    char birth_controller_confirm_text[32];
+    char select_controller_back_text[32];
+    char select_controller_confirm_text[32];
     float cursor_x = x;
     int text_widths[16];
     float item_widths[16];
     bool preview_prompt = g_sdl_character_sheet_screen.context
         == SDL_CHARACTER_SHEET_BIRTH_PREVIEW;
+    bool controller = steamdeck_controls_active();
 #if SIL_SDL_MOBILE_BUILD
     float spacing = MAX(8.0f, h * 0.45f);
+    bool touch_only = sdl_touch_only_device_active();
     bool touch_buttons = false;
     float touch_button_pad_x = 0.0f;
 #else
@@ -2878,12 +2887,56 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     if (!font)
         return;
 
+    if (controller)
+    {
+        sdl_gamepad_action_binding_short_label(steamdeck_back_key(),
+            controller_back_label, sizeof(controller_back_label));
+        if (streq(controller_back_label, "(unbound)")
+            || streq(controller_back_label, "Multiple"))
+        {
+            SDL_strlcpy(controller_back_label, "B",
+                sizeof(controller_back_label));
+        }
+
+        sdl_gamepad_action_binding_short_label(steamdeck_confirm_key(),
+            controller_confirm_label, sizeof(controller_confirm_label));
+        if (streq(controller_confirm_label, "(unbound)")
+            || streq(controller_confirm_label, "Multiple"))
+        {
+            SDL_strlcpy(controller_confirm_label, "A",
+                sizeof(controller_confirm_label));
+        }
+
+        strnfmt(birth_controller_back_text,
+            sizeof(birth_controller_back_text), "%s back",
+            controller_back_label);
+        strnfmt(birth_controller_confirm_text,
+            sizeof(birth_controller_confirm_text), "%s confirm",
+            controller_confirm_label);
+        strnfmt(select_controller_back_text,
+            sizeof(select_controller_back_text), "%s back",
+            controller_back_label);
+        strnfmt(select_controller_confirm_text,
+            sizeof(select_controller_confirm_text), "%s select",
+            controller_confirm_label);
+
+        birth_controller_items[0].label = birth_controller_back_text;
+        birth_controller_items[0].choice = -1;
+        birth_controller_items[1].label = birth_controller_confirm_text;
+        birth_controller_items[1].choice = -2;
+
+        select_controller_items[0].label = select_controller_back_text;
+        select_controller_items[0].choice = -1;
+        select_controller_items[1].label = select_controller_confirm_text;
+        select_controller_items[1].choice = -2;
+    }
+
     if (g_sdl_character_sheet_screen.context == SDL_CHARACTER_SHEET_LIVE)
     {
         items = live_items;
         item_count = (int)N_ELEMENTS(live_items);
 #if SIL_SDL_MOBILE_BUILD
-        if (sdl_touch_only_device_active())
+        if (touch_only)
         {
             items = live_items_touch;
             item_count = (int)N_ELEMENTS(live_items_touch);
@@ -2902,8 +2955,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     {
         items = select_items;
         item_count = (int)N_ELEMENTS(select_items);
+        if (controller)
+        {
+            items = select_controller_items;
+            item_count = (int)N_ELEMENTS(select_controller_items);
+        }
 #if SIL_SDL_MOBILE_BUILD
-        if (sdl_character_sheet_screen_mobile_carousel_active())
+        if (touch_only
+            && sdl_character_sheet_screen_mobile_carousel_active())
         {
             items = select_items_touch;
             item_count = (int)N_ELEMENTS(select_items_touch);
@@ -2916,13 +2975,29 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
                  == SDL_CHARACTER_SHEET_BIRTH_STATS
               || g_sdl_character_sheet_screen.context
                  == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
-        && sdl_touch_only_device_active())
+        && touch_only)
     {
         items = birth_items_touch;
         item_count = (int)N_ELEMENTS(birth_items_touch);
         touch_buttons = true;
     }
 #endif
+    else if (g_sdl_character_sheet_screen.context
+        == SDL_CHARACTER_SHEET_BIRTH_SKILLS)
+    {
+        items = birth_items;
+        item_count = (int)N_ELEMENTS(birth_items);
+        if (controller)
+        {
+            items = birth_controller_items;
+            item_count = (int)N_ELEMENTS(birth_controller_items);
+        }
+    }
+    else if (controller)
+    {
+        items = birth_controller_items;
+        item_count = (int)N_ELEMENTS(birth_controller_items);
+    }
 
     if (item_count > (int)N_ELEMENTS(text_widths))
         item_count = (int)N_ELEMENTS(text_widths);
@@ -5449,8 +5524,8 @@ static void sdl_char_sheet_render_mobile_character_select(
         }
     }
 
-    /* Touch prompt (Back / Choose) -- sdl_char_sheet_draw_prompt picks the
-     * mobile-friendly labels for this screen. */
+    /* Bottom prompt: controller labels on handhelds, touch buttons only on
+     * touch-only devices. */
     sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
         content_w, prompt_h);
     sdl_char_sheet_render_hover_tooltip();

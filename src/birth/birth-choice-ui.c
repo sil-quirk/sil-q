@@ -234,6 +234,8 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
         int visible_capacity = choice_visible_capacity(num, choices[cur].text,
             allow_full_description_screen);
 
+        steamdeck = steamdeck_controls_active();
+
         hgt = visible_capacity - 1;
         if (hgt < 0)
             hgt = 0;
