@@ -1358,7 +1358,6 @@ extern bool g_suppress_layout_refresh_present;
 extern bool g_skip_main_redraw_on_layout_refresh;
 extern bool g_defer_resize_handle_stuff;
 extern bool g_touch_tutorial_suppress_runtime_top_panel;
-extern int g_narrative_banner_line_limit;
 extern gamepad_input_state g_gamepad_state;
 extern bool g_gamepad_auto_ui;
 extern int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];

@@ -652,7 +652,6 @@ bool g_suppress_layout_refresh_present = false;
 bool g_skip_main_redraw_on_layout_refresh = false;
 bool g_defer_resize_handle_stuff = false;
 bool g_touch_tutorial_suppress_runtime_top_panel = false;
-int g_narrative_banner_line_limit = 0;
 gamepad_input_state g_gamepad_state;
 bool g_gamepad_auto_ui = false;
 int g_default_gamepad_button_bindings[SDL_GAMEPAD_BUTTON_COUNT];

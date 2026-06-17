@@ -449,21 +449,69 @@ static cptr get_thrall_quest_reason(monster_type* m_ptr, byte quest_item)
     }
 }
 
+static void format_thrall_quest_text(monster_type* m_ptr, const char* fmt_text,
+    char* text_buf, size_t buflen)
+{
+    cptr item_name = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
+    cptr reason = get_thrall_quest_reason(m_ptr, m_ptr->thrall_quest_item);
+
+    if (!text_buf || !buflen)
+        return;
+
+    /* Format the text with item name */
+    strnfmt(text_buf, buflen, fmt_text, item_name, reason);
+}
+
+static void thrall_text_to_prompt_desc(cptr src, char* dst, size_t dstsz)
+{
+    size_t di = 0;
+    bool pending_space = false;
+
+    if (!dst || !dstsz)
+        return;
+
+    dst[0] = '\0';
+    if (!src)
+        return;
+
+    while (*src && di + 1 < dstsz)
+    {
+        unsigned char ch = (unsigned char)*src++;
+
+        if (ch == '\n' || ch == '\r' || ch == '\t' || ch == ' ')
+        {
+            pending_space = true;
+            continue;
+        }
+
+        if (pending_space && di > 0 && di + 1 < dstsz)
+            dst[di++] = ' ';
+        pending_space = false;
+
+        dst[di++] = (char)ch;
+    }
+
+    dst[di] = '\0';
+}
+
+static void thrall_print_collapsed_message(cptr text)
+{
+    char msg_buf[512];
+
+    thrall_text_to_prompt_desc(text, msg_buf, sizeof(msg_buf));
+    msg_print(msg_buf);
+}
+
 static void show_thrall_dialog(monster_type* m_ptr, const char* fmt_text)
 {
     char text_buf[2048];
     cptr texts[1];
     cptr title;
     byte title_color;
-    
-    cptr item_name = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
-    cptr reason = get_thrall_quest_reason(m_ptr, m_ptr->thrall_quest_item);
-    
-    /* Format the text with item name */
-    strnfmt(text_buf, sizeof(text_buf), fmt_text, item_name, reason);
-    
+
+    format_thrall_quest_text(m_ptr, fmt_text, text_buf, sizeof(text_buf));
     texts[0] = text_buf;
-    
+
     if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
     {
         title = "An Elven Thrall";
@@ -474,7 +522,7 @@ static void show_thrall_dialog(monster_type* m_ptr, const char* fmt_text)
         title = "A Human Thrall";
         title_color = TERM_YELLOW;
     }
-    
+
     quest_typewriter_menu(title, texts, 1, title_color, TERM_WHITE);
 }
 
@@ -493,18 +541,45 @@ static void thrall_request_dialog(monster_type* m_ptr)
 static void thrall_thanks_dialog(monster_type* m_ptr)
 {
     int variant = rand_int(THRALL_TEXT_VARIANTS);
+    char text_buf[1024];
+    char msg_buf[220];
+    cptr text;
 
     if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-        show_thrall_dialog(m_ptr, elf_thanks_texts[variant]);
+        text = elf_thanks_texts[variant];
     else
-        show_thrall_dialog(m_ptr, human_thanks_texts[variant]);
+        text = human_thanks_texts[variant];
+
+    format_thrall_quest_text(m_ptr, text, text_buf, sizeof(text_buf));
+    thrall_text_to_prompt_desc(text_buf, msg_buf, sizeof(msg_buf));
+    msg_print(msg_buf);
 }
 
-static int thrall_give_item_question(monster_type* m_ptr)
+static void thrall_pre_give_desc(monster_type* m_ptr, char* desc,
+    size_t desc_sz)
+{
+    int variant = rand_int(THRALL_TEXT_VARIANTS);
+    char text_buf[1024];
+    cptr text;
+
+    if (!desc || !desc_sz)
+        return;
+
+    if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+        text = elf_pre_give_texts[variant];
+    else
+        text = human_pre_give_texts[variant];
+
+    format_thrall_quest_text(m_ptr, text, text_buf, sizeof(text_buf));
+    thrall_text_to_prompt_desc(text_buf, desc, desc_sz);
+}
+
+static int thrall_give_item_question(monster_type* m_ptr, cptr prompt_desc)
 {
     ui_question_option options[2];
     char title[80];
     char desc[160];
+    cptr desc_to_use;
     cptr item_name;
 
     if (!m_ptr)
@@ -513,13 +588,14 @@ static int thrall_give_item_question(monster_type* m_ptr)
     item_name = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
     strnfmt(title, sizeof(title), "Give %s?", item_name);
     strnfmt(desc, sizeof(desc),
-        "The thrall has asked for %s and will offer a reward in return.",
-        item_name);
+        "Give it for a reward, or refuse for now.");
+    desc_to_use = (prompt_desc && prompt_desc[0]) ? prompt_desc : desc;
 
     options[0] = (ui_question_option){ 'g', "Give it", TERM_L_WHITE };
-    options[1] = (ui_question_option){ 'n', "Not now", TERM_SLATE };
+    options[1] = (ui_question_option){ 'n', "Not now", TERM_WHITE };
 
-    return ui_question_ask(title, desc, options, 2, m_ptr->fy, m_ptr->fx, 0);
+    return ui_question_ask(title, desc_to_use, options, 2, m_ptr->fy,
+        m_ptr->fx, 0);
 }
 
 /*
@@ -1309,7 +1385,6 @@ static bool identify_elven_carried_items(void)
 {
     int hidden_count = count_elven_identify_targets();
     char dialog_text[512];
-    cptr texts[1];
 
     if (hidden_count <= 0)
         return false;
@@ -1339,8 +1414,7 @@ static bool identify_elven_carried_items(void)
         "The elven thrall names old scents, colors, and hidden virtues with a memory no darkness has wholly broken.\n\n"
         "Your carried potions, gems, and herbs are revealed.");
 
-    texts[0] = dialog_text;
-    quest_typewriter_menu("Revelation", texts, 1, TERM_L_BLUE, TERM_WHITE);
+    thrall_print_collapsed_message(dialog_text);
 
     return true;
 }
@@ -1470,8 +1544,7 @@ bool upgrade_broken_item(int slot)
         "It is remade as %s!",
         old_name, new_name);
 
-    cptr texts[1] = { dialog_text };
-    quest_typewriter_menu("Restoration", texts, 1, TERM_YELLOW, TERM_WHITE);
+    thrall_print_collapsed_message(dialog_text);
 
     return true;
 }
@@ -1580,10 +1653,7 @@ static bool sanctify_item(int slot)
             o_name);
     }
 
-    {
-        cptr texts[1] = { dialog_text };
-        quest_typewriter_menu("Sanctification", texts, 1, TERM_L_BLUE, TERM_WHITE);
-    }
+    thrall_print_collapsed_message(dialog_text);
 
     return true;
 }
@@ -1599,11 +1669,7 @@ bool reveal_random_artifact(void)
     int reveal_count;
     int selected[THRALL_ARTEFACT_REVEAL_COUNT];
     char o_names[THRALL_ARTEFACT_REVEAL_COUNT][120];
-    char name_list[512];
-    char dialog_text[2048];
-    cptr texts[1 + THRALL_ARTEFACT_REVEAL_COUNT];
-    int text_count = 1;
-    
+
     /* Count unrevealed artifacts */
     count = count_revealable_artifacts();
     
@@ -1638,9 +1704,6 @@ bool reveal_random_artifact(void)
 
     mem_free(candidates);
 
-    name_list[0] = '\0';
-    texts[0] = dialog_text;
-
     for (i = 0; i < reveal_count; i++)
     {
         artefact_type* a_ptr = &a_info[selected[i]];
@@ -1669,21 +1732,13 @@ bool reveal_random_artifact(void)
             SDL_strlcpy(o_names[i],
                 a_ptr->name[0] ? a_ptr->name : "a nameless artefact",
                 sizeof(o_names[i]));
-
-        SDL_strlcat(name_list, "\n  ", sizeof(name_list));
-        SDL_strlcat(name_list, o_names[i], sizeof(name_list));
-
-        if (a_ptr->text)
-            texts[text_count++] = a_text + a_ptr->text;
     }
 
-    strnfmt(dialog_text, sizeof(dialog_text),
-        "The thrall leans close and speaks in a voice scarcely more than breath.\n\n"
-        "You learn of %d ancient %s:%s\n\n"
-        "These names will remain known to later heroes in this metarun.",
-        reveal_count, reveal_count == 1 ? "thing" : "things", name_list);
-
-    quest_typewriter_menu("Ancient Knowledge", texts, text_count, TERM_L_BLUE, TERM_WHITE);
+    msg_format("The thrall speaks of %d ancient %s.",
+        reveal_count, reveal_count == 1 ? "thing" : "things");
+    for (i = 0; i < reveal_count; i++)
+        msg_format("You learn of %s.", o_names[i]);
+    msg_print("These names will remain known to later heroes in this metarun.");
 
     for (i = 0; i < reveal_count; i++)
         desc_art_fake(selected[i]);
@@ -2199,22 +2254,14 @@ bool handle_thrall_interaction(monster_type* m_ptr)
     if (item_slot >= 0)
     {
         /* Player has the item - offer to give it */
-        
-        /* Show Pre-Give Dialog */
-        int variant = rand_int(THRALL_TEXT_VARIANTS);
+        char prompt_desc[480];
 
         identify_thrall_quest_item_before_offer(
             m_ptr->thrall_quest_item, item_slot);
 
-        if (!showed_request)
-        {
-            if (m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-                show_thrall_dialog(m_ptr, elf_pre_give_texts[variant]);
-            else
-                show_thrall_dialog(m_ptr, human_pre_give_texts[variant]);
-        }
+        thrall_pre_give_desc(m_ptr, prompt_desc, sizeof(prompt_desc));
 
-        switch (thrall_give_item_question(m_ptr))
+        switch (thrall_give_item_question(m_ptr, prompt_desc))
         {
         case 0:
             complete_thrall_quest(m_ptr, item_slot);
@@ -2228,9 +2275,10 @@ bool handle_thrall_interaction(monster_type* m_ptr)
     }
     else
     {
-        /* Player doesn't have the item - repeat the request */
+        /* Player doesn't have the item - remind without reopening the book. */
         if (!showed_request)
-            thrall_request_dialog(m_ptr);
+            msg_format("%^s waits for %s.", m_name,
+                get_thrall_quest_item_name(m_ptr->thrall_quest_item));
     }
     
     return true;

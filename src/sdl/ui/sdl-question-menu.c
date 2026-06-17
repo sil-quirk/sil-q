@@ -250,18 +250,49 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     if (panel_w > max_panel_w)
         panel_w = max_panel_w;
 
+    max_panel_h = (float)anchor.h - (float)margin * 2.0f;
+    if (max_panel_h < 1.0f)
+        max_panel_h = (float)anchor.h;
+
     if (out->has_desc)
+    {
         desc_h = sdl_question_menu_desc_height(story_font,
             panel_w - pad_x * 2.0f);
+
+        if (desc_h > 0.0f)
+        {
+            int reserved_rows = g_question_menu.count;
+            float reserved_h;
+
+            if (reserved_rows > 3)
+                reserved_rows = 3;
+
+            reserved_h = pad_y * 2.0f
+                + row_h * (float)reserved_rows
+                + divider_gap
+                + 4.0f;
+            if (out->has_title)
+                reserved_h += row_h + divider_gap;
+
+            if (max_panel_h > reserved_h)
+            {
+                float max_desc_h = max_panel_h - reserved_h;
+
+                if (desc_h > max_desc_h)
+                    desc_h = max_desc_h;
+            }
+            else
+            {
+                desc_h = 0.0f;
+            }
+        }
+    }
 
     panel_h = pad_y * 2.0f + row_h * (float)g_question_menu.count;
     if (out->has_title)
         panel_h += row_h + divider_gap;
     if (desc_h > 0.0f)
         panel_h += desc_h + divider_gap;
-    max_panel_h = (float)anchor.h - (float)margin * 2.0f;
-    if (max_panel_h < 1.0f)
-        max_panel_h = (float)anchor.h;
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
@@ -344,7 +375,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     {
         float rows_bottom = out->panel.y + out->panel.h - pad_y;
         float rows_h = rows_bottom - rows_top;
-        int visible_count = (int)(rows_h / row_h);
+        int visible_count = (int)((rows_h + 2.0f) / row_h);
         int highlight_index = 0;
         int first_entry = 0;
 
@@ -632,6 +663,12 @@ void sdl_question_menu_render(void)
 
             if (texture)
             {
+                SDL_FRect src = (SDL_FRect){
+                    .x = 0.0f,
+                    .y = 0.0f,
+                    .w = (float)surface->w,
+                    .h = (float)surface->h,
+                };
                 SDL_FRect dst = (SDL_FRect){
                     .x = layout.desc_rect.x,
                     .y = layout.desc_rect.y,
@@ -641,8 +678,13 @@ void sdl_question_menu_render(void)
 
                 if (dst.w > layout.desc_rect.w)
                     dst.w = layout.desc_rect.w;
+                if (dst.h > layout.desc_rect.h)
+                {
+                    dst.h = layout.desc_rect.h;
+                    src.h = layout.desc_rect.h;
+                }
                 SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-                SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+                SDL_RenderTexture(g_state.renderer, texture, &src, &dst);
                 SDL_DestroyTexture(texture);
             }
             SDL_DestroySurface(surface);
