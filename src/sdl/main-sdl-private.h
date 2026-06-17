@@ -550,6 +550,11 @@ typedef struct sdl_character_sheet_screen_state {
     bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
     int select_page;           /* book mode: current page (0 = story, 1 = choice) */
     int select_page_count;     /* book mode: number of pages (1 otherwise) */
+    int select_book_body_px;   /* cached body size for race book layout */
+    int select_book_body_for_h;
+    int select_book_body_for_w;
+    int select_book_body_for_region_h;
+    int select_book_body_for_title_px;
     bool page_turn_active;     /* book mode: a page-curl animation is playing */
     int page_turn_dir;         /* +1 = forward (0->1), -1 = back (1->0) */
     Uint64 page_turn_start_ns; /* animation start timestamp */

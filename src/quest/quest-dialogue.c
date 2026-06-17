@@ -185,6 +185,9 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
         if (c == UI_MENU_CLICK_WAKE_KEY)
             continue;
 
+        if (steamdeck_controls_active())
+            c = steamdeck_menu_key(c, '4', '6');
+
         /* Swallow keys while a page-curl is mid-flight. */
         if (sdl_character_sheet_screen_page_turning())
             continue;
