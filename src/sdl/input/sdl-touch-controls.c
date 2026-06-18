@@ -528,7 +528,8 @@ void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse,
 
 bool sdl_touch_round_layer_config_enabled(void)
 {
-    return config.touch_round_movement_enabled;
+    return sdl_touch_only_mobile_device_active()
+        && config.touch_round_movement_enabled;
 }
 
 bool sdl_touch_round_layer_controls_active(void)
@@ -633,7 +634,7 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     }
 }
 
-static bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
+bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
     float* out_radius, float* out_inner_radius, SDL_Rect* out_clip)
 {
     SDL_Rect clip;

@@ -489,10 +489,14 @@ typedef struct sdl_character_sheet_select_row {
     char desc[256];    /* hover tooltip */
 } sdl_character_sheet_select_row;
 
-/* One informational "label<TAB>value" line in the selection detail panel. */
+/* One informational "label<TAB>value" line in the selection detail panel.
+ * text must hold a full prefixed line (e.g. "Description: " + the longest
+ * oath/curse description, ~310 chars) so long entries are not truncated -- a
+ * short buffer here both clips the text and starves the detail font-fit loop,
+ * making it pick an oversized font for the now-too-short content. */
 typedef struct sdl_character_sheet_select_detail {
     byte attr;
-    char text[128];
+    char text[512];
     char desc[256];   /* hover tooltip (stat/trait explanation) */
 } sdl_character_sheet_select_detail;
 
@@ -2563,6 +2567,8 @@ bool sdl_touch_round_point_excluded(float x, float y);
 bool sdl_touch_movement_point_blocked_by_overlay(float x, float y);
 float sdl_touch_round_radius_px(void);
 bool sdl_touch_round_compute_clip_rect(SDL_Rect* out_clip);
+bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
+    float* out_radius, float* out_inner_radius, SDL_Rect* out_clip);
 int sdl_touch_round_dir_for_delta(float dx, float dy);
 void sdl_touch_round_send_dir(int dir, bool ctrl);
 void sdl_touch_round_cancel_press(void);
@@ -2779,7 +2785,8 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen, int page, int pa
 void sdl_touch_tutorial_draw_overlay_menu(const SDL_Rect* screen);
 void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page, int page_count);
 void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen, int page, int page_count);
-void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen, int page, int page_count);
+void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
+    int page, int page_count);
 int sdl_touch_tutorial_wait_action(Uint64 accept_after_ns);
 void sdl_touch_tutorial_draw_page(int page, bool full, int page_count, bool mouse);
 void sdl_touch_tutorial_prepare_snapshot(void);
@@ -2787,7 +2794,7 @@ void sdl_touch_tutorial_run(bool full, bool mouse);
 int sdl_touch_tutorial_current_choice_index(void);
 int sdl_touch_tutorial_choose_profile(void);
 void sdl_touch_tutorial_save_profile_choice(int profile);
-void sdl_touch_tutorial_run_with_profile_choice(void);
+void sdl_touch_tutorial_run_fixed(void);
 void sdl_touch_mark_tutorial_seen_and_save(void);
 void sdl_mouse_mark_tutorial_seen_and_save(void);
 void sdl_touch_request_tutorial_from_settings(void);
@@ -3655,6 +3662,8 @@ bool sdl_touch_round_handle_pointer_up(float x, float y,
     SDL_FingerID finger_id);
 void sdl_touch_round_cancel_press(void);
 void sdl_touch_round_render(void);
+bool sdl_touch_round_compute_layout(float* out_cx, float* out_cy,
+    float* out_radius, float* out_inner_radius, SDL_Rect* out_clip);
 void sdl_touch_round_render_target_square(int dir, bool ctrl);
 int sdl_touch_profile_normalized(int profile);
 void sdl_touch_hidden_indicator_render(void);
@@ -3692,7 +3701,7 @@ void sdl_restore_render_target(sdl_view* d);
 void sdl_touch_tutorial_maybe_show_deferred(void);
 void sdl_input_tutorial_maybe_show_deferred(void);
 void sdl_touch_tutorial_run(bool full, bool mouse);
-void sdl_touch_tutorial_run_with_profile_choice(void);
+void sdl_touch_tutorial_run_fixed(void);
 void sdl_touch_show_tutorial(void);
 void sdl_mouse_show_tutorial(void);
 int get_sdl_touch_pane_binding_for_panel(int panel, int index);

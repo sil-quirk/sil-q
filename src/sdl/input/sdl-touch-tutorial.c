@@ -828,10 +828,11 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
     const SDL_Rect* screen, float header_bottom, bool mouse)
 {
     SDL_FRect rect;
+    SDL_Rect pane_rect;
     int term_h;
     int map_cols;
     int panel_rows;
-    const char* legend_lines[6];
+    const char* legend_lines[8];
     int legend_n = 0;
     bool supporting_pane_seen = false;
 
@@ -879,6 +880,26 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
             : "Map/player: tap to path or target; hold for actions.";
     }
 
+    if (sdl_combat_overlay_pane_current_rect(&pane_rect)) {
+        rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
+            (float)pane_rect.w, (float)pane_rect.h };
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Combat");
+    }
+    if (sdl_touch_top_panel_compute_layout(NULL, &rect))
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Quick");
+    if (sdl_status_pane_current_rect(&pane_rect, NULL)) {
+        rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
+            (float)pane_rect.w, (float)pane_rect.h };
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Status");
+    }
+    if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect))
+        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Rolls");
+    if (legend_n < (int)N_ELEMENTS(legend_lines)) {
+        legend_lines[legend_n++] = mouse
+            ? "Overlays: click combat, quick access, status, depth, or rolls."
+            : "Overlays: tap combat, quick access, status, depth, or rolls.";
+    }
+
     if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Inventory");
         supporting_pane_seen = true;
@@ -891,14 +912,10 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Messages");
         supporting_pane_seen = true;
     }
-    if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
-        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Rolls");
-        supporting_pane_seen = true;
-    }
     if (supporting_pane_seen && legend_n < (int)N_ELEMENTS(legend_lines)) {
         legend_lines[legend_n++] = mouse
-            ? "Panes: click inventory, equipment, messages, or rolls panes."
-            : "Panes: tap inventory, equipment, messages, or rolls panes.";
+            ? "Panes: click inventory, equipment, or messages panes."
+            : "Panes: tap inventory, equipment, or messages panes.";
     }
 
     sdl_touch_tutorial_draw_compact_zone_legend(screen, header_bottom,
@@ -910,6 +927,7 @@ void sdl_touch_tutorial_draw_main_screen_zones(
 {
     sdl_touch_tutorial_zone_callout callouts[SDL_TOUCH_TUTORIAL_MAX_ZONE_CALLOUTS];
     SDL_FRect rect;
+    SDL_Rect pane_rect;
     int callout_count = 0;
     int term_h;
     int map_cols;
@@ -958,8 +976,39 @@ void sdl_touch_tutorial_draw_main_screen_zones(
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Map / player",
             mouse
-                ? "Left-click: path to an explored or open square, or select a target.\nRight-click: open contextual actions, look, or special movement choices.\nMouse Movement: choose On, Off, or Right-click only in Mouse Input."
+                ? "Left-click: path to an explored or open square, or select a target.\nRight-click: open contextual actions, look, or special movement choices.\nMouse Movement: choose On, Off, or Right click only in Mouse Input."
                 : "Tap: path to an explored or open square, or select a target.\nHold/right-click: open contextual actions, look, or special movement choices.\nPlayer square: action wheel; Use/Desc act on the floor item, hold/right-click them for full item menus.");
+    }
+
+    if (sdl_combat_overlay_pane_current_rect(&pane_rect)) {
+        rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
+            (float)pane_rect.w, (float)pane_rect.h };
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Combat overlay",
+            mouse
+                ? "Click an attack row to choose the matching attack mode.\nDefault placement: lower-left corner."
+                : "Tap an attack row to choose the matching attack mode.\nDefault placement: lower-left corner.");
+    }
+    if (sdl_touch_top_panel_compute_layout(NULL, &rect)) {
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Quick access",
+            mouse
+                ? "Click an icon for its command; right-click for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor."
+                : "Tap an icon for its command; hold for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor.");
+    }
+    if (sdl_status_pane_current_rect(&pane_rect, NULL)) {
+        rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
+            (float)pane_rect.w, (float)pane_rect.h };
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Status overlay",
+            "Shows temporary conditions and remaining durations.\nDefault placement: lower-right corner.");
+    }
+    if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
+        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+            "Roll log overlay",
+            mouse
+                ? "Click: open combat history.\nDefault placement: upper-right, below the depth control."
+                : "Tap: open combat history.\nDefault placement: upper-right, below the depth control.");
     }
 
     if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
@@ -983,14 +1032,6 @@ void sdl_touch_tutorial_draw_main_screen_zones(
                 ? "Click: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions."
                 : "Tap: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions.");
     }
-    if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
-        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
-            "Combat rolls",
-            mouse
-                ? "Click: open combat history.\nShows: attack rolls, protection rolls, criticals, modifiers, and the details behind recent melee exchanges."
-                : "Tap: open combat history.\nShows: attack rolls, protection rolls, criticals, modifiers, and the details behind recent melee exchanges.");
-    }
-
     for (int i = 0; i < callout_count; i++)
         sdl_touch_tutorial_draw_zone_highlight(&callouts[i].zone);
     for (int i = 0; i < callout_count; i++) {
@@ -1007,14 +1048,14 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
 
     sdl_touch_tutorial_draw_screen_dim(screen, 112);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
-        mouse ? "Main Screen Mouse Controls" : "Main Screen Touch Zones",
+        mouse ? "Main Screen Mouse Controls" : "Default Touch Layout",
         mouse
             ? (compact
                 ? "Click highlighted regions to open views and menus. Left-click the map to move; right-click for actions."
                 : "Click highlighted regions to open views and menus. Left-click the map to move; right-click for actions. Mouse Movement can be changed any time in Options > Input Options > Mouse Input.")
             : (compact
-                ? "Tap highlighted regions to open game views and menus. Presets live in Touch Settings."
-                : "Tap highlighted regions to open game views and menus. Presets can be changed any time in Options > Input Options > Touch Settings."),
+                ? "Tap highlighted regions to open views. The fixed overlays use the placements shown here."
+                : "Tap highlighted regions to open views. Combat is lower left, quick access bottom center, status lower right, and depth/rolls upper right."),
         page, page_count);
 
     if (compact)
@@ -1031,20 +1072,11 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
 void sdl_touch_tutorial_draw_overlay_menu(const SDL_Rect* screen)
 {
     SDL_FRect button_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
-    SDL_Rect panel_screen;
-    float footer_reserve;
 
     if (!screen)
         return;
 
-    panel_screen = *screen;
-    footer_reserve = sdl_touch_pane_clampf((float)screen->h * 0.16f,
-        96.0f, 132.0f);
-    if ((float)panel_screen.h > footer_reserve)
-        panel_screen.h -= (int)footer_reserve;
-
-    if (!sdl_touch_top_panel_compute_layout_for_screen(&panel_screen,
-            button_rects, NULL))
+    if (!sdl_touch_top_panel_compute_layout(button_rects, NULL))
         return;
 
     sdl_touch_top_panel_render_buttons(button_rects);
@@ -1207,61 +1239,39 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
 
-void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
+void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
     int page, int page_count)
 {
     SDL_Color wheel = g_state.palette[TERM_YELLOW];
     SDL_Color inner_wheel = g_state.palette[TERM_L_BLUE];
-    SDL_Rect touch_pane_rect;
     float cx;
     float cy;
     float radius;
     float inner_radius;
-    float content_left;
-    float content_right;
-    float content_w;
     float header_bottom;
+    float margin;
     float panel_x;
     float panel_w;
     float panel_y;
+    bool have_wheel;
 
     sdl_touch_tutorial_draw_screen_dim(screen, 150);
     sdl_touch_tutorial_draw_overlay_menu(screen);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
-        "Preset: Button wheel + quick access",
-        "Pane hidden by default. Tap an outer arrow to move, or drag inside the wheel to choose a direction.",
+        "Button Wheel + Quick Access",
+        "The wheel uses the open right-side lane between the upper and lower overlays. Quick access stays at bottom center.",
         page, page_count);
 
-    content_left = (float)screen->x;
-    content_right = (float)(screen->x + screen->w);
-    if (sdl_touch_pane_current_rect(&touch_pane_rect)
-        && (float)touch_pane_rect.x > content_left + 120.0f)
-    {
-        content_right = (float)touch_pane_rect.x;
+    have_wheel = sdl_touch_round_compute_layout(&cx, &cy, &radius,
+        &inner_radius, NULL);
+    if (!have_wheel) {
+        radius = sdl_touch_pane_clampf((float)screen->h * 0.115f,
+            58.0f, 122.0f);
+        inner_radius = radius * 0.58f;
+        cx = (float)screen->x + (float)screen->w * 0.78f;
+        cy = header_bottom + radius + sdl_touch_pane_clampf(
+            (float)screen->h * 0.12f, 52.0f, 84.0f);
     }
-    content_w = content_right - content_left;
-    if (content_w < 320.0f) {
-        content_left = (float)screen->x;
-        content_right = (float)(screen->x + screen->w);
-        content_w = content_right - content_left;
-    }
-
-    radius = sdl_touch_pane_clampf((float)screen->h * 0.115f,
-        58.0f, 122.0f);
-    inner_radius = radius * 0.58f;
-    cx = content_left + content_w * 0.72f;
-    cy = header_bottom + radius + sdl_touch_pane_clampf(
-        (float)screen->h * 0.12f, 52.0f, 84.0f);
-    if (cy + radius > (float)(screen->y + screen->h)
-            - sdl_touch_pane_clampf((float)screen->h * 0.14f,
-                82.0f, 112.0f))
-    {
-        cy = (float)(screen->y + screen->h)
-            - sdl_touch_pane_clampf((float)screen->h * 0.14f,
-                82.0f, 112.0f) - radius;
-    }
-    if (cy < header_bottom + radius + 20.0f)
-        cy = header_bottom + radius + 20.0f;
 
     wheel.a = 248;
     inner_wheel.a = 210;
@@ -1296,18 +1306,25 @@ void sdl_touch_tutorial_draw_profiles_page(const SDL_Rect* screen,
         }
     }
 
-    panel_x = content_left + content_w * 0.06f;
-    panel_w = content_w * 0.46f;
-    if (panel_x + panel_w > cx - radius - 24.0f)
-        panel_w = cx - radius - 24.0f - panel_x;
-    if (panel_w < 280.0f)
-        panel_w = content_w * 0.52f;
+    margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
+        18.0f, 36.0f);
+    if (cx >= (float)screen->x + (float)screen->w * 0.5f) {
+        panel_x = (float)screen->x + margin;
+        panel_w = cx - radius - panel_x - margin;
+    } else {
+        panel_x = cx + radius + margin;
+        panel_w = (float)(screen->x + screen->w) - panel_x - margin;
+    }
+    if (panel_w < 260.0f) {
+        panel_x = (float)screen->x + margin;
+        panel_w = (float)screen->w * 0.46f;
+    }
     panel_y = header_bottom + sdl_touch_pane_clampf(
         (float)screen->h * 0.035f, 18.0f, 32.0f);
 
     sdl_touch_tutorial_draw_info_panel(screen,
-        panel_x, panel_y, panel_w, "Button wheel preset",
-        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nQuick access: tap a button for its command; hold it for the long-touch command.");
+        panel_x, panel_y, panel_w, "Button wheel controls",
+        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nQuick access: tap a button for its command; hold it for the long-touch command.\nDescription cards open above the bottom-center quick-access overlay.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
@@ -1463,14 +1480,8 @@ void sdl_touch_tutorial_draw_page(int page, bool full, int page_count,
         sdl_touch_tutorial_draw_zones_page(&screen, page, page_count, false);
         break;
     case 1:
-        sdl_touch_tutorial_draw_pane_page(&screen, page, page_count);
-        break;
-    case 2:
-        sdl_touch_tutorial_draw_movement_page(&screen, page, page_count);
-        break;
-    case 3:
     default:
-        sdl_touch_tutorial_draw_profiles_page(&screen, page, page_count);
+        sdl_touch_tutorial_draw_buttonwheel_page(&screen, page, page_count);
         break;
     }
 }
@@ -1497,7 +1508,7 @@ void sdl_touch_tutorial_run(bool full, bool mouse)
 {
     sdl_view* d;
     int page = 0;
-    int page_count = full ? 4 : 1;
+    int page_count = full ? 2 : 1;
     bool done = false;
     Uint64 accept_after_ns;
 
@@ -2702,26 +2713,13 @@ void sdl_touch_tutorial_save_profile_choice(int profile)
     }
 }
 
-void sdl_touch_tutorial_run_with_profile_choice(void)
+void sdl_touch_tutorial_run_fixed(void)
 {
     bool full = sdl_touch_tutorial_full_mode();
 
-    if (!full) {
-        sdl_touch_tutorial_run(false, false);
-        return;
-    }
-
-    for (;;) {
-        int choice;
-
-        sdl_touch_tutorial_run(full, false);
-        choice = sdl_touch_tutorial_choose_profile();
-        if (choice == SDL_TOUCH_TUTORIAL_CHOICE_REPLAY)
-            continue;
-        if (choice >= 0)
-            sdl_touch_tutorial_save_profile_choice(choice);
-        break;
-    }
+    if (sdl_touch_only_mobile_device_active())
+        sdl_touch_apply_profile(SDL_TOUCH_PROFILE_ROUND_WHEEL);
+    sdl_touch_tutorial_run(full, false);
 }
 
 void sdl_touch_mark_tutorial_seen_and_save(void)
@@ -2818,7 +2816,7 @@ void sdl_input_tutorial_maybe_show_deferred(void)
 
 void sdl_touch_show_tutorial(void)
 {
-    sdl_touch_tutorial_run_with_profile_choice();
+    sdl_touch_tutorial_run_fixed();
     sdl_touch_mark_tutorial_seen_and_save();
 }
 
@@ -2835,7 +2833,7 @@ void sdl_touch_maybe_show_first_game_tutorial(void)
     if (sdl_config_touch_tutorial_seen())
         return;
 
-    sdl_touch_tutorial_run_with_profile_choice();
+    sdl_touch_tutorial_run_fixed();
     sdl_touch_mark_tutorial_seen_and_save();
 }
 

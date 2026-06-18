@@ -2160,14 +2160,17 @@ void sdl_apply_startup_input_defaults_to_config(
         && (device == SDL_STARTUP_DEVICE_DESKTOP);
 
     if (mobile_touch) {
-        target->touch_profile = SDL_TOUCH_PROFILE_TOUCH_PANE;
-        target->touch_pane_default_open = true;
+        target->touch_profile = SDL_TOUCH_PROFILE_ROUND_WHEEL;
+        target->touch_pane_default_open = false;
         for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++)
             target->touch_menu_command_enabled[i] = true;
         target->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
-        target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
-        target->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
-        target->touch_top_panel_default_open = false;
+        target->touch_round_movement_enabled = true;
+        target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
+        target->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
+        target->touch_top_panel_button_count =
+            SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+        target->touch_top_panel_default_open = true;
         target->touch_top_panel_tile_scale =
             SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
         target->touch_swipe_enabled = true;

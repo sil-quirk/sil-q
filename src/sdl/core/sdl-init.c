@@ -366,13 +366,8 @@ errr init_sdl(int argc, char **argv)
     if (!config_exists) {
         sdl_apply_first_start_device_defaults(g_startup_device_class);
     }
-    if (config.touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL
-        && sdl_touch_only_mobile_device_active()
-        && !sdl_touch_pane_is_config_enabled())
-    {
-        config.touch_pane_default_open = false;
-        set_sdl_touch_pane_enabled(true);
-    }
+    if (sdl_touch_only_mobile_device_active())
+        sdl_touch_apply_profile(SDL_TOUCH_PROFILE_ROUND_WHEEL);
 
     g_touch_pane_mobile_open = config.touch_pane_default_open;
     g_touch_top_panel_open = config.touch_top_panel_default_open;

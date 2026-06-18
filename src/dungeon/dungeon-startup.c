@@ -213,10 +213,11 @@ PlayResult play_game(void)
 
         if (explicit_blitz_launch && run_mode_is_blitz())
         {
-            log_info("Explicit fresh Blitz launch requested; skipping Blitz autoload");
+            log_info("Explicit Blitz launch requested; checking for an alive Blitz character");
         }
-        else if (startup_try_autoload_current_mode(
-                     run_mode_is_blitz() ? "Blitz" : "story"))
+
+        if (startup_try_autoload_current_mode(
+                run_mode_is_blitz() ? "Blitz" : "story"))
         {
             new_game = false;
         }

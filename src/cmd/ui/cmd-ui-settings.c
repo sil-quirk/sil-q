@@ -3037,13 +3037,17 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed);
 static void do_cmd_touch_pane_button_editor(bool* settings_changed);
 static void do_cmd_touch_button_settings(bool* settings_changed);
 static void do_cmd_touch_profile_settings(bool* settings_changed);
-static void do_cmd_touch_settings(bool* settings_changed);
+static void do_cmd_touch_settings(bool* settings_changed)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((unused))
+#endif
+    ;
 static void do_cmd_touch_control_settings(bool* settings_changed);
 static const char* pane_type_short_name(enum pane_type type);
 
 static bool pane_settings_exposes_pane(enum pane_type type)
 {
-    return type != PANE_MAIN;
+    return type != PANE_MAIN && type != PANE_TOUCH;
 }
 
 static bool pane_font_settings_exposes_pane(enum pane_type type)
@@ -8758,7 +8762,10 @@ int options_menu(int* highlight)
 static int input_options_menu(int* highlight)
 {
     int ch;
-    int options = 5;
+    bool touch_available = sdl_touch_tutorial_device_available();
+    int mouse_choice = touch_available ? 4 : 3;
+    int return_choice = touch_available ? 5 : 4;
+    int options = return_choice;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -8816,9 +8823,10 @@ static int input_options_menu(int* highlight)
 
     ADD_INPUT_MENU_ROW(1, 'a', "Set Keybinds");
     ADD_INPUT_MENU_ROW(2, 'b', "Controller Settings");
-    ADD_INPUT_MENU_ROW(3, 'c', "Touch Setting");
-    ADD_INPUT_MENU_ROW(4, 'd', "Mouse Input");
-    ADD_INPUT_MENU_ROW(5, 'o', "Return to Options");
+    if (touch_available)
+        ADD_INPUT_MENU_ROW(3, 'c', "Touch Tutorial");
+    ADD_INPUT_MENU_ROW(mouse_choice, 'd', "Mouse Input");
+    ADD_INPUT_MENU_ROW(return_choice, 'o', "Return to Options");
 
 #undef ADD_INPUT_MENU_ROW
 
@@ -8831,7 +8839,7 @@ static int input_options_menu(int* highlight)
             "tap/click a row to open; drag/wheel move selection; Esc return",
             "tap/click open; drag/wheel move; Esc return",
             "tap open; drag/wheel; Esc");
-        ui_menu_click_add_full_row(5, term_hgt - 1);
+        ui_menu_click_add_full_row(return_choice, term_hgt - 1);
 
         Term_fresh();
         Term_gotoxy(2, title_row + 1 + *highlight);
@@ -8849,11 +8857,11 @@ static int input_options_menu(int* highlight)
             if (click_action == UI_MENU_CLICK_HOVER && clicked_choice < 0)
                 return (0);
             if (clicked_choice == -1)
-                clicked_choice = 5;
+                clicked_choice = return_choice;
             else if (clicked_choice == -2)
                 clicked_choice = *highlight;
             if (clicked_choice == SETTINGS_CLICK_RETURN)
-                clicked_choice = 5;
+                clicked_choice = return_choice;
             if (clicked_choice < 1 || clicked_choice > options)
                 return (0);
             *highlight = clicked_choice;
@@ -8877,7 +8885,7 @@ static int input_options_menu(int* highlight)
         return (2);
     }
 
-    if (menu_letters && ((ch == 'c') || (ch == 'C')))
+    if (touch_available && menu_letters && ((ch == 'c') || (ch == 'C')))
     {
         *highlight = 3;
         return (3);
@@ -8885,15 +8893,15 @@ static int input_options_menu(int* highlight)
 
     if (menu_letters && ((ch == 'd') || (ch == 'D')))
     {
-        *highlight = 4;
-        return (4);
+        *highlight = mouse_choice;
+        return (mouse_choice);
     }
 
     if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
         || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
-        *highlight = 5;
-        return (5);
+        *highlight = return_choice;
+        return (return_choice);
     }
 
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6')
@@ -8924,6 +8932,8 @@ static void do_cmd_input_options_submenu(int* highlight)
 
     while (!return_to_options)
     {
+        bool touch_available = sdl_touch_tutorial_device_available();
+
         choice = input_options_menu(highlight);
         settings_semantic_menu_hide();
 
@@ -8941,16 +8951,25 @@ static void do_cmd_input_options_submenu(int* highlight)
             break;
         case 3:
             settings_semantic_menu_hide();
-            do_cmd_touch_settings(NULL);
-            if (sdl_touch_settings_tutorial_requested())
+            if (touch_available) {
+                sdl_touch_request_tutorial_from_settings();
                 return_to_options = true;
+            } else {
+                do_cmd_mouse_settings(NULL);
+                if (sdl_mouse_settings_tutorial_requested())
+                    return_to_options = true;
+            }
             Term_clear();
             break;
         case 4:
             settings_semantic_menu_hide();
-            do_cmd_mouse_settings(NULL);
-            if (sdl_mouse_settings_tutorial_requested())
+            if (touch_available) {
+                do_cmd_mouse_settings(NULL);
+                if (sdl_mouse_settings_tutorial_requested())
+                    return_to_options = true;
+            } else {
                 return_to_options = true;
+            }
             Term_clear();
             break;
         case 5:

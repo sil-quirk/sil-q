@@ -1392,24 +1392,6 @@ static const char* sdl_config_gamepad_right_stick_combo_names[GAMEPAD_MODIFIER_C
     "altRightStickBindings",
 };
 
-static cJSON* sdl_config_create_string_array(const char src[][SDL_TOUCH_PANE_LABEL_LEN], int count)
-{
-    cJSON* array;
-
-    if (!src || count <= 0)
-        return NULL;
-
-    array = cJSON_CreateArray();
-    if (!array)
-        return NULL;
-
-    for (int i = 0; i < count; i++) {
-        cJSON_AddItemToArray(array, cJSON_CreateString(src[i]));
-    }
-
-    return array;
-}
-
 static void sdl_config_copy_pane_configs(struct pane_config* dest, int* dest_count,
     const struct pane_config* src, int src_count)
 {
@@ -2846,7 +2828,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         config->mouse_movement_mode =
             normalize_mouse_movement_mode(config->mouse_movement_mode);
     }
-    
+
     cJSON_Delete(root);
     log_debug("Configuration loading complete. Active mode=%s", min_terminal_mode_to_string(config->min_terminal_mode));
     return SDL_CONFIG_LOAD_OK;
@@ -3082,116 +3064,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddNumberToObject(gamepad, "shoulderComboBinding", config->gamepad_shoulder_combo_binding);
 
             cJSON_AddItemToObject(root, "gamepad", gamepad);
-        }
-    }
-
-    {
-        cJSON* touch_pane = cJSON_CreateObject();
-        if (touch_pane) {
-            cJSON* bindings = sdl_config_create_int_array(config->touch_pane_bindings,
-                SDL_TOUCH_PANE_BUTTON_COUNT);
-            cJSON* labels = sdl_config_create_string_array(config->touch_pane_labels,
-                SDL_TOUCH_PANE_BUTTON_COUNT);
-            cJSON* second_bindings = sdl_config_create_int_array(config->touch_pane_second_bindings,
-                SDL_TOUCH_PANE_BUTTON_COUNT);
-            cJSON* second_labels = sdl_config_create_string_array(config->touch_pane_second_labels,
-                SDL_TOUCH_PANE_BUTTON_COUNT);
-            cJSON* panel_names = sdl_config_create_string_array(config->touch_pane_panel_names,
-                SDL_TOUCH_PANE_PANEL_COUNT);
-            if (bindings) {
-                cJSON_AddItemToObject(touch_pane, "bindings", bindings);
-            }
-            if (labels) {
-                cJSON_AddItemToObject(touch_pane, "labels", labels);
-            }
-            if (second_bindings) {
-                cJSON_AddItemToObject(touch_pane, "secondBindings", second_bindings);
-            }
-            if (second_labels) {
-                cJSON_AddItemToObject(touch_pane, "secondLabels", second_labels);
-            }
-            if (panel_names) {
-                cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
-            }
-            cJSON_AddBoolToObject(touch_pane, "showKeyLabels",
-                config->touch_pane_key_labels_visible);
-            cJSON_AddBoolToObject(touch_pane, "inventoryEquipmentCycle",
-                config->touch_pane_inventory_equipment_cycle);
-            cJSON_AddItemToObject(root, "touchPane", touch_pane);
-        }
-    }
-
-    {
-        cJSON* touch_control = cJSON_CreateObject();
-        if (touch_control) {
-            cJSON* center_bindings = sdl_config_create_int_array(
-                config->touch_zone_center_bindings,
-                SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
-            cJSON* corner_action_bindings = sdl_config_create_int_array(
-                config->touch_corner_action_bindings,
-                SDL_TOUCH_CORNER_ACTION_BINDING_COUNT);
-            cJSON* top_panel_bindings = sdl_config_create_int_array(
-                config->touch_top_panel_bindings,
-                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
-            cJSON* top_panel_long_bindings = sdl_config_create_int_array(
-                config->touch_top_panel_long_bindings,
-                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
-            cJSON* swipe_bindings = sdl_config_create_int_array(config->touch_swipe_bindings,
-                TOUCH_SWIPE_DIR_COUNT);
-
-            cJSON_AddStringToObject(touch_control, "profile",
-                touch_profile_to_string(config->touch_profile));
-            cJSON_AddBoolToObject(touch_control, "touchPaneDefaultOpen",
-                config->touch_pane_default_open);
-            cJSON_AddBoolToObject(touch_control,
-                "inventoryEquipmentMenuCommandsEnabled",
-                config->touch_menu_command_enabled[
-                    SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT]);
-            cJSON_AddBoolToObject(touch_control, "supplyMenuCommandsEnabled",
-                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_SUPPLY]);
-            cJSON_AddBoolToObject(touch_control, "otherMenuCommandsEnabled",
-                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]);
-            cJSON_AddStringToObject(touch_control, "movementMode",
-                touch_movement_mode_to_string(config->touch_movement_mode));
-            cJSON_AddBoolToObject(touch_control,
-                "roundMovementLayerEnabled",
-                config->touch_round_movement_enabled);
-            cJSON_AddStringToObject(touch_control, "cornerButtonOverlayMode",
-                touch_zone_overlay_mode_to_string(
-                    config->touch_zone_overlay_mode));
-            if (center_bindings) {
-                cJSON_AddItemToObject(touch_control,
-                    "cornerButtonCenterBindings", center_bindings);
-            }
-            cJSON_AddStringToObject(touch_control, "cornerButtonUpDownSide",
-                touch_corner_up_down_side_to_string(
-                    config->touch_corner_up_down_side));
-            if (corner_action_bindings) {
-                cJSON_AddItemToObject(touch_control,
-                    "cornerButtonActionBindings", corner_action_bindings);
-            }
-            cJSON_AddStringToObject(touch_control, "topPanelMode",
-                touch_top_panel_mode_to_string(config->touch_top_panel_mode));
-            cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
-                config->touch_top_panel_default_open);
-            cJSON_AddNumberToObject(touch_control, "topPanelButtonCount",
-                config->touch_top_panel_button_count);
-            cJSON_AddNumberToObject(touch_control, "topPanelTileScale",
-                config->touch_top_panel_tile_scale);
-            if (top_panel_bindings) {
-                cJSON_AddItemToObject(touch_control,
-                    "topPanelBindings", top_panel_bindings);
-            }
-            if (top_panel_long_bindings) {
-                cJSON_AddItemToObject(touch_control,
-                    "topPanelLongBindings", top_panel_long_bindings);
-            }
-            cJSON_AddBoolToObject(touch_control, "swipeEnabled",
-                config->touch_swipe_enabled);
-            if (swipe_bindings) {
-                cJSON_AddItemToObject(touch_control, "swipeBindings", swipe_bindings);
-            }
-            cJSON_AddItemToObject(root, "touchControl", touch_control);
         }
     }
 

@@ -413,7 +413,7 @@ extern NavResult initial_menu(bool *start_new)
      * and leaving that welcome screen active hides the Blitz setup on mobile. */
     if (blitz_launch_requested())
     {
-        log_info("initial_menu: blitz launch requested - entering fresh Blitz mode");
+        log_info("initial_menu: blitz launch requested - entering Blitz mode");
         run_mode_set_pending(RUN_MODE_BLITZ);
         *start_new = true;
         result = NAV_OK;

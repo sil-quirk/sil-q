@@ -270,6 +270,8 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 sdl_character_sheet_screen_set_select_intro(page->intro);
                 sdl_character_sheet_screen_set_select_frame(page->frame_top,
                     page->frame_bottom);
+                if (run_mode_is_blitz())
+                    sdl_character_sheet_screen_show_select_choice_page_only();
             }
 
             for (i = 0; i < num; i++)
@@ -728,7 +730,7 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
          * first page still backs out of the screen entirely.  Arrow keys reach
          * us as '4'/'6'.
          */
-        if (book_mode)
+        if (book_mode && !run_mode_is_blitz())
         {
             int bpage = sdl_character_sheet_screen_select_page();
             int pcount = sdl_character_sheet_screen_select_page_count();

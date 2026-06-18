@@ -26,6 +26,10 @@ enum {
     SDL_CHAR_SHEET_BIRTH_TRAIT_INFO_BASE = 9400
 };
 
+static bool g_sdl_select_choice_page_only = false;
+static bool g_sdl_select_dynamic_description = false;
+static int g_sdl_select_menu_rows_per_column = 0;
+
 const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { 1, TERM_L_BLUE, SDL_WELCOME_LINE_QUOTE,
         "\"In the beginning Eru, the One," },
@@ -2962,7 +2966,9 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         }
 #if SIL_SDL_MOBILE_BUILD
         if (touch_only
-            && sdl_character_sheet_screen_mobile_carousel_active())
+            && (sdl_character_sheet_screen_mobile_carousel_active()
+                || g_sdl_character_sheet_screen.select_menu_style
+                || g_sdl_select_choice_page_only))
         {
             items = select_items_touch;
             item_count = (int)N_ELEMENTS(select_items_touch);
@@ -3246,6 +3252,13 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
 
     if (!prompt_font || content_w <= 0.0f || prompt_h <= 0.0f)
         return;
+
+    if (g_sdl_select_choice_page_only)
+    {
+        sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
+            content_w, prompt_h);
+        return;
+    }
 
 #if SIL_SDL_MOBILE_BUILD
     if (!sdl_touch_only_device_active())
@@ -3617,6 +3630,127 @@ static TTF_Font* sdl_char_sheet_menu_font_for_width(float content_w,
     return chosen_font;
 }
 
+/*
+ * Dynamic choice menus should read like menus, not like full-screen prose.
+ * Start from the same font scale as the established pane/question menus, then
+ * add only as many columns as are needed to fit the rows at that scale.
+ */
+static TTF_Font* sdl_char_sheet_menu_font_for_grid(float content_w,
+    float available_h, int canvas_h, int row_count, int* out_cols,
+    int* out_rows_per_col, float* out_col_gap, float* out_line_h,
+    int* out_px)
+{
+    int max_cols = (row_count >= 12)
+        ? sdl_char_sheet_menu_max_cols(content_w, canvas_h, row_count) : 1;
+    /* Match the established pane/question-menu scale (see
+     * sdl_char_sheet_menu_font_for_width) rather than a prose-sized cap. The
+     * grid font is maximised to fit, so a tall panel with only a few rows would
+     * otherwise balloon to the cap and dwarf the detail column beside it. */
+#if SIL_SDL_MOBILE_BUILD
+    int target_px = sdl_char_sheet_clampi(
+        (int)((float)canvas_h * 0.058f), 38, 68);
+#else
+    int target_px = sdl_char_sheet_clampi(
+        (int)((float)canvas_h * 0.046f), 30, 56);
+#endif
+    int min_px = sdl_char_sheet_clampi(sdl_main_menu_pane_font_px(),
+        16, target_px);
+    TTF_Font* chosen_font = NULL;
+    int chosen_cols = 1;
+    int chosen_rows = MAX(row_count, 1);
+    int chosen_px = min_px;
+    float chosen_gap = 0.0f;
+    float chosen_line_h = 1.0f;
+
+    if (content_w < 1.0f)
+        content_w = 1.0f;
+    if (available_h < 1.0f)
+        available_h = 1.0f;
+    if (max_cols < 1)
+        max_cols = 1;
+
+    for (int px = target_px; px >= min_px && !chosen_font; px--)
+    {
+        TTF_Font* font = sdl_story_font_for_height_slot(px,
+            SDL_STORY_FONT_SLOT_MENU);
+        float line_h;
+        float longest;
+        float gap;
+
+        if (!font)
+            continue;
+
+        line_h = sdl_char_sheet_line_h(font, px, 1.18f);
+        longest = sdl_char_sheet_menu_longest_row_w(font, line_h);
+        gap = sdl_char_sheet_clampf(line_h * 0.72f, 14.0f, 34.0f);
+
+        for (int cols = 1; cols <= max_cols; cols++)
+        {
+            int rows = (row_count + cols - 1) / cols;
+            float col_w =
+                (content_w - gap * (float)(cols - 1)) / (float)cols;
+
+            if (col_w < 1.0f || longest > col_w)
+                continue;
+            if (line_h * (float)rows > available_h)
+                continue;
+
+            chosen_font = font;
+            chosen_cols = cols;
+            chosen_rows = rows;
+            chosen_px = px;
+            chosen_gap = gap;
+            chosen_line_h = line_h;
+            break;
+        }
+    }
+
+    if (!chosen_font)
+    {
+        TTF_Font* font = sdl_story_font_for_height_slot(min_px,
+            SDL_STORY_FONT_SLOT_MENU);
+        float line_h = sdl_char_sheet_line_h(font, min_px, 1.18f);
+        float longest = sdl_char_sheet_menu_longest_row_w(font, line_h);
+        float gap = sdl_char_sheet_clampf(line_h * 0.72f, 14.0f, 34.0f);
+        int best_cols = 1;
+        int best_rows = MAX(row_count, 1);
+
+        for (int cols = 1; cols <= max_cols; cols++)
+        {
+            int rows = (row_count + cols - 1) / cols;
+            float col_w =
+                (content_w - gap * (float)(cols - 1)) / (float)cols;
+
+            if (col_w < longest)
+                continue;
+            best_cols = cols;
+            best_rows = rows;
+            if (line_h * (float)rows <= available_h)
+                break;
+        }
+
+        chosen_font = font;
+        chosen_cols = best_cols;
+        chosen_rows = best_rows;
+        chosen_px = min_px;
+        chosen_gap = gap;
+        chosen_line_h = line_h;
+    }
+
+    if (out_cols)
+        *out_cols = chosen_cols;
+    if (out_rows_per_col)
+        *out_rows_per_col = chosen_rows;
+    if (out_col_gap)
+        *out_col_gap = chosen_gap;
+    if (out_line_h)
+        *out_line_h = chosen_line_h;
+    if (out_px)
+        *out_px = chosen_px;
+
+    return chosen_font;
+}
+
 void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
     int choice, float x, float y, float w, float line_h, float value_col_x,
     int reset_choice, float reset_w)
@@ -3756,16 +3890,309 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
     }
 }
 
+static void sdl_char_sheet_dynamic_menu_headings(char* list, size_t list_sz,
+    char* detail, size_t detail_sz)
+{
+    cptr title = g_sdl_character_sheet_screen.select_title;
+
+    SDL_strlcpy(list, "Choices", list_sz);
+    SDL_strlcpy(detail, "Details", detail_sz);
+    if (title && strstr(title, "Oath"))
+    {
+        SDL_strlcpy(list, "Available Oaths", list_sz);
+        SDL_strlcpy(detail, "Oath Details", detail_sz);
+    }
+    else if (title && strstr(title, "Blessing"))
+    {
+        SDL_strlcpy(list, "Available Blessings", list_sz);
+        SDL_strlcpy(detail, "Blessing Details", detail_sz);
+    }
+    else if (title && strstr(title, "Curse"))
+    {
+        SDL_strlcpy(list, "Available Curses", list_sz);
+        SDL_strlcpy(detail, "Curse Details", detail_sz);
+    }
+}
+
+static void sdl_char_sheet_dynamic_panel_heading(TTF_Font* font, cptr text,
+    SDL_FRect rect, float line_h)
+{
+    SDL_Color divider = g_state.palette[TERM_SLATE];
+    float y = rect.y + line_h;
+
+    (void)sdl_char_sheet_draw_text(font, text, TERM_SLATE, rect.x, rect.y,
+        rect.w, line_h * 0.92f, false);
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, divider.r, divider.g,
+        divider.b, 145);
+    SDL_RenderLine(g_state.renderer, rect.x, y, rect.x + rect.w, y);
+}
+
+static int sdl_char_sheet_dynamic_detail_line_count(TTF_Font* font,
+    float width)
+{
+    int count = 0;
+
+    for (int i = 0;
+         i < g_sdl_character_sheet_screen.select_detail_count; i++)
+    {
+        const sdl_character_sheet_select_detail* d =
+            &g_sdl_character_sheet_screen.select_detail[i];
+
+        count += sdl_char_sheet_wrap_text(font, d->text, width, NULL, 0);
+    }
+    return count;
+}
+
+static bool sdl_char_sheet_render_dynamic_choice_menu(TTF_Font* prompt_font,
+    float content_x, float top_y, float content_w, float region_bottom,
+    float prompt_y, float prompt_h, int canvas_h)
+{
+    int row_count = g_sdl_character_sheet_screen.select_row_count;
+    int detail_count = g_sdl_character_sheet_screen.select_detail_count;
+    float region_h = region_bottom - top_y;
+    float panel_gap;
+    float heading_h;
+    int heading_px;
+    TTF_Font* heading_font;
+    SDL_FRect list_panel;
+    SDL_FRect detail_panel;
+    SDL_FRect list_body;
+    SDL_FRect detail_body;
+    bool wide;
+    int column_count = 1;
+    int rows_per_column = MAX(row_count, 1);
+    float column_gap = 0.0f;
+    float column_width;
+    float row_line_h = 1.0f;
+    int row_px = 16;
+    TTF_Font* row_font;
+    int selected_row = -1;
+    int scroll;
+    int max_scroll;
+    char list_heading[64];
+    char detail_heading[64];
+    static int last_selected = -1000000;
+    static int last_rows_per_column = -1;
+
+    if (row_count <= 0 || detail_count <= 0 || region_h <= 1.0f)
+        return false;
+
+    panel_gap = sdl_char_sheet_clampf(content_w * 0.022f, 16.0f, 42.0f);
+    heading_px = sdl_char_sheet_clampi(
+        (int)((float)canvas_h * 0.034f), 22, 46);
+    heading_font = sdl_story_font_for_height_slot(heading_px,
+        SDL_STORY_FONT_SLOT_MENU);
+    heading_h = sdl_char_sheet_line_h(heading_font, heading_px, 1.15f);
+    wide = content_w >= region_h * 1.12f && content_w >= 700.0f;
+
+    if (wide)
+    {
+        float list_fraction = (row_count > 10) ? 0.61f : 0.39f;
+
+        list_panel = (SDL_FRect){ content_x, top_y,
+            (content_w - panel_gap) * list_fraction, region_h };
+        detail_panel = (SDL_FRect){
+            list_panel.x + list_panel.w + panel_gap, top_y,
+            content_w - list_panel.w - panel_gap, region_h
+        };
+    }
+    else
+    {
+        float list_fraction = (row_count > 10) ? 0.62f : 0.46f;
+
+        list_panel = (SDL_FRect){ content_x, top_y, content_w,
+            (region_h - panel_gap) * list_fraction };
+        detail_panel = (SDL_FRect){ content_x,
+            list_panel.y + list_panel.h + panel_gap, content_w,
+            region_h - list_panel.h - panel_gap };
+    }
+
+    list_body = list_panel;
+    list_body.y += heading_h * 1.18f;
+    list_body.h -= heading_h * 1.18f;
+    detail_body = detail_panel;
+    detail_body.y += heading_h * 1.18f;
+    detail_body.h -= heading_h * 1.18f;
+    if (list_body.h < 1.0f)
+        list_body.h = 1.0f;
+    if (detail_body.h < 1.0f)
+        detail_body.h = 1.0f;
+
+    row_font = sdl_char_sheet_menu_font_for_grid(list_body.w,
+        list_body.h, canvas_h, row_count, &column_count,
+        &rows_per_column, &column_gap, &row_line_h, &row_px);
+    if (!row_font)
+        return false;
+    column_width = (list_body.w
+        - column_gap * (float)(column_count - 1)) / (float)column_count;
+    if (column_width < 1.0f)
+        column_width = 1.0f;
+    g_sdl_select_menu_rows_per_column = rows_per_column;
+
+    for (int i = 0; i < row_count; i++)
+    {
+        const sdl_character_sheet_select_row* r =
+            &g_sdl_character_sheet_screen.select_rows[i];
+
+        if (!r->is_heading
+            && r->choice == g_sdl_character_sheet_screen.selected_index)
+        {
+            selected_row = i;
+            break;
+        }
+    }
+
+    max_scroll = (int)(row_line_h * (float)rows_per_column
+        - list_body.h + 0.999f);
+    if (max_scroll < 0)
+        max_scroll = 0;
+    scroll = g_sdl_character_sheet_screen.sheet_scroll;
+    if (scroll < 0)
+        scroll = 0;
+    if (scroll > max_scroll)
+        scroll = max_scroll;
+    if (selected_row >= 0
+        && (last_selected != g_sdl_character_sheet_screen.selected_index
+            || last_rows_per_column != rows_per_column))
+    {
+        int visual_row = selected_row % rows_per_column;
+        float row_top = row_line_h * (float)visual_row;
+        float row_bottom = row_top + row_line_h;
+
+        if (row_top < (float)scroll)
+            scroll = (int)row_top;
+        else if (row_bottom > (float)scroll + list_body.h)
+            scroll = (int)(row_bottom - list_body.h + 0.999f);
+        if (scroll < 0)
+            scroll = 0;
+        if (scroll > max_scroll)
+            scroll = max_scroll;
+    }
+    last_selected = g_sdl_character_sheet_screen.selected_index;
+    last_rows_per_column = rows_per_column;
+    g_sdl_character_sheet_screen.sheet_scroll = scroll;
+    g_sdl_character_sheet_screen.sheet_scroll_max = max_scroll;
+    g_sdl_character_sheet_screen.select_scroll_rect = list_body;
+    g_sdl_character_sheet_screen.last_body_px = row_px;
+    g_sdl_character_sheet_screen.last_body_line_h = row_line_h * 0.94f;
+
+    sdl_char_sheet_dynamic_menu_headings(list_heading,
+        sizeof(list_heading), detail_heading, sizeof(detail_heading));
+    sdl_char_sheet_dynamic_panel_heading(heading_font, list_heading,
+        list_panel, heading_h);
+    sdl_char_sheet_dynamic_panel_heading(heading_font, detail_heading,
+        detail_panel, heading_h);
+
+    {
+        bool had_clip = SDL_RenderClipEnabled(g_state.renderer);
+        SDL_Rect old_clip;
+        SDL_Rect clip = { (int)list_body.x, (int)list_body.y,
+            (int)(list_body.w + 0.5f), (int)(list_body.h + 0.5f) };
+
+        if (had_clip)
+            SDL_GetRenderClipRect(g_state.renderer, &old_clip);
+        SDL_SetRenderClipRect(g_state.renderer, &clip);
+        for (int i = 0; i < row_count; i++)
+        {
+            const sdl_character_sheet_select_row* r =
+                &g_sdl_character_sheet_screen.select_rows[i];
+            int col = i / rows_per_column;
+            int row = i % rows_per_column;
+            float x = list_body.x
+                + (float)col * (column_width + column_gap);
+            float y = list_body.y + (float)row * row_line_h
+                - (float)scroll;
+
+            if (y + row_line_h <= list_body.y
+                || y >= list_body.y + list_body.h)
+            {
+                continue;
+            }
+            sdl_char_sheet_draw_menu_row(row_font, r->label, r->attr,
+                r->choice, x, y, column_width, row_line_h, 0.0f, -1, 0.0f);
+        }
+        SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
+    }
+
+    {
+        int target_px = sdl_char_sheet_clampi(
+            (int)((float)canvas_h * 0.044f), 24, 58);
+        int min_px = sdl_char_sheet_clampi(sdl_main_menu_pane_font_px(),
+            15, target_px);
+        int detail_px = min_px;
+        float detail_lh = 1.0f;
+        float item_gap = 0.0f;
+        TTF_Font* detail_font = NULL;
+
+        for (int px = target_px; px >= min_px; px--)
+        {
+            TTF_Font* font = sdl_story_font_for_height_slot(px,
+                SDL_STORY_FONT_SLOT_MENU);
+            float lh;
+            int lines;
+            float needed;
+
+            if (!font)
+                continue;
+            lh = sdl_char_sheet_line_h(font, px, 1.16f);
+            lines = sdl_char_sheet_dynamic_detail_line_count(font,
+                detail_body.w);
+            needed = (float)lines * lh
+                + (float)(detail_count - 1) * lh * 0.34f;
+            detail_font = font;
+            detail_px = px;
+            detail_lh = lh;
+            item_gap = lh * 0.34f;
+            if (needed <= detail_body.h)
+                break;
+        }
+
+        if (detail_font)
+        {
+            float y = detail_body.y;
+
+            g_sdl_character_sheet_screen.last_desc_px = detail_px;
+            g_sdl_character_sheet_screen.last_desc_line_h = detail_lh;
+            for (int i = 0; i < detail_count; i++)
+            {
+                const sdl_character_sheet_select_detail* d =
+                    &g_sdl_character_sheet_screen.select_detail[i];
+                int lines = sdl_char_sheet_wrap_text(detail_font, d->text,
+                    detail_body.w, NULL, 0);
+                float h = detail_lh * (float)lines;
+
+                if (y + detail_lh * 0.2f > detail_body.y + detail_body.h)
+                    break;
+                sdl_char_sheet_draw_wrapped(detail_font, d->text, d->attr,
+                    detail_body.x, y, detail_body.w,
+                    MIN(h + detail_lh * 0.25f,
+                        detail_body.y + detail_body.h - y),
+                    detail_lh, lines);
+                y += h + item_gap;
+            }
+        }
+    }
+
+    sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
+        content_w, prompt_h);
+    return true;
+}
+
 void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     float content_x, float top_y, float content_w, float region_bottom,
     float prompt_y, float prompt_h, int canvas_h)
 {
     int row_count = g_sdl_character_sheet_screen.select_row_count;
     cptr desc = g_sdl_character_sheet_screen.select_description;
+    cptr desc_measure =
+        g_sdl_character_sheet_screen.select_desc_sizing[0]
+            ? g_sdl_character_sheet_screen.select_desc_sizing : desc;
     float region_h = region_bottom - top_y;
     float desc_h = 0.0f;
     float desc_gap = 0.0f;
     int desc_lines = 0;
+    int desc_measure_lines = 0;
     int desc_px = 0;
     float desc_line_h = 1.0f;
     TTF_Font* desc_font = NULL;
@@ -3775,7 +4202,11 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     float value_col_x = 0.0f;
     float reset_reserve = 0.0f;
     float list_content_w;
+    float column_gap = 0.0f;
+    float column_width;
     float row_region_h;
+    int column_count = 1;
+    int rows_per_column;
     int selected_row = -1;
     int scroll;
     int max_scroll;
@@ -3785,16 +4216,82 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     SDL_Rect clip_rect;
     static int last_selected_index = -1000000;
     static int last_row_count = -1;
+    static int last_rows_per_column = -1;
 
     if (row_count <= 0 || content_w <= 0.0f || region_h <= 0.0f)
         return;
+
+    if (g_sdl_select_dynamic_description
+        && sdl_char_sheet_render_dynamic_choice_menu(prompt_font, content_x,
+            top_y, content_w, region_bottom, prompt_y, prompt_h, canvas_h))
+    {
+        return;
+    }
 
     g_sdl_character_sheet_screen.last_body_px = 0;
     g_sdl_character_sheet_screen.last_body_line_h = 0.0f;
     g_sdl_character_sheet_screen.last_desc_px = 0;
     g_sdl_character_sheet_screen.last_desc_line_h = 0.0f;
 
-    if (desc && desc[0])
+    if (desc && desc[0] && g_sdl_select_dynamic_description)
+    {
+        int min_px = sdl_char_sheet_clampi(
+            (int)((float)canvas_h * 0.014f), 10, 16);
+        int max_px = sdl_char_sheet_clampi(
+            (int)((float)canvas_h * 0.026f), 15, 30);
+        float max_desc_h;
+        TTF_Font* min_row_font;
+        float min_row_h;
+
+        desc_gap = sdl_char_sheet_clampf(region_h * 0.025f, 8.0f, 18.0f);
+        min_row_font = sdl_story_font_for_height_slot(min_px,
+            SDL_STORY_FONT_SLOT_MENU);
+        min_row_h = sdl_char_sheet_line_h(min_row_font, min_px, 1.30f);
+        max_desc_h = region_h - desc_gap - min_row_h * 1.45f;
+        if (max_desc_h < min_row_h)
+            max_desc_h = min_row_h;
+
+        for (desc_px = max_px; desc_px >= min_px; desc_px--)
+        {
+            float measured_h;
+
+            desc_font = sdl_story_font_for_height_slot(desc_px,
+                SDL_STORY_FONT_SLOT_MENU);
+            if (!desc_font)
+                continue;
+            desc_line_h = sdl_char_sheet_line_h(desc_font, desc_px, 1.16f);
+            desc_measure_lines = sdl_char_sheet_wrap_text(desc_font,
+                desc_measure ? desc_measure : desc, content_w, NULL, 0);
+            desc_lines = sdl_char_sheet_wrap_text(desc_font, desc, content_w,
+                NULL, 0);
+            if (desc_measure_lines < desc_lines)
+                desc_measure_lines = desc_lines;
+            measured_h = desc_line_h * (float)desc_measure_lines;
+            if (measured_h <= max_desc_h || desc_px == min_px)
+                break;
+        }
+
+        if (!desc_font)
+        {
+            desc_px = min_px;
+            desc_font = sdl_story_font_for_height_slot(desc_px,
+                SDL_STORY_FONT_SLOT_MENU);
+            desc_line_h = sdl_char_sheet_line_h(desc_font, desc_px, 1.16f);
+            desc_measure_lines = sdl_char_sheet_wrap_text(desc_font,
+                desc_measure ? desc_measure : desc, content_w, NULL, 0);
+            desc_lines = sdl_char_sheet_wrap_text(desc_font, desc, content_w,
+                NULL, 0);
+            if (desc_measure_lines < desc_lines)
+                desc_measure_lines = desc_lines;
+        }
+
+        desc_h = desc_line_h * (float)desc_measure_lines;
+        if (desc_h > max_desc_h)
+            desc_h = max_desc_h;
+        g_sdl_character_sheet_screen.last_desc_px = desc_px;
+        g_sdl_character_sheet_screen.last_desc_line_h = desc_line_h;
+    }
+    else if (desc && desc[0])
     {
         desc_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.023f),
             13, 26);
@@ -3812,8 +4309,13 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     }
 
     row_region_h = region_h - desc_h - desc_gap;
-    if (row_region_h < region_h * 0.55f)
+    if (!g_sdl_select_dynamic_description
+        && row_region_h < region_h * 0.55f)
+    {
         row_region_h = region_h * 0.55f;
+    }
+    if (row_region_h < 1.0f)
+        row_region_h = 1.0f;
 
     best_font = sdl_char_sheet_menu_font_for_width(content_w, canvas_h,
         &best_line_h, &best_px);
@@ -3846,6 +4348,36 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         reset_reserve = content_w - list_content_w;
     }
 
+    rows_per_column = row_count;
+    if (g_sdl_select_dynamic_description)
+    {
+        best_font = sdl_char_sheet_menu_font_for_grid(list_content_w,
+            row_region_h, canvas_h, row_count, &column_count,
+            &rows_per_column, &column_gap, &best_line_h, &best_px);
+        if (!best_font)
+        {
+            best_px = 18;
+            best_font = sdl_story_font_for_height_slot(18,
+                SDL_STORY_FONT_SLOT_MENU);
+            best_line_h = sdl_char_sheet_line_h(best_font, 18, 1.22f);
+            column_count = 1;
+            rows_per_column = row_count;
+            column_gap = 0.0f;
+        }
+        g_sdl_character_sheet_screen.last_body_px = best_px;
+        g_sdl_character_sheet_screen.last_body_line_h =
+            best_line_h * 0.94f;
+    }
+    if (rows_per_column < 1)
+        rows_per_column = 1;
+    if (column_count < 1)
+        column_count = 1;
+    column_width = (list_content_w
+        - column_gap * (float)(column_count - 1)) / (float)column_count;
+    if (column_width < 1.0f)
+        column_width = 1.0f;
+    g_sdl_select_menu_rows_per_column = rows_per_column;
+
     for (int i = 0; i < row_count; i++)
     {
         const sdl_character_sheet_select_row* r =
@@ -3859,7 +4391,8 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         }
     }
 
-    max_scroll = (int)(best_line_h * (float)row_count - row_region_h + 0.999f);
+    max_scroll = (int)(best_line_h * (float)rows_per_column
+        - row_region_h + 0.999f);
     if (max_scroll < 0)
         max_scroll = 0;
     scroll = g_sdl_character_sheet_screen.sheet_scroll;
@@ -3869,10 +4402,12 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         scroll = max_scroll;
     selected_changed =
         (g_sdl_character_sheet_screen.selected_index != last_selected_index)
-        || (row_count != last_row_count);
+        || (row_count != last_row_count)
+        || (rows_per_column != last_rows_per_column);
     if (selected_row >= 0 && selected_changed)
     {
-        float row_top = best_line_h * (float)selected_row;
+        int visual_row = selected_row % rows_per_column;
+        float row_top = best_line_h * (float)visual_row;
         float row_bottom = row_top + best_line_h;
 
         if (row_top < (float)scroll)
@@ -3892,6 +4427,7 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
         (SDL_FRect){ content_x, top_y, content_w, row_region_h };
     last_selected_index = g_sdl_character_sheet_screen.selected_index;
     last_row_count = row_count;
+    last_rows_per_column = rows_per_column;
 
     /*
      * Align every row's value to a single column placed just past the widest
@@ -3899,6 +4435,7 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
      * values against the far right edge.  value_col_x stays 0 (per-row right
      * align) when no row has a value or when the list is too wide to fit.
      */
+    if (column_count == 1)
     {
         TTF_Font* value_font = sdl_story_font_slot_sibling(best_font,
             SDL_STORY_FONT_SLOT_MENU);
@@ -3959,24 +4496,29 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     {
         const sdl_character_sheet_select_row* r =
             &g_sdl_character_sheet_screen.select_rows[i];
-        float y = top_y + best_line_h * (float)i - (float)scroll;
+        int col = i / rows_per_column;
+        int row = i % rows_per_column;
+        float x = content_x
+            + (float)col * (column_width + column_gap);
+        float y = top_y + best_line_h * (float)row - (float)scroll;
 
         if (y + best_line_h <= top_y)
             continue;
         if (y >= top_y + row_region_h)
-            break;
+            continue;
 
         if (r->is_heading)
         {
             (void)sdl_char_sheet_draw_text(best_font, r->label,
-                TERM_SLATE, content_x, y, content_w, best_line_h * 0.90f,
+                TERM_SLATE, x, y, column_width, best_line_h * 0.90f,
                 false);
         }
         else
         {
             sdl_char_sheet_draw_menu_row(best_font, r->label, r->attr,
-                r->choice, content_x, y, content_w, best_line_h,
-                value_col_x, r->reset_choice, reset_reserve);
+                r->choice, x, y, column_width, best_line_h,
+                (column_count == 1) ? value_col_x : 0.0f,
+                r->reset_choice, (column_count == 1) ? reset_reserve : 0.0f);
         }
     }
 
@@ -3985,6 +4527,19 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     if (desc_font && desc && desc[0] && desc_lines > 0)
     {
         float y = top_y + row_region_h + desc_gap;
+
+        if (g_sdl_select_dynamic_description)
+        {
+            SDL_Color divider = g_state.palette[TERM_SLATE];
+            float divider_y = y - desc_gap * 0.5f;
+
+            SDL_SetRenderDrawBlendMode(g_state.renderer,
+                SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(g_state.renderer, divider.r, divider.g,
+                divider.b, 150);
+            SDL_RenderLine(g_state.renderer, content_x, divider_y,
+                content_x + content_w, divider_y);
+        }
         sdl_char_sheet_draw_wrapped(desc_font, desc, TERM_L_WHITE, content_x,
             y, content_w, desc_h + desc_line_h * 0.25f, desc_line_h,
             desc_lines);
@@ -8214,6 +8769,9 @@ void sdl_character_sheet_screen_hide(void)
     g_sdl_character_sheet_screen.selected_index = -1;
     g_sdl_character_sheet_screen.hover_choice = -1;
     g_sdl_character_sheet_screen.select_menu_style = false;
+    g_sdl_select_choice_page_only = false;
+    g_sdl_select_dynamic_description = false;
+    g_sdl_select_menu_rows_per_column = 0;
     g_sdl_character_sheet_screen.live_item_count = 0;
     g_sdl_character_sheet_screen.sheet_scroll = 0;
     g_sdl_character_sheet_screen.sheet_scroll_max = 0;
@@ -8417,6 +8975,9 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     SDL_zero(g_sdl_character_sheet_screen.select_scroll_drag);
     g_sdl_character_sheet_screen.select_book_mode = false;
     g_sdl_character_sheet_screen.select_menu_style = false;
+    g_sdl_select_choice_page_only = false;
+    g_sdl_select_dynamic_description = false;
+    g_sdl_select_menu_rows_per_column = 0;
     SDL_strlcpy(g_sdl_character_sheet_screen.select_title, title ? title : "",
         sizeof(g_sdl_character_sheet_screen.select_title));
     return true;
@@ -8604,6 +9165,35 @@ void sdl_character_sheet_screen_set_select_intro(cptr text)
         || g_sdl_character_sheet_screen.select_page
             >= g_sdl_character_sheet_screen.select_page_count)
         g_sdl_character_sheet_screen.select_page = 0;
+}
+
+void sdl_character_sheet_screen_show_select_choice_page_only(void)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT
+        || !g_sdl_character_sheet_screen.select_book_mode)
+    {
+        return;
+    }
+
+    sdl_select_page_turn_free();
+    g_sdl_select_choice_page_only = true;
+    g_sdl_character_sheet_screen.select_page =
+        sdl_char_sheet_book_choice_page();
+    g_state.need_present = true;
+}
+
+void sdl_character_sheet_screen_set_select_dynamic_description(bool enabled)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+
+    g_sdl_select_dynamic_description = enabled;
+    g_state.need_present = true;
+}
+
+int sdl_character_sheet_screen_select_menu_rows_per_column(void)
+{
+    return g_sdl_select_menu_rows_per_column;
 }
 
 /* Book navigation accessors for the birth input loop. */

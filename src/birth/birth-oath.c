@@ -365,6 +365,56 @@ static int oath_render_detail_content(int oath_id, int col, int start_row,
     return virtual_row;
 }
 
+static void oath_add_semantic_detail_line(cptr label, cptr text, byte attr)
+{
+    char line[1024];
+
+    if (!text || !text[0])
+        return;
+    if (label && label[0])
+        strnfmt(line, sizeof(line), "%s: %s", label, text);
+    else
+        SDL_strlcpy(line, text, sizeof(line));
+    sdl_character_sheet_screen_add_select_detail(line, attr, "");
+}
+
+static void oath_add_semantic_details(int oath_id)
+{
+    if (oath_id < 0 || !z_info || oath_id >= z_info->oath_max)
+        return;
+
+    if (oath_banned(oath_id) && oath_id > 0)
+    {
+        char* banned_text = oath_banned_text(oath_id);
+
+        oath_add_semantic_detail_line(NULL, "OATH BROKEN", TERM_L_RED);
+        oath_add_semantic_detail_line(NULL,
+            (banned_text && banned_text[0])
+                ? banned_text
+                : "Thy oath lies shattered, and thy name is marked in shame for this age.",
+            TERM_RED);
+        return;
+    }
+
+    if (oath_id == 0)
+    {
+        oath_add_semantic_detail_line(NULL, "Walk free of binding words.",
+            TERM_SLATE);
+        oath_add_semantic_detail_line(NULL,
+            "Take no oath and remain unbound by sacred vows.", TERM_SLATE);
+        return;
+    }
+
+    oath_add_semantic_detail_line("Description", oath_description(oath_id),
+        TERM_SLATE);
+    oath_add_semantic_detail_line("Pledge", oath_pledge(oath_id),
+        TERM_L_BLUE);
+    oath_add_semantic_detail_line("Reward", oath_reward_text(oath_id),
+        TERM_L_GREEN);
+    oath_add_semantic_detail_line("Forbidden", oath_forbidden(oath_id),
+        TERM_L_RED);
+}
+
 static void oath_render_wrapped_block(cptr text, int col, int max_width,
     int* draw_row, int row_limit, byte color)
 {
@@ -477,6 +527,7 @@ NavResult select_oath(void)
         int visible_count;
         int detail_max_scroll = 0;
         bool compact;
+        bool semantic_menu = false;
         char key;
 
         Term_get_size(&wid, &hgt);
@@ -502,7 +553,44 @@ NavResult select_oath(void)
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
 
-        if (compact)
+        semantic_menu = sdl_character_sheet_screen_begin_select(highlight,
+            "Choose your Oath");
+        if (semantic_menu)
+        {
+            compact = false;
+            page = 0;
+            detail_scroll = 0;
+            sdl_character_sheet_screen_set_select_menu_style(true);
+            sdl_character_sheet_screen_set_select_dynamic_description(true);
+
+            for (int i = 0; i < visible_count; i++)
+            {
+                int oath_id = visible_oaths[i];
+                byte attr;
+                char label[128];
+                bool show_letter = menu_letters
+                    && !sdl_touch_only_device_active();
+
+                if (oath_banned(oath_id) && oath_id > 0)
+                    attr = TERM_L_RED;
+                else if (oath_id == 0)
+                    attr = TERM_WHITE;
+                else
+                    attr = TERM_L_BLUE;
+
+                if (show_letter)
+                    strnfmt(label, sizeof(label), "%c) %s", 'a' + i,
+                        oath_name_str(oath_id));
+                else
+                    SDL_strlcpy(label, oath_name_str(oath_id), sizeof(label));
+                sdl_character_sheet_screen_add_select_row(oath_id, label,
+                    attr, "");
+            }
+
+            oath_add_semantic_details(highlight);
+            sdl_character_sheet_screen_commit_select(highlight);
+        }
+        else if (compact)
         {
             oath_center_putstr(0, TERM_L_BLUE,
                 (page == 0) ? "Choose your Oath" : "Oath Details");
@@ -859,7 +947,7 @@ NavResult select_oath(void)
             {
                 ui_menu_click_clear();
 
-                if (clicked_choice > 0 && clicked_choice < z_info->oath_max)
+                if (clicked_choice >= 0 && clicked_choice < z_info->oath_max)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER
                         || clicked_choice != highlight)
@@ -901,11 +989,13 @@ NavResult select_oath(void)
 
         if (steamdeck && key == steamdeck_back_key())
         {
+            sdl_character_sheet_screen_hide();
             ui_menu_click_clear();
             return NAV_BACK; /* Go back to character creation */
         }
         if (key == ESCAPE || key == 'q')
         {
+            sdl_character_sheet_screen_hide();
             ui_menu_click_clear();
             return NAV_BACK; /* Go back to character creation */
         }
@@ -975,6 +1065,7 @@ NavResult select_oath(void)
     }
 
     /* Set the chosen oath */
+    sdl_character_sheet_screen_hide();
     ui_menu_click_clear();
     p_ptr->oath_type = choice;
     

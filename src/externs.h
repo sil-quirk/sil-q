@@ -1584,6 +1584,9 @@ extern bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
 extern bool sdl_character_sheet_screen_begin_select(int focus_choice,
     cptr title);
 extern void sdl_character_sheet_screen_set_select_menu_style(bool enabled);
+extern void sdl_character_sheet_screen_set_select_dynamic_description(
+    bool enabled);
+extern int sdl_character_sheet_screen_select_menu_rows_per_column(void);
 extern void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     int attr, cptr desc);
 extern void sdl_character_sheet_screen_set_last_select_row_reset(
@@ -1600,6 +1603,7 @@ extern void sdl_character_sheet_screen_add_select_rating(cptr group,
 extern void sdl_character_sheet_screen_add_select_heading(cptr label);
 extern void sdl_character_sheet_screen_set_select_intro(cptr text);
 extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
+extern void sdl_character_sheet_screen_show_select_choice_page_only(void);
 /* Race "book" page-turn: click ids (mouse) + navigation API for birth/. */
 #define SDL_SELECT_CLICK_PAGE_PREV (-20)
 #define SDL_SELECT_CLICK_PAGE_NEXT (-21)
@@ -2283,6 +2287,7 @@ extern bool sdl_touch_settings_tutorial_requested(void);
 extern void sdl_touch_show_requested_tutorial(void);
 extern void sdl_touch_show_tutorial(void);
 extern void sdl_touch_maybe_show_first_game_tutorial(void);
+extern bool sdl_touch_tutorial_device_available(void);
 extern void sdl_mouse_request_tutorial_from_settings(void);
 extern bool sdl_mouse_settings_tutorial_requested(void);
 extern void sdl_mouse_show_requested_tutorial(void);

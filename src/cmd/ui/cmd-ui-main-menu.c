@@ -1296,9 +1296,10 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
 
 /*
  * Explain Blitz mode, then (on confirmation) save the current story game and
- * arm a relaunch into a fresh Blitz session.  The current play_game() session
- * is ended via quit_to_menu so the engine comes back up in Blitz mode (see
- * blitz_launch_requested() handling in initial_menu() and close_game()).
+ * arm a relaunch into Blitz.  An existing living Blitz character is resumed;
+ * otherwise character creation starts a new run.  The current play_game()
+ * session is ended via quit_to_menu so the engine comes back up in Blitz mode
+ * (see blitz_launch_requested() handling in initial_menu() and close_game()).
  */
 static void main_menu_blitz_text_line(int* row, int wrap, byte attr, cptr text)
 {
@@ -1359,12 +1360,14 @@ static void do_cmd_start_blitz(void)
     main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
         "Blitz keeps its own separate character and score files, so your story "
         "character stays safe and can be resumed at any time.");
+    main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
+        "If you already have a living Blitz character, it will be resumed.");
     main_menu_blitz_text_line(&row, wrap, TERM_SLATE,
-        "Starting Blitz will save your current story game first.");
+        "Switching to Blitz will save your current story game first.");
 
     Term_fresh();
 
-    if (!get_check_lower("Save your story game and start a Blitz run now? "))
+    if (!get_check_lower("Save your story game and switch to Blitz now? "))
     {
         sdl_pop_terminal_menu_scale();
         screen_pop_touch_pane_hidden();
