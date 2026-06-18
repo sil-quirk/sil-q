@@ -1555,7 +1555,8 @@ if (playerturn == 0) {
     /* sentinel */
     extra[idx][0] = '\0';
 
-    /* display banner + stanza */
+    /* Display the one-time character intro with the secondary story font. */
+    sdl_story_font_set_slot(STORY_FONT_SLOT_SECONDARY);
     pause_with_text(entry_poetry, 4, 13, extra, TERM_YELLOW);
 }
 
