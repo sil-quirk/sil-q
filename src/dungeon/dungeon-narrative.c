@@ -199,6 +199,9 @@ static void build_partition_narrative_text(int old_sidx, int new_sidx,
 static void display_narrative_text(cptr text, int narrative_mode,
     bool line_delay)
 {
+    bool banner_with_delay =
+        (narrative_mode == PARTITION_NARRATIVE_BANNER_DELAY);
+
     if (!text || !text[0])
         return;
 
@@ -208,7 +211,8 @@ static void display_narrative_text(cptr text, int narrative_mode,
         return;
     }
 
-    if (narrative_mode != PARTITION_NARRATIVE_BANNER)
+    if ((narrative_mode != PARTITION_NARRATIVE_BANNER)
+        && !banner_with_delay)
         return;
 
     g_active_partition_banner_text[0] = '\0';
@@ -221,7 +225,7 @@ static void display_narrative_text(cptr text, int narrative_mode,
     g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
         ? 1
         : narrative_banner_turn_setting();
-    sdl_narrative_banner_show(line_delay);
+    sdl_narrative_banner_show(line_delay || banner_with_delay);
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,
@@ -314,6 +318,7 @@ static int discovery_narrative_mode(bool force_message, int narrative_mode)
     switch (op_ptr->level_entry_narrative_mode)
     {
     case LEVEL_ENTRY_NARRATIVE_BANNER_DELAY:
+        return PARTITION_NARRATIVE_BANNER_DELAY;
     case LEVEL_ENTRY_NARRATIVE_BANNER:
         return PARTITION_NARRATIVE_BANNER;
     case LEVEL_ENTRY_NARRATIVE_MESSAGE:
@@ -409,12 +414,13 @@ void describe_greater_vault_entry(cptr vault_name)
     if (!text)
         return;
 
-    if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+    if ((narrative_mode == PARTITION_NARRATIVE_BANNER)
+        || (narrative_mode == PARTITION_NARRATIVE_BANNER_DELAY))
     {
         /* Banner mode already shows the text on the main term, so push it
          * directly into recall and refresh message windows immediately. */
         queue_message_recall_only(text);
-        display_narrative_text(text, PARTITION_NARRATIVE_BANNER, false);
+        display_narrative_text(text, narrative_mode, false);
         return;
     }
 
@@ -456,9 +462,11 @@ void handle_partition_entry(bool force_message, int narrative_mode)
         u32b bit = (u32b)(1U << pi);
         if (!(partition_narrated_mask & bit))
         {
-            if (narrative_mode == PARTITION_NARRATIVE_BANNER)
+            if ((narrative_mode == PARTITION_NARRATIVE_BANNER)
+                || (narrative_mode == PARTITION_NARRATIVE_BANNER_DELAY))
                 display_partition_narrative_banner(
-                    last_narrated_style_idx, sidx, kind, false);
+                    last_narrated_style_idx, sidx, kind,
+                    narrative_mode == PARTITION_NARRATIVE_BANNER_DELAY);
             else if (narrative_mode == PARTITION_NARRATIVE_MESSAGE)
                 display_partition_narrative(last_narrated_style_idx, sidx, kind);
 

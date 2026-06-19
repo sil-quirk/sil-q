@@ -1291,8 +1291,8 @@ static void rd_options(void)
 
         rd_byte(&b);
         op_ptr->partition_narrative_mode = b;
-        if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
-            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_BANNER_DELAY)
+            op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
 
         rd_byte(&b);
         op_ptr->noble_item_spawn_mode = b;
@@ -1321,7 +1321,7 @@ static void rd_options(void)
     {
         /* Old savefiles used the boolean show_level_entry_banner option. */
         op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
         op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;
         op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
@@ -1373,7 +1373,7 @@ static void rd_options(void)
             ? LEVEL_ENTRY_NARRATIVE_BANNER_DELAY
             : LEVEL_ENTRY_NARRATIVE_OFF;
         op_ptr->partition_narrative_mode = op_ptr->opt[OPT_show_partition_narrative]
-            ? PARTITION_NARRATIVE_BANNER
+            ? PARTITION_NARRATIVE_BANNER_DELAY
             : PARTITION_NARRATIVE_OFF;
         op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
         op_ptr->noble_item_spawn_mode = NOBLE_ITEM_SPAWN_RESTRICTED;

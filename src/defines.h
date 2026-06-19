@@ -3102,6 +3102,7 @@
 #define PARTITION_NARRATIVE_BANNER            0
 #define PARTITION_NARRATIVE_MESSAGE           1
 #define PARTITION_NARRATIVE_OFF               2
+#define PARTITION_NARRATIVE_BANNER_DELAY      3
 
 /* Narrative banner visibility after it is shown.
  * 0 means the next command input only dismisses the banner. */

@@ -942,7 +942,7 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->main_combat_rolls = 0;
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-    op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
     op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
 }
 
@@ -1200,8 +1200,8 @@ void sdl_config_load_app_options(const char* filename)
         &op_ptr->level_entry_narrative_mode, LEVEL_ENTRY_NARRATIVE_OFF,
         LEVEL_ENTRY_NARRATIVE_BANNER_DELAY);
     sdl_config_load_byte_value(item, "partitionNarrativeMode",
-        &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_OFF,
-        PARTITION_NARRATIVE_BANNER);
+        &op_ptr->partition_narrative_mode, PARTITION_NARRATIVE_BANNER_DELAY,
+        PARTITION_NARRATIVE_BANNER_DELAY);
     sdl_config_load_byte_value(item, "narrativeBannerTurns",
         &op_ptr->narrative_banner_turns, NARRATIVE_BANNER_TURNS_MAX,
         DEFAULT_NARRATIVE_BANNER_TURNS);

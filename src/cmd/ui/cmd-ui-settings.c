@@ -1367,13 +1367,14 @@ static bool option_pick_value(int opt, bool* handled)
         { 8, "80%" }, { 9, "90%" }
     };
     static const struct settings_value_choice level_entry_choices[] = {
-        { LEVEL_ENTRY_NARRATIVE_BANNER_DELAY, "Banner with delay" },
-        { LEVEL_ENTRY_NARRATIVE_BANNER, "Banner without delay" },
+        { LEVEL_ENTRY_NARRATIVE_BANNER_DELAY, "Banner with animation" },
+        { LEVEL_ENTRY_NARRATIVE_BANNER, "Banner without animation" },
         { LEVEL_ENTRY_NARRATIVE_MESSAGE, "Message" },
         { LEVEL_ENTRY_NARRATIVE_OFF, "Off" }
     };
     static const struct settings_value_choice partition_choices[] = {
-        { PARTITION_NARRATIVE_BANNER, "Banner without delay" },
+        { PARTITION_NARRATIVE_BANNER_DELAY, "Banner with animation" },
+        { PARTITION_NARRATIVE_BANNER, "Banner without animation" },
         { PARTITION_NARRATIVE_MESSAGE, "Message" },
         { PARTITION_NARRATIVE_OFF, "Off" }
     };
@@ -1473,8 +1474,8 @@ static bool option_pick_value(int opt, bool* handled)
 
     case OPT_show_partition_narrative:
         value = op_ptr->partition_narrative_mode;
-        if (value > PARTITION_NARRATIVE_OFF)
-            value = PARTITION_NARRATIVE_MESSAGE;
+        if (value > PARTITION_NARRATIVE_BANNER_DELAY)
+            value = PARTITION_NARRATIVE_BANNER_DELAY;
         if (option_pick_from_choices(opt, partition_choices,
                 (int)N_ELEMENTS(partition_choices), value, &value, handled)
             && value != op_ptr->partition_narrative_mode)
@@ -1806,7 +1807,7 @@ static void options_aux_reset_to_default(int page, const int* opt, int k,
         op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
         break;
     case OPT_show_partition_narrative:
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
         break;
     case OPT_vault_drop_frequency:
         op_ptr->vault_drop_frequency = VDF_NORMAL;
@@ -2131,13 +2132,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                 bool compact = option_menu_use_compact_layout();
                 switch (op_ptr->level_entry_narrative_mode)
                 {
+                case LEVEL_ENTRY_NARRATIVE_BANNER_DELAY:
+                    mode_str = compact ? "Banner anim" : "Banner with animation";
+                    break;
                 case LEVEL_ENTRY_NARRATIVE_BANNER:
-                    mode_str = compact ? "Banner" : "Banner without delay";
+                    mode_str = compact ? "Banner no anim" : "Banner without animation";
                     break;
                 case LEVEL_ENTRY_NARRATIVE_MESSAGE: mode_str = "Message"; break;
                 case LEVEL_ENTRY_NARRATIVE_OFF:     mode_str = "Off"; break;
                 default:
-                    mode_str = compact ? "Banner delay" : "Banner with delay";
+                    mode_str = compact ? "Banner anim" : "Banner with animation";
                     break;
                 }
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
@@ -2149,8 +2153,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                 bool compact = option_menu_use_compact_layout();
                 switch (op_ptr->partition_narrative_mode)
                 {
+                case PARTITION_NARRATIVE_BANNER_DELAY:
+                    mode_str = compact ? "Banner anim" : "Banner with animation";
+                    break;
                 case PARTITION_NARRATIVE_BANNER:
-                    mode_str = compact ? "Banner" : "Banner without delay";
+                    mode_str = compact ? "Banner no anim" : "Banner without animation";
                     break;
                 case PARTITION_NARRATIVE_OFF:     mode_str = "Off"; break;
                 default:                          mode_str = "Message"; break;
@@ -2674,10 +2681,25 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else if (opt[k] == OPT_show_partition_narrative)
                 {
-                    op_ptr->partition_narrative_mode =
-                        (op_ptr->partition_narrative_mode < PARTITION_NARRATIVE_OFF)
-                        ? op_ptr->partition_narrative_mode + 1
-                        : PARTITION_NARRATIVE_OFF;
+                    switch (op_ptr->partition_narrative_mode)
+                    {
+                    case PARTITION_NARRATIVE_BANNER_DELAY:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_BANNER;
+                        break;
+                    case PARTITION_NARRATIVE_BANNER:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_MESSAGE;
+                        break;
+                    case PARTITION_NARRATIVE_MESSAGE:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_OFF;
+                        break;
+                    default:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_OFF;
+                        break;
+                    }
                 }
                 else if (opt[k] == OPT_vault_drop_frequency)
                 {
@@ -2840,10 +2862,25 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else if (opt[k] == OPT_show_partition_narrative)
                 {
-                    op_ptr->partition_narrative_mode =
-                        (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_BANNER)
-                        ? op_ptr->partition_narrative_mode - 1
-                        : PARTITION_NARRATIVE_BANNER;
+                    switch (op_ptr->partition_narrative_mode)
+                    {
+                    case PARTITION_NARRATIVE_OFF:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_MESSAGE;
+                        break;
+                    case PARTITION_NARRATIVE_MESSAGE:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_BANNER;
+                        break;
+                    case PARTITION_NARRATIVE_BANNER:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_BANNER_DELAY;
+                        break;
+                    default:
+                        op_ptr->partition_narrative_mode =
+                            PARTITION_NARRATIVE_BANNER_DELAY;
+                        break;
+                    }
                 }
                 else if (opt[k] == OPT_vault_drop_frequency)
                 {

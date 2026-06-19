@@ -482,13 +482,13 @@ cptr option_desc[OPT_MAX] = {
     "More stairs (50% more; double max)", /* OPT_more_stairs */
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     NULL, /* obsolete 0.9.7: space_acts_as_comma */
-    "Level entry narrative (banner with delay/banner without delay/message/off)", /* OPT_show_level_entry_banner */
+    "Level entry narrative (banner with animation/banner without animation/message/off)", /* OPT_show_level_entry_banner */
     NULL, /* reserved legacy slot: ability_desc_mode */
     "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show {sd,wr} in item descriptions", /* OPT_show_smithing_difficulty */
     "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
     "Welcome screen (0-6=fixed, 7=random)", /* OPT_intro_style */
-    "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
+    "Partition transition narrative (banner with animation/banner without animation/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     NULL, /* obsolete 0.9.7: hide_left_panel */
     NULL, /* reserved legacy slot: banner_message_stairs */

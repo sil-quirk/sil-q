@@ -817,8 +817,8 @@ void finalize_character_creation_selection(void)
         op_ptr->vault_drop_frequency = VDF_NORMAL;
     if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)
         op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
-    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_OFF)
-        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
+    if (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_BANNER_DELAY)
+        op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
     if (op_ptr->narrative_banner_turns > NARRATIVE_BANNER_TURNS_MAX)
         op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
     if (op_ptr->intro_style > INTRO_STYLE_RANDOM)
