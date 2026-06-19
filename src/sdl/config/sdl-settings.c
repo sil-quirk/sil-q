@@ -51,7 +51,7 @@ void get_sdl_config_info(char* buf, size_t size)
         if (pc->pane == PANE_MAIN_MENU)
             continue;
         const char* type_str = "UNKNOWN";
-        const char* where_str = pane_placement_name(pc->where);
+        const char* where_str = pane_placement_display_name(pc->where);
         
         switch (pc->pane) {
             case PANE_MAIN: type_str = "MAIN"; break;

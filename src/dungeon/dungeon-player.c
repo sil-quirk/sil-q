@@ -629,11 +629,9 @@ void process_player(void)
             /* Take a step */
             run_step(0);
 
-            // Pause for 17 miliseconds (minimum needed for mac OS X to pause)
-            if (!instant_run)
-            {
-                Term_xtra(TERM_XTRA_DELAY, 17);
-            }
+            /* Pace running so movement remains readable at the chosen speed. */
+            if (running_step_delay_ms > 0)
+                Term_xtra(TERM_XTRA_DELAY, running_step_delay_ms);
         }
 
         /* Repeated command */

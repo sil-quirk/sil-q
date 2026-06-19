@@ -214,7 +214,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* reserved legacy slot: easy_open */
     NULL, /* reserved legacy slot: easy_alter */
     NULL, /* reserved legacy slot: easy_floor */
-    "instant_run", /* OPT_instant_run */
+    "instant_run", /* OPT_running_delay; legacy preference key */
     "center_player", /* OPT_center_player */
     "run_avoid_center", /* OPT_run_avoid_center */
     NULL, /* reserved legacy slot: scroll_target */
@@ -459,8 +459,8 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* reserved legacy slot: easy_open */
     NULL, /* reserved legacy slot: easy_alter */
     NULL, /* reserved legacy slot: easy_floor */
-    "Faster display while running", /* OPT_instant_run */
-    "Center map continuously (very slow)", /* OPT_center_player */
+    "Running delay in milliseconds", /* OPT_running_delay */
+    "Center map continuously", /* OPT_center_player */
     "Avoid centering while running", /* OPT_run_avoid_center */
     NULL, /* reserved legacy slot: scroll_target */
     NULL, /* obsolete 0.9.7: auto_more */
@@ -720,7 +720,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* reserved legacy slot: easy_open */
     false, /* reserved legacy slot: easy_alter */
     false, /* reserved legacy slot: easy_floor */
-    false, /* OPT_instant_run */
+    false, /* OPT_running_delay; value is stored in running_delay_ms */
     false, /* OPT_center_player */
     false, /* OPT_run_avoid_center */
     false, /* reserved legacy slot: scroll_target */
@@ -919,15 +919,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
     { OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
-        OPT_song_list_sort_by_recent,
-        OPT_hitpoint_warning,
-        OPT_hjkl_movement, OPT_angband_keyset,
-        OPT_supply_menu_random_icons,
+        OPT_song_list_sort_by_recent, OPT_hide_supporting_panes_fullscreen,
+        OPT_hitpoint_warning, OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
         OPT_hide_secondary_action_ring,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 
@@ -949,24 +947,16 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE },
 
-    /*** Efficiency ***/
-
-    { OPT_delay_factor, OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE },
-
     /*** Display ***/
 
-    { OPT_stealth_vision,
-        OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
-        OPT_mirror_player_tile_facing, OPT_show_level_entry_banner,
-        OPT_show_partition_narrative,
-        OPT_narrative_banner_turns, OPT_intro_style,
-        OPT_solid_walls, OPT_hybrid_walls,
+    { OPT_stealth_vision, OPT_sleep_icon, OPT_artifact_unique_color,
+        OPT_unidentified_items_slate, OPT_delay_factor, OPT_running_delay,
+        OPT_mirror_player_tile_facing, OPT_center_player,
+        OPT_run_avoid_center, OPT_show_level_entry_banner,
+        OPT_show_partition_narrative, OPT_narrative_banner_turns,
+        OPT_intro_style, OPT_solid_walls, OPT_hybrid_walls,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
-        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
-        OPT_NONE },
+        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look },
 
     /*** Birth ***/
 

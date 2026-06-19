@@ -312,7 +312,7 @@ enum {
 
 struct option_group_marker
 {
-    int before_index;
+    int setting_id;
     cptr label;
 };
 
@@ -322,67 +322,150 @@ struct settings_value_choice
     cptr label;
 };
 
+#define SOUND_OPTION_ROW_BASE 2048
+#define SOUND_OPTION_ROW(index) (SOUND_OPTION_ROW_BASE + (index))
+#define IFACE_PANE_ROW_BASE 4096
+#define IFACE_PANE_ROW_MAX 32
+#define IFACE_DICE_ROLL_MS_STEP 500
+
+static const struct settings_value_choice running_delay_choices[] = {
+    { 0, "0 ms" },
+    { 5, "5 ms" },
+    { 10, "10 ms" },
+    { DEFAULT_RUNNING_DELAY_MS, "17 ms" },
+    { 25, "25 ms" },
+    { 33, "33 ms" },
+    { 50, "50 ms" },
+    { 75, "75 ms" },
+    { 100, "100 ms" }
+};
+
+static byte running_delay_step(byte current, int delta)
+{
+    if (delta < 0)
+    {
+        for (int i = (int)N_ELEMENTS(running_delay_choices) - 1; i >= 0; i--)
+            if (running_delay_choices[i].value < current)
+                return (byte)running_delay_choices[i].value;
+        return (byte)running_delay_choices[0].value;
+    }
+
+    for (int i = 0; i < (int)N_ELEMENTS(running_delay_choices); i++)
+        if (running_delay_choices[i].value > current)
+            return (byte)running_delay_choices[i].value;
+
+    return (byte)running_delay_choices[
+        N_ELEMENTS(running_delay_choices) - 1].value;
+}
+
 static const struct option_group_marker interface_option_groups[] = {
-    { 0, "Look" },
-    { 3, "Panels" },
-    { 4, "Warnings" },
-    { 5, "Input" },
-    { 8, "Items" },
-    { 11, "Debug" },
+    { OPT_look_objects_sort_by_difficulty, "Look" },
+    { OPT_look_nearby_filter_default, "Look" },
+    { OPT_song_list_sort_by_recent, "Look" },
+    { OPT_hide_supporting_panes_fullscreen, "Panels" },
+    { OPT_hitpoint_warning, "Warnings" },
+    { OPT_supply_menu_random_icons, "Items" },
+    { OPT_supply_menu_hide_flavor_compact, "Items" },
+    { OPT_hide_secondary_action_ring, "Quick Access" },
+    { OPT_show_level_generation_debug, "Debug" },
+    { OPT_show_elemental_item_rolls, "Debug" },
     { -1, NULL }
 };
 
 static const struct option_group_marker text_option_groups[] = {
-    { 0, "Overlays" },
-    { 2, "Panes" },
+    { OPT_story_object_desc, "Overlays" },
+    { OPT_story_monster_desc, "Overlays" },
+    { OPT_story_monster_desc_pane, "Panes" },
+    { OPT_story_lists_inven_pane, "Panes" },
+    { OPT_story_lists_equip_pane, "Panes" },
     { -1, NULL }
 };
 
 static const struct option_group_marker gameplay_option_groups[] = {
-    { 0, "Combat Behavior" },
-    { 5, "Information" },
-    { 8, "World Generation" },
-    { 13, "Blitz" },
-    { -1, NULL }
-};
-
-static const struct option_group_marker efficiency_option_groups[] = {
-    { 0, "Animation" },
-    { 2, "Camera" },
+    { OPT_valorous_oath_auto_attack_safety, "Combat Behavior" },
+    { OPT_pacifist_attack_warning, "Combat Behavior" },
+    { OPT_forgo_attacking_unwary, "Combat Behavior" },
+    { OPT_assassination_over_charge, "Combat Behavior" },
+    { OPT_stop_singing_on_rest, "Rest and Song" },
+    { OPT_visual_recognition, "Information" },
+    { OPT_know_monster_info, "Information" },
+    { OPT_disable_skeleton_note_tutorial, "Tutorial" },
+    { OPT_smaller_level_size, "World Generation" },
+    { OPT_more_stairs, "World Generation" },
+    { OPT_vault_drop_frequency, "World Generation" },
+    { OPT_noble_item_spawn_mode, "World Generation" },
+    { OPT_min_depth_timer_mode, "World Generation" },
+    { OPT_load_blitz_by_default, "Blitz" },
     { -1, NULL }
 };
 
 static const struct option_group_marker visual_option_groups[] = {
-    { 0, "Lists" },
-    { 2, "Overlay" },
-    { 4, "Items" },
-    { 6, "Animation" },
-    { 7, "Narrative" },
-    { 12, "ASCII" },
-    { 14, "Cursor" },
-    { 17, "Debug" },
+    { OPT_stealth_vision, "Overlays" },
+    { OPT_sleep_icon, "Overlays" },
+    { OPT_artifact_unique_color, "Items" },
+    { OPT_unidentified_items_slate, "Items" },
+    { OPT_delay_factor, "Animation" },
+    { OPT_running_delay, "Animation" },
+    { OPT_mirror_player_tile_facing, "Animation" },
+    { OPT_center_player, "Camera" },
+    { OPT_run_avoid_center, "Camera" },
+    { OPT_show_level_entry_banner, "Narrative" },
+    { OPT_show_partition_narrative, "Narrative" },
+    { OPT_narrative_banner_turns, "Narrative" },
+    { OPT_intro_style, "Narrative" },
+    { OPT_solid_walls, "ASCII" },
+    { OPT_hybrid_walls, "ASCII" },
+    { OPT_hilite_player, "Cursor" },
+    { OPT_hilite_target, "Cursor" },
+    { OPT_hilite_unwary, "Cursor" },
+    { OPT_show_smithing_difficulty, "Debug" },
+    { OPT_show_smithing_difficulty_look, "Debug" },
     { -1, NULL }
 };
 
 static const struct option_group_marker challenge_option_groups[] = {
-    { 0, "Traversal" },
-    { 2, "Content" },
+    { OPT_birth_discon_stair, "Traversal" },
+    { OPT_birth_ironman, "Traversal" },
+    { OPT_birth_no_artefacts, "Content" },
+    { OPT_birth_fixed_exp, "Content" },
     { -1, NULL }
 };
 
 static const struct option_group_marker debug_option_groups[] = {
-    { 0, "Generation" },
-    { 4, "Knowledge" },
-    { 10, "Survival" },
+    { OPT_cheat_peek, "Generation" },
+    { OPT_cheat_hear, "Generation" },
+    { OPT_cheat_room, "Generation" },
+    { OPT_cheat_xtra, "Generation" },
+    { OPT_cheat_know, "Knowledge" },
+    { OPT_cheat_monsters, "Knowledge" },
+    { OPT_cheat_noise, "Knowledge" },
+    { OPT_cheat_scent, "Knowledge" },
+    { OPT_cheat_light, "Knowledge" },
+    { OPT_cheat_skill_rolls, "Knowledge" },
+    { OPT_cheat_live, "Survival" },
+    { OPT_cheat_timestop, "Survival" },
     { -1, NULL }
 };
 
 static const struct option_group_marker sound_option_groups[] = {
-    { SOUND_OPT_ENABLED, "Master" },
-    { SOUND_OPT_COMBAT_ENABLED, "Effects" },
-    { SOUND_OPT_COMBAT_VOLUME, "Effect Volume" },
-    { SOUND_OPT_MUSIC_MAIN_ENABLED, "Music" },
-    { SOUND_OPT_MUSIC_MAIN_VOLUME, "Music Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_ENABLED), "Master" },
+    { SOUND_OPTION_ROW(SOUND_OPT_COMBAT_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MONSTER_HITS_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_INVENTORY_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_WALK_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_DOORS_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_TRAPS_ENABLED), "Effects" },
+    { SOUND_OPTION_ROW(SOUND_OPT_COMBAT_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MONSTER_HITS_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_INVENTORY_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_WALK_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_DOORS_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_TRAPS_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_OTHER_VOLUME), "Effect Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MUSIC_MAIN_ENABLED), "Music" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MUSIC_AMBIENT_ENABLED), "Music" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MUSIC_MAIN_VOLUME), "Music Volume" },
+    { SOUND_OPTION_ROW(SOUND_OPT_MUSIC_AMBIENT_VOLUME), "Music Volume" },
     { -1, NULL }
 };
 
@@ -393,7 +476,6 @@ static const struct option_group_marker* get_option_groups_for_page(int page)
     case INTERFACE_PAGE: return interface_option_groups;
     case TEXT_PAGE: return text_option_groups;
     case GAMEPLAY_PAGE: return gameplay_option_groups;
-    case EFFICIENCY_PAGE: return efficiency_option_groups;
     case VISUAL_PAGE: return visual_option_groups;
     case CHALLENGE_PAGE: return challenge_option_groups;
     case DEBUG_PAGE: return debug_option_groups;
@@ -402,31 +484,64 @@ static const struct option_group_marker* get_option_groups_for_page(int page)
     }
 }
 
+static cptr option_group_for_setting(const struct option_group_marker* groups,
+    int setting_id)
+{
+    if (!groups)
+        return NULL;
+
+    for (int i = 0; groups[i].setting_id >= 0; i++)
+        if (groups[i].setting_id == setting_id)
+            return groups[i].label;
+
+    return NULL;
+}
+
+static bool option_group_starts_at(const struct option_group_marker* groups,
+    const int* settings, int setting_index)
+{
+    cptr current;
+    cptr previous;
+
+    if (!groups || !settings || setting_index < 0)
+        return false;
+
+    current = option_group_for_setting(groups, settings[setting_index]);
+    if (!current)
+        return false;
+    if (setting_index == 0)
+        return true;
+
+    previous = option_group_for_setting(groups, settings[setting_index - 1]);
+    return !previous || !streq(current, previous);
+}
+
 static int option_group_count_before(const struct option_group_marker* groups,
-    int option_index)
+    const int* settings, int selected_index)
 {
     int count = 0;
 
-    if (!groups)
+    if (!groups || !settings || selected_index < 0)
         return 0;
 
-    for (int i = 0; groups[i].before_index >= 0; i++) {
-        if (groups[i].before_index <= option_index)
+    for (int i = 0; i <= selected_index; i++)
+        if (option_group_starts_at(groups, settings, i))
             count++;
-    }
 
     return count;
 }
 
-static int option_group_total_rows(const struct option_group_marker* groups)
+static int option_group_total_rows(const struct option_group_marker* groups,
+    const int* settings, int setting_count)
 {
     int count = 0;
 
-    if (!groups)
+    if (!groups || !settings)
         return 0;
 
-    for (int i = 0; groups[i].before_index >= 0; i++)
-        count++;
+    for (int i = 0; i < setting_count; i++)
+        if (option_group_starts_at(groups, settings, i))
+            count++;
 
     return count;
 }
@@ -434,7 +549,7 @@ static int option_group_total_rows(const struct option_group_marker* groups)
 static bool option_page_uses_app_config(int page)
 {
     return (page == INTERFACE_PAGE) || (page == TEXT_PAGE)
-        || (page == EFFICIENCY_PAGE) || (page == VISUAL_PAGE);
+        || (page == VISUAL_PAGE);
 }
 
 static int settings_ui_term_wid(void)
@@ -889,6 +1004,9 @@ static cptr option_menu_label(int opt)
     case OPT_delay_factor:
         return compact ? (narrow ? "Anim delay" : "Animation delay")
                        : "Delay factor for animation (0 to 9)";
+    case OPT_running_delay:
+        return compact ? (narrow ? "Run delay" : "Running delay")
+                       : "Running delay";
     case OPT_hitpoint_warning:
         return compact ? (narrow ? "HP warn" : "HP warning")
                        : "Hitpoint warning threshold (0% to 90%)";
@@ -976,7 +1094,7 @@ static cptr option_menu_label(int opt)
         case OPT_disable_skeleton_note_tutorial: return narrow ? "Hide skeleton tips" : "Hide skeleton tutorials";
         case OPT_smaller_level_size: return narrow ? "Smaller levels" : "Smaller level size";
         case OPT_more_stairs: return narrow ? "More stairs" : "Extra stairs";
-        case OPT_instant_run: return narrow ? "Fast running" : "Faster running";
+        case OPT_running_delay: return narrow ? "Run delay" : "Running delay";
         case OPT_center_player: return narrow ? "Center map" : "Center map";
         case OPT_run_avoid_center: return narrow ? "No center on run" : "Avoid centering on run";
         case OPT_artifact_unique_color: return narrow ? "Yellow artefacts" : "Yellow unique artefacts";
@@ -1318,6 +1436,17 @@ static bool option_pick_value(int opt, bool* handled)
         }
         return false;
 
+    case OPT_running_delay:
+        if (option_pick_from_choices(opt, running_delay_choices,
+                (int)N_ELEMENTS(running_delay_choices),
+                op_ptr->running_delay_ms, &value, handled)
+            && value != op_ptr->running_delay_ms)
+        {
+            op_ptr->running_delay_ms = (byte)value;
+            return true;
+        }
+        return false;
+
     case OPT_hitpoint_warning:
         if (option_pick_from_choices(opt, hp_warning_choices,
                 (int)N_ELEMENTS(hp_warning_choices), op_ptr->hitpoint_warn,
@@ -1542,11 +1671,6 @@ static bool sound_option_pick_value(int index, struct sound_config* sound_cfg,
  * IFACE_PANE_ROW_BASE marks such a row, whose descriptor is stored separately
  * (see do_cmd_options_aux).  Mirrors how the Sound page hosts non-OPT_* rows.
  */
-#define IFACE_PANE_ROW_BASE 4096
-#define IFACE_PANE_ROW_MAX 32
-#define IFACE_PANE_GROUP_MAX 8
-#define IFACE_DICE_ROLL_MS_STEP 500
-
 enum iface_pane_field {
     IFACE_PANE_FIELD_ENABLED = 0,
     IFACE_PANE_FIELD_PLACEMENT,
@@ -1569,7 +1693,7 @@ struct iface_pane_row {
 static bool pane_type_is_overlay(enum pane_type type);
 static const char* pane_type_display_name(enum pane_type type);
 static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
-    struct option_group_marker* markers, int* marker_count, int base_index);
+    struct option_group_marker* markers, int* marker_count);
 static cptr iface_pane_row_label(const struct iface_pane_row* row);
 static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
     size_t buflen);
@@ -1672,6 +1796,9 @@ static void options_aux_reset_to_default(int page, const int* opt, int k,
     case OPT_delay_factor:
         op_ptr->delay_factor = 5;
         break;
+    case OPT_running_delay:
+        op_ptr->running_delay_ms = DEFAULT_RUNNING_DELAY_MS;
+        break;
     case OPT_hitpoint_warning:
         op_ptr->hitpoint_warn = 3;
         break;
@@ -1732,8 +1859,8 @@ extern void do_cmd_options_aux(int page, cptr info)
     int opt[OPT_PAGE_PER + IFACE_PANE_ROW_MAX];
     struct iface_pane_row pane_rows[IFACE_PANE_ROW_MAX];
     int pane_row_count = 0;
-    int n_real = 0;
-    struct option_group_marker iface_groups[OPT_PAGE_PER + IFACE_PANE_GROUP_MAX + 1];
+    struct option_group_marker iface_groups[
+        OPT_PAGE_PER + IFACE_PANE_ROW_MAX + 1];
 
     char buf[160];
 
@@ -1764,39 +1891,30 @@ extern void do_cmd_options_aux(int page, cptr info)
     if (is_sound_page)
     {
         n = SOUND_OPT_MAX;
+        for (i = 0; i < n; i++)
+            opt[i] = SOUND_OPTION_ROW(i);
     }
-
-    n_real = n;
 
     /* Interface page: append inline per-overlay-pane rows after the OPT_* rows. */
     if (page == INTERFACE_PAGE)
     {
-        struct option_group_marker pane_markers[IFACE_PANE_GROUP_MAX];
+        struct option_group_marker pane_markers[IFACE_PANE_ROW_MAX];
         int pane_marker_count = 0;
         int g = 0;
         int s, m;
 
         pane_row_count = build_interface_pane_rows(pane_rows, IFACE_PANE_ROW_MAX,
-            pane_markers, &pane_marker_count, n_real);
+            pane_markers, &pane_marker_count);
 
         for (i = 0; i < pane_row_count; i++)
-            opt[n++] = IFACE_PANE_ROW_BASE;
+            opt[n++] = IFACE_PANE_ROW_BASE + i;
 
-        /*
-         * Build a dynamic group list: the existing OPT_* group headers that
-         * still fall within the real options, followed by one header per
-         * overlay pane.  (Static markers at/after n_real never render in the
-         * OPT-only case, so dropping them preserves current behaviour and
-         * avoids a stray header landing in front of the first pane row.)
-         */
-        for (s = 0; interface_option_groups[s].before_index >= 0; s++)
-        {
-            if (interface_option_groups[s].before_index < n_real)
-                iface_groups[g++] = interface_option_groups[s];
-        }
+        /* Merge stable option ownership with dynamic pane-row ownership. */
+        for (s = 0; interface_option_groups[s].setting_id >= 0; s++)
+            iface_groups[g++] = interface_option_groups[s];
         for (m = 0; m < pane_marker_count; m++)
             iface_groups[g++] = pane_markers[m];
-        iface_groups[g].before_index = -1;
+        iface_groups[g].setting_id = -1;
         iface_groups[g].label = NULL;
         groups = iface_groups;
     }
@@ -1807,9 +1925,9 @@ extern void do_cmd_options_aux(int page, cptr info)
         int first_row = 3;
         int footer_rows = (page == CHALLENGE_PAGE) ? 4 : 2;
         int visible_rows = Term->hgt - footer_rows - first_row;
-        int total_rows = n + option_group_total_rows(groups);
-        int selected_display_row = k + option_group_count_before(groups, k);
-        int group_index = 0;
+        int total_rows = n + option_group_total_rows(groups, opt, n);
+        int selected_display_row = k
+            + option_group_count_before(groups, opt, k);
         int display_row = 0;
         int max_scroll;
         bool pixel_menu;
@@ -1868,17 +1986,18 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             byte a = TERM_WHITE;
             int row;
+            cptr group_label = option_group_starts_at(groups, opt, i)
+                ? option_group_for_setting(groups, opt[i]) : NULL;
 
-            while (groups && groups[group_index].before_index == i)
+            if (group_label)
             {
                 row = first_row + display_row - scroll;
                 if (pixel_menu)
                     sdl_character_sheet_screen_add_select_heading(
-                        groups[group_index].label);
+                        group_label);
                 else if (row >= first_row && row < first_row + visible_rows)
-                    Term_putstr(2, row, -1, TERM_SLATE, groups[group_index].label);
+                    Term_putstr(2, row, -1, TERM_SLATE, group_label);
                 display_row++;
-                group_index++;
             }
 
             /* Color current option */
@@ -1890,7 +2009,8 @@ extern void do_cmd_options_aux(int page, cptr info)
             if (page == INTERFACE_PAGE && opt[i] >= IFACE_PANE_ROW_BASE)
             {
                 char value_str[32];
-                const struct iface_pane_row* prow = &pane_rows[i - n_real];
+                const struct iface_pane_row* prow =
+                    &pane_rows[opt[i] - IFACE_PANE_ROW_BASE];
 
                 iface_pane_row_value(prow, value_str, sizeof(value_str));
                 option_menu_format_line(buf, sizeof(buf),
@@ -1986,6 +2106,14 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 char value_str[32];
                 strnfmt(value_str, sizeof(value_str), "%d", op_ptr->delay_factor);
+                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
+                    value_str);
+            }
+            else if (opt[i] == OPT_running_delay)
+            {
+                char value_str[32];
+                strnfmt(value_str, sizeof(value_str), "%d ms",
+                    op_ptr->running_delay_ms);
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     value_str);
             }
@@ -2133,7 +2261,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 settings_semantic_add_row(i, semantic_buf, a);
                 if (page == INTERFACE_PAGE && opt[i] >= IFACE_PANE_ROW_BASE)
                 {
-                    if (iface_pane_row_resettable(&pane_rows[i - n_real]))
+                    if (iface_pane_row_resettable(
+                            &pane_rows[opt[i] - IFACE_PANE_ROW_BASE]))
                         sdl_character_sheet_screen_set_last_select_row_reset(
                             SETTINGS_CLICK_RESET_ROW_BASE + i);
                 }
@@ -2254,7 +2383,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                     if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
                     {
                         if (iface_pane_row_reset_to_default(
-                                &pane_rows[k - n_real]))
+                                &pane_rows[opt[k] - IFACE_PANE_ROW_BASE]))
                             app_settings_dirty = true;
                     }
                     else if ((page != CHALLENGE_PAGE) || (playerturn == 0))
@@ -2362,11 +2491,11 @@ extern void do_cmd_options_aux(int page, cptr info)
 
                 if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
                 {
-                    changed = iface_pane_row_pick_value(&pane_rows[k - n_real],
-                        &handled);
+                    changed = iface_pane_row_pick_value(
+                        &pane_rows[opt[k] - IFACE_PANE_ROW_BASE], &handled);
                     if (!handled)
-                        changed = iface_pane_row_adjust(&pane_rows[k - n_real],
-                            0);
+                        changed = iface_pane_row_adjust(
+                            &pane_rows[opt[k] - IFACE_PANE_ROW_BASE], 0);
                     if (changed)
                         app_settings_dirty = true;
                 }
@@ -2450,7 +2579,8 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
                 {
-                    if (iface_pane_row_adjust(&pane_rows[k - n_real], 1))
+                    if (iface_pane_row_adjust(
+                            &pane_rows[opt[k] - IFACE_PANE_ROW_BASE], 1))
                         app_settings_dirty = true;
                 }
                 else if (is_sound_page)
@@ -2523,6 +2653,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->delay_factor = (op_ptr->delay_factor < 9)
                         ? op_ptr->delay_factor + 1
                         : 9;
+                }
+                else if (opt[k] == OPT_running_delay)
+                {
+                    op_ptr->running_delay_ms = running_delay_step(
+                        op_ptr->running_delay_ms, 1);
                 }
                 else if (opt[k] == OPT_hitpoint_warning)
                 {
@@ -2610,7 +2745,8 @@ extern void do_cmd_options_aux(int page, cptr info)
             {
                 if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
                 {
-                    if (iface_pane_row_adjust(&pane_rows[k - n_real], -1))
+                    if (iface_pane_row_adjust(
+                            &pane_rows[opt[k] - IFACE_PANE_ROW_BASE], -1))
                         app_settings_dirty = true;
                 }
                 else if (is_sound_page)
@@ -2683,6 +2819,11 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->delay_factor = (op_ptr->delay_factor > 0)
                         ? op_ptr->delay_factor - 1
                         : 0;
+                }
+                else if (opt[k] == OPT_running_delay)
+                {
+                    op_ptr->running_delay_ms = running_delay_step(
+                        op_ptr->running_delay_ms, -1);
                 }
                 else if (opt[k] == OPT_hitpoint_warning)
                 {
@@ -2768,7 +2909,8 @@ extern void do_cmd_options_aux(int page, cptr info)
             /* On an inline pane Font Size row, 0 resets to auto. */
             if (page == INTERFACE_PAGE && opt[k] >= IFACE_PANE_ROW_BASE)
             {
-                const struct iface_pane_row* prow = &pane_rows[k - n_real];
+                const struct iface_pane_row* prow =
+                    &pane_rows[opt[k] - IFACE_PANE_ROW_BASE];
                 if (prow->field == IFACE_PANE_FIELD_FONT
                     && get_sdl_pane_font_size(prow->pane_cfg_index) != 0)
                 {
@@ -4278,12 +4420,10 @@ static const char* pane_type_display_name(enum pane_type type)
  * shows its launch/compact extras (its enabled/placement are fixed elsewhere),
  * other overlays show enabled/placement.  All show a font-size row.
  *
- * `base_index` is the row index at which these rows are appended in the
- * caller's combined option list, so the emitted markers point at the right row.
  * Returns the number of rows written.
  */
 static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
-    struct option_group_marker* markers, int* marker_count, int base_index)
+    struct option_group_marker* markers, int* marker_count)
 {
     int row_count = 0;
     int mark_count = 0;
@@ -4319,36 +4459,37 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_FONT;
         }
 
-        if (row_count + field_count > max_rows || mark_count >= IFACE_PANE_GROUP_MAX)
+        if (row_count + field_count > max_rows)
             break;
-
-        markers[mark_count].before_index = base_index + row_count;
-        markers[mark_count].label = pane_type_display_name(type);
-        mark_count++;
 
         for (int f = 0; f < field_count; f++)
         {
             rows[row_count].pane_cfg_index = i;
             rows[row_count].type = type;
             rows[row_count].field = fields[f];
+            markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
+            markers[mark_count].label = pane_type_display_name(type);
+            mark_count++;
             row_count++;
         }
     }
 
-    if (row_count + 2 <= max_rows && mark_count < IFACE_PANE_GROUP_MAX)
+    if (row_count + 2 <= max_rows)
     {
-        markers[mark_count].before_index = base_index + row_count;
-        markers[mark_count].label = "Dice Roll Overlay";
-        mark_count++;
-
         rows[row_count].pane_cfg_index = -1;
         rows[row_count].type = PANE_MAX;
         rows[row_count].field = IFACE_PANE_FIELD_DICE_LOCK;
+        markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
+        markers[mark_count].label = "Dice Roll Overlay";
+        mark_count++;
         row_count++;
 
         rows[row_count].pane_cfg_index = -1;
         rows[row_count].type = PANE_MAX;
         rows[row_count].field = IFACE_PANE_FIELD_DICE_OVERLAY;
+        markers[mark_count].setting_id = IFACE_PANE_ROW_BASE + row_count;
+        markers[mark_count].label = "Dice Roll Overlay";
+        mark_count++;
         row_count++;
     }
 
@@ -4403,7 +4544,8 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
         break;
     case IFACE_PANE_FIELD_PLACEMENT:
         SDL_strlcpy(buf,
-            pane_placement_name((enum pane_placement)get_sdl_pane_where(idx)),
+            pane_placement_display_name(
+                (enum pane_placement)get_sdl_pane_where(idx)),
             buflen);
         break;
     case IFACE_PANE_FIELD_FONT:
@@ -4534,7 +4676,7 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
                 continue;
 
             choices[count].value = placements[i];
-            choices[count].label = pane_placement_name(placements[i]);
+            choices[count].label = pane_placement_display_name(placements[i]);
             count++;
         }
 
@@ -5010,7 +5152,8 @@ static void do_cmd_supporting_pane_layout_editor(bool* settings_changed)
             const char* type_label = settings_ui_pick_label(MAX(8, row_width / 3),
                 pane_type_name(type), pane_type_name(type), pane_type_short_name(type));
             const char* where_label = settings_ui_pick_label(MAX(4, row_width / 4),
-                pane_placement_name(where), pane_placement_name(where),
+                pane_placement_display_name(where),
+                pane_placement_display_name(where),
                 pane_where_short_name(where));
 
             settings_ui_fit_text(type_buf, sizeof(type_buf), type_label,
@@ -8806,7 +8949,7 @@ static void do_cmd_legacy_options(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 10;
+    int options = 9;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -8875,12 +9018,11 @@ int options_menu(int* highlight)
     ADD_OPTIONS_MENU_ROW(5, 'e', "Text Options");
     ADD_OPTIONS_MENU_ROW(6, 'f', "Gameplay Options");
     ADD_OPTIONS_MENU_ROW(7, 'g', "Sound Options");
-    ADD_OPTIONS_MENU_ROW(8, 'h', "Efficiency Options");
-    ADD_OPTIONS_MENU_ROW(9, 'i', "Legacy Options");
-    ADD_OPTIONS_MENU_ROW(10, 'o', "Return to Game");
+    ADD_OPTIONS_MENU_ROW(8, 'i', "Legacy Options");
+    ADD_OPTIONS_MENU_ROW(9, 'o', "Return to Game");
 
     if (allow_debug_menu && p_ptr->noscore)
-        ADD_OPTIONS_MENU_ROW(11, 'p', "Debugging Options");
+        ADD_OPTIONS_MENU_ROW(10, 'p', "Debugging Options");
 
 #undef ADD_OPTIONS_MENU_ROW
 
@@ -8903,7 +9045,7 @@ int options_menu(int* highlight)
             "tap/click a row to open; drag/wheel move selection; Esc return",
             "tap/click open; drag/wheel move; Esc return",
             "tap open; drag/wheel; Esc");
-        ui_menu_click_add_full_row(10, term_hgt - 1);
+        ui_menu_click_add_full_row(9, term_hgt - 1);
 
         /* Flush the prompt */
         Term_fresh();
@@ -8925,7 +9067,7 @@ int options_menu(int* highlight)
             if (click_action == UI_MENU_CLICK_HOVER && clicked_choice < 0)
                 return (0);
             if (clicked_choice == -1)
-                clicked_choice = 10;
+                clicked_choice = 9;
             else if (clicked_choice == -2)
                 clicked_choice = *highlight;
             if (clicked_choice == SETTINGS_CLICK_RETURN)
@@ -8983,30 +9125,24 @@ int options_menu(int* highlight)
         return (7);
     }
 
-    if (menu_letters && ((ch == 'h') || (ch == 'H')))
+    if (menu_letters && ((ch == 'i') || (ch == 'I')))
     {
         *highlight = 8;
         return (8);
     }
 
-    if (menu_letters && ((ch == 'i') || (ch == 'I')))
+    if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
+        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
         *highlight = 9;
         return (9);
     }
 
-    if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
-        || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
-    {
-        *highlight = 10;
-        return (10);
-    }
-
     if (menu_letters && allow_debug_menu && p_ptr->noscore
         && ((ch == 'p') || (ch == 'P')))
     {
-        *highlight = 11;
-        return (11);
+        *highlight = 10;
+        return (10);
     }
 
     /* Choose current  */
@@ -9029,6 +9165,135 @@ int options_menu(int* highlight)
     }
 
     return (0);
+}
+
+static void do_cmd_keyboard_input_settings(void)
+{
+    int selected = 1;
+    bool done = false;
+    bool steamdeck = steamdeck_controls_active();
+    bool menu_letters = sdl_menu_letters_enabled();
+
+    while (!done)
+    {
+        char line[96];
+        int ch;
+        int clicked_choice = 0;
+        int row = 3;
+        bool pixel_menu = settings_semantic_menu_begin("Keyboard Input",
+            selected);
+
+        if (!pixel_menu)
+        {
+            Term_clear();
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            settings_menu_begin_scroll_area(row, 4);
+            settings_ui_put_fitted(1, 2, TERM_WHITE, "Keyboard Input");
+        }
+
+#define ADD_KEYBOARD_ROW(CHOICE, LABEL, VALUE)                                \
+        do {                                                                   \
+            if (pixel_menu)                                                    \
+                settings_semantic_add_pair_row((CHOICE), (LABEL), (VALUE),    \
+                    selected == (CHOICE) ? TERM_L_BLUE : TERM_WHITE);          \
+            else                                                               \
+            {                                                                  \
+                option_menu_format_line(line, sizeof(line), (LABEL), (VALUE)); \
+                c_prt(selected == (CHOICE) ? TERM_L_BLUE : TERM_WHITE,         \
+                    line, row, 2);                                             \
+                ui_menu_click_add_full_row((CHOICE), row++);                  \
+            }                                                                  \
+        } while (0)
+
+        ADD_KEYBOARD_ROW(1, "Move with hjkl",
+            op_ptr->opt[OPT_hjkl_movement] ? "on" : "off");
+        ADD_KEYBOARD_ROW(2, "Angband keyset",
+            op_ptr->opt[OPT_angband_keyset] ? "on" : "off");
+        ADD_KEYBOARD_ROW(3, "Configure keybinds", "open");
+        ADD_KEYBOARD_ROW(4, "Return to Input", "");
+
+#undef ADD_KEYBOARD_ROW
+
+        if (pixel_menu)
+            sdl_character_sheet_screen_commit_select(selected);
+        else
+        {
+            settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
+                "Enter toggles/opens; Esc returns",
+                "Enter select; Esc return", "Enter; Esc");
+            Term_fresh();
+        }
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        {
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice == SETTINGS_CLICK_RETURN)
+                    clicked_choice = 4;
+                if (clicked_choice >= 1 && clicked_choice <= 4)
+                {
+                    selected = clicked_choice;
+                    if (click_action != UI_MENU_CLICK_HOVER)
+                        ch = '\r';
+                }
+            }
+        }
+
+        ch = settings_menu_key(ch, '8', '2', false);
+
+        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key())
+            || (menu_letters && (ch == 'o' || ch == 'O' || ch == 'q')))
+        {
+            done = true;
+        }
+        else if (ch == '8')
+            selected = (selected + 2) % 4 + 1;
+        else if (ch == '2')
+            selected = selected % 4 + 1;
+        else if (menu_letters && (ch == 'a' || ch == 'A'))
+        {
+            selected = 1;
+            ch = '\r';
+        }
+        else if (menu_letters && (ch == 'b' || ch == 'B'))
+        {
+            selected = 2;
+            ch = '\r';
+        }
+        else if (menu_letters && (ch == 'c' || ch == 'C'))
+        {
+            selected = 3;
+            ch = '\r';
+        }
+
+        if (ch == '\r' || ch == '\n' || ch == ' ' || ch == '6'
+            || (steamdeck && ch == steamdeck_confirm_key()))
+        {
+            if (selected == 1 || selected == 2)
+            {
+                int opt = (selected == 1) ? OPT_hjkl_movement
+                                          : OPT_angband_keyset;
+                op_ptr->opt[opt] = !op_ptr->opt[opt];
+                save_pane_config_to_json();
+            }
+            else if (selected == 3)
+            {
+                settings_semantic_menu_hide();
+                do_cmd_keybinds();
+                Term_clear();
+            }
+            else
+                done = true;
+        }
+    }
+
+    settings_semantic_menu_hide();
 }
 
 static int input_options_menu(int* highlight)
@@ -9093,7 +9358,7 @@ static int input_options_menu(int* highlight)
             MIN(options, visible_rows));
     }
 
-    ADD_INPUT_MENU_ROW(1, 'a', "Set Keybinds");
+    ADD_INPUT_MENU_ROW(1, 'a', "Keyboard Input");
     ADD_INPUT_MENU_ROW(2, 'b', "Controller Settings");
     if (touch_available)
         ADD_INPUT_MENU_ROW(3, 'c', "Touch Tutorial");
@@ -9213,7 +9478,7 @@ static void do_cmd_input_options_submenu(int* highlight)
         {
         case 1:
             settings_semantic_menu_hide();
-            do_cmd_keybinds();
+            do_cmd_keyboard_input_settings();
             Term_clear();
             break;
         case 2:
@@ -9264,7 +9529,7 @@ static bool options_debug_page_available(void)
 
 static int options_menu_page_choice_turn(int choice, int direction)
 {
-    int page_choices[] = { 3, 4, 5, 6, 7, 8, 11 };
+    int page_choices[] = { 3, 4, 5, 6, 7, 10 };
     int count = options_debug_page_available()
         ? (int)N_ELEMENTS(page_choices)
         : (int)N_ELEMENTS(page_choices) - 1;
@@ -9392,20 +9657,13 @@ void do_cmd_options(void)
         }
         case 8:
         {
-            do_cmd_options_aux(EFFICIENCY_PAGE, "Efficiency Options");
-            options_queue_page_turn(choice, &queued_choice);
-            Term_clear();
-            break;
-        }
-        case 9:
-        {
             do_cmd_legacy_options();
             if (p_ptr && (p_ptr->leaving || !p_ptr->playing))
                 return_to_game = true;
             Term_clear();
             break;
         }
-        case 10:
+        case 9:
         {
             /* Return to Game */
             settings_semantic_menu_hide();
@@ -9413,7 +9671,7 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 11:
+        case 10:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

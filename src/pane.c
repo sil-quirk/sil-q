@@ -722,6 +722,42 @@ const char* pane_placement_name(enum pane_placement where)
     }
 }
 
+const char* pane_placement_display_name(enum pane_placement where)
+{
+    switch (where) {
+    case PLACE_BOTTOM:
+        return "bottom";
+    case PLACE_DOUBLE_BOTTOM:
+        return "double bottom";
+    case PLACE_RIGHT:
+        return "right";
+    case PLACE_LEFT:
+        return "left";
+    case PLACE_TOP_LEFT:
+        return "top left";
+    case PLACE_TOP_RIGHT:
+        return "top right";
+    case PLACE_TOP_CENTER:
+        return "top center";
+    case PLACE_BOTTOM_LEFT:
+        return "bottom left";
+    case PLACE_BOTTOM_RIGHT:
+        return "bottom right";
+    case PLACE_BOTTOM_CENTER:
+        return "bottom center";
+    case PLACE_LEFT_CENTER:
+        return "left center";
+    case PLACE_RIGHT_CENTER:
+        return "right center";
+    case PLACE_DOUBLE_LEFT:
+        return "double left";
+    case PLACE_DOUBLE_RIGHT:
+        return "double right";
+    default:
+        return "?";
+    }
+}
+
 void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
     const SDL_Rect* window, const int* cell_widths, const int* cell_heights,
     int margin)

@@ -814,12 +814,18 @@ static bool g_app_intro_seen = false;
 static bool g_app_touch_tutorial_seen = false;
 static bool g_app_mouse_tutorial_seen = false;
 
-static const byte app_interface_options[] = {
+static const byte app_input_options[] = {
     OPT_hjkl_movement, OPT_angband_keyset,
-    OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
+    OPT_NONE
+};
+
+static const byte app_interface_options[] = {
+    OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
+    OPT_song_list_sort_by_recent,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
     OPT_supply_menu_random_icons,
     OPT_supply_menu_hide_flavor_compact, OPT_hide_secondary_action_ring,
+    OPT_hide_supporting_panes_fullscreen,
     OPT_NONE
 };
 
@@ -827,12 +833,6 @@ static const byte app_text_options[] = {
     OPT_story_object_desc, OPT_story_monster_desc,
     OPT_story_monster_desc_pane, OPT_story_lists_inven_pane,
     OPT_story_lists_equip_pane,
-    OPT_NONE
-};
-
-static const byte app_efficiency_options[] = {
-    OPT_instant_run, OPT_center_player, OPT_run_avoid_center,
-    OPT_hide_supporting_panes_fullscreen,
     OPT_NONE
 };
 
@@ -846,6 +846,7 @@ static const byte app_visual_options[] = {
     OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
     OPT_mirror_player_tile_facing, OPT_handcrafted_player_tile_facing,
+    OPT_center_player, OPT_run_avoid_center,
     OPT_show_smithing_difficulty,
     OPT_show_smithing_difficulty_look, OPT_NONE
 };
@@ -879,16 +880,17 @@ static bool option_is_retired_app_text_option(int opt)
 bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
-    if (opt == OPT_delay_factor || opt == OPT_hitpoint_warning
+    if (opt == OPT_delay_factor || opt == OPT_running_delay
+        || opt == OPT_hitpoint_warning
         || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
         || opt == OPT_show_partition_narrative
         || opt == OPT_narrative_banner_turns)
         return true;
     if (option_is_retired_app_text_option(opt))
         return true;
-    return option_list_contains(app_interface_options, opt)
+    return option_list_contains(app_input_options, opt)
+        || option_list_contains(app_interface_options, opt)
         || option_list_contains(app_text_options, opt)
-        || option_list_contains(app_efficiency_options, opt)
         || option_list_contains(app_gameplay_options, opt)
         || option_list_contains(app_visual_options, opt);
 }
@@ -928,13 +930,14 @@ static void sdl_config_apply_app_option_defaults(void)
     if (!op_ptr)
         return;
 
+    sdl_config_apply_app_bool_defaults(app_input_options);
     sdl_config_apply_app_bool_defaults(app_interface_options);
     sdl_config_apply_app_bool_defaults(app_text_options);
-    sdl_config_apply_app_bool_defaults(app_efficiency_options);
     sdl_config_apply_app_bool_defaults(app_gameplay_options);
     sdl_config_apply_app_bool_defaults(app_visual_options);
 
     op_ptr->delay_factor = 5;
+    op_ptr->running_delay_ms = DEFAULT_RUNNING_DELAY_MS;
     op_ptr->hitpoint_warn = 3;
     op_ptr->main_combat_rolls = 0;
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
@@ -977,6 +980,33 @@ static void sdl_config_load_app_option_group(cJSON* app_options,
     }
 }
 
+static bool sdl_config_try_load_app_bool_option(cJSON* app_options,
+    const char* group_name, int opt)
+{
+    cJSON* group;
+    cJSON* item;
+    cptr key;
+
+    if (!op_ptr || !cJSON_IsObject(app_options) || !group_name
+        || opt < 0 || opt >= OPT_MAX)
+        return false;
+
+    key = option_text[opt];
+    if (!key)
+        return false;
+
+    group = cJSON_GetObjectItemCaseSensitive(app_options, group_name);
+    if (!cJSON_IsObject(group))
+        return false;
+
+    item = cJSON_GetObjectItemCaseSensitive(group, key);
+    if (!cJSON_IsBool(item))
+        return false;
+
+    op_ptr->opt[opt] = cJSON_IsTrue(item);
+    return true;
+}
+
 static void sdl_config_save_app_option_group(cJSON* app_options,
     const char* group_name, const byte* option_ids)
 {
@@ -1000,33 +1030,46 @@ static void sdl_config_save_app_option_group(cJSON* app_options,
     cJSON_AddItemToObject(app_options, group_name, group);
 }
 
+static bool sdl_config_try_load_byte_value(cJSON* parent, const char* key,
+    byte* out_value, byte max_value);
+
 static void sdl_config_load_byte_value(cJSON* parent, const char* key,
     byte* out_value, byte max_value, byte default_value)
 {
-    cJSON* item;
-
     if (!out_value)
         return;
 
     /* Missing numeric keys are deliberate defaults, not inherited state. */
     *out_value = MIN(default_value, max_value);
 
+    (void)sdl_config_try_load_byte_value(parent, key, out_value, max_value);
+}
+
+static bool sdl_config_try_load_byte_value(cJSON* parent, const char* key,
+    byte* out_value, byte max_value)
+{
+    cJSON* item;
+
+    if (!out_value)
+        return false;
+
     if (!cJSON_IsObject(parent))
-        return;
+        return false;
 
     item = cJSON_GetObjectItemCaseSensitive(parent, key);
     if (!cJSON_IsNumber(item))
-        return;
+        return false;
 
     if (item->valueint < 0)
-        return;
+        return false;
 
     if (item->valueint > max_value) {
         *out_value = max_value;
-        return;
+        return true;
     }
 
     *out_value = (byte)item->valueint;
+    return true;
 }
 
 void sdl_config_load_app_options(const char* filename)
@@ -1088,21 +1131,69 @@ void sdl_config_load_app_options(const char* filename)
     if (cJSON_IsBool(item))
         g_app_mouse_tutorial_seen = cJSON_IsTrue(item);
 
+    sdl_config_load_app_option_group(app_options, "input", app_input_options);
     sdl_config_load_app_option_group(app_options, "interface", app_interface_options);
     sdl_config_load_app_option_group(app_options, "text", app_text_options);
-    sdl_config_load_app_option_group(app_options, "efficiency", app_efficiency_options);
     sdl_config_load_app_option_group(app_options, "gameplay", app_gameplay_options);
     sdl_config_load_app_option_group(app_options, "visual", app_visual_options);
+
+    /* Migrate settings from their pre-regrouping JSON owners. */
+    if (!sdl_config_try_load_app_bool_option(app_options, "input",
+            OPT_hjkl_movement))
+        sdl_config_try_load_app_bool_option(app_options, "interface",
+            OPT_hjkl_movement);
+    if (!sdl_config_try_load_app_bool_option(app_options, "input",
+            OPT_angband_keyset))
+        sdl_config_try_load_app_bool_option(app_options, "interface",
+            OPT_angband_keyset);
+    if (!sdl_config_try_load_app_bool_option(app_options, "interface",
+            OPT_hide_supporting_panes_fullscreen))
+        sdl_config_try_load_app_bool_option(app_options, "efficiency",
+            OPT_hide_supporting_panes_fullscreen);
+    if (!sdl_config_try_load_app_bool_option(app_options, "visual",
+            OPT_center_player))
+        sdl_config_try_load_app_bool_option(app_options, "efficiency",
+            OPT_center_player);
+    if (!sdl_config_try_load_app_bool_option(app_options, "visual",
+            OPT_run_avoid_center))
+        sdl_config_try_load_app_bool_option(app_options, "efficiency",
+            OPT_run_avoid_center);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "interface");
     sdl_config_load_byte_value(item, "hitpointWarning", &op_ptr->hitpoint_warn,
         9, 3);
 
-    item = cJSON_GetObjectItemCaseSensitive(app_options, "efficiency");
-    sdl_config_load_byte_value(item, "delayFactor", &op_ptr->delay_factor,
-        9, 5);
-
     item = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
+    op_ptr->delay_factor = 5;
+    if (!sdl_config_try_load_byte_value(item, "delayFactor",
+            &op_ptr->delay_factor, 9))
+    {
+        cJSON* legacy_efficiency = cJSON_GetObjectItemCaseSensitive(
+            app_options, "efficiency");
+        sdl_config_try_load_byte_value(legacy_efficiency, "delayFactor",
+            &op_ptr->delay_factor, 9);
+    }
+
+    op_ptr->running_delay_ms = DEFAULT_RUNNING_DELAY_MS;
+    if (!sdl_config_try_load_byte_value(item, "runningDelayMs",
+            &op_ptr->running_delay_ms, MAX_RUNNING_DELAY_MS))
+    {
+        cJSON* legacy_efficiency = cJSON_GetObjectItemCaseSensitive(
+            app_options, "efficiency");
+        cJSON* legacy_instant = cJSON_IsObject(legacy_efficiency)
+            ? cJSON_GetObjectItemCaseSensitive(legacy_efficiency, "instant_run")
+            : NULL;
+
+        if (!sdl_config_try_load_byte_value(legacy_efficiency,
+                "runningDelayMs", &op_ptr->running_delay_ms,
+                MAX_RUNNING_DELAY_MS)
+            && cJSON_IsBool(legacy_instant))
+        {
+            op_ptr->running_delay_ms = cJSON_IsTrue(legacy_instant)
+                ? 0 : DEFAULT_RUNNING_DELAY_MS;
+        }
+    }
+
     sdl_config_load_byte_value(item, "introStyle", &op_ptr->intro_style,
         INTRO_STYLE_RANDOM, INTRO_STYLE_RANDOM);
     sdl_config_load_byte_value(item, "levelEntryNarrativeMode",
@@ -3147,7 +3238,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     {
         cJSON* app_options = cJSON_CreateObject();
         cJSON* interface = NULL;
-        cJSON* efficiency = NULL;
         cJSON* visual = NULL;
 
         if (app_options && op_ptr) {
@@ -3157,9 +3247,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddBoolToObject(app_options, "mouseTutorialSeen",
                 g_app_mouse_tutorial_seen);
 
+            sdl_config_save_app_option_group(app_options, "input", app_input_options);
             sdl_config_save_app_option_group(app_options, "interface", app_interface_options);
             sdl_config_save_app_option_group(app_options, "text", app_text_options);
-            sdl_config_save_app_option_group(app_options, "efficiency", app_efficiency_options);
             sdl_config_save_app_option_group(app_options, "gameplay", app_gameplay_options);
             sdl_config_save_app_option_group(app_options, "visual", app_visual_options);
 
@@ -3168,13 +3258,12 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 cJSON_AddNumberToObject(interface, "hitpointWarning", op_ptr->hitpoint_warn);
             }
 
-            efficiency = cJSON_GetObjectItemCaseSensitive(app_options, "efficiency");
-            if (cJSON_IsObject(efficiency)) {
-                cJSON_AddNumberToObject(efficiency, "delayFactor", op_ptr->delay_factor);
-            }
-
             visual = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
             if (cJSON_IsObject(visual)) {
+                cJSON_AddNumberToObject(visual, "delayFactor",
+                    op_ptr->delay_factor);
+                cJSON_AddNumberToObject(visual, "runningDelayMs",
+                    op_ptr->running_delay_ms);
                 cJSON_AddNumberToObject(visual, "introStyle", op_ptr->intro_style);
                 cJSON_AddNumberToObject(visual, "levelEntryNarrativeMode",
                     op_ptr->level_entry_narrative_mode);

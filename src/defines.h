@@ -2835,7 +2835,9 @@
 // reserved legacy slot: easy_open
 // reserved legacy slot: easy_alter
 // reserved legacy slot: easy_floor
-#define OPT_instant_run 67
+#define OPT_running_delay 67
+/* Stable legacy name for the option slot formerly used by instant_run. */
+#define OPT_instant_run OPT_running_delay
 #define OPT_center_player 68
 #define OPT_run_avoid_center 69
 // reserved legacy slot: scroll_target
@@ -3055,7 +3057,10 @@
 // reserved legacy slot: easy_open
 // reserved legacy slot: easy_alter
 // reserved legacy slot: easy_floor
-#define instant_run op_ptr->opt[OPT_instant_run]
+#define DEFAULT_RUNNING_DELAY_MS 17
+#define MAX_RUNNING_DELAY_MS 100
+#define running_step_delay_ms op_ptr->running_delay_ms
+#define instant_run (running_step_delay_ms == 0)
 #define center_player op_ptr->opt[OPT_center_player]
 #define run_avoid_center op_ptr->opt[OPT_run_avoid_center]
 // reserved legacy slot: scroll_target
@@ -3194,7 +3199,7 @@
 /*
  * Information for "do_cmd_options()".
  */
-#define OPT_PAGE_MAX 8
+#define OPT_PAGE_MAX 7
 #define OPT_PAGE_PER 20
 
 /*
@@ -3203,11 +3208,10 @@
 #define INTERFACE_PAGE 0
 #define TEXT_PAGE 1
 #define GAMEPLAY_PAGE 2
-#define EFFICIENCY_PAGE 3
-#define VISUAL_PAGE 4
-#define SOUND_PAGE 7
-#define CHALLENGE_PAGE 5
-#define DEBUG_PAGE 6
+#define VISUAL_PAGE 3
+#define CHALLENGE_PAGE 4
+#define DEBUG_PAGE 5
+#define SOUND_PAGE 6
 
 /*** Macro Definitions ***/
 

@@ -111,6 +111,7 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type);
 enum pane_placement pane_next_allowed_placement(enum pane_type type,
     enum pane_placement current, int delta);
 const char* pane_placement_name(enum pane_placement where);
+const char* pane_placement_display_name(enum pane_placement where);
 
 void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
     const SDL_Rect* window, const int* cell_widths, const int* cell_heights,

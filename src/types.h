@@ -1055,6 +1055,7 @@ struct player_other
     byte hitpoint_warn; /* Hitpoint warning (0 to 9) */
 
     byte delay_factor; /* Delay factor (0 to 9) */
+    byte running_delay_ms; /* Delay between steps while running */
 
     byte main_combat_rolls; /* Legacy save byte; panes own combat display */
     byte vault_drop_frequency; /* Vault drop frequency mode (VDF_*) */
