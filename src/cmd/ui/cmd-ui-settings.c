@@ -5601,6 +5601,14 @@ enum {
     TOUCH_TOP_WIDGET_BUTTON_COUNT
 };
 
+enum {
+    TOUCH_THUMB_BUTTON_1_TAP = 0,
+    TOUCH_THUMB_BUTTON_1_LONG_TAP,
+    TOUCH_THUMB_BUTTON_2_TAP,
+    TOUCH_THUMB_BUTTON_2_LONG_TAP,
+    TOUCH_THUMB_BUTTON_ROW_COUNT
+};
+
 static bool touch_control_is_menu_command_row(int row)
 {
     return row >= TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT
@@ -5626,6 +5634,7 @@ typedef enum {
     TOUCH_CONTROL_BINDING_CENTER_ZONE,
     TOUCH_CONTROL_BINDING_CORNER_ACTION,
     TOUCH_CONTROL_BINDING_SWIPE,
+    TOUCH_CONTROL_BINDING_THUMB,
 } touch_control_binding_kind;
 
 typedef struct {
@@ -5690,6 +5699,17 @@ static const touch_control_binding_row touch_top_widget_binding_rows[] = {
         TOUCH_CONTROL_BINDING_TOP_PANEL, 5, true },
 };
 
+static const touch_control_binding_row touch_thumb_binding_rows[] = {
+    { TOUCH_THUMB_BUTTON_1_TAP, "Thumb 1 Tap",
+        TOUCH_CONTROL_BINDING_THUMB, 0, false },
+    { TOUCH_THUMB_BUTTON_1_LONG_TAP, "Thumb 1 Long Tap",
+        TOUCH_CONTROL_BINDING_THUMB, 0, true },
+    { TOUCH_THUMB_BUTTON_2_TAP, "Thumb 2 Tap",
+        TOUCH_CONTROL_BINDING_THUMB, 1, false },
+    { TOUCH_THUMB_BUTTON_2_LONG_TAP, "Thumb 2 Long Tap",
+        TOUCH_CONTROL_BINDING_THUMB, 1, true },
+};
+
 static const touch_control_binding_row* touch_control_binding_for_row(int row)
 {
     for (int i = 0; i < (int)N_ELEMENTS(touch_control_binding_rows); i++) {
@@ -5710,6 +5730,16 @@ static const touch_control_binding_row* touch_top_widget_binding_for_row(int row
     return NULL;
 }
 
+static const touch_control_binding_row* touch_thumb_binding_for_row(int row)
+{
+    for (int i = 0; i < (int)N_ELEMENTS(touch_thumb_binding_rows); i++) {
+        if (touch_thumb_binding_rows[i].row == row)
+            return &touch_thumb_binding_rows[i];
+    }
+
+    return NULL;
+}
+
 static int touch_control_binding_value(const touch_control_binding_row* binding)
 {
     if (!binding)
@@ -5725,6 +5755,9 @@ static int touch_control_binding_value(const touch_control_binding_row* binding)
         return get_sdl_touch_corner_action_binding(binding->index);
     case TOUCH_CONTROL_BINDING_SWIPE:
         return get_sdl_touch_swipe_binding(binding->index);
+    case TOUCH_CONTROL_BINDING_THUMB:
+        return get_sdl_touch_thumb_binding(binding->index,
+            binding->long_press);
     default:
         return GAMEPAD_BIND_NONE;
     }
@@ -5746,6 +5779,9 @@ static int touch_control_binding_default_value(
         return get_sdl_touch_corner_action_default_binding(binding->index);
     case TOUCH_CONTROL_BINDING_SWIPE:
         return get_sdl_touch_swipe_default_binding(binding->index);
+    case TOUCH_CONTROL_BINDING_THUMB:
+        return get_sdl_touch_thumb_default_binding(binding->index,
+            binding->long_press);
     default:
         return GAMEPAD_BIND_NONE;
     }
@@ -5770,6 +5806,10 @@ static void touch_control_set_binding(const touch_control_binding_row* binding,
         break;
     case TOUCH_CONTROL_BINDING_SWIPE:
         set_sdl_touch_swipe_binding(binding->index, value);
+        break;
+    case TOUCH_CONTROL_BINDING_THUMB:
+        set_sdl_touch_thumb_binding(binding->index, binding->long_press,
+            value);
         break;
     default:
         break;
@@ -5943,6 +5983,65 @@ static bool touch_top_widget_pick_binding_row(int row)
     const touch_control_binding_row* binding = touch_top_widget_binding_for_row(row);
 
     return touch_control_pick_binding(binding, binding ? binding->label : NULL);
+}
+
+static bool touch_thumb_binding_label(int row, char* buf, size_t buflen)
+{
+    const touch_control_binding_row* binding = touch_thumb_binding_for_row(row);
+
+    if (!binding)
+        return false;
+
+    touch_pane_action_label_for_panel(SDL_TOUCH_PANE_PANEL_MAIN,
+        touch_control_binding_value(binding), buf, buflen);
+    return true;
+}
+
+static bool touch_thumb_cycle_binding_row(int row, int delta)
+{
+    const touch_control_binding_row* binding = touch_thumb_binding_for_row(row);
+    int choice_count = 0;
+    const int* choices;
+    int idx;
+
+    if (!binding)
+        return false;
+
+    choices = touch_control_binding_choices(binding, &choice_count);
+    if (!choices || choice_count <= 0)
+        return false;
+
+    idx = touch_action_choice_index(choices, choice_count,
+        touch_control_binding_value(binding));
+    idx = ((idx + delta) % choice_count + choice_count) % choice_count;
+    touch_control_set_binding(binding, choices[idx]);
+    return true;
+}
+
+static bool touch_thumb_reset_binding_row(int row)
+{
+    const touch_control_binding_row* binding = touch_thumb_binding_for_row(row);
+
+    if (!binding)
+        return false;
+
+    touch_control_set_binding(binding,
+        touch_control_binding_default_value(binding));
+    return true;
+}
+
+static bool touch_thumb_pick_binding_row(int row)
+{
+    const touch_control_binding_row* binding = touch_thumb_binding_for_row(row);
+
+    return touch_control_pick_binding(binding, binding ? binding->label : NULL);
+}
+
+static void touch_thumb_reset_buttons_to_default(void)
+{
+    for (int i = 0; i < TOUCH_THUMB_BUTTON_ROW_COUNT; i++)
+        (void)touch_thumb_reset_binding_row(i);
+    set_sdl_touch_thumb_enabled(get_sdl_touch_thumb_default_enabled());
 }
 
 static const char* touch_control_row_name(int row)
@@ -6171,6 +6270,7 @@ static void touch_buttons_reset_to_default(void)
 {
     touch_pane_reset_buttons_to_default();
     touch_top_widget_reset_buttons_to_default();
+    touch_thumb_reset_buttons_to_default();
     touch_corner_action_buttons_reset_to_default();
 }
 
@@ -6925,11 +7025,255 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
     screen_load();
 }
 
+static void do_cmd_touch_thumb_button_editor(bool* settings_changed)
+{
+    enum { THUMB_ENABLE_ROW = 0 };
+    const int total_rows = TOUCH_THUMB_BUTTON_ROW_COUNT + 1;
+    int highlight = 0;
+    bool done = false;
+    bool changed = false;
+    const int list_start_row = 5;
+
+    screen_save();
+
+    while (!done)
+    {
+        int row_width = settings_ui_line_width(2);
+        bool pixel_menu;
+
+        pixel_menu = settings_semantic_menu_begin("Thumb Buttons", highlight);
+        if (!pixel_menu)
+        {
+            Term_clear();
+            ui_menu_click_begin();
+            ui_menu_click_set_hover_enabled(true);
+            settings_menu_begin_scroll_area(list_start_row, total_rows);
+            settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Thumb Buttons");
+            settings_ui_put_fitted(2, 2, TERM_WHITE, "=============");
+        }
+
+        for (int i = 0; i < total_rows; i++)
+        {
+            char action_buf[80];
+            char line_buf[128];
+            const char* label;
+            byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
+
+            if (i == THUMB_ENABLE_ROW) {
+                label = "Thumb Buttons";
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_thumb_enabled() ? "On" : "Off",
+                    sizeof(action_buf));
+            } else {
+                const touch_control_binding_row* binding =
+                    touch_thumb_binding_for_row(i - 1);
+
+                if (!binding)
+                    continue;
+                label = binding->label;
+                touch_thumb_binding_label(i - 1, action_buf, sizeof(action_buf));
+            }
+
+            settings_ui_format_pair_line(line_buf, sizeof(line_buf),
+                label, action_buf, row_width, 24);
+            if (pixel_menu)
+            {
+                char semantic_line[160];
+
+                settings_semantic_line_from_menu_line(semantic_line,
+                    sizeof(semantic_line), line_buf);
+                settings_semantic_add_row(i, semantic_line, a);
+                sdl_character_sheet_screen_set_last_select_row_reset(
+                    SETTINGS_CLICK_RESET_ROW_BASE + i);
+            }
+            else
+            {
+                c_prt(a, line_buf, list_start_row + i, 2);
+                ui_menu_click_add_full_row(i, list_start_row + i);
+            }
+        }
+
+        if (pixel_menu)
+        {
+            settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_SELECTED,
+                "Reset Selected", "X", TERM_SLATE);
+            settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
+                "Reset All Thumb Buttons", "M", TERM_SLATE);
+            sdl_character_sheet_screen_set_select_description(
+                "Space toggles On/Off or chooses an action. Left/Right nudges the selected row. X resets selected, M resets all. Escape or Enter returns.");
+            sdl_character_sheet_screen_commit_select(highlight);
+        }
+        else
+        {
+            settings_ui_put_fitted(list_start_row + total_rows + 2,
+                2, TERM_SLATE,
+                settings_ui_pick_label(row_width,
+                    "Up/Down: select row   Space toggle/choose   Left/Right previous/next",
+                    "Up/Down select   Space toggle/choose   Left/Right",
+                    "Up/Down select   Left/Right change"));
+            {
+                cptr prompt = settings_ui_pick_label(row_width,
+                    "x reset selected   M/Map reset all thumb buttons",
+                    "x reset selected   Map reset all",
+                    "x reset   Map all");
+                int prompt_row = list_start_row + total_rows + 3;
+
+                settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
+                ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                    prompt_row, prompt, "x");
+                ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
+                    prompt_row, prompt, "selected");
+                ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                    prompt_row, prompt, "Map");
+                ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
+                    prompt_row, prompt, "all");
+            }
+            settings_ui_put_return_prompt(list_start_row + total_rows + 4,
+                2, TERM_SLATE, "Esc/Enter: return", "Esc/Enter: return",
+                "Esc/Enter return");
+
+            Term_fresh();
+        }
+
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool click_generated = false;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice == SETTINGS_CLICK_RETURN) {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = ESCAPE;
+                    click_generated = true;
+                } else if (clicked_choice == SETTINGS_CLICK_RESET_SELECTED) {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'x';
+                    click_generated = true;
+                } else if (clicked_choice == SETTINGS_CLICK_RESET_ALL) {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    ch = 'M';
+                    click_generated = true;
+                } else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
+                    && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE
+                        + total_rows)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    highlight = clicked_choice - SETTINGS_CLICK_RESET_ROW_BASE;
+                    ch = 'x';
+                    click_generated = true;
+                } else if (clicked_choice >= 0
+                    && clicked_choice < total_rows)
+                {
+                    bool was_current = (clicked_choice == highlight);
+
+                    highlight = clicked_choice;
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    if (click_action == UI_MENU_CLICK_SECONDARY)
+                        ch = '4';
+                    else if (was_current)
+                        ch = ' ';
+                    else
+                        continue;
+                    click_generated = true;
+                }
+            }
+
+            ch = (char)settings_menu_key(ch, 0, 0, click_generated);
+        }
+
+        {
+            int dir = target_dir(ch);
+            if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+                ch = I2D(dir);
+        }
+
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+            done = true;
+            break;
+        case '-':
+        case '8':
+            highlight = (total_rows + highlight - 1) % total_rows;
+            break;
+        case '2':
+            highlight = (highlight + 1) % total_rows;
+            break;
+        case 'n':
+        case '4':
+            if (highlight == THUMB_ENABLE_ROW) {
+                set_sdl_touch_thumb_enabled(!get_sdl_touch_thumb_enabled());
+                changed = true;
+            } else {
+                changed |= touch_thumb_cycle_binding_row(highlight - 1, -1);
+            }
+            break;
+        case 'y':
+        case '6':
+            if (highlight == THUMB_ENABLE_ROW) {
+                set_sdl_touch_thumb_enabled(!get_sdl_touch_thumb_enabled());
+                changed = true;
+            } else {
+                changed |= touch_thumb_cycle_binding_row(highlight - 1, 1);
+            }
+            break;
+        case ' ':
+        case 't':
+        case '5':
+            if (highlight == THUMB_ENABLE_ROW) {
+                set_sdl_touch_thumb_enabled(!get_sdl_touch_thumb_enabled());
+                changed = true;
+            } else {
+                changed |= touch_thumb_pick_binding_row(highlight - 1);
+            }
+            break;
+        case 'r':
+        case 'x':
+        case 'X':
+            if (highlight == THUMB_ENABLE_ROW) {
+                set_sdl_touch_thumb_enabled(
+                    get_sdl_touch_thumb_default_enabled());
+                changed = true;
+            } else {
+                changed |= touch_thumb_reset_binding_row(highlight - 1);
+            }
+            break;
+        case 'R':
+        case 'M':
+            touch_thumb_reset_buttons_to_default();
+            changed = true;
+            break;
+        default:
+            bell("Illegal command for thumb button settings!");
+            break;
+        }
+    }
+
+    if (changed && settings_changed)
+        *settings_changed = true;
+
+    settings_semantic_menu_hide();
+    screen_load();
+}
+
 static void do_cmd_touch_button_settings(bool* settings_changed)
 {
     enum {
         TOUCH_BUTTON_MENU_PANE = 0,
         TOUCH_BUTTON_MENU_TOP_WIDGET,
+        TOUCH_BUTTON_MENU_THUMB,
         TOUCH_BUTTON_MENU_RESET,
         TOUCH_BUTTON_MENU_RETURN,
         TOUCH_BUTTON_MENU_COUNT
@@ -6948,6 +7292,7 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
         static cptr labels[TOUCH_BUTTON_MENU_COUNT] = {
             "Touch Pane Buttons",
             "Quick Access Buttons",
+            "Thumb Buttons",
             "Restore Button Defaults",
             "Return"
         };
@@ -7053,6 +7398,9 @@ static void do_cmd_touch_button_settings(bool* settings_changed)
             } else if (highlight == TOUCH_BUTTON_MENU_TOP_WIDGET) {
                 settings_semantic_menu_hide();
                 do_cmd_touch_top_widget_button_editor(&changed);
+            } else if (highlight == TOUCH_BUTTON_MENU_THUMB) {
+                settings_semantic_menu_hide();
+                do_cmd_touch_thumb_button_editor(&changed);
             } else if (highlight == TOUCH_BUTTON_MENU_RESET) {
                 touch_buttons_reset_to_default();
                 changed = true;

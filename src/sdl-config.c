@@ -1227,6 +1227,26 @@ static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
         sizeof(top_panel_long_defaults));
 }
 
+static void sdl_config_set_default_thumb_bindings(struct sdl_config* config)
+{
+    /* Button 1: tap = space (pick/continue), long = 'x' (look/describe).
+     * Button 2: tap = 'z' (wait), long = 'Z' (rest). */
+    static const int thumb_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        ' ', 'z',
+    };
+    static const int thumb_long_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        'x', 'Z',
+    };
+
+    if (!config)
+        return;
+
+    memcpy(config->touch_thumb_bindings, thumb_defaults,
+        sizeof(thumb_defaults));
+    memcpy(config->touch_thumb_long_bindings, thumb_long_defaults,
+        sizeof(thumb_long_defaults));
+}
+
 static void sdl_config_migrate_touch_top_panel_defaults(
     struct sdl_config* config)
 {
@@ -2499,6 +2519,12 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "topPanelBindings");
                 cJSON* top_panel_long_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelLongBindings");
+                cJSON* thumb_enabled = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "thumbButtonsEnabled");
+                cJSON* thumb_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "thumbButtonBindings");
+                cJSON* thumb_long_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "thumbButtonLongBindings");
                 cJSON* swipe_enabled = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "swipeEnabled");
                 cJSON* swipe_bindings = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -2710,6 +2736,32 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         config->touch_top_panel_long_bindings,
                         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
                     log_debug("Loaded touchControl.topPanelLongBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsBool(thumb_enabled)) {
+                    config->touch_thumb_enabled = cJSON_IsTrue(thumb_enabled);
+                    log_debug("Loaded touchControl.thumbButtonsEnabled: %s",
+                        config->touch_thumb_enabled ? "true" : "false");
+                }
+
+                if (cJSON_IsArray(thumb_bindings)) {
+                    int count = cJSON_GetArraySize(thumb_bindings);
+                    sdl_config_load_touch_binding_array(
+                        thumb_bindings,
+                        config->touch_thumb_bindings,
+                        SDL_TOUCH_THUMB_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.thumbButtonBindings (%d entries)",
+                        count);
+                }
+
+                if (cJSON_IsArray(thumb_long_bindings)) {
+                    int count = cJSON_GetArraySize(thumb_long_bindings);
+                    sdl_config_load_touch_binding_array(
+                        thumb_long_bindings,
+                        config->touch_thumb_long_bindings,
+                        SDL_TOUCH_THUMB_BUTTON_COUNT);
+                    log_debug("Loaded touchControl.thumbButtonLongBindings (%d entries)",
                         count);
                 }
 
@@ -3065,6 +3117,32 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         }
     }
 
+    /*
+     * Persist the thumb-button overlay settings. Other touchControl fields are
+     * not (yet) serialized here, so this object intentionally carries only the
+     * thumb keys; the loader reads each key independently and leaves the rest at
+     * their defaults, so writing a partial object does not affect them.
+     */
+    {
+        cJSON* touch_control = cJSON_CreateObject();
+        if (touch_control) {
+            cJSON* thumb_bindings = sdl_config_create_int_array(
+                config->touch_thumb_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
+            cJSON* thumb_long_bindings = sdl_config_create_int_array(
+                config->touch_thumb_long_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
+
+            cJSON_AddBoolToObject(touch_control, "thumbButtonsEnabled",
+                config->touch_thumb_enabled);
+            if (thumb_bindings)
+                cJSON_AddItemToObject(touch_control, "thumbButtonBindings",
+                    thumb_bindings);
+            if (thumb_long_bindings)
+                cJSON_AddItemToObject(touch_control, "thumbButtonLongBindings",
+                    thumb_long_bindings);
+            cJSON_AddItemToObject(root, "touchControl", touch_control);
+        }
+    }
+
     /* Create app-wide options object */
     {
         cJSON* app_options = cJSON_CreateObject();
@@ -3252,6 +3330,8 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
     config->touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;
     sdl_config_set_default_top_panel_bindings(config);
+    config->touch_thumb_enabled = true;
+    sdl_config_set_default_thumb_bindings(config);
     config->touch_swipe_enabled = true;
     memcpy(config->touch_swipe_bindings, swipe_defaults, sizeof(swipe_defaults));
 }

@@ -74,6 +74,17 @@ static struct {
 static struct sound_config g_sound_config;
 static char g_sound_config_path[1024];
 static bool g_music_force_main_on_next_welcome = false;
+static bool g_sound_loaded_once = false;
+static SDL_Mutex* g_sound_mutex = NULL;
+static Uint64 g_sound_generation = 1;
+static Uint32 g_sound_diagnostic_event = (Uint32)-1;
+
+typedef struct {
+    int sound_idx;
+    int sample_idx;
+    Uint64 generation;
+    Uint64 due_ns;
+} delayed_sound_request;
 
 static void sdl_sound_reset_bank(void);
 static void sdl_sound_destroy_cached_audio(void);
@@ -96,9 +107,12 @@ static bool sdl_sound_ensure_mixer(void);
 static void sdl_sound_destroy_mixer(void);
 static MIX_Audio* sdl_sound_get_sample_audio(int sound_idx, int sample_idx);
 static MIX_Audio* sdl_sound_get_music_audio(const char* path);
-static MIX_Track* sdl_sound_acquire_sfx_track(void);
+static MIX_Track* sdl_sound_acquire_sfx_track(bool quiet);
 static bool sdl_sound_play_track_audio(MIX_Track* track, MIX_Audio* audio, float gain,
-    int loops);
+    int loops, bool quiet);
+static bool sdl_sound_play_sample_locked(int sound_idx, int sample_idx,
+    bool quiet);
+static void sdl_sound_preload_event(int sound_idx);
 static void sdl_music_stop_track(MIX_Track* track);
 static void sdl_music_stop_title_track(void);
 static bool sdl_music_play_title_track(const char* primary_path,
@@ -745,6 +759,38 @@ static MIX_Audio* sdl_sound_get_sample_audio(int sound_idx, int sample_idx)
     return audio;
 }
 
+static bool sdl_sound_ensure_mutex(void)
+{
+    if (g_sound_mutex)
+        return true;
+
+    g_sound_mutex = SDL_CreateMutex();
+    if (!g_sound_mutex) {
+        log_warn("Could not create sound mutex: %s", SDL_GetError());
+        return false;
+    }
+    return true;
+}
+
+static void sdl_sound_preload_event(int sound_idx)
+{
+    int sample_count;
+    int loaded = 0;
+
+    if (sound_idx < 0 || sound_idx >= MSG_MAX)
+        return;
+
+    sample_count = sound_state.bank.sound_counts[sound_idx];
+    for (int sample_idx = 0; sample_idx < sample_count; sample_idx++) {
+        if (sdl_sound_get_sample_audio(sound_idx, sample_idx))
+            loaded++;
+    }
+
+    if (loaded > 0)
+        log_debug("Preloaded %d/%d sample(s) for sound event %d", loaded,
+            sample_count, sound_idx);
+}
+
 static MIX_Audio* sdl_sound_get_music_audio(const char* path)
 {
     if (!path || !path[0]) {
@@ -785,7 +831,7 @@ static MIX_Audio* sdl_sound_get_music_audio(const char* path)
     return audio;
 }
 
-static MIX_Track* sdl_sound_acquire_sfx_track(void)
+static MIX_Track* sdl_sound_acquire_sfx_track(bool quiet)
 {
     for (int n = 0; n < SDL_SOUND_MAX_ACTIVE_TRACKS; n++) {
         int idx = (sound_state.next_sfx_track + n) % SDL_SOUND_MAX_ACTIVE_TRACKS;
@@ -803,7 +849,10 @@ static MIX_Track* sdl_sound_acquire_sfx_track(void)
     MIX_Track* track = sound_state.sfx_tracks[sound_state.next_sfx_track];
     if (track) {
         MIX_StopTrack(track, 0);
-        log_warn("Sound mixer saturated; recycling an active sound effect track");
+        if (!quiet) {
+            log_warn(
+                "Sound mixer saturated; recycling an active sound effect track");
+        }
     }
     sound_state.next_sfx_track = (sound_state.next_sfx_track + 1) %
         SDL_SOUND_MAX_ACTIVE_TRACKS;
@@ -811,24 +860,29 @@ static MIX_Track* sdl_sound_acquire_sfx_track(void)
 }
 
 static bool sdl_sound_play_track_audio(MIX_Track* track, MIX_Audio* audio, float gain,
-    int loops)
+    int loops, bool quiet)
 {
     if (!track || !audio) {
         return false;
     }
 
     if (!MIX_SetTrackAudio(track, audio)) {
-        log_warn("Failed to assign audio to track: %s", SDL_GetError());
+        if (!quiet)
+            log_warn("Failed to assign audio to track: %s", SDL_GetError());
         return false;
     }
 
     if (!MIX_SetTrackGain(track, gain)) {
-        log_debug("Failed to set track gain: %s", SDL_GetError());
+        if (!quiet)
+            log_debug("Failed to set track gain: %s", SDL_GetError());
     }
 
     SDL_PropertiesID options = SDL_CreateProperties();
     if (!options) {
-        log_warn("Failed to create SDL_mixer play options: %s", SDL_GetError());
+        if (!quiet) {
+            log_warn("Failed to create SDL_mixer play options: %s",
+                SDL_GetError());
+        }
         return false;
     }
 
@@ -836,7 +890,8 @@ static bool sdl_sound_play_track_audio(MIX_Track* track, MIX_Audio* audio, float
         SDL_SetBooleanProperty(options, MIX_PROP_PLAY_HALT_WHEN_EXHAUSTED_BOOLEAN, true) &&
         MIX_PlayTrack(track, options);
     if (!success) {
-        log_warn("Failed to start track playback: %s", SDL_GetError());
+        if (!quiet)
+            log_warn("Failed to start track playback: %s", SDL_GetError());
     }
 
     SDL_DestroyProperties(options);
@@ -884,7 +939,7 @@ static bool sdl_music_play_with_fallback(const char* primary_path,
             continue;
         }
 
-        if (sdl_sound_play_track_audio(track, audio, gain, loops)) {
+        if (sdl_sound_play_track_audio(track, audio, gain, loops, false)) {
             if (resolved_path && resolved_len) {
                 SDL_strlcpy(resolved_path, resolved, resolved_len);
             }
@@ -961,6 +1016,11 @@ bool sdl_sound_initialize(void)
 
 void sdl_sound_reload(void)
 {
+    if (!sdl_sound_ensure_mutex())
+        return;
+
+    SDL_LockMutex(g_sound_mutex);
+    g_sound_generation++;
     sdl_sound_destroy_mixer();
     sdl_sound_reset_bank();
 
@@ -1047,16 +1107,32 @@ void sdl_sound_reload(void)
 
     if (g_sound_config.enabled && !sdl_sound_ensure_mixer()) {
         log_warn("Sound enabled but SDL_mixer could not initialize");
+        g_sound_loaded_once = true;
+        SDL_UnlockMutex(g_sound_mutex);
         return;
     }
 
+    /* Result cues are timer-driven; avoid a first-use decode at cue time. */
+    if (g_sound_config.enabled && sound_state.bank_loaded) {
+        sdl_sound_preload_event(MSG_HIT);
+        sdl_sound_preload_event(MSG_ARMOR);
+    }
+
     sdl_music_update_volumes();
+    g_sound_loaded_once = true;
+    SDL_UnlockMutex(g_sound_mutex);
 }
 
 void sdl_sound_shutdown(void)
 {
+    if (g_sound_mutex)
+        SDL_LockMutex(g_sound_mutex);
+    g_sound_generation++;
     sdl_sound_destroy_mixer();
     sdl_sound_reset_bank();
+    g_sound_loaded_once = false;
+    if (g_sound_mutex)
+        SDL_UnlockMutex(g_sound_mutex);
 }
 
 void sdl_music_play_main(void)
@@ -1175,61 +1251,112 @@ bool sdl_music_consume_welcome_main_once(void)
     return consume;
 }
 
-void sdl_sound_handle(int sound_idx)
+static bool sdl_sound_play_sample_locked(int sound_idx, int sample_idx,
+    bool quiet)
 {
     if (sound_idx < 0 || sound_idx >= MSG_MAX || !g_sound_config.enabled) {
-        return;
+        return false;
     }
 
     if (!is_sound_enabled(sound_idx)) {
-        return;
+        return false;
     }
 
     int sample_count = sound_state.bank.sound_counts[sound_idx];
     if (sample_count <= 0 || !sdl_sound_ensure_mixer()) {
-        return;
+        return false;
     }
 
-    int sample_idx = (sample_count > 1) ? Rand_div(sample_count) : 0;
+    if (sample_idx < 0 || sample_idx >= sample_count)
+        return false;
+
     const char* sample_path = sound_state.bank.sound_files[sound_idx][sample_idx];
     if (!sample_path[0]) {
-        return;
+        return false;
     }
 
     MIX_Audio* audio = sdl_sound_get_sample_audio(sound_idx, sample_idx);
-    MIX_Track* track = sdl_sound_acquire_sfx_track();
+    MIX_Track* track = sdl_sound_acquire_sfx_track(quiet);
     if (!audio || !track) {
-        return;
+        return false;
     }
 
-    log_debug("sdl_sound_handle: idx=%d path='%s'", sound_idx, sample_path);
-    (void)sdl_sound_play_track_audio(track, audio, get_sound_volume(sound_idx), 0);
+    if (!quiet)
+        log_trace("sdl_sound_handle: idx=%d path='%s'", sound_idx, sample_path);
+    return sdl_sound_play_track_audio(track, audio, get_sound_volume(sound_idx),
+        0, quiet);
 }
 
-/* User event type used to defer sound playback from a timer thread back to
- * the main thread. Lazily registered on first use. (Uint32)-1 means unset. */
-static Uint32 g_sound_deferred_event = (Uint32)-1;
-
-static Uint32 SDLCALL sdl_sound_deferred_timer_cb(void* userdata, SDL_TimerID id,
-    Uint32 interval)
+void sdl_sound_handle(int sound_idx)
 {
+    int sample_count;
+    int sample_idx;
+
+    if (sound_idx < 0 || sound_idx >= MSG_MAX || !g_sound_config.enabled)
+        return;
+    if (!sdl_sound_ensure_mutex())
+        return;
+
+    SDL_LockMutex(g_sound_mutex);
+    sample_count = sound_state.bank.sound_counts[sound_idx];
+    if (sample_count > 0) {
+        sample_idx = (sample_count > 1) ? Rand_div(sample_count) : 0;
+        (void)sdl_sound_play_sample_locked(sound_idx, sample_idx, false);
+    }
+    SDL_UnlockMutex(g_sound_mutex);
+}
+
+static Uint32 SDLCALL sdl_sound_deferred_timer_cb(void* userdata,
+    SDL_TimerID id, Uint32 interval)
+{
+    delayed_sound_request* request = (delayed_sound_request*)userdata;
+    Uint64 now_ns;
+    Uint64 late_ms = 0;
+    bool played = false;
+
     (void)id;
     (void)interval;
 
-    if (g_sound_deferred_event == (Uint32)-1) {
+    if (!request)
         return 0;
+
+    if (g_sound_mutex) {
+        SDL_LockMutex(g_sound_mutex);
+        if (request->generation == g_sound_generation) {
+            played = sdl_sound_play_sample_locked(request->sound_idx,
+                request->sample_idx, true);
+        }
+        SDL_UnlockMutex(g_sound_mutex);
     }
 
-    SDL_Event ev;
-    SDL_zero(ev);
-    ev.type = g_sound_deferred_event;
-    ev.user.code = (Sint32)(intptr_t)userdata;
-    SDL_PushEvent(&ev);
-    return 0; /* one-shot timer */
+    now_ns = SDL_GetTicksNS();
+    if (now_ns > request->due_ns)
+        late_ms = (now_ns - request->due_ns) / 1000000ULL;
+
+    /*
+     * The project logger is main-thread oriented. Playback is already active;
+     * send only the measured result back to the event loop for diagnostics.
+     */
+    if (g_sound_diagnostic_event != (Uint32)-1) {
+        SDL_Event ev;
+
+        SDL_zero(ev);
+        ev.type = g_sound_diagnostic_event;
+        ev.user.code = request->sound_idx;
+        ev.user.data1 = (void*)(uintptr_t)late_ms;
+        ev.user.data2 = (void*)(uintptr_t)(played ? 1 : 0);
+        SDL_PushEvent(&ev);
+    }
+
+    SDL_free(request);
+    return 0;
 }
 
 void sdl_sound_handle_delayed(int sound_idx, Uint32 delay_ms)
 {
+    delayed_sound_request* request;
+    int sample_count;
+
     if (sound_idx < 0 || sound_idx >= MSG_MAX) {
         return;
     }
@@ -1239,37 +1366,78 @@ void sdl_sound_handle_delayed(int sound_idx, Uint32 delay_ms)
         return;
     }
 
-    if (g_sound_deferred_event == (Uint32)-1) {
-        g_sound_deferred_event = SDL_RegisterEvents(1);
-    }
-    if (g_sound_deferred_event == (Uint32)-1) {
-        sdl_sound_handle(sound_idx); /* fall back to immediate playback */
+    if (!sdl_sound_ensure_mutex()) {
+        sdl_sound_handle(sound_idx);
         return;
     }
 
-    if (!SDL_AddTimer(delay_ms, sdl_sound_deferred_timer_cb,
-            (void*)(intptr_t)sound_idx))
+    if (g_sound_diagnostic_event == (Uint32)-1)
+        g_sound_diagnostic_event = SDL_RegisterEvents(1);
+
+    request = SDL_calloc(1, sizeof(*request));
+    if (!request) {
+        log_warn("Could not allocate delayed sound request");
+        sdl_sound_handle(sound_idx);
+        return;
+    }
+
+    SDL_LockMutex(g_sound_mutex);
+    sample_count = sound_state.bank.sound_counts[sound_idx];
+    if (!g_sound_config.enabled || !is_sound_enabled(sound_idx)
+        || sample_count <= 0 || !sdl_sound_ensure_mixer())
     {
+        SDL_UnlockMutex(g_sound_mutex);
+        SDL_free(request);
+        return;
+    }
+
+    request->sound_idx = sound_idx;
+    request->sample_idx = (sample_count > 1) ? Rand_div(sample_count) : 0;
+    request->generation = g_sound_generation;
+    request->due_ns = SDL_GetTicksNS() + (Uint64)delay_ms * 1000000ULL;
+
+    /* Decode on the scheduling thread; the timer callback only starts mixing. */
+    if (!sdl_sound_get_sample_audio(sound_idx, request->sample_idx)) {
+        SDL_UnlockMutex(g_sound_mutex);
+        SDL_free(request);
+        return;
+    }
+    SDL_UnlockMutex(g_sound_mutex);
+
+    if (!SDL_AddTimer(delay_ms, sdl_sound_deferred_timer_cb, request)) {
         log_warn("SDL_AddTimer failed: %s", SDL_GetError());
+        SDL_free(request);
         sdl_sound_handle(sound_idx);
     }
 }
 
 bool sdl_sound_try_handle_event(const SDL_Event* ev)
 {
-    if (!ev || g_sound_deferred_event == (Uint32)-1) {
+    Uint64 late_ms;
+    bool played;
+
+    if (!ev || g_sound_diagnostic_event == (Uint32)-1
+        || ev->type != g_sound_diagnostic_event)
+    {
         return false;
     }
-    if (ev->type != g_sound_deferred_event) {
-        return false;
+
+    late_ms = (Uint64)(uintptr_t)ev->user.data1;
+    played = ((uintptr_t)ev->user.data2 != 0);
+    if (late_ms >= 20) {
+        log_warn("[SLOWAUDIO] delayed cue %d started %llu ms late (played=%d)",
+            ev->user.code, (unsigned long long)late_ms, played ? 1 : 0);
+    } else {
+        log_trace("Delayed cue %d started %llu ms after deadline (played=%d)",
+            ev->user.code, (unsigned long long)late_ms, played ? 1 : 0);
     }
-    sdl_sound_handle((int)ev->user.code);
     return true;
 }
 
 void sdl_init_sounds(void)
 {
-    sdl_sound_reload();
+    if (!g_sound_loaded_once)
+        sdl_sound_reload();
 }
 
 struct sound_config* sdl_sound_get_config(void)

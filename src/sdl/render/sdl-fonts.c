@@ -1593,6 +1593,10 @@ void sdl_mono_font_prewarm_process_idle(void)
 {
     int processed = 0;
 
+    /* Never upload or start an atlas while player input is already queued. */
+    if (SDL_PollEvent(NULL))
+        return;
+
     if (sdl_mono_font_prewarm_finish_ready())
         processed++;
 

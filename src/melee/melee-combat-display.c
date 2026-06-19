@@ -5,9 +5,17 @@
 #include "pane.h"
 #include "sdl-config.h"
 
+static void combat_rolls_mark_dirty(void)
+{
+    if (p_ptr)
+        p_ptr->window |= PW_COMBAT_ROLLS;
+}
+
 void new_combat_round(void)
 {
     int i;
+    bool display_changed = (combat_number != 0)
+        || (turns_since_combat == 10 && combat_number_old != 0);
 
     log_trace("[ROUND] new_combat_round: ENTER turns_since_combat=%d, combat_number=%d, combat_number_old=%d", turns_since_combat, combat_number, combat_number_old);
     if (combat_number != 0)
@@ -52,6 +60,8 @@ void new_combat_round(void)
     {
         combat_rolls[0][i].att_type = COMBAT_ROLL_NONE;
     }
+    if (display_changed)
+        combat_rolls_mark_dirty();
     log_trace("[ROUND] new_combat_round: EXIT turns_since_combat=%d, combat_number=%d, combat_number_old=%d", turns_since_combat, combat_number, combat_number_old);
 }
 
@@ -224,7 +234,8 @@ void update_combat_rolls1(const monster_type* m_ptr1,
     log_trace("[ROLL1] exit: combat_number=%d old=%d", combat_number, combat_number_old);
     }
 
-    /* Window stuff - DO NOT set flag here; wait for update_combat_rolls2() to complete the data */
+    /* Wait for update_combat_rolls2() or update_combat_rolls_no_damage() so
+     * consumers never render a half-populated roll. */
     /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
@@ -376,7 +387,7 @@ void update_combat_rolls1b(
     log_trace("[ROLL1B] exit: combat_number=%d old=%d", combat_number, combat_number_old);
     }
 
-    /* Window stuff - DO NOT set flag here; defer to main loop to avoid mid-combat updates */
+    /* The damage phase marks the completed roll dirty. */
     /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
@@ -423,10 +434,8 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
         }
 
         log_trace("[ROLL2] exit: index=%d done", combat_number - 1);
+        combat_rolls_mark_dirty();
     }
-
-    /* Window stuff - DO NOT set flag here; defer to main loop to avoid mid-combat updates */
-    /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
 /*
@@ -445,6 +454,7 @@ void update_combat_rolls_no_damage(void)
         combat_rolls[0][combat_number - 1].sequence =
             log_history_next_sequence();
         log_trace("[ROLL0] stamped index=%d", combat_number - 1);
+        combat_rolls_mark_dirty();
     }
 }
 

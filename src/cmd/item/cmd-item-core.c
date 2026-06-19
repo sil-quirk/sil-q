@@ -178,6 +178,65 @@ static int first_floor_item_under_player(void)
     return 0;
 }
 
+/*
+ * Context-sensitive interpretation of the Space ("Confirm") and 'x'
+ * ("Description") touch thumb-button bindings, so the on-screen button shows
+ * (and performs) the action that fits the player's current situation:
+ *
+ *   Space: on a down staircase -> descend ('>'), on an up staircase -> ascend
+ *          ('<'), standing on an item -> pick up ('g'), else -> confirm (space).
+ *   'x'  : standing on a wearable item -> "Wield", another item -> "Use", else
+ *          -> "Description".  The key stays 'x' because do_cmd_observe() already
+ *          routes a floor item to wield/use/pick up.
+ *
+ * Returns true (filling *out_key and label) for those two bindings while in the
+ * dungeon; false otherwise, so the caller keeps the binding's static label/key.
+ */
+bool touch_thumb_context_action(int binding, int* out_key, char* label,
+    size_t label_len)
+{
+    int key = binding;
+    const char* name = NULL;
+
+    if (!character_dungeon || !p_ptr || !p_ptr->playing || p_ptr->is_dead)
+        return false;
+
+    if (binding == ' ') {
+        if (cave_down_stairs_bold(p_ptr->py, p_ptr->px)) {
+            key = '>';
+            name = "Go Down";
+        } else if (cave_up_stairs_bold(p_ptr->py, p_ptr->px)) {
+            key = '<';
+            name = "Go Up";
+        } else if (first_floor_item_under_player() != 0) {
+            key = 'g';
+            name = "Pick Up";
+        } else {
+            key = ' ';
+            name = "Confirm";
+        }
+    } else if (binding == 'x') {
+        int floor_item = first_floor_item_under_player();
+
+        key = 'x';
+        if (floor_item != 0) {
+            const object_type* o_ptr = &o_list[-floor_item];
+
+            name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+        } else {
+            name = "Description";
+        }
+    } else {
+        return false;
+    }
+
+    if (out_key)
+        *out_key = key;
+    if (label && label_len)
+        strnfmt(label, label_len, "%s", name);
+    return true;
+}
+
 static bool smith_oath_takeoff_hits_pack(const object_type* o_ptr, int source_item)
 {
     if (!smith_oath_forbids_object(o_ptr))

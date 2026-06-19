@@ -17,12 +17,11 @@ void sdl_sound_shutdown(void);
 void sdl_sound_handle(int sound_idx);
 
 /* Schedule a sound to play after delay_ms milliseconds without blocking the
- * caller. The actual playback happens on the main thread when the resulting
- * user event is dispatched via sdl_sound_try_handle_event. */
+ * caller. Playback starts from the timer callback through SDL_mixer's
+ * thread-safe API, independent of UI event pumping. */
 void sdl_sound_handle_delayed(int sound_idx, Uint32 delay_ms);
 
-/* If ev is a deferred-sound user event, play the sound and return true.
- * Call from the SDL event handler. */
+/* Consume a delayed-sound timing diagnostic event, if applicable. */
 bool sdl_sound_try_handle_event(const SDL_Event* ev);
 
 /* Get pointer to global sound configuration (for UI) */

@@ -147,7 +147,7 @@ static int smithing_ident_distance_penalty(const object_type* o_ptr)
     if (penalty < 0)
         penalty = 0;
 
-    log_debug(
+    log_trace(
         "smithing-ident: distance penalty dist=%d penalty=%d player=(%d,%d) obj=(%d,%d)",
         dist, penalty, p_ptr->py, p_ptr->px, o_ptr->iy, o_ptr->ix);
 
@@ -288,7 +288,7 @@ static int player_smithing_identify_skill(const object_type* o_ptr,
             skill -= distance_penalty;
     }
 
-    log_debug(
+    log_trace(
         "smithing-ident: skill calc k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X base(per_no_gra=%d smt_no_gra=%d gra=%d) abil(enchant=%d artifice=%d cursebreak=%d quick=%d) cat=%d cat_bonus=%d ctx(equip=%d exp=%d ego=%d revealing=%d) bonus=%d dist(apply=%d ignore=%d pen=%d curse_penalty=%d ident_diff=%d) => skill=%d",
         o_ptr ? o_ptr->k_idx : 0,
         o_ptr ? o_ptr->tval : 0,
@@ -322,7 +322,7 @@ void player_mark_object_experienced(object_type* o_ptr)
         return;
     }
 
-    log_debug(
+    log_trace(
         "smithing-ident: mark experienced k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d ident=0x%08X",
         o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
         object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
@@ -347,7 +347,7 @@ bool player_try_identify_smithing_object(
     int difficulty = object_smithing_difficulty(o_ptr);
     bool success = (skill >= difficulty);
 
-    log_debug(
+    log_trace(
         "smithing-ident: fixed check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d is_equipped=%d bonus=%d skill=%d difficulty=%d success=%d",
         o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
         object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
@@ -412,7 +412,7 @@ bool player_auto_identify_smithing_object(
     /* Reduce the auto-identify distant margin from 10 to 5 */
     int margin = (ignore_distance_penalty || (dist == 0)) ? 0 : 5;
 
-    log_debug(
+    log_trace(
         "smithing-ident: auto check k_idx=%d tval=%d sval=%d name1=%d ego_pfx=%d ego_sfx=%d skill=%d difficulty=%d margin=%d threshold=%d ignore_dist=%d obj=(%d,%d) player=(%d,%d)",
         o_ptr->k_idx, o_ptr->tval, o_ptr->sval, o_ptr->name1,
         object_ego_prefix(o_ptr), object_ego_suffix(o_ptr),
@@ -568,30 +568,63 @@ void update_lore_aux(object_type* o_ptr)
  * marks artefacts/specials as seen and grants experience for the first
  * sighting.
  */
-void update_lore(void)
+void update_lore(u32b update_flags)
 {
     int i;
     object_type* o_ptr;
+    static s32b last_floor_turn = -1;
+    static int last_floor_y = -1;
+    static int last_floor_x = -1;
+    static int last_perception = -9999;
+    static int last_smithing = -9999;
+    static int last_grace = -9999;
+    bool identification_skill_changed;
+    bool scan_floor;
 
-    // Scan all dungeon objects that are 'seen' (in LOS and lit)
-    for (i = 1; i < o_max; i++)
+    identification_skill_changed =
+        last_perception != p_ptr->skill_use[S_PER]
+        || last_smithing != p_ptr->skill_use[S_SMT]
+        || last_grace != p_ptr->stat_use[A_GRA];
+    scan_floor = (update_flags & PU_UPDATE_VIEW)
+        || last_floor_turn != playerturn
+        || last_floor_y != p_ptr->py
+        || last_floor_x != p_ptr->px
+        || identification_skill_changed;
+
+    /*
+     * The floor scan is O(o_max) and smithing identification is non-trivial.
+     * Several update phases can run at the same position during one action;
+     * only rescan when the view, turn, position, or base identify skill changed.
+     */
+    if (scan_floor)
     {
-        /* Get the next object from the dungeon */
-        o_ptr = &o_list[i];
+        last_floor_turn = playerturn;
+        last_floor_y = p_ptr->py;
+        last_floor_x = p_ptr->px;
+        last_perception = p_ptr->skill_use[S_PER];
+        last_smithing = p_ptr->skill_use[S_SMT];
+        last_grace = p_ptr->stat_use[A_GRA];
 
-        /* Skip dead objects */
-        if (!o_ptr->k_idx)
-            continue;
-
-        /* Skip held objects */
-        if (o_ptr->held_m_idx)
-            continue;
-
-        /* If the object is in sight, or under the player... */
-        if ((cave_info[o_ptr->iy][o_ptr->ix] & (CAVE_SEEN))
-            || ((p_ptr->py == o_ptr->iy) && (p_ptr->px == o_ptr->ix)))
+        // Scan all dungeon objects that are 'seen' (in LOS and lit)
+        for (i = 1; i < o_max; i++)
         {
-            update_lore_aux(o_ptr);
+            /* Get the next object from the dungeon */
+            o_ptr = &o_list[i];
+
+            /* Skip dead objects */
+            if (!o_ptr->k_idx)
+                continue;
+
+            /* Skip held objects */
+            if (o_ptr->held_m_idx)
+                continue;
+
+            /* If the object is in sight, or under the player... */
+            if ((cave_info[o_ptr->iy][o_ptr->ix] & (CAVE_SEEN))
+                || ((p_ptr->py == o_ptr->iy) && (p_ptr->px == o_ptr->ix)))
+            {
+                update_lore_aux(o_ptr);
+            }
         }
     }
 

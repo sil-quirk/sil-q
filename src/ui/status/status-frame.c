@@ -749,33 +749,35 @@ static void display_log_pane_with_filter(int pane, int default_filter)
         Term->total_erase = true;
 }
 
-static void fix_combat_rolls(void)
+static void fix_log_panes(u32b requested_flags)
 {
     int j;
 
-    /* Scan windows */
+    /*
+     * Message and combat panes can each display Messages, Combat, or Combined,
+     * and both legacy window slots subscribe to both PW flags. The old code
+     * scanned and rendered every subscribed term once in fix_combat_rolls()
+     * and then again in fix_message(). Render each term exactly once.
+     */
     for (j = 0; j < ANGBAND_TERM_MAX; j++)
     {
         term* old = Term;
+        int default_filter;
 
-        /* No window */
         if (!angband_term[j])
             continue;
-
-        /* No relevant flags */
-        if (!(op_ptr->window_flag[j] & (PW_COMBAT_ROLLS)))
+        if (!(op_ptr->window_flag[j] & requested_flags
+                & (PW_COMBAT_ROLLS | PW_MESSAGE)))
+        {
             continue;
+        }
 
-        /* Activate */
         Term_activate(angband_term[j]);
-
-        /* Display the selected log/combat mode for this pane */
-        display_log_pane_with_filter(j, LOG_HISTORY_FILTER_COMBAT);
-
-        /* Fresh */
+        default_filter = (j == WINDOW_MESSAGE)
+            ? LOG_HISTORY_FILTER_MESSAGES
+            : LOG_HISTORY_FILTER_COMBAT;
+        display_log_pane_with_filter(j, default_filter);
         Term_fresh();
-
-        /* Restore */
         Term_activate(old);
     }
 }
@@ -849,42 +851,6 @@ static void fix_player_0(void)
 }
 
 /*
- * Hack -- display recent messages in sub-windows
- *
- * Adjust for width and split messages.  XXX XXX XXX
- */
-static void fix_message(void)
-{
-    int j;
-
-    /* Scan windows */
-    for (j = 0; j < ANGBAND_TERM_MAX; j++)
-    {
-        term* old = Term;
-
-        /* No window */
-        if (!angband_term[j])
-            continue;
-
-        /* No relevant flags */
-        if (!(op_ptr->window_flag[j] & (PW_MESSAGE)))
-            continue;
-
-        /* Activate */
-        Term_activate(angband_term[j]);
-
-        /* Display the selected log/combat mode for this pane */
-        display_log_pane_with_filter(j, LOG_HISTORY_FILTER_MESSAGES);
-
-        /* Fresh */
-        Term_fresh();
-
-        /* Restore */
-        Term_activate(old);
-    }
-}
-
-/*
  * Hack -- display monster recall in sub-windows
  */
 static void fix_monster(void)
@@ -925,6 +891,7 @@ static void fix_monster(void)
 void redraw_stuff(void)
 {
     bool hidden_overlay_needs_refresh = false;
+    u32b requested_redraw;
 
     /* Redraw stuff */
     if (!p_ptr->redraw) {
@@ -946,6 +913,15 @@ void redraw_stuff(void)
         // log_trace("redraw_stuff: character in icky mode (value=%d), skipping screen updates", character_icky);
         return;
     }
+
+    requested_redraw = p_ptr->redraw;
+    /*
+     * The styled SDL left pane is rendered from its own retained status term.
+     * Map-only redraws do not affect it; any status redraw marks that source
+     * dirty so multiple native presents can reuse one generated frame.
+     */
+    if (requested_redraw & ~PR_MAP)
+        sdl_left_panel_source_invalidate();
 
     if (ui_hide_left_panel())
     {
@@ -1252,6 +1228,14 @@ void window_stuff(void)
     if (!p_ptr->window)
         return;
 
+    /*
+     * Every fix_* routine refreshes its terminal. On SDL all terminals share
+     * one native window, so presenting after each auxiliary terminal redraw
+     * repaints that whole window several times. Batch those refreshes into one
+     * presentation after all requested panes have been updated.
+     */
+    sdl_present_batch_begin();
+
     /* Display inventory */
     if (p_ptr->window & (PW_INVEN))
     {
@@ -1306,9 +1290,11 @@ void window_stuff(void)
      * its in-pane filter is set to Combined, Log only, or Combat only. */
     if (p_ptr->window & (PW_COMBAT_ROLLS | PW_MESSAGE))
     {
+        u32b requested_log_flags =
+            p_ptr->window & (PW_COMBAT_ROLLS | PW_MESSAGE);
+
         p_ptr->window &= ~(PW_COMBAT_ROLLS | PW_MESSAGE);
-        fix_combat_rolls();
-        fix_message();
+        fix_log_panes(requested_log_flags);
     }
 
     /* Display monster recall */
@@ -1317,6 +1303,8 @@ void window_stuff(void)
         p_ptr->window &= ~(PW_MONSTER);
         fix_monster();
     }
+
+    sdl_present_batch_end();
 
     // log_trace("window_stuff: completed all window updates");
 }

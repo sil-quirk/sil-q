@@ -361,10 +361,6 @@ void dungeon(void)
                 /* Scan for artifacts near player and mark as seen */
                 scan_artifacts_near_player();
                 
-                /* Set combat rolls window flag after player actions complete */
-                if (combat_number > 0) {
-                    p_ptr->window |= (PW_COMBAT_ROLLS);
-                }
             }
         }
 
@@ -409,11 +405,6 @@ void dungeon(void)
     TIME_PHASE("monsters(post-player)", process_monsters(100));
     log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
     
-        /* Set combat rolls window flag after all monster actions complete */
-        if (combat_number > 0) {
-            p_ptr->window |= (PW_COMBAT_ROLLS);
-        }
-
         /* Notice stuff */
         if (p_ptr->notice)
             notice_stuff();

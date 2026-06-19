@@ -1,6 +1,15 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+typedef struct {
+    bool valid;
+    Uint64 content_hash;
+    int content_w;
+    int content_h;
+} left_panel_render_cache;
+
+static left_panel_render_cache g_left_panel_render_cache;
+
 void sdl_touch_pane_render(void)
 {
     SDL_FRect slot_rects[SDL_TOUCH_PANE_BUTTON_COUNT];
@@ -115,28 +124,39 @@ void sdl_restore_render_target(sdl_view* d)
 
 bool sdl_left_panel_ensure_canvas(int width, int height)
 {
+    int canvas_w;
+    int canvas_h;
+
     if (width <= 0 || height <= 0)
         return false;
 
-    if (g_left_panel_canvas && g_left_panel_canvas_w == width
-        && g_left_panel_canvas_h == height)
+    /*
+     * The expanded panel's measured height changes as transient status rows
+     * appear and disappear. Reuse a canvas that is already large enough
+     * instead of destroying and recreating a GPU texture every turn.
+     */
+    if (g_left_panel_canvas && g_left_panel_canvas_w >= width
+        && g_left_panel_canvas_h >= height)
     {
         return true;
     }
 
+    canvas_w = MAX(width, g_left_panel_canvas_w);
+    canvas_h = MAX(height, g_left_panel_canvas_h);
     sdl_left_panel_canvas_destroy();
+    g_left_panel_render_cache.valid = false;
     g_left_panel_canvas = SDL_CreateTexture(g_state.renderer,
-        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, canvas_w, canvas_h);
     if (!g_left_panel_canvas) {
-        log_warn("Could not create left panel texture %dx%d: %s", width,
-            height, SDL_GetError());
+        log_warn("Could not create left panel texture %dx%d: %s", canvas_w,
+            canvas_h, SDL_GetError());
         return false;
     }
 
     SDL_SetTextureBlendMode(g_left_panel_canvas, SDL_BLENDMODE_NONE);
     SDL_SetTextureScaleMode(g_left_panel_canvas, SDL_SCALEMODE_NEAREST);
-    g_left_panel_canvas_w = width;
-    g_left_panel_canvas_h = height;
+    g_left_panel_canvas_w = canvas_w;
+    g_left_panel_canvas_h = canvas_h;
     return true;
 }
 
@@ -201,7 +221,7 @@ void sdl_left_panel_debug_log_source_row(const term* t,
 
     sdl_left_panel_debug_make_row_text(scr, source_row, source_col, end_col,
         text, sizeof(text), &visible_width);
-    log_debug("left-panel row: src_row=%d dst_row=%d src_col=%d "
+    log_trace("left-panel row: src_row=%d dst_row=%d src_col=%d "
         "requested_w=%d end_col=%d visible_w=%d dest_col=%d cell=%dx%d "
         "content_x=%.1f text='%s'",
         source_row, dest_row, source_col, width, end_col, visible_width,
@@ -278,6 +298,74 @@ byte sdl_left_panel_pane_render_attr_for_cell(int source_col,
     }
 
     return attr;
+}
+
+static Uint64 sdl_left_panel_hash_mix(Uint64 hash, Uint64 value)
+{
+    hash ^= value;
+    hash *= 1099511628211ULL;
+    return hash;
+}
+
+static Uint64 sdl_left_panel_source_hash(const term* source_term,
+    const sdl_left_panel_metrics* metrics, int source_rows)
+{
+    term_win* scr;
+    Uint64 hash = 1469598103934665603ULL;
+    int cols;
+    int rows;
+
+    if (!source_term || !metrics || !source_term->scr)
+        return 0;
+
+    scr = source_term->scr;
+    cols = MIN(LEFT_PANEL_CONTENT_WID, source_term->wid);
+    rows = MIN(source_rows, source_term->hgt);
+
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->collapsed);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->compact_row);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->cell_w);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->cell_h);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->content_cols);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->panel_rows);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->compact_segment_count);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)use_bigtile);
+    hash = sdl_left_panel_hash_mix(hash, (Uint64)g_state.use_tiles);
+
+    for (int i = 0; i < metrics->compact_segment_count; i++) {
+        hash = sdl_left_panel_hash_mix(hash,
+            (Uint64)metrics->compact_source_rows[i]);
+        hash = sdl_left_panel_hash_mix(hash,
+            (Uint64)metrics->compact_widths[i]);
+        hash = sdl_left_panel_hash_mix(hash,
+            (Uint64)metrics->compact_output_cols[i]);
+        hash = sdl_left_panel_hash_mix(hash,
+            (Uint64)metrics->compact_output_rows[i]);
+    }
+
+    for (int row = 0; row < rows; row++) {
+        if (!scr->a || !scr->c || !scr->a[row] || !scr->c[row])
+            continue;
+
+        for (int col = 0; col < cols; col++) {
+            byte attr = sdl_left_panel_pane_render_attr_for_cell(col, row,
+                scr->a[row][col]);
+            byte ch = (byte)scr->c[row][col];
+            byte terrain_attr = (scr->ta && scr->ta[row])
+                ? scr->ta[row][col]
+                : 0;
+            byte terrain_ch = (scr->tc && scr->tc[row])
+                ? (byte)scr->tc[row][col]
+                : 0;
+
+            hash = sdl_left_panel_hash_mix(hash, attr);
+            hash = sdl_left_panel_hash_mix(hash, ch);
+            hash = sdl_left_panel_hash_mix(hash, terrain_attr);
+            hash = sdl_left_panel_hash_mix(hash, terrain_ch);
+        }
+    }
+
+    return hash;
 }
 
 void sdl_render_left_panel_source_row_cells(const sdl_view* view,
@@ -504,9 +592,7 @@ void sdl_left_panel_debug_log_frame(const sdl_view* view,
     last_dst_w = dst_w;
     last_dst_h = dst_h;
     last_collapsed = metrics->collapsed ? 1 : 0;
-    g_left_panel_debug_dump_rows = true;
-
-    log_debug("left-panel frame: collapsed=%d compact_row=%d "
+    log_trace("left-panel frame: collapsed=%d compact_row=%d "
         "term=%dx%d visual=%dx%d main_cell=%dx%d pane_cell=%dx%d "
         "source_h=%d visual_w=%d canvas_w=%d content_cols=%d content_w=%d "
         "separator_w=%d total_w=%d panel_rows=%d panel_h=%d border_h=%d "
@@ -544,8 +630,9 @@ static int sdl_left_panel_source_rows_for_render(
     return source_rows;
 }
 
-bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
-    const SDL_FRect* dst_left)
+static bool sdl_render_left_panel_pane_from_cells_with_metrics(
+    const sdl_view* view, const SDL_FRect* dst_left,
+    const sdl_left_panel_metrics* prepared_metrics)
 {
     term_win* scr;
     const char* font_path;
@@ -561,15 +648,18 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     int atlas_cell_w;
     int atlas_cell_h;
     float content_x;
-    term panel_term;
+    SDL_FRect canvas_src;
     const term* source_term;
     int source_rows;
+    Uint64 source_hash = 0;
 
     if (!view || !dst_left || dst_left->w <= 0.0f || dst_left->h <= 0.0f)
         return false;
     if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
         return false;
-    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+    if (prepared_metrics)
+        metrics = *prepared_metrics;
+    else if (!sdl_left_panel_metrics_for_view(view, &metrics))
         return false;
     if (metrics.content_w <= 0 || metrics.total_w <= 0
         || metrics.corner_h <= 0
@@ -584,6 +674,30 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     if (!sdl_left_panel_ensure_canvas(canvas_w, canvas_h))
         return false;
 
+    source_rows = sdl_left_panel_source_rows_for_render(view, &metrics);
+    source_term = sdl_left_panel_source_term_for_view(view, source_rows);
+    if (!source_term)
+        return false;
+    scr = source_term->scr;
+    source_hash = sdl_left_panel_source_hash(source_term, &metrics,
+        source_rows);
+
+    canvas_src = (SDL_FRect){
+        .x = 0.0f,
+        .y = 0.0f,
+        .w = (float)canvas_w,
+        .h = (float)canvas_h,
+    };
+    if (g_left_panel_render_cache.valid
+        && g_left_panel_render_cache.content_hash == source_hash
+        && g_left_panel_render_cache.content_w == canvas_w
+        && g_left_panel_render_cache.content_h == canvas_h)
+    {
+        SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, &canvas_src,
+            dst_left);
+        return true;
+    }
+
     atlas_cell_w = metrics.cell_w;
     atlas_cell_h = metrics.cell_h;
     if (atlas_cell_w < 1) atlas_cell_w = 1;
@@ -595,21 +709,11 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
     font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
         atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
         &atlas_cell_h, NULL, true);
-    if (!font_atlas)
-        return false;
-    mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
-        atlas_cell_h);
-
-    source_rows = sdl_left_panel_source_rows_for_render(view, &metrics);
-    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
-            NULL, NULL))
-    {
-        if (!font_cached)
-            SDL_DestroyTexture(font_atlas);
+    if (!font_atlas) {
         return false;
     }
-    scr = panel_term.scr;
-    source_term = &panel_term;
+    mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
+        atlas_cell_h);
 
     old_target = SDL_GetRenderTarget(g_state.renderer);
     had_clip = SDL_RenderClipEnabled(g_state.renderer);
@@ -675,12 +779,23 @@ bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
 
     SDL_SetRenderTarget(g_state.renderer, old_target);
     SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
-    SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, NULL, dst_left);
+    SDL_RenderTexture(g_state.renderer, g_left_panel_canvas, &canvas_src,
+        dst_left);
     if (!font_cached)
         SDL_DestroyTexture(font_atlas);
-    term_nuke(&panel_term);
+    g_left_panel_render_cache.valid = true;
+    g_left_panel_render_cache.content_hash = source_hash;
+    g_left_panel_render_cache.content_w = canvas_w;
+    g_left_panel_render_cache.content_h = canvas_h;
 
     return true;
+}
+
+bool sdl_render_left_panel_pane_from_cells(const sdl_view* view,
+    const SDL_FRect* dst_left)
+{
+    return sdl_render_left_panel_pane_from_cells_with_metrics(view, dst_left,
+        NULL);
 }
 
 void sdl_combat_overlay_pane_render(void)
@@ -692,7 +807,6 @@ void sdl_combat_overlay_pane_render(void)
     const char* font_path;
     SDL_Texture* font_atlas;
     TTF_Font* mono_font;
-    term panel_term;
     term_win* scr;
     const term* source_term;
     SDL_Rect old_clip;
@@ -747,24 +861,15 @@ void sdl_combat_overlay_pane_render(void)
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 
-    /*
-     * We read fixed sidebar rows (ROW_MEL/ROW_ARC/ROW_QUIVER) out of the scratch
-     * prt_frame_basic render, so just request enough rows to include the quiver.
-     * Do NOT tie this to sdl_left_panel_pane_rows_for_view(), which collapses to
-     * a few rows when the left panel is collapsed; sdl_left_panel_render_source_term()
-     * forces the scratch to the active term's compact/non-compact layout so the
-     * row indices line up.
-     */
+    /* Share the retained status source with the left pane. */
     source_rows = ROW_QUIVER + 1;
-    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
-            NULL, NULL))
-    {
+    source_term = sdl_left_panel_source_term_for_view(view, source_rows);
+    if (!source_term) {
         if (!font_cached)
             SDL_DestroyTexture(font_atlas);
         return;
     }
-    scr = panel_term.scr;
-    source_term = &panel_term;
+    scr = source_term->scr;
 
     had_clip = SDL_RenderClipEnabled(g_state.renderer);
     if (had_clip)
@@ -806,10 +911,10 @@ void sdl_combat_overlay_pane_render(void)
     SDL_SetRenderClipRect(g_state.renderer, had_clip ? &old_clip : NULL);
     if (!font_cached)
         SDL_DestroyTexture(font_atlas);
-    term_nuke(&panel_term);
 }
 
-bool sdl_render_main_view_with_left_panel(const sdl_view* view)
+static bool sdl_render_main_view_with_left_panel_metrics(const sdl_view* view,
+    const sdl_left_panel_metrics* prepared_metrics)
 {
     bool render_styled_left_panel = sdl_left_panel_pane_presentation_active();
     bool skip_terminal_left_panel =
@@ -834,7 +939,9 @@ bool sdl_render_main_view_with_left_panel(const sdl_view* view)
         return false;
     if (view->cell_w <= 0 || view->cell_h <= 0)
         return false;
-    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+    if (prepared_metrics)
+        metrics = *prepared_metrics;
+    else if (!sdl_left_panel_metrics_for_view(view, &metrics))
         return false;
 
     visual_cols = sdl_main_view_visual_cols(view);
@@ -890,7 +997,8 @@ bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     };
 
     if (!sdl_left_panel_pane_runtime_active()
-        || !sdl_render_left_panel_pane_from_cells(view, &dst_left))
+        || !sdl_render_left_panel_pane_from_cells_with_metrics(view, &dst_left,
+            &metrics))
     {
         SDL_Color bg = sdl_left_panel_background_color();
         SDL_FRect src_content = src_left;
@@ -919,6 +1027,11 @@ bool sdl_render_main_view_with_left_panel(const sdl_view* view)
     }
 
     return true;
+}
+
+bool sdl_render_main_view_with_left_panel(const sdl_view* view)
+{
+    return sdl_render_main_view_with_left_panel_metrics(view, NULL);
 }
 
 bool sdl_saved_screen_cell_changed(const term_win* scr,
@@ -1136,6 +1249,9 @@ bool sdl_render_current_window_frame(void)
     SDL_Rect layout_screen;
     SDL_Rect side_map_rect;
     bool side_map_visible;
+    bool have_left_panel_metrics = false;
+    sdl_left_panel_metrics left_panel_metrics;
+    SDL_FRect left_panel_rect;
     int visible_views = 0;
 
     if (g_suppress_layout_refresh_present)
@@ -1174,7 +1290,29 @@ bool sdl_render_current_window_frame(void)
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderClear(g_state.renderer);
     layout_screen = sdl_get_layout_screen_rect();
-    sdl_update_left_panel_pane_rect();
+    if ((sdl_left_panel_pane_presentation_active()
+            || (g_description_overlay.active
+                && g_description_overlay.interactive
+                && sdl_left_panel_pane_layout_enabled()))
+        && sdl_left_panel_metrics_for_view(&g_views[PANE_MAIN],
+            &left_panel_metrics))
+    {
+        have_left_panel_metrics = true;
+    }
+    if (sdl_left_panel_pane_presentation_active()
+        && have_left_panel_metrics
+        && sdl_left_panel_pane_rect_for_metrics(&g_views[PANE_MAIN],
+            &left_panel_metrics, &left_panel_rect))
+    {
+        g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){
+            .x = (int)left_panel_rect.x,
+            .y = (int)left_panel_rect.y,
+            .w = (int)left_panel_rect.w,
+            .h = (int)left_panel_rect.h,
+        };
+    } else {
+        g_pane_rects[PANE_LEFT_PANEL] = (SDL_Rect){ 0 };
+    }
     side_map_visible = !hide_main_menu_supporting_panes
         && sdl_side_map_pane_current_rect(&side_map_rect);
 
@@ -1207,7 +1345,8 @@ bool sdl_render_current_window_frame(void)
         if (!show_supporting_panes && i != PANE_MAIN)
             continue;
         if (i == PANE_MAIN && show_supporting_panes
-            && sdl_render_main_view_with_left_panel(view))
+            && sdl_render_main_view_with_left_panel_metrics(view,
+                have_left_panel_metrics ? &left_panel_metrics : NULL))
             continue;
 
         visual_cols = (i == PANE_MAIN)
@@ -1328,6 +1467,7 @@ bool sdl_render_current_window_frame(void)
     sdl_player_exchange_render();
     sdl_player_action_menu_render();
     sdl_touch_round_render();
+    sdl_touch_thumb_render();
 
     if (visible_views > 1) {
         if (config.show_pane_borders)
@@ -1417,15 +1557,41 @@ bool sdl_render_current_window_frame(void)
  * restored dungeon view is never flashed on screen just before the window
  * closes. */
 bool g_sdl_present_suppressed = false;
+static int g_sdl_present_batch_depth = 0;
 
 void sdl_set_present_suppressed(bool suppressed)
 {
     g_sdl_present_suppressed = suppressed;
 }
 
+void sdl_present_batch_begin(void)
+{
+    g_sdl_present_batch_depth++;
+}
+
+void sdl_present_batch_end(void)
+{
+    sdl_view* view;
+
+    if (g_sdl_present_batch_depth <= 0)
+        return;
+
+    g_sdl_present_batch_depth--;
+    if (g_sdl_present_batch_depth > 0)
+        return;
+
+    view = sdl_view_from_term(Term);
+    if (!view)
+        view = &g_views[PANE_MAIN];
+    sdl_present_if_needed(view);
+}
+
 void sdl_present_if_needed(sdl_view* d)
 {
     if (g_sdl_present_suppressed)
+        return;
+
+    if (g_sdl_present_batch_depth > 0)
         return;
 
     if (!g_state.need_present)

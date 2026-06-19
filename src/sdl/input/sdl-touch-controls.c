@@ -526,6 +526,407 @@ void sdl_touch_pane_handle_pointer_up(float x, float y, bool mouse,
     }
 }
 
+/* ---- Thumb buttons --------------------------------------------------------
+ *
+ * Two configurable, semi-transparent overlay buttons that fill the left-edge
+ * gap below the COLLAPSED ("compact") left character panel and above the combat
+ * overlay pane, sized to the left-panel column width and stacked vertically.
+ * Touch-only.  A tap fires the button's tap binding; a long press fires its
+ * separately-assignable long-press binding.  The press/long-press machinery and
+ * the action dispatch mirror the touch-pane buttons; the look mirrors the
+ * translucent movement button-wheel.
+ */
+
+int sdl_touch_thumb_button_binding(int index, bool long_press)
+{
+    if (index < 0 || index >= SDL_TOUCH_THUMB_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return long_press ? config.touch_thumb_long_bindings[index]
+                      : config.touch_thumb_bindings[index];
+}
+
+static bool sdl_touch_thumb_button_has_binding(int index)
+{
+    return sdl_touch_thumb_button_binding(index, false) != GAMEPAD_BIND_NONE
+        || sdl_touch_thumb_button_binding(index, true) != GAMEPAD_BIND_NONE;
+}
+
+bool sdl_touch_thumb_config_enabled(void)
+{
+    if (!sdl_touch_only_device_active())
+        return false;
+    if (!config.touch_thumb_enabled)
+        return false;
+    for (int i = 0; i < SDL_TOUCH_THUMB_BUTTON_COUNT; i++) {
+        if (sdl_touch_thumb_button_has_binding(i))
+            return true;
+    }
+    return false;
+}
+
+bool sdl_touch_thumb_layout_active(void)
+{
+    return sdl_touch_thumb_config_enabled()
+        && sdl_mouse_gameplay_context_active()
+        && sdl_left_panel_pane_runtime_active()
+        && sdl_left_panel_pane_collapsed();
+}
+
+bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
+{
+    SDL_Rect panel;
+    SDL_Rect combat;
+    SDL_Rect screen;
+    float x;
+    float w;
+    float top;
+    float region_bottom;
+    float margin;
+    float inner_gap;
+    float avail;
+    float button_h;
+    float min_button_h;
+    float max_button_h;
+
+    if (out_rects) {
+        for (int i = 0; i < SDL_TOUCH_THUMB_BUTTON_COUNT; i++)
+            out_rects[i] = (SDL_FRect){ 0 };
+    }
+    if (!sdl_touch_thumb_layout_active())
+        return false;
+
+    sdl_update_left_panel_pane_rect();
+    panel = g_pane_rects[PANE_LEFT_PANEL];
+    if (panel.w <= 0 || panel.h <= 0)
+        return false;
+
+    screen = sdl_get_layout_screen_rect();
+    if (!sdl_rect_has_area(&screen))
+        return false;
+
+    margin = (float)screen.h / 120.0f;
+    if (margin < 6.0f)
+        margin = 6.0f;
+    inner_gap = margin;
+
+    x = (float)panel.x;
+    w = (float)panel.w;
+    top = (float)(panel.y + panel.h) + margin;
+
+    /* The gap ends at the combat pane when it sits in the same column, else at
+     * the bottom of the usable screen. */
+    region_bottom = (float)(screen.y + screen.h) - margin;
+    if (sdl_combat_overlay_pane_current_rect(&combat)
+        && combat.w > 0 && combat.h > 0)
+    {
+        bool overlaps_column = combat.x < panel.x + panel.w
+            && combat.x + combat.w > panel.x;
+        float combat_top = (float)combat.y - margin;
+
+        if (overlaps_column && combat_top > top && combat_top < region_bottom)
+            region_bottom = combat_top;
+    }
+
+    avail = region_bottom - top;
+    min_button_h = (float)screen.h / 14.0f;
+    if (min_button_h < 40.0f)
+        min_button_h = 40.0f;
+    max_button_h = (float)screen.h / 5.0f;
+
+    if (avail < min_button_h * 2.0f + inner_gap)
+        return false;
+
+    button_h = (avail - inner_gap) / 2.0f;
+    if (button_h > max_button_h)
+        button_h = max_button_h;
+
+    if (out_rects) {
+        out_rects[0] = (SDL_FRect){ x, top, w, button_h };
+        out_rects[1] = (SDL_FRect){
+            x, top + button_h + inner_gap, w, button_h
+        };
+    }
+    return true;
+}
+
+bool sdl_touch_thumb_point_to_button(float px, float py, int* out_index)
+{
+    SDL_FRect rects[SDL_TOUCH_THUMB_BUTTON_COUNT];
+
+    if (out_index)
+        *out_index = -1;
+    if (!sdl_touch_thumb_compute_rects(rects))
+        return false;
+
+    for (int i = 0; i < SDL_TOUCH_THUMB_BUTTON_COUNT; i++) {
+        if (!sdl_touch_thumb_button_has_binding(i))
+            continue;
+        if (rects[i].w <= 0.0f || rects[i].h <= 0.0f)
+            continue;
+        if (px >= rects[i].x && px < rects[i].x + rects[i].w
+            && py >= rects[i].y && py < rects[i].y + rects[i].h)
+        {
+            if (out_index)
+                *out_index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void sdl_touch_thumb_label_for_binding(int binding, char* buf,
+    size_t buflen)
+{
+    char ctx[32];
+
+    if (!buf || !buflen)
+        return;
+    if (binding == GAMEPAD_BIND_NONE) {
+        SDL_strlcpy(buf, "Off", buflen);
+        return;
+    }
+    /* Space/'x' adapt their name to the player's situation (stairs, item, ...). */
+    if (touch_thumb_context_action(binding, NULL, ctx, sizeof(ctx))) {
+        SDL_strlcpy(buf, ctx, buflen);
+        return;
+    }
+    binding_action_short(binding, buf, buflen);
+}
+
+static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
+    bool pressed)
+{
+    SDL_Color frame = g_state.palette[TERM_WHITE];
+    SDL_Color text = g_state.palette[TERM_WHITE];
+    int tap_binding = sdl_touch_thumb_button_binding(index, false);
+    int long_binding = sdl_touch_thumb_button_binding(index, true);
+    char label[32];
+
+    /* Translucent body + border, in the style of the movement button-wheel. */
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, pressed ? 150 : 92);
+    SDL_RenderFillRect(g_state.renderer, rect);
+
+    frame.a = pressed ? 220 : 150;
+    SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, frame.a);
+    SDL_RenderRect(g_state.renderer, rect);
+
+    text.a = pressed ? 255 : 235;
+    sdl_touch_thumb_label_for_binding(tap_binding, label, sizeof(label));
+
+    if (long_binding != GAMEPAD_BIND_NONE) {
+        SDL_FRect main_rect = *rect;
+        SDL_FRect long_rect = *rect;
+        SDL_Color hint = g_state.palette[TERM_L_WHITE];
+        char long_label[32];
+
+        main_rect.h = rect->h * 0.60f;
+        long_rect.y = rect->y + rect->h * 0.60f;
+        long_rect.h = rect->h * 0.40f;
+
+        sdl_touch_thumb_label_for_binding(long_binding, long_label,
+            sizeof(long_label));
+        hint.a = pressed ? 230 : 190;
+
+        sdl_touch_pane_draw_button_text_scaled(&main_rect, NULL, label, text,
+            0.40f, 0.64f);
+        sdl_touch_pane_draw_button_text_scaled(&long_rect, NULL, long_label,
+            hint, 0.28f, 0.40f);
+    } else {
+        sdl_touch_pane_draw_button_text_scaled(rect, NULL, label, text,
+            0.40f, 0.64f);
+    }
+}
+
+void sdl_touch_thumb_render(void)
+{
+    SDL_FRect rects[SDL_TOUCH_THUMB_BUTTON_COUNT];
+
+    if (g_touch_thumb_flash_button >= 0
+        && SDL_GetTicksNS() >= g_touch_thumb_flash_until)
+    {
+        g_touch_thumb_flash_button = -1;
+        g_touch_thumb_flash_until = 0;
+    }
+
+    if (!sdl_touch_thumb_compute_rects(rects)) {
+        sdl_touch_thumb_cancel_press();
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < SDL_TOUCH_THUMB_BUTTON_COUNT; i++) {
+        bool pressed;
+
+        if (!sdl_touch_thumb_button_has_binding(i))
+            continue;
+        if (rects[i].w <= 0.0f || rects[i].h <= 0.0f)
+            continue;
+        pressed = (g_touch_thumb_pressed_button == i)
+            || (g_touch_thumb_flash_button == i);
+        sdl_touch_thumb_render_button(&rects[i], i, pressed);
+    }
+}
+
+void sdl_touch_thumb_cancel_press(void)
+{
+    if (!g_touch_thumb_press.active && g_touch_thumb_pressed_button < 0)
+        return;
+
+    g_touch_thumb_press.active = false;
+    g_touch_thumb_press.long_press_enabled = false;
+    g_touch_thumb_pressed_button = -1;
+    g_state.need_present = true;
+}
+
+static void sdl_touch_thumb_fire(int index, bool long_press)
+{
+    int binding = sdl_touch_thumb_button_binding(index, long_press);
+    int key;
+
+    /* A long press on a button with no long binding still does the tap action,
+     * and vice versa, so a half-configured button is never a dead zone. */
+    if (binding == GAMEPAD_BIND_NONE)
+        binding = sdl_touch_thumb_button_binding(index, !long_press);
+    if (binding == GAMEPAD_BIND_NONE)
+        return;
+
+    /* Resolve a contextual binding (Space/'x') to the key its current label
+     * promises; non-contextual bindings are left untouched. */
+    key = binding;
+    (void)touch_thumb_context_action(binding, &key, NULL, 0);
+
+    sdl_touch_pane_send_binding(key, false, false);
+    g_touch_thumb_flash_button = index;
+    g_touch_thumb_flash_until = SDL_GetTicksNS() + 150000000ULL;
+    g_state.need_present = true;
+}
+
+int sdl_touch_thumb_pending_timeout_ms(Uint64 now_ns)
+{
+    Uint64 elapsed;
+
+    if (!g_touch_thumb_press.active)
+        return -1;
+    if (!g_touch_thumb_press.long_press_enabled)
+        return -1;
+
+    elapsed = now_ns - g_touch_thumb_press.start_time;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+        return 0;
+
+    return TOUCH_PANE_LONG_PRESS_MS - (int)(elapsed / 1000000ULL);
+}
+
+bool sdl_touch_thumb_flush_pending_press(Uint64 now_ns)
+{
+    int index;
+
+    if (!g_touch_thumb_press.active)
+        return false;
+    if (!g_touch_thumb_press.long_press_enabled)
+        return false;
+    if (now_ns - g_touch_thumb_press.start_time
+        < (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        return false;
+    }
+
+    index = g_touch_thumb_press.slot;
+    sdl_touch_thumb_cancel_press();
+    sdl_touch_thumb_fire(index, true);
+    return true;
+}
+
+bool sdl_touch_thumb_handle_pointer_down(float x, float y, bool mouse,
+    SDL_FingerID finger_id)
+{
+    int index = -1;
+
+    if (!sdl_touch_thumb_point_to_button(x, y, &index))
+        return false;
+    if (index < 0)
+        return true;
+
+    sdl_touch_thumb_cancel_press();
+    g_touch_thumb_press.active = true;
+    g_touch_thumb_press.mouse = mouse;
+    g_touch_thumb_press.finger_id = finger_id;
+    g_touch_thumb_press.panel = 0;
+    g_touch_thumb_press.slot = index;
+    g_touch_thumb_press.long_press_enabled =
+        (sdl_touch_thumb_button_binding(index, true) != GAMEPAD_BIND_NONE);
+    g_touch_thumb_press.start_x = x;
+    g_touch_thumb_press.start_y = y;
+    g_touch_thumb_press.start_time = SDL_GetTicksNS();
+    g_touch_thumb_pressed_button = index;
+    g_state.need_present = true;
+    return true;
+}
+
+bool sdl_touch_thumb_handle_pointer_motion(float x, float y, bool mouse,
+    SDL_FingerID finger_id)
+{
+    int index = -1;
+    float dx;
+    float dy;
+    float threshold;
+
+    if (!g_touch_thumb_press.active)
+        return false;
+    if (g_touch_thumb_press.mouse != mouse)
+        return false;
+    if (!mouse && g_touch_thumb_press.finger_id != finger_id)
+        return false;
+
+    dx = x - g_touch_thumb_press.start_x;
+    dy = y - g_touch_thumb_press.start_y;
+    if (dx < 0.0f)
+        dx = -dx;
+    if (dy < 0.0f)
+        dy = -dy;
+
+    threshold = sdl_touch_swipe_threshold_px();
+    if (dx > threshold || dy > threshold) {
+        sdl_touch_thumb_cancel_press();
+        return true;
+    }
+
+    if (!sdl_touch_thumb_point_to_button(x, y, &index)
+        || index != g_touch_thumb_press.slot)
+    {
+        sdl_touch_thumb_cancel_press();
+    }
+    return true;
+}
+
+bool sdl_touch_thumb_handle_pointer_up(float x, float y, bool mouse,
+    SDL_FingerID finger_id)
+{
+    Uint64 press_time;
+    bool long_fire;
+    int index;
+    int release_index = -1;
+
+    if (!g_touch_thumb_press.active)
+        return false;
+    if (g_touch_thumb_press.mouse != mouse)
+        return false;
+    if (!mouse && g_touch_thumb_press.finger_id != finger_id)
+        return false;
+
+    press_time = SDL_GetTicksNS() - g_touch_thumb_press.start_time;
+    long_fire = g_touch_thumb_press.long_press_enabled
+        && (press_time >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL);
+    index = g_touch_thumb_press.slot;
+    (void)sdl_touch_thumb_point_to_button(x, y, &release_index);
+    sdl_touch_thumb_cancel_press();
+    if (release_index != index)
+        return true;
+
+    sdl_touch_thumb_fire(index, long_fire);
+    return true;
+}
+
 bool sdl_touch_round_layer_config_enabled(void)
 {
     return sdl_touch_only_mobile_device_active()

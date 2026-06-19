@@ -1,6 +1,13 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+static term g_left_panel_source_term;
+static bool g_left_panel_source_term_ready = false;
+static Uint64 g_left_panel_source_generation = 1;
+static Uint64 g_left_panel_source_rendered_generation = 0;
+static int g_left_panel_source_w = 0;
+static int g_left_panel_source_h = 0;
+
 sdl_view* sdl_view_from_term(term* t)
 {
     if (!t)
@@ -573,6 +580,13 @@ void sdl_left_panel_canvas_destroy(void)
     }
     g_left_panel_canvas_w = 0;
     g_left_panel_canvas_h = 0;
+    if (g_left_panel_source_term_ready) {
+        term_nuke(&g_left_panel_source_term);
+        g_left_panel_source_term_ready = false;
+    }
+    g_left_panel_source_w = 0;
+    g_left_panel_source_h = 0;
+    g_left_panel_source_rendered_generation = 0;
 }
 
 int sdl_overlay_margin_px(void)
@@ -1025,7 +1039,7 @@ void sdl_left_panel_debug_log_content_size(int term_w, int term_h,
     last_measured_rows[next_slot] = measured_rows;
     next_slot = (next_slot + 1) % LEFT_PANEL_CONTENT_LOG_CACHE;
 
-    log_debug("left-panel measured content: term=%dx%d scan=%dx%d "
+    log_trace("left-panel measured content: term=%dx%d scan=%dx%d "
         "measured=%dx%d",
         term_w, term_h, scan_cols, scan_rows, measured_cols, measured_rows);
 }
@@ -1146,6 +1160,71 @@ bool sdl_left_panel_render_source_term(const sdl_view* view,
     return true;
 }
 
+void sdl_left_panel_source_invalidate(void)
+{
+    g_left_panel_source_generation++;
+    if (g_left_panel_source_generation == 0)
+        g_left_panel_source_generation = 1;
+}
+
+const term* sdl_left_panel_source_term_for_view(const sdl_view* view,
+    int source_rows)
+{
+    term* old_term;
+    bool old_source_active;
+    int source_w;
+    int source_h;
+
+    if (!view || !view->term_ready || source_rows <= 0)
+        return NULL;
+
+    source_w = MAX(view->t.wid, LEFT_PANEL_WID);
+    /*
+     * Keep one stable source size for the view. Compact metrics query several
+     * individual rows before the pane render; sizing to each query would nuke
+     * and recreate this term repeatedly in the same frame.
+     */
+    source_h = MAX(source_rows, MAX(view->t.hgt, 1));
+    if (!SIL_UI_COMPACT_HEIGHT)
+        source_h = MAX(source_h, 24);
+
+    if (g_left_panel_source_term_ready
+        && (g_left_panel_source_w != source_w
+            || g_left_panel_source_h != source_h))
+    {
+        term_nuke(&g_left_panel_source_term);
+        g_left_panel_source_term_ready = false;
+        g_left_panel_source_rendered_generation = 0;
+    }
+
+    if (!g_left_panel_source_term_ready) {
+        if (term_init(&g_left_panel_source_term, source_w, source_h, 16) != 0)
+            return NULL;
+        g_left_panel_source_term_ready = true;
+        g_left_panel_source_w = source_w;
+        g_left_panel_source_h = source_h;
+    }
+
+    if (g_left_panel_source_rendered_generation
+        == g_left_panel_source_generation)
+    {
+        return &g_left_panel_source_term;
+    }
+
+    old_term = Term;
+    old_source_active = g_sdl_left_panel_pane_source_active;
+    g_sdl_left_panel_pane_source_active = true;
+    Term_activate(&g_left_panel_source_term);
+    Term_clear();
+    prt_frame_basic();
+    Term_activate(old_term);
+    g_sdl_left_panel_pane_source_active = old_source_active;
+    g_left_panel_source_rendered_generation =
+        g_left_panel_source_generation;
+
+    return &g_left_panel_source_term;
+}
+
 bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
     int source_rows, int* out_cols, int* out_rows);
 
@@ -1210,7 +1289,7 @@ bool sdl_left_panel_content_size_for_scratch(const sdl_view* view,
         last_source_h = source_h;
         last_cols = out_cols ? *out_cols : 0;
         last_rows = out_rows ? *out_rows : 0;
-        log_debug("left-panel scratch content: source=%dx%d measured=%dx%d",
+        log_trace("left-panel scratch content: source=%dx%d measured=%dx%d",
             source_w, source_h, last_cols, last_rows);
     }
 
@@ -1263,25 +1342,16 @@ int sdl_left_panel_source_row_width_for_term(const term* t,
 int sdl_left_panel_source_row_width_for_view(const sdl_view* view,
     int source_row)
 {
-    term panel_term;
-    int source_rows;
-    int width;
+    const term* source_term;
 
     if (!view || !view->term_ready || source_row < 0)
         return 0;
 
-    source_rows = sdl_left_panel_pane_rows_for_view(view);
-    if (source_rows <= source_row)
-        source_rows = source_row + 1;
-    if (!sdl_left_panel_render_source_term(view, source_rows, &panel_term,
-            NULL, NULL))
-    {
+    source_term = sdl_left_panel_source_term_for_view(view, source_row + 1);
+    if (!source_term || source_row >= source_term->hgt)
         return 0;
-    }
 
-    width = sdl_left_panel_source_row_width_for_term(&panel_term, source_row);
-    term_nuke(&panel_term);
-    return width;
+    return sdl_left_panel_source_row_width_for_term(source_term, source_row);
 }
 
 bool sdl_left_panel_compact_light_span_for_term(const term* t,
@@ -1334,29 +1404,20 @@ int sdl_left_panel_compact_source_row_width_for_view(
     const sdl_view* view, int source_row, bool row_mode)
 {
     if (row_mode && source_row == ROW_LIGHT) {
-        term panel_term;
         sdl_left_panel_compact_light_span span;
-        int source_rows;
-        int width = 0;
+        const term* source_term;
 
         if (!view || !view->term_ready)
             return 0;
 
-        source_rows = sdl_left_panel_pane_rows_for_view(view);
-        if (source_rows <= source_row)
-            source_rows = source_row + 1;
-        if (sdl_left_panel_render_source_term(view, source_rows, &panel_term,
-                NULL, NULL))
+        source_term = sdl_left_panel_source_term_for_view(view,
+            source_row + 1);
+        if (source_term
+            && sdl_left_panel_compact_light_span_for_term(source_term,
+                source_term->scr, &span))
         {
-            if (sdl_left_panel_compact_light_span_for_term(&panel_term,
-                    panel_term.scr, &span))
-            {
-                width = span.packed_width;
-            }
-            term_nuke(&panel_term);
+            return span.packed_width;
         }
-        if (width > 0)
-            return width;
     }
 
     return sdl_left_panel_source_row_width_for_view(view, source_row);
@@ -1449,33 +1510,13 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         content_cols = local_metrics.content_cols;
         panel_rows = local_metrics.panel_rows;
     } else {
-        int natural_rows = sdl_left_panel_pane_rows_for_view(view);
-        int measured_cols = 0;
-        int measured_rows = 0;
-        bool measured = false;
-
-        measured = sdl_left_panel_content_size_for_view(view, &measured_cols,
-            &measured_rows);
-        if (view->t.hgt < natural_rows) {
-            int scratch_cols = 0;
-            int scratch_rows = 0;
-
-            if (sdl_left_panel_content_size_for_scratch(view, natural_rows,
-                    &scratch_cols, &scratch_rows))
-            {
-                measured_cols = scratch_cols;
-                measured_rows = scratch_rows;
-                measured = true;
-            }
-        }
-
-        if (measured)
-        {
-            content_cols = measured_cols;
-            panel_rows = measured_rows;
-        }
-        else
-            panel_rows = natural_rows;
+        /*
+         * Expanded pane geometry is layout, not content. Measuring visible
+         * rows made the pane grow and shrink as transient status lines changed
+         * and required rendering a temporary status terminal every frame.
+         */
+        content_cols = LEFT_PANEL_CONTENT_WID;
+        panel_rows = sdl_left_panel_pane_rows_for_view(view);
     }
     if (content_cols < 1)
         content_cols = 1;

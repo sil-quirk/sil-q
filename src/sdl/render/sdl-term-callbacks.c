@@ -58,6 +58,8 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_question_menu_pending_timeout_ms(now_ns);
             int round_wheel_timeout_ms =
                 sdl_touch_round_pending_timeout_ms(now_ns);
+            int thumb_touch_timeout_ms =
+                sdl_touch_thumb_pending_timeout_ms(now_ns);
             bool old_blocking_key_wait = g_sdl_blocking_key_wait;
             if (timeout_ms < 0 || (touch_timeout_ms >= 0 && touch_timeout_ms < timeout_ms))
                 timeout_ms = touch_timeout_ms;
@@ -122,6 +124,11 @@ errr callback_sdl_xtra(int n, int v)
             {
                 timeout_ms = round_wheel_timeout_ms;
             }
+            if (timeout_ms < 0 || (thumb_touch_timeout_ms >= 0
+                    && thumb_touch_timeout_ms < timeout_ms))
+            {
+                timeout_ms = thumb_touch_timeout_ms;
+            }
             g_sdl_blocking_key_wait = true;
             {
                 /* Diagnostic (temporary): measure how long we actually BLOCK
@@ -137,8 +144,18 @@ errr callback_sdl_xtra(int n, int v)
                 if (_wb_ms >= 300)
                     log_warn("[IDLEWAIT] blocked %llu ms waiting for input",
                         (unsigned long long)_wb_ms);
-                if (_wb_got)
+                if (_wb_got) {
                     sdl_handle_event(&g_state, &ev);
+                    /*
+                     * SDL_WaitEvent() removes one event only. Returning to
+                     * inkey() after every mouse-motion, timer, or window event
+                     * made a queued movement key wait behind repeated frontend
+                     * and presentation passes. Preserve event order, but drain
+                     * everything already queued in this one input pass.
+                     */
+                    while (SDL_PollEvent(&ev))
+                        sdl_handle_event(&g_state, &ev);
+                }
             }
             g_sdl_blocking_key_wait = old_blocking_key_wait;
             Uint64 flush_ns = SDL_GetTicksNS();
@@ -157,6 +174,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
             sdl_touch_round_flush_pending_highlight(flush_ns);
@@ -185,6 +203,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
             sdl_touch_round_flush_pending_highlight(flush_ns);
@@ -219,6 +238,7 @@ errr callback_sdl_xtra(int n, int v)
             sdl_question_menu_flush_expired(flush_ns);
             sdl_touch_zone_flush_pending_press(flush_ns);
             sdl_touch_top_panel_flush_pending_press(flush_ns);
+            sdl_touch_thumb_flush_pending_press(flush_ns);
             sdl_log_pane_menu_flush_pending_press(flush_ns);
             sdl_side_pane_menu_flush_pending_press(flush_ns);
         }
@@ -270,6 +290,7 @@ errr callback_sdl_xtra(int n, int v)
                 sdl_question_menu_flush_expired(flush_ns);
                 sdl_touch_zone_flush_pending_press(flush_ns);
                 sdl_touch_top_panel_flush_pending_press(flush_ns);
+                sdl_touch_thumb_flush_pending_press(flush_ns);
                 sdl_log_pane_menu_flush_pending_press(flush_ns);
                 sdl_side_pane_menu_flush_pending_press(flush_ns);
             }

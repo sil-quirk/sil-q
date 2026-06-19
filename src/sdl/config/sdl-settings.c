@@ -1063,6 +1063,13 @@ void sdl_touch_pane_load_default_bindings(void)
     memcpy(g_default_touch_top_panel_long_bindings,
         defaults.touch_top_panel_long_bindings,
         sizeof(g_default_touch_top_panel_long_bindings));
+    g_default_touch_thumb_enabled = defaults.touch_thumb_enabled;
+    memcpy(g_default_touch_thumb_bindings,
+        defaults.touch_thumb_bindings,
+        sizeof(g_default_touch_thumb_bindings));
+    memcpy(g_default_touch_thumb_long_bindings,
+        defaults.touch_thumb_long_bindings,
+        sizeof(g_default_touch_thumb_long_bindings));
     g_default_touch_swipe_enabled = defaults.touch_swipe_enabled;
     memcpy(g_default_touch_swipe_bindings, defaults.touch_swipe_bindings,
         sizeof(g_default_touch_swipe_bindings));
@@ -2069,6 +2076,56 @@ int get_sdl_touch_top_panel_default_binding(int index, bool long_press)
     sdl_touch_pane_load_default_bindings();
     return long_press ? g_default_touch_top_panel_long_bindings[index]
                       : g_default_touch_top_panel_bindings[index];
+}
+
+bool get_sdl_touch_thumb_enabled(void)
+{
+    return config.touch_thumb_enabled;
+}
+
+void set_sdl_touch_thumb_enabled(bool value)
+{
+    if (config.touch_thumb_enabled == value)
+        return;
+    config.touch_thumb_enabled = value;
+    if (!value)
+        sdl_touch_thumb_cancel_press();
+    g_state.need_present = true;
+}
+
+bool get_sdl_touch_thumb_default_enabled(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_thumb_enabled;
+}
+
+int get_sdl_touch_thumb_binding(int index, bool long_press)
+{
+    if (index < 0 || index >= SDL_TOUCH_THUMB_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+    return long_press ? config.touch_thumb_long_bindings[index]
+                      : config.touch_thumb_bindings[index];
+}
+
+void set_sdl_touch_thumb_binding(int index, bool long_press, int binding)
+{
+    if (index < 0 || index >= SDL_TOUCH_THUMB_BUTTON_COUNT)
+        return;
+
+    if (long_press)
+        config.touch_thumb_long_bindings[index] = binding;
+    else
+        config.touch_thumb_bindings[index] = binding;
+    g_state.need_present = true;
+}
+
+int get_sdl_touch_thumb_default_binding(int index, bool long_press)
+{
+    if (index < 0 || index >= SDL_TOUCH_THUMB_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+    sdl_touch_pane_load_default_bindings();
+    return long_press ? g_default_touch_thumb_long_bindings[index]
+                      : g_default_touch_thumb_bindings[index];
 }
 
 bool get_sdl_touch_swipe_enabled(void)

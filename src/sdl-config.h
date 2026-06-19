@@ -94,6 +94,7 @@
 #else
 #define SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT 6
 #endif
+#define SDL_TOUCH_THUMB_BUTTON_COUNT 2
 #define SDL_PANE_PROFILE_COUNT 2
 #define SDL_LEFT_PANEL_COMPACT_COLUMN 0
 #define SDL_LEFT_PANEL_COMPACT_ROW 1
@@ -225,6 +226,9 @@ struct sdl_config {
     int touch_top_panel_tile_scale;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
     int touch_top_panel_long_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+    bool touch_thumb_enabled;
+    int touch_thumb_bindings[SDL_TOUCH_THUMB_BUTTON_COUNT];
+    int touch_thumb_long_bindings[SDL_TOUCH_THUMB_BUTTON_COUNT];
     bool touch_swipe_enabled;
     int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };

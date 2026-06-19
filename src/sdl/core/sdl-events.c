@@ -1629,6 +1629,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_touch_thumb_handle_pointer_down(x, y, false,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_touch_round_layer_controls_active()) {
             bool round_point_excluded;
 
@@ -1784,6 +1789,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_pointer_aim_handle_touch_motion(x, y, ev->tfinger.fingerID))
             return;
+        if (g_touch_thumb_press.active
+            && !g_touch_thumb_press.mouse
+            && g_touch_thumb_press.finger_id == ev->tfinger.fingerID)
+        {
+            (void)sdl_touch_thumb_handle_pointer_motion(x, y, false,
+                ev->tfinger.fingerID);
+            return;
+        }
         if (sdl_touch_round_layer_controls_active()
             || (g_touch_round_press.active
                 && g_touch_round_press.finger_id == ev->tfinger.fingerID))
@@ -1917,6 +1930,14 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_pointer_aim_handle_touch_up(x, y, ev->tfinger.fingerID))
             return;
+        if (g_touch_thumb_press.active
+            && !g_touch_thumb_press.mouse
+            && g_touch_thumb_press.finger_id == ev->tfinger.fingerID)
+        {
+            (void)sdl_touch_thumb_handle_pointer_up(x, y, false,
+                ev->tfinger.fingerID);
+            return;
+        }
         if (sdl_touch_round_layer_controls_active()
             || (g_touch_round_press.active
                 && g_touch_round_press.finger_id == ev->tfinger.fingerID))
@@ -1998,6 +2019,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             && g_touch_pane_press.finger_id == ev->tfinger.fingerID)
         {
             sdl_touch_pane_cancel_press();
+        }
+        if (g_touch_thumb_press.active && !g_touch_thumb_press.mouse
+            && g_touch_thumb_press.finger_id == ev->tfinger.fingerID)
+        {
+            sdl_touch_thumb_cancel_press();
         }
         if (g_menu_touch_press.active
             && g_menu_touch_press.finger_id == ev->tfinger.fingerID)
@@ -2093,6 +2119,19 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_KEY_DOWN) {
         int key = ev->key.key;
+        if (ev->common.timestamp) {
+            Uint64 now_ns = SDL_GetTicksNS();
+
+            if (now_ns > ev->common.timestamp) {
+                Uint64 queued_ms =
+                    (now_ns - ev->common.timestamp) / 1000000ULL;
+
+                if (queued_ms >= 50) {
+                    log_warn("[SLOWINPUT] key waited %llu ms in SDL queue",
+                        (unsigned long long)queued_ms);
+                }
+            }
+        }
         // Ignore bare modifiers.
         if (key == SDLK_LSHIFT || key == SDLK_RSHIFT ||
             key == SDLK_LALT || key == SDLK_RALT ||
