@@ -1318,9 +1318,6 @@ void process_player(void)
         {
             g_active_partition_banner_consumes_input = false;
             g_active_partition_banner_text[0] = '\0';
-            g_active_partition_banner_animation_rows = 0;
-            if (g_term_pre_fresh_hook == narrative_banner_pre_fresh_hook)
-                g_term_pre_fresh_hook = NULL;
             do_cmd_redraw();
         }
     }

@@ -867,8 +867,8 @@ static void wr_options(void)
     /* Legacy main-terminal combat row count; panes own combat display now. */
     wr_byte(0);
 
-    /* Write "ability_desc_mode" */
-    wr_byte(op_ptr->ability_desc_mode);
+    /* Legacy "ability_desc_mode" slot. */
+    wr_byte(0);
 
     /* Write "vault_drop_frequency" */
     wr_byte(op_ptr->vault_drop_frequency);
@@ -1505,7 +1505,6 @@ bool save_player(void)
     }
     return (result);
 }
-
 
 
 

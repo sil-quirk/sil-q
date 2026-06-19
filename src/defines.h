@@ -2859,7 +2859,7 @@
 #define OPT_unidentified_items_slate 88
 #define OPT_space_acts_as_comma 89 /* obsolete 0.9.7: reusable setting slot */
 #define OPT_show_level_entry_banner 90
-#define OPT_ability_desc_mode 91
+// reserved legacy slot: ability_desc_mode
 #define OPT_vault_drop_frequency 92
 #define OPT_show_smithing_difficulty 93
 #define OPT_show_smithing_difficulty_look 94
@@ -2867,7 +2867,7 @@
 #define OPT_show_partition_narrative 96
 #define OPT_noble_item_spawn_mode 97
 #define OPT_hide_left_panel 98 /* obsolete 0.9.7: reusable setting slot */
-#define OPT_banner_message_stairs 99
+// reserved legacy slot: banner_message_stairs
 #define OPT_show_level_generation_debug 100
 #define OPT_unlock_blitz_mode 101
 #define OPT_look_objects_sort_by_difficulty 102
@@ -2879,7 +2879,7 @@
 #define OPT_narrative_banner_turns 108
 #define OPT_min_depth_timer_mode 109
 #define OPT_song_list_sort_by_recent 110
-#define OPT_inventory_selection_square 111
+// reserved legacy slot: inventory_selection_square
 #define OPT_supply_menu_random_icons 112
 #define OPT_supply_menu_hide_flavor_compact 113
 #define OPT_load_blitz_by_default 114
@@ -3068,7 +3068,6 @@
 #define look_objects_sort_by_difficulty op_ptr->opt[OPT_look_objects_sort_by_difficulty]
 #define look_nearby_filter_default op_ptr->opt[OPT_look_nearby_filter_default]
 #define song_list_sort_by_recent op_ptr->opt[OPT_song_list_sort_by_recent]
-#define inventory_selection_square op_ptr->opt[OPT_inventory_selection_square]
 #define supply_menu_random_icons op_ptr->opt[OPT_supply_menu_random_icons]
 #define supply_menu_hide_flavor_compact op_ptr->opt[OPT_supply_menu_hide_flavor_compact]
 #define show_elemental_item_rolls op_ptr->opt[OPT_show_elemental_item_rolls]

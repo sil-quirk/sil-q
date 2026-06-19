@@ -342,7 +342,6 @@ void verify_panel(void)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
-    int banner_rows = active_narrative_banner_rows();
     int center_y = SCREEN_HGT / 2;
     int center_x = SCREEN_WID / 2;
     struct map_pane_span spans[MAP_PANE_SPAN_MAX];
@@ -428,25 +427,6 @@ void verify_panel(void)
         wy = py - center_y;
     else
         wy = scroll_axis_within(py, wy, play_y_lo, play_y_hi, PANEL_HGT, 13);
-
-    if (banner_rows >= SCREEN_HGT)
-        banner_rows = SCREEN_HGT - 1;
-    if (banner_rows > 0)
-    {
-        int visible_rows = SCREEN_HGT - banner_rows;
-        int target_screen_row;
-
-        if (visible_rows < 1)
-            visible_rows = 1;
-
-        /* Center within the unobscured map rows instead of hugging the banner. */
-        target_screen_row = banner_rows + visible_rows / 2;
-        if (target_screen_row >= SCREEN_HGT)
-            target_screen_row = SCREEN_HGT - 1;
-
-        if (py < wy + target_screen_row)
-            wy = py - target_screen_row;
-    }
 
     /* Scroll horizontally: centre on demand, else keep within the playfield. */
     if (do_center)

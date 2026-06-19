@@ -1665,24 +1665,6 @@ object_type* prepare_supply_icon_object(object_type* o_ptr)
     return o_ptr;
 }
 
-bool inventory_selection_uses_square(void)
-{
-    return op_ptr && op_ptr->opt[OPT_inventory_selection_square];
-}
-
-bool inventory_selection_frame_is_big(const object_type* o_ptr)
-{
-    return use_bigtile && use_graphics != GRAPHICS_NONE
-        && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx;
-}
-
-void draw_inventory_selection_frame(int x, int y,
-    const object_type* o_ptr)
-{
-    (void)Term_set_extra_cursor(true, x, y,
-        inventory_selection_frame_is_big(o_ptr));
-}
-
 int menu_term_width(void)
 {
     if (Term && Term->wid > 0)
@@ -1858,7 +1840,6 @@ void story_render_inventory_entry(int row, int base_col, int label_col,
 {
     int weight_col = display_weights ? MAX(0, label_col - 8) : label_col;
     const int label_width = 4;
-    bool square_selection = highlight && inventory_selection_uses_square();
     byte fill_attr = inventory_menu_selected_attr(desc_attr);
 
     (void)story_term_w;
@@ -1879,9 +1860,6 @@ void story_render_inventory_entry(int row, int base_col, int label_col,
     if (o_ptr && o_ptr->k_idx)
         text_col = draw_item_tile_with_background(base_col, row,
             (object_type*)o_ptr, highlight ? fill_attr : 0);
-    if (square_selection)
-        draw_inventory_selection_frame(base_col, row, o_ptr);
-
     int desc_limit = menu_desc_limit(text_col, label_col, weight_col,
         display_weights);
     story_print_text(row, text_col, desc_limit, desc_attr, desc);
@@ -1911,7 +1889,6 @@ void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
     int clear_col = menu_overlay_clear_col(col);
     const int label_width = 4;
     bool has_object = (o_ptr && o_ptr->k_idx);
-    bool square_selection = highlight && inventory_selection_uses_square();
     byte fill_attr = inventory_menu_selected_attr(desc_attr);
 
     if (highlight)
@@ -1932,10 +1909,6 @@ void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
     if (has_object)
         text_col = draw_item_tile_with_background(col + 12 + 2, row,
             (object_type*)o_ptr, highlight ? fill_attr : 0);
-    if (square_selection)
-        draw_inventory_selection_frame(col + 12 + 2, row,
-            has_object ? o_ptr : NULL);
-
     story_print_equipment_prefix(row, col, prefix_attr, prefix);
 
     int desc_limit = menu_desc_limit(text_col, label_col, weight_col,
@@ -2028,7 +2001,6 @@ void draw_equipment_story_rows(int col, int entry_count, int* out_index,
     int weight_col = menu_weight_col_for_width(term_wid);
     int clear_col = menu_overlay_clear_col(col);
     const int label_width = 4;
-    bool square_selection = inventory_selection_uses_square();
 
     log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
         entry_count, highlight_active, highlight_index);
@@ -2056,7 +2028,6 @@ void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         byte prefix_attr = is_highlight ? selected_attr : TERM_WHITE;
 
         int text_col = col + 12 + 2;
-        int tile_col = text_col;
         int label_col = label_col_base;
         log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
         if (is_highlight)
@@ -2073,9 +2044,6 @@ void draw_equipment_story_rows(int col, int entry_count, int* out_index,
             log_trace("draw_equipment_story_rows: Row %d - drew tile, text_col updated from %d to %d", row, text_col, tile_end_col);
             text_col = tile_end_col;
         }
-        if (is_highlight && square_selection)
-            draw_inventory_selection_frame(tile_col, row, has_object ? o_ptr : NULL);
-
         log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d", row, prefix, col);
         story_print_equipment_prefix(row, col, prefix_attr, prefix);
 

@@ -1540,12 +1540,6 @@ static int supply_entry_turns(const supply_list_entry* entry,
 
 static bool supply_kind_is_seen(const object_kind* k_ptr);
 
-static bool supply_icon_frame_is_big(const object_type* o_ptr)
-{
-    return use_bigtile && use_graphics != GRAPHICS_NONE
-        && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx;
-}
-
 static bool supply_icon_selected_background(int col, int row, byte* bg_attr)
 {
     byte attr;
@@ -1601,13 +1595,6 @@ void draw_supply_icon(int col, int row, const object_type* o_ptr)
                 Term_putch(col + 1, row, 0, ' ');
         }
     }
-}
-
-void draw_supply_icon_frame(int col, int row, const object_type* o_ptr)
-{
-    if (op_ptr && op_ptr->opt[OPT_inventory_selection_square])
-        (void)Term_set_extra_cursor(true, col, row,
-            supply_icon_frame_is_big(o_ptr));
 }
 
 static int supply_group_fixed_icon_kind(int group)
@@ -2635,11 +2622,7 @@ static void display_supply_group_list(int col, int row, int wid,
         if (highlighted)
             supply_browser_fill_row(col, row + i, selection_w, attr);
         if (icons && icons[grp].has_icon)
-        {
             draw_supply_icon(col, row + i, &icons[grp].obj);
-            if (active && grp_top + i == grp_cur)
-                draw_supply_icon_frame(col, row + i, &icons[grp].obj);
-        }
         if (text_w > 0)
             supply_put_fitted(text_col, row + i, text_w, attr,
                 supply_group_text[grp]);
@@ -2725,11 +2708,7 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
                     attr);
             }
             if (cols->show_sym && draw_obj)
-            {
                 draw_supply_icon(cols->sym_col, y, draw_obj);
-                if (selected)
-                    draw_supply_icon_frame(cols->sym_col, y, draw_obj);
-            }
 
             for (int line = 0; line < rows_per_entry && y + line < list_end;
                  line++)
@@ -2823,11 +2802,7 @@ static void display_supply_list(const knowledge_browser_layout* layout, int row,
             supply_browser_fill_row(layout->list_col, y, selection_w, attr);
         }
         if (cols->show_sym)
-        {
             draw_supply_icon(cols->sym_col, y, o_ptr);
-            if (selected)
-                draw_supply_icon_frame(cols->sym_col, y, o_ptr);
-        }
 
         Term_putstr(cols->name_col, y, cols->name_w, attr, display_name);
 
@@ -3811,11 +3786,7 @@ static void display_equipment_group_list(int col, int row, int wid,
         if (highlighted)
             supply_browser_fill_row(col, row + i, selection_w, attr);
         if (icons && icons[grp_pos].has_icon)
-        {
             draw_supply_icon(col, row + i, &icons[grp_pos].obj);
-            if (active && grp_pos == grp_cur)
-                draw_supply_icon_frame(col, row + i, &icons[grp_pos].obj);
-        }
 
         if (text_w > 0)
             supply_put_fitted(text_col, row + i, text_w, attr,
@@ -4040,8 +4011,6 @@ static void display_equipment_slot_entries(
         }
 
         draw_supply_icon(layout->list_col, y, o_ptr);
-        if (selected)
-            draw_supply_icon_frame(layout->list_col, y, o_ptr);
 
         supply_put_fitted(name_col, y, name_w, attr, display_name);
         if (source_w > 0)
@@ -4915,11 +4884,7 @@ static void display_inventory_browser_group_list(int col, int row, int wid,
         if (highlighted)
             supply_browser_fill_row(col, row + i, selection_w, attr);
         if (icons && icons[grp_pos].has_icon)
-        {
             draw_supply_icon(col, row + i, &icons[grp_pos].obj);
-            if (active && grp_pos == grp_cur)
-                draw_supply_icon_frame(col, row + i, &icons[grp_pos].obj);
-        }
 
         if (text_w > 0)
             supply_put_fitted(text_col, row + i, text_w, attr,

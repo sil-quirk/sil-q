@@ -1266,11 +1266,9 @@ static void rd_options(void)
     (void)b;
     op_ptr->main_combat_rolls = 0;
 
-    /* Read "ability_desc_mode" */
+    /* Read legacy "ability_desc_mode" slot. */
     rd_byte(&b);
-    op_ptr->ability_desc_mode = b;
-    if (op_ptr->ability_desc_mode > 2)
-        op_ptr->ability_desc_mode = 0;
+    (void)b;
 
     /* Read "vault_drop_frequency" */
     rd_byte(&b);

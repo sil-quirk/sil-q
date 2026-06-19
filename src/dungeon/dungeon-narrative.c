@@ -5,7 +5,6 @@
 
 int g_banner_force_redraw_remaining = 0;
 char g_active_partition_banner_text[1024] = "";
-int g_active_partition_banner_animation_rows = 0;
 bool g_active_partition_banner_consumes_input = false;
 /* Banners shown while resolving a command should survive until the next
  * command prompt rather than being consumed by the arrival action itself. */
@@ -30,7 +29,6 @@ void reset_level_entry_tracking(void)
     g_labyrinth_view_active = false;
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
-    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
     greater_vault_xp_name[0] = '\0';
@@ -39,20 +37,6 @@ void reset_level_entry_tracking(void)
     last_partition_kind = LEVEL_PART_NONE;
     partition_narrated_mask = 0;
     last_narrated_style_idx = -1;
-}
-
-static bool banner_messages_use_stairs(void)
-{
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    const bool default_value = false;
-#else
-    const bool default_value = true;
-#endif
-
-    if (!op_ptr)
-        return default_value;
-
-    return op_ptr->opt[OPT_banner_message_stairs];
 }
 
 static byte narrative_banner_turn_setting(void)
@@ -64,125 +48,6 @@ static byte narrative_banner_turn_setting(void)
         return DEFAULT_NARRATIVE_BANNER_TURNS;
 
     return op_ptr->narrative_banner_turns;
-}
-
-static int narrative_banner_rows_for_text(cptr text)
-{
-    int wid, h;
-    const char* p = text;
-    int printed_lines = 0;
-    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
-    bool stair_layout = banner_messages_use_stairs();
-
-    if (!text || !text[0])
-        return 0;
-    if (!Term || !angband_term[0] || (Term != angband_term[0]))
-        return 0;
-
-    Term_get_size(&wid, &h);
-    if (h <= 1)
-        return 0;
-
-    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
-    {
-        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
-        int avail;
-        int linelen = 0;
-
-        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
-            indent++;
-        if (indent >= wid - 1)
-            break;
-
-        avail = wid - indent - 1;
-        if (avail < 8)
-            avail = 8;
-
-        while (*p && (unsigned char)*p <= ' ')
-        {
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-            p++;
-        }
-
-        while (*p)
-        {
-            const char* w = p;
-            int wlen;
-            int need;
-
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-
-            while (*p && *p != '\n' && !isspace((unsigned char)*p))
-                p++;
-            wlen = (int)(p - w);
-
-            if ((wlen > avail) && (linelen == 0))
-            {
-                int take = (wlen > avail) ? avail : wlen;
-                if (take > MAX_LEN2)
-                    take = MAX_LEN2;
-                p = w + take;
-                linelen = take;
-                break;
-            }
-
-            need = (linelen ? 1 : 0) + wlen;
-            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
-            {
-                linelen += need;
-            }
-            else
-            {
-                p = w;
-                break;
-            }
-
-            while (*p && isspace((unsigned char)*p))
-            {
-                if (*p == '\n')
-                    break;
-                p++;
-            }
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-        }
-
-        if (linelen == 0)
-            break;
-
-        printed_lines++;
-    }
-
-    return printed_lines;
-}
-
-int active_narrative_banner_rows(void)
-{
-    if (sdl_narrative_banner_overlay_enabled()
-        && active_narrative_banner_visible())
-    {
-        return 0;
-    }
-
-    if (g_active_partition_banner_animation_rows > 0)
-        return g_active_partition_banner_animation_rows;
-
-    if (!g_active_partition_banner_text[0]
-        || (g_banner_force_redraw_remaining <= 0))
-        return 0;
-
-    return narrative_banner_rows_for_text(g_active_partition_banner_text);
 }
 
 bool active_narrative_banner_visible(void)
@@ -198,168 +63,6 @@ cptr active_narrative_banner_text(void)
         : "";
 }
 
-static void keep_player_visible_for_narrative_banner(cptr text)
-{
-    int banner_rows;
-    int visible_rows;
-    int target_screen_row;
-
-    if (sdl_narrative_banner_overlay_enabled())
-        return;
-
-    if (!p_ptr || !text || !text[0] || p_ptr->is_dead)
-        return;
-
-    banner_rows = narrative_banner_rows_for_text(text);
-    if (banner_rows <= 0)
-        return;
-
-    if (banner_rows >= SCREEN_HGT)
-        banner_rows = SCREEN_HGT - 1;
-
-    visible_rows = SCREEN_HGT - banner_rows;
-    if (visible_rows < 1)
-        visible_rows = 1;
-
-    /* Center the entry view in the map rows that the banner leaves visible. */
-    target_screen_row = banner_rows + visible_rows / 2;
-    if (target_screen_row >= SCREEN_HGT)
-        target_screen_row = SCREEN_HGT - 1;
-
-    if (modify_panel(p_ptr->py - target_screen_row, p_ptr->wx))
-    {
-        if (p_ptr->redraw)
-            redraw_stuff();
-        if (p_ptr->window)
-            window_stuff();
-        Term_fresh();
-    }
-}
-
-static void queue_active_partition_banner(void)
-{
-    int wid, h;
-    const char* p = g_active_partition_banner_text;
-    int printed_lines = 0;
-    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
-    bool stair_layout = banner_messages_use_stairs();
-
-    if (!p[0] || (g_banner_force_redraw_remaining <= 0))
-        return;
-    if (!Term || !angband_term[0] || (Term != angband_term[0]))
-        return;
-    if (character_icky > 0)
-        return;
-
-    Term_get_size(&wid, &h);
-    if (h <= 1)
-        return;
-
-    sdl_story_font_enable();
-
-    while (*p && printed_lines < MAX_LINES2 && (1 + printed_lines) < h)
-    {
-        int indent = 14 + (stair_layout ? (2 * printed_lines) : 0);
-        int avail;
-        char buf[MAX_LEN2 + 1];
-        int linelen = 0;
-
-        if (use_bigtile && (((indent - COL_MAP) & 1) != 0))
-            indent++;
-        if (indent >= wid - 1)
-            break;
-
-        avail = wid - indent - 1;
-        if (avail < 8)
-            avail = 8;
-
-        buf[0] = '\0';
-
-        while (*p && (unsigned char)*p <= ' ')
-        {
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-            p++;
-        }
-
-        while (*p)
-        {
-            const char* w = p;
-            int wlen;
-            int need;
-
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-
-            while (*p && *p != '\n' && !isspace((unsigned char)*p))
-                p++;
-            wlen = (int)(p - w);
-
-            if ((wlen > avail) && (linelen == 0))
-            {
-                int take = (wlen > avail) ? avail : wlen;
-                if (take > MAX_LEN2)
-                    take = MAX_LEN2;
-                memcpy(buf, w, (size_t)take);
-                linelen = take;
-                buf[linelen] = '\0';
-                p = w + take;
-                break;
-            }
-
-            need = (linelen ? 1 : 0) + wlen;
-            if ((linelen + need <= avail) && (linelen + need <= MAX_LEN2))
-            {
-                if (linelen)
-                    buf[linelen++] = ' ';
-                memcpy(buf + linelen, w, (size_t)wlen);
-                linelen += wlen;
-                buf[linelen] = '\0';
-            }
-            else
-            {
-                p = w;
-                break;
-            }
-
-            while (*p && isspace((unsigned char)*p))
-            {
-                if (*p == '\n')
-                    break;
-                p++;
-            }
-            if (*p == '\n')
-            {
-                p++;
-                break;
-            }
-        }
-
-        if (linelen == 0)
-            break;
-
-        c_put_str(TERM_ORANGE, buf, 1 + printed_lines, indent);
-        /* Clear only the next tile position to prevent glow overlay from showing through */
-        int erase_len = use_bigtile ? 2 : 1;
-        if (indent + linelen + erase_len <= wid)
-            Term_erase(indent + linelen, 1 + printed_lines, erase_len);
-        printed_lines++;
-    }
-
-    sdl_story_font_disable();
-}
-
-void narrative_banner_pre_fresh_hook(void)
-{
-    queue_active_partition_banner();
-}
-
 bool active_narrative_banner_consumes_input(void)
 {
     return g_active_partition_banner_consumes_input
@@ -371,11 +74,8 @@ void clear_active_narrative_banner(void)
 {
     g_banner_force_redraw_remaining = 0;
     g_active_partition_banner_text[0] = '\0';
-    g_active_partition_banner_animation_rows = 0;
     g_active_partition_banner_consumes_input = false;
     g_active_partition_banner_skip_next_decay = false;
-    if (g_term_pre_fresh_hook == narrative_banner_pre_fresh_hook)
-        g_term_pre_fresh_hook = NULL;
 }
 
 bool dismiss_active_narrative_banner(void)
@@ -511,32 +211,7 @@ static void display_narrative_text(cptr text, int narrative_mode,
     if (narrative_mode != PARTITION_NARRATIVE_BANNER)
         return;
 
-    if (sdl_narrative_banner_overlay_enabled())
-    {
-        g_term_pre_fresh_hook = NULL;
-        g_active_partition_banner_text[0] = '\0';
-        SDL_strlcpy(g_active_partition_banner_text, text,
-            sizeof(g_active_partition_banner_text));
-        g_active_partition_banner_animation_rows = 0;
-        g_active_partition_banner_consumes_input =
-            (narrative_banner_turn_setting() == 0);
-        g_active_partition_banner_skip_next_decay =
-            (p_ptr && (p_ptr->command_cmd != 0));
-        g_banner_force_redraw_remaining =
-            g_active_partition_banner_consumes_input
-            ? 1
-            : narrative_banner_turn_setting();
-        sdl_narrative_banner_show(line_delay);
-        return;
-    }
-
-    keep_player_visible_for_narrative_banner(text);
-
-    g_term_pre_fresh_hook = narrative_banner_pre_fresh_hook;
     g_active_partition_banner_text[0] = '\0';
-    g_active_partition_banner_animation_rows =
-        narrative_banner_rows_for_text(text);
-    print_fade_centered_at_row(text, 1, false, line_delay);
     SDL_strlcpy(g_active_partition_banner_text, text,
         sizeof(g_active_partition_banner_text));
     g_active_partition_banner_consumes_input =
@@ -546,7 +221,7 @@ static void display_narrative_text(cptr text, int narrative_mode,
     g_banner_force_redraw_remaining = g_active_partition_banner_consumes_input
         ? 1
         : narrative_banner_turn_setting();
-    g_active_partition_banner_animation_rows = 0;
+    sdl_narrative_banner_show(line_delay);
 }
 
 static void display_partition_narrative(int old_sidx, int new_sidx,

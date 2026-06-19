@@ -818,7 +818,7 @@ static const byte app_interface_options[] = {
     OPT_hjkl_movement, OPT_angband_keyset,
     OPT_look_objects_sort_by_difficulty, OPT_song_list_sort_by_recent,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-    OPT_inventory_selection_square, OPT_supply_menu_random_icons,
+    OPT_supply_menu_random_icons,
     OPT_supply_menu_hide_flavor_compact, OPT_hide_secondary_action_ring,
     OPT_NONE
 };
@@ -846,7 +846,7 @@ static const byte app_visual_options[] = {
     OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
     OPT_mirror_player_tile_facing, OPT_handcrafted_player_tile_facing,
-    OPT_banner_message_stairs, OPT_show_smithing_difficulty,
+    OPT_show_smithing_difficulty,
     OPT_show_smithing_difficulty_look, OPT_NONE
 };
 
@@ -880,7 +880,6 @@ bool option_is_app_persistent(int opt)
 {
     /* Multi-value non-bool options saved explicitly in the visual JSON block */
     if (opt == OPT_delay_factor || opt == OPT_hitpoint_warning
-        || opt == OPT_ability_desc_mode
         || opt == OPT_intro_style || opt == OPT_show_level_entry_banner
         || opt == OPT_show_partition_narrative
         || opt == OPT_narrative_banner_turns)
@@ -908,15 +907,6 @@ static bool sdl_config_default_app_bool(int opt)
         return option_norm[opt];
 
     return false;
-}
-
-static byte sdl_config_default_ability_desc_mode(void)
-{
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    return 1;
-#else
-    return 0;
-#endif
 }
 
 static void sdl_config_apply_app_bool_defaults(const byte* option_ids)
@@ -947,7 +937,6 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->delay_factor = 5;
     op_ptr->hitpoint_warn = 3;
     op_ptr->main_combat_rolls = 0;
-    op_ptr->ability_desc_mode = sdl_config_default_ability_desc_mode();
     op_ptr->intro_style = INTRO_STYLE_RANDOM;
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
@@ -1114,8 +1103,6 @@ void sdl_config_load_app_options(const char* filename)
         9, 5);
 
     item = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
-    sdl_config_load_byte_value(item, "abilityDescMode",
-        &op_ptr->ability_desc_mode, 2, sdl_config_default_ability_desc_mode());
     sdl_config_load_byte_value(item, "introStyle", &op_ptr->intro_style,
         INTRO_STYLE_RANDOM, INTRO_STYLE_RANDOM);
     sdl_config_load_byte_value(item, "levelEntryNarrativeMode",
@@ -3110,7 +3097,6 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
             visual = cJSON_GetObjectItemCaseSensitive(app_options, "visual");
             if (cJSON_IsObject(visual)) {
-                cJSON_AddNumberToObject(visual, "abilityDescMode", op_ptr->ability_desc_mode);
                 cJSON_AddNumberToObject(visual, "introStyle", op_ptr->intro_style);
                 cJSON_AddNumberToObject(visual, "levelEntryNarrativeMode",
                     op_ptr->level_entry_narrative_mode);

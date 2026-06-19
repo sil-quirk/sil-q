@@ -600,9 +600,8 @@ static void smith_ui_draw_icon(int col, int row, const object_type* icon,
     if (!icon || !icon->k_idx)
         return;
 
+    (void)selected;
     draw_supply_icon(col, row, icon);
-    if (selected)
-        draw_supply_icon_frame(col, row, icon);
 }
 
 static int smith_ui_icon_gap_width(void)

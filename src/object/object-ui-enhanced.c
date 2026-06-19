@@ -830,7 +830,6 @@ void show_inven_enhanced(void)
             ui_scroll_area_set_offset_target(&scroll_top,
                 MAX(0, k - visible_rows));
         }
-        bool square_selection = inventory_selection_uses_square();
         const bool controller_controls = steamdeck_controls_active();
 
         bool prompt_context_visible = enhanced_menu_format_prompt(out_val,
@@ -1120,7 +1119,6 @@ void show_inven_enhanced(void)
 
             /* Draw tile if in graphics mode. */
             int text_col = col;
-            int tile_col = text_col;
             int selection_end = label_col + label_width;
             if (is_highlight)
             {
@@ -1136,9 +1134,6 @@ void show_inven_enhanced(void)
                 text_col = draw_item_tile_with_background(col, row,
                     display_obj, is_highlight ? selected_attr : 0);
             }
-            if (is_highlight && square_selection)
-                draw_inventory_selection_frame(tile_col, row, display_obj);
-            
             log_trace("ITEM ROW %d: col=%d, text_col=%d, is_highlight=%d, desc='%.30s'",
                 row, col, text_col, is_highlight, out_desc[j]);
 
@@ -1906,7 +1901,6 @@ void show_equip_enhanced(void)
                 ui_scroll_area_clear();
             }
         }
-        bool square_selection = inventory_selection_uses_square();
 
         /* Display equipment list */
         if (use_story_font)
@@ -2008,7 +2002,6 @@ void show_equip_enhanced(void)
                 
                 /* Draw tile if in graphics mode */
                 int text_col = col + 12 + 2;
-                int tile_col = text_col;
                 int label_col = label_col_base;
                 int selection_end = label_col + 4;
 
@@ -2022,9 +2015,6 @@ void show_equip_enhanced(void)
 
                 c_put_str(prefix_attr, tmp_val, display_row, col);
 
-                if (square_selection)
-                    draw_inventory_selection_frame(tile_col, display_row,
-                        o_ptr->k_idx ? o_ptr : NULL);
                 
                 /* Display the entry itself (exactly like show_equip) */
                 c_put_str(line_attr, out_desc[highlight_index], display_row, text_col);

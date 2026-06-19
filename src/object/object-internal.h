@@ -47,9 +47,6 @@ int draw_item_tile(int x, int y, object_type* o_ptr);
 int draw_item_tile_with_background(int x, int y, object_type* o_ptr,
     byte background_attr);
 object_type* prepare_supply_icon_object(object_type* o_ptr);
-bool inventory_selection_uses_square(void);
-bool inventory_selection_frame_is_big(const object_type* o_ptr);
-void draw_inventory_selection_frame(int x, int y, const object_type* o_ptr);
 int menu_term_width(void);
 int menu_term_height(void);
 byte inventory_menu_selected_attr(byte source_attr);

@@ -813,8 +813,6 @@ void finalize_character_creation_selection(void)
     }
 
     op_ptr->main_combat_rolls = 0;
-    if (op_ptr->ability_desc_mode > 2)
-        op_ptr->ability_desc_mode = 0;
     if (op_ptr->vault_drop_frequency > VDF_PLENTIFUL)
         op_ptr->vault_drop_frequency = VDF_NORMAL;
     if (op_ptr->level_entry_narrative_mode > LEVEL_ENTRY_NARRATIVE_OFF)

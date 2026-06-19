@@ -42,7 +42,6 @@ extern bool first_entry_to_dungeon;
 extern bool death_spectator_mode;
 extern bool death_spectator_exit_requested;
 extern char g_active_partition_banner_text[1024];
-extern int g_active_partition_banner_animation_rows;
 extern bool g_active_partition_banner_consumes_input;
 extern bool g_active_partition_banner_skip_next_decay;
 extern char greater_vault_xp_name[80];
@@ -52,7 +51,6 @@ void play_game_pop_startup_icky(bool* startup_icky_active, cptr reason);
 bool restore_player_position_after_denied_move(int y, int x);
 void snapshot_run_history(const char* reason);
 void reset_level_entry_tracking(void);
-void narrative_banner_pre_fresh_hook(void);
 void display_partition_narrative_banner(int old_sidx, int new_sidx,
     level_partition_kind kind, bool line_delay);
 void describe_greater_vault_entry(cptr vault_name);

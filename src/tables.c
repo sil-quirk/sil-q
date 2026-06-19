@@ -238,7 +238,7 @@ cptr option_text[OPT_MAX] = {
     "unidentified_items_slate", /* OPT_unidentified_items_slate */
     NULL, /* obsolete 0.9.7: space_acts_as_comma */
     "level_entry_narrative_mode", /* OPT_show_level_entry_banner */
-    "ability_desc_mode", /* OPT_ability_desc_mode */
+    NULL, /* reserved legacy slot: ability_desc_mode */
     "vault_drop_frequency", /* OPT_vault_drop_frequency */
     "show_smithing_difficulty", /* OPT_show_smithing_difficulty */
     "show_smithing_difficulty_look", /* OPT_show_smithing_difficulty_look */
@@ -246,7 +246,7 @@ cptr option_text[OPT_MAX] = {
     "partition_narrative_mode", /* OPT_show_partition_narrative */
     "noble_item_spawn_mode", /* OPT_noble_item_spawn_mode */
     NULL, /* obsolete 0.9.7: hide_left_panel */
-    "banner_message_stairs", /* OPT_banner_message_stairs */
+    NULL, /* reserved legacy slot: banner_message_stairs */
     "show_level_generation_debug", /* OPT_show_level_generation_debug */
     "unlock_blitz_mode", /* OPT_unlock_blitz_mode */
     "look_objects_sort_by_difficulty", /* OPT_look_objects_sort_by_difficulty */
@@ -258,7 +258,7 @@ cptr option_text[OPT_MAX] = {
     "narrative_banner_turns", /* OPT_narrative_banner_turns */
     "min_depth_timer_mode", /* OPT_min_depth_timer_mode */
     "song_list_sort_by_recent", /* OPT_song_list_sort_by_recent */
-    "inventory_selection_square", /* OPT_inventory_selection_square */
+    NULL, /* reserved legacy slot: inventory_selection_square */
     "supply_menu_random_icons", /* OPT_supply_menu_random_icons */
     "supply_menu_hide_flavor_compact", /* OPT_supply_menu_hide_flavor_compact */
     "load_blitz_by_default", /* OPT_load_blitz_by_default */
@@ -483,7 +483,7 @@ cptr option_desc[OPT_MAX] = {
     "Show unidentified items in slate color", /* OPT_unidentified_items_slate */
     NULL, /* obsolete 0.9.7: space_acts_as_comma */
     "Level entry narrative (banner with delay/banner without delay/message/off)", /* OPT_show_level_entry_banner */
-    "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect only)", /* OPT_ability_desc_mode */
+    NULL, /* reserved legacy slot: ability_desc_mode */
     "Vault drop frequency (0=Normal, 1=Modest, 2=Scarce, 3=Meager, 4=Plentiful)", /* OPT_vault_drop_frequency */
     "Debug: Show {sd,wr} in item descriptions", /* OPT_show_smithing_difficulty */
     "Debug: Show {sd,wr} in look (L) sidebar and message", /* OPT_show_smithing_difficulty_look */
@@ -491,7 +491,7 @@ cptr option_desc[OPT_MAX] = {
     "Partition transition narrative (banner without delay/message/off)", /* OPT_show_partition_narrative */
     "Noble item spawns (0=good+/chests/human+elf skeletons, 1=also &/! vault drops)", /* OPT_noble_item_spawn_mode */
     NULL, /* obsolete 0.9.7: hide_left_panel */
-    "Banner message layout (stairs/straight)", /* OPT_banner_message_stairs */
+    NULL, /* reserved legacy slot: banner_message_stairs */
     "Debug: Show detailed level-generation screen info and pause before play", /* OPT_show_level_generation_debug */
     "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
@@ -503,7 +503,7 @@ cptr option_desc[OPT_MAX] = {
     "Narrative banner turns (0=dismiss banner on next input, 1-3=keep it visible for player turns)", /* OPT_narrative_banner_turns */
     "Minimum depth pace (0=normal, 1=relaxed [+30000], 2=harsh [-30000])", /* OPT_min_depth_timer_mode */
     "Sort the song menu by the songs most recently used this session", /* OPT_song_list_sort_by_recent */
-    "Add a tile frame to selected inventory/equipment/supply items", /* OPT_inventory_selection_square */
+    NULL, /* reserved legacy slot: inventory_selection_square */
     "Use random representative icons for supply groups", /* OPT_supply_menu_random_icons */
     "Hide flavor words in the compact supply list", /* OPT_supply_menu_hide_flavor_compact */
     "Load a living Blitz character by default when one exists", /* OPT_load_blitz_by_default */
@@ -744,7 +744,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_unidentified_items_slate */
     false, /* obsolete 0.9.7: space_acts_as_comma */
     true, /* OPT_show_level_entry_banner */
-    false, /* OPT_ability_desc_mode (default 0 via byte field) */
+    false, /* reserved legacy slot: ability_desc_mode */
     false, /* OPT_vault_drop_frequency (default 0 via byte field) */
     false, /* OPT_show_smithing_difficulty */
     false, /* OPT_show_smithing_difficulty_look */
@@ -752,11 +752,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_show_partition_narrative */
     false, /* OPT_noble_item_spawn_mode (default 0 via byte field) */
     false, /* obsolete 0.9.7: hide_left_panel */
-#if defined(__ANDROID__) || defined(SIL_IOS)
-    false, /* OPT_banner_message_stairs */
-#else
-    true, /* OPT_banner_message_stairs */
-#endif
+    false, /* reserved legacy slot: banner_message_stairs */
     false, /* OPT_show_level_generation_debug */
     false, /* OPT_unlock_blitz_mode */
     false, /* OPT_look_objects_sort_by_difficulty */
@@ -768,7 +764,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_narrative_banner_turns (default via byte field) */
     false, /* OPT_min_depth_timer_mode (default 0 via byte field) */
     true, /* OPT_song_list_sort_by_recent */
-    true, /* OPT_inventory_selection_square */
+    false, /* reserved legacy slot: inventory_selection_square */
     false, /* OPT_supply_menu_random_icons */
     true, /* OPT_supply_menu_hide_flavor_compact */
     false, /* OPT_load_blitz_by_default */
@@ -926,7 +922,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_song_list_sort_by_recent,
         OPT_hitpoint_warning,
         OPT_hjkl_movement, OPT_angband_keyset,
-        OPT_inventory_selection_square, OPT_supply_menu_random_icons,
+        OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
         OPT_hide_secondary_action_ring,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
@@ -962,11 +958,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_ability_desc_mode, OPT_stealth_vision,
+    { OPT_stealth_vision,
         OPT_sleep_icon, OPT_artifact_unique_color, OPT_unidentified_items_slate,
         OPT_mirror_player_tile_facing, OPT_show_level_entry_banner,
         OPT_show_partition_narrative,
-        OPT_narrative_banner_turns, OPT_intro_style, OPT_banner_message_stairs,
+        OPT_narrative_banner_turns, OPT_intro_style,
         OPT_solid_walls, OPT_hybrid_walls,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
         OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,

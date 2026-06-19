@@ -601,7 +601,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     do {                                                                            \
         if (!highlight_active || !p_ptr->command_see) break;                        \
         byte attr = inventory_menu_selected_attr(TERM_L_BLUE);                      \
-        bool square_selection = inventory_selection_uses_square();                  \
         int col = 0;                                                                \
         int term_wid = menu_term_width();                                           \
         int weight_col = menu_weight_col_for_width(term_wid);                       \
@@ -679,8 +678,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     if (display_obj && display_obj->k_idx)                          \
                         text_col = draw_item_tile_with_background(col, row+1,       \
                             display_obj, attr);                                     \
-                    if (square_selection)                                           \
-                        draw_inventory_selection_frame(col, row+1, display_obj);    \
                     c_put_str(attr,tmp,row+1,text_col);                             \
                     if (show_weights){ int wgt = supplies_limit_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                     { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
@@ -703,9 +700,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     if (o_ptr && o_ptr->k_idx)                                       \
                         text_col = draw_item_tile_with_background(col, row+1,       \
                             o_ptr, attr);                                           \
-                    if (square_selection)                                           \
-                        draw_inventory_selection_frame(col, row+1,                  \
-                            (o_ptr && o_ptr->k_idx) ? o_ptr : NULL);                \
                     c_put_str(attr,tmp,row+1,text_col);                             \
                     if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                     { char lab[8]; sprintf(lab, " (%c)", inventory_visible_label_for_item(item_index)); c_put_str(attr,lab,row+1,label_col); }\
@@ -740,9 +734,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                       text_col = draw_item_tile_with_background(col+12+2, row+1,    \
                           o_ptr, attr);                                             \
                   c_put_str(attr,usebuf,row+1,col);                                 \
-                  if (square_selection)                                             \
-                      draw_inventory_selection_frame(col+12+2, row+1,               \
-                          o_ptr->k_idx ? o_ptr : NULL);                             \
                   c_put_str(attr,tmp,row+1,text_col);                               \
                   if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,weight_col);} \
                   { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); c_put_str(attr,lab,row+1,label_col); }\
@@ -766,8 +757,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 int text_col = col;                                                  \
                 inventory_menu_fill_selected_span(col, label_col + 4, row+1, attr); \
                 text_col = draw_item_tile_with_background(col, row+1, o_ptr, attr); \
-                if (square_selection)                                               \
-                    draw_inventory_selection_frame(col, row+1, o_ptr);              \
                 c_put_str(attr,tmp,row+1,text_col);                                 \
                 if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,weight_col);} \
                 { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); c_put_str(attr,lab,row+1,label_col); }\

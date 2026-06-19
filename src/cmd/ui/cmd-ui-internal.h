@@ -171,7 +171,6 @@ void controller_prompt_label_no_sticks(int binding, const char* fallback,
 void settings_ui_fit_text(char* buf, size_t buflen, cptr text, int max_chars);
 int settings_utf8_prefix_len(cptr text, int max_cols);
 void draw_supply_icon(int col, int row, const object_type* o_ptr);
-void draw_supply_icon_frame(int col, int row, const object_type* o_ptr);
 void redraw_inven_equip_subwindows(void);
 void redraw_monster_subwindows(void);
 

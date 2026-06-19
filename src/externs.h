@@ -524,21 +524,17 @@ extern const char* styles_get_style_m2(int sidx);
 /* Narrative banner state. Positive values keep the banner visible across
  * player turns; a 0-turn banner instead consumes the next command input. */
 extern int g_banner_force_redraw_remaining;
-extern int active_narrative_banner_rows(void);
 extern bool active_narrative_banner_visible(void);
 extern cptr active_narrative_banner_text(void);
 extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
 extern bool dismiss_active_narrative_banner(void);
-extern bool sdl_narrative_banner_overlay_enabled(void);
 extern void sdl_narrative_banner_show(bool line_delay);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);
 extern void styles_set_loaded_level_primary(int sidx);
 extern void print_fade_centered(cptr text);
-extern void print_fade_centered_at_row(cptr text, int row_start, bool fade_in,
-    bool line_delay);
 /* Persisted door-style variant choices for consistency across save/load */
 extern int styles_get_choice_capacity(void);
 extern void styles_copy_level_door_choices(byte* out_buf, int max_n);

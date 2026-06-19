@@ -901,9 +901,6 @@ static cptr option_menu_label(int opt)
     case OPT_show_partition_narrative:
         return compact ? (narrow ? "Partition text" : "Partition narrative")
                        : "Partition transition narrative";
-    case OPT_ability_desc_mode:
-        return compact ? (narrow ? "Ability text" : "Ability descriptions")
-                       : "Ability descriptions (0=lore+effect, 1=effect+lore, 2=effect)";
     case OPT_vault_drop_frequency:
         return compact ? "Vault drops" : "Vault drop frequency";
     case OPT_min_depth_timer_mode:
@@ -921,9 +918,6 @@ static cptr option_menu_label(int opt)
     case OPT_song_list_sort_by_recent:
         return compact ? (narrow ? "Songs recent" : "Recent songs first")
                        : "Sort song menu by recent use";
-    case OPT_inventory_selection_square:
-        return compact ? (narrow ? "Item frame" : "Item select frame")
-                       : "Item selection frame";
     case OPT_supply_menu_random_icons:
         return compact ? (narrow ? "Supply icons" : "Supply icon mode")
                        : "Supply group icon mode";
@@ -936,8 +930,6 @@ static cptr option_menu_label(int opt)
     case OPT_intro_style:
         return compact ? (narrow ? "Welcome art" : "Welcome screen")
                        : "Welcome screen style";
-    case OPT_banner_message_stairs:
-        return compact ? "Banner layout" : "Banner message layout";
     case OPT_narrative_banner_turns:
         return compact ? "Banner turns" : "Narrative banner turns";
     case OPT_load_blitz_by_default:
@@ -1267,11 +1259,6 @@ static bool option_pick_value(int opt, bool* handled)
         { PARTITION_NARRATIVE_MESSAGE, "Message" },
         { PARTITION_NARRATIVE_OFF, "Off" }
     };
-    static const struct settings_value_choice ability_desc_choices[] = {
-        { 0, "0 (lore+effect)" },
-        { 1, "1 (effect+lore)" },
-        { 2, "2 (effect only)" }
-    };
     static const struct settings_value_choice vault_drop_choices[] = {
         { VDF_NORMAL, "Normal (0)" },
         { VDF_MODEST, "Modest (1)" },
@@ -1298,10 +1285,6 @@ static bool option_pick_value(int opt, bool* handled)
         { INTRO_STYLE_STARLIGHT, "Starlight on Cuivienen" },
         { INTRO_STYLE_NOLDOLANTE, "Lament of the Noldor" },
         { INTRO_STYLE_RANDOM, "Random" }
-    };
-    static const struct settings_value_choice banner_message_choices[] = {
-        { 0, "Straight" },
-        { 1, "Stair" }
     };
     static const struct settings_value_choice narrative_turn_choices[] = {
         { 0, "0 dismiss manually" },
@@ -1372,19 +1355,6 @@ static bool option_pick_value(int opt, bool* handled)
         }
         return false;
 
-    case OPT_ability_desc_mode:
-        value = op_ptr->ability_desc_mode;
-        if (value > 2)
-            value = 0;
-        if (option_pick_from_choices(opt, ability_desc_choices,
-                (int)N_ELEMENTS(ability_desc_choices), value, &value, handled)
-            && value != op_ptr->ability_desc_mode)
-        {
-            op_ptr->ability_desc_mode = value;
-            return true;
-        }
-        return false;
-
     case OPT_vault_drop_frequency:
         value = op_ptr->vault_drop_frequency;
         if (value > VDF_PLENTIFUL)
@@ -1433,19 +1403,6 @@ static bool option_pick_value(int opt, bool* handled)
             && value != op_ptr->intro_style)
         {
             op_ptr->intro_style = value;
-            return true;
-        }
-        return false;
-
-    case OPT_banner_message_stairs:
-        value = op_ptr->opt[opt] ? 1 : 0;
-        if (option_pick_from_choices(opt, banner_message_choices,
-                (int)N_ELEMENTS(banner_message_choices), value, &value,
-                handled)
-            && value != (op_ptr->opt[opt] ? 1 : 0))
-        {
-            op_ptr->opt[opt] = (value != 0);
-            option_apply_side_effects(opt);
             return true;
         }
         return false;
@@ -1723,9 +1680,6 @@ static void options_aux_reset_to_default(int page, const int* opt, int k,
         break;
     case OPT_show_partition_narrative:
         op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER;
-        break;
-    case OPT_ability_desc_mode:
-        op_ptr->ability_desc_mode = 0;
         break;
     case OPT_vault_drop_frequency:
         op_ptr->vault_drop_frequency = VDF_NORMAL;
@@ -2076,19 +2030,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     mode_str);
             }
-            else if (opt[i] == OPT_ability_desc_mode)
-            {
-                const char *mode_str;
-                bool compact = option_menu_use_compact_layout();
-                switch (op_ptr->ability_desc_mode)
-                {
-                case 1:  mode_str = compact ? "1 effect+lore" : "1 (effect+lore)"; break;
-                case 2:  mode_str = compact ? "2 effect only" : "2 (effect only)"; break;
-                default: mode_str = compact ? "0 lore+effect" : "0 (lore+effect)"; break;
-                }
-                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
-                    mode_str);
-            }
             else if (opt[i] == OPT_vault_drop_frequency)
             {
                 const char *vdf_names[] = { "Normal", "Modest", "Scarce", "Meager", "Plentiful" };
@@ -2146,11 +2087,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                 if (m > INTRO_STYLE_RANDOM) m = INTRO_STYLE_FLAME;
                 option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
                     is_names[m]);
-            }
-            else if (opt[i] == OPT_banner_message_stairs)
-            {
-                option_menu_format_line(buf, sizeof(buf), option_menu_label(opt[i]),
-                    op_ptr->opt[opt[i]] ? "Stair" : "Straight");
             }
             else if (opt[i] == OPT_narrative_banner_turns)
             {
@@ -2608,12 +2544,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->partition_narrative_mode + 1
                         : PARTITION_NARRATIVE_OFF;
                 }
-                else if (opt[k] == OPT_ability_desc_mode)
-                {
-                    op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode < 2)
-                        ? op_ptr->ability_desc_mode + 1
-                        : 2;
-                }
                 else if (opt[k] == OPT_vault_drop_frequency)
                 {
                     op_ptr->vault_drop_frequency
@@ -2773,12 +2703,6 @@ extern void do_cmd_options_aux(int page, cptr info)
                         (op_ptr->partition_narrative_mode > PARTITION_NARRATIVE_BANNER)
                         ? op_ptr->partition_narrative_mode - 1
                         : PARTITION_NARRATIVE_BANNER;
-                }
-                else if (opt[k] == OPT_ability_desc_mode)
-                {
-                    op_ptr->ability_desc_mode = (op_ptr->ability_desc_mode > 0)
-                        ? op_ptr->ability_desc_mode - 1
-                        : 0;
                 }
                 else if (opt[k] == OPT_vault_drop_frequency)
                 {

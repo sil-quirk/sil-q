@@ -609,7 +609,6 @@ extern bool feat_within_los(int y0, int x0, int feat);
 extern bool stairs_within_los(int y, int x);
 extern int trap_placement_chance(int y, int x);
 extern void place_traps(void);
-extern bool player_start_fits_entry_banner_view(int y);
 extern bool place_rubble_player(void);
 extern bool connectivity_rescue_traversable(int ry, int rx);
 extern int connectivity_unreachable_component( int start_y, int start_x, int cave_access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID], byte component[MAX_DUNGEON_HGT][MAX_DUNGEON_WID], int component_cells[MAX_DUNGEON_HGT * MAX_DUNGEON_WID]);

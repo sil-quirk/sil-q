@@ -1057,7 +1057,6 @@ struct player_other
     byte delay_factor; /* Delay factor (0 to 9) */
 
     byte main_combat_rolls; /* Legacy save byte; panes own combat display */
-    byte ability_desc_mode; /* Ability description display (0=D+E, 1=E+D, 2=E only) */
     byte vault_drop_frequency; /* Vault drop frequency mode (VDF_*) */
     byte intro_style; /* Welcome screen variant (INTRO_STYLE_*) */
     byte level_entry_narrative_mode; /* Initial partition text (banner with delay/banner without delay/message/off) */
