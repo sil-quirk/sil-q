@@ -768,7 +768,7 @@ static const char* object_desc_curse_inscription(const object_type* o_ptr,
         return NULL;
 
     if (f3 & TR3_PERMA_CURSE)
-        return "bound by the Oath of FÃ«anor";
+        return "bound by the Oath of Fëanor";
 
     if (f3 & TR3_HEAVY_CURSE)
         return "heavily cursed";

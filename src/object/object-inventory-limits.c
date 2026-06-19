@@ -368,7 +368,7 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
         case INV_LIMIT_LESSER_JEWEL:
         case INV_LIMIT_FEANORIAN_LAMP:
             SDL_strlcpy(carry_limit_last_label,
-                "lesser jewels or FÃ«anorian lamps",
+                "lesser jewels or Fëanorian lamps",
                 sizeof(carry_limit_last_label));
             break;
         default:

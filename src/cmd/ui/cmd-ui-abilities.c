@@ -2284,9 +2284,19 @@ static void ability_browser_fit_text(char* buf, size_t buflen, cptr text,
 
     len = strlen(text);
     display_width = utf8_display_width_n(text, (int)len);
-    if ((int)len <= width && display_width <= width)
+    if (display_width <= width)
     {
-        SDL_strlcpy(buf, text, buflen);
+        if (len < buflen)
+        {
+            SDL_strlcpy(buf, text, buflen);
+        }
+        else
+        {
+            int copy_len = utf8_safe_prefix_len(text, (int)buflen - 1);
+
+            SDL_memcpy(buf, text, (size_t)copy_len);
+            buf[copy_len] = '\0';
+        }
         return;
     }
 
@@ -3640,8 +3650,9 @@ static void ability_browser_draw_colored_text_line_ex(int col, int row,
     char fitted[ABILITY_BROWSER_DESC_LINE_LEN];
     int term_wid = Term ? Term->wid : 80;
     int term_hgt = Term ? Term->hgt : 24;
-    int limit;
-    int cursor;
+    int display_limit;
+    int display_cursor;
+    int fitted_len;
     int offset = 0;
 
     if (row < 0 || row >= term_hgt || width <= 0)
@@ -3658,35 +3669,48 @@ static void ability_browser_draw_colored_text_line_ex(int col, int row,
 
     ability_browser_fit_text(fitted, sizeof(fitted), text, width);
 
-    limit = col + width;
-    cursor = col;
-    while (fitted[offset] && cursor < limit)
+    display_limit = col + width;
+    display_cursor = col;
+    fitted_len = (int)strlen(fitted);
+    while (fitted[offset] && display_cursor < display_limit)
     {
         byte attr = base_attr;
-        int available = limit - cursor;
+        int write_col = col + offset;
+        int byte_room;
+        int remaining_bytes;
         int run_len;
+        int run_width;
         int match_len = ability_browser_highlight_match(fitted, offset, &attr,
             color_skills);
 
+        if (write_col >= term_wid)
+            break;
+
+        byte_room = term_wid - write_col;
+        remaining_bytes = fitted_len - offset;
         if (match_len > 0)
         {
             run_len = match_len;
         }
         else
         {
-            run_len = utf8_sequence_len_n(fitted + offset, available);
+            run_len = utf8_sequence_len_n(fitted + offset, remaining_bytes);
             attr = base_attr;
         }
 
         if (run_len <= 0)
             break;
-        if (run_len > available)
-            run_len = utf8_safe_prefix_len(fitted + offset, available);
+        if (run_len > byte_room)
+            run_len = utf8_safe_prefix_len(fitted + offset, byte_room);
         if (run_len <= 0)
             break;
 
-        Term_putstr(cursor, row, run_len, attr, fitted + offset);
-        cursor += ability_browser_cell_width_n(fitted + offset, run_len);
+        run_width = ability_browser_cell_width_n(fitted + offset, run_len);
+        if (run_width > 0 && display_cursor + run_width > display_limit)
+            break;
+
+        Term_putstr(write_col, row, run_len, attr, fitted + offset);
+        display_cursor += run_width;
         offset += run_len;
     }
 }
@@ -3734,7 +3758,7 @@ static void ability_browser_draw_description(
 }
 
 static void ability_browser_draw_frame(const ability_browser_layout* layout,
-    int skilltype)
+    int skilltype, bool train_hovered)
 {
     char title[96];
     char summary[160];
@@ -3794,7 +3818,9 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
 
         if (end_offset > start_offset)
         {
-            byte train_attr = ability_browser_selected_attr(TERM_WHITE);
+            byte train_attr = train_hovered
+                ? ability_browser_selected_attr(TERM_L_BLUE)
+                : TERM_L_BLUE;
             char train_text[160];
             int train_len = end_offset - start_offset;
 
@@ -3804,15 +3830,18 @@ static void ability_browser_draw_frame(const ability_browser_layout* layout,
                 (size_t)train_len);
             train_text[train_len] = '\0';
 
-            ability_browser_fill_row(layout->visible_col + start_offset,
-                layout->summary_row, train_len, train_attr);
+            if (train_hovered)
+            {
+                ability_browser_fill_row(layout->visible_col + start_offset,
+                    layout->summary_row, train_len, train_attr);
+            }
             Term_putstr(layout->visible_col + start_offset,
                 layout->summary_row, train_len, train_attr, train_text);
         }
 
-        ui_menu_click_add_text_span(ABILITY_MENU_CLICK_TRAIN,
-            layout->visible_col, layout->summary_row, visible_summary,
-            start_offset, end_offset);
+        ui_menu_click_add_span(ABILITY_MENU_CLICK_TRAIN,
+            layout->visible_col + start_offset, layout->summary_row,
+            layout->visible_col + end_offset);
     }
 
     for (int i = layout->visible_col;
@@ -5004,6 +5033,7 @@ void do_cmd_ability_screen(void)
         int desc_wrap_w;
         int hover_choice;
         int skill_hover = -1;
+        bool train_hovered = false;
         int ch;
         bool steamdeck = steamdeck_controls_active();
 
@@ -5097,7 +5127,13 @@ void do_cmd_ability_screen(void)
                 ui_scroll_area_set_offset_target(&desc_top, desc_max_top);
         }
 
-        ability_browser_draw_frame(&layout, skilltype);
+        if (ui_menu_click_get_hover_choice(&hover_choice)
+            && hover_choice == ABILITY_MENU_CLICK_TRAIN)
+        {
+            train_hovered = true;
+        }
+
+        ability_browser_draw_frame(&layout, skilltype, train_hovered);
 
         if (ui_menu_click_get_hover_choice(&hover_choice)
             && hover_choice >= ABILITY_MENU_CLICK_SKILL_BASE

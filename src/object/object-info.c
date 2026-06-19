@@ -955,7 +955,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (f4 & (TR4_SUBTLETY_THROW))
         good[gc++] = "lets you use Subtlety with thrown attacks";
     if (f4 & (TR4_BREAKS_PERMA_CURSE))
-        good[gc++] = "can break the Oath of FÃ«anor on your equipped items";
+        good[gc++] = "can break the Oath of Fëanor on your equipped items";
     if (f4 & (TR4_DEEP_CALL))
     {
         format_min_depth_bonus_depths(deep_call_equipped_bonus,
@@ -1027,7 +1027,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "bound by the Oath of FÃ«anor (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were five levels deeper even in your inventory";
+            bad[bc++] = "bound by the Oath of Fëanor (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were five levels deeper even in your inventory";
         else if (f3 & (TR3_HEAVY_CURSE))
             bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
@@ -1063,7 +1063,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
         int i;
         for (i = 0; i < bc; i++)
         {
-            if (strstr(bad[i], "cursed") || strstr(bad[i], "Oath of FÃ«anor"))
+            if (strstr(bad[i], "cursed") || strstr(bad[i], "Oath of Fëanor"))
             {
                 has_curse = true;
                 break;
@@ -1084,10 +1084,10 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3, u32b
                 }
                 
                 /* Color curse-related text in violet */
-                if (strstr(bad[i], "Oath of FÃ«anor"))
+                if (strstr(bad[i], "Oath of Fëanor"))
                 {
                     p_text_out("is ");
-                    p_text_out_c(TERM_VIOLET, "bound by the Oath of FÃ«anor");
+                    p_text_out_c(TERM_VIOLET, "bound by the Oath of Fëanor");
                     p_text_out(" (broken by holy light); the Silmarils are calling you, speeding the minimum depth timer as if you were five levels deeper even in your inventory");
                 }
                 else if (strstr(bad[i], "cursed"))
