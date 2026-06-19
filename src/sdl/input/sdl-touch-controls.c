@@ -564,21 +564,45 @@ bool sdl_touch_thumb_config_enabled(void)
     return false;
 }
 
+static bool sdl_touch_thumb_description_open(void)
+{
+    return g_description_overlay.active && g_description_overlay.interactive;
+}
+
 bool sdl_touch_thumb_layout_active(void)
 {
-    return sdl_touch_thumb_config_enabled()
-        && sdl_mouse_gameplay_context_active()
-        && sdl_left_panel_pane_runtime_active()
-        && sdl_left_panel_pane_collapsed();
+    if (!sdl_touch_thumb_config_enabled())
+        return false;
+    if (!sdl_left_panel_pane_collapsed())
+        return false;
+    /* Normal gameplay. */
+    if (sdl_mouse_gameplay_context_active()
+        && sdl_left_panel_pane_runtime_active())
+    {
+        return true;
+    }
+    /* While an interactive item description popup is open the panel is still
+     * laid out, but character_icky > 0 makes the presentation/runtime predicate
+     * false; allow the buttons (so 'x' can morph into Wield/Use) as long as the
+     * panel layout is enabled and we are alive in the dungeon. */
+    if (sdl_touch_thumb_description_open()
+        && sdl_left_panel_pane_layout_enabled()
+        && p_ptr && p_ptr->playing && !p_ptr->is_dead)
+    {
+        return true;
+    }
+    return false;
 }
 
 bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
 {
-    SDL_Rect panel;
+    const sdl_view* view = &g_views[PANE_MAIN];
+    sdl_left_panel_metrics metrics;
+    SDL_FRect panel;
     SDL_Rect combat;
     SDL_Rect screen;
-    float x;
-    float w;
+    float px;
+    float pw;
     float top;
     float region_bottom;
     float margin;
@@ -594,10 +618,18 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
     }
     if (!sdl_touch_thumb_layout_active())
         return false;
+    if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0)
+        return false;
 
-    sdl_update_left_panel_pane_rect();
-    panel = g_pane_rects[PANE_LEFT_PANEL];
-    if (panel.w <= 0 || panel.h <= 0)
+    /* Derive the left-panel rect straight from its metrics rather than from
+     * g_pane_rects[PANE_LEFT_PANEL]: the latter is zeroed while an item
+     * description popup is open (the popup sets character_icky), but the panel
+     * is still laid out and the metrics path works in both cases. */
+    if (!sdl_left_panel_metrics_for_view(view, &metrics))
+        return false;
+    if (!sdl_left_panel_pane_rect_for_metrics(view, &metrics, &panel))
+        return false;
+    if (panel.w <= 0.0f || panel.h <= 0.0f)
         return false;
 
     screen = sdl_get_layout_screen_rect();
@@ -609,9 +641,9 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
         margin = 6.0f;
     inner_gap = margin;
 
-    x = (float)panel.x;
-    w = (float)panel.w;
-    top = (float)(panel.y + panel.h) + margin;
+    px = panel.x;
+    pw = panel.w;
+    top = panel.y + panel.h + margin;
 
     /* The gap ends at the combat pane when it sits in the same column, else at
      * the bottom of the usable screen. */
@@ -619,8 +651,8 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
     if (sdl_combat_overlay_pane_current_rect(&combat)
         && combat.w > 0 && combat.h > 0)
     {
-        bool overlaps_column = combat.x < panel.x + panel.w
-            && combat.x + combat.w > panel.x;
+        bool overlaps_column = (float)combat.x < px + pw
+            && (float)(combat.x + combat.w) > px;
         float combat_top = (float)combat.y - margin;
 
         if (overlaps_column && combat_top > top && combat_top < region_bottom)
@@ -641,9 +673,9 @@ bool sdl_touch_thumb_compute_rects(SDL_FRect* out_rects)
         button_h = max_button_h;
 
     if (out_rects) {
-        out_rects[0] = (SDL_FRect){ x, top, w, button_h };
+        out_rects[0] = (SDL_FRect){ px, top, pw, button_h };
         out_rects[1] = (SDL_FRect){
-            x, top + button_h + inner_gap, w, button_h
+            px, top + button_h + inner_gap, pw, button_h
         };
     }
     return true;
@@ -685,8 +717,11 @@ static void sdl_touch_thumb_label_for_binding(int binding, char* buf,
         SDL_strlcpy(buf, "Off", buflen);
         return;
     }
-    /* Space/'x' adapt their name to the player's situation (stairs, item, ...). */
-    if (touch_thumb_context_action(binding, NULL, ctx, sizeof(ctx))) {
+    /* Space/'x' adapt their name to the player's situation (stairs, item,
+     * open description, ...). */
+    if (touch_thumb_context_action(binding, sdl_touch_thumb_description_open(),
+            NULL, ctx, sizeof(ctx)))
+    {
         SDL_strlcpy(buf, ctx, buflen);
         return;
     }
@@ -703,14 +738,14 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
     char label[32];
 
     /* Translucent body + border, in the style of the movement button-wheel. */
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, pressed ? 150 : 92);
+    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, pressed ? 200 : 150);
     SDL_RenderFillRect(g_state.renderer, rect);
 
-    frame.a = pressed ? 220 : 150;
+    frame.a = pressed ? 230 : 185;
     SDL_SetRenderDrawColor(g_state.renderer, frame.r, frame.g, frame.b, frame.a);
     SDL_RenderRect(g_state.renderer, rect);
 
-    text.a = pressed ? 255 : 235;
+    text.a = pressed ? 255 : 245;
     sdl_touch_thumb_label_for_binding(tap_binding, label, sizeof(label));
 
     if (long_binding != GAMEPAD_BIND_NONE) {
@@ -719,18 +754,18 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
         SDL_Color hint = g_state.palette[TERM_L_WHITE];
         char long_label[32];
 
-        main_rect.h = rect->h * 0.60f;
-        long_rect.y = rect->y + rect->h * 0.60f;
-        long_rect.h = rect->h * 0.40f;
+        main_rect.h = rect->h * 0.56f;
+        long_rect.y = rect->y + rect->h * 0.54f;
+        long_rect.h = rect->h * 0.46f;
 
         sdl_touch_thumb_label_for_binding(long_binding, long_label,
             sizeof(long_label));
-        hint.a = pressed ? 230 : 190;
+        hint.a = pressed ? 240 : 215;
 
         sdl_touch_pane_draw_button_text_scaled(&main_rect, NULL, label, text,
-            0.40f, 0.64f);
+            0.40f, 0.60f);
         sdl_touch_pane_draw_button_text_scaled(&long_rect, NULL, long_label,
-            hint, 0.28f, 0.40f);
+            hint, 0.36f, 0.52f);
     } else {
         sdl_touch_pane_draw_button_text_scaled(rect, NULL, label, text,
             0.40f, 0.64f);
@@ -793,7 +828,8 @@ static void sdl_touch_thumb_fire(int index, bool long_press)
     /* Resolve a contextual binding (Space/'x') to the key its current label
      * promises; non-contextual bindings are left untouched. */
     key = binding;
-    (void)touch_thumb_context_action(binding, &key, NULL, 0);
+    (void)touch_thumb_context_action(binding, sdl_touch_thumb_description_open(),
+        &key, NULL, 0);
 
     sdl_touch_pane_send_binding(key, false, false);
     g_touch_thumb_flash_button = index;

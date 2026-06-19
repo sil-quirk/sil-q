@@ -1344,6 +1344,14 @@ bool sdl_render_current_window_frame(void)
             continue;
         if (!show_supporting_panes && i != PANE_MAIN)
             continue;
+        /* Hide the message log(s) while an interactive item description popup is
+         * open, so it doesn't show through/around the popup. */
+        if (g_description_overlay.active && g_description_overlay.interactive
+            && (i == PANE_LOG
+                || (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))))
+        {
+            continue;
+        }
         if (i == PANE_MAIN && show_supporting_panes
             && sdl_render_main_view_with_left_panel_metrics(view,
                 have_left_panel_metrics ? &left_panel_metrics : NULL))
@@ -1467,7 +1475,6 @@ bool sdl_render_current_window_frame(void)
     sdl_player_exchange_render();
     sdl_player_action_menu_render();
     sdl_touch_round_render();
-    sdl_touch_thumb_render();
 
     if (visible_views > 1) {
         if (config.show_pane_borders)
@@ -1485,6 +1492,14 @@ bool sdl_render_current_window_frame(void)
 
             if (i == PANE_TOUCH)
                 continue;
+            /* Mirror the blit loop: keep the log's border hidden too while an
+             * interactive item description popup is open. */
+            if (g_description_overlay.active && g_description_overlay.interactive
+                && (i == PANE_LOG
+                    || (i == PANE_ROLLS && sdl_view_is_overlay_log_pane(view))))
+            {
+                continue;
+            }
 
             /* Draw only internal leading edges.  This keeps separators
              * between panes without painting a frame around the window. */
@@ -1547,6 +1562,9 @@ bool sdl_render_current_window_frame(void)
     sdl_song_menu_render();
     sdl_question_menu_render();
     sdl_description_overlay_render();
+    /* Drawn after the description popup (and its dimming backdrop) so the thumb
+     * buttons stay on top and visible while a description is open. */
+    sdl_touch_thumb_render();
     sdl_touch_exit_button_render();
 
     return true;

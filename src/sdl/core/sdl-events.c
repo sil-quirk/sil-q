@@ -1623,14 +1623,17 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        if (ui_menu_click_outside_cancel_enabled()
-            && sdl_menu_touch_handle_pointer_down(x, y,
-                ev->tfinger.fingerID, false))
+        /* Claim thumb-button taps before the "tap away to cancel" handler, so a
+         * tap on a thumb button while an item description popup is open fires
+         * the button instead of closing the popup. */
+        if (sdl_touch_thumb_handle_pointer_down(x, y, false,
+                ev->tfinger.fingerID))
         {
             return;
         }
-        if (sdl_touch_thumb_handle_pointer_down(x, y, false,
-                ev->tfinger.fingerID))
+        if (ui_menu_click_outside_cancel_enabled()
+            && sdl_menu_touch_handle_pointer_down(x, y,
+                ev->tfinger.fingerID, false))
         {
             return;
         }

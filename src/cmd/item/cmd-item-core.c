@@ -183,17 +183,20 @@ static int first_floor_item_under_player(void)
  * ("Description") touch thumb-button bindings, so the on-screen button shows
  * (and performs) the action that fits the player's current situation:
  *
- *   Space: on a down staircase -> descend ('>'), on an up staircase -> ascend
- *          ('<'), standing on an item -> pick up ('g'), else -> confirm (space).
- *   'x'  : standing on a wearable item -> "Wield", another item -> "Use", else
- *          -> "Description".  The key stays 'x' because do_cmd_observe() already
- *          routes a floor item to wield/use/pick up.
+ *   Space: in an open description -> pick up ('g'/space) the shown item;
+ *          otherwise on a down staircase -> descend ('>'), an up staircase ->
+ *          ascend ('<'), standing on an item -> pick up ('g'), else -> confirm.
+ *   'x'  : "Description" until the description popup is open, then "Wield" (a
+ *          wearable item) or "Use".  The key stays 'x' because do_cmd_observe()
+ *          opens the popup and, once open, 'x' wields/uses the shown item.
  *
- * Returns true (filling *out_key and label) for those two bindings while in the
- * dungeon; false otherwise, so the caller keeps the binding's static label/key.
+ * `description_open` is the caller's "an interactive item description popup is
+ * showing" state.  Returns true (filling *out_key and label) for those two
+ * bindings while in the dungeon; false otherwise, so the caller keeps the
+ * binding's static label/key.
  */
-bool touch_thumb_context_action(int binding, int* out_key, char* label,
-    size_t label_len)
+bool touch_thumb_context_action(int binding, bool description_open,
+    int* out_key, char* label, size_t label_len)
 {
     int key = binding;
     const char* name = NULL;
@@ -202,7 +205,12 @@ bool touch_thumb_context_action(int binding, int* out_key, char* label,
         return false;
 
     if (binding == ' ') {
-        if (cave_down_stairs_bold(p_ptr->py, p_ptr->px)) {
+        if (description_open) {
+            /* Inside the popup, Space picks up the item being described. */
+            key = ' ';
+            name = (first_floor_item_under_player() != 0) ? "Pick Up"
+                                                          : "Confirm";
+        } else if (cave_down_stairs_bold(p_ptr->py, p_ptr->px)) {
             key = '>';
             name = "Go Down";
         } else if (cave_up_stairs_bold(p_ptr->py, p_ptr->px)) {
@@ -216,13 +224,17 @@ bool touch_thumb_context_action(int binding, int* out_key, char* label,
             name = "Confirm";
         }
     } else if (binding == 'x') {
-        int floor_item = first_floor_item_under_player();
-
         key = 'x';
-        if (floor_item != 0) {
-            const object_type* o_ptr = &o_list[-floor_item];
+        if (description_open) {
+            int floor_item = first_floor_item_under_player();
 
-            name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+            if (floor_item != 0) {
+                const object_type* o_ptr = &o_list[-floor_item];
+
+                name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+            } else {
+                name = "Use";
+            }
         } else {
             name = "Description";
         }

@@ -724,8 +724,8 @@ extern void do_cmd_destroy(void);
 extern bool do_cmd_delete_item_by_index(int item);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
-extern bool touch_thumb_context_action(int binding, int* out_key, char* label,
-    size_t label_len);
+extern bool touch_thumb_context_action(int binding, bool description_open,
+    int* out_key, char* label, size_t label_len);
 extern void do_cmd_uninscribe(void);
 extern void do_cmd_inscribe(void);
 extern void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item);
