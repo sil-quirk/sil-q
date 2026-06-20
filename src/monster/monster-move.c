@@ -296,7 +296,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
         // (skip_next_turn is there to stop you getting opportunist attacks afer
         // knocking someone back)
-        if (!singing(SNG_DISGUISE) && m_ptr->ml && !m_ptr->skip_next_turn
+        if (player_active_weapon_is_melee()
+            && !singing(SNG_DISGUISE) && m_ptr->ml && !m_ptr->skip_next_turn
             && !p_ptr->truce
             && !p_ptr->confused && !p_ptr->afraid && !p_ptr->entranced
             && (p_ptr->stun <= 100))
@@ -511,7 +512,8 @@ void monster_swap(int y1, int x1, int y2, int x2)
     lite_spot(y2, x2);
 
     // deal with set polearm attacks
-    if (p_ptr->active_ability[S_MEL][MEL_POLEARMS] && monster1 && m_ptr->ml)
+    if (player_active_weapon_is_melee()
+        && p_ptr->active_ability[S_MEL][MEL_POLEARMS] && monster1 && m_ptr->ml)
     {
         object_type* o_ptr = &inventory[INVEN_WIELD];
         u32b f1, f2, f3;

@@ -3486,7 +3486,7 @@ bool sdl_handle_character_panel_click_action(int click_action)
             sdl_inventory_equipment_cycle_binding('i'));
         return true;
     case SDL_PANEL_CLICK_ABILITIES:
-        sdl_enqueue_bypassed_command('\t');
+        sdl_enqueue_bypassed_command('y');
         return true;
     case SDL_PANEL_CLICK_SMITHING:
         sdl_enqueue_bypassed_command('0');
@@ -3581,7 +3581,7 @@ bool sdl_binding_opens_pane_menu(int binding)
     case 'j':
     case 'h':
     case '@':
-    case '\t':
+    case 'y':
     case 'M':
     case 'm':
     case '~':

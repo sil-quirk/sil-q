@@ -2413,6 +2413,19 @@ static errr rd_savefile_new_aux(void)
     load_byte_offset = 0;
     log_trace("=== LOAD: Reset byte offset counter ===");
 
+    /*
+     * Start each load from a clean slate.  The metarun autoload streams
+     * several savefiles through this path into the shared game-state globals,
+     * and a savefile only restores the slots/entries it actually stored, so
+     * anything a prior (or partially failed) load left behind must be cleared
+     * first or it leaks into the new character.  Inventory and supplies reset
+     * themselves in their own loaders (rd_inventory / supplies_reset_store);
+     * the dungeon object and monster lists are cleared here so a stale or
+     * partial o_list/mon_list can never carry over.
+     */
+    wipe_o_list();
+    wipe_mon_list();
+
     /* Mention the savefile version */
     note(
         format("Loading a %d.%d.%d savefile...", sf_major, sf_minor, sf_patch));

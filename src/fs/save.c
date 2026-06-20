@@ -1107,8 +1107,8 @@ static bool wr_savefile(void)
     {
         object_type* o_ptr = &inventory[i];
 
-        /* Skip non-objects */
-        if (!o_ptr->k_idx)
+        /* Skip non-objects and stale empty stacks. */
+        if (!o_ptr->k_idx || o_ptr->number <= 0)
             continue;
 
         /* Dump index */

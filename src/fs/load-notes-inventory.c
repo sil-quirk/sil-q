@@ -79,6 +79,20 @@ errr rd_inventory(void)
     log_debug("Loading smithing object and player inventory");
     log_trace("[load:%06u] === BEGIN SMITHING ITEM ===", (unsigned)load_byte_offset);
 
+    /*
+     * Start from a clean inventory.  The metarun autoload reads several
+     * savefiles through this same path into the shared inventory[] globals,
+     * and this function only ever writes the slots a savefile actually
+     * stored.  Without clearing first, a slot that the current character
+     * left empty (e.g. a quiver emptied by throwing its last weapon) keeps
+     * whatever a previously loaded character had there, duplicating the
+     * thrown weapon (one phantom in the quiver, one real copy on the floor).
+     */
+    for (int wipe_slot = 0; wipe_slot < INVEN_TOTAL; wipe_slot++)
+        object_wipe(&inventory[wipe_slot]);
+    p_ptr->inven_cnt = 0;
+    p_ptr->equip_cnt = 0;
+
     /* Wipe the smithing object */
     object_wipe(smith_o_ptr);
 
@@ -125,6 +139,13 @@ errr rd_inventory(void)
         /* Hack -- verify item */
         if (!i_ptr->k_idx)
             return (-1);
+
+        if (i_ptr->number <= 0)
+        {
+            log_warn("Skipping stale empty inventory slot %u while loading",
+                (unsigned)n);
+            continue;
+        }
 
         /* Verify slot */
         if (n >= INVEN_TOTAL)

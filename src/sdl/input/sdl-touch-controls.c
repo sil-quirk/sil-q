@@ -3578,6 +3578,10 @@ void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
             return;
         }
         if (binding == '\t') {
+            SDL_strlcpy(buf, "Weapon", buflen);
+            return;
+        }
+        if (binding == 'y') {
             SDL_strlcpy(buf, "Abilities", buflen);
             return;
         }
@@ -3586,7 +3590,7 @@ void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
             return;
         }
         if (slot == 0 && binding == '\t') {
-            SDL_strlcpy(buf, "Abilities", buflen);
+            SDL_strlcpy(buf, "Weapon", buflen);
             return;
         }
         if (slot == 1 && binding == 'e') {
@@ -3653,6 +3657,9 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
         row = 12; col = 30; fallback = "?";
         break;
     case '\t':
+        row = 5; col = 29; fallback = "Wp";    /* active weapon */
+        break;
+    case 'y':
         row = 11; col = 27; fallback = "Ab";   /* amulet/ability */
         break;
     case 'z':
@@ -3880,6 +3887,9 @@ static void sdl_touch_top_panel_description_for_binding(int binding,
             buflen);
         return;
     case '\t':
+        SDL_strlcpy(buf, "Weapon: change active melee or ranged weapon.", buflen);
+        return;
+    case 'y':
         SDL_strlcpy(buf, "Abilities: open the ability screen.", buflen);
         return;
     case 'M':

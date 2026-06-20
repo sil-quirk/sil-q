@@ -132,6 +132,9 @@ extern bool two_handed_melee(void)
 {
     object_type* o_ptr = &inventory[INVEN_WIELD];
 
+    if (!player_active_weapon_is_melee())
+        return (false);
+
     if ((k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
         || hand_and_a_half_bonus(o_ptr))
     {

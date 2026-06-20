@@ -1191,8 +1191,8 @@ void do_cmd_character_sheet(void)
         }
 #endif
 
-        /* Abilities - 'x', Tab, or X button */
-        else if ((ch == 'x') || (ch == '\t') || (steamdeck && ch == steamdeck_alt_action_key()))
+        /* Abilities - 'x', 'y', or X button */
+        else if ((ch == 'x') || (ch == 'y') || (steamdeck && ch == steamdeck_alt_action_key()))
         {
             sdl_hover_tooltip_clear();
             sdl_character_sheet_screen_hide();

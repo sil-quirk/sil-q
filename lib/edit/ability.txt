@@ -66,7 +66,7 @@ T:34:0:99  # Shields
 N:3:Throwing
 I:0:3:4
 D:Recalling the deadly casts of spears by the Sindar in the defense of Doriath's borders. The march-wardens of Thingol were trained to hurl their javelins with lethal accuracy across great distances, striking down intruders before they could set foot beneath the enchanted trees of Neldoreth.
-E:+1 attack when throwing. Distance penalties halved. Thrown criticals easier.
+E:+1 attack when throwing from the quiver. Distance penalties halved. Thrown criticals easier. With one one-handed melee weapon equipped, quivered daggers can be quick-thrown while melee stays active.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -75,7 +75,7 @@ T:31:0:99  # Gloves
 N:4:Polearm Mastery
 I:0:4:4
 D:Mastering the long-hafted weapons akin to those wielded by the guards of Gondolin in the Fall of the Hidden City. The spearmen of Turgon's household held the bridges and narrow ways with their long reach, setting their weapons to receive the charging Balrogs and their orcish thralls.
-E:+2 attack with polearms. Set polearms to receive free attacks on advancing enemies when waiting (z/5).
+E:+2 attack with polearms while melee is active. Set polearms to receive free attacks on advancing enemies when waiting (z/5), and when switching from ranged to melee.
 T:31:0:99  # Gloves
 #          # + all Polearms (hard coded)
 
@@ -191,7 +191,7 @@ T:45:0:99  # Ring
 N:22:Point Blank Archery
 I:1:2:4
 D:Loosing arrows at point-blank range as did the defenders of Menegroth during the ruinous assault of the Dwarves of Nogrod. In the close confines of the Thousand Caves, the elven archers learned to fire even as their enemies bore down upon them, too swift to be struck before the arrow flew.
-E:No attack of opportunity from the target when firing at point blank.
+E:No attack of opportunity from the target when firing at point blank. Round shields still grant evasion and armour while ranged is active.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
@@ -214,7 +214,7 @@ T:35:0:99  # Cloak
 N:25:Versatility
 I:1:5:7
 D:Versatile in arms as was Túrin Turambar, who bore both the great bow of Beleg and the black sword Gurthang in the forests about Nargothrond. The greatest warriors of the First Age disdained no weapon, and their skill with the bow lent sureness to their sword-arm, for a keen eye serves all forms of combat.
-E:Melee bonus of half (Archery - Melee) when Archery exceeds Melee.
+E:Melee bonus of half (Archery - Melee) when Archery exceeds Melee. Switching from ranged to melee is free, but readying ranged still takes a turn.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 

@@ -685,6 +685,7 @@ extern int archery_range(const object_type* j_ptr);
 extern int throwing_range(const object_type* i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);
 extern void do_cmd_fire(int quiver);
+extern bool do_cmd_fire_at_adjacent(int y, int x);
 extern void do_cmd_throw(bool automatic);
 extern void do_cmd_throw_from_slot(int slot);
 extern bool throw_slot_menu_active;
@@ -1836,6 +1837,23 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr);
 extern int axe_bonus(const object_type* o_ptr);
 extern int polearm_bonus(const object_type* o_ptr);
 extern byte total_ads(const object_type* j_ptr);
+extern int player_active_weapon_mode(void);
+extern bool player_active_weapon_is_melee(void);
+extern bool player_active_weapon_is_ranged(void);
+extern bool player_active_weapon_mode_is_ranged(int mode);
+extern int player_active_weapon_mode_for_quiver(int quiver);
+extern int player_active_weapon_quiver_slot(void);
+extern int player_active_weapon_quiver_number(void);
+extern bool player_set_active_weapon_mode(
+    int mode, bool confirm, bool take_turn);
+extern void do_cmd_toggle_active_weapon(void);
+extern void player_queue_active_weapon_mode(int mode);
+extern void do_cmd_pending_active_weapon_mode(void);
+extern bool player_weapon_slot_combat_bonuses_active(
+    int slot, const object_type* o_ptr);
+extern bool player_shield_counts_for_active_weapon(const object_type* o_ptr);
+extern bool player_can_quick_throw_from_quiver(int slot);
+extern int player_quick_throw_quiver_slot(void);
 extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
 extern int monster_health_bar_text(

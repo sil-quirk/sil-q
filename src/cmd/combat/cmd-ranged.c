@@ -428,6 +428,28 @@ void do_cmd_fire(int quiver)
 
     /* Determine whether the item should be thrown directly */
     object_flags4(o_ptr, &ammo_f1, &ammo_f2, &ammo_f3, &ammo_f4);
+
+    {
+        int requested_mode = player_active_weapon_mode_for_quiver(quiver);
+        bool quick_throw = player_can_quick_throw_from_quiver(item)
+            && player_can_treat_as_throwing_flags(o_ptr, ammo_f3);
+
+        if (player_active_weapon_mode() != requested_mode)
+        {
+            if (player_active_weapon_is_melee() && quick_throw)
+            {
+                do_cmd_throw_from_slot(item);
+                return;
+            }
+
+            if (!player_set_active_weapon_mode(requested_mode, true, true))
+                return;
+
+            if (p_ptr->energy_use > 0)
+                return;
+        }
+    }
+
     if (player_can_treat_as_throwing_flags(o_ptr, ammo_f3))
     {
         do_cmd_throw_from_slot(item);
@@ -1219,6 +1241,26 @@ void do_cmd_fire(int quiver)
         attacks_of_opportunity(0, 0);
 }
 
+bool do_cmd_fire_at_adjacent(int y, int x)
+{
+    int dir;
+    int quiver;
+
+    if (!player_active_weapon_is_ranged())
+        return false;
+    if (distance(p_ptr->py, p_ptr->px, y, x) > 1)
+        return false;
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, y, x);
+    if (dir == 5)
+        return false;
+
+    quiver = player_active_weapon_quiver_number();
+    p_ptr->command_dir = dir;
+    do_cmd_fire(quiver);
+    return true;
+}
+
 /*handle special effects of throwing certain potions*/
 static bool thrown_potion_effects(object_type* o_ptr, bool* is_dead, int m_idx)
 {
@@ -1382,8 +1424,92 @@ static bool thrown_potion_effects(object_type* o_ptr, bool* is_dead, int m_idx)
     return (used_potion);
 }
 
+static bool quiver_slot_can_be_thrown(int slot)
+{
+    object_type* o_ptr;
+    u32b f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+
+    if (slot != INVEN_QUIVER1 && slot != INVEN_QUIVER2)
+        return false;
+
+    o_ptr = &inventory[slot];
+    if (!o_ptr->k_idx)
+        return false;
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    return player_can_treat_as_throwing_flags(o_ptr, f3);
+}
+
+static bool select_quiver_throw_slot(bool automatic, int* item)
+{
+    bool q1 = quiver_slot_can_be_thrown(INVEN_QUIVER1);
+    bool q2 = quiver_slot_can_be_thrown(INVEN_QUIVER2);
+    int active_slot = player_active_weapon_quiver_slot();
+
+    if (!item)
+        return false;
+
+    if (automatic)
+    {
+        if (active_slot && quiver_slot_can_be_thrown(active_slot))
+        {
+            *item = active_slot;
+            return true;
+        }
+
+        if (player_active_weapon_is_melee())
+        {
+            int quick_slot = player_quick_throw_quiver_slot();
+            if (quick_slot)
+            {
+                *item = quick_slot;
+                return true;
+            }
+        }
+
+        msg_print("Your active quiver has nothing designed for throwing.");
+        return false;
+    }
+
+    if (!q1 && !q2)
+    {
+        msg_print("You have nothing in your quivers designed for throwing.");
+        return false;
+    }
+    if (q1 && !q2)
+    {
+        *item = INVEN_QUIVER1;
+        return true;
+    }
+    if (q2 && !q1)
+    {
+        *item = INVEN_QUIVER2;
+        return true;
+    }
+
+    while (true)
+    {
+        char ch = '\0';
+
+        if (!get_com("Throw from which quiver (1/2)? ", &ch))
+            return false;
+        if (ch == '1')
+        {
+            *item = INVEN_QUIVER1;
+            return true;
+        }
+        if (ch == '2')
+        {
+            *item = INVEN_QUIVER2;
+            return true;
+        }
+
+        bell("Choose quiver 1 or 2.");
+    }
+}
+
 /*
- * Throw an object from the pack or floor.
+ * Throw an object from a quiver.
  *
  * Note: "unseen" monsters are very hard to hit.
  *
@@ -1437,8 +1563,6 @@ void do_cmd_throw(bool automatic)
     int path_n;
     u16b path_g[256];
 
-    cptr q, s;
-
     int msec = op_ptr->delay_factor * op_ptr->delay_factor;
 
     u32b noticed_flag
@@ -1451,60 +1575,27 @@ void do_cmd_throw(bool automatic)
     {
         item = preset_item;
         automatic = false;
+        if (item != INVEN_QUIVER1 && item != INVEN_QUIVER2)
+        {
+            throw_pending_slot = THROW_PENDING_NONE;
+            msg_print("You can only throw items from a quiver.");
+            return;
+        }
     }
 
     throw_pending_slot = THROW_PENDING_NONE;
 
-    if (!preset && automatic)
-    {
-        bool found = false;
-
-        /* Scan the inventory */
-        for (i = 0; i < INVEN_PACK; i++)
-        {
-            o_ptr = &inventory[i];
-
-            /* Skip non-objects */
-            if (!o_ptr->k_idx)
-                continue;
-
-            /* Extract the item flags */
-            object_flags4(o_ptr, &f1, &f2, &f3, &f4);
-
-            if (player_can_treat_as_throwing_flags(o_ptr, f3))
-            {
-                item = i;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            msg_print("You don't have anything designed for throwing in your "
-                      "inventory.");
-            return;
-        }
-    }
-    else if (!preset)
-    {
-        /* Get an item */
-        q = "Throw which item? ";
-        s = "You have nothing to throw.";
-        if (!open_inventory_item_select_menu(USE_INVEN | USE_FLOOR | USE_EQUIP,
-                q, s, &item))
-            return;
-    }
+    if (!preset && !select_quiver_throw_slot(automatic, &item))
+        return;
 
     /* Get the object */
-    if (item >= 0)
+    if (item != INVEN_QUIVER1 && item != INVEN_QUIVER2)
     {
-        o_ptr = &inventory[item];
+        msg_print("You can only throw items from a quiver.");
+        return;
     }
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
+
+    o_ptr = &inventory[item];
 
     if (!o_ptr->k_idx)
     {
@@ -1539,6 +1630,30 @@ void do_cmd_throw(bool automatic)
 
     /* Examine the item */
     object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+    if (!player_can_treat_as_throwing_flags(o_ptr, f3))
+    {
+        msg_print("That quiver does not hold a throwing weapon.");
+        return;
+    }
+
+    {
+        int requested_mode = (item == INVEN_QUIVER2)
+            ? PLAYER_ACTIVE_WEAPON_RANGED_2
+            : PLAYER_ACTIVE_WEAPON_RANGED_1;
+
+        if (player_active_weapon_mode() != requested_mode)
+        {
+            if (!(player_active_weapon_is_melee()
+                    && player_can_quick_throw_from_quiver(item)))
+            {
+                if (!player_set_active_weapon_mode(requested_mode, true, true))
+                    return;
+
+                if (p_ptr->energy_use > 0)
+                    return;
+            }
+        }
+    }
 
     // Aim automatically if asked
     if (automatic)
@@ -1730,7 +1845,7 @@ void do_cmd_throw(bool automatic)
     /* Single object */
     i_ptr->number = 1;
 
-    /* Set pickup on thrown item */
+    /* Set pickup on thrown quiver weapons so they can return to the quiver. */
     i_ptr->pickup = true;
     if ((original_slot == INVEN_QUIVER1) || (original_slot == INVEN_QUIVER2))
         i_ptr->pickup_slot = original_slot;
@@ -1743,6 +1858,17 @@ void do_cmd_throw(bool automatic)
         inven_item_increase(item, -1);
         inven_item_describe(item);
         inven_item_optimize(item);
+        if ((item == INVEN_QUIVER1 || item == INVEN_QUIVER2)
+            && inventory[item].k_idx && inventory[item].number <= 0)
+        {
+            if (p_ptr->equip_cnt > 0)
+                p_ptr->equip_cnt--;
+            object_wipe(&inventory[item]);
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->redraw |= PR_QUIVER;
+            p_ptr->window |= (PW_EQUIP | PW_PLAYER_0);
+            p_ptr->update |= PU_BONUS;
+        }
     }
 
     /* Reduce and describe floor item */
@@ -1768,11 +1894,14 @@ void do_cmd_throw(bool automatic)
 
     attack_mod = p_ptr->skill_use[S_MEL] + i_ptr->att;
 
-    // subtract out the melee weapon's bonus (as we had already accounted for
-    // it)
-    attack_mod -= (&inventory[INVEN_WIELD])->att;
-    attack_mod -= axe_bonus(&inventory[INVEN_WIELD]);
-    attack_mod -= polearm_bonus(&inventory[INVEN_WIELD]);
+    // subtract out the active melee weapon's bonus (as we had already
+    // accounted for it)
+    if (player_active_weapon_is_melee())
+    {
+        attack_mod -= (&inventory[INVEN_WIELD])->att;
+        attack_mod -= axe_bonus(&inventory[INVEN_WIELD]);
+        attack_mod -= polearm_bonus(&inventory[INVEN_WIELD]);
+    }
 
     /* Weapons that are not good for throwing are much less accurate */
     if (!treat_as_throwing)

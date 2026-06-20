@@ -160,6 +160,8 @@ int protection_roll(int typ, bool melee)
         // off-hand weapons are not armour, so skip them
         if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
             continue;
+        if ((i == INVEN_ARM) && !player_shield_counts_for_active_weapon(o_ptr))
+            continue;
 
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
@@ -238,6 +240,8 @@ int p_min(int typ, bool melee)
         // off-hand weapons are not armour, so skip them
         if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
             continue;
+        if ((i == INVEN_ARM) && !player_shield_counts_for_active_weapon(o_ptr))
+            continue;
 
         if (i >= INVEN_BODY)
             armour_weight += o_ptr->weight;
@@ -306,6 +310,8 @@ int p_max(int typ, bool melee)
 
         // off-hand weapons are not armour, so skip them
         if ((i == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+        if ((i == INVEN_ARM) && !player_shield_counts_for_active_weapon(o_ptr))
             continue;
 
         if (i >= INVEN_BODY)
@@ -2010,7 +2016,8 @@ bool make_attack_normal(monster_type* m_ptr)
                         update_combat_rolls_no_damage();
 
                         // allow for ripostes
-                        if (p_ptr->active_ability[S_EVN][EVN_RIPOSTE]
+                        if (player_active_weapon_is_melee()
+                            && p_ptr->active_ability[S_EVN][EVN_RIPOSTE]
                             && (p_ptr->ripostes < 1) && !p_ptr->afraid
                             && !p_ptr->confused && !p_ptr->entranced
                             && (p_ptr->stun <= 100) && m_ptr->ml

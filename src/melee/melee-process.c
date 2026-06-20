@@ -1099,7 +1099,8 @@ static void process_monster(monster_type* m_ptr)
                 // if adjacent, you get a chance for an opportunist attack,
                 // which might kill them (skip_next_turn is there to stop you
                 // getting opportunist attacks afer knocking someone back)
-                if (p_ptr->active_ability[S_STL][STL_OPPORTUNIST] && m_ptr->ml
+                if (player_active_weapon_is_melee()
+                    && p_ptr->active_ability[S_STL][STL_OPPORTUNIST] && m_ptr->ml
                     && !m_ptr->skip_next_turn
                     && (m_ptr->alertness >= ALERTNESS_ALERT) && !p_ptr->truce
                     && !p_ptr->confused && !p_ptr->afraid && !p_ptr->entranced

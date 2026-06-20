@@ -3233,7 +3233,7 @@ void sdl_touch_pane_default_label_for_panel_slot(int panel, int index, char* buf
             break;
         case 3:
             if (binding == '\t') {
-                SDL_strlcpy(buf, "Ability", buflen);
+                SDL_strlcpy(buf, "Weapon", buflen);
                 return;
             }
             break;

@@ -157,7 +157,8 @@ void wr_extra(void)
     wr_byte(p_ptr->morgoth_second_wind ? 1 : 0);
     wr_byte(p_ptr->discovery_lore_flags);
     wr_s16b(p_ptr->lamp_oil);
-    wr_u16b(0U);
+    wr_byte((byte)player_active_weapon_mode());
+    wr_byte(0);
     {
         byte morgoth_call_state =
             p_ptr->morgoth_call_state

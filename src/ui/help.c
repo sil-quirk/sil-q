@@ -147,7 +147,10 @@ void binding_action_label(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Move SE (3)", buflen);
         return;
     case '\t':
-        SDL_strlcpy(buf, "Abilities (Tab)", buflen);
+        SDL_strlcpy(buf, "Active weapon (Tab)", buflen);
+        return;
+    case 'y':
+        SDL_strlcpy(buf, "Abilities (y)", buflen);
         return;
     case 'i':
         SDL_strlcpy(buf, "Inventory (i)", buflen);
@@ -369,6 +372,9 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "SE", buflen);
         return;
     case '\t':
+        SDL_strlcpy(buf, "Weapon", buflen);
+        return;
+    case 'y':
         SDL_strlcpy(buf, "Abilities", buflen);
         return;
     case 'i':
@@ -1682,7 +1688,8 @@ static void show_help_screen_legacy(int i, bool include_header)
         put_role(ROLE_KEY, " L", row, col); put_role(ROLE_SUBTLE, "look (around dungeon)", row, col + 3); row++;
         put_role(ROLE_KEY, " M", row, col); put_role(ROLE_SUBTLE, "display map of level", row, col + 3); row += 2;
         put_role(ROLE_KEY, " m", row, col); put_role(ROLE_UI,  "main menu", row, col + 3); row++;
-        put_role(ROLE_KEY, "Tab", row, col - 1); put_role(ROLE_UI,  "display ability screen", row, col + 3); row++;
+        put_role(ROLE_KEY, "Tab", row, col - 1); put_role(ROLE_UI,  "change active weapon", row, col + 3); row++;
+        put_role(ROLE_KEY, " y", row, col); put_role(ROLE_UI,  "display ability screen", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " C", row, col); else put_role(ROLE_KEY, " @/h", row, col-2); put_role(ROLE_UI, "display character sheet", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " =", row, col); else put_role(ROLE_KEY, " O", row, col); put_role(ROLE_UI, "set options", row, col + 3); row += 2;
         put_role(ROLE_KEY, "^s", row, col); put_role(ROLE_UI,  "save", row, col + 3); row++;

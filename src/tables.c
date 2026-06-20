@@ -185,7 +185,7 @@ cptr option_text[OPT_MAX] = {
     "sleep_icon", /* OPT_sleep_icon */
     "assassination_over_charge", /* OPT_assassination_over_charge */
     "pacifist_attack_warning", /* OPT_pacifist_attack_warning */
-    NULL, /* reserved legacy slot: view_perma_grids */
+    "active_weapon_switch_confirm", /* OPT_active_weapon_switch_confirm */
     NULL, /* reserved legacy slot: view_torch_grids */
     NULL, /* reserved legacy slot: dungeon_align */
     NULL, /* reserved legacy slot: dungeon_stair */
@@ -430,7 +430,7 @@ cptr option_desc[OPT_MAX] = {
     "Show an overlay icon on sleeping monsters", /* OPT_sleep_icon */
     "On unaware targets, use Assassination instead of Charge bonuses", /* OPT_assassination_over_charge */
     "Warn before making direct attacks (useful for pacifist runs)", /* OPT_pacifist_attack_warning */
-    NULL, /* reserved legacy slot: view_perma_grids */
+    "Confirm before switching between melee and ranged weapons", /* OPT_active_weapon_switch_confirm */
     NULL, /* reserved legacy slot: view_torch_grids */
     NULL, /* reserved legacy slot: dungeon_align */
     NULL, /* reserved legacy slot: dungeon_stair */
@@ -691,7 +691,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_sleep_icon */
     false, /* OPT_assassination_over_charge */
     false, /* OPT_pacifist_attack_warning */
-    false, /* reserved legacy slot: view_perma_grids */
+    true, /* OPT_active_weapon_switch_confirm */
     false, /* reserved legacy slot: view_torch_grids */
     false, /* reserved legacy slot: dungeon_align */
     false, /* reserved legacy slot: dungeon_stair */
@@ -939,13 +939,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** Game-Play ***/
 
     { OPT_valorous_oath_auto_attack_safety, OPT_pacifist_attack_warning,
+        OPT_active_weapon_switch_confirm,
         OPT_forgo_attacking_unwary, OPT_assassination_over_charge,
         OPT_stop_singing_on_rest, OPT_visual_recognition, OPT_know_monster_info,
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
         OPT_min_depth_timer_mode, OPT_load_blitz_by_default,
-        OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Display ***/
 

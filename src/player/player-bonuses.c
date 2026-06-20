@@ -229,6 +229,9 @@ void calc_bonuses(void)
         if (is_quiver2 && !is_throwing_item && !is_arrow)
             continue;
 
+        bool combat_bonuses_active =
+            player_weapon_slot_combat_bonuses_active(i, o_ptr);
+
         /* Affect stats */
         if (f1 & (TR1_STR | TR1_NEG_STR))
             p_ptr->stat_equip_mod[A_STR] += o_ptr->stat_bonus[A_STR];
@@ -240,9 +243,9 @@ void calc_bonuses(void)
             p_ptr->stat_equip_mod[A_GRA] += o_ptr->stat_bonus[A_GRA];
 
         /* Affect skills */
-        if (f1 & (TR1_MEL))
+        if ((f1 & (TR1_MEL)) && combat_bonuses_active)
             p_ptr->skill_equip_mod[S_MEL] += o_ptr->skill_bonus[S_MEL];
-        if (f1 & (TR1_ARC))
+        if ((f1 & (TR1_ARC)) && combat_bonuses_active)
             p_ptr->skill_equip_mod[S_ARC] += o_ptr->skill_bonus[S_ARC];
         if (f1 & (TR1_STL))
             p_ptr->skill_equip_mod[S_STL] += o_ptr->skill_bonus[S_STL];
@@ -256,7 +259,7 @@ void calc_bonuses(void)
             p_ptr->skill_equip_mod[S_SNG] += o_ptr->skill_bonus[S_SNG];
 
         /* Affect Damage Sides */
-        if (f1 & (TR1_DAMAGE_SIDES))
+        if ((f1 & (TR1_DAMAGE_SIDES)) && combat_bonuses_active)
         {
             p_ptr->to_mds += o_ptr->pval;
             p_ptr->to_ads += o_ptr->pval;
@@ -343,7 +346,8 @@ void calc_bonuses(void)
             p_ptr->sustain_gra += 1;
 
         // Parrying grants extra bonus for weapon evasion:
-        if (p_ptr->active_ability[S_EVN][EVN_PARRY] && (i == INVEN_WIELD))
+        if (player_active_weapon_is_melee()
+            && p_ptr->active_ability[S_EVN][EVN_PARRY] && (i == INVEN_WIELD))
         {
             p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
         }
@@ -376,6 +380,9 @@ void calc_bonuses(void)
         if (i == INVEN_QUIVER1)
             continue;
         if ((i == INVEN_QUIVER2) && !throwing_quiver)
+            continue;
+
+        if (!combat_bonuses_active)
             continue;
 
         /* Apply the bonus to hit */
@@ -967,25 +974,28 @@ void calc_bonuses(void)
     /* Examine the "current bow" */
     o_ptr = &inventory[INVEN_BOW];
 
-    p_ptr->skill_equip_mod[S_ARC] += o_ptr->att;
-
-    /* Analyze launcher */
-    // attack bonuses for those with bow proficiency
-    p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
-
-    if (o_ptr->k_idx)
+    if (player_active_weapon_is_ranged())
     {
-        p_ptr->ammo_tval = TV_ARROW;
+        p_ptr->skill_equip_mod[S_ARC] += o_ptr->att;
 
-        p_ptr->add = o_ptr->dd;
-        p_ptr->ads = total_ads(o_ptr);
+        /* Analyze launcher */
+        // attack bonuses for those with bow proficiency
+        p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
 
-        /* set the archery skill (if using a bow) -- it gets set again later,
-         * anyway
-         */
-        p_ptr->skill_use[S_ARC] = p_ptr->skill_base[S_ARC]
-            + p_ptr->skill_equip_mod[S_ARC] + p_ptr->skill_stat_mod[S_ARC]
-            + p_ptr->skill_misc_mod[S_ARC];
+        if (o_ptr->k_idx)
+        {
+            p_ptr->ammo_tval = TV_ARROW;
+
+            p_ptr->add = o_ptr->dd;
+            p_ptr->ads = total_ads(o_ptr);
+
+            /* set the archery skill (if using a bow) -- it gets set again later,
+             * anyway
+             */
+            p_ptr->skill_use[S_ARC] = p_ptr->skill_base[S_ARC]
+                + p_ptr->skill_equip_mod[S_ARC] + p_ptr->skill_stat_mod[S_ARC]
+                + p_ptr->skill_misc_mod[S_ARC];
+        }
     }
 
     /*** Analyze melee weapon ***/
@@ -993,63 +1003,66 @@ void calc_bonuses(void)
     /* Examine the "current melee weapon" */
     o_ptr = &inventory[INVEN_WIELD];
 
-    // add the weapon's attack mod
-    p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
-
-    // add the weapon's evasion bonus (Parry ability grants this as extra bonus earlier)
-    p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
-
-    // attack bonuses for matched weapon types
-    p_ptr->skill_misc_mod[S_MEL] += axe_bonus(o_ptr) + polearm_bonus(o_ptr);
-
-    // deal with the 'Versatility' ability
-    if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY]
-        && (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL]))
+    if (player_active_weapon_is_melee())
     {
-        p_ptr->skill_misc_mod[S_MEL]
-            += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
-    }
+        // add the weapon's attack mod
+        p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
 
-    /* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
-    p_ptr->mdd = total_mdd(o_ptr);
-    p_ptr->mds = total_mds(
-        o_ptr, p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0);
-
-    // determine the off-hand melee score, damage and sides
-    // Check if we have paired weapons (e.g., Glamdring + Orcrist)
-    bool paired_offhand = false;
-    if (inventory[INVEN_WIELD].name1 && inventory[INVEN_ARM].name1)
-    {
-        int paired_idx = get_paired_artefact(inventory[INVEN_WIELD].name1);
-        if (paired_idx == inventory[INVEN_ARM].name1)
-        {
-            paired_offhand = true;
-        }
-    }
-
-    if (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON]
-        && (((&inventory[INVEN_ARM])->tval != TV_SHIELD)
-            && ((&inventory[INVEN_ARM])->tval != 0)))
-    {
-        // remove main-hand specific bonuses
-        p_ptr->offhand_mel_mod
-            -= o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr);
-        if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
-            p_ptr->offhand_mel_mod += 3;
-
-        // add off-hand specific bonuses
-        o_ptr = &inventory[INVEN_ARM];
-        // Paired weapons have no off-hand attack penalty
-        int offhand_penalty = paired_offhand ? 0 : 3;
-        p_ptr->offhand_mel_mod
-            += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - offhand_penalty;
-
-        // add off-hand weapon's evasion bonus
+        // add the weapon's evasion bonus (Parry ability grants this as extra bonus earlier)
         p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
-        p_ptr->mdd2 = total_mdd(o_ptr);
-        // Paired weapons have no strength adjustment penalty
-        p_ptr->mds2 = total_mds(o_ptr, paired_offhand ? 0 : -3);
+        // attack bonuses for matched weapon types
+        p_ptr->skill_misc_mod[S_MEL] += axe_bonus(o_ptr) + polearm_bonus(o_ptr);
+
+        // deal with the 'Versatility' ability
+        if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY]
+            && (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL]))
+        {
+            p_ptr->skill_misc_mod[S_MEL]
+                += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
+        }
+
+        /* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
+        p_ptr->mdd = total_mdd(o_ptr);
+        p_ptr->mds = total_mds(
+            o_ptr, p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0);
+
+        // determine the off-hand melee score, damage and sides
+        // Check if we have paired weapons (e.g., Glamdring + Orcrist)
+        bool paired_offhand = false;
+        if (inventory[INVEN_WIELD].name1 && inventory[INVEN_ARM].name1)
+        {
+            int paired_idx = get_paired_artefact(inventory[INVEN_WIELD].name1);
+            if (paired_idx == inventory[INVEN_ARM].name1)
+            {
+                paired_offhand = true;
+            }
+        }
+
+        if (p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON]
+            && (((&inventory[INVEN_ARM])->tval != TV_SHIELD)
+                && ((&inventory[INVEN_ARM])->tval != 0)))
+        {
+            // remove main-hand specific bonuses
+            p_ptr->offhand_mel_mod
+                -= o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr);
+            if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
+                p_ptr->offhand_mel_mod += 3;
+
+            // add off-hand specific bonuses
+            o_ptr = &inventory[INVEN_ARM];
+            // Paired weapons have no off-hand attack penalty
+            int offhand_penalty = paired_offhand ? 0 : 3;
+            p_ptr->offhand_mel_mod
+                += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - offhand_penalty;
+
+            // add off-hand weapon's evasion bonus
+            p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
+
+            p_ptr->mdd2 = total_mdd(o_ptr);
+            // Paired weapons have no strength adjustment penalty
+            p_ptr->mds2 = total_mds(o_ptr, paired_offhand ? 0 : -3);
+        }
     }
 
     /* Meta-run curse adjusting melee damage sides */

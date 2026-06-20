@@ -606,7 +606,7 @@ const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT] = {
     { "Drop", "Staff", 'a' },
     { "Map", "Map", 'M' },
     { "Hero", "Hero", 'h' },
-    { "Ability", "Ability", '\t' },
+    { "Ability", "Ability", 'y' },
 };
 
 const int g_touch_pane_visible_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT] = {

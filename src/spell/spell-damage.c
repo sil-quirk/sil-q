@@ -1050,6 +1050,8 @@ static object_type* elemental_equipped_shield(void)
 
     if (!o_ptr->k_idx || (o_ptr->tval != TV_SHIELD))
         return NULL;
+    if (!player_shield_counts_for_active_weapon(o_ptr))
+        return NULL;
 
     return o_ptr;
 }

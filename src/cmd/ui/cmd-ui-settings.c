@@ -384,6 +384,7 @@ static const struct option_group_marker text_option_groups[] = {
 static const struct option_group_marker gameplay_option_groups[] = {
     { OPT_valorous_oath_auto_attack_safety, "Combat Behavior" },
     { OPT_pacifist_attack_warning, "Combat Behavior" },
+    { OPT_active_weapon_switch_confirm, "Combat Behavior" },
     { OPT_forgo_attacking_unwary, "Combat Behavior" },
     { OPT_assassination_over_charge, "Combat Behavior" },
     { OPT_stop_singing_on_rest, "Rest and Song" },
@@ -1086,6 +1087,7 @@ static cptr option_menu_label(int opt)
         case OPT_story_object_desc: return narrow ? "Story obj overlay" : "Story font: object overlay";
         case OPT_valorous_oath_auto_attack_safety: return narrow ? "Valorous safety" : "Valorous oath safety";
         case OPT_pacifist_attack_warning: return narrow ? "Pacifist warn" : "Warn before attacks";
+        case OPT_active_weapon_switch_confirm: return narrow ? "Weapon switch" : "Confirm weapon switch";
         case OPT_forgo_attacking_unwary: return narrow ? "Skip unwary hits" : "Forgo unwary attacks";
         case OPT_assassination_over_charge: return narrow ? "Stealth over charge" : "Assassination over Charge";
         case OPT_stop_singing_on_rest: return narrow ? "Stop song on rest" : "Stop singing on rest";
@@ -5518,7 +5520,7 @@ static const int touch_pane_main_action_choices[] = {
     '4', '5', '6',
     '1', '2', '3',
     'a', 'x', 'd',
-    'M', 'h', '\t',
+    'M', 'h', 'y', '\t',
     'z', '.', '/',
     'w', 'r', 'k', 'g', 'Z',
     'o', 'c', 'D', 'X',
@@ -5538,7 +5540,7 @@ static const int touch_pane_second_action_choices[] = {
     '4', '5', '6',
     '1', '2', '3',
     'a', 'x', 'd',
-    'M', 'h', '\t',
+    'M', 'h', 'y', '\t',
     'z', '.', '/',
     'w', 'r', 'k', 'g', 'Z',
     'o', 'c', 'D', 'X',
@@ -10176,6 +10178,8 @@ void do_cmd_keybinds(void)
         {'s', NULL, "Sing / change song", "s", false},
         {'S', NULL, "Toggle stealth", "S", false},
         {'h', "H@", "Character sheet (h / H / @)", "h", false},
+        {'\t', NULL, "Change active weapon", "Tab", false},
+        {'y', NULL, "Abilities", "y", false},
         {'f', NULL, "Fire (primary quiver)", "f", false},
         {'F', NULL, "Fire (secondary quiver)", "F", false},
         {'l', NULL, "Look around", "l", false},
@@ -11895,7 +11899,8 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_SHIFT, "Shift modifier" },
         { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_CTRL, "Ctrl modifier" },
         { CONTROLLER_ENTRY_ACTION, GAMEPAD_BIND_ALT, "Alt modifier" },
-        { CONTROLLER_ENTRY_ACTION, '\t', "Abilities (Tab)" },
+        { CONTROLLER_ENTRY_ACTION, '\t', "Change active weapon (Tab)" },
+        { CONTROLLER_ENTRY_ACTION, 'y', "Abilities" },
         { CONTROLLER_ENTRY_ACTION, 'i', "Inventory" },
         { CONTROLLER_ENTRY_ACTION, 'e', "Equipment" },
         { CONTROLLER_ENTRY_ACTION, 'u', "Use item" },

@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 7
-#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 1   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -460,6 +460,22 @@
 #define ACTION_MISC 10
 #define ACTION_ARCHERY 11
 #define ACTION_BASH 12
+
+/*
+ * Active weapon modes.  These intentionally match the SDL pointer attack
+ * modes so the old selector can become gameplay state without translation.
+ */
+#define PLAYER_ACTIVE_WEAPON_NONE 0
+#define PLAYER_ACTIVE_WEAPON_MELEE 1
+#define PLAYER_ACTIVE_WEAPON_RANGED_1 2
+#define PLAYER_ACTIVE_WEAPON_RANGED_2 3
+
+/*
+ * Internal command queued by pointer/touch UI for exact active-mode changes.
+ * Must avoid ascii 29/30/31, which inkey() strips as special "magic" keys
+ * (see support/input.c), so KTRL('V') (0x16) is used instead.
+ */
+#define CMD_ACTIVE_WEAPON_MODE KTRL('V')
 
 /*
  * OPTION: Maximum number of macros (see "support/macro.c")
@@ -2803,6 +2819,8 @@
 #define OPT_assassination_over_charge (OPT_GAME_PLAY + 4)
 /* Confirm before making direct attacks; useful for pacifist runs */
 #define OPT_pacifist_attack_warning (OPT_GAME_PLAY + 5)
+/* Confirm before spending a turn to switch between melee and ranged weapons */
+#define OPT_active_weapon_switch_confirm (OPT_GAME_PLAY + 6)
 // reserved legacy slot: auto_haggle
 // reserved legacy slot: auto_scum
 // reserved legacy slot: allow_themed_levels
@@ -2997,6 +3015,7 @@
 #define handcrafted_player_tile_facing op_ptr->opt[OPT_handcrafted_player_tile_facing]
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
+#define active_weapon_switch_confirm op_ptr->opt[OPT_active_weapon_switch_confirm]
 #define load_blitz_by_default op_ptr->opt[OPT_load_blitz_by_default]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // reserved legacy slot: stack_force_notes

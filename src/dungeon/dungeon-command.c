@@ -207,8 +207,22 @@ void process_command(void)
         break;
     }
 
-    /* Ability screen */
+    /* Internal pointer/touch active weapon selector */
+    case CMD_ACTIVE_WEAPON_MODE:
+    {
+        do_cmd_pending_active_weapon_mode();
+        break;
+    }
+
+    /* Change active weapon */
     case '\t':
+    {
+        do_cmd_toggle_active_weapon();
+        break;
+    }
+
+    /* Ability screen */
+    case 'y':
     {
         do_cmd_ability_screen();
         

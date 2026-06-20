@@ -102,7 +102,9 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
     case SDL_PLAYER_ACTION_HORN:
         return "Horn: blow your equipped horn.";
     case SDL_PLAYER_ACTION_SHOOT:
-        return "Shoot: fire an arrow from your 1st quiver.";
+        return "Ready: switch between melee and ranged weapons.";
+    case SDL_PLAYER_ACTION_QUICK_THROW:
+        return "Throw: throw a dagger from your quiver without changing active weapons.";
     case SDL_PLAYER_ACTION_REST:
         return "Rest: rest until disturbed or fully recovered.";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
@@ -131,7 +133,8 @@ static cptr sdl_player_action_menu_fallback_for_kind(int kind)
     case SDL_PLAYER_ACTION_EXAMINE: return "?";
     case SDL_PLAYER_ACTION_ACTIVATE: return "Staff";
     case SDL_PLAYER_ACTION_HORN: return "Horn";
-    case SDL_PLAYER_ACTION_SHOOT: return "f";
+    case SDL_PLAYER_ACTION_SHOOT: return "Tab";
+    case SDL_PLAYER_ACTION_QUICK_THROW: return "Dagger";
     case SDL_PLAYER_ACTION_REST: return "Rest";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS: return "Swap";
     case SDL_PLAYER_ACTION_CHANGE_STAFF: return "Swap";
@@ -176,8 +179,47 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
         row = 4; col = 2;   /* horn-shaped atlas tile */
         break;
     case SDL_PLAYER_ACTION_SHOOT:
+    {
+        object_type* icon_obj = NULL;
+
+        if (p_ptr && player_active_weapon_is_ranged())
+            icon_obj = &inventory[INVEN_WIELD];
+        else if (inventory[INVEN_BOW].k_idx)
+            icon_obj = &inventory[INVEN_BOW];
+        else if (inventory[INVEN_QUIVER1].k_idx)
+            icon_obj = &inventory[INVEN_QUIVER1];
+        else if (inventory[INVEN_QUIVER2].k_idx)
+            icon_obj = &inventory[INVEN_QUIVER2];
+
+        if (icon_obj && icon_obj->k_idx)
+        {
+            if (out_attr)
+                *out_attr = object_attr(icon_obj);
+            if (out_char)
+                *out_char = object_char(icon_obj);
+            return;
+        }
+
         row = 5; col = 29;  /* shortbow */
         break;
+    }
+    case SDL_PLAYER_ACTION_QUICK_THROW:
+    {
+        int slot = player_quick_throw_quiver_slot();
+        object_type* icon_obj = slot ? &inventory[slot] : NULL;
+
+        if (icon_obj && icon_obj->k_idx)
+        {
+            if (out_attr)
+                *out_attr = object_attr(icon_obj);
+            if (out_char)
+                *out_char = object_char(icon_obj);
+            return;
+        }
+
+        row = 5; col = 1;   /* dagger */
+        break;
+    }
     case SDL_PLAYER_ACTION_REST:
         row = 19; col = 8;  /* sleep icon */
         break;
@@ -227,13 +269,16 @@ void sdl_player_action_menu_add_entry(player_action_menu_entry* entries,
     (*count)++;
 }
 
-static bool sdl_player_can_shoot_entry(void)
+static bool sdl_player_can_ready_weapon_entry(void)
 {
-    return (inventory[INVEN_BOW].k_idx
-               && inventory[INVEN_BOW].tval == TV_BOW)
+    if (!p_ptr)
+        return false;
+    if (player_active_weapon_is_ranged())
+        return true;
+
+    return (inventory[INVEN_BOW].k_idx && inventory[INVEN_BOW].tval == TV_BOW)
         || inventory[INVEN_QUIVER1].k_idx
-        || inventory[INVEN_QUIVER2].k_idx
-        || (p_ptr && p_ptr->active_ability[S_ARC][ARC_FLETCHERY]);
+        || inventory[INVEN_QUIVER2].k_idx;
 }
 
 /* Whether an adjacent known grid satisfies the given feature test. */
@@ -289,9 +334,16 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
         'z', "Wait");
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_USE,
         'u', "Use");
-    if (sdl_player_can_shoot_entry()) {
+    if (sdl_player_can_ready_weapon_entry()) {
         sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_SHOOT, 'f', "Shoot");
+            SDL_PLAYER_ACTION_SHOOT, '\t',
+            player_active_weapon_is_ranged() ? "Melee" : "Ranged");
+    }
+    if (player_quick_throw_quiver_slot()) {
+        sdl_player_action_menu_add_entry(entries, &count,
+            SDL_PLAYER_ACTION_QUICK_THROW,
+            player_quick_throw_quiver_slot() == INVEN_QUIVER2 ? 'F' : 'f',
+            "Throw");
     }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_STEALTH, 'S', "Stealth");
@@ -710,6 +762,11 @@ void sdl_player_action_menu_slot_offset(int slot, int count,
               { 1.0f, 0.34f }, { 0.78f, 0.78f },
               { 0.0f, 1.0f }, { -0.78f, 0.78f },
               { -1.0f, 0.0f } },
+            { { -0.59f, -0.95f }, { 0.0f, -1.0f },
+              { 0.59f, -0.95f }, { 0.95f, -0.59f },
+              { 0.95f, 0.59f }, { 0.59f, 0.95f },
+              { 0.0f, 1.0f }, { -0.59f, 0.95f },
+              { -0.95f, 0.59f }, { -0.95f, -0.59f } },
         };
     float x = 0.0f;
     float y = -1.0f;
@@ -1373,7 +1430,11 @@ void sdl_player_action_menu_activate_kind(int kind, bool secondary)
         command = 'p';
         break;
     case SDL_PLAYER_ACTION_SHOOT:
-        command = 'f';
+        command = '\t';
+        break;
+    case SDL_PLAYER_ACTION_QUICK_THROW:
+        command = (player_quick_throw_quiver_slot() == INVEN_QUIVER2)
+            ? 'F' : 'f';
         break;
     case SDL_PLAYER_ACTION_REST:
         command = 'Z';

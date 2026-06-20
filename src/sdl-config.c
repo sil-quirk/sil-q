@@ -837,6 +837,7 @@ static const byte app_text_options[] = {
 };
 
 static const byte app_gameplay_options[] = {
+    OPT_active_weapon_switch_confirm,
     OPT_load_blitz_by_default,
     OPT_NONE
 };
@@ -3369,7 +3370,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         '4', INPUT_BIND_CONFIRM, '6',
         '1', '2', '3',
         'l', 'x', 'a',
-        'M', 'h', '\t',
+        'M', 'h', 'y',
     };
     static const int second_defaults[SDL_TOUCH_PANE_BUTTON_COUNT] = {
         GAMEPAD_BIND_CTRL, 'X', GAMEPAD_BIND_SHIFT,

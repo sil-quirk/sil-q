@@ -395,6 +395,7 @@ set(SIL_MORE_SOURCES
     src/drop_system.c
     src/thrall_quest.c
     src/player/ability-log.c
+    src/player/player-active-weapon.c
     src/player/combat-stats.c
     src/player/effects.c
     src/player/experience.c

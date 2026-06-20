@@ -203,7 +203,8 @@ void monster_exchange_places(monster_type* m_ptr)
     update_view();
 
     // attack of opportunity
-    if (!p_ptr->afraid && !p_ptr->entranced && (p_ptr->stun <= 100))
+    if (player_active_weapon_is_melee()
+        && !p_ptr->afraid && !p_ptr->entranced && (p_ptr->stun <= 100))
     {
         if (valorous_oath_auto_attack_safety && chosen_oath(OATH_VALOROUS)
             && !oath_invalid(OATH_VALOROUS) && m_ptr->ml

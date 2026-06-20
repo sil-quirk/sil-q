@@ -2093,7 +2093,8 @@ bool valid_charge(int fy, int fx, int attack_type)
     int deltay = fy - p_ptr->py;
     int deltax = fx - p_ptr->px;
 
-    if (p_ptr->active_ability[S_MEL][MEL_CHARGE] && (p_ptr->pspeed > 1)
+    if (player_active_weapon_is_melee()
+        && p_ptr->active_ability[S_MEL][MEL_CHARGE] && (p_ptr->pspeed > 1)
         && is_normal_attack(attack_type))
     {
         // try all three directions
@@ -2123,6 +2124,9 @@ void possible_follow_through(int fy, int fx, int attack_type)
 
     int deltay = fy - p_ptr->py;
     int deltax = fx - p_ptr->px;
+
+    if (!player_active_weapon_is_melee())
+        return;
 
     // clamp impale kills
     if (deltax > 1)
@@ -2632,6 +2636,9 @@ void py_attack_aux(int y, int x, int attack_type)
 
     u32b noticed_flag = 0; // if any slay is observed and the weapon thus
                            // identified it goes here
+
+    if (!player_active_weapon_is_melee())
+        return;
 
     /* Get the monster */
     m_idx = cave_m_idx[y][x];
@@ -3349,7 +3356,8 @@ int count_open_adjacent_squares(int y, int x)
 
 bool whirlwind_possible(void)
 {
-    if (!p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
+    if (!player_active_weapon_is_melee()
+        || !p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
     {
         return (false);
     }
@@ -3359,7 +3367,8 @@ bool whirlwind_possible(void)
 
 bool can_impale()
 {
-    bool has_impale_skill = p_ptr->active_ability[S_MEL][MEL_IMPALE];
+    bool has_impale_skill = player_active_weapon_is_melee()
+        && p_ptr->active_ability[S_MEL][MEL_IMPALE];
 
     object_type* o_ptr = &inventory[INVEN_WIELD];
 
@@ -3370,11 +3379,19 @@ void py_attack(int y, int x, int attack_type)
 {
     int dir, dir0, yy, xx;
 
+    dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
+    player_set_visual_facing_dir(dir);
+
+    if (!player_active_weapon_is_melee())
+    {
+        if (attack_type == ATT_MAIN)
+            (void)do_cmd_fire_at_adjacent(y, x);
+        return;
+    }
+
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
-    player_set_visual_facing_dir(dir);
     dir0 = chome[dir];
 
     // Debug logging for whirlwind

@@ -103,6 +103,9 @@ bool sdl_pointer_attack_binding_toggled(int binding)
 
 int sdl_pointer_attack_current_mode(void)
 {
+    if (p_ptr && character_generated)
+        return player_active_weapon_mode();
+
     return (g_pointer_attack.mode == SDL_POINTER_ATTACK_NONE)
         ? SDL_POINTER_ATTACK_MELEE
         : g_pointer_attack.mode;
@@ -166,7 +169,7 @@ void sdl_pointer_attack_set_mode(int mode)
     if (mode == SDL_POINTER_ATTACK_NONE)
         mode = SDL_POINTER_ATTACK_MELEE;
 
-    if (g_pointer_attack.mode == mode) {
+    if (sdl_pointer_attack_current_mode() == mode) {
         g_pointer_attack.panel_hover_mode = SDL_POINTER_ATTACK_NONE;
         sdl_pointer_attack_refresh_mode_display(false);
         return;
@@ -180,7 +183,12 @@ void sdl_pointer_attack_set_mode(int mode)
     sdl_pointer_attack_cancel_touch_press();
     sdl_mouse_path_cancel();
 
-    msg_format("%s pointer mode.", sdl_pointer_attack_mode_name(mode));
+    if (p_ptr && character_generated) {
+        player_queue_active_weapon_mode(mode);
+        sdl_enqueue_bypassed_command(CMD_ACTIVE_WEAPON_MODE);
+    }
+    else
+        msg_format("%s pointer mode.", sdl_pointer_attack_mode_name(mode));
     sdl_pointer_attack_refresh_mode_display(true);
 }
 
@@ -451,12 +459,13 @@ cptr sdl_pointer_attack_blocked_message(int mode, int kind)
 bool sdl_pointer_attack_update_hover_grid(int map_y, int map_x,
     bool manual)
 {
+    int mode = sdl_pointer_attack_current_mode();
     int m_idx = 0;
     int kind = SDL_POINTER_ATTACK_TARGET_NONE;
-    bool hoverable = sdl_pointer_attack_target_hoverable(g_pointer_attack.mode,
+    bool hoverable = sdl_pointer_attack_target_hoverable(mode,
         manual, map_y, map_x, &m_idx, &kind);
     bool actionable = hoverable
-        && sdl_pointer_attack_target_actionable(g_pointer_attack.mode,
+        && sdl_pointer_attack_target_actionable(mode,
             manual, map_y, map_x, NULL);
     bool changed = g_pointer_attack.hover_visible != hoverable
         || g_pointer_attack.hover_valid != hoverable
@@ -565,8 +574,8 @@ bool sdl_pointer_attack_handle_left_click(float x, float y)
     if (!g_mouse_path.follow_active)
         sdl_mouse_path_cancel();
 
-    (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, manual, map_y,
-        map_x);
+    (void)sdl_pointer_attack_queue_target(
+        sdl_pointer_attack_current_mode(), manual, map_y, map_x);
     return true;
 }
 
@@ -603,6 +612,7 @@ bool sdl_pointer_attack_touch_same_selected_target(int mode,
 bool sdl_pointer_attack_handle_touch_down(float x, float y,
     SDL_FingerID finger_id)
 {
+    int mode;
     int map_y = 0;
     int map_x = 0;
     bool manual;
@@ -618,6 +628,7 @@ bool sdl_pointer_attack_handle_touch_down(float x, float y,
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
     (void)sdl_object_tooltip_show_grid(map_y, map_x, true);
+    mode = sdl_pointer_attack_current_mode();
     manual = sdl_pointer_attack_manual_modifier_active();
     hoverable = sdl_pointer_attack_update_hover_grid(map_y, map_x, manual);
     if (!hoverable) {
@@ -628,7 +639,7 @@ bool sdl_pointer_attack_handle_touch_down(float x, float y,
     sdl_pointer_attack_cancel_touch_press();
     g_pointer_attack.touch_press_active = true;
     g_pointer_attack.touch_repeat_target =
-        sdl_pointer_attack_touch_same_selected_target(g_pointer_attack.mode,
+        sdl_pointer_attack_touch_same_selected_target(mode,
             manual, map_y, map_x);
     g_pointer_attack.touch_finger_id = finger_id;
     g_pointer_attack.touch_press_y = map_y;
@@ -684,6 +695,7 @@ bool sdl_pointer_attack_handle_touch_motion(float x, float y,
 bool sdl_pointer_attack_handle_touch_up(float x, float y,
     SDL_FingerID finger_id)
 {
+    int mode;
     int map_y = 0;
     int map_x = 0;
     int m_idx = 0;
@@ -715,20 +727,20 @@ bool sdl_pointer_attack_handle_touch_up(float x, float y,
     }
 
     sdl_pointer_attack_cancel_touch_press();
+    mode = sdl_pointer_attack_current_mode();
     manual = sdl_pointer_attack_manual_modifier_active();
 
     if (repeat_target) {
-        (void)sdl_pointer_attack_queue_target(g_pointer_attack.mode, manual,
-            map_y, map_x);
+        (void)sdl_pointer_attack_queue_target(mode, manual, map_y, map_x);
         return true;
     }
 
-    if (sdl_pointer_attack_target_hoverable(g_pointer_attack.mode, manual,
+    if (sdl_pointer_attack_target_hoverable(mode, manual,
             map_y, map_x, &m_idx, &kind))
     {
         g_pointer_attack.touch_selected = true;
         g_pointer_attack.touch_selected_manual = manual;
-        g_pointer_attack.touch_selected_mode = g_pointer_attack.mode;
+        g_pointer_attack.touch_selected_mode = mode;
         g_pointer_attack.touch_selected_kind = kind;
         g_pointer_attack.touch_selected_y = map_y;
         g_pointer_attack.touch_selected_x = map_x;
@@ -737,7 +749,7 @@ bool sdl_pointer_attack_handle_touch_up(float x, float y,
     } else {
         sdl_pointer_attack_clear_touch_selection();
         sdl_pointer_attack_clear_hover();
-        bell(sdl_pointer_attack_blocked_message(g_pointer_attack.mode, kind));
+        bell(sdl_pointer_attack_blocked_message(mode, kind));
     }
 
     g_state.need_present = true;
@@ -787,7 +799,7 @@ bool sdl_pointer_attack_take_render_target(int* mode, bool* manual,
 {
     if (g_pointer_attack.hover_valid) {
         if (mode)
-            *mode = g_pointer_attack.mode;
+            *mode = sdl_pointer_attack_current_mode();
         if (manual)
             *manual = g_pointer_attack.hover_manual;
         if (kind)
@@ -891,11 +903,12 @@ void sdl_pointer_attack_render(void)
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
 
+    mode = sdl_pointer_attack_current_mode();
     if (sdl_pointer_attack_manual_modifier_active()
-        && sdl_pointer_attack_mode_is_ranged(g_pointer_attack.mode))
+        && sdl_pointer_attack_mode_is_ranged(mode))
     {
         sdl_pointer_attack_render_manual_ranged_overlay(
-            g_pointer_attack.mode, target_color);
+            mode, target_color);
     }
 
     if (!sdl_pointer_attack_take_render_target(&mode, &manual, &kind, &y, &x,
