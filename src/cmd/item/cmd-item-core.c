@@ -179,11 +179,11 @@ static int first_floor_item_under_player(void)
 }
 
 /*
- * Context-sensitive interpretation of the Space ("Confirm") and 'x'
- * ("Description") touch thumb-button bindings, so the on-screen button shows
+ * Context-sensitive interpretation of the confirm and 'x'
+ * ("Description") touch shortcut bindings, so the on-screen button shows
  * (and performs) the action that fits the player's current situation:
  *
- *   Space: in an open description -> pick up ('g'/space) the shown item;
+ *   Confirm: in an open description -> pick up ('g'/space) the shown item;
  *          otherwise on a down staircase -> descend ('>'), an up staircase ->
  *          ascend ('<'), standing on an item -> pick up ('g'), else -> confirm.
  *   'x'  : "Description" until the description popup is open, then "Wield" (a
@@ -195,7 +195,7 @@ static int first_floor_item_under_player(void)
  * bindings while in the dungeon; false otherwise, so the caller keeps the
  * binding's static label/key.
  */
-bool touch_thumb_context_action(int binding, bool description_open,
+bool touch_shortcut_context_action(int binding, bool description_open,
     int* out_key, char* label, size_t label_len)
 {
     int key = binding;

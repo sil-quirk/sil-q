@@ -5549,6 +5549,24 @@ static const int touch_pane_second_action_choices[] = {
     KTRL('Q'), '0', '<', '>', '?', 'O', ':', '~', '[', ']', '@',
 };
 
+/* Quick-access and thumb buttons share a compact, command-oriented picker.
+ * Movement, pane-management, raw-key, and duplicate command entries belong
+ * to the full touch-pane editor, not to these contextual shortcuts. */
+static const int touch_context_action_choices[] = {
+    GAMEPAD_BIND_NONE,
+    TOUCH_BIND_MAIN_MENU_KNOWLEDGE, TOUCH_BIND_MAIN_MENU_HINTS_QUESTS,
+    INPUT_BIND_CONFIRM,
+    'e', 'i', 'j',
+    'u', 's', 'f',
+    'a', 'x',
+    'M', 'h', 'y', '\t',
+    'z', 'Z',
+    'o', 'c', 'D', 'X',
+    '-', KTRL('A'), 't', 'p', 'q',
+    'F', KTRL('F'), 'S', 'l', 'b',
+    KTRL('Q'), '0', '?', 'O',
+};
+
 static const int touch_pane_visible_button_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT] = {
     0, 1, 2,
     6, 7, 8,
@@ -6001,6 +6019,13 @@ static void touch_control_set_binding(const touch_control_binding_row* binding,
 static const int* touch_control_binding_choices(
     const touch_control_binding_row* binding, int* count)
 {
+    if (binding && (binding->kind == TOUCH_CONTROL_BINDING_TOP_PANEL
+            || binding->kind == TOUCH_CONTROL_BINDING_THUMB)) {
+        if (count)
+            *count = (int)N_ELEMENTS(touch_context_action_choices);
+        return touch_context_action_choices;
+    }
+
     if (binding && binding->kind == TOUCH_CONTROL_BINDING_SWIPE)
         return touch_swipe_action_choices(count);
 
@@ -6111,10 +6136,10 @@ static bool touch_top_widget_binding_label(int row, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Horn", buflen);
         break;
     case 'f':
-        SDL_strlcpy(buf, "Shoot", buflen);
+        SDL_strlcpy(buf, "Fire", buflen);
         break;
     case 'F':
-        SDL_strlcpy(buf, "Shoot 2", buflen);
+        SDL_strlcpy(buf, "Fire 2nd", buflen);
         break;
     case 'Z':
         SDL_strlcpy(buf, "Rest", buflen);
@@ -9340,7 +9365,8 @@ static int input_options_menu(int* highlight)
     int ch;
     bool touch_available = sdl_touch_tutorial_device_available();
     int mouse_choice = touch_available ? 4 : 3;
-    int return_choice = touch_available ? 5 : 4;
+    int wheel_choice = mouse_choice + 1;
+    int return_choice = wheel_choice + 1;
     int options = return_choice;
     int term_wid = 80;
     int term_hgt = 24;
@@ -9402,6 +9428,7 @@ static int input_options_menu(int* highlight)
     if (touch_available)
         ADD_INPUT_MENU_ROW(3, 'c', "Touch Tutorial");
     ADD_INPUT_MENU_ROW(mouse_choice, 'd', "Mouse Input");
+    ADD_INPUT_MENU_ROW(wheel_choice, 'e', "Character Wheel Tutorial");
     ADD_INPUT_MENU_ROW(return_choice, 'o', "Return to Options");
 
 #undef ADD_INPUT_MENU_ROW
@@ -9473,6 +9500,12 @@ static int input_options_menu(int* highlight)
         return (mouse_choice);
     }
 
+    if (menu_letters && ((ch == 'e') || (ch == 'E')))
+    {
+        *highlight = wheel_choice;
+        return (wheel_choice);
+    }
+
     if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
         || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
@@ -9509,9 +9542,24 @@ static void do_cmd_input_options_submenu(int* highlight)
     while (!return_to_options)
     {
         bool touch_available = sdl_touch_tutorial_device_available();
+        int mouse_choice = touch_available ? 4 : 3;
+        int wheel_choice = mouse_choice + 1;
+        int return_choice = wheel_choice + 1;
 
         choice = input_options_menu(highlight);
         settings_semantic_menu_hide();
+
+        if (choice == wheel_choice) {
+            sdl_character_wheel_request_tutorial_from_settings();
+            return_to_options = true;
+            Term_clear();
+            continue;
+        }
+        if (choice == return_choice) {
+            return_to_options = true;
+            Term_clear();
+            continue;
+        }
 
         switch (choice)
         {
@@ -9546,11 +9594,6 @@ static void do_cmd_input_options_submenu(int* highlight)
             } else {
                 return_to_options = true;
             }
-            Term_clear();
-            break;
-        case 5:
-            settings_semantic_menu_hide();
-            return_to_options = true;
             Term_clear();
             break;
         }
@@ -9647,7 +9690,8 @@ void do_cmd_options(void)
         {
             do_cmd_input_options_submenu(&input_highlight);
             if (sdl_touch_settings_tutorial_requested()
-                || sdl_mouse_settings_tutorial_requested())
+                || sdl_mouse_settings_tutorial_requested()
+                || sdl_character_wheel_settings_tutorial_requested())
                 return_to_game = true;
             Term_clear();
             break;
@@ -9735,7 +9779,8 @@ void do_cmd_options(void)
     if (p_ptr)
         handle_stuff();
     if (sdl_touch_settings_tutorial_requested()
-        || sdl_mouse_settings_tutorial_requested())
+        || sdl_mouse_settings_tutorial_requested()
+        || sdl_character_wheel_settings_tutorial_requested())
     {
         if (p_ptr && p_ptr->playing)
             do_cmd_redraw();

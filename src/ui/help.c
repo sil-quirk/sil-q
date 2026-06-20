@@ -372,7 +372,7 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "SE", buflen);
         return;
     case '\t':
-        SDL_strlcpy(buf, "Weapon", buflen);
+        SDL_strlcpy(buf, "Change active weapon", buflen);
         return;
     case 'y':
         SDL_strlcpy(buf, "Abilities", buflen);
@@ -396,16 +396,16 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Stealth", buflen);
         return;
     case KTRL('A'):
-        SDL_strlcpy(buf, "Staff", buflen);
+        SDL_strlcpy(buf, "Swap staff", buflen);
         return;
     case KTRL('F'):
-        SDL_strlcpy(buf, "Swap", buflen);
+        SDL_strlcpy(buf, "Swap quiver", buflen);
         return;
     case 'f':
         SDL_strlcpy(buf, "Fire", buflen);
         return;
     case 'F':
-        SDL_strlcpy(buf, "Second", buflen);
+        SDL_strlcpy(buf, "Fire 2nd", buflen);
         return;
     case 'h':
         SDL_strlcpy(buf, "Character", buflen);
@@ -423,7 +423,7 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Remove", buflen);
         return;
     case 'a':
-        SDL_strlcpy(buf, "Activate", buflen);
+        SDL_strlcpy(buf, "Staff", buflen);
         return;
     case 'M':
         SDL_strlcpy(buf, "Map", buflen);

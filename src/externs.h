@@ -725,7 +725,7 @@ extern void do_cmd_destroy(void);
 extern bool do_cmd_delete_item_by_index(int item);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
-extern bool touch_thumb_context_action(int binding, bool description_open,
+extern bool touch_shortcut_context_action(int binding, bool description_open,
     int* out_key, char* label, size_t label_len);
 extern void do_cmd_uninscribe(void);
 extern void do_cmd_inscribe(void);
@@ -2312,6 +2312,8 @@ extern bool sdl_mouse_settings_tutorial_requested(void);
 extern void sdl_mouse_show_requested_tutorial(void);
 extern void sdl_mouse_show_tutorial(void);
 extern void sdl_mouse_maybe_show_first_game_tutorial(void);
+extern void sdl_character_wheel_request_tutorial_from_settings(void);
+extern bool sdl_character_wheel_settings_tutorial_requested(void);
 extern int get_sdl_touch_movement_mode(void);
 extern void set_sdl_touch_movement_mode(int mode);
 extern int get_sdl_touch_movement_default_mode(void);

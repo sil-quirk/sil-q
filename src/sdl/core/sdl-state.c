@@ -74,6 +74,7 @@ sdl_startup_device_class g_startup_device_class =
     SDL_STARTUP_DEVICE_DESKTOP;
 bool g_touch_tutorial_requested_from_settings = false;
 bool g_mouse_tutorial_requested_from_settings = false;
+bool g_character_wheel_tutorial_requested_from_settings = false;
 
 void sdl_copy_pane_configs(struct pane_config* dest, int* dest_count,
     const struct pane_config* src, int src_count)

@@ -274,4 +274,6 @@ bool sdl_config_touch_tutorial_seen(void);
 void sdl_config_mark_touch_tutorial_seen(void);
 bool sdl_config_mouse_tutorial_seen(void);
 void sdl_config_mark_mouse_tutorial_seen(void);
+bool sdl_config_character_wheel_tutorial_seen(void);
+void sdl_config_mark_character_wheel_tutorial_seen(void);
 bool option_is_app_persistent(int opt);

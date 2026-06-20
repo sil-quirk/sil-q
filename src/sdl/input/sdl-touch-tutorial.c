@@ -2748,6 +2748,186 @@ void sdl_mouse_mark_tutorial_seen_and_save(void)
     }
 }
 
+/* ------------------------------------------------------------------------
+ * First-run character action-wheel coach
+ *
+ * Opens the live player action wheel (the radial menu centred on the player)
+ * and pins one detailed callout to it, with the open / navigate / activate
+ * instructions matched to the active input device.  Shown once on the first
+ * game start, like the other first-run tutorials.
+ * ------------------------------------------------------------------------ */
+
+enum {
+    SDL_WHEEL_COACH_INPUT_MOUSE = 0,
+    SDL_WHEEL_COACH_INPUT_TOUCH,
+    SDL_WHEEL_COACH_INPUT_CONTROLLER
+};
+
+static int sdl_character_wheel_coach_input(void)
+{
+    if (sdl_touch_only_device_active())
+        return SDL_WHEEL_COACH_INPUT_TOUCH;
+    if (steamdeck_controls_active())
+        return SDL_WHEEL_COACH_INPUT_CONTROLLER;
+    return SDL_WHEEL_COACH_INPUT_MOUSE;
+}
+
+static cptr sdl_character_wheel_coach_body(int input, char* buf, size_t buflen)
+{
+    char confirm_label[16];
+    char back_label[16];
+
+    switch (input) {
+    case SDL_WHEEL_COACH_INPUT_TOUCH:
+        SDL_strlcpy(buf,
+            "Everything you can do while standing on your square - wait, use an "
+            "item, ready your bow, sing, and more - lives on this wheel.\n"
+            "Open it: tap your own square on the map.\n"
+            "Choose: drag to a wedge and lift your finger to run that action.\n"
+            "Second action: a wedge's outer ring holds a related action.\n"
+            "Close: tap the centre, or tap outside the wheel.",
+            buflen);
+        return buf;
+    case SDL_WHEEL_COACH_INPUT_CONTROLLER:
+        sdl_touch_tutorial_prompt_label(steamdeck_confirm_key(), "A",
+            confirm_label, sizeof(confirm_label));
+        sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
+            back_label, sizeof(back_label));
+        strnfmt(buf, buflen,
+            "Everything you can do while standing on your square - wait, use an "
+            "item, ready your bow, sing, and more - lives on this wheel.\n"
+            "Open it: press and hold %s while standing still.\n"
+            "Choose: D-pad Left/Right turns the ring; Up/Down reaches the outer "
+            "ring of second actions.\n"
+            "Run it: press %s on the highlighted wedge.\n"
+            "Close: press %s or Start.",
+            confirm_label, confirm_label, back_label);
+        return buf;
+    default:
+        SDL_strlcpy(buf,
+            "Everything you can do while standing on your square - wait, use an "
+            "item, ready your bow, sing, and more - lives on this wheel.\n"
+            "Open it: right-click your own square on the map.\n"
+            "Choose: move the cursor to a wedge and left-click to run that action.\n"
+            "Second action: a wedge's outer ring holds a related action.\n"
+            "Close: right-click again, or press Esc.",
+            buflen);
+        return buf;
+    }
+}
+
+/* Returns true once the wheel was actually opened and the coach shown. */
+static bool sdl_character_wheel_coach_run(void)
+{
+    sdl_view* d;
+    Uint64 accept_after_ns;
+    int input;
+    bool shown = false;
+
+    if (!g_state.window || !g_state.renderer)
+        return false;
+    if (!sdl_main_screen_click_shortcuts_active())
+        return false;
+    if (!sdl_player_action_menu_open())
+        return false;
+
+    input = sdl_character_wheel_coach_input();
+    d = sdl_view_from_term(Term);
+    sdl_touch_cancel_all_inputs();
+    /* Brief guard so the tap/click that began the turn does not dismiss it. */
+    accept_after_ns = SDL_GetTicksNS() + 250000000ULL;
+
+    for (;;) {
+        SDL_Rect screen = sdl_get_layout_screen_rect();
+        player_action_menu_entry entries[SDL_PLAYER_ACTION_MAX];
+        SDL_FRect zone = { 0.0f, 0.0f, 0.0f, 0.0f };
+        char body[1024];
+        cptr body_text;
+        bool have_zone;
+        float min_y;
+        int count = 0;
+        int action;
+
+        if (!sdl_rect_has_area(&screen))
+            break;
+        /* Draw the live screen first; this also draws the open wheel. */
+        if (!sdl_render_current_window_frame())
+            break;
+
+        /* Dim, then redraw the wheel on top so it stays bright and readable. */
+        sdl_touch_tutorial_draw_screen_dim(&screen, 158);
+        sdl_player_action_menu_render();
+
+        have_zone = sdl_player_action_menu_layout(entries, &count)
+            && count > 0;
+        if (have_zone) {
+            float r = entries[0].outer_radius;
+
+            zone = (SDL_FRect){
+                .x = entries[0].center_x - r,
+                .y = entries[0].center_y - r,
+                .w = r * 2.0f,
+                .h = r * 2.0f,
+            };
+        }
+
+        min_y = (float)screen.y + sdl_touch_pane_clampf(
+            (float)screen.h * 0.12f, 40.0f, 120.0f);
+        body_text = sdl_character_wheel_coach_body(input, body, sizeof(body));
+        birth_coach_draw_callout(&screen, have_zone ? &zone : NULL,
+            "Action wheel", body_text, min_y);
+        sdl_touch_tutorial_draw_footer(&screen,
+            input == SDL_WHEEL_COACH_INPUT_MOUSE, true);
+
+        SDL_RenderPresent(g_state.renderer);
+        sdl_restore_render_target(d);
+        shown = true;
+
+        action = sdl_touch_tutorial_wait_action(accept_after_ns);
+        /* Re-arm the guard so a held key/tap does not skip ahead. */
+        accept_after_ns = SDL_GetTicksNS() + 90000000ULL;
+        if (action != 0)
+            break;       /* any confirm/back/cancel closes this single page */
+        /* action == 0: window resize or redraw request -> draw again */
+    }
+
+    sdl_player_action_menu_cancel();
+    if (sdl_render_current_window_frame()) {
+        SDL_RenderPresent(g_state.renderer);
+        sdl_restore_render_target(d);
+    }
+    g_state.need_present = false;
+    sdl_touch_cancel_all_inputs();
+    return shown;
+}
+
+void sdl_character_wheel_mark_tutorial_seen_and_save(void)
+{
+    if (sdl_config_character_wheel_tutorial_seen())
+        return;
+
+    sdl_config_mark_character_wheel_tutorial_seen();
+    if (config_file_path[0] != '\0') {
+        sdl_store_active_pane_profile(config.min_terminal_mode);
+        sdl_config_save(config_file_path, &config, g_pane_profiles,
+            SDL_PANE_PROFILE_COUNT);
+    }
+}
+
+void sdl_character_wheel_maybe_show_first_game_tutorial(void)
+{
+    if (sdl_config_character_wheel_tutorial_seen())
+        return;
+    /* The wheel can only be opened on the live main screen; wait for it. */
+    if (!sdl_main_screen_click_shortcuts_active())
+        return;
+
+    if (!sdl_character_wheel_coach_run())
+        return;            /* could not open the wheel yet; retry next frame */
+
+    sdl_character_wheel_mark_tutorial_seen_and_save();
+}
+
 void sdl_touch_request_tutorial_from_settings(void)
 {
     g_touch_tutorial_requested_from_settings = true;
@@ -2758,6 +2938,11 @@ void sdl_mouse_request_tutorial_from_settings(void)
     g_mouse_tutorial_requested_from_settings = true;
 }
 
+void sdl_character_wheel_request_tutorial_from_settings(void)
+{
+    g_character_wheel_tutorial_requested_from_settings = true;
+}
+
 bool sdl_touch_settings_tutorial_requested(void)
 {
     return g_touch_tutorial_requested_from_settings;
@@ -2766,6 +2951,11 @@ bool sdl_touch_settings_tutorial_requested(void)
 bool sdl_mouse_settings_tutorial_requested(void)
 {
     return g_mouse_tutorial_requested_from_settings;
+}
+
+bool sdl_character_wheel_settings_tutorial_requested(void)
+{
+    return g_character_wheel_tutorial_requested_from_settings;
 }
 
 void sdl_touch_show_requested_tutorial(void)
@@ -2808,10 +2998,25 @@ void sdl_mouse_tutorial_maybe_show_deferred(void)
     sdl_mouse_show_tutorial();
 }
 
+static void sdl_character_wheel_tutorial_maybe_show_deferred(void)
+{
+    if (!g_character_wheel_tutorial_requested_from_settings)
+        return;
+    if (!sdl_main_screen_click_shortcuts_active())
+        return;
+    if (!sdl_character_wheel_coach_run())
+        return;
+
+    g_character_wheel_tutorial_requested_from_settings = false;
+    sdl_character_wheel_mark_tutorial_seen_and_save();
+}
+
 void sdl_input_tutorial_maybe_show_deferred(void)
 {
     sdl_touch_tutorial_maybe_show_deferred();
     sdl_mouse_tutorial_maybe_show_deferred();
+    sdl_character_wheel_tutorial_maybe_show_deferred();
+    sdl_character_wheel_maybe_show_first_game_tutorial();
 }
 
 void sdl_touch_show_tutorial(void)

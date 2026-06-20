@@ -706,10 +706,21 @@ bool sdl_touch_thumb_point_to_button(float px, float py, int* out_index)
     return false;
 }
 
-static void sdl_touch_thumb_label_for_binding(int binding, char* buf,
+static int sdl_touch_context_binding(int binding)
+{
+    int key = binding;
+    int context_binding = (binding == INPUT_BIND_CONFIRM) ? ' ' : binding;
+
+    (void)touch_shortcut_context_action(context_binding,
+        sdl_touch_thumb_description_open(), &key, NULL, 0);
+    return key;
+}
+
+static void sdl_touch_context_label_for_binding(int binding, char* buf,
     size_t buflen)
 {
     char ctx[32];
+    int context_binding = (binding == INPUT_BIND_CONFIRM) ? ' ' : binding;
 
     if (!buf || !buflen)
         return;
@@ -719,7 +730,8 @@ static void sdl_touch_thumb_label_for_binding(int binding, char* buf,
     }
     /* Space/'x' adapt their name to the player's situation (stairs, item,
      * open description, ...). */
-    if (touch_thumb_context_action(binding, sdl_touch_thumb_description_open(),
+    if (touch_shortcut_context_action(context_binding,
+            sdl_touch_thumb_description_open(),
             NULL, ctx, sizeof(ctx)))
     {
         SDL_strlcpy(buf, ctx, buflen);
@@ -746,7 +758,7 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
     SDL_RenderRect(g_state.renderer, rect);
 
     text.a = pressed ? 255 : 245;
-    sdl_touch_thumb_label_for_binding(tap_binding, label, sizeof(label));
+    sdl_touch_context_label_for_binding(tap_binding, label, sizeof(label));
 
     if (long_binding != GAMEPAD_BIND_NONE) {
         SDL_FRect main_rect = *rect;
@@ -758,7 +770,7 @@ static void sdl_touch_thumb_render_button(const SDL_FRect* rect, int index,
         long_rect.y = rect->y + rect->h * 0.54f;
         long_rect.h = rect->h * 0.46f;
 
-        sdl_touch_thumb_label_for_binding(long_binding, long_label,
+        sdl_touch_context_label_for_binding(long_binding, long_label,
             sizeof(long_label));
         hint.a = pressed ? 240 : 215;
 
@@ -827,9 +839,7 @@ static void sdl_touch_thumb_fire(int index, bool long_press)
 
     /* Resolve a contextual binding (Space/'x') to the key its current label
      * promises; non-contextual bindings are left untouched. */
-    key = binding;
-    (void)touch_thumb_context_action(binding, sdl_touch_thumb_description_open(),
-        &key, NULL, 0);
+    key = sdl_touch_context_binding(binding);
 
     sdl_touch_pane_send_binding(key, false, false);
     g_touch_thumb_flash_button = index;
@@ -3523,108 +3533,7 @@ void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
         return;
     }
 
-    if (!long_press) {
-        if (binding == 'z') {
-            SDL_strlcpy(buf, "Wait", buflen);
-            return;
-        }
-        if (binding == 'h') {
-            SDL_strlcpy(buf, "Character", buflen);
-            return;
-        }
-        if (binding == 'i') {
-            SDL_strlcpy(buf, "Inventory", buflen);
-            return;
-        }
-        if (binding == 'j') {
-            SDL_strlcpy(buf, "Supply", buflen);
-            return;
-        }
-        if (slot == 0 && binding == 'h') {
-            SDL_strlcpy(buf, "Character", buflen);
-            return;
-        }
-        if (slot == 1 && binding == 'i') {
-            SDL_strlcpy(buf, "Inventory", buflen);
-            return;
-        }
-        if (slot == 2 && binding == 'j') {
-            SDL_strlcpy(buf, "Supply", buflen);
-            return;
-        }
-        if (slot == 3 && binding == 'f') {
-            SDL_strlcpy(buf, "Shoot", buflen);
-            return;
-        }
-        if (binding == 'a') {
-            SDL_strlcpy(buf, "Staff", buflen);
-            return;
-        }
-        if (binding == 'p') {
-            SDL_strlcpy(buf, "Horn", buflen);
-            return;
-        }
-        if (binding == 'l') {
-            SDL_strlcpy(buf, "View", buflen);
-            return;
-        }
-        if (binding == 'f') {
-            SDL_strlcpy(buf, "Shoot", buflen);
-            return;
-        }
-    } else {
-        if (binding == 'Z') {
-            SDL_strlcpy(buf, "Rest", buflen);
-            return;
-        }
-        if (binding == '\t') {
-            SDL_strlcpy(buf, "Weapon", buflen);
-            return;
-        }
-        if (binding == 'y') {
-            SDL_strlcpy(buf, "Abilities", buflen);
-            return;
-        }
-        if (binding == 'e') {
-            SDL_strlcpy(buf, "Equipped", buflen);
-            return;
-        }
-        if (slot == 0 && binding == '\t') {
-            SDL_strlcpy(buf, "Weapon", buflen);
-            return;
-        }
-        if (slot == 1 && binding == 'e') {
-            SDL_strlcpy(buf, "Equipped", buflen);
-            return;
-        }
-        if (slot == 2 && binding == 's') {
-            SDL_strlcpy(buf, "Sing", buflen);
-            return;
-        }
-        if (slot == 3 && binding == 'F') {
-            SDL_strlcpy(buf, "Shoot 2", buflen);
-            return;
-        }
-        if (binding == 'p') {
-            SDL_strlcpy(buf, "Horn", buflen);
-            return;
-        }
-        if (binding == 'j') {
-            SDL_strlcpy(buf, "Supply", buflen);
-            return;
-        }
-        if (binding == 'F') {
-            SDL_strlcpy(buf, "Shoot 2", buflen);
-            return;
-        }
-    }
-
-    if (binding == INPUT_BIND_CONFIRM) {
-        SDL_strlcpy(buf, "Confirm", buflen);
-        return;
-    }
-
-    binding_action_short(binding, buf, buflen);
+    sdl_touch_context_label_for_binding(binding, buf, buflen);
 }
 
 static bool sdl_touch_top_panel_can_draw_tiles(void)
@@ -3853,11 +3762,18 @@ static void sdl_touch_top_panel_description_for_binding(int binding,
     char* buf, size_t buflen)
 {
     char label[48];
+    int context_binding = (binding == INPUT_BIND_CONFIRM) ? ' ' : binding;
 
     if (!buf || !buflen)
         return;
 
     buf[0] = '\0';
+    if (touch_shortcut_context_action(context_binding,
+            sdl_touch_thumb_description_open(), NULL, label, sizeof(label))) {
+        strnfmt(buf, buflen, "%s.", label);
+        return;
+    }
+
     switch (binding) {
     case GAMEPAD_BIND_NONE:
         SDL_strlcpy(buf, "Unbound.", buflen);
@@ -4143,7 +4059,8 @@ void sdl_touch_top_panel_send_slot(int slot, bool long_press)
     if (!sdl_main_screen_click_shortcuts_active())
         return;
 
-    sdl_touch_pane_send_binding(binding, false, false);
+    sdl_touch_pane_send_binding(sdl_touch_context_binding(binding), false,
+        false);
 }
 
 void sdl_touch_top_panel_cancel_press(void)
