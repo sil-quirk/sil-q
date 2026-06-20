@@ -1,6 +1,51 @@
 #include "angband.h"
 #include "metarun-internal.h"
 
+bool metarun_set_difficulty_inline(int choice)
+{
+    int8_t preserved_stacks[METAR_CURSE_SLOTS];
+    u64b preserved_seen;
+
+    if (!runtype_info || choice < 0 || choice >= z_info->rt_max
+        || !runtype_info[choice].name[0]
+        || choice < metar.max_difficulty_reached)
+        return false;
+    if (choice == metar.type)
+        return true;
+
+    log_info("Changing difficulty from %d to %d", metar.type, choice);
+    memcpy(preserved_stacks, metar.curse_stacks, sizeof(preserved_stacks));
+    preserved_seen = metar.curses_seen;
+    memset(metar.curse_stacks, 0, sizeof(metar.curse_stacks));
+    metar.curses_seen = 0;
+    metar.type = (byte)choice;
+    apply_difficulty_curses(&metar);
+
+    int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
+    for (int curse_id = 0; curse_id < limit; curse_id++) {
+        int preserved = preserved_stacks[curse_id];
+        int combined;
+        int curse_cap;
+        int blessing_cap;
+        if (!preserved) continue;
+        combined = preserved + CURSE_GET(curse_id);
+        curse_cap = CURSE_CURSE_CAP(curse_id);
+        blessing_cap = CURSE_BLESSING_CAP(curse_id);
+        if (curse_cap > 0 && combined > curse_cap)
+            combined = curse_cap;
+        if (blessing_cap > 0 && combined < -blessing_cap)
+            combined = -blessing_cap;
+        CURSE_SET(curse_id, combined);
+    }
+    if (choice > metar.max_difficulty_reached)
+        metar.max_difficulty_reached = (byte)choice;
+    metar.curses_seen |= preserved_seen;
+    if (!sync_current_metarun_slot(false))
+        log_warn("Difficulty change failed to sync metarun slot");
+    save_metaruns();
+    return true;
+}
+
 static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
 {
     if (!runtype_info || runtype_id >= z_info->rt_max || buf_size < 64)
@@ -367,67 +412,19 @@ void choose_difficulty_menu(void)
             }
         }
 
-        log_info("Changing difficulty from %d to %d", metar.type, choice);
-
-        /* Preserve existing stacks and discovery state */
-        int8_t preserved_stacks[METAR_CURSE_SLOTS];
-        memcpy(preserved_stacks, metar.curse_stacks, sizeof(preserved_stacks));
-        u64b preserved_seen = metar.curses_seen;
-
-        /* Clear to baseline so we can reapply difficulty defaults */
-        memset(metar.curse_stacks, 0, sizeof(metar.curse_stacks));
-        metar.curses_seen = 0;
-
-        /* Set new type and apply its base curses */
-        metar.type = (byte)choice;
-        apply_difficulty_curses(&metar);
-
-        /* Merge preserved stacks with new defaults (signed counts) */
-        int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
-        for (int curse_id = 0; curse_id < limit; curse_id++) {
-            int preserved = preserved_stacks[curse_id];
-            if (!preserved) continue;
-
-            int combined = preserved + CURSE_GET(curse_id);
-            int curse_cap = CURSE_CURSE_CAP(curse_id);
-            int blessing_cap = CURSE_BLESSING_CAP(curse_id);
-            if (curse_cap > 0 && combined > curse_cap)
-                combined = curse_cap;
-            if (blessing_cap > 0 && combined < -blessing_cap)
-                combined = -blessing_cap;
-            CURSE_SET(curse_id, combined);
-        }
-
-        /* Update maximum difficulty reached */
-        if (choice > metar.max_difficulty_reached) {
-            metar.max_difficulty_reached = (byte)choice;
-        }
-
-        /* Restore seen flags */
-        metar.curses_seen |= preserved_seen;
-
-        if (!sync_current_metarun_slot(false)) {
-            log_warn("Difficulty change failed to sync metarun slot");
-        }
-
-        /* Save changes */
-        save_metaruns();
-
-        const char *new_name = "Unknown";
-        if (runtype_info && choice < z_info->rt_max && runtype_info[choice].name[0])
-            new_name = runtype_info[choice].name;
-
-        msg_print(format("Difficulty changed to: %s", new_name));
+        (void)metarun_set_difficulty_inline(choice);
     }
 
     ui_menu_click_clear();
     screen_load();
 
-    /* Return to metarun stats to show updated information */
-    print_metarun_stats();
 }
 
 void choose_difficulty_level(void)
 {
     choose_difficulty_menu();
+    /* The public entry point is used by the story intro, where the statistics
+     * screen is not already open.  The story book calls choose_difficulty_menu()
+     * directly and refreshes its Difficulty page in place. */
+    print_metarun_stats();
 }

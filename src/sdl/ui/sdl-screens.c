@@ -6205,6 +6205,9 @@ static void sdl_char_sheet_render_mobile_character_select(
 
 void sdl_select_page_turn_free(void);
 void sdl_character_sheet_screen_render(void);
+static void sdl_char_sheet_draw_story_lamp(float x, float y, float w,
+    float h, u32b current, u32b maximum, TTF_Font* label_font,
+    float label_h);
 
 /* True while a parchment "book" is on screen -- either the birth/race book or a
  * narrative (quest) book.  The page-curl, swipe and snapshot code is shared. */
@@ -6283,7 +6286,9 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     float lh = sdl_char_sheet_line_h(font, body_px, 1.28f);
     float para_gap = lh * 0.6f;
     float region_h = (region_bottom - top_y) - 2.0f * (lh * SDL_BOOK_MARGIN_V);
-    float used = 0.0f;
+    float used = (g_sdl_character_sheet_screen.narrative_lamp_enabled
+            && g_sdl_character_sheet_screen.narrative_lamp_page == 0)
+        ? lh * 9.0f : 0.0f;
     int page = 0;
     int i;
 
@@ -6306,7 +6311,11 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
             page++;
             if (page_start)
                 page_start[page] = i;
-            used = need;
+            used = need
+                + ((g_sdl_character_sheet_screen.narrative_lamp_enabled
+                        && g_sdl_character_sheet_screen.narrative_lamp_page
+                            == page)
+                      ? lh * 9.0f : 0.0f);
         }
         else
         {
@@ -7019,7 +7028,8 @@ void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
  * in light blue so the player can pick them out without reading the whole page.
  */
 void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
-    float book_x, float book_w, float top_y, float region_bottom, float body_lh)
+    float book_x, float book_w, float top_y, float region_bottom, float body_lh,
+    bool register_hits)
 {
     float para_gap = body_lh * 0.6f;
     int para_count = g_sdl_character_sheet_screen.narrative_para_count;
@@ -7050,15 +7060,34 @@ void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
 
     for (i = first; i < last; i++)
     {
+        int choice = g_sdl_character_sheet_screen.narrative_para_choice[i];
+        bool action = (choice >= 0);
+        bool focused = action && sdl_char_sheet_choice_focused(choice);
         int lines = sdl_char_sheet_wrap_text(body_font,
             g_sdl_character_sheet_screen.narrative_paras[i], book_w, NULL, 0);
         float h = (float)lines * body_lh;
-        byte attr = g_sdl_character_sheet_screen.narrative_para_highlight[i]
-            ? TERM_L_BLUE : TERM_WHITE;
+        byte attr = g_sdl_character_sheet_screen.narrative_para_attr[i];
+
+        if (g_sdl_character_sheet_screen.narrative_para_highlight[i])
+            attr = TERM_L_BLUE;
+
+        if (focused) {
+            SDL_FRect focus = { book_x - body_lh * 0.18f,
+                y - body_lh * 0.08f, book_w + body_lh * 0.36f,
+                h + body_lh * 0.16f };
+            sdl_char_sheet_draw_focus_rect(focus, true);
+            attr = sdl_char_sheet_focus_text_attr(attr, true);
+        }
 
         sdl_char_sheet_draw_wrapped(body_font,
             g_sdl_character_sheet_screen.narrative_paras[i], attr, book_x,
             y, book_w, h + body_lh, body_lh, 0);
+        if (register_hits && action) {
+            SDL_FRect hit = { book_x - body_lh * 0.25f,
+                y - body_lh * 0.18f, book_w + body_lh * 0.5f,
+                h + body_lh * 0.36f };
+            sdl_char_sheet_add_hit(hit, choice, "");
+        }
         y += h;
         if (i + 1 < last)
             y += para_gap;
@@ -7200,8 +7229,90 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
 
     if (narrative)
     {
+        int contents_count = g_sdl_character_sheet_screen.narrative_contents_count;
+
+        if (contents_count > 0) {
+            float frame_left = MAX(content_x,
+                book_x - body_lh * SDL_BOOK_MARGIN_H);
+            float toc_x = content_x + content_w * 0.015f;
+            float toc_right = frame_left - MAX(4.0f, body_lh * 0.42f);
+            float toc_w = MAX(1.0f, toc_right - toc_x);
+            int toc_px = MAX(12, (int)(body_px * 0.82f));
+            TTF_Font* toc_font = NULL;
+            float toc_lh = 1.0f;
+            float toc_y = top_y;
+            float needed_h;
+
+            /* Fit both dimensions against the actual page edge.  This keeps
+             * touch/focus rectangles out of the parchment on narrow mobile
+             * layouts and avoids hard-coded desktop proportions. */
+            while (toc_px > 9) {
+                bool fits = true;
+
+                toc_font = sdl_story_font_for_height_slot(toc_px,
+                    SDL_STORY_FONT_SLOT_NARRATIVE);
+                toc_lh = sdl_char_sheet_line_h(toc_font, toc_px, 1.3f);
+                needed_h = toc_lh * (1.25f + contents_count * 1.18f);
+                if (needed_h > region_bottom - top_y)
+                    fits = false;
+                if (sdl_char_sheet_text_width(toc_font, "Contents") > toc_w)
+                    fits = false;
+                for (int i = 0; fits && i < contents_count; i++) {
+                    if (sdl_char_sheet_text_width(toc_font,
+                            g_sdl_character_sheet_screen
+                                .narrative_contents_label[i]) > toc_w)
+                        fits = false;
+                }
+                if (fits)
+                    break;
+                toc_px--;
+            }
+            toc_font = sdl_story_font_for_height_slot(toc_px,
+                SDL_STORY_FONT_SLOT_NARRATIVE);
+            toc_lh = sdl_char_sheet_line_h(toc_font, toc_px, 1.3f);
+
+            (void)sdl_char_sheet_draw_text(toc_font, "Contents", TERM_YELLOW,
+                toc_x, toc_y, toc_w, toc_lh, false);
+            toc_y += toc_lh * 1.25f;
+            for (int i = 0; i < contents_count; i++) {
+                int choice = g_sdl_character_sheet_screen
+                    .narrative_contents_choice[i];
+                bool current = g_sdl_character_sheet_screen
+                    .narrative_contents_page[i] == page;
+                bool focused = sdl_char_sheet_choice_focused(choice);
+                byte attr = current ? TERM_YELLOW : TERM_L_BLUE;
+                int text_w = sdl_char_sheet_text_width(toc_font,
+                    g_sdl_character_sheet_screen.narrative_contents_label[i]);
+                SDL_FRect hit = { toc_x, toc_y,
+                    MIN(toc_w, (float)text_w + toc_lh * 0.25f), toc_lh };
+
+                if (focused)
+                    sdl_char_sheet_draw_focus_rect(hit, true);
+                (void)sdl_char_sheet_draw_text(toc_font,
+                    g_sdl_character_sheet_screen.narrative_contents_label[i],
+                    sdl_char_sheet_focus_text_attr(attr, focused), toc_x,
+                    toc_y, toc_w, toc_lh, false);
+                if (register_hits)
+                    sdl_char_sheet_add_hit(hit, choice, "");
+                toc_y += toc_lh * 1.18f;
+            }
+        }
         sdl_char_sheet_render_narrative_page(page, body_font, book_x, book_w,
-            top_y, region_bottom, body_lh);
+            top_y, region_bottom, body_lh, register_hits);
+        if (g_sdl_character_sheet_screen.narrative_lamp_enabled
+            && page == g_sdl_character_sheet_screen.narrative_lamp_page)
+        {
+            float lamp_h = MIN(body_lh * 8.5f,
+                (region_bottom - top_y) * 0.48f);
+            float lamp_w = MIN(book_w * 0.56f, lamp_h * 0.58f);
+
+            sdl_char_sheet_draw_story_lamp(
+                book_x + (book_w - lamp_w) * 0.5f,
+                region_bottom - lamp_h, lamp_w, lamp_h,
+                g_sdl_character_sheet_screen.narrative_lamp_current,
+                g_sdl_character_sheet_screen.narrative_lamp_maximum,
+                body_font, body_lh);
+        }
         return;
     }
 
@@ -7497,9 +7608,10 @@ void sdl_char_sheet_draw_curled_leaf(SDL_Texture* leaf, SDL_FRect region,
     }
 }
 
-/* Begin a page-curl turn.  dir > 0 advances (0->1); dir < 0 returns (1->0).
- * Snapshots are captured lazily on the next render frame. */
-void sdl_character_sheet_screen_begin_page_turn(int dir)
+/* Animate one page curl between any two leaves.  Contents shortcuts use this
+ * to reveal their destination directly instead of playing every intervening
+ * turn.  Snapshots are captured lazily on the next render frame. */
+void sdl_character_sheet_screen_begin_page_turn_to(int page)
 {
     int from;
     int dest;
@@ -7509,13 +7621,16 @@ void sdl_character_sheet_screen_begin_page_turn(int dir)
     if (g_sdl_character_sheet_screen.page_turn_active)
         return;
     from = g_sdl_character_sheet_screen.select_page;
-    dest = from + (dir >= 0 ? 1 : -1);
+    dest = page;
     if (dest < 0 || dest >= g_sdl_character_sheet_screen.select_page_count)
+        return;
+    if (dest == from)
         return;
 
     sdl_select_page_turn_free();
+    g_sdl_character_sheet_screen.page_turn_from_page = from;
     g_sdl_character_sheet_screen.select_page = dest;
-    g_sdl_character_sheet_screen.page_turn_dir = (dir >= 0) ? 1 : -1;
+    g_sdl_character_sheet_screen.page_turn_dir = (dest > from) ? 1 : -1;
     g_sdl_character_sheet_screen.page_turn_start_ns = SDL_GetTicksNS();
     g_sdl_character_sheet_screen.page_turn_active = true;
     g_state.need_present = true;
@@ -7589,7 +7704,13 @@ static void sdl_character_sheet_touch_press_begin(float x, float y,
         &g_sdl_character_sheet_screen.touch_press;
 
     sdl_character_sheet_touch_press_cancel();
-    if (!hit || !sdl_character_sheet_touch_allocation_choice(hit->choice))
+    if (!hit)
+        return;
+    if (!sdl_character_sheet_touch_allocation_choice(hit->choice)
+        && !(g_sdl_character_sheet_screen.context
+                == SDL_CHARACTER_SHEET_NARRATIVE
+            && hit->choice >= 0
+            && sdl_char_sheet_choice_pressable(hit->choice)))
         return;
 
     press->active = true;
@@ -8084,7 +8205,7 @@ void sdl_character_sheet_screen_render(void)
                 / (float)SDL_SELECT_PAGE_TURN_MS;
             int dir = g_sdl_character_sheet_screen.page_turn_dir;
             int to_page = page;
-            int from_page = page - dir;
+            int from_page = g_sdl_character_sheet_screen.page_turn_from_page;
             float te;
             float cp;
             SDL_Texture* bg;
@@ -8992,7 +9113,7 @@ void sdl_character_sheet_screen_set_select_menu_style(bool enabled)
     g_state.need_present = true;
 }
 
-/* ---- Narrative book (text-only, N pages): quest text, etc. -------------- *
+/* ---- Narrative book (N pages with optional actions): quests, stats, etc. - *
  * Open the book, push complete paragraphs, then commit.  Navigation reuses
  * the shared select_page / page-turn accessors and sdl_character_sheet_screen_hide.
  */
@@ -9015,10 +9136,15 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.select_page = 0;
     g_sdl_character_sheet_screen.select_page_count = 1;
     g_sdl_character_sheet_screen.narrative_para_count = 0;
+    g_sdl_character_sheet_screen.narrative_contents_count = 0;
     g_sdl_character_sheet_screen.narrative_pending_break = false;
     g_sdl_character_sheet_screen.narrative_pending_highlight = false;
     g_sdl_character_sheet_screen.narrative_page_count = 0;
     g_sdl_character_sheet_screen.narrative_body_px = 0;
+    g_sdl_character_sheet_screen.narrative_lamp_enabled = false;
+    g_sdl_character_sheet_screen.narrative_lamp_current = 0;
+    g_sdl_character_sheet_screen.narrative_lamp_maximum = 0;
+    g_sdl_character_sheet_screen.narrative_lamp_page = 0;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
     g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_title,
@@ -9042,6 +9168,8 @@ void sdl_character_sheet_screen_add_book_paragraph(cptr text)
 
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_paras[n], text,
         SDL_BOOK_PARA_LEN);
+    g_sdl_character_sheet_screen.narrative_para_choice[n] = -1;
+    g_sdl_character_sheet_screen.narrative_para_attr[n] = TERM_WHITE;
     g_sdl_character_sheet_screen.narrative_para_break[n] =
         g_sdl_character_sheet_screen.narrative_pending_break;
     g_sdl_character_sheet_screen.narrative_pending_break = false;
@@ -9049,6 +9177,340 @@ void sdl_character_sheet_screen_add_book_paragraph(cptr text)
         g_sdl_character_sheet_screen.narrative_pending_highlight;
     g_sdl_character_sheet_screen.narrative_pending_highlight = false;
     g_sdl_character_sheet_screen.narrative_para_count = n + 1;
+}
+
+/* A soft radial bloom: a bright centre vertex fading to a transparent rim,
+ * drawn as a triangle fan.  The captured light, its motes, the surface sheen
+ * and the outer aura are all built from this.  The caller chooses the blend
+ * mode -- additive for anything that should read as glow. */
+static void sdl_story_lamp_glow(float cx, float cy, float rx, float ry,
+    SDL_FColor core)
+{
+    enum { SEG = 20 };
+    SDL_Vertex v[SEG + 2];
+    int idx[SEG * 3];
+    SDL_FColor rim = core;
+    int i;
+
+    if (!g_state.renderer || rx <= 0.0f || ry <= 0.0f)
+        return;
+    rim.a = 0.0f;
+
+    v[0].position = (SDL_FPoint){ cx, cy };
+    v[0].color = core;
+    v[0].tex_coord = (SDL_FPoint){ 0.0f, 0.0f };
+    for (i = 0; i <= SEG; i++) {
+        float a = (float)i / (float)SEG * 6.2831853f;
+        v[i + 1].position = (SDL_FPoint){ cx + SDL_cosf(a) * rx,
+            cy + SDL_sinf(a) * ry };
+        v[i + 1].color = rim;
+        v[i + 1].tex_coord = (SDL_FPoint){ 0.0f, 0.0f };
+    }
+    for (i = 0; i < SEG; i++) {
+        idx[i * 3] = 0;
+        idx[i * 3 + 1] = i + 1;
+        idx[i * 3 + 2] = i + 2;
+    }
+    SDL_RenderGeometry(g_state.renderer, NULL, v, SEG + 2, idx, SEG * 3);
+}
+
+/* Normalised half-width (a fraction of the full width w) along the vessel, with
+ * t = 0 at the mouth and t = 1 at the base.  A Catmull-Rom spline through a few
+ * turned-pottery radii keeps the silhouette smooth and symmetric, so the glass
+ * reads as a graceful Valarin urn rather than the old faceted bottle. */
+static float sdl_story_lamp_half_width(float t, float width)
+{
+    static const float r[] = {
+        0.150f, /* flared lip      */
+        0.104f, /* neck pinch      */
+        0.232f, /* shoulder        */
+        0.356f, /* upper belly     */
+        0.420f, /* belly (widest)  */
+        0.392f, /* lower belly     */
+        0.270f, /* haunch          */
+        0.150f  /* foot            */
+    };
+    const int n = (int)N_ELEMENTS(r);
+    float u = sdl_char_sheet_clampf(t, 0.0f, 1.0f) * (float)(n - 1);
+    int i = (int)u;
+    float f, p0, p1, p2, p3;
+
+    if (i > n - 2)
+        i = n - 2;
+    f = u - (float)i;
+    p1 = r[i];
+    p2 = r[i + 1];
+    p0 = (i > 0) ? r[i - 1] : (2.0f * p1 - p2);
+    p3 = (i + 2 < n) ? r[i + 2] : (2.0f * p2 - p1);
+
+    return width * 0.5f * ((2.0f * p1)
+        + (-p0 + p2) * f
+        + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * f * f
+        + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * f * f * f);
+}
+
+static void sdl_char_sheet_draw_story_lamp(float x, float y, float w,
+    float h, u32b current, u32b maximum, TTF_Font* label_font,
+    float label_h)
+{
+    enum { OUTLINE = 40, FILL_ROWS = 14, FOOT_ARC = 10 };
+    SDL_Renderer *rend = g_state.renderer;
+    SDL_FPoint left[OUTLINE + 1];
+    SDL_FPoint right[OUTLINE + 1];
+    float cx = x + w * 0.5f;
+    float top = y + h * 0.090f;
+    float bottom = y + h * 0.800f;
+    float vessel_h = bottom - top;
+    float fraction = maximum ? (float)current / (float)maximum : 0.0f;
+    float foot_hw, foot_sag;
+    char counter[80];
+    int i;
+
+    if (!rend || w <= 1.0f || h <= 1.0f)
+        return;
+
+    fraction = sdl_char_sheet_clampf(fraction, 0.0f, 1.0f);
+
+    /* ---- Outer aura: the page itself glows where the light is held. ------- */
+    if (fraction > 0.0f) {
+        SDL_FColor aura = { 1.0f, 0.80f, 0.40f, 0.09f + 0.13f * fraction };
+        SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_ADD);
+        sdl_story_lamp_glow(cx, top + vessel_h * 0.62f,
+            w * (0.72f + 0.32f * fraction),
+            vessel_h * (0.58f + 0.30f * fraction), aura);
+    }
+
+    /* ---- The captured light: a warm gradient pooled bright in the belly. -- */
+    if (fraction > 0.0f) {
+        SDL_Vertex verts[FILL_ROWS * 2];
+        int indices[(FILL_ROWS - 1) * 6];
+        SDL_FColor surf = { 1.0f, 0.78f, 0.40f, 0.46f };
+        SDL_FColor core = { 1.0f, 0.95f, 0.78f, 0.95f };
+        float base_t = 0.972f;
+        float surf_t = base_t - fraction * (base_t - 0.190f);
+        int vc = 0, ic = 0;
+
+        SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
+        for (i = 0; i < FILL_ROWS; i++) {
+            float d = (float)i / (float)(FILL_ROWS - 1);
+            float s = d * d * (3.0f - 2.0f * d);
+            float t = surf_t + (base_t - surf_t) * d;
+            float hw = sdl_story_lamp_half_width(t, w) * 0.86f;
+            float py = top + vessel_h * t;
+            SDL_FColor c;
+
+            c.r = surf.r + (core.r - surf.r) * s;
+            c.g = surf.g + (core.g - surf.g) * s;
+            c.b = surf.b + (core.b - surf.b) * s;
+            c.a = surf.a + (core.a - surf.a) * s;
+
+            verts[vc].position = (SDL_FPoint){ cx - hw, py };
+            verts[vc].color = c;
+            verts[vc].tex_coord = (SDL_FPoint){ 0.0f, 0.0f };
+            verts[vc + 1].position = (SDL_FPoint){ cx + hw, py };
+            verts[vc + 1].color = c;
+            verts[vc + 1].tex_coord = (SDL_FPoint){ 0.0f, 0.0f };
+            if (i < FILL_ROWS - 1) {
+                int b = i * 2;
+                indices[ic++] = b;     indices[ic++] = b + 1;
+                indices[ic++] = b + 2; indices[ic++] = b + 1;
+                indices[ic++] = b + 3; indices[ic++] = b + 2;
+            }
+            vc += 2;
+        }
+        SDL_RenderGeometry(rend, NULL, verts, vc, indices, ic);
+
+        /* A bloom low in the belly gives the pool of light some depth. */
+        SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_ADD);
+        {
+            float bt = surf_t + (base_t - surf_t) * 0.70f;
+            SDL_FColor bloom = { 1.0f, 0.86f, 0.52f, 0.40f };
+            sdl_story_lamp_glow(cx, top + vessel_h * bt,
+                sdl_story_lamp_half_width(bt, w) * 0.95f,
+                vessel_h * 0.22f, bloom);
+        }
+
+        /* The luminous surface: a glowing meniscus, not a hard bar edge. */
+        {
+            float fy = top + vessel_h * surf_t;
+            float fhw = sdl_story_lamp_half_width(surf_t, w) * 0.84f;
+            float amp = vessel_h * 0.014f;
+            SDL_FColor sheen = { 1.0f, 0.95f, 0.74f, 0.55f };
+            static const float wave[9] = { 0.0f, 0.5f, -0.35f, 0.45f, -0.3f,
+                0.4f, -0.35f, 0.5f, 0.0f };
+            SDL_FPoint surface[9];
+
+            sdl_story_lamp_glow(cx, fy, fhw, vessel_h * 0.05f, sheen);
+            SDL_SetRenderDrawColor(rend, 255, 246, 214, 235);
+            for (i = 0; i < 9; i++) {
+                surface[i].x = cx - fhw + 2.0f * fhw * (float)i / 8.0f;
+                surface[i].y = fy + wave[i] * amp;
+            }
+            SDL_RenderLines(rend, surface, 9);
+        }
+
+        /* Motes adrift in the glow: living starlight, not square pixels. */
+        {
+            static const float mx[5] = { -0.55f, 0.48f, -0.20f, 0.60f, 0.16f };
+            static const float mt[5] = { 0.32f, 0.55f, 0.74f, 0.22f, 0.88f };
+            static const float mr[5] = { 0.050f, 0.034f, 0.060f, 0.028f,
+                0.042f };
+            SDL_FColor mote = { 1.0f, 0.96f, 0.80f, 0.85f };
+
+            for (i = 0; i < 5; i++) {
+                float t = surf_t + (base_t - surf_t) * mt[i];
+                float ihw = sdl_story_lamp_half_width(t, w) * 0.78f;
+                sdl_story_lamp_glow(cx + mx[i] * ihw, top + vessel_h * t,
+                    w * mr[i], w * mr[i], mote);
+            }
+        }
+    }
+
+    /* ---- The glass: a smooth, thin gold outline drawn over the light. ----- */
+    SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
+    for (i = 0; i <= OUTLINE; i++) {
+        float t = (float)i / (float)OUTLINE;
+        float py = top + vessel_h * t;
+        float hw = sdl_story_lamp_half_width(t, w);
+        left[i] = (SDL_FPoint){ cx - hw, py };
+        right[i] = (SDL_FPoint){ cx + hw, py };
+    }
+    SDL_SetRenderDrawColor(rend, 236, 208, 138, 235);
+    SDL_RenderLines(rend, left, OUTLINE + 1);
+    SDL_RenderLines(rend, right, OUTLINE + 1);
+
+    /* Rounded base: a shallow arc dipped just beneath the foot. */
+    foot_hw = sdl_story_lamp_half_width(1.0f, w);
+    foot_sag = h * 0.022f;
+    {
+        SDL_FPoint base[FOOT_ARC + 1];
+        for (i = 0; i <= FOOT_ARC; i++) {
+            float u = (float)i / (float)FOOT_ARC;
+            base[i].x = cx - foot_hw + 2.0f * foot_hw * u;
+            base[i].y = bottom + foot_sag * SDL_sinf(u * 3.1415927f);
+        }
+        SDL_RenderLines(rend, base, FOOT_ARC + 1);
+    }
+
+    /* A flared lip and one neck band -- quiet decoration on the vessel. */
+    {
+        float lip_hw = sdl_story_lamp_half_width(0.0f, w);
+        float band_hw = sdl_story_lamp_half_width(0.16f, w);
+        SDL_RenderLine(rend, cx - lip_hw, top, cx + lip_hw, top);
+        SDL_RenderLine(rend, cx - band_hw, top + vessel_h * 0.16f,
+            cx + band_hw, top + vessel_h * 0.16f);
+    }
+
+    /* A faint highlight down the shoulder sells the curve of the glass. */
+    {
+        SDL_FPoint shine[5];
+        SDL_SetRenderDrawColor(rend, 255, 252, 235, 70);
+        for (i = 0; i < 5; i++) {
+            float t = 0.26f + 0.24f * (float)i / 4.0f;
+            float hw = sdl_story_lamp_half_width(t, w);
+            shine[i].x = cx - hw * 0.62f;
+            shine[i].y = top + vessel_h * t;
+        }
+        SDL_RenderLines(rend, shine, 5);
+    }
+
+    /* ---- A small radiant star at the mouth: the held light, shining out. -- */
+    {
+        float sx = cx;
+        float sy = top - h * 0.022f;
+        float ray = w * 0.12f * (0.6f + 0.4f * fraction);
+        SDL_FColor spark = { 1.0f, 0.94f, 0.74f, 0.40f + 0.45f * fraction };
+        Uint8 la = (Uint8)(110 + 130 * fraction);
+
+        SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_ADD);
+        sdl_story_lamp_glow(sx, sy, ray * 1.3f, ray * 1.3f, spark);
+        SDL_SetRenderDrawColor(rend, 255, 248, 220, la);
+        SDL_RenderLine(rend, sx - ray, sy, sx + ray, sy);
+        SDL_RenderLine(rend, sx, sy - ray * 1.25f, sx, sy + ray * 1.25f);
+        SDL_RenderLine(rend, sx - ray * 0.5f, sy - ray * 0.5f,
+            sx + ray * 0.5f, sy + ray * 0.5f);
+        SDL_RenderLine(rend, sx - ray * 0.5f, sy + ray * 0.5f,
+            sx + ray * 0.5f, sy - ray * 0.5f);
+    }
+
+    SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
+
+    strnfmt(counter, sizeof(counter), "Light %lu / %lu",
+        (unsigned long)current, (unsigned long)maximum);
+    (void)sdl_char_sheet_draw_text(label_font, counter, TERM_YELLOW, x,
+        y + h - label_h, w, label_h, true);
+}
+
+void sdl_character_sheet_screen_add_book_paragraph_colored(cptr text,
+    int attr)
+{
+    int before = g_sdl_character_sheet_screen.narrative_para_count;
+
+    sdl_character_sheet_screen_add_book_paragraph(text);
+    if (g_sdl_character_sheet_screen.narrative_para_count > before) {
+        int n = g_sdl_character_sheet_screen.narrative_para_count - 1;
+        g_sdl_character_sheet_screen.narrative_para_attr[n] = (byte)attr;
+    }
+}
+
+/* Adjacent previous/next turn used by arrows, keys, and swipes. */
+void sdl_character_sheet_screen_begin_page_turn(int dir)
+{
+    int from = g_sdl_character_sheet_screen.select_page;
+
+    sdl_character_sheet_screen_begin_page_turn_to(
+        from + (dir >= 0 ? 1 : -1));
+}
+
+/* Add an accent-coloured, pointer-focusable action to a narrative page. */
+void sdl_character_sheet_screen_add_book_action(cptr text, int choice)
+{
+    sdl_character_sheet_screen_add_book_action_colored(text, choice,
+        TERM_L_BLUE);
+}
+
+void sdl_character_sheet_screen_add_book_action_colored(cptr text, int choice,
+    int attr)
+{
+    int before = g_sdl_character_sheet_screen.narrative_para_count;
+
+    if (choice < 0)
+        return;
+    sdl_character_sheet_screen_add_book_paragraph(text);
+    if (g_sdl_character_sheet_screen.narrative_para_count > before) {
+        int n = g_sdl_character_sheet_screen.narrative_para_count - 1;
+        g_sdl_character_sheet_screen.narrative_para_choice[n] = choice;
+        g_sdl_character_sheet_screen.narrative_para_attr[n] = (byte)attr;
+    }
+}
+
+void sdl_character_sheet_screen_add_book_contents(cptr label, int choice,
+    int page)
+{
+    int n;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE
+        || !label || !label[0] || choice < 0)
+        return;
+    n = g_sdl_character_sheet_screen.narrative_contents_count;
+    if (n >= SDL_BOOK_MAX_CONTENTS)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_contents_label[n],
+        label, sizeof(g_sdl_character_sheet_screen.narrative_contents_label[n]));
+    g_sdl_character_sheet_screen.narrative_contents_choice[n] = choice;
+    g_sdl_character_sheet_screen.narrative_contents_page[n] = MAX(0, page);
+    g_sdl_character_sheet_screen.narrative_contents_count = n + 1;
+}
+
+void sdl_character_sheet_screen_set_book_lamp(u32b current, u32b maximum,
+    int page)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    g_sdl_character_sheet_screen.narrative_lamp_enabled = true;
+    g_sdl_character_sheet_screen.narrative_lamp_current = current;
+    g_sdl_character_sheet_screen.narrative_lamp_maximum = maximum;
+    g_sdl_character_sheet_screen.narrative_lamp_page = MAX(0, page);
 }
 
 /* Force the next added paragraph to begin a fresh page (author-placed break). */
@@ -9077,6 +9539,16 @@ void sdl_character_sheet_screen_commit_book(void)
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
     g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     g_sdl_character_sheet_screen.select_page = 0;
+    g_state.need_present = true;
+}
+
+/* Restore a narrative book to a previously visible page after rebuilding its
+ * live data.  Pagination clamps the request once the next frame is laid out. */
+void sdl_character_sheet_screen_set_book_page(int page)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    g_sdl_character_sheet_screen.select_page = MAX(0, page);
     g_state.need_present = true;
 }
 
@@ -9493,7 +9965,9 @@ bool sdl_character_sheet_screen_handle_pointer_event(
             return true;
         }
 #endif
-        if (sdl_character_sheet_screen_birth_sequence_active())
+        if (sdl_character_sheet_screen_birth_sequence_active()
+            || g_sdl_character_sheet_screen.context
+                == SDL_CHARACTER_SHEET_NARRATIVE)
         {
             sdl_character_sheet_touch_press_begin(x, y,
                 ev->tfinger.fingerID);

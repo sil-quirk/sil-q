@@ -454,14 +454,15 @@ typedef enum sdl_character_sheet_context {
     SDL_CHARACTER_SHEET_BIRTH_STATS,
     SDL_CHARACTER_SHEET_BIRTH_SKILLS,
     SDL_CHARACTER_SHEET_BIRTH_SELECT, /* race / lineage / character selection */
-    SDL_CHARACTER_SHEET_NARRATIVE     /* text-only book (quest text, etc.) */
+    SDL_CHARACTER_SHEET_NARRATIVE     /* paginated book (quests, story stats) */
 } sdl_character_sheet_context;
 
 /* Narrative book (quest offer/completion, etc.): a text-only book paginated
  * across N parchment pages, reusing the select_page/page-curl machinery. */
-#define SDL_BOOK_MAX_PARAS 32   /* most paragraphs a single book may hold */
+#define SDL_BOOK_MAX_PARAS 64   /* most paragraphs/actions a single book may hold */
 #define SDL_BOOK_PARA_LEN  1024 /* longest single paragraph (re-flowed text) */
 #define SDL_BOOK_MAX_PAGES 24   /* most pages a single book may paginate into */
+#define SDL_BOOK_MAX_CONTENTS 8 /* persistent contents links beside the leaf */
 
 typedef struct sdl_character_sheet_live_item {
     int choice;
@@ -561,16 +562,19 @@ typedef struct sdl_character_sheet_screen_state {
     int select_book_body_for_title_px;
     bool page_turn_active;     /* book mode: a page-curl animation is playing */
     int page_turn_dir;         /* +1 = forward (0->1), -1 = back (1->0) */
+    int page_turn_from_page;   /* outgoing page; may be non-adjacent to dest */
     Uint64 page_turn_start_ns; /* animation start timestamp */
     SDL_Texture* page_turn_from_tex; /* outgoing page snapshot (the curling leaf) */
     SDL_Texture* page_turn_to_tex;   /* incoming page snapshot (revealed beneath) */
     int page_turn_tex_w;       /* snapshot pixel size */
     int page_turn_tex_h;
-    /* Narrative book (context == NARRATIVE): paragraphs flowed across N pages.
+    /* Narrative book (context == NARRATIVE): paragraphs and actions flowed across N pages.
      * Pagination is recomputed lazily in the render path (it needs the live
      * canvas height) and mirrored into select_page_count. */
     char narrative_title[96];
     char narrative_paras[SDL_BOOK_MAX_PARAS][SDL_BOOK_PARA_LEN];
+    int narrative_para_choice[SDL_BOOK_MAX_PARAS]; /* >= 0: clickable action */
+    byte narrative_para_attr[SDL_BOOK_MAX_PARAS];
     bool narrative_para_break[SDL_BOOK_MAX_PARAS]; /* force a new page before this para */
     bool narrative_pending_break; /* next added paragraph starts a fresh page */
     bool narrative_para_highlight[SDL_BOOK_MAX_PARAS]; /* draw this para in the accent colour (task/reward) */
@@ -581,6 +585,14 @@ typedef struct sdl_character_sheet_screen_state {
     int narrative_body_px;         /* one body size shared by every page of the book */
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     int narrative_paginated_for_w; /* content width the page breaks were built for */
+    char narrative_contents_label[SDL_BOOK_MAX_CONTENTS][48];
+    int narrative_contents_choice[SDL_BOOK_MAX_CONTENTS];
+    int narrative_contents_page[SDL_BOOK_MAX_CONTENTS];
+    int narrative_contents_count;
+    bool narrative_lamp_enabled;
+    u32b narrative_lamp_current;
+    u32b narrative_lamp_maximum;
+    int narrative_lamp_page;
     touch_swipe_state birth_swipe;
     character_sheet_touch_press_state touch_press;
     int last_body_px;          /* last column/list body font px for tooltips */
@@ -1880,7 +1892,9 @@ int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w, float to
 int sdl_char_sheet_book_body_px(float canvas_h, float content_w, float top_y, float region_bottom, int title_px);
 void sdl_char_sheet_draw_page_frame(float px, float py, float pw, float ph, float bt);
 void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w, float top_y, float region_bottom, int title_px);
-void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font, float book_x, float book_w, float top_y, float region_bottom, float body_lh);
+void sdl_char_sheet_render_narrative_page(int page, TTF_Font* body_font,
+    float book_x, float book_w, float top_y, float region_bottom,
+    float body_lh, bool register_hits);
 void sdl_char_sheet_render_book_page(int page, float canvas_h, float content_x, float content_w, float top_y, float region_bottom, int title_px, bool register_hits);
 void sdl_char_sheet_draw_curled_leaf(SDL_Texture* leaf, SDL_FRect region, float cp);
 void sdl_character_sheet_screen_begin_page_turn(int dir);

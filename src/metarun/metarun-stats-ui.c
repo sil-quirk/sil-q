@@ -1,6 +1,7 @@
 #include "angband.h"
 #include "metarun-internal.h"
 
+#if 0 /* Previous one-page dashboard helpers; retained for historical context. */
 static void build_symbol_bar(char *out, size_t out_len, int current, int maximum, char filled)
 {
     if (!out || out_len == 0) return;
@@ -91,6 +92,7 @@ static void draw_blessing_meter(int col, int start_row, int height, u32b current
     if (text_col < col) text_col = col;
     Term_putstr(text_col, meter_end + 1, -1, TERM_L_BLUE, progress_buf);
 }
+#endif
 
 static void metarun_truncate_for_width(char *buf, int max_width)
 {
@@ -113,6 +115,7 @@ static void metarun_truncate_for_width(char *buf, int max_width)
     }
 }
 
+#if 0 /* Previous one-page dashboard input and compact-layout helpers. */
 static void metarun_put_prompt_line(int term_width, int term_height, byte attr, const char *text)
 {
     if (term_width <= 0 || term_height <= 0) return;
@@ -500,6 +503,7 @@ static void metarun_put_adaptive_line(int col,
     metarun_pick_best_variant(line, sizeof(line), max_width, v1, v2, v3, v4);
     Term_putstr(col, (*row)++, -1, attr, line);
 }
+#endif
 
 /*
  * Enhanced print_metarun_stats():
@@ -787,8 +791,9 @@ static void metarun_run_substats_menu(bool startup_scene, void (*fn)(void))
     screen_push_touch_pane_hidden();
 }
 
+#if 0 /* Previous one-page dashboard, superseded by the story book below. */
 /* Updated print_metarun_stats(): prettier layout, star & death bars, curses list */
-void print_metarun_stats(void)
+static void print_metarun_stats_legacy(void)
 {
     int row = 1;
     int col = 2;
@@ -1482,6 +1487,1465 @@ redraw_story_stats:
         screen_load();
     }
 
+    if (launch_blitz) {
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
+    }
+}
+#endif
+
+/* ------------------------------------------------------------------------
+ * Story book
+ *
+ * This replaces the old single statistics dashboard with five persistent
+ * pages.  The book deliberately delegates all mutations to the existing
+ * blessing, threshold, and difficulty menus so their validation and save
+ * behavior remain the single source of truth.
+ * ------------------------------------------------------------------------ */
+
+enum story_book_page {
+    STORY_BOOK_STATISTICS = 0,
+    STORY_BOOK_BLESSINGS,
+    STORY_BOOK_CURSES,
+    STORY_BOOK_DIFFICULTY,
+    STORY_BOOK_METARUNS,
+    STORY_BOOK_PAGE_MAX
+};
+
+enum story_book_action {
+    STORY_BOOK_PREVIOUS = 100,
+    STORY_BOOK_NEXT,
+    STORY_BOOK_CLOSE,
+    STORY_BOOK_EXCHANGE,
+    STORY_BOOK_THRESHOLD,
+    STORY_BOOK_CHANGE_DIFFICULTY,
+    STORY_BOOK_BLITZ,
+    STORY_BOOK_CURSES_EARLIER,
+    STORY_BOOK_CURSES_LATER,
+    STORY_BOOK_RUNS_NEWER,
+    STORY_BOOK_RUNS_OLDER,
+    STORY_BOOK_DIFFICULTY_CONFIRM,
+    STORY_BOOK_DIFFICULTY_CANCEL,
+    STORY_BOOK_PAGE_BASE = 200,
+    STORY_BOOK_CURSE_BASE = 10000,
+    STORY_BOOK_RUN_BASE = 20000,
+    STORY_BOOK_MINOR_BASE = 30000,
+    STORY_BOOK_MAJOR_BASE = 31000,
+    STORY_BOOK_REMOVE_CURSE_BASE = 32000,
+    STORY_BOOK_THRESHOLD_BASE = 33000,
+    STORY_BOOK_DIFFICULTY_BASE = 34000
+};
+
+static void story_book_put_line(int row, int col, int width, byte attr,
+    cptr text)
+{
+    char line[512];
+
+    if (!text || row < 0 || width <= 0)
+        return;
+
+    SDL_strlcpy(line, text, sizeof(line));
+    for (char *p = line; *p; p++) {
+        if (*p == '\n' || *p == '\r')
+            *p = ' ';
+    }
+    metarun_truncate_for_width(line, width);
+    Term_putstr(col, row, -1, attr, line);
+}
+
+/* Print no more than the available number of proportional-font lines. */
+static void story_book_put_wrapped(int *row, int row_limit, int col,
+    int width, byte attr, cptr text)
+{
+    char copy[1024];
+    int available;
+    int wrap_col;
+    int lines;
+
+    if (!row || !text || !text[0] || width <= 0 || *row >= row_limit)
+        return;
+
+    available = row_limit - *row;
+    wrap_col = col + width;
+    SDL_strlcpy(copy, text, sizeof(copy));
+    lines = count_wrapped_lines_story(copy, wrap_col, col);
+
+    while (lines > available) {
+        char *cut = strrchr(copy, ' ');
+        size_t len;
+
+        if (!cut)
+            break;
+        *cut = '\0';
+        len = strlen(copy);
+        while (len > 0 && copy[len - 1] == ' ')
+            copy[--len] = '\0';
+        if (len + 4 < sizeof(copy))
+            SDL_strlcat(copy, "...", sizeof(copy));
+        lines = count_wrapped_lines_story(copy, wrap_col, col);
+        if (lines > available && len > 3)
+            copy[len] = '\0'; /* remove the ellipsis before cutting again */
+    }
+
+    if (lines > available)
+        lines = available;
+    story_print_text(*row, col, width, attr, copy);
+    *row += lines;
+}
+
+static void story_book_draw_header(enum story_book_page page, int term_width)
+{
+    const char *labels_full[STORY_BOOK_PAGE_MAX] = {
+        "1 Statistics", "2 Blessings", "3 Curses", "4 Difficulty",
+        "5 Meta-runs"
+    };
+    const char *labels_short[STORY_BOOK_PAGE_MAX] = {
+        "1 Stats", "2 Bless", "3 Curse", "4 Diff", "5 Runs"
+    };
+    const char *const *labels = (term_width >= 74) ? labels_full : labels_short;
+    int col = 1;
+
+    story_book_put_line(0, 2, term_width - 4, TERM_YELLOW,
+        "The Chronicle of the Long Defiance");
+
+    for (int i = 0; i < STORY_BOOK_PAGE_MAX; i++) {
+        char label[48];
+        int width;
+        byte attr = (i == (int)page) ? TERM_L_BLUE : TERM_SLATE;
+
+        strnfmt(label, sizeof(label), (i == (int)page) ? "[%s]" : " %s ",
+            labels[i]);
+        width = (int)strlen(label);
+        if (col + width >= term_width)
+            break;
+        Term_putstr(col, 2, -1, attr, label);
+        ui_menu_click_add(STORY_BOOK_PAGE_BASE + i, col, 2, width);
+        col += width + 1;
+    }
+}
+
+static void story_book_draw_footer(enum story_book_page page, int term_width,
+    int term_height)
+{
+    char footer[160];
+    int row = term_height - 1;
+
+    if (sdl_touch_only_device_active()) {
+        strnfmt(footer, sizeof(footer),
+            "[ Previous ]   Page %d of %d   [ Next ]   [ Close ]",
+            page + 1, STORY_BOOK_PAGE_MAX);
+    } else {
+        strnfmt(footer, sizeof(footer),
+            "Left/Right turn page   1-5 open page   Esc close   (%d/%d)",
+            page + 1, STORY_BOOK_PAGE_MAX);
+    }
+    story_book_put_line(row, 1, term_width - 2, TERM_L_DARK, footer);
+
+    ui_menu_click_add(STORY_BOOK_PREVIOUS, 0, row, MAX(12, term_width / 4));
+    ui_menu_click_add(STORY_BOOK_NEXT, term_width / 2, row,
+        MAX(8, term_width / 4));
+    ui_menu_click_add(STORY_BOOK_CLOSE, MAX(0, term_width - 14), row, 14);
+}
+
+static void story_book_draw_statistics(int term_width, int row_limit,
+    bool startup_scene)
+{
+    char buf[256];
+    int row = 4;
+    const char *difficulty = "Unknown";
+    int win_goal = WINCON_SILMARILS;
+    int required_survivors;
+    int available;
+    u32b threshold = metarun_threshold_value(&metar);
+
+    if (runtype_info && metar.type < z_info->rt_max
+        && runtype_info[metar.type].name[0])
+    {
+        difficulty = runtype_info[metar.type].name;
+        if (runtype_info[metar.type].win_con)
+            win_goal = runtype_info[metar.type].win_con;
+    }
+    required_survivors = required_survivor_target(win_goal);
+    available = blessing_points_available();
+
+    story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
+        "Book I - The Measure of the Tale");
+    strnfmt(buf, sizeof(buf), "Story run %u, undertaken on %s difficulty.",
+        (unsigned)metar.id, difficulty);
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
+    row++;
+
+    strnfmt(buf, sizeof(buf), "Meta-run score: %lu", (unsigned long)metar.score);
+    story_book_put_line(row++, 4, term_width - 6, TERM_WHITE, buf);
+    strnfmt(buf, sizeof(buf), "Best single run: %lu",
+        (unsigned long)get_best_run_score_from_highscores());
+    story_book_put_line(row++, 4, term_width - 6, TERM_WHITE, buf);
+    strnfmt(buf, sizeof(buf), "Silmarils recovered: %d of %d", metar.silmarils,
+        win_goal);
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_GREEN, buf);
+    strnfmt(buf, sizeof(buf), "Living heroes: %d (the tale requires %d)",
+        metar.alive_characters, required_survivors);
+    story_book_put_line(row++, 4, term_width - 6,
+        (metar.alive_characters < required_survivors) ? TERM_L_RED : TERM_L_GREEN,
+        buf);
+    strnfmt(buf, sizeof(buf), "Deaths recorded: %d", metar.deaths);
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_RED, buf);
+    row++;
+
+    strnfmt(buf, sizeof(buf),
+        "Blessing points: %d available, %d spent, %d earned.", available,
+        metar.blessing_points_spent, metar.blessing_points);
+    story_book_put_line(row++, 4, term_width - 6,
+        available > 0 ? TERM_L_GREEN : TERM_WHITE, buf);
+    strnfmt(buf, sizeof(buf), "Fallen score: %lu; next blessing: %lu of %lu (%s).",
+        (unsigned long)metar.fallen_score_total,
+        (unsigned long)metar.fallen_score_pool, (unsigned long)threshold,
+        threshold_mode_name(metarun_get_threshold_mode(&metar)));
+    story_book_put_wrapped(&row, row_limit, 4, term_width - 6, TERM_WHITE, buf);
+
+    if (startup_scene && row < row_limit) {
+        row++;
+        story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+            "[ Begin Blitz Mode ]");
+        ui_menu_click_add(STORY_BOOK_BLITZ, 4, row, 24);
+    }
+}
+
+static void story_book_draw_blessings(int term_width, int row_limit)
+{
+    char buf[512];
+    int row = 4;
+    int available = blessing_points_available();
+    int minor_count = 0;
+    int major_count = 0;
+
+    story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
+        "Book II - Blessings of the West");
+    strnfmt(buf, sizeof(buf), "%d blessing point%s remain to be bestowed.",
+        available, (available == 1) ? "" : "s");
+    story_book_put_line(row++, 4, term_width - 6,
+        available > 0 ? TERM_L_GREEN : TERM_WHITE, buf);
+
+    story_book_put_line(row, 4, term_width - 6,
+        available > 0 ? TERM_L_BLUE : TERM_L_DARK,
+        "[ Add a blessing or remove a curse ]");
+    ui_menu_click_add(STORY_BOOK_EXCHANGE, 4, row++,
+        MIN(term_width - 6, 40));
+    row++;
+
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
+        "Minor blessings");
+    for (int id = 0; id < z_info->cu_max && row < row_limit; id++) {
+        int stacks = CURSE_GET(id);
+        if (stacks >= 0)
+            continue;
+        strnfmt(buf, sizeof(buf), "- %s (strength %d)",
+            blessing_display_name(id), -stacks);
+        story_book_put_line(row++, 6, term_width - 8, TERM_L_GREEN, buf);
+        minor_count++;
+    }
+    if (!minor_count && row < row_limit)
+        story_book_put_line(row++, 6, term_width - 8, TERM_L_DARK,
+            "None have yet been granted.");
+
+    if (row < row_limit)
+        story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
+            "Major blessings");
+    for (int i = 0; i < metarun_major_blessing_count() && row < row_limit; i++) {
+        if (!metarun_has_major_blessing_index(i))
+            continue;
+        const char *desc = major_blessing_short_desc(i);
+        strnfmt(buf, sizeof(buf), "- %s%s%s", major_blessing_name_str(i),
+            (desc && desc[0]) ? ": " : "", (desc && desc[0]) ? desc : "");
+        story_book_put_line(row++, 6, term_width - 8, TERM_YELLOW, buf);
+        major_count++;
+    }
+    if (!major_count && row < row_limit)
+        story_book_put_line(row++, 6, term_width - 8, TERM_L_DARK,
+            "None have yet been unlocked.");
+}
+
+static int story_book_known_curse_count(void)
+{
+    int count = 0;
+    for (int id = 0; id < z_info->cu_max; id++) {
+        if (CURSE_SEEN(id))
+            count++;
+    }
+    return count;
+}
+
+static int story_book_next_known_curse(int selected, int direction)
+{
+    int limit = MIN(z_info->cu_max, METAR_CURSE_SLOTS);
+
+    if (limit <= 0 || story_book_known_curse_count() == 0)
+        return -1;
+    for (int step = 1; step <= limit; step++) {
+        int id = (selected + direction * step) % limit;
+        if (id < 0)
+            id += limit;
+        if (CURSE_SEEN(id))
+            return id;
+    }
+    return -1;
+}
+
+static void story_book_draw_curses(int term_width, int row_limit,
+    int *selected_curse)
+{
+    char buf[1024];
+    int known_ids[METAR_CURSE_SLOTS];
+    int known_count = 0;
+    int selected_pos = 0;
+    int row = 4;
+    int list_rows;
+    int first;
+
+    for (int id = 0; id < z_info->cu_max && id < METAR_CURSE_SLOTS; id++) {
+        if (CURSE_SEEN(id))
+            known_ids[known_count++] = id;
+    }
+    if (known_count && (*selected_curse < 0 || !CURSE_SEEN(*selected_curse)))
+        *selected_curse = known_ids[0];
+    for (int i = 0; i < known_count; i++) {
+        if (known_ids[i] == *selected_curse) {
+            selected_pos = i;
+            break;
+        }
+    }
+
+    story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
+        "Book III - The Curses Made Known");
+    if (!known_count) {
+        story_book_put_wrapped(&row, row_limit, 4, term_width - 6,
+            TERM_L_DARK,
+            "No curse has yet revealed its full nature in this story run.");
+        return;
+    }
+
+    list_rows = MIN(6, MAX(2, (row_limit - row) / 2));
+    first = selected_pos - list_rows / 2;
+    if (first < 0) first = 0;
+    if (first + list_rows > known_count)
+        first = MAX(0, known_count - list_rows);
+
+    for (int i = first; i < known_count && i < first + list_rows; i++) {
+        int id = known_ids[i];
+        int stacks = CURSE_GET(id);
+        byte attr = (id == *selected_curse) ? TERM_YELLOW
+            : (stacks > 0 ? TERM_L_RED : TERM_SLATE);
+        strnfmt(buf, sizeof(buf), "%c %s%s", (id == *selected_curse) ? '>' : ' ',
+            curse_display_name(id), (stacks > 0) ? format(" (active x%d)", stacks) : "");
+        story_book_put_line(row, 4, term_width - 6, attr, buf);
+        ui_menu_click_add(STORY_BOOK_CURSE_BASE + id, 3, row++, term_width - 5);
+    }
+
+    row++;
+    if (row >= row_limit || *selected_curse < 0)
+        return;
+
+    const curse_type *curse = &cu_info[*selected_curse];
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_RED,
+        curse_display_name(*selected_curse));
+    if (curse->text) {
+        story_book_put_wrapped(&row, row_limit, 6, term_width - 8, TERM_SLATE,
+            cu_text + curse->text);
+    }
+    if (curse->power && row < row_limit) {
+        strnfmt(buf, sizeof(buf), "Known effect: %s", cu_text + curse->power);
+        story_book_put_wrapped(&row, row_limit, 6, term_width - 8,
+            TERM_L_RED, buf);
+    }
+}
+
+static void story_book_draw_difficulty(int term_width, int row_limit)
+{
+    char buf[256];
+    int row = 4;
+    const char *difficulty = "Unknown";
+    u32b threshold = metarun_threshold_value(&metar);
+
+    if (runtype_info && metar.type < z_info->rt_max
+        && runtype_info[metar.type].name[0])
+        difficulty = runtype_info[metar.type].name;
+
+    story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
+        "Book IV - The Weight of Doom");
+    strnfmt(buf, sizeof(buf), "Current difficulty: %s", difficulty);
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
+    story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+        "[ Change difficulty ]");
+    ui_menu_click_add(STORY_BOOK_CHANGE_DIFFICULTY, 4, row++, 26);
+    row++;
+
+    strnfmt(buf, sizeof(buf), "Blessing threshold: %s - %lu points",
+        threshold_mode_name(metarun_get_threshold_mode(&metar)),
+        (unsigned long)threshold);
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_GREEN, buf);
+    story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+        "[ Change blessing threshold ]");
+    ui_menu_click_add(STORY_BOOK_THRESHOLD, 4, row++, 34);
+    row++;
+
+    story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
+        "Thresholds for this difficulty");
+    const metarun_blessing_threshold_mode modes[] = {
+        METARUN_BLESSING_THRESHOLD_EASIER,
+        METARUN_BLESSING_THRESHOLD_NORMAL,
+        METARUN_BLESSING_THRESHOLD_HARDER
+    };
+    for (int i = 0; i < (int)N_ELEMENTS(modes) && row < row_limit; i++) {
+        strnfmt(buf, sizeof(buf), "- %s: %lu points per blessing",
+            threshold_mode_name(modes[i]),
+            (unsigned long)runtype_threshold_for_mode(metar.type, modes[i]));
+        story_book_put_line(row++, 6, term_width - 8,
+            modes[i] == metarun_get_threshold_mode(&metar) ? TERM_L_GREEN : TERM_WHITE,
+            buf);
+    }
+
+    if (row < row_limit)
+        story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
+            "Paths of difficulty");
+    for (int i = 0; runtype_info && i < z_info->rt_max && row < row_limit; i++) {
+        if (!runtype_info[i].name[0])
+            continue;
+        strnfmt(buf, sizeof(buf), "%c %s%s", (i == metar.type) ? '>' : '-',
+            runtype_info[i].name,
+            (i < metar.max_difficulty_reached) ? " (locked)" : "");
+        story_book_put_line(row++, 6, term_width - 8,
+            (i == metar.type) ? TERM_YELLOW
+                : ((i < metar.max_difficulty_reached) ? TERM_L_DARK
+                                                       : runtype_info[i].colour),
+            buf);
+    }
+}
+
+static int story_book_compare_metaruns(const void *a, const void *b)
+{
+    s16b ia = *(const s16b *)a;
+    s16b ib = *(const s16b *)b;
+    const metarun *ma = &metaruns[ia];
+    const metarun *mb = &metaruns[ib];
+
+    if (ma->last_played != mb->last_played)
+        return (ma->last_played < mb->last_played) ? 1 : -1;
+    if (ma->id != mb->id)
+        return (ma->id < mb->id) ? 1 : -1;
+    return 0;
+}
+
+static void story_book_draw_metaruns(int term_width, int row_limit,
+    int *selected_position)
+{
+    char buf[512];
+    s16b *order;
+    int row = 4;
+    int list_rows;
+    int first;
+
+    story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
+        "Book V - The Chronicle of Story Runs");
+    if (!metaruns || metarun_max <= 0) {
+        story_book_put_line(row, 4, term_width - 6, TERM_L_DARK,
+            "No story runs have been recorded.");
+        return;
+    }
+
+    order = mem_alloc_array(metarun_max, s16b);
+    for (s16b i = 0; i < metarun_max; i++) {
+        metaruns[i].score = compute_metarun_score(&metaruns[i]);
+        order[i] = i;
+    }
+    qsort(order, metarun_max, sizeof(*order), story_book_compare_metaruns);
+    if (*selected_position < 0) *selected_position = 0;
+    if (*selected_position >= metarun_max) *selected_position = metarun_max - 1;
+
+    list_rows = MIN(7, MAX(2, (row_limit - row) / 2));
+    first = *selected_position - list_rows / 2;
+    if (first < 0) first = 0;
+    if (first + list_rows > metarun_max)
+        first = MAX(0, metarun_max - list_rows);
+
+    for (int pos = first; pos < metarun_max && pos < first + list_rows; pos++) {
+        s16b idx = order[pos];
+        const metarun *m = &metaruns[idx];
+        time_t played = (time_t)m->last_played;
+        char date[24] = "unknown date";
+        struct tm *when = localtime(&played);
+        if (when)
+            strftime(date, sizeof(date), "%Y-%m-%d", when);
+        strnfmt(buf, sizeof(buf), "%c Story %u - score %lu - %s%s",
+            (pos == *selected_position) ? '>' : ' ', (unsigned)m->id,
+            (unsigned long)m->score, date, (idx == current_run) ? " (current)" : "");
+        story_book_put_line(row, 4, term_width - 6,
+            (pos == *selected_position) ? TERM_YELLOW
+                : ((idx == current_run) ? TERM_L_BLUE : TERM_WHITE), buf);
+        ui_menu_click_add(STORY_BOOK_RUN_BASE + pos, 3, row++, term_width - 5);
+    }
+
+    row++;
+    if (row < row_limit) {
+        s16b idx = order[*selected_position];
+        const metarun *m = &metaruns[idx];
+        const char *difficulty = "Unknown";
+        int win_goal = WINCON_SILMARILS;
+        int curses = 0;
+        int blessings = 0;
+        int majors = 0;
+        const char *result = "In progress";
+
+        if (runtype_info && m->type < z_info->rt_max
+            && runtype_info[m->type].name[0])
+        {
+            difficulty = runtype_info[m->type].name;
+            if (runtype_info[m->type].win_con)
+                win_goal = runtype_info[m->type].win_con;
+        }
+        if (m->silmarils >= win_goal) result = "Victory";
+        else if (m->deaths >= LOSECON_DEATHS) result = "Defeat";
+        for (int id = 0; id < METAR_CURSE_SLOTS; id++) {
+            if (m->curse_stacks[id] > 0) curses += m->curse_stacks[id];
+            else blessings -= m->curse_stacks[id];
+        }
+        for (int i = 0; i < major_blessing_capacity() && i < 16; i++) {
+            if (m->major_blessings & (1U << i)) majors++;
+        }
+
+        strnfmt(buf, sizeof(buf), "Story %u - %s", (unsigned)m->id, result);
+        story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
+        strnfmt(buf, sizeof(buf),
+            "%s difficulty; %d Silmarils; %d deaths; best run %lu.",
+            difficulty, m->silmarils, m->deaths,
+            (unsigned long)m->best_run_score);
+        story_book_put_wrapped(&row, row_limit, 6, term_width - 8, TERM_WHITE, buf);
+        strnfmt(buf, sizeof(buf),
+            "%d curse stack%s, %d minor blessing stack%s, %d major blessing%s.",
+            curses, curses == 1 ? "" : "s", blessings,
+            blessings == 1 ? "" : "s", majors, majors == 1 ? "" : "s");
+        story_book_put_wrapped(&row, row_limit, 6, term_width - 8, TERM_SLATE, buf);
+    }
+    order = mem_free(order);
+}
+
+typedef struct story_book_sdl_state {
+    int selected_curse;
+    int curse_offset;
+    int selected_run;
+    int run_offset;
+    int pending_difficulty;
+} story_book_sdl_state;
+
+static void story_book_sdl_heading(cptr text, bool new_page)
+{
+    if (new_page)
+        sdl_character_sheet_screen_break_book_page();
+    sdl_character_sheet_screen_add_book_paragraph_colored(text, TERM_YELLOW);
+}
+
+static void story_book_sdl_append(char *buf, size_t size, cptr text)
+{
+    if (!buf || size == 0 || !text || !text[0])
+        return;
+    if (buf[0])
+        SDL_strlcat(buf, "\n", size);
+    SDL_strlcat(buf, text, size);
+}
+
+static void story_book_sdl_copy_excerpt(char *out, size_t size, cptr text,
+    size_t max_chars)
+{
+    size_t len;
+
+    if (!out || size == 0)
+        return;
+    SDL_strlcpy(out, text ? text : "", size);
+    len = strlen(out);
+    if (len <= max_chars)
+        return;
+    len = MIN(max_chars, size - 1);
+    while (len > 0 && out[len] != ' ')
+        len--;
+    if (len < 8)
+        len = MIN(max_chars, size - 1);
+    out[len] = '\0';
+    if (len + 4 < size)
+        SDL_strlcat(out, "...", size);
+}
+
+static int story_book_sdl_collect_known_curses(int *ids, int capacity)
+{
+    int count = 0;
+
+    for (int id = 0; id < z_info->cu_max && id < METAR_CURSE_SLOTS; id++) {
+        if (!CURSE_SEEN(id))
+            continue;
+        if (count < capacity)
+            ids[count] = id;
+        count++;
+    }
+    return MIN(count, capacity);
+}
+
+static int story_book_sdl_difficulty_curse_stacks(int runtype_id,
+    int *distinct)
+{
+    int count = 0;
+    int kinds = 0;
+
+    if (runtype_info && runtype_id >= 0 && runtype_id < z_info->rt_max) {
+        int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
+        for (int id = 0; id < limit; id++) {
+            int stacks = runtype_info[runtype_id].curse_stacks[id];
+            if (stacks <= 0)
+                continue;
+            count += stacks;
+            kinds++;
+        }
+    }
+    if (distinct)
+        *distinct = kinds;
+    return count;
+}
+
+static void story_book_sdl_difficulty_effects(int runtype_id, char *out,
+    size_t size)
+{
+    int kinds = 0;
+    int stacks = story_book_sdl_difficulty_curse_stacks(runtype_id, &kinds);
+    int win_goal = WINCON_SILMARILS;
+    u32b easier;
+    u32b normal;
+    u32b harder;
+
+    if (!out || size == 0)
+        return;
+    out[0] = '\0';
+    if (!runtype_info || runtype_id < 0 || runtype_id >= z_info->rt_max)
+        return;
+    if (runtype_info[runtype_id].win_con)
+        win_goal = runtype_info[runtype_id].win_con;
+    easier = runtype_threshold_for_mode(runtype_id,
+        METARUN_BLESSING_THRESHOLD_EASIER);
+    normal = runtype_threshold_for_mode(runtype_id,
+        METARUN_BLESSING_THRESHOLD_NORMAL);
+    harder = runtype_threshold_for_mode(runtype_id,
+        METARUN_BLESSING_THRESHOLD_HARDER);
+
+    if (stacks > 0) {
+        strnfmt(out, size,
+            "%d starting curse stack%s across %d curse%s. Win at %d "
+            "Silmarils. Blessings require %lu/%lu/%lu fallen-score points "
+            "on easier/normal/harder thresholds.",
+            stacks, stacks == 1 ? "" : "s", kinds, kinds == 1 ? "" : "s",
+            win_goal, (unsigned long)easier, (unsigned long)normal,
+            (unsigned long)harder);
+    } else {
+        strnfmt(out, size,
+            "No starting curses. Win at %d Silmarils. Blessings require "
+            "%lu/%lu/%lu fallen-score points on easier/normal/harder "
+            "thresholds.", win_goal, (unsigned long)easier,
+            (unsigned long)normal, (unsigned long)harder);
+    }
+}
+
+static s16b *story_book_sdl_metarun_order(void)
+{
+    s16b *order;
+
+    if (!metaruns || metarun_max <= 0)
+        return NULL;
+    order = mem_alloc_array(metarun_max, s16b);
+    for (s16b i = 0; i < metarun_max; i++) {
+        metaruns[i].score = compute_metarun_score(&metaruns[i]);
+        order[i] = i;
+    }
+    qsort(order, metarun_max, sizeof(*order), story_book_compare_metaruns);
+    return order;
+}
+
+static bool story_book_sdl_build(bool startup_scene,
+    story_book_sdl_state *state, int restore_page)
+{
+    char buf[1024];
+    char line[256];
+    const char *difficulty = "Unknown";
+    int win_goal = WINCON_SILMARILS;
+    int required_survivors;
+    int available;
+    u32b threshold;
+
+    if (!state || !sdl_character_sheet_screen_begin_book(
+            "The Chronicle of the Long Defiance"))
+        return false;
+
+    sdl_character_sheet_screen_add_book_contents("I. Statistics",
+        STORY_BOOK_PAGE_BASE + STORY_BOOK_STATISTICS, STORY_BOOK_STATISTICS);
+    sdl_character_sheet_screen_add_book_contents("II. Blessings",
+        STORY_BOOK_PAGE_BASE + STORY_BOOK_BLESSINGS, STORY_BOOK_BLESSINGS);
+    sdl_character_sheet_screen_add_book_contents("III. Curses",
+        STORY_BOOK_PAGE_BASE + STORY_BOOK_CURSES, STORY_BOOK_CURSES);
+    sdl_character_sheet_screen_add_book_contents("IV. Difficulty",
+        STORY_BOOK_PAGE_BASE + STORY_BOOK_DIFFICULTY, STORY_BOOK_DIFFICULTY);
+    sdl_character_sheet_screen_add_book_contents("V. Story Runs",
+        STORY_BOOK_PAGE_BASE + STORY_BOOK_METARUNS, STORY_BOOK_METARUNS);
+
+    refresh_current_metar_score();
+    compute_blessing_pool();
+    metarun_sanitize_major_blessing_bits(&metar);
+
+    if (runtype_info && metar.type < z_info->rt_max
+        && runtype_info[metar.type].name[0])
+    {
+        difficulty = runtype_info[metar.type].name;
+        if (runtype_info[metar.type].win_con)
+            win_goal = runtype_info[metar.type].win_con;
+    }
+    required_survivors = required_survivor_target(win_goal);
+    available = blessing_points_available();
+    threshold = metarun_threshold_value(&metar);
+
+    /* Page I: statistics.  The tale is told in the warm tones of the Jar of
+     * Light that stands beside it -- tan for the framing, gold for glory and
+     * the Silmarils, cream for the count of the living and the dead, and amber
+     * (the colour of the held light) for the road to the next blessing. */
+    story_book_sdl_heading("Book I - The Measure of the Tale", false);
+
+    strnfmt(line, sizeof(line), "Story run %u on %s difficulty.",
+        (unsigned)metar.id, difficulty);
+    sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_L_UMBER);
+
+    strnfmt(line, sizeof(line),
+        "Meta-run score: %lu  (best single run: %lu).   Silmarils: %d of %d.",
+        (unsigned long)metar.score,
+        (unsigned long)get_best_run_score_from_highscores(),
+        metar.silmarils, win_goal);
+    sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_YELLOW);
+
+    strnfmt(line, sizeof(line), "Living heroes: %d (need %d).   Deaths: %d.",
+        metar.alive_characters, required_survivors, metar.deaths);
+    sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_L_WHITE);
+
+    strnfmt(line, sizeof(line),
+        "Blessing points: %d available, %d spent, %d earned.",
+        available, metar.blessing_points_spent, metar.blessing_points);
+    sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_L_UMBER);
+
+    strnfmt(line, sizeof(line),
+        "Fallen score: %lu.   Next blessing: %lu of %lu (%s).",
+        (unsigned long)metar.fallen_score_total,
+        (unsigned long)metar.fallen_score_pool, (unsigned long)threshold,
+        threshold_mode_name(metarun_get_threshold_mode(&metar)));
+    sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_ORANGE);
+
+    sdl_character_sheet_screen_set_book_lamp(metar.fallen_score_pool,
+        threshold, STORY_BOOK_STATISTICS);
+    if (startup_scene)
+        sdl_character_sheet_screen_add_book_action_colored("Begin Blitz Mode",
+            STORY_BOOK_BLITZ, TERM_L_BLUE);
+
+    /* Page II: blessings and the exchange. */
+    story_book_sdl_heading("Book II - Blessings of the West", true);
+    buf[0] = '\0';
+    strnfmt(line, sizeof(line), "%d blessing point%s remain to be bestowed.",
+        available, available == 1 ? "" : "s");
+    story_book_sdl_append(buf, sizeof(buf), line);
+    char minor_line[512] = "Minor blessings: ";
+    int minor_count = 0;
+    for (int id = 0; id < z_info->cu_max; id++) {
+        int stacks = CURSE_GET(id);
+        if (stacks >= 0)
+            continue;
+        if (minor_count > 0)
+            SDL_strlcat(minor_line, ", ", sizeof(minor_line));
+        SDL_strlcat(minor_line, blessing_display_name(id), sizeof(minor_line));
+        minor_count++;
+        if (minor_count >= 3)
+            break;
+    }
+    if (!minor_count)
+        SDL_strlcat(minor_line, "none", sizeof(minor_line));
+    story_book_sdl_append(buf, sizeof(buf), minor_line);
+    char major_line[512] = "Major blessings: ";
+    int major_count = 0;
+    for (int i = 0; i < metarun_major_blessing_count(); i++) {
+        if (!metarun_has_major_blessing_index(i))
+            continue;
+        if (major_count > 0)
+            SDL_strlcat(major_line, ", ", sizeof(major_line));
+        SDL_strlcat(major_line, major_blessing_name_str(i), sizeof(major_line));
+        major_count++;
+        if (major_count >= 3)
+            break;
+    }
+    if (!major_count)
+        SDL_strlcat(major_line, "none", sizeof(major_line));
+    story_book_sdl_append(buf, sizeof(buf), major_line);
+    sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_L_GREEN);
+
+    if (available > 0) {
+        int minor_choices[3];
+        int minor_choices_count = metarun_inline_minor_blessing_choices(
+            minor_choices);
+
+        for (int i = 0; i < minor_choices_count; i++) {
+            int id = minor_choices[i];
+            strnfmt(line, sizeof(line), "Receive %s (cost 1)",
+                blessing_display_name(id));
+            sdl_character_sheet_screen_add_book_action_colored(line,
+                STORY_BOOK_MINOR_BASE + id, TERM_L_GREEN);
+        }
+        int shown_curses = 0;
+        for (int id = 0; id < z_info->cu_max && shown_curses < 3; id++) {
+            int stacks = CURSE_CURSE_STACK(id);
+            if (stacks <= 0)
+                continue;
+            strnfmt(line, sizeof(line), "Lift one stack of %s (cost 1)",
+                curse_display_name(id));
+            sdl_character_sheet_screen_add_book_action_colored(line,
+                STORY_BOOK_REMOVE_CURSE_BASE + id, TERM_L_RED);
+            shown_curses++;
+        }
+        int shown_major = 0;
+        for (int i = 0; i < major_blessing_capacity() && shown_major < 3; i++) {
+            int cost;
+            if (!major_blessing_def(i) || metarun_has_major_blessing_index(i))
+                continue;
+            cost = major_blessing_cost(i);
+            strnfmt(line, sizeof(line), "Seal %s (cost %d)",
+                major_blessing_name_str(i), cost);
+            if (cost <= available) {
+                sdl_character_sheet_screen_add_book_action_colored(line,
+                    STORY_BOOK_MAJOR_BASE + i, TERM_YELLOW);
+            } else {
+                sdl_character_sheet_screen_add_book_paragraph_colored(line,
+                    TERM_L_DARK);
+            }
+            shown_major++;
+        }
+    } else {
+        sdl_character_sheet_screen_add_book_paragraph_colored(
+            "Earn another blessing point to alter the gifts of this tale.",
+            TERM_L_DARK);
+    }
+
+    /* Page III: known curses, with a bounded live list and full selected lore. */
+    story_book_sdl_heading("Book III - The Curses Made Known", true);
+    int curse_ids[METAR_CURSE_SLOTS];
+    int curse_count = story_book_sdl_collect_known_curses(curse_ids,
+        N_ELEMENTS(curse_ids));
+    if (curse_count <= 0) {
+        state->selected_curse = -1;
+        state->curse_offset = 0;
+        sdl_character_sheet_screen_add_book_paragraph(
+            "No curse has yet revealed its full nature in this story run.");
+    } else {
+        int selected_pos = 0;
+
+        if (state->curse_offset < 0) state->curse_offset = 0;
+        if (state->curse_offset >= curse_count)
+            state->curse_offset = MAX(0, curse_count - 5);
+        for (int i = 0; i < curse_count; i++) {
+            if (curse_ids[i] == state->selected_curse) {
+                selected_pos = i;
+                break;
+            }
+        }
+        if (state->selected_curse < 0 || !CURSE_SEEN(state->selected_curse)) {
+            state->selected_curse = curse_ids[state->curse_offset];
+            selected_pos = state->curse_offset;
+        }
+        if (selected_pos < state->curse_offset
+            || selected_pos >= state->curse_offset + 5)
+            state->curse_offset = (selected_pos / 5) * 5;
+
+        int end = MIN(curse_count, state->curse_offset + 5);
+        for (int i = state->curse_offset; i < end; i++) {
+            int id = curse_ids[i];
+            int stacks = CURSE_GET(id);
+            char suffix[32] = "";
+            if (stacks > 0)
+                strnfmt(suffix, sizeof(suffix), " (active x%d)", stacks);
+            strnfmt(line, sizeof(line), "%c %s%s",
+                id == state->selected_curse ? '>' : '-',
+                curse_display_name(id), suffix);
+            sdl_character_sheet_screen_add_book_action_colored(line,
+                STORY_BOOK_CURSE_BASE + id,
+                stacks > 0 ? TERM_L_RED : TERM_SLATE);
+        }
+
+        const curse_type *curse = &cu_info[state->selected_curse];
+        char desc[384];
+        char power[384];
+        story_book_sdl_copy_excerpt(desc, sizeof(desc),
+            curse->text ? cu_text + curse->text : "No description recorded.",
+            300);
+        story_book_sdl_copy_excerpt(power, sizeof(power),
+            curse->power ? cu_text + curse->power : "Unknown", 260);
+        strnfmt(buf, sizeof(buf), "%s\n%s",
+            curse_display_name(state->selected_curse), desc);
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_SLATE);
+        strnfmt(buf, sizeof(buf), "Known effect: %s", power);
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_L_RED);
+        if (state->curse_offset > 0)
+            sdl_character_sheet_screen_add_book_action_colored(
+                "Earlier known curses", STORY_BOOK_CURSES_EARLIER,
+                TERM_L_BLUE);
+        if (end < curse_count)
+            sdl_character_sheet_screen_add_book_action_colored(
+                "Later known curses", STORY_BOOK_CURSES_LATER,
+                TERM_L_BLUE);
+    }
+
+    /* Page IV: difficulty changes are previewed and confirmed on this page. */
+    story_book_sdl_heading("Book IV - The Weight of Doom", true);
+    if (state->pending_difficulty >= 0 && runtype_info
+        && state->pending_difficulty < z_info->rt_max
+        && runtype_info[state->pending_difficulty].name[0])
+    {
+        int pending = state->pending_difficulty;
+
+        strnfmt(buf, sizeof(buf), "Change %s to %s?", difficulty,
+            runtype_info[pending].name);
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf,
+            runtype_info[pending].colour);
+        story_book_sdl_difficulty_effects(pending, buf, sizeof(buf));
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_WHITE);
+        sdl_character_sheet_screen_add_book_paragraph_colored(
+            "WARNING: This difficulty increase is permanent for this story "
+            "run. You cannot return to the current difficulty after "
+            "confirming.", TERM_L_RED);
+        sdl_character_sheet_screen_add_book_action_colored(
+            "Confirm permanent difficulty change",
+            STORY_BOOK_DIFFICULTY_CONFIRM, TERM_L_RED);
+        sdl_character_sheet_screen_add_book_action_colored(
+            "Cancel - keep current difficulty", STORY_BOOK_DIFFICULTY_CANCEL,
+            TERM_L_GREEN);
+    } else {
+        const metarun_blessing_threshold_mode modes[] = {
+            METARUN_BLESSING_THRESHOLD_EASIER,
+            METARUN_BLESSING_THRESHOLD_NORMAL,
+            METARUN_BLESSING_THRESHOLD_HARDER
+        };
+
+        strnfmt(buf, sizeof(buf),
+            "Current: %s. Blessing threshold: %s - %lu points.", difficulty,
+            threshold_mode_name(metarun_get_threshold_mode(&metar)),
+            (unsigned long)threshold);
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf,
+            TERM_L_BLUE);
+        for (int i = 0; i < (int)N_ELEMENTS(modes); i++) {
+            byte attr = modes[i] == METARUN_BLESSING_THRESHOLD_EASIER
+                ? TERM_L_GREEN
+                : (modes[i] == METARUN_BLESSING_THRESHOLD_HARDER
+                    ? TERM_ORANGE : TERM_WHITE);
+            strnfmt(line, sizeof(line), "%s threshold - %lu points",
+                threshold_mode_name(modes[i]),
+                (unsigned long)runtype_threshold_for_mode(metar.type,
+                    modes[i]));
+            sdl_character_sheet_screen_add_book_action_colored(line,
+                STORY_BOOK_THRESHOLD_BASE + modes[i], attr);
+        }
+        sdl_character_sheet_screen_add_book_paragraph_colored(
+            "Difficulty levels (select one to review its effects):",
+            TERM_SLATE);
+        for (int i = 0; runtype_info && i < z_info->rt_max; i++) {
+            int stacks;
+            byte attr;
+
+            if (!runtype_info[i].name[0])
+                continue;
+            stacks = story_book_sdl_difficulty_curse_stacks(i, NULL);
+            strnfmt(line, sizeof(line), "%c %s - %s", i == metar.type ? '>' : '-',
+                runtype_info[i].name,
+                stacks > 0 ? format("%d starting curse stack%s", stacks,
+                    stacks == 1 ? "" : "s") : "no starting curses");
+            attr = i == metar.type ? TERM_YELLOW
+                : (i < metar.max_difficulty_reached ? TERM_L_DARK
+                                                     : runtype_info[i].colour);
+            if (i != metar.type && i >= metar.max_difficulty_reached) {
+                sdl_character_sheet_screen_add_book_action_colored(line,
+                    STORY_BOOK_DIFFICULTY_BASE + i, attr);
+            } else {
+                if (i < metar.max_difficulty_reached)
+                    SDL_strlcat(line, " (locked)", sizeof(line));
+                sdl_character_sheet_screen_add_book_paragraph_colored(line,
+                    attr);
+            }
+        }
+    }
+
+    /* Page V: click a run to replace the detail paragraph in place. */
+    story_book_sdl_heading("Book V - The Chronicle of Story Runs", true);
+    s16b *order = story_book_sdl_metarun_order();
+    if (!order) {
+        state->selected_run = 0;
+        state->run_offset = 0;
+        sdl_character_sheet_screen_add_book_paragraph(
+            "No story runs have been recorded.");
+    } else {
+        if (state->selected_run < 0) state->selected_run = 0;
+        if (state->selected_run >= metarun_max)
+            state->selected_run = metarun_max - 1;
+        if (state->run_offset < 0) state->run_offset = 0;
+        if (state->run_offset >= metarun_max)
+            state->run_offset = MAX(0, metarun_max - 5);
+        if (state->selected_run < state->run_offset
+            || state->selected_run >= state->run_offset + 5)
+            state->run_offset = (state->selected_run / 5) * 5;
+
+        int end = MIN(metarun_max, state->run_offset + 5);
+        for (int pos = state->run_offset; pos < end; pos++) {
+            s16b idx = order[pos];
+            const metarun *m = &metaruns[idx];
+            time_t played = (time_t)m->last_played;
+            char date[24] = "unknown date";
+            struct tm *when = localtime(&played);
+            if (when)
+                strftime(date, sizeof(date), "%Y-%m-%d", when);
+            strnfmt(line, sizeof(line), "%c Story %u - score %lu - %s%s",
+                pos == state->selected_run ? '>' : '-', (unsigned)m->id,
+                (unsigned long)m->score, date,
+                idx == current_run ? " (current)" : "");
+            sdl_character_sheet_screen_add_book_action_colored(line,
+                STORY_BOOK_RUN_BASE + pos,
+                idx == current_run ? TERM_YELLOW : TERM_WHITE);
+        }
+
+        s16b idx = order[state->selected_run];
+        const metarun *m = &metaruns[idx];
+        const char *run_difficulty = "Unknown";
+        int run_win_goal = WINCON_SILMARILS;
+        int curses = 0;
+        int blessings = 0;
+        int majors = 0;
+        const char *result = "In progress";
+        if (runtype_info && m->type < z_info->rt_max
+            && runtype_info[m->type].name[0])
+        {
+            run_difficulty = runtype_info[m->type].name;
+            if (runtype_info[m->type].win_con)
+                run_win_goal = runtype_info[m->type].win_con;
+        }
+        if (m->silmarils >= run_win_goal) result = "Victory";
+        else if (m->deaths >= LOSECON_DEATHS) result = "Defeat";
+        for (int id = 0; id < METAR_CURSE_SLOTS; id++) {
+            if (m->curse_stacks[id] > 0) curses += m->curse_stacks[id];
+            else blessings -= m->curse_stacks[id];
+        }
+        for (int i = 0; i < major_blessing_capacity() && i < 16; i++) {
+            if (m->major_blessings & (1U << i)) majors++;
+        }
+        strnfmt(buf, sizeof(buf),
+            "Story %u - %s.\n%s difficulty; %d Silmarils; %d deaths; best run %lu.\n"
+            "%d curse stacks, %d minor blessing stacks, %d major blessings.",
+            (unsigned)m->id, result, run_difficulty, m->silmarils, m->deaths,
+            (unsigned long)m->best_run_score, curses, blessings, majors);
+        sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_SLATE);
+        if (state->run_offset > 0)
+            sdl_character_sheet_screen_add_book_action_colored(
+                "Newer story runs", STORY_BOOK_RUNS_NEWER, TERM_L_BLUE);
+        if (end < metarun_max)
+            sdl_character_sheet_screen_add_book_action_colored(
+                "Older story runs", STORY_BOOK_RUNS_OLDER, TERM_L_BLUE);
+        order = mem_free(order);
+    }
+
+    sdl_character_sheet_screen_commit_book();
+    sdl_character_sheet_screen_set_book_page(restore_page);
+    return true;
+}
+
+static bool story_book_show_sdl(bool startup_scene)
+{
+    story_book_sdl_state state = { -1, 0, 0, 0, -1 };
+    bool done = false;
+    bool launch_blitz = false;
+
+    if (!startup_scene)
+        screen_save();
+    screen_push_supporting_panes_hidden();
+
+    if (!story_book_sdl_build(startup_scene, &state, 0)) {
+        screen_pop_supporting_panes_hidden();
+        if (!startup_scene)
+            screen_load();
+        return false;
+    }
+
+    while (!done) {
+        int key;
+        int clicked = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+        int page;
+        int page_count;
+
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        key = metarun_inkey_hidden();
+
+        if (ui_menu_click_take_action(&clicked, &click_action)) {
+            ui_menu_click_clear();
+            if (click_action == UI_MENU_CLICK_HOVER)
+                continue;
+
+            page = sdl_character_sheet_screen_select_page();
+            page_count = sdl_character_sheet_screen_select_page_count();
+            if (clicked == SDL_SELECT_CLICK_PAGE_PREV) {
+                if (page > 0 && !sdl_character_sheet_screen_page_turning())
+                    sdl_character_sheet_screen_begin_page_turn(-1);
+                continue;
+            }
+            if (clicked == SDL_SELECT_CLICK_PAGE_NEXT) {
+                if (page < page_count - 1
+                    && !sdl_character_sheet_screen_page_turning())
+                    sdl_character_sheet_screen_begin_page_turn(+1);
+                else if (page >= page_count - 1)
+                    done = true;
+                continue;
+            }
+
+            if (clicked >= STORY_BOOK_PAGE_BASE
+                && clicked < STORY_BOOK_PAGE_BASE + STORY_BOOK_PAGE_MAX)
+            {
+                int target = clicked - STORY_BOOK_PAGE_BASE;
+                if (target >= 0 && target < page_count && target != page
+                    && !sdl_character_sheet_screen_page_turning())
+                    sdl_character_sheet_screen_begin_page_turn_to(target);
+                continue;
+            }
+
+            if (clicked >= STORY_BOOK_CURSE_BASE
+                && clicked < STORY_BOOK_CURSE_BASE + METAR_CURSE_SLOTS)
+            {
+                state.selected_curse = clicked - STORY_BOOK_CURSE_BASE;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked >= STORY_BOOK_RUN_BASE
+                && clicked < STORY_BOOK_RUN_BASE + metarun_max)
+            {
+                state.selected_run = clicked - STORY_BOOK_RUN_BASE;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+
+            if (clicked >= STORY_BOOK_MINOR_BASE
+                && clicked < STORY_BOOK_MINOR_BASE + METAR_CURSE_SLOTS)
+            {
+                (void)metarun_inline_choose_minor_blessing(
+                    clicked - STORY_BOOK_MINOR_BASE);
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked >= STORY_BOOK_MAJOR_BASE
+                && clicked < STORY_BOOK_MAJOR_BASE + major_blessing_capacity())
+            {
+                (void)metarun_inline_choose_major_blessing(
+                    clicked - STORY_BOOK_MAJOR_BASE);
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked >= STORY_BOOK_REMOVE_CURSE_BASE
+                && clicked < STORY_BOOK_REMOVE_CURSE_BASE + METAR_CURSE_SLOTS)
+            {
+                (void)metarun_inline_remove_curse(
+                    clicked - STORY_BOOK_REMOVE_CURSE_BASE);
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked >= STORY_BOOK_THRESHOLD_BASE
+                && clicked < STORY_BOOK_THRESHOLD_BASE
+                    + METARUN_BLESSING_THRESHOLD_MODE_MAX)
+            {
+                metarun_blessing_threshold_mode mode =
+                    (metarun_blessing_threshold_mode)(clicked
+                        - STORY_BOOK_THRESHOLD_BASE);
+                metarun_set_threshold_mode(&metar, mode);
+                update_blessing_ledger(&metar);
+                if (!sync_current_metarun_slot(false))
+                    log_warn("Inline threshold change failed to sync metarun");
+                save_metaruns();
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked >= STORY_BOOK_DIFFICULTY_BASE
+                && clicked < STORY_BOOK_DIFFICULTY_BASE + z_info->rt_max)
+            {
+                state.pending_difficulty = clicked
+                    - STORY_BOOK_DIFFICULTY_BASE;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_DIFFICULTY_CONFIRM) {
+                if (state.pending_difficulty >= 0)
+                    (void)metarun_set_difficulty_inline(
+                        state.pending_difficulty);
+                state.pending_difficulty = -1;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_DIFFICULTY_CANCEL) {
+                state.pending_difficulty = -1;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_CURSES_EARLIER) {
+                state.curse_offset = MAX(0, state.curse_offset - 5);
+                state.selected_curse = -1;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_CURSES_LATER) {
+                state.curse_offset += 5;
+                state.selected_curse = -1;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_RUNS_NEWER) {
+                state.run_offset = MAX(0, state.run_offset - 5);
+                state.selected_run = state.run_offset;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_RUNS_OLDER) {
+                state.run_offset += 5;
+                state.selected_run = state.run_offset;
+                (void)story_book_sdl_build(startup_scene, &state, page);
+                continue;
+            }
+            if (clicked == STORY_BOOK_BLITZ) {
+                launch_blitz = true;
+                done = true;
+                continue;
+            }
+        } else if (key == UI_MENU_CLICK_WAKE_KEY) {
+            ui_menu_click_clear();
+            continue;
+        }
+        ui_menu_click_clear();
+
+        if (steamdeck_controls_active())
+            key = steamdeck_menu_key(key, '4', '6');
+        if (sdl_character_sheet_screen_page_turning())
+            continue;
+        page = sdl_character_sheet_screen_select_page();
+        page_count = sdl_character_sheet_screen_select_page_count();
+        if (key == ESCAPE || key == 'q' || key == 'Q')
+            done = true;
+        else if (key == '4' && page > 0)
+            sdl_character_sheet_screen_begin_page_turn(-1);
+        else if (key == '6' || key == ' ' || key == '\r' || key == '\n') {
+            if (page < page_count - 1)
+                sdl_character_sheet_screen_begin_page_turn(+1);
+            else
+                done = true;
+        }
+    }
+
+    ui_menu_click_clear();
+    sdl_character_sheet_screen_hide();
+    screen_pop_supporting_panes_hidden();
+    if (!startup_scene)
+        screen_load();
+    if (launch_blitz) {
+        run_mode_set_pending(RUN_MODE_BLITZ);
+        run_mode_set_current(RUN_MODE_BLITZ);
+    }
+    return true;
+}
+
+static void story_book_run_existing_menu(bool startup_scene, void (*fn)(void),
+    story_font_term_state *font_state)
+{
+    story_font_term_pop(font_state);
+    metarun_run_substats_menu(startup_scene, fn);
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        font_state);
+}
+
+void print_metarun_stats(void)
+{
+    bool startup_scene;
+    bool done = false;
+    bool launch_blitz = false;
+    enum story_book_page page = STORY_BOOK_STATISTICS;
+    int selected_curse = -1;
+    int selected_run = 0;
+    story_font_term_state font_state;
+
+    refresh_current_metar_score();
+    if (current_run < 0 || current_run >= metarun_max) {
+        screen_save();
+        Term_clear();
+        Term_putstr(2, 5, -1, TERM_RED, "No story-run data is available.");
+        Term_putstr(2, 7, -1, TERM_L_DARK, "Press any key to return.");
+        metarun_wait_hidden();
+        screen_load();
+        return;
+    }
+
+    startup_scene = (!character_generated || !p_ptr || !p_ptr->playing);
+    if (story_book_show_sdl(startup_scene))
+        return;
+
+    /* Non-SDL fallback: retain the terminal book below. */
+    if (!startup_scene) {
+        screen_save();
+        sdl_push_terminal_menu_scale();
+    }
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+    story_font_term_push_slot(true, false, STORY_FONT_SLOT_SECONDARY,
+        &font_state);
+
+    while (!done) {
+        int term_width = 80;
+        int term_height = 24;
+        int row_limit;
+        int action = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+        char key;
+
+        refresh_current_metar_score();
+        compute_blessing_pool();
+        metarun_sanitize_major_blessing_bits(&metar);
+        Term_get_size(&term_width, &term_height);
+        row_limit = MAX(5, term_height - 2);
+
+        Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        story_book_draw_header(page, term_width);
+        switch (page) {
+        case STORY_BOOK_STATISTICS:
+            story_book_draw_statistics(term_width, row_limit, startup_scene);
+            break;
+        case STORY_BOOK_BLESSINGS:
+            story_book_draw_blessings(term_width, row_limit);
+            break;
+        case STORY_BOOK_CURSES:
+            story_book_draw_curses(term_width, row_limit, &selected_curse);
+            break;
+        case STORY_BOOK_DIFFICULTY:
+            story_book_draw_difficulty(term_width, row_limit);
+            break;
+        case STORY_BOOK_METARUNS:
+            story_book_draw_metaruns(term_width, row_limit, &selected_run);
+            break;
+        default:
+            break;
+        }
+        story_book_draw_footer(page, term_width, term_height);
+        Term_fresh();
+
+        key = metarun_inkey_hidden();
+        if (ui_menu_click_take_action(&action, &click_action)) {
+            if (click_action == UI_MENU_CLICK_HOVER) {
+                if (action >= STORY_BOOK_CURSE_BASE
+                    && action < STORY_BOOK_CURSE_BASE + METAR_CURSE_SLOTS)
+                {
+                    selected_curse = action - STORY_BOOK_CURSE_BASE;
+                } else if (action >= STORY_BOOK_RUN_BASE
+                    && action < STORY_BOOK_RUN_BASE + metarun_max)
+                {
+                    selected_run = action - STORY_BOOK_RUN_BASE;
+                } else {
+                    ui_menu_click_clear();
+                    continue;
+                }
+                ui_menu_click_clear();
+                continue;
+            }
+        } else if (key == UI_MENU_CLICK_WAKE_KEY) {
+            ui_menu_click_clear();
+            continue;
+        }
+        ui_menu_click_clear();
+
+        if (action >= STORY_BOOK_PAGE_BASE
+            && action < STORY_BOOK_PAGE_BASE + STORY_BOOK_PAGE_MAX)
+        {
+            page = (enum story_book_page)(action - STORY_BOOK_PAGE_BASE);
+            continue;
+        }
+        if (action >= STORY_BOOK_CURSE_BASE
+            && action < STORY_BOOK_CURSE_BASE + METAR_CURSE_SLOTS)
+        {
+            selected_curse = action - STORY_BOOK_CURSE_BASE;
+            continue;
+        }
+        if (action >= STORY_BOOK_RUN_BASE
+            && action < STORY_BOOK_RUN_BASE + metarun_max)
+        {
+            selected_run = action - STORY_BOOK_RUN_BASE;
+            continue;
+        }
+        if (action == STORY_BOOK_PREVIOUS) key = '4';
+        else if (action == STORY_BOOK_NEXT) key = '6';
+        else if (action == STORY_BOOK_CLOSE) key = ESCAPE;
+        else if (action == STORY_BOOK_EXCHANGE) key = 'b';
+        else if (action == STORY_BOOK_THRESHOLD) key = 't';
+        else if (action == STORY_BOOK_CHANGE_DIFFICULTY) key = 'd';
+        else if (action == STORY_BOOK_BLITZ) key = 'x';
+
+        if (key >= '1' && key <= '5') {
+            page = (enum story_book_page)(key - '1');
+        } else if (key == ESCAPE
+            || (steamdeck_controls_active() && key == steamdeck_back_key())) {
+            done = true;
+        } else if (key == '4' || key == 'h' || key == 'H') {
+            page = (enum story_book_page)((page + STORY_BOOK_PAGE_MAX - 1)
+                % STORY_BOOK_PAGE_MAX);
+        } else if (key == '6' || key == 'l' || key == 'L') {
+            page = (enum story_book_page)((page + 1) % STORY_BOOK_PAGE_MAX);
+        } else if (page == STORY_BOOK_BLESSINGS
+            && (key == 'b' || key == 'B' || key == '\r' || key == '\n'))
+        {
+            story_book_run_existing_menu(startup_scene,
+                open_blessing_exchange, &font_state);
+        } else if (page == STORY_BOOK_DIFFICULTY
+            && (key == 't' || key == 'T'))
+        {
+            story_book_run_existing_menu(startup_scene,
+                adjust_blessing_threshold_menu, &font_state);
+        } else if (page == STORY_BOOK_DIFFICULTY
+            && (key == 'd' || key == 'D' || key == '\r' || key == '\n'))
+        {
+            story_book_run_existing_menu(startup_scene,
+                choose_difficulty_menu, &font_state);
+        } else if (page == STORY_BOOK_STATISTICS && startup_scene
+            && (key == 'x' || key == 'X'))
+        {
+            launch_blitz = true;
+            done = true;
+        } else if (page == STORY_BOOK_CURSES
+            && (key == '8' || key == 'k' || key == 'K' || key == '-'))
+        {
+            selected_curse = story_book_next_known_curse(selected_curse, -1);
+        } else if (page == STORY_BOOK_CURSES
+            && (key == '2' || key == 'j' || key == 'J' || key == '+'))
+        {
+            selected_curse = story_book_next_known_curse(selected_curse, 1);
+        } else if (page == STORY_BOOK_METARUNS
+            && (key == '8' || key == 'k' || key == 'K' || key == '-'))
+        {
+            selected_run = MAX(0, selected_run - 1);
+        } else if (page == STORY_BOOK_METARUNS
+            && (key == '2' || key == 'j' || key == 'J' || key == '+'))
+        {
+            selected_run = MIN(metarun_max - 1, selected_run + 1);
+        }
+    }
+
+    ui_menu_click_clear();
+    story_font_term_pop(&font_state);
+    screen_pop_touch_pane_hidden();
+    screen_pop_supporting_panes_hidden();
+    if (!startup_scene) {
+        sdl_pop_terminal_menu_scale();
+        screen_load();
+    }
     if (launch_blitz) {
         run_mode_set_pending(RUN_MODE_BLITZ);
         run_mode_set_current(RUN_MODE_BLITZ);

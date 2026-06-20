@@ -83,7 +83,12 @@ void wait_for_keypress_with_prompt(cptr prompt);
 cptr curse_display_name(int idx);
 cptr blessing_display_name(int idx);
 void open_blessing_exchange(void);
+int metarun_inline_minor_blessing_choices(int out[3]);
+bool metarun_inline_choose_minor_blessing(int id);
+bool metarun_inline_choose_major_blessing(int idx);
+bool metarun_inline_remove_curse(int id);
 void show_all_active_curses(void);
 void choose_difficulty_menu(void);
+bool metarun_set_difficulty_inline(int choice);
 
 #endif /* INCLUDED_METARUN_INTERNAL_H */

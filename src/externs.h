@@ -1618,16 +1618,27 @@ extern int sdl_character_sheet_screen_select_page(void);
 extern int sdl_character_sheet_screen_select_page_count(void);
 extern bool sdl_character_sheet_screen_page_turning(void);
 extern void sdl_character_sheet_screen_begin_page_turn(int dir);
+extern void sdl_character_sheet_screen_begin_page_turn_to(int page);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
 extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);
-/* Narrative "book" (text-only, N pages): quest text, etc.  Reuses the page-turn
+/* Narrative "book" (N pages with optional actions): quest text, stats, etc.  Reuses the page-turn
  * navigation accessors above (select_page / page_turning / begin_page_turn). */
 extern bool sdl_character_sheet_screen_begin_book(cptr title);
 extern void sdl_character_sheet_screen_add_book_paragraph(cptr text);
+extern void sdl_character_sheet_screen_add_book_paragraph_colored(cptr text,
+    int attr);
+extern void sdl_character_sheet_screen_add_book_action(cptr text, int choice);
+extern void sdl_character_sheet_screen_add_book_action_colored(cptr text,
+    int choice, int attr);
+extern void sdl_character_sheet_screen_add_book_contents(cptr label,
+    int choice, int page);
+extern void sdl_character_sheet_screen_set_book_lamp(u32b current,
+    u32b maximum, int page);
 extern void sdl_character_sheet_screen_break_book_page(void);
 extern void sdl_character_sheet_screen_highlight_book_paragraph(void);
 extern void sdl_character_sheet_screen_commit_book(void);
+extern void sdl_character_sheet_screen_set_book_page(int page);
 extern bool screen_saved_fullscreen_active(void);
 extern void screen_push_supporting_panes_hidden(void);
 extern void screen_pop_supporting_panes_hidden(void);

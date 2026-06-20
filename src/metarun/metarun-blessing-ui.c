@@ -113,6 +113,141 @@ static void blessing_commit_changes(bool apply_runtime)
     save_metaruns();
 }
 
+bool metarun_inline_remove_curse(int id)
+{
+    int stacks;
+
+    if (blessing_points_remaining() < 1 || id < 0 || id >= z_info->cu_max)
+        return false;
+    stacks = CURSE_CURSE_STACK(id);
+    if (stacks <= 0)
+        return false;
+    CURSE_SET(id, stacks - 1);
+    CURSE_SEEN_SET(id);
+    blessing_spend_points(1);
+    metar.pending_blessing_count = 0;
+    for (int i = 0; i < 3; i++)
+        metar.pending_blessing_choices[i] = 255;
+    blessing_commit_changes(true);
+    return true;
+}
+
+int metarun_inline_minor_blessing_choices(int out[3])
+{
+    int picks = 0;
+
+    if (!out)
+        return 0;
+    for (int i = 0; i < metar.pending_blessing_count && i < 3; i++) {
+        int id = metar.pending_blessing_choices[i];
+        int stacks;
+        if (id < 0 || id >= z_info->cu_max || id == 255
+            || !cu_info[id].blessing_name)
+            continue;
+        stacks = CURSE_GET(id);
+        if (stacks > 0)
+            continue;
+        if (CURSE_BLESSING_CAP(id) > 0
+            && -MIN(stacks, 0) >= CURSE_BLESSING_CAP(id))
+            continue;
+        out[picks++] = id;
+    }
+    if (picks > 0)
+        return picks;
+
+    int eligible[METAR_CURSE_SLOTS];
+    int weights[METAR_CURSE_SLOTS];
+    int count = 0;
+    int total_weight = 0;
+    for (int id = 0; id < z_info->cu_max && count < METAR_CURSE_SLOTS; id++) {
+        int stacks;
+        int blessing_stacks;
+        int base_weight;
+        if (!cu_info[id].blessing_name)
+            continue;
+        stacks = CURSE_GET(id);
+        if (stacks > 0)
+            continue;
+        blessing_stacks = -MIN(stacks, 0);
+        if (CURSE_BLESSING_CAP(id) > 0
+            && blessing_stacks >= CURSE_BLESSING_CAP(id))
+            continue;
+        eligible[count] = id;
+        base_weight = cu_info[id].weight > 0 ? cu_info[id].weight : 1;
+        weights[count] = MAX(1, base_weight / (blessing_stacks + 1));
+        total_weight += weights[count];
+        count++;
+    }
+    picks = MIN(3, count);
+    for (int i = 0; i < picks; i++) {
+        int roll = rand_int(total_weight);
+        int sum = 0;
+        int selected = 0;
+        for (int j = 0; j < count; j++) {
+            sum += weights[j];
+            if (roll < sum) {
+                selected = j;
+                break;
+            }
+        }
+        out[i] = eligible[selected];
+        total_weight -= weights[selected];
+        eligible[selected] = eligible[count - 1];
+        weights[selected] = weights[count - 1];
+        count--;
+    }
+    metar.pending_blessing_count = picks;
+    for (int i = 0; i < 3; i++)
+        metar.pending_blessing_choices[i] = (i < picks) ? out[i] : 255;
+    if (picks > 0)
+        save_metaruns();
+    return picks;
+}
+
+bool metarun_inline_choose_minor_blessing(int id)
+{
+    int choices[3];
+    int count;
+    int stacks;
+    bool offered = false;
+
+    if (blessing_points_remaining() < 1)
+        return false;
+    count = metarun_inline_minor_blessing_choices(choices);
+    for (int i = 0; i < count; i++)
+        if (choices[i] == id) offered = true;
+    if (!offered)
+        return false;
+    stacks = CURSE_GET(id);
+    if (stacks > 0 || (CURSE_BLESSING_CAP(id) > 0
+            && -MIN(stacks, 0) >= CURSE_BLESSING_CAP(id)))
+        return false;
+    CURSE_ADD(id, -1);
+    CURSE_SEEN_SET(id);
+    blessing_spend_points(1);
+    metar.pending_blessing_count = 0;
+    for (int i = 0; i < 3; i++)
+        metar.pending_blessing_choices[i] = 255;
+    blessing_commit_changes(true);
+    return true;
+}
+
+bool metarun_inline_choose_major_blessing(int idx)
+{
+    int cost;
+
+    if (idx < 0 || idx >= major_blessing_capacity()
+        || !major_blessing_def(idx) || metarun_has_major_blessing_index(idx))
+        return false;
+    cost = major_blessing_cost(idx);
+    if (cost < 0 || cost > blessing_points_remaining())
+        return false;
+    metar.major_blessings |= (1U << idx);
+    blessing_spend_points(cost);
+    blessing_commit_changes(true);
+    return true;
+}
+
 static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *result_attr)
 {
     int ids[METAR_CURSE_SLOTS];
