@@ -303,7 +303,7 @@ W:1:0:30:4
 P:0:0d0:1:1d0
 R:EVN:2
 A:3/60
-F:ENCHANTABLE | MORE_SPECIAL
+F:ENCHANTABLE | MORE_SPECIAL | LIGHT_ARMOR
 D:[neutral]A robe of plain but serviceable cloth, such as a healer, a
 D: house-servant, or some learned man among the Edain might wear in hall
 D: or by the fire. It is soft, unarmoured, and easily mended, fit to
@@ -328,6 +328,7 @@ P:0:0d0:-1:1d4
 R:EVN:0
 R:PS:5
 A:1/100
+F:LIGHT_ARMOR
 D:[neutral]Armour of tanned hide, plain and weatherworthy, such as
 D: huntsmen, scouts, and hard-travelling folk might wear when iron would
 D: burden them too greatly. It is practical gear for rain, thicket, and
@@ -1078,6 +1079,7 @@ W:2:0:20:3
 P:0:0d0:1:1d0
 R:EVN:2
 A:2/60:10/100
+F:LIGHT_ARMOR
 D:[neutral]A cloak of serviceable wool, such as a traveller, watchman,
 D: or hunter among the Edain might wear against drizzle, ash, and the
 D: chill before dawn. It promises no splendour, only shelter, plain
@@ -1096,7 +1098,7 @@ W:12:0:10:4000
 P:0:0d0:3:1d0
 R:EVN:4
 A:12/15
-F:DARKNESS | STEALTH
+F:DARKNESS | STEALTH | LIGHT_ARMOR
 D:A cloak woven of the deepest darkness, its fabric seeming
 D: to drink the light around it. It wraps the wearer in
 D: shadow, and in the lightless halls of Angband, one who
@@ -1236,7 +1238,7 @@ P:0:0d0:0:1d1
 R:EVN:1
 R:PS:2
 A:1/100
-F:LESS_SPECIAL
+F:LESS_SPECIAL | LIGHT_ARMOR
 D:[neutral]Sturdy leather boots for the road, fit for rain, mud, and the
 D: daily wear of long going. They are the sort a traveller, hunter, or
 D: common scout might prize for dry feet and sound footing rather than
@@ -1310,6 +1312,7 @@ P:0:0d0:0:1d0
 R:EVN:1
 R:PS:1
 A:1/100
+F:LIGHT_ARMOR
 D:[neutral]Light leather gloves, made to keep the hands from cold, damp,
 D: and chafing work. They are ordinary useful things for riding, drawing
 D: a bow, handling rope, or labouring in rough weather, with no greater

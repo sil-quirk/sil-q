@@ -242,8 +242,8 @@ E:+1 Dexterity.
 
 N:40:Dodging
 I:2:0:2
-D:Dodging blows with the nimbleness of the Laiquendi in the shadowed woods of Ossiriand. The Green-elves moved like wind through leaves, never still long enough for blade or claw to find them, their bodies weaving between the strokes of their slower foes.
-E:+3 evasion if you moved on your last turn.
+D:Dodging blows with the nimbleness of the Laiquendi in the shadowed woods of Ossiriand. The Green-elves moved like wind through leaves, never still long enough for blade or claw to find them, their bodies weaving between the strokes of their slower foes. Such grace is lost beneath the weight of heavy armour.
+E:+3 evasion if you moved on your last turn. Only works while wearing only light armour.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 T:35:0:99  # Cloak

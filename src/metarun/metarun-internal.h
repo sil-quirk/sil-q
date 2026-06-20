@@ -82,6 +82,7 @@ void print_paragraph(cptr txt, byte attr);
 void wait_for_keypress_with_prompt(cptr prompt);
 cptr curse_display_name(int idx);
 cptr blessing_display_name(int idx);
+cptr metarun_display_pad(char *buf, size_t size, cptr name, int cols);
 void open_blessing_exchange(void);
 int metarun_inline_minor_blessing_choices(int out[3]);
 bool metarun_inline_choose_minor_blessing(int id);

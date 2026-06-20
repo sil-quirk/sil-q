@@ -2779,10 +2779,126 @@ static void ability_browser_draw_skill_summary(
     }
 }
 
+/*
+ * For an ability the player has turned on, determine whether it currently does
+ * nothing because of the player's loadout (active weapon, off-hand weapon, or
+ * armour weight). Returns true and fills `buf` with a short reason if so.
+ *
+ * Only stable, loadout-based conditions are reported here (not transient
+ * per-turn state such as "moved last turn"), so the menu marking does not flip
+ * while the player is browsing.
+ */
+static bool ability_inactive_reason(int skilltype, int abilitynum,
+    char* buf, size_t buflen)
+{
+    cptr reason = NULL;
+
+    switch (skilltype)
+    {
+    case S_MEL:
+        switch (abilitynum)
+        {
+        case MEL_POWER:
+        case MEL_FINESSE:
+        case MEL_KNOCK_BACK:
+        case MEL_POLEARMS:
+        case MEL_CHARGE:
+        case MEL_FOLLOW_THROUGH:
+        case MEL_IMPALE:
+        case MEL_CONTROL:
+        case MEL_WHIRLWIND_ATTACK:
+        case MEL_ZONE_OF_CONTROL:
+        case MEL_SMITE:
+        case MEL_RAPID_ATTACK:
+            if (!player_active_weapon_is_melee())
+                reason = "Requires your melee weapon to be active.";
+            break;
+        case MEL_TWO_WEAPON:
+            if (!player_active_weapon_is_melee())
+            {
+                reason = "Requires your melee weapon to be active.";
+            }
+            else
+            {
+                object_type* off = &inventory[INVEN_ARM];
+                bool has_offhand_weapon = off->k_idx
+                    && ((off->tval == TV_SWORD) || (off->tval == TV_POLEARM)
+                        || (off->tval == TV_HAFTED)
+                        || (off->tval == TV_DIGGING));
+
+                if (!has_offhand_weapon)
+                    reason = "Requires a second weapon in your off hand.";
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case S_EVN:
+        switch (abilitynum)
+        {
+        case EVN_DODGING:
+            if (!wearing_only_light_armour())
+                reason = "Requires wearing only light armour.";
+            break;
+        case EVN_PARRY:
+            if (!player_active_weapon_is_melee())
+                reason = "Requires your melee weapon to be active.";
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case S_ARC:
+        switch (abilitynum)
+        {
+        case ARC_ROUT:
+        case ARC_POINT_BLANK:
+        case ARC_PUNCTURE:
+        case ARC_AMBUSH:
+        case ARC_CRIPPLING:
+        case ARC_DEADLY_HAIL:
+            if (!player_active_weapon_is_ranged())
+                reason = "Requires your ranged weapon to be active.";
+            break;
+        default:
+            break;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    if (reason && buf && buflen)
+        SDL_strlcpy(buf, reason, buflen);
+
+    return (reason != NULL);
+}
+
+/*
+ * Whether an owned, switched-on ability is currently inert due to loadout.
+ */
+static bool ability_is_blocked(int skilltype, int abilitynum)
+{
+    if (!p_ptr->have_ability[skilltype][abilitynum])
+        return (false);
+    if (!p_ptr->active_ability[skilltype][abilitynum])
+        return (false);
+
+    return ability_inactive_reason(skilltype, abilitynum, NULL, 0);
+}
+
 static byte ability_browser_entry_attr(int skilltype, int abilitynum)
 {
     if (p_ptr->have_ability[skilltype][abilitynum])
     {
+        if (p_ptr->active_ability[skilltype][abilitynum]
+            && ability_is_blocked(skilltype, abilitynum))
+            return TERM_ORANGE;
+
         if (p_ptr->innate_ability[skilltype][abilitynum])
             return p_ptr->active_ability[skilltype][abilitynum]
                 ? TERM_WHITE
@@ -2883,7 +2999,13 @@ static void ability_browser_entry_state(char* buf, size_t buflen,
 
     if (p_ptr->have_ability[skilltype][abilitynum])
     {
-        if (!p_ptr->innate_ability[skilltype][abilitynum])
+        if ((skilltype != S_SPC)
+            && p_ptr->active_ability[skilltype][abilitynum]
+            && ability_is_blocked(skilltype, abilitynum))
+        {
+            SDL_strlcpy(buf, "idle", buflen);
+        }
+        else if (!p_ptr->innate_ability[skilltype][abilitynum])
             SDL_strlcpy(buf,
                 p_ptr->active_ability[skilltype][abilitynum] ? "item" : "off",
                 buflen);
@@ -3454,6 +3576,23 @@ static int ability_browser_build_description(int skilltype,
             ability_purchase_exp_cost(skilltype));
     }
     ability_desc_add_wrapped(lines, &line_count, TERM_SLATE, status, width);
+
+    if (p_ptr->have_ability[skilltype][b_ptr->abilitynum]
+        && p_ptr->active_ability[skilltype][b_ptr->abilitynum])
+    {
+        char reason[128];
+
+        if (ability_inactive_reason(skilltype, b_ptr->abilitynum, reason,
+                sizeof(reason)))
+        {
+            char blocked[160];
+
+            ability_desc_add_blank(lines, &line_count);
+            strnfmt(blocked, sizeof(blocked), "Not active now: %s", reason);
+            ability_desc_add_wrapped(lines, &line_count, TERM_ORANGE, blocked,
+                width);
+        }
+    }
 
     oath_id = (skilltype == S_SPC)
         ? ability_browser_oath_for_special(b_ptr->abilitynum)
@@ -4436,7 +4575,12 @@ int abilities_menu2(int skilltype, int* highlight)
         /* Determine the appropriate colour. */
         if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
         {
-            if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
+            if (p_ptr->active_ability[skilltype][b_ptr->abilitynum]
+                && ability_is_blocked(skilltype, b_ptr->abilitynum))
+            {
+                attr = TERM_ORANGE;
+            }
+            else if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
             {
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                     attr = TERM_WHITE;

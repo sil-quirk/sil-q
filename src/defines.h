@@ -2157,6 +2157,7 @@
 #define TR4_PROT_COLD      0x00100000L /* Item protection counts against cold attacks */
 #define TR4_PROT_POIS      0x00200000L /* Item protection counts against poison attacks */
 #define TR4_PROT_DARK      0x00400000L /* Item protection counts against dark attacks */
+#define TR4_LIGHT_ARMOR    0x00800000L /* Light armour (robe/leather/boots/gloves/cloaks; via (Light) ego on shields/helms) */
 #define TR4_MIN_DEPTH_SPEED TR4_DEEP_CALL /* Compatibility alias */
 
 /*

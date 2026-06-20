@@ -368,6 +368,7 @@ int p_max(int typ, bool melee)
 int dodging_bonus(void)
 {
     if (p_ptr->active_ability[S_EVN][EVN_DODGING]
+        && wearing_only_light_armour()
         && (p_ptr->previous_action[0] >= 1) && (p_ptr->previous_action[0] <= 9)
         && (p_ptr->previous_action[0] != 5))
     {

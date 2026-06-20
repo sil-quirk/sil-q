@@ -45,7 +45,7 @@ M:W:8
 M:A:20:180:1:50
 
 # Maximum number of special item types
-M:E:186
+M:E:190
 
 # Maximum number of monster races
 M:R:656

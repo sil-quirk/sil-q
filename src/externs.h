@@ -1844,6 +1844,8 @@ extern byte total_mdd(const object_type* o_ptr);
 extern byte strength_modified_ds(const object_type* o_ptr, int str_adjustment);
 extern byte total_mds(const object_type* o_ptr, int str_adjustment);
 extern bool two_handed_melee(void);
+extern bool armour_is_light(const object_type* o_ptr);
+extern bool wearing_only_light_armour(void);
 extern int hand_and_a_half_bonus(const object_type* o_ptr);
 extern int axe_bonus(const object_type* o_ptr);
 extern int polearm_bonus(const object_type* o_ptr);

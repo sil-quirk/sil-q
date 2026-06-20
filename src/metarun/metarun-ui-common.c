@@ -169,3 +169,34 @@ cptr blessing_display_name(int idx)
     }
     return curse_display_name(idx);
 }
+
+/*
+ * Copy `name` into `buf` and pad it with trailing spaces until it spans `cols`
+ * display columns.  This mirrors printf's "%-*s" minimum-width field, but it
+ * counts glyph columns instead of bytes (via utf8_display_width_n), so any
+ * column printed after the name stays aligned even when curse and blessing
+ * names contain multibyte UTF-8 symbols.  Names already wider than `cols` are
+ * left unpadded, exactly as a minimum-width field would leave them.  Returns
+ * `buf` for convenient use inside a format argument list.
+ */
+cptr metarun_display_pad(char *buf, size_t size, cptr name, int cols)
+{
+    int width;
+    size_t len;
+
+    if (!buf || size == 0)
+        return "";
+    if (!name)
+        name = "";
+
+    SDL_strlcpy(buf, name, size);
+    len = strlen(buf);
+    width = utf8_display_width_n(buf, (int)len);
+
+    while (width < cols && len + 1 < size) {
+        buf[len++] = ' ';
+        width++;
+    }
+    buf[len] = '\0';
+    return buf;
+}

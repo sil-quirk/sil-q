@@ -2487,6 +2487,10 @@ int object_difficulty(object_type* o_ptr)
     {
         dif_inc += 15;
     }
+    if (f4 & TR4_LIGHT_ARMOR)
+    {
+        dif_inc += 2;  // Light armour tag (e.g. the (Light) ego)
+    }
 
     // pval dependent bonuses
     if (f1 & TR1_TUNNEL)

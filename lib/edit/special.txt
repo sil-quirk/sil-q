@@ -2124,3 +2124,19 @@ D: within seems to slip the enemy's full notice. It does not turn
 D: the stroke as armour does, but lets it go awry, as if cloth,
 D: step, and sudden turning had entered into quiet agreement.
 
+
+# Light shields and helms (count as light armour)
+
+N:185:(Light)
+W:0:40:0:800
+C:0:0:0:1:0:0:0
+T:34:0:99
+T:32:0:99
+F:LIGHT_ARMOR
+D:[shield]Its frame has been pared down and the boss set close, so that
+D: it guards the arm without burdening the step. One who bears it can
+D: still weave and turn as freely as the unarmoured. ||
+D:[helm]It has been beaten thin and fitted near to the brow, sparing of
+D: weight where lesser smiths would pile on iron, so that the head stays
+D: light and the wearer quick to slip aside.
+

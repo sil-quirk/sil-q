@@ -307,12 +307,14 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
             int option_line = line;
             /* Display curse name and stacks */
             char buf[128];
+            char padded[96];
+            metarun_display_pad(padded, sizeof padded,
+                                curse_display_name(id), 28);
             if (!menu_letters)
-                snprintf(buf, sizeof buf, "   %-28s stacks: %d",
-                         curse_display_name(id), stacks);
+                snprintf(buf, sizeof buf, "   %s stacks: %d", padded, stacks);
             else
-                snprintf(buf, sizeof buf, "%c) %-28s stacks: %d",
-                         'a' + i, curse_display_name(id), stacks);
+                snprintf(buf, sizeof buf, "%c) %s stacks: %d",
+                         'a' + i, padded, stacks);
 
             if (i == selected) {
                 Term_putstr(2, line, -1, TERM_L_BLUE, ">");

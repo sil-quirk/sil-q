@@ -640,6 +640,8 @@ def calculate_difficulty(art):
         dif_inc += 5  # Situational
     if 'PAIRED' in flags:
         dif_inc += 3  # Paired weapon bonus
+    if 'LIGHT_ARMOR' in flags:
+        dif_inc += 2  # Light armour tag (e.g. the (Light) ego)
 
     # === PVAL-DEPENDENT BONUSES ===
     # For specials: total_pval = base_pval + smithed bonus

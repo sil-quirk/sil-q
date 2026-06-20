@@ -153,6 +153,55 @@ extern bool two_handed_melee(void)
 }
 
 /*
+ * Whether an item counts as light armour (has the LIGHT_ARMOR flag, either on
+ * the base item or granted by an ego such as the (Light) prefix).
+ */
+extern bool armour_is_light(const object_type* o_ptr)
+{
+    u32b f1, f2, f3, f4;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return (false);
+
+    object_flags4(o_ptr, &f1, &f2, &f3, &f4);
+
+    return ((f4 & (TR4_LIGHT_ARMOR)) != 0);
+}
+
+/*
+ * Whether the player is wearing only light armour.
+ *
+ * Strict check: every occupied protective slot (body, head, shield, gloves,
+ * feet) must be light. Cloaks and the light source are always treated as light
+ * and are not checked. An off-hand weapon (non-shield in INVEN_ARM) is not
+ * armour and is ignored.
+ */
+extern bool wearing_only_light_armour(void)
+{
+    static const int slots[] = { INVEN_BODY, INVEN_HEAD, INVEN_HANDS,
+        INVEN_FEET, INVEN_ARM };
+    int s;
+
+    for (s = 0; s < (int)N_ELEMENTS(slots); s++)
+    {
+        object_type* o_ptr = &inventory[slots[s]];
+
+        /* Empty slots are fine */
+        if (!o_ptr->k_idx)
+            continue;
+
+        /* The arm slot only counts as armour when it holds a shield */
+        if ((slots[s] == INVEN_ARM) && (o_ptr->tval != TV_SHIELD))
+            continue;
+
+        if (!armour_is_light(o_ptr))
+            return (false);
+    }
+
+    return (true);
+}
+
+/*
  * Bonus for 'hand and a half' weapons like the bastard sword when wielded with
  * two hands
  */

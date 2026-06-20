@@ -262,6 +262,7 @@ static flag_name info_flags[] = {
     { "PROT_DARK",    TR4, TR4_PROT_DARK },
     { "WEIGHT",       TR4, TR4_WEIGHT },
     { "NEG_WEIGHT",   TR4, TR4_NEG_WEIGHT },
+    { "LIGHT_ARMOR",  TR4, TR4_LIGHT_ARMOR },
 
     /*
      * Race/Character flags

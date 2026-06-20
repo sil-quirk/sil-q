@@ -34,14 +34,6 @@ static bool story_intro_back_key(int ch)
         && ch != steamdeck_confirm_key();
 }
 
-static bool story_intro_difficulty_key(int ch)
-{
-    if (ch == 'c' || ch == 'C')
-        return true;
-
-    return steamdeck_controls_active() && ch == steamdeck_alt_action_key();
-}
-
 static void story_intro_touch_confirm_begin(int h)
 {
     if (h < 1)
@@ -60,8 +52,7 @@ static void story_intro_touch_confirm_end(void)
 
 enum
 {
-    STORY_INTRO_CLICK_FINISH = '\r',
-    STORY_INTRO_CLICK_DIFFICULTY = 'c'
+    STORY_INTRO_CLICK_FINISH = '\r'
 };
 
 static int story_intro_prompt_hit_width(cptr text)
@@ -97,7 +88,6 @@ static void story_intro_final_prompt_put(int choice, int col, int row,
 
 static void story_intro_final_prompt_draw(int h)
 {
-    int difficulty_row = (h >= 2) ? h - 2 : 0;
     int finish_row = (h >= 1) ? h - 1 : 0;
     int hover_choice = 0;
 
@@ -107,43 +97,27 @@ static void story_intro_final_prompt_draw(int h)
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
     (void)ui_menu_click_get_hover_choice(&hover_choice);
 
-    Term_erase(0, difficulty_row, 255);
-    if (finish_row != difficulty_row)
-        Term_erase(0, finish_row, 255);
+    Term_erase(0, finish_row, 255);
 
     if (steamdeck_controls_active())
     {
         char confirm_label[16];
-        char difficulty_label[16];
         char prompt_buf[96];
 
         story_intro_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
             sizeof(confirm_label));
-        story_intro_prompt_label(steamdeck_alt_action_key(), "X",
-            difficulty_label, sizeof(difficulty_label));
-        strnfmt(prompt_buf, sizeof(prompt_buf),
-            "[%s] Change difficulty (experienced players)", difficulty_label);
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
-            difficulty_row, prompt_buf,
-            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
         strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] finish", confirm_label);
         story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
             prompt_buf, hover_choice == STORY_INTRO_CLICK_FINISH);
     }
     else if (sdl_touch_only_device_active())
     {
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
-            difficulty_row, "Tap to change difficulty (experienced players)",
-            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
         story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
             "Tap here to finish",
             hover_choice == STORY_INTRO_CLICK_FINISH);
     }
     else
     {
-        story_intro_final_prompt_put(STORY_INTRO_CLICK_DIFFICULTY, 8,
-            difficulty_row, "[c] Change difficulty (experienced players)",
-            hover_choice == STORY_INTRO_CLICK_DIFFICULTY);
         story_intro_final_prompt_put(STORY_INTRO_CLICK_FINISH, 15, finish_row,
             "(press any key to finish)",
             hover_choice == STORY_INTRO_CLICK_FINISH);
@@ -484,13 +458,6 @@ void print_story_intro(void)
         Term_clear();
         goto cleanup_intro;
     }
-    if (story_intro_difficulty_key(key))
-    {
-        Term_clear();
-        choose_difficulty_level();
-        goto cleanup_intro;
-    }
-
     Term_clear();
 
     /* Flush any queued keypresses that accumulated during the intro */

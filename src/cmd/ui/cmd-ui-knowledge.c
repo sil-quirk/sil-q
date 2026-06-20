@@ -7436,8 +7436,9 @@ static void knowledge_display_curses(const knowledge_browser_layout* layout,
                                   : TERM_L_RED;
         if (idx == curse_cur)
         {
+            cptr sel_name = knowledge_curse_display_name(id);
             int selection_w = MIN(
-                (int)strlen(knowledge_curse_display_name(id)),
+                utf8_display_width_n(sel_name, (int)strlen(sel_name)),
                 layout->term_wid);
             if (selection_w < 1)
                 selection_w = 1;

@@ -96,23 +96,46 @@ static void draw_blessing_meter(int col, int start_row, int height, u32b current
 
 static void metarun_truncate_for_width(char *buf, int max_width)
 {
+    int total;
+    int width;
+    int dots;
+    int prefix;
+    int w;
+
     if (!buf) return;
     if (max_width <= 0) {
         buf[0] = '\0';
         return;
     }
 
-    int len = (int)strlen(buf);
-    if (len <= max_width) return;
+    /* Measure in display columns, not bytes, so a UTF-8 line is only cut when
+     * it is genuinely too wide on screen. */
+    total = (int)strlen(buf);
+    width = utf8_display_width_n(buf, total);
+    if (width <= max_width) return;
 
-    if (max_width >= 4) {
-        buf[max_width - 3] = '.';
-        buf[max_width - 2] = '.';
-        buf[max_width - 1] = '.';
-        buf[max_width] = '\0';
-    } else {
-        buf[max_width] = '\0';
+    /* Reserve up to three columns for an ellipsis, then keep whole UTF-8
+     * sequences until those columns are filled and cut on that boundary, so a
+     * multibyte glyph is never split in half. */
+    dots = (max_width >= 4) ? 3 : 0;
+    prefix = 0;
+    w = 0;
+    while (prefix < total) {
+        int clen = utf8_sequence_len_n(buf + prefix, total - prefix);
+        int cw;
+
+        if (clen <= 0) break;
+        cw = utf8_display_width_n(buf + prefix, clen);
+        if (w + cw > max_width - dots) break;
+        prefix += clen;
+        w += cw;
     }
+    if (dots) {
+        buf[prefix++] = '.';
+        buf[prefix++] = '.';
+        buf[prefix++] = '.';
+    }
+    buf[prefix] = '\0';
 }
 
 #if 0 /* Previous one-page dashboard input and compact-layout helpers. */
@@ -1188,21 +1211,18 @@ redraw_story_stats:
 
                 /* Format with proper alignment - shorten type labels and move closer to left */
                 /* Use shortened labels: "Bless" and "Curse" instead of full words */
+                char padded[96];
+                metarun_display_pad(padded, sizeof padded, name, 28);
                 if (effect && *effect) {
-                    snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
+                    snprintf(buf, sizeof buf, "  %s %-5s %d - %s", padded,
                              is_blessing ? "Bless" : "Curse", magnitude, effect);
                 } else {
-                    snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
+                    snprintf(buf, sizeof buf, "  %s %-5s %d", padded,
                              is_blessing ? "Bless" : "Curse", magnitude);
                 }
 
-                /* Truncate if too long */
-                if ((int)strlen(buf) > max_display_width) {
-                    buf[max_display_width - 3] = '.';
-                    buf[max_display_width - 2] = '.';
-                    buf[max_display_width - 1] = '.';
-                    buf[max_display_width] = '\0';
-                }
+                /* Truncate to the display width (UTF-8 aware). */
+                metarun_truncate_for_width(buf, max_display_width);
 
                 Term_putstr(col, row++, -1, attr, buf);
                 lines_remaining--;
@@ -2066,8 +2086,10 @@ static void story_book_sdl_copy_excerpt(char *out, size_t size, cptr text,
     len = MIN(max_chars, size - 1);
     while (len > 0 && out[len] != ' ')
         len--;
+    /* No break space within reach: fall back to a hard cut, but keep it on a
+     * UTF-8 sequence boundary so a multibyte symbol is never split. */
     if (len < 8)
-        len = MIN(max_chars, size - 1);
+        len = (size_t)utf8_safe_prefix_len(out, (int)MIN(max_chars, size - 1));
     out[len] = '\0';
     if (len + 4 < size)
         SDL_strlcat(out, "...", size);
