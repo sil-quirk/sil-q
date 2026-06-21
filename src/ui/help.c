@@ -98,6 +98,9 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
         SDL_strlcpy(buf, "Hints & Quests", buflen);
         return;
+    case TOUCH_BIND_TOGGLE_TILES:
+        SDL_strlcpy(buf, "Change ASCII / tiles", buflen);
+        return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift modifier", buflen);
         return;
@@ -257,6 +260,12 @@ void binding_action_label(int binding, char* buf, size_t buflen)
     case KTRL('Q'):
         SDL_strlcpy(buf, "Combat rolls (^Q)", buflen);
         return;
+    case KTRL('Y'):
+        SDL_strlcpy(buf, "Debug commands (^Y)", buflen);
+        return;
+    case 'J':
+        SDL_strlcpy(buf, "Equip a jewel set (J)", buflen);
+        return;
     case '0':
         SDL_strlcpy(buf, "Smithing screen (0)", buflen);
         return;
@@ -322,6 +331,9 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
         SDL_strlcpy(buf, "Hints", buflen);
+        return;
+    case TOUCH_BIND_TOGGLE_TILES:
+        SDL_strlcpy(buf, "Change ASCII/Tiles", buflen);
         return;
     case GAMEPAD_BIND_SHIFT:
         SDL_strlcpy(buf, "Shift", buflen);
@@ -481,6 +493,12 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         return;
     case KTRL('Q'):
         SDL_strlcpy(buf, "Combat", buflen);
+        return;
+    case KTRL('Y'):
+        SDL_strlcpy(buf, "Debug command", buflen);
+        return;
+    case 'J':
+        SDL_strlcpy(buf, "Equip a jewel set", buflen);
         return;
     case '0':
         SDL_strlcpy(buf, "Smithing", buflen);

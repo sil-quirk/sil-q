@@ -5555,6 +5555,7 @@ static const int touch_pane_second_action_choices[] = {
 static const int touch_context_action_choices[] = {
     GAMEPAD_BIND_NONE,
     TOUCH_BIND_MAIN_MENU_KNOWLEDGE, TOUCH_BIND_MAIN_MENU_HINTS_QUESTS,
+    TOUCH_BIND_TOGGLE_TILES,
     INPUT_BIND_CONFIRM,
     'e', 'i', 'j',
     'u', 's', 'f',
@@ -5564,7 +5565,7 @@ static const int touch_context_action_choices[] = {
     'o', 'c', 'D', 'X',
     '-', KTRL('A'), 't', 'p', 'q',
     'F', KTRL('F'), 'S', 'l', 'b',
-    KTRL('Q'), '0', '?', 'O',
+    KTRL('Q'), KTRL('Y'), 'J', '0', '?', 'O',
 };
 
 static const int touch_pane_visible_button_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT] = {

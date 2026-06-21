@@ -122,7 +122,7 @@ static int ability_purchase_exp_cost(int skilltype)
     return exp_cost;
 }
 
-static void ability_menu_sort_smithing_entries(ability_type* entries[],
+static void ability_menu_sort_entries_by_level(ability_type* entries[],
     byte attrs[], int abilitynums[], int count)
 {
     int i;
@@ -2863,6 +2863,12 @@ static bool ability_inactive_reason(int skilltype, int abilitynum,
             if (!player_active_weapon_is_ranged())
                 reason = "Requires your ranged weapon to be active.";
             break;
+        case ARC_SKIRMISHING:
+            if (!player_active_weapon_is_ranged())
+                reason = "Requires your ranged weapon to be active.";
+            else if (!wearing_only_light_armour())
+                reason = "Requires wearing only light armour.";
+            break;
         default:
             break;
         }
@@ -2981,7 +2987,7 @@ static int ability_browser_collect_entries(int skilltype,
         }
     }
 
-    if (skilltype == S_SMT)
+    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL)
         ability_browser_sort_entries(entries, count);
 
     return count;
@@ -4618,9 +4624,9 @@ int abilities_menu2(int skilltype, int* highlight)
         visible_count++;
     }
 
-    if (skilltype == S_SMT)
+    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL)
     {
-        ability_menu_sort_smithing_entries(visible_entries, visible_attrs,
+        ability_menu_sort_entries_by_level(visible_entries, visible_attrs,
             visible_abilities, visible_count);
     }
 

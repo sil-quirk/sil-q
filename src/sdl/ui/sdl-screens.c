@@ -3404,6 +3404,20 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
         sdl_char_sheet_add_select_button_hit(r,
             SDL_SELECT_CLICK_PAGE_NEXT);
     }
+
+    /* A centred "Close" button (opt-in) sits between the page arrows so the
+     * book can be left with the mouse or a touch tap from any page. */
+    if (g_sdl_character_sheet_screen.narrative_close_enabled)
+    {
+        float cw = MIN(content_w * 0.22f, bh * 6.0f);
+        float ccx = content_x + (content_w - cw) * 0.5f;
+        SDL_FRect r = { ccx, prompt_y, cw, bh };
+        byte a = (hov == SDL_SELECT_CLICK_CLOSE) ? TERM_WHITE : TERM_SLATE;
+
+        (void)sdl_char_sheet_draw_text(prompt_font, "Close", a, ccx, prompt_y,
+            cw, bh, true);
+        sdl_char_sheet_add_select_button_hit(r, SDL_SELECT_CLICK_CLOSE);
+    }
 }
 
 void sdl_char_sheet_render_hover_tooltip(void);
@@ -6339,8 +6353,8 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
 int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w,
     float top_y, float region_bottom)
 {
-    int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.024f), 15, 26);
-    int max_px = sdl_char_sheet_clampi((int)(canvas_h * 0.040f), 22, 40);
+    int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.030f), 18, 32);
+    int max_px = sdl_char_sheet_clampi((int)(canvas_h * 0.048f), 26, 46);
     int min_pages;
     int chosen;
     int px;
@@ -9145,6 +9159,7 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.narrative_lamp_current = 0;
     g_sdl_character_sheet_screen.narrative_lamp_maximum = 0;
     g_sdl_character_sheet_screen.narrative_lamp_page = 0;
+    g_sdl_character_sheet_screen.narrative_close_enabled = false;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
     g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_title,
@@ -9511,6 +9526,16 @@ void sdl_character_sheet_screen_set_book_lamp(u32b current, u32b maximum,
     g_sdl_character_sheet_screen.narrative_lamp_current = current;
     g_sdl_character_sheet_screen.narrative_lamp_maximum = maximum;
     g_sdl_character_sheet_screen.narrative_lamp_page = MAX(0, page);
+}
+
+/* Opt this narrative book into an on-screen "Close" button in the bottom
+ * control row, so the reader can leave with the mouse (or a touch tap) from any
+ * page without the keyboard.  Quest dialogue books leave this off. */
+void sdl_character_sheet_screen_set_book_close_button(bool enabled)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    g_sdl_character_sheet_screen.narrative_close_enabled = enabled;
 }
 
 /* Force the next added paragraph to begin a fresh page (author-placed break). */

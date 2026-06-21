@@ -43,6 +43,11 @@ void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press
         return;
     }
 
+    if (binding == TOUCH_BIND_TOGGLE_TILES) {
+        set_sdl_tiles(!get_sdl_tiles());
+        return;
+    }
+
     if (binding == GAMEPAD_BIND_SHIFT) {
         g_touch_pane_second_panel = !g_touch_pane_second_panel;
         g_state.need_present = true;
@@ -726,6 +731,11 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
         return;
     if (binding == GAMEPAD_BIND_NONE) {
         SDL_strlcpy(buf, "Off", buflen);
+        return;
+    }
+    if (binding == TOUCH_BIND_TOGGLE_TILES) {
+        SDL_strlcpy(buf, get_sdl_tiles() ? "Change to ASCII"
+                                        : "Change to Tiles", buflen);
         return;
     }
     /* Space/'x' adapt their name to the player's situation (stairs, item,
@@ -3595,6 +3605,15 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     case 's':
         row = 11; col = 27; fallback = "Song";
         break;
+    case TOUCH_BIND_TOGGLE_TILES:
+        has_tile = false; fallback = "A/T";
+        break;
+    case KTRL('Y'):
+        has_tile = false; fallback = "Dbg";
+        break;
+    case 'J':
+        has_tile = false; fallback = "Set";
+        break;
     default:
         has_tile = false;
         fallback = "";
@@ -3790,6 +3809,10 @@ static void sdl_touch_top_panel_description_for_binding(int binding,
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
         SDL_strlcpy(buf, "Hints & Quests: open saved hints and quest notes.",
             buflen);
+        return;
+    case TOUCH_BIND_TOGGLE_TILES:
+        strnfmt(buf, buflen, "%s.", get_sdl_tiles() ? "Change to ASCII"
+                                                     : "Change to Tiles");
         return;
     case 'j':
         SDL_strlcpy(buf, "Supply: open supplies and carried resources.",

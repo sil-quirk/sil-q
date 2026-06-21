@@ -1531,6 +1531,56 @@ static bool describe_weapon_damage(const object_type* o_ptr)
 /*
  * Output object information
  */
+/*
+ * Describe what happens when a potion is hurled and shattered.  Only shown to
+ * those who know Alchemy, who alone may throw potions.
+ */
+static bool describe_potion_throw(const object_type* o_ptr)
+{
+    cptr good[1];
+    int gc = 0;
+
+    if (!o_ptr || (o_ptr->tval != TV_POTION))
+        return false;
+    if (!p_ptr->active_ability[S_PER][PER_ALCHEMY]
+        && !p_ptr->have_ability[S_PER][PER_ALCHEMY])
+        return false;
+
+    switch (o_ptr->sval)
+    {
+    case SV_POTION_SLOWNESS:
+        good[gc++] = "bursts into a slowing vapour that hinders a nearby foe";
+        break;
+    case SV_POTION_CONFUSION:
+        good[gc++] = "bursts into a bewildering haze that confuses a nearby foe";
+        break;
+    case SV_POTION_POISON:
+        good[gc++] = "bursts into a cloud of poison that harms a nearby foe";
+        break;
+    case SV_POTION_ORCISH_LIQUOR:
+        good[gc++] = "bursts into flame, scorching a nearby foe";
+        break;
+    case SV_POTION_BLINDNESS:
+        good[gc++] = "bursts into a blinding spray, making a nearby foe lose your trail";
+        break;
+    case SV_POTION_DEC_DEX:
+        good[gc++] = "bursts into a slick haze that throws a nearby foe off balance";
+        break;
+    case SV_POTION_DEC_GRA:
+        good[gc++] = "bursts into a spirit-severing mist that leaves a nearby foe reeling and witless";
+        break;
+    case SV_POTION_true_SIGHT:
+        good[gc++] = "bursts into a clarifying mist that reveals a nearby unseen foe";
+        break;
+    default:
+        good[gc++] = "shatters without any lasting effect";
+        break;
+    }
+
+    output_desc_list("If thrown, it ", good, gc);
+    return true;
+}
+
 bool object_info_out(const object_type* o_ptr)
 {
     u32b f1, f2, f3, f4;
@@ -1551,6 +1601,8 @@ bool object_info_out(const object_type* o_ptr)
 
     /* Describe the object */
     if (describe_consumable_healing(o_ptr))
+        something = true;
+    if (describe_potion_throw(o_ptr))
         something = true;
     if (describe_stats(o_ptr, f1))
         something = true;

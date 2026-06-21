@@ -4,6 +4,7 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
+#include "ui/question.h"
 
 #define THROW_PENDING_NONE -9999
 static int throw_pending_slot = THROW_PENDING_NONE;
@@ -345,6 +346,15 @@ static void warding_girdle_spawn_glyphs(
     msg_print("A warding girdle flares into being!");
 }
 
+/* During command processing, index 1 is the preceding player action because
+ * process_player() has already shifted the history and cleared index 0. */
+static bool player_moved_on_previous_turn(void)
+{
+    int action = p_ptr->previous_action[1];
+
+    return (action >= 1) && (action <= 9) && (action != 5);
+}
+
 void do_cmd_fire(int quiver)
 {
     int dir, item;
@@ -554,8 +564,16 @@ void do_cmd_fire(int quiver)
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, false, 3);
 
-    /* Take a turn */
-    p_ptr->energy_use = 100;
+    /* Skirmishing makes the shot a half-energy action after movement. */
+    if (p_ptr->active_ability[S_ARC][ARC_SKIRMISHING]
+        && wearing_only_light_armour() && player_moved_on_previous_turn())
+    {
+        p_ptr->energy_use = 50;
+    }
+    else
+    {
+        p_ptr->energy_use = 100;
+    }
 
     // store the action type
     p_ptr->previous_action[0] = ACTION_ARCHERY;
@@ -1334,10 +1352,95 @@ static bool thrown_potion_effects(object_type* o_ptr, bool* is_dead, int m_idx)
         break;
     }
 
-    case SV_POTION_QUICKNESS:
+    case SV_POTION_POISON:
     {
-        /*speed explosion at the site, radius 0*/
-        ident = explosion(-1, 0, y, x, 1, 4, -1, GF_SPEED);
+        /*poison burst at the site, radius 0*/
+        ident = explosion(-1, 0, y, x, 5, 4, 0, GF_POIS);
+        break;
+    }
+
+    case SV_POTION_ORCISH_LIQUOR:
+    {
+        /* Flammable rotgut bursts into flame on impact. */
+        ident = explosion(-1, 0, y, x, 3, 4, 0, GF_FIRE);
+        break;
+    }
+
+    case SV_POTION_BLINDNESS:
+    {
+        /* The blinding draught makes the foe lose your trail. */
+        if (m_ptr->alertness >= ALERTNESS_UNWARY)
+        {
+            set_alertness(
+                m_ptr, rand_range(ALERTNESS_MIN, ALERTNESS_UNWARY - 1));
+
+            if (m_ptr->ml)
+            {
+                msg_format("%^s is blinded and loses your trail.", m_name);
+                ident = true;
+            }
+        }
+        else
+        {
+            used_potion = false;
+        }
+
+        break;
+    }
+
+    case SV_POTION_DEC_DEX:
+    {
+        /* Slippery fumes throw the foe off balance, costing it a turn. */
+        if (!m_ptr->skip_next_turn)
+        {
+            m_ptr->skip_next_turn = true;
+
+            if (m_ptr->ml)
+            {
+                msg_format("%^s staggers, thrown off balance.", m_name);
+                ident = true;
+            }
+        }
+        else
+        {
+            used_potion = false;
+        }
+
+        break;
+    }
+
+    case SV_POTION_DEC_GRA:
+    {
+        /*
+         * Disconnection severs the foe's spirit from its body for a moment,
+         * leaving it dazed and witless.  The mindless have no spirit to sever,
+         * and a few beings cannot be reached this way.
+         */
+        if ((r_ptr->flags2 & (RF2_MINDLESS))
+            || monster_race_is_vala(m_ptr->r_idx)
+            || (r_ptr->flags3 & (RF3_NO_STUN)))
+        {
+            if (m_ptr->ml && (r_ptr->flags3 & (RF3_NO_STUN)))
+                l_ptr->flags3 |= (RF3_NO_STUN);
+
+            used_potion = false;
+        }
+        else
+        {
+            m_ptr->stunned = (byte)MIN(m_ptr->stunned + damroll(4, 4), 255);
+
+            /* Its spirit recoils inward: it loses your trail for a moment. */
+            if (m_ptr->alertness >= ALERTNESS_UNWARY)
+                set_alertness(
+                    m_ptr, rand_range(ALERTNESS_MIN, ALERTNESS_UNWARY - 1));
+
+            if (m_ptr->ml)
+            {
+                msg_format("%^s's spirit reels; it stands witless.", m_name);
+                ident = true;
+            }
+        }
+
         break;
     }
 
@@ -1440,17 +1543,71 @@ static bool quiver_slot_can_be_thrown(int slot)
     return player_can_treat_as_throwing_flags(o_ptr, f3);
 }
 
-static bool select_quiver_throw_slot(bool automatic, int* item)
+/* Whether a resolved slot is a legal source to quick-throw from. */
+static bool throw_slot_is_valid(int item)
 {
-    bool q1 = quiver_slot_can_be_thrown(INVEN_QUIVER1);
-    bool q2 = quiver_slot_can_be_thrown(INVEN_QUIVER2);
-    int active_slot = player_active_weapon_quiver_slot();
+    if (item == INVEN_QUIVER1 || item == INVEN_QUIVER2)
+        return quiver_slot_can_be_thrown(item);
+
+    if (item >= 0 && item < INVEN_PACK)
+    {
+        object_type* o_ptr = &inventory[item];
+
+        return o_ptr->k_idx && (o_ptr->tval == TV_POTION)
+            && player_can_throw_potions();
+    }
+
+    return false;
+}
+
+/*
+ * Build the list of inventory slots the player may quick-throw: any quiver
+ * holding a throwing weapon, plus every carried potion when Alchemy is known.
+ * Returns the number of candidates written to "slots".
+ */
+static int collect_throw_candidates(int* slots, int max)
+{
+    int n = 0;
+    int i;
+
+    if (!slots || max <= 0)
+        return 0;
+
+    if ((n < max) && quiver_slot_can_be_thrown(INVEN_QUIVER1))
+        slots[n++] = INVEN_QUIVER1;
+    if ((n < max) && quiver_slot_can_be_thrown(INVEN_QUIVER2))
+        slots[n++] = INVEN_QUIVER2;
+
+    if (player_can_throw_potions())
+    {
+        for (i = 0; (i < INVEN_PACK) && (n < max); i++)
+        {
+            object_type* o_ptr = &inventory[i];
+
+            if (o_ptr->k_idx && (o_ptr->tval == TV_POTION))
+                slots[n++] = i;
+        }
+    }
+
+    return n;
+}
+
+/*
+ * Item-tester hook used by the throw chooser overlay: accept only quick-throw
+ * candidates (quiver throwing weapons and, with Alchemy, carried potions).
+ */
+static bool select_throw_slot(bool automatic, int* item)
+{
+    int slots[INVEN_PACK + 2];
+    int count;
 
     if (!item)
         return false;
 
     if (automatic)
     {
+        int active_slot = player_active_weapon_quiver_slot();
+
         if (active_slot && quiver_slot_can_be_thrown(active_slot))
         {
             *item = active_slot;
@@ -1471,40 +1628,56 @@ static bool select_quiver_throw_slot(bool automatic, int* item)
         return false;
     }
 
-    if (!q1 && !q2)
+    count = collect_throw_candidates(slots, (int)(sizeof(slots) / sizeof(slots[0])));
+
+    if (count <= 0)
     {
-        msg_print("You have nothing in your quivers designed for throwing.");
+        msg_print("You have nothing ready to throw.");
         return false;
     }
-    if (q1 && !q2)
+    if (count == 1)
     {
-        *item = INVEN_QUIVER1;
-        return true;
-    }
-    if (q2 && !q1)
-    {
-        *item = INVEN_QUIVER2;
+        *item = slots[0];
         return true;
     }
 
-    while (true)
+    /*
+     * More than one possibility (daggers in both quivers and/or potions):
+     * choose from a small overlay anchored at the player, like the trap and
+     * door interaction popups.  This never draws on the message row.
+     */
     {
-        char ch = '\0';
+        ui_question_option options[INVEN_PACK + 2];
+        char labels[INVEN_PACK + 2][80];
+        int i;
+        int choice;
 
-        if (!get_com("Throw from which quiver (1/2)? ", &ch))
+        for (i = 0; i < count; i++)
+        {
+            object_type* o_ptr = &inventory[slots[i]];
+            char o_name[80];
+
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            if (slots[i] == INVEN_QUIVER1)
+                strnfmt(labels[i], sizeof(labels[i]), "%s (1st quiver)", o_name);
+            else if (slots[i] == INVEN_QUIVER2)
+                strnfmt(labels[i], sizeof(labels[i]), "%s (2nd quiver)", o_name);
+            else
+                strnfmt(labels[i], sizeof(labels[i]), "%s", o_name);
+
+            options[i].key = (char)('a' + i);
+            options[i].label = labels[i];
+            options[i].attr = TERM_L_WHITE;
+        }
+
+        choice = ui_question_ask("Quick throw", "Choose what to hurl.", options,
+            count, p_ptr->py, p_ptr->px, 0);
+
+        if (choice < 0 || choice >= count)
             return false;
-        if (ch == '1')
-        {
-            *item = INVEN_QUIVER1;
-            return true;
-        }
-        if (ch == '2')
-        {
-            *item = INVEN_QUIVER2;
-            return true;
-        }
 
-        bell("Choose quiver 1 or 2.");
+        *item = slots[choice];
+        return true;
     }
 }
 
@@ -1585,13 +1758,13 @@ void do_cmd_throw(bool automatic)
 
     throw_pending_slot = THROW_PENDING_NONE;
 
-    if (!preset && !select_quiver_throw_slot(automatic, &item))
+    if (!preset && !select_throw_slot(automatic, &item))
         return;
 
     /* Get the object */
-    if (item != INVEN_QUIVER1 && item != INVEN_QUIVER2)
+    if (!throw_slot_is_valid(item))
     {
-        msg_print("You can only throw items from a quiver.");
+        msg_print("You cannot throw that.");
         return;
     }
 
@@ -1630,12 +1803,22 @@ void do_cmd_throw(bool automatic)
 
     /* Examine the item */
     object_flags4(o_ptr, &f1, &f2, &f3, &f4);
-    if (!player_can_treat_as_throwing_flags(o_ptr, f3))
     {
-        msg_print("That quiver does not hold a throwing weapon.");
-        return;
+        bool throwing_potion = (o_ptr->tval == TV_POTION)
+            && player_can_throw_potions();
+
+        if (!player_can_treat_as_throwing_flags(o_ptr, f3) && !throwing_potion)
+        {
+            msg_print("You cannot throw that.");
+            return;
+        }
     }
 
+    /*
+     * Throwing from a quiver switches the active weapon to that quiver (unless
+     * it is a quick-throw).  Potions are hurled in any stance with no switch.
+     */
+    if (item == INVEN_QUIVER1 || item == INVEN_QUIVER2)
     {
         int requested_mode = (item == INVEN_QUIVER2)
             ? PLAYER_ACTIVE_WEAPON_RANGED_2

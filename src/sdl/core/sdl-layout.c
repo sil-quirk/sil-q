@@ -1510,13 +1510,27 @@ bool sdl_left_panel_metrics_for_view(const sdl_view* view,
         content_cols = local_metrics.content_cols;
         panel_rows = local_metrics.panel_rows;
     } else {
+        const int natural_rows = sdl_left_panel_pane_rows_for_view(view);
+        const term* source_term = sdl_left_panel_source_term_for_view(view,
+            natural_rows);
+        int measured_cols = 0;
+        int measured_rows = 0;
+
         /*
-         * Expanded pane geometry is layout, not content. Measuring visible
-         * rows made the pane grow and shrink as transient status lines changed
-         * and required rendering a temporary status terminal every frame.
+         * Size the black pane to its rendered status content.  The retained
+         * source term keeps this measurement cheap while still allowing the
+         * pane to grow when a transient status row actually appears.
          */
-        content_cols = LEFT_PANEL_CONTENT_WID;
-        panel_rows = sdl_left_panel_pane_rows_for_view(view);
+        if (source_term
+            && sdl_left_panel_content_size_for_term(source_term, natural_rows,
+                &measured_cols, &measured_rows))
+        {
+            content_cols = measured_cols;
+            panel_rows = measured_rows;
+        } else {
+            content_cols = LEFT_PANEL_CONTENT_WID;
+            panel_rows = natural_rows;
+        }
     }
     if (content_cols < 1)
         content_cols = 1;

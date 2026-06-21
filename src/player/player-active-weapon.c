@@ -79,9 +79,20 @@ static bool player_switch_needs_turn(int old_mode, int new_mode)
 
 static bool player_switch_is_free(int old_mode, int new_mode)
 {
-    return player_active_weapon_mode_is_ranged(old_mode)
+    /* Versatility: readying the melee weapon after ranged is free. */
+    if (player_active_weapon_mode_is_ranged(old_mode)
         && new_mode == PLAYER_ACTIVE_WEAPON_MELEE
-        && p_ptr->active_ability[S_ARC][ARC_VERSATILITY];
+        && p_ptr->active_ability[S_ARC][ARC_VERSATILITY])
+        return true;
+
+    /* Warden: readying a ranged weapon after melee is free, whether
+     * loosing arrows or throwing.  The reverse still takes a turn. */
+    if (old_mode == PLAYER_ACTIVE_WEAPON_MELEE
+        && player_active_weapon_mode_is_ranged(new_mode)
+        && p_ptr->active_ability[S_MEL][MEL_WARDEN])
+        return true;
+
+    return false;
 }
 
 static const char* active_weapon_mode_log_name(int mode)
@@ -178,6 +189,44 @@ int player_quick_throw_quiver_slot(void)
     if (player_can_quick_throw_from_quiver(INVEN_QUIVER2))
         return INVEN_QUIVER2;
     return 0;
+}
+
+/*
+ * Alchemy lets the player hurl potions at any time, with no requirement to
+ * be wielding a single one-handed weapon (unlike quick-throwing daggers).
+ */
+bool player_can_throw_potions(void)
+{
+    return p_ptr->active_ability[S_PER][PER_ALCHEMY] != 0;
+}
+
+/* True if Alchemy is known and at least one potion is carried in the pack. */
+bool player_has_throwable_potion(void)
+{
+    int i;
+
+    if (!player_can_throw_potions())
+        return false;
+
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (o_ptr->k_idx && o_ptr->tval == TV_POTION)
+            return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether a quick-throw affordance should be offered at all: either a
+ * quick-throwable dagger sits in a quiver, or Alchemy allows throwing a
+ * carried potion.
+ */
+bool player_quick_throw_available(void)
+{
+    return player_quick_throw_quiver_slot() != 0 || player_has_throwable_potion();
 }
 
 bool player_shield_counts_for_active_weapon(const object_type* o_ptr)

@@ -593,6 +593,7 @@ typedef struct sdl_character_sheet_screen_state {
     u32b narrative_lamp_current;
     u32b narrative_lamp_maximum;
     int narrative_lamp_page;
+    bool narrative_close_enabled;  /* show an on-screen Close button (mouse/touch) */
     touch_swipe_state birth_swipe;
     character_sheet_touch_press_state touch_press;
     int last_body_px;          /* last column/list body font px for tooltips */

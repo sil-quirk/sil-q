@@ -172,6 +172,16 @@ I:0:14:20
 D:Fortified in body as were the sons of Fëanor by their unyielding oaths sworn in the halls of Tirion beneath the light of the Two Trees, their sinews hardened by ages of war across Beleriand.
 E:+1 Strength.
 
+N:15:Warden
+I:0:15:7
+D:As the March-wardens of Doriath, who kept the bounds of the Girdle of Melian and ranged its shadowed eaves with bow and blade alike. Beleg Strongbow, captain of that watchful company, was no less deadly with his sword than with his great bow, for a hand long schooled to the close clash of steel does not waver upon the bowstring, and the warrior's eye, trained to read a foe's every movement, guides the arrow as surely as the sword-stroke.
+E:Archery bonus of half (Melee - Archery) when Melee exceeds Archery. Switching from melee to ranged is free, whether loosing arrows or throwing, but readying your melee weapon still takes a turn.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:1:1   # Gloves (leather gloves only)
+T:19:0:99  # Bows
+
 
 # Archery ---------------------------------------------
 
@@ -238,6 +248,14 @@ I:1:8:10
 D:Swift and sure of hand as the great archers of the Noldor who practiced their art beneath the light of the Two Trees in Aman, where their fingers first learned the song of the bowstring.
 E:+1 Dexterity.
 
+N:29:Skirmishing
+I:1:9:6
+P:2/0:2/5
+D:Skirmishing as did the bowmen of Dorthonion, who yielded ground before a stronger host only to turn and loose again. Unburdened by heavy armour, they flowed across the battlefield, each retreat buying the heartbeat needed for another arrow.
+E:After moving on your previous turn, firing a bow costs half a turn while wearing only light armour.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
 # Evasion ---------------------------------------------
 
 N:40:Dodging
@@ -284,7 +302,7 @@ N:45:Sprinting
 I:2:5:7
 P:2/0:2/4
 D:Sprinting with the endurance of the messengers who bore tidings across Beleriand, running without rest from Hithlum to Nargothrond. Once their stride found its rhythm across open ground, they moved with the tireless speed of the Firstborn, their pace quickening with every stride.
-E:Increased speed after running 4+ squares in roughly the same direction.
+E:Increased speed after running in roughly the same direction for 4+ squares while wearing only light armour, or 5+ squares otherwise.
 T:30:0:99  # Boots
 
 N:46:Flanking

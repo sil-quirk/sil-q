@@ -982,6 +982,14 @@ void calc_bonuses(void)
         // attack bonuses for those with bow proficiency
         p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
 
+        // deal with the 'Warden' ability (melee mirror of Versatility)
+        if (p_ptr->active_ability[S_MEL][MEL_WARDEN]
+            && (p_ptr->skill_base[S_MEL] > p_ptr->skill_base[S_ARC]))
+        {
+            p_ptr->skill_misc_mod[S_ARC]
+                += (p_ptr->skill_base[S_MEL] - p_ptr->skill_base[S_ARC]) / 2;
+        }
+
         if (o_ptr->k_idx)
         {
             p_ptr->ammo_tval = TV_ARROW;

@@ -22,6 +22,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
         [MEL_TWO_WEAPON]       = "Two Weapon Fighting",
         [MEL_RAPID_ATTACK]     = "Rapid Attack",
         [MEL_STR]              = NULL,  /* if you care about STR */
+        [MEL_WARDEN]           = "Warden",
     },
     [S_ARC] = {
         [ARC_ROUT]        = "Rout",

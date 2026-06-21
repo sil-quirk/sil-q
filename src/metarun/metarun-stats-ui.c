@@ -1689,7 +1689,7 @@ static void story_book_draw_statistics(int term_width, int row_limit,
     available = blessing_points_available();
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Book I - The Measure of the Tale");
+        "Chapter I - The Measure of the Tale");
     strnfmt(buf, sizeof(buf), "Story run %u, undertaken on %s difficulty.",
         (unsigned)metar.id, difficulty);
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
@@ -1740,7 +1740,7 @@ static void story_book_draw_blessings(int term_width, int row_limit)
     int major_count = 0;
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Book II - Blessings of the West");
+        "Chapter II - Blessings of the West");
     strnfmt(buf, sizeof(buf), "%d blessing point%s remain to be bestowed.",
         available, (available == 1) ? "" : "s");
     story_book_put_line(row++, 4, term_width - 6,
@@ -1836,7 +1836,7 @@ static void story_book_draw_curses(int term_width, int row_limit,
     }
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Book III - The Curses Made Known");
+        "Chapter III - The Curses Made Known");
     if (!known_count) {
         story_book_put_wrapped(&row, row_limit, 4, term_width - 6,
             TERM_L_DARK,
@@ -1891,7 +1891,7 @@ static void story_book_draw_difficulty(int term_width, int row_limit)
         difficulty = runtype_info[metar.type].name;
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Book IV - The Weight of Doom");
+        "Chapter IV - The Weight of Doom");
     strnfmt(buf, sizeof(buf), "Current difficulty: %s", difficulty);
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
     story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
@@ -1965,7 +1965,7 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
     int first;
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Book V - The Chronicle of Story Runs");
+        "Chapter V - The Chronicle of Story Runs");
     if (!metaruns || metarun_max <= 0) {
         story_book_put_line(row, 4, term_width - 6, TERM_L_DARK,
             "No story runs have been recorded.");
@@ -2201,6 +2201,9 @@ static bool story_book_sdl_build(bool startup_scene,
             "The Chronicle of the Long Defiance"))
         return false;
 
+    /* Let the reader leave from any page with the mouse (or a touch tap). */
+    sdl_character_sheet_screen_set_book_close_button(true);
+
     sdl_character_sheet_screen_add_book_contents("I. Statistics",
         STORY_BOOK_PAGE_BASE + STORY_BOOK_STATISTICS, STORY_BOOK_STATISTICS);
     sdl_character_sheet_screen_add_book_contents("II. Blessings",
@@ -2231,7 +2234,7 @@ static bool story_book_sdl_build(bool startup_scene,
      * Light that stands beside it -- tan for the framing, gold for glory and
      * the Silmarils, cream for the count of the living and the dead, and amber
      * (the colour of the held light) for the road to the next blessing. */
-    story_book_sdl_heading("Book I - The Measure of the Tale", false);
+    story_book_sdl_heading("Chapter I - The Measure of the Tale", false);
 
     strnfmt(line, sizeof(line), "Story run %u on %s difficulty.",
         (unsigned)metar.id, difficulty);
@@ -2267,7 +2270,7 @@ static bool story_book_sdl_build(bool startup_scene,
             STORY_BOOK_BLITZ, TERM_L_BLUE);
 
     /* Page II: blessings and the exchange. */
-    story_book_sdl_heading("Book II - Blessings of the West", true);
+    story_book_sdl_heading("Chapter II - Blessings of the West", true);
     buf[0] = '\0';
     strnfmt(line, sizeof(line), "%d blessing point%s remain to be bestowed.",
         available, available == 1 ? "" : "s");
@@ -2352,7 +2355,7 @@ static bool story_book_sdl_build(bool startup_scene,
     }
 
     /* Page III: known curses, with a bounded live list and full selected lore. */
-    story_book_sdl_heading("Book III - The Curses Made Known", true);
+    story_book_sdl_heading("Chapter III - The Curses Made Known", true);
     int curse_ids[METAR_CURSE_SLOTS];
     int curse_count = story_book_sdl_collect_known_curses(curse_ids,
         N_ELEMENTS(curse_ids));
@@ -2420,7 +2423,7 @@ static bool story_book_sdl_build(bool startup_scene,
     }
 
     /* Page IV: difficulty changes are previewed and confirmed on this page. */
-    story_book_sdl_heading("Book IV - The Weight of Doom", true);
+    story_book_sdl_heading("Chapter IV - The Weight of Doom", true);
     if (state->pending_difficulty >= 0 && runtype_info
         && state->pending_difficulty < z_info->rt_max
         && runtype_info[state->pending_difficulty].name[0])
@@ -2498,7 +2501,7 @@ static bool story_book_sdl_build(bool startup_scene,
     }
 
     /* Page V: click a run to replace the detail paragraph in place. */
-    story_book_sdl_heading("Book V - The Chronicle of Story Runs", true);
+    story_book_sdl_heading("Chapter V - The Chronicle of Story Runs", true);
     s16b *order = story_book_sdl_metarun_order();
     if (!order) {
         state->selected_run = 0;
@@ -2610,6 +2613,12 @@ static bool story_book_show_sdl(bool startup_scene)
             ui_menu_click_clear();
             if (click_action == UI_MENU_CLICK_HOVER)
                 continue;
+
+            /* The on-screen Close button (mouse/touch) leaves the book. */
+            if (clicked == SDL_SELECT_CLICK_CLOSE) {
+                done = true;
+                continue;
+            }
 
             page = sdl_character_sheet_screen_select_page();
             page_count = sdl_character_sheet_screen_select_page_count();

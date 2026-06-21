@@ -1612,6 +1612,8 @@ extern void sdl_character_sheet_screen_show_select_choice_page_only(void);
 /* Mobile character carousel: triangle ids that step to the prev/next hero. */
 #define SDL_SELECT_CLICK_CAROUSEL_PREV (-22)
 #define SDL_SELECT_CLICK_CAROUSEL_NEXT (-23)
+/* Narrative book: an on-screen "Close" button for mouse/touch traversal. */
+#define SDL_SELECT_CLICK_CLOSE (-24)
 extern bool sdl_character_sheet_screen_mobile_carousel_active(void);
 extern void sdl_character_sheet_screen_reset_select_page(void);
 extern int sdl_character_sheet_screen_select_page(void);
@@ -1635,6 +1637,7 @@ extern void sdl_character_sheet_screen_add_book_contents(cptr label,
     int choice, int page);
 extern void sdl_character_sheet_screen_set_book_lamp(u32b current,
     u32b maximum, int page);
+extern void sdl_character_sheet_screen_set_book_close_button(bool enabled);
 extern void sdl_character_sheet_screen_break_book_page(void);
 extern void sdl_character_sheet_screen_highlight_book_paragraph(void);
 extern void sdl_character_sheet_screen_commit_book(void);
@@ -1867,6 +1870,9 @@ extern bool player_weapon_slot_combat_bonuses_active(
 extern bool player_shield_counts_for_active_weapon(const object_type* o_ptr);
 extern bool player_can_quick_throw_from_quiver(int slot);
 extern int player_quick_throw_quiver_slot(void);
+extern bool player_can_throw_potions(void);
+extern bool player_has_throwable_potion(void);
+extern bool player_quick_throw_available(void);
 extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
 extern int monster_health_bar_text(

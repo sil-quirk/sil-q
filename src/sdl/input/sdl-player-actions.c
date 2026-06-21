@@ -104,7 +104,7 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
     case SDL_PLAYER_ACTION_SHOOT:
         return "Ready: switch between melee and ranged weapons.";
     case SDL_PLAYER_ACTION_QUICK_THROW:
-        return "Throw: throw a dagger from your quiver without changing active weapons.";
+        return "Throw: hurl a dagger from your quiver, or a potion with Alchemy, without changing active weapons.";
     case SDL_PLAYER_ACTION_REST:
         return "Rest: rest until disturbed or fully recovered.";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
@@ -134,7 +134,7 @@ static cptr sdl_player_action_menu_fallback_for_kind(int kind)
     case SDL_PLAYER_ACTION_ACTIVATE: return "Staff";
     case SDL_PLAYER_ACTION_HORN: return "Horn";
     case SDL_PLAYER_ACTION_SHOOT: return "Tab";
-    case SDL_PLAYER_ACTION_QUICK_THROW: return "Dagger";
+    case SDL_PLAYER_ACTION_QUICK_THROW: return "Throw";
     case SDL_PLAYER_ACTION_REST: return "Rest";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS: return "Swap";
     case SDL_PLAYER_ACTION_CHANGE_STAFF: return "Swap";
@@ -207,6 +207,19 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     {
         int slot = player_quick_throw_quiver_slot();
         object_type* icon_obj = slot ? &inventory[slot] : NULL;
+
+        /* Prefer a quick-throw dagger; otherwise show a carried potion. */
+        if ((!icon_obj || !icon_obj->k_idx) && player_has_throwable_potion())
+        {
+            for (int i = 0; i < INVEN_PACK; i++)
+            {
+                if (inventory[i].k_idx && inventory[i].tval == TV_POTION)
+                {
+                    icon_obj = &inventory[i];
+                    break;
+                }
+            }
+        }
 
         if (icon_obj && icon_obj->k_idx)
         {
@@ -339,11 +352,9 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
             SDL_PLAYER_ACTION_SHOOT, '\t',
             player_active_weapon_is_ranged() ? "Melee" : "Ranged");
     }
-    if (player_quick_throw_quiver_slot()) {
+    if (player_quick_throw_available()) {
         sdl_player_action_menu_add_entry(entries, &count,
-            SDL_PLAYER_ACTION_QUICK_THROW,
-            player_quick_throw_quiver_slot() == INVEN_QUIVER2 ? 'F' : 'f',
-            "Throw");
+            SDL_PLAYER_ACTION_QUICK_THROW, 't', "Throw");
     }
     sdl_player_action_menu_add_entry(entries, &count,
         SDL_PLAYER_ACTION_STEALTH, 'S', "Stealth");
@@ -1433,8 +1444,7 @@ void sdl_player_action_menu_activate_kind(int kind, bool secondary)
         command = '\t';
         break;
     case SDL_PLAYER_ACTION_QUICK_THROW:
-        command = (player_quick_throw_quiver_slot() == INVEN_QUIVER2)
-            ? 'F' : 'f';
+        command = 't';
         break;
     case SDL_PLAYER_ACTION_REST:
         command = 'Z';

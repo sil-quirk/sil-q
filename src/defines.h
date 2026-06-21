@@ -626,6 +626,7 @@
 #define MEL_TWO_WEAPON 12
 #define MEL_RAPID_ATTACK 13
 #define MEL_STR 14
+#define MEL_WARDEN 15
 
 /*
  * Archery abilities
@@ -639,6 +640,7 @@
 #define ARC_CRIPPLING 6
 #define ARC_DEADLY_HAIL 7
 #define ARC_DEX 8
+#define ARC_SKIRMISHING 9
 
 /*
  * Evasion abilities
