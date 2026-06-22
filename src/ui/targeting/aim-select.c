@@ -4,7 +4,8 @@
 #include "ui/targeting/targeting-internal.h"
 
 /*
- * Interactive aim selection used by the fire/throw/aim commands.
+ * Interactive map-grid selection used by fire/throw/aim commands and
+ * unrestricted location pickers such as wizard teleportation.
  *
  * Invoking an aim command (e.g. 'f') opens this UI with the selection
  * centred on the closest target.  Direction keys and mouse hover move the
@@ -35,7 +36,8 @@ static int aim_select_prompt_row(void)
     return row;
 }
 
-static void aim_select_show_prompt(bool manual, bool allow_vertical)
+static void aim_select_show_prompt(bool manual, bool allow_vertical,
+    bool location_mode, cptr action)
 {
     char fire_label[24];
     char cancel_label[24];
@@ -44,6 +46,25 @@ static void aim_select_show_prompt(bool manual, bool allow_vertical)
     char up_full[16];
     char up_tiny[8];
     char up_key = aim_select_up_key();
+
+    if (location_mode)
+    {
+        target_prompt_label(INPUT_BIND_CONFIRM, "Space", fire_label,
+            sizeof(fire_label));
+        target_prompt_label(ESCAPE, "Esc", cancel_label,
+            sizeof(cancel_label));
+        strnfmt(fire_full, sizeof(fire_full), "%s %s", fire_label,
+            action ? action : "Select");
+        strnfmt(cancel_full, sizeof(cancel_full), "%s Cancel", cancel_label);
+
+        sdl_unified_look_prompt_begin(aim_select_prompt_row());
+        sdl_unified_look_prompt_add('t', fire_full,
+            fire_full, fire_full, fire_label);
+        sdl_unified_look_prompt_add(
+            ESCAPE, cancel_full, cancel_full, "Esc", "Esc");
+        sdl_unified_look_prompt_finish();
+        return;
+    }
 
     /* Gamepad binding labels only when controller controls are active */
     if (steamdeck_controls_active())
@@ -116,12 +137,23 @@ static bool aim_select_location_fireable(int adjusted_range, int y, int x)
  * fireable location, or (for wizards) any square.  Sets the target and
  * health tracking on success.
  */
-static bool aim_select_try_confirm(int adjusted_range, int y, int x)
+static bool aim_select_try_confirm(
+    int adjusted_range, int y, int x, bool location_mode)
 {
     int m_idx = cave_m_idx[y][x];
 
     if ((y == p_ptr->py) && (x == p_ptr->px))
         return false;
+
+    if (location_mode)
+    {
+        if (!in_bounds_fully(y, x))
+            return false;
+
+        target_set_location(y, x);
+        health_track(0);
+        return true;
+    }
 
     if ((m_idx > 0) && target_able(m_idx)
         && (distance(p_ptr->py, p_ptr->px, y, x) <= adjusted_range))
@@ -159,7 +191,8 @@ static bool aim_select_find_in_list(int y, int x, int* m)
     return false;
 }
 
-bool target_select_aim(int range, bool allow_vertical, int* dp)
+static bool target_select(int range, bool allow_vertical, bool location_mode,
+    cptr action, int* dp)
 {
     int adjusted_range = (range == 0) ? MAX_RANGE : range;
     int m = 0;
@@ -167,18 +200,19 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
     int x = p_ptr->px;
     int i;
     int chosen_dir = 0;
-    bool manual = false;
+    bool manual = location_mode;
     bool done = false;
     char up_key = aim_select_up_key();
     char query;
 
     message_flush();
 
-    get_sorted_target_list(TARGET_KILL, range);
+    if (!location_mode)
+        get_sorted_target_list(TARGET_KILL, range);
 
     /* Centre the selection on the closest target; with no targets in
      * view, fall back to manual selection from the player's square. */
-    if (temp_n)
+    if (!location_mode && temp_n)
     {
         y = temp_y[0];
         x = temp_x[0];
@@ -189,6 +223,7 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
     }
 
     sdl_pointer_aim_select_begin(range, allow_vertical);
+    sdl_pointer_aim_select_set_location(location_mode);
     ui_menu_click_begin();
     ui_menu_click_set_hover_enabled(true);
     ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
@@ -209,7 +244,8 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
         /* Mirror the state to the SDL overlays */
         sdl_pointer_aim_select_set_manual(manual);
         sdl_pointer_aim_select_update(y, x);
-        aim_select_show_prompt(manual, allow_vertical);
+        aim_select_show_prompt(
+            manual, allow_vertical, location_mode, action);
 
         /* Track the selected monster (health bar, recall window) */
         if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml)
@@ -251,6 +287,20 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
 
             if (!sdl_pointer_aim_select_take_event(&kind, &ey, &ex))
                 continue;
+            if (kind == AIM_SELECT_EVENT_PAN)
+            {
+                y += ey;
+                x += ex;
+                if (y < 1)
+                    y = 1;
+                if (y >= p_ptr->cur_map_hgt - 1)
+                    y = p_ptr->cur_map_hgt - 2;
+                if (x < 1)
+                    x = 1;
+                if (x >= p_ptr->cur_map_wid - 1)
+                    x = p_ptr->cur_map_wid - 2;
+                continue;
+            }
             if (!in_bounds_fully(ey, ex))
                 continue;
 
@@ -271,7 +321,8 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
                 continue;
             }
 
-            if (aim_select_try_confirm(adjusted_range, ey, ex))
+            if (aim_select_try_confirm(
+                    adjusted_range, ey, ex, location_mode))
             {
                 y = ey;
                 x = ex;
@@ -280,7 +331,8 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
             }
             else
             {
-                bell("No clear shot.");
+                bell(location_mode ? "Choose another tile."
+                                   : "No clear shot.");
             }
             continue;
         }
@@ -297,6 +349,14 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
         /* Toggle manual (any square) selection */
         case 'x':
         {
+            if (location_mode)
+            {
+                d = target_dir(query);
+                if (!d)
+                    bell("Illegal command for target mode!");
+                break;
+            }
+
             if (manual)
             {
                 int bd = 999;
@@ -354,14 +414,16 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
         case '\n':
         case (char)INPUT_BIND_CONFIRM: /* truncate so it matches under unsigned char (ARM) */
         {
-            if (aim_select_try_confirm(adjusted_range, y, x))
+            if (aim_select_try_confirm(
+                    adjusted_range, y, x, location_mode))
             {
                 chosen_dir = 5;
                 done = true;
             }
             else
             {
-                bell("No clear shot.");
+                bell(location_mode ? "Choose another tile."
+                                   : "No clear shot.");
             }
             break;
         }
@@ -427,7 +489,8 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
                 if (adjust_panel(y, x))
                 {
                     handle_stuff();
-                    get_sorted_target_list(TARGET_KILL, range);
+                    if (!location_mode)
+                        get_sorted_target_list(TARGET_KILL, range);
                 }
             }
             else if (temp_n)
@@ -489,4 +552,24 @@ bool target_select_aim(int range, bool allow_vertical, int* dp)
     *dp = chosen_dir;
 
     return (true);
+}
+
+bool target_select_aim(int range, bool allow_vertical, int* dp)
+{
+    return target_select(range, allow_vertical, false, NULL, dp);
+}
+
+bool target_select_location(cptr action, int* y, int* x)
+{
+    int dir = 0;
+
+    if (!target_select(0, false, true, action, &dir) || (dir != 5))
+        return false;
+
+    if (y)
+        *y = p_ptr->target_row;
+    if (x)
+        *x = p_ptr->target_col;
+
+    return true;
 }

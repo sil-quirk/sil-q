@@ -3676,7 +3676,7 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
         row = 12; col = 30; fallback = "V";    /* seen/view icon */
         break;
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
-        row = 12; col = 30; fallback = "?";
+        has_tile = false; fallback = "?";      /* hints/quests notebook */
         break;
     case '\t':
         row = 5; col = 29; fallback = "Wp";    /* active weapon */
@@ -3699,11 +3699,16 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     case '-':
         row = 5; col = 27; fallback = "F";     /* arrows */
         break;
+    case 'q':
+        row = 3; col = 0; fallback = "!";      /* potion */
+        break;
     case 'i':
     case 'e':
+        row = 1; col = 0; fallback = "I";      /* pack / chest */
+        break;
     case 'h':
     case '@':
-        row = 1; col = 0; fallback = "I";
+        row = 13; col = 0; fallback = "Ch";    /* character sheet / player */
         break;
     case 's':
         row = 11; col = 27; fallback = "Song";
@@ -3865,10 +3870,25 @@ static void sdl_touch_top_panel_render_icon(const SDL_FRect* button_rect,
         return;
 
     if (!fallback || !fallback[0]) {
-        if (binding == GAMEPAD_BIND_NONE)
+        static char key_glyph[4];
+
+        /* Any assignable command without a dedicated tile/label falls back to
+         * its own key glyph (e.g. Open -> "o", Bash -> "b") rather than a bare
+         * "?", so every Quick Access / thumb binding stays recognizable. */
+        if (binding == GAMEPAD_BIND_NONE) {
             fallback = "";
-        else
+        } else if (binding >= 1 && binding <= 26) {
+            key_glyph[0] = '^';
+            key_glyph[1] = (char)('A' + binding - 1);
+            key_glyph[2] = '\0';
+            fallback = key_glyph;
+        } else if (binding > 0 && binding < 128 && SDL_isprint(binding)) {
+            key_glyph[0] = (char)binding;
+            key_glyph[1] = '\0';
+            fallback = key_glyph;
+        } else {
             fallback = "?";
+        }
     }
 
     sdl_touch_pane_draw_button_text_scaled(&rect, NULL, fallback, color,

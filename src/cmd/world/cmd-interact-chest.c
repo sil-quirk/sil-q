@@ -4363,7 +4363,8 @@ void do_cmd_search_skeleton(int y, int x, s16b o_idx)
 bool do_cmd_open_chest(int y, int x, s16b o_idx)
 {
     int score, power, difficulty, result;
-    skill_roll_details roll;
+    skill_roll_details lock_roll;
+    skill_roll_details disarm_roll;
 
     bool flag = true;
 
@@ -4393,12 +4394,46 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
             difficulty += 5;
 
         result = show_interaction_skill_roll_animation("Picking the chest lock",
-            "Working the lockpick", y, x, score, difficulty, &roll);
+            "Working the lockpick", y, x, score, difficulty, &lock_roll);
 
         /* Success -- May still have traps */
         if (result > 0)
         {
             message(MSG_LOCKPICK_FAIL, 0, "You have picked the lock.");
+
+            /* A known trap gets a committed disarm attempt after the lock.
+             * An undiscovered trap cannot be disarmed and fires when the
+             * chest opens; report that consequence alongside the lock roll. */
+            if (object_chest_trap_flags(o_ptr) && object_known_p(o_ptr))
+            {
+                difficulty = power;
+                if (p_ptr->blind || no_light() || p_ptr->image)
+                    difficulty += 5;
+                if (p_ptr->confused)
+                    difficulty += 5;
+
+                result = show_interaction_skill_roll_animation(
+                    "Disarming the chest", "Testing the trap mechanism", y, x,
+                    score, difficulty, &disarm_roll);
+                show_interaction_skill_roll_pair("Opening the chest", y, x,
+                    "Lockpick", &lock_roll, "Disarm", &disarm_roll);
+
+                if (result > 0)
+                {
+                    msg_print("You have disarmed the chest.");
+                    o_ptr->pval = (0 - o_ptr->pval);
+                }
+                else
+                {
+                    msg_print("You fail to disarm the chest and set off its trap!");
+                }
+            }
+            else if (object_chest_trap_flags(o_ptr))
+            {
+                show_interaction_skill_roll_status("Opening the chest", y, x,
+                    "Lockpick", &lock_roll,
+                    "Trap       undiscovered trap triggered", TERM_L_RED);
+            }
             flag = true;
         }
 

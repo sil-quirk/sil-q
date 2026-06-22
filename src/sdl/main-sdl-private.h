@@ -1219,9 +1219,18 @@ typedef struct pointer_aim_state {
      * resolving to a direction here. */
     bool select_mode;
     bool select_manual;
+    bool select_location;
     bool select_visible;
     int select_y;
     int select_x;
+    bool select_mouse_press;
+    bool select_mouse_dragged;
+    float select_mouse_start_x;
+    float select_mouse_start_y;
+    float select_mouse_last_x;
+    float select_mouse_last_y;
+    float select_mouse_accum_x;
+    float select_mouse_accum_y;
     bool event_pending;
     int event_kind;
     int event_y;
@@ -2206,6 +2215,7 @@ bool sdl_pointer_aim_take_direction(int* dir);
 void sdl_pointer_aim_select_begin(int range, bool allow_vertical);
 void sdl_pointer_aim_select_end(void);
 void sdl_pointer_aim_select_set_manual(bool manual);
+void sdl_pointer_aim_select_set_location(bool location);
 void sdl_pointer_aim_select_update(int y, int x);
 bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x);
 void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
@@ -2213,6 +2223,7 @@ void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
 bool sdl_pointer_aim_update_hover_grid(int map_y, int map_x);
 bool sdl_pointer_aim_handle_motion(float x, float y);
 bool sdl_pointer_aim_handle_left_click(float x, float y);
+bool sdl_pointer_aim_handle_left_release(float x, float y);
 bool sdl_pointer_aim_handle_touch_down(float x, float y, SDL_FingerID finger_id);
 bool sdl_pointer_aim_handle_touch_motion(float x, float y, SDL_FingerID finger_id);
 bool sdl_pointer_aim_handle_touch_up(float x, float y, SDL_FingerID finger_id);
@@ -3605,6 +3616,7 @@ void sdl_pointer_attack_set_panel_hover_mode(int mode);
 void sdl_pointer_attack_render(void);
 bool sdl_pointer_aim_handle_motion(float x, float y);
 bool sdl_pointer_aim_handle_left_click(float x, float y);
+bool sdl_pointer_aim_handle_left_release(float x, float y);
 bool sdl_pointer_aim_handle_touch_down(float x, float y,
     SDL_FingerID finger_id);
 bool sdl_pointer_aim_handle_touch_motion(float x, float y,

@@ -1805,6 +1805,14 @@ bool sdl_unified_look_handle_map_hover_pointer(float x, float y)
 
     if (!sdl_unified_look_pointer_input_active())
         return false;
+    /* The Quick Access panel overlays the bottom of the map; its buttons have
+     * their own hover tooltips, so don't also raise a map look-hover there. */
+    if (sdl_touch_top_panel_pointer_claims_point(x, y))
+    {
+        sdl_unified_look_clear_map_hover();
+        sdl_object_tooltip_clear();
+        return false;
+    }
     if (!sdl_main_view_point_to_cell(x, y, &col, &row))
     {
         sdl_object_tooltip_clear();

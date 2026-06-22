@@ -665,6 +665,12 @@ extern bool do_cmd_disarm_aux(int y, int x);
 extern bool trap_disarm_power(int feat, int* power);
 extern int show_interaction_skill_roll_animation(cptr title, cptr action,
     int y, int x, int skill, int difficulty, skill_roll_details* roll);
+extern void show_interaction_skill_roll_pair(cptr title, int y, int x,
+    cptr first_label, const skill_roll_details* first,
+    cptr second_label, const skill_roll_details* second);
+extern void show_interaction_skill_roll_status(cptr title, int y, int x,
+    cptr roll_label, const skill_roll_details* roll, cptr status,
+    byte status_attr);
 extern void do_cmd_disarm(void);
 extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
@@ -1690,6 +1696,7 @@ extern bool sdl_pointer_aim_take_direction(int* dir);
 extern void sdl_pointer_aim_select_begin(int range, bool allow_vertical);
 extern void sdl_pointer_aim_select_end(void);
 extern void sdl_pointer_aim_select_set_manual(bool manual);
+extern void sdl_pointer_aim_select_set_location(bool location);
 extern void sdl_pointer_aim_select_update(int y, int x);
 extern bool sdl_pointer_aim_select_take_event(int* kind, int* y, int* x);
 extern void sdl_pointer_aim_select_set_choices(const int* ys, const int* xs,
@@ -2001,6 +2008,7 @@ extern void target_set_monster(int m_idx);
 extern void target_set_location(int y, int x);
 extern void get_sorted_target_list(int mode, int range);
 extern bool target_set_interactive(int mode, int range);
+extern bool target_select_location(cptr action, int* y, int* x);
 extern int dir_from_delta(int deltay, int deltax);
 extern int rough_direction(int y1, int x1, int y2, int x2);
 extern void player_set_visual_facing_dir(int dir);

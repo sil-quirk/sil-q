@@ -1288,17 +1288,31 @@ static void sdl_pointer_aim_select_clear_event(void)
     g_pointer_aim.event_wake = false;
 }
 
+static void sdl_pointer_aim_select_clear_mouse_press(void)
+{
+    g_pointer_aim.select_mouse_press = false;
+    g_pointer_aim.select_mouse_dragged = false;
+    g_pointer_aim.select_mouse_start_x = 0.0f;
+    g_pointer_aim.select_mouse_start_y = 0.0f;
+    g_pointer_aim.select_mouse_last_x = 0.0f;
+    g_pointer_aim.select_mouse_last_y = 0.0f;
+    g_pointer_aim.select_mouse_accum_x = 0.0f;
+    g_pointer_aim.select_mouse_accum_y = 0.0f;
+}
+
 void sdl_pointer_aim_select_begin(int range, bool allow_vertical)
 {
     sdl_pointer_aim_begin(range, allow_vertical);
     g_pointer_aim.select_mode = true;
     g_pointer_aim.select_manual = false;
+    g_pointer_aim.select_location = false;
     g_pointer_aim.select_visible = false;
     g_pointer_aim.select_y = 0;
     g_pointer_aim.select_x = 0;
     g_pointer_aim.select_adjacent = false;
     g_pointer_aim.select_choice_count = 0;
     g_pointer_aim.select_prompt[0] = '\0';
+    sdl_pointer_aim_select_clear_mouse_press();
     sdl_pointer_aim_select_clear_event();
     sdl_pointer_attack_clear_pending();
     g_state.need_present = true;
@@ -1308,12 +1322,14 @@ void sdl_pointer_aim_select_end(void)
 {
     g_pointer_aim.select_mode = false;
     g_pointer_aim.select_manual = false;
+    g_pointer_aim.select_location = false;
     g_pointer_aim.select_visible = false;
     g_pointer_aim.select_y = 0;
     g_pointer_aim.select_x = 0;
     g_pointer_aim.select_adjacent = false;
     g_pointer_aim.select_choice_count = 0;
     g_pointer_aim.select_prompt[0] = '\0';
+    sdl_pointer_aim_select_clear_mouse_press();
     sdl_pointer_aim_select_clear_event();
     sdl_pointer_aim_end();
 }
@@ -1360,6 +1376,15 @@ void sdl_pointer_aim_select_set_manual(bool manual)
         return;
 
     g_pointer_aim.select_manual = manual;
+    g_state.need_present = true;
+}
+
+void sdl_pointer_aim_select_set_location(bool location)
+{
+    if (g_pointer_aim.select_location == location)
+        return;
+
+    g_pointer_aim.select_location = location;
     g_state.need_present = true;
 }
 
@@ -1425,6 +1450,15 @@ static bool sdl_pointer_aim_select_grid_hoverable(int y, int x)
 
 static void sdl_pointer_aim_select_push_event(int kind, int y, int x)
 {
+    if (kind == AIM_SELECT_EVENT_PAN && g_pointer_aim.event_pending
+        && g_pointer_aim.event_kind == AIM_SELECT_EVENT_PAN)
+    {
+        g_pointer_aim.event_y += y;
+        g_pointer_aim.event_x += x;
+        g_state.need_present = true;
+        return;
+    }
+
     if (g_pointer_aim.event_pending && g_pointer_aim.event_kind == kind
         && g_pointer_aim.event_y == y && g_pointer_aim.event_x == x)
     {
@@ -1438,6 +1472,84 @@ static void sdl_pointer_aim_select_push_event(int kind, int y, int x)
     g_pointer_aim.event_wake = true;
     g_state.need_present = true;
     Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+}
+
+static bool sdl_pointer_aim_select_drag_motion(float x, float y)
+{
+    const sdl_view* view = &g_views[PANE_MAIN];
+    float cell_w;
+    float cell_h;
+    float total_dx;
+    float total_dy;
+    int pan_dy = 0;
+    int pan_dx = 0;
+    int old_wy;
+    int old_wx;
+
+    if (!g_pointer_aim.select_mouse_press)
+        return false;
+
+    g_pointer_aim.select_mouse_accum_x +=
+        x - g_pointer_aim.select_mouse_last_x;
+    g_pointer_aim.select_mouse_accum_y +=
+        y - g_pointer_aim.select_mouse_last_y;
+    g_pointer_aim.select_mouse_last_x = x;
+    g_pointer_aim.select_mouse_last_y = y;
+
+    total_dx = x - g_pointer_aim.select_mouse_start_x;
+    total_dy = y - g_pointer_aim.select_mouse_start_y;
+    if (total_dx < 0.0f)
+        total_dx = -total_dx;
+    if (total_dy < 0.0f)
+        total_dy = -total_dy;
+    if (total_dx > sdl_touch_swipe_threshold_px()
+        || total_dy > sdl_touch_swipe_threshold_px())
+    {
+        g_pointer_aim.select_mouse_dragged = true;
+    }
+
+    cell_w = (view->term_ready && view->cell_w > 0)
+        ? (float)view->cell_w : 1.0f;
+    cell_h = (view->term_ready && view->cell_h > 0)
+        ? (float)view->cell_h : 1.0f;
+    if (use_bigtile)
+        cell_w *= 2.0f;
+
+    while (g_pointer_aim.select_mouse_accum_y >= cell_h)
+    {
+        pan_dy--;
+        g_pointer_aim.select_mouse_accum_y -= cell_h;
+    }
+    while (g_pointer_aim.select_mouse_accum_y <= -cell_h)
+    {
+        pan_dy++;
+        g_pointer_aim.select_mouse_accum_y += cell_h;
+    }
+    while (g_pointer_aim.select_mouse_accum_x >= cell_w)
+    {
+        pan_dx--;
+        g_pointer_aim.select_mouse_accum_x -= cell_w;
+    }
+    while (g_pointer_aim.select_mouse_accum_x <= -cell_w)
+    {
+        pan_dx++;
+        g_pointer_aim.select_mouse_accum_x += cell_w;
+    }
+
+    if (pan_dy || pan_dx)
+    {
+        g_pointer_aim.select_mouse_dragged = true;
+        old_wy = p_ptr->wy;
+        old_wx = p_ptr->wx;
+        (void)sdl_main_map_apply_pan(pan_dy, pan_dx);
+        if ((p_ptr->wy != old_wy) || (p_ptr->wx != old_wx))
+        {
+            sdl_pointer_aim_select_push_event(AIM_SELECT_EVENT_PAN,
+                p_ptr->wy - old_wy, p_ptr->wx - old_wx);
+        }
+    }
+
+    return true;
 }
 
 bool sdl_pointer_aim_update_hover_grid(int map_y, int map_x)
@@ -1470,6 +1582,11 @@ bool sdl_pointer_aim_handle_motion(float x, float y)
 
     if (!g_pointer_aim.active)
         return false;
+    if (g_pointer_aim.select_mode && g_pointer_aim.select_location
+        && sdl_pointer_aim_select_drag_motion(x, y))
+    {
+        return true;
+    }
     if (!sdl_pointer_aim_point_to_map(x, y, &map_y, &map_x))
     {
         sdl_pointer_aim_clear_hover();
@@ -1505,6 +1622,17 @@ bool sdl_pointer_aim_handle_left_click(float x, float y)
 
     if (g_pointer_aim.select_mode)
     {
+        if (g_pointer_aim.select_location)
+        {
+            sdl_pointer_aim_select_clear_mouse_press();
+            g_pointer_aim.select_mouse_press = true;
+            g_pointer_aim.select_mouse_start_x = x;
+            g_pointer_aim.select_mouse_start_y = y;
+            g_pointer_aim.select_mouse_last_x = x;
+            g_pointer_aim.select_mouse_last_y = y;
+            return true;
+        }
+
         sdl_pointer_aim_select_push_event(AIM_SELECT_EVENT_CLICK, map_y,
             map_x);
         return true;
@@ -1512,6 +1640,33 @@ bool sdl_pointer_aim_handle_left_click(float x, float y)
 
     (void)sdl_pointer_aim_update_hover_grid(map_y, map_x);
     (void)sdl_pointer_aim_queue_grid(map_y, map_x);
+    return true;
+}
+
+bool sdl_pointer_aim_handle_left_release(float x, float y)
+{
+    int map_y = 0;
+    int map_x = 0;
+    bool dragged;
+
+    if (!g_pointer_aim.active || !g_pointer_aim.select_mode
+        || !g_pointer_aim.select_location
+        || !g_pointer_aim.select_mouse_press)
+    {
+        return false;
+    }
+
+    dragged = g_pointer_aim.select_mouse_dragged;
+    sdl_pointer_aim_select_clear_mouse_press();
+    if (dragged)
+        return true;
+
+    if (sdl_pointer_aim_point_to_map(x, y, &map_y, &map_x))
+    {
+        sdl_pointer_aim_select_push_event(
+            AIM_SELECT_EVENT_CLICK, map_y, map_x);
+    }
+
     return true;
 }
 
@@ -1760,6 +1915,12 @@ static void sdl_pointer_aim_render_selection(void)
         return;
     if ((y == p_ptr->py) && (x == p_ptr->px))
         return;
+
+    if (g_pointer_aim.select_location)
+    {
+        sdl_pointer_attack_render_cell(y, x, target_color, true);
+        return;
+    }
 
     path_n = project_path(path, range, p_ptr->py, p_ptr->px, &ty, &tx,
         PROJECT_THRU | PROJECT_INVISIPASS);

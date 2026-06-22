@@ -1,8 +1,7 @@
 Sil-More Graphics Notice
 ========================
 
-Current public releases of Sil-More do not include Adam Bolt's 16x16 tiles
-or David Gervais's 32x32 tiles.
+Current public releases of Sil-More do not include Adam Bolt's 16x16 tiles.
 
 The current main gameplay tileset (`16x16.png`) is the MicroChasm tileset
 used for Sil-More.

@@ -152,6 +152,90 @@ static void interaction_roll_render_overlay(cptr title, cptr action, int y,
     interaction_roll_present_frame();
 }
 
+static void interaction_roll_add_final_result(const skill_roll_details* roll)
+{
+    char line[96];
+
+    if (roll->result > 0)
+    {
+        strnfmt(line, sizeof(line), "Result     success by %d", roll->result);
+        sdl_question_menu_add_text(line, TERM_L_GREEN);
+    }
+    else if (roll->result == 0)
+    {
+        sdl_question_menu_add_text("Result     failure (tie)", TERM_L_RED);
+    }
+    else
+    {
+        strnfmt(line, sizeof(line), "Result     failure by %d",
+            ABS(roll->result));
+        sdl_question_menu_add_text(line, TERM_L_RED);
+    }
+}
+
+static void interaction_roll_add_final_throw(cptr label,
+    const skill_roll_details* roll)
+{
+    char line[96];
+
+    sdl_question_menu_add_text(label, TERM_L_WHITE);
+    interaction_roll_format_total(line, sizeof(line), "You", roll->skill_die,
+        roll->skill);
+    sdl_question_menu_add_text(line, TERM_WHITE);
+    interaction_roll_format_total(line, sizeof(line), "Difficulty",
+        roll->difficulty_die, roll->difficulty);
+    sdl_question_menu_add_text(line, TERM_WHITE);
+    interaction_roll_add_final_result(roll);
+}
+
+/* Keep two consecutive interaction checks visible together after the second
+ * animation replaces the first result overlay. */
+void show_interaction_skill_roll_pair(cptr title, int y, int x,
+    cptr first_label, const skill_roll_details* first,
+    cptr second_label, const skill_roll_details* second)
+{
+    if (!Term || character_icky || !first || !second)
+        return;
+
+    sdl_question_menu_begin(title);
+    if ((y >= 0) && (x >= 0))
+        sdl_question_menu_set_anchor_grid(y, x);
+    sdl_question_menu_set_desc("Final throws");
+
+    interaction_roll_add_final_throw(first_label, first);
+    interaction_roll_add_final_throw(second_label, second);
+
+    sdl_question_menu_finish();
+    sdl_question_menu_set_blocking_input(false);
+    sdl_question_menu_set_nonblocking(true);
+    sdl_question_menu_set_timeout_ms(get_sdl_dice_roll_overlay_ms());
+    interaction_roll_present_frame();
+}
+
+/* Keep a consequence discovered immediately after a check visible alongside
+ * that check's final throw. */
+void show_interaction_skill_roll_status(cptr title, int y, int x,
+    cptr roll_label, const skill_roll_details* roll, cptr status,
+    byte status_attr)
+{
+    if (!Term || character_icky || !roll || !status)
+        return;
+
+    sdl_question_menu_begin(title);
+    if ((y >= 0) && (x >= 0))
+        sdl_question_menu_set_anchor_grid(y, x);
+    sdl_question_menu_set_desc("Final throw");
+
+    interaction_roll_add_final_throw(roll_label, roll);
+    sdl_question_menu_add_text(status, status_attr);
+
+    sdl_question_menu_finish();
+    sdl_question_menu_set_blocking_input(false);
+    sdl_question_menu_set_nonblocking(true);
+    sdl_question_menu_set_timeout_ms(get_sdl_dice_roll_overlay_ms());
+    interaction_roll_present_frame();
+}
+
 int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
     int x, int skill, int difficulty, skill_roll_details* roll)
 {
@@ -1303,8 +1387,9 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             if (grid_is_known_trapped_chest(y, x))
             {
                 grid_question_append(desc, sizeof(desc),
-                    "You have found a trap on it: disarm the trap before "
-                    "opening it, or chance setting it off.");
+                    "You have found a trap on it. A separate disarm attempt "
+                    "can fail safely; opening it will try the lock and then "
+                    "the trap, setting off the trap if that attempt fails.");
                 GRID_Q_ADD('D', 'd', "Disarm the trap", TERM_L_WHITE);
             }
             else if (!object_known_p(o_ptr))

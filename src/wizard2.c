@@ -841,12 +841,13 @@ static void prt_binary(u32b flags, int row, int col)
  */
 static void do_cmd_wiz_bamf(void)
 {
-    /* Must have a target */
-    if (target_okay(0))
-    {
-        /* Teleport to the target */
-        teleport_player_to(p_ptr->target_row, p_ptr->target_col);
-    }
+    int y;
+    int x;
+
+    if (!target_select_location("Teleport", &y, &x))
+        return;
+
+    teleport_player_to(y, x);
 }
 
 /*

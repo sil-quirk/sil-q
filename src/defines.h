@@ -1782,6 +1782,7 @@
 #define AIM_SELECT_EVENT_HOVER 1
 #define AIM_SELECT_EVENT_CLICK 2
 #define AIM_SELECT_EVENT_TAP 3
+#define AIM_SELECT_EVENT_PAN 4
 
 /*
  * Bit flags for the "monster_desc" function

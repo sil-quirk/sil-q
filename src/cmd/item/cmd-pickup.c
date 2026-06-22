@@ -629,6 +629,65 @@ static bool confirm_oil_pickup_overflow(const object_type* o_ptr, int oil_amount
     return confirm_oil_pickup_overflow_with_bonus(o_ptr, oil_amount, 0);
 }
 
+static bool pack_has_two_slot_throwable(void)
+{
+    for (int item = 0; item <= INVEN_PACK; item++)
+    {
+        const object_type* o_ptr = &inventory[item];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (inventory_limit_group_for_object(o_ptr) == INV_LIMIT_THROWABLE
+            && inventory_limit_space_for_object(o_ptr) == 2)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void format_inventory_limit_reason(char* buf, size_t max,
+    const object_type* incoming, cptr label, int limit)
+{
+    enum inventory_limit_group group = inven_carry_limit_group();
+
+    if (!buf || max == 0)
+        return;
+
+    if (group == INV_LIMIT_THROWABLE)
+    {
+        int used = inventory_limit_usage_for_group(group);
+        int needed = inventory_limit_space_for_object(incoming);
+
+        if (pack_has_two_slot_throwable())
+        {
+            strnfmt(buf, max,
+                "No room: %d/%d throwable slots used. Your spear stack uses "
+                "2 slots; this item needs %d slot%s.",
+                used, limit, needed, (needed == 1) ? "" : "s");
+        }
+        else
+        {
+            strnfmt(buf, max,
+                "No room: %d/%d throwable slots used; this item needs %d "
+                "slot%s.",
+                used, limit, needed, (needed == 1) ? "" : "s");
+        }
+    }
+    else if (label)
+    {
+        strnfmt(buf, max,
+            "No room: you already carry the most %s you can (limit %d).",
+            label, limit);
+    }
+    else
+    {
+        SDL_strlcpy(buf, "No room: drop something to make space.", max);
+    }
+}
+
 static pickup_failure_result prompt_replace_light_limit_item(
     object_type* incoming, int floor_o_idx, const char* incoming_name)
 {
@@ -663,13 +722,8 @@ static pickup_failure_result prompt_replace_light_limit_item(
             bool chose_replacement;
             char reason[160];
 
-            if (label)
-                strnfmt(reason, sizeof(reason),
-                    "No room: you already carry the most %s you can (limit %d).",
-                    label, limit);
-            else
-                SDL_strlcpy(reason, "No room: drop something to make space.",
-                    sizeof(reason));
+            format_inventory_limit_reason(reason, sizeof(reason), incoming,
+                label, limit);
 
             msg_print("What to replace?");
             chose_replacement = open_inventory_replacement_menu(menu_group,
@@ -1390,6 +1444,23 @@ static void report_pack_limit_failure(const char* o_name, bool still)
         cptr label = inven_carry_limit_label();
         int limit = inven_carry_limit_value();
 
+        if (inven_carry_limit_group() == INV_LIMIT_THROWABLE)
+        {
+            int used = inventory_limit_usage_for_group(INV_LIMIT_THROWABLE);
+
+            if (pack_has_two_slot_throwable())
+            {
+                msg_format("Your pack's throwable slots are full (%d/%d); "
+                           "your spear stack uses 2 slots.", used, limit);
+            }
+            else
+            {
+                msg_format("Your pack's throwable slots are full (%d/%d).",
+                           used, limit);
+            }
+            return;
+        }
+
         if (label)
         {
             /* Special message for supply weight limit */
@@ -1484,7 +1555,15 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     if (sdl_is_story_font_enabled())
         sdl_story_font_disable();
 
-    if (label)
+    if (inven_carry_limit_group() == INV_LIMIT_THROWABLE)
+    {
+        char reason[160];
+
+        format_inventory_limit_reason(reason, sizeof(reason), incoming, label,
+            limit);
+        msg_print(reason);
+    }
+    else if (label)
         msg_format("You already carry %s (limit %d).", label, limit);
     else
         msg_print("You cannot carry any more of those.");
@@ -1499,13 +1578,8 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             bool chose_replacement;
             char reason[160];
 
-            if (label)
-                strnfmt(reason, sizeof(reason),
-                    "No room: you already carry the most %s you can (limit %d).",
-                    label, limit);
-            else
-                SDL_strlcpy(reason, "No room: drop something to make space.",
-                    sizeof(reason));
+            format_inventory_limit_reason(reason, sizeof(reason), incoming,
+                label, limit);
 
             msg_print("What to replace?");
             chose_replacement = open_inventory_replacement_menu(menu_group,

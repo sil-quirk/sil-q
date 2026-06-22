@@ -13,4 +13,7 @@ s16b target_pick(int y1, int x1, int dy, int dx);
  * On success sets *dp to 5 (target chosen) or DIRECTION_UP/DOWN. */
 bool target_select_aim(int range, bool allow_vertical, int* dp);
 
+/* Pick any dungeon grid with keyboard, controller, mouse, or touch input. */
+bool target_select_location(cptr action, int* y, int* x);
+
 #endif
