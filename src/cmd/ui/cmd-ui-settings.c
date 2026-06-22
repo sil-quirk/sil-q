@@ -5799,6 +5799,10 @@ enum {
     TOUCH_TOP_WIDGET_BUTTON_5_LONG_TAP,
     TOUCH_TOP_WIDGET_BUTTON_6_TAP,
     TOUCH_TOP_WIDGET_BUTTON_6_LONG_TAP,
+    TOUCH_TOP_WIDGET_BUTTON_7_TAP,
+    TOUCH_TOP_WIDGET_BUTTON_7_LONG_TAP,
+    TOUCH_TOP_WIDGET_BUTTON_8_TAP,
+    TOUCH_TOP_WIDGET_BUTTON_8_LONG_TAP,
     TOUCH_TOP_WIDGET_BUTTON_COUNT
 };
 
@@ -5898,6 +5902,14 @@ static const touch_control_binding_row touch_top_widget_binding_rows[] = {
         TOUCH_CONTROL_BINDING_TOP_PANEL, 5, false },
     { TOUCH_TOP_WIDGET_BUTTON_6_LONG_TAP, "Quick Access 6 Long Tap",
         TOUCH_CONTROL_BINDING_TOP_PANEL, 5, true },
+    { TOUCH_TOP_WIDGET_BUTTON_7_TAP, "Quick Access 7 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 6, false },
+    { TOUCH_TOP_WIDGET_BUTTON_7_LONG_TAP, "Quick Access 7 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 6, true },
+    { TOUCH_TOP_WIDGET_BUTTON_8_TAP, "Quick Access 8 Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 7, false },
+    { TOUCH_TOP_WIDGET_BUTTON_8_LONG_TAP, "Quick Access 8 Long Tap",
+        TOUCH_CONTROL_BINDING_TOP_PANEL, 7, true },
 };
 
 static const touch_control_binding_row touch_thumb_binding_rows[] = {
@@ -9367,7 +9379,8 @@ static int input_options_menu(int* highlight)
     bool touch_available = sdl_touch_tutorial_device_available();
     int mouse_choice = touch_available ? 4 : 3;
     int wheel_choice = mouse_choice + 1;
-    int return_choice = wheel_choice + 1;
+    int zones_choice = wheel_choice + 1;
+    int return_choice = zones_choice + 1;
     int options = return_choice;
     int term_wid = 80;
     int term_hgt = 24;
@@ -9430,6 +9443,7 @@ static int input_options_menu(int* highlight)
         ADD_INPUT_MENU_ROW(3, 'c', "Touch Tutorial");
     ADD_INPUT_MENU_ROW(mouse_choice, 'd', "Mouse Input");
     ADD_INPUT_MENU_ROW(wheel_choice, 'e', "Character Wheel Tutorial");
+    ADD_INPUT_MENU_ROW(zones_choice, 'f', "Zones Tutorial");
     ADD_INPUT_MENU_ROW(return_choice, 'o', "Return to Options");
 
 #undef ADD_INPUT_MENU_ROW
@@ -9507,6 +9521,12 @@ static int input_options_menu(int* highlight)
         return (wheel_choice);
     }
 
+    if (menu_letters && ((ch == 'f') || (ch == 'F')))
+    {
+        *highlight = zones_choice;
+        return (zones_choice);
+    }
+
     if ((menu_letters && ((ch == 'o') || (ch == 'O') || (ch == 'q')))
         || (ch == ESCAPE) || (steamdeck && ch == steamdeck_back_key()))
     {
@@ -9545,13 +9565,20 @@ static void do_cmd_input_options_submenu(int* highlight)
         bool touch_available = sdl_touch_tutorial_device_available();
         int mouse_choice = touch_available ? 4 : 3;
         int wheel_choice = mouse_choice + 1;
-        int return_choice = wheel_choice + 1;
+        int zones_choice = wheel_choice + 1;
+        int return_choice = zones_choice + 1;
 
         choice = input_options_menu(highlight);
         settings_semantic_menu_hide();
 
         if (choice == wheel_choice) {
             sdl_character_wheel_request_tutorial_from_settings();
+            return_to_options = true;
+            Term_clear();
+            continue;
+        }
+        if (choice == zones_choice) {
+            sdl_zones_request_tutorial_from_settings();
             return_to_options = true;
             Term_clear();
             continue;
@@ -9692,7 +9719,8 @@ void do_cmd_options(void)
             do_cmd_input_options_submenu(&input_highlight);
             if (sdl_touch_settings_tutorial_requested()
                 || sdl_mouse_settings_tutorial_requested()
-                || sdl_character_wheel_settings_tutorial_requested())
+                || sdl_character_wheel_settings_tutorial_requested()
+                || sdl_zones_settings_tutorial_requested())
                 return_to_game = true;
             Term_clear();
             break;
@@ -9781,13 +9809,19 @@ void do_cmd_options(void)
         handle_stuff();
     if (sdl_touch_settings_tutorial_requested()
         || sdl_mouse_settings_tutorial_requested()
-        || sdl_character_wheel_settings_tutorial_requested())
+        || sdl_character_wheel_settings_tutorial_requested()
+        || sdl_zones_settings_tutorial_requested())
     {
         if (p_ptr && p_ptr->playing)
             do_cmd_redraw();
         else
             Term_fresh();
     }
+
+    /* Replay the zones tutorial now, from this clean post-menu context, rather
+     * than the deferred Term_xtra path which does not reliably paint the
+     * full-screen tutorial. */
+    sdl_zones_show_requested_tutorial();
 }
 
 #ifdef ALLOW_MACROS

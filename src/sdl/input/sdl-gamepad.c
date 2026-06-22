@@ -659,6 +659,22 @@ bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
         where, button_rects, out_panel);
 }
 
+/* Geometry-only layout for the tutorial: the quick access panel is taught even
+ * when it is collapsed (g_touch_top_panel_open == false) or gameplay shortcuts
+ * are inactive, so the runtime open/visible gates are skipped on purpose. */
+bool sdl_touch_top_panel_compute_layout_for_display(SDL_FRect* button_rects,
+    SDL_FRect* out_panel)
+{
+    SDL_Rect screen;
+    SDL_Rect anchor;
+    enum pane_placement where;
+
+    if (!sdl_touch_top_panel_current_anchor(&screen, &anchor, &where))
+        return false;
+    return sdl_touch_top_panel_compute_layout_for_anchor(&screen, &anchor,
+        where, button_rects, out_panel);
+}
+
 bool sdl_gamepad_handle_confirm_long_press_button(
     int button, int binding, bool down)
 {

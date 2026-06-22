@@ -1319,12 +1319,16 @@ static void sdl_config_migrate_touch_pane_binding(struct sdl_config* config,
 
 static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
 {
+    /* Left to right: Quaff potions, Inventory, Abilities, Hints, Character
+     * sheet, ASCII/Tiles toggle, Smithing, Look. */
     static const int top_panel_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        GAMEPAD_BIND_NONE, 'j', '0', 'l', '\t', GAMEPAD_BIND_NONE,
+        'q', 'i', 'y', TOUCH_BIND_MAIN_MENU_HINTS_QUESTS,
+        'h', TOUCH_BIND_TOGGLE_TILES, '0', 'l',
     };
     static const int top_panel_long_defaults[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
         GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
         GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
+        GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
     };
 
     if (!config)
@@ -1360,10 +1364,10 @@ static void sdl_config_migrate_touch_top_panel_defaults(
     struct sdl_config* config)
 {
     static const int previous_taps[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        'z', 'h', 'i', 'a', 'l', 'f',
+        'z', 'h', 'i', 'a', 'l', 'f', GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
     };
     static const int previous_longs[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT] = {
-        'Z', '\t', 'e', 'p', 'j', 'F',
+        'Z', '\t', 'e', 'p', 'j', 'F', GAMEPAD_BIND_NONE, GAMEPAD_BIND_NONE,
     };
 
     if (!config)
@@ -3433,7 +3437,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
     config->touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
     memcpy(config->touch_corner_action_bindings, corner_action_defaults,
         sizeof(corner_action_defaults));
-    config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
+    config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
     config->touch_top_panel_default_open = false;
     config->touch_top_panel_button_count =
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;

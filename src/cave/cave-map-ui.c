@@ -389,6 +389,43 @@ void prt_map(void)
 }
 
 /*
+ * Force every visible map grid to be repainted on the next Term_fresh().
+ *
+ * prt_map()/lite_spot() route through Term_queue_char(), which skips terminal
+ * cells whose glyph is unchanged.  That lets the SDL map canvas keep stale
+ * pixels across a layout change that reflows the map area without changing the
+ * glyphs themselves -- e.g. the look command hiding/showing the left panel.
+ * (This used to be papered over as a side effect of the look toggling the
+ * terminal story font, whose per-cell flag transition dirtied every cell.)
+ * Invalidate the cached glyph for each non-masked viewport cell so the flush
+ * repaints it from scr, then leave the actual refresh to the caller.
+ */
+void force_map_redraw(void)
+{
+    int y, x, vy, vx;
+    int cell_w = use_bigtile ? 2 : 1;
+    int ty;
+    int tx;
+
+    if (!Term || !Term->old)
+        return;
+
+    ty = p_ptr->wy + SCREEN_HGT;
+    tx = p_ptr->wx + SCREEN_WID;
+
+    for (y = p_ptr->wy, vy = ROW_MAP; y < ty; vy++, y++)
+    {
+        for (x = p_ptr->wx, vx = COL_MAP; x < tx; vx += cell_w, x++)
+        {
+            if (hidden_left_panel_masked_span(vy, vx, cell_w))
+                continue;
+
+            force_term_cell_redraw(vx, vy, cell_w);
+        }
+    }
+}
+
+/*
  * Hack -- priority array (see below)
  *
  * Note that all "walls" always look like "secret doors" (see "map_info()").

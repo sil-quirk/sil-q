@@ -1209,13 +1209,20 @@ void do_cmd_unified_look(void)
         do_cmd_redraw();
     }
     
-    /* Enable story font for unified look if the setting is on */
-    bool use_story_font = story_look_enabled();
-    if (use_story_font)
-    {
-        log_debug("do_cmd_unified_look: Enabling story font");
-        sdl_story_font_enable();
-    }
+    /*
+     * Do NOT enable the terminal story font for the look's main view.
+     *
+     * The look sidebar is drawn as its own SDL overlay
+     * (sdl_unified_look_sidebar_*), which selects the story font directly, so
+     * it stays styled regardless of the terminal's story-font state.  Turning
+     * on the *terminal* story font additionally re-renders the main map's text
+     * cells with the proportional, pixel-packed story font: in ASCII display
+     * mode that destroys the map grid alignment (and leaves the grid-aligned
+     * selection cursor boxes uncovered, so they appear to multiply).  Tile mode
+     * hides this because map cells are tiles, not text.  Keep the terminal in
+     * its normal monospace font so the map renders correctly in both modes.
+     */
+    bool use_story_font = false;
 
     compact_look_layout = unified_look_use_compact_layout();
     
@@ -1302,7 +1309,12 @@ void do_cmd_unified_look(void)
     
     /* Process redraw flags to update health bar immediately */
     handle_stuff();
-    
+
+    /* Hiding the left panel reflows the map area without changing glyphs, so
+     * the cached map cells must be force-repainted or stale (black) cells
+     * remain. */
+    force_map_redraw();
+
     /* Main interaction loop */
     while (!done)
     {
@@ -2678,6 +2690,11 @@ cycle_display_modes:
     }
 
     handle_stuff();
+
+    /* Restoring the left panel reflows the map area the same way; force the
+     * map cells to repaint so no stale (black) cells survive into normal play. */
+    force_map_redraw();
+    Term_fresh();
 }
 
 /*

@@ -1359,6 +1359,7 @@ extern sdl_startup_device_class g_startup_device_class;
 extern bool g_touch_tutorial_requested_from_settings;
 extern bool g_mouse_tutorial_requested_from_settings;
 extern bool g_character_wheel_tutorial_requested_from_settings;
+extern bool g_zones_tutorial_requested_from_settings;
 extern const int default_pane_config_count;
 extern const touch_pane_slot_info g_touch_pane_slots[SDL_TOUCH_PANE_BUTTON_COUNT];
 extern const int g_touch_pane_visible_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT];
@@ -2845,9 +2846,14 @@ void sdl_touch_show_requested_tutorial(void);
 void sdl_mouse_show_requested_tutorial(void);
 void sdl_touch_tutorial_maybe_show_deferred(void);
 void sdl_mouse_tutorial_maybe_show_deferred(void);
+void sdl_zones_tutorial_maybe_show_deferred(void);
 void sdl_input_tutorial_maybe_show_deferred(void);
 void sdl_touch_show_tutorial(void);
 void sdl_mouse_show_tutorial(void);
+void sdl_zones_show_tutorial(void);
+void sdl_zones_show_requested_tutorial(void);
+void sdl_zones_request_tutorial_from_settings(void);
+bool sdl_zones_settings_tutorial_requested(void);
 void sdl_touch_maybe_show_first_game_tutorial(void);
 void sdl_mouse_maybe_show_first_game_tutorial(void);
 void sdl_character_wheel_maybe_show_first_game_tutorial(void);
@@ -3724,6 +3730,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
 bool sdl_touch_top_panel_compute_layout_for_screen(
     const SDL_Rect* screen, SDL_FRect* button_rects, SDL_FRect* out_panel);
 bool sdl_touch_top_panel_compute_layout(SDL_FRect* button_rects,
+    SDL_FRect* out_panel);
+bool sdl_touch_top_panel_compute_layout_for_display(SDL_FRect* button_rects,
     SDL_FRect* out_panel);
 void sdl_touch_top_panel_render_buttons(
     const SDL_FRect* button_rects);

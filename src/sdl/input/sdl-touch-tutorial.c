@@ -885,8 +885,14 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
             (float)pane_rect.w, (float)pane_rect.h };
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Combat");
     }
-    if (sdl_touch_top_panel_compute_layout(NULL, &rect))
-        sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Quick");
+    {
+        SDL_FRect qa_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+
+        if (sdl_touch_top_panel_compute_layout_for_display(qa_rects, &rect)) {
+            sdl_touch_top_panel_render_buttons(qa_rects);
+            sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Quick");
+        }
+    }
     if (sdl_status_pane_current_rect(&pane_rect, NULL)) {
         rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
             (float)pane_rect.w, (float)pane_rect.h };
@@ -989,12 +995,17 @@ void sdl_touch_tutorial_draw_main_screen_zones(
                 ? "Click an attack row to choose the matching attack mode.\nDefault placement: lower-left corner."
                 : "Tap an attack row to choose the matching attack mode.\nDefault placement: lower-left corner.");
     }
-    if (sdl_touch_top_panel_compute_layout(NULL, &rect)) {
-        sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
-            "Quick access",
-            mouse
-                ? "Click an icon for its command; right-click for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor."
-                : "Tap an icon for its command; hold for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor.");
+    {
+        SDL_FRect qa_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
+
+        if (sdl_touch_top_panel_compute_layout_for_display(qa_rects, &rect)) {
+            sdl_touch_top_panel_render_buttons(qa_rects);
+            sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
+                "Quick access",
+                mouse
+                    ? "Click an icon for its command; right-click for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor. Edit buttons in Touch Settings."
+                    : "Tap an icon for its command; hold for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor. Edit buttons in Touch Settings.");
+        }
     }
     if (sdl_status_pane_current_rect(&pane_rect, NULL)) {
         rect = (SDL_FRect){ (float)pane_rect.x, (float)pane_rect.y,
@@ -1076,7 +1087,7 @@ void sdl_touch_tutorial_draw_overlay_menu(const SDL_Rect* screen)
     if (!screen)
         return;
 
-    if (!sdl_touch_top_panel_compute_layout(button_rects, NULL))
+    if (!sdl_touch_top_panel_compute_layout_for_display(button_rects, NULL))
         return;
 
     sdl_touch_top_panel_render_buttons(button_rects);
@@ -2943,6 +2954,36 @@ void sdl_character_wheel_request_tutorial_from_settings(void)
     g_character_wheel_tutorial_requested_from_settings = true;
 }
 
+void sdl_zones_request_tutorial_from_settings(void)
+{
+    g_zones_tutorial_requested_from_settings = true;
+}
+
+bool sdl_zones_settings_tutorial_requested(void)
+{
+    return g_zones_tutorial_requested_from_settings;
+}
+
+/* The zones overview ("Default Touch Layout" / "Main Screen Mouse Controls")
+ * shown as a single page, on demand from Input Options.  Mouse language is used
+ * off mobile, tap language on mobile. */
+void sdl_zones_show_tutorial(void)
+{
+    sdl_touch_tutorial_run(false, !sdl_touch_tutorial_full_mode());
+}
+
+/* Show the requested zones tutorial immediately from a clean command context
+ * (the Options command, after screen_load).  Unlike the deferred Term_xtra
+ * path, the full-screen tutorial renders reliably here. */
+void sdl_zones_show_requested_tutorial(void)
+{
+    if (!g_zones_tutorial_requested_from_settings)
+        return;
+
+    g_zones_tutorial_requested_from_settings = false;
+    sdl_zones_show_tutorial();
+}
+
 bool sdl_touch_settings_tutorial_requested(void)
 {
     return g_touch_tutorial_requested_from_settings;
@@ -3011,10 +3052,23 @@ static void sdl_character_wheel_tutorial_maybe_show_deferred(void)
     sdl_character_wheel_mark_tutorial_seen_and_save();
 }
 
+void sdl_zones_tutorial_maybe_show_deferred(void)
+{
+    if (!g_zones_tutorial_requested_from_settings)
+        return;
+    if (!sdl_main_screen_click_shortcuts_active())
+        return;
+
+    g_zones_tutorial_requested_from_settings = false;
+    sdl_zones_show_tutorial();
+}
+
 void sdl_input_tutorial_maybe_show_deferred(void)
 {
     sdl_touch_tutorial_maybe_show_deferred();
     sdl_mouse_tutorial_maybe_show_deferred();
+    /* Zones replay is shown directly from the Options command (clean context);
+     * it deliberately does not use this deferred Term_xtra path. */
     sdl_character_wheel_tutorial_maybe_show_deferred();
     sdl_character_wheel_maybe_show_first_game_tutorial();
 }

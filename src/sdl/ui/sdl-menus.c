@@ -2661,6 +2661,7 @@ typedef struct sdl_unified_look_sidebar_layout_info {
     float pad_x;
     float pad_y;
     float symbol_w;
+    float tile_size;
 } sdl_unified_look_sidebar_layout_info;
 
 static SDL_Color sdl_unified_look_sidebar_attr_color(byte attr)
@@ -2829,6 +2830,19 @@ static bool sdl_unified_look_sidebar_layout(
         14.0f);
     out->symbol_w = sdl_touch_pane_clampf((float)out->font_px * 1.35f,
         18.0f, 28.0f);
+
+    /* A graphical entry uses the existing row height with a two-pixel inset
+     * on every side.  Reserve the full row-height icon column plus a
+     * font-relative gap so the following text never shares pixels with the
+     * tile. */
+    if (g_state.use_tiles && g_state.tileset)
+    {
+        float symbol_gap = sdl_touch_pane_clampf(
+            (float)out->font_px * 0.25f, 4.0f, 8.0f);
+
+        out->tile_size = MAX(1.0f, out->row_h - 4.0f);
+        out->symbol_w = out->row_h + symbol_gap;
+    }
 
     if (max_panel_h < out->row_h + out->pad_y * 2.0f)
         return false;
@@ -3065,8 +3079,32 @@ void sdl_unified_look_sidebar_render(void)
                 SDL_RenderRect(g_state.renderer, &row);
             }
 
-            sdl_unified_look_sidebar_draw_clipped_text(font, item->symbol,
-                symbol_color, symbol_x, row.y, layout.symbol_w, row.h);
+            /* In tile mode the symbol carries the tile attr/char (high bit
+             * set); render the actual tile rather than the TTF glyph, which
+             * cannot draw it. */
+            if (g_state.use_tiles && g_state.tileset
+                && (item->symbol_attr & 0x80)
+                && ((byte)item->symbol[0] & 0x80))
+            {
+                SDL_FRect tile_dst;
+
+                tile_dst = (SDL_FRect){
+                    .x = symbol_x + (row.h - layout.tile_size) * 0.5f,
+                    .y = row.y + (row.h - layout.tile_size) * 0.5f,
+                    .w = layout.tile_size,
+                    .h = layout.tile_size,
+                };
+
+                SDL_SetTextureAlphaMod(g_state.tileset, 255);
+                sdl_draw_tileset_sprite((byte)item->symbol_attr,
+                    item->symbol[0], &tile_dst, false);
+                sdl_restore_tileset_mod();
+            }
+            else
+            {
+                sdl_unified_look_sidebar_draw_clipped_text(font, item->symbol,
+                    symbol_color, symbol_x, row.y, layout.symbol_w, row.h);
+            }
             sdl_unified_look_sidebar_draw_clipped_text(font, item->text,
                 text_color, text_x, row.y, text_w, row.h);
         }

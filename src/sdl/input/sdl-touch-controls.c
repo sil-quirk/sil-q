@@ -8,6 +8,21 @@
 #define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.62f
 #define SDL_TOUCH_ROUND_HIT_SLOP_FRAC 0.18f
 
+/* Run a main-menu action that opens a modal screen inline (Quick Access / thumb
+ * / swipe buttons bound to a main-menu choice).  Those screens call inkey(),
+ * whose cleanup clears inkey_flag; when an outer command-wait inkey() is still
+ * blocked (the usual case when a button fires during gameplay) that leaves
+ * pointer/mouse command shortcuts inactive until the next physical keypress.
+ * Mirror sdl_main_menu_overlay_choose() and restore the command-wait state. */
+static void sdl_touch_run_main_menu_choice(int choice)
+{
+    bool restore_command_wait = inkey_flag;
+
+    (void)do_cmd_main_menu_execute_choice(choice);
+    if (restore_command_wait && character_icky == 0)
+        inkey_flag = true;
+}
+
 void sdl_touch_pane_send_confirm_action(void)
 {
     if (character_dungeon) {
@@ -34,12 +49,12 @@ void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press
     }
 
     if (binding == TOUCH_BIND_MAIN_MENU_KNOWLEDGE) {
-        (void)do_cmd_main_menu_execute_choice(MAIN_MENU_KNOWLEDGE);
+        sdl_touch_run_main_menu_choice(MAIN_MENU_KNOWLEDGE);
         return;
     }
 
     if (binding == TOUCH_BIND_MAIN_MENU_HINTS_QUESTS) {
-        (void)do_cmd_main_menu_execute_choice(MAIN_MENU_HINTS_QUESTS);
+        sdl_touch_run_main_menu_choice(MAIN_MENU_HINTS_QUESTS);
         return;
     }
 
@@ -3329,6 +3344,90 @@ bool sdl_touch_top_panel_current_anchor(SDL_Rect* out_screen,
     return true;
 }
 
+/* Reduce the visible button count so the centre-anchored quick access panel
+ * does not cross the side overlay panes (status / combat / log / depth) that
+ * intrude into the panel's horizontal band.  Returns the most buttons of the
+ * given size that fit, centred, in the clear span between those panes. */
+static int sdl_touch_top_panel_fit_button_count(const SDL_Rect* screen,
+    const SDL_Rect* anchor, enum pane_placement where, int active_count,
+    float button_size, float gap)
+{
+    float panel_h = button_size;
+    float band_top;
+    float band_bottom;
+    float left;
+    float right;
+    float center;
+    float half;
+    float avail;
+    float screen_w;
+    float side_margin;
+    SDL_Rect panes[4];
+    int pane_count = 0;
+    SDL_Rect r;
+    SDL_FRect fr;
+    int max_fit;
+
+    if (!screen || !anchor || active_count <= 1 || button_size <= 0.0f)
+        return active_count;
+
+    screen_w = (float)screen->w;
+    side_margin = sdl_touch_pane_clampf(screen_w * 0.02f, 6.0f, 18.0f);
+    left = (float)screen->x + side_margin;
+    right = (float)(screen->x + screen->w) - side_margin;
+
+    band_top = sdl_overlay_panel_y(anchor, where, (int)(panel_h + 0.5f));
+    band_bottom = band_top + panel_h;
+    /* Small vertical slop so a pane that just abuts the band still counts. */
+    band_top -= gap;
+    band_bottom += gap;
+
+    if (sdl_status_pane_current_rect(&r, NULL) && r.w > 0 && r.h > 0)
+        panes[pane_count++] = r;
+    if (sdl_combat_overlay_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+        panes[pane_count++] = r;
+    if (sdl_overlay_log_pane_current_rect(&r) && r.w > 0 && r.h > 0)
+        panes[pane_count++] = r;
+    if (sdl_depth_menu_pane_current_rect(&fr) && fr.w > 0.0f && fr.h > 0.0f) {
+        panes[pane_count++] = (SDL_Rect){ (int)fr.x, (int)fr.y,
+            (int)fr.w, (int)fr.h };
+    }
+
+    center = (float)anchor->x + (float)anchor->w * 0.5f;
+
+    for (int i = 0; i < pane_count; i++) {
+        float p_left = (float)panes[i].x;
+        float p_right = (float)(panes[i].x + panes[i].w);
+        float p_top = (float)panes[i].y;
+        float p_bottom = (float)(panes[i].y + panes[i].h);
+        float p_mid = (p_left + p_right) * 0.5f;
+
+        if (p_bottom <= band_top || p_top >= band_bottom)
+            continue;
+        if (p_mid <= center) {
+            if (p_right + gap > left)
+                left = p_right + gap;
+        } else if (p_left - gap < right) {
+            right = p_left - gap;
+        }
+    }
+
+    /* Largest panel width that, centred on the anchor, clears both sides. */
+    half = center - left;
+    if (right - center < half)
+        half = right - center;
+    avail = half * 2.0f;
+    if (avail < button_size)
+        return 1;
+
+    max_fit = (int)((avail + gap) / (button_size + gap));
+    if (max_fit < 1)
+        max_fit = 1;
+    if (max_fit > active_count)
+        max_fit = active_count;
+    return max_fit;
+}
+
 bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     const SDL_Rect* anchor, enum pane_placement where,
     SDL_FRect* button_rects, SDL_FRect* out_panel)
@@ -3365,6 +3464,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
 #if SIL_SDL_MOBILE_BUILD
     button_size = sdl_touch_pane_clampf(icon_size * 2.75f, 76.0f, 112.0f);
     gap = sdl_touch_pane_clampf(button_size * 0.12f, 8.0f, 18.0f);
+    active_count = sdl_touch_top_panel_fit_button_count(screen, anchor, where,
+        active_count, button_size, gap);
     columns = active_count;
     rows = 1;
     panel_w = button_size * (float)columns + gap * (float)(columns - 1);
@@ -3401,6 +3502,8 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     pad = sdl_touch_pane_clampf(icon_size * 0.18f, 6.0f, 14.0f);
     gap = sdl_touch_pane_clampf(icon_size * 0.18f, 6.0f, 14.0f);
     button_size = icon_size + pad * 2.0f;
+    active_count = sdl_touch_top_panel_fit_button_count(screen, anchor, where,
+        active_count, button_size, gap);
     columns = active_count;
     rows = 1;
     if (max_panel_w <= gap * (float)(active_count - 1))
@@ -4005,7 +4108,14 @@ void sdl_touch_top_panel_render_buttons(
         int slot = visible_slots[i];
         SDL_Color icon_color;
         SDL_Color border_color;
-        SDL_FRect shadow = button_rects[slot];
+        SDL_FRect shadow;
+
+        /* Slots dropped by the side-pane fit have a zeroed rect; skip them so
+         * the visible row matches what compute_layout actually placed. */
+        if (button_rects[slot].w <= 0.0f || button_rects[slot].h <= 0.0f)
+            continue;
+
+        shadow = button_rects[slot];
         int binding = sdl_touch_top_panel_display_binding_for_slot(slot);
         bool toggled = sdl_pointer_attack_binding_toggled(binding);
         bool hovered = slot == g_touch_top_panel_hover_slot;
