@@ -237,6 +237,7 @@ extern byte* temp_x;
 extern u16b (*cave_info)[256];
 extern byte (*cave_feat)[MAX_DUNGEON_WID];
 extern byte (*cave_color)[MAX_DUNGEON_WID];
+extern byte (*cave_rewired)[MAX_DUNGEON_WID];
 extern s16b (*cave_light)[MAX_DUNGEON_WID];
 extern s16b (*cave_o_idx)[MAX_DUNGEON_WID];
 extern s16b (*cave_m_idx)[MAX_DUNGEON_WID];
@@ -663,8 +664,12 @@ extern void do_cmd_tunnel(void);
 extern bool break_free_of_web(void);
 extern bool do_cmd_disarm_aux(int y, int x);
 extern bool trap_disarm_power(int feat, int* power);
+extern bool trap_is_rewireable(int feat);
 extern int show_interaction_skill_roll_animation(cptr title, cptr action,
     int y, int x, int skill, int difficulty, skill_roll_details* roll);
+extern int show_interaction_skill_roll_animation_actor(monster_type* actor,
+    cptr title, cptr action, int y, int x, int skill, int difficulty,
+    skill_roll_details* roll);
 extern void show_interaction_skill_roll_pair(cptr title, int y, int x,
     cptr first_label, const skill_roll_details* first,
     cptr second_label, const skill_roll_details* second);

@@ -765,6 +765,14 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
             cave_feature_visual(f_ptr, &a, &c);
 
+            /* Mark a rewired trap distinctly in ASCII view (tiles are tinted
+             * by the renderer instead -- see sdl_rewired_trap_tint_active). */
+            if (graphics_are_ascii() && cave_rewired[y][x]
+                && (feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
+            {
+                a = TERM_VIOLET;
+            }
+
             /* Optional: apply group-based override for doors */
             (void)apply_style_door_graphics(y, x, feat, info, &a, &c);
 

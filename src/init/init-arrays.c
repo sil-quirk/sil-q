@@ -136,6 +136,10 @@ extern void re_init_some_things(void)
     mem_free_null(cave_color);
     cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
+    /* Rewired-trap difficulty array */
+    mem_free_null(cave_rewired);
+    cave_rewired = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
+
     /* Light array */
     mem_free_null(cave_light);
     cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
@@ -266,6 +270,9 @@ errr init_other(void)
 
     /* Color array */
     cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
+
+    /* Rewired-trap difficulty array */
+    cave_rewired = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
     cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);

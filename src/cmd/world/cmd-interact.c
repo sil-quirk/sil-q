@@ -236,8 +236,9 @@ void show_interaction_skill_roll_status(cptr title, int y, int x,
     interaction_roll_present_frame();
 }
 
-int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
-    int x, int skill, int difficulty, skill_roll_details* roll)
+int show_interaction_skill_roll_animation_actor(monster_type* actor, cptr title,
+    cptr action, int y, int x, int skill, int difficulty,
+    skill_roll_details* roll)
 {
     skill_roll_details local_roll;
     skill_roll_details preview_roll;
@@ -255,7 +256,7 @@ int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
         roll = &local_roll;
 
     if (!Term || character_icky)
-        return skill_check_details(PLAYER, skill, difficulty, NULL, roll);
+        return skill_check_details(actor, skill, difficulty, NULL, roll);
 
     memset(&preview_roll, 0, sizeof(preview_roll));
     preview_roll.skill = skill;
@@ -292,7 +293,7 @@ int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
         frame++;
     }
 
-    result = skill_check_details(PLAYER, skill, difficulty, NULL, roll);
+    result = skill_check_details(actor, skill, difficulty, NULL, roll);
     interaction_roll_render_overlay(title, action, y, x, roll, roll->skill_die,
         roll->difficulty_die, true, false, overlay_ms);
 
@@ -300,6 +301,18 @@ int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
     interaction_roll_present_frame();
 
     return result;
+}
+
+/*
+ * Convenience wrapper: the acting creature is the player.  Existing callers
+ * (disarm, lockpick, bash) use this; the monster trap-engagement code calls the
+ * _actor variant above so a monster's own Perception roll is shown/resolved.
+ */
+int show_interaction_skill_roll_animation(cptr title, cptr action, int y,
+    int x, int skill, int difficulty, skill_roll_details* roll)
+{
+    return show_interaction_skill_roll_animation_actor(
+        PLAYER, title, action, y, x, skill, difficulty, roll);
 }
 
 /*
@@ -845,7 +858,9 @@ static bool grid_is_open_target(int y, int x)
 
 static bool grid_is_known_trap(int y, int x)
 {
-    return (cave_info[y][x] & (CAVE_MARK)) && is_trap(cave_feat[y][x]);
+    /* A rewired trap is harmless to the player and is not a disarm target. */
+    return (cave_info[y][x] & (CAVE_MARK)) && is_trap(cave_feat[y][x])
+        && !cave_rewired[y][x];
 }
 
 static bool grid_is_disarm_target(int y, int x)
@@ -932,6 +947,28 @@ bool trap_disarm_power(int feat, int* power)
     if (power)
         *power = p;
     return true;
+}
+
+/*
+ * Whether a trap can be "rewired" (re-keyed to catch monsters) by a player who
+ * has the Rewire Traps ability.  Only disarmable, offensive "device" traps
+ * qualify -- rewiring happens through a successful disarm, and the effect must
+ * make sense when a monster steps onto it.  Pits/webs/roosts are not disarmable;
+ * alarm/memory-gas/false-floor/imprisonment have no useful monster-victim effect.
+ */
+bool trap_is_rewireable(int feat)
+{
+    switch (feat)
+    {
+    case FEAT_TRAP_DART:
+    case FEAT_TRAP_GAS_CONF:
+    case FEAT_TRAP_CALTROPS:
+    case FEAT_TRAP_DEADFALL:
+    case FEAT_TRAP_ACID:
+        return true;
+    default:
+        return false;
+    }
 }
 
 /* Short flavour line for a trap feature. */
@@ -1240,11 +1277,36 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
         int power = 0;
         bool disarmable = trap_disarm_power(feat, &power);
         cptr name = (f_name + f_info[feat].name);
+        bool rewired = (cave_rewired[y][x] != 0);
+        bool can_rewire = (!rewired && disarmable
+            && p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS]
+            && trap_is_rewireable(feat));
 
-        strnfmt(title, sizeof(title), "%^s", name);
+        if (rewired)
+            strnfmt(title, sizeof(title), "%^s (rewired)", name);
+        else
+            strnfmt(title, sizeof(title), "%^s", name);
         SDL_strlcpy(desc, trap_flavor_text(feat), sizeof(desc));
 
-        if (disarmable)
+        if (rewired)
+        {
+            /* Harmless to the player -- no disarm option is offered. */
+            grid_question_append(desc, sizeof(desc),
+                "You have rewired this trap: it is harmless to you, and may "
+                "catch monsters that cross it.");
+        }
+        else if (can_rewire)
+        {
+            strnfmt(line, sizeof(line),
+                "Rewiring it tests your Perception (difficulty %d); the wider "
+                "your margin, the harder foes find it to notice or undo.",
+                power);
+            grid_question_append(desc, sizeof(desc), line);
+            /* Same command as disarm: do_cmd_disarm_aux re-keys it when you
+             * have the ability (see the rewire branch there). */
+            GRID_Q_ADD('D', 'd', "Rewire it", TERM_L_WHITE);
+        }
+        else if (disarmable)
         {
             strnfmt(line, sizeof(line),
                 "Disarming it tests your Perception (difficulty %d); failing "
@@ -2299,26 +2361,60 @@ bool do_cmd_disarm_aux(int y, int x)
     if (p_ptr->confused)
         difficulty += 5;
 
+    /* With the Rewire Traps ability, a successful disarm of a suitable trap
+     * re-keys it instead of removing it (see below). */
+    bool rewiring = p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS]
+        && trap_is_rewireable(cave_feat[y][x]) && !cave_rewired[y][x];
+
     // perform the check
-    result = show_interaction_skill_roll_animation("Disarming trap",
-        "Testing the mechanism", y, x, score, difficulty, &roll);
+    result = show_interaction_skill_roll_animation(
+        rewiring ? "Rewiring trap" : "Disarming trap",
+        rewiring ? "Re-keying the mechanism" : "Testing the mechanism", y, x,
+        score, difficulty, &roll);
 
     /* Success, always succeed with player trap */
     if (result > 0)
     {
-        /* Special message for glyphs. */
-        if (cave_feat[y][x] == FEAT_GLYPH)
-            msg_format("You have scuffed the %s.", name);
+        int feat = cave_feat[y][x];
 
-        /* Normal message otherwise */
+        /* Re-key a suitable trap instead of removing it: it becomes safe for
+         * you and may catch monsters.  How hard it is for a monster to notice
+         * or undo scales with your margin.  (Disarming an already-rewired trap
+         * removes it, so you can undo.) */
+        if (rewiring)
+        {
+            int quality = power + result;
+            if (quality < 1)
+                quality = 1;
+            if (quality > 255)
+                quality = 255;
+
+            cave_rewired[y][x] = (byte)quality;
+
+            /* Keep the trap known and refresh its look immediately (the violet
+             * mark must show without waiting for the next full redraw). */
+            cave_info[y][x] |= (CAVE_MARK);
+            lite_spot(y, x);
+            p_ptr->redraw |= (PR_MAP);
+
+            msg_format("You re-key the %s to catch your foes.", name);
+        }
         else
-            msg_format("You have disarmed the %s.", name);
+        {
+            /* Special message for glyphs. */
+            if (feat == FEAT_GLYPH)
+                msg_format("You have scuffed the %s.", name);
 
-        /* Forget the trap */
-        cave_info[y][x] &= ~(CAVE_MARK);
+            /* Normal message otherwise */
+            else
+                msg_format("You have disarmed the %s.", name);
 
-        /* Remove the trap */
-        cave_set_feat(y, x, FEAT_FLOOR);
+            /* Forget the trap */
+            cave_info[y][x] &= ~(CAVE_MARK);
+
+            /* Remove the trap */
+            cave_set_feat(y, x, FEAT_FLOOR);
+        }
     }
 
     /* Failure by a small amount allows one to keep trying */

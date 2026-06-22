@@ -150,6 +150,183 @@ void m_fall_in_chasm(int fy, int fx)
 }
 
 /*
+ * Apply a rewired trap's effect to the monster standing on (fy, fx).
+ *
+ * Mirrors the offensive subset of hit_trap(), but the victim is a monster.
+ * Damage is dealt through mon_take_hit() with who == -1 so the player is
+ * credited with the kill; status traps reuse the same machinery the player
+ * versions use.  Only the traps listed in trap_is_rewireable() reach here.
+ */
+static void mon_trigger_rewired_trap(int m_idx, int fy, int fx)
+{
+    monster_type* m_ptr = &mon_list[m_idx];
+    int feat = cave_feat[fy][fx];
+    char m_name[80];
+    int dd = 0, ds = 0, dam;
+    bool died;
+    bool to_rubble = false;
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    /* Store the trap glyph for the combat-rolls window */
+    combat_roll_special_char = (&f_info[feat])->d_char;
+    combat_roll_special_attr = (&f_info[feat])->d_attr;
+
+    switch (feat)
+    {
+    case FEAT_TRAP_DART:
+        if (m_ptr->ml)
+            msg_format("A dart shoots out and strikes %s.", m_name);
+        dd = 1;
+        ds = 15;
+        break;
+
+    case FEAT_TRAP_CALTROPS:
+        if (m_ptr->ml)
+            msg_format("%^s blunders into a field of caltrops.", m_name);
+        dd = 1;
+        ds = 4;
+        break;
+
+    case FEAT_TRAP_ACID:
+        if (m_ptr->ml)
+            msg_format("%^s is splashed with acid.", m_name);
+        dd = 4;
+        ds = 4;
+        break;
+
+    case FEAT_TRAP_DEADFALL:
+        if (m_ptr->ml)
+            msg_format("The ceiling collapses on %s!", m_name);
+        dd = 6;
+        ds = 8;
+        to_rubble = true;
+        break;
+
+    case FEAT_TRAP_GAS_CONF:
+        if (m_ptr->ml)
+            msg_format("Confusing vapours billow around %s.", m_name);
+        /* Reuse the same radius effect the player gas trap uses; it confuses
+         * the stepping monster (and any neighbours) and resolves its own
+         * death/messages, so there is nothing more to do here. */
+        explosion(-1, 1, fy, fx, 3, 4, 10, GF_CONFUSION);
+        return;
+
+    default:
+        return;
+    }
+
+    dam = damroll(dd, ds);
+
+    if (m_ptr->ml)
+    {
+        update_combat_rolls1b(NULL, m_ptr, true);
+        update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, GF_HURT, false);
+    }
+
+    /* Hurt the monster (who == -1 so the player gains the experience) */
+    died = mon_take_hit(m_idx, dam, NULL, -1);
+
+    /* Caltrops also slow a survivor */
+    if (!died && (feat == FEAT_TRAP_CALTROPS))
+        set_monster_slow(m_idx, m_ptr->slowed + damroll(4, 4), m_ptr->ml);
+
+    /* A deadfall buries its grid in rubble, consuming the trap */
+    if (to_rubble)
+    {
+        cave_info[fy][fx] &= ~(CAVE_MARK);
+        cave_rewired[fy][fx] = 0;
+        cave_set_feat(fy, fx, FEAT_RUBBLE);
+    }
+}
+
+/*
+ * A monster has stepped onto (fy, fx).  If the player has rewired a trap there,
+ * the monster engages it.
+ *
+ * The creature still knows a trap sits here -- but rewiring silently changed
+ * how the mechanism works.  A mindless creature blunders straight in, trusting
+ * habit.  An intelligent one may notice the device has been tampered with (a
+ * Perception roll vs the rewire quality); if it does, it stops to disarm the
+ * altered trap, either neutralising it or fumbling and setting it off on
+ * itself.  The rolls are shown to the player exactly like their own disarming
+ * whenever the monster is in view.
+ */
+void m_engage_rewired_trap(int fy, int fx)
+{
+    int m_idx = cave_m_idx[fy][fx];
+    monster_type* m_ptr;
+    monster_race* r_ptr;
+    int difficulty, detect, disarm;
+    char m_name[80];
+    bool seen;
+
+    /* Only monsters, and only a live, rewired trap */
+    if (m_idx <= 0)
+        return;
+    if (!cave_rewired[fy][fx] || !cave_trap_bold(fy, fx))
+        return;
+
+    m_ptr = &mon_list[m_idx];
+    r_ptr = &r_info[m_ptr->r_idx];
+    seen = m_ptr->ml;
+    difficulty = cave_rewired[fy][fx];
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    /* Mindless creatures never suspect a thing */
+    if (r_ptr->flags2 & (RF2_MINDLESS))
+    {
+        mon_trigger_rewired_trap(m_idx, fy, fx);
+        return;
+    }
+
+    /* Does it notice the mechanism has been altered this time? */
+    if (seen)
+        detect = show_interaction_skill_roll_animation_actor(m_ptr,
+            "Noticing tampering", "Studying the trap", fy, fx,
+            monster_skill(m_ptr, S_PER), difficulty, NULL);
+    else
+        detect
+            = skill_check(m_ptr, monster_skill(m_ptr, S_PER), difficulty, NULL);
+
+    /* Fails to notice -- trusts its stale familiarity and walks right in */
+    if (detect <= 0)
+    {
+        mon_trigger_rewired_trap(m_idx, fy, fx);
+        return;
+    }
+
+    /* It noticed -- it stops to disarm the altered trap */
+    if (seen)
+        msg_format("%^s notices the trap has been tampered with.", m_name);
+
+    if (seen)
+        disarm = show_interaction_skill_roll_animation_actor(m_ptr,
+            "Disarming trap", "Testing the mechanism", fy, fx,
+            monster_skill(m_ptr, S_PER), difficulty, NULL);
+    else
+        disarm
+            = skill_check(m_ptr, monster_skill(m_ptr, S_PER), difficulty, NULL);
+
+    if (disarm > 0)
+    {
+        /* Neutralises your handiwork */
+        if (seen)
+            msg_format("%^s dismantles the trap.", m_name);
+
+        cave_info[fy][fx] &= ~(CAVE_MARK);
+        cave_rewired[fy][fx] = 0;
+        cave_set_feat(fy, fx, FEAT_FLOOR);
+    }
+    else
+    {
+        /* Fumbles and sets it off on itself */
+        mon_trigger_rewired_trap(m_idx, fy, fx);
+    }
+}
+
+/*
  * Print a message saying what is underfoot.
  */
 void describe_floor_object(void)
@@ -552,6 +729,12 @@ void monster_swap(int y1, int x1, int y2, int x2)
         m_fall_in_chasm(y2, x2);
     if (m2 > 0)
         m_fall_in_chasm(y1, x1);
+
+    // a monster that moved onto a rewired trap may set it off
+    if (m1 > 0)
+        m_engage_rewired_trap(y2, x2);
+    if (m2 > 0)
+        m_engage_rewired_trap(y1, x1);
 
     // describe object you are standing on if any
     if ((m1 < 0) || (m2 < 0))

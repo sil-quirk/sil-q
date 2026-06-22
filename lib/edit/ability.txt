@@ -487,6 +487,12 @@ I:4:9:10
 D:Blessed as the favoured of the Valar in the Undying Lands, where Manwë's eagles bore tidings and the light of the Trees touched all things with grace beyond the measure of Middle-earth.
 E:+1 Grace.
 
+N:90:Rewire Traps
+I:4:10:7
+P:4/2
+D:Turning the snares of the Enemy against his own, as the cunning of the Noldor unmade what was wrought to harm them. One who has studied a mechanism well enough to still it can as readily make it speak again, but to a different bidding, sparing the hand that knows its secret and betraying those who trust to their old familiarity.
+E:When you disarm a suitable trap, you instead re-key its mechanism: it no longer harms you, and monsters that cross it may set off its altered workings. The greater your margin on the attempt, the harder foes find it to notice or undo the change.
+
 # Will ---------------------------------------------
 
 N:100:Curse Breaking

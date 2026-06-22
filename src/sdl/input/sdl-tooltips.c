@@ -361,6 +361,15 @@ bool sdl_object_tooltip_feature_name(int y, int x, cptr* out_name)
     if (!name || !name[0])
         return false;
 
+    /* A trap the player has rewired is shown as such. */
+    if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL)
+        && cave_rewired[y][x])
+    {
+        static char rewired_buf[80];
+        strnfmt(rewired_buf, sizeof(rewired_buf), "%s (rewired)", name);
+        name = rewired_buf;
+    }
+
     if (out_name)
         *out_name = name;
     return true;

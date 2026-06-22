@@ -848,6 +848,7 @@ static void do_cmd_wiz_bamf(void)
         return;
 
     teleport_player_to(y, x);
+    target_set_monster(0);
 }
 
 /*

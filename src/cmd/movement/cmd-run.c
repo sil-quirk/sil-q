@@ -167,9 +167,11 @@ void move_player(int dir)
         /* Check before walking on known traps/chasms on movement */
         if ((!p_ptr->confused) && (cave_info[y][x] & (CAVE_MARK)))
         {
-            // leapable things: chasms, traps (except roosts and webs)
+            // leapable things: chasms, traps (except roosts and webs).
+            // A trap the player has rewired is safe for them -- no leap prompt.
             if ((cave_feat[y][x] == FEAT_CHASM)
                 || (((cave_trap_bold(y, x)) && !cave_floorlike_bold(y, x))
+                    && !cave_rewired[y][x]
                     && !(cave_feat[y][x] == FEAT_TRAP_ROOST
                         || cave_feat[y][x] == FEAT_TRAP_WEB)))
             {
@@ -353,8 +355,9 @@ void move_player(int dir)
                 }
             }
 
-            // traps
+            // traps (a trap the player has rewired is safe for them -- no prompt)
             if ((cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
+                && !cave_rewired[y][x]
                 && !player_take_trap_step_allowance(y, x))
             {
                 ui_question_option options[2];
@@ -373,11 +376,16 @@ void move_player(int dir)
 
                 strnfmt(title, sizeof(title), "%^s in the way", name);
 
-                /* Offer disarming when the trap allows it */
+                /* Offer disarming when the trap allows it -- or rewiring, if the
+                 * player has the ability and the trap can be re-keyed (this
+                 * block only runs for not-yet-rewired traps). */
                 if (trap_disarm_power(cave_feat[y][x], NULL))
                 {
+                    bool rewiring
+                        = p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS]
+                        && trap_is_rewireable(cave_feat[y][x]);
                     options[count].key = 'd';
-                    options[count].label = "Disarm it";
+                    options[count].label = rewiring ? "Rewire it" : "Disarm it";
                     options[count].attr = TERM_L_WHITE;
                     disarm_choice = count;
                     count++;

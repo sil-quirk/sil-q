@@ -81,7 +81,7 @@ U:SMT_FEANOR
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
 P:4
-D:Mighty fëa aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow.
+D:Mighty fëa aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow; brightest of the Noldor, deepest fallen — Fëanor, Spirit of Fire, whose glory and whose ruin are one flame.
 
 #Very powerful in melee and evasion, wounded Morgoth
 #Stats +5 +8 =13, Skills +5 +1 =6, Ability 1;
@@ -89,7 +89,7 @@ D:Mighty fëa aflame, brightest and proudest among Eldar craftsmen, yet fallen u
 N:2:Fingolfin
 Q:bab8707cc4528637
 A:, High King of the Noldor
-B:You ride forth, defiant—echo of the High King who faced Morgoth at Angband's gate.
+B:You ride out as once before the gates of Angband — alone, defiant, unafraid.
 F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_PENALTY
 U:WIL_FIN
 S:3:2:2:1
@@ -103,7 +103,7 @@ D: High King courageous, whose defiance shook Morgoth upon his dark throne; ridi
 N:3:Finarfin
 Q:08abbf9c498d92ff
 A: of Tirion
-B:You move in wisdom—voice of gentle counsel, longing for healing beyond bloodshed.
+B:Gentlest of the kings, you take the road at last; wisdom is your sword, and healing your hope.
 F:PER_AFFINITY | WIL_AFFINITY |SMT_PENALTY
 S:1:1:0:3
 C:7:7:7:11   # Song of the Trees #Woven Themes
@@ -116,13 +116,13 @@ D: Wise-hearted and gentle, fairest prince who turned back from doom, ruling now
 N:4:Maedhros
 Q:8f0922061ade37b8
 A: the Red
-B:You stride toward shadow—eldest son of flame, bound by oath and tragic resolve.
+B:The Oath drives you on, eldest of the dispossessed; the hand you lost remembers Thangorodrim.
 F:KINSLAYER | WIL_AFFINITY | SNG_PENALTY | STL_PENALTY
 U:MEL_MAEDHROS
 S:1:1:3:0
 C:5:8 #Vengeance
 P:3
-D: Eldest son of fire-hearted Fëanor, whose flame-red hair now shadows grief; once chained in torment on cliffs of Thangorodrim, yet unbroken in spirit. Leading brothers in doom-bound quest, his nobility falters beneath oath sworn rashly in pride, binding him to deeds grievous and sorrowful. His wisdom darkened by despair foreshadows kin-slaying yet unfulfilled, till driven at last by tragic madness to seize what once was dearly lost—a Silmaril reclaimed in flame and despair, bringing bitter end to hope.
+D: Eldest son of fire-hearted Fëanor, whose flame-red hair now shadows grief; once chained in torment on cliffs of Thangorodrim, yet unbroken in spirit. Leading brothers in doom-bound quest, his nobility falters beneath oath sworn rashly in pride, binding him to deeds grievous and sorrowful. Kin-slaying waits upon his road, and at its end a tragic madness: a Silmaril seized again in flame and despair, and hope brought to its bitter ending; Maedhros the Tall, who gave his right hand for his life.
 
 #Most similar to Fëanor son, treacherous
 #Stats +5 +2 =7, Skills +5 +1 =6, Ability 0;
@@ -130,7 +130,7 @@ D: Eldest son of fire-hearted Fëanor, whose flame-red hair now shadows grief; o
 N:5:Curufin
 Q:ee653b87c25d0c52
 A: the Wily
-B:You begin your hunt—crafty son of Fëanor, whose subtlety sows ruin unseen.
+B:Cunning of hand and of tongue, you go softly; snares are laid where you have smiled.
 F:KINSLAYER | SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | SNG_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist

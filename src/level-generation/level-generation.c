@@ -1624,6 +1624,9 @@ if (playerturn == 0) {
                 /* No colors (use default) */
                 cave_color[y][x] = 0;
 
+                /* No rewired traps */
+                cave_rewired[y][x] = 0;
+
                 /* No objects */
                 cave_o_idx[y][x] = 0;
 

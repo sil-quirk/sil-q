@@ -1204,10 +1204,19 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
         if (boring || !cave_floorlike_bold(y, x))
         {
             cptr name = f_name + f_info[feat].name;
+            char name_buf[80];
 
             /* Hack -- handle unknown grids */
             if (feat == FEAT_NONE)
                 name = "unknown square";
+
+            /* Note a trap the player has rewired to catch monsters */
+            else if (cave_rewired[y][x] && (feat >= FEAT_TRAP_HEAD)
+                && (feat <= FEAT_TRAP_TAIL))
+            {
+                strnfmt(name_buf, sizeof(name_buf), "%s (rewired)", name);
+                name = name_buf;
+            }
 
             /* Pick a prefix */
             if (*s2 && (feat >= FEAT_DOOR_HEAD))

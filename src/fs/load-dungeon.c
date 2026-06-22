@@ -317,6 +317,42 @@ errr rd_dungeon(void)
         }
     }
 
+    /* Optional extension: rewired-trap difficulty (0.9.7.2+).  New saves always
+     * write the door-choices block above, so the stream is positioned exactly
+     * here; older saves lack this block and skip it via the version gate. */
+    if (savefile_has_cave_rewired)
+    {
+        const u16b CAVE_REWIRED_MAGIC = 0xC2F0;
+        u16b magic = 0;
+        rd_u16b(&magic);
+        if (magic != CAVE_REWIRED_MAGIC)
+        {
+            note(format("Invalid cave_rewired marker 0x%04X", magic));
+            return (-1);
+        }
+
+        log_trace("[load:%06u] === BEGIN CAVE_REWIRED RLE ===", (unsigned)load_byte_offset);
+        for (x = y = 0; y < p_ptr->cur_map_hgt;)
+        {
+            maybe_show_startup_loading_overlay();
+            rd_byte(&count);
+            rd_byte(&tmp8u);
+
+            for (i = count; i > 0; i--)
+            {
+                cave_rewired[y][x] = tmp8u;
+
+                if (++x >= p_ptr->cur_map_wid)
+                {
+                    x = 0;
+                    if (++y >= p_ptr->cur_map_hgt)
+                        break;
+                }
+            }
+        }
+        log_trace("[load:%06u] === END CAVE_REWIRED RLE ===", (unsigned)load_byte_offset);
+    }
+
     /*** Player ***/
 
     /* Load depth */

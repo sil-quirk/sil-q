@@ -390,6 +390,14 @@ byte (*cave_feat)[MAX_DUNGEON_WID];
 byte (*cave_color)[MAX_DUNGEON_WID];
 
 /*
+ * Array[DUNGEON_HGT][DUNGEON_WID] of rewired-trap difficulty.
+ * 0 = trap (if any) is not rewired; >0 = the trap on this grid has been
+ * rewired by the player to catch monsters, and the value is the difficulty a
+ * monster must beat to notice/disarm it (derived from the player's rewire roll).
+ */
+byte (*cave_rewired)[MAX_DUNGEON_WID];
+
+/*
  * Array[DUNGEON_HGT][DUNGEON_WID] of cave grid light level
  */
 s16b (*cave_light)[MAX_DUNGEON_WID];

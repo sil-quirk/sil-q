@@ -60,7 +60,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 7
-#define VERSION_EXTRA 1   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 2   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.x saves */
 
@@ -681,6 +681,7 @@
 #define PER_LISTEN 7
 #define PER_MASTER_HUNTER 8
 #define PER_GRA 9
+#define PER_REWIRE_TRAPS 10
 
 /*
  * Will abilities

@@ -967,6 +967,29 @@ void sdl_draw_rage_tile_filter(byte a, char c, int y, int x,
     sdl_restore_tileset_mod();
 }
 
+/* A trap the player has rewired (re-keyed to catch monsters). */
+static bool sdl_rewired_trap_tint_active(int y, int x)
+{
+    if ((y < 0) || (x < 0) || !cave_rewired)
+        return false;
+
+    return cave_rewired[y][x] && cave_trap_bold(y, x);
+}
+
+/* A steady violet wash marks a rewired trap in graphical tile mode, the
+ * counterpart of the ASCII glyph recolour done in map_info(). */
+static void sdl_draw_rewired_trap_tint(const SDL_FRect* dst)
+{
+    SDL_Color tint = g_state.palette[TERM_VIOLET];
+
+    if (!dst)
+        return;
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, tint.r, tint.g, tint.b, 90);
+    SDL_RenderFillRect(g_state.renderer, dst);
+}
+
 void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     char tc, const SDL_FRect* dst)
 {
@@ -1111,6 +1134,10 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
         sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
     else if (sdl_rage_base_floor_tint_active(dy, dx))
         sdl_draw_rage_tile_filter(a, c, dy, dx, dst);
+
+    /* Mark a rewired trap with a steady violet wash (tile mode) */
+    if (sdl_rewired_trap_tint_active(dy, dx))
+        sdl_draw_rewired_trap_tint(dst);
 
     if (sleep) {
         byte icon_a = misc_to_attr[ICON_SLEEPING];

@@ -1467,6 +1467,12 @@ void hit_trap(int y, int x)
 
     cptr name = "a trap";
 
+    /* A trap the player has rewired is keyed to spare them -- they know the
+     * altered mechanism and pass over it freely.  It still catches monsters.
+     * Return before disturbing so it behaves like safe floor underfoot. */
+    if (cave_rewired[y][x])
+        return;
+
     /* Disturb the player */
     disturb(0, 0);
 
