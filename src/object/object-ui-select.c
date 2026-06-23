@@ -57,8 +57,6 @@ static bool verify_item(cptr prompt, int item)
  */
 bool get_item_allow(int item)
 {
-    cptr s;
-
     if (inventory_item_is_supply_summary(item))
         return true;
 
@@ -72,28 +70,6 @@ bool get_item_allow(int item)
             return true;
 
         return false;
-    }
-
-    /* No inscription */
-    if (!o_ptr->obj_note)
-        return (true);
-
-    /* Find a '!' */
-    s = strchr(quark_str(o_ptr->obj_note), '!');
-
-    /* Process preventions */
-    while (s)
-    {
-        /* Check the "restriction" */
-        if ((s[1] == p_ptr->command_cmd) || (s[1] == '*'))
-        {
-            /* Verify the choice */
-            if (!verify_item("Really try", item))
-                return (false);
-        }
-
-        /* Find another '!' */
-        s = strchr(s + 1, '!');
     }
 
     /* Allow it */
@@ -124,70 +100,6 @@ bool get_item_okay(int item)
 
     /* Verify the item */
     return (item_tester_okay(o_ptr));
-}
-
-/*
- * Find the "first" inventory object with the given "tag".
- *
- * A "tag" is a char "n" appearing as "@n" anywhere in the
- * inscription of an object.
- *
- * Also, the tag "@xn" will work as well, where "n" is a tag-char,
- * and "x" is the "current" p_ptr->command_cmd code.
- *
- * Also works with '[' for first valid choice and ']' for last valid choice.
- */
-static int get_tag(int* cp, char tag)
-{
-    int i;
-    cptr s;
-
-    /* Check every object */
-    for (i = 0; i < INVEN_TOTAL; ++i)
-    {
-        object_type* o_ptr = &inventory[i];
-
-        /* Skip non-objects */
-        if (!o_ptr->k_idx)
-            continue;
-
-        /* Skip empty inscriptions */
-        if (!o_ptr->obj_note)
-            continue;
-
-        /* Find a '@' */
-        s = strchr(quark_str(o_ptr->obj_note), '@');
-
-        /* Process all tags */
-        while (s)
-        {
-            /* Check the normal tags */
-            if (s[1] == tag)
-            {
-                /* Save the actual inventory ID */
-                *cp = i;
-
-                /* Success */
-                return (true);
-            }
-
-            /* Check the special tags */
-            if ((s[1] == p_ptr->command_cmd) && (s[2] == tag))
-            {
-                /* Save the actual inventory ID */
-                *cp = i;
-
-                /* Success */
-                return (true);
-            }
-
-            /* Find another '@' */
-            s = strchr(s + 1, '@');
-        }
-    }
-
-    /* No such tag */
-    return (false);
 }
 
 /*
@@ -1355,8 +1267,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         case '8':
         case '9':
         {
-            bool tag_found = get_tag(&k, which);
-            if (!tag_found && p_ptr->command_see && highlight_active
+            if (p_ptr->command_see && highlight_active
                 && (which == '2' || which == '8' || which == '6'))
             {
                 /* Numpad navigation mode like main menu */
@@ -1382,9 +1293,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     else { break; }
                 }
             }
-            else if (!tag_found)
+            else
             {
-                bell("Illegal object choice (tag)!");
+                bell("Illegal object choice!");
                 break;
             }
 
@@ -1392,14 +1303,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (inventory_item_uses_inven_channel(k) ? !allow_inven
                 : !allow_equip)
             {
-                bell("Illegal object choice (tag)!");
+                bell("Illegal object choice!");
                 break;
             }
 
             /* Validate the item */
             if (!get_item_okay(k))
             {
-                bell("Illegal object choice (tag)!");
+                bell("Illegal object choice!");
                 break;
             }
 
@@ -1448,7 +1359,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (inventory_item_uses_inven_channel(k) ? !allow_inven
                 : !allow_equip)
             {
-                bell("Illegal object choice (tag)!");
+                bell("Illegal object choice!");
                 break;
             }
 

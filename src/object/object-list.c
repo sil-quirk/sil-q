@@ -353,7 +353,7 @@ void compact_objects(int size)
             saw_non_artefact = true;
 
             /* Hack -- High level objects start out "immune" */
-            if ((k_ptr->level > cur_lev) && (k_ptr->squelch != SQUELCH_ALWAYS))
+            if (k_ptr->level > cur_lev)
                 continue;
 
             /* Monster */
@@ -369,7 +369,7 @@ void compact_objects(int size)
                 x = m_ptr->fx;
 
                 /* Monsters protect their objects */
-                if (percent_chance(90) && (k_ptr->squelch != SQUELCH_ALWAYS))
+                if (percent_chance(90))
                     continue;
             }
 
@@ -382,16 +382,11 @@ void compact_objects(int size)
             }
 
             /* Nearby objects start out "immune" */
-            if ((cur_dis > 0) && (distance(py, px, y, x) < cur_dis)
-                && (k_ptr->squelch != SQUELCH_ALWAYS))
+            if ((cur_dis > 0) && (distance(py, px, y, x) < cur_dis))
                 continue;
 
             /* Saving throw */
             chance = 90;
-
-            /* Squelched items get compacted */
-            if ((k_ptr->aware) && (k_ptr->squelch == SQUELCH_ALWAYS))
-                chance = 0;
 
             /* Apply the saving throw */
             if (percent_chance(chance))

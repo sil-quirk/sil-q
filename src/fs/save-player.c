@@ -170,9 +170,9 @@ void wr_extra(void)
     wr_u16b(0U);
     wr_byte(0);
 
-    /* Save item-quality squelch sub-menu */
-    for (i = 0; i < SQUELCH_BYTES; i++)
-        wr_byte(squelch_level[i]);
+    /* Reserved: legacy item-quality squelch array (now unused) */
+    for (i = 0; i < LEGACY_ITEM_QUALITY_BYTES; i++)
+        wr_byte(0);
 
     /* Store the name of the current greater vault */
     wr_string(g_vault_name);
@@ -180,14 +180,12 @@ void wr_extra(void)
     /* Save the current number of special item types */
     wr_u16b(z_info->e_max);
 
-    /* Save special item squelch settings */
+    /* Save special item "seen"/"aware" flags (legacy squelch bit unused) */
     for (i = 0; i < z_info->e_max; i++)
     {
         ego_item_type* e_ptr = &e_info[i];
         byte tmp8u = 0;
 
-        if (e_ptr->squelch)
-            tmp8u |= 0x01;
         if (e_ptr->everseen)
             tmp8u |= 0x02;
         if (e_ptr->aware)

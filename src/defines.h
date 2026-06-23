@@ -1638,41 +1638,12 @@
 
 #define SV_CHEST_PRESENT 4
 
-/*Squelch Modes for k_info->squelch*/
-
-#define SQUELCH_NEVER 0 /*allow pickup, but defer to OPT_always_pickup*/
-#define NO_SQUELCH_NEVER_PICKUP 1 /*never pickup, override OPT_always_pickup*/
-#define NO_SQUELCH_ALWAYS_PICKUP                                               \
-    2 /*always pickup, override pickup and floor query options*/
-#define SQUELCH_ALWAYS 3 /*destroy when player walks over*/
-#define SQUELCH_HEAD 0
-#define SQUELCH_TAIL 3
-
 /*
- * These are the various levels of quality squelching supported by the game.
- * Less concisely:
- * 0 ---> No squelching
- * 1 ---> Squelch cursed items
- * 2 ---> Squelch average and worse items
- * 3 ---> Squelch good and worse items
- * 4 ---> squelch all but artefacts
- * 5 ---> squelch open chests
+ * The squelch subsystem has been removed.  The savefile still reserves this
+ * many zero bytes where the item-quality squelch array used to live so that
+ * old and new saves stay byte-compatible.
  */
-
-#define SQUELCH_NONE 0
-#define SQUELCH_CURSED 1
-#define SQUELCH_AVERAGE 2
-#define SQUELCH_GOOD_STRONG 3
-#define SQUELCH_GOOD_WEAK 4
-#define SQUELCH_ALL 5
-#define SQUELCH_OPENED_CHESTS 6 /*chests*/
-
-/*others are defines in squelch.c, static int do_qual_squelch,
- *but this one is used in chest opening. JG*/
-#define CHEST_INDEX 20
-
-/*number of bytes used in squelch sub-quality array*/
-#define SQUELCH_BYTES 24
+#define LEGACY_ITEM_QUALITY_BYTES 24
 
 /*
  * Special "sval" value -- unknown "sval"
@@ -3956,13 +3927,6 @@
  * Number of shades, including the shade 0 (base colors)
  */
 #define MAX_SHADES 8
-
-/*
- * These are the return values of squelch_itemp()
- */
-#define SQUELCH_FAILED -1
-#define SQUELCH_NO 0
-#define SQUELCH_YES 1
 
 /*
  * Flags for the Oath skill

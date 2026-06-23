@@ -180,57 +180,6 @@ static void regen_monsters(void)
     }
 }
 
-/*
- * If player has inscribed the object with "!!", let him know when it's
- * recharged. -LM-
- */
-static void recharged_notice(object_type* o_ptr)
-{
-    char o_name[120];
-
-    cptr s;
-
-    /* No inscription */
-    if (!o_ptr->obj_note)
-        return;
-
-    /* Find a '!' */
-    s = strchr(quark_str(o_ptr->obj_note), '!');
-
-    /* Process notification request. */
-    while (s)
-    {
-        /* Find another '!' */
-        if (s[1] == '!')
-        {
-            /* Describe (briefly) */
-            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
-
-            /*Disturb the player*/
-            disturb(0, 0);
-
-            /* Notify the player */
-            if (o_ptr->number > 1)
-                msg_format("Your %s are all recharged.", o_name);
-
-            /*artefacts*/
-            else if (o_ptr->name1)
-            {
-                msg_format("The %s has recharged.", o_name);
-            }
-
-            /*single, non-artefact items*/
-            else
-                msg_format("Your %s has recharged.", o_name);
-
-            /* Done. */
-            return;
-        }
-
-        /* Keep looking for '!'s */
-        s = strchr(s + 1, '!');
-    }
-}
 
 /*
  * Scan for artifacts within 22 tiles of player and mark them as seen.
@@ -502,10 +451,6 @@ void process_world(void)
             {
                 /* Update window */
                 j++;
-
-                /* Message if item is recharged, if inscribed !! */
-                if (!(o_ptr->timeout))
-                    recharged_notice(o_ptr);
             }
         }
     }

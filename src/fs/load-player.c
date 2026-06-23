@@ -268,9 +268,12 @@ errr rd_extra(void)
         }
     }
 
-    /* Read item-quality squelch sub-menu */
-    for (i = 0; i < SQUELCH_BYTES; i++)
-        rd_byte(&squelch_level[i]);
+    /* Reserved: legacy item-quality squelch array (now unused) */
+    {
+        byte legacy_squelch;
+        for (i = 0; i < LEGACY_ITEM_QUALITY_BYTES; i++)
+            rd_byte(&legacy_squelch);
+    }
 
     /* Load the name of the current greater vault */
     rd_string(g_vault_name, sizeof(g_vault_name));
@@ -278,7 +281,7 @@ errr rd_extra(void)
     /* Read the number of saved special item types */
     rd_u16b(&file_e_max);
 
-    /* Read special item squelch settings */
+    /* Read special item "seen"/"aware" flags (legacy squelch bit ignored) */
     for (i = 0; i < z_info->e_max; i++)
     {
         ego_item_type* e_ptr = &e_info[i];
@@ -288,13 +291,8 @@ errr rd_extra(void)
         if (i < file_e_max)
             rd_byte(&tmp8u);
 
-        e_ptr->squelch |= (tmp8u & 0x01);
         e_ptr->everseen |= (tmp8u & 0x02);
         e_ptr->aware |= (tmp8u & 0x04);
-
-        /* Hack - Repair the savefile */
-        if (!e_ptr->everseen)
-            e_ptr->squelch = false;
     }
 
     /* Read possible extra elements */

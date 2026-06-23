@@ -23,8 +23,8 @@ bool recharge(int num);
 bool item_tester_hook_ided_ammo(const object_type* o_ptr);
 bool item_tester_hook_ammo(const object_type* o_ptr);
 bool item_tester_hook_ordinary_ammo(const object_type* o_ptr);
-void identify_and_squelch_pack(void);
+void identify_and_describe_pack(void);
 bool mass_identify(int rad);
-int do_ident_item(int item, object_type* o_ptr);
+void do_ident_item(int item, object_type* o_ptr);
 
 #endif /* INCLUDED_SPELL_IDENTIFY_H */

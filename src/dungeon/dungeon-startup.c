@@ -2,16 +2,6 @@
 
 #include "angband.h"
 #include "dungeon-internal.h"
-#include "object/object-settings.h"
-
-/*
- * Load persistent object UI settings.
- */
-static void load_object_settings(void)
-{
-    /* Process the "user.scb" autoinscriptions file */
-    (void)object_settings_load("user.scb");
-}
 
 /*
  * Hack - Know inventory upon death
@@ -447,9 +437,6 @@ PlayResult play_game(void)
 
     /* Window stuff */
     window_stuff();
-
-    /* Load persistent object UI settings */
-    load_object_settings();
 
     /* Set or clear "hjkl_movement" if requested */
     if (arg_force_original)

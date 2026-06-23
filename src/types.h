@@ -265,9 +265,7 @@ struct object_kind
 
     bool tried; /* The player has "tried" one of the items */
 
-    byte squelch; /* Squelch setting for the particular item */
-
-    bool everseen; /* Used to despoilify squelch menus */
+    bool everseen; /* Tracks whether the item kind has appeared this run */
 };
 
 /*
@@ -405,8 +403,7 @@ struct ego_item_type
     bool skill_bonus_set[S_MAX];
 
     bool aware; /* Has its type been detected this game? */
-    bool everseen; /* Do not spoil squelch menus */
-    bool squelch; /* Squelch this special item */
+    bool everseen; /* Tracks whether the ego type has appeared this run */
 };
 
 /*

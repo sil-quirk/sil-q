@@ -466,9 +466,6 @@ errr rd_dungeon(void)
 
             /* Link the floor to the object */
             cave_o_idx[y][x] = o_idx;
-
-            /* Rearrange stack if needed */
-            rearrange_stack(y, x);
         }
     }
     log_trace("[load:%06u] === END OBJECTS ===", (unsigned)load_byte_offset);

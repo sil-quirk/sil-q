@@ -2266,6 +2266,10 @@ bool do_cmd_disarm_aux(int y, int x)
     /* Get the score in favour (=perception) */
     score = p_ptr->skill_use[S_PER];
 
+    /* Mastery of trap mechanisms (Rewire Traps) makes disarming easier. */
+    if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+        score += 5;
+
     /* Determine trap power based on the dungeon level (1--7)*/
     // power = 1 + p_ptr->depth / 5;
     // if (p_ptr->depth == 0) power = 7;
@@ -2352,8 +2356,10 @@ bool do_cmd_disarm_aux(int y, int x)
     }
     }
 
-    // Base difficulty is the trap power
-    difficulty = power;
+    // Base difficulty is the trap power, made harder with depth so that
+    // skilled characters cannot trivially disarm deep traps (and so more of
+    // them are set off when an attempt fails badly).
+    difficulty = power + p_ptr->depth / 6;
 
     /* Penalize some conditions */
     if (p_ptr->blind || no_light() || p_ptr->image)

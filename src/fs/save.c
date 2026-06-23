@@ -810,10 +810,8 @@ static void wr_xtra(int k_idx)
 
     wr_byte(tmp8u);
 
-    /*write the squelch settings*/
-    tmp8u = k_ptr->squelch;
-
-    wr_byte(tmp8u);
+    /* Reserved: legacy per-kind squelch byte (now unused) */
+    wr_byte(0);
 }
 
 /*

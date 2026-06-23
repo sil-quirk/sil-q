@@ -828,15 +828,8 @@ void finalize_character_creation_selection(void)
     if (op_ptr->min_depth_timer_mode > MIN_DEPTH_TIMER_MODE_MAX)
         op_ptr->min_depth_timer_mode = MIN_DEPTH_TIMER_MODE_NORMAL;
 
-    for (i = 0; i < z_info->k_max; i++)
-        k_info[i].squelch = SQUELCH_NEVER;
-    for (i = 0; i < SQUELCH_BYTES; i++)
-        squelch_level[i] = SQUELCH_NONE;
     for (i = 0; i < z_info->e_max; i++)
-    {
         e_info[i].aware = false;
-        e_info[i].squelch = false;
-    }
 
     Term_clear();
 

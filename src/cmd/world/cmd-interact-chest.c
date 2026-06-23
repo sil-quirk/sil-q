@@ -259,6 +259,7 @@ static void chest_death(int y, int x, s16b o_idx)
 static void chest_trap(int y, int x, s16b o_idx)
 {
     int trap, dam;
+    int level, bonus, needle_skill;
 
     object_type* o_ptr = &o_list[o_idx];
 
@@ -268,6 +269,12 @@ static void chest_trap(int y, int x, s16b o_idx)
     /* Ignore disarmed chests */
     if (o_ptr->pval <= 0)
         return;
+
+    /* The chest's level (pval, 1--25) drives how nasty its trap is: deeper
+     * chests deal more damage and their needles strike more accurately. */
+    level = o_ptr->pval;
+    bonus = level / 6;          /* extra damage dice */
+    needle_skill = 2 + level / 4; /* needle accuracy vs the player's DEX */
 
     /* Obtain the traps */
     trap = object_chest_trap_flags(o_ptr);
@@ -281,7 +288,7 @@ static void chest_trap(int y, int x, s16b o_idx)
     {
         sound(MSG_TRAP_NEEDLE);
 
-        if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
+        if (skill_check(NULL, needle_skill, p_ptr->stat_use[A_DEX], PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
             if (allow_player_image(NULL))
@@ -304,7 +311,7 @@ static void chest_trap(int y, int x, s16b o_idx)
     {
         sound(MSG_TRAP_NEEDLE);
 
-        if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
+        if (skill_check(NULL, needle_skill, p_ptr->stat_use[A_DEX], PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
             if (allow_player_entrancement(NULL))
@@ -327,7 +334,7 @@ static void chest_trap(int y, int x, s16b o_idx)
     {
         sound(MSG_TRAP_NEEDLE);
 
-        if (skill_check(NULL, 2, p_ptr->stat_use[A_DEX] * 2, PLAYER) > 0)
+        if (skill_check(NULL, needle_skill, p_ptr->stat_use[A_DEX], PLAYER) > 0)
         {
             msg_print("A small needle has pricked you!");
             (void)do_dec_stat(A_STR, NULL);
@@ -364,10 +371,11 @@ static void chest_trap(int y, int x, s16b o_idx)
         {
             msg_print("It fills your lungs and your mind reels.");
 
-            dam = damroll(3, 4);
+            dam = damroll(3 + bonus, 4);
 
             update_combat_rolls1b(NULL, PLAYER, true);
-            update_combat_rolls2(3, 4, dam, -1, -1, 0, 0, GF_HURT, false);
+            update_combat_rolls2(
+                3 + bonus, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
             killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(dam, "a trapped chest");
@@ -389,7 +397,7 @@ static void chest_trap(int y, int x, s16b o_idx)
 
         update_combat_rolls1b(NULL, PLAYER, true);
 
-        (void)pois_dam_pure(10, 4, true);
+        (void)pois_dam_pure(10 + bonus * 2, 4, true);
     }
 
     /* Flame */
@@ -401,7 +409,7 @@ static void chest_trap(int y, int x, s16b o_idx)
 
         update_combat_rolls1b(NULL, PLAYER, true);
 
-        fire_dam_pure(10, 4, true, "a trapped chest");
+        fire_dam_pure(10 + bonus * 2, 4, true, "a trapped chest");
 
         /* Make some noise */
         monster_perception(true, false, -5);
@@ -4406,11 +4414,18 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
              * chest opens; report that consequence alongside the lock roll. */
             if (object_chest_trap_flags(o_ptr) && object_known_p(o_ptr))
             {
-                difficulty = power;
+                /* Chest traps are concealed and fiddly: harder to disarm than
+                 * a floor trap of the same depth, and harder still on better
+                 * (higher-pval) chests. */
+                difficulty = power + (o_ptr->pval / 4) + 3;
                 if (p_ptr->blind || no_light() || p_ptr->image)
                     difficulty += 5;
                 if (p_ptr->confused)
                     difficulty += 5;
+                /* Rewire Traps: +5 to the disarm only (score here is shared
+                 * with the lock-pick, so apply it as -5 difficulty instead). */
+                if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+                    difficulty -= 5;
 
                 result = show_interaction_skill_roll_animation(
                     "Disarming the chest", "Testing the trap mechanism", y, x,
@@ -4457,13 +4472,6 @@ bool do_cmd_open_chest(int y, int x, s16b o_idx)
 
         /* Let the Chest drop items */
         chest_death(y, x, o_idx);
-
-        /*squelch chest if autosquelch calls for it*/
-        if ((squelch_level[CHEST_INDEX]) == SQUELCH_OPENED_CHESTS)
-        {
-            delete_object_idx(o_idx);
-            msg_print("Chest squelched after it was opened.");
-        }
     }
 
     /* Result */
@@ -4489,11 +4497,60 @@ bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
     /* Get the score in favour (=perception) */
     score = p_ptr->skill_use[S_PER];
 
+    /* If the chest's trap has not yet been discovered, a disarm attempt is
+     * instead a deliberate inspection: roll Perception against the trap's
+     * concealment.  Find it and a follow-up attempt may disarm it; fumble the
+     * search badly and your clumsy probing springs the trap. */
+    if (!object_known_p(o_ptr))
+    {
+        if ((o_ptr->pval > 0) && object_chest_trap_flags(o_ptr))
+        {
+            int find_diff = (o_ptr->pval / 2) + 15;
+
+            if (p_ptr->blind || no_light() || p_ptr->image)
+                find_diff += 5;
+            if (p_ptr->confused)
+                find_diff += 5;
+
+            result = show_interaction_skill_roll_animation("Inspecting chest",
+                "Searching for traps", y, x, score, find_diff, &roll);
+
+            if (result > 0)
+            {
+                msg_print("You discover a trap on the chest!");
+                object_known(o_ptr);
+                more = true; /* a follow-up attempt can now disarm it */
+            }
+            else if (result > -5)
+            {
+                msg_print("You find no sign of a trap... yet.");
+                more = true;
+            }
+            else
+            {
+                msg_print("Your clumsy probing springs a hidden trap!");
+                chest_trap(y, x, o_idx);
+            }
+        }
+        else
+        {
+            msg_print("You don't see any traps.");
+        }
+
+        return (more);
+    }
+
+    /* Mastery of trap mechanisms (Rewire Traps) makes disarming easier.  Added
+     * after the inspection step above so it aids the disarm, not the search. */
+    if (p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS])
+        score += 5;
+
     /* Determine trap power based on the trap pval (power is 1--7)*/
     power = 1 + (o_ptr->pval / 4);
 
-    // Base difficulty is the lock power
-    difficulty = power;
+    // Chest traps are concealed and fiddly: harder to disarm than a floor trap
+    // of the same depth, and harder still on better (higher-pval) chests.
+    difficulty = power + (o_ptr->pval / 4) + 3;
 
     /* Penalize some conditions */
     if (p_ptr->blind || no_light() || p_ptr->image)
@@ -4505,14 +4562,9 @@ bool do_cmd_disarm_chest(int y, int x, s16b o_idx)
     result = show_interaction_skill_roll_animation("Disarming chest",
         "Testing the mechanism", y, x, score, difficulty, &roll);
 
-    /* Must find the trap first. */
-    if (!object_known_p(o_ptr))
-    {
-        msg_print("You don't see any traps.");
-    }
-
-    /* Already disarmed/unlocked */
-    else if (o_ptr->pval <= 0)
+    /* Already disarmed/unlocked (the trap is known by now -- an undiscovered
+     * trap is handled by the inspection step above). */
+    if (o_ptr->pval <= 0)
     {
         msg_print("The chest is not trapped.");
     }

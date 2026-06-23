@@ -1870,9 +1870,6 @@ void py_pickup(void)
 
     char o_name[80];
 
-    /* Automatically destroy squelched items in pile if necessary */
-    do_squelch_pile(py, px);
-
     /* Scan the pile of objects */
     for (this_o_idx = cave_o_idx[py][px]; this_o_idx; this_o_idx = next_o_idx)
     {
@@ -1890,14 +1887,6 @@ void py_pickup(void)
 
         /* Hack -- disturb */
         disturb(0, 0);
-
-        /* End loop if squelched stuff reached */
-        if ((k_info[o_ptr->k_idx].squelch == SQUELCH_ALWAYS)
-            && (k_info[o_ptr->k_idx].aware))
-        {
-            next_o_idx = 0;
-            continue;
-        }
 
         if (player_channel_floor_staff(o_ptr, this_o_idx))
         {

@@ -1170,11 +1170,6 @@ void map_info_default(int y, int x, byte* ap, char* cp)
 
     s16b image = p_ptr->image;
 
-    int floor_num = 0;
-
-    bool sq_flag = false;
-    bool do_purple_dot = true;
-
     /* Monster/Player */
     m_idx = cave_m_idx[y][x];
 
@@ -1317,49 +1312,14 @@ void map_info_default(int y, int x, byte* ap, char* cp)
                 break;
             }
 
-            /*autosquelch insert*/
-            sq_flag = ((k_info[o_ptr->k_idx].squelch == SQUELCH_ALWAYS)
-                && (k_info[o_ptr->k_idx].aware));
+            /* Normal attr */
+            a = object_attr_default(o_ptr);
 
-            if ((!sq_flag))
-            {
-                /* Normal attr */
-                a = object_attr_default(o_ptr);
+            /* Normal char */
+            c = object_char_default(o_ptr);
 
-                /* Normal char */
-                c = object_char_default(o_ptr);
-
-                /*found a non-squelchable item, display this one*/
-                break;
-            }
-            else if (do_purple_dot)
-            {
-                /* Special squelch character HACK */
-                /* Colour of Blade of Chaos */
-                a = TERM_VIOLET;
-
-                /* Symbol of floor */
-                c = f_info[1].x_char;
-            }
-
-            /* Special stack symbol, unless everything in the pile is
-             * squelchable */
-            if ((++floor_num > 1)
-                && ((a != TERM_VIOLET) || (c != f_info[1].x_char)))
-            {
-                object_kind* k_ptr;
-
-                /* Get the "pile" feature */
-                k_ptr = &k_info[0];
-
-                /* Normal attr */
-                a = k_ptr->d_attr;
-
-                /* Normal char */
-                c = k_ptr->d_char;
-
-                break;
-            }
+            /* Display the top item of the pile */
+            break;
         }
     }
 

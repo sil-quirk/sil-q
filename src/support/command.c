@@ -30,8 +30,6 @@ static char request_command_buffer[256];
  */
 void request_command(void)
 {
-    int i;
-
     char ch;
 
     int mode;
@@ -297,43 +295,6 @@ void request_command(void)
 
         /* Done */
         break;
-    }
-
-    /* Hack -- Scan equipment */
-    for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
-    {
-        cptr s;
-
-        object_type* o_ptr = &inventory[i];
-
-        /* Skip non-objects */
-        if (!o_ptr->k_idx)
-            continue;
-
-        /* No inscription */
-        if (!o_ptr->obj_note)
-            continue;
-
-        /* Find a '^' */
-        s = strchr(quark_str(o_ptr->obj_note), '^');
-
-        /* Process preventions */
-        while (s)
-        {
-            /* Check the "restriction" character */
-            if ((s[1] == p_ptr->command_cmd) || (s[1] == '*'))
-            {
-                /* Hack -- Verify command */
-                if (!get_check("Are you sure? "))
-                {
-                    /* Hack -- Use "newline" */
-                    p_ptr->command_cmd = '\n';
-                }
-            }
-
-            /* Find another '^' */
-            s = strchr(s + 1, '^');
-        }
     }
 
     /* Hack -- erase the message line. */

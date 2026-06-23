@@ -87,9 +87,6 @@ s16b floor_carry(int y, int x, object_type* j_ptr)
         if (under_player)
             o_ptr->marked = true;
 
-        /* Rearrange to reflect squelching */
-        rearrange_stack(y, x);
-
         /* Notice */
         note_spot(y, x);
 

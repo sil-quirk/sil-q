@@ -6,6 +6,7 @@
 bool askfor_aux(char* buf, size_t len);
 bool askfor_name(char* buf, size_t len);
 bool term_get_string(cptr prompt, char* buf, size_t len);
+bool get_string_panel(cptr prompt, char* buf, size_t len);
 s16b get_quantity(cptr prompt, int max);
 s16b get_quantity_touch_category(cptr prompt, int max, int touch_category);
 s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,

@@ -1477,14 +1477,8 @@ extern bool can_be_randart(const object_type* o_ptr);
 /* save.c */
 extern bool save_player(void);
 
-/* squelch.c */
-extern byte squelch_level[SQUELCH_BYTES];
+/* object/object-autoinscribe.c */
 extern int do_cmd_autoinscribe_item(s16b k_idx);
-extern void do_cmd_squelch_autoinsc(void);
-extern int squelch_itemp(object_type* o_ptr, byte feeling, bool fullid);
-extern int do_squelch_item(int squelch, int item, object_type* o_ptr);
-extern void rearrange_stack(int y, int x);
-extern void do_squelch_pile(int y, int x);
 extern int get_autoinscription_index(s16b k_idx);
 extern void obliterate_autoinscription(s16b kind);
 extern void autoinscribe_ground(void);
@@ -1492,7 +1486,6 @@ extern void autoinscribe_pack(void);
 extern int remove_autoinscription(s16b kind);
 extern int add_autoinscription(s16b kind, cptr inscription);
 extern int apply_autoinscription(object_type* o_ptr);
-extern char* squelch_to_label(int squelch);
 
 /*use-obj.c*/
 extern int consumable_healing_points(const object_type* o_ptr);
@@ -1761,6 +1754,7 @@ extern void clear_from(int row);
 extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
 extern bool term_get_string(cptr prompt, char* buf, size_t len);
+extern bool get_string_panel(cptr prompt, char* buf, size_t len);
 extern s16b get_quantity(cptr prompt, int max);
 extern s16b get_quantity_touch_category(cptr prompt, int max,
     int touch_category);

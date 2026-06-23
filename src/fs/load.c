@@ -2527,7 +2527,8 @@ static errr rd_savefile_new_aux(void)
         k_ptr->tried = (tmp8u & 0x02) ? true : false;
         k_ptr->everseen = (tmp8u & 0x08) ? true : false;
 
-        rd_byte(&k_ptr->squelch);
+        /* Reserved: legacy per-kind squelch byte (now unused) */
+        rd_byte(&tmp8u);
     }
     if (arg_fiddle)
         note("Loaded Object Memory");

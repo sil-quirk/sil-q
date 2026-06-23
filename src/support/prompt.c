@@ -409,6 +409,145 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
 }
 
 /*
+ * Choice ids for the free-text entry panel rows (>= 0 so the question menu
+ * treats them as clickable).
+ */
+#define STRING_PANEL_CLICK_CONFIRM 2001
+#define STRING_PANEL_CLICK_CLEAR   2002
+#define STRING_PANEL_CLICK_CANCEL  2003
+
+/*
+ * Draw the text-entry overlay panel: the prompt is the title, the current
+ * text (with a trailing caret) is the highlighted confirm row, plus Clear and
+ * Cancel rows so mouse/touch can drive it.
+ */
+static void string_panel_draw(cptr prompt, const char* text, int touch_category)
+{
+    char line[120];
+
+    ui_menu_click_begin();
+    ui_menu_click_set_hover_enabled(true);
+    ui_menu_click_set_outside_cancel_enabled(true);
+    ui_menu_click_set_touch_category(touch_category);
+
+    sdl_question_menu_begin(prompt);
+
+    /* Show the current text with a caret (just the caret when empty) */
+    strnfmt(line, sizeof(line), "%s_", (text && text[0]) ? text : "");
+    sdl_question_menu_add_entry(STRING_PANEL_CLICK_CONFIRM, "", line,
+        TERM_L_BLUE);
+
+    sdl_question_menu_add_entry(STRING_PANEL_CLICK_CLEAR, "", "Clear",
+        TERM_L_WHITE);
+    sdl_question_menu_add_entry(STRING_PANEL_CLICK_CANCEL, "", "Cancel",
+        TERM_SLATE);
+
+    sdl_question_menu_set_highlight(STRING_PANEL_CLICK_CONFIRM);
+    sdl_question_menu_finish();
+
+    Term_fresh();
+}
+
+/*
+ * Prompt the player for a string using the modal overlay panel instead of the
+ * legacy top-row editor.  "buf" supplies the default text and receives the
+ * result; typing edits it, Enter/confirm accepts, Esc/Cancel aborts.  Returns
+ * false when cancelled (leaving the entered text in "buf" regardless).
+ */
+bool get_string_panel(cptr prompt, char* buf, size_t len)
+{
+    size_t k;
+    bool done = false;
+    bool canceled = false;
+    bool saved_hide_cursor = hide_cursor;
+
+    if (!buf || len < 1)
+        return false;
+
+    /* Start the caret after any default text */
+    buf[len - 1] = '\0';
+    k = strlen(buf);
+
+    /* The overlay owns the display; never show the term cursor */
+    hide_cursor = true;
+
+    while (!done)
+    {
+        int ch;
+
+        string_panel_draw(prompt ? prompt : "Enter text:", buf,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+
+        ch = inkey();
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+
+                switch (clicked_choice)
+                {
+                case STRING_PANEL_CLICK_CONFIRM:
+                    ch = '\r';
+                    break;
+                case STRING_PANEL_CLICK_CLEAR:
+                    k = 0;
+                    buf[0] = '\0';
+                    continue;
+                case STRING_PANEL_CLICK_CANCEL:
+                    ch = ESCAPE;
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+
+        switch (ch)
+        {
+        case UI_MENU_CLICK_WAKE_KEY:
+            break;
+
+        case ESCAPE:
+            canceled = true;
+            done = true;
+            break;
+
+        case '\r':
+        case '\n':
+            done = true;
+            break;
+
+        case '\b':
+        case 0x7F:
+            if (k > 0)
+                k--;
+            buf[k] = '\0';
+            break;
+
+        default:
+            if (isprint((unsigned char)ch) && (k < len - 1))
+            {
+                buf[k++] = (char)ch;
+                buf[k] = '\0';
+            }
+            break;
+        }
+    }
+
+    hide_cursor = saved_hide_cursor;
+    sdl_question_menu_clear();
+    ui_menu_click_clear();
+    Term_fresh();
+
+    return (!canceled);
+}
+
+/*
  * Request a "quantity" from the user
  *
  * Allow "p_ptr->command_arg" to specify a quantity

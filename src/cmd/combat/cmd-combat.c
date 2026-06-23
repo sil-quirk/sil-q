@@ -13,25 +13,6 @@ static void player_face_grid_before_attack(int y, int x)
     player_set_visual_facing_target_immediate(y, x);
 }
 
-static bool weapon_has_attack_confirmation_inscription(const object_type* o_ptr)
-{
-    cptr s;
-
-    if (!o_ptr || !o_ptr->obj_note)
-        return false;
-
-    s = strchr(quark_str(o_ptr->obj_note), '!');
-    while (s)
-    {
-        if (s[1] == 'a')
-            return true;
-
-        s = strchr(s + 1, '!');
-    }
-
-    return false;
-}
-
 static bool polearm_is_axe(const object_type* weapon)
 {
     if (!weapon)
@@ -1481,6 +1462,21 @@ extern bool check_hit(int power, bool display_roll)
 }
 
 /*
+ * Extra damage dice that depth grants to a dungeon trap.
+ *
+ * Trap damage is otherwise fixed for the whole game, so traps lose all bite
+ * once the player's HP and armour outscale them.  This grants roughly one
+ * extra die for every `feet` levels of depth (moderate scaling: a small bump
+ * from the start, steeper deep down).  Returns 0 in the town.
+ */
+static int trap_depth_dice(int feet)
+{
+    if ((feet <= 0) || (p_ptr->depth <= 0))
+        return 0;
+    return p_ptr->depth / feet;
+}
+
+/*
  * Handle player hitting a real trap
  */
 void hit_trap(int y, int x)
@@ -1594,11 +1590,12 @@ void hit_trap(int y, int x)
     {
         msg_print("You fall into a pit!");
 
-        /* Falling damage */
-        dam = damroll(2, 4);
+        /* Falling damage (deeper pits hit harder) */
+        dam = damroll(2 + trap_depth_dice(7), 4);
 
         update_combat_rolls1b(NULL, PLAYER, true);
-        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
+        update_combat_rolls2(
+            2 + trap_depth_dice(7), 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
         killer_mark_other(SCORE_KILLER_FALL);
@@ -1614,18 +1611,19 @@ void hit_trap(int y, int x)
     {
         msg_print("You fall into a spiked pit!");
 
-        /* Falling damage */
-        dam = damroll(2, 4);
+        /* Falling damage (deeper pits hit harder) */
+        dam = damroll(2 + trap_depth_dice(7), 4);
 
         update_combat_rolls1b(NULL, PLAYER, true);
-        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
+        update_combat_rolls2(
+            2 + trap_depth_dice(7), 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
         killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, name);
 
-        /* Extra spike damage */
-        dam = damroll(4, 5);
+        /* Extra spike damage (more spikes deeper down) */
+        dam = damroll(4 + trap_depth_dice(6), 5);
 
         /* Protection */
         prt = protection_roll(GF_HURT, true);
@@ -1633,7 +1631,8 @@ void hit_trap(int y, int x)
         net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
         update_combat_rolls1b(NULL, PLAYER, true);
-        update_combat_rolls2(4, 5, dam, -1, -1, prt, 100, GF_HURT, true);
+        update_combat_rolls2(
+            4 + trap_depth_dice(6), 5, dam, -1, -1, prt, 100, GF_HURT, true);
 
         if (net_dam > 0)
         {
@@ -1662,29 +1661,35 @@ void hit_trap(int y, int x)
 
         if (check_hit(15, true))
         {
-            dam = damroll(1, 15);
+            /* An envenomed dart: real (depth-scaled) damage, and it saps
+             * strength even through armour -- the poison, not the impact,
+             * does the draining.  The drain still allows a Will save / is
+             * stopped by Sustain Strength inside do_dec_stat(). */
+            dam = damroll(1 + trap_depth_dice(8), 6);
             prt = protection_roll(GF_HURT, false);
 
-            if (dam > prt)
+            net_dam = (dam - prt > 0) ? (dam - prt) : 0;
+
+            update_combat_rolls1b(NULL, PLAYER, true);
+            update_combat_rolls2(1 + trap_depth_dice(8), 6, dam, -1, -1, prt,
+                100, GF_HURT, false);
+
+            if (net_dam > 0)
             {
                 msg_print("A small dart hits you!");
 
-                // do a tiny amount of damage
                 killer_mark_other(SCORE_KILLER_TRAP);
-                take_hit(1, name);
+                take_hit(net_dam, name);
 
-                update_combat_rolls2(
-                    1, 15, prt + 1, -1, -1, prt, 100, GF_HURT, false);
-
+                /* The venom only enters if the dart broke the skin -- armour
+                 * that soaks all the damage also stops the poison.  The drain
+                 * still allows a Will save / is stopped by Sustain Strength. */
                 (void)do_dec_stat(A_STR, NULL);
             }
             else
             {
                 msg_print(
                     "A small dart hits you, but is deflected by your armour.");
-
-                update_combat_rolls2(
-                    1, 15, dam, -1, -1, prt, 100, GF_HURT, false);
             }
         }
         else
@@ -1770,8 +1775,8 @@ void hit_trap(int y, int x)
     {
         msg_print("You are splashed with acid!");
 
-        /* Acid damage */
-        dam = damroll(4, 4);
+        /* Acid damage (stronger deeper down) */
+        dam = damroll(4 + trap_depth_dice(7), 4);
 
         /* Protection */
         prt = protection_roll(GF_HURT, false);
@@ -1779,7 +1784,8 @@ void hit_trap(int y, int x)
         net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
         update_combat_rolls1b(NULL, PLAYER, true);
-        update_combat_rolls2(4, 4, dam, -1, -1, prt, 100, GF_HURT, false);
+        update_combat_rolls2(
+            4 + trap_depth_dice(7), 4, dam, -1, -1, prt, 100, GF_HURT, false);
 
         acid_dam(dam, 4, 16, net_dam, "an acid trap");
 
@@ -1824,10 +1830,11 @@ void hit_trap(int y, int x)
         {
             msg_print("You step on a caltrop.");
 
-            dam = damroll(1, 4);
+            dam = damroll(1 + trap_depth_dice(12), 4);
 
             update_combat_rolls1b(NULL, PLAYER, true);
-            update_combat_rolls2(1, 4, dam, -1, -1, 0, 0, GF_HURT, true);
+            update_combat_rolls2(
+                1 + trap_depth_dice(12), 4, dam, -1, -1, 0, 0, GF_HURT, true);
 
             killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(dam, name);
@@ -1931,7 +1938,7 @@ void hit_trap(int y, int x)
         {
             /* Message and damage */
             msg_print("You are severely crushed!");
-            dam = damroll(6, 8);
+            dam = damroll(6 + trap_depth_dice(6), 8);
 
             /* Protection */
             prt = protection_roll(GF_HURT, false);
@@ -1939,7 +1946,9 @@ void hit_trap(int y, int x)
             net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
             update_combat_rolls1b(NULL, PLAYER, true);
-            update_combat_rolls2(6, 8, dam, -1, -1, prt, 100, GF_HURT, false);
+            update_combat_rolls2(
+                6 + trap_depth_dice(6), 8, dam, -1, -1, prt, 100, GF_HURT,
+                false);
 
             if (allow_player_stun(NULL))
             {
@@ -1954,13 +1963,13 @@ void hit_trap(int y, int x)
             if (check_hit(20, true))
             {
                 msg_print("You are struck by rubble!");
-                dam = damroll(4, 8);
+                dam = damroll(4 + trap_depth_dice(6), 8);
 
                 /* Protection */
                 prt = protection_roll(GF_HURT, false);
 
-                update_combat_rolls2(
-                    4, 8, dam, -1, -1, prt, 100, GF_HURT, false);
+                update_combat_rolls2(4 + trap_depth_dice(6), 8, dam, -1, -1,
+                    prt, 100, GF_HURT, false);
 
                 net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
@@ -2734,10 +2743,8 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = true;
     }
 
-    // "!a" on the weapon, or the gameplay option, prompts before attacking.
-    if ((pacifist_attack_warning
-            || weapon_has_attack_confirmation_inscription(o_ptr))
-        && !p_ptr->truce && m_ptr->ml)
+    // The pacifist gameplay option prompts before attacking.
+    if (pacifist_attack_warning && !p_ptr->truce && m_ptr->ml)
     {
         if (!get_check_near(m_ptr->fy, m_ptr->fx,
                 "Are you sure you wish to attack? "))

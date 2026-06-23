@@ -383,7 +383,7 @@ set(SIL_MORE_SOURCES
     src/object/object-knowledge.c
     src/object/object-list.c
     src/object/object-make.c
-    src/object/object-settings.c
+    src/object/object-autoinscribe.c
     src/object/object-place.c
     src/object/object-pval.c
     src/object/object-ui-core.c
@@ -459,7 +459,6 @@ set(SIL_MORE_SOURCES
     src/spell/spell-terrain.c
     src/spell/spell-utility.c
     src/spell/spell-visuals.c
-    src/squelch.c
     src/supplies.c
     src/tables.c
     src/use-obj.c
