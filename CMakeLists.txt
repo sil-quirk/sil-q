@@ -238,7 +238,6 @@ set(SIL_MORE_SOURCES
     src/dungeon/dungeon-story.c
     src/dungeon/dungeon-world.c
     src/fs/file.c
-    src/fs/pref-files.c
     src/fs/savefile-name.c
     src/game/game-lifecycle.c
     src/metarun/metarun-files.c
@@ -384,6 +383,7 @@ set(SIL_MORE_SOURCES
     src/object/object-knowledge.c
     src/object/object-list.c
     src/object/object-make.c
+    src/object/object-settings.c
     src/object/object-place.c
     src/object/object-pval.c
     src/object/object-ui-core.c
@@ -520,7 +520,7 @@ if(SIL_IOS)
   # Bundle the runtime lib/ resources into the app.
   # iOS apps are sandboxed; read-only data must live inside the .app bundle.
   file(GLOB SIL_RES_EDIT    CONFIGURE_DEPENDS "lib/edit/*.txt")
-  file(GLOB SIL_RES_PREF    CONFIGURE_DEPENDS "lib/pref/*.prf" "lib/pref/*.json")
+  file(GLOB SIL_RES_PREF    CONFIGURE_DEPENDS "lib/pref/*.json")
   file(GLOB SIL_RES_FONT    CONFIGURE_DEPENDS "lib/xtra/font/*.ttf")
   file(GLOB SIL_RES_GRAF    CONFIGURE_DEPENDS "lib/xtra/graf/*.png")
   file(GLOB_RECURSE SIL_RES_SOUND LIST_DIRECTORIES false CONFIGURE_DEPENDS "lib/xtra/sound/*")

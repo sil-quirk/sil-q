@@ -145,21 +145,6 @@
 #define ALLOW_SPOILERS
 
 /*
- * OPTION: Allow "do_cmd_colors" at run-time
- */
-#define ALLOW_COLORS
-
-/*
- * OPTION: Allow "do_cmd_visuals" at run-time
- */
-#define ALLOW_VISUALS
-
-/*
- * OPTION: Allow "do_cmd_macros" at run-time
- */
-#define ALLOW_MACROS
-
-/*
  * OPTION: Allow characteres to be "auto-rolled"
  */
 #define ALLOW_AUTOROLLER

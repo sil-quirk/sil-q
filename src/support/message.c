@@ -515,6 +515,8 @@ errr messages_init(void)
 
     /* Init the message colors to white */
     memset(message__color, TERM_WHITE, sizeof(byte) * MSG_MAX);
+    message__color[MSG_BELL] = TERM_ORANGE;
+    message__color[MSG_HITPOINT_WARN] = TERM_ORANGE;
 
     /* Reset the message ring */
     message__next = 0;

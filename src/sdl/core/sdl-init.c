@@ -385,9 +385,17 @@ errr init_sdl(int argc, char **argv)
     log_info("  Minimum terminal size: %s (%dx%d)",
              sdl_min_terminal_mode_name(config.min_terminal_mode),
              sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
+    log_info("  Palette preset: %s",
+        config.palette_preset[0] ? config.palette_preset : "classic");
     log_info("  Pane configurations: %d", pane_config_count);
 
-    // Initialize palette from angband_color_table (supports .prf file customization)
+    ui_colors_load_palette_presets();
+    if (!ui_colors_apply_palette_preset(config.palette_preset))
+        ui_colors_apply_palette_preset("classic");
+    SDL_strlcpy(config.palette_preset, ui_colors_current_palette_preset(),
+        sizeof(config.palette_preset));
+
+    // Initialize palette from the selected preset.
     sdl_sync_palette();
 
     // Prepare sound registry and audio playback

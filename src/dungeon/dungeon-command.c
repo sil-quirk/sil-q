@@ -561,13 +561,6 @@ void process_command(void)
 
     /*** System Commands ***/
 
-    /* Single line from a pref file */
-    // case '"':
-    //{
-    //	do_cmd_pref();
-    //	break;
-    //}
-
     /* Interact with visuals */
     // case '%':
     //{

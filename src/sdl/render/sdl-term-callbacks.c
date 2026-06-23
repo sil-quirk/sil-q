@@ -301,7 +301,7 @@ errr callback_sdl_xtra(int n, int v)
         /* React to global setting changes (graphics mode, colors, etc.) */
         log_debug("TERM_XTRA_REACT received (tiles_mode=%d use_graphics=%d arg_graphics=%d)",
                   g_state.use_tiles, use_graphics, arg_graphics);
-        /* Reload colors from angband_color_table (may have been changed by .prf files) */
+        /* Reload colors from the active palette in angband_color_table. */
         sdl_sync_palette();
         reset_visuals(true);
         return 0;

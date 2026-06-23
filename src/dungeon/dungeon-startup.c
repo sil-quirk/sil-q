@@ -2,28 +2,15 @@
 
 #include "angband.h"
 #include "dungeon-internal.h"
+#include "object/object-settings.h"
 
 /*
- * Process some user pref files
+ * Load persistent object UI settings.
  */
-static void process_some_user_pref_files(void)
+static void load_object_settings(void)
 {
-    char buf[1024];
-
-    /* Process the "user.prf" file */
-    (void)process_pref_file("user.prf");
-
     /* Process the "user.scb" autoinscriptions file */
-    (void)process_pref_file("user.scb");
-
-    /* Process the "races.prf" file */
-    (void)process_pref_file("races.prf");
-
-    /* Get the "PLAYER.prf" filename */
-    (void)strnfmt(buf, sizeof(buf), "%s.prf", op_ptr->base_name);
-
-    /* Process the "PLAYER.prf" file */
-    (void)process_pref_file(buf);
+    (void)object_settings_load("user.scb");
 }
 
 /*
@@ -461,8 +448,8 @@ PlayResult play_game(void)
     /* Window stuff */
     window_stuff();
 
-    /* Process some user pref files */
-    process_some_user_pref_files();
+    /* Load persistent object UI settings */
+    load_object_settings();
 
     /* Set or clear "hjkl_movement" if requested */
     if (arg_force_original)

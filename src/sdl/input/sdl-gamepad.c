@@ -116,19 +116,28 @@ void sdl_gamepad_apply_modifier(int binding, bool down)
 
 void sdl_send_macro_key(int key, bool shift, bool ctrl, bool alt)
 {
-    Term_keypress(31);
-    if (ctrl)
-        Term_keypress('C');
-    if (shift)
-        Term_keypress('S');
     if (alt)
-        Term_keypress('A');
-    Term_keypress('x');
-    Term_keypress(hexsym[(key / 16) & 0x0F]);
-    Term_keypress(hexsym[key % 16]);
-    Term_keypress(13);
-    log_debug("send macro key=%d ^_%s%s%sx%x%x\r",
-        key, ctrl ? "C" : "", shift ? "S" : "", alt ? "A" : "", key / 16, key % 16);
+        return;
+
+    if (ctrl)
+    {
+        if (SDL_isalpha(key))
+            Term_keypress(KTRL(key));
+        return;
+    }
+
+    if (shift)
+    {
+        int shifted = sdl_shifted_ascii_for_key(key);
+
+        if (SDL_isalpha(key))
+            key = SDL_toupper(key);
+        else if (shifted)
+            key = shifted;
+    }
+
+    if (key > 0 && key < 256)
+        Term_keypress(key);
 }
 
 int sdl_keymap_mode(void)

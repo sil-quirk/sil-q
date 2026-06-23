@@ -8,6 +8,9 @@
 #define GAMEPAD_STICK_DIR_COUNT 4
 #define TOUCH_SWIPE_DIR_COUNT 4
 #define GAMEPAD_MODIFIER_COUNT 3
+#define SDL_KEYMAP_MODE_COUNT 4
+#define SDL_KEYMAP_KEY_COUNT 256
+#define SDL_KEYMAP_ACTION_LEN 16
 
 #define GAMEPAD_MODIFIER_SHIFT 0
 #define GAMEPAD_MODIFIER_CTRL 1
@@ -185,6 +188,11 @@ struct sdl_config {
     bool story2_kerning;       // Enable kerning (default: true)
     int story2_outline;        // Outline width in pixels (0=none)
 
+    // Palette and keyboard keymaps persisted in sil_sdl.json.
+    char palette_preset[64];
+    char keymap_actions[SDL_KEYMAP_MODE_COUNT][SDL_KEYMAP_KEY_COUNT]
+        [SDL_KEYMAP_ACTION_LEN];
+
     // Gamepad/controller settings
     bool gamepad_enabled;                 // Enable gamepad input
     bool gamepad_auto_mode;               // Auto-enable controller UI when gamepad is present/used
@@ -234,6 +242,8 @@ struct sdl_config {
     int touch_swipe_bindings[TOUCH_SWIPE_DIR_COUNT];
 };
 
+extern struct sdl_config config;
+
 // Load SDL configuration from JSON file
 enum sdl_config_load_status sdl_config_load(const char* filename,
     struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
@@ -245,6 +255,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);
+void sdl_config_apply_keyboard_keymaps(const struct sdl_config* config);
 
 // Set default gamepad bindings (does not touch other fields)
 void sdl_config_set_default_gamepad_bindings(struct sdl_config* config);

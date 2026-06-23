@@ -10,6 +10,270 @@
 
 // JSON-based configuration system using cJSON library
 
+typedef struct sdl_default_keymap_entry {
+    byte mode;
+    byte key;
+    const char* action;
+} sdl_default_keymap_entry;
+
+static const sdl_default_keymap_entry sdl_default_keymaps[] = {
+    { 0, 0x35, "z" },
+    { 0, 0x2C, "/5" },
+    { 0, 0x20, "/5" },
+    { 0, 0x1A, "/5" },
+    { 0, 0x31, ";1" },
+    { 0, 0x32, ";2" },
+    { 0, 0x33, ";3" },
+    { 0, 0x34, ";4" },
+    { 0, 0x36, ";6" },
+    { 0, 0x37, ";7" },
+    { 0, 0x38, ";8" },
+    { 0, 0x39, ";9" },
+    { 1, 0x35, "z" },
+    { 1, 0x2C, "/5" },
+    { 1, 0x20, "/5" },
+    { 1, 0x1A, "/5" },
+    { 1, 0x31, ";1" },
+    { 1, 0x32, ";2" },
+    { 1, 0x33, ";3" },
+    { 1, 0x34, ";4" },
+    { 1, 0x36, ";6" },
+    { 1, 0x37, ";7" },
+    { 1, 0x38, ";8" },
+    { 1, 0x39, ";9" },
+    { 1, 0x62, ";1" },
+    { 1, 0x6A, ";2" },
+    { 1, 0x6E, ";3" },
+    { 1, 0x68, ";4" },
+    { 1, 0x6C, ";6" },
+    { 1, 0x79, ";7" },
+    { 1, 0x6B, ";8" },
+    { 1, 0x75, ";9" },
+    { 1, 0x42, ".1" },
+    { 1, 0x4A, ".2" },
+    { 1, 0x4E, ".3" },
+    { 1, 0x48, ".4" },
+    { 1, 0x4C, ".6" },
+    { 1, 0x59, ".7" },
+    { 1, 0x4B, ".8" },
+    { 1, 0x55, ".9" },
+    { 1, 0x02, "b" },
+    { 1, 0x0C, "l" },
+    { 1, 0x0B, "k" },
+    { 1, 0x15, "u" },
+    { 1, 0x0E, "n" },
+    { 1, 0x57, "L" },
+    { 2, 0x35, "z" },
+    { 2, 0x2C, "/5" },
+    { 2, 0x20, "/5" },
+    { 2, 0x1A, "/5" },
+    { 2, 0x31, ";1" },
+    { 2, 0x32, ";2" },
+    { 2, 0x33, ";3" },
+    { 2, 0x34, ";4" },
+    { 2, 0x36, ";6" },
+    { 2, 0x37, ";7" },
+    { 2, 0x38, ";8" },
+    { 2, 0x39, ";9" },
+    { 2, 0x49, "x" },
+    { 2, 0x76, "t" },
+    { 2, 0x16, "\x14" },
+    { 2, 0x55, "u" },
+    { 2, 0x74, "r" },
+    { 2, 0x75, "a" },
+    { 2, 0x42, "b" },
+    { 2, 0x73, "z" },
+    { 2, 0x52, "Z" },
+    { 2, 0x61, "s" },
+    { 2, 0x43, "@" },
+    { 2, 0x3D, "O" },
+    { 2, 0x2B, "/" },
+    { 2, 0x40, "$" },
+    { 2, 0x78, "A" },
+    { 2, 0x72, "A" },
+    { 2, 0x62, "A" },
+    { 2, 0x5A, "A" },
+    { 2, 0x4F, "A" },
+    { 2, 0x2F, "A" },
+    { 2, 0x14, "A" },
+    { 3, 0x35, "z" },
+    { 3, 0x2C, "/5" },
+    { 3, 0x20, "/5" },
+    { 3, 0x1A, "/5" },
+    { 3, 0x31, ";1" },
+    { 3, 0x32, ";2" },
+    { 3, 0x33, ";3" },
+    { 3, 0x34, ";4" },
+    { 3, 0x36, ";6" },
+    { 3, 0x37, ";7" },
+    { 3, 0x38, ";8" },
+    { 3, 0x39, ";9" },
+    { 3, 0x62, ";1" },
+    { 3, 0x6A, ";2" },
+    { 3, 0x6E, ";3" },
+    { 3, 0x68, ";4" },
+    { 3, 0x6C, ";6" },
+    { 3, 0x79, ";7" },
+    { 3, 0x6B, ";8" },
+    { 3, 0x75, ";9" },
+    { 3, 0x42, ".1" },
+    { 3, 0x4A, ".2" },
+    { 3, 0x4E, ".3" },
+    { 3, 0x48, ".4" },
+    { 3, 0x4C, ".6" },
+    { 3, 0x59, ".7" },
+    { 3, 0x4B, ".8" },
+    { 3, 0x55, ".9" },
+    { 3, 0x02, "b" },
+    { 3, 0x0C, "l" },
+    { 3, 0x0B, "k" },
+    { 3, 0x15, "u" },
+    { 3, 0x0E, "n" },
+    { 3, 0x57, "L" },
+    { 3, 0x49, "x" },
+    { 3, 0x76, "t" },
+    { 3, 0x16, "\x14" },
+    { 3, 0x74, "r" },
+    { 3, 0x73, "z" },
+    { 3, 0x52, "Z" },
+    { 3, 0x61, "s" },
+    { 3, 0x43, "@" },
+    { 3, 0x3D, "O" },
+    { 3, 0x2B, "/" },
+    { 3, 0x40, "$" },
+    { 3, 0x78, "A" },
+    { 3, 0x72, "A" },
+    { 3, 0x5A, "A" },
+    { 3, 0x4F, "A" },
+    { 3, 0x2F, "A" },
+    { 3, 0x14, "A" },
+};
+
+static void sdl_config_set_default_keymaps(struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    memset(config->keymap_actions, 0, sizeof(config->keymap_actions));
+    for (int i = 0; i < (int)N_ELEMENTS(sdl_default_keymaps); i++)
+    {
+        const sdl_default_keymap_entry* entry = &sdl_default_keymaps[i];
+
+        SDL_strlcpy(config->keymap_actions[entry->mode][entry->key],
+            entry->action,
+            sizeof(config->keymap_actions[entry->mode][entry->key]));
+    }
+}
+
+void sdl_config_apply_keyboard_keymaps(const struct sdl_config* config)
+{
+    if (!config)
+        return;
+
+    for (int mode = 0; mode < KEYMAP_MODES; mode++)
+    {
+        for (int key = 0; key < 256; key++)
+        {
+            keymap_act[mode][key] = str_free(keymap_act[mode][key]);
+            if (config->keymap_actions[mode][key][0])
+            {
+                keymap_act[mode][key] =
+                    str_dup(config->keymap_actions[mode][key]);
+            }
+        }
+    }
+}
+
+static void sdl_config_load_keyboard_keymaps(cJSON* root,
+    struct sdl_config* config)
+{
+    cJSON* keyboard;
+    cJSON* modes;
+
+    if (!root || !config)
+        return;
+
+    keyboard = cJSON_GetObjectItemCaseSensitive(root, "keyboard");
+    if (!cJSON_IsObject(keyboard))
+        return;
+
+    modes = cJSON_GetObjectItemCaseSensitive(keyboard, "keymaps");
+    if (!cJSON_IsArray(modes))
+        return;
+
+    memset(config->keymap_actions, 0, sizeof(config->keymap_actions));
+
+    for (int mode = 0;
+        mode < cJSON_GetArraySize(modes) && mode < SDL_KEYMAP_MODE_COUNT;
+        mode++)
+    {
+        cJSON* entries = cJSON_GetArrayItem(modes, mode);
+        cJSON* entry = NULL;
+
+        if (!cJSON_IsArray(entries))
+            continue;
+
+        cJSON_ArrayForEach(entry, entries)
+        {
+            cJSON* key = cJSON_GetObjectItemCaseSensitive(entry, "key");
+            cJSON* action = cJSON_GetObjectItemCaseSensitive(entry, "action");
+
+            if (!cJSON_IsNumber(key) || !cJSON_IsString(action)
+                || key->valueint < 0 || key->valueint >= SDL_KEYMAP_KEY_COUNT
+                || !action->valuestring)
+            {
+                continue;
+            }
+
+            SDL_strlcpy(config->keymap_actions[mode][key->valueint],
+                action->valuestring,
+                sizeof(config->keymap_actions[mode][key->valueint]));
+        }
+    }
+}
+
+static cJSON* sdl_config_create_keyboard_keymaps(void)
+{
+    cJSON* keyboard = cJSON_CreateObject();
+    cJSON* modes = cJSON_CreateArray();
+
+    if (!keyboard || !modes)
+    {
+        cJSON_Delete(keyboard);
+        cJSON_Delete(modes);
+        return NULL;
+    }
+
+    for (int mode = 0; mode < KEYMAP_MODES; mode++)
+    {
+        cJSON* entries = cJSON_CreateArray();
+
+        if (!entries)
+            continue;
+
+        for (int key = 0; key < 256; key++)
+        {
+            cJSON* entry;
+
+            if (!keymap_act[mode][key])
+                continue;
+
+            entry = cJSON_CreateObject();
+            if (!entry)
+                continue;
+
+            cJSON_AddNumberToObject(entry, "key", key);
+            cJSON_AddStringToObject(entry, "action", keymap_act[mode][key]);
+            cJSON_AddItemToArray(entries, entry);
+        }
+
+        cJSON_AddItemToArray(modes, entries);
+    }
+
+    cJSON_AddItemToObject(keyboard, "keymaps", modes);
+    return keyboard;
+}
+
 /*
  * Legacy resolution preset data.
  *
@@ -1900,6 +2164,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
     }
     
     log_debug("JSON parsed successfully");
+
+    sdl_config_load_keyboard_keymaps(root, config);
     
     // Parse SDL settings
     cJSON* sdl = cJSON_GetObjectItemCaseSensitive(root, "sdl");
@@ -1947,6 +2213,13 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
             log_debug("Loaded tiles: %s", config->tiles ? "true" : "false");
         } else {
             log_warn("tiles not found or not a boolean");
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "palettePreset");
+        if (cJSON_IsString(item) && item->valuestring) {
+            SDL_strlcpy(config->palette_preset, item->valuestring,
+                sizeof(config->palette_preset));
+            log_debug("Loaded palettePreset: %s", config->palette_preset);
         }
 
         item = cJSON_GetObjectItemCaseSensitive(sdl, "useUnsafeArea");
@@ -3010,6 +3283,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
+    cJSON_AddStringToObject(sdl, "palettePreset", config->palette_preset);
     cJSON_AddBoolToObject(sdl, "useUnsafeArea", config->use_unsafe_area);
     cJSON_AddBoolToObject(sdl, "enableRightPanes", config->enable_right_panes);
     cJSON_AddBoolToObject(sdl, "enableBottomPanes", config->enable_bottom_panes);
@@ -3064,6 +3338,12 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "story2Outline", config->story2_outline);
 
     cJSON_AddItemToObject(root, "sdl", sdl);
+
+    {
+        cJSON* keyboard = sdl_config_create_keyboard_keymaps();
+        if (keyboard)
+            cJSON_AddItemToObject(root, "keyboard", keyboard);
+    }
 
     if (active_mode < 0 || active_mode >= profile_count)
         active_mode = SDL_MIN_TERMINAL_NORMAL;
@@ -3525,6 +3805,9 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->story2_hinting = 0;  // TTF_HINTING_NORMAL
     config->story2_kerning = true;
     config->story2_outline = 0;
+    SDL_strlcpy(config->palette_preset, "classic",
+        sizeof(config->palette_preset));
+    sdl_config_set_default_keymaps(config);
 
     // Default gamepad settings
     config->gamepad_enabled = true;

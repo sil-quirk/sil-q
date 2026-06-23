@@ -9,6 +9,7 @@
 #include "log/log.h"
 #include "metarun.h"
 #include "score/score_guid.h"
+#include "sdl-config.h"
 #include "sdl-sound.h"
 #include "init2-internal.h"
 #include "init-lifecycle.h"
@@ -64,15 +65,13 @@ extern void display_introduction(void)
  * Hack -- main Sil initialization entry point
  *
  * Verify some files, create
- * the high score file, initialize all internal arrays, and
- * load the basic "user pref files".
+ * the high score file, and initialize all internal arrays.
  *
  * Be very careful to keep track of the order in which things
  * are initialized, in particular, the only thing *known* to
  * be available when this function is called is the "z-term.c"
  * package, and that may not be fully initialized until the
- * end of this function, when the default "user pref files"
- * are loaded and "Term_xtra(TERM_XTRA_REACT,0)" is called.
+ * end of this function, when "Term_xtra(TERM_XTRA_REACT,0)" is called.
  *
  * Note that this function attempts to verify the "news" file,
  * and the game aborts (cleanly) on failure, since without the
@@ -101,11 +100,7 @@ extern void display_introduction(void)
  * often contain errors.  This means that macros and message recall
  * and things like that are not available until after they are done.
  *
- * We load the default "user pref files" here in case any "color"
- * changes are needed before character creation.
- *
- * Note that the "graf-xxx.prf" file must be loaded separately,
- * if needed, in the first (?) pass through "TERM_XTRA_REACT".
+ * Display defaults come from edit templates and JSON configuration.
  */
 void init_angband(void)
 {
@@ -352,19 +347,14 @@ void init_angband(void)
     note("[Initializing arrays... (other)]");
     if (init_other())
         quit("Cannot initialize other stuff");
+    sdl_config_apply_keyboard_keymaps(&config);
 
     /* Initialize some other arrays */
     note("[Initializing arrays... (alloc)]");
     if (init_alloc())
         quit("Cannot initialize alloc stuff");
 
-    /*** Load default user pref files ***/
-
-    /* Initialize feature info */
-    note("[Loading basic user pref file...]");
-
-    /* Process that file */
-    (void)process_pref_file("pref.prf");
+    note("[Initializing display defaults...]");
 
     /* Initialize feature info */
     note("[Initializing Random Artefact Tables...]");

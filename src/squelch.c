@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "object/object-settings.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -267,10 +268,10 @@ static int do_cmd_squelch_aux(void)
         prt("[a-t]: Go to item squelching and autoinscribing sub-menu.", 5, 30);
         prt("Q    : Go to quality squelching sub-menu*.", 6, 30);
         prt("E    : Go to special item squelching sub_menu.", 7, 30);
-        prt("S    : Save squelch values to pref file.", 8, 30);
-        prt("L    : Load squelch values from pref file.", 9, 30);
-        prt("B    : Save autoinscriptions to pref file.", 10, 30);
-        prt("G    : Load autoinscriptions from pref file.", 11, 30);
+        prt("S    : Save squelch values to a settings file.", 8, 30);
+        prt("L    : Load squelch values from a settings file.", 9, 30);
+        prt("B    : Save autoinscriptions to a settings file.", 10, 30);
+        prt("G    : Load autoinscriptions from a settings file.", 11, 30);
 
         prt("ESC  : Back to options menu.", 12, 30);
         prt("     :*includes squelching opened chests.", 14, 30);
@@ -396,7 +397,7 @@ static int do_cmd_squelch_aux(void)
         if (askfor_aux(ftmp, 80))
         {
             /* Process the given filename */
-            if (process_pref_file(ftmp))
+            if (object_settings_load(ftmp))
             {
                 /* Mention failure */
                 prt("Failed to load squelch file!  (Hit a key.)",
@@ -517,7 +518,7 @@ static int do_cmd_squelch_aux(void)
         if (askfor_aux(ftmp, 80))
         {
             /* Process the given filename */
-            if (process_pref_file(ftmp))
+            if (object_settings_load(ftmp))
             {
                 /* Mention failure */
                 prt("Failed to load autoinscribe file!  (Hit a key.)",

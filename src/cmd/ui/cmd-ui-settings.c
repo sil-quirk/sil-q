@@ -17,11 +17,6 @@ extern struct sound_config g_sound_config;
 #include "cmd/ui/cmd-ui-internal.h"
 #include "ui/question.h"
 
-/*
- * Header and footer marker string for pref file dumps
- */
-static cptr dump_seperator = "#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#";
-
 enum {
     SETTINGS_PREV_OPTION_PAGE = -1001,
     SETTINGS_NEXT_OPTION_PAGE = -1002
@@ -36,226 +31,6 @@ static int settings_menu_key(int key, int prev_page_key, int next_page_key,
         return key;
 
     return steamdeck_menu_key(key, prev_page_key, next_page_key);
-}
-
-static void dump_visual_pair(
-    SDL_IOStream* fff, const char* tag, int index, byte attr, byte chr)
-{
-    bool attr_tile = (attr & TILE_FLAG) != 0;
-    bool char_tile = (chr & TILE_FLAG) != 0;
-
-    SDL_IOprintf(fff, "%s:%d:", tag, index);
-    if (attr_tile)
-        SDL_IOprintf(fff, "R%d", TILE_GET_INDEX(attr));
-    else
-        SDL_IOprintf(fff, "0x%02X", attr);
-
-    SDL_WriteU8(fff, ':');
-
-    if (char_tile)
-        SDL_IOprintf(fff, "C%d", TILE_GET_INDEX(chr));
-    else
-        SDL_IOprintf(fff, "0x%02X", (byte)chr);
-
-    SDL_WriteU8(fff, '\n');
-    SDL_WriteU8(fff, '\n');
-}
-
-static void remove_old_dump(cptr orig_file, cptr mark)
-{
-    SDL_IOStream* tmp_fff, *orig_fff;
-
-    char tmp_file[1024];
-    char buf[1024];
-    bool between_marks = false;
-    bool changed = false;
-    char expected_line[1024];
-
-    /* Open an old dump file in read-only mode */
-    orig_fff = sdl_fopen(orig_file, "r");
-
-    /* If original file does not exist, nothing to do */
-    if (!orig_fff)
-        return;
-
-    /* Open a new temporary file */
-    tmp_fff = sdl_fopen_temp(tmp_file, sizeof(tmp_file));
-
-    if (!tmp_fff)
-    {
-        msg_format("Failed to create temporary file %s.", tmp_file);
-        msg_print(NULL);
-        return;
-    }
-
-    strnfmt(expected_line, sizeof(expected_line), "%s begin %s", dump_seperator,
-        mark);
-
-    /* Loop for every line */
-    while (true)
-    {
-        /* Read a line */
-        if (sdl_fgets(orig_fff, buf, sizeof(buf)))
-        {
-            /* End of file but no end marker */
-            if (between_marks)
-                changed = false;
-
-            break;
-        }
-
-        /* Is this line a header/footer? */
-        if (strncmp(buf, dump_seperator, strlen(dump_seperator)) == 0)
-        {
-            /* Found the expected line? */
-            if (strcmp(buf, expected_line) == 0)
-            {
-                if (!between_marks)
-                {
-                    /* Expect the footer next */
-                    strnfmt(expected_line, sizeof(expected_line), "%s end %s",
-                        dump_seperator, mark);
-
-                    between_marks = true;
-
-                    /* There are some changes */
-                    changed = true;
-                }
-                else
-                {
-                    /* Expect a header next - XXX shouldn't happen */
-                    strnfmt(expected_line, sizeof(expected_line), "%s begin %s",
-                        dump_seperator, mark);
-
-                    between_marks = false;
-
-                    /* Next line */
-                    continue;
-                }
-            }
-            /* Found a different line */
-            else
-            {
-                /* Expected a footer and got something different? */
-                if (between_marks)
-                {
-                    /* Abort */
-                    changed = false;
-                    break;
-                }
-            }
-        }
-
-        if (!between_marks)
-        {
-            /* Copy orginal line */
-            SDL_IOprintf(tmp_fff, "%s\n", buf);
-        }
-    }
-
-    /* Close files */
-    sdl_fclose(orig_fff);
-    sdl_fclose(tmp_fff);
-
-    /* If there are changes, overwrite the original file with the new one */
-    if (changed)
-    {
-        /* Copy contents of temporary file */
-        tmp_fff = sdl_fopen(tmp_file, "r");
-        orig_fff = sdl_fopen(orig_file, "w");
-
-        while (!sdl_fgets(tmp_fff, buf, sizeof(buf)))
-        {
-            SDL_IOprintf(orig_fff, "%s\n", buf);
-        }
-
-        sdl_fclose(orig_fff);
-        sdl_fclose(tmp_fff);
-    }
-
-    /* Kill the temporary file */
-    fd_kill(tmp_file);
-}
-
-/*
- * Output the header of a pref-file dump
- */
-static void pref_header(SDL_IOStream* fff, cptr mark)
-{
-    /* Start of dump */
-    SDL_IOprintf(fff, "%s begin %s\n", dump_seperator, mark);
-
-    SDL_IOprintf(fff, "# *Warning!*  The lines below are an automatic dump.\n");
-    SDL_IOprintf(fff,
-        "# Don't edit them; changes will be deleted and replaced "
-        "automatically.\n");
-}
-
-/*
- * Output the footer of a pref-file dump
- */
-static void pref_footer(SDL_IOStream* fff, cptr mark)
-{
-    SDL_IOprintf(fff, "# *Warning!*  The lines above are an automatic dump.\n");
-    SDL_IOprintf(fff,
-        "# Don't edit them; changes will be deleted and replaced "
-        "automatically.\n");
-
-    /* End of dump */
-    SDL_IOprintf(fff, "%s end %s\n", dump_seperator, mark);
-}
-
-void do_cmd_pref(void)
-{
-    char tmp[80];
-
-    /* Default */
-    SDL_strlcpy(tmp, "", sizeof(tmp));
-
-    /* Ask for a "user pref command" */
-    if (!term_get_string("Pref: ", tmp, sizeof(tmp)))
-        return;
-
-    /* Process that pref command */
-    (void)process_pref_file_command(tmp);
-}
-
-/*
- * Ask for a "user pref file" and process it.
- *
- * This function should only be used by standard interaction commands,
- * in which a standard "Command:" prompt is present on the given row.
- *
- * Allow absolute file names?  XXX XXX XXX
- */
-static void do_cmd_pref_file_hack(int row)
-{
-    char ftmp[80];
-
-    /* Prompt */
-    Term_putstr(2, row + 2, -1, TERM_SLATE, "(Escape to cancel)");
-
-    /* Prompt */
-    prt("File: ", row, 2);
-
-    /* Default filename */
-    strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
-
-    /* Ask for a file (or cancel) */
-    if (!askfor_aux(ftmp, sizeof(ftmp)))
-        return;
-
-    /* Process the given filename */
-    if (process_pref_file(ftmp))
-    {
-        /* Mention failure */
-        msg_format("Failed to load '%s'!", ftmp);
-    }
-    else
-    {
-        /* Mention success */
-        msg_format("Loaded '%s'.", ftmp);
-    }
 }
 
 void clear_skills_and_abilities()
@@ -3020,116 +2795,6 @@ extern void do_cmd_options_aux(int page, cptr info)
             clear_skills_and_abilities();
         }
     }
-}
-
-/*
- * Write all current options to the given preference file in the
- * lib/user directory. Modified from KAmband 1.8.
- */
-static errr option_dump(cptr fname)
-{
-    static cptr mark = "Options Dump";
-
-    int i, j;
-
-    SDL_IOStream* fff;
-
-    char buf[1024];
-
-    /* Build the filename */
-    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
-    {
-        log_error("option_dump: failed to build path for '%s'", fname);
-        return (-1);
-    }
-
-    /* File type is "TEXT" */
-    FILE_TYPE(FILE_TYPE_TEXT);
-
-    /* Remove old options */
-    remove_old_dump(buf, mark);
-
-    /* Append to the file */
-    fff = sdl_fopen(buf, "a");
-
-    /* Failure */
-    if (!fff)
-        return (-1);
-
-    /* Output header */
-    pref_header(fff, mark);
-
-    /* Skip some lines */
-    SDL_IOprintf(fff, "\n\n");
-
-    /* Start dumping */
-    SDL_IOprintf(fff, "# Automatic option dump\n\n");
-
-    /* Dump options (skip cheat, adult, score) */
-    for (i = 0; i < OPT_CHEAT; i++)
-    {
-        /* Require a real option */
-        if (!option_text[i])
-            continue;
-
-        /* Comment */
-        SDL_IOprintf(fff, "# Option '%s'\n", option_desc[i]);
-
-        /* Dump the option */
-        if (op_ptr->opt[i])
-        {
-            SDL_IOprintf(fff, "Y:%s\n", option_text[i]);
-        }
-        else
-        {
-            SDL_IOprintf(fff, "X:%s\n", option_text[i]);
-        }
-
-        /* Skip a line */
-        SDL_IOprintf(fff, "\n");
-    }
-
-    /* Dump window flags */
-    for (i = 1; i < ANGBAND_TERM_MAX; i++)
-    {
-        /* Require a real window */
-        if (!angband_term[i])
-            continue;
-
-        /* Check each flag */
-        for (j = 0; j < 32; j++)
-        {
-            /* Require a real flag */
-            if (!window_flag_desc[j])
-                continue;
-
-            /* Comment */
-            SDL_IOprintf(fff, "# Window '%s', Flag '%s'\n", angband_term_name[i],
-                window_flag_desc[j]);
-
-            /* Dump the flag */
-            if (op_ptr->window_flag[i] & (1L << j))
-            {
-                SDL_IOprintf(fff, "W:%d:%d:1\n", i, j);
-            }
-            else
-            {
-                SDL_IOprintf(fff, "W:%d:%d:0\n", i, j);
-            }
-
-            /* Skip a line */
-            SDL_IOprintf(fff, "\n");
-        }
-    }
-
-    /* Output footer */
-    pref_footer(fff, mark);
-
-    /* Close */
-    sdl_fclose(fff);
-
-    /* Success */
-    return (0);
 }
 
 /*
@@ -8728,13 +8393,13 @@ void do_cmd_controller_settings(void);
 
 static bool legacy_options_choice_is_disabled(int choice)
 {
-    return (choice == 6);
+    return (choice == 3);
 }
 
 static int legacy_options_menu(int* highlight)
 {
     int ch;
-    int options = 7;
+    int options = 4;
     int term_wid = 80;
     int term_hgt = 24;
     int title_row = 1;
@@ -8758,7 +8423,7 @@ static int legacy_options_menu(int* highlight)
     if (death_view && legacy_options_choice_is_disabled(*highlight))
         *highlight = options;
 
-    pixel_menu = settings_semantic_menu_begin("Legacy Options", *highlight);
+    pixel_menu = settings_semantic_menu_begin("Other Options", *highlight);
 
 #define ADD_LEGACY_MENU_ROW(CHOICE, LABEL, ATTR)                               \
     do {                                                                       \
@@ -8778,28 +8443,22 @@ static int legacy_options_menu(int* highlight)
         list_start_row = row;
         visible_rows = settings_menu_visible_rows(list_start_row, 3);
 
-        Term_putstr(2, title_row, -1, TERM_WHITE, "Legacy Options");
+        Term_putstr(2, title_row, -1, TERM_WHITE, "Other Options");
         ui_menu_click_begin();
         ui_menu_click_set_hover_enabled(true);
         settings_menu_begin_scroll_area(list_start_row,
             MIN(options, visible_rows));
     }
 
-    ADD_LEGACY_MENU_ROW(1, "j) Load a 'Pref' File",
+    ADD_LEGACY_MENU_ROW(1, "m) Choose Palette",
         (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE);
-    ADD_LEGACY_MENU_ROW(2, "k) Append Options to a 'Pref' File",
+    ADD_LEGACY_MENU_ROW(2, "n) Write a note",
         (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE);
-    ADD_LEGACY_MENU_ROW(3, "l) Set Macros",
-        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE);
-    ADD_LEGACY_MENU_ROW(4, "m) Set Colours",
-        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE);
-    ADD_LEGACY_MENU_ROW(5, "n) Write a note",
-        (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE);
-    ADD_LEGACY_MENU_ROW(6, "s) Suicide",
+    ADD_LEGACY_MENU_ROW(3, "s) Suicide",
         death_view ? TERM_L_DARK
-                   : ((*highlight == 6) ? TERM_L_BLUE : TERM_WHITE));
-    ADD_LEGACY_MENU_ROW(7, "o) Return to Options",
-        (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE);
+                   : ((*highlight == 3) ? TERM_L_BLUE : TERM_WHITE));
+    ADD_LEGACY_MENU_ROW(4, "o) Return to Options",
+        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE);
 
 #undef ADD_LEGACY_MENU_ROW
 
@@ -8821,7 +8480,7 @@ static int legacy_options_menu(int* highlight)
             "tap/click a row to open; drag/wheel move selection; Esc return",
             "tap/click open; drag/wheel move; Esc return",
             "tap open; drag/wheel; Esc");
-        ui_menu_click_add_full_row(7, term_hgt - 1);
+        ui_menu_click_add_full_row(4, term_hgt - 1);
 
         Term_fresh();
         Term_gotoxy(2, title_row + 1 + *highlight);
@@ -8839,7 +8498,7 @@ static int legacy_options_menu(int* highlight)
             if (click_action == UI_MENU_CLICK_HOVER && clicked_choice < 0)
                 return (0);
             if (clicked_choice == -1)
-                clicked_choice = 7;
+                clicked_choice = 4;
             else if (clicked_choice == -2)
                 clicked_choice = *highlight;
             if (clicked_choice == SETTINGS_CLICK_RETURN)
@@ -8860,34 +8519,16 @@ static int legacy_options_menu(int* highlight)
 
     ch = settings_menu_key(ch, '8', '2', false);
 
-    if ((ch == 'j') || (ch == 'J'))
+    if ((ch == 'm') || (ch == 'M'))
     {
         *highlight = 1;
         return (1);
     }
 
-    if ((ch == 'k') || (ch == 'K'))
+    if ((ch == 'n') || (ch == 'N'))
     {
         *highlight = 2;
         return (2);
-    }
-
-    if ((ch == 'l') || (ch == 'L'))
-    {
-        *highlight = 3;
-        return (3);
-    }
-
-    if ((ch == 'm') || (ch == 'M'))
-    {
-        *highlight = 4;
-        return (4);
-    }
-
-    if ((ch == 'n') || (ch == 'N'))
-    {
-        *highlight = 5;
-        return (5);
     }
 
     if ((ch == 's') || (ch == 'S'))
@@ -8898,15 +8539,15 @@ static int legacy_options_menu(int* highlight)
             return (0);
         }
 
-        *highlight = 6;
-        return (6);
+        *highlight = 3;
+        return (3);
     }
 
     if ((ch == 'o') || (ch == 'O') || (ch == 'q') || (ch == 'Q')
         || (ch == ESCAPE))
     {
-        *highlight = 7;
-        return (7);
+        *highlight = 4;
+        return (4);
     }
 
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
@@ -8942,8 +8583,6 @@ static void do_cmd_legacy_options(void)
     int choice = 0;
     int highlight = 1;
     bool return_to_options = false;
-    char ftmp[80];
-
     Term_clear();
 
     while (!return_to_options)
@@ -8956,55 +8595,18 @@ static void do_cmd_legacy_options(void)
         case 1:
         {
             settings_semantic_menu_hide();
-            do_cmd_pref_file_hack(12);
+            do_cmd_colors();
             Term_clear();
             break;
         }
         case 2:
         {
             settings_semantic_menu_hide();
-            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
-
-            prt("File: ", 12, 2);
-
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
-
-            if (!askfor_aux(ftmp, sizeof(ftmp)))
-            {
-                Term_clear();
-                continue;
-            }
-
-            if (option_dump(ftmp))
-                msg_print("Failed!");
-            else
-                msg_print("Done.");
-
-            Term_clear();
-            break;
-        }
-        case 3:
-        {
-            settings_semantic_menu_hide();
-            do_cmd_macros();
-            Term_clear();
-            break;
-        }
-        case 4:
-        {
-            settings_semantic_menu_hide();
-            do_cmd_colors();
-            Term_clear();
-            break;
-        }
-        case 5:
-        {
-            settings_semantic_menu_hide();
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 6:
+        case 3:
         {
             settings_semantic_menu_hide();
             do_cmd_suicide();
@@ -9012,7 +8614,7 @@ static void do_cmd_legacy_options(void)
             Term_clear();
             break;
         }
-        case 7:
+        case 4:
         {
             settings_semantic_menu_hide();
             return_to_options = true;
@@ -9095,7 +8697,7 @@ int options_menu(int* highlight)
     ADD_OPTIONS_MENU_ROW(5, 'e', "Text Options");
     ADD_OPTIONS_MENU_ROW(6, 'f', "Gameplay Options");
     ADD_OPTIONS_MENU_ROW(7, 'g', "Sound Options");
-    ADD_OPTIONS_MENU_ROW(8, 'i', "Legacy Options");
+    ADD_OPTIONS_MENU_ROW(8, 'i', "Other Options");
     ADD_OPTIONS_MENU_ROW(9, 'o', "Return to Game");
 
     if (allow_debug_menu && p_ptr->noscore)
@@ -9824,11 +9426,6 @@ void do_cmd_options(void)
     sdl_zones_show_requested_tutorial();
 }
 
-#ifdef ALLOW_MACROS
-/* Forward declaration */
-static errr keymap_dump(cptr fname);
-#endif
-
 /*
  * Helper to turn a single keycode into printable text for the keybind UI.
  */
@@ -10237,7 +9834,7 @@ void do_cmd_keybinds(void)
     int highlight_secondary = 0;
     int top_primary = 0;
     int top_secondary = 0;
-    const char* default_file = "user.prf";
+    const char* default_file = "sil_sdl.json";
     const int list_start_row = 5;
     int term_w, term_h;
     int visible_rows;
@@ -10749,37 +10346,17 @@ void do_cmd_keybinds(void)
         }
         else if (ch == 's' || ch == 'S')
         {
-#ifdef ALLOW_MACROS
-            /* Save keybinds to file */
-            char ftmp[80];
-
-            /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s", default_file);
-
-            /* Clear prompt area */
-            Term_erase(2, info_row, term_w > 2 ? term_w - 2 : 0);
-            prt("File: ", info_row, 2);
             settings_semantic_menu_hide();
-
-            /* Ask for a file */
-            if (askfor_aux(ftmp, sizeof(ftmp)))
+            if (save_pane_config_to_json())
             {
-                /* Dump the keymaps */
-                if (keymap_dump(ftmp) == 0)
-                {
-                    msg_format("Keybinds saved to %s.", ftmp);
-                    dirty = false;
-                }
-                else
-                {
-                    msg_print("Failed to save keybinds.");
-                }
-                message_flush();
+                msg_format("Keybinds saved to %s.", default_file);
+                dirty = false;
             }
-#else
-            msg_print("Saving keybinds is not available in this build.");
+            else
+            {
+                msg_print("Failed to save keybinds.");
+            }
             message_flush();
-#endif
         }
 
         /* Store updated highlight for the active group */
@@ -10796,7 +10373,7 @@ void do_cmd_keybinds(void)
         strnfmt(prompt, sizeof(prompt), "Save keybinds to %s? ", default_file);
         if (get_check(prompt))
         {
-            if (keymap_dump(default_file) == 0)
+            if (save_pane_config_to_json())
             {
                 msg_format("Keybinds saved to %s.", default_file);
                 message_flush();
@@ -12697,6 +12274,9 @@ static errr keymap_dump(cptr fname)
  */
 void do_cmd_macros(void)
 {
+#ifndef ALLOW_MACROS
+    msg_print("Legacy macros are no longer supported.");
+#else
     char ch;
 
     char tmp[1024];
@@ -12847,7 +12427,7 @@ void do_cmd_macros(void)
             prt("File: ", input_row, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Ask for a file */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -12971,7 +12551,7 @@ void do_cmd_macros(void)
             prt("File: ", input_row, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Ask for a file */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -13125,8 +12705,10 @@ void do_cmd_macros(void)
     /* Load screen */
     settings_semantic_menu_hide();
     screen_load();
+#endif
 }
 
+#ifdef ALLOW_VISUALS
 /*
  * Asks to the player for an extended color. It is done in two steps:
  * 1. Asks for the base color.
@@ -13411,7 +12993,7 @@ void do_cmd_visuals(void)
             prt("File: ", 17, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Get a filename */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -13486,7 +13068,7 @@ void do_cmd_visuals(void)
             prt("File: ", 17, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Get a filename */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -13562,7 +13144,7 @@ void do_cmd_visuals(void)
             prt("File: ", 17, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Get a filename */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -13638,7 +13220,7 @@ void do_cmd_visuals(void)
             prt("File: ", 17, 0);
 
             /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
+            strnfmt(ftmp, sizeof(ftmp), "%s.legacy", op_ptr->base_name);
 
             /* Get a filename */
             if (!askfor_aux(ftmp, sizeof(ftmp)))
@@ -14061,7 +13643,14 @@ void do_cmd_visuals(void)
     settings_semantic_menu_hide();
     screen_load();
 }
+#else
+void do_cmd_visuals(void)
+{
+    msg_print("Legacy visual overrides are no longer supported.");
+}
+#endif
 
+#ifdef ALLOW_COLORS
 /*
  * Asks to the user for specific color values.
  * Returns true if the color was modified.
@@ -14541,217 +14130,60 @@ static void modify_colors(void)
         }
     }
 }
+#endif
 
 /*
  * Interact with "colors"
  */
 void do_cmd_colors(void)
 {
-    int ch;
+    int count;
+    int selected = 0;
+    int choice;
+    struct settings_value_choice choices[UI_COLOR_PRESET_MAX];
 
-    int i;
+    if (ui_colors_palette_preset_count() <= 0)
+        ui_colors_load_palette_presets();
 
-    SDL_IOStream* fff;
-
-    char buf[1024];
-
-    /* File type is "TEXT" */
-    FILE_TYPE(FILE_TYPE_TEXT);
-
-    /* Clear any active banner before opening colors menu */
-    if (dismiss_active_narrative_banner()) {
-        do_cmd_redraw();
-    }
-
-    /* Save screen */
-    screen_save();
-
-    /* Interact until done */
-    while (1)
+    count = MIN(ui_colors_palette_preset_count(), UI_COLOR_PRESET_MAX);
+    if (count <= 0)
     {
-        bool pixel_menu;
-
-        pixel_menu = settings_semantic_menu_begin("Interact with Colors", '1');
-        if (pixel_menu)
-        {
-            settings_semantic_add_row('1', "1) Load a user pref file",
-                TERM_WHITE);
-#ifdef ALLOW_COLORS
-            settings_semantic_add_row('2', "2) Dump colors", TERM_WHITE);
-            settings_semantic_add_row('3', "3) Modify colors", TERM_WHITE);
-#endif /* ALLOW_COLORS */
-            sdl_character_sheet_screen_set_select_description(
-                "Color preference tools. Modify colors opens the existing color editor after this menu hides.");
-            sdl_character_sheet_screen_commit_select('1');
-        }
-        else
-        {
-            /* Clear screen */
-            Term_clear();
-
-            /* Ask for a choice */
-            prt("Interact with Colors", 2, 0);
-
-            /* Give some choices */
-            prt("(1) Load a user pref file", 4, 5);
-#ifdef ALLOW_COLORS
-            prt("(2) Dump colors", 5, 5);
-            prt("(3) Modify colors", 6, 5);
-#endif /* ALLOW_COLORS */
-
-            /* Prompt */
-            prt("Command: ", 8, 0);
-        }
-
-        /* Prompt */
-        ch = inkey();
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action)
-                && click_action != UI_MENU_CLICK_HOVER)
-            {
-                if (clicked_choice == -1)
-                    ch = ESCAPE;
-                else if (clicked_choice == -2)
-                    ch = '1';
-                else if (clicked_choice >= 0 && clicked_choice <= 255)
-                    ch = (char)clicked_choice;
-            }
-        }
-
-        /* Done */
-        if (ch == ESCAPE)
-            break;
-
-        /* Load a user pref file */
-        if (ch == '1')
-        {
-            settings_semantic_menu_hide();
-
-            /* Ask for and load a user pref file */
-            do_cmd_pref_file_hack(8);
-
-            /* Could skip the following if loading cancelled XXX XXX XXX */
-
-            /* Mega-Hack -- React to color changes */
-            Term_xtra(TERM_XTRA_REACT, 0);
-
-            /* Mega-Hack -- Redraw physical windows */
-            Term_redraw();
-        }
-
-#ifdef ALLOW_COLORS
-
-        /* Dump colors */
-        else if (ch == '2')
-        {
-            static cptr mark = "Colors";
-            char ftmp[80];
-
-            settings_semantic_menu_hide();
-
-            /* Prompt */
-            prt("Command: Dump colors", 8, 0);
-
-            /* Prompt */
-            prt("File: ", 10, 0);
-
-            /* Default filename */
-            strnfmt(ftmp, sizeof(ftmp), "%s.prf", op_ptr->base_name);
-
-            /* Get a filename */
-            if (!askfor_aux(ftmp, sizeof(ftmp)))
-                continue;
-
-            /* Build the filename */
-            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
-            {
-                log_error("dump_colors: failed to build path for '%s'", ftmp);
-                continue;
-            }
-
-            /* Remove old colors */
-            remove_old_dump(buf, mark);
-
-            /* Append to the file */
-            fff = sdl_fopen(buf, "a");
-
-            /* Failure */
-            if (!fff)
-                continue;
-
-            /* Output header */
-            pref_header(fff, mark);
-
-            /* Skip some lines */
-            SDL_IOprintf(fff, "\n\n");
-
-            /* Start dumping */
-            SDL_IOprintf(fff, "# Color redefinitions\n\n");
-
-            /* Dump colors */
-            for (i = 0; i < 256; i++)
-            {
-                int kv = angband_color_table[i][0];
-                int rv = angband_color_table[i][1];
-                int gv = angband_color_table[i][2];
-                int bv = angband_color_table[i][3];
-
-                cptr name = "unknown";
-
-                /* Skip non-entries */
-                if (!kv && !rv && !gv && !bv)
-                    continue;
-
-                /* Extract the color name */
-                if (i < 16)
-                    name = color_names[i];
-
-                /* Dump a comment */
-                SDL_IOprintf(fff, "# Color '%s'\n", name);
-
-                /* Dump the monster attr/char info */
-                SDL_IOprintf(fff, "V:%d:0x%02X:0x%02X:0x%02X:0x%02X\n\n", i, kv, rv,
-                    gv, bv);
-            }
-
-            /* All done */
-            SDL_IOprintf(fff, "\n\n\n\n");
-
-            /* Output footer */
-            pref_footer(fff, mark);
-
-            /* Close */
-            sdl_fclose(fff);
-
-            /* Message */
-            msg_print("Dumped color redefinitions.");
-        }
-
-        /* Edit colors */
-        else if (ch == '3')
-        {
-            settings_semantic_menu_hide();
-            modify_colors();
-        }
-
-#endif /* ALLOW_COLORS */
-
-        /* Unknown option */
-        else
-        {
-            bell("Illegal command for colors!");
-        }
-
-        /* Flush messages */
-        message_flush();
+        msg_print("No palette presets are available.");
+        return;
     }
 
-    /* Load screen */
-    settings_semantic_menu_hide();
-    screen_load();
+    for (int i = 0; i < count; i++)
+    {
+        choices[i].value = i;
+        choices[i].label = ui_colors_palette_preset_label(i);
+        if (streq(ui_colors_palette_preset_id(i),
+                ui_colors_current_palette_preset()))
+        {
+            selected = i;
+        }
+    }
+
+    if (!settings_pick_value("Choose Palette", NULL, choices, count,
+            selected, &choice))
+    {
+        return;
+    }
+
+    if (!ui_colors_apply_palette_preset(ui_colors_palette_preset_id(choice)))
+    {
+        msg_print("Failed to apply palette preset.");
+        return;
+    }
+
+    SDL_strlcpy(config.palette_preset, ui_colors_current_palette_preset(),
+        sizeof(config.palette_preset));
+    Term_xtra(TERM_XTRA_REACT, 0);
+    Term_redraw();
+
+    if (save_pane_config_to_json())
+        msg_format("Palette preset '%s' saved.", config.palette_preset);
+    else
+        msg_print("Palette changed, but saving sil_sdl.json failed.");
 }
 
 /*

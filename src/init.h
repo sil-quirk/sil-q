@@ -91,15 +91,19 @@ struct header
 };
 
 /*
- * Effect tile mapping (used by effect.txt / effect.raw)
+ * Effect visuals (used by effect.txt / effect.raw)
  *
- * Stores the tile attr/char bytes directly (including TILE_FLAG).
+ * Stores both pseudo/ascii attr/char bytes and tile attr/char bytes.
  */
 typedef struct effect_glyph
 {
-    byte a;
-    byte c;
+    byte d_attr;
+    byte d_char;
+    byte x_attr;
+    byte x_char;
 } effect_glyph;
+
+extern void refresh_effect_visuals_for_graphics_mode(void);
 
 extern errr init_info_txt(
     SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);

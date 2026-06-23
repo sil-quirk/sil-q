@@ -45,16 +45,16 @@ DEFAULT_VAULT_TXT = REPO_ROOT / "lib" / "edit" / "vault.txt"
 DEFAULT_STYLE_TXT = REPO_ROOT / "lib" / "edit" / "style.txt"
 DEFAULT_STYLE_LEVELS_TXT = REPO_ROOT / "lib" / "edit" / "style-levels.txt"
 DEFAULT_TILESET = REPO_ROOT / "lib" / "xtra" / "graf" / "16x16.png"
-DEFAULT_GRAF_PRF = REPO_ROOT / "lib" / "pref" / "graf-new.prf"
+DEFAULT_GRAF_PRF = ""
 DEFAULT_OUT_DIR = REPO_ROOT / "scripts" / "output" / "vaultviz"
 
 
 _BASE_TERRAIN_SYMBOLS = {" ", ".", "#", "$", "%", "+", "s", ":", ",", ";", "<", ">", "0", "7"}
 
 # Vault symbol to tile coordinate mapping (row, col) for pictogram rendering
-# Coordinates are derived from graf-new.prf: (attr - 0x80, char - 0x80)
+# Coordinates were derived from the old graphics preference data.
 VAULT_SYMBOL_TILES: dict[str, tuple[int, int]] = {
-    # Monsters (from graf-new.prf R: entries)
+    # Monsters (from the old graphics preference data)
     "o": (7, 30),   # Orc champion (R:81)
     "O": (7, 31),   # Orc captain (R:91)
     "f": (9, 21),   # Cat warrior (R:154)
@@ -796,7 +796,7 @@ def render_vault_png(
             key_rgb = overlay_tile.getpixel((0, 0))[:3]
             overlay_tile = _tile_with_color_key(overlay_tile, key_rgb)
 
-    # Feature tiles from graf-new.prf (fixed, not style-driven).
+    # Feature tiles from the old graphics preference data (fixed, not style-driven).
     FEAT_SUNLIGHT = 9
     FEAT_GLYPH = 3
     FEAT_CHASM = 2
@@ -1185,7 +1185,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     render_p.add_argument("--depth", type=int, help="Depth hint to resolve 'level' / '*' / '$' style selectors")
     render_p.add_argument("--tileset", default=str(DEFAULT_TILESET), help="Tileset PNG path (default: 16x16.png)")
-    render_p.add_argument("--graf-prf", default=str(DEFAULT_GRAF_PRF), help="graf*.prf path for feature tiles")
+    render_p.add_argument("--graf-prf", default=DEFAULT_GRAF_PRF, help="Optional legacy graphics mapping path")
     render_p.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="Output directory")
     render_p.add_argument("--tile-size", type=int, default=16, help="Tileset tile size in pixels")
     render_p.add_argument("--scale", type=int, default=2, help="Nearest-neighbor scale factor")
@@ -1218,7 +1218,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sheet_p.add_argument("--depth", type=int, help="Depth hint to resolve 'level' / '*' / '$' style selectors")
     sheet_p.add_argument("--tileset", default=str(DEFAULT_TILESET), help="Tileset PNG path (default: 16x16.png)")
-    sheet_p.add_argument("--graf-prf", default=str(DEFAULT_GRAF_PRF), help="graf*.prf path for feature tiles")
+    sheet_p.add_argument("--graf-prf", default=DEFAULT_GRAF_PRF, help="Optional legacy graphics mapping path")
     sheet_p.add_argument("--tile-size", type=int, default=16, help="Tileset tile size in pixels")
     sheet_p.add_argument("--scale", type=int, default=2, help="Nearest-neighbor scale factor")
     sheet_p.add_argument("--font", help="Optional TTF font path for labels and symbol overlay")

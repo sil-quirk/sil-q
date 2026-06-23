@@ -543,7 +543,7 @@ void sdl_resize_for_current_layout(void)
 
 /*
  * Synchronize the SDL palette from angband_color_table.
- * This allows color customizations from .prf files to work.
+ * This allows runtime palette changes to propagate to SDL.
  */
 void sdl_sync_palette(void)
 {

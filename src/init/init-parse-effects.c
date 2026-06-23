@@ -51,7 +51,39 @@ errr parse_effect_info(char* buf, header* head)
         effect_idx = i;
     }
 
-    /* Process 'T' for "Tile" graphics */
+    /* Process 'G' for pseudo/ascii graphics */
+    else if (buf[0] == 'G')
+    {
+        int d_attr;
+        char d_char;
+
+        if (effect_idx < 0)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        if (!buf[2] || !buf[3] || !buf[4])
+            return (PARSE_ERROR_GENERIC);
+
+        d_char = buf[2];
+
+        if (buf[5])
+        {
+            buf += 4;
+            d_attr = color_text_to_attr(buf);
+        }
+        else
+        {
+            d_attr = color_char_to_attr(buf[4]);
+        }
+
+        if (d_attr < 0)
+            return (PARSE_ERROR_GENERIC);
+        if (!glyphs)
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        glyphs[effect_idx].d_attr = (byte)d_attr;
+        glyphs[effect_idx].d_char = (byte)d_char;
+    }
+
+    /* Process 'T' for tile graphics */
     else if (buf[0] == 'T')
     {
         int row, col;
@@ -74,10 +106,8 @@ errr parse_effect_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
         /* Store in the raw-backed table (and update globals) */
-        glyphs[effect_idx].a = (byte)(0x80 | row);
-        glyphs[effect_idx].c = (byte)(0x80 | col);
-        misc_to_attr[effect_idx] = glyphs[effect_idx].a;
-        misc_to_char[effect_idx] = (char)glyphs[effect_idx].c;
+        glyphs[effect_idx].x_attr = (byte)(0x80 | row);
+        glyphs[effect_idx].x_char = (byte)(0x80 | col);
     }
 
     else

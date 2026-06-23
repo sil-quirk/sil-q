@@ -1113,6 +1113,28 @@ errr init_flavor_info(void)
  */
 static header effect_head;
 
+static void effect_visuals_apply(bool ascii_mode)
+{
+    const effect_glyph* glyphs = (const effect_glyph*)effect_head.info_ptr;
+
+    if (!glyphs)
+        return;
+
+    for (int i = 0; i < 256; i++)
+    {
+        byte attr = ascii_mode ? glyphs[i].d_attr : glyphs[i].x_attr;
+        byte ch = ascii_mode ? glyphs[i].d_char : glyphs[i].x_char;
+
+        misc_to_attr[i] = attr;
+        misc_to_char[i] = (char)ch;
+    }
+}
+
+void refresh_effect_visuals_for_graphics_mode(void)
+{
+    effect_visuals_apply(graphics_are_ascii());
+}
+
 errr init_effect_info(void)
 {
     errr err;
@@ -1129,16 +1151,8 @@ errr init_effect_info(void)
 
     err = init_info("effect", &effect_head);
 
-    /* Populate the global misc_to_* tables from the loaded raw-backed data */
-    if (!err && effect_head.info_ptr)
-    {
-        const effect_glyph* glyphs = (const effect_glyph*)effect_head.info_ptr;
-        for (int i = 0; i < 256; i++)
-        {
-            misc_to_attr[i] = glyphs[i].a;
-            misc_to_char[i] = (char)glyphs[i].c;
-        }
-    }
+    if (!err)
+        refresh_effect_visuals_for_graphics_mode();
 
     return (err);
 }

@@ -28,7 +28,7 @@ High-signal repo guidance for coding agents (Codex CLI, Copilot, etc.). This is 
 - `lib/`: runtime data + assets
   - Templates: `lib/edit/*.txt` (monsters/vaults/objects/etc)
   - Generated binaries: `*.raw` under `ANGBAND_DIR_DATA` (do not edit; normally not committed)
-  - Preferences: `lib/pref/*.prf`, defaults: `lib/pref/sound.json`
+  - Preferences: JSON defaults in `lib/pref/` (`sound.json`, `palette_presets.json`, object text colors); legacy `.prf` files are removed
   - Assets: `lib/xtra/` (graf/font/music/sound)
 - `tools/`: one-off developer utilities
   - Stable GUID generation for templates: `tools/make_guid.py`

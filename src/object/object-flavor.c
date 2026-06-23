@@ -6,6 +6,7 @@
 #include "object/object-internal.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
+#include "init.h"
 #include "log/log.h"
 #include "cJSON.h"
 #include <ctype.h>
@@ -335,13 +336,6 @@ static void load_object_text_colors_json(void)
  *
  * This involves resetting various things to their "default" state.
  *
- * If the "prefs" flag is true, then we will also load the appropriate
- * "user pref file" based on the current setting of the "use_graphics"
- * flag.  This is useful for switching "graphics" on/off.
- *
- * The features, objects, and monsters, should all be encoded in the
- * relevant "font.pref" and/or "graf.prf" files.  XXX XXX XXX
- *
  * The "prefs" parameter is no longer meaningful.  XXX XXX XXX
  */
 void reset_visuals(bool unused)
@@ -410,20 +404,8 @@ void reset_visuals(bool unused)
         tval_to_attr[i] = TERM_L_DARK;
     }
 
-    /* Graphic symbols */
-    if (use_graphics)
-    {
-        /* Process "graf.prf" */
-        process_pref_file("graf.prf");
-    }
+    refresh_effect_visuals_for_graphics_mode();
 
-    /* Normal symbols */
-    else
-    {
-        /* Process "font.prf" */
-        process_pref_file("font.prf");
-    }
-
-    /* Shared object list text colors now come from JSON, not E: pref entries. */
+    /* Shared object list text colors come from JSON. */
     load_object_text_colors_json();
 }
