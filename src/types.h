@@ -1550,9 +1550,13 @@ struct combat_roll
     int att_roll; /* The attack roll (d20 value) */
     int evn; /* The evasion bonus */
     int evn_roll; /* The evasion roll (d20 value */
+    bool no_damage; /* This attack contest has no damage-roll phase */
+    bool force_damage; /* Show combined damage even if this contest missed */
 
     int dd; /* The number of damage dice */
     int ds; /* The number of damage sides */
+    int dd2; /* Optional second damage dice pool for combined attacks */
+    int ds2; /* Optional second damage sides for combined attacks */
     int dam; /* The total damage rolled */
     int pd; /* The number of protection dice */
     int ps; /* The number of protection sides */

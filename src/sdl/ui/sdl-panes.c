@@ -658,6 +658,17 @@ int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
     if (p_ptr->focused)
         sdl_status_pane_add(entries, max_entries, &count, "Focused",
             "", TERM_L_BLUE);
+    {
+        int power_throw_slot = player_power_throw_quiver_slot();
+
+        if (power_throw_slot)
+        {
+            cptr quiver = (power_throw_slot == INVEN_QUIVER2)
+                ? "2nd quiver" : "1st quiver";
+            sdl_status_pane_add(entries, max_entries, &count, "Power Throw",
+                quiver, TERM_YELLOW);
+        }
+    }
     if (sdl_status_pane_current_song_detail(detail, sizeof(detail)))
         sdl_status_pane_add(entries, max_entries, &count, "Singing",
             detail, TERM_L_BLUE);

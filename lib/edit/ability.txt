@@ -182,6 +182,15 @@ T:23:0:99  # Swords
 T:31:1:1   # Gloves (leather gloves only)
 T:19:0:99  # Bows
 
+N:16:Power Throw
+I:0:16:8
+P:0/3
+D:With blade held ready and a spear or axe poised for the cast, you strike as the weapon leaves your hand. The two blows fall together before your foe can turn from one defence to the other.
+E:After spending a turn readying your melee weapon or waiting, throw a quivered spear or hand axe at an adjacent foe while striking in melee. Roll both attacks separately against Evasion, combine the damage of successful attacks, then roll protection once. Your melee weapon remains active.
+T:22:1:1   # Spears
+T:22:11:11 # Hand Axes
+T:31:0:99  # Gloves
+
 
 # Archery ---------------------------------------------
 

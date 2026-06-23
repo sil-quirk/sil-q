@@ -167,6 +167,61 @@ static bool object_is_dagger(const object_type* o_ptr)
         && (o_ptr->sval == SV_DAGGER || o_ptr->sval == SV_CHIPPED_DAGGER);
 }
 
+bool player_power_throw_weapon_eligible(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx || o_ptr->tval != TV_POLEARM)
+        return false;
+
+    return o_ptr->sval == SV_SPEAR || o_ptr->sval == SV_HAND_AXE;
+}
+
+static bool player_has_melee_weapon_equipped(void)
+{
+    const object_type* o_ptr = &inventory[INVEN_WIELD];
+
+    if (!o_ptr->k_idx)
+        return false;
+
+    return o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM
+        || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING;
+}
+
+bool player_power_throw_ready(void)
+{
+    int previous_action;
+
+    if (!p_ptr)
+        return false;
+    if (!p_ptr->active_ability[S_MEL][MEL_POWER_THROW])
+        return false;
+    if (!player_active_weapon_is_melee())
+        return false;
+    if (!player_has_melee_weapon_equipped())
+        return false;
+
+    previous_action = p_ptr->previous_action[1];
+    return previous_action == 5 || previous_action == ACTION_READY_MELEE;
+}
+
+bool player_can_power_throw_from_quiver(int slot)
+{
+    if (slot != INVEN_QUIVER1 && slot != INVEN_QUIVER2)
+        return false;
+    if (!player_power_throw_ready())
+        return false;
+
+    return player_power_throw_weapon_eligible(&inventory[slot]);
+}
+
+int player_power_throw_quiver_slot(void)
+{
+    if (player_can_power_throw_from_quiver(INVEN_QUIVER1))
+        return INVEN_QUIVER1;
+    if (player_can_power_throw_from_quiver(INVEN_QUIVER2))
+        return INVEN_QUIVER2;
+    return 0;
+}
+
 bool player_can_quick_throw_from_quiver(int slot)
 {
     object_type* o_ptr;
@@ -226,7 +281,9 @@ bool player_has_throwable_potion(void)
  */
 bool player_quick_throw_available(void)
 {
-    return player_quick_throw_quiver_slot() != 0 || player_has_throwable_potion();
+    return player_quick_throw_quiver_slot() != 0
+        || player_power_throw_quiver_slot() != 0
+        || player_has_throwable_potion();
 }
 
 bool player_shield_counts_for_active_weapon(const object_type* o_ptr)
@@ -369,7 +426,9 @@ bool player_set_active_weapon_mode(int mode, bool confirm, bool take_turn)
     if (take_turn && needs_turn && !free_switch)
     {
         p_ptr->energy_use = 100;
-        p_ptr->previous_action[0] = ACTION_MISC;
+        p_ptr->previous_action[0]
+            = (mode == PLAYER_ACTIVE_WEAPON_MELEE)
+            ? ACTION_READY_MELEE : ACTION_MISC;
     }
     else if (take_turn && free_switch)
     {

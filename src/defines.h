@@ -460,6 +460,7 @@
 #define ACTION_MISC 10
 #define ACTION_ARCHERY 11
 #define ACTION_BASH 12
+#define ACTION_READY_MELEE 13
 
 /*
  * Active weapon modes.  These intentionally match the SDL pointer attack
@@ -627,6 +628,7 @@
 #define MEL_RAPID_ATTACK 13
 #define MEL_STR 14
 #define MEL_WARDEN 15
+#define MEL_POWER_THROW 16
 
 /*
  * Archery abilities

@@ -295,8 +295,9 @@ extern int light_penalty(const monster_type* m_ptr)
  * attacker_vis is whether the attacker is visible.
  * this is used in displaying the attack roll details.
  */
-int hit_roll(int att, int evn, const monster_type* m_ptr1,
-    const monster_type* m_ptr2, bool display_roll)
+int hit_roll_details(int att, int evn, const monster_type* m_ptr1,
+    const monster_type* m_ptr2, bool display_roll, int* attack_die,
+    int* evasion_die)
 {
     int attack_score, attack_score_alt;
     int evasion_score, evasion_score_alt;
@@ -344,7 +345,19 @@ int hit_roll(int att, int evn, const monster_type* m_ptr1,
             attack_score - att, evn, evasion_score - evn);
     }
 
+    if (attack_die)
+        *attack_die = attack_score - att;
+    if (evasion_die)
+        *evasion_die = evasion_score - evn;
+
     return (attack_score - evasion_score);
+}
+
+int hit_roll(int att, int evn, const monster_type* m_ptr1,
+    const monster_type* m_ptr2, bool display_roll)
+{
+    return hit_roll_details(
+        att, evn, m_ptr1, m_ptr2, display_roll, NULL, NULL);
 }
 
 /*
@@ -869,8 +882,8 @@ void slay_desc(char* description, u32b flag, const monster_type* m_ptr)
     return;
 }
 
-void ident_weapon_by_use(
-    object_type* o_ptr, const monster_type* m_ptr, u32b flag)
+void ident_weapon_by_use_context(object_type* o_ptr,
+    const monster_type* m_ptr, u32b flag, cptr context)
 {
     char o_short_name[80];
     char o_full_name[80];
@@ -883,7 +896,11 @@ void ident_weapon_by_use(
     slay_desc(slay_description, flag, m_ptr);
 
     /* Print the messages */
-    msg_format("Your %s %s.", o_short_name, slay_description);
+    if (context && context[0])
+        msg_format(
+            "Your %s %s %s.", context, o_short_name, slay_description);
+    else
+        msg_format("Your %s %s.", o_short_name, slay_description);
     if (object_uses_smithing_difficulty(o_ptr))
     {
         player_mark_object_experienced(o_ptr);
@@ -900,6 +917,12 @@ void ident_weapon_by_use(
     }
 
     return;
+}
+
+void ident_weapon_by_use(
+    object_type* o_ptr, const monster_type* m_ptr, u32b flag)
+{
+    ident_weapon_by_use_context(o_ptr, m_ptr, flag, NULL);
 }
 
 void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,

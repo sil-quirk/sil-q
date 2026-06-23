@@ -2813,6 +2813,23 @@ static bool ability_inactive_reason(int skilltype, int abilitynum,
             if (!player_active_weapon_is_melee())
                 reason = "Requires your melee weapon to be active.";
             break;
+        case MEL_POWER_THROW:
+            if (!player_active_weapon_is_melee())
+            {
+                reason = "Requires your melee weapon to be active.";
+            }
+            else if (!inventory[INVEN_WIELD].k_idx)
+            {
+                reason = "Requires an equipped melee weapon.";
+            }
+            else if (!player_power_throw_weapon_eligible(
+                         &inventory[INVEN_QUIVER1])
+                && !player_power_throw_weapon_eligible(
+                    &inventory[INVEN_QUIVER2]))
+            {
+                reason = "Requires a spear or hand axe in a quiver.";
+            }
+            break;
         case MEL_TWO_WEAPON:
             if (!player_active_weapon_is_melee())
             {

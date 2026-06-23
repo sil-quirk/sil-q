@@ -166,6 +166,9 @@ void sdl_pointer_attack_reset_to_melee(void)
 
 void sdl_pointer_attack_set_mode(int mode)
 {
+    int power_throw_slot;
+    bool power_throw_mode;
+
     if (mode == SDL_POINTER_ATTACK_NONE)
         mode = SDL_POINTER_ATTACK_MELEE;
 
@@ -183,9 +186,19 @@ void sdl_pointer_attack_set_mode(int mode)
     sdl_pointer_attack_cancel_touch_press();
     sdl_mouse_path_cancel();
 
+    power_throw_slot = (p_ptr && character_generated)
+        ? player_power_throw_quiver_slot() : 0;
+    power_throw_mode = (power_throw_slot == INVEN_QUIVER1
+            && mode == SDL_POINTER_ATTACK_RANGED_1)
+        || (power_throw_slot == INVEN_QUIVER2
+            && mode == SDL_POINTER_ATTACK_RANGED_2);
+
     if (p_ptr && character_generated) {
-        player_queue_active_weapon_mode(mode);
-        sdl_enqueue_bypassed_command(CMD_ACTIVE_WEAPON_MODE);
+        if (!power_throw_mode)
+        {
+            player_queue_active_weapon_mode(mode);
+            sdl_enqueue_bypassed_command(CMD_ACTIVE_WEAPON_MODE);
+        }
     }
     else
         msg_format("%s pointer mode.", sdl_pointer_attack_mode_name(mode));

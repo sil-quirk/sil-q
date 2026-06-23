@@ -580,6 +580,9 @@ extern int light_penalty(const monster_type* m_ptr);
 extern bool check_hit(int power, bool display_roll);
 extern int hit_roll(int att, int evn, const monster_type* m_ptr1,
     const monster_type* m_ptr2, bool display_roll);
+extern int hit_roll_details(int att, int evn, const monster_type* m_ptr1,
+    const monster_type* m_ptr2, bool display_roll, int* attack_die,
+    int* evasion_die);
 extern int total_player_attack(monster_type* m_ptr, int base);
 extern int total_player_evasion(monster_type* m_ptr, bool archery);
 extern int total_monster_attack(monster_type* m_ptr, int base);
@@ -600,6 +603,8 @@ extern void ident_f2(u32b flag, object_type* supplied_object);
 extern void ident_f3(u32b flag, object_type* supplied_object);
 extern void ident_weapon_by_use(
     object_type* o_ptr, const monster_type* m_ptr, u32b flag);
+extern void ident_weapon_by_use_context(object_type* o_ptr,
+    const monster_type* m_ptr, u32b flag, cptr context);
 extern void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
     object_type* o_ptr, const monster_type* m_ptr, u32b bow_flag,
     u32b arrow_flag);
@@ -1051,6 +1056,9 @@ extern void update_combat_rolls1b(
     const monster_type* m_ptr1, const monster_type* m_ptr2, bool vis);
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
     int prot, int prt_percent, int dam_type, bool melee);
+extern void update_combat_rolls2_combo(int dd, int ds, int dam, int dd2,
+    int ds2, int dam2, int pd, int ps, int prot, int prt_percent,
+    int dam_type, bool melee);
 extern void update_combat_rolls_no_damage(void);
 extern void display_combat_rolls(void);
 extern void display_combat_roll_line_at(int row, int base_col_offset,
@@ -1883,6 +1891,10 @@ extern bool player_weapon_slot_combat_bonuses_active(
 extern bool player_shield_counts_for_active_weapon(const object_type* o_ptr);
 extern bool player_can_quick_throw_from_quiver(int slot);
 extern int player_quick_throw_quiver_slot(void);
+extern bool player_power_throw_weapon_eligible(const object_type* o_ptr);
+extern bool player_power_throw_ready(void);
+extern bool player_can_power_throw_from_quiver(int slot);
+extern int player_power_throw_quiver_slot(void);
 extern bool player_can_throw_potions(void);
 extern bool player_has_throwable_potion(void);
 extern bool player_quick_throw_available(void);

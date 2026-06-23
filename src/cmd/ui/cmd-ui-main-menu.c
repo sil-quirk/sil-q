@@ -998,6 +998,21 @@ static void log_history_put_tile_scrolled(int* col, int row, int offset,
         *col += 1;
 }
 
+static void log_history_format_damage_dice(const combat_roll* roll,
+    char* buf, size_t buflen)
+{
+    bool first = roll->dd > 0 && roll->ds > 0;
+    bool second = roll->dd2 > 0 && roll->ds2 > 0;
+
+    if (first && second)
+        strnfmt(buf, buflen, "(%dd%d+%dd%d)", roll->dd, roll->ds,
+            roll->dd2, roll->ds2);
+    else if (second)
+        strnfmt(buf, buflen, "(%dd%d)", roll->dd2, roll->ds2);
+    else
+        strnfmt(buf, buflen, "(%dd%d)", roll->dd, roll->ds);
+}
+
 static void log_history_draw_combat_entry(const log_history_entry* entry,
     int row, int offset)
 {
@@ -1074,7 +1089,7 @@ static void log_history_draw_combat_entry(const log_history_entry* entry,
         log_history_put_tile_scrolled(&col, row, offset, roll->defender_attr,
             roll->defender_char);
 
-        if (net_att > 0)
+        if (!roll->no_damage && (net_att > 0 || roll->force_damage))
         {
             int net_dam = roll->dam - roll->prot;
             if (net_dam < 0)
@@ -1083,10 +1098,7 @@ static void log_history_draw_combat_entry(const log_history_entry* entry,
             log_history_putstr_scrolled(&col, row, offset, TERM_L_DARK,
                 "  ->");
 
-            if (roll->ds < 10)
-                strnfmt(buf, sizeof(buf), "   (%dd%d)", roll->dd, roll->ds);
-            else
-                strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+            log_history_format_damage_dice(roll, buf, sizeof(buf));
             log_history_putstr_scrolled(&col, row, offset, a_dam_roll, buf);
 
             strnfmt(buf, sizeof(buf), "%4d", roll->dam);
@@ -1149,15 +1161,17 @@ static void log_history_entry_search_text(const log_history_entry* entry,
         combat_roll* roll = entry->roll;
         int net_att = roll->att_roll + roll->att - roll->evn_roll - roll->evn;
         int net_dam = roll->dam - roll->prot;
+        char dice[48];
 
         if (net_dam < 0)
             net_dam = 0;
 
+        log_history_format_damage_dice(roll, dice, sizeof(dice));
         strnfmt(out, out_sz,
-            "Combat %c to %c att %+d hit %d evn %+d damage %dd%d net %d "
+            "Combat %c to %c att %+d hit %d evn %+d damage %s net %d "
             "protection %d",
             roll->attacker_char, roll->defender_char, roll->att, net_att,
-            roll->evn, roll->dd, roll->ds, net_dam, roll->prot);
+            roll->evn, dice, net_dam, roll->prot);
     }
 }
 

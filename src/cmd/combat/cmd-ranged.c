@@ -439,6 +439,12 @@ void do_cmd_fire(int quiver)
     /* Determine whether the item should be thrown directly */
     object_flags4(o_ptr, &ammo_f1, &ammo_f2, &ammo_f3, &ammo_f4);
 
+    if (player_can_power_throw_from_quiver(item))
+    {
+        do_cmd_throw_from_slot(item);
+        return;
+    }
+
     {
         int requested_mode = player_active_weapon_mode_for_quiver(quiver);
         bool quick_throw = player_can_quick_throw_from_quiver(item)
@@ -1622,6 +1628,13 @@ static bool select_throw_slot(bool automatic, int* item)
                 *item = quick_slot;
                 return true;
             }
+
+            quick_slot = player_power_throw_quiver_slot();
+            if (quick_slot)
+            {
+                *item = quick_slot;
+                return true;
+            }
         }
 
         msg_print("Your active quiver has nothing designed for throwing.");
@@ -1721,6 +1734,10 @@ void do_cmd_throw(bool automatic)
     bool treat_as_throwing = false;
     bool has_throwing_ability = false;
     bool has_impale_ability = false;
+    bool power_throw_candidate = false;
+    bool power_throw_attack = false;
+    int power_throw_y = 0;
+    int power_throw_x = 0;
     int remaining_impale_targets = 0;
 
     int missed_monsters = 0;
@@ -1740,6 +1757,7 @@ void do_cmd_throw(bool automatic)
 
     u32b noticed_flag
         = 0; // if a slay is noticed it is recorded here and the item identified
+    u32b melee_noticed_flag = 0;
 
     int preset_item = throw_pending_slot;
     bool preset = (preset_item != THROW_PENDING_NONE);
@@ -1814,29 +1832,7 @@ void do_cmd_throw(bool automatic)
         }
     }
 
-    /*
-     * Throwing from a quiver switches the active weapon to that quiver (unless
-     * it is a quick-throw).  Potions are hurled in any stance with no switch.
-     */
-    if (item == INVEN_QUIVER1 || item == INVEN_QUIVER2)
-    {
-        int requested_mode = (item == INVEN_QUIVER2)
-            ? PLAYER_ACTIVE_WEAPON_RANGED_2
-            : PLAYER_ACTIVE_WEAPON_RANGED_1;
-
-        if (player_active_weapon_mode() != requested_mode)
-        {
-            if (!(player_active_weapon_is_melee()
-                    && player_can_quick_throw_from_quiver(item)))
-            {
-                if (!player_set_active_weapon_mode(requested_mode, true, true))
-                    return;
-
-                if (p_ptr->energy_use > 0)
-                    return;
-            }
-        }
-    }
+    power_throw_candidate = player_can_power_throw_from_quiver(item);
 
     // Aim automatically if asked
     if (automatic)
@@ -1987,6 +1983,53 @@ void do_cmd_throw(bool automatic)
         }
     }
 
+    if (power_throw_candidate)
+    {
+        if (dir == 5 && !spatial_target && p_ptr->target_who > 0
+            && distance(p_ptr->py, p_ptr->px, ty, tx) == 1)
+        {
+            power_throw_attack = true;
+            power_throw_y = ty;
+            power_throw_x = tx;
+        }
+        else if (dir >= 1 && dir <= 9 && dir != 5)
+        {
+            int adjacent_y = p_ptr->py + ddy[dir];
+            int adjacent_x = p_ptr->px + ddx[dir];
+
+            if (in_bounds(adjacent_y, adjacent_x)
+                && cave_m_idx[adjacent_y][adjacent_x] > 0)
+            {
+                power_throw_attack = true;
+                power_throw_y = adjacent_y;
+                power_throw_x = adjacent_x;
+            }
+        }
+    }
+
+    /*
+     * A Power Throw is made from melee stance.  Other quivered throws switch
+     * to their ranged mode unless they qualify for the dagger quick-throw.
+     */
+    if (item == INVEN_QUIVER1 || item == INVEN_QUIVER2)
+    {
+        int requested_mode = (item == INVEN_QUIVER2)
+            ? PLAYER_ACTIVE_WEAPON_RANGED_2
+            : PLAYER_ACTIVE_WEAPON_RANGED_1;
+
+        if (player_active_weapon_mode() != requested_mode
+            && !power_throw_attack
+            && !(player_active_weapon_is_melee()
+                && player_can_quick_throw_from_quiver(item)))
+        {
+            if (!player_set_active_weapon_mode(requested_mode, true, true))
+                return;
+
+            if (p_ptr->energy_use > 0)
+                return;
+        }
+    }
+
     /* Set dummy variables to pass to project_path (so it doesn't clobber the real ones). */
     ty2 = ty;
     tx2 = tx;
@@ -2073,7 +2116,8 @@ void do_cmd_throw(bool automatic)
     has_impale_ability = (p_ptr->active_ability[S_MEL][MEL_IMPALE]
         || object_grants_ability(i_ptr, S_MEL, MEL_IMPALE))
         && weapon_is_impale_eligible(i_ptr);
-    remaining_impale_targets = has_impale_ability ? 1 : 0;
+    remaining_impale_targets
+        = (has_impale_ability && !power_throw_attack) ? 1 : 0;
 
     attack_mod = p_ptr->skill_use[S_MEL] + i_ptr->att;
 
@@ -2180,6 +2224,20 @@ void do_cmd_throw(bool automatic)
             int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
             int throw_attack_penalty = throwing_range_attack_penalty(dist, tdis);
             int throw_ds_penalty = throwing_range_ds_penalty(dist, tdis);
+            bool power_throw_hit = power_throw_attack
+                && y == power_throw_y && x == power_throw_x;
+            object_type* melee_o_ptr = &inventory[INVEN_WIELD];
+            u32b melee_f1 = 0, melee_f2 = 0, melee_f3 = 0, melee_f4 = 0;
+            int melee_attack_mod = 0;
+            int melee_total_attack_mod = 0;
+            int melee_hit_result = 0;
+            int throw_attack_die = 0;
+            int throw_evasion_die = 0;
+            int melee_attack_die = 0;
+            int melee_evasion_die = 0;
+            char thrown_weapon_name[80];
+            char melee_weapon_name[80];
+            char power_throw_target_name[80];
 
             // Unaware targets are easier to hit with well-placed throws too.
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
@@ -2226,6 +2284,19 @@ void do_cmd_throw(bool automatic)
             // Determine the monster's evasion after all modifiers
             total_evasion_mod = total_monster_evasion(m_ptr, false);
 
+            if (power_throw_hit && !(r_ptr->flags1 & (RF1_PEACEFUL)))
+            {
+                object_desc(thrown_weapon_name, sizeof(thrown_weapon_name),
+                    i_ptr, false, 0);
+                object_desc(melee_weapon_name, sizeof(melee_weapon_name),
+                    melee_o_ptr, false, 0);
+                monster_desc(power_throw_target_name,
+                    sizeof(power_throw_target_name), m_ptr, 0);
+                msg_format("Power Throw! You hurl your %s, then strike with "
+                           "your %s.",
+                    thrown_weapon_name, melee_weapon_name);
+            }
+
             // No killing peaceful creatures
             if (r_ptr->flags1 & (RF1_PEACEFUL))
             {
@@ -2234,32 +2305,114 @@ void do_cmd_throw(bool automatic)
             else
             {
                 /* Test for hit */
-                hit_result = hit_roll(
-                    total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
+                if (power_throw_hit)
+                {
+                    hit_result = hit_roll_details(total_attack_mod,
+                        total_evasion_mod, PLAYER, m_ptr, false,
+                        &throw_attack_die, &throw_evasion_die);
+                }
+                else
+                {
+                    hit_result = hit_roll(total_attack_mod,
+                        total_evasion_mod, PLAYER, m_ptr, true);
+                }
             }
 
             if (hit_result <= 0 && !(r_ptr->flags1 & (RF1_PEACEFUL))
                 && (f3 & TR3_ACCURATE))
             {
-                hit_result = hit_roll(
-                    total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
+                if (power_throw_hit)
+                {
+                    hit_result = hit_roll_details(total_attack_mod,
+                        total_evasion_mod, PLAYER, m_ptr, false,
+                        &throw_attack_die, &throw_evasion_die);
+                }
+                else
+                {
+                    hit_result = hit_roll(total_attack_mod,
+                        total_evasion_mod, PLAYER, m_ptr, true);
+                }
                 if (hit_result > 0)
-                    msg_format("The %s flies true.", o_name);
+                {
+                    if (power_throw_hit)
+                        msg_format("Your thrown %s flies true.",
+                            thrown_weapon_name);
+                    else
+                        msg_format("The %s flies true.", o_name);
+                }
+            }
+
+            if (power_throw_hit && !(r_ptr->flags1 & (RF1_PEACEFUL)))
+            {
+                int melee_stealth_bonus = stealth_melee_bonus(m_ptr, false);
+
+                object_flags4(melee_o_ptr, &melee_f1, &melee_f2,
+                    &melee_f3, &melee_f4);
+                melee_attack_mod = p_ptr->skill_use[S_MEL];
+                melee_total_attack_mod = total_player_attack(
+                    m_ptr, melee_attack_mod + melee_stealth_bonus);
+                melee_hit_result = hit_roll_details(melee_total_attack_mod,
+                    total_evasion_mod, PLAYER, m_ptr, false,
+                    &melee_attack_die, &melee_evasion_die);
+
+                if (melee_hit_result <= 0 && (melee_f3 & TR3_ACCURATE))
+                {
+                    melee_hit_result = hit_roll_details(
+                        melee_total_attack_mod, total_evasion_mod, PLAYER,
+                        m_ptr, false, &melee_attack_die, &melee_evasion_die);
+                    if (melee_hit_result > 0)
+                    {
+                        object_desc(melee_weapon_name,
+                            sizeof(melee_weapon_name), melee_o_ptr, false, 0);
+                        msg_format(
+                            "Your wielded %s strikes true.",
+                            melee_weapon_name);
+                    }
+                }
+
+                msg_format("Your thrown %s %s %s.", thrown_weapon_name,
+                    (hit_result > 0) ? "hits" : "misses",
+                    power_throw_target_name);
+                update_combat_rolls1(PLAYER, m_ptr, m_ptr->ml,
+                    total_attack_mod, throw_attack_die, total_evasion_mod,
+                    throw_evasion_die);
+                update_combat_rolls_no_damage();
+                msg_format("Your wielded %s %s %s.", melee_weapon_name,
+                    (melee_hit_result > 0) ? "hits" : "misses",
+                    power_throw_target_name);
+                update_combat_rolls1(PLAYER, m_ptr, m_ptr->ml,
+                    melee_total_attack_mod, melee_attack_die,
+                    total_evasion_mod, melee_evasion_die);
             }
 
             song_disguise_note_player_attack(cave_m_idx[y][x]);
 
-            /* If it hit... */
-            if (hit_result > 0)
+            /* Resolve every successful component against one protection roll. */
+            if (hit_result > 0 || melee_hit_result > 0)
             {
+                int melee_crit_bonus_dice = 0;
+                int melee_slay_bonus_dice = 0;
+                int melee_total_dice = 0;
+                int melee_ds = 0;
+                int melee_dam = 0;
+                int thrown_dam = 0;
+                bool thrown_hit = hit_result > 0;
+                bool melee_hit = melee_hit_result > 0;
+
+                msg_print("Power Throw combines all successful weapon damage "
+                          "against one armor roll.");
+
                 /* Note the collision */
-                hit_body = true;
+                hit_body = thrown_hit;
 
                 /* Assume a default death */
                 cptr note_dies = " dies.";
 
                 /*Mark the monster as attacked by the player*/
-                m_ptr->mflag |= (MFLAG_HIT_BY_RANGED);
+                if (thrown_hit)
+                    m_ptr->mflag |= (MFLAG_HIT_BY_RANGED);
+                if (melee_hit)
+                    m_ptr->mflag |= (MFLAG_HIT_BY_MELEE);
 
                 /* Some monsters get "destroyed" */
                 if (monster_nonliving(r_ptr))
@@ -2269,34 +2422,56 @@ void do_cmd_throw(bool automatic)
                 }
 
                 /* Apply special damage XXX XXX XXX */
-                crit_bonus_dice = crit_bonus(
-                    hit_result, i_ptr->weight, r_ptr, S_MEL, true, NULL, i_ptr);
-
-                if (f3 & TR3_CUMBERSOME)
+                if (thrown_hit)
                 {
-                    crit_bonus_dice = 0;
+                    crit_bonus_dice = crit_bonus(hit_result, i_ptr->weight,
+                        r_ptr, S_MEL, true, NULL, i_ptr);
+
+                    if (f3 & TR3_CUMBERSOME)
+                        crit_bonus_dice = 0;
+
+                    slay_bonus_dice
+                        = slay_bonus(i_ptr, m_ptr, &noticed_flag);
+
+                    /* Calculate the damage from the thrown object */
+                    total_bonus_dice = crit_bonus_dice + slay_bonus_dice;
+                    total_ds = strength_modified_ds(i_ptr, 0);
+
+                    /* Penalise items that aren't made to be thrown */
+                    if (!treat_as_throwing)
+                        total_ds /= 2;
+
+                    if (has_throwing_ability && throw_ds_penalty > 0)
+                        throw_ds_penalty--;
+
+                    total_ds -= throw_ds_penalty;
+
+                    /* Can't have a negative number of sides */
+                    if (total_ds < 0)
+                        total_ds = 0;
+
+                    thrown_dam
+                        = damroll(i_ptr->dd + total_bonus_dice, total_ds);
                 }
 
-                slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_flag);
+                dam = thrown_dam;
 
-                /* Calculate the damage from the thrown object */
-                total_bonus_dice = crit_bonus_dice + slay_bonus_dice;
-                total_ds = strength_modified_ds(i_ptr, 0);
+                if (melee_hit)
+                {
+                    melee_crit_bonus_dice = crit_bonus(melee_hit_result,
+                        melee_o_ptr->weight, r_ptr, S_MEL, false, NULL,
+                        melee_o_ptr);
+                    if (melee_f3 & TR3_CUMBERSOME)
+                        melee_crit_bonus_dice = 0;
 
-                /* Penalise items that aren't made to be thrown */
-                if (!treat_as_throwing)
-                    total_ds /= 2;
-
-                if (has_throwing_ability && throw_ds_penalty > 0)
-                    throw_ds_penalty--;
-
-                total_ds -= throw_ds_penalty;
-
-                /* Can't have a negative number of sides */
-                if (total_ds < 0)
-                    total_ds = 0;
-
-                dam = damroll(i_ptr->dd + total_bonus_dice, total_ds);
+                    melee_slay_bonus_dice
+                        = slay_bonus(melee_o_ptr, m_ptr, &melee_noticed_flag);
+                    melee_total_dice = p_ptr->mdd + melee_crit_bonus_dice
+                        + melee_slay_bonus_dice;
+                    melee_ds = p_ptr->mds;
+                    melee_dam = damroll(melee_total_dice, melee_ds);
+                    dam += melee_dam;
+                }
                 
                 /* Apply armor dice/sides curses/blessings */
                 int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
@@ -2308,7 +2483,18 @@ void do_cmd_throw(bool automatic)
                 if (armor_sides < 1) armor_sides = 1;
                 prt = damroll(armor_dice, armor_sides);
 
-                prt_percent = prt_after_sharpness(i_ptr, &noticed_flag);
+                prt_percent = 100;
+                if (thrown_hit)
+                    prt_percent = prt_after_sharpness(i_ptr, &noticed_flag);
+                if (melee_hit)
+                {
+                    int melee_prt_percent
+                        = prt_after_sharpness(melee_o_ptr,
+                            &melee_noticed_flag);
+                    prt_percent = thrown_hit
+                        ? MIN(prt_percent, melee_prt_percent)
+                        : melee_prt_percent;
+                }
                 prt = (prt * prt_percent) / 100;
 
                 net_dam = dam - prt;
@@ -2324,7 +2510,8 @@ void do_cmd_throw(bool automatic)
                 if (!(m_ptr->ml))
                 {
                     /* Invisible monster */
-                    msg_format("The %s finds a mark.", o_name);
+                    if (!power_throw_hit)
+                        msg_format("The %s finds a mark.", o_name);
                 }
 
                 /* Handle visible monster */
@@ -2335,12 +2522,15 @@ void do_cmd_throw(bool automatic)
                     /* Get "the monster" or "it" */
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
+                    int best_crit = MAX(
+                        crit_bonus_dice, melee_crit_bonus_dice);
+
                     if (p_ptr->active_ability[S_STL][STL_CRUEL_BLOW]
-                        && (crit_bonus_dice > 0) && (net_dam > 0)
+                        && (best_crit > 0) && (net_dam > 0)
                         && !(r_ptr->flags1 & (RF1_RES_CRIT)))
                     {
                         int cruel_blow_multiplier
-                            = (30 - (60 / (crit_bonus_dice + 2)));
+                            = (30 - (60 / (best_crit + 2)));
                         if (skill_check(PLAYER, cruel_blow_multiplier,
                                 monster_skill(m_ptr, S_WIL), m_ptr)
                             > 0)
@@ -2349,7 +2539,7 @@ void do_cmd_throw(bool automatic)
 
                             if (!monster_race_is_vala(m_ptr->r_idx)
                                 && !(r_ptr->flags3 & (RF3_NO_CONF)))
-                                m_ptr->confused += crit_bonus_dice + 1;
+                                m_ptr->confused += best_crit + 1;
 
                             scare_onlooking_friends(m_ptr, -20);
                         }
@@ -2357,10 +2547,28 @@ void do_cmd_throw(bool automatic)
 
                     // determine the punctuation for the attack ("...", ".", "!"
                     // etc)
-                    attack_punctuation(punctuation, net_dam, crit_bonus_dice);
+                    attack_punctuation(punctuation, net_dam,
+                        MAX(crit_bonus_dice, melee_crit_bonus_dice));
 
                     /* Message */
-                    msg_format("The %s hits %s%s", o_name, m_name, punctuation);
+                    if (!power_throw_hit)
+                    {
+                        if (thrown_hit && melee_hit)
+                        {
+                            msg_format("You strike %s as the %s hits%s",
+                                m_name, o_name, punctuation);
+                        }
+                        else if (melee_hit)
+                        {
+                            msg_format("You hit %s as the %s flies past%s",
+                                m_name, o_name, punctuation);
+                        }
+                        else
+                        {
+                            msg_format("The %s hits %s%s", o_name, m_name,
+                                punctuation);
+                        }
+                    }
 
                     /* Hack -- Track this monster race */
                     if (m_ptr->ml)
@@ -2398,16 +2606,42 @@ void do_cmd_throw(bool automatic)
                 // if a slay was noticed, then identify the weapon
                 if (noticed_flag)
                 {
-                    ident_weapon_by_use(i_ptr, m_ptr, noticed_flag);
+                    if (power_throw_hit)
+                    {
+                        ident_weapon_by_use_context(
+                            i_ptr, m_ptr, noticed_flag, "thrown");
+                    }
+                    else
+                    {
+                        ident_weapon_by_use(i_ptr, m_ptr, noticed_flag);
+                    }
+                }
+                if (melee_noticed_flag)
+                {
+                    ident_weapon_by_use_context(
+                        melee_o_ptr, m_ptr, melee_noticed_flag, "wielded");
+                    melee_noticed_flag = 0;
                 }
 
                 /* No negative net damage */
                 if (net_dam < 0)
                     net_dam = 0;
 
-                update_combat_rolls2(i_ptr->dd + total_bonus_dice, total_ds,
-                    dam, armor_dice, armor_sides, prt, prt_percent, GF_HURT,
-                    false);
+                if (power_throw_hit)
+                {
+                    update_combat_rolls2_combo(
+                        thrown_hit ? i_ptr->dd + total_bonus_dice : 0,
+                        thrown_hit ? total_ds : 0, thrown_dam,
+                        melee_hit ? melee_total_dice : 0,
+                        melee_hit ? melee_ds : 0, melee_dam, armor_dice,
+                        armor_sides, prt, prt_percent, GF_HURT, true);
+                }
+                else
+                {
+                    update_combat_rolls2(i_ptr->dd + total_bonus_dice, total_ds,
+                        dam, armor_dice, armor_sides, prt, prt_percent,
+                        GF_HURT, false);
+                }
 
                 /* Hit the monster, unless a potion effect has already been done
                  */
@@ -2418,8 +2652,16 @@ void do_cmd_throw(bool automatic)
                 }
 
                 display_hit(y, x, net_dam, GF_HURT, fatal_blow);
-                apply_weapon_combat_effects(
-                    i_ptr, m_ptr, S_MEL, net_dam, fatal_blow, "throw");
+                if (thrown_hit)
+                {
+                    apply_weapon_combat_effects(
+                        i_ptr, m_ptr, S_MEL, net_dam, fatal_blow, "throw");
+                }
+                if (melee_hit && !fatal_blow)
+                {
+                    apply_weapon_combat_effects(melee_o_ptr, m_ptr, S_MEL,
+                        net_dam, false, "power throw");
+                }
 
                 /* Still alive */
                 if (!fatal_blow)
@@ -2472,6 +2714,13 @@ void do_cmd_throw(bool automatic)
             }
             else
             {
+                if (power_throw_hit)
+                {
+                    update_combat_rolls_no_damage();
+                    make_alert(m_ptr);
+                    break;
+                }
+
                 /* we have missed a target, but could still hit something (with
                  * a penalty) */
                 missed_monsters++;
@@ -2500,6 +2749,13 @@ void do_cmd_throw(bool automatic)
 
     /* Drop (or break) near that location */
     drop_near(i_ptr, j, y, x);
+
+    if (power_throw_attack)
+    {
+        (void)player_set_active_weapon_mode(
+            PLAYER_ACTIVE_WEAPON_MELEE, false, false);
+        p_ptr->redraw |= (PR_MEL | PR_ARC | PR_QUIVER);
+    }
 
     // Break the truce if creatures see
     break_truce(false);

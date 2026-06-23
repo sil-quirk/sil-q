@@ -438,6 +438,22 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
     }
 }
 
+void update_combat_rolls2_combo(int dd, int ds, int dam, int dd2, int ds2,
+    int dam2, int pd, int ps, int prot, int prt_percent, int dam_type,
+    bool melee)
+{
+    update_combat_rolls2(dd, ds, dam + dam2, pd, ps, prot, prt_percent,
+        dam_type, melee);
+
+    if ((combat_number > 0) && (combat_number - 1 < MAX_COMBAT_ROLLS))
+    {
+        combat_rolls[0][combat_number - 1].dd2 = dd2;
+        combat_rolls[0][combat_number - 1].ds2 = ds2;
+        combat_rolls[0][combat_number - 1].force_damage = true;
+        combat_rolls_mark_dirty();
+    }
+}
+
 /*
  * Finish an attack roll that has no damage-roll phase, such as a miss.  Call
  * this after the visible outcome message so combined log order stays:
@@ -451,6 +467,7 @@ void update_combat_rolls_no_damage(void)
     if ((combat_number > 0) && (combat_number - 1 < MAX_COMBAT_ROLLS)
         && (combat_rolls[0][combat_number - 1].att_type != COMBAT_ROLL_NONE))
     {
+        combat_rolls[0][combat_number - 1].no_damage = true;
         combat_rolls[0][combat_number - 1].sequence =
             log_history_next_sequence();
         log_trace("[ROLL0] stamped index=%d", combat_number - 1);
@@ -643,6 +660,27 @@ static int combat_roll_number_cols(int value)
     return combat_roll_text_cols(buf);
 }
 
+static void combat_roll_format_damage_dice(const combat_roll* roll,
+    char* buf, size_t buflen)
+{
+    bool first = roll->dd > 0 && roll->ds > 0;
+    bool second = roll->dd2 > 0 && roll->ds2 > 0;
+
+    if (first && second)
+    {
+        strnfmt(buf, buflen, "(%dd%d+%dd%d)", roll->dd, roll->ds,
+            roll->dd2, roll->ds2);
+    }
+    else if (second)
+    {
+        strnfmt(buf, buflen, "(%dd%d)", roll->dd2, roll->ds2);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "(%dd%d)", roll->dd, roll->ds);
+    }
+}
+
 static int combat_roll_compact_cols(const combat_roll* roll, int res)
 {
     char buf[80];
@@ -686,12 +724,15 @@ static int combat_roll_compact_cols(const combat_roll* roll, int res)
 
     cols += combat_roll_tile_cols();
 
-    if (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0)
+    if (roll->no_damage
+        || (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0
+            && !roll->force_damage))
         return cols;
 
     cols += combat_roll_text_cols(" -> ");
-    strnfmt(buf, sizeof(buf), "(%dd%d) ", roll->dd, roll->ds);
+    combat_roll_format_damage_dice(roll, buf, sizeof(buf));
     cols += combat_roll_text_cols(buf);
+    cols += combat_roll_text_cols(" ");
 
     cols += combat_roll_number_cols(roll->dam);
     cols += combat_roll_text_cols(" ");
@@ -832,15 +873,18 @@ static void draw_combat_roll_line_compact(int row, int base_col_offset,
     col = combat_roll_put_tile(col, row, roll->defender_attr,
         roll->defender_char);
 
-    if (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0)
+    if (roll->no_damage
+        || (roll->att_type == COMBAT_ROLL_ROLL && net_att <= 0
+            && !roll->force_damage))
     {
         combat_roll_set_cursor_after(row, col);
         return;
     }
 
     col = combat_roll_put_text(col, row, TERM_L_DARK, " -> ");
-    strnfmt(buf, sizeof(buf), "(%dd%d) ", roll->dd, roll->ds);
+    combat_roll_format_damage_dice(roll, buf, sizeof(buf));
     col = combat_roll_put_text(col, row, a_dam_roll, buf);
+    col = combat_roll_put_text(col, row, TERM_WHITE, " ");
 
     col = combat_roll_put_number(col, row, a_dam_roll, roll->dam);
     col = combat_roll_put_text(col, row, TERM_WHITE, " ");
@@ -1120,27 +1164,45 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             col += 1;
         }
 
+        if (roll->no_damage)
+            return;
+
         int damage_col = base_col + 25 + 1;
         if (use_bigtile && !graphics_are_ascii())
             damage_col += 2;
         else
             damage_col += 1;
 
-        if ((net_att > 0) || (roll->att_type == COMBAT_ROLL_AUTO))
+        if (net_att > 0 || roll->force_damage)
         {
+            int dice_width;
+
             Term_putstr(damage_col, row, -1, TERM_L_DARK, "  ->");
             damage_col += 4;
 
-            if (roll->ds < 10)
+            if (roll->dd2 > 0 && roll->ds2 > 0)
             {
-                strnfmt(buf, sizeof(buf), "   (%dd%d) ", roll->dd, roll->ds);
+                combat_roll_format_damage_dice(roll, buf, sizeof(buf));
+                Term_putstr(damage_col, row, -1, a_dam_roll, buf);
+                dice_width = strlen(buf);
+                Term_putstr(damage_col + dice_width, row, 1, TERM_WHITE, " ");
+                damage_col += dice_width + 1;
             }
             else
             {
-                strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+                if (roll->ds < 10)
+                {
+                    strnfmt(
+                        buf, sizeof(buf), "   (%dd%d) ", roll->dd, roll->ds);
+                }
+                else
+                {
+                    strnfmt(
+                        buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+                }
+                Term_putstr(damage_col, row, -1, a_dam_roll, buf);
+                damage_col += 9;
             }
-            Term_putstr(damage_col, row, -1, a_dam_roll, buf);
-            damage_col += 9;
 
             strnfmt(buf, sizeof(buf), "%4d", roll->dam);
             Term_putstr(damage_col, row, -1, a_dam_roll, buf);
@@ -1239,16 +1301,30 @@ static void draw_combat_roll_line(int row, int base_col_offset,
         Term_putstr(damage_col, row, -1, TERM_L_DARK, "  ->");
         damage_col += 4;
 
-        if (roll->ds < 10)
+        if (roll->dd2 > 0 && roll->ds2 > 0)
         {
-            strnfmt(buf, sizeof(buf), "   (%dd%d) ", roll->dd, roll->ds);
+            int dice_width;
+
+            combat_roll_format_damage_dice(roll, buf, sizeof(buf));
+            Term_putstr(damage_col, row, -1, a_dam_roll, buf);
+            dice_width = strlen(buf);
+            Term_putstr(damage_col + dice_width, row, 1, TERM_WHITE, " ");
+            damage_col += dice_width + 1;
         }
         else
         {
-            strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+            if (roll->ds < 10)
+            {
+                strnfmt(
+                    buf, sizeof(buf), "   (%dd%d) ", roll->dd, roll->ds);
+            }
+            else
+            {
+                strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+            }
+            Term_putstr(damage_col, row, -1, a_dam_roll, buf);
+            damage_col += 9;
         }
-        Term_putstr(damage_col, row, -1, a_dam_roll, buf);
-        damage_col += 9;
 
         strnfmt(buf, sizeof(buf), "%4d", roll->dam);
         Term_putstr(damage_col, row, -1, a_dam_roll, buf);
@@ -1644,16 +1720,24 @@ void do_cmd_combat_history_legacy(void)
                 col += 1;
                 if (use_bigtile && !graphics_are_ascii()) col += 1;
                 
-                /* Damage section (only if hit) */
-                if (net_att > 0) {
+                /* Damage section */
+                if (!roll->no_damage
+                    && (net_att > 0 || roll->force_damage)) {
                     if (col >= 0) Term_putstr(col, line_y, -1, TERM_L_DARK, "  ->");
                     col += 4;
                     
                     /* Damage dice */
-                    if (roll->ds < 10) {
-                        strnfmt(buf, sizeof(buf), "   (%dd%d)", roll->dd, roll->ds);
+                    if (roll->dd2 > 0 && roll->ds2 > 0) {
+                        combat_roll_format_damage_dice(
+                            roll, buf, sizeof(buf));
                     } else {
-                        strnfmt(buf, sizeof(buf), "  (%dd%d)", roll->dd, roll->ds);
+                        if (roll->ds < 10) {
+                            strnfmt(buf, sizeof(buf), "   (%dd%d)",
+                                roll->dd, roll->ds);
+                        } else {
+                            strnfmt(buf, sizeof(buf), "  (%dd%d)",
+                                roll->dd, roll->ds);
+                        }
                     }
                     if (col >= 0) Term_putstr(col, line_y, -1, a_dam_roll, buf);
                     col += strlen(buf);
@@ -2002,12 +2086,21 @@ void display_combat_round_details(combat_history_round* round)
             SDL_strlcat(roll_line, buf, sizeof(roll_line));
             
             /* Damage info */
-            if (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0) {
+            if (!roll->no_damage
+                && (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0
+                    || roll->force_damage)) {
                 int net_dam = roll->dam - roll->prot;
                 if (net_dam < 0) net_dam = 0;
-                strnfmt(buf, sizeof(buf), " -> (%dd%d) %4d %4d %4d",
-                        roll->dd, roll->ds, roll->dam, net_dam, roll->prot);
-                SDL_strlcat(roll_line, buf, sizeof(roll_line));
+                combat_roll_format_damage_dice(roll, buf, sizeof(buf));
+                {
+                    char damage_buf[120];
+
+                    strnfmt(damage_buf, sizeof(damage_buf),
+                        " -> %s %4d %4d %4d", buf, roll->dam, net_dam,
+                        roll->prot);
+                    SDL_strlcat(
+                        roll_line, damage_buf, sizeof(roll_line));
+                }
             }
         } else if (roll->att_type == COMBAT_ROLL_AUTO) {
             strnfmt(buf, sizeof(buf), "                         %c -> (%dd%d) %4d",

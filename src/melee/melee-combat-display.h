@@ -11,6 +11,9 @@ extern void update_combat_rolls1b(
     const monster_type* m_ptr1, const monster_type* m_ptr2, bool vis);
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
     int prot, int prt_percent, int dam_type, bool melee);
+extern void update_combat_rolls2_combo(int dd, int ds, int dam, int dd2,
+    int ds2, int dam2, int pd, int ps, int prot, int prt_percent,
+    int dam_type, bool melee);
 extern void update_combat_rolls_no_damage(void);
 extern void display_combat_rolls(void);
 extern void display_combat_roll_line_at(int row, int base_col_offset,

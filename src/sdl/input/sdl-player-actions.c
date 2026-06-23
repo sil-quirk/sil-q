@@ -104,7 +104,7 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
     case SDL_PLAYER_ACTION_SHOOT:
         return "Ready: switch between melee and ranged weapons.";
     case SDL_PLAYER_ACTION_QUICK_THROW:
-        return "Throw: hurl a dagger from your quiver, or a potion with Alchemy, without changing active weapons.";
+        return "Throw: hurl a quick-throw dagger, use a readied Power Throw, or throw a potion with Alchemy.";
     case SDL_PLAYER_ACTION_REST:
         return "Rest: rest until disturbed or fully recovered.";
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
@@ -206,6 +206,8 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     case SDL_PLAYER_ACTION_QUICK_THROW:
     {
         int slot = player_quick_throw_quiver_slot();
+        if (!slot)
+            slot = player_power_throw_quiver_slot();
         object_type* icon_obj = slot ? &inventory[slot] : NULL;
 
         /* Prefer a quick-throw dagger; otherwise show a carried potion. */
