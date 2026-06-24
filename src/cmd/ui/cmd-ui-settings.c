@@ -16,6 +16,7 @@ extern struct sound_config g_sound_config;
 #include "pane.h"
 #include "cmd/ui/cmd-ui-internal.h"
 #include "ui/question.h"
+#include <SDL3/SDL_keyboard.h>
 
 enum {
     SETTINGS_PREV_OPTION_PAGE = -1001,
@@ -23,6 +24,8 @@ enum {
 };
 
 static int settings_option_page_turn = 0;
+
+static void do_cmd_movement_keybinds(void);
 
 static int settings_menu_key(int key, int prev_page_key, int next_page_key,
     bool click_generated)
@@ -8867,7 +8870,7 @@ static void do_cmd_keyboard_input_settings(void)
             Term_clear();
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
-            settings_menu_begin_scroll_area(row, 4);
+            settings_menu_begin_scroll_area(row, 5);
             settings_ui_put_fitted(1, 2, TERM_WHITE, "Keyboard Input");
         }
 
@@ -8885,12 +8888,13 @@ static void do_cmd_keyboard_input_settings(void)
             }                                                                  \
         } while (0)
 
-        ADD_KEYBOARD_ROW(1, "Move with hjkl",
-            op_ptr->opt[OPT_hjkl_movement] ? "on" : "off");
+        ADD_KEYBOARD_ROW(1, "Movement preset",
+            sdl_config_movement_preset_label(config.movement_keyboard_preset));
         ADD_KEYBOARD_ROW(2, "Angband keyset",
             op_ptr->opt[OPT_angband_keyset] ? "on" : "off");
-        ADD_KEYBOARD_ROW(3, "Configure keybinds", "open");
-        ADD_KEYBOARD_ROW(4, "Return to Input", "");
+        ADD_KEYBOARD_ROW(3, "Configure movement", "open");
+        ADD_KEYBOARD_ROW(4, "Configure command keybinds", "open");
+        ADD_KEYBOARD_ROW(5, "Return to Input", "");
 
 #undef ADD_KEYBOARD_ROW
 
@@ -8914,8 +8918,8 @@ static void do_cmd_keyboard_input_settings(void)
             if (ui_menu_click_take_action(&clicked_choice, &click_action))
             {
                 if (clicked_choice == SETTINGS_CLICK_RETURN)
-                    clicked_choice = 4;
-                if (clicked_choice >= 1 && clicked_choice <= 4)
+                    clicked_choice = 5;
+                if (clicked_choice >= 1 && clicked_choice <= 5)
                 {
                     selected = clicked_choice;
                     if (click_action != UI_MENU_CLICK_HOVER)
@@ -8932,9 +8936,9 @@ static void do_cmd_keyboard_input_settings(void)
             done = true;
         }
         else if (ch == '8')
-            selected = (selected + 2) % 4 + 1;
+            selected = (selected + 3) % 5 + 1;
         else if (ch == '2')
-            selected = selected % 4 + 1;
+            selected = selected % 5 + 1;
         else if (menu_letters && (ch == 'a' || ch == 'A'))
         {
             selected = 1;
@@ -8950,18 +8954,37 @@ static void do_cmd_keyboard_input_settings(void)
             selected = 3;
             ch = '\r';
         }
+        else if (menu_letters && (ch == 'd' || ch == 'D'))
+        {
+            selected = 4;
+            ch = '\r';
+        }
 
         if (ch == '\r' || ch == '\n' || ch == ' ' || ch == '6'
             || (steamdeck && ch == steamdeck_confirm_key()))
         {
-            if (selected == 1 || selected == 2)
+            if (selected == 1)
             {
-                int opt = (selected == 1) ? OPT_hjkl_movement
-                                          : OPT_angband_keyset;
-                op_ptr->opt[opt] = !op_ptr->opt[opt];
+                u16b preset = sdl_config_next_movement_preset(
+                    config.movement_keyboard_preset);
+
+                sdl_config_set_default_movement_bindings(&config, preset);
+                sdl_config_apply_keyboard_keymaps(&config);
+                save_pane_config_to_json();
+            }
+            else if (selected == 2)
+            {
+                op_ptr->opt[OPT_angband_keyset] =
+                    !op_ptr->opt[OPT_angband_keyset];
                 save_pane_config_to_json();
             }
             else if (selected == 3)
+            {
+                settings_semantic_menu_hide();
+                do_cmd_movement_keybinds();
+                Term_clear();
+            }
+            else if (selected == 4)
             {
                 settings_semantic_menu_hide();
                 do_cmd_keybinds();
@@ -9819,6 +9842,472 @@ static bool list_missing_primary_bindings(int mode, const struct keybind_entry* 
     return ok;
 }
 
+typedef struct movement_setting_entry {
+    u16b action;
+    u16b direction;
+    cptr label;
+    bool essential;
+} movement_setting_entry;
+
+static const movement_setting_entry movement_settings[] = {
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_NORTHWEST, "Move NW", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_NORTH, "Move N", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_NORTHEAST, "Move NE", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_WEST, "Move W", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_EAST, "Move E", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHWEST, "Move SW", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_SOUTH, "Move S", true },
+    { MOVEMENT_INPUT_ACTION_MOVE_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHEAST, "Move SE", true },
+    { MOVEMENT_INPUT_ACTION_WAIT, MOVEMENT_INPUT_DIRECTION_NONE, "Wait", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_NORTHWEST, "Run NW", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_NORTH, "Run N", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_NORTHEAST, "Run NE", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_WEST, "Run W", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_EAST, "Run E", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHWEST, "Run SW", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_SOUTH, "Run S", true },
+    { MOVEMENT_INPUT_ACTION_RUN_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHEAST, "Run SE", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_NORTHWEST, "Interact NW", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_NORTH, "Interact N", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_NORTHEAST, "Interact NE", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_WEST, "Interact W", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_EAST, "Interact E", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHWEST, "Interact SW", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_SOUTH, "Interact S", true },
+    { MOVEMENT_INPUT_ACTION_INTERACT_DIR, MOVEMENT_INPUT_DIRECTION_SOUTHEAST, "Interact SE", true },
+    { MOVEMENT_INPUT_ACTION_REST, MOVEMENT_INPUT_DIRECTION_NONE, "Rest", false },
+};
+
+static bool movement_entry_matches_binding(const movement_setting_entry* entry,
+    const movement_input_binding* binding)
+{
+    if (!entry || !binding || !movement_input_binding_is_valid(binding))
+        return false;
+    if (entry->action != binding->action)
+        return false;
+    if (movement_input_action_is_directional(entry->action))
+        return entry->direction == binding->direction;
+
+    return true;
+}
+
+static const movement_input_binding* movement_find_binding(
+    const struct sdl_config* source_config, const movement_setting_entry* entry)
+{
+    if (!source_config || !entry)
+        return NULL;
+
+    for (u16b i = 0; i < source_config->movement_binding_count; i++)
+    {
+        const movement_input_binding* binding =
+            &source_config->movement_bindings[i];
+
+        if (movement_entry_matches_binding(entry, binding))
+            return binding;
+    }
+
+    return NULL;
+}
+
+/*
+ * True when the active bindings map a bare letter key (no modifier) to a
+ * movement action. Such presets (WASD/QEZC, Vi) replace the matching letter
+ * commands while in the dungeon, so the menu warns about it.
+ */
+static bool movement_bindings_shadow_letters(const struct sdl_config* cfg)
+{
+    if (!cfg)
+        return false;
+
+    for (u16b i = 0; i < cfg->movement_binding_count; i++)
+    {
+        const movement_input_binding* binding = &cfg->movement_bindings[i];
+        SDL_Scancode scancode;
+
+        if (!movement_input_binding_is_valid(binding))
+            continue;
+        if (binding->required_modifiers)
+            continue;
+
+        scancode = (SDL_Scancode)binding->trigger;
+        if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z)
+            return true;
+    }
+
+    return false;
+}
+
+static void movement_binding_key_label(SDL_Scancode scancode, char* buf,
+    size_t buflen)
+{
+    const char* name;
+
+    if (!buf || !buflen)
+        return;
+
+    name = SDL_GetScancodeName(scancode);
+    if (!name || !name[0])
+        strnfmt(buf, buflen, "Scancode %d", (int)scancode);
+    else if (prefix(name, "Keypad "))
+        strnfmt(buf, buflen, "Numpad %s", name + strlen("Keypad "));
+    else if (streq(name, "Page Up"))
+        SDL_strlcpy(buf, "PageUp", buflen);
+    else if (streq(name, "Page Down"))
+        SDL_strlcpy(buf, "PageDown", buflen);
+    else if (streq(name, "Return"))
+        SDL_strlcpy(buf, "Enter", buflen);
+    else if (streq(name, "Escape"))
+        SDL_strlcpy(buf, "Esc", buflen);
+    else
+        SDL_strlcpy(buf, name, buflen);
+}
+
+static void movement_binding_label(const movement_input_binding* binding,
+    char* buf, size_t buflen)
+{
+    size_t cursor = 0;
+    char key_buf[40];
+
+    if (!buf || !buflen)
+        return;
+
+    if (!binding || !movement_input_binding_is_valid(binding))
+    {
+        SDL_strlcpy(buf, "(unbound)", buflen);
+        return;
+    }
+
+    buf[0] = '\0';
+    if (binding->required_modifiers & MOVEMENT_INPUT_MODIFIER_CTRL)
+        strnfcat(buf, buflen, &cursor, "Ctrl+");
+    if (binding->required_modifiers & MOVEMENT_INPUT_MODIFIER_SHIFT)
+        strnfcat(buf, buflen, &cursor, "Shift+");
+    if (binding->required_modifiers & MOVEMENT_INPUT_MODIFIER_ALT)
+        strnfcat(buf, buflen, &cursor, "Alt+");
+    if (binding->required_modifiers & MOVEMENT_INPUT_MODIFIER_META)
+        strnfcat(buf, buflen, &cursor, "Meta+");
+
+    movement_binding_key_label((SDL_Scancode)binding->trigger, key_buf,
+        sizeof(key_buf));
+    strnfcat(buf, buflen, &cursor, "%s", key_buf);
+}
+
+static bool movement_list_missing_essentials(char* buffer, size_t buflen)
+{
+    bool ok = true;
+    size_t cursor = 0;
+
+    if (!buffer || !buflen)
+        return true;
+
+    buffer[0] = '\0';
+    for (int i = 0; i < (int)N_ELEMENTS(movement_settings); i++)
+    {
+        if (!movement_settings[i].essential)
+            continue;
+        if (movement_find_binding(&config, &movement_settings[i]))
+            continue;
+
+        if (!ok)
+            strnfcat(buffer, buflen, &cursor, ", ");
+        strnfcat(buffer, buflen, &cursor, "%s", movement_settings[i].label);
+        ok = false;
+    }
+
+    return ok;
+}
+
+static void movement_remove_conflicts(const movement_input_binding* candidate)
+{
+    u16b i = 0;
+
+    if (!candidate || !movement_input_binding_is_valid(candidate))
+        return;
+
+    while (i < config.movement_binding_count)
+    {
+        if (movement_input_bindings_conflict(candidate,
+                &config.movement_bindings[i]))
+        {
+            memmove(&config.movement_bindings[i], &config.movement_bindings[i + 1],
+                (config.movement_binding_count - i - 1)
+                    * sizeof(config.movement_bindings[0]));
+            config.movement_binding_count--;
+            continue;
+        }
+
+        i++;
+    }
+}
+
+static bool movement_default_binding_for_entry(
+    const movement_setting_entry* entry, movement_input_binding* out_binding)
+{
+    struct sdl_config defaults;
+    u16b preset = config.movement_keyboard_preset;
+    const movement_input_binding* binding;
+
+    if (!entry || !out_binding)
+        return false;
+
+    if (preset == SDL_MOVEMENT_PRESET_NONE)
+        preset = SDL_MOVEMENT_PRESET_CLASSIC_SIL;
+
+    memset(&defaults, 0, sizeof(defaults));
+    sdl_config_set_default_movement_bindings(&defaults, preset);
+    binding = movement_find_binding(&defaults, entry);
+    if (!binding)
+        return false;
+
+    *out_binding = *binding;
+    return true;
+}
+
+static bool movement_capture_binding(const movement_setting_entry* entry,
+    movement_input_binding* out_binding)
+{
+    SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+    u16b modifiers = 0;
+    char prompt[120];
+
+    if (!entry || !out_binding)
+        return false;
+
+    settings_semantic_menu_hide();
+    Term_clear();
+    strnfmt(prompt, sizeof(prompt),
+        "Press key for %s (Escape cancels):", entry->label);
+    settings_ui_put_fitted(2, 2, TERM_YELLOW, prompt);
+    settings_ui_put_fitted(4, 2, TERM_SLATE,
+        "Hold Shift/Ctrl/Alt while pressing the key to require that modifier.");
+    Term_fresh();
+
+    if (!sdl_keyboard_capture_begin())
+        return false;
+
+    /* Pump input until the capture handler reports a captured key. Escape is
+     * captured like any other key and rejected below, which cancels. */
+    while (true)
+    {
+        (void)inkey();
+
+        if (sdl_keyboard_capture_poll(&scancode, &modifiers))
+            break;
+    }
+
+    if (scancode == SDL_SCANCODE_ESCAPE || scancode == SDL_SCANCODE_UNKNOWN)
+        return false;
+
+    movement_input_binding_clear(out_binding);
+    out_binding->context = MOVEMENT_INPUT_CONTEXT_ANY;
+    out_binding->action = entry->action;
+    out_binding->direction = entry->direction;
+    out_binding->trigger = (u32b)scancode;
+    out_binding->required_modifiers = modifiers;
+    out_binding->forbidden_modifiers =
+        (MOVEMENT_INPUT_MODIFIER_SHIFT | MOVEMENT_INPUT_MODIFIER_CTRL
+            | MOVEMENT_INPUT_MODIFIER_ALT | MOVEMENT_INPUT_MODIFIER_META)
+        & (u16b)~modifiers;
+
+    return movement_input_binding_is_valid(out_binding);
+}
+
+static void movement_apply_binding(const movement_setting_entry* entry,
+    const movement_input_binding* binding)
+{
+    if (!entry || !binding)
+        return;
+
+    movement_remove_conflicts(binding);
+    (void)sdl_config_set_movement_binding(&config, entry->action,
+        entry->direction, binding);
+    sdl_config_apply_keyboard_keymaps(&config);
+}
+
+static void do_cmd_movement_keybinds(void)
+{
+    const int entry_count = (int)N_ELEMENTS(movement_settings);
+    const int list_start_row = 5;
+    int highlight = 0;
+    int top = 0;
+    bool done = false;
+    bool dirty = false;
+    int term_w, term_h;
+
+    screen_save();
+
+    while (!done)
+    {
+        int visible_rows;
+        int row_width;
+        int display_end;
+        int ch;
+        int clicked_choice = 0;
+        int click_action = UI_MENU_CLICK_PRIMARY;
+        bool click_generated = false;
+        char line[160];
+        char binding_buf[80];
+        char preset_line[120];
+
+        Term_get_size(&term_w, &term_h);
+        visible_rows = term_h - list_start_row - 5;
+        if (visible_rows < 6)
+            visible_rows = 6;
+        row_width = settings_ui_line_width(2);
+
+        if (highlight < 0)
+            highlight = 0;
+        if (highlight >= entry_count)
+            highlight = entry_count - 1;
+        if (top > highlight)
+            top = highlight;
+        if (top + visible_rows <= highlight)
+            top = highlight - visible_rows + 1;
+        if (top < 0)
+            top = 0;
+        if (top > entry_count - visible_rows)
+            top = MAX(0, entry_count - visible_rows);
+
+        Term_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        settings_menu_begin_scroll_area(list_start_row, visible_rows);
+
+        settings_ui_put_fitted(1, 2, TERM_WHITE,
+            "Movement Bindings");
+        strnfmt(preset_line, sizeof(preset_line), "Preset: %s",
+            sdl_config_movement_preset_label(config.movement_keyboard_preset));
+        settings_ui_put_fitted(2, 2, TERM_SLATE, preset_line);
+        settings_ui_put_fitted(3, 2, TERM_WHITE,
+            "Enter bind  R reset selected  P cycle preset  S save  Esc return");
+        if (movement_bindings_shadow_letters(&config))
+            settings_ui_put_fitted(4, 2, TERM_YELLOW,
+                "Note: letter keys move; hold Alt for their command (Alt+w wield, Alt+Shift+s stealth).");
+
+        display_end = top + visible_rows;
+        if (display_end > entry_count)
+            display_end = entry_count;
+
+        for (int i = top; i < display_end; i++)
+        {
+            const movement_input_binding* binding =
+                movement_find_binding(&config, &movement_settings[i]);
+            int row = list_start_row + (i - top);
+
+            movement_binding_label(binding, binding_buf, sizeof(binding_buf));
+            settings_ui_format_pair_line(line, sizeof(line),
+                movement_settings[i].label, binding_buf, row_width, 18);
+            c_prt((i == highlight) ? TERM_L_BLUE : TERM_WHITE, line, row, 2);
+            ui_menu_click_add_full_row(i, row);
+        }
+
+        if (dirty)
+            c_prt(TERM_YELLOW, "Unsaved movement changes",
+                term_h - 2, 2);
+
+        Term_fresh();
+
+        ch = inkey();
+        if (ui_menu_click_take_action(&clicked_choice, &click_action))
+        {
+            if (clicked_choice == SETTINGS_CLICK_RETURN)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                ch = ESCAPE;
+                click_generated = true;
+            }
+            else if (clicked_choice >= 0 && clicked_choice < entry_count)
+            {
+                highlight = clicked_choice;
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                ch = '\r';
+                click_generated = true;
+            }
+        }
+
+        ch = settings_menu_key(ch, '8', '2', click_generated);
+
+        if (ch == ESCAPE || ch == 'q' || ch == 'Q')
+        {
+            char missing[256];
+
+            if (!movement_list_missing_essentials(missing, sizeof(missing)))
+            {
+                char prompt[512];
+
+                strnfmt(prompt, sizeof(prompt),
+                    "Essential movement bindings are missing (%s). Exit anyway? ",
+                    missing);
+                if (!get_check(prompt))
+                    continue;
+            }
+            done = true;
+        }
+        else if (ch == '8')
+            highlight = (highlight + entry_count - 1) % entry_count;
+        else if (ch == '2')
+            highlight = (highlight + 1) % entry_count;
+        else if (ch == 'p' || ch == 'P')
+        {
+            u16b preset = sdl_config_next_movement_preset(
+                config.movement_keyboard_preset);
+
+            sdl_config_set_default_movement_bindings(&config, preset);
+            sdl_config_apply_keyboard_keymaps(&config);
+            dirty = true;
+        }
+        else if (ch == 'r' || ch == 'R')
+        {
+            movement_input_binding binding;
+
+            if (movement_default_binding_for_entry(&movement_settings[highlight],
+                    &binding))
+            {
+                movement_apply_binding(&movement_settings[highlight], &binding);
+                dirty = true;
+            }
+        }
+        else if (ch == 's' || ch == 'S')
+        {
+            if (save_pane_config_to_json())
+            {
+                msg_print("Movement bindings saved.");
+                dirty = false;
+            }
+            else
+                msg_print("Failed to save movement bindings.");
+            message_flush();
+        }
+        else if (ch == '\r' || ch == '\n' || ch == ' ')
+        {
+            movement_input_binding binding;
+
+            if (movement_capture_binding(&movement_settings[highlight],
+                    &binding))
+            {
+                movement_apply_binding(&movement_settings[highlight], &binding);
+                dirty = true;
+            }
+        }
+    }
+
+    screen_load();
+
+    if (dirty)
+    {
+        if (get_check("Save movement bindings to sil_sdl.json? "))
+        {
+            if (save_pane_config_to_json())
+                msg_print("Movement bindings saved.");
+            else
+                msg_print("Failed to save movement bindings.");
+            message_flush();
+        }
+    }
+}
+
 /*
  * Keybind configuration menu
  * Allows rebinding of movement commands for players without a numpad
@@ -9839,15 +10328,6 @@ void do_cmd_keybinds(void)
     int term_w, term_h;
     int visible_rows;
     static const struct keybind_entry primary_keybinds[] = {
-        {'1', NULL, "Move SW (numpad 1)", ";1", true},
-        {'2', NULL, "Move S (numpad 2)", ";2", true},
-        {'3', NULL, "Move SE (numpad 3)", ";3", true},
-        {'4', NULL, "Move W (numpad 4)", ";4", true},
-        {'6', NULL, "Move E (numpad 6)", ";6", true},
-        {'7', NULL, "Move NW (numpad 7)", ";7", true},
-        {'8', NULL, "Move N (numpad 8)", ";8", true},
-        {'9', NULL, "Move NE (numpad 9)", ";9", true},
-        {'z', NULL, "Wait (z / numpad 5)", "z", false},
         {'i', NULL, "Inventory", "i", false},
         {'e', NULL, "Equipment", "e", false},
         {'u', NULL, "Use item", "u", false},
@@ -9866,12 +10346,9 @@ void do_cmd_keybinds(void)
 
     static const struct keybind_entry secondary_keybinds[] = {
         {'j', NULL, "Supplies overview", "j", false},
-        {'.', NULL, "Run (also shift)", ".", false},
-        {'/', NULL, "Alt action (also ctrl)", "/", false},
         {'w', NULL, "Wear / wield equipment", "w", false},
         {'r', NULL, "Remove equipment", "r", false},
         {'g', NULL, "Pick up items", "g", false},
-        {'Z', NULL, "Rest", "Z", false},
         {KTRL('F'), NULL, "Swap quivers", "\006", false},
         {'o', NULL, "Open door / chest", "o", false},
         {'c', NULL, "Close door", "c", false},

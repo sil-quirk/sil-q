@@ -3549,7 +3549,8 @@ void flanking_or_retreat(int y, int x)
     int start;
     monster_type* m_ptr;
 
-    bool flanking = p_ptr->active_ability[S_EVN][EVN_FLANKING];
+    bool flanking = p_ptr->active_ability[S_EVN][EVN_FLANKING]
+        && wearing_only_light_armour();
     bool controlled_retreat = false;
     bool moved_last_turn = false;
 

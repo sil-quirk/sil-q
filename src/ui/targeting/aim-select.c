@@ -1,6 +1,8 @@
 #include "angband.h"
 #include "externs.h"
 #include "sdl-config.h"
+#include "support/input.h"
+#include "support/movement-input.h"
 #include "ui/targeting/targeting-internal.h"
 
 /*
@@ -264,7 +266,7 @@ static bool target_select(int range, bool allow_vertical, bool location_mode,
 
         move_cursor_relative(y, x);
 
-        query = inkey();
+        query = inkey_movement_context(MOVEMENT_INPUT_CONTEXT_TARGETING);
 
         /* A click on the command bar arrives as a pending choice */
         if ((query == UI_MENU_CLICK_WAKE_KEY) || (query == '\r')
@@ -274,6 +276,17 @@ static bool target_select(int range, bool allow_vertical, bool location_mode,
 
             if (ui_menu_click_take(&clicked))
                 query = (char)clicked;
+        }
+
+        if (query == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int semantic_dir = 0;
+
+            if (movement_input_take_legacy_direction(
+                    MOVEMENT_INPUT_CONTEXT_TARGETING, &semantic_dir))
+            {
+                query = (char)('0' + semantic_dir);
+            }
         }
 
         /* Pointer events from the map: hover moves the selection, a

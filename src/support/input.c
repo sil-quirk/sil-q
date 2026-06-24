@@ -2,6 +2,7 @@
 #include "support/input.h"
 #include "externs.h"
 #include "support/macro.h"
+#include "support/movement-input.h"
 #include "ui/menu-click.h"
 
 /*
@@ -13,6 +14,8 @@
  */
 void flush(void)
 {
+    movement_input_clear_commands();
+
     /* Do it later */
     inkey_xtra = true;
 }
@@ -474,6 +477,18 @@ char inkey(void)
 
     /* Return the keypress */
     return (ch);
+}
+
+char inkey_movement_context(u16b context)
+{
+    u16b previous_context = movement_input_active_context();
+    char ch;
+
+    movement_input_set_active_context(context);
+    ch = inkey();
+    movement_input_set_active_context(previous_context);
+
+    return ch;
 }
 
 #ifdef ALLOW_REPEAT

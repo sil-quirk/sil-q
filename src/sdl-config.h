@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <SDL3/SDL_gamepad.h>
 #include "pane.h"
+#include "support/movement-input.h"
 
 #define GAMEPAD_TRIGGER_COUNT 2
 #define GAMEPAD_STICK_DIR_COUNT 4
@@ -11,6 +12,7 @@
 #define SDL_KEYMAP_MODE_COUNT 4
 #define SDL_KEYMAP_KEY_COUNT 256
 #define SDL_KEYMAP_ACTION_LEN 16
+#define SDL_MOVEMENT_BINDING_MAX 96
 
 #define GAMEPAD_MODIFIER_SHIFT 0
 #define GAMEPAD_MODIFIER_CTRL 1
@@ -43,6 +45,12 @@
 #define SDL_MOUSE_MOVEMENT_ON 0
 #define SDL_MOUSE_MOVEMENT_OFF 1
 #define SDL_MOUSE_MOVEMENT_RIGHT_ONLY 2
+
+#define SDL_MOVEMENT_PRESET_NONE 0
+#define SDL_MOVEMENT_PRESET_MODERN_ARROWS 1
+#define SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC 2
+#define SDL_MOVEMENT_PRESET_VI_KEYS 3
+#define SDL_MOVEMENT_PRESET_CLASSIC_SIL 4
 
 #define GAMEPAD_BIND_NONE -1
 #define GAMEPAD_BIND_SHIFT -2
@@ -192,6 +200,10 @@ struct sdl_config {
     char palette_preset[64];
     char keymap_actions[SDL_KEYMAP_MODE_COUNT][SDL_KEYMAP_KEY_COUNT]
         [SDL_KEYMAP_ACTION_LEN];
+    bool movement_keyboard_present;
+    u16b movement_keyboard_preset;
+    u16b movement_binding_count;
+    movement_input_binding movement_bindings[SDL_MOVEMENT_BINDING_MAX];
 
     // Gamepad/controller settings
     bool gamepad_enabled;                 // Enable gamepad input
@@ -256,6 +268,25 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);
 void sdl_config_apply_keyboard_keymaps(const struct sdl_config* config);
+
+// Keyboard movement bindings persisted in sil_sdl.json.
+const char* sdl_config_movement_preset_label(u16b preset_id);
+u16b sdl_config_next_movement_preset(u16b preset_id);
+void sdl_config_clear_movement_bindings(struct sdl_config* config);
+void sdl_config_set_default_movement_bindings(struct sdl_config* config,
+    u16b preset_id);
+bool sdl_config_append_movement_binding(struct sdl_config* config,
+    const movement_input_binding* binding);
+bool sdl_config_set_movement_binding(struct sdl_config* config, u16b action,
+    u16b direction, const movement_input_binding* binding);
+bool sdl_config_resolve_movement_binding(const struct sdl_config* config,
+    u16b context, u32b trigger, u32b trigger_aux, u16b modifiers,
+    movement_input_command* out_command);
+// True when a movement preset binds this letter scancode as a plain (no
+// modifier) move, i.e. it shadows that letter's normal command. Used to offer
+// Alt+<letter> as the relocated command for WASD/Vi-style presets.
+bool sdl_config_scancode_is_plain_move_letter(const struct sdl_config* config,
+    u32b scancode);
 
 // Set default gamepad bindings (does not touch other fields)
 void sdl_config_set_default_gamepad_bindings(struct sdl_config* config);

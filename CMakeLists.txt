@@ -469,6 +469,7 @@ set(SIL_MORE_SOURCES
     src/support/input.c
     src/support/macro.c
     src/support/message.c
+    src/support/movement-input.c
     src/support/misc.c
     src/support/prompt.c
     src/support/quark.c

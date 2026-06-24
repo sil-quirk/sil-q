@@ -3,12 +3,33 @@
 #include "externs.h"
 #include "support/input.h"
 #include "support/message.h"
+#include "support/movement-input.h"
 #include "sdl-config.h"
 
 /*
  * Hack -- special buffer to hold the action of the current keymap
  */
 static char request_command_buffer[256];
+
+static bool request_command_take_movement(void)
+{
+    movement_input_command command;
+    char legacy_char;
+
+    if (!movement_input_take_command(MOVEMENT_INPUT_CONTEXT_DUNGEON,
+            &command))
+    {
+        return false;
+    }
+
+    legacy_char = movement_input_command_legacy_char(&command);
+    if (!legacy_char)
+        return false;
+
+    p_ptr->command_cmd = legacy_char;
+    p_ptr->command_dir = movement_input_command_legacy_dir(&command);
+    return true;
+}
 
 /*
  * Request a command from the user.
@@ -55,6 +76,10 @@ void request_command(void)
     /* No "direction" yet */
     p_ptr->command_dir = 0;
 
+    /* Establish a clean baseline so a context leaked by a non-local exit
+     * (e.g. an interrupted targeting/direction prompt) cannot persist. */
+    movement_input_set_active_context(MOVEMENT_INPUT_CONTEXT_NONE);
+
     /* Get command */
     while (1)
     {
@@ -74,6 +99,9 @@ void request_command(void)
             continue;
         if (sdl_log_pane_display_process_pending())
             continue;
+
+        if (request_command_take_movement())
+            break;
 
         {
             int mouse_command = 0;
@@ -117,13 +145,16 @@ void request_command(void)
             inkey_flag = true;
 
             /* Get a command */
-            ch = inkey();
+            ch = inkey_movement_context(MOVEMENT_INPUT_CONTEXT_DUNGEON);
         }
 
         if (sdl_mouse_recall_process_pending())
             continue;
         if (sdl_log_pane_display_process_pending())
             continue;
+
+        if (request_command_take_movement())
+            break;
 
         if (ch == UI_MENU_CLICK_WAKE_KEY)
         {
@@ -143,6 +174,8 @@ void request_command(void)
                 p_ptr->command_dir = mouse_dir;
                 break;
             }
+
+            continue;
         }
         else
         {

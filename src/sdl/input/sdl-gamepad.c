@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
+#include "ui/menu-click.h"
 
 bool sdl_gamepad_shift_active(void)
 {
@@ -242,6 +243,195 @@ int sdl_direction_for_key_char(char ch)
     return 0;
 }
 
+static u16b sdl_movement_modifiers_from_sdl(SDL_Keymod mod)
+{
+    u16b modifiers = 0;
+
+    if (mod & SDL_KMOD_SHIFT)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_SHIFT;
+    if (mod & SDL_KMOD_CTRL)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_CTRL;
+    if (mod & SDL_KMOD_ALT)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_ALT;
+    if (mod & SDL_KMOD_GUI)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_META;
+
+    return modifiers;
+}
+
+/*
+ * Movement is only submitted during live gameplay input: a real command
+ * request, a direction prompt, or targeting. A non-NONE active context is the
+ * primary signal, but that context can survive into a modal screen that was
+ * not entered through a fresh command request. character_icky is set whenever
+ * a screen is saved (options, inventory, knowledge, the movement-binding menu
+ * itself, ...), so it reliably means "a modal is up, do not steal keys for the
+ * player." Without this guard, presets that bind arrow/letter keys would eat
+ * those keys inside menus instead of letting them navigate.
+ */
+static bool sdl_movement_input_is_live(void)
+{
+    return !character_icky
+        && movement_input_active_context() != MOVEMENT_INPUT_CONTEXT_NONE;
+}
+
+static bool sdl_submit_movement_command(
+    const movement_input_command* command)
+{
+    if (!command || !sdl_movement_input_is_live())
+        return false;
+    if (!movement_input_submit_command(command))
+        return false;
+
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
+static bool sdl_submit_legacy_keypad_movement(u16b action, int dir)
+{
+    movement_input_command command;
+    u16b direction = MOVEMENT_INPUT_DIRECTION_NONE;
+    u16b context = movement_input_active_context();
+
+    if (!sdl_movement_input_is_live())
+        return false;
+    if (movement_input_action_is_directional(action))
+    {
+        if (!movement_input_direction_from_legacy_keypad(dir, &direction))
+            return false;
+    }
+
+    movement_input_command_clear(&command);
+    command.context = context;
+    command.action = action;
+    command.direction = direction;
+
+    return sdl_submit_movement_command(&command);
+}
+
+bool sdl_try_send_movement_event(const SDL_KeyboardEvent* key_event)
+{
+    movement_input_command command;
+    u16b context;
+    u16b modifiers;
+    u32b trigger;
+    u32b trigger_aux;
+
+    if (!key_event)
+        return false;
+
+    if (!sdl_movement_input_is_live())
+        return false;
+    context = movement_input_active_context();
+
+    modifiers = sdl_movement_modifiers_from_sdl(key_event->mod);
+    trigger = (u32b)key_event->scancode;
+    trigger_aux = (u32b)SDL_GetKeyFromScancode(key_event->scancode,
+        SDL_KMOD_NONE, false);
+
+    if (!sdl_config_resolve_movement_binding(&config, context, trigger,
+            trigger_aux, modifiers, &command))
+    {
+        return false;
+    }
+
+    return sdl_submit_movement_command(&command);
+}
+
+/*
+ * Letter-based movement presets (WASD/QEZC, Vi) take over their letters' normal
+ * commands while in the dungeon: plain = move, Shift = run, Ctrl = interact.
+ * That shadows both the lowercase command (w = wield) and the Shift/capital
+ * command (S = stealth, D = disarm, ...). Alt is the one free modifier, so:
+ *   Alt+<letter>       -> the lowercase command (Alt+w = wield, Alt+s = sing)
+ *   Alt+Shift+<letter> -> the capital command  (Alt+Shift+s = stealth)
+ * Only fires when that letter is actually a plain-move binding, so
+ * Classic/Arrows presets are unaffected and the Alt layout shortcuts
+ * (Alt+a/i/l) keep working for unshadowed letters.
+ */
+bool sdl_try_send_shadowed_command_event(const SDL_KeyboardEvent* key_event)
+{
+    SDL_Keycode base;
+    char command;
+
+    if (!key_event || !character_dungeon || character_icky)
+        return false;
+
+    if (!(key_event->mod & SDL_KMOD_ALT)
+        || (key_event->mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)))
+    {
+        return false;
+    }
+
+    if (!sdl_config_scancode_is_plain_move_letter(&config,
+            (u32b)key_event->scancode))
+    {
+        return false;
+    }
+
+    base = SDL_GetKeyFromScancode(key_event->scancode, SDL_KMOD_NONE, false);
+    if (base < 'a' || base > 'z')
+        return false;
+
+    /* Shift selects the capital command for that key. */
+    command = (key_event->mod & SDL_KMOD_SHIFT)
+        ? (char)SDL_toupper(base)
+        : (char)base;
+
+    /* Issue the underlying letter command (movement only steals the bare key,
+     * so feeding the letter through the Term queue runs its real command). */
+    Term_keypress(command);
+    return true;
+}
+
+/*
+ * WASD/QEZC-only extra command keys. The WASD cross takes s/a (sing/activate)
+ * for movement and Shift+s (stealth) for run, so the free letters n/v/k are
+ * offered as command keys for that preset only:
+ *   n = sing, v = examine, k = activate staff, Shift+N = toggle stealth.
+ * (Other presets leave n/v/k alone; in particular Vi uses n/k for movement and
+ * keeps the normal Shift+S for stealth.)
+ */
+bool sdl_try_send_preset_command_alias(const SDL_KeyboardEvent* key_event)
+{
+    char command;
+
+    if (!key_event || !character_dungeon || character_icky)
+        return false;
+    if (key_event->mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT | SDL_KMOD_GUI))
+        return false;
+    if (config.movement_keyboard_preset != SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC)
+        return false;
+
+    if (key_event->mod & SDL_KMOD_SHIFT)
+    {
+        /* Capital alias for the command shadowed by the WASD run bindings. */
+        if (key_event->scancode != SDL_SCANCODE_N)
+            return false;
+        command = 'S'; /* toggle stealth */
+    }
+    else
+    {
+        switch (key_event->scancode)
+        {
+        case SDL_SCANCODE_N:
+            command = 's'; /* sing */
+            break;
+        case SDL_SCANCODE_V:
+            command = 'x'; /* examine */
+            break;
+        case SDL_SCANCODE_K:
+            command = 'a'; /* activate staff */
+            break;
+        default:
+            return false;
+        }
+    }
+
+    Term_keypress(command);
+    return true;
+}
+
 bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift, bool ctrl, bool alt,
     bool gui)
 {
@@ -257,9 +447,21 @@ bool sdl_send_modified_direction_action(int dir, char dir_ch, bool shift, bool c
         action_key = 'f';
         follow_key = (dir == 5) ? 'f' : dir_ch;
     } else if (control) {
+        if (sdl_submit_legacy_keypad_movement(
+                MOVEMENT_INPUT_ACTION_INTERACT_DIR, dir))
+        {
+            return true;
+        }
         action_key = '/';
         follow_key = (dir == 5) ? '5' : dir_ch;
     } else {
+        if (sdl_submit_legacy_keypad_movement(
+                (dir == 5) ? MOVEMENT_INPUT_ACTION_REST
+                           : MOVEMENT_INPUT_ACTION_RUN_DIR,
+                dir))
+        {
+            return true;
+        }
         action_key = '.';
         follow_key = (dir == 5) ? '5' : dir_ch;
     }
@@ -480,6 +682,37 @@ void sdl_gamepad_send_direction_mods(int dir, bool shift, bool ctrl, bool alt)
 {
     if (dir < 1 || dir > 9)
         return;
+
+    if (!shift && !ctrl && !alt)
+    {
+        if (sdl_submit_legacy_keypad_movement(
+                (dir == 5) ? MOVEMENT_INPUT_ACTION_WAIT
+                           : MOVEMENT_INPUT_ACTION_MOVE_DIR,
+                dir))
+        {
+            return;
+        }
+    }
+
+    if (shift && !ctrl && !alt)
+    {
+        if (sdl_submit_legacy_keypad_movement(
+                (dir == 5) ? MOVEMENT_INPUT_ACTION_REST
+                           : MOVEMENT_INPUT_ACTION_RUN_DIR,
+                dir))
+        {
+            return;
+        }
+    }
+
+    if (ctrl && !shift && !alt)
+    {
+        if (sdl_submit_legacy_keypad_movement(
+                MOVEMENT_INPUT_ACTION_INTERACT_DIR, dir))
+        {
+            return;
+        }
+    }
 
     if (sdl_send_modified_direction_action(dir, (char)('0' + dir), shift, ctrl, alt, false))
         return;

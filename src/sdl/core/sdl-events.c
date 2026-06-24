@@ -1,6 +1,61 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+static u16b sdl_keyboard_capture_modifiers_from_sdl(SDL_Keymod mod)
+{
+    u16b modifiers = 0;
+
+    if (mod & SDL_KMOD_SHIFT)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_SHIFT;
+    if (mod & SDL_KMOD_CTRL)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_CTRL;
+    if (mod & SDL_KMOD_ALT)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_ALT;
+    if (mod & SDL_KMOD_GUI)
+        modifiers |= MOVEMENT_INPUT_MODIFIER_META;
+
+    return modifiers;
+}
+
+static bool sdl_keyboard_capture_scancode_is_modifier(SDL_Scancode scancode)
+{
+    switch (scancode)
+    {
+    case SDL_SCANCODE_LSHIFT:
+    case SDL_SCANCODE_RSHIFT:
+    case SDL_SCANCODE_LCTRL:
+    case SDL_SCANCODE_RCTRL:
+    case SDL_SCANCODE_LALT:
+    case SDL_SCANCODE_RALT:
+    case SDL_SCANCODE_LGUI:
+    case SDL_SCANCODE_RGUI:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sdl_keyboard_capture_handle_keydown(
+    const SDL_KeyboardEvent* key_event)
+{
+    if (!g_keyboard_capture_active || !key_event)
+        return false;
+
+    if (SDL_GetTicksNS() < g_keyboard_capture_arm_time)
+        return true;
+
+    if (sdl_keyboard_capture_scancode_is_modifier(key_event->scancode))
+        return true;
+
+    g_keyboard_capture_scancode = key_event->scancode;
+    g_keyboard_capture_modifiers =
+        sdl_keyboard_capture_modifiers_from_sdl(key_event->mod);
+    g_keyboard_capture_ready = true;
+    g_keyboard_capture_active = false;
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    return true;
+}
+
 void resize(const SDL_Rect* screen)
 {
     Uint64 start_ns = SDL_GetTicksNS();
@@ -2140,6 +2195,10 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                 }
             }
         }
+
+        if (sdl_keyboard_capture_handle_keydown(&ev->key))
+            return;
+
         // Ignore bare modifiers.
         if (key == SDLK_LSHIFT || key == SDLK_RSHIFT ||
             key == SDLK_LALT || key == SDLK_RALT ||
@@ -2184,6 +2243,13 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
 
+        /* For letter-based movement presets, Alt+<movement letter> issues that
+         * letter's normal command. Runs before the Alt layout shortcuts so a
+         * shadowed letter (e.g. Alt+a = activate staff in WASD) wins; unshadowed
+         * letters still reach the layout shortcuts below. */
+        if (sdl_try_send_shadowed_command_event(&ev->key))
+            return;
+
         /* Handle SDL layout shortcuts before menu/game input routing so they
          * work from the initial menu onward. */
         if (sdl_handle_global_layout_shortcut(&ev->key))
@@ -2196,6 +2262,10 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
 
         if (character_dungeon) {
             if (sdl_handle_jewelry_preset_shortcut(&ev->key))
+                return;
+            if (sdl_try_send_movement_event(&ev->key))
+                return;
+            if (sdl_try_send_preset_command_alias(&ev->key))
                 return;
             if (sdl_try_send_modified_direction_event(&ev->key))
                 return;

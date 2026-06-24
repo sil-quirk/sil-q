@@ -2856,6 +2856,7 @@ static bool ability_inactive_reason(int skilltype, int abilitynum,
         switch (abilitynum)
         {
         case EVN_DODGING:
+        case EVN_FLANKING:
             if (!wearing_only_light_armour())
                 reason = "Requires wearing only light armour.";
             break;

@@ -4,6 +4,8 @@
 #include "player/killer.h"
 #include "metarun.h"
 #include "sdl-config.h"
+#include "support/input.h"
+#include "support/movement-input.h"
 #include "ui/targeting/targeting-internal.h"
 
 /*
@@ -245,7 +247,43 @@ bool get_grid_choice_dir(cptr prompt, const int ys[], const int xs[],
         handle_stuff();
         move_cursor_relative(ys[sel], xs[sel]);
 
-        query = inkey();
+        query = inkey_movement_context(
+            MOVEMENT_INPUT_CONTEXT_DIRECTION_PROMPT);
+
+        if (query == UI_MENU_CLICK_WAKE_KEY)
+        {
+            int d = 0;
+
+            if (movement_input_take_legacy_direction(
+                    MOVEMENT_INPUT_CONTEXT_DIRECTION_PROMPT, &d))
+            {
+                bool matched = false;
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (dirs[i] == d)
+                    {
+                        sel = i;
+                        chosen = true;
+                        done = true;
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched && (d == 5))
+                {
+                    chosen = true;
+                    done = true;
+                }
+                else if (!matched)
+                {
+                    bell("Nothing that way.");
+                }
+
+                continue;
+            }
+        }
 
         /* Pointer events from the map: hover moves the highlight, a click or
          * tap on a candidate confirms it. */
@@ -387,6 +425,10 @@ bool get_rep_dir(int* dp)
 
     /* Global direction */
     dir = p_ptr->command_dir;
+
+    if (!dir)
+        (void)movement_input_take_legacy_direction(
+            MOVEMENT_INPUT_CONTEXT_DIRECTION_PROMPT, &dir);
 
     /* Get a direction interactively (own square first, then neighbours) */
     if (!dir)

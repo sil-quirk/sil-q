@@ -4,6 +4,7 @@
 #include "log/log.h"
 #include "pane.h"
 #include "cJSON.h"
+#include <SDL3/SDL_keyboard.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -182,6 +183,16 @@ void sdl_config_apply_keyboard_keymaps(const struct sdl_config* config)
             }
         }
     }
+
+    /*
+     * The keyboard movement preset is intentionally decoupled from the
+     * OPT_hjkl_movement game option.  The semantic movement layer handles
+     * the Vi keys (h/j/k/l/y/u/b/n) directly through its own bindings, so
+     * the preset never needs to drive that option.  Forcing the option from
+     * the preset here used to clobber the player's persisted choice on every
+     * apply (startup and after each movement-menu edit); leave it owned by
+     * the option system instead.
+     */
 }
 
 static void sdl_config_load_keyboard_keymaps(cJSON* root,
@@ -272,6 +283,759 @@ static cJSON* sdl_config_create_keyboard_keymaps(void)
 
     cJSON_AddItemToObject(keyboard, "keymaps", modes);
     return keyboard;
+}
+
+static const u16b sdl_config_movement_direction_order[] = {
+    MOVEMENT_INPUT_DIRECTION_NORTHWEST,
+    MOVEMENT_INPUT_DIRECTION_NORTH,
+    MOVEMENT_INPUT_DIRECTION_NORTHEAST,
+    MOVEMENT_INPUT_DIRECTION_WEST,
+    MOVEMENT_INPUT_DIRECTION_EAST,
+    MOVEMENT_INPUT_DIRECTION_SOUTHWEST,
+    MOVEMENT_INPUT_DIRECTION_SOUTH,
+    MOVEMENT_INPUT_DIRECTION_SOUTHEAST
+};
+
+static const char* sdl_config_movement_preset_name(u16b preset_id)
+{
+    switch (preset_id)
+    {
+    case SDL_MOVEMENT_PRESET_MODERN_ARROWS:
+        return "modernArrows";
+    case SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC:
+        return "modernWasdQezc";
+    case SDL_MOVEMENT_PRESET_VI_KEYS:
+        return "viKeys";
+    case SDL_MOVEMENT_PRESET_CLASSIC_SIL:
+        return "classicSil";
+    default:
+        return "custom";
+    }
+}
+
+const char* sdl_config_movement_preset_label(u16b preset_id)
+{
+    switch (preset_id)
+    {
+    case SDL_MOVEMENT_PRESET_MODERN_ARROWS:
+        return "Modern Arrows";
+    case SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC:
+        return "Modern WASD+QEZC";
+    case SDL_MOVEMENT_PRESET_VI_KEYS:
+        return "Vi Keys";
+    case SDL_MOVEMENT_PRESET_CLASSIC_SIL:
+        return "Classic Sil";
+    default:
+        return "Custom";
+    }
+}
+
+u16b sdl_config_next_movement_preset(u16b preset_id)
+{
+    switch (preset_id)
+    {
+    case SDL_MOVEMENT_PRESET_CLASSIC_SIL:
+        return SDL_MOVEMENT_PRESET_MODERN_ARROWS;
+    case SDL_MOVEMENT_PRESET_MODERN_ARROWS:
+        return SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC;
+    case SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC:
+        return SDL_MOVEMENT_PRESET_VI_KEYS;
+    case SDL_MOVEMENT_PRESET_VI_KEYS:
+    default:
+        return SDL_MOVEMENT_PRESET_CLASSIC_SIL;
+    }
+}
+
+static bool sdl_config_movement_preset_from_name(const char* name,
+    u16b* out_preset_id)
+{
+    u16b preset_id = SDL_MOVEMENT_PRESET_NONE;
+
+    if (!name)
+        return false;
+
+    if (streq(name, "modernArrows"))
+        preset_id = SDL_MOVEMENT_PRESET_MODERN_ARROWS;
+    else if (streq(name, "modernWasdQezc"))
+        preset_id = SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC;
+    else if (streq(name, "viKeys"))
+        preset_id = SDL_MOVEMENT_PRESET_VI_KEYS;
+    else if (streq(name, "classicSil"))
+        preset_id = SDL_MOVEMENT_PRESET_CLASSIC_SIL;
+    else if (!streq(name, "custom"))
+        return false;
+
+    if (out_preset_id)
+        *out_preset_id = preset_id;
+    return true;
+}
+
+static const char* sdl_config_movement_context_name(u16b context)
+{
+    switch (context)
+    {
+    case MOVEMENT_INPUT_CONTEXT_DUNGEON:
+        return "dungeon";
+    case MOVEMENT_INPUT_CONTEXT_DIRECTION_PROMPT:
+        return "directionPrompt";
+    case MOVEMENT_INPUT_CONTEXT_TARGETING:
+        return "targeting";
+    case MOVEMENT_INPUT_CONTEXT_ANY:
+    default:
+        return "any";
+    }
+}
+
+static bool sdl_config_movement_context_from_name(const char* name,
+    u16b* out_context)
+{
+    u16b context = MOVEMENT_INPUT_CONTEXT_ANY;
+
+    if (!name)
+        return false;
+
+    if (streq(name, "any"))
+        context = MOVEMENT_INPUT_CONTEXT_ANY;
+    else if (streq(name, "dungeon"))
+        context = MOVEMENT_INPUT_CONTEXT_DUNGEON;
+    else if (streq(name, "directionPrompt"))
+        context = MOVEMENT_INPUT_CONTEXT_DIRECTION_PROMPT;
+    else if (streq(name, "targeting"))
+        context = MOVEMENT_INPUT_CONTEXT_TARGETING;
+    else
+        return false;
+
+    if (out_context)
+        *out_context = context;
+    return true;
+}
+
+static const char* sdl_config_movement_action_name(u16b action)
+{
+    switch (action)
+    {
+    case MOVEMENT_INPUT_ACTION_MOVE_DIR:
+        return "moveDir";
+    case MOVEMENT_INPUT_ACTION_RUN_DIR:
+        return "runDir";
+    case MOVEMENT_INPUT_ACTION_INTERACT_DIR:
+        return "interactDir";
+    case MOVEMENT_INPUT_ACTION_WAIT:
+        return "wait";
+    case MOVEMENT_INPUT_ACTION_REST:
+        return "rest";
+    default:
+        return "none";
+    }
+}
+
+static bool sdl_config_movement_action_from_name(const char* name,
+    u16b* out_action)
+{
+    u16b action = MOVEMENT_INPUT_ACTION_NONE;
+
+    if (!name)
+        return false;
+
+    if (streq(name, "moveDir"))
+        action = MOVEMENT_INPUT_ACTION_MOVE_DIR;
+    else if (streq(name, "runDir"))
+        action = MOVEMENT_INPUT_ACTION_RUN_DIR;
+    else if (streq(name, "interactDir"))
+        action = MOVEMENT_INPUT_ACTION_INTERACT_DIR;
+    else if (streq(name, "wait"))
+        action = MOVEMENT_INPUT_ACTION_WAIT;
+    else if (streq(name, "rest"))
+        action = MOVEMENT_INPUT_ACTION_REST;
+    else
+        return false;
+
+    if (out_action)
+        *out_action = action;
+    return true;
+}
+
+static const char* sdl_config_movement_direction_name(u16b direction)
+{
+    switch (direction)
+    {
+    case MOVEMENT_INPUT_DIRECTION_CENTER:
+        return "center";
+    case MOVEMENT_INPUT_DIRECTION_NORTH:
+        return "north";
+    case MOVEMENT_INPUT_DIRECTION_NORTHEAST:
+        return "northeast";
+    case MOVEMENT_INPUT_DIRECTION_EAST:
+        return "east";
+    case MOVEMENT_INPUT_DIRECTION_SOUTHEAST:
+        return "southeast";
+    case MOVEMENT_INPUT_DIRECTION_SOUTH:
+        return "south";
+    case MOVEMENT_INPUT_DIRECTION_SOUTHWEST:
+        return "southwest";
+    case MOVEMENT_INPUT_DIRECTION_WEST:
+        return "west";
+    case MOVEMENT_INPUT_DIRECTION_NORTHWEST:
+        return "northwest";
+    default:
+        return "none";
+    }
+}
+
+static bool sdl_config_movement_direction_from_name(const char* name,
+    u16b* out_direction)
+{
+    u16b direction = MOVEMENT_INPUT_DIRECTION_NONE;
+
+    if (!name)
+        return false;
+
+    if (streq(name, "none"))
+        direction = MOVEMENT_INPUT_DIRECTION_NONE;
+    else if (streq(name, "center"))
+        direction = MOVEMENT_INPUT_DIRECTION_CENTER;
+    else if (streq(name, "north"))
+        direction = MOVEMENT_INPUT_DIRECTION_NORTH;
+    else if (streq(name, "northeast"))
+        direction = MOVEMENT_INPUT_DIRECTION_NORTHEAST;
+    else if (streq(name, "east"))
+        direction = MOVEMENT_INPUT_DIRECTION_EAST;
+    else if (streq(name, "southeast"))
+        direction = MOVEMENT_INPUT_DIRECTION_SOUTHEAST;
+    else if (streq(name, "south"))
+        direction = MOVEMENT_INPUT_DIRECTION_SOUTH;
+    else if (streq(name, "southwest"))
+        direction = MOVEMENT_INPUT_DIRECTION_SOUTHWEST;
+    else if (streq(name, "west"))
+        direction = MOVEMENT_INPUT_DIRECTION_WEST;
+    else if (streq(name, "northwest"))
+        direction = MOVEMENT_INPUT_DIRECTION_NORTHWEST;
+    else
+        return false;
+
+    if (out_direction)
+        *out_direction = direction;
+    return true;
+}
+
+static bool sdl_config_movement_binding_equals(
+    const movement_input_binding* left, const movement_input_binding* right)
+{
+    if (!left || !right)
+        return false;
+
+    return left->context == right->context
+        && left->action == right->action
+        && left->direction == right->direction
+        && left->required_modifiers == right->required_modifiers
+        && left->forbidden_modifiers == right->forbidden_modifiers
+        && left->trigger == right->trigger
+        && left->trigger_aux == right->trigger_aux;
+}
+
+bool sdl_config_append_movement_binding(struct sdl_config* cfg,
+    const movement_input_binding* binding)
+{
+    if (!cfg || !binding || !movement_input_binding_is_valid(binding))
+        return false;
+    if (cfg->movement_binding_count >= SDL_MOVEMENT_BINDING_MAX)
+        return false;
+
+    for (u16b i = 0; i < cfg->movement_binding_count; i++)
+    {
+        if (sdl_config_movement_binding_equals(
+                &cfg->movement_bindings[i], binding))
+        {
+            return true;
+        }
+    }
+
+    cfg->movement_bindings[cfg->movement_binding_count++] = *binding;
+    return true;
+}
+
+static void sdl_config_init_keyboard_movement_binding(
+    movement_input_binding* binding, u16b action, u16b direction,
+    SDL_Scancode scancode, u16b required_modifiers, u16b forbidden_modifiers)
+{
+    movement_input_binding_clear(binding);
+    binding->context = MOVEMENT_INPUT_CONTEXT_ANY;
+    binding->action = action;
+    binding->direction = direction;
+    binding->required_modifiers = required_modifiers;
+    binding->forbidden_modifiers = forbidden_modifiers;
+    binding->trigger = (u32b)scancode;
+}
+
+static bool sdl_config_add_keyboard_movement_binding(struct sdl_config* cfg,
+    u16b action, u16b direction, SDL_Scancode scancode, u16b required_modifiers,
+    u16b forbidden_modifiers)
+{
+    movement_input_binding binding;
+
+    if (!cfg || scancode == SDL_SCANCODE_UNKNOWN)
+        return false;
+
+    sdl_config_init_keyboard_movement_binding(&binding, action, direction,
+        scancode, required_modifiers, forbidden_modifiers);
+    return sdl_config_append_movement_binding(cfg, &binding);
+}
+
+static void sdl_config_add_directional_movement_preset_set(
+    struct sdl_config* cfg, const SDL_Scancode* primary_scancodes)
+{
+    static const SDL_Scancode keypad_scancodes[] = {
+        SDL_SCANCODE_KP_7, SDL_SCANCODE_KP_8, SDL_SCANCODE_KP_9,
+        SDL_SCANCODE_KP_4, SDL_SCANCODE_KP_6,
+        SDL_SCANCODE_KP_1, SDL_SCANCODE_KP_2, SDL_SCANCODE_KP_3
+    };
+    const u16b plain_forbidden = MOVEMENT_INPUT_MODIFIER_SHIFT
+        | MOVEMENT_INPUT_MODIFIER_CTRL | MOVEMENT_INPUT_MODIFIER_ALT
+        | MOVEMENT_INPUT_MODIFIER_META;
+    const u16b shift_forbidden = MOVEMENT_INPUT_MODIFIER_CTRL
+        | MOVEMENT_INPUT_MODIFIER_ALT | MOVEMENT_INPUT_MODIFIER_META;
+    const u16b ctrl_forbidden = MOVEMENT_INPUT_MODIFIER_SHIFT
+        | MOVEMENT_INPUT_MODIFIER_ALT | MOVEMENT_INPUT_MODIFIER_META;
+
+    for (size_t i = 0; i < N_ELEMENTS(sdl_config_movement_direction_order); i++)
+    {
+        u16b direction = sdl_config_movement_direction_order[i];
+
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_MOVE_DIR, direction, primary_scancodes[i],
+            0, plain_forbidden);
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_MOVE_DIR, direction, keypad_scancodes[i],
+            0, plain_forbidden);
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_RUN_DIR, direction, primary_scancodes[i],
+            MOVEMENT_INPUT_MODIFIER_SHIFT, shift_forbidden);
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_RUN_DIR, direction, keypad_scancodes[i],
+            MOVEMENT_INPUT_MODIFIER_SHIFT, shift_forbidden);
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_INTERACT_DIR, direction, primary_scancodes[i],
+            MOVEMENT_INPUT_MODIFIER_CTRL, ctrl_forbidden);
+        (void)sdl_config_add_keyboard_movement_binding(cfg,
+            MOVEMENT_INPUT_ACTION_INTERACT_DIR, direction, keypad_scancodes[i],
+            MOVEMENT_INPUT_MODIFIER_CTRL, ctrl_forbidden);
+    }
+}
+
+static void sdl_config_add_wait_rest_movement_bindings(struct sdl_config* cfg,
+    SDL_Scancode wait_primary, SDL_Scancode rest_primary,
+    SDL_Scancode wait_secondary, SDL_Scancode rest_secondary)
+{
+    const u16b plain_forbidden = MOVEMENT_INPUT_MODIFIER_SHIFT
+        | MOVEMENT_INPUT_MODIFIER_CTRL | MOVEMENT_INPUT_MODIFIER_ALT
+        | MOVEMENT_INPUT_MODIFIER_META;
+    const u16b shift_forbidden = MOVEMENT_INPUT_MODIFIER_CTRL
+        | MOVEMENT_INPUT_MODIFIER_ALT | MOVEMENT_INPUT_MODIFIER_META;
+
+    (void)sdl_config_add_keyboard_movement_binding(cfg,
+        MOVEMENT_INPUT_ACTION_WAIT, MOVEMENT_INPUT_DIRECTION_NONE,
+        wait_primary, 0, plain_forbidden);
+    (void)sdl_config_add_keyboard_movement_binding(cfg,
+        MOVEMENT_INPUT_ACTION_WAIT, MOVEMENT_INPUT_DIRECTION_NONE,
+        wait_secondary, 0, plain_forbidden);
+    (void)sdl_config_add_keyboard_movement_binding(cfg,
+        MOVEMENT_INPUT_ACTION_REST, MOVEMENT_INPUT_DIRECTION_NONE,
+        rest_primary, MOVEMENT_INPUT_MODIFIER_SHIFT, shift_forbidden);
+    (void)sdl_config_add_keyboard_movement_binding(cfg,
+        MOVEMENT_INPUT_ACTION_REST, MOVEMENT_INPUT_DIRECTION_NONE,
+        rest_secondary, MOVEMENT_INPUT_MODIFIER_SHIFT, shift_forbidden);
+}
+
+void sdl_config_clear_movement_bindings(struct sdl_config* cfg)
+{
+    if (!cfg)
+        return;
+
+    cfg->movement_keyboard_present = false;
+    cfg->movement_keyboard_preset = SDL_MOVEMENT_PRESET_NONE;
+    cfg->movement_binding_count = 0;
+    memset(cfg->movement_bindings, 0, sizeof(cfg->movement_bindings));
+}
+
+void sdl_config_set_default_movement_bindings(struct sdl_config* cfg,
+    u16b preset_id)
+{
+    static const SDL_Scancode classic_scancodes[] = {
+        SDL_SCANCODE_KP_7, SDL_SCANCODE_KP_8, SDL_SCANCODE_KP_9,
+        SDL_SCANCODE_KP_4, SDL_SCANCODE_KP_6,
+        SDL_SCANCODE_KP_1, SDL_SCANCODE_KP_2, SDL_SCANCODE_KP_3
+    };
+    static const SDL_Scancode arrows_scancodes[] = {
+        SDL_SCANCODE_HOME, SDL_SCANCODE_UP, SDL_SCANCODE_PAGEUP,
+        SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT,
+        SDL_SCANCODE_END, SDL_SCANCODE_DOWN, SDL_SCANCODE_PAGEDOWN
+    };
+    /* Modern Arrows: real arrows for orthogonals, the punctuation block near
+     * the arrows ( ; ' . / ) for diagonals. These take run (Shift) / interact
+     * (Ctrl) like any movement key, so Shift+. / Shift+/ etc. become run rather
+     * than '>' / '?' here; players who want those should use Classic Sil. */
+    static const SDL_Scancode modern_arrows_scancodes[] = {
+        SDL_SCANCODE_SEMICOLON, SDL_SCANCODE_UP, SDL_SCANCODE_APOSTROPHE,
+        SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT,
+        SDL_SCANCODE_PERIOD, SDL_SCANCODE_DOWN, SDL_SCANCODE_SLASH
+    };
+    static const SDL_Scancode wasd_scancodes[] = {
+        SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_E,
+        SDL_SCANCODE_A, SDL_SCANCODE_D,
+        SDL_SCANCODE_Z, SDL_SCANCODE_S, SDL_SCANCODE_C
+    };
+    static const SDL_Scancode vi_scancodes[] = {
+        SDL_SCANCODE_Y, SDL_SCANCODE_K, SDL_SCANCODE_U,
+        SDL_SCANCODE_H, SDL_SCANCODE_L,
+        SDL_SCANCODE_B, SDL_SCANCODE_J, SDL_SCANCODE_N
+    };
+    const SDL_Scancode* directional_scancodes = classic_scancodes;
+
+    if (!cfg)
+        return;
+
+    switch (preset_id)
+    {
+    case SDL_MOVEMENT_PRESET_MODERN_ARROWS:
+        directional_scancodes = modern_arrows_scancodes;
+        break;
+    case SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC:
+        directional_scancodes = wasd_scancodes;
+        break;
+    case SDL_MOVEMENT_PRESET_VI_KEYS:
+        directional_scancodes = vi_scancodes;
+        break;
+    case SDL_MOVEMENT_PRESET_CLASSIC_SIL:
+    default:
+        directional_scancodes = classic_scancodes;
+        preset_id = SDL_MOVEMENT_PRESET_CLASSIC_SIL;
+        break;
+    }
+
+    sdl_config_clear_movement_bindings(cfg);
+    cfg->movement_keyboard_present = true;
+    cfg->movement_keyboard_preset = preset_id;
+
+    sdl_config_add_directional_movement_preset_set(cfg, directional_scancodes);
+
+    if (preset_id == SDL_MOVEMENT_PRESET_MODERN_ARROWS)
+    {
+        /* '.' / '/' are diagonals here, so wait/rest live on the numpad centre
+         * rather than the usual PERIOD. */
+        sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_KP_5,
+            SDL_SCANCODE_KP_5, SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN);
+    }
+    else if (preset_id == SDL_MOVEMENT_PRESET_CLASSIC_SIL)
+    {
+        sdl_config_add_directional_movement_preset_set(cfg, arrows_scancodes);
+        sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_KP_5,
+            SDL_SCANCODE_KP_5, SDL_SCANCODE_Z, SDL_SCANCODE_Z);
+    }
+    else
+    {
+        sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_PERIOD,
+            SDL_SCANCODE_PERIOD, SDL_SCANCODE_KP_5, SDL_SCANCODE_KP_5);
+    }
+}
+
+bool sdl_config_set_movement_binding(struct sdl_config* cfg, u16b action,
+    u16b direction, const movement_input_binding* binding)
+{
+    u16b out = 0;
+
+    if (!cfg)
+        return false;
+
+    while (out < cfg->movement_binding_count)
+    {
+        movement_input_binding* existing = &cfg->movement_bindings[out];
+
+        if (existing->action == action
+            && (!movement_input_action_is_directional(action)
+                || existing->direction == direction))
+        {
+            memmove(existing, existing + 1,
+                (cfg->movement_binding_count - out - 1)
+                    * sizeof(cfg->movement_bindings[0]));
+            cfg->movement_binding_count--;
+            continue;
+        }
+        out++;
+    }
+
+    if (!binding)
+    {
+        cfg->movement_keyboard_present = true;
+        cfg->movement_keyboard_preset = SDL_MOVEMENT_PRESET_NONE;
+        return true;
+    }
+
+    cfg->movement_keyboard_present = true;
+    cfg->movement_keyboard_preset = SDL_MOVEMENT_PRESET_NONE;
+    return sdl_config_append_movement_binding(cfg, binding);
+}
+
+bool sdl_config_resolve_movement_binding(const struct sdl_config* cfg,
+    u16b context, u32b trigger, u32b trigger_aux, u16b modifiers,
+    movement_input_command* out_command)
+{
+    const movement_input_binding* selected = NULL;
+    int best_score = -1;
+
+    if (!cfg || !out_command || context == MOVEMENT_INPUT_CONTEXT_NONE)
+        return false;
+
+    movement_input_command_clear(out_command);
+
+    for (u16b i = 0; i < cfg->movement_binding_count; i++)
+    {
+        const movement_input_binding* binding = &cfg->movement_bindings[i];
+        int score = 0;
+
+        if (!movement_input_binding_matches(binding, context, trigger,
+                trigger_aux, modifiers))
+        {
+            continue;
+        }
+
+        if (binding->context == context)
+            score += 4;
+        if (binding->trigger_aux != 0)
+            score += 1;
+
+        if (score > best_score)
+        {
+            best_score = score;
+            selected = binding;
+        }
+    }
+
+    if (!selected)
+        return false;
+
+    return movement_input_command_from_binding(selected, context, out_command);
+}
+
+bool sdl_config_scancode_is_plain_move_letter(const struct sdl_config* cfg,
+    u32b scancode)
+{
+    if (!cfg)
+        return false;
+    if (scancode < (u32b)SDL_SCANCODE_A || scancode > (u32b)SDL_SCANCODE_Z)
+        return false;
+
+    for (u16b i = 0; i < cfg->movement_binding_count; i++)
+    {
+        const movement_input_binding* binding = &cfg->movement_bindings[i];
+
+        if (!movement_input_binding_is_valid(binding))
+            continue;
+        if (binding->action != MOVEMENT_INPUT_ACTION_MOVE_DIR)
+            continue;
+        if (binding->required_modifiers)
+            continue;
+        if (binding->trigger == scancode)
+            return true;
+    }
+
+    return false;
+}
+
+static void sdl_config_load_movement_bindings(cJSON* root,
+    struct sdl_config* cfg)
+{
+    cJSON* movement;
+    cJSON* preset;
+    cJSON* bindings;
+    u16b preset_id = SDL_MOVEMENT_PRESET_CLASSIC_SIL;
+    bool valid_preset = true;
+
+    if (!root || !cfg)
+        return;
+
+    movement = cJSON_GetObjectItemCaseSensitive(root, "movement");
+    if (!movement)
+        return;
+
+    if (!cJSON_IsObject(movement))
+    {
+        log_warn("movement config is malformed; using Classic Sil movement defaults");
+        sdl_config_set_default_movement_bindings(cfg,
+            SDL_MOVEMENT_PRESET_CLASSIC_SIL);
+        return;
+    }
+
+    preset = cJSON_GetObjectItemCaseSensitive(movement, "keyboardPreset");
+    if (cJSON_IsString(preset) && preset->valuestring)
+    {
+        valid_preset = sdl_config_movement_preset_from_name(
+            preset->valuestring, &preset_id);
+    }
+
+    if (!valid_preset)
+    {
+        log_warn("movement.keyboardPreset is invalid; using Classic Sil movement defaults");
+        sdl_config_set_default_movement_bindings(cfg,
+            SDL_MOVEMENT_PRESET_CLASSIC_SIL);
+        return;
+    }
+
+    bindings = cJSON_GetObjectItemCaseSensitive(movement, "keyboardBindings");
+    if (!bindings)
+    {
+        if (preset_id == SDL_MOVEMENT_PRESET_NONE)
+        {
+            log_warn("custom movement config has no keyboardBindings; using Classic Sil movement defaults");
+            sdl_config_set_default_movement_bindings(cfg,
+                SDL_MOVEMENT_PRESET_CLASSIC_SIL);
+        }
+        else
+        {
+            sdl_config_set_default_movement_bindings(cfg, preset_id);
+        }
+        return;
+    }
+
+    if (!cJSON_IsArray(bindings))
+    {
+        log_warn("movement.keyboardBindings is malformed; using Classic Sil movement defaults");
+        sdl_config_set_default_movement_bindings(cfg,
+            SDL_MOVEMENT_PRESET_CLASSIC_SIL);
+        return;
+    }
+
+    sdl_config_clear_movement_bindings(cfg);
+    cfg->movement_keyboard_present = true;
+    cfg->movement_keyboard_preset = preset_id;
+
+    for (int i = 0; i < cJSON_GetArraySize(bindings); i++)
+    {
+        cJSON* item = cJSON_GetArrayItem(bindings, i);
+        cJSON* context_item;
+        cJSON* action_item;
+        cJSON* direction_item;
+        cJSON* trigger_item;
+        cJSON* trigger_aux_item;
+        cJSON* required_item;
+        cJSON* forbidden_item;
+        movement_input_binding binding;
+
+        if (!cJSON_IsObject(item))
+            continue;
+
+        movement_input_binding_clear(&binding);
+
+        context_item = cJSON_GetObjectItemCaseSensitive(item, "context");
+        action_item = cJSON_GetObjectItemCaseSensitive(item, "action");
+        direction_item = cJSON_GetObjectItemCaseSensitive(item, "direction");
+        trigger_item = cJSON_GetObjectItemCaseSensitive(item, "trigger");
+        trigger_aux_item = cJSON_GetObjectItemCaseSensitive(item, "triggerAux");
+        required_item = cJSON_GetObjectItemCaseSensitive(item,
+            "requiredModifiers");
+        forbidden_item = cJSON_GetObjectItemCaseSensitive(item,
+            "forbiddenModifiers");
+
+        if (!cJSON_IsString(context_item) || !context_item->valuestring
+            || !sdl_config_movement_context_from_name(context_item->valuestring,
+                &binding.context))
+        {
+            continue;
+        }
+        if (!cJSON_IsString(action_item) || !action_item->valuestring
+            || !sdl_config_movement_action_from_name(action_item->valuestring,
+                &binding.action))
+        {
+            continue;
+        }
+        if (cJSON_IsString(direction_item) && direction_item->valuestring)
+        {
+            if (!sdl_config_movement_direction_from_name(
+                    direction_item->valuestring, &binding.direction))
+            {
+                continue;
+            }
+        }
+        if (!cJSON_IsNumber(trigger_item) || trigger_item->valueint <= 0)
+            continue;
+
+        binding.trigger = (u32b)trigger_item->valueint;
+        if (cJSON_IsNumber(trigger_aux_item) && trigger_aux_item->valueint > 0)
+            binding.trigger_aux = (u32b)trigger_aux_item->valueint;
+        if (cJSON_IsNumber(required_item) && required_item->valueint >= 0)
+            binding.required_modifiers = (u16b)required_item->valueint;
+        if (cJSON_IsNumber(forbidden_item) && forbidden_item->valueint >= 0)
+            binding.forbidden_modifiers = (u16b)forbidden_item->valueint;
+
+        if (!sdl_config_append_movement_binding(cfg, &binding))
+        {
+            log_warn("Skipping invalid or duplicate movement binding at JSON index %d",
+                i);
+        }
+    }
+
+    if (cfg->movement_binding_count == 0)
+    {
+        log_warn("movement.keyboardBindings has no valid bindings; using Classic Sil movement defaults");
+        sdl_config_set_default_movement_bindings(cfg,
+            SDL_MOVEMENT_PRESET_CLASSIC_SIL);
+    }
+}
+
+static void sdl_config_save_movement_bindings(cJSON* root,
+    const struct sdl_config* cfg)
+{
+    cJSON* movement;
+    cJSON* bindings;
+
+    if (!root || !cfg)
+        return;
+
+    movement = cJSON_CreateObject();
+    if (!movement)
+        return;
+
+    cJSON_AddNumberToObject(movement, "version", MOVEMENT_INPUT_FORMAT_VERSION);
+    cJSON_AddStringToObject(movement, "keyboardPreset",
+        sdl_config_movement_preset_name(cfg->movement_keyboard_preset));
+
+    bindings = cJSON_CreateArray();
+    if (bindings)
+    {
+        for (u16b i = 0; i < cfg->movement_binding_count; i++)
+        {
+            const movement_input_binding* binding = &cfg->movement_bindings[i];
+            cJSON* item;
+
+            if (!movement_input_binding_is_valid(binding))
+                continue;
+
+            item = cJSON_CreateObject();
+            if (!item)
+                continue;
+
+            cJSON_AddStringToObject(item, "context",
+                sdl_config_movement_context_name(binding->context));
+            cJSON_AddStringToObject(item, "action",
+                sdl_config_movement_action_name(binding->action));
+            cJSON_AddStringToObject(item, "direction",
+                sdl_config_movement_direction_name(binding->direction));
+            cJSON_AddNumberToObject(item, "trigger", (double)binding->trigger);
+            if (binding->trigger_aux != 0)
+            {
+                cJSON_AddNumberToObject(item, "triggerAux",
+                    (double)binding->trigger_aux);
+            }
+            cJSON_AddNumberToObject(item, "requiredModifiers",
+                (double)binding->required_modifiers);
+            cJSON_AddNumberToObject(item, "forbiddenModifiers",
+                (double)binding->forbidden_modifiers);
+            cJSON_AddItemToArray(bindings, item);
+        }
+
+        cJSON_AddItemToObject(movement, "keyboardBindings", bindings);
+    }
+
+    cJSON_AddItemToObject(root, "movement", movement);
 }
 
 /*
@@ -2166,6 +2930,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
     log_debug("JSON parsed successfully");
 
     sdl_config_load_keyboard_keymaps(root, config);
+    sdl_config_load_movement_bindings(root, config);
     
     // Parse SDL settings
     cJSON* sdl = cJSON_GetObjectItemCaseSensitive(root, "sdl");
@@ -3345,6 +4110,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             cJSON_AddItemToObject(root, "keyboard", keyboard);
     }
 
+    sdl_config_save_movement_bindings(root, config);
+
     if (active_mode < 0 || active_mode >= profile_count)
         active_mode = SDL_MIN_TERMINAL_NORMAL;
     if (pane_profiles && active_mode >= 0 && active_mode < profile_count)
@@ -3808,6 +4575,8 @@ void sdl_config_set_defaults(struct sdl_config* config)
     SDL_strlcpy(config->palette_preset, "classic",
         sizeof(config->palette_preset));
     sdl_config_set_default_keymaps(config);
+    sdl_config_set_default_movement_bindings(config,
+        SDL_MOVEMENT_PRESET_CLASSIC_SIL);
 
     // Default gamepad settings
     config->gamepad_enabled = true;

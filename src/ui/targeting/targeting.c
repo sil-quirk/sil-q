@@ -4,6 +4,9 @@
 #include "player/killer.h"
 #include "metarun.h"
 #include "sdl-config.h"
+#include "support/input.h"
+#include "support/movement-input.h"
+#include "ui/menu-click.h"
 #include "ui/targeting/targeting-internal.h"
 
 static void look_prt(bool use_story_font, cptr text, int row, int col)
@@ -175,6 +178,13 @@ int target_dir(char ch)
     cptr act;
 
     cptr s;
+
+    if (ch == UI_MENU_CLICK_WAKE_KEY
+        && movement_input_take_legacy_direction(
+            MOVEMENT_INPUT_CONTEXT_ANY, &d))
+    {
+        return d;
+    }
 
     /* Already a direction? */
     if (isdigit((unsigned char)ch))
@@ -868,7 +878,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
 
             look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
-            query = inkey();
+            query = inkey_movement_context(MOVEMENT_INPUT_CONTEXT_TARGETING);
 
             /* Stop on everything but "return" */
             if ((query != '\n') && (query != '\r'))
@@ -940,7 +950,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                                 format("  [(r)ecall, %s]", info));
 
                             /* Command */
-                            query = inkey();
+                            query = inkey_movement_context(
+                                MOVEMENT_INPUT_CONTEXT_TARGETING);
                         }
 
                         /* Load screen */
@@ -1008,7 +1019,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
                         move_cursor_relative(y, x);
 
                         /* Command */
-                        query = inkey();
+                        query = inkey_movement_context(
+                            MOVEMENT_INPUT_CONTEXT_TARGETING);
                     }
 
                     /* Normal commands */
@@ -1081,7 +1093,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
 
                     look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
-                    query = inkey();
+                    query = inkey_movement_context(
+                        MOVEMENT_INPUT_CONTEXT_TARGETING);
 
                     /* Stop on everything but "return"/"space" */
                     if ((query != '\n') && (query != '\r') && (query != ' '))
@@ -1160,7 +1173,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
 
                     look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
-                    query = inkey();
+                    query = inkey_movement_context(
+                        MOVEMENT_INPUT_CONTEXT_TARGETING);
 
                     /* Stop on everything but "return"/"space" */
                     if ((query != '\n') && (query != '\r') && (query != ' '))
@@ -1250,7 +1264,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
 
             look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
-            query = inkey();
+            query = inkey_movement_context(MOVEMENT_INPUT_CONTEXT_TARGETING);
 
             /* Stop on everything but "return"/"space" */
             if ((query != '\n') && (query != '\r') && (query != ' '))

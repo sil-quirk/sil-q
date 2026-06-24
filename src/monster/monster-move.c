@@ -482,7 +482,14 @@ void monster_swap(int y1, int x1, int y2, int x2)
             if (!forgo_attacking_unwary
                 || (m_ptr->alertness >= ALERTNESS_ALERT))
             {
-                if (p_ptr->active_ability[S_MEL][MEL_ZONE_OF_CONTROL])
+                bool moved_last_turn
+                    = ((p_ptr->previous_action[1] >= 1)
+                          && (p_ptr->previous_action[1] <= 9)
+                          && (p_ptr->previous_action[1] != 5))
+                    || (p_ptr->previous_action[1] == ACTION_BASH);
+
+                if (p_ptr->active_ability[S_MEL][MEL_ZONE_OF_CONTROL]
+                    && !moved_last_turn)
                 {
                     if ((distance(y1, x1, p_ptr->py, p_ptr->px) == 1)
                         && (distance(y2, x2, p_ptr->py, p_ptr->px) == 1))

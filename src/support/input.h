@@ -6,6 +6,7 @@
 void flush(void);
 void flush_fail(void);
 char inkey(void);
+char inkey_movement_context(u16b context);
 bool inkey_next_active(void);
 void inkey_next_set(cptr keys);
 #ifdef ALLOW_REPEAT

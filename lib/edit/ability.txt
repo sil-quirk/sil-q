@@ -132,7 +132,7 @@ N:10:Zone of Control
 I:0:10:10
 P:0/1:0/4
 D:Commanding the battlefield as did the captains of the Union of Maedhros, who held their ground with such authority that no foe dared move freely in their presence. Any servant of Morgoth who tried to slip past the watchful blade of a Noldorin captain earned a swift and punishing stroke.
-E:Free attack when an opponent moves between two squares adjacent to you.
+E:Free attack when an opponent moves between two squares adjacent to you, so long as you did not move on your previous turn.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -317,7 +317,7 @@ T:30:0:99  # Boots
 N:46:Flanking
 I:2:6:8
 D:Flanking foes cunningly as in the ambushes set by the outlaws of Túrin's band in the wild lands west of Doriath. Rather than meeting the enemy head-on, they circled to strike from unexpected angles, slipping past a foe's guard to deliver blows where they were least expected.
-E:Free attack on an opponent when stepping between two squares adjacent to it.
+E:Free attack on an opponent when stepping between two squares adjacent to it. Only works while wearing only light armour.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 

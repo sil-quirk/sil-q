@@ -2397,6 +2397,45 @@ bool sdl_gamepad_capture_poll(int* out_type, int* out_id, int* out_modifier)
     return true;
 }
 
+bool sdl_keyboard_capture_begin(void)
+{
+    g_keyboard_capture_ready = false;
+    g_keyboard_capture_active = true;
+    g_keyboard_capture_scancode = SDL_SCANCODE_UNKNOWN;
+    g_keyboard_capture_modifiers = 0;
+    g_keyboard_capture_arm_time = SDL_GetTicksNS()
+        + ((Uint64)GAMEPAD_CAPTURE_ARM_DELAY_MS * 1000000ULL);
+    return true;
+}
+
+void sdl_keyboard_capture_cancel(void)
+{
+    g_keyboard_capture_active = false;
+    g_keyboard_capture_ready = false;
+    g_keyboard_capture_scancode = SDL_SCANCODE_UNKNOWN;
+    g_keyboard_capture_modifiers = 0;
+    g_keyboard_capture_arm_time = 0;
+}
+
+bool sdl_keyboard_capture_poll(SDL_Scancode* out_scancode,
+    u16b* out_modifiers)
+{
+    if (!g_keyboard_capture_ready)
+        return false;
+
+    if (out_scancode)
+        *out_scancode = g_keyboard_capture_scancode;
+    if (out_modifiers)
+        *out_modifiers = g_keyboard_capture_modifiers;
+
+    g_keyboard_capture_ready = false;
+    g_keyboard_capture_active = false;
+    g_keyboard_capture_scancode = SDL_SCANCODE_UNKNOWN;
+    g_keyboard_capture_modifiers = 0;
+    g_keyboard_capture_arm_time = 0;
+    return true;
+}
+
 /*
  * Calculate the maximum scale for the current window.
  * This keeps at least the configured minimum terminal size visible in the

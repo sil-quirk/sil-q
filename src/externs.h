@@ -2416,6 +2416,10 @@ extern int steamdeck_secondary_key(void); /* Y button (NORTH) - for secondary ac
 extern bool sdl_gamepad_capture_begin(bool allow_modifier_combo);
 extern void sdl_gamepad_capture_cancel(void);
 extern bool sdl_gamepad_capture_poll(int* out_type, int* out_id, int* out_modifier);
+extern bool sdl_keyboard_capture_begin(void);
+extern void sdl_keyboard_capture_cancel(void);
+extern bool sdl_keyboard_capture_poll(SDL_Scancode* out_scancode,
+    u16b* out_modifiers);
 
 /* SDL story font control (main-sdl.c) */
 extern void sdl_story_font_enable(void);
