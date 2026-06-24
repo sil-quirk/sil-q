@@ -942,6 +942,8 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_inc += 3;  /* Paired weapon bonus */
     if (f4 & TR4_SUBTLETY_THROW)
         dif_inc += 15;
+    if (f4 & TR4_LIGHT_ARMOR)
+        dif_inc += 2;  /* Light armour tag (e.g. the (Light) ego) */
 
     /* pval-based bonuses */
     if (f1 & TR1_TUNNEL)
@@ -1109,6 +1111,10 @@ static int smithing_difficulty_baseline(const object_type* o_ptr)
         dif_inc += 6;
     if (f3 & TR3_MEDIC)
         dif_inc += 4;
+    if (f3 & TR3_OATH_BOOST)
+        dif_inc += 5;
+    if (f3 & TR3_OATH_NEGATE)
+        dif_dec += 5;
 
     if (f2 & TR2_RES_COLD)
         dif_inc += 5;
@@ -1352,6 +1358,12 @@ static void add_drop_entry(const object_type* proto, drop_category cat,
         if (new_cap < g_drop_count + 1)
             new_cap = g_drop_count + 1;
         drop_entry* new_buf = mem_alloc_array(new_cap, drop_entry);
+        if (!new_buf)
+        {
+            log_error("drop_system: failed to grow drop catalog to %zu entries",
+                new_cap);
+            return;
+        }
         if (g_drop_entries && g_drop_count)
             memcpy(new_buf, g_drop_entries, g_drop_count * sizeof(drop_entry));
         mem_free_null(g_drop_entries);
@@ -2395,7 +2407,7 @@ void drop_system_init(void)
     log_debug("drop_system_init: checking against '%s'", txt_path);
     need_rebuild |= (check_modification_date_sdl(raw_path, txt_path) != 0);
     
-    path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, "artifact.txt");
+    path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, "artefact.txt");
     log_debug("drop_system_init: checking against '%s'", txt_path);
     need_rebuild |= (check_modification_date_sdl(raw_path, txt_path) != 0);
     

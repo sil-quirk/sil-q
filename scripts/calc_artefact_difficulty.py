@@ -272,7 +272,7 @@ def parse_artefact_file(filepath):
             
             # Flags
             elif line.startswith('F:') and current:
-                flags = [f.strip() for f in line[2:].split('|')]
+                flags = [f for f in re.split(r'[\s|]+', line[2:].strip()) if f]
                 current['flags'].extend(flags)
 
             # Per-stat/per-skill overrides (M:<TOKEN>:<VALUE>)
@@ -640,6 +640,8 @@ def calculate_difficulty(art):
         dif_inc += 5  # Situational
     if 'PAIRED' in flags:
         dif_inc += 3  # Paired weapon bonus
+    if 'SUBTLETY_THROW' in flags:
+        dif_inc += 15
     if 'LIGHT_ARMOR' in flags:
         dif_inc += 2  # Light armour tag (e.g. the (Light) ego)
 
@@ -1053,10 +1055,7 @@ def compute_combined_rarity_schedule(base_pairs, ego_pairs_list, sched_min):
                 combined = 0
                 break
             prev = combined
-            combined = (combined * ego_r) // 100
-            # C code clamps: if both inputs positive but product rounds to 0, use 1
-            if prev > 0 and ego_r > 0 and combined == 0:
-                combined = 1
+            combined = (combined * ego_r + 99) // 100
         if combined <= 0:
             continue
         if combined != prev_rarity:

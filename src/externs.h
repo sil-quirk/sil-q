@@ -2235,6 +2235,8 @@ extern void sdl_config_reset_app_options_to_defaults(void);
 extern void sdl_reset_interface_settings_to_defaults_for_migration(void);
 extern bool sdl_config_should_force_intro_flame(void);
 extern void sdl_config_mark_intro_seen(void);
+extern bool sdl_config_keyboard_preset_prompt_seen(void);
+extern void sdl_config_mark_keyboard_preset_prompt_seen(void);
 extern bool option_is_app_persistent(int opt);
 extern int get_sdl_max_scale(void);
 extern int get_sdl_max_main_view_zoom_scale(void);

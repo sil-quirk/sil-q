@@ -19,6 +19,47 @@ static const char* const default_music_ambient_path = "music/ambient.ogg";
 static const char* const legacy_music_death_path = "sound/death.wav";
 static const char* const default_music_death_path = "music/death.ogg";
 
+static float sound_config_clamp_unit(float value)
+{
+    if (!(value >= 0.0f))
+        return 0.0f;
+    if (value > 1.0f)
+        return 1.0f;
+    return value;
+}
+
+static void sound_config_sanitize(struct sound_config* config)
+{
+    if (!config)
+        return;
+
+    config->volume_master = sound_config_clamp_unit(config->volume_master);
+    config->volume_combat = sound_config_clamp_unit(config->volume_combat);
+    config->volume_inventory = sound_config_clamp_unit(config->volume_inventory);
+    config->volume_walk = sound_config_clamp_unit(config->volume_walk);
+    config->volume_doors = sound_config_clamp_unit(config->volume_doors);
+    config->volume_monster_hits =
+        sound_config_clamp_unit(config->volume_monster_hits);
+    config->volume_traps = sound_config_clamp_unit(config->volume_traps);
+    config->volume_other = sound_config_clamp_unit(config->volume_other);
+    config->music_main_volume =
+        sound_config_clamp_unit(config->music_main_volume);
+    config->music_ambient_volume =
+        sound_config_clamp_unit(config->music_ambient_volume);
+
+    if (config->sample_rate < 8000 || config->sample_rate > 192000) {
+        log_warn("Invalid sound sample rate %d; using 22050",
+            config->sample_rate);
+        config->sample_rate = 22050;
+    }
+
+    if (config->channels != 1 && config->channels != 2) {
+        log_warn("Invalid sound channel count %d; using stereo",
+            config->channels);
+        config->channels = 2;
+    }
+}
+
 void sound_config_set_defaults(struct sound_config* config)
 {
     config->enabled = false;
@@ -305,7 +346,8 @@ void sound_config_load(const char* filename, struct sound_config* config)
             }
         }
     }
-    
+
+    sound_config_sanitize(config);
     cJSON_Delete(root);
     log_info("Sound configuration loaded from %s", filename);
 }

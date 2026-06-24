@@ -302,19 +302,35 @@ errr rd_extra(void)
         i++;
     }
 
-    /*Write the current number of auto-inscriptions*/
-    rd_u16b(&inscriptionsCount);
-
-    /*Write the autoinscriptions array*/
-    for (i = 0; i < inscriptionsCount; i++)
+    /* Read the current number of auto-inscriptions */
     {
-        char tmp[80];
+        u16b saved_inscriptions_count;
 
-        rd_s16b(&inscriptions[i].kindIdx);
+        rd_u16b(&saved_inscriptions_count);
+        inscriptionsCount = MIN(saved_inscriptions_count,
+            (u16b)AUTOINSCRIPTIONS_MAX);
+        if (saved_inscriptions_count > AUTOINSCRIPTIONS_MAX)
+        {
+            log_warn("Savefile contains %u auto-inscriptions; keeping first %u",
+                (unsigned)saved_inscriptions_count,
+                (unsigned)AUTOINSCRIPTIONS_MAX);
+        }
 
-        rd_string(tmp, 80);
+        /* Read the autoinscriptions array */
+        for (i = 0; i < saved_inscriptions_count; i++)
+        {
+            char tmp[80];
+            s16b kind_idx;
 
-        inscriptions[i].inscriptionIdx = quark_add(tmp);
+            rd_s16b(&kind_idx);
+            rd_string(tmp, 80);
+
+            if (i < inscriptionsCount)
+            {
+                inscriptions[i].kindIdx = kind_idx;
+                inscriptions[i].inscriptionIdx = quark_add(tmp);
+            }
+        }
     }
 
     for (i = 0; i < MAX_GREATER_VAULTS; i++)

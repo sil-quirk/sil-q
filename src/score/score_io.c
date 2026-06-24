@@ -160,11 +160,26 @@ static bool score_file_upgrade_to_curses(score_file_ctx* ctx, const char *filepa
         return false;
     }
 
-    fseek(file, 0, SEEK_END);
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        log_error("Failed to seek score file during upgrade");
+        return false;
+    }
     long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    if (file_size < (long)sizeof(score_file_header)
+        || ((file_size - (long)sizeof(score_file_header))
+            % (long)sizeof(high_score)) != 0) {
+        fclose(file);
+        log_error("Score file has invalid size during upgrade");
+        return false;
+    }
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        log_error("Failed to rewind score file during upgrade");
+        return false;
+    }
 
-    char* buffer = malloc(file_size);
+    char* buffer = mem_alloc_array((size_t)file_size, char);
     if (!buffer) {
         fclose(file);
         log_error("Cannot allocate memory for upgrade");
@@ -277,6 +292,7 @@ SDL_IOStream* score_file_open(const char *filepath, int mode)
     /* If file doesn't exist and caller allows creation, bootstrap header */
     if (!exists && (mode & O_CREAT)) {
         score_file_header header;
+        memset(&header, 0, sizeof(header));
         header.version_major = SCORE_FILE_VERSION_MAJOR;
         header.version_minor = SCORE_FILE_VERSION_MINOR;
         header.version_patch = SCORE_FILE_VERSION_PATCH;
@@ -480,6 +496,8 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     }
 
     int limit = (capacity > MAX_HISCORES) ? MAX_HISCORES : capacity;
+    if (scores_file_entry_count < (u32b)limit)
+        limit = (int)scores_file_entry_count;
     int count = collect_scores_load(file, out, limit);
 
     if (opened_new)
@@ -603,11 +621,17 @@ errr backup_scores_file(const char *filepath)
         return 0;
 
     Sint64 file_size_64 = sdl_size(fd_src);
-    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
-    if (file_size <= 0) {
+    if (file_size_64 <= 0) {
         sdl_fclose(fd_src);
         return 0;
     }
+    if (file_size_64 > INT_MAX) {
+        log_error("backup_scores_file: file too large to back up: %lld bytes",
+                  (long long)file_size_64);
+        sdl_fclose(fd_src);
+        return -1;
+    }
+    int file_size = (int)file_size_64;
 
     char *buffer = mem_alloc_array(file_size, char);
     if (!buffer) {
@@ -690,9 +714,10 @@ int score_count_alive_entries(void)
     highscore_fd = scan_fd;
 
     int alive = 0;
+    u32b limit = MIN(scores_file_entry_count, (u32b)MAX_HISCORES);
     if (highscore_seek(0) == 0) {
         high_score entry;
-        while (highscore_read(&entry) == 0) {
+        for (u32b i = 0; i < limit && highscore_read(&entry) == 0; i++) {
             if (strcmp(entry.how, "(alive and well)") == 0) {
                 alive++;
             }
@@ -738,9 +763,10 @@ u32b score_sum_dead_points(void)
     highscore_fd = scan_fd;
 
     u32b total = 0;
+    u32b limit = MIN(scores_file_entry_count, (u32b)MAX_HISCORES);
     if (highscore_seek(0) == 0) {
         high_score entry;
-        while (highscore_read(&entry) == 0) {
+        for (u32b i = 0; i < limit && highscore_read(&entry) == 0; i++) {
             char how_buf[sizeof(entry.how) + 1];
             char who_buf[sizeof(entry.who) + 1];
             parse_score_string(entry.how, sizeof(entry.how), how_buf, sizeof(how_buf));
@@ -786,8 +812,12 @@ static int load_scores_into_array(high_score* entries, int capacity)
     if (highscore_seek(0))
         return 0;
 
+    int limit = capacity;
+    if (scores_file_entry_count < (u32b)limit)
+        limit = (int)scores_file_entry_count;
+
     int count = 0;
-    while (count < capacity)
+    while (count < limit)
     {
         high_score temp;
         if (highscore_read(&temp))
@@ -973,13 +1003,12 @@ void upsert_live_score_on_save(void)
 
     if (!score_file_load_header(score_file_global_ctx(), score_path)) {
         score_file_header header;
+        memset(&header, 0, sizeof(header));
         header.version_major = SCORE_FILE_VERSION_MAJOR;
         header.version_minor = SCORE_FILE_VERSION_MINOR;
         header.version_patch = SCORE_FILE_VERSION_PATCH;
         header.version_extra = SCORE_FILE_VERSION_EXTRA;
         header.entry_count = 0;
-        header.reserved[0] = 0;
-        header.reserved[1] = 0;
         SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
         SDL_WriteIO(highscore_fd, &header, sizeof(header));
         scores_file_version_major = SCORE_FILE_VERSION_MAJOR;
@@ -1069,7 +1098,8 @@ int highscore_dead(char* name)
         return 0;
     }
 
-    for (int i = 0; i < MAX_HISCORES; i++) {
+    u32b limit = MIN(scores_file_entry_count, (u32b)MAX_HISCORES);
+    for (u32b i = 0; i < limit; i++) {
         high_score the_score;
         if (highscore_read(&the_score)) break;
         if (strcmp(name, the_score.who) == 0) {

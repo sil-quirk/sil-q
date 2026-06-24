@@ -954,8 +954,10 @@ void close_game(void)
                 if (highscore_seek(0) == 0) {
                     high_score tmp;
                     int idx;
+                    u32b limit = MIN(scores_file_entry_count,
+                        (u32b)MAX_HISCORES);
                     bool found = false;
-                    for (idx = 0; idx < MAX_HISCORES; idx++) {
+                    for (idx = 0; idx < (int)limit; idx++) {
                         if (highscore_read(&tmp)) break; /* EOF */
                         if (streq(tmp.who, live_score.who) && streq(tmp.how, "(alive and well)")) {
                             found = true; break;

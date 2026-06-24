@@ -866,9 +866,11 @@ void init_file_paths(char* path)
         ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
 
     /* Set up meta directory for scores.raw and metarun data */
-    char meta_root[1024];
+    char meta_root[1024] = "";
+    bool meta_root_ready = false;
     if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR))
     {
+        meta_root_ready = true;
         ensure_directory_exists(meta_root, "meta");
 
         char metarun_dir[1024];
@@ -887,13 +889,15 @@ void init_file_paths(char* path)
         ANGBAND_DIR_METARUN = str_dup(user_root);
     }
 
-    migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
+    if (meta_root_ready)
+        migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
 #ifdef __ANDROID__
     invalidate_android_raw_cache_if_needed(user_root, ANGBAND_DIR_DATA);
 #endif
     seed_user_data_from_install(ANGBAND_DIR_DATA);
 #if !defined(__ANDROID__) && !defined(SIL_IOS)
-    seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
+    if (meta_root_ready)
+        seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
 #endif
     seed_sound_config(user_root);

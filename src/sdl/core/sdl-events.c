@@ -2348,6 +2348,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
                     key = '5';
                     break;
             }
+            if (key <= 0 || key >= 256)
+                return;
             if (mod) {
                 sdl_send_macro_key(key, shift, ctrl || gui, alt);
             } else {

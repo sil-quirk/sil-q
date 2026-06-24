@@ -575,6 +575,9 @@ bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event)
     if (key == 'i' || key == 'I') {
         bool enabled = get_sdl_enable_right_panes();
 
+        if (key_event->repeat)
+            return true;
+
         set_sdl_enable_right_panes(!enabled);
         sdl_apply_config();
         if (character_dungeon)
@@ -584,6 +587,9 @@ bool sdl_handle_global_layout_shortcut(const SDL_KeyboardEvent* key_event)
 
     if (key == 'l' || key == 'L') {
         bool enabled = get_sdl_enable_bottom_panes();
+
+        if (key_event->repeat)
+            return true;
 
         set_sdl_enable_bottom_panes(!enabled);
         sdl_apply_config();

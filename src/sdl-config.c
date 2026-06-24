@@ -1819,22 +1819,37 @@ static char* read_file_contents(const char* filename)
         log_debug("Could not open JSON file: %s", filename);
         return NULL;
     }
-    
-    fseek(f, 0, SEEK_END);
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        log_error("Failed to seek JSON file: %s", filename);
+        fclose(f);
+        return NULL;
+    }
     long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    
-    char* content = (char*)malloc(size + 1);
+    if (size < 0 || size > 16L * 1024L * 1024L) {
+        log_error("Invalid JSON file size for %s: %ld", filename, size);
+        fclose(f);
+        return NULL;
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        log_error("Failed to rewind JSON file: %s", filename);
+        fclose(f);
+        return NULL;
+    }
+
+    char* content = (char*)malloc((size_t)size + 1);
     if (!content) {
         fclose(f);
         log_error("Failed to allocate memory for JSON file");
         return NULL;
     }
-    
-    size_t read_size = fread(content, 1, size, f);
+
+    size_t read_size = fread(content, 1, (size_t)size, f);
+    if (read_size != (size_t)size && ferror(f))
+        log_warn("Failed to read full JSON file: %s", filename);
     content[read_size] = '\0';
     fclose(f);
-    
+
     return content;
 }
 
@@ -1842,6 +1857,7 @@ static bool g_app_intro_seen = false;
 static bool g_app_touch_tutorial_seen = false;
 static bool g_app_mouse_tutorial_seen = false;
 static bool g_app_character_wheel_tutorial_seen = false;
+static bool g_app_keyboard_preset_prompt_seen = false;
 
 static const byte app_input_options[] = {
     OPT_hjkl_movement, OPT_angband_keyset,
@@ -2119,6 +2135,7 @@ void sdl_config_load_app_options(const char* filename)
     g_app_touch_tutorial_seen = false;
     g_app_mouse_tutorial_seen = false;
     g_app_character_wheel_tutorial_seen = false;
+    g_app_keyboard_preset_prompt_seen = false;
 
     if (!filename || !filename[0]) {
         log_warn("sdl_config_load_app_options: no config filename provided");
@@ -2166,6 +2183,11 @@ void sdl_config_load_app_options(const char* filename)
         "characterWheelTutorialSeen");
     if (cJSON_IsBool(item))
         g_app_character_wheel_tutorial_seen = cJSON_IsTrue(item);
+
+    item = cJSON_GetObjectItemCaseSensitive(app_options,
+        "keyboardPresetPromptSeen");
+    if (cJSON_IsBool(item))
+        g_app_keyboard_preset_prompt_seen = cJSON_IsTrue(item);
 
     sdl_config_load_app_option_group(app_options, "input", app_input_options);
     sdl_config_load_app_option_group(app_options, "interface", app_interface_options);
@@ -2283,6 +2305,16 @@ bool sdl_config_character_wheel_tutorial_seen(void)
 void sdl_config_mark_character_wheel_tutorial_seen(void)
 {
     g_app_character_wheel_tutorial_seen = true;
+}
+
+bool sdl_config_keyboard_preset_prompt_seen(void)
+{
+    return g_app_keyboard_preset_prompt_seen;
+}
+
+void sdl_config_mark_keyboard_preset_prompt_seen(void)
+{
+    g_app_keyboard_preset_prompt_seen = true;
 }
 
 static void sdl_config_load_touch_binding_array(cJSON* array, int* dst, int max_count)
@@ -4317,6 +4349,8 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 g_app_mouse_tutorial_seen);
             cJSON_AddBoolToObject(app_options, "characterWheelTutorialSeen",
                 g_app_character_wheel_tutorial_seen);
+            cJSON_AddBoolToObject(app_options, "keyboardPresetPromptSeen",
+                g_app_keyboard_preset_prompt_seen);
 
             sdl_config_save_app_option_group(app_options, "input", app_input_options);
             sdl_config_save_app_option_group(app_options, "interface", app_interface_options);

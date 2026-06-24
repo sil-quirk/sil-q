@@ -1544,6 +1544,7 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
 
     score_run_detail_header_v1 existing_detail;
     bool details_ready = false;
+    bool record_only_update = false;
     if (found) {
         if (!score_runs_read_detail_header_at(db, offset, &existing_detail)) {
             log_warn("score_runs: detail header missing for record_id=%u, appending new entry",
@@ -1551,10 +1552,11 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
             found = false;
         } else if (existing_detail.version != SCORE_RUN_DETAIL_VERSION) {
             log_warn("score_runs: detail payload version mismatch for record_id=%u "
-                "(stored=%u, expected=%u) - rebuilding with defaults",
+                "(stored=%u, expected=%u) - updating fixed record only",
                 existing.record_id, (unsigned)existing_detail.version,
                 (unsigned)SCORE_RUN_DETAIL_VERSION);
-            details_ready = false;
+            record_only_update = true;
+            details_ready = true;
         } else if (!score_runs_build_details(&details,
                                              existing_detail.artefact_capacity,
                                              existing_detail.monster_capacity)) {
@@ -1582,12 +1584,18 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
     if (found) {
         record.record_id = existing.record_id;
         record.chronological_idx = existing.chronological_idx;
-        if (SDL_SeekIO(db, offset, SDL_IO_SEEK_SET) >= 0 &&
-            score_runs_write_record(db, &record, &details)) {
-            success = true;
-        } else {
-            log_warn("score_runs: failed to update record_id=%u", record.record_id);
+        if (SDL_SeekIO(db, offset, SDL_IO_SEEK_SET) >= 0) {
+            if (record_only_update) {
+                success = (SDL_WriteIO(db, &record, sizeof(record))
+                    == sizeof(record));
+            } else {
+                success = score_runs_write_record(db, &record, &details);
+            }
+            if (success)
+                SDL_FlushIO(db);
         }
+        if (!success)
+            log_warn("score_runs: failed to update record_id=%u", record.record_id);
         SDL_SeekIO(db, 0, SDL_IO_SEEK_END);
     } else {
         record.record_id = header.record_count;

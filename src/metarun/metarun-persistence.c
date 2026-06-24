@@ -1,6 +1,8 @@
 #include "angband.h"
 #include "metarun-internal.h"
 
+#include <limits.h>
+
 static errr backup_file(const char *filepath);
 
 bool build_meta_path(char *buf, size_t len,
@@ -33,16 +35,19 @@ bool build_meta_path(char *buf, size_t len,
     }
 
     char sub[128];
+#ifdef SIL_USE_LOCAL_DATA
     if (name[0])
         strnfmt(sub, sizeof sub, "%s/%08u/%s",
             META_SUBDIR, (unsigned)m->id, name);
     else
         strnfmt(sub, sizeof sub, "%s/%08u",
             META_SUBDIR, (unsigned)m->id);
-#ifdef SIL_USE_LOCAL_DATA
     if (!path_build(buf, len, ANGBAND_DIR_APEX, sub))
 #else
-    /* For metarun subdirectories, use ANGBAND_DIR_METARUN */
+    if (name[0])
+        strnfmt(sub, sizeof sub, "%08u/%s", (unsigned)m->id, name);
+    else
+        strnfmt(sub, sizeof sub, "%08u", (unsigned)m->id);
     if (!path_build(buf, len, ANGBAND_DIR_METARUN, sub))
 #endif
     {
@@ -176,18 +181,34 @@ void apply_difficulty_curses(metarun *m)
     }
 }
 
-/* ensure directory apex/metaruns/NNNNNNNN exists */
+/* ensure the per-run metarun directory exists */
 void ensure_run_dir(const metarun *m)
 {
+    char base[1024];
     char dir[1024];
-    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, META_SUBDIR))
+    char leaf[32];
+
+    if (!m)
+        return;
+
+#ifdef SIL_USE_LOCAL_DATA
+    if (!path_build(base, sizeof base, ANGBAND_DIR_APEX, META_SUBDIR))
     {
         log_error("ensure_run_dir: failed to build base metarun directory");
         return;
     }
-    MKDIR(dir);
-    strnfmt(dir, sizeof dir, "%s/%08u", META_SUBDIR, (unsigned)m->id);
-    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir))
+#else
+    if (!ANGBAND_DIR_METARUN || !*ANGBAND_DIR_METARUN)
+    {
+        log_error("ensure_run_dir: metarun directory is not configured");
+        return;
+    }
+    SDL_strlcpy(base, ANGBAND_DIR_METARUN, sizeof(base));
+#endif
+
+    MKDIR(base);
+    strnfmt(leaf, sizeof leaf, "%08u", (unsigned)m->id);
+    if (!path_build(dir, sizeof dir, base, leaf))
     {
         log_error("ensure_run_dir: failed to build run directory for id=%u",
             (unsigned)m->id);
@@ -487,7 +508,13 @@ errr load_metaruns(bool create_if_missing)
 
     /* All metarun files are versioned (v0.9.0+) */
     Sint64 file_size_64 = sdl_size(fd);
-    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
+    if (file_size_64 < 0 || file_size_64 > INT_MAX) {
+        log_error("Invalid metarun file size: %lld",
+            (long long)file_size_64);
+        sdl_fclose(fd);
+        return -1;
+    }
+    int file_size = (int)file_size_64;
     const char *recovery_reason = NULL;
 
     meta_file_header header;
@@ -716,12 +743,18 @@ static errr backup_file(const char *filepath)
 
     /* Get file size */
     Sint64 file_size_64 = sdl_size(fd_src);
-    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
-    if (file_size <= 0) {
+    if (file_size_64 <= 0) {
         log_info("backup_file: original file %s is empty, no backup needed", filepath);
         sdl_fclose(fd_src);
         return 0;
     }
+    if (file_size_64 > INT_MAX) {
+        log_error("backup_file: file too large to back up: %lld bytes",
+                  (long long)file_size_64);
+        sdl_fclose(fd_src);
+        return -1;
+    }
+    int file_size = (int)file_size_64;
 
     log_info("backup_file: creating backup for %s (size: %d bytes)", filepath, file_size);
 

@@ -125,7 +125,7 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t character)
         localtime(&now));
 
     /* immediate cause of death - will be overwritten below anyway      */
-    strnfmt(e->how,  sizeof e->how, op_ptr->base_name);
+    strnfmt(e->how, sizeof e->how, "%s", op_ptr->base_name);
 }
 
 
@@ -640,6 +640,8 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     off_t file_end = SDL_TellIO(highscore_fd);
     off_t payload  = file_end - (off_t)sizeof(score_file_header);
     int n_recs = (int)(payload / (off_t)sizeof(high_score));
+    if (scores_file_entry_count < (u32b)n_recs)
+        n_recs = (int)scores_file_entry_count;
     log_trace("hi-score file size=%lld, payload=%lld, records=%d",
               (long long)file_end, (long long)payload, n_recs);
 
@@ -817,7 +819,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             }
             /* kill existing */
             if (highscore_seek(hit) == 0 && highscore_read(&entry) == 0) {
-                strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
+                strnfmt(entry.how, sizeof entry.how, "%s", op_ptr->base_name);
                 highscore_seek(hit);
                 highscore_write(&entry);
                 log_info("Kinslayer killed existing hero: \"%s\"", entry.who);

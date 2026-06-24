@@ -2757,7 +2757,7 @@ int object_difficulty(object_type* o_ptr)
         }
         if (f3 & TR3_LIGHT_CURSE)
         {
-            dif_dec += 2;
+            dif_dec += 3;
         }
         if (f3 & TR3_CUMBERSOME)
         {
@@ -2785,7 +2785,7 @@ int object_difficulty(object_type* o_ptr)
         }
         if (f3 & TR3_PERMA_CURSE)
         {
-            dif_dec += 6;
+            dif_dec += 8;
         }
     }
 

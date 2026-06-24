@@ -2095,22 +2095,23 @@ errr Term_flush(void)
 errr Term_keypress(int k)
 {
     /* Hack -- Refuse to enqueue non-keys */
-    if (!k)
+    if (k <= 0 || k > 255)
         return (-1);
 
-    /* Store the char, advance the queue */
-    Term->key_queue[Term->key_head++] = k;
+    int next = Term->key_head + 1;
 
     /* Circular queue, handle wrap */
-    if (Term->key_head == Term->key_size)
-        Term->key_head = 0;
+    if (next == Term->key_size)
+        next = 0;
 
-    /* Success (unless overflow) */
-    if (Term->key_head != Term->key_tail)
-        return (0);
+    if (next == Term->key_tail)
+        return (1);
 
-    /* Problem */
-    return (1);
+    /* Store the char, advance the queue */
+    Term->key_queue[Term->key_head] = k;
+    Term->key_head = next;
+
+    return (0);
 }
 
 /*
@@ -2119,22 +2120,22 @@ errr Term_keypress(int k)
 errr Term_key_push(int k)
 {
     /* Hack -- Refuse to enqueue non-keys */
-    if (!k)
+    if (k <= 0 || k > 255)
         return (-1);
 
-    /* Hack -- Overflow may induce circular queue */
-    if (Term->key_tail == 0)
-        Term->key_tail = Term->key_size;
+    int prev = Term->key_tail;
+    if (prev == 0)
+        prev = Term->key_size;
+    prev--;
+
+    if (prev == Term->key_head)
+        return (1);
 
     /* Back up, Store the char */
-    Term->key_queue[--Term->key_tail] = k;
+    Term->key_tail = prev;
+    Term->key_queue[Term->key_tail] = k;
 
-    /* Success (unless overflow) */
-    if (Term->key_head != Term->key_tail)
-        return (0);
-
-    /* Problem */
-    return (1);
+    return (0);
 }
 
 /*
