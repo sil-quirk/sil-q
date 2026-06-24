@@ -483,6 +483,7 @@ struct monster_race
 
     byte x_attr; /* Desired monster attribute */
     char x_char; /* Desired monster character */
+    byte tile_facing; /* Source tile horizontal facing, if any */
 
     byte max_num; /* Maximum population allowed per level */
     byte cur_num; /* Monster population on current level */
@@ -736,6 +737,7 @@ struct monster_type
 
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
+    byte visual_facing_dir; /* Cosmetic tile facing direction (not saved) */
 
     /* Thrall quest system */
     byte thrall_quest_item;      /* Item the thrall wants: see THRALL_QUEST_* */

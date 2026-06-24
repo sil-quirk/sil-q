@@ -2885,6 +2885,7 @@
 #define OPT_handcrafted_player_tile_facing 116
 #define OPT_story_object_desc 117
 #define OPT_hide_secondary_action_ring 118
+#define OPT_mirror_monster_tile_facing 119
 
 /*
  * Settings retired by the 0.9.7 interface refactor. These are not legacy
@@ -2903,6 +2904,10 @@
 #define PLAYER_TILE_FACING_MIRROR      1
 #define PLAYER_TILE_FACING_HANDCRAFTED 2
 #define PLAYER_TILE_FACING_MAX         PLAYER_TILE_FACING_HANDCRAFTED
+
+#define MONSTER_TILE_FACING_NONE  0
+#define MONSTER_TILE_FACING_LEFT  1
+#define MONSTER_TILE_FACING_RIGHT 2
 
 /* Intro screen style constants */
 #define INTRO_STYLE_FLAME       0   /* Flame Imperishable (Ainulindalë) */
@@ -2991,6 +2996,7 @@
 #define sleep_icon op_ptr->opt[OPT_sleep_icon]
 #define mirror_player_tile_facing op_ptr->opt[OPT_mirror_player_tile_facing]
 #define handcrafted_player_tile_facing op_ptr->opt[OPT_handcrafted_player_tile_facing]
+#define mirror_monster_tile_facing op_ptr->opt[OPT_mirror_monster_tile_facing]
 #define assassination_over_charge op_ptr->opt[OPT_assassination_over_charge]
 #define pacifist_attack_warning op_ptr->opt[OPT_pacifist_attack_warning]
 #define active_weapon_switch_confirm op_ptr->opt[OPT_active_weapon_switch_confirm]
@@ -3198,7 +3204,7 @@
  * Information for "do_cmd_options()".
  */
 #define OPT_PAGE_MAX 7
-#define OPT_PAGE_PER 20
+#define OPT_PAGE_PER 24
 
 /*
  *  Break things into pages

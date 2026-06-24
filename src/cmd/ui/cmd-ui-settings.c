@@ -186,6 +186,7 @@ static const struct option_group_marker visual_option_groups[] = {
     { OPT_delay_factor, "Animation" },
     { OPT_running_delay, "Animation" },
     { OPT_mirror_player_tile_facing, "Animation" },
+    { OPT_mirror_monster_tile_facing, "Animation" },
     { OPT_center_player, "Camera" },
     { OPT_run_avoid_center, "Camera" },
     { OPT_show_level_entry_banner, "Narrative" },
@@ -888,6 +889,8 @@ static cptr option_menu_label(int opt)
         case OPT_sleep_icon: return narrow ? "Sleep icon" : "Sleep icon";
         case OPT_mirror_player_tile_facing:
             return narrow ? "Direction anim" : "Directional character animation";
+        case OPT_mirror_monster_tile_facing:
+            return narrow ? "Monster facing" : "Directional monster animation";
         case OPT_look_nearby_filter_default: return narrow ? "Look near def" : "Look nearby default";
         case OPT_birth_discon_stair: return narrow ? "Disc. stairs" : "Disconnected stairs";
         case OPT_birth_ironman: return narrow ? "Straight down" : "Straight down";
@@ -1042,7 +1045,8 @@ static void option_apply_side_effects(int opt)
         sdl_refresh_supporting_panes_layout();
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing
-        || opt == OPT_handcrafted_player_tile_facing)
+        || opt == OPT_handcrafted_player_tile_facing
+        || opt == OPT_mirror_monster_tile_facing)
         p_ptr->redraw |= (PR_MAP);
 }
 

@@ -182,6 +182,27 @@ errr parse_r_info(char* buf, header* head)
         return parse_tile_line(buf, &r_ptr->x_attr, &r_ptr->x_char);
     }
 
+    /* Process 'O' for visual "Orientation" (one line only) */
+    else if (buf[0] == 'O')
+    {
+        /* There better be a current r_ptr */
+        if (!r_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = buf + 2;
+        while (isspace((unsigned char)*s))
+            s++;
+
+        if (streq(s, "FACING_LEFT") || streq(s, "LEFT"))
+            r_ptr->tile_facing = MONSTER_TILE_FACING_LEFT;
+        else if (streq(s, "FACING_RIGHT") || streq(s, "RIGHT"))
+            r_ptr->tile_facing = MONSTER_TILE_FACING_RIGHT;
+        else if (streq(s, "FACING_NONE") || streq(s, "NONE"))
+            r_ptr->tile_facing = MONSTER_TILE_FACING_NONE;
+        else
+            return (PARSE_ERROR_GENERIC);
+    }
+
     /* Process 'I' for "Info" (one line only) */
     else if (buf[0] == 'I')
     {

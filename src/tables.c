@@ -266,7 +266,7 @@ cptr option_text[OPT_MAX] = {
     "handcrafted_player_tile_facing", /* OPT_handcrafted_player_tile_facing */
     "story_object_desc", /* OPT_story_object_desc */
     "hide_secondary_action_ring", /* OPT_hide_secondary_action_ring */
-    NULL, /* reserved legacy slot */
+    "mirror_monster_tile_facing", /* OPT_mirror_monster_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -511,7 +511,7 @@ cptr option_desc[OPT_MAX] = {
     "Use handcrafted right-facing player tiles", /* OPT_handcrafted_player_tile_facing */
     "Render object description overlays with the story font", /* OPT_story_object_desc */
     "Hide the action wheel's secondary ring until its sector is hovered", /* OPT_hide_secondary_action_ring */
-    NULL, /* reserved legacy slot */
+    "Mirror monster tiles to face horizontal movement", /* OPT_mirror_monster_tile_facing */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -772,7 +772,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_handcrafted_player_tile_facing */
     false, /* OPT_story_object_desc */
     true, /* OPT_hide_secondary_action_ring */
-    false, /* reserved legacy slot */
+    false, /* OPT_mirror_monster_tile_facing */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -925,7 +925,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_hide_secondary_action_ring,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Text options ***/
 
@@ -934,7 +935,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_story_lists_equip_pane,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Game-Play ***/
 
@@ -945,24 +947,28 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_disable_skeleton_note_tutorial, OPT_smaller_level_size, OPT_more_stairs,
         OPT_vault_drop_frequency, OPT_noble_item_spawn_mode,
         OPT_min_depth_timer_mode, OPT_load_blitz_by_default,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Display ***/
 
     { OPT_stealth_vision, OPT_sleep_icon, OPT_artifact_unique_color,
         OPT_unidentified_items_slate, OPT_delay_factor, OPT_running_delay,
-        OPT_mirror_player_tile_facing, OPT_center_player,
+        OPT_mirror_player_tile_facing, OPT_mirror_monster_tile_facing,
+        OPT_center_player,
         OPT_run_avoid_center, OPT_show_level_entry_banner,
         OPT_show_partition_narrative, OPT_narrative_banner_turns,
         OPT_intro_style, OPT_solid_walls, OPT_hybrid_walls,
         OPT_hilite_player, OPT_hilite_target, OPT_hilite_unwary,
-        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look },
+        OPT_show_smithing_difficulty, OPT_show_smithing_difficulty_look,
+        OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 
     { OPT_birth_discon_stair, OPT_birth_ironman, OPT_birth_no_artefacts,
         OPT_birth_fixed_exp, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Cheat ***/
@@ -972,13 +978,15 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_cheat_scent, OPT_cheat_light, OPT_cheat_skill_rolls,
         OPT_cheat_live, OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Sound ***/
 
     { OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE }
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE }
 };
 
 cptr inscrip_text[MAX_INSCRIP] = { NULL,

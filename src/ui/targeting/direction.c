@@ -95,6 +95,53 @@ void player_set_visual_facing_target_immediate(int y, int x)
     player_refresh_visual_facing();
 }
 
+static bool monster_visual_facing_enabled(void)
+{
+    return op_ptr && mirror_monster_tile_facing;
+}
+
+void monster_set_visual_facing_dir(monster_type* m_ptr, int dir)
+{
+    if (!m_ptr)
+        return;
+
+    if ((dir >= 1) && (dir <= 9))
+        m_ptr->visual_facing_dir = (byte)dir;
+}
+
+void monster_set_visual_facing_target(monster_type* m_ptr, int y, int x)
+{
+    if (!m_ptr)
+        return;
+
+    monster_set_visual_facing_dir(
+        m_ptr, rough_direction(m_ptr->fy, m_ptr->fx, y, x));
+}
+
+static void monster_refresh_visual_facing(const monster_type* m_ptr)
+{
+    if (!p_ptr || !character_dungeon || !monster_visual_facing_enabled())
+        return;
+    if (!m_ptr || !m_ptr->ml || !in_bounds(m_ptr->fy, m_ptr->fx))
+        return;
+
+    lite_spot(m_ptr->fy, m_ptr->fx);
+    handle_stuff();
+    Term_fresh();
+}
+
+void monster_set_visual_facing_dir_immediate(monster_type* m_ptr, int dir)
+{
+    monster_set_visual_facing_dir(m_ptr, dir);
+    monster_refresh_visual_facing(m_ptr);
+}
+
+void monster_set_visual_facing_target_immediate(monster_type* m_ptr, int y, int x)
+{
+    monster_set_visual_facing_target(m_ptr, y, x);
+    monster_refresh_visual_facing(m_ptr);
+}
+
 /*
  * Get an "aiming direction" (1,2,3,4,6,7,8,9 or 5) from the user.
  *

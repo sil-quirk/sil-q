@@ -1892,6 +1892,7 @@ static const byte app_visual_options[] = {
     OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
     OPT_mirror_player_tile_facing, OPT_handcrafted_player_tile_facing,
+    OPT_mirror_monster_tile_facing,
     OPT_center_player, OPT_run_avoid_center,
     OPT_show_smithing_difficulty,
     OPT_show_smithing_difficulty_look, OPT_NONE

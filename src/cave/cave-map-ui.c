@@ -313,8 +313,23 @@ void lite_spot(int y, int x)
             Term_queue_char(vx, vy, TERM_WHITE, ' ', TERM_WHITE, ' ');
     }
 
-    if (!graphics_are_ascii() && (cave_m_idx[y][x] < 0))
-        force_term_cell_redraw(vx - (use_bigtile ? 1 : 0), vy, cell_w);
+    if (!graphics_are_ascii())
+    {
+        bool force_visual_redraw = (cave_m_idx[y][x] < 0);
+
+        if (!force_visual_redraw && mirror_monster_tile_facing
+            && (cave_m_idx[y][x] > 0))
+        {
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+            force_visual_redraw =
+                m_ptr->ml && (r_ptr->tile_facing != MONSTER_TILE_FACING_NONE);
+        }
+
+        if (force_visual_redraw)
+            force_term_cell_redraw(vx - (use_bigtile ? 1 : 0), vy, cell_w);
+    }
 }
 
 /*

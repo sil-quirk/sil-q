@@ -540,6 +540,7 @@ void monster_swap(int y1, int x1, int y2, int x2)
         /* Move monster */
         m_ptr->fy = y2;
         m_ptr->fx = x2;
+        m_ptr->visual_facing_dir = (byte)rough_direction(y1, x1, y2, x2);
 
         if ((r_info[m_ptr->r_idx].flags3 & RF3_SPECIAL_VAULT_ONLY)
             && (((cave_info[y1][x1] & CAVE_G_VAULT) == 0)
@@ -658,6 +659,7 @@ void monster_swap(int y1, int x1, int y2, int x2)
         /* Move monster */
         m_ptr->fy = y1;
         m_ptr->fx = x1;
+        m_ptr->visual_facing_dir = (byte)rough_direction(y2, x2, y1, x1);
 
         // makes noise when moving
         if (m_ptr->noise == 0)

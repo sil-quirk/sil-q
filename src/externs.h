@@ -2023,6 +2023,11 @@ extern void player_set_visual_facing_dir(int dir);
 extern void player_set_visual_facing_target(int y, int x);
 extern void player_set_visual_facing_dir_immediate(int dir);
 extern void player_set_visual_facing_target_immediate(int y, int x);
+extern void monster_set_visual_facing_dir(monster_type* m_ptr, int dir);
+extern void monster_set_visual_facing_target(monster_type* m_ptr, int y, int x);
+extern void monster_set_visual_facing_dir_immediate(monster_type* m_ptr, int dir);
+extern void monster_set_visual_facing_target_immediate(
+    monster_type* m_ptr, int y, int x);
 extern bool get_aim_dir(int* dp, int range);
 extern bool get_aim_dir_vertical(int* dp, int range);
 extern bool get_rep_dir(int* dp);

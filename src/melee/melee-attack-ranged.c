@@ -243,6 +243,8 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
         m_ptr->mana -= manacost; // Sil-x: this is a hack to only have you pay
                                  // mana for things other than songs
 
+    monster_set_visual_facing_target_immediate(m_ptr, p_ptr->py, p_ptr->px);
+
     /*** Get some info. ***/
 
     /* Extract the monster's spell power.  Must be at least 1. */

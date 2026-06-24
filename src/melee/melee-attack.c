@@ -600,6 +600,8 @@ bool make_attack_normal(monster_type* m_ptr)
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))
         return (false);
 
+    monster_set_visual_facing_target_immediate(m_ptr, p_ptr->py, p_ptr->px);
+
     if (m_idx > 0)
         song_disguise_note_monster_attack(m_idx);
 

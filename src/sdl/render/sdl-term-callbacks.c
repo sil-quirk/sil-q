@@ -743,6 +743,69 @@ byte sdl_player_tile_handcrafted_right_attr(byte a)
     }
 }
 
+static byte sdl_horizontal_facing_from_dir(int dir)
+{
+    switch (dir) {
+    case 1:
+    case 4:
+    case 7:
+        return MONSTER_TILE_FACING_LEFT;
+    case 3:
+    case 6:
+    case 9:
+        return MONSTER_TILE_FACING_RIGHT;
+    default:
+        return MONSTER_TILE_FACING_NONE;
+    }
+}
+
+static bool sdl_monster_tile_should_flip(int y, int x, byte a, char c)
+{
+    int m_idx;
+    int r_idx;
+    monster_type* m_ptr;
+    monster_race* r_ptr;
+    byte current_facing;
+
+    if (!op_ptr || !mirror_monster_tile_facing || !p_ptr || !mon_list
+        || !r_info || !z_info)
+        return false;
+
+    if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
+        || (x >= p_ptr->cur_map_wid))
+        return false;
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->ml)
+        return false;
+
+    r_idx = (p_ptr->image) ? m_ptr->image_r_idx : m_ptr->r_idx;
+    if ((r_idx <= 0) || (r_idx >= z_info->r_max))
+        return false;
+
+    r_ptr = &r_info[r_idx];
+    if (r_ptr->tile_facing == MONSTER_TILE_FACING_NONE)
+        return false;
+    if (!(r_ptr->x_attr & TILE_FLAG) || !(((byte)r_ptr->x_char) & TILE_FLAG)
+        || (TILE_GET_INDEX(a) != TILE_GET_INDEX(r_ptr->x_attr))
+        || (TILE_GET_INDEX((byte)c) != TILE_GET_INDEX((byte)r_ptr->x_char)))
+    {
+        return false;
+    }
+
+    current_facing = sdl_horizontal_facing_from_dir(m_ptr->visual_facing_dir);
+    if (current_facing == MONSTER_TILE_FACING_NONE)
+        current_facing = sdl_horizontal_facing_from_dir(m_ptr->previous_action[0]);
+    if (current_facing == MONSTER_TILE_FACING_NONE)
+        return false;
+
+    return current_facing != r_ptr->tile_facing;
+}
+
 void sdl_draw_ascii_minimap_cell(byte a, char c, byte ta, char tc,
     const SDL_FRect* dst)
 {
@@ -1123,6 +1186,10 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
                 draw_a = sdl_player_tile_handcrafted_right_attr(a);
             else
                 flip = SDL_FLIP_HORIZONTAL;
+        }
+        else if (sdl_monster_tile_should_flip(dy, dx, a, c))
+        {
+            flip = SDL_FLIP_HORIZONTAL;
         }
 
         sdl_draw_tileset_sprite_ex(draw_a, c, dst, false, flip);
