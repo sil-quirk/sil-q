@@ -231,6 +231,7 @@ void dungeon(void)
         handle_partition_entry(true, entry_mode);
     }
 
+    keyboard_preset_maybe_show_first_game_selection();
     sdl_touch_maybe_show_first_game_tutorial();
     sdl_mouse_maybe_show_first_game_tutorial();
 

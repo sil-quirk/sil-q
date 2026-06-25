@@ -2355,6 +2355,8 @@ extern bool sdl_mouse_settings_tutorial_requested(void);
 extern void sdl_mouse_show_requested_tutorial(void);
 extern void sdl_mouse_show_tutorial(void);
 extern void sdl_mouse_maybe_show_first_game_tutorial(void);
+extern void keyboard_preset_maybe_show_first_game_selection(void);
+extern bool keyboard_preset_choose_and_apply(void);
 extern void sdl_character_wheel_request_tutorial_from_settings(void);
 extern bool sdl_character_wheel_settings_tutorial_requested(void);
 extern void sdl_zones_request_tutorial_from_settings(void);

@@ -8969,12 +8969,12 @@ static void do_cmd_keyboard_input_settings(void)
         {
             if (selected == 1)
             {
-                u16b preset = sdl_config_next_movement_preset(
-                    config.movement_keyboard_preset);
-
-                sdl_config_set_default_movement_bindings(&config, preset);
-                sdl_config_apply_keyboard_keymaps(&config);
-                save_pane_config_to_json();
+                /* Open the full chooser so the per-preset descriptions and the
+                 * general recommendation are visible while picking, instead of
+                 * blind-cycling the preset. */
+                settings_semantic_menu_hide();
+                (void)keyboard_preset_choose_and_apply();
+                Term_clear();
             }
             else if (selected == 2)
             {

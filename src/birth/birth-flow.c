@@ -57,6 +57,15 @@ static const birth_keyboard_preset_choice keyboard_preset_choices[] = {
     },
 };
 
+/*
+ * General guidance shown beneath the focused preset's description and kept
+ * visible no matter which preset is highlighted.
+ */
+static const char* const keyboard_preset_recommendation =
+    "Recommended: Classic Sil or Vi Keys for experienced Angband/Sil players; "
+    "Modern Arrows for keyboard-heavy play; Modern WASD+QEZC for mouse-heavy "
+    "play.";
+
 static bool keyboard_preset_is_builtin(u16b preset)
 {
     for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
@@ -89,26 +98,6 @@ static bool birth_keyboard_preset_prompt_needed(void)
         return false;
 
     return true;
-}
-
-static cptr keyboard_preset_longest_text(void)
-{
-    cptr longest = "";
-    size_t longest_len = 0;
-
-    for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
-    {
-        cptr text = keyboard_preset_choices[i].text;
-        size_t len = text ? strlen(text) : 0;
-
-        if (len > longest_len)
-        {
-            longest = text;
-            longest_len = len;
-        }
-    }
-
-    return longest;
 }
 
 static void birth_keyboard_preset_center_putstr(int row, byte attr, cptr text)
@@ -175,6 +164,15 @@ static void birth_keyboard_preset_draw_terminal(int selected)
     birth_put_wrapped_text(TERM_SLATE, keyboard_preset_choices[selected].text,
         detail_row, 2);
 
+    /* Always-visible general recommendation, pinned near the bottom so it
+     * shows regardless of the highlighted preset. */
+    {
+        int rec_row = (prompt_row > detail_row + 2) ? prompt_row - 2
+                                                    : detail_row;
+        birth_put_wrapped_text(TERM_L_GREEN, keyboard_preset_recommendation,
+            rec_row, 2);
+    }
+
     if (prompt_row >= 0)
     {
         cptr prompt = "Enter select  Esc back";
@@ -213,10 +211,6 @@ static int birth_keyboard_preset_choose(void)
         {
             sdl_character_sheet_screen_set_select_menu_style(true);
             sdl_character_sheet_screen_set_select_dynamic_description(true);
-            sdl_character_sheet_screen_set_select_size_hint(
-                keyboard_preset_longest_text());
-            sdl_character_sheet_screen_set_select_description(
-                keyboard_preset_choices[selected].text);
 
             for (int i = 0; i < (int)N_ELEMENTS(keyboard_preset_choices); i++)
             {
@@ -231,6 +225,17 @@ static int birth_keyboard_preset_choose(void)
                 sdl_character_sheet_screen_add_select_row(i, label,
                     i == selected ? TERM_L_BLUE : TERM_WHITE, "");
             }
+
+            /* Feed the detail panel for the focused preset.  Without any detail
+             * content the polished two-panel menu bails to a sparse, full-width
+             * single-column list, so this is what gives it the proper layout
+             * (list on one side, description on the other). */
+            sdl_character_sheet_screen_add_select_detail(
+                keyboard_preset_choices[selected].text, TERM_WHITE, "");
+            /* Always-visible general recommendation, re-added every iteration
+             * so it stays put regardless of the highlighted preset. */
+            sdl_character_sheet_screen_add_select_detail(
+                keyboard_preset_recommendation, TERM_L_GREEN, "");
             sdl_character_sheet_screen_commit_select(selected);
         }
         else
@@ -325,26 +330,55 @@ static int birth_keyboard_preset_choose(void)
     }
 }
 
-static NavResult birth_maybe_choose_keyboard_preset(void)
+/*
+ * Open the keyboard movement preset chooser, apply the picked preset, and
+ * persist it.  Shared by the first-game prompt and the Input options menu so
+ * both show the same per-preset descriptions and general recommendation.
+ *
+ * Returns true when a preset was chosen; dismissing with Esc returns false and
+ * leaves the current preset (and the first-run "seen" flag) untouched.
+ */
+bool keyboard_preset_choose_and_apply(void)
 {
     int choice;
     u16b preset;
 
-    if (!birth_keyboard_preset_prompt_needed())
-        return NAV_OK;
-
+    /* Modal over whatever is currently on screen; restore it when done. */
+    screen_save();
     choice = birth_keyboard_preset_choose();
+    screen_load();
+
     if (choice < 0)
-        return NAV_BACK;
+        return false;
 
     preset = keyboard_preset_choices[choice].preset;
     sdl_config_set_default_movement_bindings(&config, preset);
     sdl_config_apply_keyboard_keymaps(&config);
     sdl_config_mark_keyboard_preset_prompt_seen();
     save_pane_config_to_json();
-    log_info("Selected first-game keyboard movement preset: %s",
+    log_info("Selected keyboard movement preset: %s",
         sdl_config_movement_preset_label(preset));
-    return NAV_OK;
+    return true;
+}
+
+/*
+ * First-run keyboard movement preset selection.
+ *
+ * Shown once at the start of the first game from the dungeon display setup,
+ * alongside the touch/mouse first-run tutorials (see dungeon-loop.c), rather
+ * than during character birth.  Skipped on touch-only and controller setups:
+ * those drive movement through their own input layers and never touch the
+ * keyboard movement presets, so the prompt would only be noise.
+ */
+void keyboard_preset_maybe_show_first_game_selection(void)
+{
+    if (!birth_keyboard_preset_prompt_needed())
+        return;
+
+    if (sdl_touch_only_device_active() || steamdeck_controls_active())
+        return;
+
+    (void)keyboard_preset_choose_and_apply();
 }
 
 /*
@@ -367,12 +401,6 @@ static NavResult player_birth_aux(void)
     p_ptr->wt = 0;
     p_ptr->ht = 0;
     p_ptr->age = 0;
-
-    {
-        NavResult preset_result = birth_maybe_choose_keyboard_preset();
-        if (preset_result != NAV_OK)
-            return preset_result;
-    }
 
     /* Oath selection (after character creation, before tutorial/stats) */
     if (run_mode_is_blitz() && !blitz_oaths_enabled())

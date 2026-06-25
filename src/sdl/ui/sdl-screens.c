@@ -4307,15 +4307,18 @@ void sdl_char_sheet_render_menu_select(TTF_Font* prompt_font,
     }
     else if (desc && desc[0])
     {
-        desc_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.023f),
-            13, 26);
+        /* Help/description band sits beneath the menu rows.  Keep it clearly
+         * readable (it used to cap at 26px and looked tiny next to the larger
+         * menu rows on big screens). */
+        desc_px = sdl_char_sheet_clampi((int)((float)canvas_h * 0.030f),
+            16, 36);
         desc_font = sdl_story_font_for_height_slot(desc_px,
             SDL_STORY_FONT_SLOT_MENU);
         desc_line_h = sdl_char_sheet_line_h(desc_font, desc_px, 1.16f);
         desc_lines = sdl_char_sheet_wrap_text(desc_font, desc, content_w,
             NULL, 0);
-        if (desc_lines > 3)
-            desc_lines = 3;
+        if (desc_lines > 4)
+            desc_lines = 4;
         desc_h = desc_line_h * (float)desc_lines;
         desc_gap = sdl_char_sheet_clampf(region_h * 0.025f, 8.0f, 18.0f);
         g_sdl_character_sheet_screen.last_desc_px = desc_px;
