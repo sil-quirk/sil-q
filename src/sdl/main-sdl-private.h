@@ -149,7 +149,8 @@ enum {
     SDL_STORY_FONT_SLOT_LOG       = 1, /* message log and log pane */
     SDL_STORY_FONT_SLOT_CHAR_DESC = 1, /* character sheet description / history */
     SDL_STORY_FONT_SLOT_CHAR_NUM  = 1, /* character sheet numeric values */
-    SDL_STORY_FONT_SLOT_CHAR_SELECT = 1 /* character selection (race/house) book body */
+    SDL_STORY_FONT_SLOT_CHAR_SELECT = 1, /* character selection (race/house) book body */
+    SDL_STORY_FONT_SLOT_TUTORIAL = 1 /* touch/mouse/zones and birth coach tutorials */
 };
 
 typedef struct story_font_entry {
@@ -409,6 +410,7 @@ typedef struct welcome_touch_press_state {
     SDL_FingerID finger_id;
     float start_x;
     float start_y;
+    Uint64 start_time;
 } welcome_touch_press_state;
 
 typedef enum sdl_welcome_screen_mode {
@@ -429,7 +431,6 @@ typedef enum sdl_welcome_line_role {
 } sdl_welcome_line_role;
 
 typedef struct sdl_welcome_intro_line {
-    int row;
     byte attr;
     sdl_welcome_line_role role;
     const char* text;
@@ -553,7 +554,7 @@ typedef struct sdl_character_sheet_screen_state {
     char select_desc_sizing[4096]; /* longest description, for stable layout */
     bool select_book_mode;     /* screen 1: story/explanation page, no detail */
     bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
-    int select_page;           /* book mode: current page (0 = story, 1 = choice) */
+    int select_page;           /* book mode: current page (last = choice) */
     int select_page_count;     /* book mode: number of pages (1 otherwise) */
     int select_book_body_px;   /* cached body size for race book layout */
     int select_book_body_for_h;
@@ -608,12 +609,6 @@ typedef struct sdl_character_sheet_screen_state {
     SDL_FRect select_scroll_rect;
     menu_scroll_drag_state select_scroll_drag;
 } sdl_character_sheet_screen_state;
-
-typedef struct sdl_welcome_picture_bounds {
-    bool any;
-    float left;
-    float right;
-} sdl_welcome_picture_bounds;
 
 typedef struct touch_zone_press_state {
     bool active;
@@ -1827,30 +1822,13 @@ bool sdl_welcome_screen_show_menu(bool show_wizard, bool new_metarun);
 bool sdl_welcome_screen_set_status(cptr status);
 bool sdl_welcome_screen_show_loading(cptr status);
 void sdl_welcome_screen_hide(void);
-int sdl_welcome_col_for_role(sdl_welcome_line_role role);
-int sdl_welcome_slot_for_role(sdl_welcome_line_role role);
-bool sdl_welcome_line_centers_footer(sdl_welcome_line_role role);
-int sdl_welcome_font_px_for_canvas(const SDL_Rect* canvas);
-float sdl_welcome_cell_width(const SDL_Rect* canvas);
-float sdl_welcome_cell_height(const SDL_Rect* canvas);
-float sdl_welcome_text_target_height(const SDL_Rect* canvas);
-float sdl_welcome_text_scale(const SDL_Rect* canvas, int max_cols, int text_w, int text_h);
-SDL_FRect sdl_welcome_measure_story_text(const SDL_Rect* canvas, int col, int row, int max_cols, cptr text, int slot);
-void sdl_welcome_bounds_add(sdl_welcome_picture_bounds* bounds, SDL_FRect rect);
-void sdl_welcome_bounds_add_text(sdl_welcome_picture_bounds* bounds, const SDL_Rect* canvas, int col, int row, int max_cols, cptr text, int slot);
-SDL_FRect sdl_welcome_draw_story_text(const SDL_Rect* canvas, int col, int row, int max_cols, cptr text, byte attr, float x_offset, int slot);
-SDL_FRect sdl_welcome_story_text_span_rect(const SDL_Rect* canvas, int col, int row, int max_cols, cptr text, int start, int end, float x_offset, int slot);
-SDL_FRect sdl_welcome_draw_story_text_span(const SDL_Rect* canvas, int col, int row, int max_cols, cptr text, int start, int end, byte attr, float x_offset, int slot);
+bool sdl_welcome_screen_cycle_intro(int direction);
 bool sdl_welcome_text_token_range(cptr text, cptr token, int* start, int* end);
 bool sdl_welcome_text_command_range(cptr text, cptr token_a, cptr token_b, int* start, int* end);
 void sdl_welcome_compose_menu_line(char* menu_line, size_t menu_size, char* quit_command, size_t quit_command_size, cptr* primary_token);
-float sdl_welcome_bounds_x_offset(const SDL_Rect* canvas, const sdl_welcome_picture_bounds* bounds);
-float sdl_welcome_intro_x_offset(const SDL_Rect* canvas);
-float sdl_welcome_status_x_offset(const SDL_Rect* canvas);
-float sdl_welcome_footer_x_offset(const SDL_Rect* canvas);
-void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas, float x_offset);
-void sdl_welcome_render_status_canvas(const SDL_Rect* canvas, float x_offset);
-void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas, float x_offset);
+void sdl_welcome_render_intro_canvas(const SDL_Rect* canvas);
+void sdl_welcome_render_status_canvas(const SDL_Rect* canvas);
+void sdl_welcome_render_menu_footer_canvas(const SDL_Rect* canvas);
 void sdl_welcome_screen_render(void);
 float sdl_char_sheet_clampf(float value, float min_value, float max_value);
 int sdl_char_sheet_clampi(int value, int min_value, int max_value);
@@ -3510,6 +3488,7 @@ bool sdl_welcome_touch_handle_pointer_down(float x, float y, SDL_FingerID finger
 bool sdl_welcome_touch_handle_pointer_motion(float x, float y, SDL_FingerID finger_id);
 bool sdl_welcome_touch_handle_pointer_up(float x, float y, SDL_FingerID finger_id);
 void sdl_welcome_touch_cancel_press(void);
+bool sdl_welcome_screen_cycle_intro(int direction);
 bool sdl_welcome_screen_handle_pointer_motion(float x, float y);
 bool sdl_pointer_activate_welcome_screen_at(float x, float y);
 bool sdl_pointer_activate_welcome_screen(void);

@@ -2123,6 +2123,21 @@ extern void do_cmd_options_aux(int page, cptr info)
         }
         else
         {
+            /* Describe the focused option.  Standard game options carry help
+             * text in option_desc[]; special rows (pane toggles, sound) have
+             * none yet, so the band is left empty.  The challenge page keeps
+             * its own note set above. */
+            if (page != CHALLENGE_PAGE)
+            {
+                cptr od = NULL;
+                int o = opt[k];
+
+                if (!(page == INTERFACE_PAGE && o >= IFACE_PANE_ROW_BASE)
+                    && !is_sound_page && o >= 0 && o < OPT_MAX)
+                    od = option_desc[o];
+                sdl_character_sheet_screen_set_select_description(
+                    od ? od : "");
+            }
             sdl_character_sheet_screen_commit_select(k);
         }
 
@@ -3171,20 +3186,56 @@ void do_cmd_pane_settings(void)
             for (int click_i = 0; click_i < n; click_i++)
                 ui_menu_click_add_full_row(click_i, y0 + click_i);
 
-        /* Display help */
+        /* Display help: describe the focused setting (empty band when a row
+         * has no description yet). */
         if (pixel_menu)
         {
-            char desc[512];
+            static const char* const pane_setting_desc[PANE_SETTING_COUNT] = {
+                [PANE_SETTING_MIN_TERMINAL_SIZE] =
+                    "Smallest character grid the game will use. Larger minimums "
+                    "keep text big but leave less room for side and bottom "
+                    "panes on small windows.",
+                [PANE_SETTING_MAIN_VIEW_SCALE] =
+                    "Zoom level of the main map. Higher values enlarge the map "
+                    "and its font but show less of the level at once.",
+                [PANE_SETTING_ENABLE_SIDE_PANES] =
+                    "Show panes to the side of the map (inventory, monster "
+                    "list, and more). Also toggled in play with Alt+I.",
+                [PANE_SETTING_ENABLE_BOTTOM_PANES] =
+                    "Show panes below the map (messages, combat rolls, and "
+                    "more). Also toggled in play with Alt+L.",
+                [PANE_SETTING_FULLSCREEN] =
+                    "Run the game fullscreen instead of in a window.",
+                [PANE_SETTING_TILES] =
+                    "Draw the map with graphical tiles instead of letters. "
+                    "Also toggled in play with Alt+A.",
+                [PANE_SETTING_USE_UNSAFE_AREA] =
+                    "Let the display extend into a screen notch or rounded "
+                    "cutout. Off keeps everything within the safe area.",
+                [PANE_SETTING_WHITE_PANE_BORDERS] =
+                    "Color of the lines drawn around each pane.",
+                [PANE_SETTING_HIDE_FULLSCREEN_PANES] =
+                    "On full-screen menus (inventory, character sheet, and the "
+                    "like), hide the supporting panes to reduce clutter.",
+                [PANE_SETTING_AUX_VIEW_FONT_SIZE] =
+                    "Font size for the supporting panes. Set to 0 (auto) to let "
+                    "the game pick a size that fits.",
+                [PANE_SETTING_VIEW_PANE_CONFIGURATION] =
+                    "Open the layout editor to move and resize panes. The "
+                    "number in brackets is how many panes are configured.",
+                [PANE_SETTING_PANE_FONT_SIZES] =
+                    "Set the font size of each pane individually.",
+                [PANE_SETTING_OPEN_CONFIG_FILE] =
+                    "Open the raw sil_sdl.json config file in your system's "
+                    "default editor.",
+                [PANE_SETTING_SAVE_RETURN] =
+                    "Return to the Options menu. Changes here are saved to your "
+                    "SDL config on exit.",
+            };
+            cptr d = (k >= 0 && k < PANE_SETTING_COUNT)
+                ? pane_setting_desc[k] : NULL;
 
-            if (settings_changed)
-                strnfmt(desc, sizeof(desc),
-                    "Direction keys change values. 0 sets the default aux font to auto. O opens the SDL config file. Changes apply immediately and will be saved to %s on exit.",
-                    config_label);
-            else
-                SDL_strlcpy(desc,
-                    "Direction keys change values. 0 sets the default aux font to auto. O opens the SDL config file. Escape or Enter returns to Options.",
-                    sizeof(desc));
-            sdl_character_sheet_screen_set_select_description(desc);
+            sdl_character_sheet_screen_set_select_description(d ? d : "");
             sdl_character_sheet_screen_commit_select(k);
         }
         else
@@ -3795,8 +3846,15 @@ static void do_cmd_supporting_pane_font_editor(bool* settings_changed)
 
             if (pixel_menu)
             {
-                sdl_character_sheet_screen_set_select_description(
-                    "Up and down select a pane. Left/Right or N/Y change the font size. 0 (or the row's Reset) sets the selected pane font to auto. Changes apply immediately.");
+                char fdesc[160];
+                enum pane_type ftype =
+                    (enum pane_type)get_sdl_pane_type(pane_indices[sel]);
+
+                strnfmt(fdesc, sizeof(fdesc),
+                    "Font size for the %s pane. Left/Right adjusts it; 0 (or "
+                    "the row's Reset) uses the automatic size.",
+                    pane_type_name(ftype));
+                sdl_character_sheet_screen_set_select_description(fdesc);
                 sdl_character_sheet_screen_commit_select(sel);
             }
             else
@@ -8208,8 +8266,18 @@ static void do_cmd_mouse_settings(bool* settings_changed)
                 "Reset Selected", "X", TERM_SLATE);
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                 "Reset All", "M", TERM_SLATE);
-            sdl_character_sheet_screen_set_select_description(
-                "Controls desktop mouse input and map movement. Left/Right changes values, Space toggles or opens tutorial, X resets selected, M resets all.");
+            static const char* const mouse_setting_desc[MOUSE_SETTING_COUNT] = {
+                [MOUSE_SETTING_ENABLE] = "Turn mouse input on or off.",
+                [MOUSE_SETTING_MOVEMENT] =
+                    "How clicking the map moves you: walk to the clicked spot, "
+                    "single step toward it, or disabled.",
+                [MOUSE_SETTING_TUTORIAL] =
+                    "Replay the mouse-controls tutorial.",
+            };
+            cptr md = (highlight >= 0 && highlight < MOUSE_SETTING_COUNT)
+                ? mouse_setting_desc[highlight] : NULL;
+
+            sdl_character_sheet_screen_set_select_description(md ? md : "");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -8474,7 +8542,17 @@ static int legacy_options_menu(int* highlight)
         strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
         if (pixel_menu)
         {
-            sdl_character_sheet_screen_set_select_description(verbuf);
+            static const char* const legacy_row_desc[] = {
+                NULL,
+                "Choose the color palette used throughout the game.",
+                "Write a note into your character's journal.",
+                "End your current character permanently.",
+                "Return to the Options menu.",
+            };
+            cptr d = (*highlight >= 1 && *highlight <= 4)
+                ? legacy_row_desc[*highlight] : NULL;
+
+            sdl_character_sheet_screen_set_select_description(d ? d : verbuf);
             sdl_character_sheet_screen_commit_select(*highlight);
         }
         else if (row < term_hgt)
@@ -8718,7 +8796,25 @@ int options_menu(int* highlight)
         strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
         if (pixel_menu)
         {
-            sdl_character_sheet_screen_set_select_description(verbuf);
+            static const char* const options_row_desc[] = {
+                NULL,
+                "Keyboard, controller, and mouse input settings and tutorials.",
+                "Window layout: panes, terminal scale, fullscreen, tiles, and "
+                "fonts.",
+                "How information is presented and how menus and the HUD behave.",
+                "Map and tile appearance, highlighting, and related visuals.",
+                "Fonts and text rendering options.",
+                "Rules and quality-of-life options that affect play.",
+                "Sound effects and volume.",
+                "Palette, notes, and other miscellaneous actions.",
+                "Close the menu and return to play.",
+                "Developer and debugging toggles.",
+            };
+            cptr d = (*highlight >= 1
+                && *highlight < (int)N_ELEMENTS(options_row_desc))
+                ? options_row_desc[*highlight] : NULL;
+
+            sdl_character_sheet_screen_set_select_description(d ? d : verbuf);
             sdl_character_sheet_screen_commit_select(*highlight);
         }
         else if (row < term_hgt)
@@ -8903,7 +8999,25 @@ static void do_cmd_keyboard_input_settings(void)
 #undef ADD_KEYBOARD_ROW
 
         if (pixel_menu)
+        {
+            static const char* const keyboard_row_desc[] = {
+                NULL,
+                "Pick how you move: a built-in preset (Classic Sil, Modern "
+                "Arrows, WASD+QEZC, or Vi Keys), shown with descriptions and a "
+                "recommendation.",
+                "Switch the command keys to an Angband-style layout. Changes "
+                "command letters only, not how you move.",
+                "Edit individual movement key bindings, or cycle the movement "
+                "preset.",
+                "Rebind the in-game command keys (the keymap).",
+                "Return to the Input options menu.",
+            };
+            cptr d = (selected >= 1 && selected <= 5)
+                ? keyboard_row_desc[selected] : NULL;
+
+            sdl_character_sheet_screen_set_select_description(d ? d : "");
             sdl_character_sheet_screen_commit_select(selected);
+        }
         else
         {
             settings_ui_put_return_prompt(Term->hgt - 1, 2, TERM_SLATE,
@@ -9078,7 +9192,29 @@ static int input_options_menu(int* highlight)
 #undef ADD_INPUT_MENU_ROW
 
     if (pixel_menu)
+    {
+        int h = *highlight;
+        cptr d = "";
+
+        if (h == 1)
+            d = "Keyboard movement presets, the Angband keyset, and key "
+                "rebinding.";
+        else if (h == 2)
+            d = "Set up a game controller or Steam Deck: button mapping, "
+                "sticks, and deadzones.";
+        else if (touch_available && h == 3)
+            d = "Replay the touch-controls tutorial.";
+        else if (h == mouse_choice)
+            d = "Mouse behavior, including click-to-move and pointer options.";
+        else if (h == wheel_choice)
+            d = "Replay the player action-wheel tutorial.";
+        else if (h == zones_choice)
+            d = "Replay the screen-zones tutorial.";
+        else if (h == return_choice)
+            d = "Return to the Options menu.";
+        sdl_character_sheet_screen_set_select_description(d);
         sdl_character_sheet_screen_commit_select(*highlight);
+    }
 
     if (!pixel_menu)
     {
@@ -12220,9 +12356,37 @@ void do_cmd_controller_settings(void)
                     "Bindings: %s. Enter or Space adds a controller control. R resets selected, M resets all. Changes are saved on exit.",
                     detail_value_buf);
             } else {
-                strnfmt(desc, sizeof(desc),
-                    "Enter or Space toggles %s. R resets it to default, M resets all bindings. Changes are saved on exit.",
-                    entries[highlight].label);
+                cptr toggle_desc;
+
+                switch (entries[highlight].id) {
+                case CONTROLLER_TOGGLE_ENABLED:
+                    toggle_desc = "Turn controller input on or off.";
+                    break;
+                case CONTROLLER_TOGGLE_AUTO_MODE:
+                    toggle_desc =
+                        "Automatically switch to the controller UI when a "
+                        "controller is connected or used.";
+                    break;
+                case CONTROLLER_TOGGLE_STEAMDECK_MODE:
+                    toggle_desc =
+                        "Use the Steam Deck / controller-oriented UI layout.";
+                    break;
+                case CONTROLLER_TOGGLE_STEAMDECK_INV_EQUIP_SAME_BUTTON_CYCLE:
+                    toggle_desc =
+                        "Cycle inventory and equipment with one button instead "
+                        "of two separate buttons.";
+                    break;
+                case CONTROLLER_TOGGLE_DPAD:
+                    toggle_desc = "Move with the D-pad.";
+                    break;
+                case CONTROLLER_TOGGLE_LEFT_STICK:
+                    toggle_desc = "Move with the left analog stick.";
+                    break;
+                default:
+                    toggle_desc = "";
+                    break;
+                }
+                strnfmt(desc, sizeof(desc), "%s", toggle_desc);
             }
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_SELECTED,
                 "Reset Selected", steamdeck ? "X" : "R", TERM_SLATE);

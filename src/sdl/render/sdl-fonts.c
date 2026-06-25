@@ -1701,7 +1701,8 @@ int sdl_story_font_text_width(cptr text, int len)
     if (!d)
         return 0;
 
-    TTF_Font* font = sdl_story_font_for_view(d);
+    int slot = Term ? Term->story_font_slot : SDL_STORY_FONT_SLOT_DEFAULT;
+    TTF_Font* font = sdl_story_font_for_view_slot(d, slot);
     if (!font)
         return 0;
 

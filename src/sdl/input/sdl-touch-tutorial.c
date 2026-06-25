@@ -1,6 +1,84 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+static int sdl_touch_tutorial_text_px(float px, float min_px, float max_px)
+{
+    const float scale = 1.14f;
+
+    return (int)sdl_touch_pane_clampf(
+        px * scale, min_px * scale, max_px * scale);
+}
+
+static TTF_Font* sdl_touch_tutorial_font_for_height(int font_px)
+{
+    return sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_TUTORIAL);
+}
+
+static int sdl_touch_tutorial_story_width_n(TTF_Font* font, cptr text,
+    int len)
+{
+    int width = 0;
+
+    if (!font || !text || len <= 0)
+        return 0;
+
+    TTF_MeasureString(font, text, len, 0, &width, NULL);
+    return width;
+}
+
+static float sdl_touch_tutorial_explicit_line_width(TTF_Font* font,
+    cptr text)
+{
+    float max_w = 0.0f;
+    cptr p = text;
+
+    if (!font || !p)
+        return 0.0f;
+
+    while (*p) {
+        cptr start = p;
+        int len = 0;
+        int width;
+
+        while (p[len] && p[len] != '\n')
+            len++;
+
+        width = sdl_touch_tutorial_story_width_n(font, start, len);
+        if ((float)width > max_w)
+            max_w = (float)width;
+
+        p += len;
+        if (*p == '\n')
+            p++;
+    }
+
+    return max_w;
+}
+
+static float sdl_touch_tutorial_callout_width_for_text(cptr title,
+    int title_px, cptr body, int body_px, float pad)
+{
+    TTF_Font* title_font = sdl_touch_tutorial_font_for_height(title_px);
+    TTF_Font* body_font = sdl_touch_tutorial_font_for_height(body_px);
+    float text_w = 0.0f;
+
+    if (title && title[0])
+    {
+        float w = sdl_touch_tutorial_explicit_line_width(title_font, title);
+        if (w > text_w)
+            text_w = w;
+    }
+
+    if (body && body[0])
+    {
+        float w = sdl_touch_tutorial_explicit_line_width(body_font, body);
+        if (w > text_w)
+            text_w = w;
+    }
+
+    return text_w + pad * 2.0f;
+}
+
 float sdl_touch_tutorial_draw_text_line(cptr text, float x, float y,
     float max_w, int font_px, SDL_Color color, bool centered)
 {
@@ -13,7 +91,7 @@ float sdl_touch_tutorial_draw_text_line(cptr text, float x, float y,
     if (!text || !text[0] || font_px <= 0)
         return 0.0f;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_touch_tutorial_font_for_height(font_px);
     if (!font)
         return 0.0f;
 
@@ -141,7 +219,7 @@ float sdl_touch_tutorial_draw_wrapped(cptr text, float x, float y,
     int line_count;
     float line_h;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_touch_tutorial_font_for_height(font_px);
     if (!font)
         return 0.0f;
 
@@ -166,7 +244,7 @@ float sdl_touch_tutorial_draw_wrapped_centered(cptr text, float x,
     int line_count;
     float line_h;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_touch_tutorial_font_for_height(font_px);
     if (!font)
         return 0.0f;
 
@@ -191,7 +269,7 @@ int sdl_touch_tutorial_line_count(cptr text, int font_px, float max_w)
     if (!text || !text[0])
         return 0;
 
-    font = sdl_story_font_for_height(font_px);
+    font = sdl_touch_tutorial_font_for_height(font_px);
     if (!font)
         return 0;
 
@@ -281,9 +359,9 @@ float sdl_touch_tutorial_draw_header_at(const SDL_Rect* screen,
 
     x = (float)screen->x + (float)screen->w * 0.5f;
     max_w = (float)screen->w * 0.82f;
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.052f,
+    title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.052f,
         30.0f, 50.0f);
-    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.032f,
+    body_px = sdl_touch_tutorial_text_px((float)screen->h * 0.032f,
         22.0f, 34.0f);
 
     y += sdl_touch_tutorial_draw_text_line(title, x, y, max_w, title_px,
@@ -333,7 +411,7 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
     if (!screen)
         return;
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
+    font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.030f,
         22.0f, 30.0f);
     line_h = (float)font_px * 1.30f;
     y = (float)(screen->y + screen->h)
@@ -532,7 +610,7 @@ void sdl_touch_tutorial_draw_compact_zone_label(
         228);
     SDL_RenderRect(g_state.renderer, zone);
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.032f,
+    font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.032f,
         18.0f, 28.0f);
     text_y = zone->y + zone->h * 0.5f - (float)font_px * 0.60f;
     if (text_y < zone->y + 1.0f)
@@ -578,7 +656,7 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
     if (available_h < 56.0f)
         available_h = (float)screen->h * 0.48f;
 
-    font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.030f,
+    font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.030f,
         16.0f, 24.0f);
     pad = sdl_touch_pane_clampf((float)screen->h * 0.012f, 5.0f, 9.0f);
 
@@ -702,9 +780,9 @@ void sdl_touch_tutorial_draw_zone_prompt(const SDL_Rect* screen,
     if (!screen || !zone || zone->w <= 1.0f || zone->h <= 1.0f)
         return;
 
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.042f,
+    title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.042f,
         26.0f, 38.0f);
-    detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.034f,
+    detail_px = sdl_touch_tutorial_text_px((float)screen->h * 0.034f,
         22.0f, 32.0f);
     pad = sdl_touch_pane_clampf((float)screen->h * 0.016f, 10.0f, 18.0f);
 
@@ -786,9 +864,9 @@ void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
         return;
 
     pad = sdl_touch_pane_clampf((float)screen->h * 0.018f, 11.0f, 20.0f);
-    title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.040f,
+    title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.040f,
         26.0f, 38.0f);
-    body_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.034f,
+    body_px = sdl_touch_tutorial_text_px((float)screen->h * 0.034f,
         22.0f, 32.0f);
     text_w = w - pad * 2.0f;
     if (text_w <= 40.0f)
@@ -1184,8 +1262,8 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
         float max_w = (float)screen->w * 0.70f;
         float x = (float)screen->x + (float)screen->w * 0.15f;
         float y = (float)screen->y + (float)screen->h * 0.38f;
-        int font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
-            22.0f, 32.0f);
+        int font_px = sdl_touch_tutorial_text_px(
+            (float)screen->h * 0.038f, 22.0f, 32.0f);
 
         (void)sdl_touch_tutorial_draw_wrapped(
             "The touch pane is currently hidden or disabled. Choose the Touch pane + touch screen profile to show it by default.",
@@ -1239,7 +1317,7 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
         x = (float)screen->x + (float)screen->w * 0.14f;
         y = (float)screen->y + (float)screen->h * 0.34f;
         max_w = (float)screen->w * 0.72f;
-        font_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
+        font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.038f,
             22.0f, 32.0f);
 
         (void)sdl_touch_tutorial_draw_wrapped(
@@ -1968,6 +2046,8 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     float pad = sdl_touch_pane_clampf((float)screen->h * 0.017f, 12.0f, 22.0f);
     float footer_top = (float)(screen->y + screen->h)
         - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f) - pad;
+    float max_box_w;
+    float natural_box_w;
     float box_w;
     float text_w;
     float box_h = 0.0f;
@@ -1975,19 +2055,29 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     float title_h;
     float avail_h;
     float y;
-    int title_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.050f,
+    int title_px = sdl_touch_tutorial_text_px((float)screen->h * 0.050f,
         28.0f, 44.0f);
-    int detail_px = (int)sdl_touch_pane_clampf((float)screen->h * 0.038f,
+    int detail_px = sdl_touch_tutorial_text_px((float)screen->h * 0.038f,
         22.0f, 36.0f);
     int n = 0;
+
+    max_box_w = (float)screen->w - pad * 2.0f;
+    if (max_box_w <= 40.0f)
+        return;
 
     box_w = (float)screen->w * 0.64f;
     if (box_w > 1160.0f)
         box_w = 1160.0f;
-    if (box_w > (float)screen->w - pad * 2.0f)
-        box_w = (float)screen->w - pad * 2.0f;
     if (box_w < 340.0f)
-        box_w = (float)screen->w - pad * 2.0f;
+        box_w = 340.0f;
+
+    natural_box_w = sdl_touch_tutorial_callout_width_for_text(title,
+        title_px, body, detail_px, pad);
+    if (natural_box_w > box_w)
+        box_w = natural_box_w;
+    if (box_w > max_box_w)
+        box_w = max_box_w;
+
     text_w = box_w - pad * 2.0f;
     if (text_w < 40.0f)
         return;
@@ -1998,7 +2088,7 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
 
     /* Shrink the body font until the wrapped text fits the vertical budget. */
     for (;;) {
-        font = sdl_story_font_for_height(detail_px);
+        font = sdl_touch_tutorial_font_for_height(detail_px);
         n = sdl_touch_tutorial_wrap_lines(body, font, text_w, lines,
             (int)N_ELEMENTS(lines));
         line_h = (float)detail_px * 1.30f;
@@ -2331,8 +2421,8 @@ void sdl_touch_tutorial_draw_choice_card(const SDL_FRect* rect,
         return;
 
     pad = sdl_touch_pane_clampf(rect->h * 0.13f, 8.0f, 17.0f);
-    title_px = (int)sdl_touch_pane_clampf(rect->h * 0.205f, 17.0f, 28.0f);
-    body_px = (int)sdl_touch_pane_clampf(rect->h * 0.148f, 13.0f, 21.0f);
+    title_px = sdl_touch_tutorial_text_px(rect->h * 0.205f, 17.0f, 28.0f);
+    body_px = sdl_touch_tutorial_text_px(rect->h * 0.148f, 13.0f, 21.0f);
 
     shadow = *rect;
     shadow.x += 3.0f;
@@ -2402,11 +2492,11 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
     x = (float)screen.x + (float)screen.w * 0.5f;
     y = sdl_touch_tutorial_default_header_y(&screen);
     max_w = (float)screen.w * 0.86f;
-    title_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.050f,
+    title_px = sdl_touch_tutorial_text_px((float)screen.h * 0.050f,
         28.0f, 46.0f);
-    body_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.030f,
+    body_px = sdl_touch_tutorial_text_px((float)screen.h * 0.030f,
         18.0f, 28.0f);
-    footer_px = (int)sdl_touch_pane_clampf((float)screen.h * 0.028f,
+    footer_px = sdl_touch_tutorial_text_px((float)screen.h * 0.028f,
         16.0f, 24.0f);
 
     y += sdl_touch_tutorial_draw_text_line("Choose Touch Preset", x, y,

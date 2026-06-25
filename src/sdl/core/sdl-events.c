@@ -1394,6 +1394,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         else if (ev->button.button == SDL_BUTTON_RIGHT) {
             if (ev->button.which == SDL_TOUCH_MOUSEID)
                 return;
+            if (sdl_welcome_screen_cycle_intro(1))
+                return;
             if (g_player_action_menu.active) {
                 (void)sdl_player_action_menu_handle_pointer_down(
                     (float)ev->button.x, (float)ev->button.y, 0, true, true);

@@ -847,6 +847,7 @@ void sdl_welcome_touch_cancel_press(void)
     g_welcome_touch_press.finger_id = 0;
     g_welcome_touch_press.start_x = 0.0f;
     g_welcome_touch_press.start_y = 0.0f;
+    g_welcome_touch_press.start_time = 0;
 }
 
 bool sdl_welcome_touch_handle_pointer_down(float x, float y,
@@ -854,8 +855,6 @@ bool sdl_welcome_touch_handle_pointer_down(float x, float y,
 {
     int slot = -1;
 
-    if (!g_sdl_blocking_key_wait)
-        return false;
     if (!sdl_screen_shows_welcome_screen())
         return false;
     if (sdl_touch_pane_point_to_slot(x, y, &slot) && slot >= 0)
@@ -866,6 +865,7 @@ bool sdl_welcome_touch_handle_pointer_down(float x, float y,
     g_welcome_touch_press.finger_id = finger_id;
     g_welcome_touch_press.start_x = x;
     g_welcome_touch_press.start_y = y;
+    g_welcome_touch_press.start_time = SDL_GetTicksNS();
     return true;
 }
 
@@ -916,6 +916,7 @@ bool sdl_welcome_touch_handle_pointer_up(float x, float y,
     float dx;
     float dy;
     float threshold;
+    Uint64 elapsed;
 
     if (!g_welcome_touch_press.active
         || g_welcome_touch_press.finger_id != finger_id)
@@ -931,9 +932,17 @@ bool sdl_welcome_touch_handle_pointer_up(float x, float y,
         dy = -dy;
 
     threshold = sdl_touch_swipe_threshold_px();
+    elapsed = g_welcome_touch_press.start_time
+        ? SDL_GetTicksNS() - g_welcome_touch_press.start_time
+        : 0;
     sdl_welcome_touch_cancel_press();
     if (dx > threshold || dy > threshold)
         return true;
+    if (elapsed >= (Uint64)TOUCH_PANE_LONG_PRESS_MS * 1000000ULL)
+    {
+        (void)sdl_welcome_screen_cycle_intro(1);
+        return true;
+    }
     if (!g_sdl_blocking_key_wait || !sdl_screen_shows_welcome_screen())
         return true;
 

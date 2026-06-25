@@ -301,12 +301,20 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
              * layout does not reflow as the highlight moves between choices. */
             {
                 cptr longest = "";
+                cptr longest_first = "";
+                cptr longest_body = "";
                 size_t longest_len = 0;
+                size_t longest_first_len = 0;
+                size_t longest_body_len = 0;
+                bool split_hint = false;
+                char sizing_desc[4096];
                 int j;
 
+                sizing_desc[0] = '\0';
                 for (j = 0; j < num; j++)
                 {
                     cptr t = choices[j].text ? choices[j].text : "";
+                    cptr sep = strstr(t, "\n\n");
                     size_t l = strlen(t);
 
                     if (l > longest_len)
@@ -314,8 +322,48 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                         longest_len = l;
                         longest = t;
                     }
+                    if (sep)
+                    {
+                        cptr body = sep;
+                        size_t first_len = (size_t)(sep - t);
+                        size_t body_len;
+
+                        while (first_len > 0
+                            && isspace((unsigned char)t[first_len - 1]))
+                        {
+                            first_len--;
+                        }
+                        while (*body && isspace((unsigned char)*body))
+                            body++;
+                        body_len = strlen(body);
+                        if (first_len > 0 && body_len > 0)
+                        {
+                            split_hint = true;
+                            if (first_len > longest_first_len)
+                            {
+                                longest_first_len = first_len;
+                                longest_first = t;
+                            }
+                            if (body_len > longest_body_len)
+                            {
+                                longest_body_len = body_len;
+                                longest_body = body;
+                            }
+                        }
+                    }
                 }
-                sdl_character_sheet_screen_set_select_size_hint(longest);
+                if (split_hint)
+                {
+                    strnfmt(sizing_desc, sizeof(sizing_desc), "%.*s\n\n%s",
+                        (int)MIN(longest_first_len, (size_t)2048),
+                        longest_first, longest_body);
+                    sdl_character_sheet_screen_set_select_size_hint(
+                        sizing_desc);
+                }
+                else
+                {
+                    sdl_character_sheet_screen_set_select_size_hint(longest);
+                }
             }
             sdl_character_sheet_screen_commit_select(cur);
         }
@@ -620,11 +668,34 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     if (book_mode && click_action != UI_MENU_CLICK_HOVER
                         && !sdl_character_sheet_screen_page_turning())
                     {
-                        sdl_character_sheet_screen_begin_page_turn(
-                            clicked_choice == SDL_SELECT_CLICK_PAGE_NEXT
-                                ? +1 : -1);
+                        int bpage =
+                            sdl_character_sheet_screen_select_page();
+                        int pcount =
+                            sdl_character_sheet_screen_select_page_count();
+                        int final_page = pcount - 1;
+
+                        if (final_page < 0)
+                            final_page = 0;
+
+                        if (clicked_choice == SDL_SELECT_CLICK_PAGE_PREV)
+                        {
+                            if (bpage <= 0)
+                            {
+                                c = ESCAPE;
+                                click_generated_command = true;
+                            }
+                            else
+                            {
+                                sdl_character_sheet_screen_begin_page_turn(-1);
+                            }
+                        }
+                        else if (bpage < final_page)
+                        {
+                            sdl_character_sheet_screen_begin_page_turn(+1);
+                        }
                     }
-                    continue;
+                    if (!click_generated_command)
+                        continue;
                 }
                 else if (clicked_choice == SDL_SELECT_CLICK_CAROUSEL_PREV
                     || clicked_choice == SDL_SELECT_CLICK_CAROUSEL_NEXT)
