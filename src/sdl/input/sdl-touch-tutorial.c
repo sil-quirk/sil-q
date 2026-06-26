@@ -55,6 +55,8 @@ static float sdl_touch_tutorial_explicit_line_width(TTF_Font* font,
     return max_w;
 }
 
+static void sdl_touch_tutorial_rich_strip(cptr src, char* dst, size_t dstlen);
+
 static float sdl_touch_tutorial_callout_width_for_text(cptr title,
     int title_px, cptr body, int body_px, float pad)
 {
@@ -71,7 +73,11 @@ static float sdl_touch_tutorial_callout_width_for_text(cptr title,
 
     if (body && body[0])
     {
-        float w = sdl_touch_tutorial_explicit_line_width(body_font, body);
+        char plain[2048];
+        float w;
+
+        sdl_touch_tutorial_rich_strip(body, plain, sizeof(plain));
+        w = sdl_touch_tutorial_explicit_line_width(body_font, plain);
         if (w > text_w)
             text_w = w;
     }
@@ -277,6 +283,298 @@ int sdl_touch_tutorial_line_count(cptr text, int font_px, float max_w)
         SDL_TOUCH_TUTORIAL_MAX_LINES);
 }
 
+/* ------------------------------------------------------------------------
+ * Inline colour markup for tutorial-box body text.
+ *
+ * Body strings may tag short spans so the important words stand out from the
+ * default light-grey prose.  Tags are zero-width and normally wrap a whole
+ * space-delimited token (trailing punctuation included):
+ *
+ *   <a>..</a>  gesture / action verb   (Tap, Hold, Click, Swipe)   -> L_GREEN
+ *   <t>..</t>  on-screen target / term (map, action wheel, Str)    -> L_BLUE
+ *   <n>..</n>  caveat / placement note (Default placement, only)   -> ORANGE
+ *   <r>..</r>  strong warning / penalty                            -> L_RED
+ *   <y>..</y>  key / formula                                       -> YELLOW
+ *   <g>..</g>  affinity (mirrors the trait legend)                 -> GREEN
+ *   <v>..</v>  unique power (mirrors the trait legend)             -> VIOLET
+ *   <u>..</u>  curse (mirrors the trait legend)                    -> UMBER
+ *   </>        also closes a span (back to the default colour)
+ *
+ * A tag may also fall inside a token (e.g. "<a>Tap</a>:"); the part after the
+ * tag is then "glued" to the previous piece with no separating space.  The
+ * renderer wraps with the same greedy algorithm as the plain helpers so box
+ * sizing (which measures the visible text) and drawing agree.
+ * ------------------------------------------------------------------------ */
+
+enum {
+    SDL_TOUCH_TUTORIAL_RICH_MAX_PIECES = 512,
+    SDL_TOUCH_TUTORIAL_RICH_PIECE_LEN = 48,
+    SDL_TOUCH_TUTORIAL_RICH_MAX_LINE_PIECES = 256
+};
+
+typedef struct sdl_touch_tutorial_rich_piece {
+    char text[SDL_TOUCH_TUTORIAL_RICH_PIECE_LEN];
+    SDL_Color color;
+    bool space_before;  /* whitespace separated this piece from the previous */
+    bool hard_break;    /* a newline preceded this piece */
+} sdl_touch_tutorial_rich_piece;
+
+static bool sdl_touch_tutorial_rich_tag_color(char code, SDL_Color* out)
+{
+    int attr;
+
+    switch (code) {
+    case 'a': attr = TERM_L_GREEN; break;
+    case 't': attr = TERM_L_BLUE;  break;
+    case 'n': attr = TERM_ORANGE;  break;
+    case 'r': attr = TERM_L_RED;   break;
+    case 'y': attr = TERM_YELLOW;  break;
+    case 'g': attr = TERM_GREEN;   break;
+    case 'v': attr = TERM_VIOLET;  break;
+    case 'u': attr = TERM_UMBER;   break;
+    default: return false;
+    }
+
+    if (out)
+        *out = g_state.palette[attr];
+    return true;
+}
+
+/* True if p points at a colour tag ("<x>" or a "</...>" close). */
+static bool sdl_touch_tutorial_rich_at_tag(const char* p)
+{
+    if (!p || *p != '<')
+        return false;
+    if (p[1] == '/')
+        return true;
+    return p[1] && p[2] == '>'
+        && sdl_touch_tutorial_rich_tag_color(p[1], NULL);
+}
+
+/* Copy text with the colour tags removed (for plain-text measurement). */
+static void sdl_touch_tutorial_rich_strip(cptr src, char* dst, size_t dstlen)
+{
+    const char* p = (src && src[0]) ? src : "";
+    size_t o = 0;
+
+    if (!dst || dstlen == 0)
+        return;
+
+    while (*p && o + 1 < dstlen) {
+        if (sdl_touch_tutorial_rich_at_tag(p)) {
+            if (p[1] == '/') {
+                while (*p && *p != '>')
+                    p++;
+            } else {
+                p += 2;
+            }
+            if (*p == '>')
+                p++;
+            continue;
+        }
+        dst[o++] = *p++;
+    }
+    dst[o] = '\0';
+}
+
+static int sdl_touch_tutorial_rich_parse(cptr text, SDL_Color def,
+    sdl_touch_tutorial_rich_piece* pieces, int max_pieces)
+{
+    SDL_Color cur = def;
+    const char* p = (text && text[0]) ? text : "";
+    int count = 0;
+    bool pending_space = false;
+    bool pending_break = false;
+    bool first = true;
+
+    while (*p) {
+        if (*p == '\n') {
+            pending_break = true;
+            pending_space = true;
+            p++;
+            continue;
+        }
+        if (isspace((unsigned char)*p)) {
+            pending_space = true;
+            p++;
+            continue;
+        }
+        if (sdl_touch_tutorial_rich_at_tag(p)) {
+            if (p[1] == '/') {
+                cur = def;
+                while (*p && *p != '>')
+                    p++;
+            } else {
+                (void)sdl_touch_tutorial_rich_tag_color(p[1], &cur);
+                p += 2;
+            }
+            if (*p == '>')
+                p++;
+            continue;
+        }
+
+        {
+            char buf[SDL_TOUCH_TUTORIAL_RICH_PIECE_LEN];
+            int len = 0;
+            SDL_Color start = cur;
+
+            while (*p && !isspace((unsigned char)*p)
+                && !sdl_touch_tutorial_rich_at_tag(p))
+            {
+                if (len < (int)sizeof(buf) - 1)
+                    buf[len++] = *p;
+                p++;
+            }
+            buf[len] = '\0';
+            if (len == 0)
+                continue;
+
+            if (count < max_pieces) {
+                sdl_touch_tutorial_rich_piece* pc = &pieces[count++];
+
+                SDL_strlcpy(pc->text, buf, sizeof(pc->text));
+                pc->color = start;
+                pc->space_before = first ? false : pending_space;
+                pc->hard_break = pending_break;
+            }
+            first = false;
+            pending_space = false;
+            pending_break = false;
+        }
+    }
+
+    return count;
+}
+
+/*
+ * Wrap and (optionally) draw marked-up body text.  Returns the total height.
+ * With draw == false nothing is rendered, so callers can size a box first.
+ */
+static float sdl_touch_tutorial_rich_draw_or_measure(cptr text, float x,
+    float y, float max_w, int font_px, SDL_Color def_color, bool centered,
+    bool draw)
+{
+    sdl_touch_tutorial_rich_piece pieces[SDL_TOUCH_TUTORIAL_RICH_MAX_PIECES];
+    int line_idx[SDL_TOUCH_TUTORIAL_RICH_MAX_LINE_PIECES];
+    TTF_Font* font;
+    float line_h;
+    int piece_count;
+    int line_count = 0;
+    int space_w;
+    int i = 0;
+
+    if (font_px <= 0)
+        return 0.0f;
+    font = sdl_touch_tutorial_font_for_height(font_px);
+    if (!font)
+        return 0.0f;
+
+    piece_count = sdl_touch_tutorial_rich_parse(text, def_color, pieces,
+        (int)N_ELEMENTS(pieces));
+    if (piece_count <= 0)
+        return 0.0f;
+
+    line_h = (float)font_px * 1.30f;
+    space_w = sdl_touch_pane_story_text_width(font, " ");
+
+    while (i < piece_count) {
+        char cur[SDL_TOUCH_TUTORIAL_LINE_LEN];
+        int n = 0;
+
+        cur[0] = '\0';
+
+        while (i < piece_count) {
+            const sdl_touch_tutorial_rich_piece* pc = &pieces[i];
+            char candidate[SDL_TOUCH_TUTORIAL_LINE_LEN];
+            bool want_space;
+            int cand_w;
+
+            if (n > 0 && pc->hard_break)
+                break;
+
+            want_space = (n > 0) && pc->space_before;
+            if (cur[0] == '\0')
+                SDL_strlcpy(candidate, pc->text, sizeof(candidate));
+            else
+                strnfmt(candidate, sizeof(candidate), "%s%s%s", cur,
+                    want_space ? " " : "", pc->text);
+
+            cand_w = sdl_touch_pane_story_text_width(font, candidate);
+            if (n > 0 && want_space && max_w > 1.0f && (float)cand_w > max_w)
+                break;
+
+            SDL_strlcpy(cur, candidate, sizeof(cur));
+            if (n < (int)N_ELEMENTS(line_idx))
+                line_idx[n] = i;
+            n++;
+            i++;
+        }
+
+        if (n <= 0) {
+            i++;
+            continue;
+        }
+
+        if (draw) {
+            int draw_n = MIN(n, (int)N_ELEMENTS(line_idx));
+            float ly = y + line_h * (float)line_count;
+            float lx;
+            float draw_w = 0.0f;
+
+            for (int k = 0; k < draw_n; k++) {
+                const sdl_touch_tutorial_rich_piece* pc = &pieces[line_idx[k]];
+
+                if (k > 0 && pc->space_before)
+                    draw_w += (float)space_w;
+                draw_w += (float)sdl_touch_pane_story_text_width(font,
+                    pc->text);
+            }
+
+            lx = centered ? x - draw_w * 0.5f : x;
+            for (int k = 0; k < draw_n; k++) {
+                const sdl_touch_tutorial_rich_piece* pc = &pieces[line_idx[k]];
+
+                if (k > 0 && pc->space_before)
+                    lx += (float)space_w;
+                (void)sdl_touch_tutorial_draw_text_line(pc->text, lx, ly,
+                    0.0f, font_px, pc->color, false);
+                lx += (float)sdl_touch_pane_story_text_width(font, pc->text);
+            }
+        }
+
+        line_count++;
+    }
+
+    return line_h * (float)line_count;
+}
+
+static float sdl_touch_tutorial_draw_rich(cptr text, float x, float y,
+    float max_w, int font_px, SDL_Color color)
+{
+    return sdl_touch_tutorial_rich_draw_or_measure(text, x, y, max_w, font_px,
+        color, false, true);
+}
+
+static float sdl_touch_tutorial_draw_rich_centered(cptr text, float x, float y,
+    float max_w, int font_px, SDL_Color color)
+{
+    return sdl_touch_tutorial_rich_draw_or_measure(text, x, y, max_w, font_px,
+        color, true, true);
+}
+
+static int sdl_touch_tutorial_rich_line_count(cptr text, int font_px,
+    float max_w)
+{
+    float h;
+
+    if (font_px <= 0)
+        return 0;
+
+    h = sdl_touch_tutorial_rich_draw_or_measure(text, 0.0f, 0.0f, max_w,
+        font_px, g_state.palette[TERM_L_WHITE], false, false);
+    return (int)SDL_lroundf(h / ((float)font_px * 1.30f));
+}
+
 void sdl_touch_tutorial_draw_screen_dim(const SDL_Rect* screen,
     Uint8 alpha)
 {
@@ -367,7 +665,7 @@ float sdl_touch_tutorial_draw_header_at(const SDL_Rect* screen,
     y += sdl_touch_tutorial_draw_text_line(title, x, y, max_w, title_px,
         title_color, true);
     y += 5.0f;
-    y += sdl_touch_tutorial_draw_wrapped_centered(body, x, y, max_w, body_px,
+    y += sdl_touch_tutorial_draw_rich_centered(body, x, y, max_w, body_px,
         text_color);
 
     strnfmt(page_buf, sizeof(page_buf), "%d/%d", page + 1, page_count);
@@ -798,7 +1096,8 @@ void sdl_touch_tutorial_draw_zone_prompt(const SDL_Rect* screen,
     if (box_w > max_box_w)
         box_w = max_box_w;
     text_w = box_w - pad * 2.0f;
-    detail_lines = sdl_touch_tutorial_line_count(detail, detail_px, text_w);
+    detail_lines = sdl_touch_tutorial_rich_line_count(detail, detail_px,
+        text_w);
 
     box_h = pad * 2.0f + (float)title_px * 1.25f;
     if (detail_lines > 0)
@@ -839,7 +1138,7 @@ void sdl_touch_tutorial_draw_zone_prompt(const SDL_Rect* screen,
         box.x + box.w * 0.5f, box.y + pad, text_w,
         title_px, title_color, true);
     if (detail_lines > 0) {
-        (void)sdl_touch_tutorial_draw_wrapped_centered(detail,
+        (void)sdl_touch_tutorial_draw_rich_centered(detail,
             box.x + box.w * 0.5f,
             box.y + pad + (float)title_px * 1.34f,
             text_w, detail_px, detail_color);
@@ -872,7 +1171,7 @@ void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
     if (text_w <= 40.0f)
         return;
 
-    body_lines = sdl_touch_tutorial_line_count(body, body_px, text_w);
+    body_lines = sdl_touch_tutorial_rich_line_count(body, body_px, text_w);
     h = pad * 2.0f + (float)body_lines * (float)body_px * 1.30f;
     if (title && title[0])
         h += (float)title_px * 1.35f + 5.0f;
@@ -898,7 +1197,7 @@ void sdl_touch_tutorial_draw_info_panel(const SDL_Rect* screen,
             box.x + box.w * 0.5f, y, text_w, title_px, title_color, true);
         y += 5.0f;
     }
-    (void)sdl_touch_tutorial_draw_wrapped(body, box.x + pad, y, text_w,
+    (void)sdl_touch_tutorial_draw_rich(body, box.x + pad, y, text_w,
         body_px, text_color);
 }
 
@@ -1027,16 +1326,16 @@ void sdl_touch_tutorial_draw_main_screen_zones(
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Main menu",
             mouse
-                ? "Click: open the main menu."
-                : "Tap: open the main touch menu.");
+                ? "<a>Click:</a> open the <t>main menu</t>."
+                : "<a>Tap:</a> open the <t>main touch menu</t>.");
     }
 
     if (sdl_depth_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Depth pane",
             mouse
-                ? "Click depth: open the map.\n+/-: change temporary zoom."
-                : "Tap depth: open the map.\n+/-: change temporary zoom.");
+                ? "<a>Click depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>."
+                : "<a>Tap depth:</a> open the <t>map</t>.\n<a>+/-:</a> change <n>temporary zoom</n>.");
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -1049,8 +1348,8 @@ void sdl_touch_tutorial_draw_main_screen_zones(
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Character panel",
             mouse
-                ? "Click rows: character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\nUse when: you want the relevant screen without opening the full menu."
-                : "Tap rows: character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\nUse when: you want the relevant screen without opening the full menu.");
+                ? "<a>Click rows:</a> character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\n<n>Use when:</n> you want the relevant screen without opening the full menu."
+                : "<a>Tap rows:</a> character, skills, abilities, song, supplies, inventory, and attack-mode shortcuts.\n<n>Use when:</n> you want the relevant screen without opening the full menu.");
     }
 
     if (SCREEN_HGT > 0 && map_cols > 0
@@ -1060,8 +1359,8 @@ void sdl_touch_tutorial_draw_main_screen_zones(
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Map / player",
             mouse
-                ? "Left-click: path to an explored or open square, or select a target.\nRight-click: open contextual actions, look, or special movement choices.\nMouse Movement: choose On, Off, or Right click only in Mouse Input."
-                : "Tap: path to an explored or open square, or select a target.\nHold/right-click: open contextual actions, look, or special movement choices.\nPlayer square: action wheel; Use/Desc act on the floor item, hold/right-click them for full item menus.");
+                ? "<a>Left-click:</a> path to an explored or open square, or select a <t>target</t>.\n<a>Right-click:</a> open <t>contextual actions</t>, look, or special movement choices.\n<t>Mouse Movement:</t> choose On, Off, or Right click only in <t>Mouse Input</t>."
+                : "<a>Tap:</a> path to an explored or open square, or select a <t>target</t>.\n<a>Hold/right-click:</a> open <t>contextual actions</t>, look, or special movement choices.\n<t>Player square:</t> action wheel; <a>Use/Desc</a> act on the floor item, <a>hold/right-click</a> them for full item menus.");
     }
 
     if (sdl_combat_overlay_pane_current_rect(&pane_rect)) {
@@ -1070,8 +1369,8 @@ void sdl_touch_tutorial_draw_main_screen_zones(
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Combat overlay",
             mouse
-                ? "Click an attack row to choose the matching attack mode.\nDefault placement: lower-left corner."
-                : "Tap an attack row to choose the matching attack mode.\nDefault placement: lower-left corner.");
+                ? "<a>Click</a> an attack row to choose the matching <t>attack mode</t>.\n<n>Default placement: lower-left corner.</n>"
+                : "<a>Tap</a> an attack row to choose the matching <t>attack mode</t>.\n<n>Default placement: lower-left corner.</n>");
     }
     {
         SDL_FRect qa_rects[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];
@@ -1081,8 +1380,8 @@ void sdl_touch_tutorial_draw_main_screen_zones(
             sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
                 "Quick access",
                 mouse
-                    ? "Click an icon for its command; right-click for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor. Edit buttons in Touch Settings."
-                    : "Tap an icon for its command; hold for its alternate.\nDefault placement: bottom center. Item descriptions open above this anchor. Edit buttons in Touch Settings.");
+                    ? "<a>Click</a> an icon for its command; <a>right-click</a> for its alternate.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>."
+                    : "<a>Tap</a> an icon for its command; <a>hold</a> for its alternate.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>.");
         }
     }
     if (sdl_status_pane_current_rect(&pane_rect, NULL)) {
@@ -1090,36 +1389,36 @@ void sdl_touch_tutorial_draw_main_screen_zones(
             (float)pane_rect.w, (float)pane_rect.h };
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Status overlay",
-            "Shows temporary conditions and remaining durations.\nDefault placement: lower-right corner.");
+            "Shows <t>temporary conditions</t> and remaining durations.\n<n>Default placement: lower-right corner.</n>");
     }
     if (sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Roll log overlay",
             mouse
-                ? "Click: open combat history.\nDefault placement: upper-right, below the depth control."
-                : "Tap: open combat history.\nDefault placement: upper-right, below the depth control.");
+                ? "<a>Click:</a> open <t>combat history</t>.\n<n>Default placement: upper-right, below the depth control.</n>"
+                : "<a>Tap:</a> open <t>combat history</t>.\n<n>Default placement: upper-right, below the depth control.</n>");
     }
 
     if (sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Inventory pane",
             mouse
-                ? "Click: open inventory.\nUse for: inspecting, using, dropping, or managing carried items without going through the main menu."
-                : "Tap: open inventory.\nUse for: inspecting, using, dropping, or managing carried items without going through the main menu.");
+                ? "<a>Click:</a> open <t>inventory</t>.\n<n>Use for:</n> inspecting, using, dropping, or managing carried items without going through the main menu."
+                : "<a>Tap:</a> open <t>inventory</t>.\n<n>Use for:</n> inspecting, using, dropping, or managing carried items without going through the main menu.");
     }
     if (sdl_touch_tutorial_view_rect(PANE_WORN, &rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Equipment pane",
             mouse
-                ? "Click: open equipment.\nUse for: inspecting worn gear, comparing equipment, taking items off, and checking current loadout."
-                : "Tap: open equipment.\nUse for: inspecting worn gear, comparing equipment, taking items off, and checking current loadout.");
+                ? "<a>Click:</a> open <t>equipment</t>.\n<n>Use for:</n> inspecting worn gear, comparing equipment, taking items off, and checking current loadout."
+                : "<a>Tap:</a> open <t>equipment</t>.\n<n>Use for:</n> inspecting worn gear, comparing equipment, taking items off, and checking current loadout.");
     }
     if (sdl_touch_tutorial_view_rect(PANE_LOG, &rect)) {
         sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
             "Messages pane",
             mouse
-                ? "Click: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions."
-                : "Tap: review recent log entries.\nUse after: combat rounds, warnings, sounds, prompts, or long automatic actions.");
+                ? "<a>Click:</a> review recent log entries.\n<n>Use after:</n> combat rounds, warnings, sounds, prompts, or long automatic actions."
+                : "<a>Tap:</a> review recent log entries.\n<n>Use after:</n> combat rounds, warnings, sounds, prompts, or long automatic actions.");
     }
     for (int i = 0; i < callout_count; i++)
         sdl_touch_tutorial_draw_zone_highlight(&callouts[i].zone);
@@ -1140,11 +1439,11 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
         mouse ? "Main Screen Mouse Controls" : "Default Touch Layout",
         mouse
             ? (compact
-                ? "Click highlighted regions to open views and menus. Left-click the map to move; right-click for actions."
-                : "Click highlighted regions to open views and menus. Left-click the map to move; right-click for actions. Mouse Movement can be changed any time in Options > Input Options > Mouse Input.")
+                ? "<a>Click</a> highlighted regions to open views and menus. <a>Left-click</a> the <t>map</t> to move; <a>right-click</a> for actions."
+                : "<a>Click</a> highlighted regions to open views and menus. <a>Left-click</a> the <t>map</t> to move; <a>right-click</a> for actions. <t>Mouse Movement</t> can be changed any time in Options > Input Options > <t>Mouse Input</t>.")
             : (compact
-                ? "Tap highlighted regions to open views. The fixed overlays use the placements shown here."
-                : "Tap highlighted regions to open views. Combat is lower left, quick access bottom center, status lower right, and depth/rolls upper right."),
+                ? "<a>Tap</a> highlighted regions to open views. The fixed overlays use the placements shown here."
+                : "<a>Tap</a> highlighted regions to open views. Combat is <n>lower left</n>, quick access <n>bottom center</n>, status <n>lower right</n>, and depth/rolls <n>upper right</n>."),
         page, page_count);
 
     if (compact)
@@ -1183,7 +1482,7 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
     sdl_touch_tutorial_draw_screen_dim(screen, 128);
     sdl_touch_tutorial_draw_header(screen,
         "Preset: Touch pane + touch screen",
-        "Visible command pad. Tap buttons for actions; hold for alternates. Change presets any time in Touch Settings.",
+        "Visible command pad. <a>Tap</a> buttons for actions; <a>hold</a> for alternates. Change presets any time in <t>Touch Settings</t>.",
         page, page_count);
 
     have_pane = sdl_touch_pane_current_rect(&pane)
@@ -1239,7 +1538,7 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             float margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
                 18.0f, 36.0f);
             cptr body =
-                "Tap: use the command printed on the button. Tap 2nd Panel to swap panes, then tap it again to return.\nSecond panel: Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the f key.\nConfirm (pick): confirms prompts, picks up, enters, or waits depending on context.\nDirection buttons: step in one of eight directions; long-touch movement uses the active profile's alternate movement behavior.\nPresets: change this layout any time in Options > Input Options > Touch Settings.";
+                "<a>Tap:</a> use the command printed on the button. <a>Tap</a> <t>2nd Panel</t> to swap panes, then <a>tap</a> it again to return.\n<t>Second panel:</t> Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the <a>f</a> key.\n<t>Confirm (pick):</t> confirms prompts, picks up, enters, or waits depending on context.\n<t>Direction buttons:</t> step in one of eight directions; <a>long-touch</a> movement uses the active profile's <n>alternate movement</n> behavior.\n<n>Presets:</n> change this layout any time in Options > Input Options > <t>Touch Settings</t>.";
 
             if (pane.x < screen->x + screen->w / 2) {
                 panel_x = (float)(pane.x + pane.w) + margin;
@@ -1289,7 +1588,7 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_overlay_menu(screen);
     sdl_touch_tutorial_draw_header(screen,
         "Preset: Corners + quick access",
-        "Pane hidden. Side corner zones handle movement and fast commands. Change presets any time in Touch Settings.",
+        "Pane hidden. <t>Side corner zones</t> handle movement and fast commands. Change presets any time in <t>Touch Settings</t>.",
         page, page_count);
 
     if (sdl_touch_zone_compute_layout_for_screen(screen, zone_rects)) {
@@ -1312,7 +1611,7 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
             (float)screen->x + (float)screen->w * 0.27f,
             (float)screen->y + (float)screen->h * 0.56f,
             (float)screen->w * 0.46f, "Corners preset",
-            "Tap arrows: step in the shown direction.\nThe top and bottom non-arrow buttons use configurable commands.\nHold center blocks or command buttons for alternate bindings.\nSwipe edge: reveal or hide touch controls.\nChange preset and corner side in Touch Settings.");
+            "<a>Tap arrows:</a> step in the shown direction.\nThe top and bottom non-arrow buttons use <t>configurable commands</t>.\n<a>Hold</a> center blocks or command buttons for <n>alternate bindings</n>.\n<a>Swipe edge:</a> reveal or hide touch controls.\nChange <t>preset</t> and corner side in <t>Touch Settings</t>.");
     } else {
         x = (float)screen->x + (float)screen->w * 0.14f;
         y = (float)screen->y + (float)screen->h * 0.34f;
@@ -1348,7 +1647,7 @@ void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
     sdl_touch_tutorial_draw_overlay_menu(screen);
     header_bottom = sdl_touch_tutorial_draw_header(screen,
         "Button Wheel + Quick Access",
-        "The wheel uses the open right-side lane between the upper and lower overlays. Quick access stays at bottom center.",
+        "The <t>wheel</t> uses the open right-side lane between the upper and lower overlays. <t>Quick access</t> stays at <n>bottom center</n>.",
         page, page_count);
 
     have_wheel = sdl_touch_round_compute_layout(&cx, &cy, &radius,
@@ -1413,7 +1712,7 @@ void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
 
     sdl_touch_tutorial_draw_info_panel(screen,
         panel_x, panel_y, panel_w, "Button wheel controls",
-        "Outer arrows: tap a direction to step.\nInner wheel: press and drag toward a direction, then release.\nCenter: tap to repeat the last direction.\nSwipe edge: reveal or hide the touch pane.\nQuick access: tap a button for its command; hold it for the long-touch command.\nDescription cards open above the bottom-center quick-access overlay.");
+        "<t>Outer arrows:</t> <a>tap</a> a direction to step.\n<t>Inner wheel:</t> <a>press and drag</a> toward a direction, then release.\n<t>Center:</t> <a>tap</a> to repeat the last direction.\n<a>Swipe edge:</a> reveal or hide the touch pane.\n<t>Quick access:</t> <a>tap</a> a button for its command; <a>hold</a> it for the long-touch command.\nDescription cards open above the bottom-center quick-access overlay.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }
@@ -1678,54 +1977,54 @@ typedef struct birth_coach_step {
 static const birth_coach_step birth_coach_sheet_steps[] = {
     { "Vitals", 0, 0, "Vitals",
         "Your live status at a glance.\n"
-        "Exp: spent / earned - the pool you spend on skills and abilities.\n"
-        "Burden: weight carried / the most you can bear before slowing.\n"
-        "Depth c/m: current depth / the shallowest you may climb back to.\n"
-        "Health and Voice: your hit points and song points.\n"
-        "Melee & Bows show (to-hit, damage); Armor shows [evasion, protection]." },
+        "<t>Exp:</t> spent / earned - the pool you spend on skills and abilities.\n"
+        "<t>Burden:</t> weight carried / the most you can bear before slowing.\n"
+        "<t>Depth c/m:</t> current depth / the shallowest you may climb back to.\n"
+        "<t>Health and Voice:</t> your hit points and song points.\n"
+        "<t>Melee & Bows</t> show <y>(to-hit, damage)</y>; <t>Armor</t> shows <y>[evasion, protection]</y>." },
     { "Combat", 0, 0, "Combat numbers",
         "Your offence and defence, pulled out on wide screens.\n"
-        "Melee / Bows: (to-hit bonus, damage dice).\n"
-        "Armor: [evasion, protection] - dodge first, then soak.\n"
+        "<t>Melee / Bows:</t> <y>(to-hit bonus, damage dice)</y>.\n"
+        "<t>Armor:</t> <y>[evasion, protection]</y> - dodge first, then soak.\n"
         "See the two Combat steps at the end for how these are used." },
     { "Traits", 0, 0, "Traits",
         "Innate strengths and flaws from your hero and house.\n"
-        "++ mastery and + affinity make a skill cheaper and stronger.\n"
-        "- and -- are penalties; UNIQUE marks a special power.\n"
-        "Curses such as Doom of Mandos are shown in umber.\n"
+        "<a>++ mastery</a> and <g>+ affinity</g> make a skill cheaper and stronger.\n"
+        "<r>- and --</r> are penalties; <v>UNIQUE</v> marks a special power.\n"
+        "<u>Curses</u> such as Doom of Mandos are shown in umber.\n"
         "Lean into your affinities and play around your curses." },
     { "Attributes", 0, 0, "Attributes",
-        "Str, Dex, Con, Gra - the roots every skill grows from.\n"
-        "Str: melee damage dice and carrying capacity.\n"
-        "Dex: feeds melee, evasion, archery and stealth.\n"
-        "Con: your hit points and resilience.\n"
-        "Gra: feeds will, perception, song, smithing and voice.\n"
-        "Read each as Current = Base +equip +misc -drain." },
+        "<t>Str, Dex, Con, Gra</t> - the roots every skill grows from.\n"
+        "<t>Str:</t> melee damage dice and carrying capacity.\n"
+        "<t>Dex:</t> feeds melee, evasion, archery and stealth.\n"
+        "<t>Con:</t> your hit points and resilience.\n"
+        "<t>Gra:</t> feeds will, perception, song, smithing and voice.\n"
+        "Read each as <y>Current = Base +equip +misc -drain</y>." },
     { "Skills", 0, 0, "Skills",
         "What you train by spending experience.\n"
-        "Total = Base +stat +equip +misc.\n"
-        "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
-        "Stealth / Perception: stay unseen and notice things.\n"
-        "Will resists fear & magic; Smithing forges; Song sings powers.\n"
-        "Click a skill, or press i, to raise it." },
+        "<y>Total = Base +stat +equip +misc</y>.\n"
+        "<t>Melee / Archery:</t> chance to hit.  <t>Evasion:</t> avoid being hit.\n"
+        "<t>Stealth / Perception:</t> stay unseen and notice things.\n"
+        "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
+        "<a>Click</a> a skill, or press <a>i</a>, to raise it." },
     { "Skills", 0, 0, "Combat: attack & evasion",
-        "Whether a blow lands is one opposed roll:\n"
-        "  you: 1d20 + Melee   vs   them: 1d20 + Evasion.\n"
+        "Whether a blow lands is one <y>opposed roll</y>:\n"
+        "  you: <y>1d20 + Melee</y>   vs   them: <y>1d20 + Evasion</y>.\n"
         "The higher total wins; a tie misses.\n"
-        "Evasion is active dodging, so it is reduced when you are\n"
-        "surrounded - fight in doorways and corridors to keep it.\n"
-        "Archery uses the same roll, your Archery vs their Evasion.\n"
-        "Beat their roll by a wide margin to land a critical hit,\n"
+        "<t>Evasion</t> is active dodging, so it is <n>reduced when you are\n"
+        "surrounded</n> - fight in doorways and corridors to keep it.\n"
+        "Archery uses the same roll, your <t>Archery</t> vs their <t>Evasion</t>.\n"
+        "Beat their roll by a wide margin to land a <r>critical hit</r>,\n"
         "which rolls extra damage dice." },
     { "Skills", 0, 0, "Combat: damage & armour",
         "Damage is rolled only after a hit connects:\n"
-        "  damage dice = weapon dice + Strength (capped by weapon weight).\n"
-        "A foe's armour is shown as [Evasion, Protection].\n"
-        "Protection rolls a value within that range each blow and is\n"
-        "subtracted from your damage - only the excess wounds them.\n"
+        "  <y>damage dice = weapon dice + Strength</y> (capped by weapon weight).\n"
+        "A foe's armour is shown as <y>[Evasion, Protection]</y>.\n"
+        "<t>Protection</t> rolls a value within that range each blow and is\n"
+        "subtracted from your damage - <n>only the excess wounds them</n>.\n"
         "So heavy armour can shrug off small hits entirely;\n"
-        "criticals (extra dice) are how you punch through it.\n"
-        "Your own Armor line works the same way against their attacks." },
+        "<r>criticals</r> (extra dice) are how you punch through it.\n"
+        "Your own <t>Armor</t> line works the same way against their attacks." },
 };
 
 static const birth_coach_step birth_coach_select_step = {
@@ -1770,10 +2069,10 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
         if (sdl_touch_only_device_active())
         {
             SDL_strlcpy(buf,
-                "Swipe or tap the side arrows to browse heroes.\n"
-                "Tap the hero name or Choose to confirm; Back returns to peoples.\n"
-                "The screen shows description, traits and a power rating.\n"
-                "A higher power rating means an easier start - ideal when you are new.\n"
+                "<a>Swipe</a> or <a>tap</a> the side arrows to browse heroes.\n"
+                "<a>Tap</a> the hero name or <a>Choose</a> to confirm; <a>Back</a> returns to peoples.\n"
+                "The screen shows description, traits and a <t>power rating</t>.\n"
+                "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
                 "Pick the hero whose strengths match the run you want.",
                 buflen);
         }
@@ -1784,21 +2083,21 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
             sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
                 back_label, sizeof(back_label));
             strnfmt(buf, buflen,
-                "D-pad/left stick Up/Down moves the highlight.\n"
-                "Right or %s confirms; Left or %s returns to peoples.\n"
-                "The screen shows description, traits and a power rating.\n"
-                "A higher power rating means an easier start - ideal when you are new.\n"
+                "<a>D-pad/left stick Up/Down</a> moves the highlight.\n"
+                "Right or <a>%s</a> confirms; Left or <a>%s</a> returns to peoples.\n"
+                "The screen shows description, traits and a <t>power rating</t>.\n"
+                "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
                 "Pick the hero whose strengths match the run you want.",
                 confirm_label, back_label);
         }
         else
         {
             SDL_strlcpy(buf,
-                "Use Up/Down to move the highlight, or click a hero to highlight it.\n"
-                "Enter confirms; Esc returns to peoples.\n"
-                "Click the highlighted hero again to confirm.\n"
-                "The screen shows description, traits and a power rating.\n"
-                "A higher power rating means an easier start - ideal when you are new.\n"
+                "Use <a>Up/Down</a> to move the highlight, or <a>click</a> a hero to highlight it.\n"
+                "<a>Enter</a> confirms; <a>Esc</a> returns to peoples.\n"
+                "<a>Click</a> the highlighted hero again to confirm.\n"
+                "The screen shows description, traits and a <t>power rating</t>.\n"
+                "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
                 "Pick the hero whose strengths match the run you want.",
                 buflen);
         }
@@ -1810,12 +2109,12 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
         if (sdl_touch_only_device_active())
         {
             SDL_strlcpy(buf,
-                "Spend your points across Str, Dex, Con and Gra.\n"
-                "Tap a stat to select it; tap it again to raise it.\n"
-                "Long-tap a stat to lower it. Confirm accepts; Back returns to heroes.\n"
-                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
-                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
-                "Cost = price of the next point; Points Left = your budget.",
+                "Spend your points across <t>Str, Dex, Con and Gra</t>.\n"
+                "<a>Tap</a> a stat to select it; <a>tap it again</a> to raise it.\n"
+                "<a>Long-tap</a> a stat to lower it. <a>Confirm</a> accepts; <a>Back</a> returns to heroes.\n"
+                "<t>Str:</t> melee dice & capacity.  <t>Dex:</t> melee/evasion/archery/stealth.\n"
+                "<t>Con:</t> hit points.  <t>Gra:</t> will/perception/song/smithing & voice.\n"
+                "<y>Cost =</y> price of the next point; <y>Points Left =</y> your budget.",
                 buflen);
         }
         else if (steamdeck_controls_active())
@@ -1825,24 +2124,24 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
             sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
                 back_label, sizeof(back_label));
             strnfmt(buf, buflen,
-                "Spend your points across Str, Dex, Con and Gra.\n"
-                "D-pad Up/Down picks a stat; Left/Right lowers or raises it.\n"
-                "%s accepts; %s returns to heroes.\n"
-                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
-                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
-                "Cost = price of the next point; Points Left = your budget.",
+                "Spend your points across <t>Str, Dex, Con and Gra</t>.\n"
+                "<a>D-pad Up/Down</a> picks a stat; <a>Left/Right</a> lowers or raises it.\n"
+                "<a>%s</a> accepts; <a>%s</a> returns to heroes.\n"
+                "<t>Str:</t> melee dice & capacity.  <t>Dex:</t> melee/evasion/archery/stealth.\n"
+                "<t>Con:</t> hit points.  <t>Gra:</t> will/perception/song/smithing & voice.\n"
+                "<y>Cost =</y> price of the next point; <y>Points Left =</y> your budget.",
                 confirm_label, back_label);
         }
         else
         {
             SDL_strlcpy(buf,
-                "Spend your points across Str, Dex, Con and Gra.\n"
-                "Up/Down picks a stat; Left/Right lowers or raises it.\n"
-                "Enter accepts; Esc returns to heroes.\n"
-                "Click a stat to select it; click again to raise; right-click lowers.\n"
-                "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
-                "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
-                "Cost = price of the next point; Points Left = your budget.",
+                "Spend your points across <t>Str, Dex, Con and Gra</t>.\n"
+                "<a>Up/Down</a> picks a stat; <a>Left/Right</a> lowers or raises it.\n"
+                "<a>Enter</a> accepts; <a>Esc</a> returns to heroes.\n"
+                "<a>Click</a> a stat to select it; <a>click again</a> to raise; <a>right-click</a> lowers.\n"
+                "<t>Str:</t> melee dice & capacity.  <t>Dex:</t> melee/evasion/archery/stealth.\n"
+                "<t>Con:</t> hit points.  <t>Gra:</t> will/perception/song/smithing & voice.\n"
+                "<y>Cost =</y> price of the next point; <y>Points Left =</y> your budget.",
                 buflen);
         }
         return buf;
@@ -1853,12 +2152,12 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
         if (sdl_touch_only_device_active())
         {
             SDL_strlcpy(buf,
-                "Spend experience on the eight skills.\n"
-                "Tap a skill to select it; tap it again to raise it.\n"
-                "Long-tap a skill to lower it. Confirm accepts; Back returns to attributes.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Base also sets how dear abilities are to buy later.\n"
-                "Cost climbs the higher the skill; Points Left = your experience.",
+                "Spend experience on the <t>eight skills</t>.\n"
+                "<a>Tap</a> a skill to select it; <a>tap it again</a> to raise it.\n"
+                "<a>Long-tap</a> a skill to lower it. <a>Confirm</a> accepts; <a>Back</a> returns to attributes.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<n>Base also sets how dear abilities are to buy later.</n>\n"
+                "<t>Cost</t> climbs the higher the skill; <y>Points Left =</y> your experience.",
                 buflen);
         }
         else if (steamdeck_controls_active())
@@ -1868,24 +2167,24 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
             sdl_touch_tutorial_prompt_label(steamdeck_back_key(), "B",
                 back_label, sizeof(back_label));
             strnfmt(buf, buflen,
-                "Spend experience on the eight skills.\n"
-                "D-pad Up/Down picks a skill; Left/Right lowers or raises it.\n"
-                "%s accepts; %s returns to attributes.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Base also sets how dear abilities are to buy later.\n"
-                "Cost climbs the higher the skill; Points Left = your experience.",
+                "Spend experience on the <t>eight skills</t>.\n"
+                "<a>D-pad Up/Down</a> picks a skill; <a>Left/Right</a> lowers or raises it.\n"
+                "<a>%s</a> accepts; <a>%s</a> returns to attributes.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<n>Base also sets how dear abilities are to buy later.</n>\n"
+                "<t>Cost</t> climbs the higher the skill; <y>Points Left =</y> your experience.",
                 confirm_label, back_label);
         }
         else
         {
             SDL_strlcpy(buf,
-                "Spend experience on the eight skills.\n"
-                "Up/Down picks a skill; Left/Right lowers or raises it.\n"
-                "Enter accepts; Esc returns to attributes.\n"
-                "Click a skill to select it; click again to raise; right-click lowers.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Base also sets how dear abilities are to buy later.\n"
-                "Cost climbs the higher the skill; Points Left = your experience.",
+                "Spend experience on the <t>eight skills</t>.\n"
+                "<a>Up/Down</a> picks a skill; <a>Left/Right</a> lowers or raises it.\n"
+                "<a>Enter</a> accepts; <a>Esc</a> returns to attributes.\n"
+                "<a>Click</a> a skill to select it; <a>click again</a> to raise; <a>right-click</a> lowers.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<n>Base also sets how dear abilities are to buy later.</n>\n"
+                "<t>Cost</t> climbs the higher the skill; <y>Points Left =</y> your experience.",
                 buflen);
         }
         return buf;
@@ -1901,8 +2200,8 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "Total = Base +stat +equip +misc.\n"
                 "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
                 "Stealth / Perception: stay unseen and notice things.\n"
-                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
-                "Tap a skill once to focus it, then tap again or tap Increase to raise it.",
+                "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
+                "<a>Tap</a> a skill once to focus it, then <a>tap again</a> or <a>tap Increase</a> to raise it.",
                 buflen);
         }
         else if (steamdeck_controls_active())
@@ -1914,8 +2213,8 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "Total = Base +stat +equip +misc.\n"
                 "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
                 "Stealth / Perception: stay unseen and notice things.\n"
-                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
-                "D-pad or left stick moves focus; %s raises the focused skill.",
+                "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
+                "<a>D-pad or left stick</a> moves focus; <a>%s</a> raises the focused skill.",
                 confirm_label);
         }
         else
@@ -1925,8 +2224,8 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "Total = Base +stat +equip +misc.\n"
                 "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
                 "Stealth / Perception: stay unseen and notice things.\n"
-                "Will resists fear & magic; Smithing forges; Song sings powers.\n"
-                "Click a skill twice, or press i/Space, to raise skills.",
+                "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
+                "<a>Click</a> a skill twice, or press <a>i/Space</a>, to raise skills.",
                 buflen);
         }
         return buf;
@@ -2039,10 +2338,8 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
 {
     SDL_Color title_color = g_state.palette[TERM_YELLOW];
     SDL_Color text_color = g_state.palette[TERM_L_WHITE];
-    char lines[48][SDL_TOUCH_TUTORIAL_LINE_LEN];
     SDL_FRect box;
     SDL_FRect shadow;
-    TTF_Font* font = NULL;
     float pad = sdl_touch_pane_clampf((float)screen->h * 0.017f, 12.0f, 22.0f);
     float footer_top = (float)(screen->y + screen->h)
         - sdl_touch_pane_clampf((float)screen->h * 0.090f, 54.0f, 78.0f) - pad;
@@ -2088,9 +2385,7 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
 
     /* Shrink the body font until the wrapped text fits the vertical budget. */
     for (;;) {
-        font = sdl_touch_tutorial_font_for_height(detail_px);
-        n = sdl_touch_tutorial_wrap_lines(body, font, text_w, lines,
-            (int)N_ELEMENTS(lines));
+        n = sdl_touch_tutorial_rich_line_count(body, detail_px, text_w);
         line_h = (float)detail_px * 1.30f;
         title_h = (float)title_px * 1.25f;
         box_h = pad * 2.0f + title_h + 6.0f + (float)n * line_h;
@@ -2136,11 +2431,8 @@ static void birth_coach_draw_callout(const SDL_Rect* screen,
     (void)sdl_touch_tutorial_draw_text_line(title, box.x + box.w * 0.5f, y,
         text_w, title_px, title_color, true);
     y += title_h + 6.0f;
-    for (int i = 0; i < n; i++) {
-        (void)sdl_touch_tutorial_draw_text_line(lines[i], box.x + pad, y,
-            text_w, detail_px, text_color, false);
-        y += line_h;
-    }
+    (void)sdl_touch_tutorial_draw_rich(body, box.x + pad, y, text_w,
+        detail_px, text_color);
 }
 
 /* Draw one step: dim the screen, frame the target block, and pin a detailed
@@ -2300,22 +2592,22 @@ const sdl_touch_tutorial_choice sdl_touch_tutorial_choices[] = {
     {
         SDL_TOUCH_PROFILE_TOUCH_PANE,
         "Touch pane + touch screen",
-        "Visible command pad with movement and common actions on screen. Best for phones and first touch games."
+        "<t>Visible command pad</t> with movement and common actions on screen. <n>Best for phones and first touch games.</n>"
     },
     {
         SDL_TOUCH_PROFILE_CORNERS,
         "Corners + quick access",
-        "Side corner movement zones and a short quick-access command pane. Best when you want more map space."
+        "<t>Side corner movement zones</t> and a short quick-access command pane. <n>Best when you want more map space.</n>"
     },
     {
         SDL_TOUCH_PROFILE_ROUND_WHEEL,
         "Button wheel + quick access",
-        "Outer movement buttons with an inner drag wheel and a longer quick-access command pane. Best for one-thumb movement once you know the layout."
+        "Outer movement buttons with an <t>inner drag wheel</t> and a longer quick-access command pane. <n>Best for one-thumb movement once you know the layout.</n>"
     },
     {
         SDL_TOUCH_TUTORIAL_CHOICE_REPLAY,
         "Start tutorial again",
-        "Replay the touch tutorial before choosing a preset."
+        "<a>Replay</a> the touch tutorial before choosing a preset."
     },
 };
 
@@ -2456,7 +2748,7 @@ void sdl_touch_tutorial_draw_choice_card(const SDL_FRect* rect,
             + (float)body_px * 1.55f)
     {
         y += (float)title_px * 1.35f;
-        (void)sdl_touch_tutorial_draw_wrapped(choice->body, text_x, y,
+        (void)sdl_touch_tutorial_draw_rich(choice->body, text_x, y,
             text_w, body_px, body_color);
     }
 }
@@ -2502,8 +2794,8 @@ bool sdl_touch_tutorial_draw_profile_choice_screen(int highlighted,
     y += sdl_touch_tutorial_draw_text_line("Choose Touch Preset", x, y,
         max_w, title_px, title_color, true);
     y += 5.0f;
-    (void)sdl_touch_tutorial_draw_wrapped_centered(
-        "Pick the control layout to use now, or replay the tutorial before choosing.",
+    (void)sdl_touch_tutorial_draw_rich_centered(
+        "Pick the <t>control layout</t> to use now, or <a>replay the tutorial</a> before choosing.",
         x, y, max_w, body_px, text_color);
 
     sdl_touch_tutorial_choice_layout(&screen, choice_rects);

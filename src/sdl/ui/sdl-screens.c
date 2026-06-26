@@ -455,7 +455,10 @@ static float sdl_welcome_role_font_factor(sdl_welcome_line_role role)
     case SDL_WELCOME_LINE_SUBTITLE: return 0.94f;
     case SDL_WELCOME_LINE_ATTRIBUTION:
     case SDL_WELCOME_LINE_SONG_ATTRIBUTION: return 0.76f;
-    case SDL_WELCOME_LINE_QUOTE:
+    /* The epigraph quote renders in Cinzel (storyfont 1), which is visually
+     * larger than the Garamond body at the same px; pull its factor well below
+     * 1.0 so the quote reads quieter than the body it introduces. */
+    case SDL_WELCOME_LINE_QUOTE: return 0.65f;
     case SDL_WELCOME_LINE_BODY:
     case SDL_WELCOME_LINE_ACTION:
     default: return 1.0f;
@@ -510,7 +513,7 @@ static int sdl_welcome_font_px_for_role(int base_px,
 
 static int sdl_welcome_footer_font_px(int base_px)
 {
-    return MAX(1, (int)((float)base_px * 0.88f + 0.5f));
+    return MAX(1, (int)((float)base_px * 0.78f + 0.5f));
 }
 
 static float sdl_welcome_line_scale_for_role(sdl_welcome_line_role role)
@@ -5956,7 +5959,7 @@ static bool sdl_character_sheet_select_scroll_motion(float x, float y,
     if (total_dy > sdl_touch_swipe_threshold_px())
     {
         drag->dragged = true;
-        g_sdl_character_sheet_screen.hover_choice = -1;
+        g_sdl_character_sheet_screen.hover_choice = SDL_CHAR_SHEET_NO_HOVER;
         ui_menu_click_clear_pending_hover();
     }
 
@@ -9445,7 +9448,7 @@ void sdl_character_sheet_screen_hide(void)
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_HIDDEN;
     g_sdl_character_sheet_screen.focus_choice = -1;
     g_sdl_character_sheet_screen.selected_index = -1;
-    g_sdl_character_sheet_screen.hover_choice = -1;
+    g_sdl_character_sheet_screen.hover_choice = SDL_CHAR_SHEET_NO_HOVER;
     g_sdl_character_sheet_screen.select_menu_style = false;
     g_sdl_select_choice_page_only = false;
     g_sdl_select_dynamic_description = false;
@@ -9684,7 +9687,7 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_NARRATIVE;
     g_sdl_character_sheet_screen.focus_choice = -1;
     g_sdl_character_sheet_screen.selected_index = -1;
-    g_sdl_character_sheet_screen.hover_choice = -1;
+    g_sdl_character_sheet_screen.hover_choice = SDL_CHAR_SHEET_NO_HOVER;
     g_sdl_character_sheet_screen.select_menu_style = false;
     g_sdl_character_sheet_screen.live_item_count = 0;
     g_sdl_character_sheet_screen.select_row_count = 0;
@@ -10386,7 +10389,7 @@ bool sdl_character_sheet_screen_commit_select(int selected_index)
     if (g_sdl_character_sheet_screen.hover_choice >= 0
         && g_sdl_character_sheet_screen.hover_choice != selected_index)
     {
-        g_sdl_character_sheet_screen.hover_choice = -1;
+        g_sdl_character_sheet_screen.hover_choice = SDL_CHAR_SHEET_NO_HOVER;
         ui_menu_click_clear_pending_hover();
     }
     g_sdl_character_sheet_screen.selected_index = selected_index;
@@ -10428,9 +10431,9 @@ bool sdl_character_sheet_screen_handle_pointer_motion(float x, float y)
         return true;
     }
 
-    if (g_sdl_character_sheet_screen.hover_choice != -1)
+    if (g_sdl_character_sheet_screen.hover_choice != SDL_CHAR_SHEET_NO_HOVER)
     {
-        g_sdl_character_sheet_screen.hover_choice = -1;
+        g_sdl_character_sheet_screen.hover_choice = SDL_CHAR_SHEET_NO_HOVER;
         g_state.need_present = true;
     }
     if (ui_menu_click_clear_hover(&wake) && wake)

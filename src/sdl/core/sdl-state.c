@@ -741,7 +741,7 @@ sdl_character_sheet_screen_state g_sdl_character_sheet_screen = {
     .context = SDL_CHARACTER_SHEET_HIDDEN,
     .focus_choice = -1,
     .selected_index = -1,
-    .hover_choice = -1
+    .hover_choice = SDL_CHAR_SHEET_NO_HOVER
 };
 touch_zone_press_state g_touch_zone_press;
 touch_top_panel_press_state g_touch_top_panel_press;

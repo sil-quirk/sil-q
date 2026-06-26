@@ -522,6 +522,13 @@ typedef struct menu_scroll_drag_state {
     float accum_y;
 } menu_scroll_drag_state;
 
+/* "Nothing is hovered" sentinel for hover_choice.  It must stay distinct from
+ * every real choice value: entries are >= 0, and the prompt buttons reuse small
+ * negatives (-1 Back/Esc, -2 Confirm, -3) while page controls use -20/-21.  A
+ * plain -1 sentinel collided with the Back button, so it was always drawn
+ * focused when the mouse hovered nothing. */
+#define SDL_CHAR_SHEET_NO_HOVER (-1000000)
+
 typedef struct sdl_character_sheet_screen_state {
     sdl_character_sheet_context context;
     int focus_choice;
