@@ -1214,17 +1214,33 @@ static int sdl_welcome_choose_base_px(const SDL_Rect* canvas)
 {
     int min_px = 10;
     int max_px = sdl_welcome_max_base_px(canvas);
+    int low_px = min_px;
+    int high_px = max_px;
+    int best_px = min_px;
 
-    for (int px = max_px; px >= min_px; px--)
+    /*
+     * Layout feasibility is monotonic.  The old pixel-by-pixel descent loaded
+     * nearly the entire story-font cache before character creation; subsequent
+     * race sheets then received a nearest cached size instead of the size their
+     * own coupled layout requested.
+     */
+    while (low_px <= high_px)
     {
+        int px = low_px + (high_px - low_px) / 2;
+
         if (sdl_welcome_measure_layout_for_base(canvas, px, NULL, 0,
                 NULL, NULL, false))
         {
-            return px;
+            best_px = px;
+            low_px = px + 1;
+        }
+        else
+        {
+            high_px = px - 1;
         }
     }
 
-    return min_px;
+    return best_px;
 }
 
 static int sdl_welcome_prepare_layout(const SDL_Rect* canvas,
@@ -1475,6 +1491,8 @@ TTF_Font* sdl_char_sheet_font_for_rows(float available_h, int rows,
     int min_px, int max_px, float line_scale, float* out_line_h,
     int* out_px)
 {
+    int low_px;
+    int high_px;
     int chosen_px = min_px;
     float chosen_line_h = 1.0f;
     TTF_Font* chosen_font = NULL;
@@ -1486,20 +1504,47 @@ TTF_Font* sdl_char_sheet_font_for_rows(float available_h, int rows,
     if (max_px < min_px)
         max_px = min_px;
 
-    for (int px = max_px; px >= min_px; px--)
+    /*
+     * Row fit is monotonic.  Searching every intermediate pixel size polluted
+     * the shared story-font cache while moving through character races; once
+     * full, later races silently received a nearest cached font from an
+     * earlier race.  Binary search preserves the same largest-fitting result
+     * without creating a global cross-race font coupling.
+     */
+    low_px = min_px;
+    high_px = max_px;
+    while (low_px <= high_px)
     {
+        int px = low_px + (high_px - low_px) / 2;
         TTF_Font* font = sdl_story_font_for_height(px);
         float line_h;
 
         if (!font)
+        {
+            high_px = px - 1;
             continue;
+        }
 
         line_h = sdl_char_sheet_line_h(font, px, line_scale);
-        chosen_font = font;
-        chosen_px = px;
-        chosen_line_h = line_h;
         if (line_h * (float)rows <= available_h)
-            break;
+        {
+            chosen_font = font;
+            chosen_px = px;
+            chosen_line_h = line_h;
+            low_px = px + 1;
+        }
+        else
+        {
+            high_px = px - 1;
+        }
+    }
+
+    if (!chosen_font)
+    {
+        chosen_font = sdl_story_font_for_height(min_px);
+        chosen_px = min_px;
+        chosen_line_h = sdl_char_sheet_line_h(chosen_font, min_px,
+            line_scale);
     }
 
     if (chosen_line_h * (float)rows > available_h)
@@ -1689,6 +1734,8 @@ TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width,
     float available_h, int min_px, int max_px, float line_scale, int slot,
     float* out_line_h, int* out_lines, int* out_px)
 {
+    int low_px;
+    int high_px;
     int chosen_lines = 0;
     float chosen_line_h = 1.0f;
     TTF_Font* chosen_font = NULL;
@@ -1704,23 +1751,50 @@ TTF_Font* sdl_char_sheet_font_for_wrapped_text(cptr text, float width,
     if (!text || !text[0] || width <= 0.0f || available_h <= 0.0f)
         return sdl_story_font_for_height_slot(min_px, slot);
 
-    for (int px = max_px; px >= min_px; px--)
+    if (max_px < min_px)
+        max_px = min_px;
+
+    /* Wrapped-text fit is monotonic too; avoid loading every rejected size
+     * into the global story-font cache before reaching the race's fit. */
+    low_px = min_px;
+    high_px = max_px;
+    while (low_px <= high_px)
     {
+        int px = low_px + (high_px - low_px) / 2;
         TTF_Font* font = sdl_story_font_for_height_slot(px, slot);
         int lines;
         float line_h;
 
         if (!font)
+        {
+            high_px = px - 1;
             continue;
+        }
 
         line_h = sdl_char_sheet_line_h(font, px, line_scale);
         lines = sdl_char_sheet_wrap_text(font, text, width, NULL, 0);
-        chosen_font = font;
-        chosen_lines = lines;
-        chosen_line_h = line_h;
-        chosen_px = px;
         if (lines <= 0 || line_h * (float)lines <= available_h)
-            break;
+        {
+            chosen_font = font;
+            chosen_lines = lines;
+            chosen_line_h = line_h;
+            chosen_px = px;
+            low_px = px + 1;
+        }
+        else
+        {
+            high_px = px - 1;
+        }
+    }
+
+    if (!chosen_font)
+    {
+        chosen_font = sdl_story_font_for_height_slot(min_px, slot);
+        chosen_px = min_px;
+        chosen_line_h = sdl_char_sheet_line_h(chosen_font, min_px,
+            line_scale);
+        chosen_lines = sdl_char_sheet_wrap_text(chosen_font, text, width,
+            NULL, 0);
     }
 
     if (chosen_lines > 0
@@ -9042,6 +9116,8 @@ void sdl_character_sheet_screen_render(void)
         char sizing_subtitle[1024];
         float select_top_y = top_y;
         float select_top_h = top_h;
+        int select_welcome_px = 0;
+        int select_welcome_lines = 0;
 
         SDL_zero(vital_lines);
         SDL_zero(trait_lines);
@@ -9167,7 +9243,6 @@ void sdl_character_sheet_screen_render(void)
             float subtitle_lh = 1.0f;
             int subtitle_px = 12;
             int subtitle_lines = 0;
-            int subtitle_measure_lines = 0;
             TTF_Font* subtitle_font;
 
             if (!sdl_char_sheet_split_first_paragraph(desc_sizing,
@@ -9178,8 +9253,12 @@ void sdl_character_sheet_screen_render(void)
                 body_sizing = body_desc;
             }
 
-            for (int pass = 0; pass < 3; pass++)
+            for (int pass = 0; pass < 4; pass++)
             {
+                int want_lines = 1;
+                int wcount =
+                    g_sdl_character_sheet_screen.select_welcome_count;
+
                 select_top_y = subtitle_y + subtitle_h + gap * 0.75f;
                 select_top_h = (region_bottom > select_top_y)
                     ? (region_bottom - select_top_y) : 1.0f;
@@ -9195,18 +9274,31 @@ void sdl_character_sheet_screen_render(void)
                 }
 
                 subtitle_font = sdl_story_font_for_height(subtitle_px);
-                subtitle_lines = sdl_char_sheet_wrap_text(subtitle_font,
-                    subtitle, content_w, NULL, 0);
-                subtitle_measure_lines = sdl_char_sheet_wrap_text(
-                    subtitle_font, sizing_subtitle, content_w, NULL, 0);
-                if (subtitle_measure_lines > subtitle_lines)
-                    subtitle_lines = subtitle_measure_lines;
+                for (int k = 0; k < wcount; k++)
+                {
+                    int wl = sdl_char_sheet_wrap_text(subtitle_font,
+                        g_sdl_character_sheet_screen.select_welcome[k],
+                        content_w, NULL, 0);
+                    if (wl > want_lines)
+                        want_lines = wl;
+                }
+                if (wcount <= 0)
+                {
+                    want_lines = sdl_char_sheet_wrap_text(subtitle_font,
+                        sizing_subtitle, content_w, NULL, 0);
+                    if (want_lines < 1)
+                        want_lines = 1;
+                }
+                subtitle_lines = want_lines;
                 subtitle_h = subtitle_lh * (float)subtitle_lines;
             }
 
+            select_welcome_px = subtitle_px;
+            select_welcome_lines = subtitle_lines;
             subtitle_font = sdl_story_font_for_height(subtitle_px);
             if (subtitle_lines > 0)
             {
+                /* Draw the focused welcome inside its measured band. */
                 sdl_char_sheet_draw_wrapped(subtitle_font, subtitle,
                     TERM_YELLOW, content_x, subtitle_y, content_w,
                     subtitle_h + subtitle_lh * 0.25f, subtitle_lh,
@@ -9233,6 +9325,36 @@ void sdl_character_sheet_screen_render(void)
         sdl_char_sheet_render_columns(panels, n, content_x, select_top_y,
             content_w, select_top_h, canvas.h, body_desc, body_sizing, 0,
             NULL);
+
+        {
+            static int logged_focus = -1;
+            static int logged_choices = -1;
+            static int logged_canvas_w = -1;
+            static int logged_canvas_h = -1;
+            static size_t logged_hint_len = 0;
+            size_t hint_len = body_sizing ? strlen(body_sizing) : 0;
+
+            if (logged_focus != g_sdl_character_sheet_screen.focus_choice
+                || logged_choices != list_count
+                || logged_canvas_w != canvas.w
+                || logged_canvas_h != canvas.h
+                || logged_hint_len != hint_len)
+            {
+                log_debug("character-select fit: focus=%d choices=%d "
+                    "trait_rows=%d hint_bytes=%lu welcome=%dpx/%dlines "
+                    "body=%dpx canvas=%dx%d",
+                    g_sdl_character_sheet_screen.focus_choice, list_count,
+                    trait_rows_hint, (unsigned long)hint_len,
+                    select_welcome_px, select_welcome_lines,
+                    g_sdl_character_sheet_screen.last_desc_px,
+                    canvas.w, canvas.h);
+                logged_focus = g_sdl_character_sheet_screen.focus_choice;
+                logged_choices = list_count;
+                logged_canvas_w = canvas.w;
+                logged_canvas_h = canvas.h;
+                logged_hint_len = hint_len;
+            }
+        }
 
         sdl_char_sheet_draw_prompt(prompt_font, "", content_x, prompt_y,
             content_w, prompt_h);
@@ -9635,6 +9757,7 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     g_sdl_character_sheet_screen.live_item_count = 0;
     g_sdl_character_sheet_screen.select_row_count = 0;
     g_sdl_character_sheet_screen.select_detail_count = 0;
+    g_sdl_character_sheet_screen.select_welcome_count = 0;
     g_sdl_character_sheet_screen.select_rating_count = 0;
     g_sdl_character_sheet_screen.select_rating_title[0] = '\0';
     g_sdl_character_sheet_screen.select_stat_rows_hint = 0;
@@ -10225,6 +10348,24 @@ void sdl_character_sheet_screen_show_select_choice_page_only(void)
     g_state.need_present = true;
 }
 
+/* Open the book on its choice (last) page while leaving the earlier story
+ * pages reachable -- used when returning to race selection from the character
+ * page so the player lands back on the list they chose from, not page 0.
+ * Unlike show_select_choice_page_only() this does not hide the story pages. */
+void sdl_character_sheet_screen_open_select_choice_page(void)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT
+        || !g_sdl_character_sheet_screen.select_book_mode)
+    {
+        return;
+    }
+
+    sdl_select_page_turn_free();
+    g_sdl_character_sheet_screen.select_page =
+        sdl_char_sheet_book_choice_page();
+    g_state.need_present = true;
+}
+
 void sdl_character_sheet_screen_set_select_dynamic_description(bool enabled)
 {
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
@@ -10371,6 +10512,30 @@ void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc)
     SDL_strlcpy(g_sdl_character_sheet_screen.select_desc_sizing,
         longest_desc ? longest_desc : "",
         sizeof(g_sdl_character_sheet_screen.select_desc_sizing));
+}
+
+/* Register one character's welcome (the first paragraph of its text) for
+ * measurement at the real render font.  Reset by begin_select; character
+ * selection feeds only the characters belonging to the selected race. */
+void sdl_character_sheet_screen_add_select_welcome(cptr text)
+{
+    int idx = g_sdl_character_sheet_screen.select_welcome_count;
+    char first[160];
+    cptr body;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (idx < 0
+        || idx >= (int)N_ELEMENTS(g_sdl_character_sheet_screen.select_welcome))
+        return;
+    if (!text || !text[0])
+        return;
+    if (!sdl_char_sheet_split_first_paragraph(text, first, sizeof(first),
+            &body))
+        SDL_strlcpy(first, text, sizeof(first));
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_welcome[idx], first,
+        sizeof(g_sdl_character_sheet_screen.select_welcome[idx]));
+    g_sdl_character_sheet_screen.select_welcome_count = idx + 1;
 }
 
 void sdl_character_sheet_screen_set_select_description(cptr text)
@@ -10671,5 +10836,3 @@ bool sdl_character_sheet_screen_handle_pointer_event(
         return false;
     }
 }
-
-

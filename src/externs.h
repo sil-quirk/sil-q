@@ -1616,6 +1616,7 @@ extern void sdl_character_sheet_screen_add_select_heading(cptr label);
 extern void sdl_character_sheet_screen_set_select_intro(cptr text);
 extern void sdl_character_sheet_screen_set_select_frame(cptr top, cptr bottom);
 extern void sdl_character_sheet_screen_show_select_choice_page_only(void);
+extern void sdl_character_sheet_screen_open_select_choice_page(void);
 /* Race "book" page-turn: click ids (mouse) + navigation API for birth/. */
 #define SDL_SELECT_CLICK_PAGE_PREV (-20)
 #define SDL_SELECT_CLICK_PAGE_NEXT (-21)
@@ -1632,6 +1633,7 @@ extern bool sdl_character_sheet_screen_page_turning(void);
 extern void sdl_character_sheet_screen_begin_page_turn(int dir);
 extern void sdl_character_sheet_screen_begin_page_turn_to(int page);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
+extern void sdl_character_sheet_screen_add_select_welcome(cptr text);
 extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);
 /* Narrative "book" (N pages with optional actions): quest text, stats, etc.  Reuses the page-turn

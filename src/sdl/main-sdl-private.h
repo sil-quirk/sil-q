@@ -558,7 +558,11 @@ typedef struct sdl_character_sheet_screen_state {
     char select_intro[2048];   /* book mode: chronicle text (white) */
     char select_frame_top[768];    /* book mode: framing line above (accent) */
     char select_frame_bottom[768]; /* book mode: framing/charge below (accent) */
-    char select_desc_sizing[4096]; /* longest description, for stable layout */
+    char select_desc_sizing[4096]; /* description sample used for font fitting */
+    /* Welcomes for the characters in the selected race, measured at the real
+     * render font so every sheet in that race uses one shared band height. */
+    char select_welcome[96][160]; /* sized to match select_rows[] */
+    int select_welcome_count;
     bool select_book_mode;     /* screen 1: story/explanation page, no detail */
     bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
     int select_page;           /* book mode: current page (last = choice) */

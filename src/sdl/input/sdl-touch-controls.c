@@ -3714,7 +3714,7 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
         row = 11; col = 27; fallback = "Song";
         break;
     case TOUCH_BIND_TOGGLE_TILES:
-        has_tile = false; fallback = "A/T";
+        has_tile = false; fallback = "@";
         break;
     case KTRL('Y'):
         has_tile = false; fallback = "Dbg";
@@ -3893,9 +3893,9 @@ static void sdl_touch_top_panel_render_icon(const SDL_FRect* button_rect,
 
     sdl_touch_pane_draw_button_text_scaled(&rect, NULL, fallback, color,
 #if SIL_SDL_MOBILE_BUILD
-        0.42f, 0.58f
+        0.78f, 0.82f
 #else
-        0.34f, 0.48f
+        0.74f, 0.80f
 #endif
         );
 }

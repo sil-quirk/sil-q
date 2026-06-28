@@ -213,6 +213,9 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
     int clear_limit = birth_prompt_row() + 1;
     int last_list_rows_drawn = 0;
     int last_description_row = birth_prompt_row();
+    /* One-shot: jump a returning book to its choice page on the first render
+     * only, so the player can still page back to the story afterwards. */
+    bool open_choice_page_pending = (page && page->open_on_choice_page);
 
     /* Autoselect if able */
     // if (num == 1) done = true;
@@ -272,7 +275,10 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     page->frame_bottom);
                 if (run_mode_is_blitz())
                     sdl_character_sheet_screen_show_select_choice_page_only();
+                else if (open_choice_page_pending)
+                    sdl_character_sheet_screen_open_select_choice_page();
             }
+            open_choice_page_pending = false;
 
             for (i = 0; i < num; i++)
             {
@@ -291,14 +297,20 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 /* No per-row hover tooltip: the focused choice's text is
                  * already shown in the description area below. */
                 sdl_character_sheet_screen_add_select_row(i, label, rattr, "");
+                /* Feed every character in this race so all of its sheets
+                 * reserve the same welcome height. */
+                if (!book)
+                    sdl_character_sheet_screen_add_select_welcome(
+                        choices[i].text ? choices[i].text : "");
             }
             if (hook)
                 hook(choices[cur]);
             sdl_character_sheet_screen_set_select_description(
                 choices[cur].text ? choices[cur].text : "");
 
-            /* Size the description area for the LONGEST choice text so the
-             * layout does not reflow as the highlight moves between choices. */
+            /* Size from the longest text among the choices passed by the
+             * current race.  This keeps that race's character sheets aligned
+             * without coupling separate Noldorin houses. */
             {
                 cptr longest = "";
                 cptr longest_first = "";

@@ -65,6 +65,7 @@ typedef struct birth_select_page
     cptr* group_headings;
     int detail_stat_rows_hint;
     int detail_trait_rows_hint;
+    bool open_on_choice_page; /* book mode: open on the list page, not page 0 */
 } birth_select_page;
 
 typedef struct birth_compact_flag_line

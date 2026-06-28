@@ -983,11 +983,20 @@ void calc_bonuses(void)
         p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
 
         // deal with the 'Warden' ability (melee mirror of Versatility)
-        if (p_ptr->active_ability[S_MEL][MEL_WARDEN]
-            && (p_ptr->skill_base[S_MEL] > p_ptr->skill_base[S_ARC]))
+        if (p_ptr->active_ability[S_MEL][MEL_WARDEN])
         {
-            p_ptr->skill_misc_mod[S_ARC]
-                += (p_ptr->skill_base[S_MEL] - p_ptr->skill_base[S_ARC]) / 2;
+            if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY])
+            {
+                // Synergy with Versatility: borrow half the full Melee skill,
+                // regardless of which skill is higher.
+                p_ptr->skill_misc_mod[S_ARC] += p_ptr->skill_base[S_MEL] / 2;
+            }
+            else if (p_ptr->skill_base[S_MEL] > p_ptr->skill_base[S_ARC])
+            {
+                // Warden alone: borrow half the (Melee - Archery) difference.
+                p_ptr->skill_misc_mod[S_ARC]
+                    += (p_ptr->skill_base[S_MEL] - p_ptr->skill_base[S_ARC]) / 2;
+            }
         }
 
         if (o_ptr->k_idx)
@@ -1023,11 +1032,20 @@ void calc_bonuses(void)
         p_ptr->skill_misc_mod[S_MEL] += axe_bonus(o_ptr) + polearm_bonus(o_ptr);
 
         // deal with the 'Versatility' ability
-        if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY]
-            && (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL]))
+        if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY])
         {
-            p_ptr->skill_misc_mod[S_MEL]
-                += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
+            if (p_ptr->active_ability[S_MEL][MEL_WARDEN])
+            {
+                // Synergy with Warden: borrow half the full Archery skill,
+                // regardless of which skill is higher.
+                p_ptr->skill_misc_mod[S_MEL] += p_ptr->skill_base[S_ARC] / 2;
+            }
+            else if (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL])
+            {
+                // Versatility alone: borrow half the (Archery - Melee) difference.
+                p_ptr->skill_misc_mod[S_MEL]
+                    += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
+            }
         }
 
         /* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */

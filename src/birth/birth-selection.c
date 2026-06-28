@@ -420,7 +420,7 @@ static void race_aux_hook(birth_menu r_str)
  * the highlighted people's description at the bottom.  No stats or affinities;
  * just story.  Resolves a concrete p_info race into p_ptr->prace.
  */
-static bool get_player_race(void)
+static bool get_player_race(bool open_on_choice_page)
 {
     int i;
     int race;
@@ -431,8 +431,10 @@ static bool get_player_race(void)
 
     (void)birth_peoples_validate();
 
-    /* Always open the book on its first (story) page. */
-    sdl_character_sheet_screen_reset_select_page();
+    /* Fresh entry opens the book on its first (story) page; returning from the
+     * character page lands back on the choice (list) page (handled below). */
+    if (!open_on_choice_page)
+        sdl_character_sheet_screen_reset_select_page();
 
     if (num > (int)N_ELEMENTS(menu))
         num = (int)N_ELEMENTS(menu);
@@ -464,7 +466,8 @@ static bool get_player_race(void)
             birth_intro_lore,          /* chronicle (white) */
             birth_frame_bottom,        /* framing/charge below (accent) */
             headings,
-            0, 0
+            0, 0,
+            open_on_choice_page        /* back from character -> list page */
         };
 
         race = get_player_choice(menu, num, p_ptr->prace, RACE_COL, 15,
@@ -822,7 +825,8 @@ static bool get_character_profile(void)
             "Whose fate will you carry?", /* title (the borrowing voice) */
             NULL, NULL, NULL,             /* not book mode: keep the detail panel */
             NULL,
-            0, 0
+            0, 0,
+            false                         /* not book mode: no choice-page jump */
         };
         page.detail_stat_rows_hint = A_MAX;
         page.detail_trait_rows_hint = max_trait_rows;
@@ -889,6 +893,9 @@ static NavResult character_creation_from_phase(int initial_phase)
 
     int phase = initial_phase;
     NavResult result = NAV_OK;
+    /* True once we have stepped back into race selection from the character
+     * page, so the race book reopens on its choice page rather than page 0. */
+    bool race_from_character = false;
 
     if (phase < 1 || phase > 2)
         phase = 1;
@@ -952,7 +959,7 @@ static NavResult character_creation_from_phase(int initial_phase)
         if (phase == 1)
         {
             /* Choose the player's race */
-            if (!get_player_race())
+            if (!get_player_race(race_from_character))
             {
                 result = NAV_TO_MAIN; /* Esc at first screen -> back to main menu */
                 goto cleanup;
@@ -972,6 +979,7 @@ static NavResult character_creation_from_phase(int initial_phase)
             if (!get_character_profile())
             {
                 phase = 1;          /* Esc here -> go back to race */
+                race_from_character = true; /* reopen race book on its list */
                 draw_character_selection_header(false);
                 /* Clear the character display area when going back to race selection */
                 for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)
