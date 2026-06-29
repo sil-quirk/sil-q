@@ -135,7 +135,7 @@ F:KINSLAYER | SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PEN
 S:0:3:0:-1
 C:3:4 #Opportunist
 P:1
-D: Keen-eyed, crafty-handed son of Fëanor, closest heir to father's fire; skilled smith whose subtle tongue kindles divisions, pride, and betrayal. His deeds shadowed by ambition, foreshadowing sorrow yet unborn, father to Celebrimbor, future maker of perilous rings of power. Exile now stains his name; cunning schemes whisper ruin into fate, destined to mar the friendships of Eldar, weaving treachery unseen, and by treason sows seeds of doom and loss, echoing father's dark flame.
+D: Keen-eyed, crafty-handed son of Fëanor, nearest heir to his father's fire; a skilled smith, whose subtle tongue kindles division, pride, and betrayal. Father to Celebrimbor, who shall one day forge the perilous Rings of Power. His deeds shadowed by ambition, exile now stains his name; his cunning whispers ruin into fate, marring the friendships of the Eldar and weaving treachery unseen, till by treason the seeds of doom are sown; Curufin the Crafty, dark echo of his father's flame.
 
 #Stats +5 +5 =10
 
@@ -154,7 +154,7 @@ D: Brave-hearted prince, valiant son of Fingolfin, friend to mighty Maedhros; fe
 N:7:Turgon
 Q:07c257036bf5065a
 A:, Lord of Gondolin
-B:You set forth secretly—Lord of Gondolin, guardian of hidden splendor doomed by pride.
+B:King of the hidden city, you go forth in secret; stone and star alike keep your counsel.
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 U:SNG_TURGON
 S:0:0:2:2
@@ -592,41 +592,41 @@ D:Grandson of Fëanor, gifted smith with heart less marred by pride, whose hands
 N:47:Aegnor
 Q:294fdef66e3077ae
 A:, the Flame-eyed
-B:You burn with fire—fierce prince whose gaze pierces northern shadow.
+B:Flame-eyed prince, you burned on Dorthonion's heights for love and for war; burn once more.
 F:MEL_AFFINITY | EVN_AFFINITY | SNG_PENALTY | CURSE
 S:2:1:1:1
 C:0:13  # Rapid Attack
 P:2
-D: Fierce-hearted fourth son of Finarfin, flame-eyed prince whose burning spirit matched the northern fires, guardian of Dorthonion's pine-clad heights beside beloved brother Angrod. His heart bore secret wound of mortal love; for Andreth the wise he yearned, yet dared not claim her amid shadows of war and doom foreseen. When Morgoth loosed rivers of fire in the Bragollach's sudden ruin, Aegnor stood unyielding upon burning slopes, fierce spirit blazing defiant until flame consumed both flesh and valor. His love unfulfilled haunts the memory of Eldar and Edain alike, foreshadowing the greater unions of mortal and immortal blood yet to come; Aegnor, fell fire whose brightness perished too swiftly, yet whose ember glows still in the sorrowful songs of twilight.
+D:Flame-eyed fourth son of Finarfin, whose spirit matched the northern fires he warded upon Dorthonion's pine-clad heights, beside his brother Angrod. He bore a hidden wound — Andreth the wise, mortal, beloved, never claimed amid the doom he foresaw. When the Bragollach loosed its rivers of flame, he stood unyielding on the burning slopes, blazing till fire took both flesh and valour; Aegnor, fell fire, brightness too swiftly quenched, an ember glowing yet in the sorrowful songs of twilight.
 
 #Angrod - Scout and counselor, brother to kings; perceptive/stealthy diplomat.
 N:48:Angrod
 Q:deec72d5226bc5be
 A:, Messenger of the North
-B:You scout the wilds—steadfast prince whose words bridged flame and stone.
+B:Warden of the northern marches, you bore hard tidings and harder watches; both serve you below.
 F:PER_AFFINITY | STL_AFFINITY | SNG_PENALTY | CURSE | MEL_AFFINITY
 S:1:1:1:1
 C:0:10  # Zone of Control
 P:2
-D: Steadfast third son of Finarfin, keen-eyed warden of the northern marches, whose counsel bridged the sundered kindreds of the Noldor and Sindar in Beleriand's early days. It was Angrod who bore tidings of the exiles' return to Thingol's guarded halls, speaking truth where others might have veiled the kinslaying's shadow in silence. Beside Aegnor he held the highland fortress of Dorthonion, vigilant sentinel against the creeping malice of Angband's iron crown, through years of watchful siege. When the Dagor Bragollach broke like sudden tempest, fire and fume consuming the northern pines, Angrod fell alongside his brother, their watch ending in flame and sorrow. His faithfulness endures in memory, foreshadowing the loyalty of those who guard borders against overwhelming darkness; Angrod, steadfast messenger whose words and blade alike served truth until the bitter end.
+D:Steadfast third son of Finarfin, keen-eyed warden of the northern marches, whose counsel bridged the sundered houses of Noldor and Sindar. He bore to Thingol's guarded halls the tidings of the exiles' coming, and named the kinslaying plainly where softer tongues would have veiled it. Beside Aegnor he held Dorthonion through the long years of siege; and when the Bragollach broke in fire upon the pines, he fell beside his brother. Angrod, true of word and blade, whose watch ended in flame and sorrow.
 
 N:49:Orodreth
 Q:7966bfcb4448d94f
 A:, King of Nargothrond
-B:You rule cautiously—prince whose wisdom tempers valor in hidden halls.
+B:Cautious king of Nargothrond, prudence long kept your walls; now it must walk abroad with you.
 F:CURSE
 S:0:1:1:1
 C:3:3  # Exchange places
 P:1
-D: Cautious lord of Finarfin's line, who bore the weight of Nargothrond's crown after noble Finrod perished in dark Sauron's pit, fulfilling oath to mortal friend. Wise yet hesitant, his prudent heart shrank from bold counsel, preferring hidden strength to open war, guarding the delved halls beneath the Narog's murmuring waters. Yet fate conspired against all caution; Túrin's pride and Glaurung's cunning breached the veils of secrecy he had woven, drawing forth armies to ruin on Tumhalad's bloodied field. There Orodreth fell, kingdom crumbling, his daughter Finduilas seized by cruel foes, the river running red beneath a dragon's shadow. His reign foreshadows the peril of wisdom paralyzed by fear, strength hoarded until too late to wield; Orodreth, careful guardian whose sheltering walls could not withstand the doom that fire and treachery wrought upon Nargothrond's splendor.
+D:Cautious lord of Finarfin's line, who took the crown of Nargothrond when Finrod perished in Sauron's pit, keeping faith with a mortal friend. He hoarded hidden strength and shrank from open war, warding the delved halls beneath the Narog's murmuring waters. Yet Túrin's pride and Glaurung's cunning unwove the veils of his secrecy; on Tumhalad's bloodied field he fell, his halls cast down, Finduilas dragged into the dark, the river running red beneath the dragon. Orodreth, careful guardian whose walls could not hold the doom.
 
 # Durin-Father of Dwarves; smith/will/perception, identification bonus.
 N:50:Durin
 Q:9597e1744dda4bbd
 A:, the Deathless
-B:You wake alone—Father of Dwarves, first to wake, builder of Khazad-dûm.
+B:Deathless, first-awakened — the seven stars wait in the Mirrormere; the stone remembers its king.
 F:SMT_AFFINITY | PER_AFFINITY | WIL_AFFINITY | MEL_AFFINITY | GIFTERU | KHELED_ZARAM | SNG_PENALTY | STL_PENALTY
 S:3:1:3:1
 C:0:11:6:2:6:4:6:5 # Smite Jeweller Expertise Artifice
 P:3
-D: Eldest of the Seven Fathers, shaped in secret by Aulë's loving hands ere Elves or Men drew breath, laid sleeping beneath stone until Ilúvatar granted him waking. First among Dwarves to open eyes beneath starlit Mount Gundabad, he wandered long through silent lands unmarked by mortal foot or Elven song. At Kheled-zâram's still waters he beheld a crown of seven stars reflected upon the deep, a vision of glory foreshadowing the mighty halls he would carve within the living rock. There he founded Khazad-dûm, greatest of all dwarven mansions, its pillars reaching deep into the roots of mountains, its forges burning bright with craft divine. Called the Deathless, for his spirit endured beyond mortal reckoning, returning through his line age upon age, an unbroken thread woven through the fate of all Arda; Durin, father of stone-folk, whose vision in the Mirrormere kindled a kingdom that outlasted the breaking of the world.
+D:Eldest of the Seven Fathers, wrought in secret by Aulë ere Elves or Men drew breath, laid sleeping under stone till Ilúvatar granted waking. First of Dwarves to wake beneath Gundabad's stars, he wandered lands no foot had marked. At Kheled-zâram he beheld a crown of seven stars upon the deep — promise of the halls he would carve in living rock; there he raised Khazad-dûm, its pillars sunk to the mountains' roots, its forges bright with craft. Deathless they named him, returning age upon age through his line; Durin, father of the stone-folk, whose Mirrormere vision kindled a kingdom outlasting the drowning of Beleriand.
