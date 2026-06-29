@@ -130,7 +130,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
     },
 };
 
-static int collect_character_starting_abilities(int character, cptr out[],
+int collect_character_starting_abilities(int character, cptr out[],
     int out_max, int out_skill[], int out_ability[])
 {
     int count = 0;
@@ -172,7 +172,7 @@ static int collect_character_starting_abilities(int character, cptr out[],
     return count;
 }
 
-static void birth_format_ability_hint(int skill, int ability, char* buf,
+void birth_format_ability_hint(int skill, int ability, char* buf,
     size_t buflen)
 {
     int idx;

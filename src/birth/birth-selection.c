@@ -168,6 +168,49 @@ static void birth_format_character_power(byte power, bool leading_space,
         *label = power_label;
 }
 
+/*
+ * The dead/alive state cannot change while the character picker is open.
+ * Read it once when entering the picker: highscore_dead() opens and scans the
+ * score file, so repeating it for every power-summary redraw made keyboard and
+ * controller navigation visibly stall.
+ */
+static bool birth_character_dead_cache[FLAG_COUNT];
+static int birth_character_dead_cache_count;
+static bool birth_character_dead_cache_ready;
+
+static void birth_prepare_character_dead_cache(void)
+{
+    int count = 0;
+
+    birth_character_dead_cache_ready = false;
+    birth_character_dead_cache_count = 0;
+    memset(birth_character_dead_cache, 0,
+        sizeof(birth_character_dead_cache));
+
+    if (!z_info || !c_info || !c_name)
+        return;
+
+    count = MIN((int)z_info->c_max,
+        (int)N_ELEMENTS(birth_character_dead_cache));
+    for (int i = 0; i < count; i++)
+    {
+        birth_character_dead_cache[i] =
+            highscore_dead(c_name + c_info[i].name) != 0;
+    }
+
+    birth_character_dead_cache_count = count;
+    birth_character_dead_cache_ready = true;
+}
+
+static bool birth_character_is_dead(int character)
+{
+    if (!birth_character_dead_cache_ready)
+        birth_prepare_character_dead_cache();
+    if (character < 0 || character >= birth_character_dead_cache_count)
+        return false;
+    return birth_character_dead_cache[character];
+}
+
 #if !defined(__ANDROID__) && !defined(SIL_IOS)
 static void birth_count_alive_character_powers(int power_counts[4])
 {
@@ -184,7 +227,7 @@ static void birth_count_alive_character_powers(int power_counts[4])
     {
         byte power;
 
-        if (highscore_dead(c_name + c_info[i].name))
+        if (birth_character_is_dead(i))
             continue;
 
         power = c_info[i].power;
@@ -304,6 +347,25 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
             "Each Noldorin lineage has its own skill affinities; choose a "
             "lineage to see them.");
         return;
+    }
+
+    {
+        cptr ability_lines[CHARACTER_ABILITY_MAX];
+        int ability_skills[CHARACTER_ABILITY_MAX];
+        int ability_ids[CHARACTER_ABILITY_MAX];
+        int n = collect_character_starting_abilities(character,
+            ability_lines, (int)N_ELEMENTS(ability_lines), ability_skills,
+            ability_ids);
+
+        sdl_character_sheet_screen_set_select_ability_rows(n);
+        for (i = 0; i < n && i < (int)N_ELEMENTS(ability_lines); i++)
+        {
+            hint[0] = '\0';
+            birth_format_ability_hint(ability_skills[i], ability_ids[i],
+                hint, sizeof(hint));
+            sdl_character_sheet_screen_add_select_detail(ability_lines[i],
+                TERM_YELLOW, hint);
+        }
     }
 
     {
@@ -466,7 +528,7 @@ static bool get_player_race(bool open_on_choice_page)
             birth_intro_lore,          /* chronicle (white) */
             birth_frame_bottom,        /* framing/charge below (accent) */
             headings,
-            0, 0,
+            0, 0, 0,
             open_on_choice_page        /* back from character -> list page */
         };
 
@@ -755,6 +817,7 @@ static bool get_character_profile(void)
     int character = 0;
     int character_choice;
     int previous_choice = 0;
+    int max_ability_rows = 0;
     int max_trait_rows = 0;
     birth_menu* character_menu;
     /* Per-row "welcome + chronicle" text, kept alive for get_player_choice. */
@@ -775,6 +838,7 @@ static bool get_character_profile(void)
         return (true);
     }
 
+    birth_prepare_character_dead_cache();
     character_menu = mem_alloc_array(z_info->c_max, birth_menu);
 
     /* Tabulate characters.  The shown description leads with the hero's own
@@ -790,10 +854,14 @@ static bool get_character_profile(void)
             cptr lore = c_text + c_info[i].text;
             int trait_rows = collect_character_trait_lines(p_ptr->prace, i,
                 false, NULL, 0, NULL);
+            int ability_rows = collect_character_starting_abilities(i, NULL,
+                0, NULL, NULL);
 
-            if (highscore_dead(c_name + c_info[i].name)) character_menu[character].ghost = true;
+            if (birth_character_is_dead(i)) character_menu[character].ghost = true;
             else character_menu[character].ghost = false;
 
+            if (ability_rows > max_ability_rows)
+                max_ability_rows = ability_rows;
             if (trait_rows > max_trait_rows)
                 max_trait_rows = trait_rows;
 
@@ -825,10 +893,11 @@ static bool get_character_profile(void)
             "Whose fate will you carry?", /* title (the borrowing voice) */
             NULL, NULL, NULL,             /* not book mode: keep the detail panel */
             NULL,
-            0, 0,
+            0, 0, 0,
             false                         /* not book mode: no choice-page jump */
         };
         page.detail_stat_rows_hint = A_MAX;
+        page.detail_ability_rows_hint = max_ability_rows;
         page.detail_trait_rows_hint = max_trait_rows;
 
         character_choice = get_player_choice(

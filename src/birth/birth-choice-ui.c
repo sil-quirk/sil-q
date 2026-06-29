@@ -265,6 +265,7 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
             {
                 sdl_character_sheet_screen_set_select_detail_size_hint(
                     page->detail_stat_rows_hint,
+                    page->detail_ability_rows_hint,
                     page->detail_trait_rows_hint);
             }
 
@@ -303,7 +304,9 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     sdl_character_sheet_screen_add_select_welcome(
                         choices[i].text ? choices[i].text : "");
             }
-            if (hook)
+            /* Book mode has no detail panel.  Avoid building the selected
+             * race's unused stat/trait rows on every highlight change. */
+            if (hook && !book)
                 hook(choices[cur]);
             sdl_character_sheet_screen_set_select_description(
                 choices[cur].text ? choices[cur].text : "");
@@ -311,6 +314,7 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
             /* Size from the longest text among the choices passed by the
              * current race.  This keeps that race's character sheets aligned
              * without coupling separate Noldorin houses. */
+            if (!book)
             {
                 cptr longest = "";
                 cptr longest_first = "";

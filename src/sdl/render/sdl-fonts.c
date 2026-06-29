@@ -581,6 +581,9 @@ static TTF_Font* sdl_load_story_font_slot(const char* font_path, int font_size, 
 
 void sdl_story_font_cache_clear(void)
 {
+    /* Wrapped-description entries hold non-owning TTF_Font pointers. */
+    sdl_char_sheet_fitted_wrap_cache_clear();
+
     for (int i = 0; i < g_state.story_font_count; i++) {
         if (g_state.story_fonts[i].font) {
             TTF_CloseFont(g_state.story_fonts[i].font);

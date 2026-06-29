@@ -64,6 +64,7 @@ typedef struct birth_select_page
     cptr frame_bottom;
     cptr* group_headings;
     int detail_stat_rows_hint;
+    int detail_ability_rows_hint;
     int detail_trait_rows_hint;
     bool open_on_choice_page; /* book mode: open on the list page, not page 0 */
 } birth_select_page;
@@ -129,6 +130,10 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
 
 int collect_character_trait_lines(int race, int character, bool short_labels,
     birth_compact_flag_line out[], int out_max, int* max_line_len);
+int collect_character_starting_abilities(int character, cptr out[],
+    int out_max, int out_skill[], int out_ability[]);
+void birth_format_ability_hint(int skill, int ability, char* buf,
+    size_t buflen);
 void birth_format_trait_hint(const birth_compact_flag_line* line,
     char* buf, size_t buflen);
 void print_rh_flags(int race, int character, int col, int row);

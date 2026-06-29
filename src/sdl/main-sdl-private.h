@@ -549,6 +549,8 @@ typedef struct sdl_character_sheet_screen_state {
     int select_rating_count;
     char select_rating_title[64];
     int select_stat_rows_hint;
+    int select_ability_rows_hint;
+    int select_ability_rows;
     int select_trait_rows_hint;
     char select_description[4096];
     char select_title[96];
@@ -578,6 +580,7 @@ typedef struct sdl_character_sheet_screen_state {
     int select_book_body_for_w;
     int select_book_body_for_region_h;
     int select_book_body_for_title_px;
+    Uint64 select_book_body_for_layout_hash;
     bool page_turn_active;     /* book mode: a page-curl animation is playing */
     int page_turn_dir;         /* +1 = forward (0->1), -1 = back (1->0) */
     int page_turn_from_page;   /* outgoing page; may be non-adjacent to dest */
@@ -1944,7 +1947,8 @@ void sdl_character_sheet_screen_set_select_title_detail(cptr title, cptr suffix,
 void sdl_character_sheet_screen_begin_select_rating_summary(cptr title);
 void sdl_character_sheet_screen_add_select_rating(cptr group, cptr stars, int count, int attr, cptr desc);
 void sdl_character_sheet_screen_add_select_detail(cptr text, int attr, cptr desc);
-void sdl_character_sheet_screen_set_select_detail_size_hint(int stat_rows, int trait_rows);
+void sdl_character_sheet_screen_set_select_detail_size_hint(int stat_rows, int ability_rows, int trait_rows);
+void sdl_character_sheet_screen_set_select_ability_rows(int rows);
 void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
 void sdl_character_sheet_screen_set_select_description(cptr text);
 bool sdl_character_sheet_screen_commit_select(int selected_index);
