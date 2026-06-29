@@ -563,6 +563,12 @@ typedef struct sdl_character_sheet_screen_state {
      * render font so every sheet in that race uses one shared band height. */
     char select_welcome[96][160]; /* sized to match select_rows[] */
     int select_welcome_count;
+    /* Lore bodies for those same characters.  The longest byte string is not
+     * necessarily the one that wraps to the most lines, so font fitting must
+     * measure every candidate at the live width. */
+    char select_desc_candidates[96][1280];
+    int select_desc_candidate_count;
+    Uint64 select_desc_candidate_hash;
     bool select_book_mode;     /* screen 1: story/explanation page, no detail */
     bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
     int select_page;           /* book mode: current page (last = choice) */
@@ -2958,6 +2964,7 @@ bool sdl_mono_font_atlas_cache_has_free_slot(void);
 bool sdl_store_mono_font_atlas_cells(const char* font_path, int cell_width, int cell_height, SDL_Texture* atlas, const mono_font_style_key* style);
 SDL_Texture* sdl_acquire_mono_font_atlas_cells_ex(const char* font_path, int cell_width, int cell_height, bool* out_cached, int* out_atlas_cell_w, int* out_atlas_cell_h, bool* out_exact, bool allow_fallback);
 void sdl_story_font_cache_clear(void);
+void sdl_char_sheet_fitted_wrap_cache_clear(void);
 bool sdl_story_font_cache_matches_config(void);
 void sdl_story_font_cache_mark_config(void);
 const char* sdl_story_font_path_for_slot(int slot);
