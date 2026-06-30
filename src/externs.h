@@ -783,6 +783,7 @@ extern void character_sheet_format_trait_description(cptr label, int skill,
 extern void do_cmd_change_song(void);
 extern void wipe_screen_from(int col);
 extern int ability_index(int skilltype, int abilitynum);
+extern byte ability_skill_color(int skilltype);
 extern void ability_log_reset(void);
 extern void ability_log_record_gain(int skilltype, int abilitynum);
 extern void ability_log_sync_missing(void);

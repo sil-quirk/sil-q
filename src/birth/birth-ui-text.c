@@ -589,35 +589,6 @@ int birth_wrapped_entry_lines(cptr entries[], int entry_n, int width,
     return total;
 }
 
-int birth_put_wrapped_entries(byte attr, cptr entries[], int entry_n,
-    int row, int col, int width, int max_rows, int max_entries)
-{
-    int used = 0;
-    int limit = entry_n;
-    char line_buf[64];
-
-    if (width < 1 || max_rows <= 0)
-        return 0;
-
-    if (max_entries >= 0 && max_entries < limit)
-        limit = max_entries;
-
-    for (int i = 0; i < limit && used < max_rows; ++i)
-    {
-        cptr rest = entries[i];
-
-        while (rest && rest[0] && used < max_rows)
-        {
-            rest = birth_wrap_line(rest, width, line_buf, sizeof(line_buf));
-            Term_erase(col, row + used, width);
-            Term_putstr(col, row + used, -1, attr, line_buf);
-            used++;
-        }
-    }
-
-    return used;
-}
-
 static int choice_description_line_count(cptr text)
 {
     return birth_wrapped_line_count(text, 2);

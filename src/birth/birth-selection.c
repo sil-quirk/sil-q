@@ -364,7 +364,7 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
             birth_format_ability_hint(ability_skills[i], ability_ids[i],
                 hint, sizeof(hint));
             sdl_character_sheet_screen_add_select_detail(ability_lines[i],
-                TERM_YELLOW, hint);
+                ability_skill_color(ability_skills[i]), hint);
         }
     }
 

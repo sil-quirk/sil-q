@@ -120,8 +120,6 @@ void birth_put_str_fit(byte attr, cptr text, int row, int col);
 void birth_invalidate_cells(int col, int row, int width);
 int birth_wrapped_entry_lines(cptr entries[], int entry_n, int width,
     int max_entries);
-int birth_put_wrapped_entries(byte attr, cptr entries[], int entry_n,
-    int row, int col, int width, int max_rows, int max_entries);
 
 void birth_detail_hover_add(int col, int row, int width, cptr desc);
 int get_player_choice(birth_menu* choices, int num, int def, int col,

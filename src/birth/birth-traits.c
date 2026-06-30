@@ -203,11 +203,14 @@ void birth_format_ability_hint(int skill, int ability, char* buf,
         lore = b_text + b_ptr->text;
 
     if (effect && effect[0])
-        strnfmt(buf, buflen, "%s: %s", name, effect);
+        strnfmt(buf, buflen, "%s (%s): %s", name,
+            skill_names_full[skill], effect);
     else if (lore && lore[0])
-        strnfmt(buf, buflen, "%s: %s", name, lore);
+        strnfmt(buf, buflen, "%s (%s): %s", name,
+            skill_names_full[skill], lore);
     else
-        strnfmt(buf, buflen, "%s: Starting ability.", name);
+        strnfmt(buf, buflen, "%s (%s): Starting ability.", name,
+            skill_names_full[skill]);
 }
 
 int collect_character_trait_lines(int race, int character, bool short_labels,
@@ -397,6 +400,45 @@ static void birth_detail_hover_add_trait(int col, int row,
     if (width < 1)
         width = 1;
     birth_detail_hover_add(col, row, width, desc);
+}
+
+static int birth_put_wrapped_abilities(cptr entries[], const int skills[],
+    const int abilities[], int entry_n, int row, int col, int width,
+    int max_rows, int max_entries)
+{
+    int used = 0;
+    int limit = entry_n;
+    char line_buf[64];
+
+    if (width < 1 || max_rows <= 0)
+        return 0;
+
+    if (max_entries >= 0 && max_entries < limit)
+        limit = max_entries;
+
+    for (int i = 0; i < limit && used < max_rows; ++i)
+    {
+        cptr rest = entries[i];
+        char desc[640];
+
+        birth_format_ability_hint(skills[i], abilities[i], desc, sizeof(desc));
+        while (rest && rest[0] && used < max_rows)
+        {
+            int line_width;
+
+            rest = birth_wrap_line(rest, width, line_buf, sizeof(line_buf));
+            Term_erase(col, row + used, width);
+            Term_putstr(col, row + used, -1,
+                ability_skill_color(skills[i]), line_buf);
+            line_width = utf8_display_width_n(line_buf,
+                (int)strlen(line_buf));
+            if (desc[0] && line_width > 0)
+                birth_detail_hover_add(col, row + used, line_width, desc);
+            used++;
+        }
+    }
+
+    return used;
 }
 
 
@@ -749,9 +791,9 @@ void print_rh_flags(int race, int character, int col, int row)
                     if (ability_width < 1)
                         ability_width = 1;
 
-                    birth_put_wrapped_entries(TERM_YELLOW, ability_lines,
-                        ability_line_n, ability_row, 2, ability_width, rows,
-                        ability_line_n);
+                    birth_put_wrapped_abilities(ability_lines, ability_skills,
+                        ability_ids, ability_line_n, ability_row, 2,
+                        ability_width, rows, ability_line_n);
                 }
             }
         }
@@ -772,8 +814,9 @@ void print_rh_flags(int race, int character, int col, int row)
             if (ability_rows < 0)
                 ability_rows = 0;
 
-            birth_put_wrapped_entries(TERM_YELLOW, ability_lines, ability_line_n,
-                row, col, ability_width, ability_rows, ability_line_n);
+            birth_put_wrapped_abilities(ability_lines, ability_skills,
+                ability_ids, ability_line_n, row, col, ability_width,
+                ability_rows, ability_line_n);
 
             col_wid = (term_wid - compact_col - col_gap) / 2;
             if (col_wid < 1)
@@ -975,7 +1018,9 @@ if (!compact_layout)
         {
             char desc[640];
 
-            Term_putstr(x, y, -1, TERM_YELLOW, ability_lines[slot]);
+            Term_putstr(x, y, -1,
+                ability_skill_color(ability_skills[slot]),
+                ability_lines[slot]);
             birth_format_ability_hint(ability_skills[slot], ability_ids[slot],
                 desc, sizeof(desc));
             if (desc[0])

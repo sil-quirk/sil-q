@@ -948,7 +948,13 @@ NavResult player_birth_aux_2(int stats[A_MAX])
 
     /* Shouldn't reach; default to back */
 cleanup:
-    sdl_character_sheet_screen_hide();
+    /*
+     * A successful allocation proceeds directly to the skills overlay.
+     * Leave the stats overlay active until that overlay replaces it so no
+     * uncovered frame can be presented during the handoff.
+     */
+    if (result != NAV_OK)
+        sdl_character_sheet_screen_hide();
     screen_pop_touch_pane_hidden();
     ui_scroll_area_clear();
     return result;

@@ -165,7 +165,6 @@ extern NavResult gain_skills(void)
     NavResult result = NAV_OK;
 
     int tab = 0;
-    bool force_initial_redraw = true;
 
     log_debug("Starting skills allocation with %d experience points", p_ptr->new_exp);
     gain_skills_initial_skill = -1;
@@ -397,12 +396,6 @@ extern NavResult gain_skills(void)
             if (story_character_enabled()) {
                 sdl_story_font_disable();
             }
-        }
-
-        if (force_initial_redraw)
-        {
-            Term_redraw();
-            force_initial_redraw = false;
         }
 
         (void)sdl_character_sheet_screen_show_birth_skills(old_base,

@@ -432,9 +432,17 @@ static NavResult player_birth_aux(void)
     else
     {
         int stat_alloc[A_MAX];
+        NavResult allocation_result = NAV_OK;
 
         for (int i = 0; i < A_MAX; i++)
             stat_alloc[i] = p_ptr->stat_base[i];
+
+        /*
+         * Keep the SDL layout stable across the stats/skills handoff.  Each
+         * screen manages its own nested hide scope, while this outer scope
+         * prevents the touch pane from being briefly restored between them.
+         */
+        screen_push_touch_pane_hidden();
 
         for (;;)
         {
@@ -448,17 +456,31 @@ static NavResult player_birth_aux(void)
                 NavResult g = gain_skills();
                 screen_pop_touch_pane_hidden();
                 if (g == NAV_BACK) continue;
-                if (g == NAV_TO_CHARACTER) return NAV_BACK;
-                if (g != NAV_OK) return g;
+                if (g == NAV_TO_CHARACTER) {
+                    allocation_result = NAV_BACK;
+                    break;
+                }
+                if (g != NAV_OK) {
+                    allocation_result = g;
+                    break;
+                }
                 log_debug("Skills allocation completed");
                 break; /* accepted */
             }
-            if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
-            if (s == NAV_TO_CHARACTER) return NAV_BACK; /* back to Character Selection */
-            if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
-            if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
+            if (s == NAV_BACK || s == NAV_TO_CHARACTER) {
+                allocation_result = NAV_BACK;
+                break;
+            }
+            if (s == NAV_TO_MAIN || s == NAV_QUIT) {
+                allocation_result = s;
+                break;
+            }
             /* any other value: loop again */
         }
+
+        screen_pop_touch_pane_hidden();
+        if (allocation_result != NAV_OK)
+            return allocation_result;
     }
 
     // Reset the number of artefacts

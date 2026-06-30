@@ -9903,6 +9903,13 @@ bool sdl_character_sheet_screen_show_birth_stats(const int* stats,
     if (!g_state.window || !g_state.renderer)
         return false;
 
+    if (g_sdl_character_sheet_screen.context
+        != SDL_CHARACTER_SHEET_BIRTH_STATS)
+    {
+        g_sdl_character_sheet_screen.hover_choice =
+            SDL_CHAR_SHEET_NO_HOVER;
+        ui_menu_click_clear_pending_hover();
+    }
     sdl_character_sheet_birth_swipe_cancel();
     sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_STATS;
@@ -9929,6 +9936,13 @@ bool sdl_character_sheet_screen_show_birth_skills(const int* old_base,
     if (!g_state.window || !g_state.renderer)
         return false;
 
+    if (g_sdl_character_sheet_screen.context
+        != SDL_CHARACTER_SHEET_BIRTH_SKILLS)
+    {
+        g_sdl_character_sheet_screen.hover_choice =
+            SDL_CHAR_SHEET_NO_HOVER;
+        ui_menu_click_clear_pending_hover();
+    }
     sdl_character_sheet_birth_swipe_cancel();
     sdl_character_sheet_touch_press_cancel();
     g_sdl_character_sheet_screen.context = SDL_CHARACTER_SHEET_BIRTH_SKILLS;

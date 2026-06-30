@@ -2679,18 +2679,18 @@ static bool ability_browser_train_skill(int skilltype)
     return true;
 }
 
-static byte ability_browser_skill_color(int skilltype)
+byte ability_skill_color(int skilltype)
 {
     switch (skilltype)
     {
-    case S_MEL: return TERM_L_RED;
+    case S_MEL: return TERM_RED;
     case S_ARC: return TERM_ORANGE;
     case S_EVN: return TERM_GREEN;
-    case S_STL: return TERM_L_GREEN;
-    case S_PER: return TERM_YELLOW;
-    case S_WIL: return TERM_L_WHITE;
-    case S_SMT: return TERM_L_UMBER;
-    case S_SNG: return TERM_VIOLET;
+    case S_STL: return TERM_L_UMBER;
+    case S_PER: return TERM_VIOLET;
+    case S_WIL: return TERM_YELLOW;
+    case S_SMT: return TERM_L_RED;
+    case S_SNG: return TERM_L_GREEN;
     case S_SPC: return TERM_VIOLET;
     default: return TERM_WHITE;
     }
@@ -2698,7 +2698,7 @@ static byte ability_browser_skill_color(int skilltype)
 
 static byte ability_browser_skill_attr(int skilltype, bool hovered)
 {
-    return hovered ? TERM_L_BLUE : ability_browser_skill_color(skilltype);
+    return hovered ? TERM_L_BLUE : ability_skill_color(skilltype);
 }
 
 static cptr ability_browser_skill_trait_suffix(int skilltype)
@@ -3784,12 +3784,12 @@ static int ability_browser_highlight_match(cptr line, int offset, byte* attr,
 
             if (ability_browser_phrase_matches_exact(line, offset, full_name))
             {
-                *attr = ability_browser_skill_color(skill);
+                *attr = ability_skill_color(skill);
                 return (int)strlen(full_name);
             }
             if (ability_browser_phrase_matches_exact(line, offset, short_name))
             {
-                *attr = ability_browser_skill_color(skill);
+                *attr = ability_skill_color(skill);
                 return (int)strlen(short_name);
             }
         }

@@ -200,6 +200,9 @@ static void sdl_config_load_keyboard_keymaps(cJSON* root,
 {
     cJSON* keyboard;
     cJSON* modes;
+    char loaded[SDL_KEYMAP_MODE_COUNT][SDL_KEYMAP_KEY_COUNT]
+        [SDL_KEYMAP_ACTION_LEN] = { 0 };
+    int valid_count = 0;
 
     if (!root || !config)
         return;
@@ -211,8 +214,6 @@ static void sdl_config_load_keyboard_keymaps(cJSON* root,
     modes = cJSON_GetObjectItemCaseSensitive(keyboard, "keymaps");
     if (!cJSON_IsArray(modes))
         return;
-
-    memset(config->keymap_actions, 0, sizeof(config->keymap_actions));
 
     for (int mode = 0;
         mode < cJSON_GetArraySize(modes) && mode < SDL_KEYMAP_MODE_COUNT;
@@ -231,24 +232,40 @@ static void sdl_config_load_keyboard_keymaps(cJSON* root,
 
             if (!cJSON_IsNumber(key) || !cJSON_IsString(action)
                 || key->valueint < 0 || key->valueint >= SDL_KEYMAP_KEY_COUNT
-                || !action->valuestring)
+                || !action->valuestring || !action->valuestring[0])
             {
                 continue;
             }
 
-            SDL_strlcpy(config->keymap_actions[mode][key->valueint],
-                action->valuestring,
-                sizeof(config->keymap_actions[mode][key->valueint]));
+            SDL_strlcpy(loaded[mode][key->valueint], action->valuestring,
+                sizeof(loaded[mode][key->valueint]));
+            valid_count++;
         }
     }
+
+    /*
+     * A config saved during shutdown used to serialize keymap_act[] after
+     * cleanup had freed it, producing four empty arrays.  Treat that as a
+     * damaged legacy config and retain the defaults established by
+     * sdl_config_set_defaults(); otherwise Space/comma lose their "/5"
+     * interact-here mapping.
+     */
+    if (valid_count == 0)
+    {
+        log_warn("keyboard.keymaps is empty; restoring default keymaps");
+        return;
+    }
+
+    memcpy(config->keymap_actions, loaded, sizeof(config->keymap_actions));
 }
 
-static cJSON* sdl_config_create_keyboard_keymaps(void)
+static cJSON* sdl_config_create_keyboard_keymaps(
+    const struct sdl_config* config)
 {
     cJSON* keyboard = cJSON_CreateObject();
     cJSON* modes = cJSON_CreateArray();
 
-    if (!keyboard || !modes)
+    if (!config || !keyboard || !modes)
     {
         cJSON_Delete(keyboard);
         cJSON_Delete(modes);
@@ -265,8 +282,9 @@ static cJSON* sdl_config_create_keyboard_keymaps(void)
         for (int key = 0; key < 256; key++)
         {
             cJSON* entry;
+            const char* action = config->keymap_actions[mode][key];
 
-            if (!keymap_act[mode][key])
+            if (!action[0])
                 continue;
 
             entry = cJSON_CreateObject();
@@ -274,7 +292,7 @@ static cJSON* sdl_config_create_keyboard_keymaps(void)
                 continue;
 
             cJSON_AddNumberToObject(entry, "key", key);
-            cJSON_AddStringToObject(entry, "action", keymap_act[mode][key]);
+            cJSON_AddStringToObject(entry, "action", action);
             cJSON_AddItemToArray(entries, entry);
         }
 
@@ -4138,7 +4156,7 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddItemToObject(root, "sdl", sdl);
 
     {
-        cJSON* keyboard = sdl_config_create_keyboard_keymaps();
+        cJSON* keyboard = sdl_config_create_keyboard_keymaps(config);
         if (keyboard)
             cJSON_AddItemToObject(root, "keyboard", keyboard);
     }
