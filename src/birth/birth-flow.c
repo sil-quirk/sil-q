@@ -35,15 +35,14 @@ static const birth_keyboard_preset_choice keyboard_preset_choices[] = {
     },
     {
         SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC,
-        "Modern WASD+QEZC",
-        "Keyboard-cluster movement: W/A/S/D move the four cardinal directions, "
-        "Q/E move the upper diagonals, and Z/C move the lower diagonals. "
-        "Numpad movement still works. Shift+direction runs and Ctrl+direction "
-        "interacts. These letters normally belong to commands, so their "
-        "command versions move to Alt+letter; for example Alt+w wields and "
-        "Alt+Shift+s toggles stealth. Extra aliases are available in this "
-        "preset: n sings, v examines, k activates a staff, and Shift+n "
-        "toggles stealth."
+        "Modern WASD Grid",
+        "Keyboard-cluster movement in a QWE/ASD/ZXC grid: W/A/X/D move the "
+        "four cardinal directions, Q/E/Z/C move diagonally, and S waits "
+        "(Shift+S rests). Numpad movement still works. Shift+direction runs "
+        "and Ctrl+direction interacts. Shadowed commands move to Alt+letter; "
+        "for example Alt+w wields, Alt+x examines, and Alt+Shift+s toggles "
+        "stealth. Extra aliases are available: n sings, v examines, k "
+        "activates a staff, and Shift+n toggles stealth."
     },
     {
         SDL_MOVEMENT_PRESET_VI_KEYS,
@@ -63,7 +62,7 @@ static const birth_keyboard_preset_choice keyboard_preset_choices[] = {
  */
 static const char* const keyboard_preset_recommendation =
     "Recommended: Classic Sil or Vi Keys for experienced Angband/Sil players; "
-    "Modern Arrows for keyboard-heavy play; Modern WASD+QEZC for mouse-heavy "
+    "Modern Arrows for keyboard-heavy play; Modern WASD Grid for mouse-heavy "
     "play.";
 
 static bool keyboard_preset_is_builtin(u16b preset)

@@ -80,6 +80,22 @@ enum {
     SDL_PLAYER_ACTION_MENU_SECTOR_SEGMENTS = 12
 };
 
+static bool sdl_player_action_menu_set_player_tile(byte* out_attr,
+    char* out_char)
+{
+    monster_race* player_r_ptr;
+
+    if (!p_ptr)
+        return false;
+
+    player_r_ptr = &r_info[p_ptr->prace];
+    if (out_attr)
+        *out_attr = player_r_ptr->x_attr;
+    if (out_char)
+        *out_char = player_r_ptr->x_char + player_tile_offset();
+    return true;
+}
+
 static cptr sdl_player_action_menu_description_for_kind(int kind)
 {
     switch (kind) {
@@ -152,7 +168,7 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
 
     switch (kind) {
     case SDL_PLAYER_ACTION_WAIT:
-        row = 19; col = 8;  /* sleep icon */
+        row = 2; col = 29;  /* lantern silhouette reads as a pause icon */
         break;
     case SDL_PLAYER_ACTION_USE:
         row = 5; col = 8;   /* flask/oil, a common useable item */
@@ -161,10 +177,12 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
         row = 5; col = 3;   /* shadow cloak */
         break;
     case SDL_PLAYER_ACTION_SING:
-        row = 11; col = 27; /* amulet, for voice/song choices */
+        row = 11; col = 17; /* concentric sound-wave/impact icon */
         break;
     case SDL_PLAYER_ACTION_EXCHANGE:
-        row = 12; col = 30; /* seen/target icon */
+        if (sdl_player_action_menu_set_player_tile(out_attr, out_char))
+            return;
+        row = 13; col = 0;  /* base player tile fallback */
         break;
     case SDL_PLAYER_ACTION_FLETCH:
         row = 5; col = 27;  /* arrows */
@@ -173,11 +191,37 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
         row = 12; col = 10; /* question mark */
         break;
     case SDL_PLAYER_ACTION_ACTIVATE:
-        row = 6; col = 8;   /* quarterstaff */
+    {
+        object_type* icon_obj = &inventory[INVEN_STAFF];
+
+        if (icon_obj->k_idx)
+        {
+            if (out_attr)
+                *out_attr = object_attr(icon_obj);
+            if (out_char)
+                *out_char = object_char(icon_obj);
+            return;
+        }
+
+        row = 4; col = 24;  /* silver staff flavor */
         break;
+    }
     case SDL_PLAYER_ACTION_HORN:
-        row = 4; col = 2;   /* horn-shaped atlas tile */
+    {
+        object_type* icon_obj = &inventory[INVEN_HORN];
+
+        if (icon_obj->k_idx)
+        {
+            if (out_attr)
+                *out_attr = object_attr(icon_obj);
+            if (out_char)
+                *out_char = object_char(icon_obj);
+            return;
+        }
+
+        row = 2; col = 24;  /* ivory horn flavor */
         break;
+    }
     case SDL_PLAYER_ACTION_SHOOT:
     {
         object_type* icon_obj = NULL;
@@ -232,16 +276,33 @@ static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
             return;
         }
 
-        row = 5; col = 1;   /* dagger */
+        row = 6; col = 0;   /* dagger */
         break;
     }
     case SDL_PLAYER_ACTION_REST:
-        row = 19; col = 8;  /* sleep icon */
+        if (sdl_player_action_menu_set_player_tile(out_attr, out_char))
+            return;
+        row = 2; col = 29;  /* pause icon fallback */
         break;
     case SDL_PLAYER_ACTION_SWAP_QUIVERS:
-    case SDL_PLAYER_ACTION_CHANGE_STAFF:
-        row = 12; col = 30; /* swap/target icon */
+        row = 5; col = 27;  /* crossed arrows when rendered */
         break;
+    case SDL_PLAYER_ACTION_CHANGE_STAFF:
+    {
+        object_type* icon_obj = &inventory[INVEN_STAFF];
+
+        if (icon_obj->k_idx)
+        {
+            if (out_attr)
+                *out_attr = object_attr(icon_obj);
+            if (out_char)
+                *out_char = object_char(icon_obj);
+            return;
+        }
+
+        row = 4; col = 24;  /* crossed silver staves when rendered */
+        break;
+    }
     case SDL_PLAYER_ACTION_CLOSE_DOOR:
         row = 0; col = 11;  /* open door (the door you close) */
         break;
@@ -2078,6 +2139,40 @@ static bool sdl_player_action_menu_can_draw_tiles(void)
     return g_state.use_tiles && g_state.tileset;
 }
 
+static void sdl_player_action_menu_render_crossed_icon(
+    const player_action_menu_entry* entry, const SDL_FRect* rect)
+{
+    if (!entry || !rect)
+        return;
+
+    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, rect,
+        false, SDL_FLIP_NONE);
+    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, rect,
+        false, SDL_FLIP_HORIZONTAL);
+}
+
+static void sdl_player_action_menu_render_exchange_icon(
+    const player_action_menu_entry* entry, const SDL_FRect* rect)
+{
+    SDL_FRect actor;
+    float size;
+
+    if (!entry || !rect)
+        return;
+
+    size = SDL_min(rect->w, rect->h) * 0.64f;
+    actor.w = size;
+    actor.h = size;
+    actor.x = rect->x + rect->w * 0.02f;
+    actor.y = rect->y + (rect->h - size) * 0.5f;
+    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, &actor,
+        false, SDL_FLIP_NONE);
+
+    actor.x = rect->x + rect->w - size - rect->w * 0.02f;
+    sdl_draw_tileset_sprite_ex(entry->tile_attr, entry->tile_char, &actor,
+        false, SDL_FLIP_HORIZONTAL);
+}
+
 static void sdl_player_action_menu_render_icon(
     const player_action_menu_entry* entry, bool hover)
 {
@@ -2100,8 +2195,20 @@ static void sdl_player_action_menu_render_icon(
             SDL_SetTextureAlphaMod(g_state.tileset, 255);
         else
             SDL_SetTextureAlphaMod(g_state.tileset, 226);
-        sdl_draw_tileset_sprite(entry->tile_attr, entry->tile_char, &rect,
-            false);
+        if (entry->kind == SDL_PLAYER_ACTION_EXCHANGE) {
+            sdl_player_action_menu_render_exchange_icon(entry, &rect);
+        } else if (entry->kind == SDL_PLAYER_ACTION_SWAP_QUIVERS
+            || entry->kind == SDL_PLAYER_ACTION_CHANGE_STAFF)
+        {
+            sdl_player_action_menu_render_crossed_icon(entry, &rect);
+        } else {
+            sdl_draw_tileset_sprite(entry->tile_attr, entry->tile_char, &rect,
+                false);
+            if (entry->kind == SDL_PLAYER_ACTION_REST) {
+                sdl_draw_tileset_sprite((byte)(TILE_FLAG | 19),
+                    (char)(TILE_FLAG | 8), &rect, false);
+            }
+        }
         sdl_restore_tileset_mod();
     } else {
         sdl_touch_pane_draw_button_text_scaled(&rect, NULL,

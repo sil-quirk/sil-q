@@ -338,7 +338,7 @@ const char* sdl_config_movement_preset_label(u16b preset_id)
     case SDL_MOVEMENT_PRESET_MODERN_ARROWS:
         return "Modern Arrows";
     case SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC:
-        return "Modern WASD+QEZC";
+        return "Modern WASD Grid";
     case SDL_MOVEMENT_PRESET_VI_KEYS:
         return "Vi Keys";
     case SDL_MOVEMENT_PRESET_CLASSIC_SIL:
@@ -700,7 +700,7 @@ void sdl_config_set_default_movement_bindings(struct sdl_config* cfg,
     static const SDL_Scancode wasd_scancodes[] = {
         SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_E,
         SDL_SCANCODE_A, SDL_SCANCODE_D,
-        SDL_SCANCODE_Z, SDL_SCANCODE_S, SDL_SCANCODE_C
+        SDL_SCANCODE_Z, SDL_SCANCODE_X, SDL_SCANCODE_C
     };
     static const SDL_Scancode vi_scancodes[] = {
         SDL_SCANCODE_Y, SDL_SCANCODE_K, SDL_SCANCODE_U,
@@ -748,6 +748,14 @@ void sdl_config_set_default_movement_bindings(struct sdl_config* cfg,
         sdl_config_add_directional_movement_preset_set(cfg, arrows_scancodes);
         sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_KP_5,
             SDL_SCANCODE_KP_5, SDL_SCANCODE_Z, SDL_SCANCODE_Z);
+    }
+    else if (preset_id == SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC)
+    {
+        /* Complete the QWE/ASD/ZXC grid: S waits, X moves south. */
+        sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_S,
+            SDL_SCANCODE_S, SDL_SCANCODE_PERIOD, SDL_SCANCODE_PERIOD);
+        sdl_config_add_wait_rest_movement_bindings(cfg, SDL_SCANCODE_KP_5,
+            SDL_SCANCODE_KP_5, SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN);
     }
     else
     {
@@ -834,8 +842,8 @@ bool sdl_config_resolve_movement_binding(const struct sdl_config* cfg,
     return movement_input_command_from_binding(selected, context, out_command);
 }
 
-bool sdl_config_scancode_is_plain_move_letter(const struct sdl_config* cfg,
-    u32b scancode)
+bool sdl_config_scancode_is_plain_movement_letter(
+    const struct sdl_config* cfg, u32b scancode)
 {
     if (!cfg)
         return false;
@@ -847,8 +855,6 @@ bool sdl_config_scancode_is_plain_move_letter(const struct sdl_config* cfg,
         const movement_input_binding* binding = &cfg->movement_bindings[i];
 
         if (!movement_input_binding_is_valid(binding))
-            continue;
-        if (binding->action != MOVEMENT_INPUT_ACTION_MOVE_DIR)
             continue;
         if (binding->required_modifiers)
             continue;
@@ -898,19 +904,20 @@ static void sdl_config_load_movement_bindings(cJSON* root,
         return;
     }
 
+    /* Built-in presets are defined by code; only custom layouts load their
+     * individual bindings from JSON. */
+    if (preset_id != SDL_MOVEMENT_PRESET_NONE)
+    {
+        sdl_config_set_default_movement_bindings(cfg, preset_id);
+        return;
+    }
+
     bindings = cJSON_GetObjectItemCaseSensitive(movement, "keyboardBindings");
     if (!bindings)
     {
-        if (preset_id == SDL_MOVEMENT_PRESET_NONE)
-        {
-            log_warn("custom movement config has no keyboardBindings; using Classic Sil movement defaults");
-            sdl_config_set_default_movement_bindings(cfg,
-                SDL_MOVEMENT_PRESET_CLASSIC_SIL);
-        }
-        else
-        {
-            sdl_config_set_default_movement_bindings(cfg, preset_id);
-        }
+        log_warn("custom movement config has no keyboardBindings; using Classic Sil movement defaults");
+        sdl_config_set_default_movement_bindings(cfg,
+            SDL_MOVEMENT_PRESET_CLASSIC_SIL);
         return;
     }
 
@@ -1015,6 +1022,13 @@ static void sdl_config_save_movement_bindings(cJSON* root,
     cJSON_AddNumberToObject(movement, "version", MOVEMENT_INPUT_FORMAT_VERSION);
     cJSON_AddStringToObject(movement, "keyboardPreset",
         sdl_config_movement_preset_name(cfg->movement_keyboard_preset));
+
+    /* Built-in preset bindings are canonical in code and need no JSON copy. */
+    if (cfg->movement_keyboard_preset != SDL_MOVEMENT_PRESET_NONE)
+    {
+        cJSON_AddItemToObject(root, "movement", movement);
+        return;
+    }
 
     bindings = cJSON_CreateArray();
     if (bindings)

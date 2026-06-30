@@ -9003,7 +9003,7 @@ static void do_cmd_keyboard_input_settings(void)
             static const char* const keyboard_row_desc[] = {
                 NULL,
                 "Pick how you move: a built-in preset (Classic Sil, Modern "
-                "Arrows, WASD+QEZC, or Vi Keys), shown with descriptions and a "
+                "Arrows, WASD Grid, or Vi Keys), shown with descriptions and a "
                 "recommendation.",
                 "Switch the command keys to an Angband-style layout. Changes "
                 "command letters only, not how you move.",
@@ -10051,7 +10051,7 @@ static const movement_input_binding* movement_find_binding(
 
 /*
  * True when the active bindings map a bare letter key (no modifier) to a
- * movement action. Such presets (WASD/QEZC, Vi) replace the matching letter
+ * movement action. Such presets (WASD Grid, Vi) replace the matching letter
  * commands while in the dungeon, so the menu warns about it.
  */
 static bool movement_bindings_shadow_letters(const struct sdl_config* cfg)
@@ -10322,7 +10322,7 @@ static void do_cmd_movement_keybinds(void)
             "Enter bind  R reset selected  P cycle preset  S save  Esc return");
         if (movement_bindings_shadow_letters(&config))
             settings_ui_put_fitted(4, 2, TERM_YELLOW,
-                "Note: letter keys move; hold Alt for their command (Alt+w wield, Alt+Shift+s stealth).");
+                "Note: letter keys control movement; hold Alt for their command (Alt+w wield, Alt+x examine, Alt+Shift+s stealth).");
 
         display_end = top + visible_rows;
         if (display_end > entry_count)

@@ -1306,6 +1306,8 @@ static void show_help_screen_legacy(int i, bool include_header)
 {
     int row, col, col2;
     char page_header[96];
+    bool wasd_grid =
+        config.movement_keyboard_preset == SDL_MOVEMENT_PRESET_MODERN_WASD_QEZC;
 
     switch (i)
     {
@@ -1474,7 +1476,10 @@ static void show_help_screen_legacy(int i, bool include_header)
         help_emit_heading("STATUS & MORALE", row, col); row++;
         put_role(ROLE_BODY, "- Foes are Asleep, Unwary, Alert; your noise sets the stage.", row, col);
         row++;
-        put_role(ROLE_BODY, "- Stealth turns (S) and waiting are potent for slipping past sentries.", row, col);
+        if (wasd_grid)
+            put_role(ROLE_BODY, "- Stealth (Shift+N or Alt+Shift+S) and waiting help you slip past sentries.", row, col);
+        else
+            put_role(ROLE_BODY, "- Stealth turns (S) and waiting are potent for slipping past sentries.", row, col);
         row++;
         put_role(ROLE_BODY, "- Foes can be Aggressive, Confident, Fleeing and run if their morale breaks.", row, col);
         break;
@@ -1649,31 +1654,54 @@ static void show_help_screen_legacy(int i, bool include_header)
         }
 
         row = 3; col = 3; col2 = col + 8;
-        help_emit_heading("Movement etc", row - 2, col - 1);
+        help_emit_heading(wasd_grid ? "WASD Grid movement" : "Movement etc",
+            row - 2, col - 1);
 
-        put_role(ROLE_KEY,   "7 8 9", row, col);
+        put_role(ROLE_KEY, wasd_grid ? "Q W E" : "7 8 9", row, col);
         put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
-        put_role(ROLE_KEY,   "4 5 6", row + 2, col);
+        put_role(ROLE_KEY, wasd_grid ? "A S D" : "4 5 6", row + 2, col);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 1);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 3);
         put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
-        put_role(ROLE_KEY,   "1 2 3", row + 4, col);
+        put_role(ROLE_KEY, wasd_grid ? "Z X C" : "1 2 3", row + 4, col);
 
-        put_role(ROLE_SUBTLE, "Use direction keys", row + 0, col2);
-        put_role(ROLE_KEY,    "direction keys", row + 0, col2 + 4);
-        put_role(ROLE_SUBTLE, "to move, attack, or open doors", row + 1, col2);
-        put_role(ROLE_SUBTLE, "(You may need numlock)", row + 2, col2);
-        put_role(ROLE_KEY,    "numlock", row + 2, col2 + 14);
-        put_role(ROLE_SUBTLE, "Use 5 or z to wait a turn (& search)", row + 4, col2);
-        put_role(ROLE_KEY,    "5", row + 4, col2 + 4);
-        put_role(ROLE_KEY,    "z", row + 4, col2 + 9);
+        if (wasd_grid)
+        {
+            put_role(ROLE_SUBTLE, "W/A/X/D move cardinally", row, col2);
+            put_role(ROLE_SUBTLE, "Q/E/Z/C move diagonally", row + 1, col2);
+            put_role(ROLE_SUBTLE, "S waits a turn", row + 2, col2);
+            put_role(ROLE_SUBTLE, "Numpad movement also works", row + 4, col2);
+        }
+        else
+        {
+            put_role(ROLE_SUBTLE, "Use direction keys", row, col2);
+            put_role(ROLE_KEY, "direction keys", row, col2 + 4);
+            put_role(ROLE_SUBTLE, "to move, attack, or open doors",
+                row + 1, col2);
+            put_role(ROLE_SUBTLE, "(You may need numlock)", row + 2, col2);
+            put_role(ROLE_KEY, "numlock", row + 2, col2 + 14);
+            put_role(ROLE_SUBTLE, "Use 5 or z to wait a turn (& search)",
+                row + 4, col2);
+            put_role(ROLE_KEY, "5", row + 4, col2 + 4);
+            put_role(ROLE_KEY, "z", row + 4, col2 + 9);
+        }
 
         row += 6;
-        put_role(ROLE_SUBTLE, "Use shift or . to move continuously", row, col);
-        put_role(ROLE_KEY,    "shift", row, col + 4);
-        put_role(ROLE_KEY,    ".", row, col + 13);
-        row++;
-        put_role(ROLE_SUBTLE, "- direction 5 or z rests until healed", row, col + 2);
+        if (wasd_grid)
+        {
+            put_role(ROLE_SUBTLE, "Hold Shift with a direction to run", row, col);
+            row++;
+            put_role(ROLE_SUBTLE, "- Shift+S rests until healed", row, col + 2);
+        }
+        else
+        {
+            put_role(ROLE_SUBTLE, "Use shift or . to move continuously", row, col);
+            put_role(ROLE_KEY, "shift", row, col + 4);
+            put_role(ROLE_KEY, ".", row, col + 13);
+            row++;
+            put_role(ROLE_SUBTLE, "- direction 5 or z rests until healed",
+                row, col + 2);
+        }
         row += 2;
 
         put_role(ROLE_SUBTLE, "Use control or / to interact with a square:", row, col);
@@ -1698,9 +1726,9 @@ static void show_help_screen_legacy(int i, bool include_header)
 
         put_role(ROLE_KEY,  "f F", row, col - 1); put_role(ROLE_SUBTLE, "/", row, col); put_role(ROLE_SUBTLE, "fire from quiver 1/2", row, col + 3); row++;
         put_role(ROLE_KEY, "^f", row, col - 1); put_role(ROLE_SUBTLE, "swap quiver 1/2", row, col + 3); row++;
-        if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
-        put_role(ROLE_KEY, " S", row, col); put_role(ROLE_SUBTLE, "stealth mode", row, col + 3); row++;
-        put_role(ROLE_KEY, " n", row, col); put_role(ROLE_SUBTLE, "repeat last command", row, col + 3); row++;
+        if (wasd_grid) put_role(ROLE_KEY, " n", row, col); else if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
+        if (wasd_grid) put_role(ROLE_KEY, "Sh+n", row, col - 2); else put_role(ROLE_KEY, " S", row, col); put_role(ROLE_SUBTLE, "stealth mode", row, col + 3); row++;
+        if (!wasd_grid) { put_role(ROLE_KEY, " n", row, col); put_role(ROLE_SUBTLE, "repeat last command", row, col + 3); row++; }
         if (angband_keyset) put_role(ROLE_KEY, " 0", row, col); else put_role(ROLE_KEY, " R", row, col); put_role(ROLE_SUBTLE, "repeat next command", row, col + 3); row += 2;
         put_role(ROLE_KEY, " l", row, col); put_role(ROLE_SUBTLE, "look (at things)", row, col + 3); row++;
         put_role(ROLE_KEY, " L", row, col); put_role(ROLE_SUBTLE, "look (around dungeon)", row, col + 3); row++;
@@ -1769,7 +1797,7 @@ static void show_help_screen_legacy(int i, bool include_header)
         help_emit_heading("Item Commands", row - 2, col - 1);
         if (angband_keyset) put_role(ROLE_KEY, "U", row, col); else put_role(ROLE_KEY, "u", row, col); put_role(ROLE_UI, "use", row, col + 2); row++;
         put_role(ROLE_KEY, "d", row, col); put_role(ROLE_UI, "drop", row, col + 2); row++;
-        if (angband_keyset) put_role(ROLE_KEY, "I", row, col); else put_role(ROLE_KEY, "x", row, col); put_role(ROLE_UI, "examine", row, col + 2); row++;
+        if (wasd_grid) put_role(ROLE_KEY, "v", row, col); else if (angband_keyset) put_role(ROLE_KEY, "I", row, col); else put_role(ROLE_KEY, "x", row, col); put_role(ROLE_UI, "examine", row, col + 2); row++;
         if (angband_keyset) put_role(ROLE_KEY, "v", row, col); else put_role(ROLE_KEY, "t", row, col); put_role(ROLE_UI, "throw", row, col + 2); row++;
         if (angband_keyset) put_role(ROLE_KEY, "^v", row, col - 1); else put_role(ROLE_KEY, "^t", row, col - 1); put_role(ROLE_UI, "throw (auto-target)", row, col + 2); row++;
         put_role(ROLE_KEY, "k", row, col); put_role(ROLE_UI, "destroy", row, col + 2); row++;

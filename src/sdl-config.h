@@ -282,11 +282,10 @@ bool sdl_config_set_movement_binding(struct sdl_config* config, u16b action,
 bool sdl_config_resolve_movement_binding(const struct sdl_config* config,
     u16b context, u32b trigger, u32b trigger_aux, u16b modifiers,
     movement_input_command* out_command);
-// True when a movement preset binds this letter scancode as a plain (no
-// modifier) move, i.e. it shadows that letter's normal command. Used to offer
-// Alt+<letter> as the relocated command for WASD/Vi-style presets.
-bool sdl_config_scancode_is_plain_move_letter(const struct sdl_config* config,
-    u32b scancode);
+// True when a movement preset binds this letter scancode to a plain (no
+// modifier) movement action, shadowing that letter's normal command.
+bool sdl_config_scancode_is_plain_movement_letter(
+    const struct sdl_config* config, u32b scancode);
 
 // Set default gamepad bindings (does not touch other fields)
 void sdl_config_set_default_gamepad_bindings(struct sdl_config* config);

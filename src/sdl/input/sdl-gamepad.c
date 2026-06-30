@@ -339,13 +339,13 @@ bool sdl_try_send_movement_event(const SDL_KeyboardEvent* key_event)
 }
 
 /*
- * Letter-based movement presets (WASD/QEZC, Vi) take over their letters' normal
- * commands while in the dungeon: plain = move, Shift = run, Ctrl = interact.
- * That shadows both the lowercase command (w = wield) and the Shift/capital
- * command (S = stealth, D = disarm, ...). Alt is the one free modifier, so:
+ * Letter-based movement presets take over some letters' normal commands while
+ * in the dungeon. That shadows both lowercase commands (w = wield, s = sing)
+ * and Shift/capital commands (S = stealth, D = disarm, ...). Alt is the one
+ * free modifier, so:
  *   Alt+<letter>       -> the lowercase command (Alt+w = wield, Alt+s = sing)
  *   Alt+Shift+<letter> -> the capital command  (Alt+Shift+s = stealth)
- * Only fires when that letter is actually a plain-move binding, so
+ * Only fires when that letter has a plain movement binding, so
  * Classic/Arrows presets are unaffected and the Alt layout shortcuts
  * (Alt+a/i/l) keep working for unshadowed letters.
  */
@@ -363,7 +363,7 @@ bool sdl_try_send_shadowed_command_event(const SDL_KeyboardEvent* key_event)
         return false;
     }
 
-    if (!sdl_config_scancode_is_plain_move_letter(&config,
+    if (!sdl_config_scancode_is_plain_movement_letter(&config,
             (u32b)key_event->scancode))
     {
         return false;
@@ -385,9 +385,8 @@ bool sdl_try_send_shadowed_command_event(const SDL_KeyboardEvent* key_event)
 }
 
 /*
- * WASD/QEZC-only extra command keys. The WASD cross takes s/a (sing/activate)
- * for movement and Shift+s (stealth) for run, so the free letters n/v/k are
- * offered as command keys for that preset only:
+ * WASD-grid-only extra command keys. The grid shadows several command letters,
+ * so the free letters n/v/k are offered as command keys for that preset only:
  *   n = sing, v = examine, k = activate staff, Shift+N = toggle stealth.
  * (Other presets leave n/v/k alone; in particular Vi uses n/k for movement and
  * keeps the normal Shift+S for stealth.)
@@ -405,7 +404,7 @@ bool sdl_try_send_preset_command_alias(const SDL_KeyboardEvent* key_event)
 
     if (key_event->mod & SDL_KMOD_SHIFT)
     {
-        /* Capital alias for the command shadowed by the WASD run bindings. */
+        /* Capital alias for the command shadowed by the WASD-grid bindings. */
         if (key_event->scancode != SDL_SCANCODE_N)
             return false;
         command = 'S'; /* toggle stealth */
