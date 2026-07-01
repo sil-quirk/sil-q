@@ -331,6 +331,7 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     hash = sdl_left_panel_hash_mix(hash, (Uint64)metrics->compact_segment_count);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)use_bigtile);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)g_state.use_tiles);
+    hash = sdl_left_panel_hash_mix(hash, g_mono_font_atlas_generation);
 
     for (int i = 0; i < metrics->compact_segment_count; i++) {
         hash = sdl_left_panel_hash_mix(hash,
@@ -642,6 +643,7 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
     SDL_Rect old_clip;
     bool had_clip;
     bool font_cached = false;
+    bool font_exact = false;
     sdl_left_panel_metrics metrics;
     int canvas_w;
     int canvas_h;
@@ -708,10 +710,13 @@ static bool sdl_render_left_panel_pane_from_cells_with_metrics(
         : "lib/xtra/font/VictorMono-Medium.ttf";
     font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
         atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
-        &atlas_cell_h, NULL, true);
+        &atlas_cell_h, &font_exact, true);
     if (!font_atlas) {
         return false;
     }
+    if (!font_exact)
+        sdl_queue_mono_font_atlas_prewarm_cells(font_path, metrics.cell_w,
+            metrics.cell_h);
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 
@@ -812,6 +817,7 @@ void sdl_combat_overlay_pane_render(void)
     SDL_Rect old_clip;
     bool had_clip;
     bool font_cached = false;
+    bool font_exact = false;
     int cell_h;
     int cell_w;
     int atlas_cell_w;
@@ -855,9 +861,11 @@ void sdl_combat_overlay_pane_render(void)
         : "lib/xtra/font/VictorMono-Medium.ttf";
     font_atlas = sdl_acquire_mono_font_atlas_cells_ex(font_path,
         atlas_cell_w, atlas_cell_h, &font_cached, &atlas_cell_w,
-        &atlas_cell_h, NULL, true);
+        &atlas_cell_h, &font_exact, true);
     if (!font_atlas)
         return;
+    if (!font_exact)
+        sdl_queue_mono_font_atlas_prewarm_cells(font_path, cell_w, cell_h);
     mono_font = sdl_acquire_mono_font_cells(font_path, atlas_cell_w,
         atlas_cell_h);
 

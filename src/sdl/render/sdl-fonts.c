@@ -82,6 +82,13 @@ const char* sdl_monospace_font_path(void)
         : "lib/xtra/font/VictorMono-Medium.ttf";
 }
 
+static void sdl_mono_font_atlas_generation_bump(void)
+{
+    g_mono_font_atlas_generation++;
+    if (g_mono_font_atlas_generation == 0)
+        g_mono_font_atlas_generation = 1;
+}
+
 void sdl_mono_font_prewarm_queue_clear(void)
 {
     g_mono_font_prewarm_count = 0;
@@ -130,6 +137,8 @@ void sdl_mono_font_cache_clear(void)
         font_entry->kerning = false;
         font_entry->outline = 0;
     }
+
+    sdl_mono_font_atlas_generation_bump();
 }
 
 TTF_Font* sdl_load_mono_font_cells(const char* font_path, int cell_width,
@@ -276,8 +285,13 @@ mono_font_atlas_entry* sdl_find_mono_font_atlas_fallback_cells(
             continue;
         }
 
+        /* Downscaling a larger atlas can drop bottom scanlines with nearest
+         * sampling on small panes. Prefer an equal/smaller fallback and let
+         * exact-size prewarm replace it when available. */
         score = abs(entry->cell_height - cell_height)
             + abs(entry->cell_width - cell_width);
+        if (entry->cell_height > cell_height || entry->cell_width > cell_width)
+            score += 1000000;
         if (!best || score < best_score) {
             best = entry;
             best_score = score;
@@ -360,6 +374,8 @@ bool sdl_store_mono_font_atlas_cells(const char* font_path,
     free_entry->hinting = style->hinting;
     free_entry->kerning = style->kerning;
     free_entry->outline = style->outline;
+    sdl_mono_font_atlas_generation_bump();
+    g_state.need_present = true;
     return true;
 }
 
@@ -756,6 +772,8 @@ SDL_Surface* sdl_build_ttf_font_atlas_surface(const char* font_path,
 {
     int font_size = cell_height;
     int min_size = cell_height / 2;
+    int bottom_guard;
+    int draw_height;
     TTF_Font* font = NULL;
 
     if (cell_width < 1)
@@ -789,6 +807,11 @@ SDL_Surface* sdl_build_ttf_font_atlas_surface(const char* font_path,
             "could not find suitable font size");
         return NULL;
     }
+
+    bottom_guard = (cell_height >= 32) ? 2 : (cell_height >= 10) ? 1 : 0;
+    draw_height = cell_height - bottom_guard;
+    if (draw_height < 1)
+        draw_height = cell_height;
 
     SDL_Surface* atlas_surface = SDL_CreateSurface(16 * cell_width,
         16 * cell_height, SDL_PIXELFORMAT_RGBA8888);
@@ -832,13 +855,11 @@ SDL_Surface* sdl_build_ttf_font_atlas_surface(const char* font_path,
             continue;
         }
 
-        /* Stretch each glyph to fill its whole cell, matching the original
-         * mono atlas behaviour. Rendering glyphs at their natural ink width
-         * (scaling down only when oversized, then centering) left narrow
-         * glyphs floating in the cell, which made monospace text look too
-         * thin. */
+        /* Keep the old mono-atlas width behaviour, but leave a tiny descent
+         * guard so one-row sampling differences do not shave the bottom of
+         * glyphs on small high-density panels. */
         dst.w = cell_width;
-        dst.h = cell_height;
+        dst.h = draw_height;
         dst.x = (int)(ch & 15) * cell_width;
         dst.y = (int)(ch >> 4) * cell_height;
 

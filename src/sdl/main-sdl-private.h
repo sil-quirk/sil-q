@@ -1390,6 +1390,7 @@ extern const int g_touch_pane_visible_slots[SDL_TOUCH_PANE_VISIBLE_BUTTON_COUNT]
 extern mono_font_prewarm_request g_mono_font_prewarm_queue[SDL_MONO_FONT_PREWARM_QUEUE_MAX];
 extern int g_mono_font_prewarm_count;
 extern mono_font_prewarm_job g_mono_font_prewarm_job;
+extern Uint64 g_mono_font_atlas_generation;
 extern SDL_Rect g_pane_rects[PANE_MAX];
 extern SDL_Texture* g_left_panel_canvas;
 extern int g_left_panel_canvas_w;
