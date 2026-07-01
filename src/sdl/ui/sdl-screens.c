@@ -31,9 +31,13 @@ const sdl_welcome_intro_line g_sdl_welcome_intro_flame[] = {
     { TERM_L_BLUE, SDL_WELCOME_LINE_SUBTITLE,
         "~ Shining  Darkness ~" },
     { TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "In the deeps of Angband, beyond gates of iron and pits of flame," },
+        "In the deeps of Angband, beyond" },
     { TERM_WHITE, SDL_WELCOME_LINE_BODY,
-        "Morgoth hoards the Silmarils — three jewels of living light." },
+        "gates of iron and pits of flame," },
+    { TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "Morgoth hoards the Silmarils —" },
+    { TERM_WHITE, SDL_WELCOME_LINE_BODY,
+        "three jewels of living light." },
     { TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
         "Take up blade and burden. Descend." },
     { TERM_YELLOW, SDL_WELCOME_LINE_ACTION,
@@ -899,10 +903,51 @@ static float sdl_welcome_gap_before_line(const sdl_welcome_intro_line* lines,
     if (role == SDL_WELCOME_LINE_ACTION)
         return line_h * 0.68f;
     if (role == SDL_WELCOME_LINE_QUOTE)
-        return line_h * 0.64f;
+        return line_h * 1.20f;
 
     (void)prev;
     return line_h * 0.20f;
+}
+
+static bool sdl_welcome_action_footer_gap_for_base(int base_px,
+    float* out_gap)
+{
+    const sdl_welcome_intro_line* lines =
+        sdl_welcome_intro_lines_for_style(g_sdl_welcome_screen.intro_style);
+    int title_index = -1;
+    bool has_action = false;
+
+    for (int i = 0; lines[i].text; i++)
+    {
+        if (lines[i].role == SDL_WELCOME_LINE_TITLE)
+            title_index = i;
+        else if (lines[i].role == SDL_WELCOME_LINE_ACTION)
+            has_action = true;
+    }
+
+    if (!has_action || title_index <= 0)
+        return false;
+
+    {
+        int font_px = sdl_welcome_font_px_for_role(base_px,
+            lines[title_index].role);
+        TTF_Font* font = sdl_story_font_for_height_slot(font_px,
+            sdl_welcome_slot_for_role(lines[title_index].role));
+        float line_h;
+
+        if (!font)
+            return false;
+
+        line_h = sdl_welcome_line_h_for_role(font, font_px,
+            lines[title_index].role);
+        if (out_gap)
+        {
+            *out_gap = sdl_welcome_gap_before_line(lines, title_index,
+                line_h);
+        }
+    }
+
+    return true;
 }
 
 static float sdl_welcome_top_margin(const SDL_Rect* canvas)
@@ -1100,8 +1145,11 @@ static bool sdl_welcome_measure_layout_for_base(const SDL_Rect* canvas,
 
     top_margin = sdl_welcome_top_margin(canvas);
     bottom_margin = sdl_welcome_bottom_margin(canvas);
-    intro_footer_gap = sdl_char_sheet_clampf((float)base_px * 0.70f,
-        10.0f, 56.0f);
+    if (!sdl_welcome_action_footer_gap_for_base(base_px, &intro_footer_gap))
+    {
+        intro_footer_gap = sdl_char_sheet_clampf((float)base_px * 1.35f,
+            18.0f, 84.0f);
+    }
     available_h = (float)canvas->h - top_margin - bottom_margin;
     need_h = intro_h + intro_footer_gap + footer_h;
     fits = fit_w <= content.w && need_h <= available_h;
