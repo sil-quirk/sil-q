@@ -1,7 +1,7 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
-#define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.50f
+#define SDL_TOUCH_ROUND_INNER_RADIUS_FRAC 0.45f
 #define SDL_TOUCH_ROUND_DRAG_THRESHOLD_FRAC 0.62f
 /* The whole inner disc (up to the drag threshold) repeats the last direction,
  * so the centre reads as a single "repeat" button with no dead band. */
@@ -1053,6 +1053,7 @@ static float sdl_touch_round_inner_radius_px(float radius)
 static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     float right_edge, float* top, float* bottom)
 {
+    status_pane_layout status_layout;
     float slop;
     float right_threshold;
     float mid_y;
@@ -1081,8 +1082,17 @@ static void sdl_touch_round_clip_band_to_panes(const SDL_Rect* bounds,
     }
     if (sdl_overlay_log_pane_current_rect(&rect))
         rects[count++] = rect;
-    if (sdl_status_pane_current_rect(&rect, NULL))
-        rects[count++] = rect;
+    /*
+     * The configured status pane is only an anchor.  Its rendered panel grows
+     * as conditions are added, so reserve the live panel rather than the
+     * one-row anchor or the wheel can sit underneath poison/bleeding/stun.
+     */
+    if (sdl_status_pane_layout(&status_layout)) {
+        rects[count++] = (SDL_Rect){
+            (int)status_layout.panel.x, (int)status_layout.panel.y,
+            (int)status_layout.panel.w, (int)status_layout.panel.h
+        };
+    }
     if (sdl_combat_overlay_pane_current_rect(&rect))
         rects[count++] = rect;
 
@@ -3352,6 +3362,7 @@ static int sdl_touch_top_panel_fit_button_count(const SDL_Rect* screen,
     const SDL_Rect* anchor, enum pane_placement where, int active_count,
     float button_size, float gap)
 {
+    status_pane_layout status_layout;
     float panel_h = button_size;
     float band_top;
     float band_bottom;
@@ -3382,8 +3393,14 @@ static int sdl_touch_top_panel_fit_button_count(const SDL_Rect* screen,
     band_top -= gap;
     band_bottom += gap;
 
-    if (sdl_status_pane_current_rect(&r, NULL) && r.w > 0 && r.h > 0)
-        panes[pane_count++] = r;
+    if (sdl_status_pane_layout(&status_layout)) {
+        r = (SDL_Rect){
+            (int)status_layout.panel.x, (int)status_layout.panel.y,
+            (int)status_layout.panel.w, (int)status_layout.panel.h
+        };
+        if (r.w > 0 && r.h > 0)
+            panes[pane_count++] = r;
+    }
     if (sdl_combat_overlay_pane_current_rect(&r) && r.w > 0 && r.h > 0)
         panes[pane_count++] = r;
     if (sdl_overlay_log_pane_current_rect(&r) && r.w > 0 && r.h > 0)

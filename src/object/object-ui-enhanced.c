@@ -597,14 +597,35 @@ static char describe_item_with_comparisons_aux(int item_index,
 
     if (floor_actions && is_floor)
     {
-        static const object_info_screen_action actions[] = {
-            { 'x', "x use" },
+        object_info_screen_action actions[] = {
+            { 'x', "" },
             { ' ', "Space pick up" },
             { ESCAPE, "Esc close" }
         };
+        char action_label[32];
+        char prompt[96];
+        cptr action_name = "use";
+
+        if (base_obj->tval == TV_SKELETON
+            && !object_is_searched_skeleton(base_obj))
+        {
+            action_name = "search";
+        }
+        else if (base_obj->tval == TV_CHEST && base_obj->pval != 0)
+        {
+            action_name = (base_obj->pval > 0
+                    && object_chest_trap_flags(base_obj)
+                    && object_known_p(base_obj))
+                ? "disarm" : "open";
+        }
+
+        strnfmt(action_label, sizeof(action_label), "x %s", action_name);
+        actions[0].token = action_label;
+        strnfmt(prompt, sizeof(prompt), "%s  Space pick up  Esc close",
+            action_label);
 
         return object_info_screen_multi_with_actions(objects, headings, count,
-            "x use  Space pick up  Esc close", actions, N_ELEMENTS(actions));
+            prompt, actions, N_ELEMENTS(actions));
     }
 
     object_info_screen_multi(objects, headings, count);

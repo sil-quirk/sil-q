@@ -1610,8 +1610,9 @@ TTF_Font* sdl_char_sheet_font_for_rows(float available_h, int rows,
     return chosen_font;
 }
 
-SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text,
-    byte attr, float x, float y, float max_w, float max_h, bool centered)
+static SDL_FRect sdl_char_sheet_draw_text_aligned(TTF_Font* font, cptr text,
+    byte attr, float x, float y, float max_w, float max_h, bool centered,
+    bool centered_vertically)
 {
     SDL_FRect dst = { 0 };
     SDL_Surface* surface;
@@ -1644,7 +1645,9 @@ SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text,
     dst.w = (float)surface->w * scale;
     dst.h = (float)surface->h * scale;
     dst.x = centered ? x + (max_w - dst.w) * 0.5f : x;
-    dst.y = y;
+    dst.y = (centered_vertically && max_h > 0.0f)
+        ? y + (max_h - dst.h) * 0.5f
+        : y;
 
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
@@ -1652,6 +1655,25 @@ SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text,
     SDL_DestroyTexture(texture);
     SDL_DestroySurface(surface);
     return dst;
+}
+
+SDL_FRect sdl_char_sheet_draw_text(TTF_Font* font, cptr text,
+    byte attr, float x, float y, float max_w, float max_h, bool centered)
+{
+    return sdl_char_sheet_draw_text_aligned(font, text, attr, x, y, max_w,
+        max_h, centered, false);
+}
+
+static SDL_FRect sdl_char_sheet_draw_button_text(TTF_Font* font, cptr text,
+    byte attr, const SDL_FRect* rect)
+{
+    SDL_FRect empty = { 0 };
+
+    if (!rect)
+        return empty;
+
+    return sdl_char_sheet_draw_text_aligned(font, text, attr, rect->x,
+        rect->y, rect->w, rect->h, true, true);
 }
 
 void sdl_char_sheet_draw_title_text(TTF_Font* font, cptr title,
@@ -3740,22 +3762,21 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
 #endif
                 )
                 sdl_char_sheet_draw_focus_rect(hit, true);
-            (void)sdl_char_sheet_draw_text(font, label,
-                (preview_prompt
+            if (preview_prompt
 #if SIL_SDL_MOBILE_BUILD
-                    || touch_buttons
+                || touch_buttons
 #endif
-                    ) ? TERM_DARK : (focused ? TERM_DARK : TERM_L_WHITE),
-                (preview_prompt
-#if SIL_SDL_MOBILE_BUILD
-                    || touch_buttons
-#endif
-                    ) ? hit.x : cursor_x, y, hit.w, h,
-                preview_prompt
-#if SIL_SDL_MOBILE_BUILD
-                    || touch_buttons
-#endif
-                );
+                )
+            {
+                (void)sdl_char_sheet_draw_button_text(font, label,
+                    TERM_DARK, &hit);
+            }
+            else
+            {
+                (void)sdl_char_sheet_draw_text(font, label,
+                    focused ? TERM_DARK : TERM_L_WHITE, cursor_x, y, hit.w,
+                    h, false);
+            }
             if (choice >= 0)
                 sdl_char_sheet_add_hit(hit, choice, "");
             else
@@ -3854,13 +3875,7 @@ void sdl_touch_exit_button_render(void)
     font_px = sdl_touch_exit_button_font_px(rect.h);
     font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
     if (font)
-    {
-        float line_h = sdl_char_sheet_line_h(font, font_px, 1.0f);
-        float text_y = rect.y + (rect.h - line_h) * 0.5f;
-
-        (void)sdl_char_sheet_draw_text(font, "Exit", TERM_DARK, rect.x, text_y,
-            rect.w, rect.h, true);
-    }
+        (void)sdl_char_sheet_draw_button_text(font, "Exit", TERM_DARK, &rect);
 }
 
 bool sdl_touch_exit_button_handle_pointer(float x, float y)
@@ -4536,6 +4551,12 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
         if (btn.w > 1.0f && btn.h > 1.0f)
         {
             SDL_FRect drawn;
+            SDL_FRect label_rect = {
+                btn.x + btn.w * 0.08f,
+                btn.y + (btn.h - line_h * 0.62f) * 0.5f,
+                btn.w * 0.84f,
+                line_h * 0.62f
+            };
 
             SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
@@ -4545,11 +4566,8 @@ void sdl_char_sheet_draw_menu_row(TTF_Font* font, cptr text, byte attr,
                 border.b, border.a);
             SDL_RenderRect(g_state.renderer, &btn);
 
-            drawn = sdl_char_sheet_draw_text(btn_font, "Reset",
-                reset_hover ? TERM_DARK : TERM_L_WHITE,
-                btn.x + btn.w * 0.08f,
-                btn.y + (btn.h - line_h * 0.62f) * 0.5f,
-                btn.w * 0.84f, line_h * 0.62f, true);
+            drawn = sdl_char_sheet_draw_button_text(btn_font, "Reset",
+                reset_hover ? TERM_DARK : TERM_L_WHITE, &label_rect);
             (void)drawn;
 
             /* No hover desc: a tooltip here would re-pop on every pointer

@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "externs.h"
+#include "cmd/world/cmd-interact-chest.h"
 #include "log/log.h"
 #include "metarun.h"
 #include "ui/question.h"
@@ -179,6 +180,115 @@ static int first_floor_item_under_player(void)
 }
 
 /*
+ * Return the first floor object under the player whose primary action is an
+ * interaction rather than pickup.  Space normally expands to the "/5"
+ * interact-here keymap, but touch shortcuts resolve Space contextually before
+ * request_command() sees it.  Keep skeletons and unopened chests on the
+ * interaction path instead of rewriting that shortcut to 'g'.
+ */
+static int first_floor_interaction_under_player(void)
+{
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    floor_num = scan_floor(
+        floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+
+    for (int i = 0; i < floor_num; i++)
+    {
+        int o_idx = floor_list[i];
+        const object_type* o_ptr;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+        if (!o_ptr->k_idx)
+            continue;
+        if (o_ptr->tval == TV_SKELETON
+            && !object_is_searched_skeleton(o_ptr))
+        {
+            return 0 - o_idx;
+        }
+        if (o_ptr->tval == TV_CHEST && o_ptr->pval != 0)
+            return 0 - o_idx;
+    }
+
+    return 0;
+}
+
+static const char* floor_interaction_action_name(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return "Use";
+
+    if (o_ptr->tval == TV_SKELETON)
+        return "Search";
+
+    if (o_ptr->tval == TV_CHEST)
+    {
+        if (o_ptr->pval > 0 && object_chest_trap_flags(o_ptr)
+            && object_known_p(o_ptr))
+        {
+            return "Disarm";
+        }
+        return "Open";
+    }
+
+    return "Use";
+}
+
+/*
+ * Perform the targeted floor interaction promised by the unified Use action.
+ * This is deliberately limited to the player's square: carried chests and
+ * skeletons still have to be put down before they can be opened or searched.
+ */
+static bool use_floor_interaction_by_index(int item)
+{
+    int o_idx;
+    object_type* o_ptr;
+
+    if (item >= 0)
+        return false;
+
+    o_idx = 0 - item;
+    if (o_idx <= 0 || o_idx >= o_max)
+        return false;
+
+    o_ptr = &o_list[o_idx];
+    if (!o_ptr->k_idx || o_ptr->iy != p_ptr->py || o_ptr->ix != p_ptr->px)
+        return false;
+
+    if (o_ptr->tval == TV_SKELETON
+        && !object_is_searched_skeleton(o_ptr))
+    {
+        p_ptr->energy_use = 100;
+        p_ptr->previous_action[0] = ACTION_MISC;
+        do_cmd_search_skeleton(p_ptr->py, p_ptr->px, o_idx);
+        return true;
+    }
+
+    if (o_ptr->tval == TV_CHEST && o_ptr->pval != 0)
+    {
+        p_ptr->energy_use = 100;
+        p_ptr->previous_action[0] = ACTION_MISC;
+
+        if (o_ptr->pval > 0 && object_chest_trap_flags(o_ptr)
+            && object_known_p(o_ptr))
+        {
+            (void)do_cmd_disarm_chest(p_ptr->py, p_ptr->px, o_idx);
+        }
+        else
+        {
+            (void)do_cmd_open_chest(p_ptr->py, p_ptr->px, o_idx);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+/*
  * Context-sensitive interpretation of the confirm and 'x'
  * ("Description") touch shortcut bindings, so the on-screen button shows
  * (and performs) the action that fits the player's current situation:
@@ -199,6 +309,7 @@ bool touch_shortcut_context_action(int binding, bool description_open,
     int* out_key, char* label, size_t label_len)
 {
     int key = binding;
+    int floor_interaction = 0;
     const char* name = NULL;
 
     if (!character_dungeon || !p_ptr || !p_ptr->playing || p_ptr->is_dead)
@@ -216,6 +327,15 @@ bool touch_shortcut_context_action(int binding, bool description_open,
         } else if (cave_up_stairs_bold(p_ptr->py, p_ptr->px)) {
             key = '<';
             name = "Go Up";
+        } else if ((floor_interaction =
+                first_floor_interaction_under_player()) != 0)
+        {
+            /*
+             * Leave Space intact so request_command() applies its normal
+             * "/5" interact-here keymap.
+             */
+            key = ' ';
+            name = floor_interaction_action_name(&o_list[-floor_interaction]);
         } else if (first_floor_item_under_player() != 0) {
             key = 'g';
             name = "Pick Up";
@@ -231,7 +351,16 @@ bool touch_shortcut_context_action(int binding, bool description_open,
             if (floor_item != 0) {
                 const object_type* o_ptr = &o_list[-floor_item];
 
-                name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+                if ((o_ptr->tval == TV_SKELETON
+                        && !object_is_searched_skeleton(o_ptr))
+                    || (o_ptr->tval == TV_CHEST && o_ptr->pval != 0))
+                {
+                    name = floor_interaction_action_name(o_ptr);
+                }
+                else
+                {
+                    name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+                }
             } else {
                 name = "Use";
             }
@@ -613,6 +742,9 @@ void do_cmd_use_item_by_index(int item)
     if (handle_iron_crown_silmaril_action(o_ptr, item))
         return;
 
+    if (use_floor_interaction_by_index(item))
+        return;
+
     // determine the action based on the item type
     switch (o_ptr->tval)
     {
@@ -704,6 +836,11 @@ void do_cmd_use_item_by_index(int item)
     case TV_CHEST:
     {
         msg_print("You would need to put it down to open it.");
+        break;
+    }
+    case TV_SKELETON:
+    {
+        msg_print("You would need to put it down to search it.");
         break;
     }
     case TV_STAFF:
