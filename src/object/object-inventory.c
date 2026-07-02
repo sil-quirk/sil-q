@@ -199,6 +199,8 @@ void inven_item_optimize(int item)
         p_ptr->window |= (PW_EQUIP | PW_PLAYER_0);
 
         p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+        if (item == player_active_weapon_quiver_slot())
+            p_ptr->redraw |= PR_MAP;
     }
 }
 

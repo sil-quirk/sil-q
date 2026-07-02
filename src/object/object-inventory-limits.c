@@ -810,8 +810,18 @@ int inventory_limit_usage_for_group(enum inventory_limit_group group)
     if (group >= INV_LIMIT_ARROW && group <= INV_LIMIT_THROWABLE)
         return inventory_limit_usage(group);
 
+    if (group == INV_LIMIT_TORCHES)
+        return player_carried_torch_count();
+
     if (group == INV_LIMIT_BRASS_LAMPS)
         return player_oil_container_slots_used();
+
+    if (group == INV_LIMIT_LESSER_JEWEL
+        || group == INV_LIMIT_FEANORIAN_LAMP)
+    {
+        return player_carried_light_count_for_sval(SV_LIGHT_LESSER_JEWEL)
+            + player_carried_light_count_for_sval(SV_LIGHT_FEANORIAN);
+    }
 
     for (int i = 0; i < INVEN_TOTAL; i++)
     {

@@ -188,6 +188,11 @@ void cave_monster_visual(const monster_race* r_ptr, byte* a, char* c)
 
 static void special_lighting_floor(byte* a, char* c, int info, int light)
 {
+    /* A currently seen floor always uses its normal visible appearance.
+     * CAVE_SEEN already incorporates line of sight and illumination. */
+    if (info & CAVE_SEEN)
+        return;
+
     /* Determine if this grid should appear dark because of blindness or lack of light. */
     bool is_dark = false;
 
@@ -379,11 +384,37 @@ int player_tile_offset()
 {
     object_type * main_wield_ptr = &inventory[INVEN_WIELD];
     object_type * secondary_wield_ptr = &inventory[INVEN_ARM];
+    int active_quiver_slot;
+
+    if (player_active_weapon_is_ranged())
+    {
+        active_quiver_slot = player_active_weapon_quiver_slot();
+
+        if (!active_quiver_slot || !inventory[active_quiver_slot].k_idx)
+        {
+            return 0;
+        }
+        if (player_can_treat_as_throwing(&inventory[active_quiver_slot]))
+        {
+            main_wield_ptr = &inventory[active_quiver_slot];
+            secondary_wield_ptr = NULL;
+        }
+        else if (inventory[active_quiver_slot].tval == TV_ARROW &&
+            inventory[INVEN_BOW].tval == TV_BOW)
+        {
+            return 15;
+        }
+        else
+        {
+            return 0;
+        }
+    }
 
     byte main_type = main_wield_ptr->tval;
     byte main_subtype = main_wield_ptr->sval;
 
-    byte secondary_type = secondary_wield_ptr->tval;
+    byte secondary_type = secondary_wield_ptr
+        ? secondary_wield_ptr->tval : 0;
 
     if (secondary_type && !main_type)
     {
@@ -417,11 +448,6 @@ int player_tile_offset()
     bool swordOffhand =
         (secondary_type == TV_SWORD);
 
-    if (inventory[INVEN_BOW].tval == TV_BOW &&
-        p_ptr->skill_use[S_ARC] > p_ptr->skill_use[S_MEL])
-    {
-        return 15;
-    }
     if (!secondary_type)
     {
         if (smallSwordMain)
@@ -559,10 +585,10 @@ int player_tile_offset()
  * located, for example, objects will never fall into a grid containing
  * an invisible trap.  XXX XXX
  *
- * To determine if a "boring" grid should be displayed, we simply check to
- * see if it is either memorized ("CAVE_MARK"), or currently "see-able" by
- * the player ("CAVE_SEEN").  Note that "CAVE_SEEN" is now maintained by the
- * "update_view()" function.
+ * Boring grids are displayed normally while currently "see-able"
+ * ("CAVE_SEEN").  A memorized floor ("CAVE_MARK") that remains illuminated
+ * outside line of sight is displayed with the dark floor appearance.  A
+ * memorized but genuinely unlit floor remains darkness.
  *
  *
  * Some comments on the "terrain" layer (non-boring grids)...
@@ -724,8 +750,10 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     /* Boring grids (floors, etc) */
     else if (cave_floorlike_bold(y, x))
     {
-        /* Memorized (or seen) floor */
-        if ((info & (CAVE_MARK)) || (info & (CAVE_SEEN)))
+        /* Seen floors are normal; marked, illuminated floors outside LOS use
+         * the dark floor appearance selected by special_lighting_floor(). */
+        if ((info & CAVE_SEEN)
+            || ((info & CAVE_MARK) && cave_light[y][x] > 0))
         {
             int feat = FEAT_FLOOR;
 
@@ -1191,8 +1219,10 @@ void map_info_default(int y, int x, byte* ap, char* cp)
     /* Boring grids (floors, etc) */
     else if (cave_floorlike_bold(y, x))
     {
-        /* Memorized (or seen) floor */
-        if ((info & (CAVE_MARK)) || (info & (CAVE_SEEN)))
+        /* Seen floors are normal; marked and illuminated floors remain mapped
+         * outside LOS and are darkened by the logic below. */
+        if ((info & CAVE_SEEN)
+            || ((info & CAVE_MARK) && cave_light[y][x] > 0))
         {
             /* Get the floor feature */
             f_ptr = &f_info[FEAT_FLOOR];

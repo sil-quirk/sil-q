@@ -235,8 +235,8 @@ static void story_prompt_label(int binding, const char* fallback, char* buf, siz
 }
 
 /* Register a clickable/hoverable "[label]" token mapped to choice (mouse). */
-static void story_add_key_token(int choice, int row, const char *prompt,
-    const char *label)
+static void story_add_key_token(int choice, int col, int row,
+    const char *prompt, const char *label)
 {
     char token[32];
 
@@ -244,7 +244,7 @@ static void story_add_key_token(int choice, int row, const char *prompt,
         return;
 
     strnfmt(token, sizeof(token), "[%s]", label);
-    ui_menu_click_add_text_token(choice, 0, row, prompt, token);
+    ui_menu_click_add_text_token(choice, col, row, prompt, token);
 }
 
 /*
@@ -292,15 +292,15 @@ static void story_register_prompt(int indent, int wid, int h, bool final)
             strnfmt(prompt_buf, sizeof(prompt_buf), "[%s] continue",
                 next_label);
             Term_putstr(indent, row, -1, TERM_L_WHITE, prompt_buf);
-            story_add_key_token('\r', row, prompt_buf, next_label);
+            story_add_key_token('\r', indent, row, prompt_buf, next_label);
         } else {
             story_prompt_label(steamdeck_back_key(), "B", esc_label,
                 sizeof(esc_label));
             strnfmt(prompt_buf, sizeof(prompt_buf),
                 "[%s] next  *  [%s] fast forward", next_label, esc_label);
             Term_putstr(indent, row, -1, TERM_SLATE, prompt_buf);
-            story_add_key_token('\r', row, prompt_buf, next_label);
-            story_add_key_token(ESCAPE, row, prompt_buf, esc_label);
+            story_add_key_token('\r', indent, row, prompt_buf, next_label);
+            story_add_key_token(ESCAPE, indent, row, prompt_buf, esc_label);
         }
         return;
     }
@@ -308,12 +308,13 @@ static void story_register_prompt(int indent, int wid, int h, bool final)
     if (final) {
         const char *prompt_buf = "[Press any key to continue]";
         Term_putstr(indent, row, -1, TERM_L_WHITE, prompt_buf);
-        story_add_key_token('\r', row, prompt_buf, "Press any key to continue");
+        story_add_key_token('\r', indent, row, prompt_buf,
+            "Press any key to continue");
     } else {
         const char *prompt_buf = "[Enter] next  *  [Esc] fast forward";
         Term_putstr(indent, row, -1, TERM_SLATE, prompt_buf);
-        story_add_key_token('\r', row, prompt_buf, "Enter");
-        story_add_key_token(ESCAPE, row, prompt_buf, "Esc");
+        story_add_key_token('\r', indent, row, prompt_buf, "Enter");
+        story_add_key_token(ESCAPE, indent, row, prompt_buf, "Esc");
     }
 }
 

@@ -1136,13 +1136,6 @@ void update_view(void)
         if (cave_light[y][x] <= 0)
         {
             fast_cave_info[g] &= ~(CAVE_SEEN);
-
-            /* Hack -- Forget "boring" grids */
-            if (cave_floorlike_bold(y, x) && (cave_info[y][x] & (CAVE_GLOW)))
-            {
-                /* Forget */
-                cave_info[y][x] &= ~(CAVE_MARK);
-            }
         }
     }
 
@@ -1366,6 +1359,11 @@ void update_view(void)
             }
         }
     }
+
+    /* Passing through a grid gives the player persistent terrain knowledge.
+     * For ordinary floors, CAVE_MARK enables navigation while the existing
+     * lighting code still chooses the normal or dark floor visual. */
+    cave_info[py][px] |= CAVE_MARK;
 
     /* Save 'view_n' */
     view_n = fast_view_n;

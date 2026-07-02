@@ -2113,8 +2113,6 @@ bool sdl_unified_look_handle_map_drag_motion(float x, float y, bool mouse, SDL_F
 bool sdl_unified_look_handle_map_drag_up(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_unified_look_handle_map_hover_pointer(float x, float y);
 bool sdl_mouse_path_grid_is_open_floor(int y, int x);
-void sdl_mouse_path_feature_visual(int feat, byte* a, char* c);
-bool sdl_mouse_path_minimap_draws_terrain(int y, int x);
 bool sdl_mouse_path_grid_known(int y, int x);
 bool sdl_mouse_feature_known_for_action(int y, int x);
 void sdl_mouse_note_feature_for_action(int y, int x);

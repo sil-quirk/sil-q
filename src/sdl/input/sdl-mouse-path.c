@@ -7,41 +7,6 @@ bool sdl_mouse_path_grid_is_open_floor(int y, int x)
         && cave_feat[y][x] != FEAT_CHASM;
 }
 
-void sdl_mouse_path_feature_visual(int feat, byte* a, char* c)
-{
-    feature_type* f_ptr;
-
-    if (!a || !c)
-        return;
-
-    f_ptr = &f_info[feat];
-    if (graphics_are_ascii()) {
-        *a = f_ptr->d_attr;
-        *c = f_ptr->d_char;
-    } else {
-        *a = f_ptr->x_attr;
-        *c = f_ptr->x_char;
-    }
-}
-
-bool sdl_mouse_path_minimap_draws_terrain(int y, int x)
-{
-    byte a = TERM_DARK;
-    byte ta = TERM_DARK;
-    byte dark_a = TERM_DARK;
-    char c = ' ';
-    char tc = ' ';
-    char dark_c = ' ';
-
-    if (!p_ptr || !in_bounds(y, x))
-        return false;
-
-    map_info(y, x, &a, &c, &ta, &tc);
-    sdl_mouse_path_feature_visual(FEAT_NONE, &dark_a, &dark_c);
-
-    return (ta != dark_a) || (tc != dark_c);
-}
-
 bool sdl_mouse_path_grid_known(int y, int x)
 {
     u16b info;
@@ -57,10 +22,9 @@ bool sdl_mouse_path_grid_known(int y, int x)
         return true;
 
     info = cave_info[y][x];
-    return ((info & (CAVE_MARK | CAVE_SEEN)) != 0)
-        || ((info & CAVE_VIEW) && sdl_mouse_path_grid_is_open_floor(y, x))
-        || (sdl_mouse_path_grid_is_open_floor(y, x)
-            && sdl_mouse_path_minimap_draws_terrain(y, x));
+    /* CAVE_VIEW includes unlit line-of-sight grids.  Treating those as known
+     * lets the path preview reveal otherwise hidden corridor geometry. */
+    return (info & (CAVE_MARK | CAVE_SEEN)) != 0;
 }
 
 bool sdl_mouse_feature_known_for_action(int y, int x)
@@ -815,6 +779,20 @@ bool sdl_mouse_path_compute(int target_y, int target_x)
 
     if ((target_y == p_ptr->py) && (target_x == p_ptr->px))
         return false;
+
+    /* Match keyboard walking for an adjacent unexplored grid.  Do not inspect
+     * its real terrain here: both an unknown floor and an unknown wall get the
+     * same one-step preview, and the movement command discovers the result. */
+    if (!sdl_mouse_path_grid_known(target_y, target_x)
+        && ABS(target_y - p_ptr->py) <= 1
+        && ABS(target_x - p_ptr->px) <= 1)
+    {
+        g_mouse_path.path[0] = GRID(target_y, target_x);
+        g_mouse_path.path_len = 1;
+        g_mouse_path.path_valid = true;
+        return true;
+    }
+
     if (!sdl_mouse_path_grid_walkable(target_y, target_x))
     {
         blocked_target_kind =
@@ -1188,5 +1166,3 @@ bool sdl_mouse_consume_wake_key(void)
     (void)Term_inkey(&ch, false, true);
     return true;
 }
-
-

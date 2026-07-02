@@ -4413,6 +4413,17 @@ static bool inventory_browser_equipped_slot_matches_group(
     return inventory_browser_object_matches_group(group, &inventory[slot]);
 }
 
+/*
+ * Most supply objects belong only on the Supplies page.  Lights and oil are
+ * also constrained by the inventory light limits, so expose those stored
+ * entries alongside the equipped and packed items in that inventory category.
+ */
+static bool inventory_browser_group_includes_supplies(
+    inventory_menu_group group)
+{
+    return group == INVENTORY_MENU_GROUP_LIGHTS;
+}
+
 #define INVENTORY_SELECT_INVALID (-1000000)
 
 static bool inventory_item_select_active(const supply_menu_request* request)
@@ -4667,6 +4678,17 @@ static int count_inventory_browser_group_entries(inventory_menu_group group)
             if (inventory_browser_object_matches_group(group, &inventory[i]))
                 count++;
         }
+
+        if (inventory_browser_group_includes_supplies(group))
+        {
+            for (int i = 0; i < supplies_entry_count(); i++)
+            {
+                object_type* o_ptr = supplies_entry_at(i);
+
+                if (inventory_browser_object_matches_group(group, o_ptr))
+                    count++;
+            }
+        }
     }
 
     {
@@ -4808,6 +4830,24 @@ static void prepare_inventory_browser_group_icons(
             object_copy(icon_obj, &inventory[i]);
             icons[group_idx].has_icon = true;
             break;
+        }
+
+        if (icons[group_idx].has_icon)
+            continue;
+
+        if (inventory_browser_group_includes_supplies(group))
+        {
+            for (int i = 0; i < supplies_entry_count(); i++)
+            {
+                object_type* o_ptr = supplies_entry_at(i);
+
+                if (!inventory_browser_object_matches_group(group, o_ptr))
+                    continue;
+
+                object_copy(icon_obj, o_ptr);
+                icons[group_idx].has_icon = true;
+                break;
+            }
         }
 
         if (icons[group_idx].has_icon)
@@ -5057,6 +5097,24 @@ static int collect_inventory_page_entries(inventory_menu_group group,
             if (!select_mode)
                 inventory_browser_add_reserved_limit_rows(group, &inventory[i],
                     entries, &count, capacity);
+        }
+    }
+
+    if (!select_mode && inventory_browser_group_includes_supplies(group))
+    {
+        for (int i = 0; i < supplies_entry_count() && count < capacity; i++)
+        {
+            object_type* o_ptr = supplies_entry_at(i);
+
+            if (!inventory_browser_object_matches_group(group, o_ptr))
+                continue;
+
+            if (equipment_add_entry(entries, &count, capacity, SUPPLIES_INDEX,
+                    i, -1, false))
+            {
+                inventory_browser_add_reserved_limit_rows(group, o_ptr,
+                    entries, &count, capacity);
+            }
         }
     }
 
@@ -5437,6 +5495,8 @@ static bool inventory_slot_pick_overlay_entry(
 static bool inventory_page_use_entry(equipment_list_entry* entry,
     supply_floor_action floor_action)
 {
+    supply_list_entry supply_entry = {0};
+
     if (!entry)
         return false;
 
@@ -5455,11 +5515,23 @@ static bool inventory_page_use_entry(equipment_list_entry* entry,
         return true;
     }
 
+    if (entry->supply_idx >= 0)
+    {
+        supply_entry.item_idx = SUPPLIES_INDEX;
+        supply_entry.supply_idx = entry->supply_idx;
+        supply_entry.equip_idx = -1;
+        supply_entry.preset_idx = -1;
+        supply_entry.floor_idx = -1;
+        return supplies_menu_use_entry(&supply_entry, floor_action);
+    }
+
     return false;
 }
 
 static bool inventory_page_drop_entry(equipment_list_entry* entry)
 {
+    supply_list_entry supply_entry = {0};
+
     if (!entry)
         return false;
 
@@ -5473,6 +5545,16 @@ static bool inventory_page_drop_entry(equipment_list_entry* entry)
     {
         do_cmd_drop_item_by_index(entry->item_idx);
         return true;
+    }
+
+    if (entry->supply_idx >= 0)
+    {
+        supply_entry.item_idx = SUPPLIES_INDEX;
+        supply_entry.supply_idx = entry->supply_idx;
+        supply_entry.equip_idx = -1;
+        supply_entry.preset_idx = -1;
+        supply_entry.floor_idx = -1;
+        return supplies_menu_drop_entry(&supply_entry);
     }
 
     return false;

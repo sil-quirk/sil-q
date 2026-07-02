@@ -123,7 +123,7 @@ static void mark_active_weapon_changed(void)
 {
     p_ptr->update |= PU_BONUS;
     p_ptr->redraw |= PR_BASIC | PR_MEL | PR_ARC | PR_ARMOR | PR_EQUIPPY
-        | PR_QUIVER;
+        | PR_QUIVER | PR_MAP;
     p_ptr->window |= PW_PLAYER_0 | PW_EQUIP;
 }
 
