@@ -1814,12 +1814,11 @@ void sdl_char_sheet_fitted_wrap_cache_clear(void)
     sdl_char_sheet_book_body_px_cache_clear();
 }
 
-static int sdl_char_sheet_fitted_wrap_line_count(TTF_Font* font, cptr text,
-    float width, int slot)
+static int sdl_char_sheet_select_description_line_count(TTF_Font* font,
+    cptr fallback, float width)
 {
-    if (slot == SDL_STORY_FONT_SLOT_CHAR_DESC
-        && g_sdl_character_sheet_screen.context
-            == SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    if (g_sdl_character_sheet_screen.context
+        == SDL_CHARACTER_SHEET_BIRTH_SELECT)
     {
         int count =
             g_sdl_character_sheet_screen.select_desc_candidate_count;
@@ -1835,7 +1834,7 @@ static int sdl_char_sheet_fitted_wrap_line_count(TTF_Font* font, cptr text,
                 g_sdl_character_sheet_screen.select_desc_candidates);
         }
         if (count <= 0)
-            return sdl_char_sheet_wrap_text(font, text, width, NULL, 0);
+            return sdl_char_sheet_wrap_text(font, fallback, width, NULL, 0);
         for (int i = 0; i < FITTED_WRAP_CACHE_SIZE; i++)
         {
             const fitted_wrap_cache_entry* entry =
@@ -1873,6 +1872,15 @@ static int sdl_char_sheet_fitted_wrap_line_count(TTF_Font* font, cptr text,
         }
         return lines;
     }
+
+    return sdl_char_sheet_wrap_text(font, fallback, width, NULL, 0);
+}
+
+static int sdl_char_sheet_fitted_wrap_line_count(TTF_Font* font, cptr text,
+    float width, int slot)
+{
+    if (slot == SDL_STORY_FONT_SLOT_CHAR_DESC)
+        return sdl_char_sheet_select_description_line_count(font, text, width);
 
     return sdl_char_sheet_wrap_text(font, text, width, NULL, 0);
 }
@@ -7543,9 +7551,10 @@ static bool sdl_char_sheet_split_intro_four_pages_balanced(cptr intro,
 }
 
 /*
- * Shared story px (no bigger than the title) for the race book.  The lore on
- * the choice page is intentionally treated as flowing remainder text; sizing to
- * the lore collapses the chronicle page on wide mobile layouts.
+ * Choose one shared body size (no bigger than the title) for every race-book
+ * story page.  The final selection page is deliberately excluded and fitted
+ * independently below, so its longer list+lore layout cannot shrink the
+ * chronicle.
  */
 int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
     float top_y, float region_bottom, int title_px)
@@ -7553,7 +7562,6 @@ int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
     cptr frame_top = g_sdl_character_sheet_screen.select_frame_top;
     cptr intro = g_sdl_character_sheet_screen.select_intro;
     cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
-    int row_count = g_sdl_character_sheet_screen.select_row_count;
     float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
     int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.018f), 14, 24);
     int body_px = min_px;
@@ -7569,12 +7577,8 @@ int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
         TTF_Font* f = sdl_story_font_for_height_slot(px,
             SDL_STORY_FONT_SLOT_CHAR_SELECT);
         float lh = sdl_char_sheet_line_h(f, px, 1.28f);
-        float list_lh = lh * 1.35f;
         float story_w = sdl_char_sheet_book_width(px, content_w);
-        float choice_w = sdl_char_sheet_race_book_text_width(px, content_w,
-            mobile_pages);
         float avail = region_h - 2.0f * (lh * SDL_BOOK_MARGIN_V);
-        float choice_avail = mobile_pages ? region_h : avail;
         int ft = (frame_top && frame_top[0])
             ? sdl_char_sheet_wrap_text(f, frame_top, story_w, NULL, 0) : 0;
         int in = (intro && intro[0])
@@ -7612,12 +7616,76 @@ int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
         int in_fourth = split_intro
             ? sdl_char_sheet_story_lines(f, intro_fourth, story_w)
             : 0;
-        float list_h = (float)row_count * list_lh;
         float page0;
         float page1 = 0.0f;
         float page2 = 0.0f;
         float page3 = 0.0f;
-        float choice_page;
+        float need;
+
+        /* Match the mandatory story-page layouts at this candidate size. */
+        page0 = (float)(ft + in_first) * lh + lh * 0.35f;
+        if (mobile_pages)
+        {
+            page1 = (float)in_second * lh;
+            page2 = (float)in_third * lh;
+            page3 = (float)(in_fourth + fb) * lh + lh * 0.8f;
+        }
+        else if (desktop_pages)
+        {
+            float charge_gap = (in_second > 0 && fb > 0) ? lh * 0.8f : 0.0f;
+
+            page1 = (float)(in_second + fb) * lh + charge_gap;
+        }
+        need = (page0 > page1) ? page0 : page1;
+        if (page2 > need)
+            need = page2;
+        if (page3 > need)
+            need = page3;
+
+        body_px = px;
+        if (need <= avail)
+            break;
+    }
+    return body_px;
+}
+
+/*
+ * Choose the final race-selection page's body size independently.  Measure
+ * every candidate description so moving focus never changes the size or clips
+ * a race whose particular word breaks wrap onto more lines.
+ */
+static int sdl_char_sheet_book_choice_body_px(float canvas_h, float content_w,
+    float top_y, float region_bottom, int title_px)
+{
+    cptr frame_bottom = g_sdl_character_sheet_screen.select_frame_bottom;
+    int row_count = g_sdl_character_sheet_screen.select_row_count;
+    float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
+    int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.018f), 14, 24);
+    int body_px = min_px;
+    bool mobile_pages = sdl_char_sheet_race_book_mobile_pages();
+    bool desktop_pages = !mobile_pages
+        && g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SELECT
+        && g_sdl_character_sheet_screen.select_book_mode
+        && g_sdl_character_sheet_screen.select_page_count >= 3;
+    bool show_charge = !(mobile_pages || desktop_pages);
+
+    for (int px = title_px; px >= min_px; px -= 2)
+    {
+        TTF_Font* f = sdl_story_font_for_height_slot(px,
+            SDL_STORY_FONT_SLOT_CHAR_SELECT);
+        float lh = sdl_char_sheet_line_h(f, px, 1.28f);
+        float list_lh = lh * 1.35f;
+        float choice_w = sdl_char_sheet_race_book_text_width(px, content_w,
+            mobile_pages);
+        float avail = mobile_pages
+            ? region_h : region_h - 2.0f * (lh * SDL_BOOK_MARGIN_V);
+        int fb_lines = (show_charge && frame_bottom && frame_bottom[0])
+            ? sdl_char_sheet_wrap_text(f, frame_bottom, choice_w, NULL, 0)
+            : 0;
+        int lore_lines = sdl_char_sheet_select_description_line_count(f,
+            g_sdl_character_sheet_screen.select_description, choice_w);
+        float list_h = (float)row_count * list_lh;
         float need;
 
         if (mobile_pages)
@@ -7637,48 +7705,22 @@ int sdl_char_sheet_book_body_px(float canvas_h, float content_w,
             list_h = (left_h > right_h) ? left_h : right_h;
         }
 
-        /* Match the mandatory page layouts.  The highlighted lore is drawn into
-         * whatever space remains after the list.  On mobile, the story spans
-         * four balanced pages and the final choice page is full-width.  On
-         * desktop, the story spans two pages and the final page is selection
-         * only, which lets the shared book font grow. */
-        page0 = (float)(ft + in_first) * lh + lh * 0.35f;
-        if (mobile_pages)
-        {
-            page1 = (float)in_second * lh;
-            page2 = (float)in_third * lh;
-            page3 = (float)(in_fourth + fb) * lh + lh * 0.8f;
-            choice_page = list_h + lh * 1.6f;
-        }
-        else if (desktop_pages)
-        {
-            float charge_gap = (in_second > 0 && fb > 0) ? lh * 0.8f : 0.0f;
-
-            page1 = (float)(in_second + fb) * lh + charge_gap;
-            choice_page = list_h + lh * 1.6f;
-        }
-        else
-        {
-            choice_page = (float)fb * lh + list_h + lh * 1.6f;
-        }
-        need = (page0 > page1) ? page0 : page1;
-        if (page2 > need)
-            need = page2;
-        if (page3 > need)
-            need = page3;
-        if (choice_page > need)
-            need = choice_page;
+        need = list_h + (float)lore_lines * lh + lh * 0.8f;
+        if (fb_lines > 0)
+            need += (float)fb_lines * lh + lh * 0.8f;
 
         body_px = px;
-        if (need <= avail && (!mobile_pages || choice_page <= choice_avail))
+        if (need <= avail)
             break;
     }
+
     return body_px;
 }
 
 static void sdl_char_sheet_book_body_px_cache_clear(void)
 {
     g_sdl_character_sheet_screen.select_book_body_px = 0;
+    g_sdl_character_sheet_screen.select_book_choice_body_px = 0;
     g_sdl_character_sheet_screen.select_book_body_for_h = -1;
     g_sdl_character_sheet_screen.select_book_body_for_w = -1;
     g_sdl_character_sheet_screen.select_book_body_for_region_h = -1;
@@ -7715,6 +7757,11 @@ static Uint64 sdl_char_sheet_book_layout_hash(void)
         g_sdl_character_sheet_screen.select_frame_bottom);
     hash ^= (Uint64)row_count;
     hash *= 1099511628211ULL;
+    hash ^= g_sdl_character_sheet_screen.select_desc_candidate_hash;
+    hash *= 1099511628211ULL;
+    hash ^= (Uint64)
+        g_sdl_character_sheet_screen.select_desc_candidate_count;
+    hash *= 1099511628211ULL;
 
     for (int i = 0; i < row_count; i++)
     {
@@ -7730,7 +7777,7 @@ static Uint64 sdl_char_sheet_book_layout_hash(void)
 }
 
 static int sdl_char_sheet_cached_book_body_px(float canvas_h, float content_w,
-    float top_y, float region_bottom, int title_px)
+    float top_y, float region_bottom, int title_px, bool choice_page)
 {
     int h = (int)(canvas_h + 0.5f);
     int w = (int)(content_w + 0.5f);
@@ -7748,6 +7795,7 @@ static int sdl_char_sheet_cached_book_body_px(float canvas_h, float content_w,
     }
 
     if (g_sdl_character_sheet_screen.select_book_body_px > 0
+        && g_sdl_character_sheet_screen.select_book_choice_body_px > 0
         && g_sdl_character_sheet_screen.select_book_body_for_h == h
         && g_sdl_character_sheet_screen.select_book_body_for_w == w
         && g_sdl_character_sheet_screen.select_book_body_for_region_h
@@ -7757,11 +7805,16 @@ static int sdl_char_sheet_cached_book_body_px(float canvas_h, float content_w,
         && g_sdl_character_sheet_screen.select_book_body_for_layout_hash
             == layout_hash)
     {
-        return g_sdl_character_sheet_screen.select_book_body_px;
+        return choice_page
+            ? g_sdl_character_sheet_screen.select_book_choice_body_px
+            : g_sdl_character_sheet_screen.select_book_body_px;
     }
 
     g_sdl_character_sheet_screen.select_book_body_px =
         sdl_char_sheet_book_body_px(canvas_h, content_w, top_y,
+            region_bottom, title_px);
+    g_sdl_character_sheet_screen.select_book_choice_body_px =
+        sdl_char_sheet_book_choice_body_px(canvas_h, content_w, top_y,
             region_bottom, title_px);
     g_sdl_character_sheet_screen.select_book_body_for_h = h;
     g_sdl_character_sheet_screen.select_book_body_for_w = w;
@@ -7769,7 +7822,9 @@ static int sdl_char_sheet_cached_book_body_px(float canvas_h, float content_w,
     g_sdl_character_sheet_screen.select_book_body_for_title_px = title_px;
     g_sdl_character_sheet_screen.select_book_body_for_layout_hash =
         layout_hash;
-    return g_sdl_character_sheet_screen.select_book_body_px;
+    return choice_page
+        ? g_sdl_character_sheet_screen.select_book_choice_body_px
+        : g_sdl_character_sheet_screen.select_book_body_px;
 }
 
 /* A book-page frame: a parchment border with an inner hairline, drawn into the
@@ -8054,9 +8109,9 @@ static void sdl_char_sheet_render_race_choice_page(TTF_Font* body_font,
  *
  * The story pages have a parchment frame with margins; the final mobile choice
  * page is full-width and unframed.  Coordinates are absolute in the current
- * target; pass them shifted when the target is an offscreen snapshot.  Story,
- * race names, and race lore share one body size.  register_hits adds the
- * people-row click targets on the choice page.
+ * target; pass them shifted when the target is an offscreen snapshot.  Story
+ * pages share one fitted body size; the final race list+lore page has its own.
+ * register_hits adds the people-row click targets on the choice page.
  */
 void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float content_x, float content_w, float top_y, float region_bottom,
@@ -8083,11 +8138,7 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
     float region_h = (region_bottom > top_y) ? (region_bottom - top_y) : 1.0f;
     float book_w;
     float book_x;
-    int body_px = narrative
-        ? (g_sdl_character_sheet_screen.narrative_body_px > 0
-               ? g_sdl_character_sheet_screen.narrative_body_px : 20)
-        : sdl_char_sheet_cached_book_body_px(canvas_h, content_w, top_y,
-            region_bottom, title_px);
+    int body_px;
     TTF_Font* body_font;
     float body_lh;
     float gap2;
@@ -8100,8 +8151,15 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
     int fourth_intro_lines;
     int fb_lines;
     int choice_page = sdl_char_sheet_book_choice_page();
+    bool race_choice_page = !narrative && page >= choice_page;
     bool full_choice_page = mobile_pages && !narrative && page >= choice_page;
     float y;
+
+    body_px = narrative
+        ? (g_sdl_character_sheet_screen.narrative_body_px > 0
+               ? g_sdl_character_sheet_screen.narrative_body_px : 20)
+        : sdl_char_sheet_cached_book_body_px(canvas_h, content_w, top_y,
+            region_bottom, title_px, race_choice_page);
 
     intro_first[0] = '\0';
     intro_second[0] = '\0';
@@ -9068,34 +9126,46 @@ void sdl_character_sheet_screen_render(void)
             bool snapshots_ready;
             bool captured_snapshots = false;
             /*
-             * Story pages curl as the framed book column.  The final mobile
-             * race-choice page is full-width, so transitions touching it must
-             * capture the full content area or it visibly clips to the previous
-             * book frame during the turn.
+             * Capture the union of both leaves.  Story and race-choice pages
+             * now have independent font sizes, so either framed column may be
+             * wider.  The final mobile choice page remains full-width.
              */
-            int body_px =
-                (g_sdl_character_sheet_screen.context
-                    == SDL_CHARACTER_SHEET_NARRATIVE)
-                    ? (g_sdl_character_sheet_screen.narrative_body_px > 0
-                           ? g_sdl_character_sheet_screen.narrative_body_px : 20)
-                    : sdl_char_sheet_cached_book_body_px((float)canvas.h,
-                        content_w, top_y, region_bottom, title_px);
-            float book_w = sdl_char_sheet_book_width(body_px, content_w);
-            float book_x = content_x + (content_w - book_w) * 0.5f;
+            bool narrative_turn =
+                g_sdl_character_sheet_screen.context
+                    == SDL_CHARACTER_SHEET_NARRATIVE;
+            int choice_page = sdl_char_sheet_book_choice_page();
+            bool from_choice = !narrative_turn && from_page >= choice_page;
+            bool to_choice = !narrative_turn && to_page >= choice_page;
+            int narrative_px = (g_sdl_character_sheet_screen.narrative_body_px
+                    > 0)
+                ? g_sdl_character_sheet_screen.narrative_body_px : 20;
+            int from_body_px = narrative_turn ? narrative_px
+                : sdl_char_sheet_cached_book_body_px((float)canvas.h,
+                    content_w, top_y, region_bottom, title_px, from_choice);
+            int to_body_px = narrative_turn ? narrative_px
+                : sdl_char_sheet_cached_book_body_px((float)canvas.h,
+                    content_w, top_y, region_bottom, title_px, to_choice);
             int body_slot = (g_sdl_character_sheet_screen.context
                     == SDL_CHARACTER_SHEET_NARRATIVE)
                 ? SDL_STORY_FONT_SLOT_NARRATIVE
                 : SDL_STORY_FONT_SLOT_CHAR_SELECT;
-            float body_lh = sdl_char_sheet_line_h(
-                sdl_story_font_for_height_slot(body_px, body_slot), body_px, 1.28f);
-            float mh = body_lh * SDL_BOOK_MARGIN_H;
-            float page_x = book_x - mh;
-            float page_w = book_w + 2.0f * mh;
+            float from_lh = sdl_char_sheet_line_h(
+                sdl_story_font_for_height_slot(from_body_px, body_slot),
+                from_body_px, 1.28f);
+            float to_lh = sdl_char_sheet_line_h(
+                sdl_story_font_for_height_slot(to_body_px, body_slot),
+                to_body_px, 1.28f);
+            float from_page_w = sdl_char_sheet_book_width(from_body_px,
+                    content_w)
+                + 2.0f * from_lh * SDL_BOOK_MARGIN_H;
+            float to_page_w = sdl_char_sheet_book_width(to_body_px, content_w)
+                + 2.0f * to_lh * SDL_BOOK_MARGIN_H;
+            float page_w = MAX(from_page_w, to_page_w);
+            float page_x;
             float page_h = region_bottom - top_y;
             bool full_choice_turn =
                 sdl_char_sheet_race_book_mobile_pages()
-                && (from_page >= sdl_char_sheet_book_choice_page()
-                    || to_page >= sdl_char_sheet_book_choice_page());
+                && (from_choice || to_choice);
             int pw;
             int ph;
             SDL_FRect region;
@@ -9105,13 +9175,12 @@ void sdl_character_sheet_screen_render(void)
                 page_x = content_x;
                 page_w = content_w;
             }
-            else if (page_x < content_x)
+            else
             {
-                page_w -= (content_x - page_x);
-                page_x = content_x;
+                if (page_w > content_w)
+                    page_w = content_w;
+                page_x = content_x + (content_w - page_w) * 0.5f;
             }
-            if (page_x + page_w > content_x + content_w)
-                page_w = content_x + content_w - page_x;
             pw = (int)(page_w + 0.5f);
             ph = (int)(page_h + 0.5f);
             region = (SDL_FRect){ page_x, top_y, page_w, page_h };
@@ -10833,6 +10902,42 @@ void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc)
         sizeof(g_sdl_character_sheet_screen.select_desc_sizing));
 }
 
+void sdl_character_sheet_screen_add_select_description_candidate(cptr text)
+{
+    int idx;
+    const unsigned char* p;
+    Uint64 hash;
+
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+        return;
+    if (!text || !text[0])
+        return;
+
+    idx = g_sdl_character_sheet_screen.select_desc_candidate_count;
+    if (idx < 0
+        || idx >= (int)N_ELEMENTS(
+            g_sdl_character_sheet_screen.select_desc_candidates))
+    {
+        return;
+    }
+
+    SDL_strlcpy(g_sdl_character_sheet_screen.select_desc_candidates[idx],
+        text, sizeof(g_sdl_character_sheet_screen.select_desc_candidates[idx]));
+    hash = g_sdl_character_sheet_screen.select_desc_candidate_hash;
+    p = (const unsigned char*)
+        g_sdl_character_sheet_screen.select_desc_candidates[idx];
+    while (*p)
+    {
+        hash ^= (Uint64)*p++;
+        hash *= 1099511628211ULL;
+    }
+    /* Delimit candidates so ["ab", "c"] and ["a", "bc"] differ. */
+    hash ^= 0xffU;
+    hash *= 1099511628211ULL;
+    g_sdl_character_sheet_screen.select_desc_candidate_hash = hash;
+    g_sdl_character_sheet_screen.select_desc_candidate_count = idx + 1;
+}
+
 /* Register one character's welcome (the first paragraph of its text) for
  * measurement at the real render font.  Reset by begin_select; character
  * selection feeds only the characters belonging to the selected race. */
@@ -10860,33 +10965,8 @@ void sdl_character_sheet_screen_add_select_welcome(cptr text)
     SDL_strlcpy(g_sdl_character_sheet_screen.select_welcome[idx], first,
         sizeof(g_sdl_character_sheet_screen.select_welcome[idx]));
     g_sdl_character_sheet_screen.select_welcome_count = idx + 1;
-
-    idx = g_sdl_character_sheet_screen.select_desc_candidate_count;
-    if (idx >= 0
-        && idx < (int)N_ELEMENTS(
-            g_sdl_character_sheet_screen.select_desc_candidates))
-    {
-        const unsigned char* p;
-        Uint64 hash =
-            g_sdl_character_sheet_screen.select_desc_candidate_hash;
-
-        SDL_strlcpy(
-            g_sdl_character_sheet_screen.select_desc_candidates[idx],
-            body ? body : "",
-            sizeof(g_sdl_character_sheet_screen.select_desc_candidates[idx]));
-        p = (const unsigned char*)
-            g_sdl_character_sheet_screen.select_desc_candidates[idx];
-        while (*p)
-        {
-            hash ^= (Uint64)*p++;
-            hash *= 1099511628211ULL;
-        }
-        /* Delimit candidates so ["ab", "c"] and ["a", "bc"] differ. */
-        hash ^= 0xffU;
-        hash *= 1099511628211ULL;
-        g_sdl_character_sheet_screen.select_desc_candidate_hash = hash;
-        g_sdl_character_sheet_screen.select_desc_candidate_count = idx + 1;
-    }
+    sdl_character_sheet_screen_add_select_description_candidate(
+        body ? body : "");
 }
 
 void sdl_character_sheet_screen_set_select_description(cptr text)

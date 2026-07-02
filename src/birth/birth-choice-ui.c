@@ -298,9 +298,15 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 /* No per-row hover tooltip: the focused choice's text is
                  * already shown in the description area below. */
                 sdl_character_sheet_screen_add_select_row(i, label, rattr, "");
-                /* Feed every character in this race so all of its sheets
-                 * reserve the same welcome height. */
-                if (!book)
+                /*
+                 * Feed every possible description into the font fitter.  Both
+                 * book lore and character sheets must remain stable as focus
+                 * moves, while reserving enough lines for the worst wrap.
+                 */
+                if (book)
+                    sdl_character_sheet_screen_add_select_description_candidate(
+                        choices[i].text ? choices[i].text : "");
+                else
                     sdl_character_sheet_screen_add_select_welcome(
                         choices[i].text ? choices[i].text : "");
             }

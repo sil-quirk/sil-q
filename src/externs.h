@@ -1635,6 +1635,8 @@ extern bool sdl_character_sheet_screen_page_turning(void);
 extern void sdl_character_sheet_screen_begin_page_turn(int dir);
 extern void sdl_character_sheet_screen_begin_page_turn_to(int page);
 extern void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
+extern void sdl_character_sheet_screen_add_select_description_candidate(
+    cptr text);
 extern void sdl_character_sheet_screen_add_select_welcome(cptr text);
 extern void sdl_character_sheet_screen_set_select_description(cptr text);
 extern bool sdl_character_sheet_screen_commit_select(int selected_index);

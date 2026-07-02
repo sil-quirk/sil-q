@@ -565,7 +565,7 @@ typedef struct sdl_character_sheet_screen_state {
      * render font so every sheet in that race uses one shared band height. */
     char select_welcome[96][160]; /* sized to match select_rows[] */
     int select_welcome_count;
-    /* Lore bodies for those same characters.  The longest byte string is not
+    /* Lore bodies for every selectable entry.  The longest byte string is not
      * necessarily the one that wraps to the most lines, so font fitting must
      * measure every candidate at the live width. */
     char select_desc_candidates[96][1280];
@@ -575,7 +575,8 @@ typedef struct sdl_character_sheet_screen_state {
     bool select_menu_style;    /* menu mode: pixel rows, storyfont2, no grid */
     int select_page;           /* book mode: current page (last = choice) */
     int select_page_count;     /* book mode: number of pages (1 otherwise) */
-    int select_book_body_px;   /* cached body size for race book layout */
+    int select_book_body_px;   /* cached body size for race story pages */
+    int select_book_choice_body_px; /* cached body size for final choice page */
     int select_book_body_for_h;
     int select_book_body_for_w;
     int select_book_body_for_region_h;
@@ -1951,6 +1952,7 @@ void sdl_character_sheet_screen_add_select_detail(cptr text, int attr, cptr desc
 void sdl_character_sheet_screen_set_select_detail_size_hint(int stat_rows, int ability_rows, int trait_rows);
 void sdl_character_sheet_screen_set_select_ability_rows(int rows);
 void sdl_character_sheet_screen_set_select_size_hint(cptr longest_desc);
+void sdl_character_sheet_screen_add_select_description_candidate(cptr text);
 void sdl_character_sheet_screen_set_select_description(cptr text);
 bool sdl_character_sheet_screen_commit_select(int selected_index);
 bool sdl_character_sheet_screen_handle_pointer_motion(float x, float y);
