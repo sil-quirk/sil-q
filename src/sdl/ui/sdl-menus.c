@@ -2,6 +2,7 @@
 #include "sdl/main-sdl-private.h"
 
 #define SDL_NARRATIVE_BANNER_FADE_MS 1000
+#define SDL_NARRATIVE_BANNER_TRANSITION_FADE_MS 500
 #define SDL_NARRATIVE_BANNER_FADE_FRAME_MS 16
 
 static Uint8 g_sdl_narrative_banner_alpha = SDL_ALPHA_OPAQUE;
@@ -965,7 +966,7 @@ static void sdl_narrative_banner_present_frame(sdl_view* restore_view)
     sdl_restore_render_target(restore_view);
 }
 
-void sdl_narrative_banner_show(bool line_delay)
+void sdl_narrative_banner_show(bool line_delay, bool fast_fade)
 {
     sdl_view* restore_view;
 
@@ -985,7 +986,9 @@ void sdl_narrative_banner_show(bool line_delay)
     }
 
     Uint64 start_ns = SDL_GetTicksNS();
-    Uint64 fade_ns = (Uint64)SDL_NARRATIVE_BANNER_FADE_MS * 1000000ULL;
+    int fade_ms = fast_fade ? SDL_NARRATIVE_BANNER_TRANSITION_FADE_MS
+                            : SDL_NARRATIVE_BANNER_FADE_MS;
+    Uint64 fade_ns = (Uint64)fade_ms * 1000000ULL;
 
     for (;;) {
         Uint64 elapsed_ns = SDL_GetTicksNS() - start_ns;

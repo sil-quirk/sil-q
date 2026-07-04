@@ -535,6 +535,7 @@ struct vault_type
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
     u32b message; /* Entry message text (offset) */
+    u32b skeleton_hint; /* Unique skeleton hint text (offset) */
 
     byte typ; /* Vault type */
 

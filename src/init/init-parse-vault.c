@@ -66,6 +66,7 @@ errr parse_v_info(char* buf, header* head)
         /* Initialize default values */
         v_ptr->color = 0; /* Default to depth color */
         v_ptr->message = 0;
+        v_ptr->skeleton_hint = 0;
         v_ptr->style_count = 0;
         for (int j = 0; j < 16; ++j)
         {
@@ -211,6 +212,17 @@ errr parse_v_info(char* buf, header* head)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
         if (!add_text(&v_ptr->message, head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'H' for a unique skeleton hint */
+    else if (buf[0] == 'H')
+    {
+        /* There better be a current v_ptr */
+        if (!v_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!add_text(&v_ptr->skeleton_hint, head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 

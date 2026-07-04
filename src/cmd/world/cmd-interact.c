@@ -446,6 +446,7 @@ static bool get_interact_dir(cptr prompt, bool (*test)(int y, int x),
 static bool grid_is_open_target(int y, int x);
 static bool grid_is_disarm_target(int y, int x);
 static bool grid_is_tunnel_target(int y, int x);
+static bool do_cmd_bash_aux(int y, int x);
 
 /*
  * Determine if a given grid may be "opened"
@@ -497,8 +498,11 @@ bool do_cmd_open_aux(int y, int x)
     /* Jammed door */
     if (cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x08)
     {
-        /* Stuck */
-        msg_print("The door appears to be stuck.");
+        if (get_check_near(y, x,
+                "Stuck door, do you want to bash it? "))
+        {
+            more = do_cmd_bash_aux(y, x);
+        }
     }
 
     /* Locked door */
@@ -2726,6 +2730,13 @@ static bool do_cmd_bash_aux(int y, int x)
 
     if (!success)
     {
+        /*
+         * Match other retryable interaction failures: discard input queued
+         * during the roll animation so it cannot consume the next bash
+         * confirmation before the player sees it.
+         */
+        flush();
+
         if (cave_known_closed_door_bold(y, x))
         {
             /* Message */

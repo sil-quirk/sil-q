@@ -1165,6 +1165,14 @@ void sdl_left_panel_source_invalidate(void)
     g_left_panel_source_generation++;
     if (g_left_panel_source_generation == 0)
         g_left_panel_source_generation = 1;
+
+    /*
+     * The styled left panel is rendered from this retained source rather than
+     * from cells in the main terminal.  A status-only change may therefore
+     * leave the terminal canvas untouched.  Make sure the next Term_fresh()
+     * still presents a frame with the regenerated panel.
+     */
+    g_state.need_present = true;
 }
 
 const term* sdl_left_panel_source_term_for_view(const sdl_view* view,

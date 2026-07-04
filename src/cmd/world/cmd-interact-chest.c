@@ -1638,6 +1638,57 @@ static bool level_has_greater_vault(void)
     return false;
 }
 
+static const vault_type* skeleton_note_current_greater_vault(void)
+{
+    if (!p_ptr || !z_info || !v_info || !v_name)
+        return NULL;
+
+    /*
+     * Before first entry, g_vault_name is the authoritative identity for the
+     * current level's vault.
+     */
+    if (g_vault_name[0])
+    {
+        for (int i = 0; i < z_info->v_max; ++i)
+        {
+            const vault_type* v_ptr = &v_info[i];
+            if (v_ptr->typ != 8 || !v_ptr->name)
+                continue;
+            if (streq(v_name + v_ptr->name, g_vault_name))
+                return v_ptr;
+        }
+    }
+
+    /*
+     * Entry clears g_vault_name, but greater_vaults retains generated vault
+     * indices for the run.  The newest one is the vault on this level.  Do
+     * not apply that fallback on the Gates or Morgoth's special level, whose
+     * CAVE_G_VAULT areas are not type-8 greater vaults.
+     */
+    if (p_ptr->depth == 0 || p_ptr->depth == MORGOTH_DEPTH)
+        return NULL;
+
+    for (int i = MAX_GREATER_VAULTS - 1; i >= 0; --i)
+    {
+        int v_idx = p_ptr->greater_vaults[i];
+        if (v_idx <= 0 || v_idx >= z_info->v_max)
+            continue;
+        if (v_info[v_idx].typ == 8)
+            return &v_info[v_idx];
+    }
+
+    return NULL;
+}
+
+static cptr skeleton_note_current_greater_vault_hint(void)
+{
+    const vault_type* v_ptr = skeleton_note_current_greater_vault();
+
+    if (!v_ptr || !v_text || !v_ptr->skeleton_hint)
+        return NULL;
+    return v_text + v_ptr->skeleton_hint;
+}
+
 static bool skeleton_note_artefact_seen_and_identified(const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->name1 || !z_info || o_ptr->name1 >= z_info->art_max)
@@ -3376,7 +3427,8 @@ static const char* skeleton_note_hoard_site_for_source_ident(u32b source_ident)
     return NULL;
 }
 
-static const char* skeleton_note_hoard_site_for_object(const object_type* o_ptr)
+static const char* skeleton_note_hoard_site_for_object(
+    const object_type* o_ptr, char* vault_site, size_t vault_site_sz)
 {
     u32b source_ident = 0;
     const char* source_site = NULL;
@@ -3398,8 +3450,20 @@ static const char* skeleton_note_hoard_site_for_object(const object_type* o_ptr)
     if (in_bounds_fully(o_ptr->iy, o_ptr->ix)
         && (cave_info[o_ptr->iy][o_ptr->ix] & CAVE_G_VAULT))
     {
-        if (g_vault_name[0] != '\0')
-            return g_vault_name;
+        const vault_type* v_ptr = skeleton_note_current_greater_vault();
+        cptr vault_name = NULL;
+
+        if (v_ptr && v_ptr->name)
+            vault_name = v_name + v_ptr->name;
+        else if (g_vault_name[0])
+            vault_name = g_vault_name;
+
+        if (vault_name && vault_site && vault_site_sz > 0)
+        {
+            strnfmt(vault_site, vault_site_sz, "a cache within %s",
+                vault_name);
+            return vault_site;
+        }
         return "a great vault";
     }
 
@@ -3417,15 +3481,17 @@ static const char* skeleton_note_hoard_site_for_object(const object_type* o_ptr)
 
 static bool skeleton_note_find_nearest_artefact(
     int from_y, int from_x, int* out_y, int* out_x, int* out_dist,
-    const char** out_site, char* out_artefact_kind, size_t out_artefact_kind_sz)
+    char* out_site, size_t out_site_sz, char* out_artefact_kind,
+    size_t out_artefact_kind_sz)
 {
     int best_y = -1;
     int best_x = -1;
     int best_dist = 0;
-    const char* best_site = NULL;
+    char best_site[96];
     char best_artefact_kind[64];
     int seen = 0;
 
+    best_site[0] = '\0';
     best_artefact_kind[0] = '\0';
 
     for (int i = 1; i < o_max; i++)
@@ -3437,10 +3503,17 @@ static bool skeleton_note_find_nearest_artefact(
         int dist = skeleton_note_map_distance(from_y, from_x, o_ptr->iy, o_ptr->ix);
         if (best_y < 0 || dist < best_dist)
         {
+            char vault_site[96];
+            const char* site;
+
             best_y = o_ptr->iy;
             best_x = o_ptr->ix;
             best_dist = dist;
-            best_site = skeleton_note_hoard_site_for_object(o_ptr);
+            vault_site[0] = '\0';
+            site = skeleton_note_hoard_site_for_object(
+                o_ptr, vault_site, sizeof(vault_site));
+            strnfmt(best_site, sizeof(best_site), "%s",
+                site ? site : "a hidden cache");
             (void)skeleton_note_format_artefact_kind(
                 o_ptr, best_artefact_kind, sizeof(best_artefact_kind));
             seen = 1;
@@ -3452,9 +3525,16 @@ static bool skeleton_note_find_nearest_artefact(
             ++seen;
             if (one_in_(seen))
             {
+                char vault_site[96];
+                const char* site;
+
                 best_y = o_ptr->iy;
                 best_x = o_ptr->ix;
-                best_site = skeleton_note_hoard_site_for_object(o_ptr);
+                vault_site[0] = '\0';
+                site = skeleton_note_hoard_site_for_object(
+                    o_ptr, vault_site, sizeof(vault_site));
+                strnfmt(best_site, sizeof(best_site), "%s",
+                    site ? site : "a hidden cache");
                 (void)skeleton_note_format_artefact_kind(
                     o_ptr, best_artefact_kind, sizeof(best_artefact_kind));
             }
@@ -3467,7 +3547,11 @@ static bool skeleton_note_find_nearest_artefact(
     if (out_y) *out_y = best_y;
     if (out_x) *out_x = best_x;
     if (out_dist) *out_dist = best_dist;
-    if (out_site) *out_site = best_site ? best_site : "a hidden cache";
+    if (out_site && out_site_sz > 0)
+    {
+        strnfmt(out_site, out_site_sz, "%s",
+            best_site[0] ? best_site : "a hidden cache");
+    }
     if (out_artefact_kind && out_artefact_kind_sz > 0)
     {
         strnfmt(out_artefact_kind, out_artefact_kind_sz, "%s",
@@ -3935,12 +4019,16 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
 
     skeleton_hint_kind hints[2] = {hint1, hint2};
     int hint_count = (hint2 != SKEL_HINT_NONE) ? 2 : 1;
+    cptr unique_vault_hint = skeleton_note_current_greater_vault_hint();
 
     char forge_site_buf[64];
+    char artefact_site_buf[2][96];
     char artefact_kind_buf[2][64];
     char distance_buf[2][64];
     char tutorial_tip_buf[2][256];
     forge_site_buf[0] = '\0';
+    artefact_site_buf[0][0] = '\0';
+    artefact_site_buf[1][0] = '\0';
     artefact_kind_buf[0][0] = '\0';
     artefact_kind_buf[1][0] = '\0';
     distance_buf[0][0] = '\0';
@@ -3951,28 +4039,45 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
     for (int i = 0; i < hint_count; ++i)
     {
         skeleton_hint_kind hint = hints[i];
-        s16b note_id = skeleton_note_pick_entry(
-            sval, SKELETON_NOTE_ROLE_HINT, hint);
+        s16b note_id = -1;
         const char* extra_tpl = NULL;
+        const char* tpl = NULL;
 
-        if (hint == SKEL_HINT_TIP && body_count > 0 && note_id == body_ids[body_count - 1])
+        if (hint == SKEL_HINT_GREAT_VAULT && unique_vault_hint)
         {
-            note_id = skeleton_note_pick_entry_internal(
-                sval, SKELETON_NOTE_ROLE_HINT, hint, false, body_ids[body_count - 1]);
+            tpl = unique_vault_hint;
         }
-
-        if (note_id < 0)
+        else
         {
-            note_id = skeleton_note_pick_entry_internal(
-                sval, SKELETON_NOTE_ROLE_HINT, hint, true,
-                (hint == SKEL_HINT_TIP && body_count > 0) ? body_ids[body_count - 1] : -1);
-        }
+            note_id = skeleton_note_pick_entry(
+                sval, SKELETON_NOTE_ROLE_HINT, hint);
 
-        const char* tpl = (note_id >= 0)
-            ? (skeleton_note_text + skeleton_note_info[note_id].text)
-            : NULL;
-        if (note_id >= 0 && skeleton_note_info[note_id].extra_text)
-            extra_tpl = skeleton_note_text + skeleton_note_info[note_id].extra_text;
+            if (hint == SKEL_HINT_TIP && body_count > 0
+                && note_id == body_ids[body_count - 1])
+            {
+                note_id = skeleton_note_pick_entry_internal(
+                    sval, SKELETON_NOTE_ROLE_HINT, hint, false,
+                    body_ids[body_count - 1]);
+            }
+
+            if (note_id < 0)
+            {
+                note_id = skeleton_note_pick_entry_internal(
+                    sval, SKELETON_NOTE_ROLE_HINT, hint, true,
+                    (hint == SKEL_HINT_TIP && body_count > 0)
+                        ? body_ids[body_count - 1]
+                        : -1);
+            }
+
+            tpl = (note_id >= 0)
+                ? (skeleton_note_text + skeleton_note_info[note_id].text)
+                : NULL;
+            if (note_id >= 0 && skeleton_note_info[note_id].extra_text)
+            {
+                extra_tpl =
+                    skeleton_note_text + skeleton_note_info[note_id].extra_text;
+            }
+        }
 
         if (!tpl)
         {
@@ -4131,9 +4236,10 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
         else if (hint == SKEL_HINT_VAULT_ARTIFACT)
         {
             int ty = 0, tx = 0, dist = 0;
-            const char* site = NULL;
             if (skeleton_note_find_nearest_artefact(
-                    skel_y, skel_x, &ty, &tx, &dist, &site,
+                    skel_y, skel_x, &ty, &tx, &dist,
+                    artefact_site_buf[body_count],
+                    sizeof(artefact_site_buf[body_count]),
                     artefact_kind_buf[body_count],
                     sizeof(artefact_kind_buf[body_count])))
             {
@@ -4142,7 +4248,8 @@ static void skeleton_note_maybe_show(byte sval, int skel_y, int skel_x)
                 body_lines[body_count].dist = skeleton_note_distance_phrase(
                     dist, &layout, distance_buf[body_count],
                     sizeof(distance_buf[body_count]));
-                body_lines[body_count].site = site;
+                body_lines[body_count].site =
+                    artefact_site_buf[body_count];
                 body_lines[body_count].artefact_kind =
                     artefact_kind_buf[body_count];
             }

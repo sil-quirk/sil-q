@@ -655,7 +655,11 @@ int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
     if (p_ptr->stealth_mode)
         sdl_status_pane_add(entries, max_entries, &count, "Stealth",
             "", TERM_L_BLUE);
-    if (p_ptr->focused)
+    /* Waiting marks every character as focused, but the state only has a
+     * gameplay effect for Focused Attack or Polearm Mastery. */
+    if (p_ptr->focused
+        && (p_ptr->active_ability[S_PER][PER_FOCUSED_ATTACK]
+            || p_ptr->active_ability[S_MEL][MEL_POLEARMS]))
         sdl_status_pane_add(entries, max_entries, &count, "Focused",
             "", TERM_L_BLUE);
     {
@@ -818,7 +822,9 @@ int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
     if (p_ptr->was_entranced)
         sdl_status_pane_add(entries, max_entries, &count, "Waking",
             "", TERM_ORANGE);
-    if (p_ptr->vengeance > 0) {
+    if (p_ptr->vengeance > 0
+        && p_ptr->active_ability[S_WIL][WIL_VENGEANCE])
+    {
         strnfmt(detail, sizeof(detail), "%d", p_ptr->vengeance);
         sdl_status_pane_add(entries, max_entries, &count, "Vengeance",
             detail, TERM_L_RED);

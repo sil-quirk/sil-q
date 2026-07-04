@@ -1624,6 +1624,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         }
         if (sdl_description_overlay_handle_footer_pointer(x, y))
             return;
+        if (sdl_description_overlay_touch_scroll_handle_pointer_down(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_pointer_aim_handle_touch_down(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_main_menu_pane_handle_pointer(x, y))
@@ -1802,6 +1807,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         sdl_note_touch_event_device(ev->tfinger.touchID);
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return;
+        if (sdl_description_overlay_touch_scroll_handle_pointer_motion(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_log_pane_menu_handle_long_press_motion(x, y,
             ev->tfinger.fingerID))
         {
@@ -1943,6 +1953,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         sdl_note_touch_event_device(ev->tfinger.touchID);
         if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
             return;
+        if (sdl_description_overlay_touch_scroll_handle_pointer_up(
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (sdl_log_pane_menu_handle_long_press_up(x, y,
             ev->tfinger.fingerID))
         {
@@ -2073,6 +2088,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
             return;
         sdl_note_touch_event_device(ev->tfinger.touchID);
+        if (sdl_description_overlay_touch_scroll_handle_pointer_up(
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
         if (g_touch_swipe.active && g_touch_swipe.finger_id == ev->tfinger.fingerID)
             sdl_touch_swipe_cancel();
         if (g_welcome_touch_press.active

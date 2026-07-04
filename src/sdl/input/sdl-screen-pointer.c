@@ -1691,8 +1691,12 @@ void sdl_minimap_store_map_layout(const SDL_FRect* map_rect,
     g_minimap.map_max_x = max_x;
 }
 
+static bool g_minimap_redraw_pending;
+
 void sdl_minimap_begin(void)
 {
+    sdl_minimap_map_texture_cache_clear();
+    g_minimap_redraw_pending = false;
     memset(&g_minimap, 0, sizeof(g_minimap));
     g_minimap.active = true;
     g_minimap.zoom_step = 0;
@@ -1715,6 +1719,8 @@ void sdl_minimap_begin(void)
 
 void sdl_minimap_end(void)
 {
+    sdl_minimap_map_texture_cache_clear();
+    g_minimap_redraw_pending = false;
     g_minimap.active = false;
     sdl_minimap_clear_map_layout();
     sdl_minimap_clear_touches();
@@ -1727,6 +1733,15 @@ bool sdl_minimap_redraw(void)
         return false;
 
     return sdl_display_pixel_map(NULL, NULL);
+}
+
+void sdl_minimap_flush_pending_redraw(void)
+{
+    bool redraw = g_minimap_redraw_pending;
+
+    g_minimap_redraw_pending = false;
+    if (redraw)
+        (void)sdl_minimap_redraw();
 }
 
 bool sdl_minimap_set_zoom_step(int step)
@@ -1849,7 +1864,9 @@ bool sdl_minimap_drag_to(bool mouse, SDL_FingerID finger_id, float x,
     g_minimap.drag_last_x = x;
     g_minimap.drag_last_y = y;
 
-    (void)sdl_minimap_offset_by(dx, dy);
+    g_minimap.pan_x += dx;
+    g_minimap.pan_y += dy;
+    g_minimap_redraw_pending = true;
     return true;
 }
 
@@ -2232,6 +2249,7 @@ bool sdl_minimap_update_pinch(void)
     float ratio;
     int delta;
     int target_step;
+    int new_step;
 
     if (!g_minimap.pinch_active)
         return false;
@@ -2250,8 +2268,14 @@ bool sdl_minimap_update_pinch(void)
     ratio = distance / g_minimap.pinch_start_distance;
     delta = sdl_minimap_zoom_delta_for_pinch_ratio(ratio);
     target_step = g_minimap.pinch_start_zoom_step + delta;
+    new_step = sdl_minimap_clamp_zoom_step(target_step);
+    if (new_step == g_minimap.zoom_step)
+        return false;
 
-    return sdl_minimap_set_zoom_step(target_step);
+    g_minimap.zoom_step = new_step;
+    g_minimap.default_zoom_pending = false;
+    g_minimap_redraw_pending = true;
+    return true;
 }
 
 void sdl_minimap_add_or_update_finger(SDL_FingerID finger_id, float x,

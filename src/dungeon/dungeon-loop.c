@@ -223,10 +223,16 @@ void dungeon(void)
     log_debug("Final terminal refresh");
     Term_fresh();
 
-    /* Show partition entry messages/XP after the initial draw so they can't be cleared by the setup flush. */
+    /*
+     * Show partition entry messages/XP after the initial draw so they can't be
+     * cleared by the setup flush.  Restoring a save is not a new level entry;
+     * still seed the partition tracking below, but do so silently.
+     */
     {
         int entry_mode = PARTITION_NARRATIVE_OFF;
-        if (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_MESSAGE)
+        if (!p_ptr->restoring
+            && op_ptr->level_entry_narrative_mode
+                == LEVEL_ENTRY_NARRATIVE_MESSAGE)
             entry_mode = PARTITION_NARRATIVE_MESSAGE;
         handle_partition_entry(true, entry_mode);
     }
@@ -271,9 +277,17 @@ void dungeon(void)
     monster_level = player_generation_depth();
     object_level = player_generation_depth();
 
-    /* Show initial partition narrative according to the configured display mode. */
-    if ((op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
-        || (op_ptr->level_entry_narrative_mode == LEVEL_ENTRY_NARRATIVE_BANNER))
+    /*
+     * Show initial partition narrative for actual level entries.  On save
+     * restoration the player may be standing inside a greater vault, where
+     * replaying its generic tile-style narrative would contradict the vault's
+     * unique first-entry description.
+     */
+    if (!p_ptr->restoring
+        && ((op_ptr->level_entry_narrative_mode
+                == LEVEL_ENTRY_NARRATIVE_BANNER_DELAY)
+            || (op_ptr->level_entry_narrative_mode
+                == LEVEL_ENTRY_NARRATIVE_BANNER)))
     {
         int spawn_sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
         level_partition_kind spawn_kind =

@@ -1,6 +1,17 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+typedef struct description_overlay_touch_scroll_state
+{
+    bool active;
+    SDL_FingerID finger_id;
+    float last_y;
+    float accum_y;
+} description_overlay_touch_scroll_state;
+
+static description_overlay_touch_scroll_state
+    g_description_overlay_touch_scroll;
+
 bool sdl_mouse_path_has_pending_key(void)
 {
     char ch = '\0';
@@ -1808,6 +1819,91 @@ bool sdl_description_overlay_contains_point(float x, float y)
         return false;
 
     return sdl_point_in_frect(&layout.panel, x, y);
+}
+
+void sdl_description_overlay_touch_scroll_cancel(void)
+{
+    g_description_overlay_touch_scroll =
+        (description_overlay_touch_scroll_state){ 0 };
+}
+
+bool sdl_description_overlay_touch_scroll_handle_pointer_down(float x,
+    float y, SDL_FingerID finger_id)
+{
+    description_overlay_layout layout;
+
+    /*
+     * Interactive, full-screen descriptions already use the menu scroll
+     * gesture, which sends keys back to their modal input loop.  This handler
+     * owns only non-modal previews such as the Inventory browser overlay.
+     */
+    if (g_description_overlay.interactive
+        || !sdl_description_overlay_layout(&layout)
+        || layout.max_scroll <= 0
+        || !sdl_point_in_frect(&layout.panel, x, y))
+    {
+        return false;
+    }
+
+    sdl_description_overlay_touch_scroll_cancel();
+    g_description_overlay_touch_scroll.active = true;
+    g_description_overlay_touch_scroll.finger_id = finger_id;
+    g_description_overlay_touch_scroll.last_y = y;
+    return true;
+}
+
+bool sdl_description_overlay_touch_scroll_handle_pointer_motion(float x,
+    float y, SDL_FingerID finger_id)
+{
+    description_overlay_layout layout;
+    float delta;
+    int row_h;
+
+    (void)x;
+
+    if (!g_description_overlay_touch_scroll.active
+        || g_description_overlay_touch_scroll.finger_id != finger_id)
+    {
+        return false;
+    }
+
+    if (g_description_overlay.interactive
+        || !sdl_description_overlay_layout(&layout))
+    {
+        sdl_description_overlay_touch_scroll_cancel();
+        return true;
+    }
+
+    row_h = MAX(1, layout.cell_h);
+    delta = y - g_description_overlay_touch_scroll.last_y;
+    g_description_overlay_touch_scroll.last_y = y;
+    g_description_overlay_touch_scroll.accum_y += delta;
+
+    while (g_description_overlay_touch_scroll.accum_y >= (float)row_h)
+    {
+        (void)sdl_description_overlay_scroll_by(-1);
+        g_description_overlay_touch_scroll.accum_y -= (float)row_h;
+    }
+    while (g_description_overlay_touch_scroll.accum_y <= -(float)row_h)
+    {
+        (void)sdl_description_overlay_scroll_by(1);
+        g_description_overlay_touch_scroll.accum_y += (float)row_h;
+    }
+
+    return true;
+}
+
+bool sdl_description_overlay_touch_scroll_handle_pointer_up(
+    SDL_FingerID finger_id)
+{
+    if (!g_description_overlay_touch_scroll.active
+        || g_description_overlay_touch_scroll.finger_id != finger_id)
+    {
+        return false;
+    }
+
+    sdl_description_overlay_touch_scroll_cancel();
+    return true;
 }
 
 void sdl_description_overlay_render_char(SDL_Texture* atlas,

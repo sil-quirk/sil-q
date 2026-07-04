@@ -1286,6 +1286,34 @@ bool sdl_main_map_apply_pan(int pan_dy, int pan_dx)
     return true;
 }
 
+/*
+ * SDL can deliver several finger-motion samples in one poll batch.  Applying
+ * each sample immediately redraws the full map and, with V-sync enabled,
+ * potentially presents it before the next sample is handled.  Accumulate the
+ * logical cell movement and apply the final panel position once the batch has
+ * been drained.
+ */
+static int g_main_map_pending_pan_dy;
+static int g_main_map_pending_pan_dx;
+
+static void sdl_main_map_queue_pan(int pan_dy, int pan_dx)
+{
+    g_main_map_pending_pan_dy += pan_dy;
+    g_main_map_pending_pan_dx += pan_dx;
+}
+
+void sdl_main_map_flush_pending_pan(void)
+{
+    int pan_dy = g_main_map_pending_pan_dy;
+    int pan_dx = g_main_map_pending_pan_dx;
+
+    g_main_map_pending_pan_dy = 0;
+    g_main_map_pending_pan_dx = 0;
+
+    if (pan_dy || pan_dx)
+        (void)sdl_main_map_apply_pan(pan_dy, pan_dx);
+}
+
 void sdl_main_map_cancel_drag(void)
 {
     g_main_map_drag.active = false;
@@ -1532,7 +1560,7 @@ bool sdl_main_map_handle_drag_motion(float x, float y,
     if (pan_dy || pan_dx)
     {
         sdl_main_map_mark_dragged();
-        (void)sdl_main_map_apply_pan(pan_dy, pan_dx);
+        sdl_main_map_queue_pan(pan_dy, pan_dx);
     }
 
     return true;

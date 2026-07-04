@@ -2008,7 +2008,7 @@ int sdl_narrative_banner_line_count(void);
 void sdl_narrative_banner_draw_line(TTF_Font* font, cptr text, SDL_Color color, float left_x, float y, float max_w, float line_h);
 void sdl_narrative_banner_render(void);
 bool sdl_narrative_banner_handle_pointer(float x, float y);
-void sdl_narrative_banner_show(bool line_delay);
+void sdl_narrative_banner_show(bool line_delay, bool fast_fade);
 int sdl_touch_pane_wrap_prompt_lines(cptr text, TTF_Font* font, float max_w, char lines[][SDL_TOUCH_YES_NO_LINE_LEN], int max_lines);
 bool sdl_touch_pane_yes_no_prompt_layout(SDL_FRect* panel_rect, SDL_FRect* prompt_rect, SDL_FRect* yes_rect, SDL_FRect* no_rect);
 bool sdl_touch_pane_point_to_slot(float x, float y, int* out_slot);
@@ -2108,6 +2108,7 @@ bool sdl_main_map_handle_drag_motion(float x, float y, bool mouse, SDL_FingerID 
 bool sdl_main_map_handle_mouse_release_click(float x, float y);
 bool sdl_main_map_handle_drag_up(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_main_map_handle_zoom_wheel(const SDL_MouseWheelEvent* wheel);
+void sdl_main_map_flush_pending_pan(void);
 bool sdl_unified_look_handle_map_drag_down(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_unified_look_handle_map_drag_motion(float x, float y, bool mouse, SDL_FingerID finger_id);
 bool sdl_unified_look_handle_map_drag_up(float x, float y, bool mouse, SDL_FingerID finger_id);
@@ -2284,6 +2285,13 @@ bool sdl_description_overlay_scroll_by(int rows);
 bool sdl_description_overlay_scroll_page(int direction);
 bool sdl_description_overlay_handle_mouse_wheel( const SDL_MouseWheelEvent* wheel);
 bool sdl_description_overlay_contains_point(float x, float y);
+void sdl_description_overlay_touch_scroll_cancel(void);
+bool sdl_description_overlay_touch_scroll_handle_pointer_down(float x,
+    float y, SDL_FingerID finger_id);
+bool sdl_description_overlay_touch_scroll_handle_pointer_motion(float x,
+    float y, SDL_FingerID finger_id);
+bool sdl_description_overlay_touch_scroll_handle_pointer_up(
+    SDL_FingerID finger_id);
 void sdl_description_overlay_render_char(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, float cell_w, float cell_h, float x, float y, byte attr, char ch);
 void sdl_description_overlay_render_text(SDL_Texture* atlas, int atlas_cell_w, int atlas_cell_h, const char* text, float x, float y, float cell_w, float cell_h, byte attr);
 void sdl_description_overlay_render(void);
@@ -2447,6 +2455,8 @@ void sdl_minimap_clear_map_layout(void);
 void sdl_minimap_store_map_layout(const SDL_FRect* map_rect, int min_y, int min_x, int max_y, int max_x);
 void sdl_minimap_begin(void);
 void sdl_minimap_end(void);
+void sdl_minimap_map_texture_cache_clear(void);
+void sdl_minimap_flush_pending_redraw(void);
 bool sdl_minimap_redraw(void);
 bool sdl_minimap_set_zoom_step(int step);
 bool sdl_minimap_adjust_zoom(int delta);

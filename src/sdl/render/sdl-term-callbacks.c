@@ -157,6 +157,8 @@ errr callback_sdl_xtra(int n, int v)
                         sdl_handle_event(&g_state, &ev);
                 }
             }
+            sdl_main_map_flush_pending_pan();
+            sdl_minimap_flush_pending_redraw();
             g_sdl_blocking_key_wait = old_blocking_key_wait;
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_dpad(flush_ns, false);
@@ -187,6 +189,8 @@ errr callback_sdl_xtra(int n, int v)
                 handled = true;
                 sdl_handle_event(&g_state, &ev);
             }
+            sdl_main_map_flush_pending_pan();
+            sdl_minimap_flush_pending_redraw();
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_dpad(flush_ns, false);
             sdl_gamepad_flush_pending_left_stick(flush_ns, false);
@@ -224,6 +228,8 @@ errr callback_sdl_xtra(int n, int v)
             while (SDL_PollEvent(&ev))
                 sdl_handle_event(&g_state, &ev);
         }
+        sdl_main_map_flush_pending_pan();
+        sdl_minimap_flush_pending_redraw();
         {
             Uint64 flush_ns = SDL_GetTicksNS();
             sdl_gamepad_flush_pending_confirm(flush_ns);
@@ -276,6 +282,8 @@ errr callback_sdl_xtra(int n, int v)
             while (SDL_PollEvent(&ev)) {
                 sdl_handle_event(&g_state, &ev);
             }
+            sdl_main_map_flush_pending_pan();
+            sdl_minimap_flush_pending_redraw();
             {
                 Uint64 flush_ns = SDL_GetTicksNS();
                 sdl_gamepad_flush_pending_confirm(flush_ns);
@@ -1685,6 +1693,38 @@ void sdl_side_map_pane_render_empty(const SDL_FRect* content)
     SDL_RenderFillRect(g_state.renderer, content);
 }
 
+static SDL_Texture* g_side_map_render_texture;
+static int g_side_map_render_texture_w;
+static int g_side_map_render_texture_h;
+
+static SDL_Texture* sdl_side_map_pane_acquire_texture(int width, int height)
+{
+    if (g_side_map_render_texture
+        && g_side_map_render_texture_w == width
+        && g_side_map_render_texture_h == height)
+    {
+        return g_side_map_render_texture;
+    }
+
+    if (g_side_map_render_texture)
+        SDL_DestroyTexture(g_side_map_render_texture);
+
+    g_side_map_render_texture = SDL_CreateTexture(g_state.renderer,
+        SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+    if (!g_side_map_render_texture) {
+        g_side_map_render_texture_w = 0;
+        g_side_map_render_texture_h = 0;
+        return NULL;
+    }
+
+    SDL_SetTextureBlendMode(g_side_map_render_texture, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(g_side_map_render_texture,
+        SDL_SCALEMODE_NEAREST);
+    g_side_map_render_texture_w = width;
+    g_side_map_render_texture_h = height;
+    return g_side_map_render_texture;
+}
+
 void sdl_side_map_pane_render(void)
 {
     SDL_FRect content;
@@ -1778,16 +1818,12 @@ void sdl_side_map_pane_render(void)
         g_side_map_pane.pan_y = map_dst.y - base_y;
     }
 
-    map_texture = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET, source_w, source_h);
+    map_texture = sdl_side_map_pane_acquire_texture(source_w, source_h);
     if (!map_texture) {
         log_warn("sdl_side_map_pane_render: texture %dx%d failed: %s",
             source_w, source_h, SDL_GetError());
         return;
     }
-
-    SDL_SetTextureBlendMode(map_texture, SDL_BLENDMODE_NONE);
-    SDL_SetTextureScaleMode(map_texture, SDL_SCALEMODE_NEAREST);
 
     restore_target = SDL_GetRenderTarget(g_state.renderer);
     SDL_SetRenderTarget(g_state.renderer, map_texture);
@@ -1816,7 +1852,6 @@ void sdl_side_map_pane_render(void)
     SDL_SetRenderTarget(g_state.renderer, restore_target);
     SDL_SetRenderClipRect(g_state.renderer, &clip);
     SDL_RenderTexture(g_state.renderer, map_texture, NULL, &map_dst);
-    SDL_DestroyTexture(map_texture);
 
     sdl_minimap_draw_hint_sources(&map_dst, min_y, min_x, max_y, max_x);
     sdl_side_map_pane_draw_player_marker(&map_dst, min_y, min_x, max_y,
@@ -2291,6 +2326,37 @@ void sdl_side_map_pane_cancel_pointer(SDL_FingerID finger_id,
         sdl_side_map_pane_clear_press();
 }
 
+static SDL_Texture* g_minimap_map_texture;
+static int g_minimap_map_texture_depth = -1;
+static int g_minimap_map_texture_min_y;
+static int g_minimap_map_texture_min_x;
+static int g_minimap_map_texture_max_y;
+static int g_minimap_map_texture_max_x;
+
+void sdl_minimap_map_texture_cache_clear(void)
+{
+    if (g_minimap_map_texture)
+        SDL_DestroyTexture(g_minimap_map_texture);
+
+    g_minimap_map_texture = NULL;
+    g_minimap_map_texture_depth = -1;
+    g_minimap_map_texture_min_y = 0;
+    g_minimap_map_texture_min_x = 0;
+    g_minimap_map_texture_max_y = 0;
+    g_minimap_map_texture_max_x = 0;
+}
+
+static bool sdl_minimap_map_texture_cache_matches(int min_y, int min_x,
+    int max_y, int max_x)
+{
+    return g_minimap_map_texture
+        && g_minimap_map_texture_depth == p_ptr->depth
+        && g_minimap_map_texture_min_y == min_y
+        && g_minimap_map_texture_min_x == min_x
+        && g_minimap_map_texture_max_y == max_y
+        && g_minimap_map_texture_max_x == max_x;
+}
+
 bool sdl_display_pixel_map(int* cy, int* cx)
 {
     sdl_view* d;
@@ -2327,39 +2393,54 @@ bool sdl_display_pixel_map(int* cy, int* cx)
     if (source_w <= 0 || source_h <= 0 || canvas_w <= 0 || canvas_h <= 0)
         return false;
 
-    map_texture = SDL_CreateTexture(g_state.renderer, SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET, source_w, source_h);
-    if (!map_texture) {
-        log_warn("sdl_display_pixel_map: texture %dx%d failed: %s",
-            source_w, source_h, SDL_GetError());
-        return false;
-    }
-
-    SDL_SetTextureBlendMode(map_texture, SDL_BLENDMODE_NONE);
-    SDL_SetTextureScaleMode(map_texture, SDL_SCALEMODE_NEAREST);
-
     restore_target = SDL_GetRenderTarget(g_state.renderer);
-    SDL_SetRenderTarget(g_state.renderer, map_texture);
-    SDL_SetRenderClipRect(g_state.renderer, NULL);
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-    SDL_RenderClear(g_state.renderer);
-
-    for (int y = min_y; y <= max_y; y++) {
-        for (int x = min_x; x <= max_x; x++) {
-            byte a = TERM_DARK;
-            byte ta = TERM_DARK;
-            char c = ' ';
-            char tc = ' ';
-            SDL_FRect cell_dst = {
-                (float)((x - min_x) * TILE_SIZE),
-                (float)((y - min_y) * TILE_SIZE),
-                TILE_SIZE,
-                TILE_SIZE
-            };
-
-            map_info(y, x, &a, &c, &ta, &tc);
-            sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+    if (!sdl_minimap_map_texture_cache_matches(min_y, min_x, max_y, max_x))
+    {
+        sdl_minimap_map_texture_cache_clear();
+        map_texture = SDL_CreateTexture(g_state.renderer,
+            SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, source_w,
+            source_h);
+        if (!map_texture) {
+            log_warn("sdl_display_pixel_map: texture %dx%d failed: %s",
+                source_w, source_h, SDL_GetError());
+            return false;
         }
+
+        SDL_SetTextureBlendMode(map_texture, SDL_BLENDMODE_NONE);
+        SDL_SetTextureScaleMode(map_texture, SDL_SCALEMODE_NEAREST);
+
+        SDL_SetRenderTarget(g_state.renderer, map_texture);
+        SDL_SetRenderClipRect(g_state.renderer, NULL);
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_RenderClear(g_state.renderer);
+
+        for (int y = min_y; y <= max_y; y++) {
+            for (int x = min_x; x <= max_x; x++) {
+                byte a = TERM_DARK;
+                byte ta = TERM_DARK;
+                char c = ' ';
+                char tc = ' ';
+                SDL_FRect cell_dst = {
+                    (float)((x - min_x) * TILE_SIZE),
+                    (float)((y - min_y) * TILE_SIZE),
+                    TILE_SIZE,
+                    TILE_SIZE
+                };
+
+                map_info(y, x, &a, &c, &ta, &tc);
+                sdl_draw_map_tile_layers_at(y, x, a, c, ta, tc, &cell_dst);
+            }
+        }
+
+        SDL_SetRenderTarget(g_state.renderer, restore_target);
+        g_minimap_map_texture = map_texture;
+        g_minimap_map_texture_depth = p_ptr->depth;
+        g_minimap_map_texture_min_y = min_y;
+        g_minimap_map_texture_min_x = min_x;
+        g_minimap_map_texture_max_y = max_y;
+        g_minimap_map_texture_max_x = max_x;
+    } else {
+        map_texture = g_minimap_map_texture;
     }
 
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
@@ -2377,7 +2458,6 @@ bool sdl_display_pixel_map(int* cy, int* cx)
     if (g_minimap.active)
         scale *= sdl_minimap_zoom_factor();
     if (scale <= 0.0f) {
-        SDL_DestroyTexture(map_texture);
         SDL_SetRenderTarget(g_state.renderer, restore_target);
         return false;
     }
@@ -2492,7 +2572,6 @@ bool sdl_display_pixel_map(int* cy, int* cx)
         sdl_minimap_draw_prompt(d, canvas_w, canvas_h);
     }
 
-    SDL_DestroyTexture(map_texture);
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     g_state.need_present = true;
     return true;

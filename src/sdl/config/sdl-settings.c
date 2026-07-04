@@ -2936,6 +2936,8 @@ void sdl_description_overlay_clear(void)
 {
     bool was_active = g_description_overlay.active;
 
+    sdl_description_overlay_touch_scroll_cancel();
+
     if (!g_description_overlay.active && !g_description_overlay.avoid_active)
         return;
 

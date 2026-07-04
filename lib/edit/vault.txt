@@ -46,6 +46,9 @@
 #     the vault. It follows the same message/banner setting rules as
 #     partition banners.
 #
+# 'H' is for unique skeleton-note hint text for a named greater vault.
+#     It may use the {DIST} and {DIR} tokens.
+#
 # 'F' is for the vault flags (if any)
 #
 #     TEST        - must be generated when choosing a vault (for debugging)
@@ -2763,6 +2766,7 @@ D:  ###
 N:401:the Cat Fortress
 X:8:10:15
 M:A hard and watchful silence broods in this fastness, and every stair and court is set with a hunter's patience; in reading that fell design, you gain 500 experience.
+H:A cliff-set castle lies {DIST} {DIR}; giant cats stalk its courts beneath a golden-collared lord, while rat-sized mice hide in the walls.
 S:9:1
 F:NO_ROTATION
 D:#######################################
@@ -2793,6 +2797,7 @@ D:#######################################
 N:402:Gothmog's hall
 X:8:18:10
 M:Firelight glimmers here upon iron and black mail, and the chamber is ordered for wrath and mastery; in beholding the dreadful craft of Gothmog's seat, you gain 500 experience.
+H:A firelit war-hall lies {DIST} {DIR}; the tread of troll-guards and the crack of fiery whips echo where the lord of the Balrogs marshals Angband's hosts.
 S:24:1
 D:#########$$$$$#########
 D:#########T...T#########
@@ -2818,6 +2823,7 @@ D:#########$$$$$#########
 N:403:Ungoliant's lair
 X:8:18:7
 M:Web and unlight are mingled here in a horror older than many memories of the Noldor; in enduring that sight and learning its peril, you gain 500 experience.
+H:A lightless spider-den lies {DIST} {DIR}; choking webs recall the dreadful valley where the devourer of the Two Trees bred her hungry brood.
 S:52:1
 F:WEBS
 D:#############$$$#######$$$$#
@@ -2849,6 +2855,7 @@ D:########################$$$#
 N:404:the Hoard of the Worm of Greed
 X:8:18:7
 M:Treasure lies here in a dull and evil splendour, as though fire and covetousness had slept together for long years; in reading the doom upon that hoard, you gain 500 experience.
+H:A plundered Elven treasury lies {DIST} {DIR}; a wingless fire-drake coils upon gold stolen from a hidden city beside the river.
 S:34:1
 D:$$$$###################
 D:$...###################
@@ -2874,6 +2881,7 @@ D:#########$$$$$$$$$#####
 N:405:the Chambers of Thu
 X:8:18:10
 M:Secret ways and warded chambers wind one within another here, and subtlety itself seems made into stone; by that stern lesson in the guile of Thu, you gain 500 experience.
+H:A werewolf-haunted prison lies {DIST} {DIR}; song-spells cling to the cells where an Elven king died saving his oath-bound companion.
 S:32:1
 D:#########%%%%%%%%%##########
 D:######.s.%%&.3.&%%&#S#&#S#&#
@@ -2902,6 +2910,7 @@ D:###########$$$$$$#$$$$######
 N:406:Ancalagon's Aerie
 X:8:19:1
 M:A vast eyrie opens above dark chasms, and the air itself seems fit for wings of ruin; in beholding the pride and terror of that height, you gain 500 experience.
+H:An eyrie lies {DIST} {DIR}, spanning dark chasms; the first winged fire-drakes gather there, bred in secret for the Enemy's last war.
 S:39:1
 D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 D:$....#########..#..#########....$
@@ -2928,6 +2937,7 @@ D:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 N:407:Kheled-Zaram
 X:8:1:10
 M:Cold water and ancient stone keep an austere memory here, and the deep places seem to remember both grief and endurance; in pondering that silence, you gain 500 experience.
+H:A still black mere lies {DIST} {DIR}; seven stars burn in its depths around the shadow of a Dwarf-father, though no sky is reflected there.
 F:SURFACE
 F:LIGHT
 S:57:1

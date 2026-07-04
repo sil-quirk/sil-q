@@ -2435,13 +2435,13 @@ static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
 
 static void sdl_config_set_default_thumb_bindings(struct sdl_config* config)
 {
-    /* Button 1: tap = space (pick/continue), long = 'x' (look/describe).
-     * Button 2: tap = 'z' (wait), long = 'Z' (rest). */
+    /* Button 1: tap = space (pick/continue), long = 'z' (wait).
+     * Button 2: tap = 'x' (look/describe), long = 'Z' (rest). */
     static const int thumb_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
-        ' ', 'z',
+        ' ', 'x',
     };
     static const int thumb_long_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
-        'x', 'Z',
+        'z', 'Z',
     };
 
     if (!config)
@@ -2451,6 +2451,33 @@ static void sdl_config_set_default_thumb_bindings(struct sdl_config* config)
         sizeof(thumb_defaults));
     memcpy(config->touch_thumb_long_bindings, thumb_long_defaults,
         sizeof(thumb_long_defaults));
+}
+
+static void sdl_config_migrate_touch_thumb_defaults(
+    struct sdl_config* config)
+{
+    static const int previous_taps[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        ' ', 'z',
+    };
+    static const int previous_longs[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        'x', 'Z',
+    };
+
+    if (!config)
+        return;
+    if (memcmp(config->touch_thumb_bindings, previous_taps,
+            sizeof(previous_taps)) != 0)
+    {
+        return;
+    }
+    if (memcmp(config->touch_thumb_long_bindings, previous_longs,
+            sizeof(previous_longs)) != 0)
+    {
+        return;
+    }
+
+    sdl_config_set_default_thumb_bindings(config);
+    log_info("Migrated default touch thumb buttons to Pick/Wait and Description/Rest");
 }
 
 static void sdl_config_migrate_touch_top_panel_defaults(
@@ -4001,6 +4028,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         sdl_config_migrate_touch_top_panel_layout(config,
             top_panel_bindings_count, top_panel_long_bindings_count);
         sdl_config_migrate_touch_top_panel_defaults(config);
+        sdl_config_migrate_touch_thumb_defaults(config);
         if (!saw_touch_control_top_panel_mode) {
             config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
         }

@@ -531,7 +531,7 @@ extern cptr active_narrative_banner_text(void);
 extern bool active_narrative_banner_consumes_input(void);
 extern void clear_active_narrative_banner(void);
 extern bool dismiss_active_narrative_banner(void);
-extern void sdl_narrative_banner_show(bool line_delay);
+extern void sdl_narrative_banner_show(bool line_delay, bool fast_fade);
 extern void styles_reload_messages_from_text(void);
 extern void styles_clear_display_messages(void);
 extern int p_ptr_depth_proxy(void);
