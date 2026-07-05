@@ -187,6 +187,7 @@ void screen_save(void)
 static void screen_load_impl(bool refresh_restored_screen)
 {
     bool restored_screen = false;
+    bool resumed_main_view_zoom;
 
     /* Hack -- Flush messages */
     message_flush();
@@ -221,13 +222,27 @@ static void screen_load_impl(bool refresh_restored_screen)
                   scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
     }
 
-    /* Push the restored terminal contents immediately. Some overlay exits do
-     * not hit another global refresh pass before idling for input. */
-    if (restored_screen && refresh_restored_screen)
-        Term_fresh();
-
-    sdl_resume_main_view_zoom_for_saved_screen();
+    resumed_main_view_zoom =
+        sdl_resume_main_view_zoom_for_saved_screen();
     sdl_refresh_supporting_panes_layout();
+
+    /*
+     * A saved-screen menu temporarily suspends gameplay zoom.  If restoring it
+     * resized the terminal, redraw at that final size before presenting;
+     * otherwise the configured-scale dungeon is visible for one frame.
+     */
+    if (restored_screen && refresh_restored_screen)
+    {
+        if (resumed_main_view_zoom && character_generated && !character_icky
+            && p_ptr && p_ptr->playing && character_dungeon)
+        {
+            do_cmd_redraw();
+        }
+        else
+        {
+            Term_fresh();
+        }
+    }
 
     if (character_generated && !character_icky && p_ptr && p_ptr->playing
         && p_ptr->window)

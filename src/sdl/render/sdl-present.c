@@ -332,6 +332,12 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     hash = sdl_left_panel_hash_mix(hash, (Uint64)use_bigtile);
     hash = sdl_left_panel_hash_mix(hash, (Uint64)g_state.use_tiles);
     hash = sdl_left_panel_hash_mix(hash, g_mono_font_atlas_generation);
+    hash = sdl_left_panel_hash_mix(hash,
+        (Uint64)(op_ptr && styled_player_health_bar));
+    if (p_ptr && op_ptr && styled_player_health_bar) {
+        hash = sdl_left_panel_hash_mix(hash, (Uint64)p_ptr->chp);
+        hash = sdl_left_panel_hash_mix(hash, (Uint64)p_ptr->mhp);
+    }
 
     for (int i = 0; i < metrics->compact_segment_count; i++) {
         hash = sdl_left_panel_hash_mix(hash,
@@ -369,6 +375,85 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     return hash;
 }
 
+/*
+ * Replace the terminal fallback on the row beneath the player name with a
+ * continuous, pixel-accurate health bar in the styled left panel.
+ */
+static bool sdl_render_left_panel_player_health_bar(int source_row,
+    int source_col, int end_col, int dest_col, int dest_row, float content_x,
+    float content_y, int cell_w, int cell_h)
+{
+    const int bar_col = COL_NAME;
+    const int bar_cells = 12;
+    byte fill_attr;
+    SDL_Color fill_color;
+    SDL_Color track_color;
+    SDL_Color frame_color;
+    SDL_FRect bar;
+    SDL_FRect fill;
+    float inset_x;
+    float inset_y;
+    float fraction;
+
+    if (!p_ptr || !op_ptr || !styled_player_health_bar || p_ptr->mhp <= 0)
+        return false;
+    if (source_row != ROW_NAME + 1)
+        return false;
+    if (source_col > bar_col || end_col < bar_col + bar_cells)
+        return false;
+
+    fill_attr = health_attr(p_ptr->chp, p_ptr->mhp);
+    fill_attr = sdl_left_panel_pane_render_attr_for_cell(bar_col, source_row,
+        fill_attr);
+    fill_color = sdl_color_from_attr(sdl_ui_text_fg_attr(fill_attr));
+    track_color = sdl_color_from_attr(TERM_L_DARK);
+    frame_color = sdl_color_from_attr(TERM_SLATE);
+
+    inset_x = (float)cell_w * 0.12f;
+    if (inset_x < 1.0f)
+        inset_x = 1.0f;
+    inset_y = (float)cell_h * 0.24f;
+    if (inset_y < 1.0f)
+        inset_y = 1.0f;
+
+    bar.x = content_x
+        + (float)(dest_col + bar_col - source_col) * (float)cell_w
+        + inset_x;
+    bar.y = content_y + (float)dest_row * (float)cell_h + inset_y;
+    bar.w = (float)(bar_cells * cell_w) - 2.0f * inset_x;
+    bar.h = (float)cell_h - 2.0f * inset_y;
+    if (bar.w < 2.0f || bar.h < 2.0f)
+        return false;
+
+    SDL_SetRenderDrawColor(g_state.renderer, track_color.r, track_color.g,
+        track_color.b, 255);
+    SDL_RenderFillRect(g_state.renderer, &bar);
+
+    fraction = (float)p_ptr->chp / (float)p_ptr->mhp;
+    if (fraction < 0.0f)
+        fraction = 0.0f;
+    if (fraction > 1.0f)
+        fraction = 1.0f;
+
+    fill = bar;
+    fill.x += 1.0f;
+    fill.y += 1.0f;
+    fill.w = (bar.w - 2.0f) * fraction;
+    fill.h -= 2.0f;
+    if (fill.w > 0.0f && fill.h > 0.0f) {
+        if (fill.w < 1.0f)
+            fill.w = 1.0f;
+        SDL_SetRenderDrawColor(g_state.renderer, fill_color.r, fill_color.g,
+            fill_color.b, 255);
+        SDL_RenderFillRect(g_state.renderer, &fill);
+    }
+
+    SDL_SetRenderDrawColor(g_state.renderer, frame_color.r, frame_color.g,
+        frame_color.b, 255);
+    SDL_RenderRect(g_state.renderer, &bar);
+    return true;
+}
+
 void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     const term* source_term, term_win* scr, int source_row, int source_col,
     int width, int dest_col, int dest_row, float content_x, float content_y,
@@ -400,6 +485,13 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
 
     sdl_left_panel_debug_log_source_row(t, scr, source_row, source_col,
         width, end_col, dest_col, dest_row, content_x, cell_w, cell_h);
+
+    if (sdl_render_left_panel_player_health_bar(source_row, source_col,
+            end_col, dest_col, dest_row, content_x, content_y, cell_w,
+            cell_h))
+    {
+        return;
+    }
 
     col = source_col;
     while (col < end_col) {

@@ -2280,6 +2280,10 @@ bool target_set_interactive(int mode, int range)
     /* Handle stuff */
     handle_stuff();
 
+    /* Remove the visible targeting cursor left by the final inkey(). */
+    (void)Term_set_cursor(false);
+    Term_fresh();
+
     /* Failure to set target */
     if (!new_target)
     {

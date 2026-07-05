@@ -430,6 +430,10 @@ bool get_grid_choice_dir(cptr prompt, const int ys[], const int xs[],
     verify_panel();
     handle_stuff();
 
+    /* Remove the visible selection cursor left by the final inkey(). */
+    (void)Term_set_cursor(false);
+    Term_fresh();
+
     if (!chosen)
         return false;
 

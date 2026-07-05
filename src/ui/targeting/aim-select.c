@@ -559,6 +559,15 @@ static bool target_select(int range, bool allow_vertical, bool location_mode,
 
     handle_stuff();
 
+    /*
+     * inkey() restores the cursor's hidden state after each selection key,
+     * but does not refresh the cell where the visible targeting cursor was
+     * drawn.  Flush that state now so the cursor cannot survive the shot or
+     * a cancelled selection.
+     */
+    (void)Term_set_cursor(false);
+    Term_fresh();
+
     if (!chosen_dir)
         return (false);
 

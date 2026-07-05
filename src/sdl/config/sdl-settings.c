@@ -242,19 +242,19 @@ void sdl_suspend_main_view_zoom_for_saved_screen(void)
     sdl_apply_config_no_redraw();
 }
 
-void sdl_resume_main_view_zoom_for_saved_screen(void)
+bool sdl_resume_main_view_zoom_for_saved_screen(void)
 {
     int saved_zoom;
 
     if (g_main_view_zoom_suspended_depth <= 0)
-        return;
+        return false;
 
     saved_zoom =
         g_main_view_zoom_suspended_stack[--g_main_view_zoom_suspended_depth];
     g_main_view_zoom_suspended_stack[g_main_view_zoom_suspended_depth] = 0;
 
     if (saved_zoom <= 0)
-        return;
+        return false;
 
     g_main_view_zoom_scale = saved_zoom;
     sdl_clamp_main_view_zoom_to_current_layout();
@@ -262,6 +262,8 @@ void sdl_resume_main_view_zoom_for_saved_screen(void)
 
     if (character_dungeon)
         Term_keypress(KTRL('R'));
+
+    return true;
 }
 
 int get_sdl_aux_view_font_size(void)
@@ -2543,6 +2545,8 @@ void sdl_clamp_main_view_zoom_to_current_layout(void)
 void sdl_refresh_supporting_panes_layout(void)
 {
     SDL_Rect screen;
+    bool old_skip_main_redraw;
+    bool old_suppress_present;
 
     if (!g_state.window)
         return;
@@ -2554,13 +2558,15 @@ void sdl_refresh_supporting_panes_layout(void)
     /* The caller will either redraw the destination scene or restore a saved
      * main-term buffer immediately after the layout change. Redrawing the old
      * outgoing main contents here is what produces the visible "flash" frame. */
+    old_skip_main_redraw = g_skip_main_redraw_on_layout_refresh;
+    old_suppress_present = g_suppress_layout_refresh_present;
     g_skip_main_redraw_on_layout_refresh = true;
     g_suppress_layout_refresh_present = true;
     resize(&screen);
-    g_suppress_layout_refresh_present = false;
     if (g_skip_main_redraw_on_layout_refresh)
         g_state.need_present = false;
-    g_skip_main_redraw_on_layout_refresh = false;
+    g_suppress_layout_refresh_present = old_suppress_present;
+    g_skip_main_redraw_on_layout_refresh = old_skip_main_redraw;
 }
 
 void sdl_refresh_supporting_panes_layout_deferred(void)
@@ -2649,12 +2655,24 @@ void sdl_apply_config_impl(bool request_redraw)
     bool global_story_grid;
     bool local_story_active = false;
     bool local_story_grid = false;
+    bool old_suppress_present;
     int local_story_term_index = -1;
 
     if (!g_state.window) {
         log_warn("sdl_apply_config: no window, skipping");
         return;
     }
+
+    /*
+     * "No redraw" callers are in the middle of a scale transition.  Resizing
+     * relinks terms and calls Term_redraw(), which would otherwise present the
+     * outgoing menu/game contents at the intermediate scale.  Keep the last
+     * complete frame visible until the caller restores or draws its target
+     * screen.
+     */
+    old_suppress_present = g_suppress_layout_refresh_present;
+    if (!request_redraw)
+        g_suppress_layout_refresh_present = true;
 
     story_depth = g_state.story_font_depth;
     global_story_active = (story_depth > 0);
@@ -2701,6 +2719,8 @@ void sdl_apply_config_impl(bool request_redraw)
         sdl_request_redraw();
     else
         g_state.need_present = true;
+
+    g_suppress_layout_refresh_present = old_suppress_present;
 
     log_debug("sdl_apply_config completed in %llu ms (recover=%llu ms story=%llu ms resize=%llu ms redraw=%d)",
         (unsigned long long)((SDL_GetTicksNS() - start_ns) / 1000000ULL),

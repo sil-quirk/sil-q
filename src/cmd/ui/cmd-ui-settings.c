@@ -140,6 +140,7 @@ static const struct option_group_marker interface_option_groups[] = {
     { OPT_look_objects_sort_by_difficulty, "Look" },
     { OPT_look_nearby_filter_default, "Look" },
     { OPT_song_list_sort_by_recent, "Look" },
+    { OPT_styled_player_health_bar, "Panels" },
     { OPT_hide_supporting_panes_fullscreen, "Panels" },
     { OPT_hitpoint_warning, "Warnings" },
     { OPT_supply_menu_random_icons, "Items" },
@@ -790,6 +791,9 @@ static cptr option_menu_label(int opt)
     case OPT_hitpoint_warning:
         return compact ? (narrow ? "HP warn" : "HP warning")
                        : "Hitpoint warning threshold (0% to 90%)";
+    case OPT_styled_player_health_bar:
+        return compact ? (narrow ? "Styled HP bar" : "Styled health bar")
+                       : "Use styled player health bar in the left panel";
     case OPT_hide_supporting_panes_fullscreen:
         return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
                        : "Hide supporting panes on full-screen screens";
@@ -1043,6 +1047,11 @@ static void option_apply_side_effects(int opt)
         redraw_monster_subwindows();
     if (opt == OPT_hide_supporting_panes_fullscreen)
         sdl_refresh_supporting_panes_layout();
+    if (opt == OPT_styled_player_health_bar)
+    {
+        p_ptr->redraw |= PR_BASIC;
+        sdl_left_panel_source_invalidate();
+    }
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing
         || opt == OPT_handcrafted_player_tile_facing

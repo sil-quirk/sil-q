@@ -2169,7 +2169,7 @@ extern bool sdl_question_menu_blocks_input(void);
 extern void sdl_question_menu_set_nonblocking(bool nonblocking);
 extern void sdl_question_menu_set_timeout_ms(int ms);
 extern void sdl_suspend_main_view_zoom_for_saved_screen(void);
-extern void sdl_resume_main_view_zoom_for_saved_screen(void);
+extern bool sdl_resume_main_view_zoom_for_saved_screen(void);
 extern void sdl_reset_main_view_zoom(void);
 extern void sdl_set_present_suppressed(bool suppressed);
 extern int get_sdl_min_terminal_mode(void);

@@ -1898,7 +1898,7 @@ static const byte app_input_options[] = {
 
 static const byte app_interface_options[] = {
     OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
-    OPT_song_list_sort_by_recent,
+    OPT_song_list_sort_by_recent, OPT_styled_player_health_bar,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
     OPT_supply_menu_random_icons,
     OPT_supply_menu_hide_flavor_compact, OPT_hide_secondary_action_ring,

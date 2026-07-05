@@ -1786,7 +1786,12 @@ void show_scores(bool longscore)
     }
     screen_pop_supporting_panes_hidden();
     sdl_pop_terminal_menu_scale();
-    sdl_resume_main_view_zoom_for_saved_screen();
+    if (sdl_resume_main_view_zoom_for_saved_screen()
+        && character_generated && p_ptr && p_ptr->playing
+        && character_dungeon)
+    {
+        do_cmd_redraw();
+    }
 
     forced_highlight_active = false;
     score_last_layout_short = !detailed;

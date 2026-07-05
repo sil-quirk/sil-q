@@ -1239,7 +1239,12 @@ errr Term_fresh(void)
     if ((y1 > y2) && (scr->cu == old->cu) && (scr->cv == old->cv)
         && (scr->cx == old->cx) && (scr->cy == old->cy) && !(Term->total_erase))
     {
-        /* Nothing */
+        /*
+         * A frontend may compose live panes outside the terminal cell buffer.
+         * Those panes can be dirty even when this term has no changed cells,
+         * so still give the frontend an opportunity to present them.
+         */
+        Term_xtra(TERM_XTRA_FRESH, 0);
         return (1);
     }
 

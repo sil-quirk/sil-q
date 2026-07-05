@@ -124,6 +124,21 @@ static bool supplies_menu_use_entry(supply_list_entry* entry,
     return true;
 }
 
+static bool supplies_menu_gem_animates_map(const supply_list_entry* entry)
+{
+    object_type* o_ptr;
+
+    if (!entry || entry->supply_idx < 0)
+        return false;
+
+    o_ptr = supplies_entry_at(entry->supply_idx);
+    if (!o_ptr || o_ptr->tval != TV_GEM)
+        return false;
+
+    return o_ptr->sval == SV_GEM_LIGHT
+        || o_ptr->sval == SV_GEM_SHADOWS;
+}
+
 static bool supplies_menu_drop_entry(supply_list_entry* entry)
 {
     if (!entry)
@@ -8615,6 +8630,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     bool slot_pick_mode = false;
     bool item_select_mode = false;
     int focus_floor_o_idx = -1;
+    int deferred_animated_gem_supply_idx = -1;
     supply_floor_action floor_action = SUPPLY_FLOOR_ACTION_DEFAULT;
     supply_overlay_cache overlay_cache = { false, -1, -1, -1, -1, -1 };
     bool prev_single_column = false;
@@ -10897,7 +10913,20 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         && entry->supply_idx >= 0)
                     || (entry->floor_idx > 0 && entry->floor_idx < o_max))
                 {
-                    handled = supplies_menu_use_entry(entry, floor_action);
+                    if (supplies_menu_gem_animates_map(entry))
+                    {
+                        /*
+                         * Light and shadow gems animate a projection over the
+                         * main map.  Run them only after the supply browser's
+                         * saved screen has been restored.
+                         */
+                        deferred_animated_gem_supply_idx = entry->supply_idx;
+                        handled = true;
+                    }
+                    else
+                    {
+                        handled = supplies_menu_use_entry(entry, floor_action);
+                    }
                 }
                 else if (entry->equip_idx == INVEN_LITE && entry->equipped)
                 {
@@ -11070,10 +11099,35 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     (void)Term_set_extra_cursor(false, 0, 0, false);
     ui_menu_click_clear();
     ui_scroll_area_clear();
+
+    /*
+     * Closing this menu can cross three main-view scales: menu, configured,
+     * and restored gameplay zoom.  Keep the outgoing menu frame visible until
+     * screen_load() has redrawn the final gameplay scale.
+     */
+    sdl_present_batch_begin();
     sdl_pop_terminal_menu_scale();
     sdl_pop_description_overlay_main_anchor();
     screen_pop_supporting_panes_hidden();
     screen_load();
+
+    if (deferred_animated_gem_supply_idx >= 0)
+    {
+        object_type* o_ptr;
+
+        /*
+         * Publish the restored gameplay frame before starting the synchronous
+         * projection animation.
+         */
+        sdl_present_batch_end();
+        o_ptr = supplies_entry_at(deferred_animated_gem_supply_idx);
+        if (o_ptr && o_ptr->k_idx)
+        {
+            supplies_begin_action(deferred_animated_gem_supply_idx);
+            do_cmd_use_gem(o_ptr, SUPPLIES_INDEX);
+            supplies_end_action();
+        }
+    }
 
     if (refresh_after_close)
     {
@@ -11082,6 +11136,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         handle_stuff();
         Term_fresh();
     }
+    if (deferred_animated_gem_supply_idx < 0)
+        sdl_present_batch_end();
 
     (void)self_knowledge_display_pending();
 

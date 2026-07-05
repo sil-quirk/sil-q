@@ -1042,45 +1042,40 @@ void prt_hp(void)
 }
 
 /*
- * Prints a small, monospace graphical health bar under the name.
- * Uses 'x' characters up to 12 symbols to represent current HP proportionally.
- * Colour matches health_attr() (green/yellow/red, etc).
+ * Prints the original monospace player-health meter under the name.
+ * The styled SDL left pane replaces these 'x' glyphs with a pixel-accurate
+ * bar, while other terminal renderers retain the established display.
  */
 void prt_char_health_graphic(void)
 {
-    char bar[13]; /* 12 symbols + NUL */
-    int max_symbols = 12;
+    char bar[13];
+    const int max_symbols = 12;
     int filled = 0;
     byte color;
 
-    /* Clear the line first (12 chars) */
-    c_put_str(TERM_WHITE, "            ", ROW_NAME + 1, COL_NAME);
+    Term_erase(COL_NAME, ROW_NAME + 1, 12);
 
-    /* Defensive: avoid division by zero */
     if (p_ptr->mhp <= 0)
         return;
 
-    /* Scale current HP to number of symbols (ceiling) */
+    /* Scale current HP to the twelve-character field (ceiling). */
     filled = (max_symbols * p_ptr->chp + p_ptr->mhp - 1) / p_ptr->mhp;
     if (filled < 0)
         filled = 0;
     if (filled > max_symbols)
         filled = max_symbols;
 
-    /* Build the bar using 'x' for filled and spaces for remainder */
     for (int i = 0; i < filled; i++)
         bar[i] = 'x';
     for (int i = filled; i < max_symbols; i++)
         bar[i] = ' ';
     bar[max_symbols] = '\0';
 
-    /* Colour according to health */
     color = health_attr(p_ptr->chp, p_ptr->mhp);
     color = panel_touch_zone_attr(SDL_PANEL_CLICK_CHARACTER, ROW_NAME + 1,
         color);
 
-    /* Print using a monospace field (no story font) */
-    c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
+    c_put_str(color, bar, ROW_NAME + 1, COL_NAME);
 }
 
 /*

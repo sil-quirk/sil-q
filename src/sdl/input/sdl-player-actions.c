@@ -895,15 +895,9 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     if (count <= 0)
         return false;
 
-#if SIL_SDL_MOBILE_BUILD
     max_outer = ((bounds.w < bounds.h) ? bounds.w : bounds.h) * 0.5f - 4.0f;
     outer_radius = sdl_touch_pane_clampf((float)view->cell_h * 6.7f,
         124.0f, 236.0f);
-#else
-    max_outer = ((bounds.w < bounds.h) ? bounds.w : bounds.h) * 0.5f - 8.0f;
-    outer_radius = sdl_touch_pane_clampf((float)view->cell_h * 5.1f,
-        96.0f, 176.0f);
-#endif
     if (outer_radius > max_outer)
         outer_radius = max_outer;
     if (outer_radius < 44.0f)
@@ -916,7 +910,6 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
     center_y = sdl_touch_pane_clampf(center_y, bounds.y + outer_radius,
         bounds.y + bounds.h - outer_radius);
 
-#if SIL_SDL_MOBILE_BUILD
     inner_radius = outer_radius * 0.32f;
     if (inner_radius < 32.0f)
         inner_radius = 32.0f;
@@ -925,16 +918,6 @@ bool sdl_player_action_menu_layout(player_action_menu_entry* entries,
 
     icon_size = sdl_touch_pane_clampf((outer_radius - inner_radius) * 0.56f,
         38.0f, 76.0f);
-#else
-    inner_radius = outer_radius * 0.36f;
-    if (inner_radius < 30.0f)
-        inner_radius = 30.0f;
-    if (inner_radius > outer_radius - 34.0f)
-        inner_radius = outer_radius - 34.0f;
-
-    icon_size = sdl_touch_pane_clampf((outer_radius - inner_radius) * 0.52f,
-        26.0f, 56.0f);
-#endif
     icon_radius = inner_radius + (outer_radius - inner_radius) * 0.58f;
     step = (SDL_PLAYER_ACTION_MENU_PI * 2.0f) / (float)count;
     first_start = -SDL_PLAYER_ACTION_MENU_PI * 0.5f - step * 0.5f;
@@ -1005,17 +988,10 @@ static bool sdl_player_action_menu_layout_secondary(int owner_kind,
         return false;
 
     ring_inner = owner->outer_radius;
-#if SIL_SDL_MOBILE_BUILD
     ring_width = sdl_touch_pane_clampf(
         (owner->outer_radius - owner->inner_radius) * 0.85f,
         50.0f, 88.0f);
     icon_size = sdl_touch_pane_clampf(ring_width * 0.64f, 34.0f, 66.0f);
-#else
-    ring_width = sdl_touch_pane_clampf(
-        (owner->outer_radius - owner->inner_radius) * 0.62f,
-        34.0f, 58.0f);
-    icon_size = sdl_touch_pane_clampf(ring_width * 0.62f, 22.0f, 48.0f);
-#endif
     ring_outer = ring_inner + ring_width;
     icon_radius = ring_inner + (ring_outer - ring_inner) * 0.5f;
     step = (owner->end_angle - owner->start_angle) / (float)sec_count;

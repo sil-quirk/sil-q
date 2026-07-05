@@ -267,7 +267,7 @@ cptr option_text[OPT_MAX] = {
     "story_object_desc", /* OPT_story_object_desc */
     "hide_secondary_action_ring", /* OPT_hide_secondary_action_ring */
     "mirror_monster_tile_facing", /* OPT_mirror_monster_tile_facing */
-    NULL, /* reserved legacy slot */
+    "styled_player_health_bar", /* OPT_styled_player_health_bar */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -512,7 +512,7 @@ cptr option_desc[OPT_MAX] = {
     "Render object description overlays with the story font", /* OPT_story_object_desc */
     "Hide the action wheel's secondary ring until its sector is hovered", /* OPT_hide_secondary_action_ring */
     "Mirror monster tiles to face horizontal movement", /* OPT_mirror_monster_tile_facing */
-    NULL, /* reserved legacy slot */
+    "Render the left-panel player health meter as a styled bar", /* OPT_styled_player_health_bar */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */
@@ -773,7 +773,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_story_object_desc */
     true, /* OPT_hide_secondary_action_ring */
     false, /* OPT_mirror_monster_tile_facing */
-    false, /* reserved legacy slot */
+    true, /* OPT_styled_player_health_bar */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
     false, /* reserved legacy slot */
@@ -919,12 +919,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     /*** User-Interface ***/
 
     { OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
-        OPT_song_list_sort_by_recent, OPT_hide_supporting_panes_fullscreen,
-        OPT_hitpoint_warning, OPT_supply_menu_random_icons,
+        OPT_song_list_sort_by_recent, OPT_styled_player_health_bar,
+        OPT_hide_supporting_panes_fullscreen, OPT_hitpoint_warning,
+        OPT_supply_menu_random_icons,
         OPT_supply_menu_hide_flavor_compact,
         OPT_hide_secondary_action_ring,
         OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
         OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 

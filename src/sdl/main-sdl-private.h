@@ -3035,7 +3035,7 @@ void set_sdl_min_terminal_mode(int value);
 void set_sdl_main_view_scale(int value);
 bool set_sdl_main_view_zoom_scale(int value);
 void sdl_suspend_main_view_zoom_for_saved_screen(void);
-void sdl_resume_main_view_zoom_for_saved_screen(void);
+bool sdl_resume_main_view_zoom_for_saved_screen(void);
 int get_sdl_aux_view_font_size(void);
 int get_sdl_effective_aux_view_font_size(void);
 void set_sdl_aux_view_font_size(int value);
