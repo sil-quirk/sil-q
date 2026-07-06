@@ -453,7 +453,7 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
                 health_attr(m_ptr->hp, m_ptr->maxhp));
             if (morale_text[0]) {
                 sdl_object_tooltip_append_text(buf, buflen, attrs,
-                    ", Morale: ", TERM_WHITE);
+                    " Morale: ", TERM_WHITE);
                 sdl_object_tooltip_append_text(buf, buflen, attrs,
                     morale_text, morale_attr);
             }

@@ -648,6 +648,8 @@ void do_cmd_toggle_stealth(void)
 
         /* Redraw the state */
         p_ptr->redraw |= (PR_STATE);
+        if (pixel_monster_status_icons)
+            p_ptr->redraw |= (PR_MAP);
     }
 
     /* Start stealth mode */
@@ -667,6 +669,15 @@ void do_cmd_toggle_stealth(void)
 
         /* Redraw stuff */
         p_ptr->redraw |= (PR_STATE | PR_SPEED);
+        if (pixel_monster_status_icons)
+            p_ptr->redraw |= (PR_MAP);
+    }
+
+    if (pixel_monster_status_icons)
+    {
+        force_map_redraw();
+        handle_stuff();
+        Term_fresh();
     }
 }
 
@@ -929,6 +940,8 @@ void do_cmd_rest(void)
     p_ptr->command_arg = 0;
 
     /* Cancel stealth mode */
+    if (p_ptr->stealth_mode && pixel_monster_status_icons)
+        p_ptr->redraw |= (PR_MAP);
     p_ptr->stealth_mode = false;
 
     /* Recalculate bonuses */

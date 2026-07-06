@@ -3,8 +3,6 @@
 #include "log/log.h"
 #include "player/killer.h"
 #include "metarun.h"
-#include "sdl-config.h"
-#include "ui/question.h"
 #include <math.h>
 
 /*
@@ -360,13 +358,7 @@ void move_player(int dir)
                 && !cave_rewired[y][x]
                 && !player_take_trap_step_allowance(y, x))
             {
-                ui_question_option options[2];
-                char title[80];
-                int choice;
-                int disarm_choice = -1;
-                int step_choice = 0;
-                int count = 0;
-                cptr name = (f_name + f_info[cave_feat[y][x]].name);
+                int command = 0;
 
                 /* Disturb the player */
                 disturb(0, 0);
@@ -374,33 +366,7 @@ void move_player(int dir)
                 /* Flush input */
                 flush();
 
-                strnfmt(title, sizeof(title), "%^s in the way", name);
-
-                /* Offer disarming when the trap allows it -- or rewiring, if the
-                 * player has the ability and the trap can be re-keyed (this
-                 * block only runs for not-yet-rewired traps). */
-                if (trap_disarm_power(cave_feat[y][x], NULL))
-                {
-                    bool rewiring
-                        = p_ptr->active_ability[S_PER][PER_REWIRE_TRAPS]
-                        && trap_is_rewireable(cave_feat[y][x]);
-                    options[count].key = 'd';
-                    options[count].label = rewiring ? "Rewire it" : "Disarm it";
-                    options[count].attr = TERM_L_WHITE;
-                    disarm_choice = count;
-                    count++;
-                }
-
-                options[count].key = 'w';
-                options[count].label = "Step onto it";
-                options[count].attr = TERM_L_WHITE;
-                step_choice = count;
-                count++;
-
-                choice = ui_question_ask(title, NULL, options, count, y, x,
-                    step_choice);
-
-                if (choice < 0)
+                if (!grid_interact_question(y, x, &command, NULL))
                 {
                     // don't take a turn...
                     p_ptr->energy_use = 0;
@@ -408,7 +374,7 @@ void move_player(int dir)
                     return;
                 }
 
-                if ((disarm_choice >= 0) && (choice == disarm_choice))
+                if (command == 'D')
                 {
                     /* Disarm instead of moving; this takes the turn */
                     p_ptr->previous_action[0] = ACTION_MISC;
@@ -417,6 +383,18 @@ void move_player(int dir)
 
                     return;
                 }
+
+                if (command != ';')
+                {
+                    // don't take a turn...
+                    p_ptr->energy_use = 0;
+
+                    return;
+                }
+
+                /* This direct movement continues in the current call, so
+                 * consume the popup's queued allowance immediately. */
+                (void)player_take_trap_step_allowance(y, x);
             }
         }
 

@@ -670,6 +670,8 @@ bool set_rage(int v)
             stop_stealth_mode = false;
             p_ptr->update |= (PU_BONUS);
             p_ptr->redraw |= (PR_SPEED);
+            if (pixel_monster_status_icons)
+                p_ptr->redraw |= (PR_MAP);
         }
 
         /* Túrin character has 50% chance to become hallucinated when raged */

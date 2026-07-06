@@ -8428,6 +8428,8 @@ void do_cmd_smithing_screen(void)
             add_artefact_details();
 
         /* Cancel stealth mode */
+        if (p_ptr->stealth_mode && pixel_monster_status_icons)
+            p_ptr->redraw |= (PR_MAP);
         p_ptr->stealth_mode = false;
 
         // Allow the resumption of interrupted smithing

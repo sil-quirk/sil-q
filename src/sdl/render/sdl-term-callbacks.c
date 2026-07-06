@@ -1306,8 +1306,13 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
     float size;
     float margin;
     float top;
+    float right_limit;
+    float bottom_limit;
+    float scale;
     float pupil;
+    bool stealth_eye;
     SDL_FRect eye;
+    SDL_FRect backing;
     SDL_FRect pupil_rect;
     SDL_Color shadow = { 0, 0, 0, 190 };
     SDL_Color outline = sdl_color_from_attr(TERM_L_RED);
@@ -1317,6 +1322,8 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
         return;
 
     size = MIN(cell->w, cell->h);
+    stealth_eye = p_ptr && p_ptr->stealth_mode;
+    scale = stealth_eye ? 1.5f : 1.0f;
     margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
     top = cell->y + margin;
     if (styled_monster_tile_health_bars)
@@ -1324,10 +1331,28 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
     eye = (SDL_FRect){
         .x = cell->x + margin,
         .y = top,
-        .w = sdl_status_icon_clampf(size * 0.36f, 5.0f, 12.0f),
-        .h = sdl_status_icon_clampf(size * 0.22f, 3.0f, 8.0f),
+        .w = sdl_status_icon_clampf(size * 0.36f * scale,
+            5.0f * scale, 12.0f * scale),
+        .h = sdl_status_icon_clampf(size * 0.22f * scale,
+            3.0f * scale, 8.0f * scale),
     };
-    pupil = sdl_status_icon_clampf(size * 0.08f, 1.5f, 3.0f);
+    right_limit = cell->x + cell->w - margin;
+    bottom_limit = cell->y + cell->h - margin;
+    if (eye.x + eye.w > right_limit)
+        eye.x = right_limit - eye.w;
+    if (eye.x < cell->x + 1.0f)
+        eye.x = cell->x + 1.0f;
+    if (eye.y + eye.h > bottom_limit)
+        eye.y = MAX(top, bottom_limit - eye.h);
+
+    pupil = sdl_status_icon_clampf(size * 0.08f * scale,
+        1.5f * scale, 3.0f * scale);
+    backing = (SDL_FRect){
+        .x = eye.x - 1.0f,
+        .y = eye.y - 1.0f,
+        .w = eye.w + 2.0f,
+        .h = eye.h + 2.0f,
+    };
     pupil_rect = (SDL_FRect){
         .x = eye.x + eye.w * 0.5f - pupil * 0.5f,
         .y = eye.y + eye.h * 0.5f - pupil * 0.5f,
@@ -1336,8 +1361,15 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
     };
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    sdl_status_icon_set_color(shadow, 150);
+    SDL_RenderFillRect(g_state.renderer, &backing);
     sdl_draw_eye_outline(&eye, 1.0f, shadow, shadow.a);
     sdl_draw_eye_outline(&eye, 0.0f, outline, 245);
+    if (stealth_eye)
+    {
+        sdl_draw_eye_outline(&eye, -1.0f, outline, 220);
+        sdl_draw_eye_outline(&eye, 1.0f, outline, 220);
+    }
     pupil_rect.x += 1.0f;
     pupil_rect.y += 1.0f;
     pupil_rect.w += 1.0f;
@@ -1408,6 +1440,78 @@ static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell)
     SDL_RenderFillRect(g_state.renderer, &dot);
 }
 
+static bool sdl_monster_can_see_player_for_status_icon(monster_type* m_ptr)
+{
+    const monster_race* r_ptr;
+
+    if (!m_ptr || !m_ptr->r_idx || !p_ptr)
+        return false;
+    if (monster_race_is_vala(m_ptr->r_idx))
+        return false;
+    if (m_ptr->alertness < ALERTNESS_UNWARY)
+        return false;
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    if (r_ptr->flags1 & (RF1_PEACEFUL))
+        return false;
+    if ((r_ptr->flags2 & (RF2_SHORT_SIGHTED)) && (m_ptr->cdis > 2))
+        return false;
+    if (!los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px))
+        return false;
+
+    if (visual_recognition && (r_ptr->flags2 & (RF2_SMART)))
+    {
+        int per_divisor =
+            p_ptr->active_ability[S_STL][STL_DISGUISE] ? 4 : 2;
+        int vision_score = monster_skill(m_ptr, S_PER) / per_divisor
+            + p_ptr->cur_light
+            + ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)) ? 2 : 0);
+
+        if (vision_score < m_ptr->cdis)
+            return false;
+    }
+
+    return true;
+}
+
+static void sdl_map_monster_status_icons_from_live_state(int y, int x,
+    bool* sleep, bool* seen, bool* alert)
+{
+    int m_idx;
+    monster_type* m_ptr;
+
+    if (!sleep || !seen || !alert || !p_ptr)
+        return;
+    if (y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
+        || x >= p_ptr->cur_map_wid)
+    {
+        return;
+    }
+    if (!p_ptr->is_dead && (p_ptr->rage || g_labyrinth_view_active)
+        && !(cave_info[y][x] & CAVE_SEEN))
+    {
+        return;
+    }
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0 || m_idx >= mon_max)
+        return;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !m_ptr->ml
+        || monster_race_is_vala(m_ptr->r_idx))
+    {
+        return;
+    }
+
+    if (sleep_icon && m_ptr->alertness < ALERTNESS_UNWARY)
+        *sleep = true;
+    if (m_ptr->alertness >= ALERTNESS_ALERT)
+        *alert = true;
+    if (stealth_vision && sdl_monster_can_see_player_for_status_icon(m_ptr))
+        *seen = true;
+}
+
 static void sdl_draw_map_monster_status_icons(bool sleep, bool seen,
     bool alert, const SDL_FRect* dst)
 {
@@ -1461,6 +1565,10 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
 
     if (!dst)
         return;
+
+    if (pixel_monster_status_icons)
+        sdl_map_monster_status_icons_from_live_state(dy, dx, &sleep, &seen,
+            &alert);
 
     if (ui_background)
     {
@@ -2710,6 +2818,8 @@ static Uint64 sdl_minimap_monster_health_hash(void)
     hash ^= (Uint64)(styled_monster_tile_health_bars ? 1 : 0);
     hash *= 1099511628211ULL;
     hash ^= (Uint64)(pixel_monster_status_icons ? 1 : 0);
+    hash *= 1099511628211ULL;
+    hash ^= (Uint64)(p_ptr && p_ptr->stealth_mode ? 1 : 0);
     hash *= 1099511628211ULL;
     if (!styled_monster_tile_health_bars && !pixel_monster_status_icons)
         return hash;

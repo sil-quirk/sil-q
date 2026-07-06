@@ -307,6 +307,8 @@ void process_player(void)
 
             /* Redraw the state */
             p_ptr->redraw |= (PR_STATE);
+            if (pixel_monster_status_icons)
+                p_ptr->redraw |= (PR_MAP);
 
             // Reset the flag
             stop_stealth_mode = false;
