@@ -1065,6 +1065,7 @@ struct player_other
     byte narrative_banner_turns; /* Banner visibility (0=dismiss on next input, 1-3=player turns) */
     byte noble_item_spawn_mode; /* Noble item sources (NOBLE_ITEM_SPAWN_*) */
     byte min_depth_timer_mode; /* Minimum-depth timer pace (MIN_DEPTH_TIMER_MODE_*) */
+    byte monster_tile_health_bar_mode; /* Map tile monster health bars (MONSTER_TILE_HEALTH_BARS_*) */
 };
 
 /*

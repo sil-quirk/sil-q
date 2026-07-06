@@ -2891,6 +2891,11 @@
 #define OPT_styled_monster_tile_health_bars 122
 #define OPT_pixel_monster_status_icons 123
 
+#define MONSTER_TILE_HEALTH_BARS_SHOW 0
+#define MONSTER_TILE_HEALTH_BARS_DAMAGED_ONLY 1
+#define MONSTER_TILE_HEALTH_BARS_OFF 2
+#define MONSTER_TILE_HEALTH_BARS_MAX MONSTER_TILE_HEALTH_BARS_OFF
+
 /*
  * Settings retired by the 0.9.7 interface refactor. These are not legacy
  * reserves; keep the names only long enough to clear old saves/metasaves.
@@ -3095,7 +3100,7 @@
 #define styled_player_health_bar op_ptr->opt[OPT_styled_player_health_bar]
 #define styled_monster_health_bars op_ptr->opt[OPT_styled_monster_health_bars]
 #define styled_monster_tile_health_bars \
-    op_ptr->opt[OPT_styled_monster_tile_health_bars]
+    (op_ptr->monster_tile_health_bar_mode != MONSTER_TILE_HEALTH_BARS_OFF)
 #define pixel_monster_status_icons op_ptr->opt[OPT_pixel_monster_status_icons]
 #define disable_skeleton_note_tutorial                                           \
     op_ptr->opt[OPT_disable_skeleton_note_tutorial]

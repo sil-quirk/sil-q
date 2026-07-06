@@ -493,7 +493,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* obsolete 0.9.7: hide_left_panel */
     NULL, /* reserved legacy slot: banner_message_stairs */
     "Debug: Show detailed level-generation screen info and pause before play", /* OPT_show_level_generation_debug */
-    "Unlock Blitz Mode after winning a metarun", /* OPT_unlock_blitz_mode */
+    "Unlock Blitz Mode after winning a tale", /* OPT_unlock_blitz_mode */
     "Sort look (L) objects by difficulty only (off = category, then difficulty)", /* OPT_look_objects_sort_by_difficulty */
     "Start look (l) with the nearby-only sidebar filter enabled", /* OPT_look_nearby_filter_default */
     "Debug: Show elemental item break rolls and target probabilities", /* OPT_show_elemental_item_rolls */
@@ -514,7 +514,7 @@ cptr option_desc[OPT_MAX] = {
     "Mirror monster tiles to face horizontal movement", /* OPT_mirror_monster_tile_facing */
     "Render the left-panel player health meter as a styled bar", /* OPT_styled_player_health_bar */
     "Render styled monster health bars in panes and overlays", /* OPT_styled_monster_health_bars */
-    "Show monster health bars directly on map tiles", /* OPT_styled_monster_tile_health_bars */
+    "Monster tile health bars (show/only damaged/off)", /* OPT_styled_monster_tile_health_bars */
     "Render monster sleep, sight, and alert indicators with SDL pixel overlays", /* OPT_pixel_monster_status_icons */
     NULL, /* reserved legacy slot */
     NULL, /* reserved legacy slot */

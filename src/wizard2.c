@@ -2511,12 +2511,12 @@ static void do_cmd_wiz_unlock_all_oaths(void)
         }
         else
         {
-            msg_format("Unlocked all %d oaths for this metarun.", count);
+            msg_format("Unlocked all %d oaths for this tale.", count);
         }
     }
     else
     {
-        msg_print("All oaths were already unlocked for this metarun.");
+        msg_print("All oaths were already unlocked for this tale.");
     }
 }
 
@@ -2944,7 +2944,7 @@ static const debug_menu_entry debug_menu_character[] = {
     { 'k', 'k', "Self-knowledge (k)", TERM_L_BLUE },
     { 'x', 'x', "Increase experience (x)", TERM_YELLOW },
     { 'y', 'y', "Grant Unique Bane ability (y)", TERM_VIOLET },
-    { 'U', 'U', "Unlock all metarun oaths (U)", TERM_YELLOW },
+    { 'U', 'U', "Unlock all tale oaths (U)", TERM_YELLOW },
 };
 
 static const debug_menu_entry debug_menu_map[] = {

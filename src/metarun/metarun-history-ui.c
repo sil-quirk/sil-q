@@ -33,9 +33,9 @@ void list_metaruns(void)
         metarun_prompt_label(steamdeck_confirm_key(), "A", accept_label, sizeof(accept_label));
     }
     Term_clear();
-    c_prt(TERM_L_GREEN, "Meta-run history", 1, 2);
+    c_prt(TERM_L_GREEN, "Tale history", 1, 2);
     c_put_str(TERM_L_DARK,
-              " *ID      Score     Sil  Dth  Res  Last played", 3, 2);
+              " *Tale    Score     Sil  Dth  Res  Last played", 3, 2);
 
     refresh_current_metar_score();
 
@@ -101,9 +101,9 @@ void list_metaruns(void)
             metarun_wait_hidden();  Term_clear();
             ui_menu_click_clear();
             row = 4;
-            c_prt(TERM_L_GREEN, "Meta-run history (cont.)", 1, 2);
+            c_prt(TERM_L_GREEN, "Tale history (cont.)", 1, 2);
             c_put_str(TERM_L_DARK,
-                      " *ID      Score     Sil  Dth  Res  Last played", 3, 2);
+                      " *Tale    Score     Sil  Dth  Res  Last played", 3, 2);
         }
     }
 

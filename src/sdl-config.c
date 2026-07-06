@@ -2025,6 +2025,8 @@ static void sdl_config_apply_app_option_defaults(void)
     op_ptr->level_entry_narrative_mode = LEVEL_ENTRY_NARRATIVE_BANNER_DELAY;
     op_ptr->partition_narrative_mode = PARTITION_NARRATIVE_BANNER_DELAY;
     op_ptr->narrative_banner_turns = DEFAULT_NARRATIVE_BANNER_TURNS;
+    op_ptr->monster_tile_health_bar_mode = MONSTER_TILE_HEALTH_BARS_SHOW;
+    op_ptr->opt[OPT_styled_monster_tile_health_bars] = true;
 }
 
 void sdl_config_reset_app_options_to_defaults(void)
@@ -2048,6 +2050,12 @@ static void sdl_config_load_app_option_group(cJSON* app_options,
 
         if (opt >= 0 && opt < OPT_MAX)
             op_ptr->opt[opt] = sdl_config_default_app_bool(opt);
+        if (opt == OPT_styled_monster_tile_health_bars)
+        {
+            op_ptr->monster_tile_health_bar_mode =
+                MONSTER_TILE_HEALTH_BARS_SHOW;
+            op_ptr->opt[opt] = true;
+        }
 
         if (!cJSON_IsObject(group))
             continue;
@@ -2056,6 +2064,29 @@ static void sdl_config_load_app_option_group(cJSON* app_options,
             continue;
 
         item = cJSON_GetObjectItemCaseSensitive(group, key);
+        if (opt == OPT_styled_monster_tile_health_bars)
+        {
+            if (cJSON_IsNumber(item))
+            {
+                int mode = item->valueint;
+
+                if (mode < MONSTER_TILE_HEALTH_BARS_SHOW)
+                    mode = MONSTER_TILE_HEALTH_BARS_SHOW;
+                if (mode > MONSTER_TILE_HEALTH_BARS_MAX)
+                    mode = MONSTER_TILE_HEALTH_BARS_MAX;
+                op_ptr->monster_tile_health_bar_mode = (byte)mode;
+                op_ptr->opt[opt]
+                    = (mode != MONSTER_TILE_HEALTH_BARS_OFF);
+            }
+            else if (cJSON_IsBool(item))
+            {
+                op_ptr->monster_tile_health_bar_mode = cJSON_IsTrue(item)
+                    ? MONSTER_TILE_HEALTH_BARS_SHOW
+                    : MONSTER_TILE_HEALTH_BARS_OFF;
+                op_ptr->opt[opt] = cJSON_IsTrue(item);
+            }
+            continue;
+        }
         if (cJSON_IsBool(item))
             op_ptr->opt[opt] = cJSON_IsTrue(item);
     }
@@ -2104,6 +2135,16 @@ static void sdl_config_save_app_option_group(cJSON* app_options,
 
         if (!key)
             continue;
+
+        if (opt == OPT_styled_monster_tile_health_bars)
+        {
+            byte mode = op_ptr->monster_tile_health_bar_mode;
+
+            if (mode > MONSTER_TILE_HEALTH_BARS_MAX)
+                mode = MONSTER_TILE_HEALTH_BARS_SHOW;
+            cJSON_AddNumberToObject(group, key, mode);
+            continue;
+        }
 
         cJSON_AddBoolToObject(group, key, op_ptr->opt[opt]);
     }

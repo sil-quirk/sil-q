@@ -457,7 +457,7 @@ void dbg_show_active_flags(void)
     Term_clear();
 #ifdef DEBUG_CURSES
     Term_putstr(0, row++, -1, TERM_YELLOW,
-                "*** DEBUG: meta-run DEBUG - a:add-curse  c:clear-all  e:+death  1-3:+sils  any:key:exit ***");
+                "*** DEBUG: Tale debug - a:add-curse  c:clear-all  e:+death  1-3:+sils  any:key:exit ***");
 #endif
 
     for (size_t g = 0; g < N_ELEMENTS(grp); g++)
@@ -620,7 +620,7 @@ void dbg_show_active_flags(void)
 #ifdef DEBUG_CURSES
         else if (ch == 'x')       /* clear all curses */
         {
-            if (get_check("Erase ALL curses for this meta-run? "))
+            if (get_check("Erase ALL curses for this tale? "))
             {
                 metarun_clear_all_curses();
                 dbg_show_active_flags();

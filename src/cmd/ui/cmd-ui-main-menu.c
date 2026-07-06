@@ -1367,17 +1367,17 @@ static void do_cmd_start_blitz(void)
 
     main_menu_blitz_text_line(&row, wrap, TERM_L_WHITE,
         "Blitz is a self-contained run, played entirely apart from your "
-        "story.");
+        "tale.");
     main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
         "Use it to play outside of your metaprogress, or to practise freely: "
-        "nothing you do in Blitz touches your normal metarun, saves or score.");
+        "nothing you do in Blitz touches your normal tale, saves or score.");
     main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
-        "Blitz keeps its own separate character and score files, so your story "
+        "Blitz keeps its own separate character and score files, so your tale "
         "character stays safe and can be resumed at any time.");
     main_menu_blitz_text_line(&row, wrap, TERM_WHITE,
         "If you already have a living Blitz character, it will be resumed.");
     main_menu_blitz_text_line(&row, wrap, TERM_SLATE,
-        "Switching to Blitz will save your current story game first.");
+        "Switching to Blitz will save your current tale game first.");
 
     Term_fresh();
 

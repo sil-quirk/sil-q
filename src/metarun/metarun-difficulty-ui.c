@@ -302,7 +302,7 @@ void choose_difficulty_menu(void)
             /* Check if trying to select a locked difficulty */
             if (choice < metar.max_difficulty_reached) {
                 /* Show warning and stay in menu */
-                Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this tale!");
                 Term_fresh();
                 Term_xtra(TERM_XTRA_DELAY, 2000);
                 continue;
@@ -329,7 +329,7 @@ void choose_difficulty_menu(void)
             if (new_choice <= max_difficulty) {
                 if (new_choice < metar.max_difficulty_reached) {
                     /* Show warning for locked difficulty */
-                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this tale!");
                     Term_fresh();
                     Term_xtra(TERM_XTRA_DELAY, 2000);
                 } else {
@@ -343,7 +343,7 @@ void choose_difficulty_menu(void)
             if (new_choice <= max_difficulty) {
                 if (new_choice < metar.max_difficulty_reached) {
                     /* Show warning for locked difficulty */
-                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this tale!");
                     Term_fresh();
                     Term_xtra(TERM_XTRA_DELAY, 2000);
                 } else {
@@ -370,14 +370,14 @@ void choose_difficulty_menu(void)
                 Term_putstr(2, 7, term_wid - 2, TERM_WHITE,
                     "You cannot return to an easier level");
                 Term_putstr(2, 8, term_wid - 2, TERM_WHITE,
-                    "for the rest of this story run.");
+                    "for the rest of this tale.");
             }
             else
             {
                 Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
-                Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+                Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this tale.");
             }
-            Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
+            Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this tale!");
             if (steamdeck) {
                 char prompt_buf[64];
                 strnfmt(prompt_buf, sizeof(prompt_buf),

@@ -1152,84 +1152,84 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
         quest_status_put_line(col, hgt, &row, TERM_WHITE, "");
     }
 
-    /* Show previous metarun completions */
+    /* Show previous tale completions */
     bool has_previous_completions = false;
     int tulkas_completed = metarun_quest_completion_count(METARUN_QUEST_TULKAS);
     if (tulkas_completed > 0 && p_ptr->tulkas_quest != TULKAS_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_TULKAS);
         cptr oath_name = get_oath_name_from_id(quest_info[1].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, tulkas_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, tulkas_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
     int aule_completed = metarun_quest_completion_count(METARUN_QUEST_AULE);
     if (aule_completed > 0 && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_AULE);
         cptr oath_name = get_oath_name_from_id(quest_info[2].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, aule_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, aule_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
     int mandos_completed = metarun_quest_completion_count(METARUN_QUEST_MANDOS);
     if (mandos_completed > 0 && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_MANDOS);
         cptr oath_name = get_oath_name_from_id(quest_info[3].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, mandos_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, mandos_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
     int niena_completed = metarun_quest_completion_count(METARUN_QUEST_NIENA);
     if (niena_completed > 0 && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_NIENA);
         cptr oath_name = get_oath_name_from_id(quest_info[4].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, niena_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, niena_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
     int orome_completed = metarun_quest_completion_count(METARUN_QUEST_OROME);
     if (orome_completed > 0 && p_ptr->orome_quest != OROME_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_OROME);
         cptr oath_name = get_oath_name_from_id(quest_info[5].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, orome_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, orome_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
     int varda_completed = metarun_quest_completion_count(METARUN_QUEST_VARDA);
     if (varda_completed > 0 && p_ptr->varda_quest != VARDA_QUEST_REWARDED) {
         if (!has_previous_completions) {
             quest_status_put_line(col, hgt, &row, TERM_L_DARK,
-                "Previously Completed in Metarun:");
+                "Previously Completed in This Tale:");
             has_previous_completions = true;
         }
         cptr quest_title = get_quest_title(QUEST_ID_VARDA);
         cptr oath_name = get_oath_name_from_id(quest_info[6].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, varda_completed);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (x%d)", quest_title, oath_name, varda_completed);
         quest_status_put_wrapped(col, wid, hgt, &row, TERM_SLATE, status_text);
     }
 

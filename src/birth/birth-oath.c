@@ -453,7 +453,7 @@ static void oath_draw_compact_list_summary(int oath_id, int row, int prompt_row,
     if (oath_banned(oath_id))
     {
         oath_putstr_fit(2, row, max_width, TERM_RED,
-            "Broken oath: unavailable for this metarun.");
+            "Broken oath: unavailable for this tale.");
         return;
     }
 

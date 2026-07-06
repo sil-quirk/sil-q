@@ -1177,6 +1177,43 @@ static float sdl_map_monster_health_bar_bottom(const SDL_FRect* cell)
         + sdl_map_monster_health_bar_height(cell);
 }
 
+static bool sdl_map_monster_health_bar_visible(int y, int x)
+{
+    int m_idx;
+    monster_type* m_ptr;
+
+    if (!styled_monster_tile_health_bars || !p_ptr || p_ptr->image)
+        return false;
+    if (y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
+        || x >= p_ptr->cur_map_wid)
+    {
+        return false;
+    }
+    if (!p_ptr->is_dead && (p_ptr->rage || g_labyrinth_view_active)
+        && !(cave_info[y][x] & CAVE_SEEN))
+    {
+        return false;
+    }
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0 || m_idx >= mon_max)
+        return false;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !m_ptr->ml || m_ptr->hp <= 0 || m_ptr->maxhp <= 0)
+        return false;
+    if (m_ptr->alertness < ALERTNESS_UNWARY)
+        return false;
+    if (op_ptr->monster_tile_health_bar_mode
+            == MONSTER_TILE_HEALTH_BARS_DAMAGED_ONLY
+        && m_ptr->hp >= m_ptr->maxhp)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static void sdl_draw_map_monster_health_bar(int y, int x,
     const SDL_FRect* cell)
 {
@@ -1187,28 +1224,11 @@ static void sdl_draw_map_monster_health_bar(int y, int x,
     float height;
     SDL_FRect bar;
 
-    if (!styled_monster_tile_health_bars || !p_ptr || p_ptr->image || !cell)
+    if (!cell || !sdl_map_monster_health_bar_visible(y, x))
         return;
-    if (y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
-        || x >= p_ptr->cur_map_wid)
-    {
-        return;
-    }
-    if (!p_ptr->is_dead && (p_ptr->rage || g_labyrinth_view_active)
-        && !(cave_info[y][x] & CAVE_SEEN))
-    {
-        return;
-    }
 
     m_idx = cave_m_idx[y][x];
-    if (m_idx <= 0 || m_idx >= mon_max)
-        return;
-
     m_ptr = &mon_list[m_idx];
-    if (!m_ptr->r_idx || !m_ptr->ml || m_ptr->hp <= 0 || m_ptr->maxhp <= 0)
-        return;
-    if (m_ptr->alertness < ALERTNESS_UNWARY)
-        return;
 
     scaled = ((long)m_ptr->hp * 255L + (long)m_ptr->maxhp - 1L)
         / (long)m_ptr->maxhp;
@@ -1263,6 +1283,7 @@ static void sdl_status_icon_fill_disc(float cx, float cy, float radius)
 static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
 {
     float size;
+    float margin;
     float radius;
     float cx;
     float cy;
@@ -1273,9 +1294,10 @@ static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
         return;
 
     size = MIN(cell->w, cell->h);
+    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
     radius = sdl_status_icon_clampf(size * 0.08f, 1.5f, 4.0f);
-    cx = cell->x + cell->w * 0.5f;
-    cy = cell->y + MAX(radius + 1.0f, size * 0.12f);
+    cx = cell->x + cell->w - margin - radius;
+    cy = cell->y + margin + radius;
 
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     sdl_status_icon_set_color(shadow, shadow.a);
@@ -1301,7 +1323,8 @@ static void sdl_draw_eye_outline(const SDL_FRect* eye, float offset,
     SDL_RenderLine(g_state.renderer, tx, by, lx, cy);
 }
 
-static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
+static void sdl_draw_pixel_los_marker(const SDL_FRect* cell,
+    bool avoid_health_bar)
 {
     float size;
     float margin;
@@ -1326,7 +1349,7 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
     scale = stealth_eye ? 1.5f : 1.0f;
     margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
     top = cell->y + margin;
-    if (styled_monster_tile_health_bars)
+    if (avoid_health_bar)
         top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
     eye = (SDL_FRect){
         .x = cell->x + margin,
@@ -1384,7 +1407,8 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
     SDL_RenderFillRect(g_state.renderer, &pupil_rect);
 }
 
-static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell)
+static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell, bool fleeing,
+    bool avoid_health_bar)
 {
     float size;
     float margin;
@@ -1395,7 +1419,7 @@ static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell)
     SDL_FRect stem;
     SDL_FRect dot;
     SDL_Color shadow = { 0, 0, 0, 190 };
-    SDL_Color alert = sdl_color_from_attr(TERM_YELLOW);
+    SDL_Color alert = sdl_color_from_attr(fleeing ? TERM_VIOLET : TERM_YELLOW);
 
     if (!cell)
         return;
@@ -1403,7 +1427,7 @@ static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell)
     size = MIN(cell->w, cell->h);
     margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
     top = cell->y + margin;
-    if (styled_monster_tile_health_bars)
+    if (avoid_health_bar)
         top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
     width = sdl_status_icon_clampf(size * 0.075f, 1.5f, 3.2f);
     stem_h = sdl_status_icon_clampf(size * 0.27f, 4.0f, 11.0f);
@@ -1475,12 +1499,12 @@ static bool sdl_monster_can_see_player_for_status_icon(monster_type* m_ptr)
 }
 
 static void sdl_map_monster_status_icons_from_live_state(int y, int x,
-    bool* sleep, bool* seen, bool* alert)
+    bool* sleep, bool* seen, bool* alert, bool* alert_fleeing)
 {
     int m_idx;
     monster_type* m_ptr;
 
-    if (!sleep || !seen || !alert || !p_ptr)
+    if (!sleep || !seen || !alert || !alert_fleeing || !p_ptr)
         return;
     if (y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
         || x >= p_ptr->cur_map_wid)
@@ -1507,13 +1531,17 @@ static void sdl_map_monster_status_icons_from_live_state(int y, int x,
     if (sleep_icon && m_ptr->alertness < ALERTNESS_UNWARY)
         *sleep = true;
     if (m_ptr->alertness >= ALERTNESS_ALERT)
+    {
         *alert = true;
+        *alert_fleeing = (m_ptr->stance == STANCE_FLEEING);
+    }
     if (stealth_vision && sdl_monster_can_see_player_for_status_icon(m_ptr))
         *seen = true;
 }
 
 static void sdl_draw_map_monster_status_icons(bool sleep, bool seen,
-    bool alert, const SDL_FRect* dst)
+    bool alert, bool alert_fleeing, bool avoid_health_bar,
+    const SDL_FRect* dst)
 {
     if (!dst)
         return;
@@ -1521,11 +1549,12 @@ static void sdl_draw_map_monster_status_icons(bool sleep, bool seen,
     if (pixel_monster_status_icons)
     {
         if (seen)
-            sdl_draw_pixel_los_marker(dst);
+            sdl_draw_pixel_los_marker(dst, avoid_health_bar);
         if (sleep)
             sdl_draw_pixel_sleep_marker(dst);
         if (alert)
-            sdl_draw_pixel_alert_marker(dst);
+            sdl_draw_pixel_alert_marker(dst, alert_fleeing,
+                avoid_health_bar);
         return;
     }
 
@@ -1559,16 +1588,20 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     bool ui_background = !terrain_tile && ta >= TERM_UI_SELECTED && tc == ' ';
     bool glow = (a & GRAPHICS_GLOW_MASK) != 0;
     bool alert = (((byte)c) & GRAPHICS_ALERT_MASK) != 0;
+    bool alert_fleeing = false;
     bool seen = (((byte)tc) & GRAPHICS_SEEN_MASK) != 0;
     bool sleep = !ui_background && (ta & GRAPHICS_SLEEP_MASK) != 0;
     bool tile_mode = g_state.use_tiles && g_state.tileset;
+    bool health_bar_visible;
 
     if (!dst)
         return;
 
+    health_bar_visible = sdl_map_monster_health_bar_visible(dy, dx);
+
     if (pixel_monster_status_icons)
         sdl_map_monster_status_icons_from_live_state(dy, dx, &sleep, &seen,
-            &alert);
+            &alert, &alert_fleeing);
 
     if (ui_background)
     {
@@ -1709,8 +1742,10 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     if (sdl_rewired_trap_tint_active(dy, dx))
         sdl_draw_rewired_trap_tint(dst);
 
-    sdl_draw_map_monster_health_bar(dy, dx, dst);
-    sdl_draw_map_monster_status_icons(sleep, seen, alert, dst);
+    if (health_bar_visible)
+        sdl_draw_map_monster_health_bar(dy, dx, dst);
+    sdl_draw_map_monster_status_icons(sleep, seen, alert, alert_fleeing,
+        health_bar_visible, dst);
 }
 
 bool sdl_minimap_hint_source_valid(const hint_message_meta* meta)
@@ -2815,7 +2850,7 @@ static Uint64 sdl_minimap_monster_health_hash(void)
 {
     Uint64 hash = 1469598103934665603ULL;
 
-    hash ^= (Uint64)(styled_monster_tile_health_bars ? 1 : 0);
+    hash ^= (Uint64)op_ptr->monster_tile_health_bar_mode;
     hash *= 1099511628211ULL;
     hash ^= (Uint64)(pixel_monster_status_icons ? 1 : 0);
     hash *= 1099511628211ULL;
@@ -2849,6 +2884,9 @@ static Uint64 sdl_minimap_monster_health_hash(void)
             hash ^= (Uint64)(m_ptr->alertness < ALERTNESS_UNWARY ? 1 : 0);
             hash *= 1099511628211ULL;
             hash ^= (Uint64)(m_ptr->alertness >= ALERTNESS_ALERT ? 1 : 0);
+            hash *= 1099511628211ULL;
+            hash ^= (Uint64)((m_ptr->alertness >= ALERTNESS_ALERT
+                && m_ptr->stance == STANCE_FLEEING) ? 1 : 0);
             hash *= 1099511628211ULL;
         }
     }

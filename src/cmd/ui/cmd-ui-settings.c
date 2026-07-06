@@ -802,7 +802,7 @@ static cptr option_menu_label(int opt)
                        : "Use styled monster health bars in panes/overlays";
     case OPT_styled_monster_tile_health_bars:
         return compact ? (narrow ? "Tile HP bars" : "Monster tile HP bars")
-                       : "Show monster health bars on map tiles";
+                       : "Monster tile health bars";
     case OPT_pixel_monster_status_icons:
         return compact ? (narrow ? "Pixel status" : "Pixel monster status")
                        : "Use pixel-rendered monster status icons";
@@ -1117,6 +1117,41 @@ static void option_set_player_tile_facing_mode(byte mode)
     option_apply_side_effects(OPT_mirror_player_tile_facing);
 }
 
+static byte option_monster_tile_health_bar_mode(void)
+{
+    if (!op_ptr)
+        return MONSTER_TILE_HEALTH_BARS_SHOW;
+
+    if (op_ptr->monster_tile_health_bar_mode > MONSTER_TILE_HEALTH_BARS_MAX)
+        return MONSTER_TILE_HEALTH_BARS_SHOW;
+
+    return op_ptr->monster_tile_health_bar_mode;
+}
+
+static cptr option_monster_tile_health_bar_mode_label(void)
+{
+    switch (option_monster_tile_health_bar_mode())
+    {
+    case MONSTER_TILE_HEALTH_BARS_DAMAGED_ONLY: return "only damaged";
+    case MONSTER_TILE_HEALTH_BARS_OFF:          return "off";
+    default:                                    return "show";
+    }
+}
+
+static void option_set_monster_tile_health_bar_mode(byte mode)
+{
+    if (!op_ptr)
+        return;
+
+    if (mode > MONSTER_TILE_HEALTH_BARS_MAX)
+        mode = MONSTER_TILE_HEALTH_BARS_SHOW;
+
+    op_ptr->monster_tile_health_bar_mode = mode;
+    op_ptr->opt[OPT_styled_monster_tile_health_bars]
+        = (mode != MONSTER_TILE_HEALTH_BARS_OFF);
+    option_apply_side_effects(OPT_styled_monster_tile_health_bars);
+}
+
 #define SETTINGS_VALUE_PICKER_MAX 96
 
 static bool settings_pick_value(cptr title, cptr desc,
@@ -1234,6 +1269,11 @@ static bool option_pick_value(int opt, bool* handled)
         { PLAYER_TILE_FACING_OFF, "off" },
         { PLAYER_TILE_FACING_MIRROR, "mirror" },
         { PLAYER_TILE_FACING_HANDCRAFTED, "handcrafted" }
+    };
+    static const struct settings_value_choice monster_tile_health_choices[] = {
+        { MONSTER_TILE_HEALTH_BARS_SHOW, "Show" },
+        { MONSTER_TILE_HEALTH_BARS_DAMAGED_ONLY, "Only damaged" },
+        { MONSTER_TILE_HEALTH_BARS_OFF, "Off" }
     };
 
     if (handled)
@@ -1386,6 +1426,18 @@ static bool option_pick_value(int opt, bool* handled)
             && value != option_player_tile_facing_mode())
         {
             option_set_player_tile_facing_mode((byte)value);
+            return true;
+        }
+        return false;
+
+    case OPT_styled_monster_tile_health_bars:
+        value = option_monster_tile_health_bar_mode();
+        if (option_pick_from_choices(opt, monster_tile_health_choices,
+                (int)N_ELEMENTS(monster_tile_health_choices), value, &value,
+                handled)
+            && value != option_monster_tile_health_bar_mode())
+        {
+            option_set_monster_tile_health_bar_mode((byte)value);
             return true;
         }
         return false;
@@ -1646,6 +1698,10 @@ static void options_aux_reset_to_default(int page, const int* opt, int k,
                     ? PLAYER_TILE_FACING_HANDCRAFTED
                     : PLAYER_TILE_FACING_MIRROR)
                 : PLAYER_TILE_FACING_OFF);
+        break;
+    case OPT_styled_monster_tile_health_bars:
+        option_set_monster_tile_health_bar_mode(
+            MONSTER_TILE_HEALTH_BARS_SHOW);
         break;
     default:
         op_ptr->opt[o] = option_norm[o];
@@ -2066,6 +2122,12 @@ extern void do_cmd_options_aux(int page, cptr info)
                 option_menu_format_line(buf, sizeof(buf),
                     option_menu_label(opt[i]),
                     option_player_tile_facing_mode_label());
+            }
+            else if (opt[i] == OPT_styled_monster_tile_health_bars)
+            {
+                option_menu_format_line(buf, sizeof(buf),
+                    option_menu_label(opt[i]),
+                    option_monster_tile_health_bar_mode_label());
             }
             else
             {
@@ -2574,6 +2636,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? (byte)(mode + 1)
                         : PLAYER_TILE_FACING_MAX);
                 }
+                else if (opt[k] == OPT_styled_monster_tile_health_bars)
+                {
+                    byte mode = option_monster_tile_health_bar_mode();
+                    option_set_monster_tile_health_bar_mode(
+                        (mode < MONSTER_TILE_HEALTH_BARS_MAX)
+                        ? (byte)(mode + 1)
+                        : MONSTER_TILE_HEALTH_BARS_MAX);
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -2754,6 +2824,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                         (mode > PLAYER_TILE_FACING_OFF)
                         ? (byte)(mode - 1)
                         : PLAYER_TILE_FACING_OFF);
+                }
+                else if (opt[k] == OPT_styled_monster_tile_health_bars)
+                {
+                    byte mode = option_monster_tile_health_bar_mode();
+                    option_set_monster_tile_health_bar_mode(
+                        (mode > MONSTER_TILE_HEALTH_BARS_SHOW)
+                        ? (byte)(mode - 1)
+                        : MONSTER_TILE_HEALTH_BARS_SHOW);
                 }
                 else
                 {

@@ -831,7 +831,7 @@ static void print_metarun_stats_legacy(void)
         screen_push_touch_pane_hidden();
         sdl_push_terminal_menu_scale();
         Term_clear();
-        Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
+        Term_putstr(2, 5, -1, TERM_RED, "Error: No tale data available.");
         Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
         if (steamdeck_controls_active()) {
             char label[16];
@@ -980,18 +980,18 @@ redraw_story_stats:
         /* Draw blessing meter on the right side */
         draw_blessing_meter(meter_col, 2, meter_height, remainder, threshold);
 
-        Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
+        Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Tale Statistics ===");
 
-        snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
+        snprintf(buf, sizeof buf, "Tale ID        : %u", metar.id);
         Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
         snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
         Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
 
-        snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
+        snprintf(buf, sizeof buf, "Tale Score     : %lu", (unsigned long)metar.score);
         Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-        snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
+        snprintf(buf, sizeof buf, "Best Hero Run  : %lu", (unsigned long)best_run);
         Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
         snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
@@ -1052,26 +1052,26 @@ redraw_story_stats:
         int summary_row_limit = term_height - 4;
 
         metarun_put_adaptive_line(col, &row, term_width, TERM_YELLOW,
-                                  "=== Story Statistics ===",
-                                  "=== Story Stats ===",
-                                  "== Story Stats ==",
+                                  "=== Tale Statistics ===",
+                                  "=== Tale Stats ===",
+                                  "== Tale Stats ==",
                                   "== Stats ==");
 
         char line1[192], line2[192], line3[192], line4[192];
 
         if (row < summary_row_limit) {
-            strnfmt(line1, sizeof(line1), "Run-ID:%u  Difficulty:%s", metar.id, diff_name);
-            strnfmt(line2, sizeof(line2), "ID:%u  Difficulty:%s", metar.id, diff_name);
-            strnfmt(line3, sizeof(line3), "ID:%u  Diff:%s", metar.id, diff_name);
-            strnfmt(line4, sizeof(line4), "ID:%u %s", metar.id, diff_name);
+            strnfmt(line1, sizeof(line1), "Tale:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line2, sizeof(line2), "Tale:%u  Difficulty:%s", metar.id, diff_name);
+            strnfmt(line3, sizeof(line3), "Tale:%u  Diff:%s", metar.id, diff_name);
+            strnfmt(line4, sizeof(line4), "T:%u %s", metar.id, diff_name);
             metarun_put_adaptive_line(col, &row, term_width, TERM_L_BLUE, line1, line2, line3, line4);
         }
 
         if (row < summary_row_limit) {
-            strnfmt(line1, sizeof(line1), "Meta Score:%lu  Best Run:%lu", (unsigned long)metar.score, (unsigned long)best_run);
-            strnfmt(line2, sizeof(line2), "Meta:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
-            strnfmt(line3, sizeof(line3), "Score:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
-            strnfmt(line4, sizeof(line4), "M:%lu B:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line1, sizeof(line1), "Tale Score:%lu  Best Hero:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line2, sizeof(line2), "Tale:%lu  Best:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line3, sizeof(line3), "Score:%lu  Hero:%lu", (unsigned long)metar.score, (unsigned long)best_run);
+            strnfmt(line4, sizeof(line4), "T:%lu H:%lu", (unsigned long)metar.score, (unsigned long)best_run);
             metarun_put_adaptive_line(col, &row, term_width, TERM_WHITE, line1, line2, line3, line4);
         }
 
@@ -1617,10 +1617,10 @@ static void story_book_draw_header(enum story_book_page page, int term_width)
 {
     const char *labels_full[STORY_BOOK_PAGE_MAX] = {
         "1 Statistics", "2 Blessings", "3 Curses", "4 Difficulty",
-        "5 Meta-runs"
+        "5 Tales"
     };
     const char *labels_short[STORY_BOOK_PAGE_MAX] = {
-        "1 Stats", "2 Bless", "3 Curse", "4 Diff", "5 Runs"
+        "1 Stats", "2 Bless", "3 Curse", "4 Diff", "5 Tales"
     };
     const char *const *labels = (term_width >= 74) ? labels_full : labels_short;
     int col = 1;
@@ -1690,14 +1690,14 @@ static void story_book_draw_statistics(int term_width, int row_limit,
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
         "Chapter I - The Measure of the Tale");
-    strnfmt(buf, sizeof(buf), "Story run %u, undertaken on %s difficulty.",
+    strnfmt(buf, sizeof(buf), "Tale %u, undertaken on %s difficulty.",
         (unsigned)metar.id, difficulty);
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
     row++;
 
-    strnfmt(buf, sizeof(buf), "Meta-run score: %lu", (unsigned long)metar.score);
+    strnfmt(buf, sizeof(buf), "Tale score: %lu", (unsigned long)metar.score);
     story_book_put_line(row++, 4, term_width - 6, TERM_WHITE, buf);
-    strnfmt(buf, sizeof(buf), "Best single run: %lu",
+    strnfmt(buf, sizeof(buf), "Best hero run: %lu",
         (unsigned long)get_best_run_score_from_highscores());
     story_book_put_line(row++, 4, term_width - 6, TERM_WHITE, buf);
     strnfmt(buf, sizeof(buf), "Silmarils recovered: %d of %d", metar.silmarils,
@@ -1840,7 +1840,7 @@ static void story_book_draw_curses(int term_width, int row_limit,
     if (!known_count) {
         story_book_put_wrapped(&row, row_limit, 4, term_width - 6,
             TERM_L_DARK,
-            "No curse has yet revealed its full nature in this story run.");
+            "No curse has yet revealed its full nature in this tale.");
         return;
     }
 
@@ -1965,10 +1965,10 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
     int first;
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
-        "Chapter V - The Chronicle of Story Runs");
+        "Chapter V - The Chronicle of Tales");
     if (!metaruns || metarun_max <= 0) {
         story_book_put_line(row, 4, term_width - 6, TERM_L_DARK,
-            "No story runs have been recorded.");
+            "No tales have been recorded.");
         return;
     }
 
@@ -1995,7 +1995,7 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
         struct tm *when = localtime(&played);
         if (when)
             strftime(date, sizeof(date), "%Y-%m-%d", when);
-        strnfmt(buf, sizeof(buf), "%c Story %u - score %lu - %s%s",
+        strnfmt(buf, sizeof(buf), "%c Tale %u - score %lu - %s%s",
             (pos == *selected_position) ? '>' : ' ', (unsigned)m->id,
             (unsigned long)m->score, date, (idx == current_run) ? " (current)" : "");
         story_book_put_line(row, 4, term_width - 6,
@@ -2032,10 +2032,10 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
             if (m->major_blessings & (1U << i)) majors++;
         }
 
-        strnfmt(buf, sizeof(buf), "Story %u - %s", (unsigned)m->id, result);
+        strnfmt(buf, sizeof(buf), "Tale %u - %s", (unsigned)m->id, result);
         story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
         strnfmt(buf, sizeof(buf),
-            "%s difficulty; %d Silmarils; %d deaths; best run %lu.",
+            "%s difficulty; %d Silmarils; %d deaths; best hero run %lu.",
             difficulty, m->silmarils, m->deaths,
             (unsigned long)m->best_run_score);
         story_book_put_wrapped(&row, row_limit, 6, term_width - 8, TERM_WHITE, buf);
@@ -2212,7 +2212,7 @@ static bool story_book_sdl_build(bool startup_scene,
         STORY_BOOK_PAGE_BASE + STORY_BOOK_CURSES, STORY_BOOK_CURSES);
     sdl_character_sheet_screen_add_book_contents("IV. Difficulty",
         STORY_BOOK_PAGE_BASE + STORY_BOOK_DIFFICULTY, STORY_BOOK_DIFFICULTY);
-    sdl_character_sheet_screen_add_book_contents("V. Story Runs",
+    sdl_character_sheet_screen_add_book_contents("V. Tales",
         STORY_BOOK_PAGE_BASE + STORY_BOOK_METARUNS, STORY_BOOK_METARUNS);
 
     refresh_current_metar_score();
@@ -2236,12 +2236,12 @@ static bool story_book_sdl_build(bool startup_scene,
      * (the colour of the held light) for the road to the next blessing. */
     story_book_sdl_heading("Chapter I - The Measure of the Tale", false);
 
-    strnfmt(line, sizeof(line), "Story run %u on %s difficulty.",
+    strnfmt(line, sizeof(line), "Tale %u on %s difficulty.",
         (unsigned)metar.id, difficulty);
     sdl_character_sheet_screen_add_book_paragraph_colored(line, TERM_L_UMBER);
 
     strnfmt(line, sizeof(line),
-        "Meta-run score: %lu  (best single run: %lu).   Silmarils: %d of %d.",
+        "Tale score: %lu  (best hero run: %lu).   Silmarils: %d of %d.",
         (unsigned long)metar.score,
         (unsigned long)get_best_run_score_from_highscores(),
         metar.silmarils, win_goal);
@@ -2363,7 +2363,7 @@ static bool story_book_sdl_build(bool startup_scene,
         state->selected_curse = -1;
         state->curse_offset = 0;
         sdl_character_sheet_screen_add_book_paragraph(
-            "No curse has yet revealed its full nature in this story run.");
+            "No curse has yet revealed its full nature in this tale.");
     } else {
         int selected_pos = 0;
 
@@ -2437,8 +2437,8 @@ static bool story_book_sdl_build(bool startup_scene,
         story_book_sdl_difficulty_effects(pending, buf, sizeof(buf));
         sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_WHITE);
         sdl_character_sheet_screen_add_book_paragraph_colored(
-            "WARNING: This difficulty increase is permanent for this story "
-            "run. You cannot return to the current difficulty after "
+            "WARNING: This difficulty increase is permanent for this tale. "
+            "You cannot return to the current difficulty after "
             "confirming.", TERM_L_RED);
         sdl_character_sheet_screen_add_book_action_colored(
             "Confirm permanent difficulty change",
@@ -2500,14 +2500,14 @@ static bool story_book_sdl_build(bool startup_scene,
         }
     }
 
-    /* Page V: click a run to replace the detail paragraph in place. */
-    story_book_sdl_heading("Chapter V - The Chronicle of Story Runs", true);
+    /* Page V: click a tale to replace the detail paragraph in place. */
+    story_book_sdl_heading("Chapter V - The Chronicle of Tales", true);
     s16b *order = story_book_sdl_metarun_order();
     if (!order) {
         state->selected_run = 0;
         state->run_offset = 0;
         sdl_character_sheet_screen_add_book_paragraph(
-            "No story runs have been recorded.");
+            "No tales have been recorded.");
     } else {
         if (state->selected_run < 0) state->selected_run = 0;
         if (state->selected_run >= metarun_max)
@@ -2528,7 +2528,7 @@ static bool story_book_sdl_build(bool startup_scene,
             struct tm *when = localtime(&played);
             if (when)
                 strftime(date, sizeof(date), "%Y-%m-%d", when);
-            strnfmt(line, sizeof(line), "%c Story %u - score %lu - %s%s",
+            strnfmt(line, sizeof(line), "%c Tale %u - score %lu - %s%s",
                 pos == state->selected_run ? '>' : '-', (unsigned)m->id,
                 (unsigned long)m->score, date,
                 idx == current_run ? " (current)" : "");
@@ -2562,17 +2562,17 @@ static bool story_book_sdl_build(bool startup_scene,
             if (m->major_blessings & (1U << i)) majors++;
         }
         strnfmt(buf, sizeof(buf),
-            "Story %u - %s.\n%s difficulty; %d Silmarils; %d deaths; best run %lu.\n"
+            "Tale %u - %s.\n%s difficulty; %d Silmarils; %d deaths; best hero run %lu.\n"
             "%d curse stacks, %d minor blessing stacks, %d major blessings.",
             (unsigned)m->id, result, run_difficulty, m->silmarils, m->deaths,
             (unsigned long)m->best_run_score, curses, blessings, majors);
         sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_SLATE);
         if (state->run_offset > 0)
             sdl_character_sheet_screen_add_book_action_colored(
-                "Newer story runs", STORY_BOOK_RUNS_NEWER, TERM_L_BLUE);
+                "Newer tales", STORY_BOOK_RUNS_NEWER, TERM_L_BLUE);
         if (end < metarun_max)
             sdl_character_sheet_screen_add_book_action_colored(
-                "Older story runs", STORY_BOOK_RUNS_OLDER, TERM_L_BLUE);
+                "Older tales", STORY_BOOK_RUNS_OLDER, TERM_L_BLUE);
         order = mem_free(order);
     }
 

@@ -1738,7 +1738,7 @@ bool reveal_random_artifact(void)
         reveal_count, reveal_count == 1 ? "thing" : "things");
     for (i = 0; i < reveal_count; i++)
         msg_format("You learn of %s.", o_names[i]);
-    msg_print("These names will remain known to later heroes in this metarun.");
+    msg_print("These names will remain known to later heroes in this tale.");
 
     for (i = 0; i < reveal_count; i++)
         desc_art_fake(selected[i]);

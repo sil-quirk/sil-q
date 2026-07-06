@@ -189,6 +189,7 @@ extern void re_init_some_things(void)
         /* Default value */
         op_ptr->opt[i] = option_norm[i];
     }
+    op_ptr->monster_tile_health_bar_mode = MONSTER_TILE_HEALTH_BARS_SHOW;
 
     /* Initialize the window flags */
     for (i = 0; i < ANGBAND_TERM_MAX; i++)
@@ -315,6 +316,7 @@ errr init_other(void)
         /* Default value */
         op_ptr->opt[i] = option_norm[i];
     }
+    op_ptr->monster_tile_health_bar_mode = MONSTER_TILE_HEALTH_BARS_SHOW;
 
     /* Initialize the window flags */
     for (i = 0; i < ANGBAND_TERM_MAX; i++)

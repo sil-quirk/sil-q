@@ -678,8 +678,8 @@ void do_cmd_knowledge_oaths(void)
         SDL_IOprintf(fff, "Current Oath: None\n\n");
     }
 
-    /* Display metarun oath status */
-    SDL_IOprintf(fff, "Metarun Oath Status:\n");
+    /* Display tale oath status */
+    SDL_IOprintf(fff, "Tale Oath Status:\n");
 
     /* Check unlocked oaths */
     bool has_unlocked = false;
@@ -687,7 +687,7 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "  Oath of Mercy: Unlocked");
         if (oath_banned(OATH_MERCY))
-            SDL_IOprintf(fff, " (Banned this run)");
+            SDL_IOprintf(fff, " (Banned in this tale)");
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
@@ -696,7 +696,7 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "  Oath of Silence: Unlocked");
         if (oath_banned(OATH_SILENCE))
-            SDL_IOprintf(fff, " (Banned this run)");
+            SDL_IOprintf(fff, " (Banned in this tale)");
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
@@ -705,7 +705,7 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "  Oath of Iron: Unlocked");
         if (oath_banned(OATH_IRON))
-            SDL_IOprintf(fff, " (Banned this run)");
+            SDL_IOprintf(fff, " (Banned in this tale)");
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
@@ -714,7 +714,7 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "  Oath of the Smith: Unlocked");
         if (oath_banned(OATH_SMITH))
-            SDL_IOprintf(fff, " (Banned this run)");
+            SDL_IOprintf(fff, " (Banned in this tale)");
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
@@ -723,7 +723,7 @@ void do_cmd_knowledge_oaths(void)
     {
         SDL_IOprintf(fff, "  Oath of Valorous Heart: Unlocked");
         if (oath_banned(OATH_VALOROUS))
-            SDL_IOprintf(fff, " (Banned this run)");
+            SDL_IOprintf(fff, " (Banned in this tale)");
         SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
