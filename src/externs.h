@@ -1899,6 +1899,8 @@ extern void cnv_stat(int val, char* out_val);
 extern int health_level(int current, int max);
 extern int monster_health_bar_text(
     const monster_type* m_ptr, char* buf, size_t buflen, int max_symbols);
+extern int monster_health_bar_put(
+    const monster_type* m_ptr, int max_symbols);
 extern bool get_alertness_text(
     monster_type* m_ptr, int text_size, char* text, int* color);
 extern byte health_attr(int current, int max);
@@ -2137,8 +2139,9 @@ extern void sdl_push_description_overlay_main_anchor(void);
 extern void sdl_pop_description_overlay_main_anchor(void);
 extern bool sdl_description_overlay_present(const byte* attrs,
     const char* chars, const byte* tattrs, const char* tchars,
-    const byte* story, int width, int height, int target_cols, int scroll,
-    bool interactive, int* out_visible_rows, int* out_max_scroll);
+    const byte* story, const byte* health, int width, int height,
+    int target_cols, int scroll, bool interactive, int* out_visible_rows,
+    int* out_max_scroll);
 extern void sdl_description_overlay_set_footer(cptr text, bool always);
 extern void sdl_description_overlay_clear_footer_actions(void);
 extern void sdl_description_overlay_add_footer_action(int key, cptr token);

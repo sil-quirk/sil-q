@@ -201,27 +201,20 @@ void health_redraw(void)
     /* Tracking a visible monster */
     else
     {
-        int len;
         int color;
         char buf[20];
-        char health_bar[10];
 
         monster_type* m_ptr = &mon_list[p_ptr->health_who];
-
-        /* Default to almost dead */
-        byte attr = health_attr(m_ptr->hp, m_ptr->maxhp);
 
         /* Afraid */
         // if (m_ptr->stance == STANCE_FLEEING) attr = TERM_VIOLET;
 
-        /* Convert into health bar (using ceiling for length) */
-        len = monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
-
         /* Default to "unknown" */
         Term_putstr(COL_INFO, ROW_INFO, 12, TERM_L_DARK, "  --------  ");
 
-        /* Dump the current "health" (handle monster stunning, confusion) */
-        Term_putstr(COL_INFO + 2, ROW_INFO, len, attr, health_bar);
+        /* Dump the current health (including confusion/stun labels). */
+        Term_gotoxy(COL_INFO + 2, ROW_INFO);
+        monster_health_bar_put(m_ptr, 8);
 
         Term_erase(COL_INFO, ROW_INFO + 1, 12);
 

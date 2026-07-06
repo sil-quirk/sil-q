@@ -12,6 +12,7 @@ typedef struct hidden_overlay_line {
     char icon_char;
     byte pointer_attack_mode;
     byte click_action;
+    s16b health_m_idx;
 } hidden_overlay_line;
 
 #define STATUS_MAIN_MENU_HINT "main menu"

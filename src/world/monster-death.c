@@ -899,6 +899,18 @@ bool morgoth_enter_final_stage(int m_idx)
 
     if (p_ptr->health_who == m_idx)
         p_ptr->redraw |= (PR_HEALTHBAR);
+    if (m_ptr->ml
+        && (styled_monster_health_bars || styled_monster_tile_health_bars))
+    {
+        if (styled_monster_health_bars)
+        {
+            p_ptr->window |= PW_MONLIST;
+            if (p_ptr->health_who == m_idx)
+                p_ptr->window |= PW_MONSTER;
+        }
+        if (styled_monster_tile_health_bars)
+            lite_spot(m_ptr->fy, m_ptr->fx);
+    }
 
     log_info("Morgoth entered final stage at %d/%d HP.",
              m_ptr->hp, m_ptr->maxhp);
@@ -1225,6 +1237,19 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
 
     /* Hurt it */
     m_ptr->hp -= dam;
+
+    if (m_ptr->ml
+        && (styled_monster_health_bars || styled_monster_tile_health_bars))
+    {
+        if (styled_monster_health_bars)
+        {
+            p_ptr->window |= PW_MONLIST;
+            if (p_ptr->health_who == m_idx)
+                p_ptr->window |= PW_MONSTER;
+        }
+        if (styled_monster_tile_health_bars)
+            lite_spot(m_ptr->fy, m_ptr->fx);
+    }
 
     if (dam > 0)
         maybe_update_morgoth_state_from_hp(m_ptr);

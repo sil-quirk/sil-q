@@ -425,6 +425,52 @@ SDL_Color sdl_color_from_attr(byte attr)
     return col;
 }
 
+/*
+ * Draw a continuous health bar into an already laid-out rectangle.  The fill
+ * level is stored as 1..255 in terminal metadata so it survives save/restore
+ * and can be rendered consistently by panes and overlays.
+ */
+void sdl_render_health_bar_rect(const SDL_FRect* rect, byte level,
+    byte fill_attr)
+{
+    SDL_Color fill_color;
+    SDL_Color track_color;
+    SDL_Color frame_color;
+    SDL_FRect fill;
+    float inner_w;
+
+    if (!rect || rect->w < 2.0f || rect->h < 2.0f || level == 0)
+        return;
+
+    fill_color = sdl_color_from_attr(sdl_ui_text_fg_attr(fill_attr));
+    track_color = sdl_color_from_attr(TERM_L_DARK);
+    frame_color = sdl_color_from_attr(TERM_SLATE);
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, track_color.r, track_color.g,
+        track_color.b, 255);
+    SDL_RenderFillRect(g_state.renderer, rect);
+
+    fill = *rect;
+    fill.x += 1.0f;
+    fill.y += 1.0f;
+    inner_w = rect->w - 2.0f;
+    fill.w = inner_w * ((float)level / 255.0f);
+    fill.h -= 2.0f;
+    if (fill.w > 0.0f && fill.h > 0.0f)
+    {
+        if (fill.w < 1.0f)
+            fill.w = 1.0f;
+        SDL_SetRenderDrawColor(g_state.renderer, fill_color.r, fill_color.g,
+            fill_color.b, 255);
+        SDL_RenderFillRect(g_state.renderer, &fill);
+    }
+
+    SDL_SetRenderDrawColor(g_state.renderer, frame_color.r, frame_color.g,
+        frame_color.b, 255);
+    SDL_RenderRect(g_state.renderer, rect);
+}
+
 void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n,
     byte attr)
 {

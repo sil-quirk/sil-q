@@ -42,6 +42,35 @@ bool death_spectator_command_allowed(int command)
     }
 }
 
+static void death_spectator_reset_command(void)
+{
+    p_ptr->command_cmd = 0;
+    p_ptr->command_new = 0;
+    p_ptr->command_rep = 0;
+    p_ptr->command_arg = 0;
+    p_ptr->command_dir = 0;
+}
+
+static bool death_spectator_handle_map_pan(void)
+{
+    int dir = p_ptr->command_dir;
+
+    if (!dir && p_ptr->command_cmd)
+        dir = target_dir((char)p_ptr->command_cmd);
+
+    if (dir <= 0 || dir == 5)
+        return false;
+
+    if (change_panel(dir))
+    {
+        handle_stuff();
+        Term_fresh();
+    }
+
+    death_spectator_reset_command();
+    return true;
+}
+
 static bool death_spectator_continue_input(int command)
 {
     if ((command == ' ') || (command == '\n') || (command == '\r'))
@@ -84,7 +113,7 @@ static void death_spectator_prepare_display(void)
     handle_stuff();
 
     msg_print(
-        "You linger for a final look. Press Esc, Space, or Enter to continue to the tomb.");
+        "You linger for a final look. Move to pan; press Esc, Space, or Enter to continue.");
 }
 
 void death_spectator_view(void)
@@ -94,11 +123,7 @@ void death_spectator_view(void)
     sdl_mouse_path_cancel();
 
     /* Clear any queued commands from the main loop. */
-    p_ptr->command_cmd = 0;
-    p_ptr->command_new = 0;
-    p_ptr->command_rep = 0;
-    p_ptr->command_arg = 0;
-    p_ptr->command_dir = 0;
+    death_spectator_reset_command();
 
     /* Prevent lingering keypresses from auto-triggering commands. */
     flush();
@@ -115,13 +140,16 @@ void death_spectator_view(void)
             break;
         }
 
+        if (death_spectator_handle_map_pan())
+            continue;
+
         if (!death_spectator_command_allowed(p_ptr->command_cmd))
         {
             if (p_ptr->command_cmd)
             {
                 msg_print("You can no longer take that action.");
             }
-            p_ptr->command_cmd = 0;
+            death_spectator_reset_command();
             continue;
         }
 
@@ -132,11 +160,7 @@ void death_spectator_view(void)
             break;
 
         /* Reset command state for the next iteration. */
-        p_ptr->command_cmd = 0;
-        p_ptr->command_new = 0;
-        p_ptr->command_rep = 0;
-        p_ptr->command_arg = 0;
-        p_ptr->command_dir = 0;
+        death_spectator_reset_command();
     }
 
     death_spectator_mode = false;
@@ -144,11 +168,7 @@ void death_spectator_view(void)
 
     /* Ensure no residual actions are pending. */
     p_ptr->energy_use = 0;
-    p_ptr->command_cmd = 0;
-    p_ptr->command_new = 0;
-    p_ptr->command_rep = 0;
-    p_ptr->command_arg = 0;
-    p_ptr->command_dir = 0;
+    death_spectator_reset_command();
 }
 
 bool death_spectator_active(void)

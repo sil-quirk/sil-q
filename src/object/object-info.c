@@ -2721,6 +2721,7 @@ bool object_info_overlay_show_multi(const object_type** objects,
             object_info_overlay_capture.tattrs,
             object_info_overlay_capture.tchars,
             object_info_overlay_capture.story,
+            NULL,
             object_info_overlay_capture.width,
             object_info_overlay_capture.height,
             object_info_overlay_capture.target_cols, 0, false, NULL, NULL))
@@ -2784,6 +2785,7 @@ static char object_info_screen_capture_view(
         object_info_configure_footer(footer, actions, action_count);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
+                NULL,
                 capture->width, capture->height, capture->target_cols, scroll,
                 true, &visible_rows, &max_scroll))
         {

@@ -140,7 +140,9 @@ static const struct option_group_marker interface_option_groups[] = {
     { OPT_look_objects_sort_by_difficulty, "Look" },
     { OPT_look_nearby_filter_default, "Look" },
     { OPT_song_list_sort_by_recent, "Look" },
-    { OPT_styled_player_health_bar, "Panels" },
+    { OPT_styled_player_health_bar, "Health Bars" },
+    { OPT_styled_monster_health_bars, "Health Bars" },
+    { OPT_styled_monster_tile_health_bars, "Health Bars" },
     { OPT_hide_supporting_panes_fullscreen, "Panels" },
     { OPT_hitpoint_warning, "Warnings" },
     { OPT_supply_menu_random_icons, "Items" },
@@ -182,6 +184,7 @@ static const struct option_group_marker gameplay_option_groups[] = {
 static const struct option_group_marker visual_option_groups[] = {
     { OPT_stealth_vision, "Overlays" },
     { OPT_sleep_icon, "Overlays" },
+    { OPT_pixel_monster_status_icons, "Overlays" },
     { OPT_artifact_unique_color, "Items" },
     { OPT_unidentified_items_slate, "Items" },
     { OPT_delay_factor, "Animation" },
@@ -794,6 +797,15 @@ static cptr option_menu_label(int opt)
     case OPT_styled_player_health_bar:
         return compact ? (narrow ? "Styled HP bar" : "Styled health bar")
                        : "Use styled player health bar in the left panel";
+    case OPT_styled_monster_health_bars:
+        return compact ? (narrow ? "Monster HP bars" : "Monster health bars")
+                       : "Use styled monster health bars in panes/overlays";
+    case OPT_styled_monster_tile_health_bars:
+        return compact ? (narrow ? "Tile HP bars" : "Monster tile HP bars")
+                       : "Show monster health bars on map tiles";
+    case OPT_pixel_monster_status_icons:
+        return compact ? (narrow ? "Pixel status" : "Pixel monster status")
+                       : "Use pixel-rendered monster status icons";
     case OPT_hide_supporting_panes_fullscreen:
         return compact ? (narrow ? "Hide panes FS" : "Hide panes full-screen")
                        : "Hide supporting panes on full-screen screens";
@@ -1052,8 +1064,18 @@ static void option_apply_side_effects(int opt)
         p_ptr->redraw |= PR_BASIC;
         sdl_left_panel_source_invalidate();
     }
+    if (opt == OPT_styled_monster_health_bars)
+    {
+        p_ptr->redraw |= PR_HEALTHBAR;
+        p_ptr->window |= (PW_MONSTER | PW_MONLIST);
+        redraw_monster_subwindows();
+        sdl_left_panel_source_invalidate();
+    }
+    if (opt == OPT_styled_monster_tile_health_bars)
+        p_ptr->redraw |= PR_MAP;
     if (opt == OPT_stealth_vision || opt == OPT_visual_recognition
         || opt == OPT_sleep_icon || opt == OPT_mirror_player_tile_facing
+        || opt == OPT_pixel_monster_status_icons
         || opt == OPT_handcrafted_player_tile_facing
         || opt == OPT_mirror_monster_tile_facing)
         p_ptr->redraw |= (PR_MAP);

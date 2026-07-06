@@ -378,6 +378,82 @@ errr callback_sdl_wipe(int x, int y, int n)
     return 0;
 }
 
+static bool sdl_render_term_health_bar(sdl_view* d, int x, int y)
+{
+    term_win* scr;
+    byte level;
+    byte fill_attr = TERM_L_GREEN;
+    int start;
+    int end;
+    bool confused = false;
+    bool stunned = false;
+    SDL_FRect bar;
+
+    if (!d || !Term || !styled_monster_health_bars || y < 0
+        || y >= Term->hgt || x < 0 || x >= Term->wid)
+    {
+        return false;
+    }
+
+    scr = Term->scr;
+    if (!scr || !scr->health || !scr->health[y])
+        return false;
+
+    level = scr->health[y][x];
+    if (level == 0)
+        return false;
+
+    start = x;
+    while (start > 0 && scr->health[y][start - 1] == level)
+        start--;
+    end = x + 1;
+    while (end < Term->wid && scr->health[y][end] == level)
+        end++;
+
+    for (int col = start; col < end; col++)
+    {
+        char ch = scr->c[y][col];
+
+        if (ch != '-' && ch != ' ')
+            fill_attr = scr->a[y][col];
+        if (ch == 'c')
+            confused = true;
+        else if (ch == 's')
+            stunned = true;
+    }
+
+    sdl_fill_cell_span_with_attr(d, start, y, end - start, TERM_DARK);
+    bar = (SDL_FRect){
+        .x = (float)(start * d->cell_w) + MAX(1.0f,
+            (float)d->cell_w * 0.12f),
+        .y = (float)(y * d->cell_h) + MAX(1.0f,
+            (float)d->cell_h * 0.24f),
+        .w = (float)((end - start) * d->cell_w)
+            - 2.0f * MAX(1.0f, (float)d->cell_w * 0.12f),
+        .h = (float)d->cell_h
+            - 2.0f * MAX(1.0f, (float)d->cell_h * 0.24f),
+    };
+    sdl_render_health_bar_rect(&bar, level, fill_attr);
+
+    if (confused || stunned)
+    {
+        char status[3];
+        int len = 0;
+        int status_col;
+        SDL_Color text = sdl_color_from_attr(TERM_WHITE);
+
+        if (confused)
+            status[len++] = 'c';
+        if (stunned)
+            status[len++] = 's';
+        status[len] = '\0';
+        status_col = start + MAX(0, ((end - start) - len) / 2);
+        sdl_render_mono_text(d, status_col, y, len, status, text);
+    }
+
+    return true;
+}
+
 errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 {
     sdl_view* d = sdl_view_from_term(Term);
@@ -395,6 +471,13 @@ errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     if (n <= 0)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
+
+    if (sdl_render_term_health_bar(d, x, y))
+    {
+        g_state.need_present = true;
+        return 0;
+    }
+
     bg_col.a = selected_attr ? 255 : sdl_view_background_alpha(d);
 
     TTF_Font* story_font = sdl_story_font_for_view(d);
@@ -1061,6 +1144,309 @@ static void sdl_draw_rewired_trap_tint(const SDL_FRect* dst)
     SDL_RenderFillRect(g_state.renderer, dst);
 }
 
+static float sdl_map_monster_health_bar_height(const SDL_FRect* cell)
+{
+    float height;
+
+    if (!cell)
+        return 0.0f;
+
+    height = cell->h * 0.16f;
+    if (height < 2.0f)
+        height = 2.0f;
+    if (height > 5.0f)
+        height = 5.0f;
+
+    return height;
+}
+
+static float sdl_map_monster_health_bar_y(const SDL_FRect* cell)
+{
+    if (!cell)
+        return 0.0f;
+
+    return cell->y + MAX(1.0f, cell->h * 0.05f);
+}
+
+static float sdl_map_monster_health_bar_bottom(const SDL_FRect* cell)
+{
+    if (!cell)
+        return 0.0f;
+
+    return sdl_map_monster_health_bar_y(cell)
+        + sdl_map_monster_health_bar_height(cell);
+}
+
+static void sdl_draw_map_monster_health_bar(int y, int x,
+    const SDL_FRect* cell)
+{
+    int m_idx;
+    monster_type* m_ptr;
+    long scaled;
+    float margin;
+    float height;
+    SDL_FRect bar;
+
+    if (!styled_monster_tile_health_bars || !p_ptr || p_ptr->image || !cell)
+        return;
+    if (y < 0 || x < 0 || y >= p_ptr->cur_map_hgt
+        || x >= p_ptr->cur_map_wid)
+    {
+        return;
+    }
+    if (!p_ptr->is_dead && (p_ptr->rage || g_labyrinth_view_active)
+        && !(cave_info[y][x] & CAVE_SEEN))
+    {
+        return;
+    }
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0 || m_idx >= mon_max)
+        return;
+
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !m_ptr->ml || m_ptr->hp <= 0 || m_ptr->maxhp <= 0)
+        return;
+    if (m_ptr->alertness < ALERTNESS_UNWARY)
+        return;
+
+    scaled = ((long)m_ptr->hp * 255L + (long)m_ptr->maxhp - 1L)
+        / (long)m_ptr->maxhp;
+    if (scaled < 1L)
+        scaled = 1L;
+    if (scaled > 255L)
+        scaled = 255L;
+
+    margin = MAX(1.0f, cell->w * 0.10f);
+    height = sdl_map_monster_health_bar_height(cell);
+
+    bar = (SDL_FRect){
+        .x = cell->x + margin,
+        .y = sdl_map_monster_health_bar_y(cell),
+        .w = cell->w - margin * 2.0f,
+        .h = height,
+    };
+    sdl_render_health_bar_rect(&bar, (byte)scaled,
+        health_attr(m_ptr->hp, m_ptr->maxhp));
+}
+
+static float sdl_status_icon_clampf(float value, float min_value,
+    float max_value)
+{
+    if (value < min_value)
+        return min_value;
+    if (value > max_value)
+        return max_value;
+    return value;
+}
+
+static void sdl_status_icon_set_color(SDL_Color color, Uint8 alpha)
+{
+    SDL_SetRenderDrawColor(g_state.renderer, color.r, color.g, color.b,
+        alpha);
+}
+
+static void sdl_status_icon_fill_disc(float cx, float cy, float radius)
+{
+    float half_cross = MAX(1.0f, radius * 0.55f);
+    SDL_FRect horizontal = {
+        cx - radius, cy - half_cross, radius * 2.0f, half_cross * 2.0f
+    };
+    SDL_FRect vertical = {
+        cx - half_cross, cy - radius, half_cross * 2.0f, radius * 2.0f
+    };
+
+    SDL_RenderFillRect(g_state.renderer, &horizontal);
+    SDL_RenderFillRect(g_state.renderer, &vertical);
+}
+
+static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
+{
+    float size;
+    float radius;
+    float cx;
+    float cy;
+    SDL_Color shadow = { 0, 0, 0, 180 };
+    SDL_Color dot = sdl_color_from_attr(TERM_L_BLUE);
+
+    if (!cell)
+        return;
+
+    size = MIN(cell->w, cell->h);
+    radius = sdl_status_icon_clampf(size * 0.08f, 1.5f, 4.0f);
+    cx = cell->x + cell->w * 0.5f;
+    cy = cell->y + MAX(radius + 1.0f, size * 0.12f);
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    sdl_status_icon_set_color(shadow, shadow.a);
+    sdl_status_icon_fill_disc(cx + 1.0f, cy + 1.0f, radius + 0.75f);
+    sdl_status_icon_set_color(dot, 245);
+    sdl_status_icon_fill_disc(cx, cy, radius);
+}
+
+static void sdl_draw_eye_outline(const SDL_FRect* eye, float offset,
+    SDL_Color color, Uint8 alpha)
+{
+    float lx = eye->x + offset;
+    float rx = eye->x + eye->w + offset;
+    float tx = eye->x + eye->w * 0.5f + offset;
+    float by = eye->y + eye->h + offset;
+    float cy = eye->y + eye->h * 0.5f + offset;
+    float ty = eye->y + offset;
+
+    sdl_status_icon_set_color(color, alpha);
+    SDL_RenderLine(g_state.renderer, lx, cy, tx, ty);
+    SDL_RenderLine(g_state.renderer, tx, ty, rx, cy);
+    SDL_RenderLine(g_state.renderer, rx, cy, tx, by);
+    SDL_RenderLine(g_state.renderer, tx, by, lx, cy);
+}
+
+static void sdl_draw_pixel_los_marker(const SDL_FRect* cell)
+{
+    float size;
+    float margin;
+    float top;
+    float pupil;
+    SDL_FRect eye;
+    SDL_FRect pupil_rect;
+    SDL_Color shadow = { 0, 0, 0, 190 };
+    SDL_Color outline = sdl_color_from_attr(TERM_L_RED);
+    SDL_Color iris = sdl_color_from_attr(TERM_WHITE);
+
+    if (!cell)
+        return;
+
+    size = MIN(cell->w, cell->h);
+    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
+    top = cell->y + margin;
+    if (styled_monster_tile_health_bars)
+        top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
+    eye = (SDL_FRect){
+        .x = cell->x + margin,
+        .y = top,
+        .w = sdl_status_icon_clampf(size * 0.36f, 5.0f, 12.0f),
+        .h = sdl_status_icon_clampf(size * 0.22f, 3.0f, 8.0f),
+    };
+    pupil = sdl_status_icon_clampf(size * 0.08f, 1.5f, 3.0f);
+    pupil_rect = (SDL_FRect){
+        .x = eye.x + eye.w * 0.5f - pupil * 0.5f,
+        .y = eye.y + eye.h * 0.5f - pupil * 0.5f,
+        .w = pupil,
+        .h = pupil,
+    };
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    sdl_draw_eye_outline(&eye, 1.0f, shadow, shadow.a);
+    sdl_draw_eye_outline(&eye, 0.0f, outline, 245);
+    pupil_rect.x += 1.0f;
+    pupil_rect.y += 1.0f;
+    pupil_rect.w += 1.0f;
+    pupil_rect.h += 1.0f;
+    sdl_status_icon_set_color(shadow, shadow.a);
+    SDL_RenderFillRect(g_state.renderer, &pupil_rect);
+    pupil_rect.x -= 1.0f;
+    pupil_rect.y -= 1.0f;
+    pupil_rect.w -= 1.0f;
+    pupil_rect.h -= 1.0f;
+    sdl_status_icon_set_color(iris, 245);
+    SDL_RenderFillRect(g_state.renderer, &pupil_rect);
+}
+
+static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell)
+{
+    float size;
+    float margin;
+    float top;
+    float width;
+    float stem_h;
+    float dot_size;
+    SDL_FRect stem;
+    SDL_FRect dot;
+    SDL_Color shadow = { 0, 0, 0, 190 };
+    SDL_Color alert = sdl_color_from_attr(TERM_YELLOW);
+
+    if (!cell)
+        return;
+
+    size = MIN(cell->w, cell->h);
+    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
+    top = cell->y + margin;
+    if (styled_monster_tile_health_bars)
+        top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
+    width = sdl_status_icon_clampf(size * 0.075f, 1.5f, 3.2f);
+    stem_h = sdl_status_icon_clampf(size * 0.27f, 4.0f, 11.0f);
+    dot_size = sdl_status_icon_clampf(width * 1.25f, 2.0f, 4.0f);
+
+    stem = (SDL_FRect){
+        .x = cell->x + cell->w - margin - width,
+        .y = top,
+        .w = width,
+        .h = stem_h,
+    };
+    dot = (SDL_FRect){
+        .x = stem.x + width * 0.5f - dot_size * 0.5f,
+        .y = stem.y + stem_h + MAX(1.0f, width * 0.55f),
+        .w = dot_size,
+        .h = dot_size,
+    };
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    sdl_status_icon_set_color(shadow, shadow.a);
+    stem.x += 1.0f;
+    stem.y += 1.0f;
+    dot.x += 1.0f;
+    dot.y += 1.0f;
+    SDL_RenderFillRect(g_state.renderer, &stem);
+    SDL_RenderFillRect(g_state.renderer, &dot);
+
+    stem.x -= 1.0f;
+    stem.y -= 1.0f;
+    dot.x -= 1.0f;
+    dot.y -= 1.0f;
+    sdl_status_icon_set_color(alert, 245);
+    SDL_RenderFillRect(g_state.renderer, &stem);
+    SDL_RenderFillRect(g_state.renderer, &dot);
+}
+
+static void sdl_draw_map_monster_status_icons(bool sleep, bool seen,
+    bool alert, const SDL_FRect* dst)
+{
+    if (!dst)
+        return;
+
+    if (pixel_monster_status_icons)
+    {
+        if (seen)
+            sdl_draw_pixel_los_marker(dst);
+        if (sleep)
+            sdl_draw_pixel_sleep_marker(dst);
+        if (alert)
+            sdl_draw_pixel_alert_marker(dst);
+        return;
+    }
+
+    if (sleep) {
+        byte icon_a = misc_to_attr[ICON_SLEEPING];
+        byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+
+    if (seen) {
+        byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
+        byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+
+    if (alert) {
+        byte icon_a = misc_to_attr[ICON_ALERT];
+        byte icon_c = (byte)misc_to_char[ICON_ALERT];
+        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
+            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
+    }
+}
+
 void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     char tc, const SDL_FRect* dst)
 {
@@ -1093,6 +1479,7 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
 
     if (!tile_mode) {
         sdl_draw_ascii_minimap_cell(a, c, ta, tc, dst);
+        sdl_draw_map_monster_health_bar(dy, dx, dst);
         return;
     }
 
@@ -1214,26 +1601,8 @@ void sdl_draw_map_tile_layers_at(int dy, int dx, byte a, char c, byte ta,
     if (sdl_rewired_trap_tint_active(dy, dx))
         sdl_draw_rewired_trap_tint(dst);
 
-    if (sleep) {
-        byte icon_a = misc_to_attr[ICON_SLEEPING];
-        byte icon_c = (byte)misc_to_char[ICON_SLEEPING];
-        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
-    }
-
-    if (seen) {
-        byte icon_a = misc_to_attr[ICON_MONSTER_SEES_PLAYER];
-        byte icon_c = (byte)misc_to_char[ICON_MONSTER_SEES_PLAYER];
-        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
-    }
-
-    if (alert) {
-        byte icon_a = misc_to_attr[ICON_ALERT];
-        byte icon_c = (byte)misc_to_char[ICON_ALERT];
-        if ((icon_a & TILE_FLAG) && (icon_c & TILE_FLAG))
-            sdl_draw_tileset_sprite(icon_a, (char)icon_c, dst, true);
-    }
+    sdl_draw_map_monster_health_bar(dy, dx, dst);
+    sdl_draw_map_monster_status_icons(sleep, seen, alert, dst);
 }
 
 bool sdl_minimap_hint_source_valid(const hint_message_meta* meta)
@@ -2332,6 +2701,50 @@ static int g_minimap_map_texture_min_y;
 static int g_minimap_map_texture_min_x;
 static int g_minimap_map_texture_max_y;
 static int g_minimap_map_texture_max_x;
+static Uint64 g_minimap_map_texture_health_hash;
+
+static Uint64 sdl_minimap_monster_health_hash(void)
+{
+    Uint64 hash = 1469598103934665603ULL;
+
+    hash ^= (Uint64)(styled_monster_tile_health_bars ? 1 : 0);
+    hash *= 1099511628211ULL;
+    hash ^= (Uint64)(pixel_monster_status_icons ? 1 : 0);
+    hash *= 1099511628211ULL;
+    if (!styled_monster_tile_health_bars && !pixel_monster_status_icons)
+        return hash;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        const monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx || !m_ptr->ml)
+            continue;
+        hash ^= (Uint64)i;
+        hash *= 1099511628211ULL;
+        hash ^= ((Uint64)(u16b)m_ptr->fy << 16)
+            | (Uint64)(u16b)m_ptr->fx;
+        hash *= 1099511628211ULL;
+        if (styled_monster_tile_health_bars)
+        {
+            hash ^= (Uint64)(u16b)m_ptr->hp;
+            hash *= 1099511628211ULL;
+            hash ^= (Uint64)(u16b)m_ptr->maxhp;
+            hash *= 1099511628211ULL;
+            hash ^= (Uint64)(m_ptr->alertness < ALERTNESS_UNWARY ? 1 : 0);
+            hash *= 1099511628211ULL;
+        }
+        if (pixel_monster_status_icons)
+        {
+            hash ^= (Uint64)(m_ptr->alertness < ALERTNESS_UNWARY ? 1 : 0);
+            hash *= 1099511628211ULL;
+            hash ^= (Uint64)(m_ptr->alertness >= ALERTNESS_ALERT ? 1 : 0);
+            hash *= 1099511628211ULL;
+        }
+    }
+
+    return hash;
+}
 
 void sdl_minimap_map_texture_cache_clear(void)
 {
@@ -2344,6 +2757,7 @@ void sdl_minimap_map_texture_cache_clear(void)
     g_minimap_map_texture_min_x = 0;
     g_minimap_map_texture_max_y = 0;
     g_minimap_map_texture_max_x = 0;
+    g_minimap_map_texture_health_hash = 0;
 }
 
 static bool sdl_minimap_map_texture_cache_matches(int min_y, int min_x,
@@ -2354,7 +2768,9 @@ static bool sdl_minimap_map_texture_cache_matches(int min_y, int min_x,
         && g_minimap_map_texture_min_y == min_y
         && g_minimap_map_texture_min_x == min_x
         && g_minimap_map_texture_max_y == max_y
-        && g_minimap_map_texture_max_x == max_x;
+        && g_minimap_map_texture_max_x == max_x
+        && g_minimap_map_texture_health_hash
+            == sdl_minimap_monster_health_hash();
 }
 
 bool sdl_display_pixel_map(int* cy, int* cx)
@@ -2439,6 +2855,8 @@ bool sdl_display_pixel_map(int* cy, int* cx)
         g_minimap_map_texture_min_x = min_x;
         g_minimap_map_texture_max_y = max_y;
         g_minimap_map_texture_max_x = max_x;
+        g_minimap_map_texture_health_hash =
+            sdl_minimap_monster_health_hash();
     } else {
         map_texture = g_minimap_map_texture;
     }
@@ -2614,6 +3032,9 @@ errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
         char c = cp[i];
         int dy = -1;
         int dx = -1;
+
+        if (sdl_render_term_health_bar(d, x + i, y))
+            continue;
 
         /*
          * Combat-roll tiles are drawn inline by the pixel-packed row renderer

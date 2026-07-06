@@ -695,7 +695,19 @@ void redraw_monster_subwindows(void)
         Term_activate(angband_term[j]);
 
         if (p_ptr->monster_race_idx)
-            display_roff(p_ptr->monster_race_idx, NULL);
+        {
+            monster_type* m_ptr = NULL;
+
+            if (p_ptr->health_who > 0 && p_ptr->health_who < mon_max
+                && mon_list[p_ptr->health_who].r_idx
+                && mon_list[p_ptr->health_who].ml
+                && mon_list[p_ptr->health_who].r_idx
+                    == p_ptr->monster_race_idx)
+            {
+                m_ptr = &mon_list[p_ptr->health_who];
+            }
+            display_roff(p_ptr->monster_race_idx, m_ptr);
+        }
 
         Term_fresh();
         Term_activate(old);
@@ -920,6 +932,9 @@ typedef struct unified_sidebar_compact_entry
     byte text_attr;
     char symbol[2];
     char text[128];
+    s16b health_m_idx;
+    byte health_offset;
+    byte health_len;
 } unified_sidebar_compact_entry;
 
 static bool unified_sidebar_use_compact_layout(void)
@@ -1057,7 +1072,10 @@ static int unified_sidebar_compact_build_entries(
             r_ptr = &r_info[m_ptr->r_idx];
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
 
-            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            if (styled_monster_health_bars)
+                SDL_strlcpy(hp_bar, "--------", sizeof(hp_bar));
+            else
+                monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
 
             if (m_ptr->alertness < ALERTNESS_UNWARY)
             {
@@ -1100,6 +1118,12 @@ static int unified_sidebar_compact_build_entries(
             entry->symbol[0] = monster_char(r_ptr);
             entry->symbol[1] = '\0';
             strnfmt(entry->text, sizeof(entry->text), "%s%s", name_buf, suffix);
+            if (styled_monster_health_bars)
+            {
+                entry->health_m_idx = (s16b)m_idx;
+                entry->health_offset = (byte)MIN(strlen(name_buf) + 1, 255);
+                entry->health_len = 8;
+            }
         }
     }
 
@@ -1188,6 +1212,9 @@ static int unified_sidebar_compact_build_entries(
             entry->symbol[0] = object_char(o_ptr);
             entry->symbol[1] = '\0';
             strnfmt(entry->text, sizeof(entry->text), "%s%s", name_buf, suffix);
+            entry->health_m_idx = 0;
+            entry->health_offset = 0;
+            entry->health_len = 0;
         }
 
         objects = mem_free(objects);
@@ -1282,7 +1309,27 @@ static bool show_unified_sidebar_compact(unified_look_state* state)
         if (use_bigtile)
             Term_putch(pictogram_col + 1, row, 255, -1);
 
-        Term_putstr(text_col, row, -1, text_attr, entry->text);
+        if (entry->health_m_idx > 0 && entry->health_m_idx < mon_max
+            && entry->health_len > 0)
+        {
+            int suffix_offset = entry->health_offset + entry->health_len;
+
+            if (entry->health_offset > 0)
+                Term_putstr(text_col, row, entry->health_offset, text_attr,
+                    entry->text);
+            Term_gotoxy(text_col + entry->health_offset, row);
+            monster_health_bar_put(&mon_list[entry->health_m_idx],
+                entry->health_len);
+            if (entry->text[suffix_offset])
+            {
+                Term_putstr(text_col + suffix_offset, row, -1, text_attr,
+                    entry->text + suffix_offset);
+            }
+        }
+        else
+        {
+            Term_putstr(text_col, row, -1, text_attr, entry->text);
+        }
 
         if (highlight_this)
         {

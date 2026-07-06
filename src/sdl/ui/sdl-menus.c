@@ -2880,6 +2880,15 @@ static bool sdl_unified_look_sidebar_layout(
 
         row_w = sdl_unified_look_sidebar_text_width(font, item->text,
             out->font_px);
+        if (item->health_m_idx > 0 && item->health_len > 0)
+        {
+            float placeholder_w = sdl_unified_look_sidebar_text_width(font,
+                "--------", out->font_px);
+            float health_w = MAX(placeholder_w,
+                (float)out->font_px * 3.2f);
+
+            row_w += health_w - placeholder_w;
+        }
         if (item->kind == SDL_UNIFIED_LOOK_SIDEBAR_ITEM_ENTRY)
         {
             float symbol_w = sdl_unified_look_sidebar_text_width(font,
@@ -2993,6 +3002,18 @@ void sdl_unified_look_sidebar_add_entry(int choice, int entity_type, int y,
     item->text_attr = text_attr;
     SDL_strlcpy(item->symbol, symbol ? symbol : "", sizeof(item->symbol));
     SDL_strlcpy(item->text, text, sizeof(item->text));
+    if (styled_monster_health_bars && entity_type == 1
+        && in_bounds(y, x) && cave_m_idx[y][x] > 0)
+    {
+        cptr marker = strstr(item->text, "--------");
+
+        if (marker)
+        {
+            item->health_m_idx = cave_m_idx[y][x];
+            item->health_offset = (byte)MIN(marker - item->text, 255);
+            item->health_len = 8;
+        }
+    }
     g_state.need_present = true;
 }
 
@@ -3108,8 +3129,89 @@ void sdl_unified_look_sidebar_render(void)
                 sdl_unified_look_sidebar_draw_clipped_text(font, item->symbol,
                     symbol_color, symbol_x, row.y, layout.symbol_w, row.h);
             }
-            sdl_unified_look_sidebar_draw_clipped_text(font, item->text,
-                text_color, text_x, row.y, text_w, row.h);
+            if (item->health_m_idx > 0
+                && item->health_m_idx < mon_max
+                && item->health_len > 0
+                && mon_list[item->health_m_idx].r_idx)
+            {
+                const monster_type* m_ptr =
+                    &mon_list[item->health_m_idx];
+                char prefix[SDL_UNIFIED_LOOK_SIDEBAR_TEXT_LEN];
+                char suffix[SDL_UNIFIED_LOOK_SIDEBAR_TEXT_LEN];
+                char status[3];
+                int prefix_len = MIN(item->health_offset,
+                    (int)sizeof(prefix) - 1);
+                int suffix_offset = item->health_offset + item->health_len;
+                int status_len = 0;
+                float prefix_w;
+                float bar_w;
+                float suffix_x;
+                long scaled;
+                SDL_FRect bar;
+
+                SDL_memcpy(prefix, item->text, (size_t)prefix_len);
+                prefix[prefix_len] = '\0';
+                SDL_strlcpy(suffix,
+                    (suffix_offset < (int)strlen(item->text))
+                        ? item->text + suffix_offset : "",
+                    sizeof(suffix));
+
+                prefix_w = sdl_unified_look_sidebar_text_width(font, prefix,
+                    layout.font_px);
+                bar_w = sdl_unified_look_sidebar_text_width(font,
+                    "--------", layout.font_px);
+                if (bar_w < (float)layout.font_px * 3.2f)
+                    bar_w = (float)layout.font_px * 3.2f;
+                if (prefix_w + bar_w > text_w)
+                    bar_w = MAX(8.0f, text_w - prefix_w);
+
+                sdl_unified_look_sidebar_draw_clipped_text(font, prefix,
+                    text_color, text_x, row.y, text_w, row.h);
+
+                scaled = ((long)m_ptr->hp * 255L
+                    + (long)m_ptr->maxhp - 1L) / (long)m_ptr->maxhp;
+                if (scaled < 1L)
+                    scaled = 1L;
+                if (scaled > 255L)
+                    scaled = 255L;
+                bar = (SDL_FRect){
+                    .x = text_x + prefix_w,
+                    .y = row.y + row.h * 0.28f,
+                    .w = bar_w,
+                    .h = MAX(3.0f, row.h * 0.44f),
+                };
+                sdl_render_health_bar_rect(&bar, (byte)scaled,
+                    health_attr(m_ptr->hp, m_ptr->maxhp));
+
+                if (m_ptr->confused)
+                    status[status_len++] = 'c';
+                if (m_ptr->stunned)
+                    status[status_len++] = 's';
+                status[status_len] = '\0';
+                if (status_len > 0)
+                {
+                    float status_w = sdl_unified_look_sidebar_text_width(
+                        font, status, layout.font_px);
+
+                    sdl_unified_look_sidebar_draw_clipped_text(font, status,
+                        sdl_unified_look_sidebar_attr_color(TERM_WHITE),
+                        bar.x + MAX(0.0f, (bar.w - status_w) * 0.5f), row.y,
+                        bar.w, row.h);
+                }
+
+                suffix_x = bar.x + bar.w;
+                if (suffix_x < text_x + text_w)
+                {
+                    sdl_unified_look_sidebar_draw_clipped_text(font, suffix,
+                        text_color, suffix_x, row.y,
+                        text_x + text_w - suffix_x, row.h);
+                }
+            }
+            else
+            {
+                sdl_unified_look_sidebar_draw_clipped_text(font, item->text,
+                    text_color, text_x, row.y, text_w, row.h);
+            }
         }
     }
 }

@@ -1899,6 +1899,7 @@ static const byte app_input_options[] = {
 static const byte app_interface_options[] = {
     OPT_look_objects_sort_by_difficulty, OPT_look_nearby_filter_default,
     OPT_song_list_sort_by_recent, OPT_styled_player_health_bar,
+    OPT_styled_monster_health_bars, OPT_styled_monster_tile_health_bars,
     OPT_show_level_generation_debug, OPT_show_elemental_item_rolls,
     OPT_supply_menu_random_icons,
     OPT_supply_menu_hide_flavor_compact, OPT_hide_secondary_action_ring,
@@ -1923,7 +1924,8 @@ static const byte app_visual_options[] = {
     OPT_artifact_unique_color, OPT_hilite_player, OPT_hilite_target,
     OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
     OPT_unidentified_items_slate, OPT_stealth_vision, OPT_sleep_icon,
-    OPT_mirror_player_tile_facing, OPT_handcrafted_player_tile_facing,
+    OPT_pixel_monster_status_icons, OPT_mirror_player_tile_facing,
+    OPT_handcrafted_player_tile_facing,
     OPT_mirror_monster_tile_facing,
     OPT_center_player, OPT_run_avoid_center,
     OPT_show_smithing_difficulty,

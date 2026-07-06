@@ -1148,6 +1148,19 @@ bool make_attack_normal(monster_type* m_ptr)
                             /* Redraw (later) if needed */
                             if (p_ptr->health_who == m_idx)
                                 p_ptr->redraw |= (PR_HEALTHBAR);
+                            if (m_ptr->ml
+                                && (styled_monster_health_bars
+                                    || styled_monster_tile_health_bars))
+                            {
+                                if (styled_monster_health_bars)
+                                {
+                                    p_ptr->window |= PW_MONLIST;
+                                    if (p_ptr->health_who == m_idx)
+                                        p_ptr->window |= PW_MONSTER;
+                                }
+                                if (styled_monster_tile_health_bars)
+                                    lite_spot(m_ptr->fy, m_ptr->fx);
+                            }
 
                             /* Combine / Reorder the pack */
                             p_ptr->notice |= (PN_COMBINE | PN_REORDER);

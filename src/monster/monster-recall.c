@@ -38,13 +38,8 @@ static void roff_top_live(int r_idx, const monster_type* m_ptr)
 
     if (m_ptr && (m_ptr->maxhp > 0))
     {
-        char hp_bar[10];
-        byte attr = health_attr(m_ptr->hp, m_ptr->maxhp);
-
-        monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
-
         Term_addstr(-1, TERM_WHITE, " ");
-        Term_addstr(-1, attr, hp_bar[0] ? hp_bar : "-");
+        monster_health_bar_put(m_ptr, 8);
     }
 
     Term_addstr(-1, TERM_SLATE, "");
@@ -73,6 +68,7 @@ typedef struct monster_recall_screen_capture
     byte* tattrs;
     char* tchars;
     byte* story;
+    byte* health;
 } monster_recall_screen_capture;
 
 static void monster_recall_screen_capture_free(
@@ -86,6 +82,7 @@ static void monster_recall_screen_capture_free(
     mem_free_null(capture->tattrs);
     mem_free_null(capture->tchars);
     mem_free_null(capture->story);
+    mem_free_null(capture->health);
 
     capture->width = 0;
     capture->height = 0;
@@ -215,6 +212,7 @@ static bool monster_recall_screen_capture_build(
     capture->tattrs = mem_alloc_array(capture->width * capture->height, byte);
     capture->tchars = mem_alloc_array(capture->width * capture->height, char);
     capture->story = mem_alloc_array(capture->width * capture->height, byte);
+    capture->health = mem_alloc_array(capture->width * capture->height, byte);
 
     for (int y = 0; y < capture->height; y++)
     {
@@ -226,6 +224,7 @@ static bool monster_recall_screen_capture_build(
             capture->tattrs[idx] = scratch.scr->ta[y][x];
             capture->tchars[idx] = scratch.scr->tc[y][x];
             capture->story[idx] = scratch.scr->story[y][x];
+            capture->health[idx] = scratch.scr->health[y][x];
             if (use_story_font
                 && ((capture->chars[idx] != ' ')
                     || (capture->attrs[idx] != scratch.attr_blank)))
@@ -278,6 +277,7 @@ static int monster_recall_screen_capture_view(
         Term_get_size(NULL, &term_hgt);
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 capture->tattrs, capture->tchars, capture->story,
+                capture->health,
                 capture->width, capture->height, capture->target_cols, scroll,
                 true, &visible_rows, &max_scroll))
         {

@@ -2887,6 +2887,9 @@
 #define OPT_hide_secondary_action_ring 118
 #define OPT_mirror_monster_tile_facing 119
 #define OPT_styled_player_health_bar 120
+#define OPT_styled_monster_health_bars 121
+#define OPT_styled_monster_tile_health_bars 122
+#define OPT_pixel_monster_status_icons 123
 
 /*
  * Settings retired by the 0.9.7 interface refactor. These are not legacy
@@ -3090,6 +3093,10 @@
 #define story_object_desc op_ptr->opt[OPT_story_object_desc]
 #define hide_secondary_action_ring op_ptr->opt[OPT_hide_secondary_action_ring]
 #define styled_player_health_bar op_ptr->opt[OPT_styled_player_health_bar]
+#define styled_monster_health_bars op_ptr->opt[OPT_styled_monster_health_bars]
+#define styled_monster_tile_health_bars \
+    op_ptr->opt[OPT_styled_monster_tile_health_bars]
+#define pixel_monster_status_icons op_ptr->opt[OPT_pixel_monster_status_icons]
 #define disable_skeleton_note_tutorial                                           \
     op_ptr->opt[OPT_disable_skeleton_note_tutorial]
 #define smaller_level_size op_ptr->opt[OPT_smaller_level_size]

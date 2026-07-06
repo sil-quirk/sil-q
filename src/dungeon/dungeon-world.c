@@ -138,6 +138,8 @@ static void regen_monsters(void)
         /* Allow hp regeneration, if needed. */
         if (m_ptr->hp != m_ptr->maxhp)
         {
+            int old_hp = m_ptr->hp;
+
             /* Some monsters regenerate quickly */
             if (r_ptr->flags2 & (RF2_REGENERATE))
             {
@@ -157,6 +159,23 @@ static void regen_monsters(void)
             /* Fully healed -> flag minimum range for recalculation */
             if (m_ptr->hp == m_ptr->maxhp)
                 m_ptr->min_range = 0;
+
+            if (m_ptr->ml && m_ptr->hp != old_hp
+                && (styled_monster_health_bars
+                    || styled_monster_tile_health_bars))
+            {
+                if (styled_monster_health_bars)
+                {
+                    p_ptr->window |= PW_MONLIST;
+                    if (p_ptr->health_who == i)
+                    {
+                        p_ptr->redraw |= PR_HEALTHBAR;
+                        p_ptr->window |= PW_MONSTER;
+                    }
+                }
+                if (styled_monster_tile_health_bars)
+                    lite_spot(m_ptr->fy, m_ptr->fx);
+            }
         }
 
         /* Allow mana regeneration, if needed. */

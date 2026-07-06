@@ -849,6 +849,7 @@ typedef struct description_overlay_state {
     const byte* tattrs;
     const char* tchars;
     const byte* story;
+    const byte* health;
     int width;
     int height;
     int target_cols;
@@ -914,6 +915,9 @@ typedef struct sdl_unified_look_sidebar_item_state {
     int x;
     byte symbol_attr;
     byte text_attr;
+    s16b health_m_idx;
+    byte health_offset;
+    byte health_len;
     char symbol[SDL_UNIFIED_LOOK_SIDEBAR_SYMBOL_LEN];
     char text[SDL_UNIFIED_LOOK_SIDEBAR_TEXT_LEN];
 } sdl_unified_look_sidebar_item_state;
@@ -3239,7 +3243,7 @@ int get_sdl_platform_max_main_view_scale(void);
 int get_sdl_terminal_menu_scale(void);
 void sdl_push_terminal_menu_scale(void);
 void sdl_pop_terminal_menu_scale(void);
-bool sdl_description_overlay_present(const byte* attrs, const char* chars, const byte* tattrs, const char* tchars, const byte* story, int width, int height, int target_cols, int scroll, bool interactive, int* out_visible_rows, int* out_max_scroll);
+bool sdl_description_overlay_present(const byte* attrs, const char* chars, const byte* tattrs, const char* tchars, const byte* story, const byte* health, int width, int height, int target_cols, int scroll, bool interactive, int* out_visible_rows, int* out_max_scroll);
 void sdl_description_overlay_clear(void);
 void sdl_request_redraw(void);
 void sdl_apply_story_font_state(bool active);
@@ -3256,6 +3260,8 @@ bool sdl_story_cell_is_text(byte a, char c);
 byte sdl_ui_text_fg_attr(byte attr);
 byte sdl_ui_text_bg_attr(byte attr);
 SDL_Color sdl_color_from_attr(byte attr);
+void sdl_render_health_bar_rect(const SDL_FRect* rect, byte level,
+    byte fill_attr);
 void sdl_fill_cell_span_with_attr(sdl_view* d, int x, int y, int n, byte attr);
 void sdl_render_story_row_packed(sdl_view* d, TTF_Font* font, int y, const byte* story_row, const char* row_chars, const byte* row_attr);
 void sdl_render_story_text_grid(sdl_view* d, TTF_Font* font, int x, int y, int n, const char* s, SDL_Color col);

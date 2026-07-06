@@ -875,7 +875,19 @@ static void fix_monster(void)
 
         /* Display monster race info */
         if (p_ptr->monster_race_idx)
-            display_roff(p_ptr->monster_race_idx, NULL);
+        {
+            monster_type* m_ptr = NULL;
+
+            if (p_ptr->health_who > 0 && p_ptr->health_who < mon_max
+                && mon_list[p_ptr->health_who].r_idx
+                && mon_list[p_ptr->health_who].ml
+                && mon_list[p_ptr->health_who].r_idx
+                    == p_ptr->monster_race_idx)
+            {
+                m_ptr = &mon_list[p_ptr->health_who];
+            }
+            display_roff(p_ptr->monster_race_idx, m_ptr);
+        }
 
         /* Fresh */
         Term_fresh();

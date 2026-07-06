@@ -334,6 +334,8 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
     hash = sdl_left_panel_hash_mix(hash, g_mono_font_atlas_generation);
     hash = sdl_left_panel_hash_mix(hash,
         (Uint64)(op_ptr && styled_player_health_bar));
+    hash = sdl_left_panel_hash_mix(hash,
+        (Uint64)(op_ptr && styled_monster_health_bars));
     if (p_ptr && op_ptr && styled_player_health_bar) {
         hash = sdl_left_panel_hash_mix(hash, (Uint64)p_ptr->chp);
         hash = sdl_left_panel_hash_mix(hash, (Uint64)p_ptr->mhp);
@@ -364,11 +366,15 @@ static Uint64 sdl_left_panel_source_hash(const term* source_term,
             byte terrain_ch = (scr->tc && scr->tc[row])
                 ? (byte)scr->tc[row][col]
                 : 0;
+            byte health = (scr->health && scr->health[row])
+                ? scr->health[row][col]
+                : 0;
 
             hash = sdl_left_panel_hash_mix(hash, attr);
             hash = sdl_left_panel_hash_mix(hash, ch);
             hash = sdl_left_panel_hash_mix(hash, terrain_attr);
             hash = sdl_left_panel_hash_mix(hash, terrain_ch);
+            hash = sdl_left_panel_hash_mix(hash, health);
         }
     }
 
@@ -454,6 +460,83 @@ static bool sdl_render_left_panel_player_health_bar(int source_row,
     return true;
 }
 
+static int sdl_render_left_panel_monster_health_bar(term_win* scr,
+    int source_row, int col, int end_col, int out_col, int dest_row,
+    float content_x, float content_y, int cell_w, int cell_h,
+    SDL_Texture* font_atlas, int atlas_cell_w, int atlas_cell_h)
+{
+    byte level;
+    byte fill_attr = TERM_L_GREEN;
+    bool confused = false;
+    bool stunned = false;
+    int bar_end;
+    SDL_FRect bar;
+
+    if (!styled_monster_health_bars || !scr || !scr->health
+        || !scr->health[source_row])
+    {
+        return col;
+    }
+
+    level = scr->health[source_row][col];
+    if (level == 0)
+        return col;
+
+    bar_end = col + 1;
+    while (bar_end < end_col
+        && scr->health[source_row][bar_end] == level)
+    {
+        bar_end++;
+    }
+
+    for (int c = col; c < bar_end; c++)
+    {
+        char ch = scr->c[source_row][c];
+
+        if (ch != '-' && ch != ' ')
+        {
+            fill_attr = sdl_left_panel_pane_render_attr_for_cell(c,
+                source_row, scr->a[source_row][c]);
+        }
+        if (ch == 'c')
+            confused = true;
+        else if (ch == 's')
+            stunned = true;
+    }
+
+    bar = (SDL_FRect){
+        .x = content_x + (float)out_col * (float)cell_w
+            + MAX(1.0f, (float)cell_w * 0.12f),
+        .y = content_y + (float)dest_row * (float)cell_h
+            + MAX(1.0f, (float)cell_h * 0.24f),
+        .w = (float)((bar_end - col) * cell_w)
+            - 2.0f * MAX(1.0f, (float)cell_w * 0.12f),
+        .h = (float)cell_h
+            - 2.0f * MAX(1.0f, (float)cell_h * 0.24f),
+    };
+    sdl_render_health_bar_rect(&bar, level, fill_attr);
+
+    if (confused || stunned)
+    {
+        char status[3];
+        int len = 0;
+        int status_col;
+        SDL_Color text_col = sdl_color_from_attr(TERM_WHITE);
+
+        if (confused)
+            status[len++] = 'c';
+        if (stunned)
+            status[len++] = 's';
+        status[len] = '\0';
+        status_col = out_col + MAX(0, ((bar_end - col) - len) / 2);
+        sdl_render_mono_text_scaled(font_atlas, atlas_cell_w, atlas_cell_h,
+            (float)cell_w, (float)cell_h, content_x, content_y, status_col,
+            dest_row, len, status, text_col);
+    }
+
+    return bar_end;
+}
+
 void sdl_render_left_panel_source_row_cells(const sdl_view* view,
     const term* source_term, term_win* scr, int source_row, int source_col,
     int width, int dest_col, int dest_row, float content_x, float content_y,
@@ -504,6 +587,16 @@ void sdl_render_left_panel_source_row_cells(const sdl_view* view,
         char tc = (scr->tc && scr->tc[source_row])
             ? scr->tc[source_row][col]
             : 0;
+
+        if (scr->health && scr->health[source_row]
+            && scr->health[source_row][col] != 0
+            && styled_monster_health_bars)
+        {
+            col = sdl_render_left_panel_monster_health_bar(scr, source_row,
+                col, end_col, out_col, dest_row, content_x, content_y,
+                cell_w, cell_h, font_atlas, atlas_cell_w, atlas_cell_h);
+            continue;
+        }
 
         if ((a == 255) && ((byte)c == 0xFF)) {
             col++;
@@ -1160,6 +1253,11 @@ bool sdl_saved_screen_cell_changed(const term_win* scr,
     }
     if (scr->story && mem->story && scr->story[y] && mem->story[y]
         && scr->story[y][x] != mem->story[y][x])
+    {
+        return true;
+    }
+    if (scr->health && mem->health && scr->health[y] && mem->health[y]
+        && scr->health[y][x] != mem->health[y][x])
     {
         return true;
     }

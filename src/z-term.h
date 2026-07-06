@@ -57,6 +57,10 @@ struct term_win
     /* Story font flags per cell (see STORY_FLAG_* definitions) */
     byte** story;
     byte* vstory;
+
+    /* Styled health-bar fill (0 = ordinary cell, 1..255 = fill level). */
+    byte** health;
+    byte* vhealth;
 };
 
 /*
@@ -188,6 +192,8 @@ struct term
     bool story_pixel_pack;    /* Whether queued story cells form a pixel-packed, right-aligned line */
     int story_font_slot;      /* Which story-font slot queued story text uses (0 or 1) */
     bool story_chunk_active;  /* Mode for the chunk being flushed */
+    bool health_bar_active;   /* Whether queued cells form a styled health bar */
+    byte health_bar_level;    /* Quantized fill for queued health-bar cells */
     bool extra_cursor;        /* Draw a cursor-style frame without moving the cursor */
     bool extra_cursor_big;
 
@@ -296,6 +302,8 @@ extern void Term_queue_chars(int x, int y, int n, byte a, cptr s);
 extern errr Term_fresh(void);
 extern errr Term_set_cursor(bool v);
 extern errr Term_set_extra_cursor(bool v, int x, int y, bool big);
+extern void Term_health_bar_begin(int current, int max);
+extern void Term_health_bar_end(void);
 extern errr Term_gotoxy(int x, int y);
 extern errr Term_draw(int x, int y, byte a, char c);
 extern errr Term_addch(byte a, char c);

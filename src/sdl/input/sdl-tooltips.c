@@ -442,7 +442,10 @@ bool sdl_object_tooltip_format_grid(int y, int x, char* out,
         sdl_object_tooltip_append_part(buf, buflen, attrs, m_name,
             TERM_WHITE);
         if (m_ptr->maxhp > 0) {
-            monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
+            if (styled_monster_health_bars)
+                SDL_strlcpy(hp_bar, "--------", sizeof(hp_bar));
+            else
+                monster_health_bar_text(m_ptr, hp_bar, sizeof(hp_bar), 8);
             sdl_object_tooltip_append_text(buf, buflen, attrs, " [HP: ",
                 TERM_WHITE);
             sdl_object_tooltip_append_text(buf, buflen, attrs,
@@ -955,6 +958,70 @@ static float sdl_object_tooltip_clamp_box_y(float y, float box_h,
     return (float)screen->y + screen_margin;
 }
 
+static void sdl_object_tooltip_draw_health_bar(TTF_Font* font,
+    const monster_type* m_ptr, float x, float y, float width, float line_h)
+{
+    long scaled;
+    char status[3];
+    int status_len = 0;
+    SDL_FRect bar;
+
+    if (!font || !m_ptr || m_ptr->maxhp <= 0 || width <= 0.0f)
+        return;
+
+    scaled = ((long)m_ptr->hp * 255L + (long)m_ptr->maxhp - 1L)
+        / (long)m_ptr->maxhp;
+    if (scaled < 1L)
+        scaled = 1L;
+    if (scaled > 255L)
+        scaled = 255L;
+
+    bar = (SDL_FRect){
+        .x = x,
+        .y = y + line_h * 0.28f,
+        .w = width,
+        .h = MAX(3.0f, line_h * 0.44f),
+    };
+    sdl_render_health_bar_rect(&bar, (byte)scaled,
+        health_attr(m_ptr->hp, m_ptr->maxhp));
+
+    if (m_ptr->confused)
+        status[status_len++] = 'c';
+    if (m_ptr->stunned)
+        status[status_len++] = 's';
+    status[status_len] = '\0';
+
+    if (status_len > 0)
+    {
+        SDL_Surface* surface = TTF_RenderText_Blended(font, status, 0,
+            g_state.palette[TERM_WHITE]);
+
+        if (surface)
+        {
+            SDL_Texture* texture =
+                SDL_CreateTextureFromSurface(g_state.renderer, surface);
+
+            if (texture)
+            {
+                float scale = (surface->h > 0)
+                    ? (line_h / (float)surface->h) : 1.0f;
+                float text_w = (float)surface->w * scale;
+                SDL_FRect dst = {
+                    .x = bar.x + MAX(0.0f, (bar.w - text_w) * 0.5f),
+                    .y = y,
+                    .w = MIN(text_w, bar.w),
+                    .h = line_h,
+                };
+
+                SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+                SDL_RenderTexture(g_state.renderer, texture, NULL, &dst);
+                SDL_DestroyTexture(texture);
+            }
+            SDL_DestroySurface(surface);
+        }
+    }
+}
+
 void sdl_object_tooltip_render(void)
 {
     char current[sizeof(g_object_tooltip.text)];
@@ -978,6 +1045,9 @@ void sdl_object_tooltip_render(void)
     bool prefer_above;
     int font_px;
     int line_h;
+    int health_start = -1;
+    int health_end = -1;
+    monster_type* tooltip_monster = NULL;
 
     if (!g_object_tooltip.active)
         return;
@@ -1024,6 +1094,20 @@ void sdl_object_tooltip_render(void)
         if (SDL_strcmp(g_object_tooltip.text, current) != 0)
             SDL_strlcpy(g_object_tooltip.text, current,
                 sizeof(g_object_tooltip.text));
+
+        if (styled_monster_health_bars)
+        {
+            int m_idx = 0;
+            cptr hp_label = strstr(g_object_tooltip.text, "[HP: ");
+
+            if (hp_label && sdl_mouse_grid_has_visible_monster(
+                    g_object_tooltip.map_y, g_object_tooltip.map_x, &m_idx))
+            {
+                tooltip_monster = &mon_list[m_idx];
+                health_start = (int)(hp_label - g_object_tooltip.text) + 5;
+                health_end = health_start + 8;
+            }
+        }
     }
 
     screen = sdl_get_layout_screen_rect();
@@ -1117,6 +1201,19 @@ void sdl_object_tooltip_render(void)
         SDL_Texture* texture;
         SDL_FRect text_dst;
         int copy_len = run->len;
+
+        if (tooltip_monster && run->start >= health_start
+            && run->start + run->len <= health_end)
+        {
+            float width = sdl_object_tooltip_measure_text(font,
+                g_object_tooltip.text + run->start, run->len);
+
+            sdl_object_tooltip_draw_health_bar(font, tooltip_monster,
+                box.x + pad + run->x,
+                box.y + pad + (float)(run->line * line_h),
+                width, (float)line_h);
+            continue;
+        }
 
         if (copy_len >= (int)sizeof(run_text))
             copy_len = (int)sizeof(run_text) - 1;
@@ -2064,6 +2161,81 @@ static void sdl_description_overlay_render_row(
     {
         int idx = src_row * overlay->width + col;
         byte sflag = overlay->story ? overlay->story[idx] : 0;
+
+        if (styled_monster_health_bars && overlay->health
+            && overlay->health[idx] != 0)
+        {
+            byte level = overlay->health[idx];
+            byte fill_attr = TERM_L_GREEN;
+            bool confused = false;
+            bool stunned = false;
+            int bar_start = col;
+            int bar_end = col + 1;
+            SDL_FRect bar;
+
+            while (bar_end < limit
+                && overlay->health[src_row * overlay->width + bar_end]
+                    == level)
+            {
+                bar_end++;
+            }
+
+            for (int c = bar_start; c < bar_end; c++)
+            {
+                int i = src_row * overlay->width + c;
+                char ch = overlay->chars[i];
+
+                if (ch != '-' && ch != ' ')
+                    fill_attr = overlay->attrs[i];
+                if (ch == 'c')
+                    confused = true;
+                else if (ch == 's')
+                    stunned = true;
+            }
+
+            bar = (SDL_FRect){
+                .x = layout->text_x
+                    + (float)bar_start * (float)layout->cell_w
+                    + MAX(1.0f, (float)layout->cell_w * 0.12f),
+                .y = row_y + MAX(1.0f,
+                    (float)layout->cell_h * 0.24f),
+                .w = (float)((bar_end - bar_start) * layout->cell_w)
+                    - 2.0f * MAX(1.0f,
+                        (float)layout->cell_w * 0.12f),
+                .h = (float)layout->cell_h
+                    - 2.0f * MAX(1.0f,
+                        (float)layout->cell_h * 0.24f),
+            };
+            sdl_render_health_bar_rect(&bar, level, fill_attr);
+
+            if (confused || stunned)
+            {
+                char status[3];
+                int len = 0;
+                int status_col;
+
+                if (confused)
+                    status[len++] = 'c';
+                if (stunned)
+                    status[len++] = 's';
+                status[len] = '\0';
+                status_col = bar_start
+                    + MAX(0, ((bar_end - bar_start) - len) / 2);
+                for (int i = 0; i < len; i++)
+                {
+                    sdl_description_overlay_render_char(atlas, atlas_cell_w,
+                        atlas_cell_h, (float)layout->cell_w,
+                        (float)layout->cell_h,
+                        layout->text_x
+                            + (float)(status_col + i)
+                                * (float)layout->cell_w,
+                        row_y, TERM_WHITE, status[i]);
+                }
+            }
+
+            col = bar_end;
+            continue;
+        }
 
         if (!(sflag & STORY_FLAG_USE))
         {

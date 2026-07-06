@@ -1119,6 +1119,51 @@ int monster_health_bar_text(
     return writable;
 }
 
+/*
+ * Write a monster health meter at the current cursor.  SDL retains exact fill
+ * metadata for a continuous bar; other frontends keep the compact glyph
+ * fallback.  Confusion and stun letters remain in the fallback and are also
+ * used as labels by the styled renderer.
+ */
+int monster_health_bar_put(const monster_type* m_ptr, int max_symbols)
+{
+    char filled[32];
+    char track[32];
+    int fill_len;
+    byte attr;
+
+    if (!Term || !m_ptr || m_ptr->maxhp <= 0 || max_symbols <= 0)
+        return 0;
+    if (max_symbols >= (int)sizeof(track))
+        max_symbols = (int)sizeof(track) - 1;
+
+    fill_len = monster_health_bar_text(m_ptr, filled, sizeof(filled),
+        max_symbols);
+    attr = health_attr(m_ptr->hp, m_ptr->maxhp);
+
+    if (!styled_monster_health_bars)
+    {
+        if (fill_len > 0)
+            Term_addstr(fill_len, attr, filled);
+        else
+            Term_addstr(1, TERM_L_DARK, "-");
+        return MAX(fill_len, 1);
+    }
+
+    for (int i = 0; i < max_symbols - fill_len; i++)
+        track[i] = '-';
+    track[max_symbols - fill_len] = '\0';
+
+    Term_health_bar_begin(m_ptr->hp, m_ptr->maxhp);
+    if (fill_len > 0)
+        Term_addstr(fill_len, attr, filled);
+    if (fill_len < max_symbols)
+        Term_addstr(max_symbols - fill_len, TERM_L_DARK, track);
+    Term_health_bar_end();
+
+    return max_symbols;
+}
+
 static enum pane_placement hidden_left_panel_placement(void)
 {
     int count = get_pane_config_count();
@@ -1397,6 +1442,7 @@ static void hidden_left_panel_add_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_char = ' ';
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
     lines[*count].click_action = SDL_PANEL_CLICK_NONE;
+    lines[*count].health_m_idx = 0;
     (*count)++;
 }
 
@@ -1429,6 +1475,7 @@ static void hidden_left_panel_add_icon_line_mode(hidden_overlay_line* lines,
     lines[*count].icon_char = icon_char;
     lines[*count].pointer_attack_mode = (byte)pointer_attack_mode;
     lines[*count].click_action = SDL_PANEL_CLICK_NONE;
+    lines[*count].health_m_idx = 0;
     (*count)++;
 }
 
@@ -1574,6 +1621,15 @@ static int hidden_left_panel_draw_line(const hidden_overlay_line* line, int row,
 
     if (text[0])
     {
+        if (line->health_m_idx > 0 && line->health_m_idx < mon_max
+            && mon_list[line->health_m_idx].r_idx)
+        {
+            Term_gotoxy(col, row);
+            written += monster_health_bar_put(
+                &mon_list[line->health_m_idx], 8);
+            return written;
+        }
+
         int text_len = (int)strlen(text);
         if (col + text_len > Term->wid)
             text_len = Term->wid - col;
@@ -1844,8 +1900,22 @@ int hidden_left_panel_build_lines(hidden_overlay_line* lines, int max_lines)
 
         attr = health_attr(m_ptr->hp, m_ptr->maxhp);
         monster_health_bar_text(m_ptr, health_bar, sizeof(health_bar), 8);
+        if (styled_monster_health_bars)
+        {
+            int len = (int)strlen(health_bar);
 
-        hidden_left_panel_add_line(lines, &count, max_lines, attr, health_bar);
+            while (len < 8)
+                health_bar[len++] = '-';
+            health_bar[len] = '\0';
+        }
+
+        {
+            int old_count = count;
+            hidden_left_panel_add_line(lines, &count, max_lines, attr,
+                health_bar);
+            if (count > old_count)
+                lines[count - 1].health_m_idx = p_ptr->health_who;
+        }
     }
 
     return count;

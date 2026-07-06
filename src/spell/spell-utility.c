@@ -320,7 +320,8 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
         sdl_description_overlay_add_footer_action(' ', "Space page");
 
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
-                NULL, NULL, capture->story, capture->width, capture->height,
+                NULL, NULL, capture->story, NULL, capture->width,
+                capture->height,
                 capture->width, scroll, true, &visible_rows, &max_scroll))
         {
             break;

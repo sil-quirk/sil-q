@@ -1261,6 +1261,9 @@ bool sdl_main_map_point_to_drag_map(float x, float y)
     if (ui_menu_click_has_cell(col, row))
         return false;
 
+    if (death_spectator_active())
+        return sdl_main_view_point_to_look_map(x, y, &map_y, &map_x);
+
     return sdl_main_view_point_to_map(x, y, &map_y, &map_x);
 }
 

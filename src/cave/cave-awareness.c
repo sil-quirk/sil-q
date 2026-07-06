@@ -12,6 +12,8 @@ void health_track(int m_idx)
 
     /* Redraw (later) */
     p_ptr->redraw |= (PR_HEALTHBAR);
+    if (styled_monster_health_bars)
+        p_ptr->window |= PW_MONSTER;
 }
 
 /*

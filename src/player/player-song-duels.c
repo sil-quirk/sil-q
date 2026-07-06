@@ -356,6 +356,23 @@ static int song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
 
         /* Morgoth's anger state depends on current HP% (and maxHP can change here). */
         maybe_update_morgoth_state_from_hp(m_ptr);
+        if (m_ptr->ml
+            && (styled_monster_health_bars || styled_monster_tile_health_bars))
+        {
+            int m_idx = cave_m_idx[m_ptr->fy][m_ptr->fx];
+
+            if (styled_monster_health_bars)
+            {
+                p_ptr->window |= PW_MONLIST;
+                if (p_ptr->health_who == m_idx)
+                {
+                    p_ptr->redraw |= PR_HEALTHBAR;
+                    p_ptr->window |= PW_MONSTER;
+                }
+            }
+            if (styled_monster_tile_health_bars)
+                lite_spot(m_ptr->fy, m_ptr->fx);
+        }
 
         return hp_loss;
     }
