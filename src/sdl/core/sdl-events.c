@@ -1437,6 +1437,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             {
                 return;
             }
+            if (sdl_touch_top_panel_handle_secondary_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
+                return;
+            }
             if (sdl_main_screen_handle_character_panel_secondary_pointer(
                 (float)ev->button.x, (float)ev->button.y))
             {

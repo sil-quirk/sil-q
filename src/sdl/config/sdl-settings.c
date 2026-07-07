@@ -28,9 +28,12 @@ void get_sdl_config_info(char* buf, size_t size)
         "Left Panel Launch State: %s\n",
         config.left_panel_expanded_on_launch ? "Full" : "Compact");
     offset += (size_t)strnfmt(buf + offset, size - offset,
-        "Left Panel Compact Mode: %s\n\n",
+        "Left Panel Compact Mode: %s\n",
         (get_sdl_left_panel_compact_mode() == SDL_LEFT_PANEL_COMPACT_ROW)
             ? "Row" : "Column");
+    offset += (size_t)strnfmt(buf + offset, size - offset,
+        "Quick Access Second Row: %s\n\n",
+        config.touch_top_panel_second_row ? "Yes" : "No");
     
     // Pane configurations
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
@@ -1056,6 +1059,8 @@ void sdl_touch_pane_load_default_bindings(void)
     g_default_touch_top_panel_mode = defaults.touch_top_panel_mode;
     g_default_touch_top_panel_default_open =
         defaults.touch_top_panel_default_open;
+    g_default_touch_top_panel_second_row =
+        defaults.touch_top_panel_second_row;
     g_default_touch_top_panel_button_count =
         defaults.touch_top_panel_button_count;
     g_default_touch_top_panel_tile_scale =
@@ -1797,6 +1802,7 @@ void sdl_touch_apply_profile(int profile)
     config.touch_top_panel_button_count =
         sdl_touch_top_panel_button_count_normalized(top_panel_button_count);
     config.touch_top_panel_default_open = top_panel_default_open;
+    config.touch_top_panel_second_row = false;
     config.touch_movement_mode = sdl_touch_movement_normalized_mode(movement_mode);
     config.touch_round_movement_enabled = round_enabled;
     config.touch_zone_overlay_mode =
@@ -1998,6 +2004,27 @@ bool get_sdl_touch_top_panel_default_open_default(void)
 {
     sdl_touch_pane_load_default_bindings();
     return g_default_touch_top_panel_default_open;
+}
+
+bool get_sdl_touch_top_panel_second_row(void)
+{
+    return config.touch_top_panel_second_row;
+}
+
+void set_sdl_touch_top_panel_second_row(bool value)
+{
+    if (config.touch_top_panel_second_row == value)
+        return;
+
+    config.touch_top_panel_second_row = value;
+    sdl_touch_top_panel_cancel_press();
+    g_state.need_present = true;
+}
+
+bool get_sdl_touch_top_panel_second_row_default(void)
+{
+    sdl_touch_pane_load_default_bindings();
+    return g_default_touch_top_panel_second_row;
 }
 
 int get_sdl_touch_top_panel_button_count(void)

@@ -749,12 +749,15 @@ void do_cmd_view_map(void)
 #ifdef USE_SDL
     {
         bool sdl_map = false;
+        bool saved_hide_cursor = hide_cursor;
 
         sdl_minimap_begin();
         Term_fresh();
         sdl_map = sdl_display_pixel_map(&cy, &cx);
         if (sdl_map)
         {
+            hide_cursor = true;
+            (void)Term_set_cursor(false);
             Term_fresh();
 
             while (true)
@@ -811,12 +814,15 @@ void do_cmd_view_map(void)
                 break;
             }
 
+            hide_cursor = saved_hide_cursor;
+            (void)Term_set_cursor(false);
             sdl_minimap_end();
             screen_pop_supporting_panes_hidden();
             screen_load();
             return;
         }
 
+        hide_cursor = saved_hide_cursor;
         sdl_minimap_end();
     }
 #endif

@@ -374,7 +374,18 @@ bool target_sighted(void)
     if (p_ptr->target_who > 0)
     {
         int m_idx = p_ptr->target_who;
-        monster_type* m_ptr = &mon_list[m_idx];
+        monster_type* m_ptr;
+
+        if (m_idx >= mon_max)
+            return (false);
+
+        m_ptr = &mon_list[m_idx];
+
+        if (!m_ptr->r_idx || !in_bounds_fully(m_ptr->fy, m_ptr->fx)
+            || (cave_m_idx[m_ptr->fy][m_ptr->fx] != m_idx))
+        {
+            return (false);
+        }
 
         /* Accept reasonable targets */
         if (player_can_see_bold(m_ptr->fy, m_ptr->fx) && m_ptr->ml)
@@ -2272,7 +2283,10 @@ bool target_set_interactive(int mode, int range)
     temp_n = 0;
 
     /* Clear the top line */
-    prt("", 0, 0);
+    if (ui_message_line_enabled())
+        prt("", 0, 0);
+    else
+        p_ptr->redraw |= (PR_MAP);
 
     /* Recenter around player */
     verify_panel();

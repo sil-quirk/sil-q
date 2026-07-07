@@ -1231,12 +1231,17 @@ bool sdl_overlay_pane_anchor_rect(enum pane_type pane_type,
     const sdl_view* view = &g_views[PANE_MAIN];
     SDL_Rect anchor;
     SDL_Rect screen;
+    bool force_main_anchor;
 
     if (!out)
         return false;
     *out = (SDL_Rect){ 0 };
 
+    force_main_anchor = pane_type == PANE_DESCRIPTION
+        && g_description_overlay_full_main_anchor_depth > 0;
+
     if (pane_type == PANE_DESCRIPTION
+        && !force_main_anchor
         && g_description_overlay_main_anchor_depth > 0)
     {
         SDL_Rect panes[PANE_MAX] = { 0 };
@@ -1253,7 +1258,8 @@ bool sdl_overlay_pane_anchor_rect(enum pane_type pane_type,
         }
     }
 
-    if (pane_type > PANE_MAIN && pane_type < PANE_MAX
+    if (!force_main_anchor
+        && pane_type > PANE_MAIN && pane_type < PANE_MAX
         && sdl_rect_has_area(&g_pane_rects[pane_type]))
     {
         *out = g_pane_rects[pane_type];
@@ -1300,5 +1306,16 @@ void sdl_pop_description_overlay_main_anchor(void)
 {
     if (g_description_overlay_main_anchor_depth > 0)
         g_description_overlay_main_anchor_depth--;
+}
+
+void sdl_push_description_overlay_full_main_anchor(void)
+{
+    g_description_overlay_full_main_anchor_depth++;
+}
+
+void sdl_pop_description_overlay_full_main_anchor(void)
+{
+    if (g_description_overlay_full_main_anchor_depth > 0)
+        g_description_overlay_full_main_anchor_depth--;
 }
 

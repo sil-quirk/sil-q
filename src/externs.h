@@ -844,6 +844,7 @@ extern void do_cmd_messages_with_filter(int initial_filter);
 extern void do_cmd_options_aux(int page, cptr info);
 extern void do_cmd_options(void);
 extern void do_cmd_pane_settings(void);
+extern bool do_cmd_touch_top_widget_pick_button(int slot);
 extern void do_cmd_macros(void);
 extern void do_cmd_keybinds(void);
 extern void do_cmd_visuals(void);
@@ -2137,6 +2138,8 @@ extern int sdl_description_overlay_text_px(void);
 extern int sdl_description_overlay_story_text_width(cptr text, int len, int slot);
 extern void sdl_push_description_overlay_main_anchor(void);
 extern void sdl_pop_description_overlay_main_anchor(void);
+extern void sdl_push_description_overlay_full_main_anchor(void);
+extern void sdl_pop_description_overlay_full_main_anchor(void);
 extern bool sdl_description_overlay_present(const byte* attrs,
     const char* chars, const byte* tattrs, const char* tchars,
     const byte* story, const byte* health, int width, int height,
@@ -2396,6 +2399,9 @@ extern int get_sdl_touch_top_panel_default_mode(void);
 extern bool get_sdl_touch_top_panel_default_open(void);
 extern void set_sdl_touch_top_panel_default_open(bool value);
 extern bool get_sdl_touch_top_panel_default_open_default(void);
+extern bool get_sdl_touch_top_panel_second_row(void);
+extern void set_sdl_touch_top_panel_second_row(bool value);
+extern bool get_sdl_touch_top_panel_second_row_default(void);
 extern int get_sdl_touch_top_panel_button_count(void);
 extern void set_sdl_touch_top_panel_button_count(int count);
 extern int get_sdl_touch_top_panel_default_button_count(void);

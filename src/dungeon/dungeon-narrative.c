@@ -452,6 +452,22 @@ void handle_partition_entry(bool force_message, int narrative_mode)
     level_partition_kind kind = level_partition_kind_for_point(p_ptr->py, p_ptr->px);
     int sidx = styles_decode_color_style(cave_color[p_ptr->py][p_ptr->px]);
 
+    /*
+     * Greater vaults have their own first-entry narrative.  Their cells carry
+     * vault-specific styles, so the generic partition-style banner would be
+     * misleading on both first entry and later re-entry after the vault name
+     * has been cleared.
+     */
+    if (cave_info[p_ptr->py][p_ptr->px] & CAVE_G_VAULT)
+    {
+        if (pi >= 0 && pi < 32)
+            partition_narrated_mask |= (u32b)(1U << pi);
+
+        last_partition_pi = pi;
+        last_partition_kind = kind;
+        return;
+    }
+
     bool is_big = is_big_partition_kind(kind);
     bool was_big = is_big_partition_kind(last_partition_kind);
     bool entered_big = false;

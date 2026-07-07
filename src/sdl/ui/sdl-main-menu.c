@@ -172,6 +172,87 @@ float sdl_main_menu_draw_text(TTF_Font* font, cptr text, float x,
     return dst.w;
 }
 
+static void sdl_main_menu_note_bottom(float candidate, float* bottom)
+{
+    if (bottom && candidate > *bottom)
+        *bottom = candidate;
+}
+
+static void sdl_main_menu_note_rect_bottom(const SDL_FRect* rect, float* bottom)
+{
+    if (!rect || rect->w <= 0.0f || rect->h <= 0.0f)
+        return;
+
+    sdl_main_menu_note_bottom(rect->y + rect->h, bottom);
+}
+
+static float sdl_main_menu_top_center_panes_bottom(void)
+{
+    float bottom = 0.0f;
+
+    for (int i = 0; i < pane_config_count; i++) {
+        SDL_FRect pane_rect;
+
+        if (pane_config[i].where != PLACE_TOP_CENTER)
+            continue;
+
+        if (pane_config[i].pane == PANE_OVERLAY_MENU) {
+            SDL_Rect screen;
+            SDL_Rect anchor;
+            enum pane_placement where;
+            SDL_FRect panel;
+
+            if (!sdl_touch_top_panel_layout_visible())
+                continue;
+            if (sdl_touch_top_panel_current_anchor(&screen, &anchor, &where)
+                && where == PLACE_TOP_CENTER)
+            {
+                pane_rect = (SDL_FRect){ (float)anchor.x, (float)anchor.y,
+                    (float)anchor.w, (float)anchor.h };
+                sdl_main_menu_note_rect_bottom(&pane_rect, &bottom);
+            }
+            if (sdl_touch_top_panel_compute_layout(NULL, &panel))
+                sdl_main_menu_note_rect_bottom(&panel, &bottom);
+            continue;
+        }
+
+        if (sdl_narrative_banner_top_center_pane_rect(&pane_config[i],
+                &pane_rect))
+        {
+            sdl_main_menu_note_rect_bottom(&pane_rect, &bottom);
+        }
+    }
+
+    return bottom;
+}
+
+static void sdl_main_menu_apply_top_center_avoidance(SDL_FRect* rect,
+    const SDL_Rect* screen, int font_px)
+{
+    float bottom;
+    float gap;
+    float target_y;
+    float max_y;
+
+    if (!rect || !screen || rect->w <= 0.0f || rect->h <= 0.0f)
+        return;
+
+    bottom = sdl_main_menu_top_center_panes_bottom();
+    if (bottom <= rect->y)
+        return;
+
+    gap = sdl_touch_pane_clampf((float)font_px * 0.24f, 4.0f, 10.0f);
+    target_y = bottom + gap;
+    max_y = (float)(screen->y + screen->h) - rect->h
+        - (float)sdl_overlay_margin_px();
+    if (max_y < (float)screen->y)
+        max_y = (float)screen->y;
+    if (target_y > max_y)
+        target_y = max_y;
+    if (target_y > rect->y)
+        rect->y = target_y;
+}
+
 
 bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
 {
@@ -222,9 +303,11 @@ bool sdl_main_menu_pane_button_rect(SDL_FRect* out)
     if (panel_h > (float)screen.h * 0.18f)
         panel_h = (float)screen.h * 0.18f;
 
-    if (out)
+    if (out) {
         *out = sdl_overlay_panel_rect(&anchor, PLACE_TOP_CENTER, (int)panel_w,
             (int)panel_h, &screen);
+        sdl_main_menu_apply_top_center_avoidance(out, &screen, font_px);
+    }
 
     return true;
 }

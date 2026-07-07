@@ -2478,13 +2478,13 @@ static void sdl_config_set_default_top_panel_bindings(struct sdl_config* config)
 
 static void sdl_config_set_default_thumb_bindings(struct sdl_config* config)
 {
-    /* Button 1: tap = space (pick/continue), long = 'z' (wait).
-     * Button 2: tap = 'x' (look/describe), long = 'Z' (rest). */
+    /* Button 1: tap = space (context action).
+     * Button 2: tap = 'z' (wait), long = 'Z' (rest). */
     static const int thumb_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
-        ' ', 'x',
+        ' ', 'z',
     };
     static const int thumb_long_defaults[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
-        'z', 'Z',
+        GAMEPAD_BIND_NONE, 'Z',
     };
 
     if (!config)
@@ -2499,28 +2499,53 @@ static void sdl_config_set_default_thumb_bindings(struct sdl_config* config)
 static void sdl_config_migrate_touch_thumb_defaults(
     struct sdl_config* config)
 {
-    static const int previous_taps[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+    static const int legacy_taps[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
         ' ', 'z',
     };
-    static const int previous_longs[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+    static const int legacy_longs[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
         'x', 'Z',
     };
+    static const int previous_taps[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        ' ', 'x',
+    };
+    static const int previous_longs[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        'z', 'Z',
+    };
+    static const int contextual_taps[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        'x', 'z',
+    };
+    static const int contextual_longs[SDL_TOUCH_THUMB_BUTTON_COUNT] = {
+        'g', 'Z',
+    };
+    bool legacy_defaults;
+    bool previous_defaults;
+    bool contextual_defaults;
 
     if (!config)
         return;
-    if (memcmp(config->touch_thumb_bindings, previous_taps,
-            sizeof(previous_taps)) != 0)
-    {
-        return;
-    }
-    if (memcmp(config->touch_thumb_long_bindings, previous_longs,
-            sizeof(previous_longs)) != 0)
+
+    legacy_defaults =
+        memcmp(config->touch_thumb_bindings, legacy_taps,
+            sizeof(legacy_taps)) == 0
+        && memcmp(config->touch_thumb_long_bindings, legacy_longs,
+            sizeof(legacy_longs)) == 0;
+    previous_defaults =
+        memcmp(config->touch_thumb_bindings, previous_taps,
+            sizeof(previous_taps)) == 0
+        && memcmp(config->touch_thumb_long_bindings, previous_longs,
+            sizeof(previous_longs)) == 0;
+    contextual_defaults =
+        memcmp(config->touch_thumb_bindings, contextual_taps,
+            sizeof(contextual_taps)) == 0
+        && memcmp(config->touch_thumb_long_bindings, contextual_longs,
+            sizeof(contextual_longs)) == 0;
+    if (!legacy_defaults && !previous_defaults && !contextual_defaults)
     {
         return;
     }
 
     sdl_config_set_default_thumb_bindings(config);
-    log_info("Migrated default touch thumb buttons to Pick/Wait and Description/Rest");
+    log_info("Migrated default touch thumb buttons to Space Context and Wait/Rest");
 }
 
 static void sdl_config_migrate_touch_top_panel_defaults(
@@ -3797,6 +3822,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "topPanelMode");
                 cJSON* top_panel_default_open = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelDefaultOpen");
+                cJSON* top_panel_second_row = cJSON_GetObjectItemCaseSensitive(touch_control,
+                    "topPanelSecondRow");
                 cJSON* top_panel_button_count = cJSON_GetObjectItemCaseSensitive(touch_control,
                     "topPanelButtonCount");
                 cJSON* top_panel_tile_scale = cJSON_GetObjectItemCaseSensitive(touch_control,
@@ -3984,6 +4011,13 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                         cJSON_IsTrue(top_panel_default_open);
                     log_debug("Loaded touchControl.topPanelDefaultOpen: %s",
                         config->touch_top_panel_default_open ? "true" : "false");
+                }
+
+                if (cJSON_IsBool(top_panel_second_row)) {
+                    config->touch_top_panel_second_row =
+                        cJSON_IsTrue(top_panel_second_row);
+                    log_debug("Loaded touchControl.topPanelSecondRow: %s",
+                        config->touch_top_panel_second_row ? "true" : "false");
                 }
 
                 if (cJSON_IsNumber(top_panel_button_count)) {
@@ -4413,20 +4447,37 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         }
     }
 
-    /*
-     * Persist the thumb-button overlay settings. Other touchControl fields are
-     * not (yet) serialized here, so this object intentionally carries only the
-     * thumb keys; the loader reads each key independently and leaves the rest at
-     * their defaults, so writing a partial object does not affect them.
-     */
+    /* Persist touch overlay settings edited from the interface page. */
     {
         cJSON* touch_control = cJSON_CreateObject();
         if (touch_control) {
+            cJSON* top_panel_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+            cJSON* top_panel_long_bindings = sdl_config_create_int_array(
+                config->touch_top_panel_long_bindings,
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
             cJSON* thumb_bindings = sdl_config_create_int_array(
                 config->touch_thumb_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
             cJSON* thumb_long_bindings = sdl_config_create_int_array(
                 config->touch_thumb_long_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
 
+            cJSON_AddStringToObject(touch_control, "topPanelMode",
+                touch_top_panel_mode_to_string(config->touch_top_panel_mode));
+            cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
+                config->touch_top_panel_default_open);
+            cJSON_AddBoolToObject(touch_control, "topPanelSecondRow",
+                config->touch_top_panel_second_row);
+            cJSON_AddNumberToObject(touch_control, "topPanelButtonCount",
+                config->touch_top_panel_button_count);
+            cJSON_AddNumberToObject(touch_control, "topPanelTileScale",
+                config->touch_top_panel_tile_scale);
+            if (top_panel_bindings)
+                cJSON_AddItemToObject(touch_control, "topPanelBindings",
+                    top_panel_bindings);
+            if (top_panel_long_bindings)
+                cJSON_AddItemToObject(touch_control, "topPanelLongBindings",
+                    top_panel_long_bindings);
             cJSON_AddBoolToObject(touch_control, "thumbButtonsEnabled",
                 config->touch_thumb_enabled);
             if (thumb_bindings)
@@ -4624,6 +4675,7 @@ void sdl_config_set_default_touch_pane_bindings(struct sdl_config* config)
         sizeof(corner_action_defaults));
     config->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
     config->touch_top_panel_default_open = false;
+    config->touch_top_panel_second_row = false;
     config->touch_top_panel_button_count =
         SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
     config->touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;

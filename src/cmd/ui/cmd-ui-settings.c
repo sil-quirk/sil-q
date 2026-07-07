@@ -1545,6 +1545,7 @@ enum iface_pane_field {
     IFACE_PANE_FIELD_FONT,
     IFACE_PANE_FIELD_TILE_SCALE,
     IFACE_PANE_FIELD_BUTTON_COUNT,
+    IFACE_PANE_FIELD_SECOND_ROW,
     IFACE_PANE_FIELD_BUTTONS,
     IFACE_PANE_FIELD_LP_LAUNCH,
     IFACE_PANE_FIELD_LP_COMPACT,
@@ -2878,6 +2879,15 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     set_sdl_touch_top_panel_button_count(
                         get_sdl_touch_top_panel_default_button_count());
+                    sdl_apply_config();
+                    app_settings_dirty = true;
+                }
+                else if (prow->field == IFACE_PANE_FIELD_SECOND_ROW
+                    && get_sdl_touch_top_panel_second_row()
+                        != get_sdl_touch_top_panel_second_row_default())
+                {
+                    set_sdl_touch_top_panel_second_row(
+                        get_sdl_touch_top_panel_second_row_default());
                     sdl_apply_config();
                     app_settings_dirty = true;
                 }
@@ -4327,6 +4337,7 @@ static int build_interface_pane_rows(struct iface_pane_row* rows, int max_rows,
             fields[field_count++] = IFACE_PANE_FIELD_ENABLED;
             fields[field_count++] = IFACE_PANE_FIELD_PLACEMENT;
             fields[field_count++] = IFACE_PANE_FIELD_BUTTON_COUNT;
+            fields[field_count++] = IFACE_PANE_FIELD_SECOND_ROW;
             fields[field_count++] = IFACE_PANE_FIELD_TILE_SCALE;
             fields[field_count++] = IFACE_PANE_FIELD_BUTTONS;
         }
@@ -4398,6 +4409,7 @@ static cptr iface_pane_row_label(const struct iface_pane_row* row)
     case IFACE_PANE_FIELD_FONT: return "Font Size";
     case IFACE_PANE_FIELD_TILE_SCALE: return "Tile Scale";
     case IFACE_PANE_FIELD_BUTTON_COUNT: return "Squares";
+    case IFACE_PANE_FIELD_SECOND_ROW: return "Second Row";
     case IFACE_PANE_FIELD_BUTTONS: return "Assignments";
     case IFACE_PANE_FIELD_LP_LAUNCH: return "Launch State";
     case IFACE_PANE_FIELD_LP_COMPACT: return "Compact Mode";
@@ -4435,6 +4447,10 @@ static void iface_pane_row_value(const struct iface_pane_row* row, char* buf,
         break;
     case IFACE_PANE_FIELD_BUTTON_COUNT:
         strnfmt(buf, buflen, "%d", get_sdl_touch_top_panel_button_count());
+        break;
+    case IFACE_PANE_FIELD_SECOND_ROW:
+        SDL_strlcpy(buf, get_sdl_touch_top_panel_second_row() ? "on" : "off",
+            buflen);
         break;
     case IFACE_PANE_FIELD_BUTTONS:
         SDL_strlcpy(buf, "open", buflen);
@@ -4626,6 +4642,17 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
         break;
     }
 
+    case IFACE_PANE_FIELD_SECOND_ROW:
+        value = get_sdl_touch_top_panel_second_row() ? 1 : 0;
+        if (iface_pane_pick_from_choices(row, off_on_choices,
+                (int)N_ELEMENTS(off_on_choices), value, &value, handled)
+            && value != (get_sdl_touch_top_panel_second_row() ? 1 : 0))
+        {
+            set_sdl_touch_top_panel_second_row(value != 0);
+            changed = true;
+        }
+        break;
+
     case IFACE_PANE_FIELD_BUTTONS:
         return false;
 
@@ -4761,6 +4788,17 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         changed = (get_sdl_touch_top_panel_button_count() != value);
         break;
     }
+    case IFACE_PANE_FIELD_SECOND_ROW:
+    {
+        bool cur = get_sdl_touch_top_panel_second_row();
+        bool next = (delta == 0) ? !cur : (delta > 0);
+        if (next != cur)
+        {
+            set_sdl_touch_top_panel_second_row(next);
+            changed = true;
+        }
+        break;
+    }
     case IFACE_PANE_FIELD_BUTTONS:
         do_cmd_touch_top_widget_button_editor(&changed);
         break;
@@ -4883,6 +4921,16 @@ static bool iface_pane_row_reset_to_default(const struct iface_pane_row* row)
         if (get_sdl_touch_top_panel_button_count() != d)
         {
             set_sdl_touch_top_panel_button_count(d);
+            changed = true;
+        }
+        break;
+    }
+    case IFACE_PANE_FIELD_SECOND_ROW:
+    {
+        bool d = get_sdl_touch_top_panel_second_row_default();
+        if (get_sdl_touch_top_panel_second_row() != d)
+        {
+            set_sdl_touch_top_panel_second_row(d);
             changed = true;
         }
         break;
@@ -5400,7 +5448,7 @@ static const int touch_context_action_choices[] = {
     'u', 's', 'f',
     'a', 'x',
     'M', 'h', 'y', '\t',
-    'z', 'Z',
+    'z', 'g', 'Z',
     'o', 'c', 'D', 'X',
     '-', KTRL('A'), 't', 'p', 'q',
     'F', KTRL('F'), 'S', 'l', 'b',
@@ -5601,6 +5649,7 @@ enum {
     TOUCH_CONTROL_PANE_INVENTORY_EQUIPMENT_CYCLE,
     TOUCH_CONTROL_PANE_PLACEMENT,
     TOUCH_CONTROL_TOP_WIDGET_MODE,
+    TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW,
     TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN,
     TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT,
     TOUCH_CONTROL_MENU_SUPPLY,
@@ -6044,6 +6093,37 @@ static bool touch_top_widget_pick_binding_row(int row)
     return touch_control_pick_binding(binding, binding ? binding->label : NULL);
 }
 
+static int touch_top_widget_editor_binding_row(int row)
+{
+    if (row < 0 || row >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return -1;
+    return row * 2;
+}
+
+bool do_cmd_touch_top_widget_pick_button(int slot)
+{
+    const touch_control_binding_row* binding;
+    char title[48];
+    bool changed;
+
+    if (slot < 0 || slot >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return false;
+
+    binding = touch_top_widget_binding_for_row(slot * 2);
+    if (!binding)
+        return false;
+
+    strnfmt(title, sizeof(title), "Quick Access %d", slot + 1);
+    changed = touch_control_pick_binding(binding, title);
+    if (changed)
+    {
+        if (!save_pane_config_to_json())
+            msg_print("Quick access changed, but saving sil_sdl.json failed.");
+    }
+
+    return changed;
+}
+
 static bool touch_thumb_binding_label(int row, char* buf, size_t buflen)
 {
     const touch_control_binding_row* binding = touch_thumb_binding_for_row(row);
@@ -6123,6 +6203,8 @@ static const char* touch_control_row_name(int row)
         return "Touch Pane Side";
     case TOUCH_CONTROL_TOP_WIDGET_MODE:
         return "Quick Access Squares";
+    case TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW:
+        return "Quick Access Second Row";
     case TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN:
         return "Quick Access Starts";
     case TOUCH_CONTROL_MENU_INVENTORY_EQUIPMENT:
@@ -6272,6 +6354,8 @@ static void touch_control_reset_to_default(void)
     set_sdl_touch_top_panel_mode(get_sdl_touch_top_panel_default_mode());
     set_sdl_touch_top_panel_button_count(
         get_sdl_touch_top_panel_default_button_count());
+    set_sdl_touch_top_panel_second_row(
+        get_sdl_touch_top_panel_second_row_default());
     set_sdl_touch_top_panel_default_open(
         get_sdl_touch_top_panel_default_open_default());
     for (int i = 0; i < SDL_TOUCH_MENU_CATEGORY_COUNT; i++) {
@@ -6894,24 +6978,28 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             ui_menu_click_begin();
             ui_menu_click_set_hover_enabled(true);
             settings_menu_begin_scroll_area(list_start_row,
-                TOUCH_TOP_WIDGET_BUTTON_COUNT);
+                SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
             settings_ui_put_fitted(1, 2, TERM_L_BLUE, "Quick Access Buttons");
             settings_ui_put_fitted(2, 2, TERM_WHITE, "====================");
         }
 
-        for (int i = 0; i < TOUCH_TOP_WIDGET_BUTTON_COUNT; i++)
+        for (int i = 0; i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++)
         {
             const touch_control_binding_row* binding =
-                touch_top_widget_binding_for_row(i);
+                touch_top_widget_binding_for_row(
+                    touch_top_widget_editor_binding_row(i));
             char action_buf[80];
+            char button_buf[32];
             char line_buf[128];
             byte a = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
             if (!binding)
                 continue;
-            touch_top_widget_binding_label(i, action_buf, sizeof(action_buf));
+            touch_top_widget_binding_label(touch_top_widget_editor_binding_row(i),
+                action_buf, sizeof(action_buf));
+            strnfmt(button_buf, sizeof(button_buf), "Quick Access %d", i + 1);
             settings_ui_format_pair_line(line_buf, sizeof(line_buf),
-                binding->label, action_buf, row_width, 24);
+                button_buf, action_buf, row_width, 24);
             if (pixel_menu)
             {
                 char semantic_line[160];
@@ -6941,7 +7029,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         }
         else
         {
-                settings_ui_put_fitted(list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 2,
+                settings_ui_put_fitted(list_start_row + SDL_TOUCH_TOP_PANEL_BUTTON_COUNT + 2,
                 2, TERM_SLATE,
                 settings_ui_pick_label(row_width,
                     "Up/Down: select button   Space choose action   Left/Right previous/next",
@@ -6952,7 +7040,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     "x reset selected   M/Map reset all quick access buttons",
                     "x reset selected   Map reset all",
                     "x reset   Map all");
-                int prompt_row = list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 3;
+                int prompt_row = list_start_row + SDL_TOUCH_TOP_PANEL_BUTTON_COUNT + 3;
 
                 settings_ui_put_fitted(prompt_row, 2, TERM_SLATE, prompt);
                 ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_SELECTED, 2,
@@ -6964,7 +7052,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                 ui_menu_click_add_text_token(SETTINGS_CLICK_RESET_ALL, 2,
                     prompt_row, prompt, "all");
             }
-            settings_ui_put_return_prompt(list_start_row + TOUCH_TOP_WIDGET_BUTTON_COUNT + 4,
+            settings_ui_put_return_prompt(list_start_row + SDL_TOUCH_TOP_PANEL_BUTTON_COUNT + 4,
                 2, TERM_SLATE, "Esc/Enter: return", "Esc/Enter: return",
                 "Esc/Enter return");
 
@@ -6999,7 +7087,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     click_generated = true;
                 } else if (clicked_choice >= SETTINGS_CLICK_RESET_ROW_BASE
                     && clicked_choice < SETTINGS_CLICK_RESET_ROW_BASE
-                        + TOUCH_TOP_WIDGET_BUTTON_COUNT)
+                        + SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
                 {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
@@ -7007,7 +7095,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
                     ch = 'x';
                     click_generated = true;
                 } else if (clicked_choice >= 0
-                    && clicked_choice < TOUCH_TOP_WIDGET_BUTTON_COUNT)
+                    && clicked_choice < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
                 {
                     bool was_current = (clicked_choice == highlight);
 
@@ -7042,29 +7130,33 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             break;
         case '-':
         case '8':
-            highlight = (TOUCH_TOP_WIDGET_BUTTON_COUNT + highlight - 1)
-                % TOUCH_TOP_WIDGET_BUTTON_COUNT;
+            highlight = (SDL_TOUCH_TOP_PANEL_BUTTON_COUNT + highlight - 1)
+                % SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
             break;
         case '2':
-            highlight = (highlight + 1) % TOUCH_TOP_WIDGET_BUTTON_COUNT;
+            highlight = (highlight + 1) % SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
             break;
         case 'n':
         case '4':
-            changed |= touch_top_widget_cycle_binding_row(highlight, -1);
+            changed |= touch_top_widget_cycle_binding_row(
+                touch_top_widget_editor_binding_row(highlight), -1);
             break;
         case 'y':
         case '6':
-            changed |= touch_top_widget_cycle_binding_row(highlight, 1);
+            changed |= touch_top_widget_cycle_binding_row(
+                touch_top_widget_editor_binding_row(highlight), 1);
             break;
         case ' ':
         case 't':
         case '5':
-            changed |= touch_top_widget_pick_binding_row(highlight);
+            changed |= touch_top_widget_pick_binding_row(
+                touch_top_widget_editor_binding_row(highlight));
             break;
         case 'r':
         case 'x':
         case 'X':
-            changed |= touch_top_widget_reset_binding_row(highlight);
+            changed |= touch_top_widget_reset_binding_row(
+                touch_top_widget_editor_binding_row(highlight));
             break;
         case 'R':
         case 'M':
@@ -7932,6 +8024,10 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (i == TOUCH_CONTROL_TOP_WIDGET_MODE) {
                 strnfmt(action_buf, sizeof(action_buf), "%d",
                     get_sdl_touch_top_panel_button_count());
+            } else if (i == TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW) {
+                SDL_strlcpy(action_buf,
+                    get_sdl_touch_top_panel_second_row() ? "On" : "Off",
+                    sizeof(action_buf));
             } else if (i == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
                 SDL_strlcpy(action_buf,
                     get_sdl_touch_top_panel_default_open() ? "Open" : "Hidden",
@@ -8132,6 +8228,8 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_MODE) {
                 set_sdl_touch_top_panel_button_count(
                     get_sdl_touch_top_panel_button_count() - 1);
+            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW) {
+                set_sdl_touch_top_panel_second_row(false);
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
                 set_sdl_touch_top_panel_default_open(false);
             } else if (touch_control_is_menu_command_row(highlight)) {
@@ -8192,6 +8290,9 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_MODE) {
                 set_sdl_touch_top_panel_button_count(
                     get_sdl_touch_top_panel_button_count() + 1);
+            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW) {
+                set_sdl_touch_top_panel_second_row(
+                    !get_sdl_touch_top_panel_second_row());
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
                 set_sdl_touch_top_panel_default_open(
                     !get_sdl_touch_top_panel_default_open());
@@ -8245,6 +8346,9 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_MODE) {
                 set_sdl_touch_top_panel_button_count(
                     get_sdl_touch_top_panel_default_button_count());
+            } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW) {
+                set_sdl_touch_top_panel_second_row(
+                    get_sdl_touch_top_panel_second_row_default());
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_DEFAULT_OPEN) {
                 set_sdl_touch_top_panel_default_open(
                     get_sdl_touch_top_panel_default_open_default());

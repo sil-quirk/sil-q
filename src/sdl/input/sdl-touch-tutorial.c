@@ -1306,8 +1306,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
             sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Quick");
             if (section >= 0 && legend_n < (int)N_ELEMENTS(legend_lines)) {
                 legend_lines[legend_n++] = mouse
-                    ? "Quick: click a command; right-click its alternate."
-                    : "Quick: tap a command; hold for its alternate.";
+                    ? "Quick: click a command; right-click to edit it."
+                    : "Quick: tap a command; hold to edit it.";
             }
         }
     }
@@ -1430,8 +1430,8 @@ void sdl_touch_tutorial_draw_main_screen_zones(
             sdl_touch_tutorial_queue_zone_callout(callouts, &callout_count, &rect,
                 "Quick access",
                 mouse
-                    ? "<a>Click</a> an icon for its command; <a>right-click</a> for its alternate.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>."
-                    : "<a>Tap</a> an icon for its command; <a>hold</a> for its alternate.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>.");
+                    ? "<a>Click</a> an icon for its command; <a>right-click</a> to edit it.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>."
+                    : "<a>Tap</a> an icon for its command; <a>hold</a> to edit it.\n<n>Default placement: bottom center.</n> Item descriptions open above this anchor. Edit buttons in <t>Touch Settings</t>.");
         }
     }
     if (sdl_touch_tutorial_status_rect(&rect)) {
@@ -1490,7 +1490,7 @@ void sdl_touch_tutorial_draw_zones_page(const SDL_Rect* screen,
         body = "<a>Tap</a> the highlighted play areas. Use the map to move or target; <a>hold</a> for contextual actions.";
     } else if (mobile_sections) {
         title = "Touch: Quick Controls & Status";
-        body = "<a>Tap</a> overlays for fast commands and views. <a>Hold</a> quick-access buttons for their alternate actions.";
+        body = "<a>Tap</a> overlays for fast commands and views. <a>Hold</a> quick-access buttons to edit them.";
     } else {
         title = mouse ? "Main Screen Mouse Controls" : "Default Touch Layout";
         body = mouse
@@ -1777,7 +1777,7 @@ void sdl_touch_tutorial_draw_buttonwheel_page(const SDL_Rect* screen,
 
     sdl_touch_tutorial_draw_info_panel(screen,
         panel_x, panel_y, panel_w, "Button wheel controls",
-        "<t>Outer arrows:</t> <a>tap</a> a direction to step.\n<t>Inner wheel:</t> <a>press and drag</a> toward a direction, then release.\n<t>Center:</t> <a>tap</a> to repeat the last direction.\n<a>Swipe edge:</a> reveal or hide the touch pane.\n<t>Quick access:</t> <a>tap</a> a button for its command; <a>hold</a> it for the long-touch command.\n<t>Status changes:</t> the wheel re-centres and shrinks inside the open lane as the condition panel grows.\nDescription cards open above the bottom-center quick-access overlay.");
+        "<t>Outer arrows:</t> <a>tap</a> a direction to step.\n<t>Inner wheel:</t> <a>press and drag</a> toward a direction, then release.\n<t>Center:</t> <a>tap</a> to repeat the last direction.\n<a>Swipe edge:</a> reveal or hide the touch pane.\n<t>Quick access:</t> <a>tap</a> a button for its command; <a>hold</a> it to edit that button.\n<t>Status changes:</t> the wheel re-centres and shrinks inside the open lane as the condition panel grows.\nDescription cards open above the bottom-center quick-access overlay.");
 
     sdl_touch_tutorial_draw_footer(screen, false, page_count == 1);
 }

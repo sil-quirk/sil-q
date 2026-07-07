@@ -243,6 +243,7 @@ struct sdl_config {
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
     int touch_top_panel_mode;
     bool touch_top_panel_default_open;
+    bool touch_top_panel_second_row;
     int touch_top_panel_button_count;
     int touch_top_panel_tile_scale;
     int touch_top_panel_bindings[SDL_TOUCH_TOP_PANEL_BUTTON_COUNT];

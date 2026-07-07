@@ -646,6 +646,7 @@ bool g_left_panel_debug_dump_rows = false;
 bool g_active_side_panes = true;
 bool g_active_bottom_panes = true;
 int g_description_overlay_main_anchor_depth = 0;
+int g_description_overlay_full_main_anchor_depth = 0;
 bool g_supporting_panes_layout_visible = true;
 int g_inventory_pane_layout_rows = -1;
 int g_supply_pane_layout_rows = -1;
@@ -685,6 +686,7 @@ int g_default_touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
 int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
 int g_default_touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
 bool g_default_touch_top_panel_default_open = false;
+bool g_default_touch_top_panel_second_row = false;
 int g_default_touch_top_panel_button_count =
     SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
 int g_default_touch_top_panel_tile_scale = SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;

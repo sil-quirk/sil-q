@@ -183,7 +183,8 @@ void request_command(void)
         }
 
         /* Clear top line */
-        prt("", 0, 0);
+        if (ui_message_line_enabled())
+            prt("", 0, 0);
         message_line_reset_column();
 
         /* Command Count */

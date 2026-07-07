@@ -1695,27 +1695,17 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (pad_y < 2)
         pad_y = 2;
 
-    /* Reserve the left strip the thumb buttons occupy so the popup is sized and
-     * centred in the space to their right and never crosses them. */
+    /* Reserve the left strip the contextual thumb buttons occupy so the popup
+     * is sized and centred in the space to their right and never crosses them. */
     {
-        SDL_FRect thumb_rects[SDL_TOUCH_THUMB_BUTTON_COUNT];
+        float right = 0.0f;
 
-        if (sdl_touch_thumb_compute_rects(thumb_rects)) {
-            float right = 0.0f;
+        if (sdl_touch_thumb_current_right_edge(&right) && right > 0.0f) {
+            int reserve = (int)right + margin - anchor.x;
 
-            for (int i = 0; i < SDL_TOUCH_THUMB_BUTTON_COUNT; i++) {
-                float edge = thumb_rects[i].x + thumb_rects[i].w;
-
-                if (thumb_rects[i].w > 0.0f && edge > right)
-                    right = edge;
-            }
-            if (right > 0.0f) {
-                int reserve = (int)right + margin - anchor.x;
-
-                if (reserve > 0 && reserve < anchor.w) {
-                    anchor.x += reserve;
-                    anchor.w -= reserve;
-                }
+            if (reserve > 0 && reserve < anchor.w) {
+                anchor.x += reserve;
+                anchor.w -= reserve;
             }
         }
     }

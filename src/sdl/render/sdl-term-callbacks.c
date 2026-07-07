@@ -1144,18 +1144,28 @@ static void sdl_draw_rewired_trap_tint(const SDL_FRect* dst)
     SDL_RenderFillRect(g_state.renderer, dst);
 }
 
+static float sdl_map_monster_overlay_scale(void)
+{
+#ifdef SIL_MOBILE
+    return 1.3f;
+#else
+    return 1.0f;
+#endif
+}
+
 static float sdl_map_monster_health_bar_height(const SDL_FRect* cell)
 {
     float height;
+    float scale = sdl_map_monster_overlay_scale();
 
     if (!cell)
         return 0.0f;
 
-    height = cell->h * 0.16f;
-    if (height < 2.0f)
-        height = 2.0f;
-    if (height > 5.0f)
-        height = 5.0f;
+    height = cell->h * 0.16f * scale;
+    if (height < 2.0f * scale)
+        height = 2.0f * scale;
+    if (height > 5.0f * scale)
+        height = 5.0f * scale;
 
     return height;
 }
@@ -1220,8 +1230,10 @@ static void sdl_draw_map_monster_health_bar(int y, int x,
     int m_idx;
     monster_type* m_ptr;
     long scaled;
+    float scale = sdl_map_monster_overlay_scale();
     float margin;
     float height;
+    float width;
     SDL_FRect bar;
 
     if (!cell || !sdl_map_monster_health_bar_visible(y, x))
@@ -1238,12 +1250,23 @@ static void sdl_draw_map_monster_health_bar(int y, int x,
         scaled = 255L;
 
     margin = MAX(1.0f, cell->w * 0.10f);
+    width = cell->w - margin * 2.0f;
+    if (scale > 1.0f)
+    {
+        float min_margin = MAX(1.0f, cell->w * 0.03f);
+        float max_width = cell->w - min_margin * 2.0f;
+
+        width *= scale;
+        if (width > max_width)
+            width = max_width;
+        margin = (cell->w - width) * 0.5f;
+    }
     height = sdl_map_monster_health_bar_height(cell);
 
     bar = (SDL_FRect){
         .x = cell->x + margin,
         .y = sdl_map_monster_health_bar_y(cell),
-        .w = cell->w - margin * 2.0f,
+        .w = width,
         .h = height,
     };
     sdl_render_health_bar_rect(&bar, (byte)scaled,
@@ -1283,6 +1306,7 @@ static void sdl_status_icon_fill_disc(float cx, float cy, float radius)
 static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
 {
     float size;
+    float scale = sdl_map_monster_overlay_scale();
     float margin;
     float radius;
     float cx;
@@ -1294,8 +1318,10 @@ static void sdl_draw_pixel_sleep_marker(const SDL_FRect* cell)
         return;
 
     size = MIN(cell->w, cell->h);
-    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
-    radius = sdl_status_icon_clampf(size * 0.08f, 1.5f, 4.0f);
+    margin = sdl_status_icon_clampf(size * 0.08f * scale,
+        1.0f * scale, 4.0f * scale);
+    radius = sdl_status_icon_clampf(size * 0.08f * scale,
+        1.5f * scale, 4.0f * scale);
     cx = cell->x + cell->w - margin - radius;
     cy = cell->y + margin + radius;
 
@@ -1346,8 +1372,10 @@ static void sdl_draw_pixel_los_marker(const SDL_FRect* cell,
 
     size = MIN(cell->w, cell->h);
     stealth_eye = p_ptr && p_ptr->stealth_mode;
-    scale = stealth_eye ? 1.5f : 1.0f;
-    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
+    scale = (stealth_eye ? 1.5f : 1.0f)
+        * sdl_map_monster_overlay_scale();
+    margin = sdl_status_icon_clampf(size * 0.08f * scale,
+        1.0f * scale, 4.0f * scale);
     top = cell->y + margin;
     if (avoid_health_bar)
         top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
@@ -1411,6 +1439,7 @@ static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell, bool fleeing,
     bool avoid_health_bar)
 {
     float size;
+    float scale = sdl_map_monster_overlay_scale();
     float margin;
     float top;
     float width;
@@ -1425,13 +1454,17 @@ static void sdl_draw_pixel_alert_marker(const SDL_FRect* cell, bool fleeing,
         return;
 
     size = MIN(cell->w, cell->h);
-    margin = sdl_status_icon_clampf(size * 0.08f, 1.0f, 4.0f);
+    margin = sdl_status_icon_clampf(size * 0.08f * scale,
+        1.0f * scale, 4.0f * scale);
     top = cell->y + margin;
     if (avoid_health_bar)
         top = MAX(top, sdl_map_monster_health_bar_bottom(cell) + 1.0f);
-    width = sdl_status_icon_clampf(size * 0.075f, 1.5f, 3.2f);
-    stem_h = sdl_status_icon_clampf(size * 0.27f, 4.0f, 11.0f);
-    dot_size = sdl_status_icon_clampf(width * 1.25f, 2.0f, 4.0f);
+    width = sdl_status_icon_clampf(size * 0.075f * scale,
+        1.5f * scale, 3.2f * scale);
+    stem_h = sdl_status_icon_clampf(size * 0.27f * scale,
+        4.0f * scale, 11.0f * scale);
+    dot_size = sdl_status_icon_clampf(width * 1.25f,
+        2.0f * scale, 4.0f * scale);
 
     stem = (SDL_FRect){
         .x = cell->x + cell->w - margin - width,

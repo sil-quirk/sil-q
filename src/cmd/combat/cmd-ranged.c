@@ -355,6 +355,30 @@ static bool player_moved_on_previous_turn(void)
     return (action >= 1) && (action <= 9) && (action != 5);
 }
 
+static void restore_target_after_implicit_fire(
+    bool target_set, int target_who, int target_row, int target_col)
+{
+    if (!target_set)
+    {
+        target_set_monster(0);
+        return;
+    }
+
+    if (target_who > 0)
+    {
+        if ((target_who < mon_max) && target_able(target_who))
+            target_set_monster(target_who);
+        else
+            target_set_monster(0);
+        return;
+    }
+
+    if (in_bounds_fully(target_row, target_col))
+        target_set_location(target_row, target_col);
+    else
+        target_set_monster(0);
+}
+
 void do_cmd_fire(int quiver)
 {
     int dir, item;
@@ -1269,6 +1293,10 @@ bool do_cmd_fire_at_adjacent(int y, int x)
 {
     int dir;
     int quiver;
+    bool old_target_set;
+    int old_target_who;
+    int old_target_row;
+    int old_target_col;
 
     if (!player_active_weapon_is_ranged())
         return false;
@@ -1280,8 +1308,15 @@ bool do_cmd_fire_at_adjacent(int y, int x)
         return false;
 
     quiver = player_active_weapon_quiver_number();
+    old_target_set = p_ptr->target_set ? true : false;
+    old_target_who = p_ptr->target_who;
+    old_target_row = p_ptr->target_row;
+    old_target_col = p_ptr->target_col;
+
     p_ptr->command_dir = dir;
     do_cmd_fire(quiver);
+    restore_target_after_implicit_fire(
+        old_target_set, old_target_who, old_target_row, old_target_col);
     return true;
 }
 
