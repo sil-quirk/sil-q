@@ -962,9 +962,13 @@ void do_cmd_change_song()
 
                 if (clicked_choice >= 0 && clicked_choice < total_options)
                 {
+                    bool same_choice = (highlight == clicked_choice);
+
                     highlight = clicked_choice;
 
                     if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    if (!same_choice)
                         continue;
 
                     song_choice = song_menu_choice_from_highlight(highlight,
@@ -1620,7 +1624,7 @@ int bane_menu(int* highlight)
     if (compact_layout)
     {
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            sdl_touch_only_device_active() ? "Tap a row to select"
+            sdl_touch_only_device_active() ? "Tap row; selected row chooses"
                 : (steamdeck ? "D-pad navigate" : "Dir navigate"));
         {
             char prompt[96];
@@ -1688,8 +1692,10 @@ int bane_menu(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= options)
             {
+                bool same_choice = (*highlight == clicked_choice);
+
                 *highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_HOVER)
+                if (click_action != UI_MENU_CLICK_HOVER && same_choice)
                     return (*highlight);
             }
             return (0);
@@ -2047,7 +2053,7 @@ int oath_menu(int* highlight)
 
         // Navigation instructions at bottom
         Term_putstr(desc_col, nav_row_1, term_wid - desc_col, TERM_SLATE,
-            sdl_touch_only_device_active() ? "Tap a row to select"
+            sdl_touch_only_device_active() ? "Tap row; selected row chooses"
                 : (steamdeck ? "D-pad navigate" : "Dir navigate"));
         {
             char prompt[96];
@@ -2116,8 +2122,10 @@ int oath_menu(int* highlight)
             }
             else if (clicked_choice >= 1 && clicked_choice <= visible_count)
             {
+                bool same_choice = (*highlight == clicked_choice);
+
                 *highlight = clicked_choice;
-                if (click_action != UI_MENU_CLICK_HOVER)
+                if (click_action != UI_MENU_CLICK_HOVER && same_choice)
                     return visible_oaths[*highlight - 1];
             }
             return (0);
@@ -4114,9 +4122,9 @@ static void ability_browser_draw_prompt(const ability_browser_layout* layout)
          * below scans this string for them, so dropping them would remove
          * those tap targets on touch. */
         const char* variants[] = {
-            "Tap a row to buy/toggle, train, prev skill, scroll, i skills",
-            "Tap row: buy/toggle, train, scroll, i skills",
-            "Tap to buy/toggle"
+            "Tap row to select; selected row buy/toggle, train, prev skill, scroll, i skills",
+            "Selected row: buy/toggle, train, scroll, i skills",
+            "Selected row buy/toggle"
         };
 
         terminal_prompt_pick_variant(prompt, sizeof(prompt), layout->visible_w,
@@ -4247,8 +4255,31 @@ static bool ability_browser_activate_choice(int skilltype, int abilitynum)
         if (skip_purchase)
             return false;
 
-        if (!get_check("Gain this ability? "))
-            return false;
+        {
+            char gain_name[80];
+            char prompt[160];
+
+            if (banechoice > 0)
+            {
+                strnfmt(gain_name, sizeof(gain_name), "%s-%s",
+                    bane_name[banechoice], b_name + b_ptr->name);
+            }
+            else if (oathchoice > 0)
+            {
+                strnfmt(gain_name, sizeof(gain_name), "%s: %s",
+                    b_name + b_ptr->name, oath_name_short(oathchoice));
+            }
+            else
+            {
+                SDL_strlcpy(gain_name, b_name + b_ptr->name,
+                    sizeof(gain_name));
+            }
+
+            strnfmt(prompt, sizeof(prompt), "Gain %s for %d XP? ",
+                gain_name, exp_cost);
+            if (!get_check(prompt))
+                return false;
+        }
 
         p_ptr->innate_ability[skilltype][abilitynum] = true;
         p_ptr->have_ability[skilltype][abilitynum] = true;
@@ -4422,10 +4453,14 @@ int abilities_menu1(int* highlight)
 
         if (clicked_choice >= 1 && clicked_choice <= options)
         {
+            bool same_choice = (*highlight == clicked_choice);
+
             *highlight = clicked_choice;
             if (click_action == UI_MENU_CLICK_HOVER)
                 return (0);
-            return (*highlight);
+            if (same_choice)
+                return (*highlight);
+            return (0);
         }
     }
 
@@ -5064,8 +5099,11 @@ int abilities_menu2(int skilltype, int* highlight)
 
                 if (selected_index >= 0 && selected_index < visible_count)
                 {
+                    bool same_choice =
+                        (*highlight == visible_abilities[selected_index] + 1);
+
                     *highlight = visible_abilities[selected_index] + 1;
-                    if (click_action != UI_MENU_CLICK_HOVER)
+                    if (click_action != UI_MENU_CLICK_HOVER && same_choice)
                         return (*highlight);
                     return (0);
                 }
@@ -5382,16 +5420,13 @@ void do_cmd_ability_screen(void)
                     if (clicked_entry >= 0 && clicked_entry < entry_count)
                     {
                         bool same = (entry_cur == clicked_entry);
-                        bool touch_primary =
-                            sdl_touch_only_device_active()
-                            && click_action == UI_MENU_CLICK_PRIMARY;
 
                         entry_cur = clicked_entry;
                         column = 0;
                         desc_top = 0;
                         if (click_action == UI_MENU_CLICK_HOVER)
                             continue;
-                        if (!same && !touch_primary)
+                        if (!same)
                             continue;
                         ch = ' ';
                     }

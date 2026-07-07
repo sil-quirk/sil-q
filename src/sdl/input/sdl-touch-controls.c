@@ -642,14 +642,38 @@ static bool sdl_touch_thumb_fire_targeting_active(void)
 
 int sdl_touch_thumb_button_binding(int index, bool long_press)
 {
+    bool description_open = sdl_touch_thumb_description_open();
     bool ranged = sdl_touch_thumb_ranged_mode_active();
     bool quick_throw = sdl_touch_thumb_quick_throw_active();
     bool space_action = sdl_touch_thumb_space_action(NULL, NULL, 0);
     bool pickup_action = sdl_touch_thumb_pickup_action();
     bool fire_targeting = sdl_touch_thumb_fire_targeting_active();
+    bool description_x =
+        description_open && sdl_description_overlay_has_footer_action('x');
+    bool description_space =
+        description_open && sdl_description_overlay_has_footer_action(' ');
 
     if (index < 0 || index >= SDL_TOUCH_THUMB_RUNTIME_BUTTON_COUNT)
         return GAMEPAD_BIND_NONE;
+
+    if (description_open)
+    {
+        if (long_press)
+            return GAMEPAD_BIND_NONE;
+        if (index == SDL_TOUCH_THUMB_TOP_BUTTON)
+        {
+            if (description_x)
+                return 'x';
+            if (description_space)
+                return ' ';
+        }
+        if (index == SDL_TOUCH_THUMB_BOTTOM_BUTTON && description_x
+            && description_space)
+        {
+            return ' ';
+        }
+        return GAMEPAD_BIND_NONE;
+    }
 
     if (fire_targeting)
     {
@@ -944,6 +968,11 @@ static int sdl_touch_context_binding(int binding)
     int key = binding;
     int context_binding = (binding == INPUT_BIND_CONFIRM) ? ' ' : binding;
 
+    if (sdl_touch_thumb_description_open()
+        && sdl_description_overlay_has_footer_action(binding))
+    {
+        return binding;
+    }
     if (binding == 'g' && sdl_touch_thumb_description_open())
         return ' ';
 
@@ -964,6 +993,11 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
         SDL_strlcpy(buf, "Off", buflen);
         return;
     }
+    if (sdl_touch_thumb_description_open()
+        && sdl_description_overlay_footer_action_label(binding, buf, buflen))
+    {
+        return;
+    }
     if (binding == SDL_TOUCH_THUMB_BIND_SPACE_CONTEXT) {
         if (sdl_touch_thumb_space_action(NULL, buf, buflen))
             return;
@@ -972,15 +1006,16 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
     }
     if (binding == SDL_TOUCH_THUMB_BIND_FIRE_SELECTED) {
         SDL_strlcpy(buf,
-            (player_active_weapon_quiver_number() == 2) ? "Fire 2nd"
-                                                        : "Fire 1st",
+            (player_active_weapon_quiver_number() == 2) ? "Fire 2nd quiver"
+                                                        : "Fire 1st quiver",
             buflen);
         return;
     }
     if (binding == SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER) {
         SDL_strlcpy(buf,
-            (player_active_weapon_quiver_number() == 2) ? "Select 1st"
-                                                        : "Select 2nd",
+            (player_active_weapon_quiver_number() == 2)
+                ? "Change to 1st quiver"
+                : "Change to 2nd quiver",
             buflen);
         return;
     }
@@ -994,11 +1029,11 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
         return;
     }
     if (binding == 'f') {
-        SDL_strlcpy(buf, "Fire 1st", buflen);
+        SDL_strlcpy(buf, "Fire 1st quiver", buflen);
         return;
     }
     if (binding == 'F') {
-        SDL_strlcpy(buf, "Fire 2nd", buflen);
+        SDL_strlcpy(buf, "Fire 2nd quiver", buflen);
         return;
     }
     if (binding == 'g') {
@@ -3596,10 +3631,68 @@ static bool sdl_touch_top_panel_slot_assigned(int slot)
         || config.touch_top_panel_long_bindings[slot] != GAMEPAD_BIND_NONE;
 }
 
+static int sdl_touch_top_panel_description_action_for_binding(int binding)
+{
+    if (!sdl_touch_thumb_description_open())
+        return GAMEPAD_BIND_NONE;
+
+    if (binding == INPUT_BIND_CONFIRM)
+        binding = ' ';
+
+    if (binding == 'x' && sdl_description_overlay_has_footer_action('x'))
+        return 'x';
+    if ((binding == ' ' || binding == 'g')
+        && sdl_description_overlay_has_footer_action(' '))
+    {
+        return ' ';
+    }
+
+    return GAMEPAD_BIND_NONE;
+}
+
+static int sdl_touch_top_panel_description_action_for_slot(int slot)
+{
+    if (slot < 0 || slot >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        return GAMEPAD_BIND_NONE;
+
+    return sdl_touch_top_panel_description_action_for_binding(
+        config.touch_top_panel_bindings[slot]);
+}
+
 static int sdl_touch_top_panel_visible_slots(int* slots, int max_slots)
 {
     int configured_count = sdl_touch_top_panel_configured_button_count();
     int visible_count = 0;
+
+    if (sdl_touch_thumb_description_open())
+    {
+        int description_slot = -1;
+        int pickup_slot = -1;
+
+        for (int i = 0; i < configured_count; i++) {
+            int slot = sdl_touch_top_panel_slot_for_display_index(i,
+                configured_count);
+            int action = sdl_touch_top_panel_description_action_for_slot(slot);
+
+            if (action == 'x' && description_slot < 0)
+                description_slot = slot;
+            else if (action == ' ' && pickup_slot < 0)
+                pickup_slot = slot;
+        }
+
+        if (description_slot >= 0) {
+            if (slots && visible_count < max_slots)
+                slots[visible_count] = description_slot;
+            visible_count++;
+        }
+        if (pickup_slot >= 0 && pickup_slot != description_slot) {
+            if (slots && visible_count < max_slots)
+                slots[visible_count] = pickup_slot;
+            visible_count++;
+        }
+
+        return visible_count;
+    }
 
     for (int i = 0; i < configured_count; i++) {
         int slot = sdl_touch_top_panel_slot_for_display_index(i,
@@ -3952,8 +4045,12 @@ int sdl_touch_top_panel_binding_for_slot(int slot, bool long_press)
 
 static int sdl_touch_top_panel_display_binding_for_slot(int slot)
 {
+    int description_action =
+        sdl_touch_top_panel_description_action_for_slot(slot);
     int binding = sdl_touch_top_panel_binding_for_slot(slot, false);
 
+    if (description_action != GAMEPAD_BIND_NONE)
+        return description_action;
     if (binding != GAMEPAD_BIND_NONE)
         return binding;
 
@@ -3976,6 +4073,17 @@ void sdl_touch_top_panel_label_for_slot(int slot, bool long_press,
     if (binding == GAMEPAD_BIND_NONE) {
         SDL_strlcpy(buf, "Off", buflen);
         return;
+    }
+
+    {
+        int description_action =
+            sdl_touch_top_panel_description_action_for_binding(binding);
+
+        if (description_action != GAMEPAD_BIND_NONE) {
+            sdl_touch_context_label_for_binding(description_action, buf,
+                buflen);
+            return;
+        }
     }
 
     if (binding == TOUCH_BIND_MAIN_MENU_KNOWLEDGE) {
@@ -4323,6 +4431,13 @@ static void sdl_touch_top_panel_description_for_slot(int slot, char* buf,
         return;
 
     tap_binding = sdl_touch_top_panel_binding_for_slot(slot, false);
+    {
+        int description_action =
+            sdl_touch_top_panel_description_action_for_binding(tap_binding);
+
+        if (description_action != GAMEPAD_BIND_NONE)
+            tap_binding = description_action;
+    }
     sdl_touch_top_panel_description_for_binding(tap_binding, tap_desc,
         sizeof(tap_desc));
     strnfmt(buf, buflen, "Tap: %s\nHold: edit this button.", tap_desc);

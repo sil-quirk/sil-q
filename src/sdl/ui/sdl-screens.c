@@ -3800,41 +3800,56 @@ static int sdl_touch_exit_button_font_px(float button_h)
     return sdl_char_sheet_clampi((int)(button_h * 0.58f), 16, 52);
 }
 
-static bool sdl_touch_exit_button_rect(SDL_FRect* out)
+enum
+{
+    SDL_TOUCH_MENU_BUTTON_MAX = 10,
+    SDL_TOUCH_MENU_EXIT_CHOICE = -0x3fffffff
+};
+
+typedef struct sdl_touch_menu_button_layout_entry
+{
+    SDL_FRect rect;
+    int choice;
+    byte attr;
+    char label[32];
+} sdl_touch_menu_button_layout_entry;
+
+static int sdl_touch_menu_button_layout(
+    sdl_touch_menu_button_layout_entry buttons[], int max_buttons)
 {
     const sdl_view* view = &g_views[PANE_MAIN];
     int cols;
     int rows;
+    int count = 0;
+    int start = 0;
+    float widths[SDL_TOUCH_MENU_BUTTON_MAX];
     float content_x;
     float content_y;
     float content_w;
     float content_h;
     float bh;
-    float bw;
+    float gap;
     float margin;
+    float pad_x;
+    float total_w = 0.0f;
+    float x;
     int font_px;
     TTF_Font* font;
-    int text_w;
-    float pad_x;
 
-    if (!out)
-        return false;
-    *out = (SDL_FRect){ 0 };
-
-    if (!ui_menu_click_touch_exit_button_active())
-        return false;
+    if (!buttons || max_buttons <= 0)
+        return 0;
     if (!sdl_touch_only_device_active())
-        return false;
+        return 0;
     if (!g_state.renderer)
-        return false;
+        return 0;
     if (!view->term_ready || view->cell_w <= 0 || view->cell_h <= 0
         || view->rect.w <= 0 || view->rect.h <= 0)
-        return false;
+        return 0;
 
     cols = sdl_main_view_visual_cols(view);
     rows = sdl_main_view_visual_rows(view);
     if (cols <= 0 || rows <= 0)
-        return false;
+        return 0;
 
     content_x = (float)(view->rect.x + view->margin_x);
     content_y = (float)(view->rect.y + view->margin_y);
@@ -3844,52 +3859,145 @@ static bool sdl_touch_exit_button_rect(SDL_FRect* out)
     bh = sdl_char_sheet_clampf(content_h * 0.060f, 36.0f, 84.0f);
     font_px = sdl_touch_exit_button_font_px(bh);
     font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
-    text_w = font ? sdl_char_sheet_text_width(font, "Exit") : (int)(bh * 1.4f);
     pad_x = MAX(18.0f, bh * 0.62f);
-    bw = (float)text_w + pad_x * 2.0f;
     margin = sdl_char_sheet_clampf(content_h * 0.018f, 8.0f, 26.0f);
+    gap = MAX(8.0f, margin * 0.60f);
 
-    out->w = bw;
-    out->h = bh;
-    out->x = content_x + content_w - margin - bw;
-    out->y = content_y + content_h - margin - bh;
-    return true;
+    for (int i = 0; i < ui_menu_click_touch_button_count()
+         && count < max_buttons && count < SDL_TOUCH_MENU_BUTTON_MAX; i++)
+    {
+        int choice = 0;
+        cptr label = NULL;
+        byte attr = TERM_DARK;
+
+        if (!ui_menu_click_touch_button_get(i, &choice, &label, &attr)
+            || !label || !label[0])
+        {
+            continue;
+        }
+
+        buttons[count].choice = choice;
+        buttons[count].attr = attr;
+        SDL_strlcpy(buttons[count].label, label, sizeof(buttons[count].label));
+        count++;
+    }
+
+    if (ui_menu_click_touch_exit_button_active() && count < max_buttons
+        && count < SDL_TOUCH_MENU_BUTTON_MAX)
+    {
+        buttons[count].choice = SDL_TOUCH_MENU_EXIT_CHOICE;
+        buttons[count].attr = TERM_DARK;
+        SDL_strlcpy(buttons[count].label, "Exit", sizeof(buttons[count].label));
+        count++;
+    }
+
+    if (count <= 0)
+        return 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        int text_w = font ? sdl_char_sheet_text_width(font, buttons[i].label)
+                          : (int)(bh * 1.4f);
+
+        widths[i] = (float)text_w + pad_x * 2.0f;
+        if (widths[i] < bh * 1.55f)
+            widths[i] = bh * 1.55f;
+    }
+
+    while (start < count)
+    {
+        float max_w = content_w - margin * 2.0f;
+
+        total_w = 0.0f;
+        for (int i = start; i < count; i++)
+        {
+            if (i > start)
+                total_w += gap;
+            total_w += widths[i];
+        }
+
+        if (total_w <= max_w || start >= count - 1)
+            break;
+
+        start++;
+    }
+
+    x = content_x + content_w - margin - total_w;
+    if (x < content_x + margin)
+        x = content_x + margin;
+
+    int out_count = 0;
+    for (int i = start; i < count; i++)
+    {
+        buttons[out_count] = buttons[i];
+        buttons[out_count].rect = (SDL_FRect){
+            x, content_y + content_h - margin - bh, widths[i], bh
+        };
+        x += widths[i] + gap;
+        out_count++;
+    }
+
+    return out_count;
 }
 
 void sdl_touch_exit_button_render(void)
 {
-    SDL_FRect rect;
+    sdl_touch_menu_button_layout_entry buttons[SDL_TOUCH_MENU_BUTTON_MAX];
+    int count;
     int font_px;
     TTF_Font* font;
 
-    if (!sdl_touch_exit_button_rect(&rect))
+    count = sdl_touch_menu_button_layout(buttons, N_ELEMENTS(buttons));
+    if (count <= 0)
         return;
 
-    /* Match the character sheet's default (unfocused) touch button chrome. */
-    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(g_state.renderer, 156, 156, 156, 238);
-    SDL_RenderFillRect(g_state.renderer, &rect);
-    SDL_SetRenderDrawColor(g_state.renderer, 28, 28, 28, 230);
-    SDL_RenderRect(g_state.renderer, &rect);
-
-    font_px = sdl_touch_exit_button_font_px(rect.h);
+    font_px = sdl_touch_exit_button_font_px(buttons[0].rect.h);
     font = sdl_story_font_for_height_slot(font_px, SDL_STORY_FONT_SLOT_MENU);
-    if (font)
-        (void)sdl_char_sheet_draw_button_text(font, "Exit", TERM_DARK, &rect);
+
+    for (int i = 0; i < count; i++)
+    {
+        /* Match the character sheet's default touch button chrome. */
+        SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g_state.renderer, 156, 156, 156, 238);
+        SDL_RenderFillRect(g_state.renderer, &buttons[i].rect);
+        SDL_SetRenderDrawColor(g_state.renderer, 28, 28, 28, 230);
+        SDL_RenderRect(g_state.renderer, &buttons[i].rect);
+
+        if (font)
+            (void)sdl_char_sheet_draw_button_text(font, buttons[i].label,
+                buttons[i].attr, &buttons[i].rect);
+    }
 }
 
 bool sdl_touch_exit_button_handle_pointer(float x, float y)
 {
-    SDL_FRect rect;
+    sdl_touch_menu_button_layout_entry buttons[SDL_TOUCH_MENU_BUTTON_MAX];
+    int count;
 
-    if (!sdl_touch_exit_button_rect(&rect))
-        return false;
-    if (!sdl_point_in_frect(&rect, x, y))
+    count = sdl_touch_menu_button_layout(buttons, N_ELEMENTS(buttons));
+    if (count <= 0)
         return false;
 
-    ui_menu_click_clear_pending_hover();
-    Term_keypress(ESCAPE);
-    return true;
+    for (int i = 0; i < count; i++)
+    {
+        if (!sdl_point_in_frect(&buttons[i].rect, x, y))
+            continue;
+
+        ui_menu_click_clear_pending_hover();
+        if (buttons[i].choice == SDL_TOUCH_MENU_EXIT_CHOICE)
+        {
+            Term_keypress(ESCAPE);
+        }
+        else
+        {
+            (void)ui_menu_click_handle_choice_action(buttons[i].choice,
+                UI_MENU_CLICK_PRIMARY, NULL);
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+        return true;
+    }
+
+    return false;
 }
 
 static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
@@ -7112,6 +7220,121 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     return page + 1;
 }
 
+static int sdl_char_sheet_narrative_target_page_count(void)
+{
+    int target = g_sdl_character_sheet_screen.narrative_target_page_count;
+    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+
+    if (target <= 0)
+        return 0;
+    if (target > SDL_BOOK_MAX_PAGES)
+        target = SDL_BOOK_MAX_PAGES;
+    if (para_count > 0 && target > para_count)
+        target = para_count;
+
+    return target;
+}
+
+static void sdl_char_sheet_narrative_expand_pages_to_target(
+    int target, int* page_start, int* page_count)
+{
+    int current;
+    int para_count = g_sdl_character_sheet_screen.narrative_para_count;
+    int segment_pages[SDL_BOOK_MAX_PAGES];
+    int out[SDL_BOOK_MAX_PAGES + 1];
+    int extra;
+    int out_count = 0;
+    int new_page_count;
+    int i;
+
+    if (!page_start || !page_count)
+        return;
+    current = *page_count;
+    if (target <= current || para_count <= current)
+        return;
+    if (target > para_count)
+        target = para_count;
+
+    for (i = 0; i < current; i++)
+        segment_pages[i] = 1;
+
+    extra = target - current;
+    while (extra > 0)
+    {
+        int best = -1;
+        int best_capacity = 0;
+
+        for (i = 0; i < current; i++)
+        {
+            int start = page_start[i];
+            int end = page_start[i + 1];
+            int capacity = (end - start) - segment_pages[i];
+
+            if (capacity > best_capacity)
+            {
+                best = i;
+                best_capacity = capacity;
+            }
+        }
+
+        if (best < 0)
+            break;
+        segment_pages[best]++;
+        extra--;
+    }
+
+    out[out_count++] = page_start[0];
+    for (i = 0; i < current && out_count < SDL_BOOK_MAX_PAGES; i++)
+    {
+        int start = page_start[i];
+        int end = page_start[i + 1];
+        int pages = segment_pages[i];
+        int len = end - start;
+        int split;
+
+        if (pages < 1)
+            pages = 1;
+        if (pages > len)
+            pages = len;
+
+        for (split = 1; split < pages
+             && out_count < SDL_BOOK_MAX_PAGES; split++)
+        {
+            int boundary = start + (len * split + pages / 2) / pages;
+
+            if (boundary <= out[out_count - 1])
+                boundary = out[out_count - 1] + 1;
+            if (boundary >= end)
+                boundary = end - 1;
+            if (boundary > out[out_count - 1])
+                out[out_count++] = boundary;
+        }
+
+        if (end > out[out_count - 1] && out_count < SDL_BOOK_MAX_PAGES + 1)
+            out[out_count++] = end;
+    }
+
+    if (out_count < 1)
+        return;
+    if (out[out_count - 1] != para_count)
+    {
+        if (out_count < SDL_BOOK_MAX_PAGES + 1)
+            out[out_count++] = para_count;
+        else
+            out[out_count - 1] = para_count;
+    }
+
+    new_page_count = out_count - 1;
+    if (new_page_count < 1)
+        new_page_count = 1;
+    if (new_page_count > SDL_BOOK_MAX_PAGES)
+        new_page_count = SDL_BOOK_MAX_PAGES;
+    for (i = 0; i <= SDL_BOOK_MAX_PAGES; i++)
+        page_start[i] = (i <= new_page_count) ? out[i] : para_count;
+
+    *page_count = new_page_count;
+}
+
 /*
  * Choose ONE body size for the whole narrative book.  The race book shrinks a
  * single page to fit; narrative text is paginated instead, so we pick the
@@ -7123,12 +7346,30 @@ int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w,
 {
     int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.030f), 18, 32);
     int max_px = sdl_char_sheet_clampi((int)(canvas_h * 0.048f), 26, 46);
+    int target_pages = sdl_char_sheet_narrative_target_page_count();
     int min_pages;
     int chosen;
     int px;
 
     if (max_px < min_px)
         max_px = min_px;
+
+    /* Quest dialogue can request a fixed page budget; pick the largest body
+     * size that still fits in it, then add soft paragraph breaks if needed. */
+    if (target_pages > 0)
+    {
+        chosen = min_px;
+        for (px = max_px; px >= min_px; px--)
+        {
+            if (sdl_char_sheet_narrative_pack(px, content_w, top_y,
+                    region_bottom, NULL) <= target_pages)
+            {
+                chosen = px;
+                break;
+            }
+        }
+        return chosen;
+    }
 
     min_pages = sdl_char_sheet_narrative_pack(min_px, content_w, top_y,
         region_bottom, NULL);
@@ -7909,6 +8150,10 @@ void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
     g_sdl_character_sheet_screen.narrative_page_count =
         sdl_char_sheet_narrative_pack(body_px, content_w, top_y, region_bottom,
             g_sdl_character_sheet_screen.narrative_page_start);
+    sdl_char_sheet_narrative_expand_pages_to_target(
+        sdl_char_sheet_narrative_target_page_count(),
+        g_sdl_character_sheet_screen.narrative_page_start,
+        &g_sdl_character_sheet_screen.narrative_page_count);
 
     g_sdl_character_sheet_screen.select_page_count =
         g_sdl_character_sheet_screen.narrative_page_count;
@@ -10216,6 +10461,7 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.narrative_pending_break = false;
     g_sdl_character_sheet_screen.narrative_pending_highlight = false;
     g_sdl_character_sheet_screen.narrative_page_count = 0;
+    g_sdl_character_sheet_screen.narrative_target_page_count = 0;
     g_sdl_character_sheet_screen.narrative_body_px = 0;
     g_sdl_character_sheet_screen.narrative_lamp_enabled = false;
     g_sdl_character_sheet_screen.narrative_lamp_current = 0;
@@ -10598,6 +10844,18 @@ void sdl_character_sheet_screen_set_book_close_button(bool enabled)
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
         return;
     g_sdl_character_sheet_screen.narrative_close_enabled = enabled;
+}
+
+void sdl_character_sheet_screen_set_book_target_page_count(int page_count)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+
+    g_sdl_character_sheet_screen.narrative_target_page_count =
+        sdl_char_sheet_clampi(page_count, 0, SDL_BOOK_MAX_PAGES);
+    g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
+    g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
+    g_state.need_present = true;
 }
 
 /* Force the next added paragraph to begin a fresh page (author-placed break). */

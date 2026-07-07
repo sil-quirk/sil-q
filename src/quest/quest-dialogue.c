@@ -92,6 +92,8 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
         screen_load();
         return false;
     }
+    sdl_character_sheet_screen_set_book_target_page_count(
+        sdl_touch_only_device_active() ? 4 : 3);
 
     /* Build paragraphs from the line entries and push them into the book.  The
      * extra (idx == total_texts) pass flushes the final paragraph. */

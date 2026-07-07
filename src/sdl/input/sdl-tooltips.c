@@ -1457,6 +1457,74 @@ void sdl_description_overlay_add_footer_action(int key, cptr token)
     SDL_strlcpy(action->token, token, sizeof(action->token));
 }
 
+static cptr sdl_description_overlay_footer_action_token(int key)
+{
+    if (!g_description_overlay.active || !g_description_overlay.interactive)
+        return NULL;
+
+    for (int i = 0; i < g_description_overlay.footer_action_count; i++)
+    {
+        const description_overlay_action* action =
+            &g_description_overlay.footer_actions[i];
+
+        if (action->key == key && action->token[0])
+            return action->token;
+    }
+
+    return NULL;
+}
+
+bool sdl_description_overlay_has_footer_action(int key)
+{
+    return sdl_description_overlay_footer_action_token(key) != NULL;
+}
+
+bool sdl_description_overlay_footer_action_label(int key, char* buf,
+    size_t buflen)
+{
+    cptr token = sdl_description_overlay_footer_action_token(key);
+    cptr label;
+
+    if (!buf || buflen == 0)
+        return false;
+    buf[0] = '\0';
+    if (!token)
+        return false;
+
+    label = token;
+    if (key == ' ' && strncmp(token, "Space", 5) == 0)
+    {
+        label = token + 5;
+    }
+    else if (key == ESCAPE && strncmp(token, "Esc", 3) == 0)
+    {
+        label = token + 3;
+    }
+    else if (key > 0 && key < 128 && SDL_isprint(key) && token[0]
+        && tolower((unsigned char)token[0]) == tolower((unsigned char)key))
+    {
+        label = token + 1;
+    }
+
+    while (*label && isspace((unsigned char)*label))
+        label++;
+    if (!*label)
+        label = token;
+
+    if (streq(label, "pick up"))
+    {
+        SDL_strlcpy(buf, "Pick Up", buflen);
+    }
+    else
+    {
+        SDL_strlcpy(buf, label, buflen);
+        if (buf[0] && islower((unsigned char)buf[0]))
+            buf[0] = (char)toupper((unsigned char)buf[0]);
+    }
+
+    return buf[0] != '\0';
+}
+
 void sdl_description_overlay_clear_avoid(void)
 {
     bool changed = g_description_overlay.avoid_active;
@@ -1554,7 +1622,7 @@ bool sdl_description_overlay_rects_intersect(
 }
 
 int sdl_description_overlay_rows_for_panel_space(float available_h,
-    int pad_y, int cell_h, bool footer)
+    int pad_y, int cell_h, bool footer, int header_rows)
 {
     int rows;
 
@@ -1562,6 +1630,7 @@ int sdl_description_overlay_rows_for_panel_space(float available_h,
         return 0;
 
     rows = ((int)available_h - pad_y * 2) / cell_h;
+    rows -= header_rows;
     if (footer)
         rows--;
     if (rows < 0)
@@ -1572,8 +1641,8 @@ int sdl_description_overlay_rows_for_panel_space(float available_h,
 
 bool sdl_description_overlay_fit_around_avoid(
     const SDL_Rect* anchor, int margin, int pad_y, int cell_h, bool footer,
-    float panel_x, float panel_w, int* visible_rows, float* panel_h,
-    float* panel_y)
+    int header_rows, float panel_x, float panel_w, int* visible_rows,
+    float* panel_h, float* panel_y)
 {
     SDL_FRect avoid;
     SDL_FRect panel;
@@ -1616,9 +1685,9 @@ bool sdl_description_overlay_fit_around_avoid(
         above_h = avoid.y - gap - min_y;
         below_h = max_y - (avoid.y + avoid.h + gap);
         above_rows = sdl_description_overlay_rows_for_panel_space(
-            above_h, pad_y, cell_h, footer);
+            above_h, pad_y, cell_h, footer, header_rows);
         below_rows = sdl_description_overlay_rows_for_panel_space(
-            below_h, pad_y, cell_h, footer);
+            below_h, pad_y, cell_h, footer, header_rows);
 
         if (below_rows >= *visible_rows && above_rows < *visible_rows)
             place_below = true;
@@ -1633,8 +1702,8 @@ bool sdl_description_overlay_fit_around_avoid(
 
         if (*visible_rows > side_rows)
             *visible_rows = side_rows;
-        *panel_h = (float)((*visible_rows + (footer ? 1 : 0)) * cell_h
-            + pad_y * 2);
+        *panel_h = (float)((header_rows + *visible_rows
+            + (footer ? 1 : 0)) * cell_h + pad_y * 2);
         *panel_y = place_below ? (avoid.y + avoid.h + gap)
                                : (avoid.y - gap - *panel_h);
     }
@@ -1661,6 +1730,7 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     int max_cols;
     int target_cols;
     int footer_cols = 0;
+    int header_rows;
     int text_px;
     int visible_cols;
     int visible_rows;
@@ -1715,8 +1785,10 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     if (max_panel_w <= pad_x * 2 || max_panel_h <= pad_y * 2 + cell_h)
         return false;
 
+    header_rows = overlay->interactive ? 1 : 0;
     max_cols = (max_panel_w - pad_x * 2) / cell_w;
-    max_rows_no_footer = (max_panel_h - pad_y * 2) / cell_h;
+    max_rows_no_footer =
+        (max_panel_h - pad_y * 2) / cell_h - header_rows;
     if (max_cols < 1 || max_rows_no_footer < 1)
         return false;
 
@@ -1771,14 +1843,14 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
         }
 
         panel_w = (float)(text_px + pad_x * 2);
-        panel_h = (float)((visible_rows + (footer ? 1 : 0)) * cell_h
-            + pad_y * 2);
+        panel_h = (float)((header_rows + visible_rows + (footer ? 1 : 0))
+            * cell_h + pad_y * 2);
         panel_x = (float)anchor.x + ((float)anchor.w - panel_w) * 0.5f;
         panel_y = (float)anchor.y + ((float)anchor.h - panel_h) * 0.5f;
 
         if (!sdl_description_overlay_fit_around_avoid(&anchor, margin,
-                pad_y, cell_h, footer, panel_x, panel_w, &visible_rows,
-                &panel_h, &panel_y))
+                pad_y, cell_h, footer, header_rows, panel_x, panel_w,
+                &visible_rows, &panel_h, &panel_y))
         {
             return false;
         }
@@ -1799,6 +1871,7 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
     out->footer = footer;
     out->max_scroll = MAX(0, overlay->height - visible_rows);
     out->scroll = overlay->scroll;
+    out->close_button = overlay->interactive;
     if (out->scroll < 0)
         out->scroll = 0;
     if (out->scroll > out->max_scroll)
@@ -1811,8 +1884,20 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
         .h = panel_h,
     };
     out->text_x = out->panel.x + (float)pad_x;
-    out->text_y = out->panel.y + (float)pad_y;
+    out->text_y = out->panel.y + (float)pad_y
+        + (float)(header_rows * cell_h);
     out->footer_y = out->text_y + (float)(visible_rows * cell_h);
+    if (out->close_button)
+    {
+        float close_size = (float)cell_h;
+
+        out->close_rect = (SDL_FRect){
+            .x = out->panel.x + out->panel.w - (float)pad_x - close_size,
+            .y = out->panel.y + (float)pad_y,
+            .w = close_size,
+            .h = close_size,
+        };
+    }
 
     return true;
 }
@@ -2308,6 +2393,55 @@ static void sdl_description_overlay_render_row(
     }
 }
 
+static void sdl_description_overlay_render_close_button(
+    const description_overlay_layout* layout, bool hover)
+{
+    SDL_FRect rect;
+    SDL_Color icon = hover ? (SDL_Color){125, 185, 255, 255}
+                           : (SDL_Color){220, 224, 232, 235};
+    SDL_Color outline = hover ? (SDL_Color){125, 185, 255, 220}
+                              : (SDL_Color){210, 216, 226, 150};
+    float stroke;
+    float pad;
+    int repeats;
+
+    if (!layout || !layout->close_button)
+        return;
+
+    rect = layout->close_rect;
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, hover ? 26 : 12,
+        hover ? 38 : 18, hover ? 58 : 24, hover ? 245 : 220);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, outline.r, outline.g,
+        outline.b, outline.a);
+    SDL_RenderRect(g_state.renderer, &rect);
+
+    stroke = rect.w / 11.0f;
+    if (stroke < 1.0f)
+        stroke = 1.0f;
+    if (stroke > 4.0f)
+        stroke = 4.0f;
+    pad = rect.w * 0.33f;
+    repeats = (int)stroke;
+    if (repeats < 1)
+        repeats = 1;
+
+    SDL_SetRenderDrawColor(g_state.renderer, icon.r, icon.g, icon.b, icon.a);
+    for (int i = 0; i < repeats; i++)
+    {
+        float offset = (float)i - ((float)repeats - 1.0f) * 0.5f;
+        SDL_RenderLine(g_state.renderer, rect.x + pad,
+            rect.y + pad + offset, rect.x + rect.w - pad,
+            rect.y + rect.h - pad + offset);
+        SDL_RenderLine(g_state.renderer, rect.x + pad,
+            rect.y + rect.h - pad + offset, rect.x + rect.w - pad,
+            rect.y + pad + offset);
+    }
+}
+
 void sdl_description_overlay_render(void)
 {
     description_overlay_layout layout;
@@ -2458,10 +2592,86 @@ void sdl_description_overlay_render(void)
         }
     }
 
+    sdl_description_overlay_render_close_button(&layout,
+        overlay->close_hover);
+
     SDL_SetRenderClipRect(g_state.renderer, NULL);
 
     if (!cached)
         SDL_DestroyTexture(atlas);
+}
+
+static bool sdl_description_overlay_close_button_at(float x, float y)
+{
+    description_overlay_layout layout;
+    SDL_FRect hit;
+
+    if (!g_description_overlay.active || !g_description_overlay.interactive)
+        return false;
+
+    if (!sdl_description_overlay_layout(&layout) || !layout.close_button)
+        return false;
+
+    hit = layout.close_rect;
+    hit.x -= hit.w * 0.75f;
+    hit.y = layout.panel.y;
+    hit.w = layout.panel.x + layout.panel.w - hit.x;
+    hit.h = layout.close_rect.y + layout.close_rect.h - layout.panel.y;
+    if (hit.h < layout.close_rect.h)
+        hit.h = layout.close_rect.h;
+
+    return sdl_point_in_frect(&hit, x, y);
+}
+
+bool sdl_description_overlay_handle_close_hover(float x, float y)
+{
+    bool hit = sdl_description_overlay_close_button_at(x, y);
+    bool changed = false;
+
+    if (!g_description_overlay.active || !g_description_overlay.interactive)
+        return false;
+
+    if (!hit)
+    {
+        if (g_description_overlay.close_hover)
+        {
+            g_description_overlay.close_hover = false;
+            g_state.need_present = true;
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+        return false;
+    }
+
+    if (g_description_overlay.footer_hover_key != 0)
+    {
+        g_description_overlay.footer_hover_key = 0;
+        changed = true;
+    }
+
+    if (!g_description_overlay.close_hover)
+    {
+        g_description_overlay.close_hover = true;
+        changed = true;
+    }
+
+    if (changed)
+    {
+        g_state.need_present = true;
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    }
+
+    return true;
+}
+
+bool sdl_description_overlay_handle_close_pointer(float x, float y)
+{
+    if (!sdl_description_overlay_close_button_at(x, y))
+        return false;
+
+    g_description_overlay.close_hover = true;
+    g_state.need_present = true;
+    Term_keypress(ESCAPE);
+    return true;
 }
 
 int sdl_description_overlay_footer_action_at(float x, float y)

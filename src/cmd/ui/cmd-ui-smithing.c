@@ -1861,7 +1861,16 @@ bool melt_metal_item(int item_num)
                 return (false);
             }
 
-            if (get_check("Are you sure you wish to melt this item down? "))
+            {
+                char o_name[80];
+                char prompt[160];
+
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
+                strnfmt(prompt, sizeof(prompt), "Melt %s down? ", o_name);
+                if (!get_check(prompt))
+                    return (false);
+            }
+
             {
                 int slot;
                 object_type* i_ptr;
@@ -1941,9 +1950,6 @@ bool melt_metal_item(int item_num)
 
                 return (true);
             }
-
-            else
-                return (false);
         }
     }
 

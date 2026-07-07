@@ -16,6 +16,7 @@ typedef struct sdl_question_menu_layout_info {
     SDL_FRect panel;
     SDL_FRect title_row;
     SDL_FRect desc_rect;
+    SDL_FRect close_rect;
     SDL_FRect rows[SDL_QUESTION_MENU_MAX_ENTRIES];
     float divider_y;
     float letter_w;
@@ -26,6 +27,7 @@ typedef struct sdl_question_menu_layout_info {
     bool has_title;
     bool has_desc;
     bool has_divider;
+    bool close_button;
 } sdl_question_menu_layout_info;
 
 /* Pixel rect of a map cell on the main view, or false when it is off the
@@ -139,6 +141,11 @@ static float sdl_question_menu_desc_height(TTF_Font* font, float wrap_w)
     h = (float)surface->h;
     SDL_DestroySurface(surface);
     return h;
+}
+
+static bool sdl_question_menu_close_button_enabled(void)
+{
+    return g_question_menu.active && !g_question_menu.blocking_input;
 }
 
 static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
@@ -342,6 +349,18 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     out->font_px = font_px;
     out->letter_w = letter_w;
     out->letter_gap = letter_gap;
+    out->close_button = sdl_question_menu_close_button_enabled();
+    if (out->close_button)
+    {
+        float close_size = row_h;
+
+        out->close_rect = (SDL_FRect){
+            .x = out->panel.x + out->panel.w - pad_x - close_size,
+            .y = out->panel.y + pad_y,
+            .w = close_size,
+            .h = close_size,
+        };
+    }
 
     rows_top = out->panel.y + pad_y;
     if (out->has_title)
@@ -417,6 +436,56 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     }
 
     return true;
+}
+
+static void sdl_question_menu_render_close_button(
+    const sdl_question_menu_layout_info* layout, bool hover)
+{
+    SDL_FRect rect;
+    SDL_Color icon = hover ? (SDL_Color){ 125, 185, 255, 255 }
+                           : (SDL_Color){ 220, 224, 232, 235 };
+    SDL_Color outline = hover ? (SDL_Color){ 125, 185, 255, 220 }
+                              : (SDL_Color){ 210, 216, 226, 150 };
+    float stroke;
+    float pad;
+    int repeats;
+
+    if (!layout || !layout->close_button)
+        return;
+
+    rect = layout->close_rect;
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
+        return;
+
+    SDL_SetRenderDrawColor(g_state.renderer, hover ? 26 : 12,
+        hover ? 38 : 18, hover ? 58 : 24, hover ? 245 : 220);
+    SDL_RenderFillRect(g_state.renderer, &rect);
+    SDL_SetRenderDrawColor(g_state.renderer, outline.r, outline.g,
+        outline.b, outline.a);
+    SDL_RenderRect(g_state.renderer, &rect);
+
+    stroke = rect.w / 11.0f;
+    if (stroke < 1.0f)
+        stroke = 1.0f;
+    if (stroke > 4.0f)
+        stroke = 4.0f;
+    pad = rect.w * 0.33f;
+    repeats = (int)stroke;
+    if (repeats < 1)
+        repeats = 1;
+
+    SDL_SetRenderDrawColor(g_state.renderer, icon.r, icon.g, icon.b, icon.a);
+    for (int i = 0; i < repeats; i++)
+    {
+        float offset = (float)i - ((float)repeats - 1.0f) * 0.5f;
+
+        SDL_RenderLine(g_state.renderer, rect.x + pad,
+            rect.y + pad + offset, rect.x + rect.w - pad,
+            rect.y + rect.h - pad + offset);
+        SDL_RenderLine(g_state.renderer, rect.x + pad,
+            rect.y + rect.h - pad + offset, rect.x + rect.w - pad,
+            rect.y + pad + offset);
+    }
 }
 
 void sdl_question_menu_clear(void)
@@ -731,7 +800,32 @@ void sdl_question_menu_render(void)
             text_x, row.y, text_w, row.h, false);
     }
 
+    sdl_question_menu_render_close_button(&layout,
+        g_question_menu.close_hover);
+
     SDL_SetRenderClipRect(g_state.renderer, NULL);
+}
+
+static bool sdl_question_menu_close_button_at(float x, float y)
+{
+    sdl_question_menu_layout_info layout;
+    SDL_FRect hit;
+
+    if (!sdl_question_menu_close_button_enabled())
+        return false;
+
+    if (!sdl_question_menu_layout(&layout) || !layout.close_button)
+        return false;
+
+    hit = layout.close_rect;
+    hit.x -= hit.w * 0.75f;
+    hit.y = layout.panel.y;
+    hit.w = layout.panel.x + layout.panel.w - hit.x;
+    hit.h = layout.close_rect.y + layout.close_rect.h - layout.panel.y;
+    if (hit.h < layout.close_rect.h)
+        hit.h = layout.close_rect.h;
+
+    return sdl_point_in_frect(&hit, x, y);
 }
 
 static bool sdl_question_menu_choice_at(float x, float y, int* out_choice,
@@ -780,6 +874,18 @@ bool sdl_question_menu_handle_pointer(float x, float y, int action)
         return false;
     if (g_question_menu.blocking_input)
         return true;
+    if (sdl_question_menu_close_button_at(x, y))
+    {
+        g_question_menu.close_hover = true;
+        g_state.need_present = true;
+
+        if (g_question_menu.nonblocking)
+            sdl_question_menu_clear();
+        else
+            Term_keypress(ESCAPE);
+
+        return true;
+    }
     if (g_question_menu.nonblocking)
         return false;
     if (!sdl_question_menu_choice_at(x, y, &choice, &in_panel))
@@ -801,11 +907,36 @@ bool sdl_question_menu_handle_hover_pointer(float x, float y)
     int choice = -1;
     bool in_panel = false;
     bool wake = false;
+    bool close_hit;
 
     if (!g_question_menu.active)
         return false;
     if (g_question_menu.blocking_input)
         return true;
+    close_hit = sdl_question_menu_close_button_at(x, y);
+    if (close_hit)
+    {
+        if (ui_menu_click_clear_hover(&wake) && wake
+            && !g_question_menu.nonblocking)
+        {
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+        if (!g_question_menu.close_hover)
+        {
+            g_question_menu.close_hover = true;
+            g_state.need_present = true;
+            if (!g_question_menu.nonblocking)
+                Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        }
+        return true;
+    }
+    if (g_question_menu.close_hover)
+    {
+        g_question_menu.close_hover = false;
+        g_state.need_present = true;
+        if (!g_question_menu.nonblocking)
+            Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+    }
     if (g_question_menu.nonblocking)
         return false;
     if (!sdl_question_menu_choice_at(x, y, &choice, &in_panel))

@@ -15,6 +15,10 @@ void ui_menu_click_set_outside_cancel_enabled(bool enabled);
 bool ui_menu_click_outside_cancel_enabled(void);
 void ui_menu_click_set_touch_exit_button(bool enabled);
 bool ui_menu_click_touch_exit_button_active(void);
+void ui_menu_click_add_touch_button(int choice, cptr label, byte attr);
+int ui_menu_click_touch_button_count(void);
+bool ui_menu_click_touch_button_get(int index, int* choice, cptr* label,
+    byte* attr);
 bool ui_menu_click_is_active(void);
 void ui_menu_click_set_touch_category(int category);
 int ui_menu_click_get_touch_category(void);

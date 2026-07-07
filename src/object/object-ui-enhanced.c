@@ -67,12 +67,12 @@ static bool enhanced_menu_format_prompt(char* out, size_t out_size,
          * the words "drop" and "cycle", so keep them present on the wider
          * variants or those affordances would silently disappear on touch. */
         strnfmt(touch_long, sizeof(touch_long),
-            "Tap a row to %s, tap drop or cycle, tap away to exit", action);
-        strnfmt(touch_mid, sizeof(touch_mid), "Tap to %s; drop; cycle",
+            "Tap row to select; selected row to %s; drop; cycle", action);
+        strnfmt(touch_mid, sizeof(touch_mid), "Selected row: %s; drop; cycle",
             action);
         touch_variants[0] = touch_long;
         touch_variants[1] = touch_mid;
-        touch_variants[2] = "Tap a row";
+        touch_variants[2] = "Tap row";
         terminal_prompt_pick_variant(out, out_size, term_wid - 1,
             use_story_font, touch_variants, N_ELEMENTS(touch_variants));
         return false;
@@ -597,6 +597,16 @@ static char describe_item_with_comparisons_aux(int item_index,
 
     if (floor_actions && is_floor)
     {
+        if (object_is_searched_skeleton(base_obj))
+        {
+            object_info_screen_action actions[] = {
+                { ESCAPE, "Esc close" }
+            };
+
+            return object_info_screen_multi_with_actions(objects, headings,
+                count, "Esc close", actions, N_ELEMENTS(actions));
+        }
+
         object_info_screen_action actions[] = {
             { 'x', "" },
             { ' ', "Space pick up" },
@@ -1434,11 +1444,15 @@ void show_inven_enhanced(void)
 
             if (click_taken && clicked_row >= 0 && clicked_row < k)
             {
+                bool same_row = highlight_active && (highlight_row == clicked_row);
+
                 highlight_row = clicked_row;
                 highlight_active = true;
                 enhanced_inventory_selected_item = out_index[highlight_row];
 
                 if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                if (!same_row)
                     continue;
 
                 if (click_action == UI_MENU_CLICK_SECONDARY)
@@ -2106,10 +2120,15 @@ void show_equip_enhanced(void)
                 if (clicked_slot >= INVEN_WIELD && clicked_slot < INVEN_TOTAL
                     && inventory[clicked_slot].k_idx)
                 {
+                    bool same_row =
+                        highlight_active && (highlight_index == clicked_row);
+
                     highlight_index = clicked_row;
                     highlight_active = true;
                     enhanced_equipment_selected_item = clicked_slot;
                     if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+                    if (!same_row)
                         continue;
 
                     done = true;

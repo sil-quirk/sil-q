@@ -1,17 +1,6 @@
 #include "angband.h"
 #include "externs.h"
-#include "sdl-config.h"
-
-static void cmd6_prompt_label(int binding, const char* fallback, char* buf,
-    size_t buflen)
-{
-    if (!buf || !buflen)
-        return;
-
-    sdl_gamepad_action_binding_short_label(binding, buf, buflen);
-    if (!buf[0] || streq(buf, "(unbound)") || streq(buf, "Multiple"))
-        SDL_strlcpy(buf, fallback ? fallback : "", buflen);
-}
+#include "object/object-ui-select.h"
 
 static void format_staff_prompt_name(char* buf, size_t max,
     const object_type* o_ptr, bool pref)
@@ -208,310 +197,37 @@ static int sanctity_collect_targets(sanctity_target_entry entries[],
 static bool sanctity_choose_target_from_entries(
     const sanctity_target_entry entries[], int count, int* out_item)
 {
-    int current = 0;
-    int top = 0;
-    int term_wid = 80;
-    int term_hgt = 24;
-    int list_row = 2;
-    int help_row;
-    int prompt_row;
-    int page_size;
-    bool steamdeck = steamdeck_controls_active();
+    object_choice_entry choices[MAX_SANCTITY_TARGETS];
+    int selected = -1;
+    char desc[80];
 
     if (!entries || count <= 0 || !out_item)
         return false;
 
-    if (Term)
-        Term_get_size(&term_wid, &term_hgt);
-
-    if (term_wid < 40)
-        term_wid = 40;
-    if (term_hgt < 8)
-        term_hgt = 8;
-
-    help_row = term_hgt - 2;
-    prompt_row = term_hgt - 1;
-    page_size = help_row - list_row;
-    if (page_size < 1)
-        page_size = 1;
-
-    screen_save();
-
-    while (true)
+    for (int i = 0; i < count; i++)
     {
-        int visible_count;
-        char buf[160];
-        char key;
+        char label[6];
 
-        if (current < top)
-            top = current;
-        if (current >= top + page_size)
-            top = current - page_size + 1;
-
-        visible_count = count - top;
-        if (visible_count > page_size)
-            visible_count = page_size;
-
-        Term_clear();
-        ui_menu_click_begin();
-        ui_menu_click_set_hover_enabled(true);
-        ui_menu_click_set_outside_cancel_enabled(true);
-        ui_menu_click_set_touch_category(
-            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
-        ui_scroll_area_begin(list_row, help_row - 1,
-            SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
-        ui_scroll_area_set_keys('8', '2', '6', '4');
-
-        prt("Cleanse which item?", 0, 0);
-        strnfmt(buf, sizeof(buf), "%d eligible sanctity target%s",
-            count, (count == 1) ? "" : "s");
-        prt(buf, 1, 0);
-
-        for (int i = 0; i < visible_count; i++)
-        {
-            int row = list_row + i;
-            int item = entries[top + i].item;
-            object_type* o_ptr = entries[top + i].o_ptr;
-            char prefix[32];
-            char desc[80];
-            char label[4];
-            int desc_col = steamdeck ? 17 : 20;
-            int max_desc = term_wid - desc_col - 1;
-            bool highlighted = (top + i == current);
-            byte label_attr = highlighted ? TERM_L_BLUE : TERM_WHITE;
-            byte desc_attr;
-
-            if (max_desc < 0)
-                max_desc = 0;
-            if (max_desc >= (int)sizeof(desc))
-                max_desc = (int)sizeof(desc) - 1;
-
-            if (item >= 0)
-            {
-                strnfmt(prefix, sizeof(prefix), "%-12s:", mention_use(item));
-                object_desc(desc, sizeof(desc), o_ptr, true, 3);
-            }
-            else
-            {
-                strnfmt(prefix, sizeof(prefix), "%-12s:", "On floor");
-                object_desc_floor(desc, sizeof(desc), o_ptr, true, 3);
-            }
-            desc[max_desc] = '\0';
-
-            desc_attr = highlighted
-                ? TERM_L_BLUE
-                : object_display_color(o_ptr,
-                    tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
-
-            if (!steamdeck && i < 26)
-                strnfmt(label, sizeof(label), "%c)", I2A(i));
-            else
-                SDL_strlcpy(label, "  ", sizeof(label));
-
-            Term_erase(0, row, 255);
-            Term_putstr(0, row, 2, label_attr, highlighted ? "> " : "  ");
-            if (steamdeck)
-                Term_putstr(2, row, -1, label_attr, prefix);
-            else
-            {
-                Term_putstr(2, row, -1, label_attr, label);
-                Term_putstr(5, row, -1, label_attr, prefix);
-            }
-            Term_putstr(desc_col, row, -1, desc_attr, desc);
-            ui_menu_click_add_full_row(top + i, row);
-        }
-
-        for (int i = list_row + visible_count; i < help_row; i++)
-            Term_erase(0, i, 255);
-
-        if (count > page_size)
-        {
-            strnfmt(buf, sizeof(buf), "Showing %d-%d of %d",
-                top + 1, top + visible_count, count);
-            prt(buf, help_row, 0);
-        }
-        else
-        {
-            prt("", help_row, 0);
-        }
-
-        if (steamdeck)
-        {
-            char confirm_label[16];
-            char back_label[16];
-            char prompt_buf[80];
-            const char* variants[3];
-            char prompt_full[80];
-            char prompt_mid[80];
-            char prompt_short[80];
-
-            cmd6_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
-                sizeof(confirm_label));
-            cmd6_prompt_label(steamdeck_back_key(), "B", back_label,
-                sizeof(back_label));
-            strnfmt(prompt_full, sizeof(prompt_full),
-                "D-pad choose  %s select  %s cancel", confirm_label,
-                back_label);
-            strnfmt(prompt_mid, sizeof(prompt_mid), "%s select  %s cancel",
-                confirm_label, back_label);
-            strnfmt(prompt_short, sizeof(prompt_short), "%s select",
-                confirm_label);
-            variants[0] = prompt_full;
-            variants[1] = prompt_mid;
-            variants[2] = prompt_short;
-            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
-                term_wid, false, variants, N_ELEMENTS(variants));
-            prt(prompt_buf, prompt_row, 0);
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
-                "select");
-            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
-                "cancel");
-        }
-        else if (sdl_touch_only_device_active())
-        {
-            char prompt_buf[80];
-            const char* variants[] = {
-                "Tap a row to select, tap away to exit",
-                "Tap to select, tap away to exit",
-                "Tap to select"
-            };
-            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
-                term_wid, false, variants, N_ELEMENTS(variants));
-            prt(prompt_buf, prompt_row, 0);
-        }
-        else
-        {
-            char prompt_buf[80];
-            const char* variants[] = {
-                "Letters choose  Dir move  Enter select  Esc cancel",
-                "Letters choose  Enter select  Esc cancel",
-                "Enter select  Esc cancel"
-            };
-            terminal_prompt_pick_variant(prompt_buf, sizeof(prompt_buf),
-                term_wid, false, variants, N_ELEMENTS(variants));
-            prt(prompt_buf, prompt_row, 0);
-            ui_menu_click_add_text_token(-2, 0, prompt_row, prompt_buf,
-                "select");
-            ui_menu_click_add_text_token(-1, 0, prompt_row, prompt_buf,
-                "cancel");
-        }
-        Term_fresh();
-
-        key = inkey();
-
-        {
-            int clicked_choice = 0;
-            int click_action = UI_MENU_CLICK_PRIMARY;
-
-            if (ui_menu_click_take_action(&clicked_choice, &click_action))
-            {
-                ui_menu_click_clear();
-                if (clicked_choice >= 0 && clicked_choice < count)
-                {
-                    if (click_action == UI_MENU_CLICK_HOVER
-                        || clicked_choice != current)
-                    {
-                        current = clicked_choice;
-                        continue;
-                    }
-                    key = '\r';
-                }
-                else if (click_action == UI_MENU_CLICK_HOVER)
-                    continue;
-                else if (clicked_choice == -1)
-                    key = ESCAPE;
-                else if (clicked_choice == -2)
-                    key = '\r';
-            }
-        }
-
-        if (steamdeck && key == steamdeck_back_key())
-        {
-            ui_menu_click_clear();
-            ui_scroll_area_clear();
-            screen_load();
-            return false;
-        }
-
-        switch (key)
-        {
-        case ESCAPE:
-            ui_menu_click_clear();
-            ui_scroll_area_clear();
-            screen_load();
-            return false;
-
-        case '\r':
-        case '\n':
-        case ' ':
-#ifdef KC_ENTER
-        case KC_ENTER:
-#endif
-            *out_item = entries[current].item;
-            ui_menu_click_clear();
-            ui_scroll_area_clear();
-            screen_load();
-            return true;
-
-        case '8':
-        case 'k':
-        case 'K':
-#ifdef ARROW_UP
-        case ARROW_UP:
-#endif
-            current = (current > 0) ? current - 1 : count - 1;
-            break;
-
-        case '2':
-        case 'j':
-        case 'J':
-#ifdef ARROW_DOWN
-        case ARROW_DOWN:
-#endif
-            current = (current + 1 < count) ? current + 1 : 0;
-            break;
-
-        default:
-        {
-            int pick;
-
-            if (steamdeck && key == steamdeck_back_key())
-            {
-                ui_menu_click_clear();
-                ui_scroll_area_clear();
-                screen_load();
-                return false;
-            }
-
-            if (steamdeck && key == steamdeck_confirm_key())
-            {
-                *out_item = entries[current].item;
-                ui_menu_click_clear();
-                ui_scroll_area_clear();
-                screen_load();
-                return true;
-            }
-
-            if (steamdeck)
-                break;
-
-            if (!isalpha((unsigned char)key))
-                break;
-
-            pick = A2I((char)tolower((unsigned char)key));
-            if (pick >= 0 && pick < visible_count)
-            {
-                *out_item = entries[top + pick].item;
-                ui_menu_click_clear();
-                ui_scroll_area_clear();
-                screen_load();
-                return true;
-            }
-
-            break;
-        }
-        }
+        strnfmt(label, sizeof(label), "%c)", index_to_label(i));
+        object_choice_entry_make(&choices[i], entries[i].item,
+            entries[i].o_ptr, label,
+            (entries[i].item < 0) ? "On floor"
+                                  : mention_use(entries[i].item));
     }
+
+    strnfmt(desc, sizeof(desc), "%d eligible sanctity target%s", count,
+        (count == 1) ? "" : "s");
+    if (!object_choice_overlay("Cleanse which item?", desc, choices, count, 0,
+            &selected))
+    {
+        return false;
+    }
+
+    if (selected < 0 || selected >= count)
+        return false;
+
+    *out_item = entries[selected].item;
+    return true;
 }
 
 static bool sanctity_choose_target(const object_type* gem_o_ptr,

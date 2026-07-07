@@ -1,6 +1,47 @@
 #include "angband.h"
 #include "sdl/main-sdl-private.h"
 
+static bool g_description_overlay_mouse_release_claimed = false;
+static bool g_description_overlay_finger_release_claimed = false;
+static SDL_FingerID g_description_overlay_release_finger_id = 0;
+
+static void sdl_description_overlay_claim_mouse_release(void)
+{
+    g_description_overlay_mouse_release_claimed = true;
+}
+
+static void sdl_description_overlay_claim_finger_release(SDL_FingerID finger_id)
+{
+    g_description_overlay_finger_release_claimed = true;
+    g_description_overlay_release_finger_id = finger_id;
+}
+
+static bool sdl_description_overlay_consume_mouse_release(
+    const SDL_MouseButtonEvent* button)
+{
+    if (!button || !g_description_overlay_mouse_release_claimed)
+        return false;
+    if (button->button != SDL_BUTTON_LEFT || button->which == SDL_TOUCH_MOUSEID)
+        return false;
+
+    g_description_overlay_mouse_release_claimed = false;
+    return true;
+}
+
+static bool sdl_description_overlay_consume_finger_release(
+    SDL_FingerID finger_id)
+{
+    if (!g_description_overlay_finger_release_claimed
+        || g_description_overlay_release_finger_id != finger_id)
+    {
+        return false;
+    }
+
+    g_description_overlay_finger_release_claimed = false;
+    g_description_overlay_release_finger_id = 0;
+    return true;
+}
+
 static u16b sdl_keyboard_capture_modifiers_from_sdl(SDL_Keymod mod)
 {
     u16b modifiers = 0;
@@ -1069,6 +1110,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_description_overlay_handle_close_hover((float)ev->motion.x,
+                (float)ev->motion.y))
+        {
+            return;
+        }
         if (sdl_description_overlay_handle_footer_hover((float)ev->motion.x,
                 (float)ev->motion.y))
         {
@@ -1207,6 +1253,28 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_menu_scroll_handle_mouse_wheel(&ev->wheel))
             return;
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        if (ev->button.button == SDL_BUTTON_LEFT
+            && ev->button.which != SDL_TOUCH_MOUSEID)
+        {
+            if (sdl_description_overlay_handle_close_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
+                sdl_description_overlay_claim_mouse_release();
+                return;
+            }
+            if (sdl_description_overlay_handle_footer_pointer(
+                    (float)ev->button.x, (float)ev->button.y))
+            {
+                sdl_description_overlay_claim_mouse_release();
+                return;
+            }
+            if (sdl_description_overlay_contains_point((float)ev->button.x,
+                    (float)ev->button.y))
+            {
+                sdl_description_overlay_claim_mouse_release();
+                return;
+            }
+        }
         if (ev->button.which != SDL_TOUCH_MOUSEID
             && sdl_log_pane_menu_handle_pointer_down((float)ev->button.x,
                 (float)ev->button.y, 0, true))
@@ -1239,11 +1307,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             }
             if (ui_key_wait_dismiss_is_active()
                 && sdl_pointer_dismiss_any_key_prompt())
-            {
-                return;
-            }
-            if (sdl_description_overlay_handle_footer_pointer(
-                    (float)ev->button.x, (float)ev->button.y))
             {
                 return;
             }
@@ -1499,6 +1562,8 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         }
     } else if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        if (sdl_description_overlay_consume_mouse_release(&ev->button))
+            return;
         if (ev->button.which != SDL_TOUCH_MOUSEID
             && sdl_log_pane_menu_handle_pointer_up((float)ev->button.x,
                 (float)ev->button.y, 0, true))
@@ -1595,6 +1660,31 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         (void)sdl_object_tooltip_dismiss_persistent_on_press();
         if (sdl_touch_exit_button_handle_pointer(x, y))
             return;
+        if (sdl_description_overlay_handle_close_pointer(x, y))
+        {
+            sdl_description_overlay_claim_finger_release(ev->tfinger.fingerID);
+            return;
+        }
+        if (sdl_description_overlay_handle_footer_pointer(x, y))
+        {
+            sdl_description_overlay_claim_finger_release(ev->tfinger.fingerID);
+            return;
+        }
+        if (sdl_description_overlay_touch_scroll_handle_pointer_down(x, y,
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_description_overlay_contains_point(x, y))
+        {
+            if (sdl_menu_scroll_handle_pointer_down(x, y,
+                    ev->tfinger.fingerID))
+            {
+                return;
+            }
+            sdl_description_overlay_claim_finger_release(ev->tfinger.fingerID);
+            return;
+        }
         if (sdl_log_pane_menu_handle_pointer_down(x, y,
             ev->tfinger.fingerID, false))
         {
@@ -1627,9 +1717,11 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        if (sdl_description_overlay_handle_footer_pointer(x, y))
-            return;
-        if (sdl_description_overlay_touch_scroll_handle_pointer_down(x, y,
+        /* The thumb button remains visible during fire targeting and item
+         * descriptions. Claim it before aim-map handling, and before the
+         * later "tap away to cancel" path, so tapping the button fires the
+         * button action. */
+        if (sdl_touch_thumb_handle_pointer_down(x, y, false,
                 ev->tfinger.fingerID))
         {
             return;
@@ -1695,14 +1787,7 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
-        /* Claim thumb-button taps before the "tap away to cancel" handler, so a
-         * tap on a thumb button while an item description popup is open fires
-         * the button instead of closing the popup. */
-        if (sdl_touch_thumb_handle_pointer_down(x, y, false,
-                ev->tfinger.fingerID))
-        {
-            return;
-        }
+        /* Thumb-button taps are claimed earlier in the finger-down path. */
         if (ui_menu_click_outside_cancel_enabled()
             && sdl_menu_touch_handle_pointer_down(x, y,
                 ev->tfinger.fingerID, false))
@@ -1963,6 +2048,13 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         {
             return;
         }
+        if (sdl_description_overlay_consume_finger_release(
+                ev->tfinger.fingerID))
+        {
+            return;
+        }
+        if (sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID))
+            return;
         if (sdl_log_pane_menu_handle_long_press_up(x, y,
             ev->tfinger.fingerID))
         {
@@ -2081,8 +2173,6 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
             return;
         if (sdl_touch_zone_handle_pointer_up(x, y, ev->tfinger.fingerID))
             return;
-        if (sdl_menu_scroll_handle_pointer_up(ev->tfinger.fingerID))
-            return;
         if (sdl_pointer_attack_handle_touch_up(x, y, ev->tfinger.fingerID))
             return;
         if (sdl_map_touch_handle_pointer_up(x, y, ev->tfinger.fingerID))
@@ -2096,6 +2186,13 @@ void sdl_handle_event(sdl_state* st, SDL_Event* ev)
         if (sdl_description_overlay_touch_scroll_handle_pointer_up(
                 ev->tfinger.fingerID))
         {
+            return;
+        }
+        if (g_description_overlay_finger_release_claimed
+            && g_description_overlay_release_finger_id == ev->tfinger.fingerID)
+        {
+            g_description_overlay_finger_release_claimed = false;
+            g_description_overlay_release_finger_id = 0;
             return;
         }
         if (g_touch_swipe.active && g_touch_swipe.finger_id == ev->tfinger.fingerID)

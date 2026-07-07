@@ -604,6 +604,7 @@ typedef struct sdl_character_sheet_screen_state {
     int narrative_para_count;
     int narrative_page_start[SDL_BOOK_MAX_PAGES + 1]; /* [page]..[page+1) paras */
     int narrative_page_count;
+    int narrative_target_page_count; /* 0 = content-driven pagination */
     int narrative_body_px;         /* one body size shared by every page of the book */
     int narrative_paginated_for_h; /* canvas.h the page breaks were built for */
     int narrative_paginated_for_w; /* content width the page breaks were built for */
@@ -860,6 +861,7 @@ typedef struct description_overlay_state {
     int avoid_term_hgt;
     bool footer_always;
     int footer_hover_key;
+    bool close_hover;
     int footer_action_count;
     char footer_text[SDL_DESCRIPTION_OVERLAY_FOOTER_LEN];
     description_overlay_action footer_actions[SDL_DESCRIPTION_OVERLAY_MAX_ACTIONS];
@@ -867,6 +869,7 @@ typedef struct description_overlay_state {
 
 typedef struct description_overlay_layout {
     SDL_FRect panel;
+    SDL_FRect close_rect;
     float text_x;
     float text_y;
     float footer_y;
@@ -877,6 +880,7 @@ typedef struct description_overlay_layout {
     int max_scroll;
     int scroll;
     bool footer;
+    bool close_button;
 } description_overlay_layout;
 
 enum {
@@ -955,7 +959,7 @@ typedef struct sdl_song_menu_state {
 } sdl_song_menu_state;
 
 enum {
-    SDL_QUESTION_MENU_MAX_ENTRIES = 96,
+    SDL_QUESTION_MENU_MAX_ENTRIES = 320,
     SDL_QUESTION_MENU_LETTER_LEN = 4,
     SDL_QUESTION_MENU_TEXT_LEN = 96,
     SDL_QUESTION_MENU_TITLE_LEN = 80,
@@ -977,6 +981,7 @@ typedef struct sdl_question_menu_state {
     bool active;
     bool blocking_input;
     bool nonblocking;
+    bool close_hover;
     bool has_anchor;
     int anchor_y; /* map grid the question is about (local placement) */
     int anchor_x;
@@ -1945,6 +1950,7 @@ void sdl_character_sheet_screen_add_book_paragraph(cptr text);
 void sdl_character_sheet_screen_break_book_page(void);
 void sdl_character_sheet_screen_highlight_book_paragraph(void);
 void sdl_character_sheet_screen_commit_book(void);
+void sdl_character_sheet_screen_set_book_target_page_count(int page_count);
 void sdl_character_sheet_screen_add_select_row(int choice, cptr label, int attr, cptr desc);
 void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice);
 void sdl_character_sheet_screen_add_select_heading(cptr label);
@@ -2280,13 +2286,16 @@ cptr sdl_description_overlay_footer_text( const description_overlay_state* overl
 void sdl_description_overlay_set_footer(cptr text, bool always);
 void sdl_description_overlay_clear_footer_actions(void);
 void sdl_description_overlay_add_footer_action(int key, cptr token);
+bool sdl_description_overlay_has_footer_action(int key);
+bool sdl_description_overlay_footer_action_label(int key, char* buf,
+    size_t buflen);
 void sdl_description_overlay_clear_avoid(void);
 void sdl_description_overlay_set_avoid_term_rect(int col, int row, int wid, int hgt);
 bool sdl_description_overlay_token_matches_hover( const description_overlay_state* overlay, cptr text, int col);
 bool sdl_description_overlay_avoid_rect(SDL_FRect* out);
 bool sdl_description_overlay_rects_intersect( const SDL_FRect* a, const SDL_FRect* b);
-int sdl_description_overlay_rows_for_panel_space(float available_h, int pad_y, int cell_h, bool footer);
-bool sdl_description_overlay_fit_around_avoid( const SDL_Rect* anchor, int margin, int pad_y, int cell_h, bool footer, float panel_x, float panel_w, int* visible_rows, float* panel_h, float* panel_y);
+int sdl_description_overlay_rows_for_panel_space(float available_h, int pad_y, int cell_h, bool footer, int header_rows);
+bool sdl_description_overlay_fit_around_avoid( const SDL_Rect* anchor, int margin, int pad_y, int cell_h, bool footer, int header_rows, float panel_x, float panel_w, int* visible_rows, float* panel_h, float* panel_y);
 bool sdl_description_overlay_layout(description_overlay_layout* out);
 bool sdl_description_overlay_scroll_to_layout( const description_overlay_layout* layout, int scroll);
 bool sdl_description_overlay_scroll_by(int rows);
@@ -2305,6 +2314,8 @@ void sdl_description_overlay_render_text(SDL_Texture* atlas, int atlas_cell_w, i
 void sdl_description_overlay_render(void);
 void sdl_touch_exit_button_render(void);
 bool sdl_touch_exit_button_handle_pointer(float x, float y);
+bool sdl_description_overlay_handle_close_hover(float x, float y);
+bool sdl_description_overlay_handle_close_pointer(float x, float y);
 int sdl_description_overlay_footer_action_at(float x, float y);
 bool sdl_description_overlay_handle_footer_hover(float x, float y);
 bool sdl_description_overlay_handle_footer_pointer(float x, float y);

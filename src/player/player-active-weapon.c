@@ -110,13 +110,86 @@ static const char* active_weapon_mode_log_name(int mode)
     }
 }
 
+static void active_weapon_mode_prompt_name(char* buf, size_t buflen, int mode)
+{
+    char weapon_name[80];
+    char quiver_name[80];
+    object_type* weapon_ptr = NULL;
+    object_type* quiver_ptr = NULL;
+    cptr quiver_label = NULL;
+
+    if (!buf || buflen == 0)
+        return;
+
+    switch (normalize_active_weapon_mode(mode))
+    {
+    case PLAYER_ACTIVE_WEAPON_MELEE:
+        weapon_ptr = &inventory[INVEN_WIELD];
+        if (weapon_ptr->k_idx)
+        {
+            object_desc(weapon_name, sizeof(weapon_name), weapon_ptr, false,
+                4);
+            strnfmt(buf, buflen, "your melee weapon (%s)", weapon_name);
+        }
+        else
+        {
+            SDL_strlcpy(buf, "your melee weapon", buflen);
+        }
+        return;
+
+    case PLAYER_ACTIVE_WEAPON_RANGED_2:
+        quiver_ptr = &inventory[INVEN_QUIVER2];
+        quiver_label = "2nd quiver";
+        break;
+
+    case PLAYER_ACTIVE_WEAPON_RANGED_1:
+    default:
+        quiver_ptr = &inventory[INVEN_QUIVER1];
+        quiver_label = "1st quiver";
+        break;
+    }
+
+    if (quiver_ptr && quiver_ptr->k_idx && quiver_ptr->tval == TV_ARROW)
+    {
+        char bow_name[80];
+
+        weapon_ptr = &inventory[INVEN_BOW];
+        if (weapon_ptr->k_idx)
+        {
+            object_desc(bow_name, sizeof(bow_name), weapon_ptr, false, 4);
+            strnfmt(weapon_name, sizeof(weapon_name), "your bow (%s)",
+                bow_name);
+        }
+        else
+        {
+            SDL_strlcpy(weapon_name, "your bow", sizeof(weapon_name));
+        }
+
+        object_desc(quiver_name, sizeof(quiver_name), quiver_ptr, false, 4);
+        strnfmt(buf, buflen, "%s, %s: %s", weapon_name, quiver_label,
+            quiver_name);
+    }
+    else if (quiver_ptr && quiver_ptr->k_idx)
+    {
+        object_desc(quiver_name, sizeof(quiver_name), quiver_ptr, false, 4);
+        strnfmt(buf, buflen, "%s: %s", quiver_label, quiver_name);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "%s: empty", quiver_label);
+    }
+}
+
 static bool confirm_active_weapon_switch(int new_mode)
 {
-    (void)new_mode;
+    char target[160];
+    char prompt[200];
 
     msg_print("Switching between melee and ranged takes one turn; inactive weapon attack, damage, evasion, and armour bonuses do not apply.");
     msg_print("This confirmation can be removed in Gameplay Options.");
-    return get_check("Change active weapon? ");
+    active_weapon_mode_prompt_name(target, sizeof(target), new_mode);
+    strnfmt(prompt, sizeof(prompt), "Change active weapon to %s? ", target);
+    return get_check(prompt);
 }
 
 static void mark_active_weapon_changed(void)

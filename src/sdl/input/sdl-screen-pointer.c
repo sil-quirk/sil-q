@@ -255,13 +255,6 @@ bool sdl_main_screen_handle_menu_outside_pointer(float x, float y,
     int row = 0;
     bool hit_main_cell = false;
 
-    if (!ui_menu_click_outside_cancel_enabled()
-        && ui_menu_click_get_touch_category()
-            != SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT)
-    {
-        return false;
-    }
-
     hit_main_cell = sdl_main_view_point_to_cell(x, y, &col, &row);
     if (hit_main_cell && ui_menu_click_has_cell(col, row))
     {
@@ -279,6 +272,8 @@ bool sdl_main_screen_handle_menu_outside_pointer(float x, float y,
     {
         return true;
     }
+    if (!ui_menu_click_outside_cancel_enabled())
+        return false;
 
     ui_menu_click_clear_pending_hover();
     sdl_unified_look_clear_map_hover();
@@ -3061,9 +3056,6 @@ bool sdl_menu_scroll_handle_pointer_motion(float x, float y,
 
         return true;
     }
-
-    if (sdl_touch_only_device_active() && ui_scroll_area_get_tap_key() == 0)
-        return true;
 
     while (g_menu_scroll_drag.accum_y >= (float)cell_h)
     {

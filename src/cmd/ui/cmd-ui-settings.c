@@ -6037,10 +6037,10 @@ static bool touch_top_widget_binding_label(int row, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Horn", buflen);
         break;
     case 'f':
-        SDL_strlcpy(buf, "Fire", buflen);
+        SDL_strlcpy(buf, "Fire 1st quiver", buflen);
         break;
     case 'F':
-        SDL_strlcpy(buf, "Fire 2nd", buflen);
+        SDL_strlcpy(buf, "Fire 2nd quiver", buflen);
         break;
     case 'Z':
         SDL_strlcpy(buf, "Rest", buflen);
@@ -10690,8 +10690,8 @@ void do_cmd_keybinds(void)
         {'h', "H@", "Character sheet (h / H / @)", "h", false},
         {'\t', NULL, "Change active weapon", "Tab", false},
         {'y', NULL, "Abilities", "y", false},
-        {'f', NULL, "Fire (primary quiver)", "f", false},
-        {'F', NULL, "Fire (secondary quiver)", "F", false},
+        {'f', NULL, "Fire 1st quiver", "f", false},
+        {'F', NULL, "Fire 2nd quiver", "F", false},
         {'l', NULL, "Look around", "l", false},
         {'T', NULL, "Tunnel / dig", "T", false},
         {'b', NULL, "Bash door", "b", false},
@@ -12395,8 +12395,8 @@ void do_cmd_controller_settings(void)
         { CONTROLLER_ENTRY_ACTION, 's', "Sing / change song" },
         { CONTROLLER_ENTRY_ACTION, 'S', "Toggle stealth" },
         { CONTROLLER_ENTRY_ACTION, 'h', "Character sheet" },
-        { CONTROLLER_ENTRY_ACTION, 'f', "Fire (primary)" },
-        { CONTROLLER_ENTRY_ACTION, 'F', "Fire (secondary)" },
+        { CONTROLLER_ENTRY_ACTION, 'f', "Fire 1st quiver" },
+        { CONTROLLER_ENTRY_ACTION, 'F', "Fire 2nd quiver" },
         { CONTROLLER_ENTRY_ACTION, KTRL('F'), "Swap quivers" },
         { CONTROLLER_ENTRY_ACTION, 'l', "Look around" },
         { CONTROLLER_ENTRY_ACTION, 'T', "Tunnel / dig" },

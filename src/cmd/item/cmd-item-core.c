@@ -3,6 +3,7 @@
 #include "cmd/world/cmd-interact-chest.h"
 #include "log/log.h"
 #include "metarun.h"
+#include "object/object-ui-select.h"
 #include "ui/question.h"
 
 static void prise_silmaril(void);
@@ -171,9 +172,19 @@ static int first_floor_item_under_player(void)
     for (int i = 0; i < floor_num; i++)
     {
         int o_idx = floor_list[i];
+        const object_type* o_ptr;
 
-        if (o_idx > 0 && o_idx < o_max && o_list[o_idx].k_idx)
-            return 0 - o_idx;
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (object_is_searched_skeleton(o_ptr))
+            continue;
+
+        return 0 - o_idx;
     }
 
     return 0;
@@ -445,28 +456,148 @@ bool open_inventory_menu_category(inventory_menu_group group)
     return do_cmd_knowledge_supplies(&request);
 }
 
+static bool replacement_choice_type_matches(const object_type* incoming,
+    const object_type* candidate)
+{
+    if (!incoming || !candidate || !candidate->k_idx)
+        return false;
+
+    if (player_oil_container_object(incoming)
+        && player_oil_container_object(candidate))
+    {
+        return true;
+    }
+
+    if (incoming->tval == candidate->tval)
+        return true;
+
+    {
+        int incoming_slot = wield_slot(incoming);
+
+        if (incoming_slot >= INVEN_WIELD && incoming_slot < INVEN_TOTAL)
+        {
+            int candidate_slot = wield_slot(candidate);
+
+            if (candidate_slot == incoming_slot)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+static bool replacement_choice_allowed(const object_type* incoming,
+    const object_type* candidate, bool equipped, bool include_equip)
+{
+    if (!incoming || !incoming->k_idx || !candidate || !candidate->k_idx)
+        return false;
+
+    if (equipped)
+    {
+        if (!include_equip)
+            return false;
+        if (cursed_p(candidate))
+            return false;
+    }
+
+    if (!inven_carry_limit_can_replace(candidate))
+        return false;
+
+    return replacement_choice_type_matches(incoming, candidate);
+}
+
 bool open_inventory_replacement_menu(inventory_menu_group group,
     const object_type* incoming, bool include_equip, bool include_supplies,
     cptr reason, int* replacement_item)
 {
-    supply_menu_request request = {0};
+    object_choice_entry entries[OBJECT_CHOICE_MAX_ENTRIES];
+    int count = 0;
+    int selected = -1;
+    char desc[480];
+    char incoming_name[120];
+
+    (void)group;
 
     if (replacement_item)
         *replacement_item = -1;
 
-    request.focus_page = true;
-    request.page = SUPPLY_MENU_PAGE_INVENTORY;
-    request.focus_inventory_group = true;
-    request.inventory_group = group;
-    request.preview_inventory_description = true;
-    request.replacement_mode = true;
-    request.replacement_incoming = incoming;
-    request.replacement_include_equip = include_equip;
-    request.replacement_include_supplies = include_supplies;
-    request.replacement_reason = reason;
-    request.replacement_item_out = replacement_item;
+    if (!incoming || !incoming->k_idx || !replacement_item)
+        return false;
 
-    return do_cmd_knowledge_supplies(&request);
+    if (include_equip)
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL
+             && count < OBJECT_CHOICE_MAX_ENTRIES; i++)
+        {
+            if (!replacement_choice_allowed(incoming, &inventory[i], true,
+                    include_equip))
+            {
+                continue;
+            }
+
+            object_choice_entry_make(&entries[count], i, &inventory[i],
+                NULL, NULL);
+            count++;
+        }
+    }
+
+    for (int i = 0; i < INVEN_PACK && count < OBJECT_CHOICE_MAX_ENTRIES; i++)
+    {
+        if (!replacement_choice_allowed(incoming, &inventory[i], false,
+                include_equip))
+        {
+            continue;
+        }
+
+        object_choice_entry_make(&entries[count], i, &inventory[i], NULL,
+            NULL);
+        count++;
+    }
+
+    if (include_supplies)
+    {
+        for (int i = 0; i < supplies_entry_count()
+             && count < OBJECT_CHOICE_MAX_ENTRIES; i++)
+        {
+            object_type* o_ptr = supplies_entry_at(i);
+
+            if (!replacement_choice_allowed(incoming, o_ptr, false,
+                    include_equip))
+            {
+                continue;
+            }
+
+            object_choice_entry_make(&entries[count], SUPPLIES_INDEX + i,
+                o_ptr, NULL, NULL);
+            count++;
+        }
+    }
+
+    if (count <= 0)
+        return false;
+
+    object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
+    if (reason && reason[0])
+    {
+        strnfmt(desc, sizeof(desc), "%s\nPicking up: %s", reason,
+            incoming_name);
+    }
+    else
+    {
+        strnfmt(desc, sizeof(desc), "Picking up: %s", incoming_name);
+    }
+
+    if (!object_choice_overlay("What to replace?", desc, entries, count, 0,
+            &selected))
+    {
+        return false;
+    }
+
+    if (selected < 0 || selected >= count)
+        return false;
+
+    *replacement_item = entries[selected].item;
+    return true;
 }
 
 bool open_inventory_slot_pick_menu(const object_type* incoming,
@@ -489,52 +620,9 @@ bool open_inventory_slot_pick_menu(const object_type* incoming,
     return do_cmd_knowledge_supplies(&request);
 }
 
-static bool inventory_item_select_has_choice(int mode)
-{
-    if (mode & USE_EQUIP)
-    {
-        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
-        {
-            if (get_item_okay(i))
-                return true;
-        }
-    }
-
-    if (mode & USE_INVEN)
-    {
-        for (int i = 0; i < INVEN_PACK; i++)
-        {
-            if (inventory[i].k_idx && get_item_okay(i))
-                return true;
-        }
-    }
-
-    if (mode & USE_FLOOR)
-    {
-        int floor_list[MAX_FLOOR_STACK];
-        int floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py,
-            p_ptr->px, 0x00);
-
-        for (int i = 0; i < floor_num; i++)
-        {
-            int o_idx = floor_list[i];
-
-            if (o_idx <= 0 || o_idx >= o_max)
-                continue;
-            if (!o_list[o_idx].k_idx || supplies_is_supply_object(&o_list[o_idx]))
-                continue;
-            if (get_item_okay(0 - o_idx))
-                return true;
-        }
-    }
-
-    return false;
-}
-
 bool open_inventory_item_select_menu(int mode, cptr reason, cptr none_msg,
     int* item_out)
 {
-    supply_menu_request request = {0};
     bool selected;
 
     if (!item_out)
@@ -543,29 +631,7 @@ bool open_inventory_item_select_menu(int mode, cptr reason, cptr none_msg,
     *item_out = -1;
 
     p_ptr->get_item_mode = mode;
-    if (!inventory_item_select_has_choice(mode))
-    {
-        p_ptr->get_item_mode = 0;
-        item_tester_tval = 0;
-        item_tester_hook = NULL;
-        p_ptr->command_wrk = 0;
-        p_ptr->command_see = false;
-        if (none_msg)
-            msg_print(none_msg);
-        return false;
-    }
-
-    request.focus_page = true;
-    request.page = SUPPLY_MENU_PAGE_INVENTORY;
-    request.focus_inventory_group = true;
-    request.inventory_group = INVENTORY_MENU_GROUP_ALL;
-    request.preview_inventory_description = true;
-    request.item_select_mode = true;
-    request.item_select_flags = mode;
-    request.item_select_reason = reason;
-    request.item_select_item_out = item_out;
-
-    selected = do_cmd_knowledge_supplies(&request);
+    selected = object_item_select_overlay(mode, reason, none_msg, item_out);
 
     p_ptr->get_item_mode = 0;
     item_tester_tval = 0;
@@ -2716,6 +2782,8 @@ void do_cmd_drop_item_by_index(int item)
 
     int amt;
     object_type* o_ptr;
+    char o_name[80];
+    char quantity_prompt[160];
 
     /* Paranoia */
     if (item < 0 || item >= INVEN_TOTAL)
@@ -2729,7 +2797,10 @@ void do_cmd_drop_item_by_index(int item)
         return;
 
     /* Get a quantity */
-    amt = get_quantity(NULL, o_ptr->number);
+    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+    strnfmt(quantity_prompt, sizeof(quantity_prompt), "Drop how many %s? ",
+        o_name);
+    amt = get_quantity(quantity_prompt, o_ptr->number);
 
     /* Allow user abort */
     if (amt <= 0)
@@ -3258,6 +3329,10 @@ bool do_cmd_delete_item_by_index(int item)
     object_type* o_ptr;
 
     char o_name[80];
+    char prompt_name[80];
+    char quantity_name[80];
+    char quantity_prompt[160];
+    char prompt[160];
 
     /* Get the item (in the pack) */
     if (item >= 0)
@@ -3284,7 +3359,14 @@ bool do_cmd_delete_item_by_index(int item)
         return true;
 
     /* Get a quantity */
-    amt = get_quantity(NULL, o_ptr->number);
+    if (item < 0)
+        object_desc_floor(quantity_name, sizeof(quantity_name), o_ptr, false,
+            0);
+    else
+        object_desc(quantity_name, sizeof(quantity_name), o_ptr, false, 0);
+    strnfmt(quantity_prompt, sizeof(quantity_prompt), "Delete how many %s? ",
+        quantity_name);
+    amt = get_quantity(quantity_prompt, o_ptr->number);
 
     /* Allow user abort */
     if (amt <= 0)
@@ -3310,14 +3392,22 @@ bool do_cmd_delete_item_by_index(int item)
 
     /*now describe with correct amount*/
     if (item < 0)
+    {
         object_desc_floor(o_name, sizeof(o_name), o_ptr, true, 3);
+        object_desc_floor(prompt_name, sizeof(prompt_name), o_ptr, false, 0);
+    }
     else
+    {
         object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        object_desc(prompt_name, sizeof(prompt_name), o_ptr, false, 0);
+    }
 
     /*reverse the hack*/
     o_ptr->number = old_number;
 
-    if (!get_check("Do you really want to DELETE this item? "))
+    strnfmt(prompt, sizeof(prompt), "Do you really want to DELETE %s? ",
+        prompt_name);
+    if (!get_check(prompt))
         return false;
 
     /* Take a turn */

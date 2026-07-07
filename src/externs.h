@@ -1655,6 +1655,8 @@ extern void sdl_character_sheet_screen_add_book_contents(cptr label,
 extern void sdl_character_sheet_screen_set_book_lamp(u32b current,
     u32b maximum, int page);
 extern void sdl_character_sheet_screen_set_book_close_button(bool enabled);
+extern void sdl_character_sheet_screen_set_book_target_page_count(
+    int page_count);
 extern void sdl_character_sheet_screen_break_book_page(void);
 extern void sdl_character_sheet_screen_highlight_book_paragraph(void);
 extern void sdl_character_sheet_screen_commit_book(void);
@@ -1777,6 +1779,10 @@ extern void ui_menu_click_set_outside_cancel_enabled(bool enabled);
 extern bool ui_menu_click_outside_cancel_enabled(void);
 extern void ui_menu_click_set_touch_exit_button(bool enabled);
 extern bool ui_menu_click_touch_exit_button_active(void);
+extern void ui_menu_click_add_touch_button(int choice, cptr label, byte attr);
+extern int ui_menu_click_touch_button_count(void);
+extern bool ui_menu_click_touch_button_get(int index, int* choice,
+    cptr* label, byte* attr);
 extern bool ui_menu_click_is_active(void);
 extern void ui_menu_click_set_touch_category(int category);
 extern int ui_menu_click_get_touch_category(void);

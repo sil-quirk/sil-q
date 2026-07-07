@@ -4,6 +4,7 @@
 #include "sdl-config.h"
 
 #define UI_MENU_CLICK_MAX_ENTRIES 256
+#define UI_MENU_CLICK_MAX_TOUCH_BUTTONS 8
 #define UI_SCROLL_AREA_MAX_ENTRIES 8
 #define UI_SCROLL_AREA_FULL_RIGHT 32767
 
@@ -32,8 +33,18 @@ typedef struct ui_scroll_area_entry
     bool page_mode;
 } ui_scroll_area_entry;
 
+typedef struct ui_menu_touch_button_entry
+{
+    int choice;
+    byte attr;
+    char label[32];
+} ui_menu_touch_button_entry;
+
 static ui_menu_click_entry ui_menu_click_entries[UI_MENU_CLICK_MAX_ENTRIES];
 static int ui_menu_click_entry_count = 0;
+static ui_menu_touch_button_entry ui_menu_touch_buttons[
+    UI_MENU_CLICK_MAX_TOUCH_BUTTONS];
+static int ui_menu_touch_button_count = 0;
 static bool ui_menu_click_active = false;
 static bool ui_menu_click_pending = false;
 static int ui_menu_click_pending_choice = 0;
@@ -63,6 +74,7 @@ void ui_menu_click_clear(void)
 
     ui_menu_click_active = false;
     ui_menu_click_entry_count = 0;
+    ui_menu_touch_button_count = 0;
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
@@ -87,6 +99,7 @@ void ui_menu_click_begin(void)
 
     ui_menu_click_active = true;
     ui_menu_click_entry_count = 0;
+    ui_menu_touch_button_count = 0;
     ui_menu_click_pending = false;
     ui_menu_click_pending_choice = 0;
     ui_menu_click_pending_action = UI_MENU_CLICK_PRIMARY;
@@ -131,6 +144,47 @@ void ui_menu_click_set_touch_exit_button(bool enabled)
 bool ui_menu_click_touch_exit_button_active(void)
 {
     return ui_menu_click_active && ui_menu_click_touch_exit_button_enabled;
+}
+
+void ui_menu_click_add_touch_button(int choice, cptr label, byte attr)
+{
+    ui_menu_touch_button_entry* entry;
+
+    if (!ui_menu_click_active || !label || !label[0])
+        return;
+    if (ui_menu_touch_button_count >= UI_MENU_CLICK_MAX_TOUCH_BUTTONS)
+        return;
+
+    entry = &ui_menu_touch_buttons[ui_menu_touch_button_count++];
+    entry->choice = choice;
+    entry->attr = attr;
+    SDL_strlcpy(entry->label, label, sizeof(entry->label));
+}
+
+int ui_menu_click_touch_button_count(void)
+{
+    return ui_menu_click_active ? ui_menu_touch_button_count : 0;
+}
+
+bool ui_menu_click_touch_button_get(int index, int* choice, cptr* label,
+    byte* attr)
+{
+    ui_menu_touch_button_entry* entry;
+
+    if (!ui_menu_click_active)
+        return false;
+    if (index < 0 || index >= ui_menu_touch_button_count)
+        return false;
+
+    entry = &ui_menu_touch_buttons[index];
+    if (choice)
+        *choice = entry->choice;
+    if (label)
+        *label = entry->label;
+    if (attr)
+        *attr = entry->attr;
+
+    return true;
 }
 
 bool ui_menu_click_is_active(void)

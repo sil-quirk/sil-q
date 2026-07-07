@@ -414,10 +414,10 @@ void binding_action_short(int binding, char* buf, size_t buflen)
         SDL_strlcpy(buf, "Swap quiver", buflen);
         return;
     case 'f':
-        SDL_strlcpy(buf, "Fire", buflen);
+        SDL_strlcpy(buf, "Fire 1st quiver", buflen);
         return;
     case 'F':
-        SDL_strlcpy(buf, "Fire 2nd", buflen);
+        SDL_strlcpy(buf, "Fire 2nd quiver", buflen);
         return;
     case 'h':
         SDL_strlcpy(buf, "Character", buflen);

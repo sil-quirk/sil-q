@@ -578,12 +578,27 @@ static bool sdl_player_action_menu_kinds_related(int a, int b)
 bool sdl_player_has_floor_item_underfoot(void)
 {
     int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
 
     if (!p_ptr)
         return false;
 
-    return scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
-        0x00) > 0;
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00);
+
+    for (int i = 0; i < floor_num; i++) {
+        int o_idx = floor_list[i];
+        const object_type* o_ptr;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+
+        o_ptr = &o_list[o_idx];
+        if (o_ptr->k_idx && !object_is_searched_skeleton(o_ptr))
+            return true;
+    }
+
+    return false;
 }
 
 bool sdl_player_action_menu_kind_supports_secondary(int kind)
