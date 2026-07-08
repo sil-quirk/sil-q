@@ -1872,7 +1872,15 @@ void do_cmd_throw(bool automatic)
     // Aim automatically if asked
     if (automatic)
     {
-        if (target_okay(tdis))
+        if (power_throw_candidate && player_power_throw_target_m_idx() > 0)
+        {
+            int target_m_idx = player_power_throw_target_m_idx();
+
+            target_set_monster(target_m_idx);
+            health_track(target_m_idx);
+            dir = 5;
+        }
+        else if (target_okay(tdis))
             dir = 5;
 
         else
@@ -2261,6 +2269,8 @@ void do_cmd_throw(bool automatic)
             int throw_ds_penalty = throwing_range_ds_penalty(dist, tdis);
             bool power_throw_hit = power_throw_attack
                 && y == power_throw_y && x == power_throw_x;
+            int power_throw_concentration_bonus = 0;
+            int power_throw_focus_bonus = 0;
             object_type* melee_o_ptr = &inventory[INVEN_WIELD];
             u32b melee_f1 = 0, melee_f2 = 0, melee_f3 = 0, melee_f4 = 0;
             int melee_attack_mod = 0;
@@ -2276,8 +2286,20 @@ void do_cmd_throw(bool automatic)
 
             // Unaware targets are easier to hit with well-placed throws too.
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
-            total_attack_mod
-                = total_player_attack(m_ptr, attack_mod + stealth_bonus);
+            if (power_throw_hit)
+            {
+                power_throw_concentration_bonus = concentration_bonus(y, x);
+                power_throw_focus_bonus = focused_attack_bonus();
+                total_attack_mod = total_player_attack_ex(m_ptr,
+                    attack_mod + stealth_bonus + power_throw_concentration_bonus
+                        + power_throw_focus_bonus,
+                    false, false);
+            }
+            else
+            {
+                total_attack_mod
+                    = total_player_attack(m_ptr, attack_mod + stealth_bonus);
+            }
             total_attack_mod += (dist / 5) - throw_attack_penalty;
 
             /* Monsters might notice */
@@ -2384,8 +2406,11 @@ void do_cmd_throw(bool automatic)
                 object_flags4(melee_o_ptr, &melee_f1, &melee_f2,
                     &melee_f3, &melee_f4);
                 melee_attack_mod = p_ptr->skill_use[S_MEL];
-                melee_total_attack_mod = total_player_attack(
-                    m_ptr, melee_attack_mod + melee_stealth_bonus);
+                melee_total_attack_mod = total_player_attack_ex(m_ptr,
+                    melee_attack_mod + melee_stealth_bonus
+                        + power_throw_concentration_bonus
+                        + power_throw_focus_bonus,
+                    false, false);
                 melee_hit_result = hit_roll_details(melee_total_attack_mod,
                     total_evasion_mod, PLAYER, m_ptr, false,
                     &melee_attack_die, &melee_evasion_die);

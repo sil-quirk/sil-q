@@ -662,6 +662,22 @@ int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
             || p_ptr->active_ability[S_MEL][MEL_POLEARMS]))
         sdl_status_pane_add(entries, max_entries, &count, "Focused",
             "", TERM_L_BLUE);
+    if (p_ptr->active_ability[S_PER][PER_CONCENTRATION]
+        && p_ptr->consecutive_attacks > 0
+        && p_ptr->last_attack_m_idx > 0
+        && p_ptr->last_attack_m_idx < mon_max
+        && mon_list[p_ptr->last_attack_m_idx].r_idx)
+    {
+        int bonus = MIN(p_ptr->consecutive_attacks,
+            p_ptr->skill_use[S_PER] / 2);
+
+        if (bonus > 0)
+        {
+            strnfmt(detail, sizeof(detail), "+%d", bonus);
+            sdl_status_pane_add(entries, max_entries, &count,
+                "Concentration", detail, TERM_L_BLUE);
+        }
+    }
     {
         int power_throw_slot = player_power_throw_quiver_slot();
 

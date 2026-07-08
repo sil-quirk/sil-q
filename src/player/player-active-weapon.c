@@ -276,11 +276,44 @@ bool player_power_throw_ready(void)
     return previous_action == 5 || previous_action == ACTION_READY_MELEE;
 }
 
+int player_power_throw_target_m_idx(void)
+{
+    if (!p_ptr)
+        return 0;
+
+    if (p_ptr->target_who > 0 && p_ptr->target_who < mon_max
+        && target_able(p_ptr->target_who))
+    {
+        monster_type* m_ptr = &mon_list[p_ptr->target_who];
+
+        if (distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) == 1)
+            return p_ptr->target_who;
+    }
+
+    for (int i = 0; i < 8; i++)
+    {
+        int y = p_ptr->py + ddy_ddd[i];
+        int x = p_ptr->px + ddx_ddd[i];
+        int m_idx;
+
+        if (!in_bounds(y, x))
+            continue;
+
+        m_idx = cave_m_idx[y][x];
+        if (m_idx > 0 && target_able(m_idx))
+            return m_idx;
+    }
+
+    return 0;
+}
+
 bool player_can_power_throw_from_quiver(int slot)
 {
     if (slot != INVEN_QUIVER1 && slot != INVEN_QUIVER2)
         return false;
     if (!player_power_throw_ready())
+        return false;
+    if (!player_power_throw_target_m_idx())
         return false;
 
     return player_power_throw_weapon_eligible(&inventory[slot]);

@@ -346,15 +346,18 @@ int hit_roll(int att, int evn, const monster_type* m_ptr1,
  * modifiers.
  */
 
-int total_player_attack(monster_type* m_ptr, int base)
+int total_player_attack_ex(monster_type* m_ptr, int base,
+    bool include_concentration, bool include_focus)
 {
     int att = base;
 
     // reward concentration ability (if applicable)
-    att += concentration_bonus(m_ptr->fy, m_ptr->fx);
+    if (include_concentration)
+        att += concentration_bonus(m_ptr->fy, m_ptr->fx);
 
     // reward focused attack ability (if applicable)
-    att += focused_attack_bonus();
+    if (include_focus)
+        att += focused_attack_bonus();
 
     // reward bane ability (if applicable)
     att += bane_bonus(m_ptr);
@@ -388,6 +391,11 @@ int total_player_attack(monster_type* m_ptr, int base)
     }
 
     return (att);
+}
+
+int total_player_attack(monster_type* m_ptr, int base)
+{
+    return total_player_attack_ex(m_ptr, base, true, true);
 }
 
 /*

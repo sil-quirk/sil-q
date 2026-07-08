@@ -584,6 +584,8 @@ extern int hit_roll_details(int att, int evn, const monster_type* m_ptr1,
     const monster_type* m_ptr2, bool display_roll, int* attack_die,
     int* evasion_die);
 extern int total_player_attack(monster_type* m_ptr, int base);
+extern int total_player_attack_ex(monster_type* m_ptr, int base,
+    bool include_concentration, bool include_focus);
 extern int total_player_evasion(monster_type* m_ptr, bool archery);
 extern int total_monster_attack(monster_type* m_ptr, int base);
 extern int total_monster_evasion(monster_type* m_ptr, bool archery);
@@ -1897,6 +1899,7 @@ extern bool player_can_quick_throw_from_quiver(int slot);
 extern int player_quick_throw_quiver_slot(void);
 extern bool player_power_throw_weapon_eligible(const object_type* o_ptr);
 extern bool player_power_throw_ready(void);
+extern int player_power_throw_target_m_idx(void);
 extern bool player_can_power_throw_from_quiver(int slot);
 extern int player_power_throw_quiver_slot(void);
 extern bool player_can_throw_potions(void);

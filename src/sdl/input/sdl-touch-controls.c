@@ -634,6 +634,21 @@ static bool sdl_touch_thumb_quick_throw_active(void)
         || player_power_throw_quiver_slot() != 0;
 }
 
+static void sdl_touch_thumb_throw_label(char* buf, size_t buflen)
+{
+    if (!buf || !buflen)
+        return;
+
+    if (player_power_throw_quiver_slot() != 0
+        && player_quick_throw_quiver_slot() == 0)
+    {
+        SDL_strlcpy(buf, "Power Throw", buflen);
+        return;
+    }
+
+    SDL_strlcpy(buf, "Quick Throw", buflen);
+}
+
 static bool sdl_touch_thumb_fire_targeting_active(void)
 {
     return g_pointer_aim.active && g_pointer_aim.select_mode
@@ -1020,7 +1035,7 @@ static void sdl_touch_context_label_for_binding(int binding, char* buf,
         return;
     }
     if (binding == SDL_TOUCH_THUMB_BIND_QUICK_THROW) {
-        SDL_strlcpy(buf, "Quick Throw", buflen);
+        sdl_touch_thumb_throw_label(buf, buflen);
         return;
     }
     if (binding == TOUCH_BIND_TOGGLE_TILES) {
