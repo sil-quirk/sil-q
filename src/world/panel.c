@@ -186,6 +186,22 @@ static int floor_div_int(int value, int divisor)
     return quot;
 }
 
+static int scroll_axis_margin_for_target(int margin, int lo, int hi, int target)
+{
+    int screen = hi - lo;
+    int target_offset = target - lo;
+    int max_before = target_offset - 1;
+    int max_after = screen - target_offset - 2;
+    int max_margin = (max_before < max_after) ? max_before : max_after;
+
+    if (max_margin < 0)
+        max_margin = 0;
+    if (margin > max_margin)
+        margin = max_margin;
+
+    return margin;
+}
+
 /*
  * How close (as a fraction of the viewport) the player may drift from the
  * centre of a small viewport before the view recentres on them.  Smaller =>
@@ -249,6 +265,7 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int center,
             margin = 1;
         if (margin > (screen - 1) / 2)
             margin = (screen - 1) / 2;
+        margin = scroll_axis_margin_for_target(margin, lo, hi, target);
 
         /* Recentre on the player once they drift past the margin. */
         if (p < wv + margin || p >= wv + screen - margin)
@@ -261,6 +278,7 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int center,
             margin = (screen - panel) / 2;
         if (margin < 1)
             margin = 1;
+        margin = scroll_axis_margin_for_target(margin, lo, hi, target);
 
         /* Classic panel-aligned jump near the edges. */
         if (p < wv + margin || p >= wv + screen - margin)

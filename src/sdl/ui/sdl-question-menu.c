@@ -18,6 +18,7 @@ typedef struct sdl_question_menu_layout_info {
     SDL_FRect desc_rect;
     SDL_FRect close_rect;
     SDL_FRect rows[SDL_QUESTION_MENU_MAX_ENTRIES];
+    SDL_FRect buttons[SDL_QUESTION_MENU_MAX_BUTTONS];
     float divider_y;
     float letter_w;
     float letter_gap;
@@ -25,6 +26,7 @@ typedef struct sdl_question_menu_layout_info {
     int font_px;
     int first_entry;
     int visible_count;
+    int button_count;
     bool has_title;
     bool has_desc;
     bool has_divider;
@@ -181,6 +183,11 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     float letter_w = 0.0f;
     float letter_gap;
     float close_reserve = 0.0f;
+    float button_widths[SDL_QUESTION_MENU_MAX_BUTTONS] = { 0 };
+    float button_gap = 0.0f;
+    float button_total_w = 0.0f;
+    float button_section_h = 0.0f;
+    int button_count;
     float content_w;
     float desc_h = 0.0f;
     float panel_w;
@@ -245,6 +252,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     if (row_h < (float)font_px + 4.0f)
         row_h = (float)font_px + 4.0f;
     divider_gap = sdl_touch_pane_clampf((float)font_px * 0.3f, 3.0f, 8.0f);
+    button_gap = sdl_touch_pane_clampf((float)font_px * 0.42f, 6.0f, 14.0f);
     letter_gap = letter_w > 0.0f
         ? sdl_touch_pane_clampf((float)font_px * 0.38f, 5.0f, 10.0f)
         : 0.0f;
@@ -256,10 +264,38 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
                 10.0f);
     }
     header_row = out->has_title || close_button;
+    button_count = g_question_menu.button_count;
+    if (button_count < 0)
+        button_count = 0;
+    if (button_count > SDL_QUESTION_MENU_MAX_BUTTONS)
+        button_count = SDL_QUESTION_MENU_MAX_BUTTONS;
+    out->button_count = button_count;
+    if (button_count > 0)
+    {
+        float button_pad_x = sdl_touch_pane_clampf(row_h * 0.58f,
+            12.0f, 24.0f);
+
+        button_section_h = row_h + divider_gap;
+        for (int i = 0; i < button_count; i++)
+        {
+            float w = sdl_question_menu_text_width(story_font,
+                g_question_menu.buttons[i].text, font_px)
+                + button_pad_x * 2.0f;
+
+            if (w < row_h * 2.1f)
+                w = row_h * 2.1f;
+            button_widths[i] = w;
+            button_total_w += w;
+            if (i + 1 < button_count)
+                button_total_w += button_gap;
+        }
+    }
 
     content_w = letter_w + letter_gap + text_w;
     if (out->has_title && title_w + close_reserve > content_w)
         content_w = title_w + close_reserve;
+    if (button_total_w > content_w)
+        content_w = button_total_w;
     out->has_desc = (g_question_menu.desc[0] != '\0');
     if (out->has_desc)
     {
@@ -309,6 +345,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
                 reserved_h += row_h + divider_gap;
             else if (close_button)
                 reserved_h += row_h + divider_gap;
+            reserved_h += button_section_h;
 
             if (max_panel_h > reserved_h)
             {
@@ -329,6 +366,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
         panel_h += row_h + divider_gap;
     if (desc_h > 0.0f)
         panel_h += desc_h + divider_gap;
+    panel_h += button_section_h;
     if (panel_h > max_panel_h)
         panel_h = max_panel_h;
 
@@ -430,7 +468,8 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     }
 
     {
-        float rows_bottom = out->panel.y + out->panel.h - pad_y;
+        float rows_bottom = out->panel.y + out->panel.h - pad_y
+            - button_section_h;
         float rows_h = rows_bottom - rows_top;
         int visible_count = (int)((rows_h + 2.0f) / row_h);
         int highlight_index = 0;
@@ -489,6 +528,49 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
 
         out->first_entry = first_entry;
         out->visible_count = visible_count;
+    }
+
+    if (button_count > 0)
+    {
+        float button_area_w = out->panel.w - pad_x * 2.0f;
+        float y = out->panel.y + out->panel.h - pad_y - row_h;
+        float total_w = button_total_w;
+        float x;
+
+        if (button_area_w < 1.0f)
+            button_area_w = 1.0f;
+        if (total_w > button_area_w)
+        {
+            float fit_w = (button_area_w
+                - button_gap * (float)(button_count - 1))
+                / (float)button_count;
+
+            if (fit_w < 1.0f)
+                fit_w = button_area_w / (float)button_count;
+            total_w = 0.0f;
+            for (int i = 0; i < button_count; i++)
+            {
+                button_widths[i] = fit_w;
+                total_w += fit_w;
+                if (i + 1 < button_count)
+                    total_w += button_gap;
+            }
+        }
+
+        x = out->panel.x + pad_x + (button_area_w - total_w) * 0.5f;
+        if (x < out->panel.x + pad_x)
+            x = out->panel.x + pad_x;
+
+        for (int i = 0; i < button_count; i++)
+        {
+            out->buttons[i] = (SDL_FRect){
+                .x = x,
+                .y = y,
+                .w = button_widths[i],
+                .h = row_h,
+            };
+            x += button_widths[i] + button_gap;
+        }
     }
 
     for (int i = 0; i < g_question_menu.count; i++)
@@ -627,6 +709,25 @@ void sdl_question_menu_add_entry(int choice, cptr letter, cptr text,
     entry->text_attr = attr;
     SDL_strlcpy(entry->letter, letter ? letter : "", sizeof(entry->letter));
     SDL_strlcpy(entry->text, text, sizeof(entry->text));
+    g_state.need_present = true;
+}
+
+void sdl_question_menu_add_button(int choice, cptr text, byte attr)
+{
+    sdl_question_menu_button_state* button;
+
+    if (!g_question_menu.active)
+        return;
+    if (g_question_menu.button_count >= SDL_QUESTION_MENU_MAX_BUTTONS)
+        return;
+    if (!text || !text[0])
+        return;
+
+    button = &g_question_menu.buttons[g_question_menu.button_count++];
+    memset(button, 0, sizeof(*button));
+    button->choice = choice;
+    button->text_attr = attr;
+    SDL_strlcpy(button->text, text, sizeof(button->text));
     g_state.need_present = true;
 }
 
@@ -898,6 +999,29 @@ void sdl_question_menu_render(void)
             text_x, row.y, text_w, row.h, false);
     }
 
+    for (int i = 0; i < layout.button_count; i++)
+    {
+        const sdl_question_menu_button_state* button =
+            &g_question_menu.buttons[i];
+        SDL_FRect rect = layout.buttons[i];
+        bool hovered = has_hover_choice && hover_choice == button->choice;
+        SDL_Color fill = hovered ? (SDL_Color){ 245, 245, 245, 255 }
+                                 : (SDL_Color){ 116, 116, 116, 214 };
+        SDL_Color border = hovered ? (SDL_Color){ 0, 0, 0, 255 }
+                                   : (SDL_Color){ 28, 28, 28, 224 };
+        SDL_Color text = hovered ? g_state.palette[TERM_DARK]
+                                 : g_state.palette[button->text_attr];
+
+        SDL_SetRenderDrawColor(g_state.renderer, fill.r, fill.g, fill.b,
+            fill.a);
+        SDL_RenderFillRect(g_state.renderer, &rect);
+        SDL_SetRenderDrawColor(g_state.renderer, border.r, border.g,
+            border.b, border.a);
+        SDL_RenderRect(g_state.renderer, &rect);
+        sdl_question_menu_draw_text(story_font, button->text, text,
+            rect.x + rect.w * 0.08f, rect.y, rect.w * 0.84f, rect.h, true);
+    }
+
     sdl_question_menu_render_close_button(&layout,
         g_question_menu.close_hover);
 
@@ -943,6 +1067,16 @@ static bool sdl_question_menu_choice_at(float x, float y, int* out_choice,
 
     if (out_in_panel)
         *out_in_panel = true;
+
+    for (int i = 0; i < layout.button_count; i++)
+    {
+        if (sdl_point_in_frect(&layout.buttons[i], x, y))
+        {
+            if (out_choice)
+                *out_choice = g_question_menu.buttons[i].choice;
+            return true;
+        }
+    }
 
     for (int i = layout.first_entry;
          i < g_question_menu.count

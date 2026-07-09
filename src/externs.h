@@ -2176,6 +2176,7 @@ extern void sdl_question_menu_set_anchor_grid(int y, int x);
 extern void sdl_question_menu_set_desc(cptr text);
 extern void sdl_question_menu_add_entry(int choice, cptr letter, cptr text,
     byte attr);
+extern void sdl_question_menu_add_button(int choice, cptr text, byte attr);
 extern void sdl_question_menu_add_text(cptr text, byte attr);
 extern void sdl_question_menu_set_highlight(int choice);
 extern void sdl_question_menu_finish(void);

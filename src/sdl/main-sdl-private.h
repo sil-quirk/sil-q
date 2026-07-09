@@ -960,6 +960,7 @@ typedef struct sdl_song_menu_state {
 
 enum {
     SDL_QUESTION_MENU_MAX_ENTRIES = 320,
+    SDL_QUESTION_MENU_MAX_BUTTONS = 4,
     SDL_QUESTION_MENU_LETTER_LEN = 4,
     SDL_QUESTION_MENU_TEXT_LEN = 96,
     SDL_QUESTION_MENU_TITLE_LEN = 80,
@@ -972,6 +973,12 @@ typedef struct sdl_question_menu_entry_state {
     char letter[SDL_QUESTION_MENU_LETTER_LEN];
     char text[SDL_QUESTION_MENU_TEXT_LEN];
 } sdl_question_menu_entry_state;
+
+typedef struct sdl_question_menu_button_state {
+    int choice;
+    byte text_attr;
+    char text[SDL_QUESTION_MENU_TEXT_LEN];
+} sdl_question_menu_button_state;
 
 /* Generic question overlay: a titled panel with an optional wrapped
  * description block and selectable answer rows.  Local questions anchor
@@ -988,11 +995,13 @@ typedef struct sdl_question_menu_state {
     int anchor_x;
     Uint64 expires_at_ns;
     int count;
+    int button_count;
     int highlight; /* choice highlighted by keyboard navigation, -1 none */
     int* scroll_offset_ptr;
     char title[SDL_QUESTION_MENU_TITLE_LEN];
     char desc[SDL_QUESTION_MENU_DESC_LEN];
     sdl_question_menu_entry_state entries[SDL_QUESTION_MENU_MAX_ENTRIES];
+    sdl_question_menu_button_state buttons[SDL_QUESTION_MENU_MAX_BUTTONS];
 } sdl_question_menu_state;
 
 typedef struct unified_look_map_drag_state {
@@ -3489,6 +3498,7 @@ void sdl_question_menu_set_nonblocking(bool nonblocking);
 void sdl_question_menu_set_timeout_ms(int ms);
 int sdl_question_menu_pending_timeout_ms(Uint64 now_ns);
 bool sdl_question_menu_flush_expired(Uint64 now_ns);
+void sdl_question_menu_add_button(int choice, cptr text, byte attr);
 bool sdl_map_grid_cell_rect(int y, int x, SDL_FRect* out);
 bool sdl_grid_question_queue(int map_y, int map_x);
 bool sdl_grid_question_take_command(int* command, int* dir);

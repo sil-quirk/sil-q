@@ -9,7 +9,8 @@
  */
 static void ui_question_show(cptr title, cptr desc,
     const ui_question_option* options, int count, int anchor_y, int anchor_x,
-    int highlight, int* scroll_offset, bool scroll_follow_highlight)
+    int highlight, int* scroll_offset, bool scroll_follow_highlight,
+    const ui_question_button* buttons, int button_count)
 {
     char letter[4];
 
@@ -35,14 +36,30 @@ static void ui_question_show(cptr title, cptr desc,
                 options[i].attr);
         }
     }
+    for (int i = 0; buttons && i < button_count; i++)
+        sdl_question_menu_add_button(buttons[i].choice, buttons[i].label,
+            buttons[i].attr);
 
     sdl_question_menu_set_highlight(highlight);
     sdl_question_menu_finish();
 }
 
+static bool ui_question_button_choice_present(
+    const ui_question_button* buttons, int button_count, int choice)
+{
+    for (int i = 0; buttons && i < button_count; i++)
+    {
+        if (buttons[i].choice == choice)
+            return true;
+    }
+
+    return false;
+}
+
 static int ui_question_ask_aux(cptr title, cptr desc,
     const ui_question_option* options, int count, int anchor_y, int anchor_x,
-    int default_index, bool repaint_background)
+    int default_index, bool repaint_background,
+    const ui_question_button* buttons, int button_count)
 {
     int highlight;
     int result = -1;
@@ -82,7 +99,8 @@ static int ui_question_ask_aux(cptr title, cptr desc,
         ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_question_show(title, desc, options, count, anchor_y, anchor_x,
-            highlight, &scroll_offset, scroll_follow_highlight);
+            highlight, &scroll_offset, scroll_follow_highlight, buttons,
+            button_count);
 
         which = inkey();
         if (sdl_question_menu_take_touch_scrolled())
@@ -98,6 +116,15 @@ static int ui_question_ask_aux(cptr title, cptr desc,
                 {
                     highlight = clicked_choice;
 
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                        continue;
+
+                    result = clicked_choice;
+                    done = true;
+                }
+                else if (ui_question_button_choice_present(buttons,
+                             button_count, clicked_choice))
+                {
                     if (click_action == UI_MENU_CLICK_HOVER)
                         continue;
 
@@ -164,6 +191,18 @@ static int ui_question_ask_aux(cptr title, cptr desc,
                     break;
                 }
             }
+            for (int i = 0; !matched && buttons && i < button_count; i++)
+            {
+                if (buttons[i].key
+                    && (tolower((unsigned char)which)
+                        == tolower((unsigned char)buttons[i].key)))
+                {
+                    result = buttons[i].choice;
+                    done = true;
+                    matched = true;
+                    break;
+                }
+            }
 
             if (!matched)
                 bell("Illegal response to question!");
@@ -184,7 +223,7 @@ int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
     int count, int anchor_y, int anchor_x, int default_index)
 {
     return ui_question_ask_aux(title, desc, options, count, anchor_y, anchor_x,
-        default_index, true);
+        default_index, true, NULL, 0);
 }
 
 int ui_question_ask_overlay(cptr title, cptr desc,
@@ -192,5 +231,14 @@ int ui_question_ask_overlay(cptr title, cptr desc,
     int default_index)
 {
     return ui_question_ask_aux(title, desc, options, count, anchor_y, anchor_x,
-        default_index, false);
+        default_index, false, NULL, 0);
+}
+
+int ui_question_ask_overlay_buttons(cptr title, cptr desc,
+    const ui_question_option* options, int count,
+    const ui_question_button* buttons, int button_count, int anchor_y,
+    int anchor_x, int default_index)
+{
+    return ui_question_ask_aux(title, desc, options, count, anchor_y, anchor_x,
+        default_index, false, buttons, button_count);
 }

@@ -3938,30 +3938,23 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
             rows = 2;
     }
 #if SIL_SDL_MOBILE_BUILD
-    active_count = sdl_touch_top_panel_fit_button_count(screen, anchor, where,
-        active_count, rows, button_size, gap);
+    /* A chosen second row keeps every quick-access cell visible. */
+    if (rows == 1) {
+        active_count = sdl_touch_top_panel_fit_button_count(screen, anchor,
+            where, active_count, rows, button_size, gap);
+    }
     columns = (active_count + rows - 1) / rows;
     if (columns < 1)
         columns = 1;
     panel_w = button_size * (float)columns + gap * (float)(columns - 1);
     if (panel_w > max_panel_w && active_count > 1) {
-        columns = (int)((max_panel_w + gap) / (button_size + gap));
-        if (columns < 1)
-            columns = 1;
-        if (columns > active_count)
-            columns = active_count;
+        float fit_size =
+            (max_panel_w - gap * (float)(columns - 1)) / (float)columns;
 
-        while (columns > 1) {
-            float fit_size =
-                (max_panel_w - gap * (float)(columns - 1)) / (float)columns;
-
-            if (fit_size >= 64.0f || columns == 1) {
-                if (fit_size < button_size)
-                    button_size = fit_size;
-                break;
-            }
-            columns--;
-        }
+        if (fit_size < 1.0f)
+            return false;
+        if (fit_size < button_size)
+            button_size = fit_size;
     }
     if (columns < 1)
         return false;
@@ -3972,8 +3965,10 @@ bool sdl_touch_top_panel_compute_layout_for_anchor(const SDL_Rect* screen,
     rows = (active_count + columns - 1) / columns;
     panel_w = button_size * (float)columns + gap * (float)(columns - 1);
 #else
-    active_count = sdl_touch_top_panel_fit_button_count(screen, anchor, where,
-        active_count, rows, button_size, gap);
+    if (rows == 1) {
+        active_count = sdl_touch_top_panel_fit_button_count(screen, anchor,
+            where, active_count, rows, button_size, gap);
+    }
     columns = (active_count + rows - 1) / rows;
     if (columns < 1)
         columns = 1;

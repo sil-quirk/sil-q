@@ -2231,7 +2231,7 @@ void sdl_apply_startup_input_defaults_to_config(
         target->touch_round_movement_enabled = true;
         target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
         target->touch_top_panel_button_count =
-            SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+            SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
         target->touch_top_panel_default_open = true;
         target->touch_top_panel_tile_scale =
             SDL_TOUCH_TOP_PANEL_TILE_SCALE_DEFAULT;

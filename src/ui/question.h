@@ -13,6 +13,13 @@ typedef struct ui_question_option {
     byte attr;
 } ui_question_option;
 
+typedef struct ui_question_button {
+    int choice;
+    char key;
+    cptr label;
+    byte attr;
+} ui_question_button;
+
 /*
  * Ask a question through the SDL question overlay (never the top message
  * row).  Local questions pass the map grid they are about in
@@ -36,5 +43,10 @@ int ui_question_ask(cptr title, cptr desc, const ui_question_option* options,
 int ui_question_ask_overlay(cptr title, cptr desc,
     const ui_question_option* options, int count, int anchor_y, int anchor_x,
     int default_index);
+
+int ui_question_ask_overlay_buttons(cptr title, cptr desc,
+    const ui_question_option* options, int count,
+    const ui_question_button* buttons, int button_count, int anchor_y,
+    int anchor_x, int default_index);
 
 #endif /* INCLUDED_UI_QUESTION_H */
