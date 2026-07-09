@@ -8973,6 +8973,26 @@ static byte supply_touch_mode_button_attr(bool active)
     return active ? TERM_YELLOW : TERM_DARK;
 }
 
+typedef enum supply_interaction_mode
+{
+    SUPPLY_INTERACTION_NONE,
+    SUPPLY_INTERACTION_DESCRIPTION,
+    SUPPLY_INTERACTION_DROP,
+    SUPPLY_INTERACTION_DELETE
+} supply_interaction_mode;
+
+/* Keep the row interaction modes mutually exclusive. */
+static void supply_set_interaction_mode(supply_overlay_cache* overlay_cache,
+    bool* desc_overlay_on, bool* drop_click_mode, bool* delete_click_mode,
+    supply_interaction_mode mode)
+{
+    *desc_overlay_on = (mode == SUPPLY_INTERACTION_DESCRIPTION);
+    *drop_click_mode = (mode == SUPPLY_INTERACTION_DROP);
+    *delete_click_mode = (mode == SUPPLY_INTERACTION_DELETE);
+
+    supply_overlay_cache_reset(overlay_cache);
+}
+
 static void supply_preview_focus_entry_column(bool desc_overlay_on,
     int entry_cnt, int* column)
 {
@@ -9058,7 +9078,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             page = SUPPLY_MENU_PAGE_INVENTORY;
             inv_column = 1;
-            desc_overlay_on = true;
+            supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                &drop_click_mode, &delete_click_mode,
+                SUPPLY_INTERACTION_DESCRIPTION);
             if (!request->focus_inventory_group)
                 inv_grp_cur = inventory_browser_group_index(
                     INVENTORY_MENU_GROUP_ALL);
@@ -9077,8 +9099,8 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             column = 1;
         if (forced_action == SUPPLY_MENU_ACTION_DROP)
         {
-            drop_click_mode = true;
-            delete_click_mode = false;
+            supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                &drop_click_mode, &delete_click_mode, SUPPLY_INTERACTION_DROP);
         }
         if (request->replacement_mode && request->replacement_incoming
             && request->replacement_incoming->k_idx
@@ -9087,10 +9109,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             replacement_mode = true;
             page = SUPPLY_MENU_PAGE_INVENTORY;
             inv_column = 1;
-            desc_overlay_on = true;
+            supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                &drop_click_mode, &delete_click_mode,
+                SUPPLY_INTERACTION_DESCRIPTION);
             forced_action = SUPPLY_MENU_ACTION_NONE;
-            drop_click_mode = false;
-            delete_click_mode = false;
             *request->replacement_item_out = -1;
         }
         if (request->slot_pick_mode && request->slot_pick_incoming
@@ -9100,10 +9122,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             slot_pick_mode = true;
             page = SUPPLY_MENU_PAGE_INVENTORY;
             inv_column = 1;
-            desc_overlay_on = true;
+            supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                &drop_click_mode, &delete_click_mode,
+                SUPPLY_INTERACTION_DESCRIPTION);
             forced_action = SUPPLY_MENU_ACTION_NONE;
-            drop_click_mode = false;
-            delete_click_mode = false;
             *request->slot_pick_item_out = -1;
         }
         if (request->item_select_mode && request->item_select_item_out)
@@ -9111,10 +9133,10 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             item_select_mode = true;
             page = SUPPLY_MENU_PAGE_INVENTORY;
             inv_column = 1;
-            desc_overlay_on = true;
+            supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                &drop_click_mode, &delete_click_mode,
+                SUPPLY_INTERACTION_DESCRIPTION);
             forced_action = SUPPLY_MENU_ACTION_NONE;
-            drop_click_mode = false;
-            delete_click_mode = false;
             *request->item_select_item_out = -1;
         }
     }
@@ -9553,7 +9575,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             click_generated_command = true;
                             break;
                         case SUPPLY_CLICK_DROP:
-                            drop_click_mode = !drop_click_mode;
+                            supply_set_interaction_mode(&overlay_cache,
+                                &desc_overlay_on, &drop_click_mode,
+                                &delete_click_mode, drop_click_mode
+                                    ? SUPPLY_INTERACTION_NONE
+                                    : SUPPLY_INTERACTION_DROP);
                             continue;
                         case SUPPLY_CLICK_TAB:
                             ch = KTRL('I');
@@ -9647,13 +9673,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 if (!equip_column && equip_entry_cnt)
                 {
                     equip_column = 1;
-                    desc_overlay_on = true;
+                    supply_set_interaction_mode(&overlay_cache,
+                        &desc_overlay_on, &drop_click_mode,
+                        &delete_click_mode, SUPPLY_INTERACTION_DESCRIPTION);
                 }
                 else if (equip_column && equip_entry_cnt)
                 {
-                    desc_overlay_on = !desc_overlay_on;
-                    if (!desc_overlay_on)
-                        supply_overlay_cache_reset(&overlay_cache);
+                    supply_set_interaction_mode(&overlay_cache,
+                        &desc_overlay_on, &drop_click_mode,
+                        &delete_click_mode, desc_overlay_on
+                            ? SUPPLY_INTERACTION_NONE
+                            : SUPPLY_INTERACTION_DESCRIPTION);
                 }
                 break;
 
@@ -10480,14 +10510,18 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                             click_generated_command = true;
                             break;
                         case SUPPLY_CLICK_DROP:
-                            drop_click_mode = !drop_click_mode;
-                            if (drop_click_mode)
-                                delete_click_mode = false;
+                            supply_set_interaction_mode(&overlay_cache,
+                                &desc_overlay_on, &drop_click_mode,
+                                &delete_click_mode, drop_click_mode
+                                    ? SUPPLY_INTERACTION_NONE
+                                    : SUPPLY_INTERACTION_DROP);
                             continue;
                         case SUPPLY_CLICK_DELETE:
-                            delete_click_mode = !delete_click_mode;
-                            if (delete_click_mode)
-                                drop_click_mode = false;
+                            supply_set_interaction_mode(&overlay_cache,
+                                &desc_overlay_on, &drop_click_mode,
+                                &delete_click_mode, delete_click_mode
+                                    ? SUPPLY_INTERACTION_NONE
+                                    : SUPPLY_INTERACTION_DELETE);
                             continue;
                         case SUPPLY_CLICK_TAB:
                             ch = KTRL('I');
@@ -10622,7 +10656,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     if (inventory_entry_cnt)
                     {
                         inv_column = 1;
-                        desc_overlay_on = true;
+                        supply_set_interaction_mode(&overlay_cache,
+                            &desc_overlay_on, &drop_click_mode,
+                            &delete_click_mode, SUPPLY_INTERACTION_DESCRIPTION);
                     }
                     break;
                 }
@@ -10631,13 +10667,17 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     if (!inv_column)
                     {
                         inv_column = 1;
-                        desc_overlay_on = true;
+                        supply_set_interaction_mode(&overlay_cache,
+                            &desc_overlay_on, &drop_click_mode,
+                            &delete_click_mode, SUPPLY_INTERACTION_DESCRIPTION);
                     }
                     else
                     {
-                        desc_overlay_on = !desc_overlay_on;
-                        if (!desc_overlay_on)
-                            supply_overlay_cache_reset(&overlay_cache);
+                        supply_set_interaction_mode(&overlay_cache,
+                            &desc_overlay_on, &drop_click_mode,
+                            &delete_click_mode, desc_overlay_on
+                                ? SUPPLY_INTERACTION_NONE
+                                : SUPPLY_INTERACTION_DESCRIPTION);
                     }
                 }
                 break;
@@ -11351,7 +11391,11 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                         click_generated_command = true;
                         break;
                     case SUPPLY_CLICK_DROP:
-                        drop_click_mode = !drop_click_mode;
+                        supply_set_interaction_mode(&overlay_cache,
+                            &desc_overlay_on, &drop_click_mode,
+                            &delete_click_mode, drop_click_mode
+                                ? SUPPLY_INTERACTION_NONE
+                                : SUPPLY_INTERACTION_DROP);
                         redraw = true;
                         continue;
                     case SUPPLY_CLICK_TAB:
@@ -11462,13 +11506,16 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             if (!column && entry_cnt)
             {
                 column = 1;
-                desc_overlay_on = true;
+                supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                    &drop_click_mode, &delete_click_mode,
+                    SUPPLY_INTERACTION_DESCRIPTION);
             }
             else if (column && entry_cnt)
             {
-                desc_overlay_on = !desc_overlay_on;
-                if (!desc_overlay_on)
-                    supply_overlay_cache_reset(&overlay_cache);
+                supply_set_interaction_mode(&overlay_cache, &desc_overlay_on,
+                    &drop_click_mode, &delete_click_mode, desc_overlay_on
+                        ? SUPPLY_INTERACTION_NONE
+                        : SUPPLY_INTERACTION_DESCRIPTION);
             }
             break;
 

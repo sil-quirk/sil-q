@@ -3013,7 +3013,8 @@ static int ability_browser_collect_entries(int skilltype,
         }
     }
 
-    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL)
+    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL
+        || skilltype == S_PER)
         ability_browser_sort_entries(entries, count);
 
     return count;
@@ -4677,7 +4678,8 @@ int abilities_menu2(int skilltype, int* highlight)
         visible_count++;
     }
 
-    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL)
+    if (skilltype == S_SMT || skilltype == S_ARC || skilltype == S_MEL
+        || skilltype == S_PER)
     {
         ability_menu_sort_entries_by_level(visible_entries, visible_attrs,
             visible_abilities, visible_count);

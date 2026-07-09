@@ -3502,6 +3502,7 @@
  */
 #define cave_empty_bold(Y, X)                                                  \
     (cave_floor_bold(Y, X) && (cave_feat[Y][X] != FEAT_CHASM)                  \
+        && (cave_feat[Y][X] != FEAT_RUBBLE)                                    \
         && (cave_m_idx[Y][X] == 0))
 
 /*
