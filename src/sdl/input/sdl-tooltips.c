@@ -1276,6 +1276,26 @@ static int sdl_description_overlay_cell_w_for_font_px(int font_px)
     return (cell_w > 0) ? cell_w : 1;
 }
 
+static void sdl_description_overlay_reserve_touch_thumb(SDL_Rect* anchor,
+    int margin)
+{
+    float right = 0.0f;
+
+    if (!anchor)
+        return;
+
+    if (sdl_touch_thumb_current_right_edge(&right) && right > 0.0f)
+    {
+        int reserve = (int)right + margin - anchor->x;
+
+        if (reserve > 0 && reserve < anchor->w)
+        {
+            anchor->x += reserve;
+            anchor->w -= reserve;
+        }
+    }
+}
+
 static int sdl_description_overlay_anchor_max_cols_for_font_px(int font_px)
 {
     SDL_Rect anchor;
@@ -1290,6 +1310,7 @@ static int sdl_description_overlay_anchor_max_cols_for_font_px(int font_px)
 
     cell_w = sdl_description_overlay_cell_w_for_font_px(font_px);
     margin = sdl_overlay_margin_px();
+    sdl_description_overlay_reserve_touch_thumb(&anchor, margin);
     pad_x = cell_w;
     max_panel_w = anchor.w - margin * 2;
     if (max_panel_w <= pad_x * 2)
@@ -1767,18 +1788,7 @@ bool sdl_description_overlay_layout(description_overlay_layout* out)
 
     /* Reserve the left strip the contextual thumb buttons occupy so the popup
      * is sized and centred in the space to their right and never crosses them. */
-    {
-        float right = 0.0f;
-
-        if (sdl_touch_thumb_current_right_edge(&right) && right > 0.0f) {
-            int reserve = (int)right + margin - anchor.x;
-
-            if (reserve > 0 && reserve < anchor.w) {
-                anchor.x += reserve;
-                anchor.w -= reserve;
-            }
-        }
-    }
+    sdl_description_overlay_reserve_touch_thumb(&anchor, margin);
 
     max_panel_w = anchor.w - margin * 2;
     max_panel_h = anchor.h - margin * 2;

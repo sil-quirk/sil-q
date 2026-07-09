@@ -684,7 +684,6 @@ bool g_default_touch_round_movement_enabled = false;
 int g_default_touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
 int g_default_touch_corner_up_down_side = SDL_TOUCH_CORNER_UP_DOWN_RIGHT;
 int g_default_touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
-int g_default_touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_SHORT;
 bool g_default_touch_top_panel_default_open = false;
 bool g_default_touch_top_panel_second_row = false;
 int g_default_touch_top_panel_button_count =

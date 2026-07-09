@@ -2287,11 +2287,35 @@ typedef struct hint_message_display_line {
 enum {
     HINT_MESSAGE_DISPLAY_TEXT_MAX = 256,
     HINT_MESSAGE_DISPLAY_LINES_MAX = 48,
-    HINT_MESSAGE_LIST_LINES_MAX = 64
+    HINT_MESSAGE_LIST_LINES_MAX = 64,
+    HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW = 4
 };
 
 static int hint_message_wrap_list_text(const char* text, int wrap_cols,
     hint_message_display_line* lines, int limit);
+
+static int hint_message_detail_top_row(int hgt, int line_count)
+{
+    int rows_before_footer;
+    int spare_rows;
+    int row;
+
+    if (hgt <= 1)
+        return 0;
+
+    rows_before_footer = hgt - 1;
+    spare_rows = rows_before_footer - MAX(line_count, 0);
+    row = spare_rows / 2;
+
+    if (row > HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW)
+        row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
+    if (row < 0)
+        row = 0;
+    if (row > hgt - 2)
+        row = hgt - 2;
+
+    return row;
+}
 
 static int hint_message_list_emit_token(int base_row, int wid, int text_col,
     int max_rows, int* used_rows, int* cursor_col, bool draw, byte attr,
@@ -2956,7 +2980,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
 {
     int wid = 80;
     int hgt = 24;
-    int row = 4;
+    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
     int col = 8;
     hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char tip_text[512];
@@ -2987,6 +3011,7 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
         line_count = hint_message_append_wrapped_text(
             tip_text, lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
             wid - col - 1, 1);
+        row = hint_message_detail_top_row(hgt, line_count);
 
         for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
         {
@@ -3046,7 +3071,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
 {
     int wid = 80;
     int hgt = 24;
-    int row = 4;
+    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
     int col = 8;
     hint_message_display_line display_lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
     char ch;
@@ -3087,6 +3112,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
                 display_lines, display_line_count,
                 HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, (byte)li);
         }
+        row = hint_message_detail_top_row(hgt, display_line_count);
 
         for (int li = 0; li < display_line_count && row + li < hgt - 1; ++li)
         {

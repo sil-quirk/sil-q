@@ -68,53 +68,101 @@ static int map_pane_spans(struct map_pane_span* spans, int max_spans)
     return count;
 }
 
-/* Center the player in the unobscured map area when SDL panes float over it. */
+static int clamp_screen_center(int value, int size)
+{
+    if (size <= 1)
+        return 0;
+    if (value < 0)
+        return 0;
+    if (value >= size)
+        return size - 1;
+    return value;
+}
+
+static bool map_pane_span_contains(const struct map_pane_span* s, int y, int x)
+{
+    return s && x >= s->x1 && x < s->x2 && y >= s->y1 && y < s->y2;
+}
+
+static bool map_center_clear(int y, int x,
+    const struct map_pane_span* spans, int span_count)
+{
+    for (int i = 0; i < span_count; i++)
+    {
+        if (map_pane_span_contains(&spans[i], y, x))
+            return false;
+    }
+
+    return true;
+}
+
+static void map_safe_center_try_candidate(int y, int x, int base_y,
+    int base_x, int screen_h, int screen_w, const struct map_pane_span* spans,
+    int span_count, bool* have_best, int* best_score, int* best_y,
+    int* best_x)
+{
+    int dy;
+    int dx;
+    int score;
+
+    y = clamp_screen_center(y, screen_h);
+    x = clamp_screen_center(x, screen_w);
+    if (!map_center_clear(y, x, spans, span_count))
+        return;
+
+    dy = y - base_y;
+    dx = x - base_x;
+    score = dy * dy + dx * dx;
+    if (!*have_best || score < *best_score)
+    {
+        *have_best = true;
+        *best_score = score;
+        *best_y = y;
+        *best_x = x;
+    }
+}
+
+/* Center the player unless that exact center cell is obscured by an SDL pane. */
 static void map_safe_center(int* center_y, int* center_x,
     const struct map_pane_span* spans, int span_count)
 {
-    int cy = SCREEN_HGT / 2;
-    int cx = SCREEN_WID / 2;
-    int y1 = 0;
-    int y2 = SCREEN_HGT;
-    int x1 = 0;
-    int x2 = SCREEN_WID;
+    int screen_h = SCREEN_HGT;
+    int screen_w = SCREEN_WID;
+    int cy = clamp_screen_center(screen_h / 2, screen_h);
+    int cx = clamp_screen_center(screen_w / 2, screen_w);
+    bool have_best = false;
+    int best_score = 0;
+    int best_y = cy;
+    int best_x = cx;
 
-    for (int i = 0; i < span_count; i++)
+    if (!map_center_clear(cy, cx, spans, span_count))
     {
-        const struct map_pane_span* s = &spans[i];
-
-        if (s->y1 <= cy && s->y2 > cy)
+        for (int i = 0; i < span_count; i++)
         {
-            if (s->x1 <= cx && s->x2 > x1)
-                x1 = s->x2;
-            else if (s->x1 > cx && s->x1 < x2)
-                x2 = s->x1;
+            const struct map_pane_span* s = &spans[i];
+
+            if (!map_pane_span_contains(s, cy, cx))
+                continue;
+
+            map_safe_center_try_candidate(cy, s->x1 - 1, cy, cx, screen_h,
+                screen_w, spans, span_count, &have_best, &best_score, &best_y,
+                &best_x);
+            map_safe_center_try_candidate(cy, s->x2, cy, cx, screen_h,
+                screen_w, spans, span_count, &have_best, &best_score, &best_y,
+                &best_x);
+            map_safe_center_try_candidate(s->y1 - 1, cx, cy, cx, screen_h,
+                screen_w, spans, span_count, &have_best, &best_score, &best_y,
+                &best_x);
+            map_safe_center_try_candidate(s->y2, cx, cy, cx, screen_h,
+                screen_w, spans, span_count, &have_best, &best_score, &best_y,
+                &best_x);
         }
 
-        if (s->x1 <= cx && s->x2 > cx)
+        if (have_best)
         {
-            if (s->y1 <= cy && s->y2 > y1)
-                y1 = s->y2;
-            else if (s->y1 > cy && s->y1 < y2)
-                y2 = s->y1;
+            cy = best_y;
+            cx = best_x;
         }
-    }
-
-    if (span_count > 0)
-    {
-        if (x1 < 0)
-            x1 = 0;
-        if (x2 > SCREEN_WID)
-            x2 = SCREEN_WID;
-        if (y1 < 0)
-            y1 = 0;
-        if (y2 > SCREEN_HGT)
-            y2 = SCREEN_HGT;
-
-        if (x2 > x1)
-            cx = x1 + (x2 - x1) / 2;
-        if (y2 > y1)
-            cy = y1 + (y2 - y1) / 2;
     }
 
     if (center_y)
@@ -159,25 +207,37 @@ static int floor_div_int(int value, int divisor)
  *   w    = current map offset on this axis (p_ptr->wy or ->wx)
  *   lo   = first usable screen cell (0, or just past a top/left pane)
  *   hi   = one-past the last usable screen cell (SCREEN_*, or a bottom/right pane)
+ *   center = preferred screen cell for the player on this axis
  *   panel= PANEL_HGT / PANEL_WID
  *   big  = margin used on a large viewport (the classic 13 / 17)
  *
- * Small viewports recentre the player on the middle once they wander past the
- * margin (so the camera keeps up with them); large viewports keep the classic
- * panel-aligned scroll.  When [lo,hi) is the whole screen and the viewport is
- * large this reduces to the original logic, so the no-pane case is unchanged.
+ * Small viewports recentre the player on the preferred center once they wander
+ * past the margin (so the camera keeps up with them); large viewports keep the
+ * classic panel-aligned scroll.  When [lo,hi) is the whole screen and the
+ * viewport is large this reduces to the original logic, so the no-pane case is
+ * unchanged.
  */
-static int scroll_axis_within(int p, int w, int lo, int hi, int panel, int big)
+static int scroll_axis_within(int p, int w, int lo, int hi, int center,
+    int panel, int big)
 {
     int screen = hi - lo;
     bool compact;
     int margin;
     int wv;
+    int target;
 
     if (screen < 1)
+    {
         screen = 1;
+        hi = lo + 1;
+    }
 
     compact = (screen < panel * 2);
+    target = center;
+    if (target < lo)
+        target = lo;
+    if (target >= hi)
+        target = hi - 1;
 
     /* Work in the virtual frame where the viewport starts at screen cell 0. */
     wv = w + lo;
@@ -192,7 +252,7 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int panel, int big)
 
         /* Recentre on the player once they drift past the margin. */
         if (p < wv + margin || p >= wv + screen - margin)
-            wv = p - screen / 2;
+            wv = p - (target - lo);
     }
     else
     {
@@ -212,7 +272,7 @@ static int scroll_axis_within(int p, int w, int lo, int hi, int panel, int big)
              * recentre on the player instead.  The jump always lands well
              * inside a full-size viewport, so the classic feel is unchanged. */
             if (p < wv || p >= wv + screen)
-                wv = p - screen / 2;
+                wv = p - (target - lo);
         }
     }
 
@@ -426,7 +486,8 @@ void verify_panel(void)
     if (do_center)
         wy = py - center_y;
     else
-        wy = scroll_axis_within(py, wy, play_y_lo, play_y_hi, PANEL_HGT, 13);
+        wy = scroll_axis_within(py, wy, play_y_lo, play_y_hi, center_y,
+            PANEL_HGT, 13);
 
     /* Scroll horizontally: centre on demand, else keep within the playfield. */
     if (do_center)
@@ -435,7 +496,8 @@ void verify_panel(void)
             wx = px - center_x;
     }
     else
-        wx = scroll_axis_within(px, wx, play_x_lo, play_x_hi, PANEL_WID, 17);
+        wx = scroll_axis_within(px, wx, play_x_lo, play_x_hi, center_x,
+            PANEL_WID, 17);
 
     /* Scroll if needed */
     bool panel_changed = modify_panel(wy, wx);

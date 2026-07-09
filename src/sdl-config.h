@@ -92,10 +92,6 @@
 #define SDL_TOUCH_CORNER_ACTION_BOTTOM_TAP 2
 #define SDL_TOUCH_CORNER_ACTION_BOTTOM_LONG_TAP 3
 #define SDL_TOUCH_CORNER_ACTION_BINDING_COUNT 4
-#define SDL_TOUCH_TOP_PANEL_MODE_SHORT 0
-#define SDL_TOUCH_TOP_PANEL_MODE_LONG 1
-#define SDL_TOUCH_TOP_PANEL_MODE_COUNT 2
-#define SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT 4
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT 8
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN 0
 #define SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT 8
@@ -241,7 +237,6 @@ struct sdl_config {
     int touch_zone_center_bindings[SDL_TOUCH_ZONE_CENTER_BINDING_COUNT];
     int touch_corner_up_down_side;
     int touch_corner_action_bindings[SDL_TOUCH_CORNER_ACTION_BINDING_COUNT];
-    int touch_top_panel_mode;
     bool touch_top_panel_default_open;
     bool touch_top_panel_second_row;
     int touch_top_panel_button_count;

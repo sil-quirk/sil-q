@@ -4520,23 +4520,47 @@ static bool iface_pane_pick_from_choices(const struct iface_pane_row* row,
         out_value);
 }
 
-static bool touch_top_widget_set_button_count_auto_second_row(int count)
+static int touch_top_widget_measured_max_cell_count(void)
+{
+    int one_row = sdl_touch_top_panel_physical_button_capacity(false);
+    int two_rows = sdl_touch_top_panel_physical_button_capacity(true);
+    int max_count = get_sdl_touch_top_panel_second_row() ? two_rows : one_row;
+
+    if (two_rows > max_count)
+        max_count = two_rows;
+    if (max_count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        max_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    if (max_count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
+        max_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
+    return max_count;
+}
+
+static bool touch_top_widget_set_button_count_measured(int count)
 {
     int old_count = get_sdl_touch_top_panel_button_count();
     bool old_second_row = get_sdl_touch_top_panel_second_row();
-    int new_count;
+    int one_row = sdl_touch_top_panel_physical_button_capacity(false);
+    int two_rows = sdl_touch_top_panel_physical_button_capacity(true);
+    int max_count = old_second_row ? two_rows : one_row;
 
-    set_sdl_touch_top_panel_button_count(count);
-    new_count = get_sdl_touch_top_panel_button_count();
-
-    if (new_count > old_count
-        && new_count > SDL_TOUCH_TOP_PANEL_SHORT_BUTTON_COUNT
+    if (two_rows > max_count)
+        max_count = two_rows;
+    if (count > one_row && two_rows > one_row
         && !get_sdl_touch_top_panel_second_row())
     {
         set_sdl_touch_top_panel_second_row(true);
     }
 
-    return new_count != old_count
+    if (max_count > SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+        max_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+    if (max_count < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
+        max_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
+    if (count > max_count)
+        count = max_count;
+
+    set_sdl_touch_top_panel_button_count(count);
+
+    return get_sdl_touch_top_panel_button_count() != old_count
         || get_sdl_touch_top_panel_second_row() != old_second_row;
 }
 
@@ -4665,8 +4689,7 @@ static bool iface_pane_row_pick_value(const struct iface_pane_row* row,
                 handled)
             && value != current)
         {
-            changed =
-                touch_top_widget_set_button_count_auto_second_row(value);
+            changed = touch_top_widget_set_button_count_measured(value);
         }
         break;
     }
@@ -4816,7 +4839,7 @@ static bool iface_pane_row_adjust(const struct iface_pane_row* row, int delta)
         if (delta < 0)
             set_sdl_touch_top_panel_button_count(value - 1);
         else
-            touch_top_widget_set_button_count_auto_second_row(value + 1);
+            touch_top_widget_set_button_count_measured(value + 1);
         changed = (get_sdl_touch_top_panel_button_count() != value);
         break;
     }
@@ -6383,7 +6406,6 @@ static void touch_control_reset_to_default(void)
     set_sdl_touch_pane_inventory_equipment_cycle(
         get_sdl_touch_pane_inventory_equipment_default_cycle());
     set_sdl_touch_pane_placement(SDL_TOUCH_PANE_PLACEMENT_RIGHT);
-    set_sdl_touch_top_panel_mode(get_sdl_touch_top_panel_default_mode());
     set_sdl_touch_top_panel_button_count(
         get_sdl_touch_top_panel_default_button_count());
     set_sdl_touch_top_panel_second_row(
@@ -6436,14 +6458,15 @@ static void touch_top_widget_reset_buttons_to_default(void)
 static bool touch_top_widget_add_one_cell(void)
 {
     int count = get_sdl_touch_top_panel_button_count();
+    int max_count = touch_top_widget_measured_max_cell_count();
 
-    if (count >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+    if (count >= max_count)
     {
-        bell("Quick access is already at the maximum number of cells.");
+        bell("Quick access is already at the maximum number of cells that fit.");
         return false;
     }
 
-    return touch_top_widget_set_button_count_auto_second_row(count + 1);
+    return touch_top_widget_set_button_count_measured(count + 1);
 }
 
 static void touch_corner_action_buttons_reset_to_default(void)
@@ -7045,11 +7068,12 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             if (i == QUICK_ACCESS_ADD_CELL_ROW)
             {
                 int count = get_sdl_touch_top_panel_button_count();
+                int max_count = touch_top_widget_measured_max_cell_count();
 
                 label = "Add One More Cell";
-                if (count >= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+                if (count >= max_count)
                     strnfmt(action_buf, sizeof(action_buf), "Max %d",
-                        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
+                        max_count);
                 else
                     strnfmt(action_buf, sizeof(action_buf), "%d -> %d",
                         count, count + 1);
@@ -8401,7 +8425,7 @@ static void do_cmd_touch_control_settings(bool* settings_changed)
                         : SDL_TOUCH_PANE_PLACEMENT_LEFT);
                 sdl_apply_config();
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_MODE) {
-                touch_top_widget_set_button_count_auto_second_row(
+                touch_top_widget_set_button_count_measured(
                     get_sdl_touch_top_panel_button_count() + 1);
             } else if (highlight == TOUCH_CONTROL_TOP_WIDGET_SECOND_ROW) {
                 set_sdl_touch_top_panel_second_row(

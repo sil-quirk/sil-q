@@ -306,8 +306,7 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
         else
         {
             const char* variants[] = {
-                "Esc close  Space page  Dir scroll",
-                "Esc close  Space page",
+                "Esc close  Dir scroll",
                 "Esc close"
             };
             terminal_prompt_pick_variant(footer, sizeof(footer), 80, false,
@@ -317,7 +316,6 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
         sdl_description_overlay_set_footer(footer, true);
         sdl_description_overlay_clear_footer_actions();
         sdl_description_overlay_add_footer_action(ESCAPE, "Esc close");
-        sdl_description_overlay_add_footer_action(' ', "Space page");
 
         if (!sdl_description_overlay_present(capture->attrs, capture->chars,
                 NULL, NULL, capture->story, NULL, capture->width,
@@ -337,6 +335,7 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
         ui_scroll_area_begin(0, MAX(0, prompt_row),
             SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_scroll_area_set_offset_target(&scroll, max_scroll);
         ui_scroll_area_set_tap_key(ESCAPE);
 
         ch = inkey();
@@ -385,7 +384,6 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
                 scroll = 0;
             break;
         case '3':
-        case ' ':
         case 'n':
         case 'N':
         case '6':

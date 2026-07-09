@@ -2230,7 +2230,6 @@ void sdl_apply_startup_input_defaults_to_config(
         target->touch_movement_mode = SDL_TOUCH_MOVEMENT_ON;
         target->touch_round_movement_enabled = true;
         target->touch_zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
-        target->touch_top_panel_mode = SDL_TOUCH_TOP_PANEL_MODE_LONG;
         target->touch_top_panel_button_count =
             SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
         target->touch_top_panel_default_open = true;
