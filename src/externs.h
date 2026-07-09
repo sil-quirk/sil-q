@@ -729,6 +729,7 @@ extern bool do_cmd_jewelry_preset_store(int preset);
 extern bool do_cmd_jewelry_preset_clear(int preset);
 extern void do_cmd_jewelry_preset_shortcut(void);
 extern void do_cmd_drop_item_by_index(int item);
+extern bool do_cmd_drop_item_by_index_confirm(int item, bool confirm);
 extern void do_cmd_drop(void);
 extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
 extern bool open_inventory_menu_page(supply_menu_page page);
@@ -2179,6 +2180,9 @@ extern void sdl_question_menu_add_text(cptr text, byte attr);
 extern void sdl_question_menu_set_highlight(int choice);
 extern void sdl_question_menu_finish(void);
 extern void sdl_question_menu_clear(void);
+extern void sdl_question_menu_set_scroll_offset_target(int* offset,
+    bool follow_highlight);
+extern bool sdl_question_menu_take_touch_scrolled(void);
 extern void sdl_question_menu_set_blocking_input(bool blocking);
 extern bool sdl_question_menu_blocks_input(void);
 extern void sdl_question_menu_set_nonblocking(bool nonblocking);

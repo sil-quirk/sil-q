@@ -4118,6 +4118,49 @@ static bool sdl_touch_top_panel_can_draw_tiles(void)
     return g_state.use_tiles && g_state.tileset;
 }
 
+static int sdl_touch_top_panel_player_action_kind_for_binding(int binding)
+{
+    switch (binding) {
+    case 'z': return SDL_PLAYER_ACTION_WAIT;
+    case 'u': return SDL_PLAYER_ACTION_USE;
+    case 'S': return SDL_PLAYER_ACTION_STEALTH;
+    case 's': return SDL_PLAYER_ACTION_SING;
+    case 'X': return SDL_PLAYER_ACTION_EXCHANGE;
+    case '-': return SDL_PLAYER_ACTION_FLETCH;
+    case 'x': return SDL_PLAYER_ACTION_EXAMINE;
+    case 'a': return SDL_PLAYER_ACTION_ACTIVATE;
+    case 'p': return SDL_PLAYER_ACTION_HORN;
+    case '\t': return SDL_PLAYER_ACTION_SHOOT;
+    case 't':
+    case KTRL('T'):
+    case SDL_TOUCH_THUMB_BIND_QUICK_THROW:
+        return SDL_PLAYER_ACTION_QUICK_THROW;
+    case 'Z': return SDL_PLAYER_ACTION_REST;
+    case KTRL('F'):
+    case SDL_TOUCH_THUMB_BIND_CHANGE_QUIVER:
+        return SDL_PLAYER_ACTION_SWAP_QUIVERS;
+    case KTRL('A'): return SDL_PLAYER_ACTION_CHANGE_STAFF;
+    case 'c': return SDL_PLAYER_ACTION_CLOSE_DOOR;
+    case 'b': return SDL_PLAYER_ACTION_BASH_DOOR;
+    default:
+        return SDL_PLAYER_ACTION_NONE;
+    }
+}
+
+static bool sdl_touch_top_panel_player_action_icon_for_binding(int binding,
+    byte* out_attr, char* out_char, cptr* out_fallback)
+{
+    int kind = sdl_touch_top_panel_player_action_kind_for_binding(binding);
+
+    if (kind == SDL_PLAYER_ACTION_NONE)
+        return false;
+
+    sdl_player_action_menu_tile_for_kind(kind, out_attr, out_char);
+    if (out_fallback)
+        *out_fallback = sdl_player_action_menu_fallback_for_kind(kind);
+    return true;
+}
+
 static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     char* out_char, cptr* out_fallback)
 {
@@ -4125,6 +4168,12 @@ static bool sdl_touch_top_panel_tile_for_binding(int binding, byte* out_attr,
     byte col = 10;
     cptr fallback = "?";
     bool has_tile = true;
+
+    if (sdl_touch_top_panel_player_action_icon_for_binding(binding, out_attr,
+            out_char, out_fallback))
+    {
+        return true;
+    }
 
     switch (binding) {
     case 'j':

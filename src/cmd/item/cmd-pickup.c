@@ -40,6 +40,7 @@ void give_player_item(object_type * o_ptr)
             label = 'a';
         msg_format("You add %s to your supplies (%c).", o_name, label);
         sound(MSG_PICK);
+        handle_stuff();
         return;
     }
 
@@ -63,6 +64,9 @@ void give_player_item(object_type * o_ptr)
     {
         p_ptr->redraw |= (PR_QUIVER);
     }
+
+    /* Burden changes are inventory-derived; show speed/status immediately. */
+    handle_stuff();
 }
 
 /*

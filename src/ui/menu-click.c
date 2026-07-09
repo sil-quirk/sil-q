@@ -883,9 +883,11 @@ bool ui_scroll_area_is_page_mode(void)
  * scrolls under the finger and the user picks an entry by tapping it.
  *
  * The pointer must remain valid until the next ui_scroll_area_begin()/clear();
- * menus typically re-register it every frame.  Passing a NULL pointer (or a
- * non-positive max) disables offset scrolling and the drag falls back to the
- * cursor-moving key behaviour.
+ * menus typically re-register it every frame.  Passing a NULL pointer disables
+ * offset scrolling and the drag falls back to the cursor-moving key behaviour.
+ * A zero max is still a valid target: the drag is consumed without moving the
+ * cursor, which keeps touch-only menus from changing selection while panning a
+ * short or edge-clamped list.
  */
 void ui_scroll_area_set_offset_target(int* offset, int max_offset)
 {
@@ -897,7 +899,7 @@ void ui_scroll_area_set_offset_target(int* offset, int max_offset)
     if (max_offset < 0)
         max_offset = 0;
 
-    entry->offset_ptr = (max_offset > 0) ? offset : NULL;
+    entry->offset_ptr = offset;
     entry->offset_max = max_offset;
 }
 

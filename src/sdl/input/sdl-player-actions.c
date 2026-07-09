@@ -142,7 +142,7 @@ static cptr sdl_player_action_menu_description_for_kind(int kind)
     }
 }
 
-static cptr sdl_player_action_menu_fallback_for_kind(int kind)
+cptr sdl_player_action_menu_fallback_for_kind(int kind)
 {
     switch (kind) {
     case SDL_PLAYER_ACTION_WAIT: return "Z";
@@ -167,7 +167,7 @@ static cptr sdl_player_action_menu_fallback_for_kind(int kind)
     }
 }
 
-static void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
+void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr,
     char* out_char)
 {
     byte row = 12;

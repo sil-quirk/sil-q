@@ -9,11 +9,13 @@
  */
 static void ui_question_show(cptr title, cptr desc,
     const ui_question_option* options, int count, int anchor_y, int anchor_x,
-    int highlight)
+    int highlight, int* scroll_offset, bool scroll_follow_highlight)
 {
     char letter[4];
 
     sdl_question_menu_begin(title);
+    sdl_question_menu_set_scroll_offset_target(scroll_offset,
+        scroll_follow_highlight);
     if ((anchor_y >= 0) && (anchor_x >= 0))
         sdl_question_menu_set_anchor_grid(anchor_y, anchor_x);
     if (desc && desc[0])
@@ -47,6 +49,8 @@ static int ui_question_ask_aux(cptr title, cptr desc,
     bool done = false;
     bool steamdeck = steamdeck_controls_active();
     bool saved_hide_cursor = hide_cursor;
+    bool scroll_follow_highlight = true;
+    int scroll_offset = 0;
     char which;
 
     if (!options || count <= 0)
@@ -78,9 +82,11 @@ static int ui_question_ask_aux(cptr title, cptr desc,
         ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
         ui_question_show(title, desc, options, count, anchor_y, anchor_x,
-            highlight);
+            highlight, &scroll_offset, scroll_follow_highlight);
 
         which = inkey();
+        if (sdl_question_menu_take_touch_scrolled())
+            scroll_follow_highlight = false;
 
         {
             int clicked_choice = 0;
@@ -131,12 +137,14 @@ static int ui_question_ask_aux(cptr title, cptr desc,
         case '2': /* down: next answer */
         {
             highlight = (highlight + 1) % count;
+            scroll_follow_highlight = true;
             break;
         }
 
         case '8': /* up: previous answer */
         {
             highlight = (highlight + count - 1) % count;
+            scroll_follow_highlight = true;
             break;
         }
 

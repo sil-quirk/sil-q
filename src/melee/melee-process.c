@@ -1954,8 +1954,10 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
                         }
                     }
 
-                    // bonus reduced if the player has 'disguise' (only with old behavior)
-                    if (!visual_recognition && p_ptr->active_ability[S_STL][STL_DISGUISE])
+                    // Disguise both makes smart monsters less likely to
+                    // visually recognize the player and reduces any LOS
+                    // sight bonus that still applies.
+                    if (p_ptr->active_ability[S_STL][STL_DISGUISE])
                     {
                         m_perception += (open_squares + combat_sight_bonus) / 2;
                     }

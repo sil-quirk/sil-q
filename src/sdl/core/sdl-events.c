@@ -981,8 +981,8 @@ static bool sdl_question_overlay_consume_pointer(const SDL_Event* ev)
         {
             sdl_note_touch_event_device(ev->tfinger.touchID);
             if (sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y)
-                && !sdl_question_menu_handle_pointer(x, y,
-                       UI_MENU_CLICK_PRIMARY))
+                && !sdl_question_menu_handle_touch_down(x, y,
+                       ev->tfinger.fingerID))
             {
                 Term_keypress(ESCAPE);
             }
@@ -993,12 +993,21 @@ static bool sdl_question_overlay_consume_pointer(const SDL_Event* ev)
         if (ev->tfinger.windowID == SDL_GetWindowID(g_state.window)
             && sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
         {
-            sdl_question_menu_handle_hover_pointer(x, y);
+            sdl_question_menu_handle_touch_motion(x, y,
+                ev->tfinger.fingerID);
         }
         return true;
 
     case SDL_EVENT_FINGER_UP:
+        if (ev->tfinger.windowID == SDL_GetWindowID(g_state.window)
+            && sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+        {
+            sdl_question_menu_handle_touch_up(x, y, ev->tfinger.fingerID);
+        }
+        return true;
+
     case SDL_EVENT_FINGER_CANCELED:
+        sdl_question_menu_cancel_touch();
         return true;
 
     default:

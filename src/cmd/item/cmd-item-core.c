@@ -2769,15 +2769,32 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     inven_enforce_current_pack_limits();
 }
 
+static bool confirm_drop_item_amount(object_type* o_ptr, int amt)
+{
+    object_type prompt_obj;
+    char prompt_name[80];
+    char prompt[120];
+
+    if (!o_ptr || !o_ptr->k_idx || amt <= 0)
+        return false;
+
+    object_copy(&prompt_obj, o_ptr);
+    prompt_obj.number = amt;
+    object_desc(prompt_name, sizeof(prompt_name), &prompt_obj, false, 0);
+    strnfmt(prompt, sizeof(prompt), "Drop %s? ", prompt_name);
+    return get_check(prompt);
+}
+
 /*
- * Drop an item by index (for enhanced menus)
+ * Drop an item by index (for enhanced menus).  Returns false if the player
+ * cancels quantity or confirmation prompts before anything is dropped.
  */
-void do_cmd_drop_item_by_index(int item)
+bool do_cmd_drop_item_by_index_confirm(int item, bool confirm)
 {
     if (item == SUPPLIES_INDEX)
     {
         open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
-        return;
+        return true;
     }
 
     int amt;
@@ -2787,14 +2804,14 @@ void do_cmd_drop_item_by_index(int item)
 
     /* Paranoia */
     if (item < 0 || item >= INVEN_TOTAL)
-        return;
+        return false;
 
     /* Get the item */
     o_ptr = &inventory[item];
 
     /* Nothing there */
     if (!o_ptr->k_idx)
-        return;
+        return false;
 
     /* Get a quantity */
     object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
@@ -2804,13 +2821,16 @@ void do_cmd_drop_item_by_index(int item)
 
     /* Allow user abort */
     if (amt <= 0)
-        return;
+        return false;
 
     if (((item == INVEN_QUIVER1) || (item == INVEN_QUIVER2)) && cursed_p(o_ptr))
     {
         msg_print("You cannot bear to part with it.");
-        return;
+        return false;
     }
+
+    if (confirm && !confirm_drop_item_amount(o_ptr, amt))
+        return false;
 
     /* Hack -- Cannot remove cursed items */
     if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
@@ -2829,7 +2849,7 @@ void do_cmd_drop_item_by_index(int item)
             msg_print("You cannot bear to part with it.");
 
             /* Nope */
-            return;
+            return false;
         }
     }
 
@@ -2842,6 +2862,15 @@ void do_cmd_drop_item_by_index(int item)
     /* Update quiver display if needed */
     p_ptr->redraw |= (PR_QUIVER);
 
+    return true;
+}
+
+/*
+ * Drop an item by index (for enhanced menus)
+ */
+void do_cmd_drop_item_by_index(int item)
+{
+    (void)do_cmd_drop_item_by_index_confirm(item, false);
 }
 
 /*

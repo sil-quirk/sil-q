@@ -982,12 +982,14 @@ typedef struct sdl_question_menu_state {
     bool blocking_input;
     bool nonblocking;
     bool close_hover;
+    bool scroll_follow_highlight;
     bool has_anchor;
     int anchor_y; /* map grid the question is about (local placement) */
     int anchor_x;
     Uint64 expires_at_ns;
     int count;
     int highlight; /* choice highlighted by keyboard navigation, -1 none */
+    int* scroll_offset_ptr;
     char title[SDL_QUESTION_MENU_TITLE_LEN];
     char desc[SDL_QUESTION_MENU_DESC_LEN];
     sdl_question_menu_entry_state entries[SDL_QUESTION_MENU_MAX_ENTRIES];
@@ -2344,6 +2346,8 @@ bool sdl_player_has_equipped_staff(void);
 bool sdl_player_has_equipped_horn(void);
 bool sdl_player_has_singable_song(void);
 void sdl_player_action_menu_add_entry(player_action_menu_entry* entries, int* count, int kind, int command, cptr label);
+cptr sdl_player_action_menu_fallback_for_kind(int kind);
+void sdl_player_action_menu_tile_for_kind(int kind, byte* out_attr, char* out_char);
 int sdl_player_action_menu_collect(player_action_menu_entry* entries);
 int sdl_player_action_menu_collect_secondary(int primary_kind, player_action_menu_entry* entries);
 int sdl_player_action_menu_secondary_owner(int kind);
@@ -3473,6 +3477,16 @@ bool sdl_song_menu_handle_hover_pointer(float x, float y);
 void sdl_question_menu_render(void);
 bool sdl_question_menu_handle_pointer(float x, float y, int action);
 bool sdl_question_menu_handle_hover_pointer(float x, float y);
+bool sdl_question_menu_handle_touch_down(float x, float y,
+    SDL_FingerID finger_id);
+bool sdl_question_menu_handle_touch_motion(float x, float y,
+    SDL_FingerID finger_id);
+bool sdl_question_menu_handle_touch_up(float x, float y,
+    SDL_FingerID finger_id);
+void sdl_question_menu_cancel_touch(void);
+void sdl_question_menu_set_scroll_offset_target(int* offset,
+    bool follow_highlight);
+bool sdl_question_menu_take_touch_scrolled(void);
 void sdl_question_menu_set_blocking_input(bool blocking);
 bool sdl_question_menu_blocks_input(void);
 bool sdl_question_menu_captures_pointer(void);

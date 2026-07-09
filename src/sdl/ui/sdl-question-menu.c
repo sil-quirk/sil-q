@@ -21,6 +21,7 @@ typedef struct sdl_question_menu_layout_info {
     float divider_y;
     float letter_w;
     float letter_gap;
+    float row_h;
     int font_px;
     int first_entry;
     int visible_count;
@@ -29,6 +30,21 @@ typedef struct sdl_question_menu_layout_info {
     bool has_divider;
     bool close_button;
 } sdl_question_menu_layout_info;
+
+typedef struct sdl_question_menu_touch_state {
+    bool active;
+    bool dragged;
+    bool close_pressed;
+    SDL_FingerID finger_id;
+    int choice;
+    float start_x;
+    float start_y;
+    float last_y;
+    float accum_y;
+} sdl_question_menu_touch_state;
+
+static sdl_question_menu_touch_state g_question_menu_touch;
+static bool g_question_menu_touch_scrolled = false;
 
 /* Pixel rect of a map cell on the main view, or false when it is off the
  * current panel.  Shared with the yes/no prompt anchoring. */
@@ -161,8 +177,10 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     float row_h;
     float divider_gap;
     float text_w = 0.0f;
+    float title_w = 0.0f;
     float letter_w = 0.0f;
     float letter_gap;
+    float close_reserve = 0.0f;
     float content_w;
     float desc_h = 0.0f;
     float panel_w;
@@ -171,6 +189,8 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     float max_panel_h;
     float rows_top;
     bool anchored = false;
+    bool close_button;
+    bool header_row;
 
     if (!out)
         return false;
@@ -214,11 +234,8 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     out->has_title = (g_question_menu.title[0] != '\0');
     if (out->has_title)
     {
-        float w = sdl_question_menu_text_width(story_font,
+        title_w = sdl_question_menu_text_width(story_font,
             g_question_menu.title, font_px);
-
-        if (w > text_w + letter_w)
-            text_w = w - letter_w;
     }
 
     margin = sdl_overlay_margin_px();
@@ -231,8 +248,18 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     letter_gap = letter_w > 0.0f
         ? sdl_touch_pane_clampf((float)font_px * 0.38f, 5.0f, 10.0f)
         : 0.0f;
+    close_button = sdl_question_menu_close_button_enabled();
+    if (close_button)
+    {
+        close_reserve = row_h
+            + sdl_touch_pane_clampf((float)font_px * 0.38f, 5.0f,
+                10.0f);
+    }
+    header_row = out->has_title || close_button;
 
     content_w = letter_w + letter_gap + text_w;
+    if (out->has_title && title_w + close_reserve > content_w)
+        content_w = title_w + close_reserve;
     out->has_desc = (g_question_menu.desc[0] != '\0');
     if (out->has_desc)
     {
@@ -280,6 +307,8 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
                 + 4.0f;
             if (out->has_title)
                 reserved_h += row_h + divider_gap;
+            else if (close_button)
+                reserved_h += row_h + divider_gap;
 
             if (max_panel_h > reserved_h)
             {
@@ -296,7 +325,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     }
 
     panel_h = pad_y * 2.0f + row_h * (float)g_question_menu.count;
-    if (out->has_title)
+    if (header_row)
         panel_h += row_h + divider_gap;
     if (desc_h > 0.0f)
         panel_h += desc_h + divider_gap;
@@ -349,7 +378,8 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     out->font_px = font_px;
     out->letter_w = letter_w;
     out->letter_gap = letter_gap;
-    out->close_button = sdl_question_menu_close_button_enabled();
+    out->row_h = row_h;
+    out->close_button = close_button;
     if (out->close_button)
     {
         float close_size = row_h;
@@ -368,9 +398,17 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
         out->title_row = (SDL_FRect){
             .x = out->panel.x + pad_x,
             .y = rows_top,
-            .w = out->panel.w - pad_x * 2.0f,
+            .w = out->panel.w - pad_x * 2.0f - close_reserve,
             .h = row_h,
         };
+        if (out->title_row.w < 1.0f)
+            out->title_row.w = 1.0f;
+        out->divider_y = rows_top + row_h + divider_gap * 0.5f;
+        out->has_divider = true;
+        rows_top += row_h + divider_gap;
+    }
+    else if (out->close_button)
+    {
         out->divider_y = rows_top + row_h + divider_gap * 0.5f;
         out->has_divider = true;
         rows_top += row_h + divider_gap;
@@ -397,6 +435,7 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
         int visible_count = (int)((rows_h + 2.0f) / row_h);
         int highlight_index = 0;
         int first_entry = 0;
+        int max_first_entry = 0;
 
         if (visible_count < 1)
             visible_count = 1;
@@ -412,7 +451,34 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
             }
         }
 
-        if (g_question_menu.count > visible_count)
+        max_first_entry = g_question_menu.count - visible_count;
+        if (max_first_entry < 0)
+            max_first_entry = 0;
+
+        if (g_question_menu.scroll_offset_ptr)
+        {
+            first_entry = *g_question_menu.scroll_offset_ptr;
+            if (first_entry < 0)
+                first_entry = 0;
+            if (first_entry > max_first_entry)
+                first_entry = max_first_entry;
+
+            if (g_question_menu.scroll_follow_highlight)
+            {
+                if (highlight_index < first_entry)
+                    first_entry = highlight_index;
+                else if (highlight_index >= first_entry + visible_count)
+                    first_entry = highlight_index - visible_count + 1;
+
+                if (first_entry < 0)
+                    first_entry = 0;
+                if (first_entry > max_first_entry)
+                    first_entry = max_first_entry;
+            }
+
+            *g_question_menu.scroll_offset_ptr = first_entry;
+        }
+        else if (g_question_menu.count > visible_count)
         {
             first_entry = highlight_index - visible_count / 2;
             if (first_entry < 0)
@@ -436,6 +502,18 @@ static bool sdl_question_menu_layout(sdl_question_menu_layout_info* out)
     }
 
     return true;
+}
+
+void sdl_question_menu_cancel_touch(void)
+{
+    if (g_question_menu_touch.close_pressed && g_question_menu.close_hover)
+    {
+        g_question_menu.close_hover = false;
+        g_state.need_present = true;
+    }
+
+    g_question_menu_touch = (sdl_question_menu_touch_state){ 0 };
+    g_question_menu_touch.choice = -1;
 }
 
 static void sdl_question_menu_render_close_button(
@@ -493,6 +571,8 @@ void sdl_question_menu_clear(void)
     if (g_question_menu.active || g_question_menu.count > 0)
         g_state.need_present = true;
 
+    sdl_question_menu_cancel_touch();
+    g_question_menu_touch_scrolled = false;
     memset(&g_question_menu, 0, sizeof(g_question_menu));
     g_question_menu.highlight = -1;
 }
@@ -554,6 +634,24 @@ void sdl_question_menu_add_entry(int choice, cptr letter, cptr text,
 void sdl_question_menu_add_text(cptr text, byte attr)
 {
     sdl_question_menu_add_entry(-1, "", text, attr);
+}
+
+void sdl_question_menu_set_scroll_offset_target(int* offset,
+    bool follow_highlight)
+{
+    if (!g_question_menu.active)
+        return;
+
+    g_question_menu.scroll_offset_ptr = offset;
+    g_question_menu.scroll_follow_highlight = follow_highlight;
+}
+
+bool sdl_question_menu_take_touch_scrolled(void)
+{
+    bool scrolled = g_question_menu_touch_scrolled;
+
+    g_question_menu_touch_scrolled = false;
+    return scrolled;
 }
 
 void sdl_question_menu_set_highlight(int choice)
@@ -864,6 +962,45 @@ static bool sdl_question_menu_choice_at(float x, float y, int* out_choice,
     return false;
 }
 
+static int sdl_question_menu_scroll_max(
+    const sdl_question_menu_layout_info* layout)
+{
+    int max_first_entry;
+
+    if (!layout)
+        return 0;
+
+    max_first_entry = g_question_menu.count - layout->visible_count;
+    return (max_first_entry > 0) ? max_first_entry : 0;
+}
+
+static bool sdl_question_menu_scroll_offset_by(
+    const sdl_question_menu_layout_info* layout, int delta)
+{
+    int value;
+    int clamped;
+    int max_first_entry;
+
+    if (!g_question_menu.scroll_offset_ptr || delta == 0)
+        return false;
+
+    max_first_entry = sdl_question_menu_scroll_max(layout);
+    value = *g_question_menu.scroll_offset_ptr;
+    clamped = value + delta;
+    if (clamped < 0)
+        clamped = 0;
+    if (clamped > max_first_entry)
+        clamped = max_first_entry;
+
+    if (clamped == value)
+        return false;
+
+    *g_question_menu.scroll_offset_ptr = clamped;
+    g_question_menu_touch_scrolled = true;
+    g_state.need_present = true;
+    return true;
+}
+
 bool sdl_question_menu_handle_pointer(float x, float y, int action)
 {
     int choice = -1;
@@ -898,6 +1035,173 @@ bool sdl_question_menu_handle_pointer(float x, float y, int action)
     Term_keypress((action == UI_MENU_CLICK_SECONDARY)
         ? UI_MENU_CLICK_WAKE_KEY
         : '\r');
+    (void)wake;
+    return true;
+}
+
+bool sdl_question_menu_handle_touch_down(float x, float y,
+    SDL_FingerID finger_id)
+{
+    int choice = -1;
+    bool in_panel = false;
+
+    if (!g_question_menu.active)
+        return false;
+    if (g_question_menu.blocking_input)
+        return true;
+
+    sdl_question_menu_cancel_touch();
+
+    if (sdl_question_menu_close_button_at(x, y))
+    {
+        g_question_menu_touch.active = true;
+        g_question_menu_touch.close_pressed = true;
+        g_question_menu_touch.finger_id = finger_id;
+        g_question_menu_touch.choice = -1;
+        g_question_menu_touch.start_x = x;
+        g_question_menu_touch.start_y = y;
+        g_question_menu_touch.last_y = y;
+        g_question_menu.close_hover = true;
+        g_state.need_present = true;
+        return true;
+    }
+
+    if (g_question_menu.nonblocking)
+        return false;
+    if (!sdl_question_menu_choice_at(x, y, &choice, &in_panel))
+        return in_panel;
+
+    g_question_menu_touch.active = true;
+    g_question_menu_touch.finger_id = finger_id;
+    g_question_menu_touch.choice = choice;
+    g_question_menu_touch.start_x = x;
+    g_question_menu_touch.start_y = y;
+    g_question_menu_touch.last_y = y;
+    g_question_menu_touch.accum_y = 0.0f;
+    return true;
+}
+
+bool sdl_question_menu_handle_touch_motion(float x, float y,
+    SDL_FingerID finger_id)
+{
+    sdl_question_menu_layout_info layout;
+    float dx;
+    float dy;
+    float total_dy;
+    float row_h;
+    bool changed = false;
+
+    if (!g_question_menu.active)
+        return false;
+    if (g_question_menu.blocking_input)
+        return true;
+    if (!g_question_menu_touch.active
+        || g_question_menu_touch.finger_id != finger_id)
+    {
+        return true;
+    }
+
+    dx = x - g_question_menu_touch.start_x;
+    if (dx < 0.0f)
+        dx = -dx;
+    dy = y - g_question_menu_touch.last_y;
+    g_question_menu_touch.last_y = y;
+    g_question_menu_touch.accum_y += dy;
+    total_dy = y - g_question_menu_touch.start_y;
+    if (total_dy < 0.0f)
+        total_dy = -total_dy;
+
+    if (dx > sdl_touch_swipe_threshold_px()
+        || total_dy > sdl_touch_swipe_threshold_px())
+    {
+        g_question_menu_touch.dragged = true;
+    }
+
+    if (g_question_menu_touch.close_pressed)
+    {
+        bool close_hit = sdl_question_menu_close_button_at(x, y);
+
+        if (g_question_menu.close_hover != close_hit)
+        {
+            g_question_menu.close_hover = close_hit;
+            g_state.need_present = true;
+        }
+        return true;
+    }
+
+    if (!g_question_menu_touch.dragged
+        || !g_question_menu.scroll_offset_ptr
+        || !sdl_question_menu_layout(&layout))
+    {
+        return true;
+    }
+
+    row_h = layout.row_h;
+    if (row_h <= 1.0f)
+        row_h = 1.0f;
+
+    while (g_question_menu_touch.accum_y >= row_h)
+    {
+        changed |= sdl_question_menu_scroll_offset_by(&layout, -1);
+        g_question_menu_touch.accum_y -= row_h;
+    }
+    while (g_question_menu_touch.accum_y <= -row_h)
+    {
+        changed |= sdl_question_menu_scroll_offset_by(&layout, 1);
+        g_question_menu_touch.accum_y += row_h;
+    }
+
+    if (changed)
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+
+    return true;
+}
+
+bool sdl_question_menu_handle_touch_up(float x, float y,
+    SDL_FingerID finger_id)
+{
+    int press_choice;
+    int release_choice = -1;
+    bool in_panel = false;
+    bool close_pressed;
+    bool dragged;
+    bool wake = false;
+
+    if (!g_question_menu_touch.active
+        || g_question_menu_touch.finger_id != finger_id)
+    {
+        return false;
+    }
+
+    press_choice = g_question_menu_touch.choice;
+    close_pressed = g_question_menu_touch.close_pressed;
+    dragged = g_question_menu_touch.dragged;
+    sdl_question_menu_cancel_touch();
+
+    if (dragged)
+        return true;
+
+    if (close_pressed)
+    {
+        if (sdl_question_menu_close_button_at(x, y))
+            Term_keypress(ESCAPE);
+        return true;
+    }
+
+    if (!sdl_question_menu_choice_at(x, y, &release_choice, &in_panel)
+        || release_choice != press_choice)
+    {
+        return true;
+    }
+
+    if (!ui_menu_click_handle_choice_action(release_choice,
+            UI_MENU_CLICK_PRIMARY, &wake))
+    {
+        return true;
+    }
+
+    g_state.need_present = true;
+    Term_keypress('\r');
     (void)wake;
     return true;
 }
