@@ -2144,6 +2144,7 @@ extern int get_sdl_terminal_menu_scale(void);
 extern void sdl_push_terminal_menu_scale(void);
 extern void sdl_pop_terminal_menu_scale(void);
 extern int sdl_description_overlay_max_cols(void);
+extern int sdl_description_overlay_visible_cols(void);
 extern int sdl_description_overlay_text_px(void);
 extern int sdl_description_overlay_story_text_width(cptr text, int len, int slot);
 extern void sdl_push_description_overlay_main_anchor(void);

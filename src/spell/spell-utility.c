@@ -38,7 +38,9 @@ typedef struct self_knowledge_capture
 static void self_knowledge_capture_free(self_knowledge_capture* capture);
 static bool self_knowledge_capture_build(char s[][200], char t[][200],
     bool good[], int count, self_knowledge_capture* capture);
-static void self_knowledge_capture_view(const self_knowledge_capture* capture);
+static bool self_knowledge_capture_reflow(self_knowledge_capture* capture,
+    int width);
+static void self_knowledge_capture_view(self_knowledge_capture* capture);
 static bool render_resistance_summary(const char* text);
 
 static self_knowledge_capture pending_self_knowledge_capture;
@@ -257,7 +259,123 @@ cleanup:
     return success;
 }
 
-static void self_knowledge_capture_view(const self_knowledge_capture* capture)
+/*
+ * The scratch terminal is sized before the SDL popup becomes active.  Some
+ * layouts can reserve additional space once the popup is shown, leaving fewer
+ * visible columns than the capture contains.  Rewrap each captured row before
+ * it is displayed so the overlay never clips text on the right.
+ */
+static bool self_knowledge_capture_reflow(self_knowledge_capture* capture,
+    int width)
+{
+    int max_rows;
+    int out_row = 0;
+    byte* attrs;
+    char* chars;
+    byte* story;
+
+    if (!capture || !capture->attrs || !capture->chars || !capture->story
+        || width < 2 || width >= capture->width)
+    {
+        return false;
+    }
+
+    max_rows = capture->height * (capture->width / (width - 1) + 2);
+    attrs = mem_alloc_array(max_rows * width, byte);
+    chars = mem_alloc_array(max_rows * width, char);
+    story = mem_alloc_array(max_rows * width, byte);
+
+    for (int row = 0; row < max_rows; row++)
+    {
+        for (int col = 0; col < width; col++)
+        {
+            int index = row * width + col;
+
+            attrs[index] = TERM_WHITE;
+            chars[index] = ' ';
+            story[index] = 0;
+        }
+    }
+
+    for (int row = 0; row < capture->height; row++)
+    {
+        int source = row * capture->width;
+        int last = capture->width - 1;
+        int pos = 0;
+        bool first = true;
+
+        while (last >= 0 && capture->chars[source + last] == ' '
+            && capture->story[source + last] == 0)
+        {
+            last--;
+        }
+
+        if (last < 0)
+        {
+            out_row++;
+            continue;
+        }
+
+        while (pos <= last)
+        {
+            int dest_col = first ? 0 : 1;
+            int available = width - dest_col;
+            int end = MIN(pos + available, last + 1);
+            int next = end;
+
+            if (end <= last)
+            {
+                int break_at = -1;
+
+                for (int col = end - 1; col >= pos; col--)
+                {
+                    if (capture->chars[source + col] == ' ')
+                    {
+                        break_at = col;
+                        break;
+                    }
+                }
+
+                if (break_at >= pos)
+                {
+                    end = break_at;
+                    next = break_at + 1;
+                }
+            }
+
+            if (end > pos)
+            {
+                for (int col = pos; col < end; col++)
+                {
+                    int dest = out_row * width + dest_col + col - pos;
+
+                    attrs[dest] = capture->attrs[source + col];
+                    chars[dest] = capture->chars[source + col];
+                    story[dest] = capture->story[source + col];
+                }
+                out_row++;
+            }
+
+            pos = next;
+            while (pos <= last && capture->chars[source + pos] == ' ')
+                pos++;
+            first = false;
+        }
+    }
+
+    mem_free_null(capture->attrs);
+    mem_free_null(capture->chars);
+    mem_free_null(capture->story);
+    capture->attrs = attrs;
+    capture->chars = chars;
+    capture->story = story;
+    capture->width = width;
+    capture->height = out_row;
+
+    return true;
+}
+
+static void self_knowledge_capture_view(self_knowledge_capture* capture)
 {
     int scroll = 0;
     bool done = false;
@@ -323,6 +441,13 @@ static void self_knowledge_capture_view(const self_knowledge_capture* capture)
                 capture->width, scroll, true, &visible_rows, &max_scroll))
         {
             break;
+        }
+
+        if (self_knowledge_capture_reflow(capture,
+                sdl_description_overlay_visible_cols()))
+        {
+            scroll = 0;
+            continue;
         }
 
         if (scroll < 0)

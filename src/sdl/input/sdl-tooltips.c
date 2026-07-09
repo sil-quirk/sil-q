@@ -1338,6 +1338,16 @@ int sdl_description_overlay_max_cols(void)
     return max_cols;
 }
 
+int sdl_description_overlay_visible_cols(void)
+{
+    description_overlay_layout layout;
+
+    if (!sdl_description_overlay_layout(&layout))
+        return 0;
+
+    return layout.visible_cols;
+}
+
 /* Pixel width available for text inside the description overlay panel.  Used to
  * wrap proportional (story-font) descriptions so they fill the panel instead of
  * breaking at the monospace column budget. */

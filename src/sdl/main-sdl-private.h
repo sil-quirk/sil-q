@@ -2291,6 +2291,7 @@ bool sdl_object_tooltip_flush_expired(Uint64 now_ns);
 void sdl_object_tooltip_render(void);
 int sdl_description_overlay_font_px(void);
 int sdl_description_overlay_max_cols(void);
+int sdl_description_overlay_visible_cols(void);
 SDL_Color sdl_description_overlay_attr_color(byte attr);
 cptr sdl_description_overlay_footer_text( const description_overlay_state* overlay);
 void sdl_description_overlay_set_footer(cptr text, bool always);
