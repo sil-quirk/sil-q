@@ -2367,7 +2367,8 @@ void sdl_touch_round_render(void)
     } else {
         if (!sdl_touch_round_layer_config_enabled())
             return;
-        if (!sdl_mouse_gameplay_context_active())
+        if (!sdl_mouse_gameplay_context_active()
+            && !death_spectator_active())
             return;
         if (!sdl_touch_round_compute_layout(&cx, &cy, &radius,
                 &inner_radius, &clip))
@@ -2468,7 +2469,7 @@ bool sdl_touch_zone_overlay_visible(void)
         && sdl_touch_profile_normalized(config.touch_profile) == SDL_TOUCH_PROFILE_CORNERS
         && !sdl_touch_round_layer_config_enabled()
         && !sdl_touch_pane_mobile_layout_open()
-        && sdl_mouse_gameplay_context_active();
+        && (sdl_mouse_gameplay_context_active() || death_spectator_active());
 }
 
 bool sdl_touch_zone_layout_visible(void)
@@ -3556,7 +3557,10 @@ bool sdl_touch_top_panel_layout_visible(void)
 {
     return sdl_touch_top_panel_pane_enabled()
         && (g_direct_touch_present || config.mouse_enabled)
-        && sdl_mouse_gameplay_context_active()
+        /* The post-death final look is still a full main-screen scene.  Its
+         * command filter rejects movement and actions, while UI controls such
+         * as quick access and zoom remain available. */
+        && (sdl_mouse_gameplay_context_active() || death_spectator_active())
         && !g_main_menu_overlay_active;
 }
 

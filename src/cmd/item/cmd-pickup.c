@@ -1748,11 +1748,6 @@ static pickup_failure_result handle_zero_limit_pickup(object_type* incoming,
         return PICKUP_FAILURE_ABORT;
     }
 
-    screen_save();
-    show_equip();
-    msg_print(NULL);
-    screen_load();
-
     char equipped_name[80];
     object_desc(equipped_name, sizeof(equipped_name), equip_ptr, true, 3);
 

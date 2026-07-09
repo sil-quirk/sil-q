@@ -366,8 +366,6 @@ errr init_sdl(int argc, char **argv)
     if (!config_exists) {
         sdl_apply_first_start_device_defaults(g_startup_device_class);
     }
-    if (sdl_touch_only_mobile_device_active())
-        sdl_touch_apply_profile(SDL_TOUCH_PROFILE_ROUND_WHEEL);
 
     g_touch_pane_mobile_open = config.touch_pane_default_open;
     g_touch_top_panel_open = config.touch_top_panel_default_open;

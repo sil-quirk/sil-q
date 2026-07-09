@@ -161,7 +161,10 @@ bool sdl_main_screen_click_shortcuts_active(void)
 {
     return sdl_pane_command_shortcuts_active()
         && inkey_flag
-        && character_icky == 0
+        /* Final Look is a deliberate, read-only main-screen state.  The
+         * postmortem flow can retain a saved-screen depth while it is active,
+         * but its mouse and HUD controls must remain usable. */
+        && (character_icky == 0 || death_spectator_active())
         && !ui_menu_click_is_active();
 }
 

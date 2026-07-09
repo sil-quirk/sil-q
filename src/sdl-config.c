@@ -1545,6 +1545,36 @@ static int normalize_touch_top_panel_button_count(int count)
     return count;
 }
 
+/* Version c56a2488 briefly made the round-wheel preset allocate all sixteen
+ * slots while assigning only the original first eight.  Repair that exact
+ * saved state without hiding a genuine ninth (or later) binding. */
+static void sdl_config_migrate_round_wheel_top_panel_count(
+    struct sdl_config* config)
+{
+    if (!config
+        || config->touch_profile != SDL_TOUCH_PROFILE_ROUND_WHEEL
+        || config->touch_top_panel_second_row
+        || config->touch_top_panel_button_count
+            != SDL_TOUCH_TOP_PANEL_BUTTON_COUNT)
+    {
+        return;
+    }
+
+    for (int i = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
+         i < SDL_TOUCH_TOP_PANEL_BUTTON_COUNT; i++)
+    {
+        if (config->touch_top_panel_bindings[i] != GAMEPAD_BIND_NONE
+            || config->touch_top_panel_long_bindings[i] != GAMEPAD_BIND_NONE)
+        {
+            return;
+        }
+    }
+
+    config->touch_top_panel_button_count =
+        SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
+    log_info("Migrated round-wheel quick access from 16 empty slots to 8 cells");
+}
+
 static int normalize_touch_top_panel_tile_scale(int scale)
 {
     if (scale <= 0)
@@ -4001,6 +4031,7 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 config->touch_top_panel_button_count);
         config->touch_profile =
             normalize_touch_profile(config->touch_profile);
+        sdl_config_migrate_round_wheel_top_panel_count(config);
     }
 
     {

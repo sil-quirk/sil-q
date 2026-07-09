@@ -830,6 +830,11 @@ bool sdl_quit_transition_active(void)
         && character_icky == 0
         && !screen_saved_fullscreen_active()
         && !death_spectator_active()
+        /* The postmortem tomb menu runs after the player has died, while the
+         * dungeon is still active long enough to show scores, messages, and
+         * the character sheet.  It is an interactive menu, not a quit
+         * transition, so do not consume its input. */
+        && !p_ptr->is_dead
         /* A modal yes/no prompt (get_check) genuinely needs the user's answer,
          * even though p_ptr->leaving is already set.  The clearest case is the
          * wizard/cheat "Die?" confirm: death sets both is_dead and leaving while

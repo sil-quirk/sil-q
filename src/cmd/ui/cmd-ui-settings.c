@@ -6229,7 +6229,7 @@ static int touch_top_widget_editor_binding_row(int row)
     return row * 2;
 }
 
-static bool touch_top_widget_add_one_cell(void);
+static bool touch_top_widget_add_one_cell(int* out_slot, bool* out_grew);
 static bool touch_top_widget_remove_one_cell(void);
 
 bool do_cmd_touch_top_widget_pick_button(int slot)
@@ -6274,11 +6274,12 @@ bool do_cmd_touch_top_widget_pick_button(int slot)
 
         if (button_choice == SETTINGS_CLICK_QUICK_ACCESS_ADD_CELL)
         {
-            if (!touch_top_widget_add_one_cell())
+            bool grew = false;
+
+            if (!touch_top_widget_add_one_cell(&slot, &grew))
                 break;
 
-            changed = true;
-            slot = get_sdl_touch_top_panel_button_count() - 1;
+            changed |= grew;
             continue;
         }
 
@@ -6581,10 +6582,45 @@ static void touch_top_widget_reset_buttons_to_default(void)
     }
 }
 
-static bool touch_top_widget_add_one_cell(void)
+static bool touch_top_widget_slot_assigned(int slot)
+{
+    return get_sdl_touch_top_panel_binding(slot, false) != GAMEPAD_BIND_NONE
+        || get_sdl_touch_top_panel_binding(slot, true) != GAMEPAD_BIND_NONE;
+}
+
+static int touch_top_widget_assigned_cell_count(void)
+{
+    int count = get_sdl_touch_top_panel_button_count();
+    int assigned = 0;
+
+    for (int slot = 0; slot < count; slot++) {
+        if (touch_top_widget_slot_assigned(slot))
+            assigned++;
+    }
+
+    return assigned;
+}
+
+static bool touch_top_widget_add_one_cell(int* out_slot, bool* out_grew)
 {
     int count = get_sdl_touch_top_panel_button_count();
     int max_count = touch_top_widget_max_cell_count();
+
+    if (out_slot)
+        *out_slot = -1;
+    if (out_grew)
+        *out_grew = false;
+
+    /* Reuse an existing blank cell first.  A cancelled action picker, a
+     * reset, or an older 16-slot mobile config can otherwise consume the
+     * whole capacity while displaying fewer buttons. */
+    for (int slot = 0; slot < count; slot++) {
+        if (!touch_top_widget_slot_assigned(slot)) {
+            if (out_slot)
+                *out_slot = slot;
+            return true;
+        }
+    }
 
     if (count >= max_count)
     {
@@ -6592,14 +6628,22 @@ static bool touch_top_widget_add_one_cell(void)
         return false;
     }
 
-    return touch_top_widget_set_button_count(count + 1);
+    if (!touch_top_widget_set_button_count(count + 1))
+        return false;
+
+    if (out_slot)
+        *out_slot = count;
+    if (out_grew)
+        *out_grew = true;
+    return true;
 }
 
 static bool touch_top_widget_remove_one_cell(void)
 {
     int count = get_sdl_touch_top_panel_button_count();
+    int old_count = count;
     int min_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN;
-    int slot = count - 1;
+    int slot = -1;
     int old_tap;
     int old_long;
     bool changed = false;
@@ -6609,6 +6653,17 @@ static bool touch_top_widget_remove_one_cell(void)
         bell("Quick access is already at the minimum number of cells.");
         return false;
     }
+
+    /* Empty trailing slots can be left by a cancelled Add.  Remove the last
+     * visible cell instead of silently trimming an invisible slot. */
+    for (int i = count - 1; i >= 0; i--) {
+        if (touch_top_widget_slot_assigned(i)) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0)
+        slot = count - 1;
 
     old_tap = get_sdl_touch_top_panel_binding(slot, false);
     old_long = get_sdl_touch_top_panel_binding(slot, true);
@@ -6623,8 +6678,13 @@ static bool touch_top_widget_remove_one_cell(void)
         changed = true;
     }
 
-    set_sdl_touch_top_panel_button_count(count - 1);
-    return changed || get_sdl_touch_top_panel_button_count() != count;
+    /* Drop the removed cell and any now-unused trailing capacity so a
+     * 16-slot/8-button legacy state returns to an eight-cell panel. */
+    count--;
+    while (count > min_count && !touch_top_widget_slot_assigned(count - 1))
+        count--;
+    set_sdl_touch_top_panel_button_count(count);
+    return changed || get_sdl_touch_top_panel_button_count() != old_count;
 }
 
 static void touch_corner_action_buttons_reset_to_default(void)
@@ -7256,20 +7316,20 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         {
             char add_value[24];
             char remove_value[24];
-            int count = get_sdl_touch_top_panel_button_count();
+            int assigned = touch_top_widget_assigned_cell_count();
             int max_count = touch_top_widget_max_cell_count();
 
-            if (count >= max_count)
+            if (assigned >= max_count)
                 strnfmt(add_value, sizeof(add_value), "Max %d", max_count);
             else
                 strnfmt(add_value, sizeof(add_value), "%d -> %d",
-                    count, count + 1);
-            if (count <= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
+                    assigned, assigned + 1);
+            if (assigned <= SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN)
                 strnfmt(remove_value, sizeof(remove_value), "Min %d",
                     SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_MIN);
             else
                 strnfmt(remove_value, sizeof(remove_value), "%d -> %d",
-                    count, count - 1);
+                    assigned, assigned - 1);
 
             settings_semantic_add_pair_row(
                 SETTINGS_CLICK_QUICK_ACCESS_ADD_CELL, "Add Cell",
@@ -7282,7 +7342,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             settings_semantic_add_pair_row(SETTINGS_CLICK_RESET_ALL,
                 "Reset All Quick Access Buttons", "M", TERM_SLATE);
             sdl_character_sheet_screen_set_select_description(
-                "Quick Access rows choose or nudge actions. Add Cell creates an unbound cell and opens its action picker. Remove Cell unbinds the last slot. X resets selected, M resets all.");
+                "Quick Access rows choose or nudge actions. Add Cell reuses the first unbound cell and opens its action picker. Remove Cell unbinds the last active cell. X resets selected, M resets all.");
             sdl_character_sheet_screen_commit_select(highlight);
         }
         else
@@ -7290,7 +7350,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             int row = list_start_row + QUICK_ACCESS_EDITOR_ROW_COUNT + 2;
             int col;
             char status_buf[48];
-            int count = get_sdl_touch_top_panel_button_count();
+            int assigned = touch_top_widget_assigned_cell_count();
             int max_count = touch_top_widget_max_cell_count();
 
             col = ui_menu_click_put_button(
@@ -7299,7 +7359,7 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
             col = ui_menu_click_put_button(
                 SETTINGS_CLICK_QUICK_ACCESS_REMOVE_CELL, row, col, TERM_SLATE,
                 "Remove Cell");
-            strnfmt(status_buf, sizeof(status_buf), "Cells: %d/%d", count,
+            strnfmt(status_buf, sizeof(status_buf), "Active: %d/%d", assigned,
                 max_count);
             settings_ui_put_fitted(row++, col, TERM_SLATE, status_buf);
 
@@ -7446,11 +7506,12 @@ static void do_cmd_touch_top_widget_button_editor(bool* settings_changed)
         case 'a':
         case 'A':
         {
-            int new_slot = get_sdl_touch_top_panel_button_count();
+            int new_slot = -1;
+            bool grew = false;
 
-            if (touch_top_widget_add_one_cell())
+            if (touch_top_widget_add_one_cell(&new_slot, &grew))
             {
-                changed = true;
+                changed |= grew;
                 highlight = new_slot;
                 changed |= touch_top_widget_pick_binding_row(
                     touch_top_widget_editor_binding_row(new_slot));

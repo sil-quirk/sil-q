@@ -1707,19 +1707,11 @@ bool sdl_left_panel_pane_presentation_active(void)
         && character_generated
         && character_dungeon
         && p_ptr
-        && character_icky == 0
-        /* Only present the styled left-panel pane during live gameplay.  Death
-         * (is_dead), the post-death spectator view, and quit-to-title
-         * (!playing) are not gameplay: the pane used to keep drawing its compact
-         * fallback alone over a blank main view in those scenes (e.g. behind the
-         * wizard "Die?" prompt).  Gating here also keeps the map's COL_MAP offset
-         * consistent, since every consumer derives from this one predicate.  We
-         * deliberately do NOT gate on p_ptr->leaving, so ordinary level
-         * transitions keep the pane (and the map offset) steady instead of
-         * snapping to the classic sidebar on every stair. */
-        && p_ptr->playing
-        && !p_ptr->is_dead
-        && !death_spectator_active();
+        /* The final-look spectator deliberately retains the live layout,
+         * including its left panel.  It does not execute gameplay commands:
+         * dungeon-spectator.c filters them before process_command(). */
+        && (death_spectator_active()
+            || (character_icky == 0 && p_ptr->playing && !p_ptr->is_dead));
 }
 
 bool sdl_left_panel_pane_renders_character_panel(void)
@@ -1734,10 +1726,8 @@ bool sdl_combat_overlay_pane_presentation_active(void)
         && character_generated
         && character_dungeon
         && p_ptr
-        && character_icky == 0
-        && p_ptr->playing
-        && !p_ptr->is_dead
-        && !death_spectator_active();
+        && (death_spectator_active()
+            || (character_icky == 0 && p_ptr->playing && !p_ptr->is_dead));
 }
 
 bool sdl_combat_overlay_melee_uses_offhand_row(void)
@@ -2127,10 +2117,8 @@ bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect)
 bool sdl_left_panel_pane_runtime_active(void)
 {
     return sdl_left_panel_pane_presentation_active()
-        && p_ptr->playing
-        && !p_ptr->leaving
-        && !p_ptr->is_dead
-        && !death_spectator_active();
+        && (death_spectator_active()
+            || (p_ptr->playing && !p_ptr->leaving && !p_ptr->is_dead));
 }
 
 bool sdl_left_panel_pane_collapsed(void)
@@ -2260,7 +2248,9 @@ void sdl_set_touch_pane_config_enabled(bool enabled)
 void sdl_apply_first_start_device_defaults(
     sdl_startup_device_class device)
 {
-    bool touch_pane_enabled = (device == SDL_STARTUP_DEVICE_MOBILE_TOUCH);
+    /* The phone default is the round wheel plus quick access.  The touch pane
+     * is enabled only when its dedicated profile is selected. */
+    bool touch_pane_enabled = false;
 
     sdl_apply_startup_input_defaults_to_config(&config, device);
     sdl_set_touch_pane_config_enabled(touch_pane_enabled);

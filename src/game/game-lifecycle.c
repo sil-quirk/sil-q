@@ -319,74 +319,6 @@ static void print_tomb(high_score* the_score)
 
 }
 
-/*
- * Display some character info
- */
-static void show_info(void)
-{
-    int term_wid = 80;
-    int term_hgt = 24;
-    bool old_item_tester_full = item_tester_full;
-    byte old_item_tester_tval = item_tester_tval;
-    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
-    char anykey_buf[48];
-
-    any_key_prompt_text(anykey_buf, sizeof(anykey_buf), NULL);
-
-    Term_get_size(&term_wid, &term_hgt);
-
-    /* Display player */
-    display_player(0);
-
-    /* Prompt for inventory */
-    Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
-        anykey_buf);
-
-    /* Allow abort at this point */
-    if (inkey() == ESCAPE)
-        goto cleanup;
-
-    /* Show equipment and inventory */
-
-    /* Equipment -- if any */
-    if (p_ptr->equip_cnt)
-    {
-        Term_clear();
-        item_tester_full = true;
-        show_equip();
-        prt("You are using:", 0, 0);
-        Term_putstr(MAX(0, term_wid - 18), term_hgt - 2, -1, TERM_L_WHITE,
-            anykey_buf);
-        if (inkey() == ESCAPE)
-            goto cleanup;
-        item_tester_full = false;
-    }
-
-    /* Inventory -- if any */
-    if (p_ptr->inven_cnt)
-    {
-        Term_clear();
-        item_tester_full = true;
-        show_inven();
-        prt("You are carrying:", 0, 0);
-        Term_putstr(MAX(0, term_wid - 18), MIN(p_ptr->inven_cnt + 2, term_hgt - 2),
-            -1, TERM_L_WHITE, anykey_buf);
-        if (inkey() == ESCAPE)
-            goto cleanup;
-        item_tester_full = false;
-    }
-
-    // Display notes
-    do_cmd_knowledge_notes();
-
-cleanup:
-    item_tester_hook = old_item_tester_hook;
-    item_tester_tval = old_item_tester_tval;
-    item_tester_full = old_item_tester_full;
-}
-
-
-
 static int final_menu(int* highlight)
 {
     char ch;
@@ -563,7 +495,6 @@ static void close_game_aux(void)
     }
     death_processing = true;
     score_postmortem_clear();
-    screen_push_supporting_panes_hidden();
 
     log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
@@ -666,11 +597,14 @@ static void close_game_aux(void)
     /* Let the player inspect the final dungeon state before the tomb menu. */
     death_spectator_view();
 
+    /* The tomb is a full-screen terminal menu, unlike the final-look map.
+     * Enter its smaller, pane-free layout only after leaving the spectator. */
+    screen_push_supporting_panes_hidden();
+    screen_push_touch_pane_hidden();
+    sdl_push_terminal_menu_scale();
+
     /* Restore a clean screen for the tombstone display. */
     Term_clear();
-
-    /* Present the appropriate epitaph */
-    print_tomb(&the_score);
 
     /* Flush all input keys */
     flush();
@@ -681,6 +615,11 @@ static void close_game_aux(void)
     /* Loop */
     while (!wants_to_quit)
     {
+        /* Sub-screens such as scores own the terminal while open.  They do
+         * not restore a saved tomb image, so clear their rows before drawing
+         * the compact tomb menu again. */
+        Term_clear();
+        print_tomb(&the_score);
         choice = final_menu(&highlight);
         ui_menu_click_clear();
 
@@ -702,13 +641,17 @@ static void close_game_aux(void)
         // final look
         case 2:
         {
-            /* Save screen */
-            screen_save();
-
+            /* The selected map view keeps the gameplay layout and every
+             * overlay visible.  Commands still go through the spectator's
+             * read-only command filter. */
+            sdl_pop_terminal_menu_scale();
+            screen_pop_touch_pane_hidden();
+            screen_pop_supporting_panes_hidden();
             death_spectator_view();
 
-            /* Load screen */
-            screen_load();
+            screen_push_supporting_panes_hidden();
+            screen_push_touch_pane_hidden();
+            sdl_push_terminal_menu_scale();
 
             break;
         }
@@ -730,14 +673,9 @@ static void close_game_aux(void)
         // view character sheet
         case 4:
         {
-            /* Save screen */
-            screen_save();
-
-            /* Show the character */
-            show_info();
-
-            /* Load screen */
-            screen_load();
+            /* Use the live character-sheet surface, rather than the retired
+             * terminal pages for stats, equipment, and inventory. */
+            do_cmd_character_sheet();
             break;
         }
 
@@ -798,6 +736,8 @@ static void close_game_aux(void)
 
     /* Reset death processing flag for next character */
     score_postmortem_clear();
+    sdl_pop_terminal_menu_scale();
+    screen_pop_touch_pane_hidden();
     screen_pop_supporting_panes_hidden();
     death_processing = false;
 }

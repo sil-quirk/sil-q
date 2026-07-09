@@ -139,6 +139,10 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         log_info("Player died - displaying death narrative");
         /*****  NEW DEATH-NARRATIVE *****/
         screen_save();
+        /* A poetic death scene is a self-contained full-screen interlude;
+         * do not leave the live combat/log panes over its text. */
+        screen_push_supporting_panes_hidden();
+        screen_push_touch_pane_hidden();
         Term_clear();
 
         /* Pick correct sequence number: 0 when Gift-of-Eru fires,
@@ -149,6 +153,8 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         int *pool = mem_alloc_array(z_info->st_max, int);
         int pool_sz = 0;
         if (!pool) {
+            screen_pop_touch_pane_hidden();
+            screen_pop_supporting_panes_hidden();
             screen_load();                 /* restore game view            */
             u32b pool_before = metar.fallen_score_total;
             refresh_current_metar_score();
@@ -207,6 +213,8 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
             wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
         }
 
+        screen_pop_touch_pane_hidden();
+        screen_pop_supporting_panes_hidden();
         screen_load();                 /* restore game view            */
         pool = mem_free(pool);
         u32b pool_before = metar.fallen_score_total;

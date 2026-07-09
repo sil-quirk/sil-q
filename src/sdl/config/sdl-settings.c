@@ -1757,7 +1757,7 @@ void sdl_touch_cancel_all_inputs(void)
 
 void sdl_touch_apply_profile(int profile)
 {
-    bool pane_enabled = true;
+    bool pane_enabled = false;
     int pane_placement = SDL_TOUCH_PANE_PLACEMENT_RIGHT;
     bool pane_default_open = true;
     bool top_panel_default_open = false;
@@ -1775,16 +1775,19 @@ void sdl_touch_apply_profile(int profile)
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
         break;
     case SDL_TOUCH_PROFILE_ROUND_WHEEL:
-        pane_enabled = sdl_touch_only_mobile_device_active();
         pane_default_open = false;
         top_panel_default_open = true;
-        top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT;
+        /* The preset assigns the first eight actions.  Extra quick-access
+         * cells are added on demand, rather than starting as invisible empty
+         * slots up to the storage limit. */
+        top_panel_button_count = SDL_TOUCH_TOP_PANEL_BUTTON_COUNT_DEFAULT;
         movement_mode = SDL_TOUCH_MOVEMENT_ON;
         round_enabled = true;
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_OFF;
         break;
     case SDL_TOUCH_PROFILE_TOUCH_PANE:
     default:
+        pane_enabled = true;
         pane_default_open = true;
         top_panel_default_open = false;
         zone_overlay_mode = SDL_TOUCH_ZONE_OVERLAY_MARKERS;
