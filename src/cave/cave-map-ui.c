@@ -371,10 +371,18 @@ void prt_map(void)
             /* Check bounds */
             if (!in_bounds(y, x))
             {
-                Term_queue_char(vx, vy, TERM_DARK, ' ', TERM_DARK, ' ');
+                /* Outside the generated map must look exactly like unexplored
+                 * space, or the viewport reveals the map boundary. */
+                cave_feature_visual(&f_info[FEAT_NONE], &a, &c);
+                Term_queue_char(vx, vy, a, c, a, c);
                 if (use_bigtile)
-                    Term_queue_char(vx + 1, vy, TERM_DARK, ' ', TERM_DARK,
-                        ' ');
+                {
+                    if (a & 0x80)
+                        Term_queue_char(vx + 1, vy, 255, -1, 0, 0);
+                    else
+                        Term_queue_char(vx + 1, vy, TERM_WHITE, ' ',
+                            TERM_WHITE, ' ');
+                }
                 continue;
             }
 

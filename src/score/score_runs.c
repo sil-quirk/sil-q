@@ -55,6 +55,11 @@ static bool score_runs_write_record(SDL_IOStream* file,
                                     const score_run_detail_block* details);
 static bool score_runs_write_header(SDL_IOStream* file,
                                     const score_db_header* header);
+static bool score_runs_rewrite_record(const char* path, SDL_IOStream** source,
+                                      const score_db_header* header,
+                                      Sint64 replace_offset,
+                                      const score_record_v1* replacement,
+                                      const score_run_detail_block* details);
 
 static bool score_runs_legacy_checked = false;
 
@@ -552,6 +557,13 @@ bool score_runs_skip_detail_payload(SDL_IOStream* file,
     if (!file || !header)
         return false;
 
+    if (header->version == 0 || header->version > SCORE_RUN_DETAIL_VERSION ||
+        header->artefact_count > header->artefact_capacity ||
+        header->artefact_capacity > SCORE_RUN_ARTEFACT_CAP_MAX ||
+        header->monster_count > header->monster_capacity ||
+        header->monster_capacity > SCORE_RUN_MONSTER_CAP_MAX)
+        return false;
+
     if (header->version >= 2) {
         u16b stats_count = 0;
         u16b skills_count = 0;
@@ -560,12 +572,16 @@ bool score_runs_skip_detail_payload(SDL_IOStream* file,
 
         if (SDL_ReadIO(file, &stats_count, sizeof(stats_count)) != sizeof(stats_count))
             return false;
+        if (stats_count > 256)
+            return false;
         if (SDL_SeekIO(file,
                        (Sint64)stats_count * (Sint64)sizeof(score_run_stat_v1),
                        SDL_IO_SEEK_CUR) < 0)
             return false;
 
         if (SDL_ReadIO(file, &skills_count, sizeof(skills_count)) != sizeof(skills_count))
+            return false;
+        if (skills_count > 256)
             return false;
         if (SDL_SeekIO(file,
                        (Sint64)skills_count * (Sint64)sizeof(score_run_skill_v1),
@@ -574,12 +590,16 @@ bool score_runs_skip_detail_payload(SDL_IOStream* file,
 
         if (SDL_ReadIO(file, &ability_count, sizeof(ability_count)) != sizeof(ability_count))
             return false;
+        if (ability_count > 4096)
+            return false;
         if (SDL_SeekIO(file,
                        (Sint64)ability_count * (Sint64)sizeof(score_run_ability_v1),
                        SDL_IO_SEEK_CUR) < 0)
             return false;
 
         if (SDL_ReadIO(file, &milestone_count, sizeof(milestone_count)) != sizeof(milestone_count))
+            return false;
+        if (milestone_count > SCORE_RUN_MILESTONE_CAP_MAX)
             return false;
         if (SDL_SeekIO(file,
                        (Sint64)milestone_count * (Sint64)sizeof(score_run_milestone_v1),
@@ -609,6 +629,128 @@ static bool score_runs_read_detail_header_at(SDL_IOStream* file, Sint64 record_o
                    SDL_IO_SEEK_SET) < 0)
         return false;
     return score_runs_read_detail_header(file, header);
+}
+
+static bool score_runs_copy_range(SDL_IOStream* source, SDL_IOStream* target,
+                                  Sint64 start, Sint64 length)
+{
+    byte buffer[16384];
+
+    if (!source || !target || start < 0 || length < 0)
+        return false;
+    if (SDL_SeekIO(source, start, SDL_IO_SEEK_SET) < 0)
+        return false;
+
+    while (length > 0) {
+        size_t amount = (size_t)MIN(length, (Sint64)sizeof(buffer));
+        if (SDL_ReadIO(source, buffer, amount) != amount)
+            return false;
+        if (SDL_WriteIO(target, buffer, amount) != amount)
+            return false;
+        length -= (Sint64)amount;
+    }
+    return true;
+}
+
+/* Rebuild rather than overwrite when a variable-size detail payload changes. */
+static bool score_runs_rewrite_record(const char* path, SDL_IOStream** source,
+                                      const score_db_header* header,
+                                      Sint64 replace_offset,
+                                      const score_record_v1* replacement,
+                                      const score_run_detail_block* details)
+{
+    char temp_path[1100];
+    char backup_path[1100];
+    bool replaced = false;
+    bool ok = false;
+
+    if (!path || !source || !*source || !header || !replacement || !details)
+        return false;
+    if (strlen(path) + 5 > sizeof(temp_path) ||
+        strlen(path) + 5 > sizeof(backup_path))
+        return false;
+    strnfmt(temp_path, sizeof(temp_path), "%s.tmp", path);
+    strnfmt(backup_path, sizeof(backup_path), "%s.bak", path);
+
+    if (SDL_GetPathInfo(temp_path, NULL))
+        (void)SDL_RemovePath(temp_path);
+    else
+        SDL_ClearError();
+
+    SDL_IOStream* target = SDL_IOFromFile(temp_path, "w+b");
+    if (!target)
+        return false;
+    if (!score_runs_write_header(target, header))
+        goto done;
+
+    if (SDL_SeekIO(*source, sizeof(score_db_header), SDL_IO_SEEK_SET) < 0)
+        goto done;
+
+    while (true) {
+        Sint64 record_start = SDL_TellIO(*source);
+        score_record_v1 record;
+        score_run_detail_header_v1 detail_header;
+        if (record_start < 0)
+            goto done;
+        if (SDL_ReadIO(*source, &record, sizeof(record)) != sizeof(record))
+            break;
+        if (!score_runs_read_detail_header(*source, &detail_header) ||
+            !score_runs_skip_detail_payload(*source, &detail_header))
+            goto done;
+        Sint64 record_end = SDL_TellIO(*source);
+        if (record_end < record_start)
+            goto done;
+
+        if (record_start == replace_offset) {
+            if (!score_runs_write_record(target, replacement, details))
+                goto done;
+            replaced = true;
+        } else if (!score_runs_copy_range(*source, target, record_start,
+                       record_end - record_start)) {
+            goto done;
+        }
+
+        if (SDL_SeekIO(*source, record_end, SDL_IO_SEEK_SET) < 0)
+            goto done;
+    }
+
+    if (!replaced || !SDL_FlushIO(target))
+        goto done;
+    ok = true;
+
+done:
+    SDL_CloseIO(target);
+    if (!ok) {
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+
+    SDL_CloseIO(*source);
+    *source = NULL;
+
+    if (SDL_GetPathInfo(backup_path, NULL))
+        (void)SDL_RemovePath(backup_path);
+    else
+        SDL_ClearError();
+
+    if (!SDL_RenamePath(path, backup_path)) {
+        log_warn("score_runs: unable to preserve database before rewrite: %s",
+            SDL_GetError());
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+    if (!SDL_RenamePath(temp_path, path)) {
+        log_warn("score_runs: unable to install rewritten database: %s",
+            SDL_GetError());
+        (void)SDL_RenamePath(backup_path, path);
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+
+    (void)SDL_RemovePath(backup_path);
+    log_info("score_runs: rewrote runs.db safely for record #%u",
+        replacement->record_id);
+    return true;
 }
 
 static bool score_runs_write_record(SDL_IOStream* file,
@@ -689,6 +831,32 @@ static bool score_runs_write_record(SDL_IOStream* file,
     }
 
     return true;
+}
+
+static Sint64 score_runs_serialized_record_size(
+    const score_run_detail_block* details)
+{
+    if (!details)
+        return -1;
+
+    Sint64 size = (Sint64)sizeof(score_record_v1) +
+        (Sint64)sizeof(score_run_detail_header_v1);
+    if (details->header.version >= 2) {
+        size += 4 * (Sint64)sizeof(u16b);
+        size += (Sint64)details->stats_count *
+            (Sint64)sizeof(score_run_stat_v1);
+        size += (Sint64)details->skills_count *
+            (Sint64)sizeof(score_run_skill_v1);
+        size += (Sint64)details->ability_count *
+            (Sint64)sizeof(score_run_ability_v1);
+        size += (Sint64)details->milestone_count *
+            (Sint64)sizeof(score_run_milestone_v1);
+    }
+    size += (Sint64)details->header.artefact_capacity *
+        (Sint64)sizeof(score_run_artefact_v1);
+    size += (Sint64)details->header.monster_capacity *
+        (Sint64)sizeof(score_run_monster_v1);
+    return size;
 }
 
 static SDL_IOStream* score_runs_open_db(const char* path, score_db_header* header,
@@ -1545,6 +1713,7 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
     score_run_detail_header_v1 existing_detail;
     bool details_ready = false;
     bool record_only_update = false;
+    Sint64 existing_record_size = -1;
     if (found) {
         if (!score_runs_read_detail_header_at(db, offset, &existing_detail)) {
             log_warn("score_runs: detail header missing for record_id=%u, appending new entry",
@@ -1557,6 +1726,10 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
                 (unsigned)SCORE_RUN_DETAIL_VERSION);
             record_only_update = true;
             details_ready = true;
+        } else if (!score_runs_skip_detail_payload(db, &existing_detail)) {
+            log_warn("score_runs: invalid detail payload for record_id=%u, "
+                "appending new entry", existing.record_id);
+            found = false;
         } else if (!score_runs_build_details(&details,
                                              existing_detail.artefact_capacity,
                                              existing_detail.monster_capacity)) {
@@ -1566,6 +1739,7 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
             safe_setuid_drop();
             return false;
         } else {
+            existing_record_size = SDL_TellIO(db) - offset;
             details_ready = true;
         }
     }
@@ -1584,7 +1758,18 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
     if (found) {
         record.record_id = existing.record_id;
         record.chronological_idx = existing.chronological_idx;
-        if (SDL_SeekIO(db, offset, SDL_IO_SEEK_SET) >= 0) {
+        Sint64 replacement_size = score_runs_serialized_record_size(&details);
+        bool size_changed = !record_only_update &&
+            replacement_size != existing_record_size;
+
+        if (size_changed) {
+            success = score_runs_rewrite_record(path, &db, &header, offset,
+                &record, &details);
+            if (!success) {
+                log_warn("score_runs: failed to resize record_id=%u safely",
+                    record.record_id);
+            }
+        } else if (SDL_SeekIO(db, offset, SDL_IO_SEEK_SET) >= 0) {
             if (record_only_update) {
                 success = (SDL_WriteIO(db, &record, sizeof(record))
                     == sizeof(record));
@@ -1596,7 +1781,8 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
         }
         if (!success)
             log_warn("score_runs: failed to update record_id=%u", record.record_id);
-        SDL_SeekIO(db, 0, SDL_IO_SEEK_END);
+        if (db)
+            SDL_SeekIO(db, 0, SDL_IO_SEEK_END);
     } else {
         record.record_id = header.record_count;
         record.chronological_idx = (u32b)score_runs_count_for_metarun(db, record.metarun_id);
@@ -1614,7 +1800,8 @@ bool score_runs_record_current_run_with_id(const struct high_score* legacy_score
     }
 
     score_runs_release_detail_block(&details);
-    SDL_CloseIO(db);
+    if (db)
+        SDL_CloseIO(db);
     safe_setuid_drop();
 
     if (success) {
