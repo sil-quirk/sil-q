@@ -4183,16 +4183,25 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
             SDL_SELECT_CLICK_PAGE_NEXT);
     }
 
-    /* A centred "Close" button (opt-in) sits between the page arrows so the
-     * book can be left with the mouse or a touch tap from any page. */
-    if (g_sdl_character_sheet_screen.narrative_close_enabled)
+    /* Narrative books may opt into a Close button.  The race book instead
+     * offers the same central position as a direct shortcut to its final,
+     * selectable page. */
+    if (g_sdl_character_sheet_screen.narrative_close_enabled
+        || (g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SELECT
+            && g_sdl_character_sheet_screen.select_book_mode
+            && page < page_count - 1))
     {
         float cw = MIN(content_w * 0.22f, bh * 6.0f);
         float ccx = content_x + (content_w - cw) * 0.5f;
         SDL_FRect r = { ccx, prompt_y, cw, bh };
-        byte a = (hov == SDL_SELECT_CLICK_CLOSE) ? TERM_WHITE : TERM_SLATE;
+        bool jump_to_last_page = (g_sdl_character_sheet_screen.context
+            == SDL_CHARACTER_SHEET_BIRTH_SELECT);
+        byte a = (hov == SDL_SELECT_CLICK_CLOSE) ? TERM_WHITE
+            : (jump_to_last_page ? TERM_L_BLUE : TERM_SLATE);
+        cptr label = jump_to_last_page ? "Jump to last page" : "Close";
 
-        (void)sdl_char_sheet_draw_text(prompt_font, "Close", a, ccx, prompt_y,
+        (void)sdl_char_sheet_draw_text(prompt_font, label, a, ccx, prompt_y,
             cw, bh, true);
         sdl_char_sheet_add_select_button_hit(r, SDL_SELECT_CLICK_CLOSE);
     }
@@ -10417,6 +10426,7 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     SDL_zero(g_sdl_character_sheet_screen.select_scroll_drag);
     g_sdl_character_sheet_screen.select_book_mode = false;
     g_sdl_character_sheet_screen.select_menu_style = false;
+    g_sdl_character_sheet_screen.narrative_close_enabled = false;
     g_sdl_select_choice_page_only = false;
     g_sdl_select_dynamic_description = false;
     g_sdl_select_menu_rows_per_column = 0;

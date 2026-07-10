@@ -684,9 +684,11 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                     continue;
                 }
                 else if (clicked_choice == SDL_SELECT_CLICK_PAGE_NEXT
-                    || clicked_choice == SDL_SELECT_CLICK_PAGE_PREV)
+                    || clicked_choice == SDL_SELECT_CLICK_PAGE_PREV
+                    || clicked_choice == SDL_SELECT_CLICK_CLOSE)
                 {
-                    /* Book page-turn buttons (race screen, mouse). */
+                    /* The centred race-book shortcut skips directly to the
+                     * selectable final page. */
                     if (book_mode && click_action != UI_MENU_CLICK_HOVER
                         && !sdl_character_sheet_screen_page_turning())
                     {
@@ -699,7 +701,15 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                         if (final_page < 0)
                             final_page = 0;
 
-                        if (clicked_choice == SDL_SELECT_CLICK_PAGE_PREV)
+                        if (clicked_choice == SDL_SELECT_CLICK_CLOSE)
+                        {
+                            if (bpage < final_page)
+                            {
+                                sdl_character_sheet_screen_begin_page_turn_to(
+                                    final_page);
+                            }
+                        }
+                        else if (clicked_choice == SDL_SELECT_CLICK_PAGE_PREV)
                         {
                             if (bpage <= 0)
                             {
