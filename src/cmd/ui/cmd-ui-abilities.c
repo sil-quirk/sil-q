@@ -1120,6 +1120,12 @@ void do_cmd_change_song()
 
     if (song_choice >= 0)
     {
+        if (death_spectator_active())
+        {
+            msg_print("You cannot do that during this final look.");
+            return;
+        }
+
         bool choice_stops_current_song = (song_choice == p_ptr->song1)
             || ((p_ptr->song2 != SNG_NOTHING) && (song_choice == p_ptr->song2));
 

@@ -1608,6 +1608,8 @@ extern void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     int attr, cptr desc);
 extern void sdl_character_sheet_screen_set_last_select_row_reset(
     int reset_choice);
+extern void sdl_character_sheet_screen_set_last_select_row_confirmable(
+    bool confirmable);
 extern void sdl_character_sheet_screen_add_select_detail(cptr text, int attr,
     cptr desc);
 extern void sdl_character_sheet_screen_set_select_detail_size_hint(

@@ -237,7 +237,10 @@ static void refresh_alive_cache(void)
 
     int alive = MAX(alive_scores, alive_from_roster);
 
-    if (character_generated && p_ptr && !p_ptr->is_dead) {
+    /* Final Look uses live-game presentation flags after the death has already
+     * been committed to the tale.  Do not count that UI shell as a survivor. */
+    if (character_generated && p_ptr && !p_ptr->is_dead
+        && !death_spectator_active()) {
         if (alive < 1) alive = 1;
     }
 

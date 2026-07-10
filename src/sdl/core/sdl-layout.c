@@ -1707,11 +1707,9 @@ bool sdl_left_panel_pane_presentation_active(void)
         && character_generated
         && character_dungeon
         && p_ptr
-        /* The final-look spectator deliberately retains the live layout,
-         * including its left panel.  It does not execute gameplay commands:
-         * dungeon-spectator.c filters them before process_command(). */
-        && (death_spectator_active()
-            || (character_icky == 0 && p_ptr->playing && !p_ptr->is_dead));
+        && character_icky == 0
+        && p_ptr->playing
+        && !p_ptr->is_dead;
 }
 
 bool sdl_left_panel_pane_renders_character_panel(void)
@@ -1726,8 +1724,9 @@ bool sdl_combat_overlay_pane_presentation_active(void)
         && character_generated
         && character_dungeon
         && p_ptr
-        && (death_spectator_active()
-            || (character_icky == 0 && p_ptr->playing && !p_ptr->is_dead));
+        && character_icky == 0
+        && p_ptr->playing
+        && !p_ptr->is_dead;
 }
 
 bool sdl_combat_overlay_melee_uses_offhand_row(void)
@@ -2117,8 +2116,9 @@ bool sdl_overlay_log_pane_current_rect(SDL_Rect* out_rect)
 bool sdl_left_panel_pane_runtime_active(void)
 {
     return sdl_left_panel_pane_presentation_active()
-        && (death_spectator_active()
-            || (p_ptr->playing && !p_ptr->leaving && !p_ptr->is_dead));
+        && p_ptr->playing
+        && !p_ptr->leaving
+        && !p_ptr->is_dead;
 }
 
 bool sdl_left_panel_pane_collapsed(void)

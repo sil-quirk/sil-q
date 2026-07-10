@@ -112,8 +112,13 @@ void process_command(void)
     {
         if (p_ptr->command_cmd)
         {
-            msg_print("You can no longer take that action.");
+            msg_print("You cannot do that during this final look.");
         }
+        /* Pointer movement can queue a whole path.  Rejecting only its first
+         * generated step would otherwise immediately feed the next step back
+         * into request_command() and spam the read-only message. */
+        sdl_mouse_path_cancel();
+        p_ptr->energy_use = 0;
         p_ptr->command_cmd = 0;
         return;
     }

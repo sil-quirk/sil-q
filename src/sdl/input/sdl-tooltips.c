@@ -3249,7 +3249,7 @@ bool sdl_mouse_recall_process_pending(void)
     (void)sdl_mouse_consume_wake_key();
 
     if (!character_generated || !character_dungeon || !p_ptr
-        || p_ptr->is_dead || death_spectator_active() || character_icky != 0
+        || p_ptr->is_dead || character_icky != 0
         || ui_menu_click_is_active())
     {
         return true;

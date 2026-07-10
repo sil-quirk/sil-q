@@ -165,6 +165,7 @@ extern NavResult gain_skills(void)
     NavResult result = NAV_OK;
 
     int tab = 0;
+    bool death_view = death_spectator_active();
 
     log_debug("Starting skills allocation with %d experience points", p_ptr->new_exp);
     gain_skills_initial_skill = -1;
@@ -505,11 +506,19 @@ extern NavResult gain_skills(void)
             } while (skill == S_SPC); /* Skip Special abilities skill */
         }
 
+        /* Final Look retains this browser but not skill purchases. */
+        if ((ch == '4') || (ch == '6'))
+        {
+            if (death_view)
+            {
+                msg_print("You cannot do that during this final look.");
+                continue;
+            }
+        }
+
         /* Decrease skill */
         if ((ch == '4') && (skill_gain[skill] > 0))
-        {
             skill_gain[skill]--;
-        }
 
         /* Increase stat */
         if (ch == '6')

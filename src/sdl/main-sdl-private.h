@@ -486,6 +486,7 @@ typedef struct sdl_character_sheet_select_row {
     int choice;        /* choice id consumed by get_player_choice (>= 0) */
     int reset_choice;  /* >=0: draw a tappable per-row "Reset" button, this id */
     byte attr;
+    bool confirmable;  /* false: visible/focusable, but cannot be confirmed */
     bool is_heading;   /* book mode: non-selectable heading/blurb text */
     char label[160];
     char desc[256];    /* hover tooltip */
@@ -1963,6 +1964,7 @@ void sdl_character_sheet_screen_commit_book(void);
 void sdl_character_sheet_screen_set_book_target_page_count(int page_count);
 void sdl_character_sheet_screen_add_select_row(int choice, cptr label, int attr, cptr desc);
 void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice);
+void sdl_character_sheet_screen_set_last_select_row_confirmable(bool confirmable);
 void sdl_character_sheet_screen_add_select_heading(cptr label);
 void sdl_character_sheet_screen_set_select_intro(cptr text);
 int sdl_character_sheet_screen_select_page(void);

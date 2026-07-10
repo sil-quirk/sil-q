@@ -1137,6 +1137,11 @@ bool sdl_mouse_path_handle_right_click(float x, float y)
 
     if (!sdl_main_screen_click_shortcuts_active())
         return false;
+    /* A right click on the final map must fall through to recall.  Feature
+     * actions (doors, chests, and so on) are gameplay actions and therefore
+     * must not intercept it. */
+    if (death_spectator_active())
+        return false;
     if (!sdl_main_view_point_to_map(x, y, &map_y, &map_x))
         return false;
 

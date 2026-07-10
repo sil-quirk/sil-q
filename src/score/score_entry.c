@@ -476,7 +476,10 @@ errr score_entry_enter(high_score* the_score)
  */
 bool build_live_preview_score(high_score* out)
 {
-    if (!out || !character_generated)
+    /* Final Look borrows the live dungeon UI flags, but the run has already
+     * been finalized and recorded.  Never synthesize another alive snapshot
+     * from that presentation state. */
+    if (!out || !character_generated || death_spectator_active())
         return false;
 
     char saved_how[sizeof(p_ptr->died_from)];
@@ -505,7 +508,8 @@ bool mobile_autosave_game(cptr reason)
     if (in_progress)
         return false;
 
-    if (!character_generated || !p_ptr || p_ptr->is_dead || !p_ptr->playing)
+    if (!character_generated || !p_ptr || p_ptr->is_dead || !p_ptr->playing
+        || death_spectator_active())
         return false;
 
     if (DEPLOYMENT && p_ptr->game_type != 0)

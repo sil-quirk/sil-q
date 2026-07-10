@@ -8247,6 +8247,9 @@ void do_cmd_smithing_screen(void)
     int highlight = 1;
     bool leave_menu = false;
     bool create = false;
+    bool death_view = death_spectator_active();
+    int old_smithing = p_ptr->smithing;
+    int old_smithing_leftover = p_ptr->smithing_leftover;
 
     // if (!cave_forge_bold(p_ptr->py, p_ptr->px))
     //{
@@ -8303,7 +8306,8 @@ void do_cmd_smithing_screen(void)
         case SMT_MENU_CREATE:
         {
             // this is not a resumption of smithing an item
-            p_ptr->smithing_leftover = 0;
+            if (!death_view)
+                p_ptr->smithing_leftover = 0;
 
             create_tval_menu();
 
@@ -8318,7 +8322,8 @@ void do_cmd_smithing_screen(void)
             if (smith_o_ptr->tval)
             {
                 // this is not a resumption of smithing an item
-                p_ptr->smithing_leftover = 0;
+                if (!death_view)
+                    p_ptr->smithing_leftover = 0;
 
                 if (!enchant_menu())
                 {
@@ -8339,7 +8344,8 @@ void do_cmd_smithing_screen(void)
             if (smith_o_ptr->tval)
             {
                 // this is not a resumption of smithing an item
-                p_ptr->smithing_leftover = 0;
+                if (!death_view)
+                    p_ptr->smithing_leftover = 0;
 
                 artefact_menu();
             }
@@ -8355,7 +8361,8 @@ void do_cmd_smithing_screen(void)
             if (smith_o_ptr->tval)
             {
                 // this is not a resumption of smithing an item
-                p_ptr->smithing_leftover = 0;
+                if (!death_view)
+                    p_ptr->smithing_leftover = 0;
 
                 numbers_menu();
 
@@ -8372,6 +8379,12 @@ void do_cmd_smithing_screen(void)
         }
         case SMT_MENU_MELT:
         {
+            if (death_view)
+            {
+                msg_print("You cannot do that during this final look.");
+                break;
+            }
+
             if (meltable_metal_items_carried())
             {
                 // this is not a resumption of smithing an item
@@ -8388,11 +8401,23 @@ void do_cmd_smithing_screen(void)
         }
         case SMT_MENU_REPAIR:
         {
+            if (death_view)
+            {
+                msg_print("You cannot do that during this final look.");
+                break;
+            }
+
             smith_reforge_item();
             break;
         }
         case SMT_MENU_ACCEPT:
         {
+            if (death_view)
+            {
+                msg_print("You cannot do that during this final look.");
+                break;
+            }
+
             if (smithing_cost.drain > 0)
             {
                 char buf[80];
@@ -8467,6 +8492,11 @@ void do_cmd_smithing_screen(void)
         Term_fresh();
     }
 
+    else if (death_view)
+    {
+        p_ptr->smithing = old_smithing;
+        p_ptr->smithing_leftover = old_smithing_leftover;
+    }
     else
     {
         if (p_ptr->smithing_leftover == 0)

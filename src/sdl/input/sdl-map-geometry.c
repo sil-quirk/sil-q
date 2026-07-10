@@ -598,7 +598,6 @@ bool sdl_mouse_gameplay_context_active(void)
         && p_ptr->playing
         && !p_ptr->leaving
         && !p_ptr->is_dead
-        && !death_spectator_active()
         && character_icky == 0
         && !ui_menu_click_is_active()
         && g_views[PANE_MAIN].term_ready;
@@ -1260,9 +1259,6 @@ bool sdl_main_map_point_to_drag_map(float x, float y)
         return false;
     if (ui_menu_click_has_cell(col, row))
         return false;
-
-    if (death_spectator_active())
-        return sdl_main_view_point_to_look_map(x, y, &map_y, &map_x);
 
     return sdl_main_view_point_to_map(x, y, &map_y, &map_x);
 }

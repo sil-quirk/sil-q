@@ -95,8 +95,7 @@ bool sdl_depth_menu_pane_layout(depth_pane_layout* out)
 
     if (!pc || !pc->enabled)
         return false;
-    if (!character_generated || !character_dungeon
-        || (character_icky && !death_spectator_active()))
+    if (!character_generated || !character_dungeon || character_icky)
         return false;
     if (!p_ptr || screen_saved_fullscreen_active())
         return false;

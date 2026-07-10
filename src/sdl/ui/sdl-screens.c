@@ -3470,6 +3470,35 @@ bool sdl_char_sheet_split_first_paragraph(cptr text, char* first,
     return true;
 }
 
+/* A selection row may remain visible and focused while not being a legal
+ * choice.  This is used by the character carousel for fallen heroes: their
+ * sheet can still be read, but its confirmation controls must be inert. */
+static bool sdl_char_sheet_select_choice_confirmable(int choice)
+{
+    if (g_sdl_character_sheet_screen.context
+        != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    {
+        return true;
+    }
+
+    for (int i = 0; i < g_sdl_character_sheet_screen.select_row_count; i++)
+    {
+        const sdl_character_sheet_select_row* row =
+            &g_sdl_character_sheet_screen.select_rows[i];
+
+        if (!row->is_heading && row->choice == choice)
+            return row->confirmable;
+    }
+
+    return true;
+}
+
+static bool sdl_char_sheet_selected_choice_confirmable(void)
+{
+    return sdl_char_sheet_select_choice_confirmable(
+        g_sdl_character_sheet_screen.selected_index);
+}
+
 void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
     float y, float w, float h)
 {
@@ -3702,9 +3731,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
         int text_w = text_widths[i];
         float item_w = item_widths[i];
         int choice = items[i].choice;
+        bool disabled = (choice == -2
+            && !sdl_char_sheet_selected_choice_confirmable());
         bool focused = (choice >= 0)
             ? sdl_char_sheet_choice_focused(choice)
             : sdl_char_sheet_prompt_focused(choice);
+
+        if (disabled)
+            focused = false;
 
         if (!preview_prompt && cursor_x + item_w > x + w)
             break;
@@ -3721,10 +3755,14 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
             }
             if (touch_buttons)
             {
-                SDL_Color fill = focused ? (SDL_Color){ 245, 245, 245, 255 }
-                                         : (SDL_Color){ 156, 156, 156, 238 };
-                SDL_Color border = focused ? (SDL_Color){ 0, 0, 0, 255 }
-                                           : (SDL_Color){ 28, 28, 28, 230 };
+                SDL_Color fill = disabled
+                    ? (SDL_Color){ 76, 76, 76, 220 }
+                    : (focused ? (SDL_Color){ 245, 245, 245, 255 }
+                               : (SDL_Color){ 156, 156, 156, 238 });
+                SDL_Color border = disabled
+                    ? (SDL_Color){ 28, 28, 28, 210 }
+                    : (focused ? (SDL_Color){ 0, 0, 0, 255 }
+                               : (SDL_Color){ 28, 28, 28, 230 });
 
                 hit.w = item_w;
                 SDL_SetRenderDrawBlendMode(g_state.renderer,
@@ -3769,14 +3807,16 @@ void sdl_char_sheet_draw_prompt(TTF_Font* font, cptr prompt, float x,
                 )
             {
                 (void)sdl_char_sheet_draw_button_text(font, label,
-                    TERM_DARK, &hit);
+                    disabled ? TERM_L_DARK : TERM_DARK, &hit);
             }
             else
             {
-                (void)sdl_char_sheet_draw_text(font, label,
-                    focused ? TERM_DARK : TERM_L_WHITE, cursor_x, y, hit.w,
-                    h, false);
+                (void)sdl_char_sheet_draw_text(font, label, disabled
+                    ? TERM_DARK : (focused ? TERM_DARK : TERM_L_WHITE),
+                    cursor_x, y, hit.w, h, false);
             }
+            if (disabled)
+                continue;
             if (choice >= 0)
                 sdl_char_sheet_add_hit(hit, choice, "");
             else
@@ -7172,10 +7212,15 @@ static int sdl_char_sheet_book_choice_page(void)
 
 /*
  * Pack the narrative paragraphs into pages at a given body size, breaking only
- * between whole paragraphs.  Returns the page count; if page_start is non-NULL
- * it receives the first-paragraph index of each page (with a [page_count] =
- * para_count sentinel, padded out to SDL_BOOK_MAX_PAGES).
+ * between whole paragraphs.  Fixed-page books (quest dialogue) use a balanced
+ * partition instead of the normal greedy flow, so a short paragraph cannot be
+ * stranded on a page by itself while later pages are much fuller.  Returns the
+ * page count; if page_start is non-NULL it receives the first-paragraph index
+ * of each page (with a [page_count] = para_count sentinel, padded out to
+ * SDL_BOOK_MAX_PAGES).
  */
+static int sdl_char_sheet_narrative_target_page_count(void);
+
 int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     float top_y, float region_bottom, int* page_start)
 {
@@ -7188,6 +7233,7 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     float used = (g_sdl_character_sheet_screen.narrative_lamp_enabled
             && g_sdl_character_sheet_screen.narrative_lamp_page == 0)
         ? lh * 9.0f : 0.0f;
+    int target_pages = g_sdl_character_sheet_screen.narrative_target_page_count;
     int page = 0;
     int i;
 
@@ -7195,6 +7241,100 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
         region_h = lh;
     if (page_start)
         page_start[0] = 0;
+
+    /* A requested page budget is used by quest books.  Find the partition with
+     * the smallest fullest page, subject to every page fitting the actual page
+     * region.  This keeps the body font global while allowing the text to use
+     * the available pages evenly.  Explicit author breaks remain meaningful for
+     * content-driven books, but fixed-page quest books are deliberately
+     * rebalanced around them. */
+    if (target_pages > 0)
+    {
+        float para_need[SDL_BOOK_MAX_PARAS];
+        float prefix_need[SDL_BOOK_MAX_PARAS + 1];
+        float dp[SDL_BOOK_MAX_PAGES + 1][SDL_BOOK_MAX_PARAS + 1];
+        int previous[SDL_BOOK_MAX_PAGES + 1][SDL_BOOK_MAX_PARAS + 1];
+        const float infinity = 1.0e30f;
+        float lamp_h = g_sdl_character_sheet_screen.narrative_lamp_enabled
+            ? lh * 9.0f : 0.0f;
+        if (target_pages > SDL_BOOK_MAX_PAGES)
+            target_pages = SDL_BOOK_MAX_PAGES;
+        if (para_count > 0 && target_pages > para_count)
+            target_pages = para_count;
+
+        prefix_need[0] = 0.0f;
+        for (i = 0; i < para_count; i++)
+        {
+            int lines = sdl_char_sheet_wrap_text(font,
+                g_sdl_character_sheet_screen.narrative_paras[i], book_w,
+                NULL, 0);
+
+            para_need[i] = (float)MAX(lines, 1) * lh;
+            prefix_need[i + 1] = prefix_need[i] + para_need[i];
+        }
+
+        for (int p = 0; p <= SDL_BOOK_MAX_PAGES; p++)
+        {
+            for (i = 0; i <= SDL_BOOK_MAX_PARAS; i++)
+            {
+                dp[p][i] = infinity;
+                previous[p][i] = -1;
+            }
+        }
+        dp[0][0] = 0.0f;
+
+        for (int p = 1; p <= target_pages; p++)
+        {
+            for (i = p; i <= para_count; i++)
+            {
+                for (int split = p - 1; split < i; split++)
+                {
+                    int para_count_on_page = i - split;
+                    float page_h = prefix_need[i] - prefix_need[split];
+                    float candidate;
+
+                    if (para_count_on_page > 1)
+                        page_h += para_gap * (float)(para_count_on_page - 1);
+                    if (p - 1 == g_sdl_character_sheet_screen.narrative_lamp_page)
+                        page_h += lamp_h;
+                    if (page_h > region_h || dp[p - 1][split] >= infinity)
+                        continue;
+
+                    candidate = MAX(dp[p - 1][split], page_h);
+                    if (candidate < dp[p][i])
+                    {
+                        dp[p][i] = candidate;
+                        previous[p][i] = split;
+                    }
+                }
+            }
+        }
+
+        if (target_pages > 0 && para_count > 0
+            && dp[target_pages][para_count] < infinity)
+        {
+            int end = para_count;
+
+            if (page_start)
+            {
+                page_start[target_pages] = para_count;
+                for (int p = target_pages; p > 0; p--)
+                {
+                    int split = previous[p][end];
+
+                    page_start[p - 1] = split;
+                    end = split;
+                }
+                for (i = target_pages + 1; i <= SDL_BOOK_MAX_PAGES; i++)
+                    page_start[i] = para_count;
+            }
+            return target_pages;
+        }
+
+        /* If whole paragraphs cannot fit into the requested budget even at this
+         * size, fall through to the normal overflow-safe paginator rather than
+         * drawing clipped text. */
+    }
 
     for (i = 0; i < para_count; i++)
     {
@@ -7354,8 +7494,14 @@ int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w,
     float top_y, float region_bottom)
 {
     int min_px = sdl_char_sheet_clampi((int)(canvas_h * 0.030f), 18, 32);
-    int max_px = sdl_char_sheet_clampi((int)(canvas_h * 0.048f), 26, 46);
     int target_pages = sdl_char_sheet_narrative_target_page_count();
+    /* This is only the upper bound for the fit search.  The actual size is
+     * selected below against the fullest balanced page.  Fixed-page quest books
+     * get a higher search ceiling so the page geometry—not the former 46 px
+     * cap—decides the result; content-driven books retain their existing range. */
+    int max_px = target_pages > 0
+        ? sdl_char_sheet_clampi((int)(canvas_h * 0.075f), 30, 72)
+        : sdl_char_sheet_clampi((int)(canvas_h * 0.048f), 26, 46);
     int min_pages;
     int chosen;
     int px;
@@ -9319,8 +9465,10 @@ void sdl_character_sheet_screen_render(void)
 
             sdl_character_sheet_select_counter(&current, &total);
 
-            /* Tapping the name confirms the focused hero. */
-            if (g_sdl_character_sheet_screen.selected_index >= 0)
+            /* Tapping the name confirms the focused hero, unless that hero
+             * is fallen and therefore shown for reference only. */
+            if (g_sdl_character_sheet_screen.selected_index >= 0
+                && sdl_char_sheet_selected_choice_confirmable())
             {
                 SDL_FRect namebox = { title_x, title_y, title_text_w,
                     title_h };
@@ -10925,6 +11073,7 @@ void sdl_character_sheet_screen_add_select_row(int choice, cptr label,
     row->choice = choice;
     row->reset_choice = -1;
     row->attr = (byte)attr;
+    row->confirmable = true;
     row->is_heading = false;
     SDL_strlcpy(row->label, label ? label : "", sizeof(row->label));
     SDL_strlcpy(row->desc, desc ? desc : "", sizeof(row->desc));
@@ -10949,6 +11098,23 @@ void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice)
         reset_choice;
 }
 
+void sdl_character_sheet_screen_set_last_select_row_confirmable(
+    bool confirmable)
+{
+    int count = g_sdl_character_sheet_screen.select_row_count;
+
+    if (g_sdl_character_sheet_screen.context
+        != SDL_CHARACTER_SHEET_BIRTH_SELECT)
+    {
+        return;
+    }
+    if (count <= 0)
+        return;
+
+    g_sdl_character_sheet_screen.select_rows[count - 1].confirmable =
+        confirmable;
+}
+
 /* Book mode: a non-selectable heading/blurb row (e.g. "The Noldor ..."). */
 void sdl_character_sheet_screen_add_select_heading(cptr label)
 {
@@ -10969,6 +11135,7 @@ void sdl_character_sheet_screen_add_select_heading(cptr label)
     row->choice = -1;
     row->reset_choice = -1;
     row->attr = TERM_L_DARK;
+    row->confirmable = false;
     row->is_heading = true;
     SDL_strlcpy(row->label, label, sizeof(row->label));
     row->desc[0] = '\0';
@@ -11345,7 +11512,12 @@ bool sdl_character_sheet_screen_handle_pointer_button(float x, float y,
     }
     if (!ui_menu_click_handle_choice_action(hit->choice, action, NULL))
         return true;
-    Term_keypress('\r');
+    /* Prompt buttons use -1 for Back and -2 for Choose/Confirm.  The
+     * semantic settings menus still inspect the key returned by inkey(), so
+     * injecting Enter for both buttons makes Back activate the selected row.
+     * Keep the click choice pending for callers that consume it explicitly,
+     * while also injecting the matching keyboard equivalent. */
+    Term_keypress(hit->choice == -1 ? ESCAPE : '\r');
     g_state.need_present = true;
     return true;
 }

@@ -58,13 +58,11 @@ bool sdl_main_menu_pane_context_visible(void)
 {
     SDL_Rect screen;
 
-    if (!character_generated || !character_dungeon
-        || (character_icky && !death_spectator_active()))
+    if (!character_generated || !character_dungeon || character_icky)
         return false;
     if (!p_ptr || screen_saved_fullscreen_active())
         return false;
-    if (!death_spectator_active()
-        && (!p_ptr->playing || p_ptr->leaving || p_ptr->is_dead))
+    if (!p_ptr->playing || p_ptr->leaving || p_ptr->is_dead)
     {
         return false;
     }
@@ -639,8 +637,7 @@ void sdl_main_menu_overlay_choose(int choice)
      * themselves, whose cleanup clears inkey_flag and leaves pointer command
      * shortcuts inactive until the next physical keypress. Restore the outer
      * command-wait state after returning from the menu action. */
-    if (restore_command_wait
-        && (character_icky == 0 || death_spectator_active()))
+    if (restore_command_wait && character_icky == 0)
         inkey_flag = true;
 
     if (executed && choice == MAIN_MENU_SAVE_QUIT

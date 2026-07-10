@@ -298,6 +298,8 @@ int get_player_choice(birth_menu* choices, int num, int def, int col,
                 /* No per-row hover tooltip: the focused choice's text is
                  * already shown in the description area below. */
                 sdl_character_sheet_screen_add_select_row(i, label, rattr, "");
+                sdl_character_sheet_screen_set_last_select_row_confirmable(
+                    !choices[i].ghost);
                 /*
                  * Feed every possible description into the font fitter.  Both
                  * book lore and character sheets must remain stable as focus

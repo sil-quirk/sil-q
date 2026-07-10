@@ -91,9 +91,16 @@ static bool show_run_history_detail_for_score(const high_score* score);
 static bool run_history_prepare_artefact_object(
     const score_run_artefact_v1* entry, object_type* out);
 
+/* Final Look deliberately presents live-game UI flags.  Score and run-history
+ * code must use the finalized run state instead of those presentation flags. */
+static bool score_ui_character_finalized(void)
+{
+    return p_ptr && (p_ptr->is_dead || death_spectator_active());
+}
+
 static void run_history_refresh_active_run(void)
 {
-    if (!character_generated || !p_ptr || p_ptr->is_dead)
+    if (!character_generated || !p_ptr || score_ui_character_finalized())
         return;
 
     high_score preview;
@@ -113,7 +120,7 @@ static bool run_history_is_current(const run_history_entry* entry)
 {
     if (!entry)
         return false;
-    if (!character_generated || !p_ptr || p_ptr->is_dead)
+    if (!character_generated || !p_ptr || score_ui_character_finalized())
         return false;
     if (entry->record.status != SCORE_RECORD_ALIVE)
         return false;
@@ -1654,12 +1661,14 @@ static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
 }
 void show_scores(bool longscore)
 {
-    bool preview_allowed = (!force_interactive_scores && !forced_highlight_active && character_generated && !p_ptr->is_dead);
+    bool finalized = score_ui_character_finalized();
+    bool preview_allowed = (!force_interactive_scores
+        && !forced_highlight_active && character_generated && !finalized);
     log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
              longscore ? 1 : 0,
              force_interactive_scores ? 1 : 0,
              character_generated ? 1 : 0,
-             p_ptr->is_dead ? 1 : 0,
+             finalized ? 1 : 0,
              preview_allowed ? 1 : 0);
 
     sdl_suspend_main_view_zoom_for_saved_screen();
@@ -1690,7 +1699,7 @@ void show_scores(bool longscore)
     }
     else if (character_generated)
     {
-        if (p_ptr->is_dead)
+        if (finalized)
         {
             if (create_score(&highlight_buffer) == 0)
                 highlight_entry = &highlight_buffer;

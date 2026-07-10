@@ -643,21 +643,13 @@ int sdl_status_pane_collect(status_pane_entry* entries, int max_entries)
     int count = 0;
     char detail[64];
 
-	if (!entries || max_entries <= 0 || !p_ptr || !character_generated
-		|| (character_icky && !death_spectator_active()))
-	{
-		return 0;
-	}
+    if (!entries || max_entries <= 0 || !p_ptr || !character_generated
+        || character_icky)
+    {
+        return 0;
+    }
 
-	/* Keep this pane present in the read-only final-look scene even when the
-	 * fallen character has no ordinary timed conditions to report. */
-	if (death_spectator_active() && p_ptr->is_dead)
-	{
-		sdl_status_pane_add(entries, max_entries, &count, "Final look",
-			"read-only", TERM_SLATE);
-	}
-
-	if (p_ptr->running > 0)
+    if (p_ptr->running > 0)
         sdl_status_pane_add_timed(entries, max_entries, &count, "Running",
             p_ptr->running, TERM_L_BLUE);
     if (p_ptr->stealth_mode)

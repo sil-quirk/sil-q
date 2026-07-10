@@ -336,8 +336,22 @@ static void birth_select_emit_detail(int race, int character, bool affinities_va
             title_stars, sizeof(title_stars), &star_attr, NULL);
 #endif
 
-        sdl_character_sheet_screen_set_select_title_detail(pretty_name,
-            title_stars, star_attr);
+#if defined(__ANDROID__) || defined(SIL_IOS)
+        if (birth_character_is_dead(character))
+        {
+            char fallen_name[48];
+
+            strnfmt(fallen_name, sizeof(fallen_name), "%s %s",
+                BIRTH_FALLEN_MARK, pretty_name);
+            sdl_character_sheet_screen_set_select_title_detail(fallen_name,
+                title_stars, star_attr);
+        }
+        else
+#endif
+        {
+            sdl_character_sheet_screen_set_select_title_detail(pretty_name,
+                title_stars, star_attr);
+        }
     }
 
     if (affinities_vary)

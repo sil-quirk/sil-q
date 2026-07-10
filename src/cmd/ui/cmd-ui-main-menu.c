@@ -14,6 +14,7 @@ extern struct sound_config g_sound_config;
 #include "metarun.h"
 #include "score/score_artefact.h"
 #include "score/score_guid.h"
+#include "score/score_postmortem.h"
 #include "pane.h"
 #include "cmd/ui/cmd-ui-internal.h"
 
@@ -1443,7 +1444,26 @@ static bool do_cmd_main_menu_execute_choice_impl(int actiontype,
         screen_save();
         screen_push_supporting_panes_hidden();
         sdl_push_terminal_menu_scale();
-        show_scores_interactive(true);
+        if (death_spectator_active())
+        {
+            high_score final_score;
+            const char* postmortem_path = score_postmortem_path();
+
+            if (create_score(&final_score) == 0)
+            {
+                if (postmortem_path[0])
+                {
+                    show_scores_interactive_highlight_from_file(true,
+                        postmortem_path, &final_score);
+                }
+                else
+                    show_scores_interactive_highlight(true, &final_score);
+            }
+            else
+                show_scores_interactive(true);
+        }
+        else
+            show_scores_interactive(true);
         sdl_pop_terminal_menu_scale();
         screen_pop_supporting_panes_hidden();
         screen_load();

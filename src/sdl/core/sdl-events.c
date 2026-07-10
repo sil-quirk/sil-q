@@ -829,7 +829,6 @@ bool sdl_quit_transition_active(void)
         && p_ptr
         && character_icky == 0
         && !screen_saved_fullscreen_active()
-        && !death_spectator_active()
         /* The postmortem tomb menu runs after the player has died, while the
          * dungeon is still active long enough to show scores, messages, and
          * the character sheet.  It is an interactive menu, not a quit
