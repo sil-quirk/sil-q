@@ -617,6 +617,7 @@ typedef struct sdl_character_sheet_screen_state {
     u32b narrative_lamp_current;
     u32b narrative_lamp_maximum;
     int narrative_lamp_page;
+    bool narrative_lamp_side;     /* place lamp beside text when width permits */
     bool narrative_close_enabled;  /* show an on-screen Close button (mouse/touch) */
     touch_swipe_state birth_swipe;
     character_sheet_touch_press_state touch_press;
@@ -1962,6 +1963,7 @@ void sdl_character_sheet_screen_break_book_page(void);
 void sdl_character_sheet_screen_highlight_book_paragraph(void);
 void sdl_character_sheet_screen_commit_book(void);
 void sdl_character_sheet_screen_set_book_target_page_count(int page_count);
+int sdl_character_sheet_screen_book_contents_page(int contents_index);
 void sdl_character_sheet_screen_add_select_row(int choice, cptr label, int attr, cptr desc);
 void sdl_character_sheet_screen_set_last_select_row_reset(int reset_choice);
 void sdl_character_sheet_screen_set_last_select_row_confirmable(bool confirmable);

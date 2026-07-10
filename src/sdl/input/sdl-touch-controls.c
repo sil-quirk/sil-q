@@ -4461,7 +4461,8 @@ static void sdl_touch_top_panel_description_for_binding(int binding,
         SDL_strlcpy(buf, "Known Lore: open the lore browser.", buflen);
         return;
     case TOUCH_BIND_MAIN_MENU_HINTS_QUESTS:
-        SDL_strlcpy(buf, "Hints & Quests: open saved hints and quest notes.",
+        SDL_strlcpy(buf,
+            "Hints & Quests: open saved hints, quest notes, and thrall requests.",
             buflen);
         return;
     case TOUCH_BIND_TOGGLE_TILES:

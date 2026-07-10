@@ -7242,6 +7242,30 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
     if (page_start)
         page_start[0] = 0;
 
+    /* A book with a contents list uses its author-placed breaks as its actual
+     * sections.  Its body font is fitted to those sections separately below,
+     * so never insert automatic overflow pages between two contents entries. */
+    if (g_sdl_character_sheet_screen.narrative_contents_count > 0)
+    {
+        page = 0;
+        for (i = 1; i < para_count; i++)
+        {
+            if (!g_sdl_character_sheet_screen.narrative_para_break[i]
+                || page + 1 >= SDL_BOOK_MAX_PAGES)
+                continue;
+            page++;
+            if (page_start)
+                page_start[page] = i;
+        }
+        if (page_start)
+        {
+            page_start[page + 1] = para_count;
+            for (i = page + 2; i <= SDL_BOOK_MAX_PAGES; i++)
+                page_start[i] = para_count;
+        }
+        return page + 1;
+    }
+
     /* A requested page budget is used by quest books.  Find the partition with
      * the smallest fullest page, subject to every page fitting the actual page
      * region.  This keeps the body font global while allowing the text to use
@@ -7367,6 +7391,96 @@ int sdl_char_sheet_narrative_pack(int body_px, float content_w,
             page_start[i] = para_count;
 
     return page + 1;
+}
+
+/* Work out whether the lamp can sit beside the text at this size.  Keep a
+ * useful reading measure and a comfortably proportioned lamp; otherwise the
+ * bottom layout is clearer. */
+static bool sdl_char_sheet_narrative_side_lamp_geometry(int body_px,
+    float book_w, float region_h, float lh, float* text_w, float* lamp_x,
+    float* lamp_w, float* lamp_h)
+{
+    float h = MIN(region_h * 0.78f, lh * 11.0f);
+    float w = MIN(book_w * 0.30f, h * 0.58f);
+    float gap = lh * 0.9f;
+    float tw = book_w - w - gap;
+
+    if (book_w < (float)body_px * 32.0f
+        || region_h < lh * 8.0f
+        || tw < (float)body_px * 22.0f
+        || tw < book_w * 0.58f)
+        return false;
+
+    if (text_w) *text_w = tw;
+    if (lamp_x) *lamp_x = tw + gap;
+    if (lamp_w) *lamp_w = w;
+    if (lamp_h) *lamp_h = h;
+    return true;
+}
+
+/* Check whether every author-defined contents section fits on one physical
+ * page at this body size and lamp placement. */
+static bool sdl_char_sheet_narrative_sections_fit(int body_px,
+    float content_w, float top_y, float region_bottom, bool side_lamp)
+{
+    TTF_Font* font = sdl_story_font_for_height_slot(body_px,
+        SDL_STORY_FONT_SLOT_NARRATIVE);
+    float book_w = sdl_char_sheet_book_width(body_px, content_w);
+    float lh = sdl_char_sheet_line_h(font, body_px, 1.28f);
+    float para_gap = lh * 0.6f;
+    float region_h = (region_bottom - top_y)
+        - 2.0f * (lh * SDL_BOOK_MARGIN_V);
+    float side_text_w = book_w;
+    float used;
+    bool side_available = false;
+    int page = 0;
+    int paras_on_page = 0;
+
+    if (region_h < lh)
+        region_h = lh;
+    if (side_lamp && g_sdl_character_sheet_screen.narrative_lamp_enabled)
+        side_available = sdl_char_sheet_narrative_side_lamp_geometry(body_px,
+            book_w, region_h, lh, &side_text_w, NULL, NULL, NULL);
+    if (side_lamp && !side_available)
+        return false;
+
+    used = (g_sdl_character_sheet_screen.narrative_lamp_enabled
+            && g_sdl_character_sheet_screen.narrative_lamp_page == 0
+            && !side_lamp)
+        ? lh * 9.0f : 0.0f;
+
+    for (int i = 0;
+         i < g_sdl_character_sheet_screen.narrative_para_count; i++)
+    {
+        int lines;
+        float need;
+
+        if (i > 0 && g_sdl_character_sheet_screen.narrative_para_break[i])
+        {
+            if (used > region_h)
+                return false;
+            page++;
+            used = (g_sdl_character_sheet_screen.narrative_lamp_enabled
+                    && g_sdl_character_sheet_screen.narrative_lamp_page
+                        == page && !side_lamp)
+                ? lh * 9.0f : 0.0f;
+            paras_on_page = 0;
+        }
+
+        lines = sdl_char_sheet_wrap_text(font,
+            g_sdl_character_sheet_screen.narrative_paras[i],
+            (side_lamp
+                && page == g_sdl_character_sheet_screen.narrative_lamp_page)
+                ? side_text_w : book_w,
+            NULL, 0);
+        need = (float)MAX(lines, 1) * lh;
+        if (paras_on_page > 0 || used > 0.0f)
+            need += para_gap;
+        used += need;
+        paras_on_page++;
+    }
+
+    return used <= region_h;
 }
 
 static int sdl_char_sheet_narrative_target_page_count(void)
@@ -7508,6 +7622,33 @@ int sdl_char_sheet_narrative_choose_px(float canvas_h, float content_w,
 
     if (max_px < min_px)
         max_px = min_px;
+
+    /* Contents-based books promise that each listed section is one page.
+     * Search below the usual prose floor when necessary so those authored
+     * boundaries remain stable on short windows. */
+    if (g_sdl_character_sheet_screen.narrative_contents_count > 0)
+    {
+        int contents_min_px = sdl_char_sheet_clampi(
+            (int)(canvas_h * 0.018f), 11, 18);
+
+        for (px = max_px; px >= contents_min_px; px--)
+        {
+            if (sdl_char_sheet_narrative_sections_fit(px, content_w, top_y,
+                    region_bottom, true))
+            {
+                g_sdl_character_sheet_screen.narrative_lamp_side = true;
+                return px;
+            }
+            if (sdl_char_sheet_narrative_sections_fit(px, content_w, top_y,
+                    region_bottom, false))
+            {
+                g_sdl_character_sheet_screen.narrative_lamp_side = false;
+                return px;
+            }
+        }
+        g_sdl_character_sheet_screen.narrative_lamp_side = false;
+        return contents_min_px;
+    }
 
     /* Quest dialogue can request a fixed page budget; pick the largest body
      * size that still fits in it, then add soft paragraph breaks if needed. */
@@ -8322,6 +8463,55 @@ void sdl_char_sheet_paginate_narrative(float canvas_h, float content_w,
     g_sdl_character_sheet_screen.narrative_paginated_for_w = iw;
 }
 
+/* Resolve a logical contents section to the physical page where its forced
+ * paragraph break landed.  A section can occupy more than one physical page
+ * when its contents are long, so the logical chapter number is not necessarily
+ * the page number. */
+static int sdl_char_sheet_narrative_section_page(int section)
+{
+    int para = 0;
+    int breaks = 0;
+    int page;
+
+    if (section <= 0)
+        return 0;
+
+    for (int i = 1;
+         i < g_sdl_character_sheet_screen.narrative_para_count; i++) {
+        if (!g_sdl_character_sheet_screen.narrative_para_break[i])
+            continue;
+        breaks++;
+        if (breaks == section) {
+            para = i;
+            break;
+        }
+    }
+
+    if (breaks < section)
+        return MIN(section,
+            MAX(0, g_sdl_character_sheet_screen.narrative_page_count - 1));
+
+    for (page = 0;
+         page < g_sdl_character_sheet_screen.narrative_page_count; page++) {
+        if (g_sdl_character_sheet_screen.narrative_page_start[page] >= para)
+            return page;
+    }
+
+    return MAX(0, g_sdl_character_sheet_screen.narrative_page_count - 1);
+}
+
+int sdl_character_sheet_screen_book_contents_page(int contents_index)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE
+        || contents_index < 0
+        || contents_index >= g_sdl_character_sheet_screen
+            .narrative_contents_count)
+        return -1;
+
+    return sdl_char_sheet_narrative_section_page(
+        g_sdl_character_sheet_screen.narrative_contents_page[contents_index]);
+}
+
 /*
  * Draw one page of the narrative book: the paragraphs assigned to this page,
  * as wrapped body text on the parchment.  Text is laid out from the TOP of the
@@ -8621,6 +8811,16 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
     if (narrative)
     {
         int contents_count = g_sdl_character_sheet_screen.narrative_contents_count;
+        float narrative_text_w = book_w;
+        float side_lamp_x = 0.0f;
+        float side_lamp_w = 0.0f;
+        float side_lamp_h = 0.0f;
+        bool side_lamp = g_sdl_character_sheet_screen.narrative_lamp_enabled
+            && page == g_sdl_character_sheet_screen.narrative_lamp_page
+            && g_sdl_character_sheet_screen.narrative_lamp_side
+            && sdl_char_sheet_narrative_side_lamp_geometry(body_px, book_w,
+                region_bottom - top_y, body_lh, &narrative_text_w,
+                &side_lamp_x, &side_lamp_w, &side_lamp_h);
 
         if (contents_count > 0) {
             float frame_left = MAX(content_x,
@@ -8668,8 +8868,17 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
             for (int i = 0; i < contents_count; i++) {
                 int choice = g_sdl_character_sheet_screen
                     .narrative_contents_choice[i];
-                bool current = g_sdl_character_sheet_screen
-                    .narrative_contents_page[i] == page;
+                int contents_page =
+                    sdl_char_sheet_narrative_section_page(
+                        g_sdl_character_sheet_screen
+                            .narrative_contents_page[i]);
+                int next_contents_page = (i + 1 < contents_count)
+                    ? sdl_char_sheet_narrative_section_page(
+                        g_sdl_character_sheet_screen
+                            .narrative_contents_page[i + 1])
+                    : g_sdl_character_sheet_screen.narrative_page_count;
+                bool current = contents_page <= page
+                    && page < next_contents_page;
                 bool focused = sdl_char_sheet_choice_focused(choice);
                 byte attr = current ? TERM_YELLOW : TERM_L_BLUE;
                 int text_w = sdl_char_sheet_text_width(toc_font,
@@ -8688,21 +8897,33 @@ void sdl_char_sheet_render_book_page(int page, float canvas_h,
                 toc_y += toc_lh * 1.18f;
             }
         }
-        sdl_char_sheet_render_narrative_page(page, body_font, book_x, book_w,
-            top_y, region_bottom, body_lh, register_hits);
+        sdl_char_sheet_render_narrative_page(page, body_font, book_x,
+            narrative_text_w, top_y, region_bottom, body_lh, register_hits);
         if (g_sdl_character_sheet_screen.narrative_lamp_enabled
             && page == g_sdl_character_sheet_screen.narrative_lamp_page)
         {
-            float lamp_h = MIN(body_lh * 8.5f,
-                (region_bottom - top_y) * 0.48f);
-            float lamp_w = MIN(book_w * 0.56f, lamp_h * 0.58f);
+            if (side_lamp)
+            {
+                sdl_char_sheet_draw_story_lamp(book_x + side_lamp_x,
+                    top_y + ((region_bottom - top_y) - side_lamp_h) * 0.5f,
+                    side_lamp_w, side_lamp_h,
+                    g_sdl_character_sheet_screen.narrative_lamp_current,
+                    g_sdl_character_sheet_screen.narrative_lamp_maximum,
+                    body_font, body_lh);
+            }
+            else
+            {
+                float lamp_h = MIN(body_lh * 8.5f,
+                    (region_bottom - top_y) * 0.48f);
+                float lamp_w = MIN(book_w * 0.56f, lamp_h * 0.58f);
 
-            sdl_char_sheet_draw_story_lamp(
-                book_x + (book_w - lamp_w) * 0.5f,
-                region_bottom - lamp_h, lamp_w, lamp_h,
-                g_sdl_character_sheet_screen.narrative_lamp_current,
-                g_sdl_character_sheet_screen.narrative_lamp_maximum,
-                body_font, body_lh);
+                sdl_char_sheet_draw_story_lamp(
+                    book_x + (book_w - lamp_w) * 0.5f,
+                    region_bottom - lamp_h, lamp_w, lamp_h,
+                    g_sdl_character_sheet_screen.narrative_lamp_current,
+                    g_sdl_character_sheet_screen.narrative_lamp_maximum,
+                    body_font, body_lh);
+            }
         }
         return;
     }
@@ -10625,6 +10846,7 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.narrative_lamp_current = 0;
     g_sdl_character_sheet_screen.narrative_lamp_maximum = 0;
     g_sdl_character_sheet_screen.narrative_lamp_page = 0;
+    g_sdl_character_sheet_screen.narrative_lamp_side = false;
     g_sdl_character_sheet_screen.narrative_close_enabled = false;
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
     g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;

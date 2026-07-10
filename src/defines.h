@@ -349,6 +349,11 @@
 #define THRALL_QUEST_WOODEN_TORCH 13
 #define THRALL_QUEST_MAX 14
 
+/* Per-monster thrall quest progress (monster_type.thrall_quest_completed). */
+#define THRALL_QUEST_STATE_ACTIVE 0
+#define THRALL_QUEST_STATE_REWARDED 1
+#define THRALL_QUEST_STATE_REWARD_PENDING 2
+
 /*
  * Artefact "seen" flags (a_info[].seen).
  *

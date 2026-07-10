@@ -1662,6 +1662,7 @@ extern void sdl_character_sheet_screen_set_book_lamp(u32b current,
 extern void sdl_character_sheet_screen_set_book_close_button(bool enabled);
 extern void sdl_character_sheet_screen_set_book_target_page_count(
     int page_count);
+extern int sdl_character_sheet_screen_book_contents_page(int contents_index);
 extern void sdl_character_sheet_screen_break_book_page(void);
 extern void sdl_character_sheet_screen_highlight_book_paragraph(void);
 extern void sdl_character_sheet_screen_commit_book(void);
@@ -1984,9 +1985,16 @@ extern void create_chosen_artefact(byte name1, int y, int x, bool identify);
 extern int drop_loot(monster_type* m_ptr);
 extern void apply_quest_rewards(int quest_idx);
 extern bool check_quest_eligibility(int quest_idx, int depth);
+typedef enum hint_quest_page
+{
+    HINT_QUEST_PAGE_EXIT = 0,
+    HINT_QUEST_PAGE_HINTS,
+    HINT_QUEST_PAGE_QUESTS,
+    HINT_QUEST_PAGE_THRALLS
+} hint_quest_page;
 extern void do_cmd_quest_status(void);
 extern bool do_cmd_quest_status_tabs(void);
-extern bool do_cmd_quest_status_tabs_in_place(void);
+extern hint_quest_page do_cmd_quest_status_tabs_in_place(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
 extern void free_quest_texts(cptr* texts, int count);

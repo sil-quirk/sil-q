@@ -262,8 +262,9 @@ static int quest_wrapped_rows(int col, cptr text, int max_width)
 enum {
     HINT_QUEST_CLICK_HINTS_TAB = -20101,
     HINT_QUEST_CLICK_QUESTS_TAB = -20102,
-    HINT_QUEST_CLICK_RETURN = -20103,
-    HINT_QUEST_CLICK_CONTINUE = -20104
+    HINT_QUEST_CLICK_THRALLS_TAB = -20103,
+    HINT_QUEST_CLICK_RETURN = -20104,
+    HINT_QUEST_CLICK_CONTINUE = -20105
 };
 
 static bool quest_status_tabs_active = false;
@@ -286,12 +287,21 @@ static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
     return col + (int)strlen(tab) + 1;
 }
 
-static void hint_quest_draw_tabs(bool quest_active, int term_wid)
+static int hint_quest_page_click(hint_quest_page page)
+{
+    switch (page)
+    {
+    case HINT_QUEST_PAGE_QUESTS: return HINT_QUEST_CLICK_QUESTS_TAB;
+    case HINT_QUEST_PAGE_THRALLS: return HINT_QUEST_CLICK_THRALLS_TAB;
+    default: return HINT_QUEST_CLICK_HINTS_TAB;
+    }
+}
+
+static void hint_quest_draw_tabs(hint_quest_page active_page, int term_wid)
 {
     int col = 0;
     int hover_tab = quest_status_tabs_focus
-        ? (quest_active ? HINT_QUEST_CLICK_QUESTS_TAB
-                        : HINT_QUEST_CLICK_HINTS_TAB)
+        ? hint_quest_page_click(active_page)
         : quest_status_hover_tab;
 
     if (term_wid < 1)
@@ -301,12 +311,18 @@ static void hint_quest_draw_tabs(bool quest_active, int term_wid)
         "Hints & Quests");
     Term_erase(0, 1, 255);
 
-    col = hint_quest_draw_tab(1, col, "Hints", !quest_active,
+    col = hint_quest_draw_tab(1, col, "Hints",
+        active_page == HINT_QUEST_PAGE_HINTS,
         hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
         HINT_QUEST_CLICK_HINTS_TAB);
-    (void)hint_quest_draw_tab(1, col, "Quests", quest_active,
+    col = hint_quest_draw_tab(1, col, "Quests",
+        active_page == HINT_QUEST_PAGE_QUESTS,
         hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
         HINT_QUEST_CLICK_QUESTS_TAB);
+    (void)hint_quest_draw_tab(1, col, "Thralls",
+        active_page == HINT_QUEST_PAGE_THRALLS,
+        hover_tab == HINT_QUEST_CLICK_THRALLS_TAB,
+        HINT_QUEST_CLICK_THRALLS_TAB);
 }
 
 static bool hint_quest_tab_key(char ch)
@@ -315,11 +331,11 @@ static bool hint_quest_tab_key(char ch)
 }
 
 static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
-    bool can_focus_tabs, bool* switch_tabs)
+    bool can_focus_tabs, hint_quest_page* next_page)
 {
     int d = target_dir(ch);
 
-    if (!tabs_focus || !switch_tabs)
+    if (!tabs_focus || !next_page)
         return false;
 
     if (!*tabs_focus)
@@ -337,7 +353,8 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
     {
         if (ddx[d])
         {
-            *switch_tabs = true;
+            *next_page = (ddx[d] < 0)
+                ? HINT_QUEST_PAGE_HINTS : HINT_QUEST_PAGE_THRALLS;
             return true;
         }
         if (ddy[d] > 0)
@@ -354,16 +371,16 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
 
 /*
  * Draw the desktop tabbed footer prompt and register its clickable command
- * tokens.  The "Tab" word switches to the Hints tab and "Esc" returns; both
+ * tokens.  The "Tab" word switches to the next page and "Esc" returns; both
  * light up (TERM_L_BLUE) while hovered, courtesy of ui_menu_click_add_text_token.
  */
 static void quest_status_draw_tab_footer(int col, int row)
 {
-    cptr tab_prompt = "Tab or Left/Right Hints  Esc/any key return.";
+    cptr tab_prompt = "Tab or Left/Right switch page  Esc/any key return.";
 
     Term_erase(0, row, 255);
     Term_putstr(col, row, -1, TERM_L_WHITE, tab_prompt);
-    ui_menu_click_add_text_token(HINT_QUEST_CLICK_HINTS_TAB, col, row,
+    ui_menu_click_add_text_token(HINT_QUEST_CLICK_THRALLS_TAB, col, row,
         tab_prompt, "Tab");
     ui_menu_click_add_text_token(HINT_QUEST_CLICK_RETURN, col, row,
         tab_prompt, "Esc");
@@ -372,7 +389,7 @@ static void quest_status_draw_tab_footer(int col, int row)
 /* Redraw the tabs and footer so the currently-hovered command highlights. */
 static void quest_status_redraw_tab_chrome(int col, int row, int wid)
 {
-    hint_quest_draw_tabs(true, wid);
+    hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
     quest_status_draw_tab_footer(col, row);
 }
 
@@ -386,7 +403,7 @@ static void quest_status_draw_header(int col)
 
     if (quest_status_tabs_active)
     {
-        hint_quest_draw_tabs(true, wid);
+        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
         Term_putstr(col, 2, -1, TERM_YELLOW, "=== Quest Status ===");
         return;
     }
@@ -456,7 +473,8 @@ static void quest_status_wait_for_next_page(int col, int hgt, int *row)
                 && click_action == UI_MENU_CLICK_HOVER)
             {
                 if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB
-                    || clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB)
+                    || clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB
+                    || clicked_choice == HINT_QUEST_CLICK_THRALLS_TAB)
                 {
                     int wid = 80;
                     int hgt2 = 24;
@@ -464,7 +482,7 @@ static void quest_status_wait_for_next_page(int col, int hgt, int *row)
                     quest_status_hover_tab = clicked_choice;
                     Term_get_size(&wid, &hgt2);
                     (void)hgt2;
-                    hint_quest_draw_tabs(true, wid);
+                    hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
                     Term_fresh();
                 }
                 continue;
@@ -741,14 +759,15 @@ void free_quest_texts(cptr* texts, int count)
  * Show quest status for current metarun - only active and completed quests
  * Now uses quest.txt data instead of hardcoded values
  */
-static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
+static hint_quest_page do_cmd_quest_status_internal(bool tabbed,
+    bool manage_screen)
 {
     char buf[128];
     int row = 1;
     int col = 2;
     bool any_quests = false;
     int wid, hgt;
-    bool switch_to_hints = false;
+    hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
 
     log_trace("QUEST STATUS: do_cmd_quest_status() called");
 
@@ -756,7 +775,7 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
     if (!p_ptr) {
         log_trace("QUEST STATUS: No player data available");
         msg_print("No character data available.");
-        return false;
+        return HINT_QUEST_PAGE_EXIT;
     }
 
     log_trace("QUEST STATUS: Player exists, quest states - Tulkas: %d, Aulë: %d, Mandos: %d",
@@ -1250,9 +1269,8 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
     quest_status_ensure_rows(col, hgt, &row, 1);
     if (quest_status_touch_active)
     {
-        /* Touch-only: tap buttons instead of keyboard keys.  The Hints tab is
-         * already a tappable button at the top of the screen, so the footer
-         * only needs the Back command. */
+        /* Touch-only: the page tabs are already tappable, so the footer only
+         * needs the Back command. */
         (void)ui_menu_click_put_button(HINT_QUEST_CLICK_RETURN, row, col,
             TERM_L_WHITE, "Back");
     }
@@ -1305,24 +1323,42 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
                     if (desktop_tabs)
                         quest_status_redraw_tab_chrome(col, row, wid);
                     else
-                        hint_quest_draw_tabs(true, wid);
+                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
                     Term_fresh();
                     continue;
                 }
-                switch_to_hints = true;
+                next_page = HINT_QUEST_PAGE_HINTS;
                 break;
             }
-            if (clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB
-                && click_action == UI_MENU_CLICK_HOVER)
+            if (clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB)
             {
-                quest_status_hover_tab = clicked_choice;
-                quest_status_tabs_focus = false;
-                if (desktop_tabs)
-                    quest_status_redraw_tab_chrome(col, row, wid);
-                else
-                    hint_quest_draw_tabs(true, wid);
-                Term_fresh();
+                if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    quest_status_hover_tab = clicked_choice;
+                    quest_status_tabs_focus = false;
+                    if (desktop_tabs)
+                        quest_status_redraw_tab_chrome(col, row, wid);
+                    else
+                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
+                    Term_fresh();
+                }
                 continue;
+            }
+            if (clicked_choice == HINT_QUEST_CLICK_THRALLS_TAB)
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    quest_status_hover_tab = clicked_choice;
+                    quest_status_tabs_focus = false;
+                    if (desktop_tabs)
+                        quest_status_redraw_tab_chrome(col, row, wid);
+                    else
+                        hint_quest_draw_tabs(HINT_QUEST_PAGE_QUESTS, wid);
+                    Term_fresh();
+                    continue;
+                }
+                next_page = HINT_QUEST_PAGE_THRALLS;
+                break;
             }
             if (click_action == UI_MENU_CLICK_HOVER)
             {
@@ -1342,13 +1378,13 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
             continue;
         if (tabbed && hint_quest_tab_key(ch))
         {
-            switch_to_hints = true;
+            next_page = HINT_QUEST_PAGE_THRALLS;
             break;
         }
         if (tabbed && hint_quest_handle_tab_navigation(ch,
-                &quest_status_tabs_focus, true, &switch_to_hints))
+                &quest_status_tabs_focus, true, &next_page))
         {
-            if (switch_to_hints)
+            if (next_page != HINT_QUEST_PAGE_EXIT)
                 break;
             continue;
         }
@@ -1366,7 +1402,7 @@ static bool do_cmd_quest_status_internal(bool tabbed, bool manage_screen)
         screen_pop_supporting_panes_hidden();
         screen_load();
     }
-    return switch_to_hints;
+    return next_page;
 }
 
 void do_cmd_quest_status(void)
@@ -1376,10 +1412,11 @@ void do_cmd_quest_status(void)
 
 bool do_cmd_quest_status_tabs(void)
 {
-    return do_cmd_quest_status_internal(true, true);
+    return do_cmd_quest_status_internal(true, true)
+        == HINT_QUEST_PAGE_HINTS;
 }
 
-bool do_cmd_quest_status_tabs_in_place(void)
+hint_quest_page do_cmd_quest_status_tabs_in_place(void)
 {
     return do_cmd_quest_status_internal(true, false);
 }

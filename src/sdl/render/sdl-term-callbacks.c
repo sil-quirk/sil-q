@@ -1937,6 +1937,67 @@ void sdl_minimap_draw_hint_sources(const SDL_FRect* map_dst, int min_y,
     }
 }
 
+/* Draw an explicit marker for focused locations which are not saved hints.
+ * Hint sources already draw their own stronger marker. */
+static void sdl_minimap_draw_focused_location(const SDL_FRect* map_dst,
+    int min_y, int min_x, int max_y, int max_x)
+{
+    float grid_w;
+    float grid_h;
+    float center_x;
+    float center_y;
+    SDL_FRect marker;
+    const float min_marker = 12.0f;
+
+    if (!g_minimap.active || !g_minimap.focus_active || !map_dst)
+        return;
+    if (g_minimap.focus_y < min_y || g_minimap.focus_y > max_y
+        || g_minimap.focus_x < min_x || g_minimap.focus_x > max_x)
+    {
+        return;
+    }
+    if (sdl_minimap_has_hint_source_at(g_minimap.focus_y,
+            g_minimap.focus_x))
+    {
+        return;
+    }
+
+    grid_w = map_dst->w / (float)(max_x - min_x + 1);
+    grid_h = map_dst->h / (float)(max_y - min_y + 1);
+    marker = (SDL_FRect){
+        map_dst->x + (float)(g_minimap.focus_x - min_x) * grid_w,
+        map_dst->y + (float)(g_minimap.focus_y - min_y) * grid_h,
+        grid_w,
+        grid_h
+    };
+    center_x = marker.x + marker.w * 0.5f;
+    center_y = marker.y + marker.h * 0.5f;
+    if (marker.w < min_marker)
+    {
+        marker.w = min_marker;
+        marker.x = center_x - marker.w * 0.5f;
+    }
+    if (marker.h < min_marker)
+    {
+        marker.h = min_marker;
+        marker.y = center_y - marker.h * 0.5f;
+    }
+
+    SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 220, 70, 72);
+    SDL_RenderFillRect(g_state.renderer, &marker);
+    SDL_SetRenderDrawColor(g_state.renderer, 255, 245, 150, 255);
+    SDL_RenderRect(g_state.renderer, &marker);
+    if (marker.w >= 8.0f && marker.h >= 8.0f)
+    {
+        marker.x += 1.0f;
+        marker.y += 1.0f;
+        marker.w -= 2.0f;
+        marker.h -= 2.0f;
+        SDL_RenderRect(g_state.renderer, &marker);
+    }
+}
+
 void sdl_minimap_draw_focus_tip(sdl_view* d, int canvas_w, int canvas_h,
     const SDL_FRect* map_dst, int min_y, int min_x, int max_y, int max_x)
 {
@@ -3121,6 +3182,7 @@ bool sdl_display_pixel_map(int* cy, int* cx)
     SDL_RenderRect(g_state.renderer, &map_dst);
 
     sdl_minimap_draw_hint_sources(&map_dst, min_y, min_x, max_y, max_x);
+    sdl_minimap_draw_focused_location(&map_dst, min_y, min_x, max_y, max_x);
 
     if (p_ptr->py >= min_y && p_ptr->py <= max_y
         && p_ptr->px >= min_x && p_ptr->px <= max_x)

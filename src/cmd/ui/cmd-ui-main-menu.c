@@ -640,9 +640,13 @@ static void main_menu_about(void)
         sdl_music_stop_main();
 }
 
-static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
+    int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x, bool manage_screen);
+static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
+    int* out_look_y, int* out_look_x, bool* out_pending_map,
+    int* out_map_y, int* out_map_x);
 
 static void do_cmd_log_history_menu(void)
 {
@@ -1178,7 +1182,8 @@ static void log_history_entry_search_text(const log_history_entry* entry,
 
 enum {
     HINT_QUEST_CLICK_HINTS_TAB = -20101,
-    HINT_QUEST_CLICK_QUESTS_TAB = -20102
+    HINT_QUEST_CLICK_QUESTS_TAB = -20102,
+    HINT_QUEST_CLICK_THRALLS_TAB = -20103
 };
 
 static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
@@ -1193,7 +1198,8 @@ static int hint_quest_draw_tab(int row, int col, cptr label, bool active,
     return col + (int)strlen(tab) + 1;
 }
 
-static void hint_quest_draw_tabs(bool quest_active, int hover_tab, int term_wid)
+static void hint_quest_draw_tabs(hint_quest_page active_page, int hover_tab,
+    int term_wid)
 {
     int col = 0;
 
@@ -1204,12 +1210,18 @@ static void hint_quest_draw_tabs(bool quest_active, int hover_tab, int term_wid)
         "Hints & Quests");
     Term_erase(0, 1, 255);
 
-    col = hint_quest_draw_tab(1, col, "Hints", !quest_active,
+    col = hint_quest_draw_tab(1, col, "Hints",
+        active_page == HINT_QUEST_PAGE_HINTS,
         hover_tab == HINT_QUEST_CLICK_HINTS_TAB,
         HINT_QUEST_CLICK_HINTS_TAB);
-    (void)hint_quest_draw_tab(1, col, "Quests", quest_active,
+    col = hint_quest_draw_tab(1, col, "Quests",
+        active_page == HINT_QUEST_PAGE_QUESTS,
         hover_tab == HINT_QUEST_CLICK_QUESTS_TAB,
         HINT_QUEST_CLICK_QUESTS_TAB);
+    (void)hint_quest_draw_tab(1, col, "Thralls",
+        active_page == HINT_QUEST_PAGE_THRALLS,
+        hover_tab == HINT_QUEST_CLICK_THRALLS_TAB,
+        HINT_QUEST_CLICK_THRALLS_TAB);
 }
 
 static bool hint_quest_tab_key(char ch)
@@ -1217,12 +1229,28 @@ static bool hint_quest_tab_key(char ch)
     return (ch == '\t');
 }
 
+static hint_quest_page hint_quest_adjacent_page(hint_quest_page page,
+    int direction)
+{
+    if (direction < 0)
+    {
+        if (page == HINT_QUEST_PAGE_HINTS)
+            return HINT_QUEST_PAGE_THRALLS;
+        return (hint_quest_page)(page - 1);
+    }
+
+    if (page == HINT_QUEST_PAGE_THRALLS)
+        return HINT_QUEST_PAGE_HINTS;
+    return (hint_quest_page)(page + 1);
+}
+
 static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
-    bool can_focus_tabs, bool* switch_tabs)
+    bool can_focus_tabs, hint_quest_page current_page,
+    hint_quest_page* next_page)
 {
     int d = target_dir(ch);
 
-    if (!tabs_focus || !switch_tabs)
+    if (!tabs_focus || !next_page)
         return false;
 
     if (!*tabs_focus)
@@ -1240,7 +1268,7 @@ static bool hint_quest_handle_tab_navigation(char ch, bool* tabs_focus,
     {
         if (ddx[d])
         {
-            *switch_tabs = true;
+            *next_page = hint_quest_adjacent_page(current_page, ddx[d]);
             return true;
         }
         if (ddy[d] > 0)
@@ -1259,7 +1287,7 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x)
 {
-    bool quest_tab = false;
+    hint_quest_page page = HINT_QUEST_PAGE_HINTS;
     bool pending_look = false;
     int look_y = -1;
     int look_x = -1;
@@ -1271,24 +1299,25 @@ static void do_cmd_hint_quest_menu(bool* out_pending_look, int* out_look_y,
     screen_push_supporting_panes_hidden();
     sdl_push_terminal_menu_scale();
 
-    while (true)
+    while (page != HINT_QUEST_PAGE_EXIT)
     {
-        if (quest_tab)
+        if (page == HINT_QUEST_PAGE_QUESTS)
         {
-            if (!do_cmd_quest_status_tabs_in_place())
-                break;
-            quest_tab = false;
-            continue;
+            page = do_cmd_quest_status_tabs_in_place();
         }
-
-        if (!do_cmd_hint_messages(&pending_look, &look_y, &look_x,
-                &pending_map, &map_y, &map_x, false))
-            break;
+        else if (page == HINT_QUEST_PAGE_THRALLS)
+        {
+            page = do_cmd_thrall_quests(&pending_look, &look_y, &look_x,
+                &pending_map, &map_y, &map_x);
+        }
+        else
+        {
+            page = do_cmd_hint_messages(&pending_look, &look_y, &look_x,
+                &pending_map, &map_y, &map_x, false);
+        }
 
         if (pending_look || pending_map)
             break;
-
-        quest_tab = true;
     }
 
     sdl_pop_terminal_menu_scale();
@@ -1974,8 +2003,8 @@ static const char* hint_message_detail_prompt(bool has_source, int wid)
         "[Any key]"
     };
     static const char* const source_prompts[] = {
-        "[Press any key, 'l' to look, 'm' to show skeleton on map]",
-        "[Any key; 'l' look at skeleton; 'm' map]",
+        "[Press any key, 'l' to look, 'm' to show location on map]",
+        "[Any key; 'l' look at location; 'm' map]",
         "[Any key; l look; m map]"
     };
 
@@ -3262,7 +3291,8 @@ void show_hint_message_screen(int index)
     }
 }
 
-static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
+static hint_quest_page do_cmd_hint_messages(bool* out_pending_look,
+    int* out_look_y,
     int* out_look_x, bool* out_pending_map, int* out_map_y,
     int* out_map_x, bool manage_screen)
 {
@@ -3275,7 +3305,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     bool pending_map = false;
     int map_y = -1;
     int map_x = -1;
-    bool switch_to_quests = false;
+    hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
     int hover_tab = 0;
     bool show_all_tips = false;
     bool tabs_focus = false;
@@ -3366,7 +3396,7 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
             top = 0;
         }
 
-        hint_quest_draw_tabs(false,
+        hint_quest_draw_tabs(HINT_QUEST_PAGE_HINTS,
             tabs_focus ? HINT_QUEST_CLICK_HINTS_TAB : hover_tab, wid);
 
         if (show_all_tips)
@@ -3445,7 +3475,18 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
                         tabs_focus = false;
                         continue;
                     }
-                    switch_to_quests = true;
+                    next_page = HINT_QUEST_PAGE_QUESTS;
+                    break;
+                }
+                else if (clicked_choice == HINT_QUEST_CLICK_THRALLS_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        tabs_focus = false;
+                        continue;
+                    }
+                    next_page = HINT_QUEST_PAGE_THRALLS;
                     break;
                 }
                 else if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
@@ -3526,19 +3567,20 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
         if (!click_generated_command)
             ch = (char)steamdeck_menu_key(ch, '\t', '\t');
 
-        if (switch_to_quests)
+        if (next_page != HINT_QUEST_PAGE_EXIT)
             break;
 
         if (hint_quest_tab_key(ch))
         {
-            switch_to_quests = true;
+            next_page = HINT_QUEST_PAGE_QUESTS;
             break;
         }
 
         if (hint_quest_handle_tab_navigation(ch, &tabs_focus,
-                (n <= 0) || (sel == 0), &switch_to_quests))
+                (n <= 0) || (sel == 0), HINT_QUEST_PAGE_HINTS,
+                &next_page))
         {
-            if (switch_to_quests)
+            if (next_page != HINT_QUEST_PAGE_EXIT)
                 break;
             continue;
         }
@@ -3684,7 +3726,585 @@ static bool do_cmd_hint_messages(bool* out_pending_look, int* out_look_y,
     if (out_map_x)
         *out_map_x = map_x;
 
-    return switch_to_quests;
+    return next_page;
+}
+
+static int thrall_quest_collect(s16b entries[], int limit)
+{
+    int count = 0;
+
+    if (!entries || limit <= 0)
+        return 0;
+
+    for (int m_idx = 1; m_idx < mon_max && count < limit; ++m_idx)
+    {
+        monster_type* m_ptr = &mon_list[m_idx];
+
+        if (!m_ptr->r_idx || !is_alert_thrall(m_ptr))
+            continue;
+        if (!m_ptr->thrall_quest_requested
+            || m_ptr->thrall_quest_item == THRALL_QUEST_NONE)
+        {
+            continue;
+        }
+        if (m_ptr->thrall_quest_completed == THRALL_QUEST_STATE_REWARDED)
+            continue;
+
+        entries[count++] = (s16b)m_idx;
+    }
+
+    return count;
+}
+
+static cptr thrall_quest_giver_name(const monster_type* m_ptr)
+{
+    return (m_ptr && m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
+        ? "elven thrall" : "human thrall";
+}
+
+static void thrall_quest_format_goal(const monster_type* m_ptr, char* buf,
+    size_t buflen, bool include_inventory_status)
+{
+    cptr giver;
+    cptr item;
+
+    if (!buf || !buflen)
+        return;
+    if (!m_ptr)
+    {
+        SDL_strlcpy(buf, "The thrall quest is no longer available.", buflen);
+        return;
+    }
+
+    giver = thrall_quest_giver_name(m_ptr);
+    item = get_thrall_quest_item_name(m_ptr->thrall_quest_item);
+
+    if (m_ptr->thrall_quest_completed == THRALL_QUEST_STATE_REWARD_PENDING)
+    {
+        strnfmt(buf, buflen,
+            "Return to the %s and choose the aid he will grant you.", giver);
+    }
+    else
+    {
+        strnfmt(buf, buflen, "Bring %s to the %s.", item, giver);
+        if (include_inventory_status
+            && player_has_thrall_quest_item(m_ptr->thrall_quest_item) >= 0)
+        {
+            SDL_strlcat(buf, " You carry the requested item.", buflen);
+        }
+    }
+}
+
+static int thrall_quest_list_entry_height(const monster_type* m_ptr, int wid)
+{
+    char text[256];
+    char prefix[8];
+    int text_col;
+    hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
+
+    thrall_quest_format_goal(m_ptr, text, sizeof(text), false);
+    strnfmt(prefix, sizeof(prefix), "%2d) ", 1);
+    text_col = (int)strlen(prefix);
+    return hint_message_wrap_list_text(text, wid - text_col - 1, lines,
+        HINT_MESSAGE_LIST_LINES_MAX);
+}
+
+static hint_message_action thrall_quest_show_internal(int m_idx,
+    int* source_y, int* source_x)
+{
+    int wid = 80;
+    int hgt = 24;
+    int row = HINT_MESSAGE_DETAIL_DEFAULT_TOP_ROW;
+    int col = 8;
+    int line_count;
+    char ch;
+    char title[96];
+    char goal[320];
+    hint_message_display_line lines[HINT_MESSAGE_DISPLAY_LINES_MAX];
+    hint_message_action action = HINT_MESSAGE_ACTION_NONE;
+    bool steamdeck = steamdeck_controls_active();
+    monster_type* m_ptr;
+
+    if (m_idx <= 0 || m_idx >= mon_max)
+        return HINT_MESSAGE_ACTION_NONE;
+    m_ptr = &mon_list[m_idx];
+    if (!m_ptr->r_idx || !is_alert_thrall(m_ptr))
+        return HINT_MESSAGE_ACTION_NONE;
+
+    strnfmt(title, sizeof(title), "Thrall Quest: %s",
+        m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL
+            ? "Elven Thrall" : "Human Thrall");
+    thrall_quest_format_goal(m_ptr, goal, sizeof(goal), true);
+
+    sdl_story_font_enable();
+
+    while (true)
+    {
+        Term_clear();
+        Term_get_size(&wid, &hgt);
+        line_count = 0;
+        ui_scroll_area_clear();
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+
+        line_count = hint_message_append_wrapped_text(title, lines,
+            line_count, HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 0);
+        line_count = hint_message_append_wrapped_text(goal, lines,
+            line_count, HINT_MESSAGE_DISPLAY_LINES_MAX, wid - col - 1, 1);
+        line_count = hint_message_append_wrapped_text(
+            "Location: on this dungeon level. Use Look or Map to find the thrall.",
+            lines, line_count, HINT_MESSAGE_DISPLAY_LINES_MAX,
+            wid - col - 1, 2);
+        row = hint_message_detail_top_row(hgt, line_count);
+
+        for (int li = 0; li < line_count && row + li < hgt - 1; ++li)
+        {
+            byte attr = (lines[li].source_line == 0)
+                ? TERM_L_WHITE : TERM_WHITE;
+
+            hint_message_draw_colored_line(row + li, col, attr,
+                lines[li].text, NULL, false);
+            ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
+        }
+
+        if (sdl_touch_only_device_active())
+            hint_message_detail_touch_buttons(hgt - 1, true);
+        else
+        {
+            const char* prompt = hint_message_detail_prompt(true, wid);
+
+            prt(prompt, hgt - 1, 0);
+            hint_message_detail_register_prompt(prompt, hgt - 1, true);
+        }
+        Term_fresh();
+
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (click_action == UI_MENU_CLICK_HOVER)
+                    continue;
+                if (clicked_choice == HINT_MESSAGE_CLICK_LOOK)
+                    action = HINT_MESSAGE_ACTION_LOOK;
+                else if (clicked_choice == HINT_MESSAGE_CLICK_MAP)
+                    action = HINT_MESSAGE_ACTION_MAP;
+                break;
+            }
+            if (ch == UI_MENU_CLICK_WAKE_KEY)
+                continue;
+        }
+
+        ch = (char)steamdeck_menu_key(ch, 0, 0);
+        if (steamdeck && ch == steamdeck_back_key())
+            break;
+        if (ch == 'l' || ch == 'L'
+            || (steamdeck && ch == steamdeck_alt_action_key()))
+        {
+            action = HINT_MESSAGE_ACTION_LOOK;
+            break;
+        }
+        if (ch == 'm' || ch == 'M')
+        {
+            action = HINT_MESSAGE_ACTION_MAP;
+            break;
+        }
+        break;
+    }
+
+    if (action != HINT_MESSAGE_ACTION_NONE)
+    {
+        if (source_y)
+            *source_y = m_ptr->fy;
+        if (source_x)
+            *source_x = m_ptr->fx;
+    }
+
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+    sdl_story_font_disable();
+    return action;
+}
+
+static const char* thrall_quest_list_prompt(int count, int wid)
+{
+    static const char* const populated[] = {
+        "[Tab tabs, Dir move, Enter read, l look, m map, Esc]",
+        "[Tab tabs, Enter read, l look, m map, Esc]",
+        "[Tab, Enter, l, m, Esc]"
+    };
+    static const char* const empty[] = {
+        "[No active thrall quests. Tab tabs, Esc]",
+        "[No thrall quests. Tab, Esc]"
+    };
+
+    if (steamdeck_controls_active())
+    {
+        static char prompt_long[128];
+        static char prompt_short[80];
+        char confirm_label[16];
+        char look_label[16];
+        char map_label[16];
+        char back_label[16];
+
+        controller_prompt_label(steamdeck_confirm_key(), "A", confirm_label,
+            sizeof(confirm_label));
+        controller_prompt_label(steamdeck_alt_action_key(), "X", look_label,
+            sizeof(look_label));
+        controller_prompt_label('M', "Map", map_label, sizeof(map_label));
+        controller_prompt_label(steamdeck_back_key(), "B", back_label,
+            sizeof(back_label));
+
+        if (count > 0)
+        {
+            const char* prompts[] = { prompt_long, prompt_short };
+
+            strnfmt(prompt_long, sizeof(prompt_long),
+                "D-pad move  [%s] read  [%s] look  [%s] map  [%s] back",
+                confirm_label, look_label, map_label, back_label);
+            strnfmt(prompt_short, sizeof(prompt_short),
+                "[%s] read  [%s] look  [%s] map",
+                confirm_label, look_label, map_label);
+            return hint_message_pick_prompt(wid, prompts,
+                N_ELEMENTS(prompts));
+        }
+
+        strnfmt(prompt_long, sizeof(prompt_long),
+            "No active thrall quests.  [%s] back", back_label);
+        strnfmt(prompt_short, sizeof(prompt_short), "No quests.  [%s] back",
+            back_label);
+        {
+            const char* prompts[] = { prompt_long, prompt_short };
+
+            return hint_message_pick_prompt(wid, prompts,
+                N_ELEMENTS(prompts));
+        }
+    }
+
+    if (count > 0)
+        return hint_message_pick_prompt(wid, populated,
+            N_ELEMENTS(populated));
+    return hint_message_pick_prompt(wid, empty, N_ELEMENTS(empty));
+}
+
+static void thrall_quest_list_register_prompt(const char* prompt, int row,
+    bool has_entries)
+{
+    ui_menu_click_add_text_token(HINT_QUEST_CLICK_HINTS_TAB, 0, row,
+        prompt, "Tab");
+    if (has_entries)
+    {
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+            prompt, "Enter");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_CONTINUE, 0, row,
+            prompt, "read");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_LOOK, 0, row,
+            prompt, "look");
+        ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_MAP, 0, row,
+            prompt, "map");
+    }
+    ui_menu_click_add_text_token(HINT_MESSAGE_CLICK_BACK, 0, row,
+        prompt, "Esc");
+}
+
+static hint_quest_page do_cmd_thrall_quests(bool* out_pending_look,
+    int* out_look_y, int* out_look_x, bool* out_pending_map,
+    int* out_map_y, int* out_map_x)
+{
+    s16b entries[MAX_MONSTERS];
+    int count = thrall_quest_collect(entries, N_ELEMENTS(entries));
+    int sel = 0;
+    int top = 0;
+    int hover_tab = 0;
+    bool tabs_focus = false;
+    bool pending_look = false;
+    bool pending_map = false;
+    int look_y = -1;
+    int look_x = -1;
+    int map_y = -1;
+    int map_x = -1;
+    hint_quest_page next_page = HINT_QUEST_PAGE_EXIT;
+    bool steamdeck = steamdeck_controls_active();
+
+    while (true)
+    {
+        int wid = 80;
+        int hgt = 24;
+        int body_top = 3;
+        int rows;
+        int body_bottom;
+        int draw_row = 0;
+        char ch;
+
+        Term_get_size(&wid, &hgt);
+        Term_clear();
+        rows = MAX(1, hgt - 5);
+        body_bottom = MIN(hgt - 2, body_top + rows - 1);
+        if (body_bottom < body_top)
+            body_bottom = body_top;
+
+        ui_scroll_area_begin(body_top, body_bottom,
+            SDL_TOUCH_MENU_CATEGORY_OTHER);
+        ui_scroll_area_set_keys('8', '2', '6', '4');
+        ui_menu_click_begin();
+        ui_menu_click_set_hover_enabled(true);
+        ui_menu_click_set_touch_category(SDL_TOUCH_MENU_CATEGORY_OTHER);
+
+        if (count > 0)
+        {
+            sel = MAX(0, MIN(sel, count - 1));
+            top = MAX(0, MIN(top, sel));
+            while (top < sel)
+            {
+                int used = 0;
+
+                for (int idx = top; idx <= sel; ++idx)
+                    used += MIN(rows, thrall_quest_list_entry_height(
+                        &mon_list[entries[idx]], wid));
+                if (used <= rows)
+                    break;
+                top++;
+            }
+        }
+        else
+        {
+            sel = 0;
+            top = 0;
+        }
+
+        hint_quest_draw_tabs(HINT_QUEST_PAGE_THRALLS,
+            tabs_focus ? HINT_QUEST_CLICK_THRALLS_TAB : hover_tab, wid);
+        prt(format("Thrall Quests (%d)", count), 2, 0);
+
+        if (sdl_touch_only_device_active())
+        {
+            int button_col = 0;
+
+            if (count > 0)
+            {
+                button_col = ui_menu_click_put_button(
+                    HINT_MESSAGE_CLICK_LOOK, hgt - 1, button_col,
+                    TERM_L_WHITE, "Look");
+                button_col = ui_menu_click_put_button(
+                    HINT_MESSAGE_CLICK_MAP, hgt - 1, button_col,
+                    TERM_L_WHITE, "Map");
+            }
+            (void)ui_menu_click_put_button(HINT_MESSAGE_CLICK_BACK,
+                hgt - 1, button_col, TERM_L_WHITE, "Back");
+        }
+        else
+        {
+            const char* prompt = thrall_quest_list_prompt(count, wid);
+
+            prt(prompt, hgt - 1, 0);
+            thrall_quest_list_register_prompt(prompt, hgt - 1, count > 0);
+        }
+
+        if (count <= 0)
+        {
+            Term_putstr(0, body_top, -1, TERM_SLATE,
+                "No active thrall requests on this level.");
+        }
+
+        for (int idx = top; idx < count && draw_row < rows; ++idx)
+        {
+            char goal[256];
+            int used;
+            int entry_row = body_top + draw_row;
+
+            thrall_quest_format_goal(&mon_list[entries[idx]], goal,
+                sizeof(goal), false);
+            used = hint_message_draw_wrapped_list_entry(entry_row, idx,
+                idx == sel, wid, rows - draw_row, goal, NULL, false);
+            if (used <= 0)
+                break;
+            for (int click_row = 0; click_row < used; ++click_row)
+            {
+                int y = entry_row + click_row;
+
+                if (y > body_bottom)
+                    break;
+                ui_menu_click_add(HINT_MESSAGE_CLICK_ENTRY_BASE + idx,
+                    0, y, wid);
+            }
+            draw_row += used;
+        }
+
+        Term_fresh();
+        hide_cursor = true;
+        ch = inkey();
+        hide_cursor = false;
+
+        {
+            int clicked_choice = 0;
+            int click_action = UI_MENU_CLICK_PRIMARY;
+            bool generated_command = false;
+
+            if (ui_menu_click_take_action(&clicked_choice, &click_action))
+            {
+                if (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB
+                    || clicked_choice == HINT_QUEST_CLICK_QUESTS_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        tabs_focus = false;
+                        continue;
+                    }
+                    next_page = (clicked_choice == HINT_QUEST_CLICK_HINTS_TAB)
+                        ? HINT_QUEST_PAGE_HINTS : HINT_QUEST_PAGE_QUESTS;
+                    break;
+                }
+                if (clicked_choice == HINT_QUEST_CLICK_THRALLS_TAB)
+                {
+                    if (click_action == UI_MENU_CLICK_HOVER)
+                    {
+                        hover_tab = clicked_choice;
+                        tabs_focus = false;
+                    }
+                    continue;
+                }
+                if (clicked_choice >= HINT_MESSAGE_CLICK_ENTRY_BASE)
+                {
+                    int idx = clicked_choice - HINT_MESSAGE_CLICK_ENTRY_BASE;
+
+                    if (idx >= 0 && idx < count)
+                    {
+                        sel = idx;
+                        if (click_action == UI_MENU_CLICK_HOVER)
+                            continue;
+                        ch = '\r';
+                        generated_command = true;
+                    }
+                }
+                else if (click_action == UI_MENU_CLICK_HOVER)
+                {
+                    hover_tab = 0;
+                    tabs_focus = false;
+                    continue;
+                }
+                else if (clicked_choice == HINT_MESSAGE_CLICK_LOOK)
+                {
+                    ch = 'l';
+                    generated_command = true;
+                }
+                else if (clicked_choice == HINT_MESSAGE_CLICK_MAP)
+                {
+                    ch = 'm';
+                    generated_command = true;
+                }
+                else if (clicked_choice == HINT_MESSAGE_CLICK_BACK)
+                {
+                    ch = ESCAPE;
+                    generated_command = true;
+                }
+            }
+            else if (ch == UI_MENU_CLICK_WAKE_KEY)
+            {
+                continue;
+            }
+
+            if (!generated_command)
+                ch = (char)steamdeck_menu_key(ch, '\t', '\t');
+        }
+
+        if (hint_quest_tab_key(ch))
+        {
+            next_page = HINT_QUEST_PAGE_HINTS;
+            break;
+        }
+        if (hint_quest_handle_tab_navigation(ch, &tabs_focus,
+                count <= 0 || sel == 0, HINT_QUEST_PAGE_THRALLS,
+                &next_page))
+        {
+            if (next_page != HINT_QUEST_PAGE_EXIT)
+                break;
+            continue;
+        }
+        if (ch == ESCAPE || (steamdeck && ch == steamdeck_back_key()))
+            break;
+        if (count <= 0)
+        {
+            bell(NULL);
+            continue;
+        }
+        if (ch == '8')
+        {
+            sel = (sel > 0) ? sel - 1 : count - 1;
+            continue;
+        }
+        if (ch == '2')
+        {
+            sel = (sel + 1 < count) ? sel + 1 : 0;
+            continue;
+        }
+        if (ch == '\r' || ch == '\n' || ch == ' ' || ch == '6'
+            || (steamdeck && ch == steamdeck_confirm_key()))
+        {
+            int y = -1;
+            int x = -1;
+            hint_message_action action = thrall_quest_show_internal(
+                entries[sel], &y, &x);
+
+            if (action == HINT_MESSAGE_ACTION_LOOK)
+            {
+                pending_look = true;
+                look_y = y;
+                look_x = x;
+                break;
+            }
+            if (action == HINT_MESSAGE_ACTION_MAP)
+            {
+                pending_map = true;
+                map_y = y;
+                map_x = x;
+                break;
+            }
+            continue;
+        }
+        if (ch == 'l' || ch == 'L'
+            || (steamdeck && ch == steamdeck_alt_action_key()))
+        {
+            monster_type* m_ptr = &mon_list[entries[sel]];
+
+            pending_look = true;
+            look_y = m_ptr->fy;
+            look_x = m_ptr->fx;
+            break;
+        }
+        if (ch == 'm' || ch == 'M')
+        {
+            monster_type* m_ptr = &mon_list[entries[sel]];
+
+            pending_map = true;
+            map_y = m_ptr->fy;
+            map_x = m_ptr->fx;
+            break;
+        }
+        bell(NULL);
+    }
+
+    ui_menu_click_clear();
+    ui_scroll_area_clear();
+    if (out_pending_look)
+        *out_pending_look = pending_look;
+    if (out_look_y)
+        *out_look_y = look_y;
+    if (out_look_x)
+        *out_look_x = look_x;
+    if (out_pending_map)
+        *out_pending_map = pending_map;
+    if (out_map_y)
+        *out_map_y = map_y;
+    if (out_map_x)
+        *out_map_x = map_x;
+    return next_page;
 }
 
 /*
