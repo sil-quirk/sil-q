@@ -324,6 +324,100 @@ void sdl_object_tooltip_append_part(char* buf, size_t buflen,
     sdl_object_tooltip_append_text(buf, buflen, attrs, text, attr);
 }
 
+typedef struct sdl_tooltip_semantic_rule {
+    cptr phrase;
+    byte attr;
+} sdl_tooltip_semantic_rule;
+
+/* Text-only hover/long-press popups do not carry the per-byte attributes used
+ * by map tooltips.  Add restrained semantic accents at render time: controls
+ * are green, their UI targets blue, warnings red/orange, and trait meanings
+ * retain the same colours used by the character tutorials. */
+static const sdl_tooltip_semantic_rule sdl_tooltip_semantic_rules[] = {
+    { "second-quiver ranged attack mode", TERM_L_BLUE },
+    { "ranged attack mode", TERM_L_BLUE },
+    { "melee attack mode", TERM_L_BLUE },
+    { "supplies for lights", TERM_L_BLUE },
+    { "character details", TERM_L_BLUE },
+    { "compact panel", TERM_L_BLUE },
+    { "power rating", TERM_ORANGE },
+    { "song menu", TERM_L_BLUE },
+    { "right-click", TERM_L_GREEN },
+    { "left-click", TERM_L_GREEN },
+    { "long-press", TERM_L_GREEN },
+    { "inventory", TERM_L_BLUE },
+    { "abilities", TERM_L_BLUE },
+    { "smithing", TERM_L_BLUE },
+    { "equipment", TERM_L_BLUE },
+    { "mastery", TERM_L_BLUE },
+    { "affinity", TERM_L_GREEN },
+    { "resistance", TERM_L_GREEN },
+    { "vulnerable", TERM_L_RED },
+    { "vulnerability", TERM_L_RED },
+    { "penalty", TERM_L_RED },
+    { "cursed", TERM_UMBER },
+    { "curse", TERM_UMBER },
+    { "unique", TERM_VIOLET },
+    { "click", TERM_L_GREEN },
+    { "tap", TERM_L_GREEN },
+    { "hold", TERM_L_GREEN },
+    { "select", TERM_L_GREEN },
+};
+
+static bool sdl_tooltip_semantic_word_char(char ch)
+{
+    return isalnum((unsigned char)ch) || ch == '_' || ch == '-';
+}
+
+static void sdl_object_tooltip_semantic_attrs(cptr text, byte* attrs,
+    size_t attrs_len)
+{
+    size_t text_len;
+
+    if (!text || !attrs || attrs_len == 0)
+        return;
+
+    text_len = MIN(strlen(text), attrs_len);
+    for (size_t pos = 0; pos < text_len; )
+    {
+        size_t best_len = 0;
+        byte best_attr = TERM_WHITE;
+
+        for (int i = 0; i < (int)N_ELEMENTS(sdl_tooltip_semantic_rules); ++i)
+        {
+            const sdl_tooltip_semantic_rule* rule
+                = &sdl_tooltip_semantic_rules[i];
+            size_t len = strlen(rule->phrase);
+
+            if (len <= best_len || pos + len > text_len)
+                continue;
+            if (pos > 0 && sdl_tooltip_semantic_word_char(text[pos - 1]))
+                continue;
+            if (SDL_strncasecmp(text + pos, rule->phrase, len) != 0)
+                continue;
+            if (pos + len < text_len
+                && sdl_tooltip_semantic_word_char(text[pos + len]))
+            {
+                continue;
+            }
+
+            best_len = len;
+            best_attr = rule->attr;
+        }
+
+        if (best_len > 0)
+        {
+            for (size_t i = pos; i < pos + best_len; ++i)
+                attrs[i] = best_attr;
+            pos += best_len;
+        }
+        else
+        {
+            ++pos;
+        }
+    }
+}
+
 bool sdl_object_tooltip_feature_name(int y, int x, cptr* out_name)
 {
     int feat;
@@ -726,6 +820,19 @@ bool sdl_object_tooltip_pointer_hits_term_cell(float x, float y)
         {
             return false;
         }
+
+        /*
+         * Click-action tooltips are pinned to the top row of their panel
+         * block.  Treat every row in the same highlighted block as part of
+         * the anchor, otherwise mouse motion clears and recreates the popup
+         * whenever it crosses a row boundary within that block.
+         */
+        if (g_main_screen_panel_selected_action != SDL_PANEL_CLICK_NONE
+            && sdl_visible_character_panel_click_action_at_cell(col, row)
+                == g_main_screen_panel_selected_action)
+        {
+            return true;
+        }
     } else if (!sdl_main_view_point_to_cell(x, y, &col, &row)) {
         return false;
     }
@@ -1059,6 +1166,11 @@ void sdl_object_tooltip_render(void)
     }
 
     SDL_memset(attrs, TERM_WHITE, sizeof(attrs));
+    if (g_object_tooltip.term_cell || g_object_tooltip.screen_rect)
+    {
+        sdl_object_tooltip_semantic_attrs(g_object_tooltip.text, attrs,
+            sizeof(attrs));
+    }
     if (g_object_tooltip.screen_rect) {
         if (!g_object_tooltip.text[0]
             || g_object_tooltip.rect.w <= 0.0f

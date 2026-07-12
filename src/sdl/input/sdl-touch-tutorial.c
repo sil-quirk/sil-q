@@ -703,8 +703,8 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
     int font_px;
     float line_h;
     float y;
-    char advance_text[96];
-    char page_text[96];
+    char advance_text[160];
+    char page_text[192];
 
     if (!screen)
         return;
@@ -740,33 +740,33 @@ void sdl_touch_tutorial_draw_footer(const SDL_Rect* screen, bool mouse,
         sdl_touch_tutorial_prompt_label(steamdeck_next_page_key(), "R1",
             next_label, sizeof(next_label));
 
-        strnfmt(advance_text, sizeof(advance_text), "%s to %s",
-            confirm_label, single_page ? "close" : "continue");
+        strnfmt(advance_text, sizeof(advance_text),
+            "<y>%s</y> to <a>%s</a>", confirm_label,
+            single_page ? "close" : "continue");
         strnfmt(page_text, sizeof(page_text),
-            "%s/%s changes page   %s closes", prev_label, next_label,
-            back_label);
+            "<y>%s/%s</y> changes page   <y>%s</y> <a>closes</a>",
+            prev_label, next_label, back_label);
     }
     else
     {
         SDL_strlcpy(advance_text,
             mouse
-                ? (single_page ? "Click or Space to close"
-                               : "Click or Space for next")
-                : (single_page ? "Tap or Space to close"
-                               : "Tap or Space for next"),
+                ? (single_page ? "<a>Click</a> or <y>Space</y> to <a>close</a>"
+                               : "<a>Click</a> or <y>Space</y> for <a>next</a>")
+                : (single_page ? "<a>Tap</a> or <y>Space</y> to <a>close</a>"
+                               : "<a>Tap</a> or <y>Space</y> for <a>next</a>"),
             sizeof(advance_text));
-        SDL_strlcpy(page_text, "Left/Right changes page   Esc closes",
+        SDL_strlcpy(page_text,
+            "<y>Left/Right</y> changes page   <y>Esc</y> <a>closes</a>",
             sizeof(page_text));
     }
 
-    (void)sdl_touch_tutorial_draw_text_line(
-        advance_text,
+    (void)sdl_touch_tutorial_draw_rich_centered(advance_text,
         (float)screen->x + (float)screen->w * 0.5f, y,
-        (float)screen->w * 0.90f, font_px, text_color, true);
-    (void)sdl_touch_tutorial_draw_text_line(
-        page_text,
+        (float)screen->w * 0.90f, font_px, text_color);
+    (void)sdl_touch_tutorial_draw_rich_centered(page_text,
         (float)screen->x + (float)screen->w * 0.5f, y + line_h,
-        (float)screen->w * 0.90f, font_px, text_color, true);
+        (float)screen->w * 0.90f, font_px, text_color);
 }
 
 bool sdl_touch_tutorial_cell_rect(int col, int row, int cols, int rows,
@@ -966,8 +966,10 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
     float pad;
     float line_h;
     float title_h;
+    float text_w;
     float w;
     float h;
+    int body_lines;
     int font_px;
     int title_px;
 
@@ -986,17 +988,6 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         : sdl_touch_tutorial_text_px((float)screen->h * 0.030f, 16.0f, 24.0f);
     pad = sdl_touch_pane_clampf((float)screen->h * 0.012f, 5.0f, 9.0f);
 
-    for (;;) {
-        title_px = font_px + 2;
-        line_h = (float)font_px * 1.22f;
-        title_h = (float)title_px * 1.22f;
-        h = pad * 2.0f + title_h + 4.0f
-            + line_h * (float)line_count;
-        if (h <= available_h || font_px <= (mobile_section ? 20 : 14))
-            break;
-        font_px--;
-    }
-
     w = (float)screen->w * 0.88f;
     if (w > 760.0f)
         w = 760.0f;
@@ -1006,6 +997,22 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
         w = (float)screen->w - pad * 2.0f;
     if (w <= 40.0f)
         return;
+    text_w = w - pad * 2.0f;
+
+    for (;;) {
+        title_px = font_px + 2;
+        line_h = (float)font_px * 1.30f;
+        title_h = (float)title_px * 1.22f;
+        body_lines = 0;
+        for (int i = 0; i < line_count; ++i)
+            body_lines += MAX(1, sdl_touch_tutorial_rich_line_count(
+                lines[i], font_px, text_w));
+        h = pad * 2.0f + title_h + 4.0f
+            + line_h * (float)body_lines;
+        if (h <= available_h || font_px <= (mobile_section ? 20 : 14))
+            break;
+        font_px--;
+    }
 
     box = (SDL_FRect){
         .x = (float)screen->x + ((float)screen->w - w) * 0.5f,
@@ -1039,9 +1046,9 @@ void sdl_touch_tutorial_draw_compact_zone_legend(
             box.x + box.w * 0.5f, y, text_w, title_px, title_color, true);
         y += 4.0f;
         for (int i = 0; i < line_count; i++) {
-            (void)sdl_touch_tutorial_draw_text_line(lines[i], box.x + pad, y,
-                text_w, font_px, text_color, false);
-            y += line_h;
+            float used = sdl_touch_tutorial_draw_rich(lines[i], box.x + pad,
+                y, text_w, font_px, text_color);
+            y += MAX(line_h, used);
         }
     }
 }
@@ -1252,15 +1259,15 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
     if (show_main && sdl_main_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Menu");
         legend_lines[legend_n++] = mouse
-            ? "Menu: click for the main menu."
-            : "Menu: tap for the main menu.";
+            ? "<t>Menu:</t> <a>click</a> for the <t>main menu</t>."
+            : "<t>Menu:</t> <a>tap</a> for the <t>main menu</t>.";
     }
 
     if (show_main && sdl_depth_menu_pane_current_rect(&rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Depth");
         legend_lines[legend_n++] = mouse
-            ? "Depth: click for the map; use +/- for temporary zoom."
-            : "Depth: tap for the map; use +/- for temporary zoom.";
+            ? "<t>Depth:</t> <a>click</a> for the <t>map</t>; use <y>+/-</y> for <n>temporary zoom</n>."
+            : "<t>Depth:</t> <a>tap</a> for the <t>map</t>; use <y>+/-</y> for <n>temporary zoom</n>.";
     }
 
     panel_rows = term_h - ROW_MAP;
@@ -1273,8 +1280,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
     {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Character");
         legend_lines[legend_n++] = mouse
-            ? "Character: click sidebar rows for matching sheets."
-            : "Character: tap sidebar rows for matching sheets.";
+            ? "<t>Character:</t> <a>click</a> sidebar rows for matching sheets."
+            : "<t>Character:</t> <a>tap</a> sidebar rows for matching sheets.";
     }
 
     if (show_main && SCREEN_HGT > 0 && map_cols > 0
@@ -1284,8 +1291,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect,
             "Map / Player");
         legend_lines[legend_n++] = mouse
-            ? "Map/player: left-click to path or target; right-click for actions."
-            : "Map/player: tap to path or target; hold for actions.";
+            ? "<t>Map/player:</t> <a>left-click</a> to path or target; <a>right-click</a> for actions."
+            : "<t>Map/player:</t> <a>tap</a> to path or target; <a>hold</a> for actions.";
     }
 
     if (show_overlays && sdl_combat_overlay_pane_current_rect(&pane_rect)) {
@@ -1294,8 +1301,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Combat");
         if (section >= 0 && legend_n < (int)N_ELEMENTS(legend_lines)) {
             legend_lines[legend_n++] = mouse
-                ? "Combat: click an attack row to choose its mode."
-                : "Combat: tap an attack row to choose its mode.";
+                ? "<t>Combat:</t> <a>click</a> an attack row to choose its mode."
+                : "<t>Combat:</t> <a>tap</a> an attack row to choose its mode.";
         }
     }
     if (show_overlays) {
@@ -1306,8 +1313,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
             sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Quick");
             if (section >= 0 && legend_n < (int)N_ELEMENTS(legend_lines)) {
                 legend_lines[legend_n++] = mouse
-                    ? "Quick: click a command; right-click to edit it."
-                    : "Quick: tap a command; hold to edit it.";
+                    ? "<t>Quick:</t> <a>click</a> a command; <a>right-click</a> to edit it."
+                    : "<t>Quick:</t> <a>tap</a> a command; <a>hold</a> to edit it.";
             }
         }
     }
@@ -1315,22 +1322,22 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Status");
         if (section >= 0 && legend_n < (int)N_ELEMENTS(legend_lines))
             legend_lines[legend_n++] =
-                "Status: current conditions and remaining durations.";
+                "<t>Status:</t> current conditions and remaining durations.";
     }
     if (show_overlays && sdl_touch_tutorial_view_rect(PANE_ROLLS, &rect)) {
         sdl_touch_tutorial_draw_compact_zone_label(screen, &rect, "Rolls");
         if (section >= 0 && legend_n < (int)N_ELEMENTS(legend_lines)) {
             legend_lines[legend_n++] = mouse
-                ? "Rolls: click to open combat history."
-                : "Rolls: tap to open combat history.";
+                ? "<t>Rolls:</t> <a>click</a> to open <t>combat history</t>."
+                : "<t>Rolls:</t> <a>tap</a> to open <t>combat history</t>.";
         }
     }
     if (show_overlays && section < 0
         && legend_n < (int)N_ELEMENTS(legend_lines))
     {
         legend_lines[legend_n++] = mouse
-            ? "Overlays: click combat, quick access, status, depth, or rolls."
-            : "Overlays: tap combat, quick access, status, depth, or rolls.";
+            ? "<t>Overlays:</t> <a>click</a> combat, quick access, status, depth, or rolls."
+            : "<t>Overlays:</t> <a>tap</a> combat, quick access, status, depth, or rolls.";
     }
 
     if (show_overlays && sdl_touch_tutorial_view_rect(PANE_INVENTORY, &rect)) {
@@ -1347,8 +1354,8 @@ void sdl_touch_tutorial_draw_main_screen_zones_compact(
     }
     if (supporting_pane_seen && legend_n < (int)N_ELEMENTS(legend_lines)) {
         legend_lines[legend_n++] = mouse
-            ? "Panes: click inventory, equipment, or messages panes."
-            : "Panes: tap inventory, equipment, or messages panes.";
+            ? "<t>Panes:</t> <a>click</a> inventory, equipment, or messages panes."
+            : "<t>Panes:</t> <a>tap</a> inventory, equipment, or messages panes.";
     }
 
     sdl_touch_tutorial_draw_compact_zone_legend(screen, header_bottom,
@@ -1603,7 +1610,7 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
             float margin = sdl_touch_pane_clampf((float)screen->w * 0.025f,
                 18.0f, 36.0f);
             cptr body =
-                "<a>Tap:</a> use the command printed on the button. <a>Tap</a> <t>2nd Panel</t> to swap panes, then <a>tap</a> it again to return.\n<t>Second panel:</t> Esc -> Ctrl, Stealth -> Exchange, Inv -> Equip, Supply -> Fletch, View -> Map, Sing -> Smith, Char -> Ability, Desc -> Quaff.\nChar opens character details. Supply opens supplies. Shoot fires with the <a>f</a> key.\n<t>Confirm (pick):</t> confirms prompts, picks up, enters, or waits depending on context.\n<t>Direction buttons:</t> step in one of eight directions; <a>long-touch</a> movement uses the active profile's <n>alternate movement</n> behavior.\n<n>Presets:</n> change this layout any time in Options > Input Options > <t>Touch Settings</t>.";
+                "<a>Tap:</a> use the command printed on the button. <a>Tap</a> <t>2nd Panel</t> to swap panes, then <a>tap</a> it again to return.\n<t>Second panel:</t> <y>Esc -> Ctrl</y>, <y>Stealth -> Exchange</y>, <y>Inv -> Equip</y>, <y>Supply -> Fletch</y>, <y>View -> Map</y>, <y>Sing -> Smith</y>, <y>Char -> Ability</y>, <y>Desc -> Quaff</y>.\n<t>Char</t> opens character details. <t>Supply</t> opens supplies. <t>Shoot</t> fires with the <y>f</y> key.\n<t>Confirm (pick):</t> confirms prompts, picks up, enters, or waits depending on context.\n<t>Direction buttons:</t> step in one of eight directions; <a>long-touch</a> movement uses the active profile's <n>alternate movement</n> behavior.\n<n>Presets:</n> change this layout any time in Options > Input Options > <t>Touch Settings</t>.";
 
             if (pane.x < screen->x + screen->w / 2) {
                 panel_x = (float)(pane.x + pane.w) + margin;
@@ -1629,8 +1636,8 @@ void sdl_touch_tutorial_draw_pane_page(const SDL_Rect* screen, int page,
         int font_px = sdl_touch_tutorial_text_px(
             (float)screen->h * 0.038f, 22.0f, 32.0f);
 
-        (void)sdl_touch_tutorial_draw_wrapped(
-            "The touch pane is currently hidden or disabled. Choose the Touch pane + touch screen profile to show it by default.",
+        (void)sdl_touch_tutorial_draw_rich(
+            "The <t>touch pane</t> is currently <n>hidden or disabled</n>. Choose the <t>Touch pane + touch screen</t> profile to show it by default.",
             x, y, max_w, font_px, body);
     }
 
@@ -1684,8 +1691,8 @@ void sdl_touch_tutorial_draw_movement_page(const SDL_Rect* screen,
         font_px = sdl_touch_tutorial_text_px((float)screen->h * 0.038f,
             22.0f, 32.0f);
 
-        (void)sdl_touch_tutorial_draw_wrapped(
-            "Tap the side corner arrows to move. The non-arrow top and bottom buttons are configurable commands.",
+        (void)sdl_touch_tutorial_draw_rich(
+            "<a>Tap</a> the <t>side corner arrows</t> to move. The non-arrow top and bottom buttons are <t>configurable commands</t>.",
             x, y, max_w, font_px, text);
     }
 
@@ -2089,26 +2096,26 @@ static const birth_coach_step birth_coach_sheet_steps[] = {
 
 static const birth_coach_step birth_coach_select_step = {
     NULL, 0, 8999, "Choose your hero",
-    "The screen shows description, traits and a power rating.\n"
-    "A higher power rating means an easier start - ideal when you are new.\n"
-    "Pick the hero whose strengths match the run you want."
+    "The screen shows description, traits and a <t>power rating</t>.\n"
+    "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
+    "<a>Pick</a> the hero whose strengths match the run you want."
 };
 
 static const birth_coach_step birth_coach_stats_step = {
     NULL, 0, 999, "Assign attributes",
-    "Spend your points across Str, Dex, Con and Gra.\n"
-    "Str: melee dice & capacity.  Dex: melee/evasion/archery/stealth.\n"
-    "Con: hit points.  Gra: will/perception/song/smithing & voice.\n"
-    "Cost = price of the next point; Points Left = your budget.\n"
+    "Spend your points across <t>Str, Dex, Con and Gra</t>.\n"
+    "<t>Str:</t> melee dice & capacity.  <t>Dex:</t> melee/evasion/archery/stealth.\n"
+    "<t>Con:</t> hit points.  <t>Gra:</t> will/perception/song/smithing & voice.\n"
+    "<y>Cost =</y> price of the next point; <y>Points Left =</y> your budget.\n"
     "Every point ripples into the skills shown alongside."
 };
 
 static const birth_coach_step birth_coach_skills_step = {
     NULL, 0, 999, "Buy skills",
-    "Spend experience on the eight skills.\n"
-    "Total = Base +stat +equip +misc.\n"
-    "Base also sets how dear abilities are to buy later.\n"
-    "Cost climbs the higher the skill; Points Left = your experience."
+    "Spend experience on the <t>eight skills</t>.\n"
+    "<y>Total = Base +stat +equip +misc</y>.\n"
+    "<n>Base also sets how dear abilities are to buy later.</n>\n"
+    "<t>Cost</t> climbs the higher the skill; <y>Points Left =</y> your experience."
 };
 
 static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
@@ -2133,7 +2140,7 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "<a>Tap</a> the hero name or <a>Choose</a> to confirm; <a>Back</a> returns to peoples.\n"
                 "The screen shows description, traits and a <t>power rating</t>.\n"
                 "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
-                "Pick the hero whose strengths match the run you want.",
+                "<a>Pick</a> the hero whose strengths match the run you want.",
                 buflen);
         }
         else if (steamdeck_controls_active())
@@ -2147,7 +2154,7 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "Right or <a>%s</a> confirms; Left or <a>%s</a> returns to peoples.\n"
                 "The screen shows description, traits and a <t>power rating</t>.\n"
                 "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
-                "Pick the hero whose strengths match the run you want.",
+                "<a>Pick</a> the hero whose strengths match the run you want.",
                 confirm_label, back_label);
         }
         else
@@ -2158,7 +2165,7 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 "<a>Click</a> the highlighted hero again to confirm.\n"
                 "The screen shows description, traits and a <t>power rating</t>.\n"
                 "A higher <t>power rating</t> means an easier start - <n>ideal when you are new</n>.\n"
-                "Pick the hero whose strengths match the run you want.",
+                "<a>Pick</a> the hero whose strengths match the run you want.",
                 buflen);
         }
         return buf;
@@ -2257,9 +2264,9 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
         {
             SDL_strlcpy(buf,
                 "What you train by spending experience.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
-                "Stealth / Perception: stay unseen and notice things.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<t>Melee / Archery:</t> chance to hit.  <t>Evasion:</t> avoid being hit.\n"
+                "<t>Stealth / Perception:</t> stay unseen and notice things.\n"
                 "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
                 "<a>Tap</a> a skill once to focus it, then <a>tap again</a> or <a>tap Increase</a> to raise it.",
                 buflen);
@@ -2270,9 +2277,9 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
                 confirm_label, sizeof(confirm_label));
             strnfmt(buf, buflen,
                 "What you train by spending experience.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
-                "Stealth / Perception: stay unseen and notice things.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<t>Melee / Archery:</t> chance to hit.  <t>Evasion:</t> avoid being hit.\n"
+                "<t>Stealth / Perception:</t> stay unseen and notice things.\n"
                 "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
                 "<a>D-pad or left stick</a> moves focus; <a>%s</a> raises the focused skill.",
                 confirm_label);
@@ -2281,9 +2288,9 @@ static cptr birth_coach_body_for_step(const birth_coach_step* step, char* buf,
         {
             SDL_strlcpy(buf,
                 "What you train by spending experience.\n"
-                "Total = Base +stat +equip +misc.\n"
-                "Melee / Archery: chance to hit.  Evasion: avoid being hit.\n"
-                "Stealth / Perception: stay unseen and notice things.\n"
+                "<y>Total = Base +stat +equip +misc</y>.\n"
+                "<t>Melee / Archery:</t> chance to hit.  <t>Evasion:</t> avoid being hit.\n"
+                "<t>Stealth / Perception:</t> stay unseen and notice things.\n"
                 "<t>Will</t> resists fear & magic; <t>Smithing</t> forges; <t>Song</t> sings powers.\n"
                 "<a>Click</a> a skill twice, or press <a>i/Space</a>, to raise skills.",
                 buflen);
@@ -3234,11 +3241,11 @@ static cptr sdl_character_wheel_coach_body(int input, char* buf, size_t buflen)
     case SDL_WHEEL_COACH_INPUT_TOUCH:
         SDL_strlcpy(buf,
             "Everything you can do while standing on your square - wait, use an "
-            "item, ready your bow, sing, and more - lives on this wheel.\n"
-            "Open it: tap your own square on the map.\n"
-            "Choose: drag to a wedge and lift your finger to run that action.\n"
-            "Second action: a wedge's outer ring holds a related action.\n"
-            "Close: tap the centre, or tap outside the wheel.",
+            "item, ready your bow, sing, and more - lives on this <t>wheel</t>.\n"
+            "<t>Open it:</t> <a>tap</a> your own square on the <t>map</t>.\n"
+            "<t>Choose:</t> <a>drag</a> to a wedge and lift your finger to run that action.\n"
+            "<t>Second action:</t> a wedge's <t>outer ring</t> holds a related action.\n"
+            "<t>Close:</t> <a>tap</a> the centre, or <a>tap</a> outside the wheel.",
             buflen);
         return buf;
     case SDL_WHEEL_COACH_INPUT_CONTROLLER:
@@ -3248,22 +3255,22 @@ static cptr sdl_character_wheel_coach_body(int input, char* buf, size_t buflen)
             back_label, sizeof(back_label));
         strnfmt(buf, buflen,
             "Everything you can do while standing on your square - wait, use an "
-            "item, ready your bow, sing, and more - lives on this wheel.\n"
-            "Open it: press and hold %s while standing still.\n"
-            "Choose: D-pad Left/Right turns the ring; Up/Down reaches the outer "
+            "item, ready your bow, sing, and more - lives on this <t>wheel</t>.\n"
+            "<t>Open it:</t> <a>press and hold</a> <y>%s</y> while standing still.\n"
+            "<t>Choose:</t> <y>D-pad Left/Right</y> turns the ring; <y>Up/Down</y> reaches the outer "
             "ring of second actions.\n"
-            "Run it: press %s on the highlighted wedge.\n"
-            "Close: press %s or Start.",
+            "<t>Run it:</t> <a>press</a> <y>%s</y> on the highlighted wedge.\n"
+            "<t>Close:</t> <a>press</a> <y>%s</y> or <y>Start</y>.",
             confirm_label, confirm_label, back_label);
         return buf;
     default:
         SDL_strlcpy(buf,
             "Everything you can do while standing on your square - wait, use an "
-            "item, ready your bow, sing, and more - lives on this wheel.\n"
-            "Open it: right-click your own square on the map.\n"
-            "Choose: move the cursor to a wedge and left-click to run that action.\n"
-            "Second action: a wedge's outer ring holds a related action.\n"
-            "Close: right-click again, or press Esc.",
+            "item, ready your bow, sing, and more - lives on this <t>wheel</t>.\n"
+            "<t>Open it:</t> <a>right-click</a> your own square on the <t>map</t>.\n"
+            "<t>Choose:</t> move the cursor to a wedge and <a>left-click</a> to run that action.\n"
+            "<t>Second action:</t> a wedge's <t>outer ring</t> holds a related action.\n"
+            "<t>Close:</t> <a>right-click</a> again, or <a>press</a> <y>Esc</y>.",
             buflen);
         return buf;
     }

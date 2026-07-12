@@ -1702,25 +1702,47 @@ static bool hint_message_phrase_matches(const char* line, int offset, const char
     return hint_message_is_word_boundary(line[offset + len]);
 }
 
-typedef struct tutorial_highlight_rule {
+typedef struct semantic_highlight_rule {
     const char* phrase;
     byte attr;
-} tutorial_highlight_rule;
+} semantic_highlight_rule;
 
-static const tutorial_highlight_rule tutorial_highlight_rules[] = {
-    { "Alt+'+'", TERM_WHITE },
-    { "Alt+'-'", TERM_WHITE },
-    { "Alt+'i'", TERM_WHITE },
-    { "Alt+'l'", TERM_WHITE },
-    { "'S'", TERM_WHITE },
+/* Semantic accents shared by survival tutorials and discovered-note popups.
+ * Keep prose neutral; colour only controls, game terms, rewards, and hazards. */
+static const semantic_highlight_rule semantic_highlight_rules[] = {
+    { "one-and-a-half-handed", TERM_L_BLUE },
+    { "mixed elemental attacks", TERM_ORANGE },
+    { "pure elemental attacks", TERM_L_RED },
+    { "elemental vulnerabilities", TERM_L_RED },
+    { "elemental vulnerability", TERM_L_RED },
+    { "elemental resistances", TERM_L_GREEN },
+    { "elemental resistance", TERM_L_GREEN },
+    { "invisible enemies", TERM_L_RED },
+    { "throwing weapons", TERM_L_BLUE },
+    { "special traits", TERM_VIOLET },
+    { "Gem of Knowledge", TERM_VIOLET },
+    { "Gem of Sanctity", TERM_L_GREEN },
+    { "diagonal movement", TERM_YELLOW },
+    { "stealth mode", TERM_YELLOW },
+    { "Alt+'+'", TERM_YELLOW },
+    { "Alt+'-'", TERM_YELLOW },
+    { "Alt+'i'", TERM_YELLOW },
+    { "Alt+'l'", TERM_YELLOW },
+    { "'S'", TERM_YELLOW },
     { "critical hit", TERM_L_BLUE },
+    { "critical", TERM_L_BLUE },
+    { "crit", TERM_L_BLUE },
+    { "weapon weight", TERM_L_BLUE },
+    { "one-handed", TERM_L_BLUE },
+    { "two-handed", TERM_L_BLUE },
+    { "song points", TERM_L_BLUE },
     { "damage dice", TERM_L_BLUE },
     { "damage die", TERM_L_BLUE },
     { "damage sides", TERM_L_BLUE },
     { "damage side", TERM_L_BLUE },
-    { "song points", TERM_L_BLUE },
     { "line of sight", TERM_L_BLUE },
     { "light radius", TERM_YELLOW },
+    { "light reserves", TERM_YELLOW },
     { "right panel", TERM_UMBER },
     { "bottom panel", TERM_UMBER },
     { "status panel", TERM_UMBER },
@@ -1736,6 +1758,38 @@ static const tutorial_highlight_rule tutorial_highlight_rules[] = {
     { "curse", TERM_ORANGE },
     { "jinx", TERM_ORANGE },
     { "elemental", TERM_L_BLUE },
+    { "identification", TERM_L_BLUE },
+    { "identify", TERM_L_BLUE },
+    { "alignment", TERM_L_BLUE },
+    { "abilities", TERM_L_BLUE },
+    { "ability", TERM_L_BLUE },
+    { "supply", TERM_L_BLUE },
+    { "weight", TERM_L_BLUE },
+    { "controls", TERM_YELLOW },
+    { "main map", TERM_L_BLUE },
+    { "map", TERM_L_BLUE },
+    { "stairs", TERM_L_BLUE },
+    { "staircase", TERM_L_BLUE },
+    { "shaft", TERM_L_BLUE },
+    { "forge", TERM_ORANGE },
+    { "artefact", TERM_VIOLET },
+    { "artifact", TERM_VIOLET },
+    { "great vault", TERM_VIOLET },
+    { "vault", TERM_VIOLET },
+    { "quest", TERM_VIOLET },
+    { "labyrinth", TERM_ORANGE },
+    { "chasm", TERM_L_RED },
+    { "trap", TERM_L_RED },
+    { "locked", TERM_ORANGE },
+    { "warded", TERM_ORANGE },
+    { "unique monster", TERM_L_RED },
+    { "unique", TERM_VIOLET },
+    { "shield", TERM_L_BLUE },
+    { "arrows", TERM_L_BLUE },
+    { "enemies", TERM_L_RED },
+    { "enemy", TERM_L_RED },
+    { "monsters", TERM_ORANGE },
+    { "monster", TERM_ORANGE },
     { "Protection", TERM_L_BLUE },
     { "protection", TERM_L_BLUE },
     { "Evasion", TERM_L_BLUE },
@@ -1776,14 +1830,14 @@ static const tutorial_highlight_rule tutorial_highlight_rules[] = {
     { "poison", TERM_L_GREEN },
 };
 
-static int tutorial_hint_match_length(const char* line, int offset, byte* out_attr)
+static int semantic_hint_match_length(const char* line, int offset, byte* out_attr)
 {
     int best_len = 0;
     byte best_attr = TERM_WHITE;
 
-    for (int i = 0; i < (int)N_ELEMENTS(tutorial_highlight_rules); ++i)
+    for (int i = 0; i < (int)N_ELEMENTS(semantic_highlight_rules); ++i)
     {
-        const tutorial_highlight_rule* rule = &tutorial_highlight_rules[i];
+        const semantic_highlight_rule* rule = &semantic_highlight_rules[i];
         int len;
 
         if (!hint_message_phrase_matches_ci(line, offset, rule->phrase))
@@ -1893,7 +1947,7 @@ static int hint_message_selection_width(int text_col, const char* text, int wid)
 }
 
 static void hint_message_draw_colored_line(int row, int col, byte base_attr,
-    const char* line, const hint_message_meta* meta, bool highlight_tutorial)
+    const char* line, const hint_message_meta* meta, bool highlight_semantics)
 {
     int start = 0;
     int cursor = col;
@@ -1913,14 +1967,15 @@ static void hint_message_draw_colored_line(int row, int col, byte base_attr,
     {
         byte match_attr = base_attr;
         int match_len = hint_message_match_length(line, i, meta, &match_attr);
-        if (highlight_tutorial)
+        if (highlight_semantics)
         {
-            byte tutorial_attr = base_attr;
-            int tutorial_len = tutorial_hint_match_length(line, i, &tutorial_attr);
-            if (tutorial_len > match_len)
+            byte semantic_attr = base_attr;
+            int semantic_len = semantic_hint_match_length(line, i,
+                &semantic_attr);
+            if (semantic_len > match_len)
             {
-                match_len = tutorial_len;
-                match_attr = tutorial_attr;
+                match_len = semantic_len;
+                match_attr = semantic_attr;
             }
         }
         if (match_len > 0)
@@ -2837,7 +2892,7 @@ static int hint_message_wrap_list_text(const char* text, int wrap_cols,
 
 static int hint_message_draw_wrapped_list_entry(int row, int idx,
     bool selected, int wid, int max_rows, const char* text,
-    const hint_message_meta* meta, bool highlight_tutorial)
+    const hint_message_meta* meta, bool highlight_semantics)
 {
     char prefix[8];
     hint_message_display_line lines[HINT_MESSAGE_LIST_LINES_MAX];
@@ -2871,7 +2926,7 @@ static int hint_message_draw_wrapped_list_entry(int row, int idx,
             Term_putstr(0, row + li, -1, prefix_attr, prefix);
 
         hint_message_draw_colored_line(row + li, text_col, title_attr,
-            lines[li].text, meta, highlight_tutorial);
+            lines[li].text, meta, highlight_semantics);
     }
 
     return draw_count;
@@ -2918,8 +2973,8 @@ static int hint_message_layout_list_entry(int row, int idx, bool selected,
             }
             if (li == 0)
                 Term_putstr(0, row + used_rows, -1, prefix_attr, prefix);
-            hint_message_put_segment(row + used_rows, text_col, title_attr,
-                title_lines[li].text);
+            hint_message_draw_colored_line(row + used_rows, text_col,
+                title_attr, title_lines[li].text, NULL, true);
         }
 
         used_rows++;
@@ -3066,8 +3121,8 @@ static bool skeleton_tip_show_internal(int index, bool manage_screen)
         {
             bool title_line = (lines[li].source_line == 0);
             byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
-            hint_message_draw_colored_line(row + li, col, base_attr, lines[li].text,
-                NULL, !title_line);
+            hint_message_draw_colored_line(row + li, col, base_attr,
+                lines[li].text, NULL, true);
             ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
         }
 
@@ -3128,7 +3183,6 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
     byte stored_line_count;
     int display_line_count = 0;
     hint_message_action action = HINT_MESSAGE_ACTION_NONE;
-    bool highlight_tutorial = false;
     bool steamdeck = steamdeck_controls_active();
 
     hint_messages_ensure_level_state();
@@ -3137,8 +3191,6 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
         return HINT_MESSAGE_ACTION_NONE;
 
     hint_messages_message_meta(index, &meta);
-    highlight_tutorial = (strstr(hint_messages_message_line(index, 0), "Survival Tip") != NULL);
-
     if (manage_screen)
         screen_save();
 
@@ -3169,7 +3221,7 @@ static hint_message_action hint_message_show_internal(int index, int* source_y, 
             byte base_attr = title_line ? TERM_L_WHITE : TERM_WHITE;
             hint_message_draw_colored_line(row + li, col, base_attr,
                 display_lines[li].text, title_line ? NULL : &meta,
-                (highlight_tutorial && !title_line));
+                true);
             ui_menu_click_add_full_row(HINT_MESSAGE_CLICK_CONTINUE, row + li);
         }
 

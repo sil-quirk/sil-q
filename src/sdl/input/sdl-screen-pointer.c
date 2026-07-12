@@ -553,9 +553,24 @@ bool sdl_main_screen_handle_status_line_hover_pointer(float x, float y)
     if (action != SDL_STATUS_CLICK_NONE)
         sdl_pointer_attack_set_panel_hover_mode(SDL_POINTER_ATTACK_NONE);
 
-    sdl_main_screen_touch_zone_selection_set(action,
-        action != SDL_STATUS_CLICK_NONE ? col : -1,
-        SDL_PANEL_CLICK_NONE, -1, active);
+    if (action != SDL_STATUS_CLICK_NONE)
+    {
+        sdl_main_screen_touch_zone_selection_set(action, col,
+            SDL_PANEL_CLICK_NONE, -1, active);
+    }
+    else
+    {
+        /*
+         * Mouse motion checks the status line before the character panel.
+         * Preserve an existing panel hover here so moving within that panel
+         * does not repaint it once unselected and then once selected for
+         * every motion event.  The character-panel pass below clears the
+         * selection when the pointer has actually left the panel.
+         */
+        sdl_main_screen_touch_zone_selection_set(SDL_STATUS_CLICK_NONE, -1,
+            g_main_screen_panel_selected_action,
+            g_main_screen_panel_selected_row, active);
+    }
     return action != SDL_STATUS_CLICK_NONE;
 }
 

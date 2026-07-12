@@ -4047,6 +4047,9 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
     float bw = MIN(content_w * 0.34f, prompt_h * 9.0f);
     float bh = prompt_h;
     int hov = g_sdl_character_sheet_screen.hover_choice;
+    cptr narrative_exit_verb =
+        streq(g_sdl_character_sheet_screen.narrative_close_label, "Close")
+            ? "close" : "proceed";
 
     if (!prompt_font || content_w <= 0.0f || prompt_h <= 0.0f)
         return;
@@ -4099,8 +4102,8 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
             {
                 if (page > 0 && narrative)
                     strnfmt(prompt, sizeof(prompt),
-                        "%s previous  %s continue  %s close", prev_label,
-                        confirm_label, back_label);
+                        "%s previous  %s continue  %s %s", prev_label,
+                        confirm_label, back_label, narrative_exit_verb);
                 else if (page > 0)
                     strnfmt(prompt, sizeof(prompt),
                         "%s previous  %s select  %s back", prev_label,
@@ -4127,7 +4130,8 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
             {
                 if (page > 0 && narrative)
                     strnfmt(prompt, sizeof(prompt),
-                        "Left previous  Enter continue  Esc close");
+                        "Left previous  Enter continue  Esc %s",
+                        narrative_exit_verb);
                 else if (page > 0)
                     strnfmt(prompt, sizeof(prompt),
                         "Left previous  Enter select  Esc back");
@@ -4223,7 +4227,7 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
             SDL_SELECT_CLICK_PAGE_NEXT);
     }
 
-    /* Narrative books may opt into a Close button.  The race book instead
+    /* Narrative books may opt into an exit button.  The race book instead
      * offers the same central position as a direct shortcut to its final,
      * selectable page. */
     if (g_sdl_character_sheet_screen.narrative_close_enabled
@@ -4232,14 +4236,18 @@ static void sdl_char_sheet_draw_book_page_controls(TTF_Font* prompt_font,
             && g_sdl_character_sheet_screen.select_book_mode
             && page < page_count - 1))
     {
-        float cw = MIN(content_w * 0.22f, bh * 6.0f);
+        cptr close_label = g_sdl_character_sheet_screen.narrative_close_label;
+        bool long_close_label = close_label && strlen(close_label) > 12;
+        float cw = long_close_label
+            ? MIN(content_w * 0.30f, bh * 9.0f)
+            : MIN(content_w * 0.22f, bh * 6.0f);
         float ccx = content_x + (content_w - cw) * 0.5f;
         SDL_FRect r = { ccx, prompt_y, cw, bh };
         bool jump_to_last_page = (g_sdl_character_sheet_screen.context
             == SDL_CHARACTER_SHEET_BIRTH_SELECT);
         byte a = (hov == SDL_SELECT_CLICK_CLOSE) ? TERM_WHITE
             : (jump_to_last_page ? TERM_L_BLUE : TERM_SLATE);
-        cptr label = jump_to_last_page ? "Jump to last page" : "Close";
+        cptr label = jump_to_last_page ? "Jump to last page" : close_label;
 
         (void)sdl_char_sheet_draw_text(prompt_font, label, a, ccx, prompt_y,
             cw, bh, true);
@@ -10796,6 +10804,8 @@ bool sdl_character_sheet_screen_begin_select(int focus_choice, cptr title)
     g_sdl_character_sheet_screen.select_book_mode = false;
     g_sdl_character_sheet_screen.select_menu_style = false;
     g_sdl_character_sheet_screen.narrative_close_enabled = false;
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_close_label, "Close",
+        sizeof(g_sdl_character_sheet_screen.narrative_close_label));
     g_sdl_select_choice_page_only = false;
     g_sdl_select_dynamic_description = false;
     g_sdl_select_menu_rows_per_column = 0;
@@ -10848,6 +10858,8 @@ bool sdl_character_sheet_screen_begin_book(cptr title)
     g_sdl_character_sheet_screen.narrative_lamp_page = 0;
     g_sdl_character_sheet_screen.narrative_lamp_side = false;
     g_sdl_character_sheet_screen.narrative_close_enabled = false;
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_close_label, "Close",
+        sizeof(g_sdl_character_sheet_screen.narrative_close_label));
     g_sdl_character_sheet_screen.narrative_paginated_for_h = -1;
     g_sdl_character_sheet_screen.narrative_paginated_for_w = -1;
     SDL_strlcpy(g_sdl_character_sheet_screen.narrative_title,
@@ -11216,14 +11228,23 @@ void sdl_character_sheet_screen_set_book_lamp(u32b current, u32b maximum,
     g_sdl_character_sheet_screen.narrative_lamp_page = MAX(0, page);
 }
 
-/* Opt this narrative book into an on-screen "Close" button in the bottom
- * control row, so the reader can leave with the mouse (or a touch tap) from any
- * page without the keyboard.  Quest dialogue books leave this off. */
+/* Opt this narrative book into an on-screen exit button in the bottom control
+ * row, so the reader can leave with the mouse (or a touch tap) from any page
+ * without the keyboard.  Quest dialogue books leave this off. */
 void sdl_character_sheet_screen_set_book_close_button(bool enabled)
 {
     if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
         return;
     g_sdl_character_sheet_screen.narrative_close_enabled = enabled;
+}
+
+void sdl_character_sheet_screen_set_book_close_label(cptr label)
+{
+    if (g_sdl_character_sheet_screen.context != SDL_CHARACTER_SHEET_NARRATIVE)
+        return;
+    SDL_strlcpy(g_sdl_character_sheet_screen.narrative_close_label,
+        (label && label[0]) ? label : "Close",
+        sizeof(g_sdl_character_sheet_screen.narrative_close_label));
 }
 
 void sdl_character_sheet_screen_set_book_target_page_count(int page_count)

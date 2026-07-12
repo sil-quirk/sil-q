@@ -288,6 +288,52 @@ static int pause_with_text_count_wrapped_segment(int col, cptr text)
     return rows_used;
 }
 
+static bool pause_with_text_is_tutorial(const char desc[][100])
+{
+    return desc == tutorial_leave_text || desc == tutorial_win_text
+        || desc == tutorial_early_death_text
+        || desc == tutorial_late_death_text;
+}
+
+/* The legacy tutorial conclusion/death pages do not support inline spans.
+ * Their source is already split into short ideas, so colour only the lines
+ * carrying success, danger, or concrete next-step advice. */
+static byte pause_with_text_tutorial_attr(cptr line)
+{
+    if (!line)
+        return TERM_WHITE;
+
+    if (strstr(line, "Congratulations") || strstr(line, "finished")
+        || strstr(line, "survived") || strstr(line, "more than ready"))
+    {
+        return TERM_L_GREEN;
+    }
+
+    if (strstr(line, "slain") || strstr(line, "cannot use savepoints")
+        || strstr(line, "if you die") || strstr(line, "You will die")
+        || strstr(line, "from that death") || strstr(line, "too deadly"))
+    {
+        return TERM_L_RED;
+    }
+
+    if (strstr(line, "default Race and Character")
+        || strstr(line, "starting experience")
+        || strstr(line, "Melee and Evasion")
+        || strstr(line, "weapons and armour")
+        || strstr(line, "restart the tutorial")
+        || strstr(line, "escape and heal")
+        || strstr(line, "high score")
+        || strstr(line, "top priority"))
+    {
+        return TERM_L_BLUE;
+    }
+
+    if (strstr(line, "*think*") || strstr(line, "reflect on what to learn"))
+        return TERM_YELLOW;
+
+    return TERM_WHITE;
+}
+
 /* pause_with_text: prints name+alt, explicit blank line, then wrapped start splits */
 void pause_with_text(const char desc[][100], int row, int col,
                      const char extra[][100], byte extra_attr)
@@ -301,6 +347,7 @@ void pause_with_text(const char desc[][100], int row, int col,
     int tail_col;
     bool show_banner_gap = true;
     bool show_stanza_gap = true;
+    bool tutorial_text = pause_with_text_is_tutorial(desc);
 
     /* 0. save & clear screen */
     screen_save();
@@ -433,8 +480,11 @@ void pause_with_text(const char desc[][100], int row, int col,
     /* 2. main stanza */
     i_main = 0;
     while (desc && desc[i_main][0]) {
+        byte attr = tutorial_text
+            ? pause_with_text_tutorial_attr(desc[i_main]) : TERM_WHITE;
+
         main_rows += pause_with_text_print_wrapped_segment(
-            row + banner_lines + main_rows, col, TERM_WHITE, desc[i_main], msec);
+            row + banner_lines + main_rows, col, attr, desc[i_main], msec);
         ++i_main;
     }
 

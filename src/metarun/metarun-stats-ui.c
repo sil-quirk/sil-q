@@ -1645,30 +1645,43 @@ static void story_book_draw_header(enum story_book_page page, int term_width)
 }
 
 static void story_book_draw_footer(enum story_book_page page, int term_width,
-    int term_height)
+    int term_height, bool startup_scene)
 {
     char footer[160];
     int row = term_height - 1;
+    bool touch = sdl_touch_only_device_active();
 
-    if (sdl_touch_only_device_active()) {
-        strnfmt(footer, sizeof(footer),
-            "[ Previous ]   Page %d of %d   [ Next ]   [ Close ]",
-            page + 1, STORY_BOOK_PAGE_MAX);
+    if (touch) {
+        if (startup_scene) {
+            strnfmt(footer, sizeof(footer),
+                "[Prev]  %d/%d  [Next]  [Proceed to character creation]",
+                page + 1, STORY_BOOK_PAGE_MAX);
+        } else {
+            strnfmt(footer, sizeof(footer),
+                "[ Previous ]   Page %d of %d   [ Next ]   [ Close ]",
+                page + 1, STORY_BOOK_PAGE_MAX);
+        }
     } else {
-        strnfmt(footer, sizeof(footer),
-            "Left/Right turn page   1-5 open page   Esc close   (%d/%d)",
+        strnfmt(footer, sizeof(footer), startup_scene
+            ? "Left/Right turn page   1-5 open page   "
+              "Esc proceed to character creation   (%d/%d)"
+            : "Left/Right turn page   1-5 open page   Esc close   (%d/%d)",
             page + 1, STORY_BOOK_PAGE_MAX);
     }
     story_book_put_line(row, 1, term_width - 2, TERM_L_DARK, footer);
 
-    ui_menu_click_add(STORY_BOOK_PREVIOUS, 0, row, MAX(12, term_width / 4));
-    ui_menu_click_add(STORY_BOOK_NEXT, term_width / 2, row,
-        MAX(8, term_width / 4));
-    ui_menu_click_add(STORY_BOOK_CLOSE, MAX(0, term_width - 14), row, 14);
+    ui_menu_click_add_text_token(STORY_BOOK_PREVIOUS, 1, row, footer,
+        touch ? (startup_scene ? "Prev" : "Previous") : "Left");
+    ui_menu_click_add_text_token(STORY_BOOK_NEXT, 1, row, footer,
+        touch ? "Next" : "Right");
+    ui_menu_click_add_text_token(STORY_BOOK_CLOSE, 1, row, footer,
+        startup_scene
+            ? (touch ? "Proceed to character creation"
+                     : "proceed to character creation")
+            : (touch ? "Close" : "close"));
 }
 
-static void story_book_draw_statistics(int term_width, int row_limit,
-    bool startup_scene)
+static void story_book_draw_statistics(int term_width, int row_limit)
 {
     char buf[256];
     int row = 4;
@@ -1723,12 +1736,6 @@ static void story_book_draw_statistics(int term_width, int row_limit,
         threshold_mode_name(metarun_get_threshold_mode(&metar)));
     story_book_put_wrapped(&row, row_limit, 4, term_width - 6, TERM_WHITE, buf);
 
-    if (startup_scene && row < row_limit) {
-        row++;
-        story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
-            "[ Begin Blitz Mode ]");
-        ui_menu_click_add(STORY_BOOK_BLITZ, 4, row, 24);
-    }
 }
 
 static void story_book_draw_blessings(int term_width, int row_limit)
@@ -1956,7 +1963,7 @@ static int story_book_compare_metaruns(const void *a, const void *b)
 }
 
 static void story_book_draw_metaruns(int term_width, int row_limit,
-    int *selected_position)
+    int *selected_position, bool startup_scene)
 {
     char buf[512];
     s16b *order;
@@ -1966,6 +1973,20 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
         "V - The Chronicle of Tales");
+    if (startup_scene) {
+        story_book_put_wrapped(&row, row_limit, 4, term_width - 6, TERM_SLATE,
+            "Blitz is a separate, self-contained run for practice or quick "
+            "play. It does not affect this tale, its heroes, blessings, "
+            "saves, or score.");
+        if (row < row_limit) {
+            story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+                "[ Start a separate Blitz run ]");
+            ui_menu_click_add(STORY_BOOK_BLITZ, 4, row++,
+                MIN(term_width - 6, 32));
+        }
+        if (row < row_limit)
+            row++;
+    }
     if (!metaruns || metarun_max <= 0) {
         story_book_put_line(row, 4, term_width - 6, TERM_L_DARK,
             "No tales have been recorded.");
@@ -2203,6 +2224,10 @@ static bool story_book_sdl_build(bool startup_scene,
 
     /* Let the reader leave from any page with the mouse (or a touch tap). */
     sdl_character_sheet_screen_set_book_close_button(true);
+    if (startup_scene) {
+        sdl_character_sheet_screen_set_book_close_label(
+            "Proceed to character creation");
+    }
 
     sdl_character_sheet_screen_add_book_contents("I. Statistics",
         STORY_BOOK_PAGE_BASE + STORY_BOOK_STATISTICS, STORY_BOOK_STATISTICS);
@@ -2265,10 +2290,6 @@ static bool story_book_sdl_build(bool startup_scene,
 
     sdl_character_sheet_screen_set_book_lamp(metar.fallen_score_pool,
         threshold, STORY_BOOK_STATISTICS);
-    if (startup_scene)
-        sdl_character_sheet_screen_add_book_action_colored("Begin Blitz Mode",
-            STORY_BOOK_BLITZ, TERM_L_BLUE);
-
     /* Page II: blessings and the exchange. */
     story_book_sdl_heading("II - Blessings of the West", true);
     buf[0] = '\0';
@@ -2502,6 +2523,14 @@ static bool story_book_sdl_build(bool startup_scene,
 
     /* Page V: click a tale to replace the detail paragraph in place. */
     story_book_sdl_heading("V - The Chronicle of Tales", true);
+    if (startup_scene) {
+        sdl_character_sheet_screen_add_book_paragraph_colored(
+            "Blitz is a separate, self-contained run for practice or quick "
+            "play. It does not affect this tale, its heroes, blessings, "
+            "saves, or score.", TERM_SLATE);
+        sdl_character_sheet_screen_add_book_action_colored(
+            "Start a separate Blitz run", STORY_BOOK_BLITZ, TERM_L_BLUE);
+    }
     s16b *order = story_book_sdl_metarun_order();
     if (!order) {
         state->selected_run = 0;
@@ -2614,7 +2643,7 @@ static bool story_book_show_sdl(bool startup_scene)
             if (click_action == UI_MENU_CLICK_HOVER)
                 continue;
 
-            /* The on-screen Close button (mouse/touch) leaves the book. */
+            /* The on-screen exit button (mouse/touch) leaves the book. */
             if (clicked == SDL_SELECT_CLICK_CLOSE) {
                 done = true;
                 continue;
@@ -2851,7 +2880,7 @@ void print_metarun_stats(void)
         story_book_draw_header(page, term_width);
         switch (page) {
         case STORY_BOOK_STATISTICS:
-            story_book_draw_statistics(term_width, row_limit, startup_scene);
+            story_book_draw_statistics(term_width, row_limit);
             break;
         case STORY_BOOK_BLESSINGS:
             story_book_draw_blessings(term_width, row_limit);
@@ -2863,12 +2892,13 @@ void print_metarun_stats(void)
             story_book_draw_difficulty(term_width, row_limit);
             break;
         case STORY_BOOK_METARUNS:
-            story_book_draw_metaruns(term_width, row_limit, &selected_run);
+            story_book_draw_metaruns(term_width, row_limit, &selected_run,
+                startup_scene);
             break;
         default:
             break;
         }
-        story_book_draw_footer(page, term_width, term_height);
+        story_book_draw_footer(page, term_width, term_height, startup_scene);
         Term_fresh();
 
         key = metarun_inkey_hidden();
@@ -2946,7 +2976,7 @@ void print_metarun_stats(void)
         {
             story_book_run_existing_menu(startup_scene,
                 choose_difficulty_menu, &font_state);
-        } else if (page == STORY_BOOK_STATISTICS && startup_scene
+        } else if (page == STORY_BOOK_METARUNS && startup_scene
             && (key == 'x' || key == 'X'))
         {
             launch_blitz = true;

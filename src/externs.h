@@ -1631,7 +1631,7 @@ extern void sdl_character_sheet_screen_open_select_choice_page(void);
 /* Mobile character carousel: triangle ids that step to the prev/next hero. */
 #define SDL_SELECT_CLICK_CAROUSEL_PREV (-22)
 #define SDL_SELECT_CLICK_CAROUSEL_NEXT (-23)
-/* Narrative book: an on-screen "Close" button for mouse/touch traversal. */
+/* Narrative book: an on-screen exit button for mouse/touch traversal. */
 #define SDL_SELECT_CLICK_CLOSE (-24)
 extern bool sdl_character_sheet_screen_mobile_carousel_active(void);
 extern void sdl_character_sheet_screen_reset_select_page(void);
@@ -1660,6 +1660,7 @@ extern void sdl_character_sheet_screen_add_book_contents(cptr label,
 extern void sdl_character_sheet_screen_set_book_lamp(u32b current,
     u32b maximum, int page);
 extern void sdl_character_sheet_screen_set_book_close_button(bool enabled);
+extern void sdl_character_sheet_screen_set_book_close_label(cptr label);
 extern void sdl_character_sheet_screen_set_book_target_page_count(
     int page_count);
 extern int sdl_character_sheet_screen_book_contents_page(int contents_index);
@@ -2274,6 +2275,7 @@ extern int  get_sdl_intro_style(void);
 extern void set_sdl_intro_style(int style);
 extern void sdl_config_load_app_options(const char* filename);
 extern void sdl_config_reset_app_options_to_defaults(void);
+extern void sdl_reset_interface_settings_to_defaults(void);
 extern void sdl_reset_interface_settings_to_defaults_for_migration(void);
 extern bool sdl_config_should_force_intro_flame(void);
 extern void sdl_config_mark_intro_seen(void);

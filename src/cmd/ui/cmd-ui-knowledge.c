@@ -8905,6 +8905,32 @@ static void supply_overlay_avoid_selection(
         rows);
 }
 
+/* Keep an overlay clear of all of the currently visible entry rows. */
+static void supply_overlay_avoid_entries(
+    const knowledge_browser_layout* layout, int entry_count, int entry_top,
+    int entry_row_stride)
+{
+    int visible_entries;
+    int rows;
+
+    if (!layout || layout->term_wid <= 0 || layout->list_rows <= 0
+        || entry_count <= entry_top)
+    {
+        sdl_description_overlay_clear_avoid();
+        return;
+    }
+
+    if (entry_row_stride < 1)
+        entry_row_stride = 1;
+    visible_entries = entry_count - entry_top;
+    rows = visible_entries * entry_row_stride;
+    if (rows > layout->list_rows)
+        rows = layout->list_rows;
+
+    sdl_description_overlay_set_avoid_term_rect(0, layout->list_row,
+        layout->term_wid, rows);
+}
+
 static bool supply_overlay_handle_scroll_key(char ch)
 {
     if (ch == '8')
@@ -10370,9 +10396,13 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     : inventory_browser_compare_slot_for_entry(selected_group,
                           &equip_entries[inv_entry_cur]);
 
-                supply_overlay_avoid_selection(&layout, inv_column != 0,
-                    inv_grp_cur, inv_grp_top, inv_entry_cur, inv_entry_top,
-                    1);
+                if (slot_pick_mode)
+                    supply_overlay_avoid_entries(&layout,
+                        inventory_entry_cnt, inv_entry_top, 1);
+                else
+                    supply_overlay_avoid_selection(&layout, inv_column != 0,
+                        inv_grp_cur, inv_grp_top, inv_entry_cur, inv_entry_top,
+                        1);
 
                 if (supply_overlay_cache_stale(&overlay_cache, page,
                         inv_entry_cur, (int)selected_group, layout.term_wid,

@@ -625,9 +625,9 @@ enum pane_placement pane_first_allowed_placement(enum pane_type type)
         return PLACE_TOP_LEFT;
     }
     if (type == PANE_STATUS
-        && pane_type_allows_placement(type, PLACE_BOTTOM_RIGHT))
+        && pane_type_allows_placement(type, PLACE_TOP_CENTER))
     {
-        return PLACE_BOTTOM_RIGHT;
+        return PLACE_TOP_CENTER;
     }
     if (type == PANE_DEPTH
         && pane_type_allows_placement(type, PLACE_TOP_RIGHT))

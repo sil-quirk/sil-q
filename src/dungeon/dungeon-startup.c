@@ -199,8 +199,15 @@ PlayResult play_game(void)
             new_game = false;
         }
         else if (!run_mode_is_blitz() && !metarun_created
-            && !startup_score_empty && score_count_alive_entries() == 0)
+            && (!startup_score_empty || metar.deaths > 0))
         {
+            int recorded_alive = score_count_alive_entries();
+
+            if (recorded_alive > 0) {
+                log_warn("Startup found %d recorded alive character%s, but "
+                    "none had a loadable save; showing Tale Statistics",
+                    recorded_alive, recorded_alive == 1 ? "" : "s");
+            }
             print_metarun_stats();
         }
     }

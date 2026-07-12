@@ -1189,7 +1189,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             "thrall to hear the request, offer the needed item, or claim an "
             "earned reward.",
             sizeof(desc));
-        GRID_Q_ADD(';', 't', "Talk", TERM_L_WHITE);
+        GRID_Q_ADD(';', 't', "Talk", TERM_L_GREEN);
     }
 
     /* --- Dark / unknown square --- */
@@ -1201,7 +1201,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             "darkness without stepping in - an unseen enemy might lurk "
             "there, or your blow may just find a wall.",
             sizeof(desc));
-        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_WHITE);
+        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_RED);
     }
 
     /* --- Open / broken doors --- */
@@ -1212,7 +1212,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             "An open doorway. Closing it would slow pursuers and block line "
             "of sight.",
             sizeof(desc));
-        GRID_Q_ADD('c', 'c', "Close it", TERM_L_WHITE);
+        GRID_Q_ADD('c', 'c', "Close it", TERM_L_GREEN);
     }
     else if (feat == FEAT_BROKEN)
     {
@@ -1241,7 +1241,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 "normally: it must be forced with your shoulder, and the "
                 "crash will carry. Bashing tests your Strength.",
                 bash_power);
-            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_ORANGE);
         }
         else if (power >= 0x01)
         {
@@ -1252,8 +1252,8 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 "quietly tests your Perception; bashing it down tests your "
                 "Strength and makes a great noise.",
                 power + 5);
-            GRID_Q_ADD('o', 'o', "Pick the lock", TERM_L_WHITE);
-            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+            GRID_Q_ADD('o', 'o', "Pick the lock", TERM_L_GREEN);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_ORANGE);
         }
         else
         {
@@ -1270,8 +1270,8 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 grid_question_append(desc, sizeof(desc),
                     "Words of warding glimmer about its frame.");
             }
-            GRID_Q_ADD('o', 'o', "Open it", TERM_L_WHITE);
-            GRID_Q_ADD('b', 'b', "Bash it open", TERM_L_WHITE);
+            GRID_Q_ADD('o', 'o', "Open it", TERM_L_GREEN);
+            GRID_Q_ADD('b', 'b', "Bash it open", TERM_ORANGE);
         }
     }
 
@@ -1308,7 +1308,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             grid_question_append(desc, sizeof(desc), line);
             /* Same command as disarm: do_cmd_disarm_aux re-keys it when you
              * have the ability (see the rewire branch there). */
-            GRID_Q_ADD('D', 'd', "Rewire it", TERM_L_WHITE);
+            GRID_Q_ADD('D', 'd', "Rewire it", TERM_L_BLUE);
         }
         else if (disarmable)
         {
@@ -1317,7 +1317,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                 "badly may set it off.",
                 power);
             grid_question_append(desc, sizeof(desc), line);
-            GRID_Q_ADD('D', 'd', "Disarm it", TERM_L_WHITE);
+            GRID_Q_ADD('D', 'd', "Disarm it", TERM_L_GREEN);
         }
         else
         {
@@ -1325,7 +1325,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             grid_question_append(desc, sizeof(desc), line);
         }
 
-        GRID_Q_ADD(';', 'w', "Step onto it", TERM_L_WHITE);
+        GRID_Q_ADD(';', 'w', "Step onto it", TERM_L_RED);
         step_choice[count - 1] = true;
     }
 
@@ -1420,7 +1420,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                         digging_score);
                 }
                 grid_question_append(desc, sizeof(desc), line);
-                GRID_Q_ADD('T', 't', "Tunnel through", TERM_L_WHITE);
+                GRID_Q_ADD('T', 't', "Tunnel through", TERM_ORANGE);
             }
             else
             {
@@ -1456,14 +1456,14 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
                     "You have found a trap on it. A separate disarm attempt "
                     "can fail safely; opening it will try the lock and then "
                     "the trap, setting off the trap if that attempt fails.");
-                GRID_Q_ADD('D', 'd', "Disarm the trap", TERM_L_WHITE);
+                GRID_Q_ADD('D', 'd', "Disarm the trap", TERM_L_GREEN);
             }
             else if (!object_known_p(o_ptr))
             {
                 grid_question_append(desc, sizeof(desc),
                     "It has not been searched for traps.");
             }
-            GRID_Q_ADD('o', 'o', "Open it", TERM_L_WHITE);
+            GRID_Q_ADD('o', 'o', "Open it", TERM_L_GREEN);
         }
     }
 
@@ -1481,7 +1481,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             "The bones of some unfortunate. Searching them may turn up "
             "something of use.",
             sizeof(desc));
-        GRID_Q_ADD('/', 's', "Search it", TERM_L_WHITE);
+        GRID_Q_ADD('/', 's', "Search it", TERM_L_BLUE);
     }
 
     /* --- Empty floor --- */
@@ -1492,7 +1492,7 @@ bool grid_interact_question(int y, int x, int* out_command, int* out_dir)
             "Nothing lies there that you can see. You could strike at the "
             "square without stepping in - an unseen enemy might lurk there.",
             sizeof(desc));
-        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_WHITE);
+        GRID_Q_ADD('/', 's', "Strike at it", TERM_L_RED);
     }
 
 #undef GRID_Q_ADD

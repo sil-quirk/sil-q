@@ -3134,6 +3134,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_VIEW_PANE_CONFIGURATION,
         PANE_SETTING_PANE_FONT_SIZES,
         PANE_SETTING_OPEN_CONFIG_FILE,
+        PANE_SETTING_RESET_ALL,
         PANE_SETTING_SAVE_RETURN,
         PANE_SETTING_COUNT
     };
@@ -3335,13 +3336,23 @@ void do_cmd_pane_settings(void)
             sdl_config_path_leaf(config_label), row_width, 12);
         ADD_PANE_SETTING_ROW(PANE_SETTING_OPEN_CONFIG_FILE, 12, a, buf);
 
-        /* Option 13: Save/Return */
+        /* Option 13: Reset all interface settings */
+        a = (k == PANE_SETTING_RESET_ALL) ? TERM_L_BLUE : TERM_WHITE;
+        settings_ui_fit_text(buf, sizeof(buf),
+            settings_ui_pick_label(row_width,
+                "Reset All Interface Settings",
+                "Reset All Settings",
+                "Reset All"),
+            row_width);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_RESET_ALL, 13, a, buf);
+
+        /* Option 14: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_SAVE_RETURN, 13, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_SAVE_RETURN, 14, a, buf);
 
 #undef ADD_PANE_SETTING_ROW
 
@@ -3391,6 +3402,10 @@ void do_cmd_pane_settings(void)
                 [PANE_SETTING_OPEN_CONFIG_FILE] =
                     "Open the raw sil_sdl.json config file in your system's "
                     "default editor.",
+                [PANE_SETTING_RESET_ALL] =
+                    "Reset the complete interface configuration at once, "
+                    "including pane layout, fonts, controls, display, and "
+                    "interface options.",
                 [PANE_SETTING_SAVE_RETURN] =
                     "Return to the Options menu. Changes here are saved to your "
                     "SDL config on exit.",
@@ -3556,6 +3571,17 @@ void do_cmd_pane_settings(void)
                 sdl_open_config_file();
                 break;
             }
+            if (k == PANE_SETTING_RESET_ALL)
+            {
+                settings_semantic_menu_hide();
+                if (get_check("Reset all interface settings to defaults? "))
+                {
+                    sdl_reset_interface_settings_to_defaults();
+                    settings_changed = false;
+                    msg_print("All interface settings reset to defaults.");
+                }
+                break;
+            }
 
             /* Save if changed, then exit */
             if (settings_changed)
@@ -3667,6 +3693,16 @@ void do_cmd_pane_settings(void)
             {
                 settings_semantic_menu_hide();
                 sdl_open_config_file();
+            }
+            else if (k == PANE_SETTING_RESET_ALL)
+            {
+                settings_semantic_menu_hide();
+                if (get_check("Reset all interface settings to defaults? "))
+                {
+                    sdl_reset_interface_settings_to_defaults();
+                    settings_changed = false;
+                    msg_print("All interface settings reset to defaults.");
+                }
             }
             else if (k == PANE_SETTING_SAVE_RETURN) /* Save/Return */
             {

@@ -747,6 +747,9 @@ bool sdl_ensure_default_pane_config_entries(struct pane_config* configs,
         }
 
         configs[*config_count] = default_pane_config[i];
+        if (pane == PANE_STATUS)
+            configs[*config_count].where =
+                sdl_default_status_pane_placement(configs, *config_count);
         configs[*config_count].enabled =
             sdl_pane_default_enabled_on_migration(pane)
                 ? default_pane_config[i].enabled

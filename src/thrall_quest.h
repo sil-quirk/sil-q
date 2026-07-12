@@ -26,9 +26,9 @@ void init_thrall_quest(monster_type* m_ptr);
 cptr get_thrall_quest_item_name(byte quest_item);
 
 /*
- * Check if player has the requested item in inventory
- * Returns the inventory slot if found, or SUPPLIES_INDEX + supply_idx for
- * supplies items, -1 otherwise.
+ * Check if player has the requested item in inventory or equipment.
+ * Returns the inventory/equipment slot if found, or SUPPLIES_INDEX +
+ * supply_idx for supplies items, -1 otherwise.
  */
 int player_has_thrall_quest_item(byte quest_item);
 

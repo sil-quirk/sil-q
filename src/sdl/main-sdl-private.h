@@ -618,7 +618,8 @@ typedef struct sdl_character_sheet_screen_state {
     u32b narrative_lamp_maximum;
     int narrative_lamp_page;
     bool narrative_lamp_side;     /* place lamp beside text when width permits */
-    bool narrative_close_enabled;  /* show an on-screen Close button (mouse/touch) */
+    bool narrative_close_enabled;  /* show an on-screen exit button (mouse/touch) */
+    char narrative_close_label[48]; /* context-specific exit button label */
     touch_swipe_state birth_swipe;
     character_sheet_touch_press_state touch_press;
     int last_body_px;          /* last column/list body font px for tooltips */
@@ -1620,6 +1621,8 @@ int sdl_pane_config_index_in_array(const struct pane_config* configs, int count,
 bool sdl_normalize_unified_log_pane_config(struct pane_config* configs, int* config_count, bool enable_added_log);
 void sdl_normalize_unified_log_pane_profiles(bool enable_added_log);
 bool sdl_screen_is_wide_for_pane_defaults(int screen_width, int screen_height);
+enum pane_placement sdl_default_status_pane_placement(
+    const struct pane_config* configs, int config_count);
 void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs, int* config_count, int screen_width, int screen_height);
 void sdl_apply_screen_aspect_pane_default_profiles(int screen_width, int screen_height);
 int sdl_default_main_scale_for_screen_size(int screen_width, int screen_height, int mode);

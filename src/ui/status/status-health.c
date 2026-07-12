@@ -93,7 +93,7 @@ bool get_alertness_text(
     if (m_ptr->alertness < ALERTNESS_UNWARY)
     {
         SDL_strlcpy(text, "Sleeping", text_size);
-        *color = TERM_BLUE;
+        *color = TERM_L_BLUE;
     }
     else if (m_ptr->alertness < ALERTNESS_ALERT)
     {
@@ -114,7 +114,7 @@ bool get_alertness_text(
             if (m_ptr->stance == STANCE_FLEEING)
             {
                 SDL_strlcpy(text, "Fleeing", text_size);
-                *color = TERM_VIOLET;
+                *color = TERM_L_RED;
             }
             else if (m_ptr->stance == STANCE_CONFIDENT)
             {

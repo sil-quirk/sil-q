@@ -487,22 +487,14 @@ void sdl_show_interface_settings_reset_notice(void)
     }
 }
 
-void sdl_reset_interface_settings_to_defaults_for_migration(void)
+void sdl_reset_interface_settings_to_defaults(void)
 {
-    static bool reset_done = false;
     int screen_w;
     int screen_h;
     bool old_fullscreen;
     bool old_tiles;
     bool desired_fullscreen;
     bool desired_tiles;
-
-    if (reset_done)
-    {
-        sdl_config_load_app_options(config_file_path);
-        return;
-    }
-    reset_done = true;
 
     sdl_current_default_dimensions(&screen_w, &screen_h);
     old_fullscreen = config.fullscreen;
@@ -512,7 +504,13 @@ void sdl_reset_interface_settings_to_defaults_for_migration(void)
     sdl_ensure_default_pane_profiles_present(false);
     sdl_apply_screen_aspect_pane_default_profiles(screen_w, screen_h);
     sdl_apply_stored_pane_profile(config.min_terminal_mode);
+    sdl_apply_startup_input_defaults_to_config(&config,
+        g_startup_device_class);
     sdl_config_reset_app_options_to_defaults();
+    sdl_config_apply_keyboard_keymaps(&config);
+    if (!ui_colors_apply_palette_preset(config.palette_preset))
+        log_warn("Could not restore default palette preset '%s'",
+            config.palette_preset);
 
     desired_fullscreen = config.fullscreen;
     desired_tiles = config.tiles;
@@ -535,10 +533,23 @@ void sdl_reset_interface_settings_to_defaults_for_migration(void)
     {
         sdl_config_save(config_file_path, &config, g_pane_profiles,
             SDL_PANE_PROFILE_COUNT);
-        log_info("Reset SDL/interface settings to defaults for 0.9.7 migration: %s",
+        log_info("Reset all SDL/interface settings to defaults: %s",
             config_file_path);
     }
+}
 
+void sdl_reset_interface_settings_to_defaults_for_migration(void)
+{
+    static bool reset_done = false;
+
+    if (reset_done)
+    {
+        sdl_config_load_app_options(config_file_path);
+        return;
+    }
+    reset_done = true;
+
+    sdl_reset_interface_settings_to_defaults();
     sdl_show_interface_settings_reset_notice();
 }
 
@@ -626,6 +637,9 @@ int get_sdl_pane_default_where(int index)
     int di = sdl_pane_default_config_index(index);
     if (di < 0)
         return get_sdl_pane_where(index);
+    if (pane_config[index].pane == PANE_STATUS)
+        return (int)sdl_default_status_pane_placement(pane_config,
+            pane_config_count);
     return (int)default_pane_config[di].where;
 }
 

@@ -13,7 +13,6 @@ log.txt
 src.code-workspace
 *.bak*
 .clangd
-/sil-more-windows-sdl3
 /.cache
 /.venv/
 /src/.venv/
@@ -28,13 +27,11 @@ compile_commands.json
 *.backup
 *.temp
 /sil-more_beta 0.9
-/sil-more-release*
-/sil-more-windows-sdl3-portable
 /build*
 !/build-android-bundle.ps1
 /lib/xtra/sound/packs
 /scripts/output
-/sil-more-0.91
+/sil-more-*
 /.claude
 /.tools/gradle-8.2.1
 

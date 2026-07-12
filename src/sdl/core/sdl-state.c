@@ -43,7 +43,7 @@ const struct pane_config default_pane_config[] = {
         .rect.rows = 4, .rect.cols = 12},
     {.pane = PANE_ROLLS, .where = PLACE_TOP_RIGHT, .enabled = true,
         .rect.rows = SDL_OVERLAY_LOG_PANE_DEFAULT_ROWS},
-    {.pane = PANE_STATUS, .where = PLACE_BOTTOM_RIGHT, .enabled = true,
+    {.pane = PANE_STATUS, .where = PLACE_TOP_CENTER, .enabled = true,
         .rect.rows = 1, .rect.cols = 24},
     {.pane = PANE_DESCRIPTION, .where = PLACE_BOTTOM_CENTER, .enabled = true,
         .rect.rows = 80, .rect.cols = 160},
@@ -394,10 +394,35 @@ bool sdl_screen_is_wide_for_pane_defaults(int screen_width, int screen_height)
         && (long)screen_width * 10 >= (long)screen_height * 16;
 }
 
-/* Adapt the default log/depth layout to the screen shape. Wide screens show the
- * combat log as the top/bottom-right overlay (PANE_ROLLS) and drop the depth
- * readout into the bottom-right corner; narrower screens dock the log along the
- * bottom (PANE_LOG) and keep depth at the top-right. */
+enum pane_placement sdl_default_status_pane_placement(
+    const struct pane_config* configs, int config_count)
+{
+    int rolls_idx = sdl_pane_config_index_in_array(configs, config_count,
+        PANE_ROLLS);
+    int log_idx = sdl_pane_config_index_in_array(configs, config_count,
+        PANE_LOG);
+
+    /* Keep the status readout away from the depth readout in the top-right.
+     * The overlay log owns that corner on wide layouts, so status sits at the
+     * top centre; with the desktop bottom log, status uses bottom-right. */
+    if (rolls_idx >= 0 && configs[rolls_idx].enabled
+        && configs[rolls_idx].where == PLACE_TOP_RIGHT)
+    {
+        return PLACE_TOP_CENTER;
+    }
+    if (log_idx >= 0 && configs[log_idx].enabled
+        && pane_placement_is_bottom(configs[log_idx].where))
+    {
+        return PLACE_BOTTOM_RIGHT;
+    }
+
+    return PLACE_TOP_CENTER;
+}
+
+/* Adapt the default log/depth/status layout to the screen shape. Wide screens
+ * show the combat log at top-right, status at top-centre, and depth at
+ * bottom-right. Narrower screens dock the log along the bottom, keep depth at
+ * top-right, and put status at bottom-right. */
 void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
     int* config_count, int screen_width, int screen_height)
 {
@@ -405,6 +430,7 @@ void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
     int depth_idx;
     int rolls_idx;
     int log_idx;
+    int status_idx;
 
     if (!configs || !config_count)
         return;
@@ -416,6 +442,8 @@ void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
     rolls_idx = sdl_pane_config_index_in_array(configs, *config_count,
         PANE_ROLLS);
     log_idx = sdl_pane_config_index_in_array(configs, *config_count, PANE_LOG);
+    status_idx = sdl_pane_config_index_in_array(configs, *config_count,
+        PANE_STATUS);
 
     if (depth_idx >= 0)
         configs[depth_idx].where = wide ? PLACE_BOTTOM_RIGHT : PLACE_TOP_RIGHT;
@@ -423,6 +451,9 @@ void sdl_apply_screen_aspect_pane_defaults(struct pane_config* configs,
         configs[rolls_idx].enabled = wide;
     if (log_idx >= 0)
         configs[log_idx].enabled = !wide;
+    if (status_idx >= 0)
+        configs[status_idx].where = wide
+            ? PLACE_TOP_CENTER : PLACE_BOTTOM_RIGHT;
 }
 
 void sdl_apply_screen_aspect_pane_default_profiles(int screen_width,

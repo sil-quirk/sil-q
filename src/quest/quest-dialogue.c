@@ -66,12 +66,74 @@ static bool quest_typewriter_ensure_row(cptr title, byte title_color, int wid,
     return quest_typewriter_next_page(title, title_color, wid, hgt, row, col);
 }
 
+static void quest_book_flush_paragraph(char *para, size_t *para_len)
+{
+    if (!para || !para_len || *para_len == 0)
+        return;
+
+    sdl_character_sheet_screen_add_book_paragraph(para);
+    para[0] = '\0';
+    *para_len = 0;
+}
+
+static bool quest_book_line_is(cptr line, size_t line_len, cptr marker)
+{
+    size_t marker_len;
+
+    if (!line || !marker)
+        return false;
+    marker_len = strlen(marker);
+    return line_len == marker_len && !strncmp(line, marker, marker_len);
+}
+
+/* Add one logical input line to a narrative book.  Non-empty adjacent lines
+ * belong to the same reflowable paragraph; an empty line ends it. */
+static void quest_book_add_line(cptr line, size_t line_len, char *para,
+    size_t para_size, size_t *para_len)
+{
+    size_t copy_len;
+
+    if (!para || para_size == 0 || !para_len)
+        return;
+    if (!line)
+        line_len = 0;
+
+    if (quest_book_line_is(line, line_len, "[newpage]"))
+    {
+        quest_book_flush_paragraph(para, para_len);
+        sdl_character_sheet_screen_break_book_page();
+        return;
+    }
+    if (quest_book_line_is(line, line_len, "[highlight]"))
+    {
+        quest_book_flush_paragraph(para, para_len);
+        sdl_character_sheet_screen_highlight_book_paragraph();
+        return;
+    }
+    if (line_len == 0)
+    {
+        quest_book_flush_paragraph(para, para_len);
+        return;
+    }
+
+    if (*para_len > 0 && *para_len + 1 < para_size)
+        para[(*para_len)++] = ' ';
+    copy_len = MIN(line_len, para_size - 1 - *para_len);
+    if (copy_len > 0)
+    {
+        memcpy(para + *para_len, line, copy_len);
+        *para_len += copy_len;
+    }
+    para[*para_len] = '\0';
+}
+
 /*
  * Show quest narrative as a parchment "book" with page-turn navigation, reusing
- * the SDL front-end's character-sheet book.  The incoming texts[] are the line
- * entries from extract_quest_*_texts(): consecutive non-empty lines form one
- * paragraph and an empty entry is a paragraph break.  Each paragraph is re-flowed
- * onto the page (terminal line breaks are dropped), then the book paginates.
+ * the SDL front-end's character-sheet book.  The incoming texts[] may be line
+ * entries from extract_quest_*_texts() or complete multiline speeches.  In
+ * either form, consecutive non-empty lines form one paragraph and an empty line
+ * is a paragraph break.  Each paragraph is re-flowed onto the page, then the
+ * book paginates.
  *
  * Returns false when the book cannot be shown (no SDL screen), so the caller can
  * fall back to the terminal typewriter below.
@@ -95,55 +157,38 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
     sdl_character_sheet_screen_set_book_target_page_count(
         sdl_touch_only_device_active() ? 4 : 3);
 
-    /* Build paragraphs from the line entries and push them into the book.  The
-     * extra (idx == total_texts) pass flushes the final paragraph. */
+    /* Build paragraphs from both line-array and embedded-newline input.  Thrall
+     * dialogue uses the latter; treating that whole speech as one indivisible
+     * paragraph prevents the paginator from moving its tail to a later page. */
     para[0] = '\0';
-    for (idx = 0; idx <= total_texts; idx++)
+    for (idx = 0; idx < total_texts; idx++)
     {
-        cptr line = (idx < total_texts) ? texts[idx] : NULL;
+        cptr text = texts[idx];
+        cptr line;
 
-        /* A "[newpage]" line flushes the current paragraph and forces the next
-         * one onto a fresh page, so an author can lay out a logical page turn. */
-        if (line && streq(line, "[newpage]"))
+        if (!text || !text[0])
         {
-            if (para_len > 0)
-                sdl_character_sheet_screen_add_book_paragraph(para);
-            para[0] = '\0';
-            para_len = 0;
-            sdl_character_sheet_screen_break_book_page();
+            quest_book_add_line(NULL, 0, para, sizeof(para), &para_len);
+            continue;
         }
-        /* A "[highlight]" line flushes the current paragraph and marks the next
-         * one as the quest's task or reward, drawn in light blue so the player
-         * can find it without reading the whole passage. */
-        else if (line && streq(line, "[highlight]"))
+
+        line = text;
+        while (*line)
         {
-            if (para_len > 0)
-                sdl_character_sheet_screen_add_book_paragraph(para);
-            para[0] = '\0';
-            para_len = 0;
-            sdl_character_sheet_screen_highlight_book_paragraph();
-        }
-        else if (line && line[0])
-        {
-            if (para_len > 0 && para_len + 1 < sizeof(para))
-            {
-                para[para_len++] = ' ';
-                para[para_len] = '\0';
-            }
-            if (para_len < sizeof(para))
-            {
-                SDL_strlcpy(para + para_len, line, sizeof(para) - para_len);
-                para_len += strlen(para + para_len);
-            }
-        }
-        else
-        {
-            if (para_len > 0)
-                sdl_character_sheet_screen_add_book_paragraph(para);
-            para[0] = '\0';
-            para_len = 0;
+            cptr end = line;
+
+            while (*end && *end != '\r' && *end != '\n')
+                end++;
+            quest_book_add_line(line, (size_t)(end - line), para,
+                sizeof(para), &para_len);
+            if (!*end)
+                break;
+            if (*end == '\r' && end[1] == '\n')
+                end++;
+            line = end + 1;
         }
     }
+    quest_book_flush_paragraph(para, &para_len);
     sdl_character_sheet_screen_commit_book();
 
     /* Page-turn input loop (mirrors the race-book loop in get_player_choice). */
