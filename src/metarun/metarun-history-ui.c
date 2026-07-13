@@ -39,12 +39,6 @@ void list_metaruns(void)
 
     refresh_current_metar_score();
 
-    if (metarun_max > 0 && metaruns) {
-        for (s16b i = 0; i < metarun_max; i++) {
-            metaruns[i].score = compute_metarun_score(&metaruns[i]);
-        }
-    }
-
     s16b *order = NULL;
     if (metarun_max > 0 && metaruns) {
         order = mem_alloc_array(metarun_max, s16b);

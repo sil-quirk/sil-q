@@ -3,6 +3,7 @@
 
 bool oath_unlocked(int oath_id)
 {
+    if (run_mode_is_blitz()) return false;
     if (current_run < 0 || current_run >= metarun_max) return false;
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
 
@@ -15,6 +16,7 @@ bool oath_unlocked(int oath_id)
  */
 bool oath_banned(int oath_id)
 {
+    if (run_mode_is_blitz()) return false;
     if (current_run < 0 || current_run >= metarun_max) return false;
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
 
@@ -27,6 +29,7 @@ bool oath_banned(int oath_id)
  */
 void metarun_unlock_oath(int oath_id)
 {
+    if (run_mode_is_blitz()) return;
     if (current_run < 0 || current_run >= metarun_max) {
         log_trace("Oath unlock: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
@@ -54,6 +57,7 @@ void metarun_unlock_oath(int oath_id)
  */
 void metarun_ban_oath(int oath_id)
 {
+    if (run_mode_is_blitz()) return;
     if (current_run < 0 || current_run >= metarun_max) {
         log_trace("Oath ban: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
@@ -82,10 +86,12 @@ void metarun_ban_oath(int oath_id)
  */
 int get_available_oaths_mask(void)
 {
-    if (blitz_oaths_enabled()) {
+    if (run_mode_is_blitz()) {
         int available = 0;
         int max_oath_id;
 
+        if (!blitz_oaths_enabled())
+            return 0;
         if (!z_info)
             return 0;
         if (z_info->oath_max <= 1)

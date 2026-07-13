@@ -8,6 +8,12 @@ void get_sdl_config_info(char* buf, size_t size)
     // SDL settings
     offset += (size_t)strnfmt(buf + offset, size - offset, "=== SDL Settings ===\n");
     offset += (size_t)strnfmt(buf + offset, size - offset, "Main View Scale: %d\n", config.main_view_scale);
+    offset += (size_t)strnfmt(buf + offset, size - offset,
+        "Terminal Menu Scale Offset: %+d\n",
+        config.terminal_menu_scale_offset);
+    offset += (size_t)strnfmt(buf + offset, size - offset,
+        "Mobile Starting Zoom Offset: %+d\n",
+        config.mobile_starting_zoom_offset);
     offset += (size_t)strnfmt(buf + offset, size - offset, "Minimum Terminal Size: %s (%dx%d)\n",
         sdl_min_terminal_mode_name(config.min_terminal_mode),
         sdl_current_min_terminal_cols(), sdl_current_min_terminal_rows());
@@ -126,6 +132,51 @@ int get_sdl_main_view_scale(void)
 int get_sdl_effective_main_view_scale(void)
 {
     return sdl_current_main_view_scale();
+}
+
+int get_sdl_terminal_menu_scale_offset(void)
+{
+    return config.terminal_menu_scale_offset;
+}
+
+void set_sdl_terminal_menu_scale_offset(int value)
+{
+    int target_scale;
+
+    if (value < SDL_TERMINAL_MENU_SCALE_OFFSET_MIN)
+        value = SDL_TERMINAL_MENU_SCALE_OFFSET_MIN;
+    if (value > SDL_TERMINAL_MENU_SCALE_OFFSET_MAX)
+        value = SDL_TERMINAL_MENU_SCALE_OFFSET_MAX;
+    if (config.terminal_menu_scale_offset == value)
+        return;
+
+    config.terminal_menu_scale_offset = value;
+    if (g_terminal_menu_scale_depth <= 0)
+        return;
+
+    /* Keep nested terminal-menu restores on the newly selected scale too. */
+    target_scale = get_sdl_terminal_menu_scale();
+    for (int i = 0; i < g_terminal_menu_scale_depth; i++)
+    {
+        if (g_terminal_menu_scale_stack[i] > 0)
+            g_terminal_menu_scale_stack[i] = target_scale;
+    }
+    g_terminal_menu_scale_override = target_scale;
+}
+
+int get_sdl_mobile_starting_zoom_offset(void)
+{
+    return config.mobile_starting_zoom_offset;
+}
+
+void set_sdl_mobile_starting_zoom_offset(int value)
+{
+    if (value < SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN)
+        value = SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN;
+    if (value > SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX)
+        value = SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX;
+
+    config.mobile_starting_zoom_offset = value;
 }
 
 int get_sdl_min_main_view_scale(void)
@@ -2749,7 +2800,7 @@ void sdl_apply_config_no_redraw(void)
     sdl_apply_config_impl(false);
 }
 
-bool sdl_prepare_first_gameplay_main_view_zoom(int delta)
+bool sdl_prepare_first_gameplay_main_view_zoom(void)
 {
 #if SIL_SDL_MOBILE_BUILD
     Uint64 start_ns;
@@ -2757,10 +2808,11 @@ bool sdl_prepare_first_gameplay_main_view_zoom(int delta)
     Uint64 resize_ns;
     int old_scale;
     int target_scale;
+    int zoom_offset = config.mobile_starting_zoom_offset;
     bool old_skip_main_redraw;
     bool old_defer_resize_handle_stuff;
 
-    if (delta == 0)
+    if (zoom_offset == 0)
         return false;
     if (!g_state.window) {
         log_warn("sdl_prepare_first_gameplay_main_view_zoom: no window, skipping");
@@ -2768,7 +2820,8 @@ bool sdl_prepare_first_gameplay_main_view_zoom(int delta)
     }
 
     old_scale = get_sdl_effective_main_view_scale();
-    target_scale = sdl_main_screen_clamp_main_view_scale(old_scale + delta);
+    target_scale = sdl_main_screen_clamp_main_view_scale(
+        old_scale + zoom_offset);
     if (target_scale == old_scale)
         return false;
 
@@ -2799,16 +2852,15 @@ bool sdl_prepare_first_gameplay_main_view_zoom(int delta)
     g_state.need_present = false;
     sdl_queue_main_view_scale_neighbors_prewarm("first gameplay zoom");
 
-    log_info("Mobile first gameplay zoom prepared before redraw: %d -> %d "
+    log_info("Mobile first gameplay zoom prepared before redraw: %d %+d -> %d "
              "in %llu ms (story=%llu ms resize=%llu ms)",
-        old_scale, target_scale,
+        old_scale, zoom_offset, target_scale,
         (unsigned long long)((SDL_GetTicksNS() - start_ns) / 1000000ULL),
         (unsigned long long)(story_ns / 1000000ULL),
         (unsigned long long)(resize_ns / 1000000ULL));
 
     return true;
 #else
-    (void)delta;
     return false;
 #endif
 }
@@ -2851,19 +2903,19 @@ int get_sdl_terminal_menu_scale(void)
         scale = SDL_MAIN_VIEW_MIN_SCALE;
     else
     {
-        /* Desktop/full-screen menus should keep one step below the normal
-         * terminal maximum, even when gameplay is in compact mode. */
-        scale = max_scale - 1;
+        scale = max_scale + config.terminal_menu_scale_offset;
         if (scale < min_scale)
             scale = min_scale;
+        if (scale > max_scale)
+            scale = max_scale;
     }
 
     log_debug("terminal menu scale: mode=%s hidden_supporting_panes=%d "
               "layout_max=%d platform_max=%d compact_platform_max=%d "
-              "target=%d",
+              "offset=%+d target=%d",
         sdl_min_terminal_mode_name(menu_mode),
         supporting_panes_hidden ? 1 : 0, max_scale, platform_max,
-        compact_platform_max, scale);
+        compact_platform_max, config.terminal_menu_scale_offset, scale);
 
     return scale;
 }
@@ -2989,6 +3041,5 @@ void sdl_request_redraw(void)
     g_state.need_present = true;
     Term_redraw();
 }
-
 
 

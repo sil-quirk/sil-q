@@ -110,6 +110,14 @@
 #define SDL_MAIN_VIEW_MIN_SCALE 1
 #define SDL_MAIN_VIEW_PREFERRED_MIN_SCALE 2
 #define SDL_MAIN_VIEW_MAX_SCALE 20
+#define SDL_TERMINAL_MENU_SCALE_OFFSET_MIN \
+    (SDL_MAIN_VIEW_MIN_SCALE - SDL_MAIN_VIEW_MAX_SCALE)
+#define SDL_TERMINAL_MENU_SCALE_OFFSET_DEFAULT (-1)
+#define SDL_TERMINAL_MENU_SCALE_OFFSET_MAX 0
+#define SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN 0
+#define SDL_MOBILE_STARTING_ZOOM_OFFSET_DEFAULT 2
+#define SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX \
+    (SDL_MAIN_VIEW_MAX_SCALE - SDL_MAIN_VIEW_MIN_SCALE)
 #define SDL_DICE_ROLL_LOCK_DEFAULT_MS 2000
 #define SDL_DICE_ROLL_OVERLAY_DEFAULT_MS 2500
 #define SDL_DICE_ROLL_TIMING_MAX_MS 10000
@@ -145,6 +153,10 @@ struct sdl_pane_profile {
 // SDL-specific configuration structure
 struct sdl_config {
     int main_view_scale;
+    // Scale steps relative to the largest terminal-menu scale that fits.
+    int terminal_menu_scale_offset;
+    // Extra scale steps applied when mobile gameplay first appears.
+    int mobile_starting_zoom_offset;
     // Default supporting-pane font size. Zero means auto from the configured
     // main view scale, independent of temporary main-map zoom.
     int aux_view_font_size;

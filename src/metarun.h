@@ -174,6 +174,10 @@ metarun *metarun_entry_mutable(s16b idx);        /* Bounds-checked mutable acces
 s16b metarun_current_index(void);                /* Current metarun index or -1 */
 s16b metarun_entry_count(void);                  /* Total metarun entries loaded */
 int metarun_completed_count(void);              /* Count finished metaruns */
+bool metarun_tale_management_available(void);   /* No active character/story save */
+bool metarun_tale_recovery_required(void);      /* Story ledger needs restart recovery */
+bool metarun_activate_tale(s16b idx);            /* Make a recorded tale current */
+bool metarun_create_tale(void);                  /* Create/select a fresh tale */
 
 /* ------------------------------------------------------------------ */
 /*  Quest completion tracking                                         */

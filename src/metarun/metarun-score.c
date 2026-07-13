@@ -225,7 +225,7 @@ metarun_major_effect major_blessing_effect(int idx)
 
 static void refresh_alive_cache(void)
 {
-    int alive_scores = score_count_alive_entries();
+    int alive_scores = score_count_story_alive_entries();
     if (alive_scores < 0) alive_scores = 0;
 
     int roster_total = count_character_txt_entries();
@@ -239,7 +239,7 @@ static void refresh_alive_cache(void)
 
     /* Final Look uses live-game presentation flags after the death has already
      * been committed to the tale.  Do not count that UI shell as a survivor. */
-    if (character_generated && p_ptr && !p_ptr->is_dead
+    if (!run_mode_is_blitz() && character_generated && p_ptr && !p_ptr->is_dead
         && !death_spectator_active()) {
         if (alive < 1) alive = 1;
     }
@@ -291,7 +291,7 @@ u32b get_best_run_score_from_highscores(void)
 {
     #define MAX_SCORES 100
     high_score scores[MAX_SCORES];
-    int count = collect_high_scores(scores, MAX_SCORES, true);
+    int count = collect_story_high_scores(scores, MAX_SCORES, true);
     u32b best = 0;
 
     for (int i = 0; i < count; i++) {
@@ -314,7 +314,7 @@ static u32b compute_progressive_character_score(void)
 {
     #define MAX_SCORES 100
     high_score scores[MAX_SCORES];
-    int count = collect_high_scores(scores, MAX_SCORES, true); /* sorted by score descending */
+    int count = collect_story_high_scores(scores, MAX_SCORES, true); /* sorted by score descending */
 
     unsigned long long total = 0;
     unsigned long long divisor = 1;
@@ -366,13 +366,15 @@ void refresh_current_metar_score(void)
     if (!metaruns) return;
     if (current_run < 0 || current_run >= metarun_max) return;
 
+    metar.best_run_score = get_best_run_score_from_highscores();
     metar.score = compute_metarun_score(&metar);
+    metaruns[current_run].best_run_score = metar.best_run_score;
     metaruns[current_run].score = metar.score;
 }
 
 u32b compute_blessing_pool(void)
 {
-    u32b total = score_sum_dead_points();
+    u32b total = score_sum_story_dead_points();
     metar.fallen_score_total = total;
     update_blessing_ledger(&metar);
     metarun_sanitize_major_blessing_bits(&metar);
@@ -408,7 +410,10 @@ void metarun_apply_runtime_effects(void)
     metarun_sanitize_major_blessing_bits(&metar);
 
     int weight_cap = SUPPLIES_MAX_WEIGHT_DEFAULT;
-    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_SUPPLY_LIMIT)) {
+    if (!run_mode_is_blitz()
+        && metarun_has_major_blessing_effect(
+            METARUN_MAJOR_EFFECT_SUPPLY_LIMIT))
+    {
         weight_cap = SUPPLIES_MAX_WEIGHT_BLESSING;
     }
     supplies_set_max_weight_cap(weight_cap);

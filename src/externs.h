@@ -403,7 +403,7 @@ extern bool use_background_colors;
 extern metarun metar;
 extern int meta_fd;
 /* metarun/score helpers */
-extern void clear_scorefile(void);
+extern bool clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
 extern void metarun_finalize_scores_and_saves(void);
 extern void backup_and_clear_saves(void);
@@ -955,7 +955,16 @@ extern void exit_game_panic(void);
 extern errr create_score(high_score* the_score);
 extern int score_points(const high_score* score);
 extern int score_count_alive_entries(void);
+extern int score_count_story_alive_entries(void);
+extern int score_count_alive_entries_at_path(const char* score_path);
+extern bool score_count_story_alive_entries_checked(int* alive_count);
+extern bool score_count_alive_entries_at_path_checked(const char* score_path,
+                                                      int* alive_count);
+extern bool score_story_ledger_exists(void);
 extern u32b score_sum_dead_points(void);
+extern u32b score_sum_story_dead_points(void);
+extern int collect_story_high_scores(high_score* out, int capacity,
+                                     bool sort_by_score);
 #ifdef HANDLE_SIGNALS
 extern void (*(*signal_aux)(int, void (*)(int)))(int);
 #endif
@@ -970,11 +979,12 @@ extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
 extern int meta_seek(int i);
 extern int meta_fill(bool);
+extern void print_story_intro(void);
 extern void print_story(int last_parts, bool fade_in);
 /* Generic fade-in line printer for arbitrary text */
 extern void print_fade_line(cptr text, int row, int indent);
 extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
-extern void clear_scorefile(void);
+extern bool clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
 extern bool mobile_autosave_game(cptr reason);
 
@@ -2157,7 +2167,11 @@ extern int get_sdl_main_view_scale(void);
 extern void set_sdl_main_view_scale(int value);
 extern int get_sdl_effective_main_view_scale(void);
 extern bool set_sdl_main_view_zoom_scale(int value);
-extern bool sdl_prepare_first_gameplay_main_view_zoom(int delta);
+extern int get_sdl_terminal_menu_scale_offset(void);
+extern void set_sdl_terminal_menu_scale_offset(int value);
+extern int get_sdl_mobile_starting_zoom_offset(void);
+extern void set_sdl_mobile_starting_zoom_offset(int value);
+extern bool sdl_prepare_first_gameplay_main_view_zoom(void);
 extern int get_sdl_min_main_view_scale(void);
 extern int get_sdl_platform_max_main_view_scale(void);
 extern int get_sdl_terminal_menu_scale(void);

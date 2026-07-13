@@ -3123,6 +3123,8 @@ void do_cmd_pane_settings(void)
     enum {
         PANE_SETTING_MIN_TERMINAL_SIZE = 0,
         PANE_SETTING_MAIN_VIEW_SCALE,
+        PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET,
+        PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET,
         PANE_SETTING_ENABLE_SIDE_PANES,
         PANE_SETTING_ENABLE_BOTTOM_PANES,
         PANE_SETTING_FULLSCREEN,
@@ -3139,6 +3141,7 @@ void do_cmd_pane_settings(void)
         PANE_SETTING_COUNT
     };
     int k = 0;
+    int top = 0;
     int n = PANE_SETTING_COUNT;
     bool done = false;
     bool settings_changed = false;
@@ -3153,6 +3156,7 @@ void do_cmd_pane_settings(void)
     {
         int row_width;
         int label_hint;
+        int visible_rows = n;
         bool pixel_menu;
 
         pixel_menu = settings_semantic_menu_begin("SDL Pane Settings", k);
@@ -3176,8 +3180,19 @@ void do_cmd_pane_settings(void)
         row_width = settings_ui_line_width(2);
         label_hint = MAX(10, row_width - 12);
         if (!pixel_menu)
+        {
+            visible_rows = MIN(n, settings_menu_visible_rows(y0, 3));
+            if (top > k)
+                top = k;
+            if (top + visible_rows <= k)
+                top = k - visible_rows + 1;
+            if (top < 0)
+                top = 0;
+            if (top > n - visible_rows)
+                top = n - visible_rows;
             settings_menu_begin_scroll_area(y0,
-                MIN(n, settings_menu_visible_rows(y0, 3)));
+                visible_rows);
+        }
 
 #define ADD_PANE_SETTING_ROW(CHOICE, OFFSET, ATTR, TEXT)                       \
         do {                                                                   \
@@ -3193,9 +3208,13 @@ void do_cmd_pane_settings(void)
             }                                                                  \
             else                                                               \
             {                                                                  \
-                c_prt((ATTR), (TEXT), y0 + (OFFSET), 2);                       \
-                ui_menu_click_add((CHOICE), 2, y0 + (OFFSET),                  \
-                    (int)strlen(TEXT));                                        \
+                int display_offset = (OFFSET) - top;                           \
+                if (display_offset >= 0 && display_offset < visible_rows)      \
+                {                                                              \
+                    c_prt((ATTR), (TEXT), y0 + display_offset, 2);              \
+                    ui_menu_click_add((CHOICE), 2, y0 + display_offset,         \
+                        (int)strlen(TEXT));                                     \
+                }                                                              \
             }                                                                  \
         } while (0)
 
@@ -3221,7 +3240,35 @@ void do_cmd_pane_settings(void)
             value_buf, row_width, 3);
         ADD_PANE_SETTING_ROW(PANE_SETTING_MAIN_VIEW_SCALE, 1, a, buf);
 
-        /* Option 2: Enable Side Panes */
+        /* Option 2: terminal-menu scale relative to the layout maximum. */
+        a = (k == PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET)
+            ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(value_buf, sizeof(value_buf), "%+d",
+            get_sdl_terminal_menu_scale_offset());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Terminal Menu Scale Offset",
+                "Menu Scale Offset",
+                "Menu Scale"),
+            value_buf, row_width, 4);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET, 2, a,
+            buf);
+
+        /* Option 3: extra zoom applied when mobile gameplay starts. */
+        a = (k == PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET)
+            ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(value_buf, sizeof(value_buf), "%+d",
+            get_sdl_mobile_starting_zoom_offset());
+        settings_ui_format_pair_line(buf, sizeof(buf),
+            settings_ui_pick_label(label_hint,
+                "Mobile Starting Zoom Offset",
+                "Mobile Start Zoom",
+                "Start Zoom"),
+            value_buf, row_width, 4);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET, 3, a,
+            buf);
+
+        /* Option 4: Enable Side Panes */
         a = (k == PANE_SETTING_ENABLE_SIDE_PANES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3230,9 +3277,9 @@ void do_cmd_pane_settings(void)
                 "Side Panes"),
             get_sdl_enable_right_panes() ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_ENABLE_SIDE_PANES, 2, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_ENABLE_SIDE_PANES, 4, a, buf);
 
-        /* Option 3: Enable Bottom Panes */
+        /* Option 5: Enable Bottom Panes */
         a = (k == PANE_SETTING_ENABLE_BOTTOM_PANES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3241,21 +3288,21 @@ void do_cmd_pane_settings(void)
                 "Bottom Panes"),
             get_sdl_enable_bottom_panes() ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_ENABLE_BOTTOM_PANES, 3, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_ENABLE_BOTTOM_PANES, 5, a, buf);
 
-        /* Option 4: Fullscreen */
+        /* Option 6: Fullscreen */
         a = (k == PANE_SETTING_FULLSCREEN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf), "Fullscreen",
             get_sdl_fullscreen() ? "yes" : "no", row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_FULLSCREEN, 4, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_FULLSCREEN, 6, a, buf);
 
-        /* Option 5: Tiles */
+        /* Option 7: Tiles */
         a = (k == PANE_SETTING_TILES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf), "Tiles [Alt+A]",
             get_sdl_tiles() ? "yes" : "no", row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_TILES, 5, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_TILES, 7, a, buf);
 
-        /* Option 6: Use Unsafe Area */
+        /* Option 8: Use Unsafe Area */
         a = (k == PANE_SETTING_USE_UNSAFE_AREA) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3264,9 +3311,9 @@ void do_cmd_pane_settings(void)
                 "Unsafe Area"),
             get_sdl_use_unsafe_area() ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_USE_UNSAFE_AREA, 6, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_USE_UNSAFE_AREA, 8, a, buf);
 
-        /* Option 7: White Pane Borders */
+        /* Option 9: White Pane Borders */
         a = (k == PANE_SETTING_WHITE_PANE_BORDERS) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3275,9 +3322,9 @@ void do_cmd_pane_settings(void)
                 "White Borders"),
             get_sdl_show_pane_borders() ? "white" : "black",
             row_width, 5);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_WHITE_PANE_BORDERS, 7, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_WHITE_PANE_BORDERS, 9, a, buf);
 
-        /* Option 8: Hide supporting panes on full-screen screens */
+        /* Option 10: Hide supporting panes on full-screen screens */
         a = (k == PANE_SETTING_HIDE_FULLSCREEN_PANES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3286,9 +3333,9 @@ void do_cmd_pane_settings(void)
                 "Hide panes on full-screen"),
             op_ptr->opt[OPT_hide_supporting_panes_fullscreen] ? "yes" : "no",
             row_width, 3);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_HIDE_FULLSCREEN_PANES, 8, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_HIDE_FULLSCREEN_PANES, 10, a, buf);
 
-        /* Option 9: Aux View Font Size */
+        /* Option 11: Aux View Font Size */
         a = (k == PANE_SETTING_AUX_VIEW_FONT_SIZE) ? TERM_L_BLUE : TERM_WHITE;
         format_font_size_value(font_value, sizeof(font_value),
             get_sdl_aux_view_font_size(), get_sdl_effective_aux_view_font_size(),
@@ -3299,9 +3346,9 @@ void do_cmd_pane_settings(void)
                 "Default Aux Font (0=auto)",
                 "Aux Font"),
             font_value, row_width, 6);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_AUX_VIEW_FONT_SIZE, 9, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_AUX_VIEW_FONT_SIZE, 11, a, buf);
 
-        /* Option 10: View Pane Configuration (supporting panes only) */
+        /* Option 12: View Pane Configuration (supporting panes only) */
         a = (k == PANE_SETTING_VIEW_PANE_CONFIGURATION) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "%s (%d)",
             settings_ui_pick_label(row_width,
@@ -3314,9 +3361,9 @@ void do_cmd_pane_settings(void)
             settings_ui_fit_text(fitted_buf, sizeof(fitted_buf), buf, row_width);
             SDL_strlcpy(buf, fitted_buf, sizeof(buf));
         }
-        ADD_PANE_SETTING_ROW(PANE_SETTING_VIEW_PANE_CONFIGURATION, 10, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_VIEW_PANE_CONFIGURATION, 12, a, buf);
 
-        /* Option 11: Pane Font Sizes */
+        /* Option 13: Pane Font Sizes */
         a = (k == PANE_SETTING_PANE_FONT_SIZES) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
@@ -3324,9 +3371,9 @@ void do_cmd_pane_settings(void)
                 "Pane Fonts",
                 "Pane Fonts"),
             row_width);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_PANE_FONT_SIZES, 11, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_PANE_FONT_SIZES, 13, a, buf);
 
-        /* Option 12: Open SDL Config File */
+        /* Option 14: Open SDL Config File */
         a = (k == PANE_SETTING_OPEN_CONFIG_FILE) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_format_pair_line(buf, sizeof(buf),
             settings_ui_pick_label(label_hint,
@@ -3334,9 +3381,9 @@ void do_cmd_pane_settings(void)
                 "Open SDL Config",
                 "Open Config"),
             sdl_config_path_leaf(config_label), row_width, 12);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_OPEN_CONFIG_FILE, 12, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_OPEN_CONFIG_FILE, 14, a, buf);
 
-        /* Option 13: Reset all interface settings */
+        /* Option 15: Reset all interface settings */
         a = (k == PANE_SETTING_RESET_ALL) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_ui_pick_label(row_width,
@@ -3344,21 +3391,24 @@ void do_cmd_pane_settings(void)
                 "Reset All Settings",
                 "Reset All"),
             row_width);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_RESET_ALL, 13, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_RESET_ALL, 15, a, buf);
 
-        /* Option 14: Save/Return */
+        /* Option 16: Save/Return */
         a = (k == PANE_SETTING_SAVE_RETURN) ? TERM_L_BLUE : TERM_WHITE;
         settings_ui_fit_text(buf, sizeof(buf),
             settings_changed ? "Save Changes and Return"
                              : "Return to Options Menu",
             row_width);
-        ADD_PANE_SETTING_ROW(PANE_SETTING_SAVE_RETURN, 14, a, buf);
+        ADD_PANE_SETTING_ROW(PANE_SETTING_SAVE_RETURN, 16, a, buf);
 
 #undef ADD_PANE_SETTING_ROW
 
         if (!pixel_menu)
-            for (int click_i = 0; click_i < n; click_i++)
-                ui_menu_click_add_full_row(click_i, y0 + click_i);
+            for (int click_i = top;
+                 click_i < n && click_i < top + visible_rows; click_i++)
+            {
+                ui_menu_click_add_full_row(click_i, y0 + click_i - top);
+            }
 
         /* Display help: describe the focused setting (empty band when a row
          * has no description yet). */
@@ -3372,6 +3422,14 @@ void do_cmd_pane_settings(void)
                 [PANE_SETTING_MAIN_VIEW_SCALE] =
                     "Zoom level of the main map. Higher values enlarge the map "
                     "and its font but show less of the level at once.",
+                [PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET] =
+                    "Scale of full-screen terminal menus relative to the "
+                    "largest scale that fits. Set to 0 for the maximum; -1 "
+                    "uses one step below it.",
+                [PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET] =
+                    "Extra zoom steps applied when gameplay starts on mobile. "
+                    "Set to 0 to start at the configured main-map scale. The "
+                    "result is limited to what the screen can display.",
                 [PANE_SETTING_ENABLE_SIDE_PANES] =
                     "Show panes to the side of the map (inventory, monster "
                     "list, and more). Also toggled in play with Alt+I.",
@@ -3474,6 +3532,14 @@ void do_cmd_pane_settings(void)
                         break;
                     case PANE_SETTING_MAIN_VIEW_SCALE:
                         set_sdl_main_view_scale(def.main_view_scale);
+                        break;
+                    case PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET:
+                        set_sdl_terminal_menu_scale_offset(
+                            def.terminal_menu_scale_offset);
+                        break;
+                    case PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET:
+                        set_sdl_mobile_starting_zoom_offset(
+                            def.mobile_starting_zoom_offset);
                         break;
                     case PANE_SETTING_ENABLE_SIDE_PANES:
                         set_sdl_enable_right_panes(def.enable_right_panes);
@@ -3735,6 +3801,25 @@ void do_cmd_pane_settings(void)
                     sdl_apply_config();
                 }
             }
+            else if (k == PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET)
+            {
+                val = get_sdl_terminal_menu_scale_offset();
+                if (val < SDL_TERMINAL_MENU_SCALE_OFFSET_MAX)
+                {
+                    set_sdl_terminal_menu_scale_offset(val + 1);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET)
+            {
+                val = get_sdl_mobile_starting_zoom_offset();
+                if (val < SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX)
+                {
+                    set_sdl_mobile_starting_zoom_offset(val + 1);
+                    settings_changed = true;
+                }
+            }
             else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */
             {
                 set_sdl_enable_right_panes(true);
@@ -3816,6 +3901,25 @@ void do_cmd_pane_settings(void)
                     set_sdl_main_view_scale(val - 1);
                     settings_changed = true;
                     sdl_apply_config();
+                }
+            }
+            else if (k == PANE_SETTING_TERMINAL_MENU_SCALE_OFFSET)
+            {
+                val = get_sdl_terminal_menu_scale_offset();
+                if (val > SDL_TERMINAL_MENU_SCALE_OFFSET_MIN)
+                {
+                    set_sdl_terminal_menu_scale_offset(val - 1);
+                    settings_changed = true;
+                    sdl_apply_config();
+                }
+            }
+            else if (k == PANE_SETTING_MOBILE_STARTING_ZOOM_OFFSET)
+            {
+                val = get_sdl_mobile_starting_zoom_offset();
+                if (val > SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN)
+                {
+                    set_sdl_mobile_starting_zoom_offset(val - 1);
+                    settings_changed = true;
                 }
             }
             else if (k == PANE_SETTING_ENABLE_SIDE_PANES) /* Enable Side Panes */

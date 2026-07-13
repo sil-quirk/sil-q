@@ -159,7 +159,7 @@ static NavResult blitz_setup_menu(void)
     blitz_setup_clamp(setup);
 
     /* Render at the inventory/supply scale: hide panes BEFORE pushing the menu
-     * scale so get_sdl_terminal_menu_scale() measures the full screen (max-1). */
+     * scale so it is calculated from the full screen. */
     screen_save();
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
@@ -801,7 +801,7 @@ NavResult blitz_configure_effects(void)
     blitz_runtime_reset();
 
     /* Match the inventory/supply scale for the effect-selection and summary
-     * screens: hide panes first, then push the menu scale (max-1). */
+     * screens: hide panes first, then push the configured menu scale. */
     screen_save();
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();

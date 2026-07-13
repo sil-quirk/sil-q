@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "metarun-internal.h"
+#include "metarun/metarun-files.h"
 
 /* ------------------------------------------------------------------ */
 /*  Standard "Press any key..." prompts - use enum, not raw strings     */
@@ -591,6 +592,16 @@ int required_survivor_target(int win_goal)
 
 
 /* ======================  run-state logic  ====================== */
+static void report_tale_rollover_failure(void)
+{
+    log_error("Unable to start the next Tale safely");
+    if (metarun_tale_recovery_required())
+        msg_print("The next Tale needs recovery. Restart before playing Story mode.");
+    else
+        msg_print("The next Tale could not be started; the current Tale remains active.");
+    message_flush();
+}
+
 /* ------------------------------------------------------------------ *
  *  Decide whether the current run just ended, and react accordingly. *
  *  Message text adapts automatically if you set LOSECON_DEATHS = 1.  *
@@ -636,7 +647,8 @@ void check_run_end(void)
         wait_for_keypress_with_prompt("[Press any key to begin anew]");
         screen_load();
 
-        start_new_metarun();
+        if (!start_new_metarun())
+            report_tale_rollover_failure();
         return;
     }
 
@@ -663,7 +675,8 @@ void check_run_end(void)
         wait_for_keypress_with_prompt("[Press any key to begin anew]");
         screen_load();
 
-        start_new_metarun();
+        if (!start_new_metarun())
+            report_tale_rollover_failure();
     }
 }
 
@@ -671,24 +684,349 @@ void check_run_end(void)
 
 
 
-/* ------------------------------------------------------------------
- *  Start a brand-new meta-run.
- *  We snapshot the finished run **after** the array has been grown,
- *  so we only write once and always with the final pointer.
- * ------------------------------------------------------------------ */
-void start_new_metarun(void)
+static bool metarun_next_id(u32b* next_id)
 {
+    u32b maximum = 0;
+
+    if (!next_id || metarun_max >= SHRT_MAX)
+        return false;
+    for (s16b i = 0; metaruns && i < metarun_max; i++)
+        maximum = MAX(maximum, metaruns[i].id);
+    if (maximum == UINT32_MAX)
+        return false;
+    *next_id = maximum + 1;
+    return true;
+}
+
+static metarun* metarun_allocate_grown_array(void)
+{
+    metarun* grown;
+
+    if (metarun_max < 0 || metarun_max >= SHRT_MAX)
+        return NULL;
+    grown = mem_alloc_array(metarun_max + 1, metarun);
+    if (grown && metaruns && metarun_max > 0)
+        memcpy(grown, metaruns, sizeof(metarun) * metarun_max);
+    return grown;
+}
+
+static bool metarun_needs_score_ledger(const metarun* tale)
+{
+    if (!tale)
+        return false;
+    return tale->deaths > 0 || tale->silmarils > 0 || tale->score > 0
+        || tale->best_run_score > 0 || tale->fallen_score_total > 0
+        || tale->completed_quests != 0 || tale->blessing_points > 0;
+}
+
+bool metarun_tale_management_available(void)
+{
+    int alive = 0;
+
+    if (run_mode_is_blitz())
+        return false;
+    if (metarun_tale_recovery_required())
+        return false;
+    if (character_generated && p_ptr && p_ptr->playing
+        && !death_spectator_active())
+        return false;
+    if (score_count_story_alive_entries_checked(&alive))
+        return alive == 0;
+
+    /* A never-played first Tale may not have created scores.raw yet.  A file
+     * that exists but cannot be read is corruption and must fail closed. */
+    return !score_story_ledger_exists()
+        && !metarun_needs_score_ledger(&metar);
+}
+
+bool metarun_tale_recovery_required(void)
+{
+    return story_scorefile_switch_recovery_required();
+}
+
+static bool metarun_activation_stamp(u32b* stamp)
+{
+    u32b latest = 0;
+    time_t now;
+
+    if (!stamp)
+        return false;
+    for (s16b i = 0; metaruns && i < metarun_max; i++)
+        latest = MAX(latest, metaruns[i].last_played);
+    if (latest == UINT32_MAX) {
+        log_error("Cannot activate another tale: last-played counter exhausted");
+        return false;
+    }
+    now = time(NULL);
+    *stamp = (now > 0 && (u64b)now <= UINT32_MAX
+        && (u64b)now > (u64b)latest)
+        ? (u32b)now : latest + 1;
+    return true;
+}
+
+static void metarun_initialize_new_slot(metarun* entries, s16b idx,
+    u32b new_id, u32b activation_time)
+{
+    reset_defaults(&entries[idx]);
+    entries[idx].id = new_id;
+    entries[idx].type = 0;
+    entries[idx].last_played = activation_time;
+}
+
+static bool metarun_commit_new_slot(metarun* grown, u32b new_id,
+    u32b activation_time)
+{
+    metarun* old = metaruns;
+    metarun old_metar = metar;
+    s16b old_max = metarun_max;
+    s16b old_current = current_run;
+    bool old_created = metarun_created;
+
+    if (!grown)
+        return false;
+
+    metarun_initialize_new_slot(grown, old_max, new_id, activation_time);
+    metaruns = grown;
+    metarun_max = old_max + 1;
+    current_run = old_max;
+    metar = metaruns[current_run];
+    metarun_created = true;
+    apply_difficulty_curses(&metar);
+    metarun_apply_runtime_effects();
+    ensure_run_dir(&metar);
+
+    if (save_metaruns() != 0) {
+        bool ledger_ok;
+        bool metadata_ok;
+        bool journal_ok = false;
+
+        log_error("New Tale %u became active but could not be persisted",
+            (unsigned)new_id);
+        metaruns = old;
+        metarun_max = old_max;
+        current_run = old_current;
+        metar = old_metar;
+        metarun_created = old_created;
+        ledger_ok = restore_story_scorefile_for_tale(old_metar.id);
+        metarun_apply_runtime_effects();
+        metadata_ok = save_metaruns() == 0;
+        if (ledger_ok && metadata_ok)
+            journal_ok = finish_story_scorefile_switch();
+        if (!ledger_ok || !metadata_ok || !journal_ok)
+            log_error("Automatic Tale rollover remains pending for startup "
+                "recovery");
+        grown = mem_free(grown);
+        return false;
+    }
+    if (!finish_story_scorefile_switch()) {
+        log_error("Automatic Tale rollover is committed but its recovery "
+            "journal could not be removed");
+        if (old)
+            old = mem_free(old);
+        return false;
+    }
+    if (old)
+        old = mem_free(old);
+    log_info("New Tale %u created and initialized", (unsigned)new_id);
+    return true;
+}
+
+static bool metarun_rollback_activation(s16b old_current,
+    const metarun* old_metar, bool old_created, s16b changed_idx,
+    const metarun* changed_before)
+{
+    bool ledger_ok;
+    bool metadata_ok;
+
+    if (changed_before && metaruns && changed_idx >= 0
+        && changed_idx < metarun_max)
+    {
+        metaruns[changed_idx] = *changed_before;
+    }
+    current_run = old_current;
+    metar = *old_metar;
+    metarun_created = old_created;
+    ledger_ok = restore_story_scorefile_for_tale(old_metar->id);
+    metarun_apply_runtime_effects();
+    metadata_ok = save_metaruns() == 0;
+    if (ledger_ok && metadata_ok)
+        return finish_story_scorefile_switch();
+    return false;
+}
+
+bool metarun_activate_tale(s16b idx)
+{
+    metarun target_before;
+    metarun old_metar;
+    u32b activation_time;
+    u32b outgoing_id;
+    s16b old_current;
+    bool old_created;
+    bool allow_empty_outgoing;
+
+    if (!metarun_tale_management_available()) {
+        log_warn("Tale activation rejected while a character is running");
+        return false;
+    }
+    if (!metaruns || idx < 0 || idx >= metarun_max)
+        return false;
+    if (idx == current_run)
+        return true;
+    if (!metarun_activation_stamp(&activation_time))
+        return false;
+
+    compute_blessing_pool();
+    refresh_current_metar_score();
+    if (!sync_current_metarun_slot(false))
+        return false;
+
+    old_current = current_run;
+    old_metar = metar;
+    old_created = metarun_created;
+    target_before = metaruns[idx];
+    outgoing_id = metar.id;
+    allow_empty_outgoing = !metarun_needs_score_ledger(&metar);
+    if (!switch_story_scorefile_between_tales(outgoing_id,
+            target_before.id, false, allow_empty_outgoing))
+    {
+        return false;
+    }
+
+    current_run = idx;
+    metar = metaruns[current_run];
+    metar.last_played = activation_time;
+    metarun_clamp_and_sync_quests(&metar);
+    metarun_sanitize_blessing_economy(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
+    metarun_created = false;
+    compute_blessing_pool();
+    refresh_current_metar_score();
+    metarun_apply_runtime_effects();
+    ensure_run_dir(&metar);
+
+    if (save_metaruns() != 0 || !finish_story_scorefile_switch()) {
+        log_error("Tale %u activation failed; restoring Tale %u",
+            (unsigned)metar.id, (unsigned)old_metar.id);
+        if (!metarun_rollback_activation(old_current, &old_metar,
+                old_created, idx, &target_before))
+        {
+            log_error("Tale activation rollback remains pending for startup "
+                "recovery");
+        }
+        return false;
+    }
+    log_info("Activated Tale %u (array index %d)", (unsigned)metar.id, idx);
+    return true;
+}
+
+bool metarun_create_tale(void)
+{
+    metarun* grown;
+    metarun* old;
+    metarun old_metar;
+    u32b new_id;
+    u32b activation_time;
+    s16b old_max;
+    s16b old_current;
+    bool old_created;
+    bool allow_empty_outgoing;
+
+    if (!metarun_tale_management_available()) {
+        log_warn("New tale creation rejected while a character is running");
+        return false;
+    }
+    compute_blessing_pool();
+    refresh_current_metar_score();
+    if (!sync_current_metarun_slot(false) || !metarun_next_id(&new_id)
+        || !metarun_activation_stamp(&activation_time))
+    {
+        return false;
+    }
+    grown = metarun_allocate_grown_array();
+    if (!grown)
+        return false;
+    allow_empty_outgoing = !metarun_needs_score_ledger(&metar);
+    if (!switch_story_scorefile_between_tales(metar.id, new_id, true,
+            allow_empty_outgoing))
+    {
+        grown = mem_free(grown);
+        return false;
+    }
+
+    old = metaruns;
+    old_metar = metar;
+    old_max = metarun_max;
+    old_current = current_run;
+    old_created = metarun_created;
+    metarun_initialize_new_slot(grown, old_max, new_id, activation_time);
+    metaruns = grown;
+    metarun_max = old_max + 1;
+    current_run = old_max;
+    metar = metaruns[current_run];
+    metarun_created = true;
+    apply_difficulty_curses(&metar);
+    metarun_apply_runtime_effects();
+    ensure_run_dir(&metar);
+
+    if (save_metaruns() != 0 || !finish_story_scorefile_switch()) {
+        bool ledger_ok;
+        bool metadata_ok;
+        bool journal_ok = false;
+
+        log_error("New Tale %u could not be committed; restoring Tale %u",
+            (unsigned)new_id, (unsigned)old_metar.id);
+        metaruns = old;
+        metarun_max = old_max;
+        current_run = old_current;
+        metar = old_metar;
+        metarun_created = old_created;
+        ledger_ok = restore_story_scorefile_for_tale(old_metar.id);
+        metadata_ok = save_metaruns() == 0;
+        if (ledger_ok && metadata_ok)
+            journal_ok = finish_story_scorefile_switch();
+        if (!ledger_ok || !metadata_ok || !journal_ok)
+            log_error("New Tale rollback remains pending for startup recovery");
+        metarun_apply_runtime_effects();
+        grown = mem_free(grown);
+        return false;
+    }
+
+    if (old)
+        old = mem_free(old);
+    log_info("New Tale %u created and initialized", (unsigned)new_id);
+    return true;
+}
+
+/* ------------------------------------------------------------------
+ *  Start a brand-new meta-run after an automatic victory/defeat rollover.
+ * ------------------------------------------------------------------ */
+bool start_new_metarun(void)
+{
+    metarun* grown;
+    u32b new_id;
+    u32b activation_time;
+
+    if (run_mode_is_blitz()) {
+        log_warn("Ignoring automatic Tale rollover during Blitz");
+        return false;
+    }
+
     log_info("Starting new metarun (previous run ID: %d)", metar.id);
     log_debug("metarun: pre-finalize state (wizard=%d, noscore=0x%04X, savefile='%s')",
               p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
               p_ptr ? (unsigned)p_ptr->noscore : 0,
               savefile);
 
-    u32b previous_id = metar.id;
     if (!sync_current_metarun_slot(true)) {
         log_warn("metarun: unable to snapshot current run before rollover (idx=%d, max=%d)",
                  current_run, metarun_max);
     }
+    if (!metarun_next_id(&new_id)
+        || !metarun_activation_stamp(&activation_time))
+        return false;
+    grown = metarun_allocate_grown_array();
+    if (!grown)
+        return false;
 
      /* Before wiping scores for the next run, backup and clear save files */
      backup_and_clear_saves();
@@ -698,10 +1036,16 @@ void start_new_metarun(void)
          - save any corresponding savefiles as dead
          Then archive/clear the score file so the next run starts clean. */
      metarun_finalize_scores_and_saves();
-     clear_scorefile();
+     if (!begin_story_scorefile_rollover(metar.id, new_id,
+             !metarun_needs_score_ledger(&metar))) {
+         grown = mem_free(grown);
+         return false;
+     }
 
     /* Hard purge the current savefile if this was a noscore wizard/debug run */
-    if (p_ptr && (p_ptr->wizard || (p_ptr->noscore & 0x0008)) && (p_ptr->noscore & 0x000F)) {
+    if (!run_mode_is_blitz() && p_ptr
+        && (p_ptr->wizard || (p_ptr->noscore & 0x0008))
+        && (p_ptr->noscore & 0x000F)) {
         if (savefile[0]) {
             bool deleted;
             safe_setuid_grab();
@@ -719,44 +1063,5 @@ void start_new_metarun(void)
                  p_ptr ? (unsigned)p_ptr->noscore : 0,
                  savefile);
     }
-    /* Save old state */
-    s16b old_max   = metarun_max;
-    metarun *old   = metaruns;
-
-    /* Try to allocate a new array for one more run */
-    metarun *tmp = mem_alloc_array(old_max + 1, metarun);
-    if (!tmp) {
-        /* Allocation failed - keep everything as is */
-        return;
-    }
-
-    /* Copy over the previous runs (if any) */
-    if (old) {
-        memcpy(tmp, old, sizeof(metarun) * old_max);
-    }
-
-    /* Free the old array just once */
-    old = mem_free(old);
-
-    /* Commit the new array and size */
-    metaruns    = tmp;
-    metarun_max = old_max + 1;
-
-    /* Initialize the brand-new slot */
-    reset_defaults(&metaruns[metarun_max - 1]);
-    metaruns[metarun_max - 1].id = previous_id + 1;
-    metaruns[metarun_max - 1].type = 0; /* Default to type 0 (Normal) for new metaruns */
-
-    /* Update globals */
-    current_run      = metarun_max - 1;
-    metar             = metaruns[current_run];
-    metarun_created  = true;  /* Set flag to show story intro for new metarun */
-
-    /* Apply difficulty curses based on the runtype */
-    apply_difficulty_curses(&metar);
-
-    /* Persist and prepare */
-    save_metaruns();      /* safe now that metaruns!=NULL */
-    ensure_run_dir(&metar);
-    log_info("New metarun %d created and initialized", metar.id);
+    return metarun_commit_new_slot(grown, new_id, activation_time);
 }

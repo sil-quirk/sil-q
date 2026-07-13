@@ -7,6 +7,7 @@
 #include "fs/path.h"
 #include "log/log.h"
 #include "score/score_logic.h"
+#include "score/score_paths.h"
 #include "score/score_runs.h"
 
 #include <errno.h>
@@ -463,6 +464,34 @@ static int compare_scores_chronological(const void* va, const void* vb)
     return score_compare(a, b);
 }
 
+static int score_physical_entry_count(SDL_IOStream* file)
+{
+    Sint64 size;
+    Sint64 payload;
+    Sint64 count;
+
+    if (!file)
+        return -1;
+    size = SDL_GetIOSize(file);
+    if (size < (Sint64)sizeof(score_file_header))
+        return -1;
+    payload = size - (Sint64)sizeof(score_file_header);
+    if ((payload % (Sint64)sizeof(high_score)) != 0)
+        return -1;
+    count = payload / (Sint64)sizeof(high_score);
+    if (count > MAX_HISCORES)
+        return -1;
+    return (int)count;
+}
+
+static bool score_entry_has_safe_text(const high_score* entry)
+{
+    return entry
+        && memchr(entry->who, '\0', sizeof(entry->who)) != NULL
+        && memchr(entry->how, '\0', sizeof(entry->how)) != NULL
+        && memchr(entry->day, '\0', sizeof(entry->day)) != NULL;
+}
+
 int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
 {
     if (!out || capacity <= 0)
@@ -518,6 +547,77 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
         count = MAX_HISCORES;
 
     return count;
+}
+
+/* Read a score file without borrowing or changing the caller's active score
+ * context.  Tale bookkeeping uses this for scores.raw even while a Blitz
+ * character (and therefore scores-blitz.raw) is the active run mode. */
+static int collect_high_scores_from_path(const char* score_path,
+    high_score* out, int capacity, bool sort_by_score)
+{
+    score_file_ctx local_ctx;
+    score_file_ctx* previous_ctx;
+    SDL_IOStream* file;
+    int count;
+    int limit;
+    int alive_ignored;
+
+    if (!score_path || !out || capacity <= 0)
+        return 0;
+    if (!score_count_alive_entries_at_path_checked(score_path,
+            &alive_ignored))
+    {
+        return 0;
+    }
+
+    score_file_reset_ctx(&local_ctx);
+    previous_ctx = score_file_set_active_ctx(&local_ctx);
+    if (!score_file_load_header(&local_ctx, score_path)) {
+        score_file_set_active_ctx(previous_ctx);
+        return 0;
+    }
+    safe_setuid_grab();
+    file = score_file_open(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!file) {
+        score_file_set_active_ctx(previous_ctx);
+        return 0;
+    }
+    local_ctx.fd = file;
+
+    limit = score_physical_entry_count(file);
+    if (limit >= 0)
+        limit = MIN(limit, MIN(capacity, MAX_HISCORES));
+    if (SDL_SeekIO(file, sizeof(score_file_header), SDL_IO_SEEK_SET) < 0)
+        count = 0;
+    else if (limit < 0)
+        count = 0;
+    else
+        count = collect_scores_load(file, out, limit);
+
+    SDL_CloseIO(file);
+    local_ctx.fd = NULL;
+    score_file_set_active_ctx(previous_ctx);
+
+    if (count <= 0)
+        return 0;
+    if (sort_by_score)
+        qsort(out, count, sizeof(high_score), compare_scores_qsort);
+    else
+        qsort(out, count, sizeof(high_score), compare_scores_chronological);
+    count = collect_scores_unique(out, count);
+    return MIN(count, MAX_HISCORES);
+}
+
+int collect_story_high_scores(high_score* out, int capacity,
+    bool sort_by_score)
+{
+    char score_path[1024];
+
+    if (!score_build_meta_path(score_path, sizeof(score_path), "scores.raw"))
+        return 0;
+    return collect_high_scores_from_path(score_path, out, capacity,
+        sort_by_score);
 }
 
 static int highscore_seek_versioned(int i)
@@ -686,87 +786,303 @@ errr backup_scores_file(const char *filepath)
     return result;
 }
 
+bool score_count_alive_entries_at_path_checked(const char* score_path,
+    int* alive_count)
+{
+    score_file_ctx local_ctx;
+    score_file_ctx* previous_ctx;
+    SDL_IOStream* scan_fd;
+    int alive = 0;
+
+    if (alive_count)
+        *alive_count = 0;
+    if (!score_path || !alive_count)
+        return false;
+
+    score_file_reset_ctx(&local_ctx);
+    previous_ctx = score_file_set_active_ctx(&local_ctx);
+    if (!score_file_load_header(&local_ctx, score_path)) {
+        score_file_set_active_ctx(previous_ctx);
+        return false;
+    }
+    safe_setuid_grab();
+    scan_fd = score_file_open(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!scan_fd) {
+        score_file_set_active_ctx(previous_ctx);
+        return false;
+    }
+    local_ctx.fd = scan_fd;
+
+    int physical_count = score_physical_entry_count(scan_fd);
+    bool valid = physical_count >= 0
+        && local_ctx.entry_count == (u32b)physical_count;
+    int records_read = 0;
+    if (valid && highscore_seek(0) == 0) {
+        high_score entry;
+        for (int i = 0; i < physical_count; i++) {
+            if (highscore_read(&entry) != 0) {
+                valid = false;
+                break;
+            }
+            records_read++;
+            if (!score_entry_has_safe_text(&entry)) {
+                valid = false;
+                break;
+            }
+            char how_buf[sizeof(entry.how) + 1];
+            parse_score_string(entry.how, sizeof(entry.how), how_buf,
+                sizeof(how_buf));
+            if (streq(how_buf, "(alive and well)")) {
+                alive++;
+            }
+        }
+    } else if (valid) {
+        valid = false;
+    }
+    if (valid && records_read != physical_count)
+        valid = false;
+
+    SDL_CloseIO(scan_fd);
+    local_ctx.fd = NULL;
+    score_file_set_active_ctx(previous_ctx);
+
+    if (!valid)
+        return false;
+    *alive_count = alive;
+    return true;
+}
+
+int score_count_alive_entries_at_path(const char* score_path)
+{
+    int alive = 0;
+
+    (void)score_count_alive_entries_at_path_checked(score_path, &alive);
+    return alive;
+}
+
 int score_count_alive_entries(void)
 {
     char score_path[1024];
     build_current_score_path(score_path, sizeof(score_path));
+    return score_count_alive_entries_at_path(score_path);
+}
 
-    SDL_IOStream* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_entry_count = scores_file_entry_count;
-
-    safe_setuid_grab();
-    SDL_IOStream* scan_fd = score_file_open(score_path, O_RDONLY);
-    safe_setuid_drop();
-    if (!scan_fd) {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_entry_count;
-        return 0;
-    }
-
-    highscore_fd = scan_fd;
-
+int score_count_story_alive_entries(void)
+{
     int alive = 0;
-    u32b limit = MIN(scores_file_entry_count, (u32b)MAX_HISCORES);
-    if (highscore_seek(0) == 0) {
-        high_score entry;
-        for (u32b i = 0; i < limit && highscore_read(&entry) == 0; i++) {
-            if (strcmp(entry.how, "(alive and well)") == 0) {
-                alive++;
-            }
-        }
-    }
 
-    SDL_CloseIO(highscore_fd);
-    highscore_fd = saved_fd;
-    scores_file_version_major = saved_major;
-    scores_file_version_minor = saved_minor;
-    scores_file_version_patch = saved_patch;
-    scores_file_version_extra = saved_extra;
-    scores_file_entry_count = saved_entry_count;
-
+    (void)score_count_story_alive_entries_checked(&alive);
     return alive;
 }
 
-u32b score_sum_dead_points(void)
+bool score_count_story_alive_entries_checked(int* alive_count)
 {
     char score_path[1024];
-    build_current_score_path(score_path, sizeof(score_path));
 
-    SDL_IOStream* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_entry_count = scores_file_entry_count;
+    if (!score_build_meta_path(score_path, sizeof(score_path), "scores.raw"))
+        return false;
+    return score_count_alive_entries_at_path_checked(score_path, alive_count);
+}
+
+bool score_story_ledger_exists(void)
+{
+    char score_path[1024];
+
+    if (!score_build_meta_path(score_path, sizeof(score_path), "scores.raw"))
+        return false;
+    return SDL_GetPathInfo(score_path, NULL);
+}
+
+/* Rewrite one exact live row through a same-directory temporary file.  The
+ * caller deliberately supplies the complete row rather than just a name: a
+ * recovery action must never affect a newer run which happens to reuse the
+ * same hero name. */
+static bool score_rewrite_recovery_entry_at_path(const char* score_path,
+    const high_score* target, const char* cause, bool remove_entry)
+{
+    char temp_path[1100];
+    char backup_path[1100];
+    score_file_header header;
+    SDL_IOStream* source = NULL;
+    SDL_IOStream* output = NULL;
+    bool found = false;
+    bool ok = false;
+    int ignored_alive = 0;
+
+    if (!score_path || !target)
+        return false;
+    if (!score_count_alive_entries_at_path_checked(score_path,
+            &ignored_alive))
+        return false;
+    if (strlen(score_path) + 14 >= sizeof(temp_path)
+        || strlen(score_path) + 14 >= sizeof(backup_path))
+        return false;
+
+    strnfmt(temp_path, sizeof(temp_path), "%s.recover.tmp", score_path);
+    strnfmt(backup_path, sizeof(backup_path), "%s.recover.bak", score_path);
+
+    if (SDL_GetPathInfo(temp_path, NULL))
+        (void)SDL_RemovePath(temp_path);
+    else
+        SDL_ClearError();
 
     safe_setuid_grab();
-    SDL_IOStream* scan_fd = score_file_open(score_path, O_RDONLY);
+    source = SDL_IOFromFile(score_path, "rb");
+    output = SDL_IOFromFile(temp_path, "w+b");
     safe_setuid_drop();
-    if (!scan_fd) {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_entry_count;
+    if (!source || !output)
+        goto done;
+    if (SDL_ReadIO(source, &header, sizeof(header)) != sizeof(header))
+        goto done;
+
+    Sint64 source_size = SDL_GetIOSize(source);
+    Sint64 payload = source_size - (Sint64)sizeof(header);
+    if (payload < 0 || payload % (Sint64)sizeof(high_score) != 0)
+        goto done;
+
+    u32b physical_count = (u32b)(payload / (Sint64)sizeof(high_score));
+    if (header.entry_count != physical_count)
+        goto done;
+    if (remove_entry && header.entry_count == 0)
+        goto done;
+    if (remove_entry)
+        header.entry_count--;
+    if (SDL_WriteIO(output, &header, sizeof(header)) != sizeof(header))
+        goto done;
+
+    for (u32b i = 0; i < physical_count; i++) {
+        high_score entry;
+        char how_buf[sizeof(entry.how) + 1];
+
+        if (SDL_ReadIO(source, &entry, sizeof(entry)) != sizeof(entry))
+            goto done;
+        parse_score_string(entry.how, sizeof(entry.how), how_buf,
+            sizeof(how_buf));
+
+        if (!found && streq(how_buf, "(alive and well)")
+            && memcmp(&entry, target, sizeof(entry)) == 0)
+        {
+            found = true;
+            if (remove_entry)
+                continue;
+            strnfmt(entry.how, sizeof(entry.how), "%-.49s",
+                (cause && cause[0]) ? cause : "their own hand");
+        }
+
+        if (SDL_WriteIO(output, &entry, sizeof(entry)) != sizeof(entry))
+            goto done;
+    }
+
+    if (!found || !SDL_FlushIO(output))
+        goto done;
+
+    Sint64 expected_size = (Sint64)sizeof(header)
+        + (Sint64)header.entry_count * (Sint64)sizeof(high_score);
+    if (SDL_GetIOSize(output) != expected_size)
+        goto done;
+    ok = true;
+
+done:
+    if (source)
+        SDL_CloseIO(source);
+    if (output)
+        SDL_CloseIO(output);
+    if (!ok) {
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+
+    /* Keep the ordinary rotating backup as well as the short-lived rollback
+     * copy used to make replacement atomic. */
+    if (backup_scores_file(score_path) != 0)
+        log_warn("Score recovery could not create the rotating backup for %s",
+            score_path);
+
+    if (SDL_GetPathInfo(backup_path, NULL))
+        (void)SDL_RemovePath(backup_path);
+    else
+        SDL_ClearError();
+
+    if (!SDL_RenamePath(score_path, backup_path)) {
+        log_error("Score recovery could not preserve %s: %s", score_path,
+            SDL_GetError());
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+    if (!SDL_RenamePath(temp_path, score_path)) {
+        log_error("Score recovery could not install %s: %s", score_path,
+            SDL_GetError());
+        (void)SDL_RenamePath(backup_path, score_path);
+        (void)SDL_RemovePath(temp_path);
+        return false;
+    }
+
+    if (!score_count_alive_entries_at_path_checked(score_path,
+            &ignored_alive))
+    {
+        log_error("Score recovery validation failed for %s", score_path);
+        (void)SDL_RemovePath(score_path);
+        (void)SDL_RenamePath(backup_path, score_path);
+        return false;
+    }
+
+    (void)SDL_RemovePath(backup_path);
+    log_info("Score recovery %s one live row in %s",
+        remove_entry ? "removed" : "finalized", score_path);
+    return true;
+}
+
+bool score_mark_alive_entry_dead_at_path(const char* score_path,
+    const high_score* target, const char* cause)
+{
+    return score_rewrite_recovery_entry_at_path(score_path, target, cause,
+        false);
+}
+
+bool score_remove_alive_entry_at_path(const char* score_path,
+    const high_score* target)
+{
+    return score_rewrite_recovery_entry_at_path(score_path, target, NULL,
+        true);
+}
+
+static u32b score_sum_dead_points_from_path(const char* score_path)
+{
+    score_file_ctx local_ctx;
+    score_file_ctx* previous_ctx;
+    SDL_IOStream* scan_fd;
+    u32b total = 0;
+    int alive_ignored;
+
+    if (!score_path)
+        return 0;
+    if (!score_count_alive_entries_at_path_checked(score_path,
+            &alive_ignored))
+    {
         return 0;
     }
 
-    highscore_fd = scan_fd;
+    score_file_reset_ctx(&local_ctx);
+    previous_ctx = score_file_set_active_ctx(&local_ctx);
+    if (!score_file_load_header(&local_ctx, score_path)) {
+        score_file_set_active_ctx(previous_ctx);
+        return 0;
+    }
+    safe_setuid_grab();
+    scan_fd = score_file_open(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!scan_fd) {
+        score_file_set_active_ctx(previous_ctx);
+        return 0;
+    }
+    local_ctx.fd = scan_fd;
 
-    u32b total = 0;
-    u32b limit = MIN(scores_file_entry_count, (u32b)MAX_HISCORES);
-    if (highscore_seek(0) == 0) {
+    int physical_count = score_physical_entry_count(scan_fd);
+    if (physical_count >= 0 && highscore_seek(0) == 0) {
         high_score entry;
-        for (u32b i = 0; i < limit && highscore_read(&entry) == 0; i++) {
+        for (int i = 0; i < physical_count && highscore_read(&entry) == 0;
+             i++) {
             char how_buf[sizeof(entry.how) + 1];
             char who_buf[sizeof(entry.who) + 1];
             parse_score_string(entry.how, sizeof(entry.how), how_buf, sizeof(how_buf));
@@ -793,15 +1109,27 @@ u32b score_sum_dead_points(void)
         }
     }
 
-    SDL_CloseIO(highscore_fd);
-    highscore_fd = saved_fd;
-    scores_file_version_major = saved_major;
-    scores_file_version_minor = saved_minor;
-    scores_file_version_patch = saved_patch;
-    scores_file_version_extra = saved_extra;
-    scores_file_entry_count = saved_entry_count;
+    SDL_CloseIO(scan_fd);
+    local_ctx.fd = NULL;
+    score_file_set_active_ctx(previous_ctx);
 
     return total;
+}
+
+u32b score_sum_dead_points(void)
+{
+    char score_path[1024];
+    build_current_score_path(score_path, sizeof(score_path));
+    return score_sum_dead_points_from_path(score_path);
+}
+
+u32b score_sum_story_dead_points(void)
+{
+    char score_path[1024];
+
+    if (!score_build_meta_path(score_path, sizeof(score_path), "scores.raw"))
+        return 0;
+    return score_sum_dead_points_from_path(score_path);
 }
 
 static int load_scores_into_array(high_score* entries, int capacity)

@@ -1,5 +1,6 @@
 /* Quest tracking helpers split from metarun.c */
 #include "angband.h"
+#include "blitz.h"
 #include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
@@ -203,6 +204,7 @@ static void mark_quest_completion_recorded_for_run(u32b quest_flag)
 
 int metarun_quest_completion_count(u32b quest_flag)
 {
+    if (run_mode_is_blitz()) return 0;
     if (metarun_current_index() < 0) return 0;
 
     int slot = quest_slot_from_flag(quest_flag);
@@ -216,6 +218,7 @@ int metarun_quest_completion_count(u32b quest_flag)
 
 bool metarun_is_quest_completed(u32b quest_flag)
 {
+    if (run_mode_is_blitz()) return false;
     /* Only check the current metarun, not all metaruns */
     const metarun *current = metarun_current();
     s16b current_idx = metarun_current_index();
@@ -238,6 +241,7 @@ bool metarun_is_quest_completed(u32b quest_flag)
 
 void metarun_mark_quest_completed(u32b quest_flag)
 {
+    if (run_mode_is_blitz()) return;
     metarun *current = metarun_current_mutable();
     if (!current) return;
     if (!quest_flag) return;
@@ -277,6 +281,7 @@ void metarun_mark_quest_completed(u32b quest_flag)
 
 void metarun_check_and_update_quests(void)
 {
+    if (run_mode_is_blitz()) return;
     s16b current_idx = metarun_current_index();
     log_trace("Metarun quest check: Entry - current_run=%d, metarun_max=%d", current_idx, metarun_entry_count());
     

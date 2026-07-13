@@ -55,6 +55,8 @@ static bool score_runs_write_record(SDL_IOStream* file,
                                     const score_run_detail_block* details);
 static bool score_runs_write_header(SDL_IOStream* file,
                                     const score_db_header* header);
+static bool score_runs_read_detail_header(SDL_IOStream* file,
+                                          score_run_detail_header_v1* header);
 static bool score_runs_rewrite_record(const char* path, SDL_IOStream** source,
                                       const score_db_header* header,
                                       Sint64 replace_offset,
@@ -121,6 +123,175 @@ bool score_runs_get_legacy_link(const struct high_score* legacy_score,
     if (out_record_id)
         *out_record_id = (u32b)value;
     return true;
+}
+
+static bool score_runs_legacy_name_matches(const high_score* legacy,
+                                           const score_record_v1* record)
+{
+    char legacy_name[sizeof(legacy->who) + 1];
+    char record_name[sizeof(legacy->who) + 1];
+
+    if (!legacy || !record)
+        return false;
+    parse_score_string(legacy->who, sizeof(legacy->who), legacy_name,
+        sizeof(legacy_name));
+    strnfmt(record_name, sizeof(record_name), "%-.15s",
+        record->player_name[0] ? record->player_name : record->savefile_hint);
+    return streq(legacy_name, record_name);
+}
+
+/* Locate the runs.db row linked to a legacy live score.  New score rows carry
+ * an exact record ID.  Older rows fall back to the same Tale, hero template,
+ * and truncated name, preferring the most advanced live snapshot. */
+static bool score_runs_find_legacy_record(SDL_IOStream* file,
+    const high_score* legacy, score_record_v1* out, Sint64* out_offset)
+{
+    u32b linked_id = SCORE_RUNS_METARUN_UNKNOWN;
+    bool has_link = score_runs_get_legacy_link(legacy, &linked_id);
+    u32b expected_metarun = run_mode_is_blitz()
+        ? SCORE_RUNS_METARUN_UNKNOWN : metar.id;
+    int expected_race = parse_score_int(legacy->p_r, sizeof(legacy->p_r), -1);
+    int expected_character = parse_score_int(legacy->p_h,
+        sizeof(legacy->p_h), -1);
+    bool found = false;
+    score_record_v1 best;
+    Sint64 best_offset = -1;
+
+    if (!file || !legacy)
+        return false;
+    if (SDL_SeekIO(file, sizeof(score_db_header), SDL_IO_SEEK_SET) < 0)
+        return false;
+
+    while (true) {
+        Sint64 offset = SDL_TellIO(file);
+        score_record_v1 record;
+        score_run_detail_header_v1 detail;
+
+        if (offset < 0
+            || SDL_ReadIO(file, &record, sizeof(record)) != sizeof(record))
+            break;
+        if (!score_runs_read_detail_header(file, &detail)
+            || !score_runs_skip_detail_payload(file, &detail))
+            break;
+
+        if (record.status != SCORE_RECORD_ALIVE)
+            continue;
+        if (has_link && record.record_id == linked_id) {
+            best = record;
+            best_offset = offset;
+            found = true;
+            break;
+        }
+        if (has_link)
+            continue;
+        if (record.metarun_id != expected_metarun
+            || record.race_id != expected_race
+            || record.character_id != expected_character
+            || !score_runs_legacy_name_matches(legacy, &record))
+            continue;
+        if (!found || record.turns_spent > best.turns_spent) {
+            best = record;
+            best_offset = offset;
+            found = true;
+        }
+    }
+
+    if (!found)
+        return false;
+    if (out)
+        *out = best;
+    if (out_offset)
+        *out_offset = best_offset;
+    return true;
+}
+
+bool score_runs_get_recorded_turns(const struct high_score* legacy_score,
+                                   u32b* out_turns)
+{
+    char path[1024];
+    score_db_header header;
+    score_record_v1 record;
+    bool found = false;
+
+    if (out_turns)
+        *out_turns = 0;
+    if (!legacy_score || !out_turns
+        || !build_meta_path(path, sizeof(path), SCORE_RUNS_DB_FILENAME))
+        return false;
+
+    safe_setuid_grab();
+    SDL_IOStream* file = SDL_IOFromFile(path, "rb");
+    safe_setuid_drop();
+    if (!file)
+        return false;
+    if (SDL_ReadIO(file, &header, sizeof(header)) == sizeof(header)
+        && memcmp(header.magic, SCORE_DB_MAGIC, sizeof(header.magic)) == 0
+        && header.version == SCORE_RUNS_DB_VERSION)
+    {
+        found = score_runs_find_legacy_record(file, legacy_score, &record,
+            NULL);
+    }
+    SDL_CloseIO(file);
+
+    if (!found)
+        return false;
+    *out_turns = record.turns_spent;
+    return true;
+}
+
+bool score_runs_resolve_legacy_entry(const struct high_score* legacy_score,
+                                     score_record_status status,
+                                     const char* cause)
+{
+    char path[1024];
+    score_db_header header;
+    score_record_v1 record;
+    Sint64 offset = -1;
+    bool success = false;
+
+    if (!legacy_score
+        || (status != SCORE_RECORD_DEAD && status != SCORE_RECORD_REMOVED)
+        || !build_meta_path(path, sizeof(path), SCORE_RUNS_DB_FILENAME))
+        return false;
+
+    safe_setuid_grab();
+    SDL_IOStream* file = SDL_IOFromFile(path, "r+b");
+    safe_setuid_drop();
+    if (!file)
+        return false;
+    if (SDL_ReadIO(file, &header, sizeof(header)) != sizeof(header)
+        || memcmp(header.magic, SCORE_DB_MAGIC, sizeof(header.magic)) != 0
+        || header.version != SCORE_RUNS_DB_VERSION
+        || !score_runs_find_legacy_record(file, legacy_score, &record, &offset))
+    {
+        SDL_CloseIO(file);
+        return false;
+    }
+
+    record.status = status;
+    time_t now = time(NULL);
+    if (now != (time_t)-1)
+        record.completed_utc = (u32b)now;
+    record.killer_kind = (status == SCORE_RECORD_DEAD)
+        ? SCORE_KILLER_SELF : SCORE_KILLER_OTHER;
+    SDL_strlcpy(record.cause_of_death,
+        (cause && cause[0]) ? cause : "their own hand",
+        sizeof(record.cause_of_death));
+    SDL_strlcpy(record.killer_name, record.cause_of_death,
+        sizeof(record.killer_name));
+
+    if (SDL_SeekIO(file, offset, SDL_IO_SEEK_SET) >= 0
+        && SDL_WriteIO(file, &record, sizeof(record)) == sizeof(record)
+        && SDL_FlushIO(file))
+    {
+        success = true;
+    }
+    SDL_CloseIO(file);
+    if (success) {
+        log_info("score_runs: recovery changed record #%u to status %d",
+            record.record_id, (int)record.status);
+    }
+    return success;
 }
 
 static s32b score_runs_parse_int_field(const char* field, size_t len)

@@ -1887,6 +1887,7 @@ static const char* score_run_status_label(score_record_status status)
     case SCORE_RECORD_ALIVE: return "Alive";
     case SCORE_RECORD_DEAD: return "Dead";
     case SCORE_RECORD_ESCAPED: return "Escaped";
+    case SCORE_RECORD_REMOVED: return "Removed";
     default: return "Unknown";
     }
 }
@@ -2095,6 +2096,8 @@ static int collect_run_history(run_history_entry* out, int capacity)
         s64b detail_offset = (s64b)SDL_TellIO(file);
         if (!run_history_skip_details(file, &detail_offset))
             break;
+        if (temp.status == SCORE_RECORD_REMOVED)
+            continue;
         run_history_entry* slot = &ring[stored % capacity];
         slot->record = temp;
         slot->detail_offset = detail_offset;

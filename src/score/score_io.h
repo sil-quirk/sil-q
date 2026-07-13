@@ -36,12 +36,26 @@ bool build_current_score_path(char* buf, size_t len);
 void score_file_reset_ctx(score_file_ctx* ctx);
 
 int collect_high_scores(struct high_score* out, int capacity, bool sort_by_score);
+int collect_story_high_scores(struct high_score* out, int capacity,
+                              bool sort_by_score);
 int highscore_seek(int index);
 errr highscore_read(struct high_score* out);
 int highscore_write(const struct high_score* entry);
 errr backup_scores_file(const char *filepath);
 int score_count_alive_entries(void);
+int score_count_story_alive_entries(void);
+int score_count_alive_entries_at_path(const char* score_path);
+bool score_count_story_alive_entries_checked(int* alive_count);
+bool score_count_alive_entries_at_path_checked(const char* score_path,
+                                                int* alive_count);
+bool score_story_ledger_exists(void);
 u32b score_sum_dead_points(void);
+u32b score_sum_story_dead_points(void);
+bool score_mark_alive_entry_dead_at_path(const char* score_path,
+                                         const struct high_score* target,
+                                         const char* cause);
+bool score_remove_alive_entry_at_path(const char* score_path,
+                                      const struct high_score* target);
 int highscore_add(struct high_score* score);
 void upsert_live_score_on_save(void);
 int highscore_dead(char* name);

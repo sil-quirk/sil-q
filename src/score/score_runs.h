@@ -38,6 +38,11 @@ void score_runs_set_legacy_link(struct high_score* legacy_score,
                                 u32b record_id);
 bool score_runs_get_legacy_link(const struct high_score* legacy_score,
                                 u32b* out_record_id);
+bool score_runs_get_recorded_turns(const struct high_score* legacy_score,
+                                   u32b* out_turns);
+bool score_runs_resolve_legacy_entry(const struct high_score* legacy_score,
+                                     score_record_status status,
+                                     const char* cause);
 bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out);
 void score_runs_free_details(score_run_detail_block* details);
 bool score_runs_snapshot_details(score_run_detail_block* out);

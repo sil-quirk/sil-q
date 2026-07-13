@@ -1373,9 +1373,9 @@ static void do_cmd_start_blitz(void)
     }
 
     screen_save();
-    /* Hide panes BEFORE pushing the menu scale so get_sdl_terminal_menu_scale()
-     * measures the full screen and lands on max-1, matching the inventory/supply
-     * menu rather than the smaller window-mode scale. */
+    /* Hide panes BEFORE pushing the menu scale so it is measured from the full
+     * screen, matching the inventory/supply menu rather than the smaller
+     * window-mode scale. */
     screen_push_supporting_panes_hidden();
     screen_push_touch_pane_hidden();
     sdl_push_terminal_menu_scale();

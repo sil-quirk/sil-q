@@ -3040,6 +3040,46 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
         } else {
             log_warn("mainViewScale not found or not a number");
         }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl,
+            "terminalMenuScaleOffset");
+        if (cJSON_IsNumber(item)) {
+            config->terminal_menu_scale_offset = item->valueint;
+            if (config->terminal_menu_scale_offset
+                < SDL_TERMINAL_MENU_SCALE_OFFSET_MIN)
+            {
+                config->terminal_menu_scale_offset =
+                    SDL_TERMINAL_MENU_SCALE_OFFSET_MIN;
+            }
+            if (config->terminal_menu_scale_offset
+                > SDL_TERMINAL_MENU_SCALE_OFFSET_MAX)
+            {
+                config->terminal_menu_scale_offset =
+                    SDL_TERMINAL_MENU_SCALE_OFFSET_MAX;
+            }
+            log_debug("Loaded terminalMenuScaleOffset: %d",
+                config->terminal_menu_scale_offset);
+        }
+
+        item = cJSON_GetObjectItemCaseSensitive(sdl,
+            "mobileStartingZoomOffset");
+        if (cJSON_IsNumber(item)) {
+            config->mobile_starting_zoom_offset = item->valueint;
+            if (config->mobile_starting_zoom_offset
+                < SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN)
+            {
+                config->mobile_starting_zoom_offset =
+                    SDL_MOBILE_STARTING_ZOOM_OFFSET_MIN;
+            }
+            if (config->mobile_starting_zoom_offset
+                > SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX)
+            {
+                config->mobile_starting_zoom_offset =
+                    SDL_MOBILE_STARTING_ZOOM_OFFSET_MAX;
+            }
+            log_debug("Loaded mobileStartingZoomOffset: %d",
+                config->mobile_starting_zoom_offset);
+        }
         
         item = cJSON_GetObjectItemCaseSensitive(sdl, "auxViewFontSize");
         if (cJSON_IsNumber(item)) {
@@ -4117,6 +4157,10 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     }
     
     cJSON_AddNumberToObject(sdl, "mainViewScale", config->main_view_scale);
+    cJSON_AddNumberToObject(sdl, "terminalMenuScaleOffset",
+        config->terminal_menu_scale_offset);
+    cJSON_AddNumberToObject(sdl, "mobileStartingZoomOffset",
+        config->mobile_starting_zoom_offset);
     cJSON_AddNumberToObject(sdl, "auxViewFontSize", config->aux_view_font_size);
     cJSON_AddNumberToObject(sdl, "margin", config->margin);
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
@@ -4685,6 +4729,10 @@ void sdl_config_clear_touch_pane_labels(struct sdl_config* config)
 void sdl_config_set_defaults(struct sdl_config* config)
 {
     config->main_view_scale = SDL_MAIN_VIEW_PREFERRED_MIN_SCALE;
+    config->terminal_menu_scale_offset =
+        SDL_TERMINAL_MENU_SCALE_OFFSET_DEFAULT;
+    config->mobile_starting_zoom_offset =
+        SDL_MOBILE_STARTING_ZOOM_OFFSET_DEFAULT;
     config->aux_view_font_size = 0;
     config->margin = 4;
     config->fullscreen = true;

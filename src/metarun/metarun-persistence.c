@@ -1,5 +1,6 @@
 #include "angband.h"
 #include "metarun-internal.h"
+#include "metarun-files.h"
 
 #include <limits.h>
 
@@ -172,8 +173,8 @@ void apply_difficulty_curses(metarun *m)
                 byte stacks = rt->curse_stacks[curse_id];
                 if (stacks > 0)
                 {
-                    CURSE_SET(curse_id, stacks);
-                    CURSE_SEEN_SET(curse_id);
+                    m->curse_stacks[curse_id] = (int8_t)stacks;
+                    m->curses_seen |= (1ULL << curse_id);
                     log_debug("Applied %d stacks of curse %d from runtype", stacks, curse_id);
                 }
             }
@@ -621,7 +622,6 @@ errr load_metaruns(bool create_if_missing)
         for (s16b i = 0; i < metarun_max; i++) {
             if (interface_settings_migrated)
                 metarun_clear_obsolete_interface_options_097(&metaruns[i]);
-            metaruns[i].score = compute_metarun_score(&metaruns[i]);
         }
     }
 
@@ -673,6 +673,11 @@ errr load_metaruns(bool create_if_missing)
     }
 
     metar = metaruns[current_run];
+    if (!recover_pending_story_scorefile_switch(metar.id)) {
+        log_error("Unable to recover the interrupted Tale switch for Tale %u",
+            (unsigned)metar.id);
+        return -1;
+    }
     metarun_clamp_and_sync_quests(&metar);
     metaruns[current_run].completed_quests = metar.completed_quests;
     memcpy(metaruns[current_run].quest_completion_counts,
@@ -856,6 +861,12 @@ errr save_metaruns(void)
 {
     static u32b last_save_time = 0;
     u32b current_time = (u32b)time(NULL);
+    char temporary[1024];
+
+    /* Tale activation may deliberately advance last_played beyond the wall
+     * clock to make an older array entry unambiguously current. */
+    if (current_time < metar.last_played)
+        current_time = metar.last_played;
 
     /* Log save frequency tracking */
     if (last_save_time > 0) {
@@ -871,6 +882,7 @@ errr save_metaruns(void)
     char fn[1024];
     if (!build_meta_path(fn, sizeof fn, NULL, META_RAW))
         return -1;
+    strnfmt(temporary, sizeof(temporary), "%s.tale-save", fn);
 
     /* Create backup before saving */
     backup_file(fn);
@@ -886,11 +898,9 @@ errr save_metaruns(void)
               current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
               metaruns[current_run].score);
 
-    /* After backup is created in backup_file(), remove the original so sdl_fmake can succeed */
-    fd_kill(fn);
-
-    /* Write using the new versioned format */
-    SDL_IOStream* fd = sdl_fmake(fn, 0644);
+    /* Write beside the live file, then atomically replace it. */
+    (void)fd_kill(temporary);
+    SDL_IOStream* fd = sdl_fmake(temporary, 0644);
     if (!fd) {
         log_info("Failed to create metarun file for writing");
         return -1;
@@ -907,6 +917,7 @@ errr save_metaruns(void)
     errr result = sdl_write(fd, (cptr)&header, sizeof(header));
     if (result != 0) {
         sdl_fclose(fd);
+        (void)fd_kill(temporary);
         log_info("Failed to write metarun header to file");
         return -1;
     }
@@ -914,10 +925,17 @@ errr save_metaruns(void)
     /* Write metarun data */
     int bytes_to_write = metarun_max * sizeof(metarun);
     result = sdl_write(fd, (cptr)metaruns, bytes_to_write);
-    sdl_fclose(fd);
+    bool flushed = (result == 0) && SDL_FlushIO(fd);
+    errr close_result = sdl_fclose(fd);
 
-    if (result != 0) {
-        log_info("Failed to write metarun data to file");
+    if (result != 0 || !flushed || close_result != 0) {
+        (void)fd_kill(temporary);
+        log_info("Failed to write or flush metarun data to file");
+        return -1;
+    }
+    if (!fd_move(temporary, fn)) {
+        (void)fd_kill(temporary);
+        log_error("Failed to atomically replace metarun file");
         return -1;
     }
 

@@ -69,7 +69,7 @@ void ensure_run_dir(const metarun *m);
 
 /* Lifecycle helpers */
 int required_survivor_target(int win_goal);
-void start_new_metarun(void);
+bool start_new_metarun(void);
 
 /* Shared metarun UI helpers */
 void metarun_prompt_label(int binding, const char *fallback, char *buf, size_t buflen);

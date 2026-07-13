@@ -26,6 +26,9 @@ typedef enum score_record_status {
     SCORE_RECORD_ALIVE = 0,
     SCORE_RECORD_DEAD = 1,
     SCORE_RECORD_ESCAPED = 2,
+    /* Recovery tombstone: retained on disk so record IDs remain stable, but
+     * deliberately omitted from player-facing run history. */
+    SCORE_RECORD_REMOVED = 3,
 } score_record_status;
 
 typedef enum score_killer_kind {

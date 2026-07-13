@@ -2,6 +2,7 @@
 
 #include "angband.h"
 #include "dungeon-internal.h"
+#include "metarun/metarun-files.h"
 
 /*
  * Hack - Know inventory upon death
@@ -35,7 +36,14 @@ static void death_knowledge(void)
     handle_stuff();
 }
 
-static bool startup_try_autoload_current_mode(cptr mode_name)
+typedef enum startup_autoload_result {
+    STARTUP_AUTOLOAD_NONE = 0,
+    STARTUP_AUTOLOAD_LOADED,
+    STARTUP_AUTOLOAD_QUIT
+} startup_autoload_result;
+
+static startup_autoload_result startup_try_autoload_current_mode(
+    cptr mode_name)
 {
     bool autoloaded;
 
@@ -43,14 +51,17 @@ static bool startup_try_autoload_current_mode(cptr mode_name)
     autoloaded = autoload_alive_from_scores();
     startup_loading_overlay_disarm();
 
+    if (autoload_recovery_quit_requested())
+        return STARTUP_AUTOLOAD_QUIT;
+
     if (autoloaded && character_loaded)
     {
         log_info("Auto-loaded alive %s character from scores; skipping selection",
             mode_name ? mode_name : "current-mode");
-        return true;
+        return STARTUP_AUTOLOAD_LOADED;
     }
 
-    return false;
+    return STARTUP_AUTOLOAD_NONE;
 }
 
 
@@ -146,6 +157,16 @@ PlayResult play_game(void)
     bool prefer_blitz_startup = !run_mode_is_blitz()
         && op_ptr && op_ptr->opt[OPT_load_blitz_by_default];
 
+    if (!run_mode_is_blitz() && !prefer_blitz_startup
+        && metarun_tale_recovery_required())
+    {
+        log_error("Story startup blocked until the pending Tale switch is "
+            "recovered by restarting");
+        play_game_pop_startup_icky(&startup_icky_active,
+            "blocking Story startup for Tale recovery");
+        return PLAY_DONE;
+    }
+
     if (!run_mode_is_blitz() && !prefer_blitz_startup) {
         if (metarun_created) /* show only the first time ever */
         {
@@ -163,10 +184,18 @@ PlayResult play_game(void)
 
     if (prefer_blitz_startup)
     {
+        startup_autoload_result autoload_result;
+
         run_mode_set_pending(RUN_MODE_BLITZ);
         run_mode_set_current(RUN_MODE_BLITZ);
 
-        if (startup_try_autoload_current_mode("Blitz"))
+        autoload_result = startup_try_autoload_current_mode("Blitz");
+        if (autoload_result == STARTUP_AUTOLOAD_QUIT) {
+            play_game_pop_startup_icky(&startup_icky_active,
+                "quitting after Blitz save recovery");
+            return PLAY_QUIT;
+        }
+        if (autoload_result == STARTUP_AUTOLOAD_LOADED)
         {
             new_game = false;
         }
@@ -175,12 +204,16 @@ PlayResult play_game(void)
             run_mode_set_pending(RUN_MODE_STORY);
             run_mode_set_current(RUN_MODE_STORY);
 
-            print_metarun_stats();
-
-            if (!run_mode_is_blitz()
-                && startup_try_autoload_current_mode("story"))
-            {
+            autoload_result = startup_try_autoload_current_mode("story");
+            if (autoload_result == STARTUP_AUTOLOAD_QUIT) {
+                play_game_pop_startup_icky(&startup_icky_active,
+                    "quitting after Story save recovery");
+                return PLAY_QUIT;
+            }
+            if (autoload_result == STARTUP_AUTOLOAD_LOADED) {
                 new_game = false;
+            } else {
+                print_metarun_stats();
             }
         }
     }
@@ -193,13 +226,23 @@ PlayResult play_game(void)
             log_info("Explicit Blitz launch requested; checking for an alive Blitz character");
         }
 
-        if (startup_try_autoload_current_mode(
-                run_mode_is_blitz() ? "Blitz" : "story"))
+        startup_autoload_result autoload_result =
+            startup_try_autoload_current_mode(
+                run_mode_is_blitz() ? "Blitz" : "story");
+
+        if (autoload_result == STARTUP_AUTOLOAD_QUIT) {
+            play_game_pop_startup_icky(&startup_icky_active,
+                "quitting after save recovery");
+            return PLAY_QUIT;
+        }
+        if (autoload_result == STARTUP_AUTOLOAD_LOADED)
         {
             new_game = false;
         }
-        else if (!run_mode_is_blitz() && !metarun_created
-            && (!startup_score_empty || metar.deaths > 0))
+        else if (!run_mode_is_blitz()
+            && ((!metarun_created
+                    && (!startup_score_empty || metar.deaths > 0))
+                || metarun_entry_count() > 1))
         {
             int recorded_alive = score_count_alive_entries();
 
@@ -210,6 +253,14 @@ PlayResult play_game(void)
             }
             print_metarun_stats();
         }
+    }
+
+    if (!run_mode_is_blitz() && metarun_tale_recovery_required())
+    {
+        log_error("Character creation blocked by an incomplete Tale switch");
+        play_game_pop_startup_icky(&startup_icky_active,
+            "blocking character creation for Tale recovery");
+        return PLAY_DONE;
     }
 
     if (!character_loaded)
@@ -531,7 +582,7 @@ PlayResult play_game(void)
     screen_set_startup_supporting_panes_hidden(false);
     screen_set_startup_touch_pane_hidden(false);
 #if defined(USE_SDL) && (defined(__ANDROID__) || defined(SIL_IOS))
-    (void)sdl_prepare_first_gameplay_main_view_zoom(1);
+    (void)sdl_prepare_first_gameplay_main_view_zoom();
 #endif
     do_cmd_redraw();
 

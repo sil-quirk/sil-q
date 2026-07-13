@@ -1540,6 +1540,8 @@ enum story_book_action {
     STORY_BOOK_THRESHOLD,
     STORY_BOOK_CHANGE_DIFFICULTY,
     STORY_BOOK_BLITZ,
+    STORY_BOOK_NEW_TALE,
+    STORY_BOOK_LOAD_TALE,
     STORY_BOOK_CURSES_EARLIER,
     STORY_BOOK_CURSES_LATER,
     STORY_BOOK_RUNS_NEWER,
@@ -1555,6 +1557,47 @@ enum story_book_action {
     STORY_BOOK_THRESHOLD_BASE = 33000,
     STORY_BOOK_DIFFICULTY_BASE = 34000
 };
+
+enum story_book_tale_request {
+    STORY_BOOK_TALE_REQUEST_NONE = 0,
+    STORY_BOOK_TALE_REQUEST_NEW,
+    STORY_BOOK_TALE_REQUEST_LOAD
+};
+
+static void story_book_show_tale_action_error(void)
+{
+    bool recovery_required = metarun_tale_recovery_required();
+
+    screen_save();
+    Term_clear();
+    Term_putstr(2, 5, -1, TERM_L_RED,
+        "The tale could not be changed safely.");
+    if (recovery_required) {
+        Term_putstr(2, 7, -1, TERM_WHITE,
+            "Tale recovery is pending; restart before starting a Story character.");
+    } else {
+        Term_putstr(2, 7, -1, TERM_WHITE,
+            "The existing tale remains active; see log.txt for details.");
+    }
+    Term_putstr(2, 9, -1, TERM_L_DARK,
+        "Press any key to return to the Chronicle of Tales.");
+    metarun_wait_hidden();
+    screen_load();
+}
+
+static int story_book_curse_get(int id)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS)
+        return 0;
+    return metar.curse_stacks[id];
+}
+
+static bool story_book_curse_seen(int id)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS)
+        return false;
+    return (metar.curses_seen & (1ULL << id)) != 0;
+}
 
 static void story_book_put_line(int row, int col, int width, byte attr,
     cptr text)
@@ -1754,16 +1797,20 @@ static void story_book_draw_blessings(int term_width, int row_limit)
         available > 0 ? TERM_L_GREEN : TERM_WHITE, buf);
 
     story_book_put_line(row, 4, term_width - 6,
-        available > 0 ? TERM_L_BLUE : TERM_L_DARK,
-        "[ Add a blessing or remove a curse ]");
-    ui_menu_click_add(STORY_BOOK_EXCHANGE, 4, row++,
-        MIN(term_width - 6, 40));
+        (!run_mode_is_blitz() && available > 0) ? TERM_L_BLUE : TERM_L_DARK,
+        run_mode_is_blitz()
+            ? "Tale blessings are read-only during Blitz."
+            : "[ Add a blessing or remove a curse ]");
+    if (!run_mode_is_blitz())
+        ui_menu_click_add(STORY_BOOK_EXCHANGE, 4, row,
+            MIN(term_width - 6, 40));
+    row++;
     row++;
 
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
         "Minor blessings");
     for (int id = 0; id < z_info->cu_max && row < row_limit; id++) {
-        int stacks = CURSE_GET(id);
+        int stacks = story_book_curse_get(id);
         if (stacks >= 0)
             continue;
         strnfmt(buf, sizeof(buf), "- %s (strength %d)",
@@ -1796,7 +1843,7 @@ static int story_book_known_curse_count(void)
 {
     int count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_SEEN(id))
+        if (story_book_curse_seen(id))
             count++;
     }
     return count;
@@ -1812,7 +1859,7 @@ static int story_book_next_known_curse(int selected, int direction)
         int id = (selected + direction * step) % limit;
         if (id < 0)
             id += limit;
-        if (CURSE_SEEN(id))
+        if (story_book_curse_seen(id))
             return id;
     }
     return -1;
@@ -1830,10 +1877,11 @@ static void story_book_draw_curses(int term_width, int row_limit,
     int first;
 
     for (int id = 0; id < z_info->cu_max && id < METAR_CURSE_SLOTS; id++) {
-        if (CURSE_SEEN(id))
+        if (story_book_curse_seen(id))
             known_ids[known_count++] = id;
     }
-    if (known_count && (*selected_curse < 0 || !CURSE_SEEN(*selected_curse)))
+    if (known_count
+        && (*selected_curse < 0 || !story_book_curse_seen(*selected_curse)))
         *selected_curse = known_ids[0];
     for (int i = 0; i < known_count; i++) {
         if (known_ids[i] == *selected_curse) {
@@ -1859,7 +1907,7 @@ static void story_book_draw_curses(int term_width, int row_limit,
 
     for (int i = first; i < known_count && i < first + list_rows; i++) {
         int id = known_ids[i];
-        int stacks = CURSE_GET(id);
+        int stacks = story_book_curse_get(id);
         byte attr = (id == *selected_curse) ? TERM_YELLOW
             : (stacks > 0 ? TERM_L_RED : TERM_SLATE);
         strnfmt(buf, sizeof(buf), "%c %s%s", (id == *selected_curse) ? '>' : ' ',
@@ -1901,18 +1949,25 @@ static void story_book_draw_difficulty(int term_width, int row_limit)
         "IV - The Weight of Doom");
     strnfmt(buf, sizeof(buf), "Current difficulty: %s", difficulty);
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE, buf);
-    story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
-        "[ Change difficulty ]");
-    ui_menu_click_add(STORY_BOOK_CHANGE_DIFFICULTY, 4, row++, 26);
+    story_book_put_line(row, 4, term_width - 6,
+        run_mode_is_blitz() ? TERM_L_DARK : TERM_L_BLUE,
+        run_mode_is_blitz() ? "Tale difficulty is read-only during Blitz."
+                            : "[ Change difficulty ]");
+    if (!run_mode_is_blitz())
+        ui_menu_click_add(STORY_BOOK_CHANGE_DIFFICULTY, 4, row, 26);
+    row++;
     row++;
 
     strnfmt(buf, sizeof(buf), "Blessing threshold: %s - %lu points",
         threshold_mode_name(metarun_get_threshold_mode(&metar)),
         (unsigned long)threshold);
     story_book_put_line(row++, 4, term_width - 6, TERM_L_GREEN, buf);
-    story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+    story_book_put_line(row, 4, term_width - 6,
+        run_mode_is_blitz() ? TERM_L_DARK : TERM_L_BLUE,
         "[ Change blessing threshold ]");
-    ui_menu_click_add(STORY_BOOK_THRESHOLD, 4, row++, 34);
+    if (!run_mode_is_blitz())
+        ui_menu_click_add(STORY_BOOK_THRESHOLD, 4, row, 34);
+    row++;
     row++;
 
     story_book_put_line(row++, 4, term_width - 6, TERM_L_BLUE,
@@ -1962,6 +2017,34 @@ static int story_book_compare_metaruns(const void *a, const void *b)
     return 0;
 }
 
+static s16b *story_book_metarun_order(void)
+{
+    s16b *order;
+
+    if (!metaruns || metarun_max <= 0)
+        return NULL;
+    order = mem_alloc_array(metarun_max, s16b);
+    for (s16b i = 0; i < metarun_max; i++)
+        order[i] = i;
+    qsort(order, metarun_max, sizeof(*order), story_book_compare_metaruns);
+    return order;
+}
+
+static s16b story_book_metarun_index_at(int position)
+{
+    s16b *order;
+    s16b result = -1;
+
+    if (position < 0 || position >= metarun_max)
+        return -1;
+    order = story_book_metarun_order();
+    if (order) {
+        result = order[position];
+        order = mem_free(order);
+    }
+    return result;
+}
+
 static void story_book_draw_metaruns(int term_width, int row_limit,
     int *selected_position, bool startup_scene)
 {
@@ -1970,9 +2053,32 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
     int row = 4;
     int list_rows;
     int first;
+    bool can_manage = metarun_tale_management_available();
 
     story_book_put_line(row++, 2, term_width - 4, TERM_YELLOW,
         "V - The Chronicle of Tales");
+    order = story_book_metarun_order();
+    if (order) {
+        if (*selected_position < 0) *selected_position = 0;
+        if (*selected_position >= metarun_max) *selected_position = metarun_max - 1;
+    }
+    if (can_manage) {
+        story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+            steamdeck_controls_active()
+                ? "[ Y - Start a new tale ]"
+                : "[ N - Start a new tale ]");
+        ui_menu_click_add(STORY_BOOK_NEW_TALE, 4, row++,
+            MIN(term_width - 6, 28));
+        if (order && order[*selected_position] != current_run) {
+            story_book_put_line(row, 4, term_width - 6, TERM_L_BLUE,
+                steamdeck_controls_active()
+                    ? "[ A - Load selected tale ]"
+                    : "[ Enter - Load selected tale ]");
+            ui_menu_click_add(STORY_BOOK_LOAD_TALE, 4, row++,
+                MIN(term_width - 6, 31));
+        }
+        if (row < row_limit) row++;
+    }
     if (startup_scene) {
         story_book_put_wrapped(&row, row_limit, 4, term_width - 6, TERM_SLATE,
             "Blitz is a separate, self-contained run for practice or quick "
@@ -1992,15 +2098,6 @@ static void story_book_draw_metaruns(int term_width, int row_limit,
             "No tales have been recorded.");
         return;
     }
-
-    order = mem_alloc_array(metarun_max, s16b);
-    for (s16b i = 0; i < metarun_max; i++) {
-        metaruns[i].score = compute_metarun_score(&metaruns[i]);
-        order[i] = i;
-    }
-    qsort(order, metarun_max, sizeof(*order), story_book_compare_metaruns);
-    if (*selected_position < 0) *selected_position = 0;
-    if (*selected_position >= metarun_max) *selected_position = metarun_max - 1;
 
     list_rows = MIN(7, MAX(2, (row_limit - row) / 2));
     first = *selected_position - list_rows / 2;
@@ -2121,7 +2218,7 @@ static int story_book_sdl_collect_known_curses(int *ids, int capacity)
     int count = 0;
 
     for (int id = 0; id < z_info->cu_max && id < METAR_CURSE_SLOTS; id++) {
-        if (!CURSE_SEEN(id))
+        if (!story_book_curse_seen(id))
             continue;
         if (count < capacity)
             ids[count] = id;
@@ -2190,21 +2287,6 @@ static void story_book_sdl_difficulty_effects(int runtype_id, char *out,
             "thresholds.", win_goal, (unsigned long)easier,
             (unsigned long)normal, (unsigned long)harder);
     }
-}
-
-static s16b *story_book_sdl_metarun_order(void)
-{
-    s16b *order;
-
-    if (!metaruns || metarun_max <= 0)
-        return NULL;
-    order = mem_alloc_array(metarun_max, s16b);
-    for (s16b i = 0; i < metarun_max; i++) {
-        metaruns[i].score = compute_metarun_score(&metaruns[i]);
-        order[i] = i;
-    }
-    qsort(order, metarun_max, sizeof(*order), story_book_compare_metaruns);
-    return order;
 }
 
 static bool story_book_sdl_build(bool startup_scene,
@@ -2299,7 +2381,7 @@ static bool story_book_sdl_build(bool startup_scene,
     char minor_line[512] = "Minor blessings: ";
     int minor_count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
-        int stacks = CURSE_GET(id);
+        int stacks = story_book_curse_get(id);
         if (stacks >= 0)
             continue;
         if (minor_count > 0)
@@ -2329,7 +2411,7 @@ static bool story_book_sdl_build(bool startup_scene,
     story_book_sdl_append(buf, sizeof(buf), major_line);
     sdl_character_sheet_screen_add_book_paragraph_colored(buf, TERM_L_GREEN);
 
-    if (available > 0) {
+    if (!run_mode_is_blitz() && available > 0) {
         int minor_choices[3];
         int minor_choices_count = metarun_inline_minor_blessing_choices(
             minor_choices);
@@ -2343,7 +2425,7 @@ static bool story_book_sdl_build(bool startup_scene,
         }
         int shown_curses = 0;
         for (int id = 0; id < z_info->cu_max && shown_curses < 3; id++) {
-            int stacks = CURSE_CURSE_STACK(id);
+            int stacks = MAX(story_book_curse_get(id), 0);
             if (stacks <= 0)
                 continue;
             strnfmt(line, sizeof(line), "Lift one stack of %s (cost 1)",
@@ -2369,6 +2451,10 @@ static bool story_book_sdl_build(bool startup_scene,
             }
             shown_major++;
         }
+    } else if (run_mode_is_blitz()) {
+        sdl_character_sheet_screen_add_book_paragraph_colored(
+            "Tale blessings cannot be changed during a Blitz run.",
+            TERM_L_DARK);
     } else {
         sdl_character_sheet_screen_add_book_paragraph_colored(
             "Earn another blessing point to alter the gifts of this tale.",
@@ -2397,7 +2483,8 @@ static bool story_book_sdl_build(bool startup_scene,
                 break;
             }
         }
-        if (state->selected_curse < 0 || !CURSE_SEEN(state->selected_curse)) {
+        if (state->selected_curse < 0
+            || !story_book_curse_seen(state->selected_curse)) {
             state->selected_curse = curse_ids[state->curse_offset];
             selected_pos = state->curse_offset;
         }
@@ -2408,7 +2495,7 @@ static bool story_book_sdl_build(bool startup_scene,
         int end = MIN(curse_count, state->curse_offset + 5);
         for (int i = state->curse_offset; i < end; i++) {
             int id = curse_ids[i];
-            int stacks = CURSE_GET(id);
+            int stacks = story_book_curse_get(id);
             char suffix[32] = "";
             if (stacks > 0)
                 strnfmt(suffix, sizeof(suffix), " (active x%d)", stacks);
@@ -2445,7 +2532,7 @@ static bool story_book_sdl_build(bool startup_scene,
 
     /* Page IV: difficulty changes are previewed and confirmed on this page. */
     story_book_sdl_heading("IV - The Weight of Doom", true);
-    if (state->pending_difficulty >= 0 && runtype_info
+    if (!run_mode_is_blitz() && state->pending_difficulty >= 0 && runtype_info
         && state->pending_difficulty < z_info->rt_max
         && runtype_info[state->pending_difficulty].name[0])
     {
@@ -2489,8 +2576,13 @@ static bool story_book_sdl_build(bool startup_scene,
                 threshold_mode_name(modes[i]),
                 (unsigned long)runtype_threshold_for_mode(metar.type,
                     modes[i]));
-            sdl_character_sheet_screen_add_book_action_colored(line,
-                STORY_BOOK_THRESHOLD_BASE + modes[i], attr);
+            if (!run_mode_is_blitz()) {
+                sdl_character_sheet_screen_add_book_action_colored(line,
+                    STORY_BOOK_THRESHOLD_BASE + modes[i], attr);
+            } else {
+                sdl_character_sheet_screen_add_book_paragraph_colored(line,
+                    attr);
+            }
         }
         sdl_character_sheet_screen_add_book_paragraph_colored(
             "Difficulty levels (select one to review its effects):",
@@ -2509,7 +2601,8 @@ static bool story_book_sdl_build(bool startup_scene,
             attr = i == metar.type ? TERM_YELLOW
                 : (i < metar.max_difficulty_reached ? TERM_L_DARK
                                                      : runtype_info[i].colour);
-            if (i != metar.type && i >= metar.max_difficulty_reached) {
+            if (!run_mode_is_blitz() && i != metar.type
+                && i >= metar.max_difficulty_reached) {
                 sdl_character_sheet_screen_add_book_action_colored(line,
                     STORY_BOOK_DIFFICULTY_BASE + i, attr);
             } else {
@@ -2519,6 +2612,10 @@ static bool story_book_sdl_build(bool startup_scene,
                     attr);
             }
         }
+        if (run_mode_is_blitz())
+            sdl_character_sheet_screen_add_book_paragraph_colored(
+                "Tale difficulty cannot be changed during a Blitz run.",
+                TERM_L_DARK);
     }
 
     /* Page V: click a tale to replace the detail paragraph in place. */
@@ -2531,7 +2628,14 @@ static bool story_book_sdl_build(bool startup_scene,
         sdl_character_sheet_screen_add_book_action_colored(
             "Start a separate Blitz run", STORY_BOOK_BLITZ, TERM_L_BLUE);
     }
-    s16b *order = story_book_sdl_metarun_order();
+    s16b *order = story_book_metarun_order();
+    bool can_manage = metarun_tale_management_available();
+    if (can_manage) {
+        sdl_character_sheet_screen_add_book_action_colored(
+            steamdeck_controls_active() ? "Y - Start a new tale"
+                                        : "N - Start a new tale",
+            STORY_BOOK_NEW_TALE, TERM_L_BLUE);
+    }
     if (!order) {
         state->selected_run = 0;
         state->run_offset = 0;
@@ -2547,6 +2651,14 @@ static bool story_book_sdl_build(bool startup_scene,
         if (state->selected_run < state->run_offset
             || state->selected_run >= state->run_offset + 5)
             state->run_offset = (state->selected_run / 5) * 5;
+
+        if (can_manage && order[state->selected_run] != current_run) {
+            sdl_character_sheet_screen_add_book_action_colored(
+                steamdeck_controls_active() ? "A - Load selected tale"
+                                            : "Enter - Load selected tale",
+                STORY_BOOK_LOAD_TALE,
+                TERM_L_BLUE);
+        }
 
         int end = MIN(metarun_max, state->run_offset + 5);
         for (int pos = state->run_offset; pos < end; pos++) {
@@ -2612,22 +2724,29 @@ static bool story_book_sdl_build(bool startup_scene,
 
 static bool story_book_show_sdl(bool startup_scene)
 {
-    story_book_sdl_state state = { -1, 0, 0, 0, -1 };
-    bool done = false;
-    bool launch_blitz = false;
+    int restore_page = 0;
 
-    if (!startup_scene)
-        screen_save();
-    screen_push_supporting_panes_hidden();
+    for (;;) {
+        story_book_sdl_state state = { -1, 0, 0, 0, -1 };
+        bool done = false;
+        bool launch_blitz = false;
+        bool tale_action_ok = true;
+        enum story_book_tale_request tale_request =
+            STORY_BOOK_TALE_REQUEST_NONE;
+        s16b requested_tale = -1;
 
-    if (!story_book_sdl_build(startup_scene, &state, 0)) {
-        screen_pop_supporting_panes_hidden();
         if (!startup_scene)
-            screen_load();
-        return false;
-    }
+            screen_save();
+        screen_push_supporting_panes_hidden();
 
-    while (!done) {
+        if (!story_book_sdl_build(startup_scene, &state, restore_page)) {
+            screen_pop_supporting_panes_hidden();
+            if (!startup_scene)
+                screen_load();
+            return false;
+        }
+
+        while (!done) {
         int key;
         int clicked = 0;
         int click_action = UI_MENU_CLICK_PRIMARY;
@@ -2690,8 +2809,26 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
+            if (clicked == STORY_BOOK_NEW_TALE
+                && metarun_tale_management_available())
+            {
+                tale_request = STORY_BOOK_TALE_REQUEST_NEW;
+                done = true;
+                continue;
+            }
+            if (clicked == STORY_BOOK_LOAD_TALE
+                && metarun_tale_management_available())
+            {
+                requested_tale = story_book_metarun_index_at(
+                    state.selected_run);
+                if (requested_tale >= 0 && requested_tale != current_run) {
+                    tale_request = STORY_BOOK_TALE_REQUEST_LOAD;
+                    done = true;
+                }
+                continue;
+            }
 
-            if (clicked >= STORY_BOOK_MINOR_BASE
+            if (!run_mode_is_blitz() && clicked >= STORY_BOOK_MINOR_BASE
                 && clicked < STORY_BOOK_MINOR_BASE + METAR_CURSE_SLOTS)
             {
                 (void)metarun_inline_choose_minor_blessing(
@@ -2699,7 +2836,7 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
-            if (clicked >= STORY_BOOK_MAJOR_BASE
+            if (!run_mode_is_blitz() && clicked >= STORY_BOOK_MAJOR_BASE
                 && clicked < STORY_BOOK_MAJOR_BASE + major_blessing_capacity())
             {
                 (void)metarun_inline_choose_major_blessing(
@@ -2707,7 +2844,7 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
-            if (clicked >= STORY_BOOK_REMOVE_CURSE_BASE
+            if (!run_mode_is_blitz() && clicked >= STORY_BOOK_REMOVE_CURSE_BASE
                 && clicked < STORY_BOOK_REMOVE_CURSE_BASE + METAR_CURSE_SLOTS)
             {
                 (void)metarun_inline_remove_curse(
@@ -2715,7 +2852,7 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
-            if (clicked >= STORY_BOOK_THRESHOLD_BASE
+            if (!run_mode_is_blitz() && clicked >= STORY_BOOK_THRESHOLD_BASE
                 && clicked < STORY_BOOK_THRESHOLD_BASE
                     + METARUN_BLESSING_THRESHOLD_MODE_MAX)
             {
@@ -2730,7 +2867,7 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
-            if (clicked >= STORY_BOOK_DIFFICULTY_BASE
+            if (!run_mode_is_blitz() && clicked >= STORY_BOOK_DIFFICULTY_BASE
                 && clicked < STORY_BOOK_DIFFICULTY_BASE + z_info->rt_max)
             {
                 state.pending_difficulty = clicked
@@ -2738,7 +2875,8 @@ static bool story_book_show_sdl(bool startup_scene)
                 (void)story_book_sdl_build(startup_scene, &state, page);
                 continue;
             }
-            if (clicked == STORY_BOOK_DIFFICULTY_CONFIRM) {
+            if (!run_mode_is_blitz()
+                && clicked == STORY_BOOK_DIFFICULTY_CONFIRM) {
                 if (state.pending_difficulty >= 0)
                     (void)metarun_set_difficulty_inline(
                         state.pending_difficulty);
@@ -2792,7 +2930,40 @@ static bool story_book_show_sdl(bool startup_scene)
             continue;
         page = sdl_character_sheet_screen_select_page();
         page_count = sdl_character_sheet_screen_select_page_count();
-        if (key == ESCAPE || key == 'q' || key == 'Q')
+        if (page == STORY_BOOK_METARUNS
+            && ((key == 'n' || key == 'N')
+                || (steamdeck_controls_active()
+                    && key == steamdeck_secondary_key()))
+            && metarun_tale_management_available())
+        {
+            tale_request = STORY_BOOK_TALE_REQUEST_NEW;
+            done = true;
+        }
+        else if (page == STORY_BOOK_METARUNS
+            && (key == '\r' || key == '\n')
+            && metarun_tale_management_available())
+        {
+            requested_tale = story_book_metarun_index_at(state.selected_run);
+            if (requested_tale >= 0 && requested_tale != current_run) {
+                tale_request = STORY_BOOK_TALE_REQUEST_LOAD;
+                done = true;
+            } else if (requested_tale == current_run)
+                done = true;
+        }
+        else if (page == STORY_BOOK_METARUNS && metarun_max > 0
+            && (key == '8' || key == 'k' || key == 'K' || key == '-'))
+        {
+            state.selected_run = MAX(0, state.selected_run - 1);
+            (void)story_book_sdl_build(startup_scene, &state, page);
+        }
+        else if (page == STORY_BOOK_METARUNS && metarun_max > 0
+            && (key == '2' || key == 'j' || key == 'J' || key == '+'))
+        {
+            state.selected_run = MIN(metarun_max - 1,
+                state.selected_run + 1);
+            (void)story_book_sdl_build(startup_scene, &state, page);
+        }
+        else if (key == ESCAPE || key == 'q' || key == 'Q')
             done = true;
         else if (key == '4' && page > 0)
             sdl_character_sheet_screen_begin_page_turn(-1);
@@ -2802,18 +2973,32 @@ static bool story_book_show_sdl(bool startup_scene)
             else
                 done = true;
         }
-    }
+        }
 
-    ui_menu_click_clear();
-    sdl_character_sheet_screen_hide();
-    screen_pop_supporting_panes_hidden();
-    if (!startup_scene)
-        screen_load();
-    if (launch_blitz) {
-        run_mode_set_pending(RUN_MODE_BLITZ);
-        run_mode_set_current(RUN_MODE_BLITZ);
+        ui_menu_click_clear();
+        sdl_character_sheet_screen_hide();
+        screen_pop_supporting_panes_hidden();
+        if (!startup_scene)
+            screen_load();
+        if (tale_request == STORY_BOOK_TALE_REQUEST_NEW) {
+            tale_action_ok = metarun_create_tale();
+            if (tale_action_ok && startup_scene && !run_mode_is_blitz()) {
+                print_story_intro();
+                metarun_created = false;
+            }
+        } else if (tale_request == STORY_BOOK_TALE_REQUEST_LOAD) {
+            tale_action_ok = metarun_activate_tale(requested_tale);
+        } else if (launch_blitz) {
+            run_mode_set_pending(RUN_MODE_BLITZ);
+            run_mode_set_current(RUN_MODE_BLITZ);
+        }
+        if (!tale_action_ok) {
+            story_book_show_tale_action_error();
+            restore_page = STORY_BOOK_METARUNS;
+            continue;
+        }
+        return true;
     }
-    return true;
 }
 
 static void story_book_run_existing_menu(bool startup_scene, void (*fn)(void),
@@ -2830,9 +3015,12 @@ void print_metarun_stats(void)
     bool startup_scene;
     bool done = false;
     bool launch_blitz = false;
+    enum story_book_tale_request tale_request = STORY_BOOK_TALE_REQUEST_NONE;
+    s16b requested_tale = -1;
     enum story_book_page page = STORY_BOOK_STATISTICS;
     int selected_curse = -1;
     int selected_run = 0;
+    bool retry_tales_page = false;
     story_font_term_state font_state;
 
     refresh_current_metar_score();
@@ -2849,6 +3037,16 @@ void print_metarun_stats(void)
     startup_scene = (!character_generated || !p_ptr || !p_ptr->playing);
     if (story_book_show_sdl(startup_scene))
         return;
+
+restart_terminal:
+    done = false;
+    launch_blitz = false;
+    tale_request = STORY_BOOK_TALE_REQUEST_NONE;
+    requested_tale = -1;
+    page = retry_tales_page ? STORY_BOOK_METARUNS : STORY_BOOK_STATISTICS;
+    retry_tales_page = false;
+    selected_curse = -1;
+    selected_run = 0;
 
     /* Non-SDL fallback: retain the terminal book below. */
     if (!startup_scene) {
@@ -2950,28 +3148,49 @@ void print_metarun_stats(void)
         else if (action == STORY_BOOK_THRESHOLD) key = 't';
         else if (action == STORY_BOOK_CHANGE_DIFFICULTY) key = 'd';
         else if (action == STORY_BOOK_BLITZ) key = 'x';
+        else if (action == STORY_BOOK_NEW_TALE) key = 'N';
+        else if (action == STORY_BOOK_LOAD_TALE) key = '\r';
 
         if (key >= '1' && key <= '5') {
             page = (enum story_book_page)(key - '1');
         } else if (key == ESCAPE
             || (steamdeck_controls_active() && key == steamdeck_back_key())) {
             done = true;
+        } else if (page == STORY_BOOK_METARUNS
+            && ((key == 'n' || key == 'N')
+                || (steamdeck_controls_active()
+                    && key == steamdeck_secondary_key()))
+            && metarun_tale_management_available())
+        {
+            tale_request = STORY_BOOK_TALE_REQUEST_NEW;
+            done = true;
+        } else if (page == STORY_BOOK_METARUNS
+            && (key == '\r' || key == '\n'
+                || (steamdeck_controls_active()
+                    && key == steamdeck_confirm_key()))
+            && metarun_tale_management_available())
+        {
+            requested_tale = story_book_metarun_index_at(selected_run);
+            if (requested_tale >= 0 && requested_tale != current_run) {
+                tale_request = STORY_BOOK_TALE_REQUEST_LOAD;
+                done = true;
+            }
         } else if (key == '4' || key == 'h' || key == 'H') {
             page = (enum story_book_page)((page + STORY_BOOK_PAGE_MAX - 1)
                 % STORY_BOOK_PAGE_MAX);
         } else if (key == '6' || key == 'l' || key == 'L') {
             page = (enum story_book_page)((page + 1) % STORY_BOOK_PAGE_MAX);
-        } else if (page == STORY_BOOK_BLESSINGS
+        } else if (!run_mode_is_blitz() && page == STORY_BOOK_BLESSINGS
             && (key == 'b' || key == 'B' || key == '\r' || key == '\n'))
         {
             story_book_run_existing_menu(startup_scene,
                 open_blessing_exchange, &font_state);
-        } else if (page == STORY_BOOK_DIFFICULTY
+        } else if (!run_mode_is_blitz() && page == STORY_BOOK_DIFFICULTY
             && (key == 't' || key == 'T'))
         {
             story_book_run_existing_menu(startup_scene,
                 adjust_blessing_threshold_menu, &font_state);
-        } else if (page == STORY_BOOK_DIFFICULTY
+        } else if (!run_mode_is_blitz() && page == STORY_BOOK_DIFFICULTY
             && (key == 'd' || key == 'D' || key == '\r' || key == '\n'))
         {
             story_book_run_existing_menu(startup_scene,
@@ -3008,7 +3227,23 @@ void print_metarun_stats(void)
         sdl_pop_terminal_menu_scale();
         screen_load();
     }
-    if (launch_blitz) {
+    if (tale_request == STORY_BOOK_TALE_REQUEST_NEW) {
+        if (!metarun_create_tale()) {
+            story_book_show_tale_action_error();
+            retry_tales_page = true;
+            goto restart_terminal;
+        }
+        if (startup_scene && !run_mode_is_blitz()) {
+            print_story_intro();
+            metarun_created = false;
+        }
+    } else if (tale_request == STORY_BOOK_TALE_REQUEST_LOAD) {
+        if (!metarun_activate_tale(requested_tale)) {
+            story_book_show_tale_action_error();
+            retry_tales_page = true;
+            goto restart_terminal;
+        }
+    } else if (launch_blitz) {
         run_mode_set_pending(RUN_MODE_BLITZ);
         run_mode_set_current(RUN_MODE_BLITZ);
     }

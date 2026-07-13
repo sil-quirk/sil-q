@@ -55,11 +55,13 @@ void run_mode_activate_pending(void)
     g_current_run_mode = g_pending_run_mode;
     if (g_current_run_mode != RUN_MODE_BLITZ)
         blitz_runtime_reset();
+    metarun_apply_runtime_effects();
 }
 
 void run_mode_set_current(run_mode mode)
 {
     g_current_run_mode = mode;
+    metarun_apply_runtime_effects();
 }
 
 run_mode run_mode_current(void)
