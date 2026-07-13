@@ -669,7 +669,8 @@ void do_cmd_fletchery(void)
             return;
         }
 
-        int amount = get_quantity("Convert how many?", max_convert);
+        int amount = get_quantity_action("Convert how many?", "Convert",
+            max_convert);
         if (amount <= 0)
             return;
 

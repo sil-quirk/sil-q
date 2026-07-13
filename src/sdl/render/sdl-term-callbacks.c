@@ -3288,7 +3288,15 @@ errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
             && (pict_story_row[x + i] & STORY_FLAG_PIXEL_PACK))
             continue;
 
-        if (Term == term_screen) {
+        /*
+         * Only dungeon cells carry a graphical terrain underlay.  UI tiles
+         * (inventory icons, menu icons, and the like) can occupy the same
+         * terminal coordinates as the map while a saved-screen overlay is
+         * open.  Treating those coordinates as dungeon coordinates would
+         * composite live monster health/status overlays onto the UI icon.
+         */
+        if (Term == term_screen && (tap[i] & TILE_FLAG)
+            && (((byte)tcp[i]) & TILE_FLAG)) {
             int term_x = x + (i * (use_bigtile + 1));
             if (y >= ROW_MAP && term_x >= COL_MAP) {
                 int map_y = y - ROW_MAP;

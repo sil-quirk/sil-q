@@ -125,6 +125,14 @@ enum sdl_config_load_status {
     SDL_CONFIG_LOAD_PARSE_FAILED,
 };
 
+/* Records whether device-dependent touch defaults were explicitly present in
+ * the loaded file.  Older builds wrote only a partial touchControl object, so
+ * startup needs to distinguish "missing" from a deliberate false value. */
+struct sdl_config_load_info {
+    bool touch_profile_present;
+    bool touch_round_movement_present;
+};
+
 struct sdl_pane_profile {
     int main_view_scale;
     int aux_view_font_size;
@@ -255,7 +263,7 @@ extern struct sdl_config config;
 // Load SDL configuration from JSON file
 enum sdl_config_load_status sdl_config_load(const char* filename,
     struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
-    int profile_count);
+    int profile_count, struct sdl_config_load_info* load_info);
 
 // Save SDL configuration to JSON file
 void sdl_config_save(const char* filename, const struct sdl_config* config,

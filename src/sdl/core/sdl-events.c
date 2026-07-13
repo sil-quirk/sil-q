@@ -772,6 +772,26 @@ static bool sdl_event_targets_touch_top_panel(const SDL_Event* ev)
     return false;
 }
 
+/* A round-wheel gesture needs its finger-down event so release can emit the
+ * chosen direction.  If a zero-turn narrative banner swallowed that down but
+ * disappeared before release, the first apparent move after the banner would
+ * do nothing. */
+static bool sdl_event_starts_touch_round_input(const SDL_Event* ev)
+{
+    float x;
+    float y;
+
+    if (!ev || ev->type != SDL_EVENT_FINGER_DOWN)
+        return false;
+    if (ev->tfinger.windowID != SDL_GetWindowID(g_state.window))
+        return false;
+    if (!sdl_finger_event_to_render_coords(&ev->tfinger, &x, &y))
+        return false;
+
+    return sdl_touch_round_layer_controls_active()
+        && !sdl_touch_round_point_excluded(x, y);
+}
+
 static bool sdl_narrative_banner_consume_input_event(const SDL_Event* ev)
 {
     if (!active_narrative_banner_consumes_input())
@@ -781,9 +801,23 @@ static bool sdl_narrative_banner_consume_input_event(const SDL_Event* ev)
     if (sdl_event_targets_touch_top_panel(ev))
         return false;
 
+    if (sdl_event_starts_touch_round_input(ev)) {
+        clear_active_narrative_banner();
+        do_cmd_redraw();
+        g_state.need_present = true;
+        /* Wake request_command() out of its banner-dismissal inkey().  The
+         * finger-down continues below so the matching release can submit the
+         * actual movement in the next command-input context. */
+        Term_keypress(UI_MENU_CLICK_WAKE_KEY);
+        return false;
+    }
+
     clear_active_narrative_banner();
     do_cmd_redraw();
     g_state.need_present = true;
+    /* The event itself is consumed, so provide the sentinel that lets the
+     * banner-dismissal inkey() finish instead of swallowing the next input. */
+    Term_keypress(UI_MENU_CLICK_WAKE_KEY);
     return true;
 }
 

@@ -228,10 +228,13 @@ static int first_floor_interaction_under_player(void)
     return 0;
 }
 
-static const char* floor_interaction_action_name(const object_type* o_ptr)
+cptr item_use_action_name(const object_type* o_ptr, int item)
 {
     if (!o_ptr)
         return "Use";
+
+    if (o_ptr->name1 >= ART_MORGOTH_1 && o_ptr->name1 <= ART_MORGOTH_3)
+        return "Prise";
 
     if (o_ptr->tval == TV_SKELETON)
         return "Search";
@@ -246,7 +249,51 @@ static const char* floor_interaction_action_name(const object_type* o_ptr)
         return "Open";
     }
 
-    return "Use";
+    if (item < INVEN_WIELD
+        && inventory[INVEN_LITE].tval == TV_LIGHT
+        && inventory[INVEN_LITE].sval == SV_LIGHT_LANTERN
+        && (o_ptr->tval == TV_FLASK
+            || (o_ptr->tval == TV_LIGHT
+                && o_ptr->sval == SV_LIGHT_LANTERN)))
+    {
+        return "Refuel";
+    }
+
+    switch (o_ptr->tval)
+    {
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+    case TV_LIGHT:
+    case TV_AMULET:
+    case TV_RING:
+    case TV_ARROW:
+        return (item >= INVEN_WIELD) ? "Take Off" : "Wield";
+    case TV_FLASK:
+        return "Use";
+    case TV_NOTE:
+        return "Read";
+    case TV_STAFF:
+        return "Activate";
+    case TV_HORN:
+        return "Play";
+    case TV_POTION:
+        return "Quaff";
+    case TV_FOOD:
+        return "Eat";
+    default:
+        return "Use";
+    }
 }
 
 /*
@@ -300,19 +347,21 @@ static bool use_floor_interaction_by_index(int item)
 }
 
 /*
- * Context-sensitive interpretation of the confirm and 'x'
- * ("Description") touch shortcut bindings, so the on-screen button shows
- * (and performs) the action that fits the player's current situation:
+ * Context-sensitive interpretation of touch shortcut bindings, so the
+ * on-screen button shows (and performs) the action that fits the player's
+ * current situation:
  *
  *   Confirm: in an open description -> pick up ('g'/space) the shown item;
- *          otherwise on a down staircase -> descend ('>'), an up staircase ->
- *          ascend ('<'), standing on an item -> pick up ('g'), else -> confirm.
- *   'x'  : "Description" until the description popup is open, then "Wield" (a
- *          wearable item) or "Use".  The key stays 'x' because do_cmd_observe()
- *          opens the popup and, once open, 'x' wields/uses the shown item.
+ *          otherwise on stairs -> interact-here with confirmation, standing
+ *          on an item -> pick up ('g'), else -> confirm.
+ *   '<'/'>' : on the matching staircase -> interact-here with confirmation.
+ *   'u'  : names the floor item's real action (Wield, Quaff, Eat, etc.); in an
+ *          open description it submits that popup's 'x' action.
+ *   'x'  : "Description" until the description popup is open, then names the
+ *          floor item's real action.  The key stays 'x' for the popup action.
  *
  * `description_open` is the caller's "an interactive item description popup is
- * showing" state.  Returns true (filling *out_key and label) for those two
+ * showing" state.  Returns true (filling *out_key and label) for contextual
  * bindings while in the dungeon; false otherwise, so the caller keeps the
  * binding's static label/key.
  */
@@ -333,10 +382,12 @@ bool touch_shortcut_context_action(int binding, bool description_open,
             name = (first_floor_item_under_player() != 0) ? "Pick Up"
                                                           : "Confirm";
         } else if (cave_down_stairs_bold(p_ptr->py, p_ptr->px)) {
-            key = '>';
+            /* Space runs interact-here, which asks before changing levels. */
+            key = ' ';
             name = "Go Down";
         } else if (cave_up_stairs_bold(p_ptr->py, p_ptr->px)) {
-            key = '<';
+            /* Space runs interact-here, which asks before changing levels. */
+            key = ' ';
             name = "Go Up";
         } else if ((floor_interaction =
                 first_floor_interaction_under_player()) != 0)
@@ -346,7 +397,8 @@ bool touch_shortcut_context_action(int binding, bool description_open,
              * "/5" interact-here keymap.
              */
             key = ' ';
-            name = floor_interaction_action_name(&o_list[-floor_interaction]);
+            name = item_use_action_name(&o_list[-floor_interaction],
+                floor_interaction);
         } else if (first_floor_item_under_player() != 0) {
             key = 'g';
             name = "Pick Up";
@@ -354,6 +406,25 @@ bool touch_shortcut_context_action(int binding, bool description_open,
             key = ' ';
             name = "Confirm";
         }
+    } else if (binding == '<') {
+        if (!cave_up_stairs_bold(p_ptr->py, p_ptr->px))
+            return false;
+        /* Keep Space so the interact-here command supplies the confirmation. */
+        key = ' ';
+        name = "Go Up";
+    } else if (binding == '>') {
+        if (!cave_down_stairs_bold(p_ptr->py, p_ptr->px))
+            return false;
+        /* Keep Space so the interact-here command supplies the confirmation. */
+        key = ' ';
+        name = "Go Down";
+    } else if (binding == 'u') {
+        int floor_item = first_floor_item_under_player();
+
+        key = (description_open && floor_item != 0) ? 'x' : 'u';
+        name = (floor_item != 0)
+            ? item_use_action_name(&o_list[-floor_item], floor_item)
+            : "Use";
     } else if (binding == 'x') {
         key = 'x';
         if (description_open) {
@@ -366,11 +437,11 @@ bool touch_shortcut_context_action(int binding, bool description_open,
                         && !object_is_searched_skeleton(o_ptr))
                     || (o_ptr->tval == TV_CHEST && o_ptr->pval != 0))
                 {
-                    name = floor_interaction_action_name(o_ptr);
+                    name = item_use_action_name(o_ptr, floor_item);
                 }
                 else
                 {
-                    name = (wield_slot(o_ptr) >= 0) ? "Wield" : "Use";
+                    name = item_use_action_name(o_ptr, floor_item);
                 }
             } else {
                 name = "Use";
@@ -515,6 +586,7 @@ bool open_inventory_replacement_menu(inventory_menu_group group,
     int selected = -1;
     char desc[480];
     char incoming_name[120];
+    char incoming_summary[160];
 
     (void)group;
 
@@ -577,14 +649,26 @@ bool open_inventory_replacement_menu(inventory_menu_group group,
         return false;
 
     object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
-    if (reason && reason[0])
+    if (show_weights)
     {
-        strnfmt(desc, sizeof(desc), "%s\nPicking up: %s", reason,
-            incoming_name);
+        int incoming_weight = incoming->weight * MAX(incoming->number, 1);
+
+        strnfmt(incoming_summary, sizeof(incoming_summary), "%s  %2d.%1d lb",
+            incoming_name, incoming_weight / 10, incoming_weight % 10);
     }
     else
     {
-        strnfmt(desc, sizeof(desc), "Picking up: %s", incoming_name);
+        SDL_strlcpy(incoming_summary, incoming_name,
+            sizeof(incoming_summary));
+    }
+    if (reason && reason[0])
+    {
+        strnfmt(desc, sizeof(desc), "%s\nPicking up: %s", reason,
+            incoming_summary);
+    }
+    else
+    {
+        strnfmt(desc, sizeof(desc), "Picking up: %s", incoming_summary);
     }
 
     if (!object_choice_overlay("What to replace?", desc, entries, count, 0,
@@ -2817,7 +2901,7 @@ bool do_cmd_drop_item_by_index_confirm(int item, bool confirm)
     object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
     strnfmt(quantity_prompt, sizeof(quantity_prompt), "Drop how many %s? ",
         o_name);
-    amt = get_quantity(quantity_prompt, o_ptr->number);
+    amt = get_quantity_action(quantity_prompt, "Drop", o_ptr->number);
 
     /* Allow user abort */
     if (amt <= 0)
@@ -3395,7 +3479,7 @@ bool do_cmd_delete_item_by_index(int item)
         object_desc(quantity_name, sizeof(quantity_name), o_ptr, false, 0);
     strnfmt(quantity_prompt, sizeof(quantity_prompt), "Delete how many %s? ",
         quantity_name);
-    amt = get_quantity(quantity_prompt, o_ptr->number);
+    amt = get_quantity_action(quantity_prompt, "Delete", o_ptr->number);
 
     /* Allow user abort */
     if (amt <= 0)

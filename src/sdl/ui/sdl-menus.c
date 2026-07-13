@@ -3499,10 +3499,44 @@ void sdl_touch_pane_base_label_for_slot(int panel, int index, char* buf, size_t 
 
 void sdl_touch_pane_display_label_for_slot(int panel, int index, char* buf, size_t buflen)
 {
+    int binding;
+    int raw_binding;
+    const char* custom_label;
+    char context_label[SDL_TOUCH_PANE_LABEL_LEN];
+
     if (!buf || !buflen)
         return;
 
     buf[0] = '\0';
 
     sdl_touch_pane_base_label_for_slot(panel, index, buf, buflen);
+
+    if (!sdl_touch_pane_panel_is_valid(panel)
+        || index < 0 || index >= SDL_TOUCH_PANE_BUTTON_COUNT)
+    {
+        return;
+    }
+
+    raw_binding = sdl_touch_pane_raw_binding_for_panel(panel, index);
+    custom_label = (panel == SDL_TOUCH_PANE_PANEL_SECOND)
+        ? config.touch_pane_second_labels[index]
+        : config.touch_pane_labels[index];
+    if (custom_label[0])
+        return;
+    if (panel == SDL_TOUCH_PANE_PANEL_SECOND
+        && raw_binding == TOUCH_PANE_BIND_INHERIT
+        && config.touch_pane_labels[index][0])
+    {
+        return;
+    }
+
+    binding = sdl_touch_pane_effective_binding_for_panel(panel, index);
+    if (binding == INPUT_BIND_CONFIRM)
+        binding = ' ';
+    if (touch_shortcut_context_action(binding,
+            g_description_overlay.active && g_description_overlay.interactive,
+            NULL, context_label, sizeof(context_label)))
+    {
+        SDL_strlcpy(buf, context_label, buflen);
+    }
 }

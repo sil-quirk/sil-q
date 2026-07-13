@@ -8,6 +8,9 @@
 #define SDL_TOUCH_ROUND_CENTER_REPEAT_FRAC 0.62f
 #define SDL_TOUCH_ROUND_HIT_SLOP_FRAC 0.18f
 
+static int sdl_touch_context_binding(int binding);
+static void sdl_touch_top_panel_set_hover_slot(int slot);
+
 /* Run a main-menu action that opens a modal screen inline (Quick Access / thumb
  * / swipe buttons bound to a main-menu choice).  Those screens call inkey(),
  * whose cleanup clears inkey_flag; when an outer command-wait inkey() is still
@@ -92,6 +95,9 @@ void sdl_touch_pane_send_binding(int binding, bool second_panel, bool long_press
 
     if (sdl_pointer_attack_toggle_binding(binding))
         return;
+
+    if (!long_press)
+        binding = sdl_touch_context_binding(binding);
 
     if (sdl_touch_pane_confirm_binding(binding)) {
         if (long_press && character_dungeon) {
@@ -3347,6 +3353,7 @@ bool sdl_touch_top_panel_handle_secondary_pointer(float x, float y)
         return false;
 
     sdl_touch_top_panel_cancel_press();
+    sdl_touch_top_panel_set_hover_slot(-1);
     sdl_touch_run_quick_access_picker(slot);
     return true;
 }
@@ -4730,6 +4737,10 @@ void sdl_touch_top_panel_send_slot(int slot, bool long_press)
 
     if (!sdl_main_screen_click_shortcuts_active())
         return;
+
+    /* A press or mouse hover displays the button description.  Clear it
+     * before the selected command can open its own prompt or modal screen. */
+    sdl_touch_top_panel_set_hover_slot(-1);
 
     if (long_press) {
         sdl_touch_run_quick_access_picker(slot);

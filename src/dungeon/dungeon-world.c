@@ -393,17 +393,8 @@ void process_world(void)
             if (fuelable_light_p(o_ptr)
                 && (level_partition_kind_for_point(p_ptr->py, p_ptr->px) == LEVEL_PART_CAVEY))
             {
-                /*
-                 * Small caves: double fuel drain only while standing in the actual
-                 * CA-blob cave area (not merely anywhere in the partition).
-                 *
-                 * CA blobs are generated as (dark) "room" grids; corridors/links are not.
-                 */
-                if ((cave_info[p_ptr->py][p_ptr->px] & (CAVE_ROOM)) &&
-                    !(cave_info[p_ptr->py][p_ptr->px] & (CAVE_GLOW)))
-                {
-                    fuel = 2;
-                }
+                /* Small-cave air makes fuelable lights burn twice as fast. */
+                fuel = 2;
             }
 
             player_light_add_fuel(o_ptr, -fuel);

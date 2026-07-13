@@ -8,9 +8,14 @@ bool askfor_name(char* buf, size_t len);
 bool term_get_string(cptr prompt, char* buf, size_t len);
 bool get_string_panel(cptr prompt, char* buf, size_t len);
 s16b get_quantity(cptr prompt, int max);
+s16b get_quantity_action(cptr prompt, cptr action, int max);
 s16b get_quantity_touch_category(cptr prompt, int max, int touch_category);
+s16b get_quantity_touch_category_action(cptr prompt, cptr action, int max,
+    int touch_category);
 s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
     int touch_category);
+s16b get_quantity_touch_category_force_prompt_action(cptr prompt, cptr action,
+    int max, int touch_category);
 bool get_check(cptr prompt);
 bool get_check_lower(cptr prompt);
 bool get_check_near(int y, int x, cptr prompt);

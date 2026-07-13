@@ -133,6 +133,7 @@ errr init_sdl(int argc, char **argv)
     // Check if config file exists
     bool config_exists = SDL_GetPathInfo(config_file_path, NULL);
     enum sdl_config_load_status config_load_status = SDL_CONFIG_LOAD_OK;
+    struct sdl_config_load_info config_load_info = { 0 };
     char startup_issue_summary[SDL_STARTUP_ISSUE_MAX];
 
     startup_issue_summary[0] = '\0';
@@ -148,7 +149,7 @@ errr init_sdl(int argc, char **argv)
             &pane_config_count, true);
         sdl_seed_all_pane_profiles_from_active();
         config_load_status = sdl_config_load(config_file_path, &config,
-            g_pane_profiles, SDL_PANE_PROFILE_COUNT);
+            g_pane_profiles, SDL_PANE_PROFILE_COUNT, &config_load_info);
         sdl_apply_stored_pane_profile(config.min_terminal_mode);
 
         if (config_load_status == SDL_CONFIG_LOAD_READ_FAILED) {
@@ -362,6 +363,33 @@ errr init_sdl(int argc, char **argv)
         g_gamepad_state.pad_count,
         (g_gamepad_state.pad_count == 1) ? "" : "s",
         config_exists ? ", loaded config" : ", first start");
+
+    /* Builds between the round-wheel rollout and full touch-config
+     * persistence saved a partial touchControl object.  On touch-only mobile
+     * devices, repair only the keys that were absent; preserve any explicit
+     * profile or explicit disabled-wheel choice from older complete configs. */
+    if (config_exists && config_load_status == SDL_CONFIG_LOAD_OK
+        && g_startup_device_class == SDL_STARTUP_DEVICE_MOBILE_TOUCH)
+    {
+        bool repaired = false;
+
+        if (!config_load_info.touch_profile_present) {
+            config.touch_profile = SDL_TOUCH_PROFILE_ROUND_WHEEL;
+            repaired = true;
+        }
+        if (!config_load_info.touch_round_movement_present
+            && config.touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL)
+        {
+            config.touch_round_movement_enabled = true;
+            repaired = true;
+        }
+        if (repaired) {
+            log_info("Repaired missing mobile touch profile settings: profile=%s round_wheel=%s",
+                config.touch_profile == SDL_TOUCH_PROFILE_ROUND_WHEEL
+                    ? "round-wheel" : "saved",
+                config.touch_round_movement_enabled ? "on" : "off");
+        }
+    }
 
     if (!config_exists) {
         sdl_apply_first_start_device_defaults(g_startup_device_class);

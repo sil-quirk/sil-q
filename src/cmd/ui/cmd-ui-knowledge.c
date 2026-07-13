@@ -246,7 +246,7 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry, bool confirm)
     object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
     strnfmt(quantity_prompt, sizeof(quantity_prompt), "Drop how many %s? ",
         o_name);
-    int actual_amt = get_quantity(quantity_prompt, max_amt);
+    int actual_amt = get_quantity_action(quantity_prompt, "Drop", max_amt);
     if (actual_amt <= 0)
         return false;
     if (confirm && !confirm_touch_drop_amount(o_ptr, actual_amt))
@@ -4536,7 +4536,8 @@ static bool equipment_menu_drop_entry(equipment_list_entry* entry, bool confirm)
         object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
         strnfmt(quantity_prompt, sizeof(quantity_prompt),
             "Drop how many %s? ", o_name);
-        actual_amt = get_quantity(quantity_prompt, o_ptr->number);
+        actual_amt = get_quantity_action(quantity_prompt, "Drop",
+            o_ptr->number);
 
         if (actual_amt <= 0)
             return false;

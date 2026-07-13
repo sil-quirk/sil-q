@@ -1308,8 +1308,9 @@ static void py_pickup_aux_internal(int o_idx, bool allow_channel)
                         "Your supply cache can only hold %d of %d. Pick up how many? (0-%d): ",
                         max_qty, o_ptr->number, max_qty);
                 
-                int qty = get_quantity_touch_category_force_prompt(prompt,
-                    max_qty, SDL_TOUCH_MENU_CATEGORY_SUPPLY);
+                int qty = get_quantity_touch_category_force_prompt_action(
+                    prompt, "Pick Up", max_qty,
+                    SDL_TOUCH_MENU_CATEGORY_SUPPLY);
                 
                 if (qty <= 0)
                 {

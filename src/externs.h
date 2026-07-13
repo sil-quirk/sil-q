@@ -745,6 +745,7 @@ extern void do_cmd_destroy(void);
 extern bool do_cmd_delete_item_by_index(int item);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
+extern cptr item_use_action_name(const object_type* o_ptr, int item);
 extern bool touch_shortcut_context_action(int binding, bool description_open,
     int* out_key, char* label, size_t label_len);
 extern void do_cmd_uninscribe(void);
@@ -1772,10 +1773,15 @@ extern bool askfor_name(char* buf, size_t len);
 extern bool term_get_string(cptr prompt, char* buf, size_t len);
 extern bool get_string_panel(cptr prompt, char* buf, size_t len);
 extern s16b get_quantity(cptr prompt, int max);
+extern s16b get_quantity_action(cptr prompt, cptr action, int max);
 extern s16b get_quantity_touch_category(cptr prompt, int max,
     int touch_category);
+extern s16b get_quantity_touch_category_action(cptr prompt, cptr action,
+    int max, int touch_category);
 extern s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
     int touch_category);
+extern s16b get_quantity_touch_category_force_prompt_action(cptr prompt,
+    cptr action, int max, int touch_category);
 extern bool get_check(cptr prompt);
 extern bool get_check_near(int y, int x, cptr prompt);
 extern bool get_check_oath_multiline(cptr prompt);
@@ -2000,6 +2006,9 @@ extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
 extern void free_quest_texts(cptr* texts, int count);
 extern void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color);
+extern void quest_typewriter_menu_pages(cptr title, cptr texts[],
+    int total_texts, byte title_color, byte text_color,
+    int target_page_count);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);

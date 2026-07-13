@@ -614,20 +614,7 @@ static char describe_item_with_comparisons_aux(int item_index,
         };
         char action_label[32];
         char prompt[96];
-        cptr action_name = "use";
-
-        if (base_obj->tval == TV_SKELETON
-            && !object_is_searched_skeleton(base_obj))
-        {
-            action_name = "search";
-        }
-        else if (base_obj->tval == TV_CHEST && base_obj->pval != 0)
-        {
-            action_name = (base_obj->pval > 0
-                    && object_chest_trap_flags(base_obj)
-                    && object_known_p(base_obj))
-                ? "disarm" : "open";
-        }
+        cptr action_name = item_use_action_name(base_obj, item_index);
 
         strnfmt(action_label, sizeof(action_label), "x %s", action_name);
         actions[0].token = action_label;

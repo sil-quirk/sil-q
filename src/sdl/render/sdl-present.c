@@ -95,8 +95,12 @@ void sdl_touch_pane_render(void)
         if (i == SDL_TOUCH_PANE_CENTER_SLOT
             && sdl_touch_pane_confirm_binding(binding))
         {
-            SDL_strlcpy(label, "Confirm", sizeof(label));
-            SDL_strlcpy(symbol, "(pick)", sizeof(symbol));
+            if (!label[0])
+                SDL_strlcpy(label, "Confirm", sizeof(label));
+            if (streq(label, "Confirm"))
+                SDL_strlcpy(symbol, "(pick)", sizeof(symbol));
+            else
+                symbol[0] = '\0';
         } else {
             sdl_touch_pane_binding_symbol(binding, symbol, sizeof(symbol));
             if (!config.touch_pane_key_labels_visible

@@ -291,12 +291,15 @@ static void object_choice_inspect(const object_choice_entry* entry)
 }
 
 static void object_choice_show(cptr title, cptr desc,
-    const object_choice_entry entries[], int count, int highlight)
+    const object_choice_entry entries[], int count, int highlight,
+    int* scroll_offset, bool scroll_follow_highlight)
 {
     char clean_title[80];
 
     object_choice_copy_title(clean_title, sizeof(clean_title), title);
     sdl_question_menu_begin(clean_title);
+    sdl_question_menu_set_scroll_offset_target(scroll_offset,
+        scroll_follow_highlight);
     if (desc && desc[0])
         sdl_question_menu_set_desc(desc);
 
@@ -319,6 +322,8 @@ bool object_choice_overlay(cptr title, cptr desc,
     bool success = false;
     bool steamdeck = steamdeck_controls_active();
     bool saved_hide_cursor = hide_cursor;
+    bool scroll_follow_highlight = true;
+    int scroll_offset = 0;
 
     if (out_entry)
         *out_entry = -1;
@@ -350,9 +355,12 @@ bool object_choice_overlay(cptr title, cptr desc,
         ui_menu_click_set_outside_cancel_enabled(true);
         ui_menu_click_set_touch_category(
             SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT);
-        object_choice_show(title, desc, entries, count, highlight);
+        object_choice_show(title, desc, entries, count, highlight,
+            &scroll_offset, scroll_follow_highlight);
 
         key = inkey();
+        if (sdl_question_menu_take_touch_scrolled())
+            scroll_follow_highlight = false;
 
         {
             int clicked_choice = 0;
@@ -429,6 +437,7 @@ bool object_choice_overlay(cptr title, cptr desc,
         case ARROW_UP:
 #endif
             highlight = (highlight + count - 1) % count;
+            scroll_follow_highlight = true;
             break;
 
         case '2':
@@ -438,6 +447,7 @@ bool object_choice_overlay(cptr title, cptr desc,
         case ARROW_DOWN:
 #endif
             highlight = (highlight + 1) % count;
+            scroll_follow_highlight = true;
             break;
 
         case '4':
@@ -462,6 +472,7 @@ bool object_choice_overlay(cptr title, cptr desc,
                     continue;
 
                 highlight = i;
+                scroll_follow_highlight = true;
                 *out_entry = i;
                 success = true;
                 done = true;

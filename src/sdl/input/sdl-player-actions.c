@@ -409,6 +409,30 @@ static bool sdl_player_has_adjacent_closed_door(void)
     return sdl_player_adjacent_feat(sdl_player_door_is_closed);
 }
 
+static cptr sdl_player_floor_use_action_name(void)
+{
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+
+    if (!p_ptr)
+        return "Use";
+
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px,
+        0x00);
+    for (int i = 0; i < floor_num; i++) {
+        int o_idx = floor_list[i];
+        const object_type* o_ptr;
+
+        if (o_idx <= 0 || o_idx >= o_max)
+            continue;
+        o_ptr = &o_list[o_idx];
+        if (o_ptr->k_idx && !object_is_searched_skeleton(o_ptr))
+            return item_use_action_name(o_ptr, 0 - o_idx);
+    }
+
+    return "Use";
+}
+
 int sdl_player_action_menu_collect(player_action_menu_entry* entries)
 {
     int count = 0;
@@ -416,7 +440,7 @@ int sdl_player_action_menu_collect(player_action_menu_entry* entries)
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_WAIT,
         'z', "Wait");
     sdl_player_action_menu_add_entry(entries, &count, SDL_PLAYER_ACTION_USE,
-        'u', "Use");
+        'u', sdl_player_floor_use_action_name());
     if (sdl_player_can_ready_weapon_entry()) {
         sdl_player_action_menu_add_entry(entries, &count,
             SDL_PLAYER_ACTION_SHOOT, '\t',

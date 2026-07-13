@@ -505,7 +505,10 @@ static void show_thrall_dialog(monster_type* m_ptr, const char* fmt_text)
         title_color = TERM_YELLOW;
     }
 
-    quest_typewriter_menu(title, texts, 1, title_color, TERM_WHITE);
+    /* This is one short conversation, not a multi-page quest chronicle.  Keep
+     * its paragraph spacing, but fit the request onto one coherent book page
+     * instead of distributing individual sentences across three pages. */
+    quest_typewriter_menu_pages(title, texts, 1, title_color, TERM_WHITE, 1);
 }
 
 #define THRALL_TEXT_VARIANTS 6

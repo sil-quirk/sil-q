@@ -744,7 +744,13 @@ bool sdl_pointer_attack_handle_touch_up(float x, float y,
     manual = sdl_pointer_attack_manual_modifier_active();
 
     if (repeat_target) {
-        (void)sdl_pointer_attack_queue_target(mode, manual, map_y, map_x);
+        if (sdl_pointer_attack_queue_target(mode, manual, map_y, map_x)) {
+            /* The second tap commits the highlighted target.  Do not leave
+             * either half of the touch preview latched while the resulting
+             * command is processed. */
+            sdl_pointer_attack_clear_touch_selection();
+            sdl_pointer_attack_clear_hover();
+        }
         return true;
     }
 
@@ -1770,7 +1776,12 @@ bool sdl_pointer_aim_handle_touch_up(float x, float y,
     {
         if (repeat_target)
         {
-            (void)sdl_pointer_aim_queue_grid(map_y, map_x);
+            if (sdl_pointer_aim_queue_grid(map_y, map_x)) {
+                /* Match touch attack targeting: once the second tap commits
+                 * the direction, the preview square has served its purpose. */
+                sdl_pointer_aim_clear_touch_selection();
+                sdl_pointer_aim_clear_hover();
+            }
         }
         else if (sdl_pointer_aim_resolve_grid(map_y, map_x, NULL, NULL))
         {

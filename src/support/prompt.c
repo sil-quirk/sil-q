@@ -566,8 +566,8 @@ bool get_string_panel(cptr prompt, char* buf, size_t len)
  * message rows).  The +/- rows adjust the count without closing; digits
  * and 8/2 still edit it from the keyboard.
  */
-static void quantity_prompt_draw(cptr prompt, int current, int max,
-    int touch_category)
+static void quantity_prompt_draw(cptr prompt, cptr action, int current,
+    int max, int touch_category)
 {
     char line[80];
 
@@ -578,7 +578,8 @@ static void quantity_prompt_draw(cptr prompt, int current, int max,
 
     sdl_question_menu_begin(prompt);
 
-    strnfmt(line, sizeof(line), "Take %d", current);
+    strnfmt(line, sizeof(line), "%s %d",
+        (action && action[0]) ? action : "Take", current);
     sdl_question_menu_add_entry(QUANTITY_CLICK_CONFIRM, "", line,
         TERM_L_BLUE);
     sdl_question_menu_add_entry(QUANTITY_CLICK_INCREASE, "+)", "More",
@@ -599,8 +600,8 @@ static void quantity_prompt_draw(cptr prompt, int current, int max,
     Term_fresh();
 }
 
-static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
-    bool force_prompt)
+static s16b get_quantity_aux(cptr prompt, cptr action, int max,
+    int touch_category, bool force_prompt)
 {
     int amt = (max > 0) ? max : 1;
 
@@ -647,7 +648,8 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
 
         while (!done)
         {
-            quantity_prompt_draw(prompt, current, max, touch_category);
+            quantity_prompt_draw(prompt, action, current, max,
+                touch_category);
 
             ch = inkey();
 
@@ -681,7 +683,7 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
                         current = 0;
                         entry_len = 0;
                         entry_buf[0] = '\0';
-                        ch = '\r';
+                        ch = UI_MENU_CLICK_WAKE_KEY;
                         break;
                     case QUANTITY_CLICK_CANCEL:
                         ch = ESCAPE;
@@ -863,18 +865,37 @@ static s16b get_quantity_aux(cptr prompt, int max, int touch_category,
 
 s16b get_quantity(cptr prompt, int max)
 {
-    return get_quantity_aux(prompt, max, SDL_TOUCH_MENU_CATEGORY_OTHER, false);
+    return get_quantity_aux(prompt, "Take", max,
+        SDL_TOUCH_MENU_CATEGORY_OTHER, false);
+}
+
+s16b get_quantity_action(cptr prompt, cptr action, int max)
+{
+    return get_quantity_aux(prompt, action, max,
+        SDL_TOUCH_MENU_CATEGORY_OTHER, false);
 }
 
 s16b get_quantity_touch_category(cptr prompt, int max, int touch_category)
 {
-    return get_quantity_aux(prompt, max, touch_category, false);
+    return get_quantity_aux(prompt, "Take", max, touch_category, false);
+}
+
+s16b get_quantity_touch_category_action(cptr prompt, cptr action, int max,
+    int touch_category)
+{
+    return get_quantity_aux(prompt, action, max, touch_category, false);
 }
 
 s16b get_quantity_touch_category_force_prompt(cptr prompt, int max,
     int touch_category)
 {
-    return get_quantity_aux(prompt, max, touch_category, true);
+    return get_quantity_aux(prompt, "Take", max, touch_category, true);
+}
+
+s16b get_quantity_touch_category_force_prompt_action(cptr prompt, cptr action,
+    int max, int touch_category)
+{
+    return get_quantity_aux(prompt, action, max, touch_category, true);
 }
 
 /*

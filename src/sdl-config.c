@@ -2571,6 +2571,24 @@ static cJSON* sdl_config_create_int_array(const int* src, int count)
     return array;
 }
 
+static cJSON* sdl_config_create_string_array(
+    const char src[][SDL_TOUCH_PANE_LABEL_LEN], int count)
+{
+    cJSON* array;
+
+    if (!src || count <= 0)
+        return NULL;
+
+    array = cJSON_CreateArray();
+    if (!array)
+        return NULL;
+
+    for (int i = 0; i < count; i++)
+        cJSON_AddItemToArray(array, cJSON_CreateString(src[i]));
+
+    return array;
+}
+
 static void sdl_config_clear_gamepad_combo_bindings(struct sdl_config* config)
 {
     if (!config)
@@ -2966,12 +2984,15 @@ static cJSON* sdl_config_create_panes_array(const struct pane_config* pane_confi
 
 enum sdl_config_load_status sdl_config_load(const char* filename,
     struct sdl_config* config, struct sdl_pane_profile* pane_profiles,
-    int profile_count)
+    int profile_count, struct sdl_config_load_info* load_info)
 {
     struct pane_config legacy_panes[MAX_PANE_CONFIGS] = { 0 };
     int legacy_pane_count = 0;
     bool saw_enable_bottom_panes = false;
     bool saw_left_panel_expanded_on_launch = false;
+
+    if (load_info)
+        memset(load_info, 0, sizeof(*load_info));
 
     /* Loaders overlay JSON onto defaults so old configs inherit new settings. */
     sdl_config_set_defaults(config);
@@ -3751,11 +3772,15 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                     "swipeBindings");
 
                 if (cJSON_IsString(profile) && profile->valuestring) {
+                    if (load_info)
+                        load_info->touch_profile_present = true;
                     config->touch_profile =
                         parse_touch_profile(profile->valuestring);
                     log_debug("Loaded touchControl.profile: %s",
                         touch_profile_to_string(config->touch_profile));
                 } else if (cJSON_IsNumber(profile)) {
+                    if (load_info)
+                        load_info->touch_profile_present = true;
                     config->touch_profile =
                         normalize_touch_profile(profile->valueint);
                     log_debug("Loaded numeric touchControl.profile: %s",
@@ -3816,6 +3841,8 @@ enum sdl_config_load_status sdl_config_load(const char* filename,
                 }
 
                 if (cJSON_IsBool(round_movement)) {
+                    if (load_info)
+                        load_info->touch_round_movement_present = true;
                     config->touch_round_movement_enabled =
                         cJSON_IsTrue(round_movement);
                     log_debug("Loaded touchControl.roundMovementLayerEnabled: %s",
@@ -4323,10 +4350,59 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         }
     }
 
-    /* Persist touch overlay settings edited from the interface page. */
+    /* Persist the complete touch-panel configuration.  The loader overlays
+     * these values onto defaults, so every user-editable field must be written
+     * here or a normal shutdown silently resets it on the next launch. */
+    {
+        cJSON* touch_pane = cJSON_CreateObject();
+        if (touch_pane) {
+            cJSON* bindings = sdl_config_create_int_array(
+                config->touch_pane_bindings, SDL_TOUCH_PANE_BUTTON_COUNT);
+            cJSON* labels = sdl_config_create_string_array(
+                config->touch_pane_labels, SDL_TOUCH_PANE_BUTTON_COUNT);
+            cJSON* second_bindings = sdl_config_create_int_array(
+                config->touch_pane_second_bindings,
+                SDL_TOUCH_PANE_BUTTON_COUNT);
+            cJSON* second_labels = sdl_config_create_string_array(
+                config->touch_pane_second_labels,
+                SDL_TOUCH_PANE_BUTTON_COUNT);
+            cJSON* panel_names = sdl_config_create_string_array(
+                config->touch_pane_panel_names, SDL_TOUCH_PANE_PANEL_COUNT);
+
+            if (bindings)
+                cJSON_AddItemToObject(touch_pane, "bindings", bindings);
+            if (labels)
+                cJSON_AddItemToObject(touch_pane, "labels", labels);
+            if (second_bindings) {
+                cJSON_AddItemToObject(touch_pane, "secondBindings",
+                    second_bindings);
+            }
+            if (second_labels) {
+                cJSON_AddItemToObject(touch_pane, "secondLabels",
+                    second_labels);
+            }
+            if (panel_names)
+                cJSON_AddItemToObject(touch_pane, "panelNames", panel_names);
+            cJSON_AddBoolToObject(touch_pane, "showKeyLabels",
+                config->touch_pane_key_labels_visible);
+            cJSON_AddBoolToObject(touch_pane, "inventoryEquipmentCycle",
+                config->touch_pane_inventory_equipment_cycle);
+            cJSON_AddItemToObject(root, "touchPane", touch_pane);
+        }
+    }
+
+    /* Persist the complete touch-control configuration.  In particular,
+     * profile and roundMovementLayerEnabled form the round-wheel invariant;
+     * omitting either made the mobile default disappear after restart. */
     {
         cJSON* touch_control = cJSON_CreateObject();
         if (touch_control) {
+            cJSON* center_bindings = sdl_config_create_int_array(
+                config->touch_zone_center_bindings,
+                SDL_TOUCH_ZONE_CENTER_BINDING_COUNT);
+            cJSON* corner_action_bindings = sdl_config_create_int_array(
+                config->touch_corner_action_bindings,
+                SDL_TOUCH_CORNER_ACTION_BINDING_COUNT);
             cJSON* top_panel_bindings = sdl_config_create_int_array(
                 config->touch_top_panel_bindings,
                 SDL_TOUCH_TOP_PANEL_BUTTON_COUNT);
@@ -4337,7 +4413,40 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
                 config->touch_thumb_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
             cJSON* thumb_long_bindings = sdl_config_create_int_array(
                 config->touch_thumb_long_bindings, SDL_TOUCH_THUMB_BUTTON_COUNT);
+            cJSON* swipe_bindings = sdl_config_create_int_array(
+                config->touch_swipe_bindings, TOUCH_SWIPE_DIR_COUNT);
 
+            cJSON_AddStringToObject(touch_control, "profile",
+                touch_profile_to_string(config->touch_profile));
+            cJSON_AddBoolToObject(touch_control, "touchPaneDefaultOpen",
+                config->touch_pane_default_open);
+            cJSON_AddBoolToObject(touch_control,
+                "inventoryEquipmentMenuCommandsEnabled",
+                config->touch_menu_command_enabled[
+                    SDL_TOUCH_MENU_CATEGORY_INVENTORY_EQUIPMENT]);
+            cJSON_AddBoolToObject(touch_control,
+                "supplyMenuCommandsEnabled",
+                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_SUPPLY]);
+            cJSON_AddBoolToObject(touch_control, "otherMenuCommandsEnabled",
+                config->touch_menu_command_enabled[SDL_TOUCH_MENU_CATEGORY_OTHER]);
+            cJSON_AddStringToObject(touch_control, "movementMode",
+                touch_movement_mode_to_string(config->touch_movement_mode));
+            cJSON_AddBoolToObject(touch_control, "roundMovementLayerEnabled",
+                config->touch_round_movement_enabled);
+            cJSON_AddStringToObject(touch_control, "cornerButtonOverlayMode",
+                touch_zone_overlay_mode_to_string(
+                    config->touch_zone_overlay_mode));
+            if (center_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "cornerButtonCenterBindings", center_bindings);
+            }
+            cJSON_AddStringToObject(touch_control, "cornerButtonUpDownSide",
+                touch_corner_up_down_side_to_string(
+                    config->touch_corner_up_down_side));
+            if (corner_action_bindings) {
+                cJSON_AddItemToObject(touch_control,
+                    "cornerButtonActionBindings", corner_action_bindings);
+            }
             cJSON_AddBoolToObject(touch_control, "topPanelDefaultOpen",
                 config->touch_top_panel_default_open);
             cJSON_AddBoolToObject(touch_control, "topPanelSecondRow",
@@ -4360,6 +4469,11 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
             if (thumb_long_bindings)
                 cJSON_AddItemToObject(touch_control, "thumbButtonLongBindings",
                     thumb_long_bindings);
+            cJSON_AddBoolToObject(touch_control, "swipeEnabled",
+                config->touch_swipe_enabled);
+            if (swipe_bindings)
+                cJSON_AddItemToObject(touch_control, "swipeBindings",
+                    swipe_bindings);
             cJSON_AddItemToObject(root, "touchControl", touch_control);
         }
     }

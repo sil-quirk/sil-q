@@ -138,7 +138,8 @@ static void quest_book_add_line(cptr line, size_t line_len, char *para,
  * Returns false when the book cannot be shown (no SDL screen), so the caller can
  * fall back to the terminal typewriter below.
  */
-static bool quest_show_book(cptr title, cptr texts[], int total_texts)
+static bool quest_show_book(cptr title, cptr texts[], int total_texts,
+    int target_page_count)
 {
     char para[1024];
     size_t para_len = 0;
@@ -154,12 +155,13 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
         screen_load();
         return false;
     }
-    sdl_character_sheet_screen_set_book_target_page_count(
-        sdl_touch_only_device_active() ? 4 : 3);
+    if (target_page_count < 0)
+        target_page_count = sdl_touch_only_device_active() ? 4 : 3;
+    sdl_character_sheet_screen_set_book_target_page_count(target_page_count);
 
     /* Build paragraphs from both line-array and embedded-newline input.  Thrall
-     * dialogue uses the latter; treating that whole speech as one indivisible
-     * paragraph prevents the paginator from moving its tail to a later page. */
+     * dialogue uses the latter, so its blank lines remain real paragraph
+     * breaks even when it requests a compact one-page layout. */
     para[0] = '\0';
     for (idx = 0; idx < total_texts; idx++)
     {
@@ -273,7 +275,8 @@ static bool quest_show_book(cptr title, cptr texts[], int total_texts)
  * Quest typewriter menu function - displays quest dialog with typewriter effect
  * Based on print_story_intro() style
  */
-void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
+static void quest_typewriter_menu_internal(cptr title, cptr texts[],
+    int total_texts, byte title_color, byte text_color, int target_page_count)
 {
     int wid, h;
     int wrap_width;
@@ -283,7 +286,7 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
 
     /* Prefer the parchment book (SDL front-end) with page-turn navigation; fall
      * back to the terminal typewriter when it is unavailable. */
-    if (quest_show_book(title, texts, total_texts))
+    if (quest_show_book(title, texts, total_texts, target_page_count))
         return;
 
     /* Save screen and start fresh */
@@ -483,6 +486,20 @@ void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title
     Term_clear();
     screen_pop_supporting_panes_hidden();
     screen_load();
+}
+
+void quest_typewriter_menu(cptr title, cptr texts[], int total_texts,
+    byte title_color, byte text_color)
+{
+    quest_typewriter_menu_internal(title, texts, total_texts, title_color,
+        text_color, -1);
+}
+
+void quest_typewriter_menu_pages(cptr title, cptr texts[], int total_texts,
+    byte title_color, byte text_color, int target_page_count)
+{
+    quest_typewriter_menu_internal(title, texts, total_texts, title_color,
+        text_color, MAX(0, target_page_count));
 }
 
 /*
